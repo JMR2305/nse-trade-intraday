@@ -180,6 +180,48 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /opportunity-scan:
+    get:
+      operationId: getOpportunityScan
+      tags: [trading]
+      summary: Get ranked opportunity scan
+      description: Returns all watchlist stocks ranked by opportunity score
+      responses:
+        "200":
+          description: Ranked opportunity list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OpportunityItem"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /market-context:
+    get:
+      operationId: getMarketContext
+      tags: [trading]
+      summary: Get market context
+      description: Returns synthesised market score, bias, and sector strength
+      responses:
+        "200":
+          description: Market context
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketContext"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /ai-decisions:
     get:
       operationId: getAiDecisions
@@ -453,6 +495,181 @@ components:
         - total
         - timestamp
         - reason
+
+    TradeQuality:
+      type: object
+      properties:
+        trend_score:    { type: number }
+        momentum_score: { type: number }
+        volume_score:   { type: number }
+        breakout_score: { type: number }
+        risk_score:     { type: number }
+        market_score:   { type: number }
+        total_score:    { type: number }
+        grade:          { type: string }
+      required:
+        - trend_score
+        - momentum_score
+        - volume_score
+        - breakout_score
+        - risk_score
+        - market_score
+        - total_score
+        - grade
+
+    PositionSizing:
+      type: object
+      properties:
+        capital:                 { type: number }
+        available_cash:          { type: number }
+        max_risk_amount:         { type: number }
+        stop_distance:           { type: number }
+        stop_distance_pct:       { type: number }
+        suggested_quantity:      { type: integer }
+        position_value:          { type: number }
+        expected_profit:         { type: number }
+        max_loss:                { type: number }
+        rr_ratio:                { type: number }
+        capital_utilization_pct: { type: number }
+        feasible:                { type: boolean }
+        sizing_note:             { type: string }
+      required:
+        - capital
+        - available_cash
+        - max_risk_amount
+        - stop_distance
+        - stop_distance_pct
+        - suggested_quantity
+        - position_value
+        - expected_profit
+        - max_loss
+        - rr_ratio
+        - capital_utilization_pct
+        - feasible
+        - sizing_note
+
+    ExplainabilityReport:
+      type: object
+      properties:
+        approve_reasons:  { type: array, items: { type: string } }
+        avoid_reasons:    { type: array, items: { type: string } }
+        recommendation:   { type: string }
+        final_confidence: { type: number }
+        summary:          { type: string }
+        one_liner:        { type: string }
+      required:
+        - approve_reasons
+        - avoid_reasons
+        - recommendation
+        - final_confidence
+        - summary
+        - one_liner
+
+    OpportunityItem:
+      type: object
+      properties:
+        rank:              { type: integer }
+        stock:             { type: string }
+        opportunity_score: { type: number }
+        confidence:        { type: number }
+        expected_risk:     { type: number }
+        expected_reward:   { type: number }
+        rr_ratio:          { type: number }
+        status:
+          type: string
+          enum: [HOT_BUY, BUY, WATCH, IGNORE]
+        entry_price:      { type: number }
+        stop_loss:        { type: number }
+        target:           { type: number }
+        trade_quality:    { type: number }
+        tq_grade:         { type: string }
+        tq_trend:         { type: number }
+        tq_momentum:      { type: number }
+        tq_volume:        { type: number }
+        tq_breakout:      { type: number }
+        tq_risk:          { type: number }
+        tq_market:        { type: number }
+        suggested_qty:    { type: integer }
+        position_value:   { type: number }
+        capital_used_pct: { type: number }
+        sizing_note:      { type: string }
+        feasible:         { type: boolean }
+        approve_reasons:  { type: array, items: { type: string } }
+        avoid_reasons:    { type: array, items: { type: string } }
+        one_liner:        { type: string }
+        summary:          { type: string }
+        regime:           { type: string }
+        ai_decision:      { type: string }
+        raw_signal:       { type: string }
+      required:
+        - rank
+        - stock
+        - opportunity_score
+        - confidence
+        - expected_risk
+        - expected_reward
+        - rr_ratio
+        - status
+        - entry_price
+        - stop_loss
+        - target
+        - trade_quality
+        - tq_grade
+        - tq_trend
+        - tq_momentum
+        - tq_volume
+        - tq_breakout
+        - tq_risk
+        - tq_market
+        - suggested_qty
+        - position_value
+        - capital_used_pct
+        - sizing_note
+        - feasible
+        - approve_reasons
+        - avoid_reasons
+        - one_liner
+        - summary
+        - regime
+        - ai_decision
+        - raw_signal
+
+    MarketContext:
+      type: object
+      properties:
+        score:               { type: number }
+        bias:                { type: string, enum: [BULLISH, BEARISH, NEUTRAL] }
+        confidence_modifier: { type: number }
+        nifty_price:         { type: number }
+        nifty_trend:         { type: string }
+        nifty_change_pct:    { type: number }
+        banknifty_price:     { type: number }
+        banknifty_trend:     { type: string }
+        banknifty_change_pct: { type: number }
+        vix:                 { type: number }
+        vix_category:        { type: string, enum: [LOW, NORMAL, HIGH, EXTREME] }
+        market_breadth:      { type: number }
+        breadth_label:       { type: string }
+        sector_strength:     { type: object, additionalProperties: { type: number } }
+        regime:              { type: string }
+        computed_at:         { type: string }
+      required:
+        - score
+        - bias
+        - confidence_modifier
+        - nifty_price
+        - nifty_trend
+        - nifty_change_pct
+        - banknifty_price
+        - banknifty_trend
+        - banknifty_change_pct
+        - vix
+        - vix_category
+        - market_breadth
+        - breadth_label
+        - sector_strength
+        - regime
+        - computed_at
 
     AiDecision:
       type: object

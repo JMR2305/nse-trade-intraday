@@ -137,6 +137,26 @@ router.post("/portfolio/reset", async (_req, res) => {
   }
 });
 
+// GET /api/opportunity-scan
+router.get("/opportunity-scan", async (_req, res) => {
+  try {
+    const data = await runPython(["opportunity_scan"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/market-context
+router.get("/market-context", async (_req, res) => {
+  try {
+    const data = await runPython(["market_context"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/ai-decisions
 router.get("/ai-decisions", async (_req, res) => {
   try {

@@ -1,7 +1,9 @@
 import { useState } from "react";
 import {
+  useGetOpportunityScan,
   useGetAiDecisions,
   useRunScan,
+  type OpportunityItem,
   type AiDecision,
 } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
@@ -10,86 +12,105 @@ import {
   ChevronDown,
   ChevronRight,
   RefreshCw,
-  ShieldCheck,
-  ShieldX,
-  ArrowUpCircle,
-  ArrowDownCircle,
-  AlertTriangle,
+  Flame,
+  TrendingUp,
+  Eye,
   MinusCircle,
   CheckCircle2,
   XCircle,
+  AlertTriangle,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  ShieldCheck,
+  ShieldX,
+  Coins,
+  BarChart2,
+  Activity,
+  Zap,
 } from "lucide-react";
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+// ── Status helpers ─────────────────────────────────────────────────────────────
 
-const DECISION_META: Record<
-  string,
-  { label: string; color: string; bg: string; border: string }
-> = {
-  STRONG_BUY:  { label: "STRONG BUY",  color: "text-emerald-400", bg: "bg-emerald-400/10", border: "border-emerald-500/40" },
-  BUY:         { label: "BUY",         color: "text-green-400",   bg: "bg-green-400/10",   border: "border-green-500/40"   },
-  STRONG_SELL: { label: "STRONG SELL", color: "text-red-400",     bg: "bg-red-400/10",     border: "border-red-500/40"     },
-  SELL:        { label: "SELL",        color: "text-orange-400",  bg: "bg-orange-400/10",  border: "border-orange-500/40"  },
-  WATCH:       { label: "WATCH",       color: "text-yellow-400",  bg: "bg-yellow-400/10",  border: "border-yellow-500/40"  },
-  NO_TRADE:    { label: "NO TRADE",    color: "text-zinc-500",    bg: "bg-zinc-800/50",    border: "border-zinc-700"       },
+const STATUS_META: Record<string, { label: string; color: string; bg: string; border: string; icon: React.ComponentType<{ className?: string }> }> = {
+  HOT_BUY: { label: "HOT BUY", color: "text-orange-300", bg: "bg-orange-500/10", border: "border-orange-500/40", icon: Flame },
+  BUY:     { label: "BUY",     color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/40", icon: TrendingUp },
+  WATCH:   { label: "WATCH",   color: "text-yellow-400",  bg: "bg-yellow-500/10",  border: "border-yellow-500/40",  icon: Eye },
+  IGNORE:  { label: "IGNORE",  color: "text-zinc-500",    bg: "bg-zinc-800/40",    border: "border-zinc-700",       icon: MinusCircle },
 };
 
-function DecisionBadge({ decision }: { decision: string }) {
-  const m = DECISION_META[decision] ?? DECISION_META.NO_TRADE;
+const DECISION_META: Record<string, { color: string; bg: string }> = {
+  STRONG_BUY:  { color: "text-emerald-400", bg: "bg-emerald-400/10" },
+  BUY:         { color: "text-green-400",   bg: "bg-green-400/10"   },
+  STRONG_SELL: { color: "text-red-400",     bg: "bg-red-400/10"     },
+  SELL:        { color: "text-orange-400",  bg: "bg-orange-400/10"  },
+  WATCH:       { color: "text-yellow-400",  bg: "bg-yellow-400/10"  },
+  NO_TRADE:    { color: "text-zinc-500",    bg: "bg-zinc-800/50"    },
+};
+
+// ── Mini components ────────────────────────────────────────────────────────────
+
+function StatusBadge({ status }: { status: string }) {
+  const m = STATUS_META[status] ?? STATUS_META.IGNORE;
+  const Icon = m.icon;
   return (
-    <span
-      className={`font-mono text-xs font-bold px-2 py-0.5 rounded border ${m.color} ${m.bg} ${m.border}`}
-    >
+    <span className={`inline-flex items-center gap-1 font-mono text-xs font-bold px-2 py-0.5 rounded border ${m.color} ${m.bg} ${m.border}`}>
+      <Icon className="h-3 w-3" />
       {m.label}
     </span>
   );
 }
 
-function RawBadge({ signal }: { signal: string }) {
-  const m = DECISION_META[signal] ?? DECISION_META.NO_TRADE;
+function DecisionChip({ decision }: { decision: string }) {
+  const m = DECISION_META[decision] ?? DECISION_META.NO_TRADE;
   return (
     <span className={`font-mono text-xs px-1.5 py-0.5 rounded ${m.color} ${m.bg}`}>
-      {signal.replace("_", " ")}
+      {decision.replace("_", " ")}
     </span>
   );
 }
 
-function RRBar({ rr }: { rr: number }) {
-  const pct = Math.min(rr / 4, 1) * 100;
-  const color = rr >= 3 ? "bg-emerald-500" : rr >= 2 ? "bg-green-500" : "bg-red-500";
+function ScoreRing({ value, size = 44 }: { value: number; size?: number }) {
+  const r = size / 2 - 4;
+  const circ = 2 * Math.PI * r;
+  const filled = (value / 100) * circ;
+  const color = value >= 75 ? "#10b981" : value >= 55 ? "#eab308" : "#ef4444";
+  return (
+    <svg width={size} height={size} className="shrink-0">
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#27272a" strokeWidth={4} />
+      <circle
+        cx={size / 2} cy={size / 2} r={r}
+        fill="none" stroke={color} strokeWidth={4}
+        strokeDasharray={`${filled} ${circ - filled}`}
+        strokeLinecap="round"
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+      />
+      <text x={size / 2} y={size / 2 + 4} textAnchor="middle" fill={color} fontSize={10} fontFamily="monospace" fontWeight="bold">
+        {value.toFixed(0)}
+      </text>
+    </svg>
+  );
+}
+
+function MiniBar({ label, value, color = "" }: { label: string; value: number; color?: string }) {
+  const barColor = color || (value >= 75 ? "bg-emerald-500" : value >= 55 ? "bg-yellow-500" : "bg-red-500");
+  return (
+    <div className="space-y-0.5">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-mono text-muted-foreground">{label}</span>
+        <span className="text-xs font-mono text-foreground/80">{value.toFixed(0)}</span>
+      </div>
+      <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+        <div className={`h-full rounded-full ${barColor} transition-all`} style={{ width: `${value}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function OppScoreBar({ value }: { value: number }) {
+  const color = value >= 85 ? "bg-orange-400" : value >= 70 ? "bg-emerald-500" : value >= 50 ? "bg-yellow-500" : "bg-zinc-600";
   return (
     <div className="flex items-center gap-2">
       <div className="w-16 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
-      </div>
-      <span className="font-mono text-xs text-foreground/70">{rr.toFixed(1)}:1</span>
-    </div>
-  );
-}
-
-function TFDots({ count }: { count: number }) {
-  return (
-    <div className="flex gap-1">
-      {[0, 1, 2, 3].map((i) => (
-        <div
-          key={i}
-          className={`w-2 h-2 rounded-full ${
-            i < count ? "bg-primary" : "bg-zinc-700"
-          }`}
-        />
-      ))}
-    </div>
-  );
-}
-
-function ConfidenceBar({ value }: { value: number }) {
-  const color =
-    value >= 90 ? "bg-emerald-500" :
-    value >= 75 ? "bg-green-500" :
-    value >= 60 ? "bg-yellow-500" : "bg-red-500";
-  return (
-    <div className="flex items-center gap-2">
-      <div className="w-20 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${value}%` }} />
       </div>
       <span className="font-mono text-xs text-foreground/70">{value.toFixed(0)}</span>
@@ -97,92 +118,171 @@ function ConfidenceBar({ value }: { value: number }) {
   );
 }
 
-// ── Expanded Detail Row ────────────────────────────────────────────────────────
-
-function DecisionDetail({ d }: { d: AiDecision }) {
+function GradeBadge({ grade }: { grade: string }) {
+  const colors: Record<string, string> = {
+    "A+": "text-emerald-300 bg-emerald-500/20 border-emerald-500/40",
+    "A":  "text-green-400 bg-green-500/15 border-green-500/30",
+    "B":  "text-blue-400 bg-blue-500/10 border-blue-500/30",
+    "C":  "text-yellow-400 bg-yellow-500/10 border-yellow-500/30",
+    "D":  "text-orange-400 bg-orange-500/10 border-orange-500/30",
+    "F":  "text-red-400 bg-red-500/10 border-red-500/30",
+  };
   return (
-    <div className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-4 space-y-4">
-      {/* Plain English */}
-      <div className="flex gap-3">
-        <Brain className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-        <p className="text-sm text-foreground/80 leading-relaxed">{d.plain_english}</p>
-      </div>
+    <span className={`font-mono text-xs font-bold px-1.5 py-0.5 rounded border ${colors[grade] ?? colors["F"]}`}>
+      {grade}
+    </span>
+  );
+}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Upgrade reasons */}
-        {d.upgrade_reasons.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-1.5 text-xs font-mono text-emerald-400 uppercase tracking-wide">
-              <ArrowUpCircle className="h-3.5 w-3.5" />
-              Upgrades ({d.upgrade_reasons.length})
-            </div>
-            {d.upgrade_reasons.map((r: string, i: number) => (
-              <div key={i} className="flex gap-2 text-sm text-foreground/70">
-                <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
-                <span>{r}</span>
+// ── Expanded detail panel ──────────────────────────────────────────────────────
+
+function OpportunityDetail({
+  item,
+  aiDec,
+}: {
+  item: OpportunityItem;
+  aiDec: AiDecision | undefined;
+}) {
+  return (
+    <div className="bg-zinc-900/70 border border-zinc-800 rounded-lg p-4 space-y-5">
+      {/* One-liner */}
+      {item.one_liner && (
+        <div className="flex gap-2">
+          <Zap className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+          <p className="text-sm text-foreground/85 leading-relaxed font-mono">{item.one_liner}</p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        {/* ── Trade Quality sub-scores ── */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-1.5 mb-2">
+            <Activity className="h-3.5 w-3.5 text-primary" />
+            <span className="text-xs font-mono text-primary/80 uppercase tracking-wider">Trade Quality</span>
+            <GradeBadge grade={item.tq_grade} />
+          </div>
+          <MiniBar label="Trend"    value={item.tq_trend}    />
+          <MiniBar label="Momentum" value={item.tq_momentum} />
+          <MiniBar label="Volume"   value={item.tq_volume}   />
+          <MiniBar label="Breakout" value={item.tq_breakout} />
+          <MiniBar label="Risk"     value={item.tq_risk}     />
+          <MiniBar label="Market"   value={item.tq_market}   />
+          <div className="pt-1 border-t border-zinc-800">
+            <MiniBar label="Total" value={item.trade_quality} color={
+              item.trade_quality >= 75 ? "bg-emerald-400" : item.trade_quality >= 55 ? "bg-yellow-400" : "bg-red-400"
+            } />
+          </div>
+        </div>
+
+        {/* ── Position Sizing ── */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-1.5 mb-2">
+            <Coins className="h-3.5 w-3.5 text-primary" />
+            <span className="text-xs font-mono text-primary/80 uppercase tracking-wider">Position Sizing</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { label: "Quantity",    value: item.suggested_qty > 0 ? `${item.suggested_qty} shares` : "—" },
+              { label: "Position",   value: item.position_value > 0 ? formatCurrency(item.position_value) : "—" },
+              { label: "Max Loss",   value: item.expected_risk > 0  ? formatCurrency(item.expected_risk)  : "—", red: true },
+              { label: "Est. Profit",value: item.expected_reward > 0 ? formatCurrency(item.expected_reward): "—", green: true },
+              { label: "RR Ratio",   value: `1:${item.rr_ratio.toFixed(1)}` },
+              { label: "Capital Use",value: item.capital_used_pct > 0 ? `${item.capital_used_pct.toFixed(1)}%` : "—" },
+            ].map(({ label, value, red, green }) => (
+              <div key={label} className="bg-zinc-800/50 rounded-md p-2">
+                <div className="text-xs text-muted-foreground font-mono mb-0.5">{label}</div>
+                <div className={`text-sm font-mono font-bold ${red ? "text-red-400" : green ? "text-emerald-400" : "text-foreground"}`}>
+                  {value}
+                </div>
               </div>
             ))}
           </div>
-        )}
 
-        {/* Downgrade reasons */}
-        {d.downgrade_reasons.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-1.5 text-xs font-mono text-red-400 uppercase tracking-wide">
-              <ArrowDownCircle className="h-3.5 w-3.5" />
-              Downgrades ({d.downgrade_reasons.length})
-            </div>
-            {d.downgrade_reasons.map((r: string, i: number) => (
-              <div key={i} className="flex gap-2 text-sm text-foreground/70">
-                <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-                <span>{r}</span>
-              </div>
-            ))}
+          {item.sizing_note && (
+            <p className="text-xs text-muted-foreground/70 font-mono bg-zinc-800/40 rounded p-2 leading-relaxed">
+              {item.sizing_note}
+            </p>
+          )}
+        </div>
+
+        {/* ── Explainability ── */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-1.5 mb-2">
+            <Brain className="h-3.5 w-3.5 text-primary" />
+            <span className="text-xs font-mono text-primary/80 uppercase tracking-wider">Explainability</span>
           </div>
-        )}
+
+          {item.approve_reasons.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1 text-xs font-mono text-emerald-400 uppercase tracking-wide">
+                <ArrowUpCircle className="h-3 w-3" /> Approve
+              </div>
+              {item.approve_reasons.map((r, i) => (
+                <div key={i} className="flex gap-1.5 text-xs text-foreground/75">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                  <span>{r}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {item.avoid_reasons.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1 text-xs font-mono text-red-400 uppercase tracking-wide">
+                <ArrowDownCircle className="h-3 w-3" /> Caution
+              </div>
+              {item.avoid_reasons.map((r, i) => (
+                <div key={i} className="flex gap-1.5 text-xs text-foreground/75">
+                  <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
+                  <span>{r}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* AI engine detail if available */}
+          {aiDec && aiDec.plain_english && (
+            <div className="pt-2 border-t border-zinc-800">
+              <p className="text-xs text-foreground/60 leading-relaxed italic">{aiDec.plain_english}</p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Price levels */}
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-zinc-800/50 rounded-lg p-3 text-center">
           <div className="text-xs text-foreground/50 font-mono mb-1">ENTRY</div>
-          <div className="text-sm font-mono font-bold text-foreground">
-            {formatCurrency(d.entry_price)}
-          </div>
+          <div className="text-sm font-mono font-bold">{formatCurrency(item.entry_price)}</div>
         </div>
         <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-center">
           <div className="text-xs text-red-400 font-mono mb-1">STOP LOSS</div>
-          <div className="text-sm font-mono font-bold text-red-400">
-            {formatCurrency(d.stop_loss)}
-          </div>
+          <div className="text-sm font-mono font-bold text-red-400">{formatCurrency(item.stop_loss)}</div>
         </div>
         <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 text-center">
           <div className="text-xs text-emerald-400 font-mono mb-1">TARGET</div>
-          <div className="text-sm font-mono font-bold text-emerald-400">
-            {formatCurrency(d.target)}
-          </div>
+          <div className="text-sm font-mono font-bold text-emerald-400">{formatCurrency(item.target)}</div>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Rules Reference ────────────────────────────────────────────────────────────
+// ── Rules sidebar ──────────────────────────────────────────────────────────────
 
 function RulesCard() {
   return (
     <div className="rounded-lg border border-border bg-card p-4">
-      <div className="text-xs font-mono text-primary/70 uppercase tracking-widest mb-3">
-        AI Engine Rules
-      </div>
+      <div className="text-xs font-mono text-primary/70 uppercase tracking-widest mb-3">Intelligence Engine Rules</div>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
         {[
-          { icon: ShieldX, label: "RR < 2:1 → WATCH", color: "text-red-400" },
-          { icon: ShieldX, label: "MTF < 3/4 → WATCH", color: "text-red-400" },
-          { icon: ShieldX, label: "High vol + conf<70 → WATCH", color: "text-orange-400" },
-          { icon: ShieldX, label: "Sideways + conf<72 → WATCH", color: "text-orange-400" },
-          { icon: ShieldX, label: "Stop <0.5% → WATCH", color: "text-orange-400" },
-          { icon: ShieldX, label: "No capital → NO TRADE", color: "text-red-500" },
+          { icon: ShieldX, label: "RR < 2:1 → WATCH",             color: "text-red-400"    },
+          { icon: ShieldX, label: "MTF < 3/4 → WATCH",            color: "text-red-400"    },
+          { icon: ShieldX, label: "High vol + conf<70 → WATCH",   color: "text-orange-400" },
+          { icon: ShieldX, label: "Sideways + conf<72 → WATCH",   color: "text-orange-400" },
+          { icon: ShieldX, label: "Stop <0.5% → WATCH",           color: "text-orange-400" },
+          { icon: ShieldX, label: "No capital → NO TRADE",         color: "text-red-500"    },
         ].map(({ icon: Icon, label, color }) => (
           <div key={label} className={`flex items-center gap-1.5 text-xs ${color}`}>
             <Icon className="h-3 w-3 shrink-0" />
@@ -190,9 +290,9 @@ function RulesCard() {
           </div>
         ))}
         {[
-          { label: "RR≥3 + MTF=4 → +5 conf", color: "text-emerald-400" },
-          { label: "Regime match → +3 conf", color: "text-emerald-400" },
-          { label: "Low-vol + conf≥80 → +3 conf", color: "text-emerald-400" },
+          { label: "TQ ≥ 75 → Quality setup", color: "text-emerald-400" },
+          { label: "OppScore ≥ 85 → HOT BUY", color: "text-orange-300"  },
+          { label: "1% max risk per trade",    color: "text-blue-400"    },
         ].map(({ label, color }) => (
           <div key={label} className={`flex items-center gap-1.5 text-xs ${color}`}>
             <ShieldCheck className="h-3 w-3 shrink-0" />
@@ -204,10 +304,11 @@ function RulesCard() {
   );
 }
 
-// ── Main Page ──────────────────────────────────────────────────────────────────
+// ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function AiDecisionPage() {
-  const { data: decisions = [], isLoading, refetch } = useGetAiDecisions();
+  const { data: opportunities = [], isLoading, refetch } = useGetOpportunityScan();
+  const { data: aiDecisions = [] } = useGetAiDecisions();
   const runScan = useRunScan();
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
@@ -215,9 +316,14 @@ export default function AiDecisionPage() {
     runScan.mutate(undefined, { onSuccess: () => refetch() });
   };
 
-  const approved = decisions.filter((d) => d.pass_all_rules && !["WATCH","NO_TRADE"].includes(d.decision));
-  const watchlist = decisions.filter((d) => d.decision === "WATCH");
-  const blocked   = decisions.filter((d) => d.decision === "NO_TRADE");
+  // Build quick lookup: stock → AiDecision
+  const aiDecMap: Record<string, AiDecision> = {};
+  for (const d of aiDecisions) aiDecMap[d.stock] = d;
+
+  const hotBuy = opportunities.filter((o) => o.status === "HOT_BUY");
+  const buy    = opportunities.filter((o) => o.status === "BUY");
+  const watch  = opportunities.filter((o) => o.status === "WATCH");
+  const ignore = opportunities.filter((o) => o.status === "IGNORE");
 
   return (
     <div className="space-y-6">
@@ -226,10 +332,10 @@ export default function AiDecisionPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Brain className="h-6 w-6 text-primary" />
-            AI Decision Engine
+            Intelligence Layer
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Signal review · Risk/reward · Multi-timeframe · Regime filter
+            Opportunity Scanner · Trade Quality · Position Sizing · Explainability
           </p>
         </div>
         <button
@@ -247,126 +353,115 @@ export default function AiDecisionPage() {
       <RulesCard />
 
       {/* Summary pills */}
-      {decisions.length > 0 && (
+      {opportunities.length > 0 && (
         <div className="flex gap-3 flex-wrap">
+          {hotBuy.length > 0 && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-300 text-xs font-mono">
+              <Flame className="h-3.5 w-3.5" /> {hotBuy.length} Hot Buy
+            </div>
+          )}
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono">
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            {approved.length} Approved
+            <TrendingUp className="h-3.5 w-3.5" /> {buy.length} Buy
           </div>
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs font-mono">
-            <AlertTriangle className="h-3.5 w-3.5" />
-            {watchlist.length} Watch
+            <Eye className="h-3.5 w-3.5" /> {watch.length} Watch
           </div>
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-500 text-xs font-mono">
-            <MinusCircle className="h-3.5 w-3.5" />
-            {blocked.length} Blocked
+            <MinusCircle className="h-3.5 w-3.5" /> {ignore.length} Ignore
           </div>
         </div>
       )}
 
       {/* Table */}
       <div className="rounded-lg border border-border bg-card overflow-hidden">
-        {/* Table header */}
-        <div className="hidden md:grid grid-cols-[1.2fr_1fr_1fr_1fr_1fr_1.2fr_0.8fr_32px] gap-3 px-4 py-2.5 border-b border-border bg-muted/30">
-          {["STOCK", "RAW → DECISION", "ENTRY", "STOP / TARGET", "RR", "CONFIDENCE", "TF / REGIME", ""].map(
-            (h) => (
-              <div key={h} className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
-                {h}
-              </div>
-            )
-          )}
+        {/* Header */}
+        <div className="hidden md:grid grid-cols-[40px_1fr_1fr_1fr_1fr_80px_80px_60px_32px] gap-3 px-4 py-2.5 border-b border-border bg-muted/30">
+          {["#", "STOCK", "STATUS", "OPP SCORE", "TRADE QUALITY", "AI DEC", "RR", "QTY", ""].map((h) => (
+            <div key={h} className="text-xs font-mono text-muted-foreground uppercase tracking-wider">{h}</div>
+          ))}
         </div>
 
         {isLoading ? (
           <div className="py-16 text-center text-muted-foreground text-sm font-mono">
-            Loading AI decisions…
+            Loading intelligence scan…
           </div>
-        ) : decisions.length === 0 ? (
+        ) : opportunities.length === 0 ? (
           <div className="py-16 text-center space-y-2">
-            <Brain className="h-10 w-10 text-muted-foreground/30 mx-auto" />
-            <p className="text-muted-foreground text-sm font-mono">No decisions yet</p>
-            <p className="text-xs text-muted-foreground/60">Run a scan to generate AI-reviewed signals</p>
+            <BarChart2 className="h-10 w-10 text-muted-foreground/30 mx-auto" />
+            <p className="text-muted-foreground text-sm font-mono">No scan results yet</p>
+            <p className="text-xs text-muted-foreground/60">Run a scan to rank all watchlist opportunities</p>
           </div>
         ) : (
           <div>
-            {decisions.map((d) => {
-              const key = d.stock;
-              const isExpanded = expandedRow === key;
-              const m = DECISION_META[d.decision] ?? DECISION_META.NO_TRADE;
+            {opportunities.map((item) => {
+              const isExpanded = expandedRow === item.stock;
+              const sm = STATUS_META[item.status] ?? STATUS_META.IGNORE;
+
               return (
-                <div key={key} className="border-b border-border/50 last:border-0">
-                  {/* Main row */}
+                <div key={item.stock} className="border-b border-border/50 last:border-0">
                   <button
-                    className={`w-full text-left hover:bg-muted/20 transition-colors ${m.bg}`}
-                    onClick={() => setExpandedRow(isExpanded ? null : key)}
-                    data-testid={`row-ai-${d.stock}`}
+                    className={`w-full text-left hover:bg-muted/20 transition-colors ${sm.bg}`}
+                    onClick={() => setExpandedRow(isExpanded ? null : item.stock)}
+                    data-testid={`row-opp-${item.stock}`}
                   >
-                    <div className="grid grid-cols-2 md:grid-cols-[1.2fr_1fr_1fr_1fr_1fr_1.2fr_0.8fr_32px] gap-3 px-4 py-3 items-center">
+                    <div className="grid grid-cols-2 md:grid-cols-[40px_1fr_1fr_1fr_1fr_80px_80px_60px_32px] gap-3 px-4 py-3 items-center">
+                      {/* Rank */}
+                      <div className="hidden md:block font-mono text-xs text-muted-foreground/60 text-center">
+                        {item.rank}
+                      </div>
+
                       {/* Stock */}
-                      <div className="flex items-center gap-2">
-                        {d.pass_all_rules ? (
-                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                        ) : (
-                          <AlertTriangle className="h-3.5 w-3.5 text-yellow-500 shrink-0" />
-                        )}
-                        <span className="font-mono font-bold text-sm">{d.stock}</span>
+                      <div className="font-mono font-bold text-sm flex items-center gap-1.5">
+                        {item.status === "HOT_BUY" && <Flame className="h-3.5 w-3.5 text-orange-400 shrink-0" />}
+                        {item.stock}
                       </div>
 
-                      {/* Raw → Decision */}
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <RawBadge signal={d.raw_signal} />
-                        <span className="text-muted-foreground/50 text-xs">→</span>
-                        <DecisionBadge decision={d.decision} />
+                      {/* Status */}
+                      <div>
+                        <StatusBadge status={item.status} />
                       </div>
 
-                      {/* Entry */}
-                      <div className="font-mono text-sm text-foreground/90 hidden md:block">
-                        {formatCurrency(d.entry_price)}
+                      {/* Opportunity score */}
+                      <div className="hidden md:block">
+                        <OppScoreBar value={item.opportunity_score} />
                       </div>
 
-                      {/* Stop / Target */}
-                      <div className="hidden md:flex flex-col gap-0.5">
-                        <span className="font-mono text-xs text-red-400">
-                          SL {formatCurrency(d.stop_loss)}
-                        </span>
-                        <span className="font-mono text-xs text-emerald-400">
-                          T {formatCurrency(d.target)}
-                        </span>
+                      {/* Trade Quality */}
+                      <div className="hidden md:flex items-center gap-2">
+                        <ScoreRing value={item.trade_quality} />
+                        <GradeBadge grade={item.tq_grade} />
+                      </div>
+
+                      {/* AI Decision */}
+                      <div className="hidden md:block">
+                        <DecisionChip decision={item.ai_decision} />
                       </div>
 
                       {/* RR */}
-                      <div className="hidden md:block">
-                        <RRBar rr={d.rr_ratio} />
+                      <div className="hidden md:block font-mono text-xs text-foreground/70">
+                        1:{item.rr_ratio.toFixed(1)}
                       </div>
 
-                      {/* Confidence */}
-                      <div className="hidden md:block">
-                        <ConfidenceBar value={d.confidence} />
-                      </div>
-
-                      {/* TF + Regime */}
-                      <div className="hidden md:flex flex-col gap-1">
-                        <TFDots count={d.timeframe_alignment} />
-                        <span className="text-xs font-mono text-muted-foreground/60">
-                          {d.regime}
-                        </span>
+                      {/* Qty */}
+                      <div className="hidden md:flex items-center gap-1">
+                        {item.feasible ? (
+                          <span className="font-mono text-xs text-foreground/80">{item.suggested_qty} sh</span>
+                        ) : (
+                          <span className="font-mono text-xs text-zinc-600">—</span>
+                        )}
                       </div>
 
                       {/* Expand */}
                       <div className="hidden md:flex justify-end text-muted-foreground">
-                        {isExpanded ? (
-                          <ChevronDown className="h-4 w-4" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4" />
-                        )}
+                        {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                       </div>
                     </div>
                   </button>
 
-                  {/* Expanded detail */}
+                  {/* Expanded panel */}
                   {isExpanded && (
                     <div className="px-4 pb-4">
-                      <DecisionDetail d={d} />
+                      <OpportunityDetail item={item} aiDec={aiDecMap[item.stock]} />
                     </div>
                   )}
                 </div>

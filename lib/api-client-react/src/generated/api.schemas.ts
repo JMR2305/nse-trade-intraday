@@ -119,6 +119,126 @@ export interface Trade {
   reason: string;
 }
 
+export interface TradeQuality {
+  trend_score: number;
+  momentum_score: number;
+  volume_score: number;
+  breakout_score: number;
+  risk_score: number;
+  market_score: number;
+  total_score: number;
+  grade: string;
+}
+
+export interface PositionSizing {
+  capital: number;
+  available_cash: number;
+  max_risk_amount: number;
+  stop_distance: number;
+  stop_distance_pct: number;
+  suggested_quantity: number;
+  position_value: number;
+  expected_profit: number;
+  max_loss: number;
+  rr_ratio: number;
+  capital_utilization_pct: number;
+  feasible: boolean;
+  sizing_note: string;
+}
+
+export interface ExplainabilityReport {
+  approve_reasons: string[];
+  avoid_reasons: string[];
+  recommendation: string;
+  final_confidence: number;
+  summary: string;
+  one_liner: string;
+}
+
+export type OpportunityItemStatus = typeof OpportunityItemStatus[keyof typeof OpportunityItemStatus];
+
+
+export const OpportunityItemStatus = {
+  HOT_BUY: 'HOT_BUY',
+  BUY: 'BUY',
+  WATCH: 'WATCH',
+  IGNORE: 'IGNORE',
+} as const;
+
+export interface OpportunityItem {
+  rank: number;
+  stock: string;
+  opportunity_score: number;
+  confidence: number;
+  expected_risk: number;
+  expected_reward: number;
+  rr_ratio: number;
+  status: OpportunityItemStatus;
+  entry_price: number;
+  stop_loss: number;
+  target: number;
+  trade_quality: number;
+  tq_grade: string;
+  tq_trend: number;
+  tq_momentum: number;
+  tq_volume: number;
+  tq_breakout: number;
+  tq_risk: number;
+  tq_market: number;
+  suggested_qty: number;
+  position_value: number;
+  capital_used_pct: number;
+  sizing_note: string;
+  feasible: boolean;
+  approve_reasons: string[];
+  avoid_reasons: string[];
+  one_liner: string;
+  summary: string;
+  regime: string;
+  ai_decision: string;
+  raw_signal: string;
+}
+
+export type MarketContextBias = typeof MarketContextBias[keyof typeof MarketContextBias];
+
+
+export const MarketContextBias = {
+  BULLISH: 'BULLISH',
+  BEARISH: 'BEARISH',
+  NEUTRAL: 'NEUTRAL',
+} as const;
+
+export type MarketContextVixCategory = typeof MarketContextVixCategory[keyof typeof MarketContextVixCategory];
+
+
+export const MarketContextVixCategory = {
+  LOW: 'LOW',
+  NORMAL: 'NORMAL',
+  HIGH: 'HIGH',
+  EXTREME: 'EXTREME',
+} as const;
+
+export type MarketContextSectorStrength = {[key: string]: number};
+
+export interface MarketContext {
+  score: number;
+  bias: MarketContextBias;
+  confidence_modifier: number;
+  nifty_price: number;
+  nifty_trend: string;
+  nifty_change_pct: number;
+  banknifty_price: number;
+  banknifty_trend: string;
+  banknifty_change_pct: number;
+  vix: number;
+  vix_category: MarketContextVixCategory;
+  market_breadth: number;
+  breadth_label: string;
+  sector_strength: MarketContextSectorStrength;
+  regime: string;
+  computed_at: string;
+}
+
 export type AiDecisionDecision = typeof AiDecisionDecision[keyof typeof AiDecisionDecision];
 
 

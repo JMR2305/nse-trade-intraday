@@ -24,7 +24,9 @@ import type {
   AiDecision,
   ErrorResponse,
   HealthStatus,
+  MarketContext,
   MarketOverview,
+  OpportunityItem,
   Portfolio,
   ScanResult,
   Signal,
@@ -666,6 +668,162 @@ export const useRemoveFromWatchlist = <TError = ErrorType<ErrorResponse>,
       > => {
       return useMutation(getRemoveFromWatchlistMutationOptions(options));
     }
+
+export const getGetOpportunityScanUrl = () => {
+
+
+
+
+  return `/api/opportunity-scan`
+}
+
+/**
+ * Returns all watchlist stocks ranked by opportunity score
+ * @summary Get ranked opportunity scan
+ */
+export const getOpportunityScan = async ( options?: RequestInit): Promise<OpportunityItem[]> => {
+
+  return customFetch<OpportunityItem[]>(getGetOpportunityScanUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOpportunityScanQueryKey = () => {
+    return [
+    `/api/opportunity-scan`
+    ] as const;
+    }
+
+
+export const getGetOpportunityScanQueryOptions = <TData = Awaited<ReturnType<typeof getOpportunityScan>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOpportunityScan>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOpportunityScanQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOpportunityScan>>> = ({ signal }) => getOpportunityScan({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOpportunityScan>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOpportunityScanQueryResult = NonNullable<Awaited<ReturnType<typeof getOpportunityScan>>>
+export type GetOpportunityScanQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get ranked opportunity scan
+ */
+
+export function useGetOpportunityScan<TData = Awaited<ReturnType<typeof getOpportunityScan>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOpportunityScan>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOpportunityScanQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMarketContextUrl = () => {
+
+
+
+
+  return `/api/market-context`
+}
+
+/**
+ * Returns synthesised market score, bias, and sector strength
+ * @summary Get market context
+ */
+export const getMarketContext = async ( options?: RequestInit): Promise<MarketContext> => {
+
+  return customFetch<MarketContext>(getGetMarketContextUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMarketContextQueryKey = () => {
+    return [
+    `/api/market-context`
+    ] as const;
+    }
+
+
+export const getGetMarketContextQueryOptions = <TData = Awaited<ReturnType<typeof getMarketContext>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMarketContext>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMarketContextQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMarketContext>>> = ({ signal }) => getMarketContext({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMarketContext>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMarketContextQueryResult = NonNullable<Awaited<ReturnType<typeof getMarketContext>>>
+export type GetMarketContextQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get market context
+ */
+
+export function useGetMarketContext<TData = Awaited<ReturnType<typeof getMarketContext>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMarketContext>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMarketContextQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetAiDecisionsUrl = () => {
 

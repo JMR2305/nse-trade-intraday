@@ -172,6 +172,70 @@ export const RemoveFromWatchlistResponse = zod.object({
 
 
 /**
+ * Returns all watchlist stocks ranked by opportunity score
+ * @summary Get ranked opportunity scan
+ */
+export const GetOpportunityScanResponseItem = zod.object({
+  "rank": zod.number(),
+  "stock": zod.string(),
+  "opportunity_score": zod.number(),
+  "confidence": zod.number(),
+  "expected_risk": zod.number(),
+  "expected_reward": zod.number(),
+  "rr_ratio": zod.number(),
+  "status": zod.enum(['HOT_BUY', 'BUY', 'WATCH', 'IGNORE']),
+  "entry_price": zod.number(),
+  "stop_loss": zod.number(),
+  "target": zod.number(),
+  "trade_quality": zod.number(),
+  "tq_grade": zod.string(),
+  "tq_trend": zod.number(),
+  "tq_momentum": zod.number(),
+  "tq_volume": zod.number(),
+  "tq_breakout": zod.number(),
+  "tq_risk": zod.number(),
+  "tq_market": zod.number(),
+  "suggested_qty": zod.number(),
+  "position_value": zod.number(),
+  "capital_used_pct": zod.number(),
+  "sizing_note": zod.string(),
+  "feasible": zod.boolean(),
+  "approve_reasons": zod.array(zod.string()),
+  "avoid_reasons": zod.array(zod.string()),
+  "one_liner": zod.string(),
+  "summary": zod.string(),
+  "regime": zod.string(),
+  "ai_decision": zod.string(),
+  "raw_signal": zod.string()
+})
+export const GetOpportunityScanResponse = zod.array(GetOpportunityScanResponseItem)
+
+
+/**
+ * Returns synthesised market score, bias, and sector strength
+ * @summary Get market context
+ */
+export const GetMarketContextResponse = zod.object({
+  "score": zod.number(),
+  "bias": zod.enum(['BULLISH', 'BEARISH', 'NEUTRAL']),
+  "confidence_modifier": zod.number(),
+  "nifty_price": zod.number(),
+  "nifty_trend": zod.string(),
+  "nifty_change_pct": zod.number(),
+  "banknifty_price": zod.number(),
+  "banknifty_trend": zod.string(),
+  "banknifty_change_pct": zod.number(),
+  "vix": zod.number(),
+  "vix_category": zod.enum(['LOW', 'NORMAL', 'HIGH', 'EXTREME']),
+  "market_breadth": zod.number(),
+  "breadth_label": zod.string(),
+  "sector_strength": zod.record(zod.string(), zod.number()),
+  "regime": zod.string(),
+  "computed_at": zod.string()
+})
+
+
+/**
  * Returns AI Decision Engine results from the last scan
  * @summary Get cached AI decisions
  */
