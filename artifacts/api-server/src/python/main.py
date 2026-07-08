@@ -82,12 +82,18 @@ def cmd_trades() -> list:
     return list(get_trades())
 
 
-EXECUTION_CONFIDENCE_THRESHOLD = 0.65
+EXECUTABLE_BUY_SIGNALS = {"STRONG_BUY", "BUY"}
+EXECUTABLE_SELL_SIGNALS = {"STRONG_SELL", "SELL"}
 
 
 def cmd_scan() -> list:
-    """Run signal scan on watchlist, cache results, and auto-execute paper trades
-    for high-confidence BUY/SELL signals (confidence >= 0.65)."""
+    """Run signal scan on watchlist, cache results, and auto-execute paper trades.
+
+    Execution rules:
+      - STRONG_BUY / BUY  → open a long paper position (if quantity > 0 and cash available)
+      - STRONG_SELL / SELL → close existing long position (if held)
+      - WATCH / NO_TRADE   → no execution
+    """
     from paper_trader import _load_state
     state = _load_state()
     cash = state.get("cash", 5000.0)
@@ -100,26 +106,28 @@ def cmd_scan() -> list:
     with open(signals_file, "w") as f:
         json.dump(signals, f, indent=2)
 
-    # Auto-execute paper trades for high-confidence signals
+    # Auto-execute paper trades for actionable signals
     positions = state.get("positions", {})
     for sig in signals:
         symbol = sig.get("stock", "")
-        signal_type = sig.get("signal", "HOLD")
-        confidence = sig.get("confidence", 0.0)
+        signal_type = sig.get("signal", "NO_TRADE")
         quantity = sig.get("quantity", 0)
         price = sig.get("price", 0.0)
-        reason = sig.get("reason", "Auto-executed from scan")
+        reasons = sig.get("reasons", [])
+        reason_str = "; ".join(reasons[:3]) if reasons else "Auto-executed from scan"
 
-        if confidence < EXECUTION_CONFIDENCE_THRESHOLD or quantity <= 0 or price <= 0:
+        if quantity <= 0 or price <= 0:
             continue
 
-        if signal_type == "BUY":
-            execute_buy(symbol, quantity, price, reason)
-        elif signal_type == "SELL" and symbol.upper() in positions:
-            held_qty = positions[symbol.upper()].get("quantity", 0)
-            sell_qty = min(quantity, held_qty)
-            if sell_qty > 0:
-                execute_sell(symbol, sell_qty, price, reason)
+        if signal_type in EXECUTABLE_BUY_SIGNALS:
+            execute_buy(symbol, quantity, price, reason_str)
+        elif signal_type in EXECUTABLE_SELL_SIGNALS:
+            sym_upper = symbol.upper()
+            if sym_upper in positions:
+                held_qty = positions[sym_upper].get("quantity", 0)
+                sell_qty = min(quantity, held_qty)
+                if sell_qty > 0:
+                    execute_sell(symbol, sell_qty, price, reason_str)
 
     return signals
 

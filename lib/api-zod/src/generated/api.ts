@@ -49,11 +49,14 @@ export const GetPortfolioResponse = zod.object({
 export const GetSignalsResponseItem = zod.object({
   "stock": zod.string().describe('NSE symbol'),
   "time": zod.string().describe('ISO datetime of signal generation'),
-  "signal": zod.enum(['BUY', 'SELL', 'HOLD']),
-  "quantity": zod.number().describe('Suggested number of shares'),
+  "signal": zod.enum(['STRONG_BUY', 'BUY', 'WATCH', 'SELL', 'STRONG_SELL', 'NO_TRADE']),
+  "quantity": zod.number().describe('Suggested number of shares based on available capital'),
   "price": zod.number().describe('Last traded price in INR'),
-  "confidence": zod.number().describe('Signal confidence between 0 and 1'),
-  "reason": zod.string().describe('Human-readable explanation of the signal')
+  "confidence": zod.number().describe('Signal confidence score 0–100'),
+  "reasons": zod.array(zod.string()).describe('List of indicator reasons supporting the signal'),
+  "risk_level": zod.enum(['LOW', 'MEDIUM', 'HIGH']).describe('Risk level based on ATR volatility'),
+  "stop_loss": zod.number().describe('ATR-based stop loss price in INR'),
+  "target": zod.number().describe('ATR-based target price in INR')
 })
 export const GetSignalsResponse = zod.array(GetSignalsResponseItem)
 
@@ -83,11 +86,14 @@ export const RunScanResponse = zod.object({
   "signals": zod.array(zod.object({
   "stock": zod.string().describe('NSE symbol'),
   "time": zod.string().describe('ISO datetime of signal generation'),
-  "signal": zod.enum(['BUY', 'SELL', 'HOLD']),
-  "quantity": zod.number().describe('Suggested number of shares'),
+  "signal": zod.enum(['STRONG_BUY', 'BUY', 'WATCH', 'SELL', 'STRONG_SELL', 'NO_TRADE']),
+  "quantity": zod.number().describe('Suggested number of shares based on available capital'),
   "price": zod.number().describe('Last traded price in INR'),
-  "confidence": zod.number().describe('Signal confidence between 0 and 1'),
-  "reason": zod.string().describe('Human-readable explanation of the signal')
+  "confidence": zod.number().describe('Signal confidence score 0–100'),
+  "reasons": zod.array(zod.string()).describe('List of indicator reasons supporting the signal'),
+  "risk_level": zod.enum(['LOW', 'MEDIUM', 'HIGH']).describe('Risk level based on ATR volatility'),
+  "stop_loss": zod.number().describe('ATR-based stop loss price in INR'),
+  "target": zod.number().describe('ATR-based target price in INR')
 })),
   "scanned_at": zod.string()
 })

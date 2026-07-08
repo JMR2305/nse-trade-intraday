@@ -14,6 +14,7 @@ export * from './portfolio';
 export * from './position';
 export * from './scanResult';
 export * from './signal';
+export * from './signalRiskLevel';
 export * from './signalSignal';
 export * from './trade';
 export * from './tradeAction';

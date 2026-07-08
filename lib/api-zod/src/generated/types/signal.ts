@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { SignalRiskLevel } from './signalRiskLevel';
 import type { SignalSignal } from './signalSignal';
 
 export interface Signal {
@@ -13,12 +14,18 @@ export interface Signal {
   /** ISO datetime of signal generation */
   time: string;
   signal: SignalSignal;
-  /** Suggested number of shares */
+  /** Suggested number of shares based on available capital */
   quantity: number;
   /** Last traded price in INR */
   price: number;
-  /** Signal confidence between 0 and 1 */
+  /** Signal confidence score 0–100 */
   confidence: number;
-  /** Human-readable explanation of the signal */
-  reason: string;
+  /** List of indicator reasons supporting the signal */
+  reasons: string[];
+  /** Risk level based on ATR volatility */
+  risk_level: SignalRiskLevel;
+  /** ATR-based stop loss price in INR */
+  stop_loss: number;
+  /** ATR-based target price in INR */
+  target: number;
 }

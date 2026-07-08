@@ -221,19 +221,31 @@ components:
           description: ISO datetime of signal generation
         signal:
           type: string
-          enum: [BUY, SELL, HOLD]
+          enum: [STRONG_BUY, BUY, WATCH, SELL, STRONG_SELL, NO_TRADE]
         quantity:
           type: integer
-          description: Suggested number of shares
+          description: Suggested number of shares based on available capital
         price:
           type: number
           description: Last traded price in INR
         confidence:
           type: number
-          description: Signal confidence between 0 and 1
-        reason:
+          description: Signal confidence score 0–100
+        reasons:
+          type: array
+          items:
+            type: string
+          description: List of indicator reasons supporting the signal
+        risk_level:
           type: string
-          description: Human-readable explanation of the signal
+          enum: [LOW, MEDIUM, HIGH]
+          description: Risk level based on ATR volatility
+        stop_loss:
+          type: number
+          description: ATR-based stop loss price in INR
+        target:
+          type: number
+          description: ATR-based target price in INR
       required:
         - stock
         - time
@@ -241,7 +253,10 @@ components:
         - quantity
         - price
         - confidence
-        - reason
+        - reasons
+        - risk_level
+        - stop_loss
+        - target
 
     Position:
       type: object

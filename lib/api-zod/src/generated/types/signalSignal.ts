@@ -10,7 +10,10 @@ export type SignalSignal = typeof SignalSignal[keyof typeof SignalSignal];
 
 
 export const SignalSignal = {
+  STRONG_BUY: 'STRONG_BUY',
   BUY: 'BUY',
+  WATCH: 'WATCH',
   SELL: 'SELL',
-  HOLD: 'HOLD',
+  STRONG_SELL: 'STRONG_SELL',
+  NO_TRADE: 'NO_TRADE',
 } as const;
