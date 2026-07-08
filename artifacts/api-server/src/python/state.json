@@ -1,0 +1,31 @@
+{
+  "cash": 4135.0,
+  "positions": {
+    "WIPRO": {
+      "quantity": 5,
+      "avg_price": 173.0
+    }
+  },
+  "trades": [
+    {
+      "id": "a849f487",
+      "symbol": "WIPRO",
+      "action": "BUY",
+      "quantity": 5,
+      "price": 173.0,
+      "total": 865.0,
+      "timestamp": "2026-07-08T20:59:59.555815",
+      "reason": "RSI 35.8 \u2014 approaching oversold zone; MACD histogram positive \u2014 bullish momentum; MACD bullish crossover \u2014 signal line crossed above zero; SMA20 < SMA50 \u2014 death cross, downtrend detected"
+    }
+  ],
+  "pnl_history": [
+    {
+      "timestamp": "2026-07-08T20:59:59.555687",
+      "value": 5000.0
+    },
+    {
+      "timestamp": "2026-07-08T20:59:59.555823",
+      "value": 5000.0
+    }
+  ]
+}
