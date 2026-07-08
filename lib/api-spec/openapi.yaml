@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: trading
+    description: Paper trading operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,180 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /portfolio:
+    get:
+      operationId: getPortfolio
+      tags: [trading]
+      summary: Get portfolio state
+      description: Returns cash, positions, P&L, and portfolio value in INR
+      responses:
+        "200":
+          description: Portfolio state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Portfolio"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /signals:
+    get:
+      operationId: getSignals
+      tags: [trading]
+      summary: Get cached signals
+      description: Returns signals from the last scan
+      responses:
+        "200":
+          description: List of signals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Signal"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trades:
+    get:
+      operationId: getTrades
+      tags: [trading]
+      summary: Get trade history
+      description: Returns all paper trades, newest first
+      responses:
+        "200":
+          description: Trade history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Trade"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /run-scan:
+    post:
+      operationId: runScan
+      tags: [trading]
+      summary: Run signal scan
+      description: Scans the watchlist for signals using the latest market data
+      responses:
+        "200":
+          description: Scan results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanResult"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /watchlist:
+    get:
+      operationId: getWatchlist
+      tags: [trading]
+      summary: Get watchlist
+      description: Returns current NSE symbol watchlist
+      responses:
+        "200":
+          description: Watchlist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WatchlistResponse"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: addToWatchlist
+      tags: [trading]
+      summary: Add symbol to watchlist
+      description: Adds an NSE symbol to the watchlist
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WatchlistAddRequest"
+      responses:
+        "200":
+          description: Updated watchlist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WatchlistResponse"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /watchlist/{symbol}:
+    delete:
+      operationId: removeFromWatchlist
+      tags: [trading]
+      summary: Remove symbol from watchlist
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Updated watchlist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WatchlistResponse"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /portfolio/reset:
+    post:
+      operationId: resetPortfolio
+      tags: [trading]
+      summary: Reset portfolio
+      description: Resets portfolio to initial ₹5,000 capital with no positions
+      responses:
+        "200":
+          description: Reset confirmation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResult"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +210,186 @@ components:
       required:
         - status
 
+    Signal:
+      type: object
+      properties:
+        stock:
+          type: string
+          description: NSE symbol
+        time:
+          type: string
+          description: ISO datetime of signal generation
+        signal:
+          type: string
+          enum: [BUY, SELL, HOLD]
+        quantity:
+          type: integer
+          description: Suggested number of shares
+        price:
+          type: number
+          description: Last traded price in INR
+        confidence:
+          type: number
+          description: Signal confidence between 0 and 1
+        reason:
+          type: string
+          description: Human-readable explanation of the signal
+      required:
+        - stock
+        - time
+        - signal
+        - quantity
+        - price
+        - confidence
+        - reason
+
+    Position:
+      type: object
+      properties:
+        symbol:
+          type: string
+        quantity:
+          type: integer
+        avg_price:
+          type: number
+        current_price:
+          type: number
+        pnl:
+          type: number
+          description: Unrealised P&L in INR
+        pnl_pct:
+          type: number
+          description: Unrealised P&L percentage
+      required:
+        - symbol
+        - quantity
+        - avg_price
+        - current_price
+        - pnl
+        - pnl_pct
+
+    PnlPoint:
+      type: object
+      properties:
+        timestamp:
+          type: string
+        value:
+          type: number
+      required:
+        - timestamp
+        - value
+
+    Portfolio:
+      type: object
+      properties:
+        cash:
+          type: number
+          description: Available cash in INR
+        total_value:
+          type: number
+          description: Total portfolio value (cash + market value of positions)
+        invested_value:
+          type: number
+          description: Current market value of all open positions
+        total_pnl:
+          type: number
+          description: Overall P&L since inception in INR
+        total_pnl_pct:
+          type: number
+          description: Overall P&L percentage since inception
+        positions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Position"
+        pnl_history:
+          type: array
+          items:
+            $ref: "#/components/schemas/PnlPoint"
+      required:
+        - cash
+        - total_value
+        - invested_value
+        - total_pnl
+        - total_pnl_pct
+        - positions
+        - pnl_history
+
+    Trade:
+      type: object
+      properties:
+        id:
+          type: string
+        symbol:
+          type: string
+        action:
+          type: string
+          enum: [BUY, SELL]
+        quantity:
+          type: integer
+        price:
+          type: number
+        total:
+          type: number
+        timestamp:
+          type: string
+        reason:
+          type: string
+      required:
+        - id
+        - symbol
+        - action
+        - quantity
+        - price
+        - total
+        - timestamp
+        - reason
+
+    ScanResult:
+      type: object
+      properties:
+        signals:
+          type: array
+          items:
+            $ref: "#/components/schemas/Signal"
+        scanned_at:
+          type: string
+      required:
+        - signals
+        - scanned_at
+
+    WatchlistResponse:
+      type: object
+      properties:
+        watchlist:
+          type: array
+          items:
+            type: string
+      required:
+        - watchlist
+
+    WatchlistAddRequest:
+      type: object
+      properties:
+        symbol:
+          type: string
+      required:
+        - symbol
+
+    ActionResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required:
+        - success
+        - message
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error

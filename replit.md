@@ -1,45 +1,67 @@
-# [Project name]
+# NSE Algo Paper Trader
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A paper-trading algorithmic system for Indian NSE stocks with a React web dashboard. Generates buy/sell signals using technical indicators (RSI, MACD, Moving Averages) on yfinance data, and simulates trades with ₹5,000 initial capital. No real orders are ever placed.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/api-server run dev` — run the API server (port 8080)
+- `pnpm --filter @workspace/trading-dashboard run dev` — run the React dashboard (port 24210)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- `pip install yfinance pandas numpy` — install Python trading dependencies
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
+- API: Express 5 (TypeScript) + Python 3 child_process for trading engine
+- Trading engine: Python (yfinance, pandas, numpy) — pure JSON file state
+- DB: Not yet provisioned (state is in JSON files under `artifacts/api-server/src/python/`)
 - Validation: Zod (`zod/v4`), `drizzle-zod`
 - API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Frontend: React + Vite, Recharts, wouter, Tailwind, shadcn/ui
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/api-server/src/python/` — Python trading engine (main.py, market_data.py, signal_engine.py, paper_trader.py)
+- `artifacts/api-server/src/routes/trading.ts` — Express routes that spawn Python via child_process
+- `artifacts/trading-dashboard/src/` — React frontend (dark terminal theme, teal accents)
+- `lib/api-spec/openapi.yaml` — single source of truth for all API contracts
+- `lib/api-client-react/src/generated/` — generated React Query hooks (do not edit)
+- Python state files (auto-created): `state.json`, `watchlist.json`, `signals_cache.json` in `src/python/`
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- **Python via child_process**: The trading engine runs as Python subprocesses spawned by Express. Each API call spawns `python3 main.py <command>` and reads JSON from stdout. Simple and swap-friendly — replacing yfinance with Kite Connect only requires changes to `market_data.py`.
+- **JSON file state**: Portfolio, trades, watchlist, and signal cache are stored as JSON files next to the Python scripts. This is intentional for the first version — persistent DB migration is a planned follow-up.
+- **Signals are cached**: `GET /api/signals` returns cached results from the last scan. `POST /api/run-scan` triggers a fresh scan (can take 30–60 seconds for 10 stocks).
+- **₹5,000 initial capital**: Hard-coded in `paper_trader.py`. Position sizing allocates 20% of available cash per trade.
+- **Paper trading only**: No broker integration. `execute_buy` and `execute_sell` in `paper_trader.py` only update JSON state.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Dashboard: live portfolio value, cash, P&L, open positions, P&L history chart
+- Signals page: Stock | Time | Signal (BUY/SELL/HOLD) | Quantity | Price (₹) | Confidence | Reason
+- Trades page: full paper trade history
+- Watchlist: manage NSE symbols (default: RELIANCE, TCS, INFY, HDFCBANK, ICICIBANK, SBIN, WIPRO, LT, BAJFINANCE, MARUTI)
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- Paper trading only — no real order placement ever
+- NSE symbols (Yahoo Finance .NS suffix applied automatically)
+- yfinance for now; Zerodha Kite Connect planned as a future swap
+- Initial capital: ₹5,000
+- Do not add automated real order placement
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Running a full scan (`POST /api/run-scan`) fetches 3 months of daily data for each watchlist symbol via yfinance. This can take 30–90 seconds for 10 stocks.
+- State files (`state.json`, `watchlist.json`, `signals_cache.json`) are created in `artifacts/api-server/src/python/` on first run. They are not committed to git.
+- The api-server has `@workspace/db` in dependencies but does NOT import it — the trading routes use only Python child_process. DATABASE_URL is not required for the trading system to work.
+- After adding new OpenAPI endpoints, always run `pnpm --filter @workspace/api-spec run codegen` before using the generated hooks.
 
 ## Pointers
 
 - See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- Python engine entry point: `artifacts/api-server/src/python/main.py`
+- To swap market data source: replace `fetch_ohlcv()` and `get_ltp()` in `artifacts/api-server/src/python/market_data.py`
