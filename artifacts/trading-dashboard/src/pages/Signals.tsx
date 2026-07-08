@@ -27,7 +27,7 @@ export default function Signals() {
   const { toast } = useToast();
   
   const { data: signals, isLoading } = useGetSignals({
-    query: { refetchInterval: 30000 },
+    query: { queryKey: getGetSignalsQueryKey(), refetchInterval: 30000 },
   });
 
   const runScan = useRunScan();

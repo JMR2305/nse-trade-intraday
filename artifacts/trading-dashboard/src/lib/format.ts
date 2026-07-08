@@ -8,7 +8,7 @@ export const formatCurrency = (value: number) => {
 };
 
 export const formatPercentage = (value: number) => {
-  return `${(value * 100).toFixed(2)}%`;
+  return `${value.toFixed(2)}%`;
 };
 
 export const formatTime = (isoString: string) => {

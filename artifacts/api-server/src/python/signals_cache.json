@@ -1,0 +1,92 @@
+[
+  {
+    "stock": "RELIANCE",
+    "time": "2026-07-08T20:55:07.773557",
+    "signal": "HOLD",
+    "quantity": 0,
+    "price": 1308.4,
+    "confidence": 0.5,
+    "reason": "RSI 48.1 \u2014 neutral zone; MACD histogram positive \u2014 bullish momentum; SMA20 < SMA50 \u2014 death cross, downtrend detected"
+  },
+  {
+    "stock": "TCS",
+    "time": "2026-07-08T20:55:08.087914",
+    "signal": "BUY",
+    "quantity": 0,
+    "price": 2096.1,
+    "confidence": 0.58,
+    "reason": "RSI 45.1 \u2014 neutral zone; MACD histogram positive \u2014 bullish momentum; MACD bullish crossover \u2014 signal line crossed above zero; SMA20 < SMA50 \u2014 death cross, downtrend detected"
+  },
+  {
+    "stock": "INFY",
+    "time": "2026-07-08T20:55:08.464761",
+    "signal": "BUY",
+    "quantity": 0,
+    "price": 1071.8,
+    "confidence": 0.58,
+    "reason": "RSI 47.9 \u2014 neutral zone; MACD histogram positive \u2014 bullish momentum; MACD bullish crossover \u2014 signal line crossed above zero; SMA20 < SMA50 \u2014 death cross, downtrend detected"
+  },
+  {
+    "stock": "HDFCBANK",
+    "time": "2026-07-08T20:55:08.836640",
+    "signal": "HOLD",
+    "quantity": 1,
+    "price": 829.3,
+    "confidence": 0.5,
+    "reason": "RSI 74.8 \u2014 overbought territory (> 70); MACD histogram positive \u2014 bullish momentum; SMA20 > SMA50 \u2014 golden cross, uptrend confirmed"
+  },
+  {
+    "stock": "ICICIBANK",
+    "time": "2026-07-08T20:55:09.137329",
+    "signal": "HOLD",
+    "quantity": 0,
+    "price": 1414.7,
+    "confidence": 0.5,
+    "reason": "RSI 70.2 \u2014 overbought territory (> 70); MACD histogram positive \u2014 bullish momentum; SMA20 > SMA50 \u2014 golden cross, uptrend confirmed"
+  },
+  {
+    "stock": "SBIN",
+    "time": "2026-07-08T20:55:09.458549",
+    "signal": "SELL",
+    "quantity": 0,
+    "price": 1038.1,
+    "confidence": 0.67,
+    "reason": "RSI 56.6 \u2014 approaching overbought zone; MACD histogram negative \u2014 bearish momentum; MACD bearish crossover \u2014 signal line crossed below zero; SMA20 > SMA50 \u2014 golden cross, uptrend confirmed"
+  },
+  {
+    "stock": "WIPRO",
+    "time": "2026-07-08T20:55:09.826142",
+    "signal": "BUY",
+    "quantity": 5,
+    "price": 173.0,
+    "confidence": 0.67,
+    "reason": "RSI 35.8 \u2014 approaching oversold zone; MACD histogram positive \u2014 bullish momentum; MACD bullish crossover \u2014 signal line crossed above zero; SMA20 < SMA50 \u2014 death cross, downtrend detected"
+  },
+  {
+    "stock": "LT",
+    "time": "2026-07-08T20:55:10.157773",
+    "signal": "HOLD",
+    "quantity": 0,
+    "price": 3991.9,
+    "confidence": 0.17,
+    "reason": "RSI 40.5 \u2014 approaching oversold zone; MACD histogram negative \u2014 bearish momentum; SMA20 > SMA50 \u2014 golden cross, uptrend confirmed"
+  },
+  {
+    "stock": "BAJFINANCE",
+    "time": "2026-07-08T20:55:10.561405",
+    "signal": "HOLD",
+    "quantity": 0,
+    "price": 1042.5,
+    "confidence": 0.5,
+    "reason": "RSI 76.7 \u2014 overbought territory (> 70); MACD histogram positive \u2014 bullish momentum; SMA20 > SMA50 \u2014 golden cross, uptrend confirmed"
+  },
+  {
+    "stock": "MARUTI",
+    "time": "2026-07-08T20:55:10.861582",
+    "signal": "HOLD",
+    "quantity": 0,
+    "price": 14538.0,
+    "confidence": 0.17,
+    "reason": "RSI 69.2 \u2014 approaching overbought zone; MACD histogram positive \u2014 bullish momentum; SMA20 > SMA50 \u2014 golden cross, uptrend confirmed"
+  }
+]

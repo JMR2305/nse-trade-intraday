@@ -1,5 +1,5 @@
 import React from "react";
-import { useGetTrades } from "@workspace/api-client-react";
+import { useGetTrades, getGetTradesQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -14,7 +14,7 @@ import { formatCurrency, formatDate } from "@/lib/format";
 
 export default function Trades() {
   const { data: trades, isLoading } = useGetTrades({
-    query: { refetchInterval: 30000 },
+    query: { queryKey: getGetTradesQueryKey(), refetchInterval: 30000 },
   });
 
   return (

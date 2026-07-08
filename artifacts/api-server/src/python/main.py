@@ -82,8 +82,12 @@ def cmd_trades() -> list:
     return list(get_trades())
 
 
+EXECUTION_CONFIDENCE_THRESHOLD = 0.65
+
+
 def cmd_scan() -> list:
-    """Run signal scan on watchlist and cache results."""
+    """Run signal scan on watchlist, cache results, and auto-execute paper trades
+    for high-confidence BUY/SELL signals (confidence >= 0.65)."""
     from paper_trader import _load_state
     state = _load_state()
     cash = state.get("cash", 5000.0)
@@ -95,6 +99,27 @@ def cmd_scan() -> list:
     signals_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "signals_cache.json")
     with open(signals_file, "w") as f:
         json.dump(signals, f, indent=2)
+
+    # Auto-execute paper trades for high-confidence signals
+    positions = state.get("positions", {})
+    for sig in signals:
+        symbol = sig.get("stock", "")
+        signal_type = sig.get("signal", "HOLD")
+        confidence = sig.get("confidence", 0.0)
+        quantity = sig.get("quantity", 0)
+        price = sig.get("price", 0.0)
+        reason = sig.get("reason", "Auto-executed from scan")
+
+        if confidence < EXECUTION_CONFIDENCE_THRESHOLD or quantity <= 0 or price <= 0:
+            continue
+
+        if signal_type == "BUY":
+            execute_buy(symbol, quantity, price, reason)
+        elif signal_type == "SELL" and symbol.upper() in positions:
+            held_qty = positions[symbol.upper()].get("quantity", 0)
+            sell_qty = min(quantity, held_qty)
+            if sell_qty > 0:
+                execute_sell(symbol, sell_qty, price, reason)
 
     return signals
 

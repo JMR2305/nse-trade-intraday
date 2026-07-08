@@ -41,7 +41,7 @@ export default function Dashboard() {
   const { toast } = useToast();
   
   const { data: portfolio, isLoading: isPortfolioLoading } = useGetPortfolio({
-    query: { refetchInterval: 30000 },
+    query: { queryKey: getGetPortfolioQueryKey(), refetchInterval: 30000 },
   });
 
   const runScan = useRunScan();
