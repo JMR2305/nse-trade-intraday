@@ -8,7 +8,7 @@ import {
   Terminal,
   Moon,
   Sun,
-  Laptop
+  Globe2,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: BarChart3 },
+    { href: "/market", label: "Market", icon: Globe2 },
     { href: "/signals", label: "Signals", icon: Activity },
     { href: "/trades", label: "Trades", icon: History },
     { href: "/watchlist", label: "Watchlist", icon: Eye },

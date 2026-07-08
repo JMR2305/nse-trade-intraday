@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import NotFound from "@/pages/not-found";
 import { AppLayout } from "@/components/layout/AppLayout";
 import Dashboard from "@/pages/Dashboard";
+import MarketOverview from "@/pages/MarketOverview";
 import Signals from "@/pages/Signals";
 import Trades from "@/pages/Trades";
 import Watchlist from "@/pages/Watchlist";
@@ -17,6 +18,7 @@ function Router() {
     <AppLayout>
       <Switch>
         <Route path="/" component={Dashboard} />
+        <Route path="/market" component={MarketOverview} />
         <Route path="/signals" component={Signals} />
         <Route path="/trades" component={Trades} />
         <Route path="/watchlist" component={Watchlist} />

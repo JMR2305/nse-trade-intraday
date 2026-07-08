@@ -8,6 +8,7 @@ Usage:
   python3 main.py signals
   python3 main.py trades
   python3 main.py scan
+  python3 main.py market_overview
   python3 main.py watchlist
   python3 main.py watchlist_add RELIANCE
   python3 main.py watchlist_remove RELIANCE
@@ -28,6 +29,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from paper_trader import get_portfolio, get_trades, execute_buy, execute_sell, reset_portfolio
 from signal_engine import scan_watchlist, generate_signal
 from market_data import get_multiple_ltp
+from market_regime import get_regime
 
 WATCHLIST_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "watchlist.json")
 
@@ -86,6 +88,15 @@ EXECUTABLE_BUY_SIGNALS = {"STRONG_BUY", "BUY"}
 EXECUTABLE_SELL_SIGNALS = {"STRONG_SELL", "SELL"}
 
 
+def cmd_market_overview() -> dict:
+    """Generate market intelligence overview (NIFTY, BANKNIFTY, VIX, regime, top/weak stocks)."""
+    from market_overview import get_market_overview
+    from paper_trader import _load_state
+    state = _load_state()
+    cash = state.get("cash", 5000.0)
+    return dict(get_market_overview(available_cash=cash))
+
+
 def cmd_scan() -> list:
     """Run signal scan on watchlist, cache results, and auto-execute paper trades.
 
@@ -98,8 +109,11 @@ def cmd_scan() -> list:
     state = _load_state()
     cash = state.get("cash", 5000.0)
 
+    # Fetch regime once — reused across all stock signals
+    regime = get_regime()
+
     watchlist = _load_watchlist()
-    signals = scan_watchlist(watchlist, available_cash=cash)
+    signals = scan_watchlist(watchlist, available_cash=cash, regime=regime)
 
     # Cache results
     signals_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "signals_cache.json")
@@ -195,6 +209,8 @@ def main():
             result = cmd_buy(args[1], int(args[2]), float(args[3]), args[4] if len(args) > 4 else "")
         elif command == "sell" and len(args) >= 4:
             result = cmd_sell(args[1], int(args[2]), float(args[3]), args[4] if len(args) > 4 else "")
+        elif command == "market_overview":
+            result = cmd_market_overview()
         elif command == "reset":
             result = cmd_reset()
         else:

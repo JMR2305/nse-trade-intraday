@@ -133,4 +133,14 @@ router.post("/portfolio/reset", async (_req, res) => {
   }
 });
 
+// GET /api/market-overview
+router.get("/market-overview", async (_req, res) => {
+  try {
+    const data = await runPython(["market_overview"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 export default router;

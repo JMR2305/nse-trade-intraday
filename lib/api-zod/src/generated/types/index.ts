@@ -8,7 +8,13 @@
 
 export * from './actionResult';
 export * from './errorResponse';
+export * from './explanation';
 export * from './healthStatus';
+export * from './marketOverview';
+export * from './marketOverviewBankniftyTrend';
+export * from './marketOverviewNiftyTrend';
+export * from './marketOverviewRegime';
+export * from './marketOverviewVixStatus';
 export * from './pnlPoint';
 export * from './portfolio';
 export * from './position';
@@ -16,6 +22,7 @@ export * from './scanResult';
 export * from './signal';
 export * from './signalRiskLevel';
 export * from './signalSignal';
+export * from './stockSnapshot';
 export * from './trade';
 export * from './tradeAction';
 export * from './watchlistAddRequest';

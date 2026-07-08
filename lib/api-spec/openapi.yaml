@@ -180,6 +180,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /market-overview:
+    get:
+      operationId: getMarketOverview
+      tags: [trading]
+      summary: Get market intelligence overview
+      description: Returns NIFTY/BANKNIFTY trends, VIX, market regime, and top/weak stocks
+      responses:
+        "200":
+          description: Market overview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketOverview"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /portfolio/reset:
     post:
       operationId: resetPortfolio
@@ -246,6 +266,14 @@ components:
         target:
           type: number
           description: ATR-based target price in INR
+        explanation:
+          $ref: "#/components/schemas/Explanation"
+        timeframe_alignment:
+          type: integer
+          description: Number of timeframes (0-4) that agree with signal direction
+        regime:
+          type: string
+          description: Market regime active at signal generation time
       required:
         - stock
         - time
@@ -257,6 +285,9 @@ components:
         - risk_level
         - stop_loss
         - target
+        - explanation
+        - timeframe_alignment
+        - regime
 
     Position:
       type: object
@@ -400,6 +431,105 @@ components:
       required:
         - success
         - message
+
+    Explanation:
+      type: object
+      properties:
+        trend:
+          type: string
+        momentum:
+          type: string
+        volume:
+          type: string
+        indicator_summary:
+          type: string
+        regime_impact:
+          type: string
+        plain_english:
+          type: string
+      required:
+        - trend
+        - momentum
+        - volume
+        - indicator_summary
+        - regime_impact
+        - plain_english
+
+    StockSnapshot:
+      type: object
+      properties:
+        symbol:
+          type: string
+        price:
+          type: number
+        signal:
+          type: string
+        confidence:
+          type: number
+        change_pct:
+          type: number
+      required:
+        - symbol
+        - price
+        - signal
+        - confidence
+        - change_pct
+
+    MarketOverview:
+      type: object
+      properties:
+        nifty_price:
+          type: number
+        nifty_change_pct:
+          type: number
+        nifty_trend:
+          type: string
+          enum: [UP, DOWN, SIDEWAYS]
+        banknifty_price:
+          type: number
+        banknifty_change_pct:
+          type: number
+        banknifty_trend:
+          type: string
+          enum: [UP, DOWN, SIDEWAYS]
+        regime:
+          type: string
+          enum: [BULLISH, BEARISH, SIDEWAYS, HIGH_VOLATILITY, LOW_VOLATILITY]
+        regime_description:
+          type: string
+        vix_value:
+          type: number
+        vix_status:
+          type: string
+          enum: [LOW, MODERATE, HIGH, EXTREME]
+        market_score:
+          type: number
+          description: Overall market score 0–100
+        top_strong:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockSnapshot"
+        top_weak:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockSnapshot"
+        scanned_at:
+          type: string
+      required:
+        - nifty_price
+        - nifty_change_pct
+        - nifty_trend
+        - banknifty_price
+        - banknifty_change_pct
+        - banknifty_trend
+        - regime
+        - regime_description
+        - vix_value
+        - vix_status
+        - market_score
+        - top_strong
+        - top_weak
+        - scanned_at
 
     ErrorResponse:
       type: object

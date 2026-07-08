@@ -56,7 +56,17 @@ export const GetSignalsResponseItem = zod.object({
   "reasons": zod.array(zod.string()).describe('List of indicator reasons supporting the signal'),
   "risk_level": zod.enum(['LOW', 'MEDIUM', 'HIGH']).describe('Risk level based on ATR volatility'),
   "stop_loss": zod.number().describe('ATR-based stop loss price in INR'),
-  "target": zod.number().describe('ATR-based target price in INR')
+  "target": zod.number().describe('ATR-based target price in INR'),
+  "explanation": zod.object({
+  "trend": zod.string(),
+  "momentum": zod.string(),
+  "volume": zod.string(),
+  "indicator_summary": zod.string(),
+  "regime_impact": zod.string(),
+  "plain_english": zod.string()
+}),
+  "timeframe_alignment": zod.number().describe('Number of timeframes (0-4) that agree with signal direction'),
+  "regime": zod.string().describe('Market regime active at signal generation time')
 })
 export const GetSignalsResponse = zod.array(GetSignalsResponseItem)
 
@@ -93,7 +103,17 @@ export const RunScanResponse = zod.object({
   "reasons": zod.array(zod.string()).describe('List of indicator reasons supporting the signal'),
   "risk_level": zod.enum(['LOW', 'MEDIUM', 'HIGH']).describe('Risk level based on ATR volatility'),
   "stop_loss": zod.number().describe('ATR-based stop loss price in INR'),
-  "target": zod.number().describe('ATR-based target price in INR')
+  "target": zod.number().describe('ATR-based target price in INR'),
+  "explanation": zod.object({
+  "trend": zod.string(),
+  "momentum": zod.string(),
+  "volume": zod.string(),
+  "indicator_summary": zod.string(),
+  "regime_impact": zod.string(),
+  "plain_english": zod.string()
+}),
+  "timeframe_alignment": zod.number().describe('Number of timeframes (0-4) that agree with signal direction'),
+  "regime": zod.string().describe('Market regime active at signal generation time')
 })),
   "scanned_at": zod.string()
 })
@@ -130,6 +150,40 @@ export const RemoveFromWatchlistParams = zod.object({
 
 export const RemoveFromWatchlistResponse = zod.object({
   "watchlist": zod.array(zod.string())
+})
+
+
+/**
+ * Returns NIFTY/BANKNIFTY trends, VIX, market regime, and top/weak stocks
+ * @summary Get market intelligence overview
+ */
+export const GetMarketOverviewResponse = zod.object({
+  "nifty_price": zod.number(),
+  "nifty_change_pct": zod.number(),
+  "nifty_trend": zod.enum(['UP', 'DOWN', 'SIDEWAYS']),
+  "banknifty_price": zod.number(),
+  "banknifty_change_pct": zod.number(),
+  "banknifty_trend": zod.enum(['UP', 'DOWN', 'SIDEWAYS']),
+  "regime": zod.enum(['BULLISH', 'BEARISH', 'SIDEWAYS', 'HIGH_VOLATILITY', 'LOW_VOLATILITY']),
+  "regime_description": zod.string(),
+  "vix_value": zod.number(),
+  "vix_status": zod.enum(['LOW', 'MODERATE', 'HIGH', 'EXTREME']),
+  "market_score": zod.number().describe('Overall market score 0–100'),
+  "top_strong": zod.array(zod.object({
+  "symbol": zod.string(),
+  "price": zod.number(),
+  "signal": zod.string(),
+  "confidence": zod.number(),
+  "change_pct": zod.number()
+})),
+  "top_weak": zod.array(zod.object({
+  "symbol": zod.string(),
+  "price": zod.number(),
+  "signal": zod.string(),
+  "confidence": zod.number(),
+  "change_pct": zod.number()
+})),
+  "scanned_at": zod.string()
 })
 
 

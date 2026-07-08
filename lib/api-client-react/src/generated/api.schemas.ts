@@ -33,6 +33,15 @@ export const SignalRiskLevel = {
   HIGH: 'HIGH',
 } as const;
 
+export interface Explanation {
+  trend: string;
+  momentum: string;
+  volume: string;
+  indicator_summary: string;
+  regime_impact: string;
+  plain_english: string;
+}
+
 export interface Signal {
   /** NSE symbol */
   stock: string;
@@ -53,6 +62,11 @@ export interface Signal {
   stop_loss: number;
   /** ATR-based target price in INR */
   target: number;
+  explanation: Explanation;
+  /** Number of timeframes (0-4) that agree with signal direction */
+  timeframe_alignment: number;
+  /** Market regime active at signal generation time */
+  regime: string;
 }
 
 export interface Position {
@@ -121,6 +135,71 @@ export interface WatchlistAddRequest {
 export interface ActionResult {
   success: boolean;
   message: string;
+}
+
+export interface StockSnapshot {
+  symbol: string;
+  price: number;
+  signal: string;
+  confidence: number;
+  change_pct: number;
+}
+
+export type MarketOverviewNiftyTrend = typeof MarketOverviewNiftyTrend[keyof typeof MarketOverviewNiftyTrend];
+
+
+export const MarketOverviewNiftyTrend = {
+  UP: 'UP',
+  DOWN: 'DOWN',
+  SIDEWAYS: 'SIDEWAYS',
+} as const;
+
+export type MarketOverviewBankniftyTrend = typeof MarketOverviewBankniftyTrend[keyof typeof MarketOverviewBankniftyTrend];
+
+
+export const MarketOverviewBankniftyTrend = {
+  UP: 'UP',
+  DOWN: 'DOWN',
+  SIDEWAYS: 'SIDEWAYS',
+} as const;
+
+export type MarketOverviewRegime = typeof MarketOverviewRegime[keyof typeof MarketOverviewRegime];
+
+
+export const MarketOverviewRegime = {
+  BULLISH: 'BULLISH',
+  BEARISH: 'BEARISH',
+  SIDEWAYS: 'SIDEWAYS',
+  HIGH_VOLATILITY: 'HIGH_VOLATILITY',
+  LOW_VOLATILITY: 'LOW_VOLATILITY',
+} as const;
+
+export type MarketOverviewVixStatus = typeof MarketOverviewVixStatus[keyof typeof MarketOverviewVixStatus];
+
+
+export const MarketOverviewVixStatus = {
+  LOW: 'LOW',
+  MODERATE: 'MODERATE',
+  HIGH: 'HIGH',
+  EXTREME: 'EXTREME',
+} as const;
+
+export interface MarketOverview {
+  nifty_price: number;
+  nifty_change_pct: number;
+  nifty_trend: MarketOverviewNiftyTrend;
+  banknifty_price: number;
+  banknifty_change_pct: number;
+  banknifty_trend: MarketOverviewBankniftyTrend;
+  regime: MarketOverviewRegime;
+  regime_description: string;
+  vix_value: number;
+  vix_status: MarketOverviewVixStatus;
+  /** Overall market score 0–100 */
+  market_score: number;
+  top_strong: StockSnapshot[];
+  top_weak: StockSnapshot[];
+  scanned_at: string;
 }
 
 export interface ErrorResponse {

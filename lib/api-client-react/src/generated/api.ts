@@ -23,6 +23,7 @@ import type {
   ActionResult,
   ErrorResponse,
   HealthStatus,
+  MarketOverview,
   Portfolio,
   ScanResult,
   Signal,
@@ -662,6 +663,84 @@ export const useRemoveFromWatchlist = <TError = ErrorType<ErrorResponse>,
       > => {
       return useMutation(getRemoveFromWatchlistMutationOptions(options));
     }
+
+export const getGetMarketOverviewUrl = () => {
+
+
+
+
+  return `/api/market-overview`
+}
+
+/**
+ * Returns NIFTY/BANKNIFTY trends, VIX, market regime, and top/weak stocks
+ * @summary Get market intelligence overview
+ */
+export const getMarketOverview = async ( options?: RequestInit): Promise<MarketOverview> => {
+
+  return customFetch<MarketOverview>(getGetMarketOverviewUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMarketOverviewQueryKey = () => {
+    return [
+    `/api/market-overview`
+    ] as const;
+    }
+
+
+export const getGetMarketOverviewQueryOptions = <TData = Awaited<ReturnType<typeof getMarketOverview>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMarketOverview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMarketOverviewQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMarketOverview>>> = ({ signal }) => getMarketOverview({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMarketOverview>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMarketOverviewQueryResult = NonNullable<Awaited<ReturnType<typeof getMarketOverview>>>
+export type GetMarketOverviewQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get market intelligence overview
+ */
+
+export function useGetMarketOverview<TData = Awaited<ReturnType<typeof getMarketOverview>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMarketOverview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMarketOverviewQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getResetPortfolioUrl = () => {
 

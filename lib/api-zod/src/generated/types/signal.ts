@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { Explanation } from './explanation';
 import type { SignalRiskLevel } from './signalRiskLevel';
 import type { SignalSignal } from './signalSignal';
 
@@ -28,4 +29,9 @@ export interface Signal {
   stop_loss: number;
   /** ATR-based target price in INR */
   target: number;
+  explanation: Explanation;
+  /** Number of timeframes (0-4) that agree with signal direction */
+  timeframe_alignment: number;
+  /** Market regime active at signal generation time */
+  regime: string;
 }
