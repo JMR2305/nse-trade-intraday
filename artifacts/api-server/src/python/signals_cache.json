@@ -1,198 +1,317 @@
 [
   {
     "stock": "RELIANCE",
-    "time": "2026-07-08T21:18:29.414404",
+    "time": "2026-07-08T21:50:10.305857",
     "signal": "NO_TRADE",
     "quantity": 0,
     "price": 1308.4,
     "confidence": 40.0,
     "reasons": [
       "Price \u20b91308.40 below VWAP \u20b91308.40 (+15)",
-      "EMA20 1310.93 < EMA50 1327.20 \u2014 bearish trend (+15)",
-      "EMA9 1309.31 < EMA20 1310.93 \u2014 short-term momentum down (+10)",
-      "EMA levels \u2014 9:1309.3 20:1310.9 50:1327.2 200:1387.2",
-      "Bollinger Bands \u2014 upper:1346.1 mid:1307.3 lower:1268.5"
+      "EMA20 1310.9 < EMA50 1327.2 \u2014 death cross (+15)",
+      "EMA9 1309.3 < EMA20 1310.9 \u2014 short-term momentum down (+10)",
+      "EMA stack: 9=1309.3 20=1310.9 50=1327.2 200=1387.2",
+      "ATR=22.08 (1.7%) | Risk=LOW",
+      "MTF gate: only 2/4 timeframes agree \u2014 capped at NO_TRADE",
+      "Regime: LOW_VOLATILITY | adj_buy=-0.0 adj_sell=-0.0"
     ],
     "risk_level": "LOW",
     "stop_loss": 1341.52,
-    "target": 1264.24
+    "target": 1264.24,
+    "explanation": {
+      "trend": "Strong downtrend \u2014 all EMAs stacked bearishly (EMA9 < EMA20 < EMA50).",
+      "momentum": "Bullish RSI 48. MACD bullish (line above signal).",
+      "volume": "Normal volume (1.1\u00d7) \u2014 no special conviction.",
+      "indicator_summary": "Price inside Bollinger Bands (\u20b91269\u2013\u20b91346) \u2014 normal range. Timeframes: \u2717 5M, \u2713 15M, \u2713 1H, \u2717 1D.",
+      "regime_impact": "LOW VOLATILITY: compressed ranges \u2014 favour breakout entries.",
+      "plain_english": "No clear trade setup. Confidence below 60 (40/100). Stay out and wait for better alignment across indicators."
+    },
+    "timeframe_alignment": 2,
+    "regime": "LOW_VOLATILITY"
   },
   {
     "stock": "TCS",
-    "time": "2026-07-08T21:18:29.602208",
+    "time": "2026-07-08T21:50:11.086100",
     "signal": "NO_TRADE",
     "quantity": 0,
     "price": 2096.1,
     "confidence": 45.0,
     "reasons": [
       "Price \u20b92096.10 below VWAP \u20b92096.10 (+15)",
-      "EMA20 2116.17 < EMA50 2222.40 \u2014 bearish trend (+15)",
-      "EMA9 2079.22 < EMA20 2116.17 \u2014 short-term momentum down (+10)",
-      "ADX 23.5 \u2014 strong trend (+5)",
-      "EMA levels \u2014 9:2079.2 20:2116.2 50:2222.4 200:2605.8",
-      "Bollinger Bands \u2014 upper:2233.5 mid:2113.8 lower:1994.1"
+      "EMA20 2116.2 < EMA50 2222.4 \u2014 death cross (+15)",
+      "EMA9 2079.2 < EMA20 2116.2 \u2014 short-term momentum down (+10)",
+      "ADX 23.5 \u2014 trend strength confirmed (+5)",
+      "EMA stack: 9=2079.2 20=2116.2 50=2222.4 200=2605.8",
+      "ATR=59.86 (2.9%) | Risk=MEDIUM",
+      "MTF gate: only 2/4 timeframes agree \u2014 capped at NO_TRADE",
+      "Regime: LOW_VOLATILITY | adj_buy=-0.0 adj_sell=-0.0"
     ],
     "risk_level": "MEDIUM",
     "stop_loss": 2185.9,
-    "target": 1976.37
+    "target": 1976.37,
+    "explanation": {
+      "trend": "Strong downtrend \u2014 all EMAs stacked bearishly (EMA9 < EMA20 < EMA50).",
+      "momentum": "Bullish RSI 45. MACD bullish (line above signal).",
+      "volume": "Normal volume (1.1\u00d7) \u2014 no special conviction.",
+      "indicator_summary": "Price inside Bollinger Bands (\u20b91994\u2013\u20b92234) \u2014 normal range. Timeframes: \u2717 5M, \u2713 15M, \u2713 1H, \u2717 1D.",
+      "regime_impact": "LOW VOLATILITY: compressed ranges \u2014 favour breakout entries.",
+      "plain_english": "No clear trade setup. Confidence below 60 (45/100). Stay out and wait for better alignment across indicators."
+    },
+    "timeframe_alignment": 2,
+    "regime": "LOW_VOLATILITY"
   },
   {
     "stock": "INFY",
-    "time": "2026-07-08T21:18:29.798915",
+    "time": "2026-07-08T21:50:11.814550",
     "signal": "NO_TRADE",
     "quantity": 0,
     "price": 1071.8,
     "confidence": 45.0,
     "reasons": [
       "Price \u20b91071.80 below VWAP \u20b91071.80 (+15)",
-      "EMA20 1069.17 < EMA50 1123.32 \u2014 bearish trend (+15)",
-      "EMA9 1047.03 < EMA20 1069.17 \u2014 short-term momentum down (+10)",
-      "ADX 21.3 \u2014 strong trend (+5)",
-      "EMA levels \u2014 9:1047.0 20:1069.2 50:1123.3 200:1320.3",
-      "Bollinger Bands \u2014 upper:1174.5 mid:1072.5 lower:970.5"
+      "EMA20 1069.2 < EMA50 1123.3 \u2014 death cross (+15)",
+      "EMA9 1047.0 < EMA20 1069.2 \u2014 short-term momentum down (+10)",
+      "ADX 21.3 \u2014 trend strength confirmed (+5)",
+      "EMA stack: 9=1047.0 20=1069.2 50=1123.3 200=1320.3",
+      "ATR=33.43 (3.1%) | Risk=MEDIUM",
+      "MTF gate: only 1/4 timeframes agree \u2014 capped at NO_TRADE",
+      "Regime: LOW_VOLATILITY | adj_buy=-0.0 adj_sell=-0.0"
     ],
     "risk_level": "MEDIUM",
     "stop_loss": 1121.94,
-    "target": 1004.95
+    "target": 1004.95,
+    "explanation": {
+      "trend": "Strong downtrend \u2014 all EMAs stacked bearishly (EMA9 < EMA20 < EMA50).",
+      "momentum": "Bullish RSI 48. MACD bullish (line above signal).",
+      "volume": "Normal volume (1.4\u00d7) \u2014 no special conviction.",
+      "indicator_summary": "Price inside Bollinger Bands (\u20b9970\u2013\u20b91175) \u2014 normal range. Timeframes: \u2717 5M, \u2713 15M, \u2717 1H, \u2717 1D.",
+      "regime_impact": "LOW VOLATILITY: compressed ranges \u2014 favour breakout entries.",
+      "plain_english": "No clear trade setup. Confidence below 60 (45/100). Stay out and wait for better alignment across indicators."
+    },
+    "timeframe_alignment": 1,
+    "regime": "LOW_VOLATILITY"
   },
   {
     "stock": "HDFCBANK",
-    "time": "2026-07-08T21:18:29.947668",
-    "signal": "BUY",
+    "time": "2026-07-08T21:50:12.440152",
+    "signal": "WATCH",
     "quantity": 0,
     "price": 829.3,
     "confidence": 65.0,
     "reasons": [
-      "EMA20 789.83 > EMA50 779.91 \u2014 bullish trend (+15)",
-      "EMA9 806.20 > EMA20 789.83 \u2014 short-term momentum up (+10)",
-      "MACD bullish: line 16.160 > signal 11.824 (+15)",
-      "Price near/breaking resistance \u2014 breakout potential (+10)",
-      "Supertrend bullish \u2014 trend confirmation (+10)",
-      "ADX 31.3 \u2014 strong trend (+5)",
-      "EMA levels \u2014 9:806.2 20:789.8 50:779.9 200:837.3",
-      "Bollinger Bands \u2014 upper:835.1 mid:785.0 lower:734.9"
+      "EMA20 789.8 > EMA50 779.9 \u2014 golden cross (+15)",
+      "EMA9 806.2 > EMA20 789.8 \u2014 short-term momentum up (+10)",
+      "MACD bullish: 16.160 > 11.824 (+15)",
+      "Price near/breaking resistance \u2014 breakout signal (+10)",
+      "Supertrend bullish \u2014 trend following confirmation (+10)",
+      "ADX 31.3 \u2014 trend strength confirmed (+5)",
+      "EMA stack: 9=806.2 20=789.8 50=779.9 200=837.3",
+      "ATR=14.96 (1.8%) | Risk=LOW",
+      "MTF gate: only 2/4 timeframes agree \u2014 capped at WATCH",
+      "Regime: LOW_VOLATILITY | adj_buy=-0.0 adj_sell=-0.0"
     ],
     "risk_level": "LOW",
     "stop_loss": 806.86,
-    "target": 859.22
+    "target": 859.22,
+    "explanation": {
+      "trend": "Strong uptrend \u2014 all EMAs stacked bullishly (EMA9 > EMA20 > EMA50).",
+      "momentum": "Overbought RSI 74. MACD bullish (line above signal).",
+      "volume": "Above-average volume (1.6\u00d7) \u2014 supports the move.",
+      "indicator_summary": "Price inside Bollinger Bands (\u20b9735\u2013\u20b9835) \u2014 normal range. Timeframes: \u2713 5M, \u2717 15M, \u2717 1H, \u2713 1D.",
+      "regime_impact": "LOW VOLATILITY: compressed ranges \u2014 favour breakout entries.",
+      "plain_english": "Signal is too weak to act on. Indicators are mixed \u2014 only 65/100 confidence. Monitor for confirmation before entering."
+    },
+    "timeframe_alignment": 2,
+    "regime": "LOW_VOLATILITY"
   },
   {
     "stock": "ICICIBANK",
-    "time": "2026-07-08T21:18:29.989504",
-    "signal": "BUY",
+    "time": "2026-07-08T21:50:13.210737",
+    "signal": "WATCH",
     "quantity": 0,
     "price": 1414.7,
     "confidence": 65.0,
     "reasons": [
-      "EMA20 1365.30 > EMA50 1329.27 \u2014 bullish trend (+15)",
-      "EMA9 1395.66 > EMA20 1365.30 \u2014 short-term momentum up (+10)",
-      "MACD bullish: line 33.359 > signal 29.048 (+15)",
-      "Price near/breaking resistance \u2014 breakout potential (+10)",
-      "Supertrend bullish \u2014 trend confirmation (+10)",
-      "ADX 36.2 \u2014 strong trend (+5)",
-      "EMA levels \u2014 9:1395.7 20:1365.3 50:1329.3 200:1353.7",
-      "Bollinger Bands \u2014 upper:1435.4 mid:1363.7 lower:1291.9"
+      "EMA20 1365.3 > EMA50 1329.3 \u2014 golden cross (+15)",
+      "EMA9 1395.7 > EMA20 1365.3 \u2014 short-term momentum up (+10)",
+      "MACD bullish: 33.359 > 29.048 (+15)",
+      "Price near/breaking resistance \u2014 breakout signal (+10)",
+      "Supertrend bullish \u2014 trend following confirmation (+10)",
+      "ADX 36.2 \u2014 trend strength confirmed (+5)",
+      "EMA stack: 9=1395.7 20=1365.3 50=1329.3 200=1353.7",
+      "ATR=23.79 (1.7%) | Risk=LOW",
+      "MTF gate: only 2/4 timeframes agree \u2014 capped at WATCH",
+      "Regime: LOW_VOLATILITY | adj_buy=-0.0 adj_sell=-0.0"
     ],
     "risk_level": "LOW",
     "stop_loss": 1379.01,
-    "target": 1462.29
+    "target": 1462.29,
+    "explanation": {
+      "trend": "Strong uptrend \u2014 all EMAs stacked bullishly (EMA9 > EMA20 > EMA50).",
+      "momentum": "Neutral RSI 70. MACD bullish (line above signal).",
+      "volume": "Normal volume (1.1\u00d7) \u2014 no special conviction.",
+      "indicator_summary": "Price inside Bollinger Bands (\u20b91292\u2013\u20b91435) \u2014 normal range. Timeframes: \u2713 5M, \u2717 15M, \u2717 1H, \u2713 1D.",
+      "regime_impact": "LOW VOLATILITY: compressed ranges \u2014 favour breakout entries.",
+      "plain_english": "Signal is too weak to act on. Indicators are mixed \u2014 only 65/100 confidence. Monitor for confirmation before entering."
+    },
+    "timeframe_alignment": 2,
+    "regime": "LOW_VOLATILITY"
   },
   {
     "stock": "SBIN",
-    "time": "2026-07-08T21:18:30.182707",
+    "time": "2026-07-08T21:50:13.989720",
     "signal": "NO_TRADE",
     "quantity": 0,
     "price": 1038.1,
     "confidence": 45.0,
     "reasons": [
-      "EMA20 1028.69 > EMA50 1020.60 \u2014 bullish trend (+15)",
-      "EMA9 1038.41 > EMA20 1028.69 \u2014 short-term momentum up (+10)",
+      "EMA20 1028.7 > EMA50 1020.6 \u2014 golden cross (+15)",
+      "EMA9 1038.4 > EMA20 1028.7 \u2014 short-term momentum up (+10)",
       "RSI 56.4 in bullish momentum zone 45\u201365 (+10)",
-      "Supertrend bullish \u2014 trend confirmation (+10)",
-      "EMA levels \u2014 9:1038.4 20:1028.7 50:1020.6 200:1019.4",
-      "Bollinger Bands \u2014 upper:1060.1 mid:1031.5 lower:1002.9"
+      "Supertrend bullish \u2014 trend following confirmation (+10)",
+      "EMA stack: 9=1038.4 20=1028.7 50=1020.6 200=1019.4",
+      "ATR=17.91 (1.7%) | Risk=LOW",
+      "MTF gate: only 2/4 timeframes agree \u2014 capped at NO_TRADE",
+      "Regime: LOW_VOLATILITY | adj_buy=-0.0 adj_sell=-0.0"
     ],
     "risk_level": "LOW",
     "stop_loss": 1011.23,
-    "target": 1073.93
+    "target": 1073.93,
+    "explanation": {
+      "trend": "Strong uptrend \u2014 all EMAs stacked bullishly (EMA9 > EMA20 > EMA50).",
+      "momentum": "Bullish RSI 56. MACD bearish (line below signal).",
+      "volume": "Normal volume (1.0\u00d7) \u2014 no special conviction.",
+      "indicator_summary": "Price inside Bollinger Bands (\u20b91003\u2013\u20b91060) \u2014 normal range. Timeframes: \u2713 5M, \u2717 15M, \u2717 1H, \u2713 1D.",
+      "regime_impact": "LOW VOLATILITY: compressed ranges \u2014 favour breakout entries.",
+      "plain_english": "No clear trade setup. Confidence below 60 (45/100). Stay out and wait for better alignment across indicators."
+    },
+    "timeframe_alignment": 2,
+    "regime": "LOW_VOLATILITY"
   },
   {
     "stock": "WIPRO",
-    "time": "2026-07-08T21:18:30.369285",
-    "signal": "WATCH",
+    "time": "2026-07-08T21:50:14.612197",
+    "signal": "NO_TRADE",
     "quantity": 4,
     "price": 173.0,
     "confidence": 55.0,
     "reasons": [
       "Price \u20b9173.00 below VWAP \u20b9173.00 (+15)",
-      "EMA20 178.48 < EMA50 187.30 \u2014 bearish trend (+15)",
-      "EMA9 174.53 < EMA20 178.48 \u2014 short-term momentum down (+10)",
-      "Price near/breaking support \u2014 breakdown risk (+10)",
-      "ADX 27.8 \u2014 strong trend (+5)",
-      "EMA levels \u2014 9:174.5 20:178.5 50:187.3 200:215.0",
-      "Bollinger Bands \u2014 upper:185.3 mid:177.1 lower:168.8"
+      "EMA20 178.5 < EMA50 187.3 \u2014 death cross (+15)",
+      "EMA9 174.5 < EMA20 178.5 \u2014 short-term momentum down (+10)",
+      "Price near/breaking support \u2014 breakdown signal (+10)",
+      "ADX 27.8 \u2014 trend strength confirmed (+5)",
+      "EMA stack: 9=174.5 20=178.5 50=187.3 200=215.0",
+      "ATR=4.18 (2.4%) | Risk=MEDIUM",
+      "MTF gate: only 2/4 timeframes agree \u2014 capped at NO_TRADE",
+      "Regime: LOW_VOLATILITY | adj_buy=-0.0 adj_sell=-0.0"
     ],
     "risk_level": "MEDIUM",
     "stop_loss": 179.27,
-    "target": 164.65
+    "target": 164.65,
+    "explanation": {
+      "trend": "Strong downtrend \u2014 all EMAs stacked bearishly (EMA9 < EMA20 < EMA50).",
+      "momentum": "Neutral RSI 36. MACD bullish (line above signal).",
+      "volume": "Normal volume (0.9\u00d7) \u2014 no special conviction.",
+      "indicator_summary": "Price inside Bollinger Bands (\u20b9169\u2013\u20b9185) \u2014 normal range. Timeframes: \u2717 5M, \u2713 15M, \u2713 1H, \u2717 1D.",
+      "regime_impact": "LOW VOLATILITY: compressed ranges \u2014 favour breakout entries.",
+      "plain_english": "No clear trade setup. Confidence below 60 (55/100). Stay out and wait for better alignment across indicators."
+    },
+    "timeframe_alignment": 2,
+    "regime": "LOW_VOLATILITY"
   },
   {
     "stock": "LT",
-    "time": "2026-07-08T21:18:30.500895",
+    "time": "2026-07-08T21:50:15.234002",
     "signal": "NO_TRADE",
     "quantity": 0,
     "price": 3991.9,
     "confidence": 40.0,
     "reasons": [
       "Price \u20b93991.90 below VWAP \u20b93991.90 (+15)",
-      "EMA9 4076.52 < EMA20 4085.18 \u2014 short-term momentum down (+10)",
-      "MACD bearish: line 10.880 < signal 37.306 (+15)",
-      "EMA levels \u2014 9:4076.5 20:4085.2 50:4032.2 200:3971.4",
-      "Bollinger Bands \u2014 upper:4325.9 mid:4115.4 lower:3904.8"
+      "EMA9 4076.5 < EMA20 4085.2 \u2014 short-term momentum down (+10)",
+      "MACD bearish: 10.880 < 37.306 (+15)",
+      "EMA stack: 9=4076.5 20=4085.2 50=4032.2 200=3971.4",
+      "ATR=72.08 (1.8%) | Risk=LOW",
+      "Regime: LOW_VOLATILITY | adj_buy=-0.0 adj_sell=-0.0"
     ],
     "risk_level": "LOW",
     "stop_loss": 4100.01,
-    "target": 3847.75
+    "target": 3847.75,
+    "explanation": {
+      "trend": "Moderate uptrend \u2014 EMA20 above EMA50 with short-term pullback.",
+      "momentum": "Neutral RSI 41. MACD bearish (line below signal).",
+      "volume": "Normal volume (1.2\u00d7) \u2014 no special conviction.",
+      "indicator_summary": "Price inside Bollinger Bands (\u20b93905\u2013\u20b94326) \u2014 normal range. Timeframes: \u2717 5M, \u2713 15M, \u2713 1H, \u2713 1D.",
+      "regime_impact": "LOW VOLATILITY: compressed ranges \u2014 favour breakout entries.",
+      "plain_english": "No clear trade setup. Confidence below 60 (40/100). Stay out and wait for better alignment across indicators."
+    },
+    "timeframe_alignment": 3,
+    "regime": "LOW_VOLATILITY"
   },
   {
     "stock": "BAJFINANCE",
-    "time": "2026-07-08T21:18:30.635968",
-    "signal": "BUY",
+    "time": "2026-07-08T21:50:16.019146",
+    "signal": "WATCH",
     "quantity": 0,
     "price": 1042.5,
     "confidence": 65.0,
     "reasons": [
-      "EMA20 979.60 > EMA50 946.75 \u2014 bullish trend (+15)",
-      "EMA9 1010.64 > EMA20 979.60 \u2014 short-term momentum up (+10)",
-      "MACD bullish: line 31.640 > signal 24.205 (+15)",
-      "Price near/breaking resistance \u2014 breakout potential (+10)",
-      "Supertrend bullish \u2014 trend confirmation (+10)",
-      "ADX 37.8 \u2014 strong trend (+5)",
-      "EMA levels \u2014 9:1010.6 20:979.6 50:946.8 200:941.1",
-      "Bollinger Bands \u2014 upper:1064.5 mid:968.9 lower:873.4"
+      "EMA20 979.6 > EMA50 946.8 \u2014 golden cross (+15)",
+      "EMA9 1010.6 > EMA20 979.6 \u2014 short-term momentum up (+10)",
+      "MACD bullish: 31.640 > 24.205 (+15)",
+      "Price near/breaking resistance \u2014 breakout signal (+10)",
+      "Supertrend bullish \u2014 trend following confirmation (+10)",
+      "ADX 37.8 \u2014 trend strength confirmed (+5)",
+      "EMA stack: 9=1010.6 20=979.6 50=946.8 200=941.1",
+      "ATR=23.11 (2.2%) | Risk=MEDIUM",
+      "MTF gate: only 2/4 timeframes agree \u2014 capped at WATCH",
+      "Regime: LOW_VOLATILITY | adj_buy=-0.0 adj_sell=-0.0"
     ],
     "risk_level": "MEDIUM",
     "stop_loss": 1007.83,
-    "target": 1088.72
+    "target": 1088.72,
+    "explanation": {
+      "trend": "Strong uptrend \u2014 all EMAs stacked bullishly (EMA9 > EMA20 > EMA50).",
+      "momentum": "Overbought RSI 76. MACD bullish (line above signal).",
+      "volume": "Normal volume (1.0\u00d7) \u2014 no special conviction.",
+      "indicator_summary": "Price inside Bollinger Bands (\u20b9873\u2013\u20b91064) \u2014 normal range. Timeframes: \u2713 5M, \u2717 15M, \u2717 1H, \u2713 1D.",
+      "regime_impact": "LOW VOLATILITY: compressed ranges \u2014 favour breakout entries.",
+      "plain_english": "Signal is too weak to act on. Indicators are mixed \u2014 only 65/100 confidence. Monitor for confirmation before entering."
+    },
+    "timeframe_alignment": 2,
+    "regime": "LOW_VOLATILITY"
   },
   {
     "stock": "MARUTI",
-    "time": "2026-07-08T21:18:30.836879",
+    "time": "2026-07-08T21:50:16.796816",
     "signal": "WATCH",
     "quantity": 0,
     "price": 14538.0,
     "confidence": 60.0,
     "reasons": [
-      "EMA20 13848.07 > EMA50 13602.35 \u2014 bullish trend (+15)",
-      "EMA9 14170.88 > EMA20 13848.07 \u2014 short-term momentum up (+10)",
-      "MACD bullish: line 310.978 > signal 209.775 (+15)",
-      "Price near/breaking resistance \u2014 breakout potential (+10)",
-      "Supertrend bullish \u2014 trend confirmation (+10)",
-      "EMA levels \u2014 9:14170.9 20:13848.1 50:13602.3 200:14575.8",
-      "Bollinger Bands \u2014 upper:14681.2 mid:13739.1 lower:12797.0"
+      "EMA20 13848.1 > EMA50 13602.3 \u2014 golden cross (+15)",
+      "EMA9 14170.9 > EMA20 13848.1 \u2014 short-term momentum up (+10)",
+      "MACD bullish: 310.978 > 209.775 (+15)",
+      "Price near/breaking resistance \u2014 breakout signal (+10)",
+      "Supertrend bullish \u2014 trend following confirmation (+10)",
+      "EMA stack: 9=14170.9 20=13848.1 50=13602.3 200=14575.8",
+      "ATR=303.02 (2.1%) | Risk=MEDIUM",
+      "MTF gate: only 2/4 timeframes agree \u2014 capped at WATCH",
+      "Regime: LOW_VOLATILITY | adj_buy=-0.0 adj_sell=-0.0"
     ],
     "risk_level": "MEDIUM",
     "stop_loss": 14083.47,
-    "target": 15144.04
+    "target": 15144.04,
+    "explanation": {
+      "trend": "Strong uptrend \u2014 all EMAs stacked bullishly (EMA9 > EMA20 > EMA50).",
+      "momentum": "Neutral RSI 69. MACD bullish (line above signal).",
+      "volume": "Normal volume (1.0\u00d7) \u2014 no special conviction.",
+      "indicator_summary": "Price inside Bollinger Bands (\u20b912797\u2013\u20b914681) \u2014 normal range. Timeframes: \u2713 5M, \u2717 15M, \u2717 1H, \u2713 1D.",
+      "regime_impact": "LOW VOLATILITY: compressed ranges \u2014 favour breakout entries.",
+      "plain_english": "Signal is too weak to act on. Indicators are mixed \u2014 only 60/100 confidence. Monitor for confirmation before entering."
+    },
+    "timeframe_alignment": 2,
+    "regime": "LOW_VOLATILITY"
   }
 ]

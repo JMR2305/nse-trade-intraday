@@ -115,6 +115,24 @@ export const RunScanResponse = zod.object({
   "timeframe_alignment": zod.number().describe('Number of timeframes (0-4) that agree with signal direction'),
   "regime": zod.string().describe('Market regime active at signal generation time')
 })),
+  "ai_decisions": zod.array(zod.object({
+  "stock": zod.string(),
+  "raw_signal": zod.string(),
+  "decision": zod.enum(['STRONG_BUY', 'BUY', 'STRONG_SELL', 'SELL', 'WATCH', 'NO_TRADE']),
+  "confidence": zod.number(),
+  "risk_level": zod.enum(['LOW', 'MEDIUM', 'HIGH']),
+  "entry_price": zod.number(),
+  "stop_loss": zod.number(),
+  "target": zod.number(),
+  "rr_ratio": zod.number(),
+  "upgrade_reasons": zod.array(zod.string()),
+  "downgrade_reasons": zod.array(zod.string()),
+  "plain_english": zod.string(),
+  "regime": zod.string(),
+  "timeframe_alignment": zod.number(),
+  "pass_all_rules": zod.boolean(),
+  "time": zod.string()
+})),
   "scanned_at": zod.string()
 })
 
@@ -150,6 +168,79 @@ export const RemoveFromWatchlistParams = zod.object({
 
 export const RemoveFromWatchlistResponse = zod.object({
   "watchlist": zod.array(zod.string())
+})
+
+
+/**
+ * Returns AI Decision Engine results from the last scan
+ * @summary Get cached AI decisions
+ */
+export const GetAiDecisionsResponseItem = zod.object({
+  "stock": zod.string(),
+  "raw_signal": zod.string(),
+  "decision": zod.enum(['STRONG_BUY', 'BUY', 'STRONG_SELL', 'SELL', 'WATCH', 'NO_TRADE']),
+  "confidence": zod.number(),
+  "risk_level": zod.enum(['LOW', 'MEDIUM', 'HIGH']),
+  "entry_price": zod.number(),
+  "stop_loss": zod.number(),
+  "target": zod.number(),
+  "rr_ratio": zod.number(),
+  "upgrade_reasons": zod.array(zod.string()),
+  "downgrade_reasons": zod.array(zod.string()),
+  "plain_english": zod.string(),
+  "regime": zod.string(),
+  "timeframe_alignment": zod.number(),
+  "pass_all_rules": zod.boolean(),
+  "time": zod.string()
+})
+export const GetAiDecisionsResponse = zod.array(GetAiDecisionsResponseItem)
+
+
+/**
+ * Returns completed BUY→SELL round trips with full metadata
+ * @summary Get trade replay data
+ */
+export const GetTradeReplayResponseItem = zod.object({
+  "id": zod.string(),
+  "symbol": zod.string(),
+  "entry_time": zod.string(),
+  "exit_time": zod.string(),
+  "entry_price": zod.number(),
+  "exit_price": zod.number(),
+  "quantity": zod.number(),
+  "pnl": zod.number(),
+  "pnl_pct": zod.number(),
+  "signal_confidence": zod.number(),
+  "regime": zod.string(),
+  "ai_decision": zod.string(),
+  "rr_ratio": zod.number(),
+  "target": zod.number(),
+  "stop_loss": zod.number(),
+  "exit_type": zod.enum(['TARGET_HIT', 'STOP_HIT', 'SIGNAL_EXIT', 'MANUAL']),
+  "reason_entry": zod.string(),
+  "reason_exit": zod.string(),
+  "plain_english": zod.string()
+})
+export const GetTradeReplayResponse = zod.array(GetTradeReplayResponseItem)
+
+
+/**
+ * Returns aggregated win rate, profit factor, best stock, etc.
+ * @summary Get strategy performance metrics
+ */
+export const GetStrategyPerformanceResponse = zod.object({
+  "total_trades": zod.number(),
+  "winning_trades": zod.number(),
+  "losing_trades": zod.number(),
+  "win_rate": zod.number(),
+  "avg_profit": zod.number(),
+  "avg_loss": zod.number(),
+  "profit_factor": zod.number(),
+  "total_pnl": zod.number(),
+  "best_stock": zod.string(),
+  "worst_stock": zod.string(),
+  "best_regime": zod.string(),
+  "computed_at": zod.string()
 })
 
 

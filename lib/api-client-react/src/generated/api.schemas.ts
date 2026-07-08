@@ -119,8 +119,96 @@ export interface Trade {
   reason: string;
 }
 
+export type AiDecisionDecision = typeof AiDecisionDecision[keyof typeof AiDecisionDecision];
+
+
+export const AiDecisionDecision = {
+  STRONG_BUY: 'STRONG_BUY',
+  BUY: 'BUY',
+  STRONG_SELL: 'STRONG_SELL',
+  SELL: 'SELL',
+  WATCH: 'WATCH',
+  NO_TRADE: 'NO_TRADE',
+} as const;
+
+export type AiDecisionRiskLevel = typeof AiDecisionRiskLevel[keyof typeof AiDecisionRiskLevel];
+
+
+export const AiDecisionRiskLevel = {
+  LOW: 'LOW',
+  MEDIUM: 'MEDIUM',
+  HIGH: 'HIGH',
+} as const;
+
+export interface AiDecision {
+  stock: string;
+  raw_signal: string;
+  decision: AiDecisionDecision;
+  confidence: number;
+  risk_level: AiDecisionRiskLevel;
+  entry_price: number;
+  stop_loss: number;
+  target: number;
+  rr_ratio: number;
+  upgrade_reasons: string[];
+  downgrade_reasons: string[];
+  plain_english: string;
+  regime: string;
+  timeframe_alignment: number;
+  pass_all_rules: boolean;
+  time: string;
+}
+
+export type TradeReplayItemExitType = typeof TradeReplayItemExitType[keyof typeof TradeReplayItemExitType];
+
+
+export const TradeReplayItemExitType = {
+  TARGET_HIT: 'TARGET_HIT',
+  STOP_HIT: 'STOP_HIT',
+  SIGNAL_EXIT: 'SIGNAL_EXIT',
+  MANUAL: 'MANUAL',
+} as const;
+
+export interface TradeReplayItem {
+  id: string;
+  symbol: string;
+  entry_time: string;
+  exit_time: string;
+  entry_price: number;
+  exit_price: number;
+  quantity: number;
+  pnl: number;
+  pnl_pct: number;
+  signal_confidence: number;
+  regime: string;
+  ai_decision: string;
+  rr_ratio: number;
+  target: number;
+  stop_loss: number;
+  exit_type: TradeReplayItemExitType;
+  reason_entry: string;
+  reason_exit: string;
+  plain_english: string;
+}
+
+export interface StrategyPerformance {
+  total_trades: number;
+  winning_trades: number;
+  losing_trades: number;
+  win_rate: number;
+  avg_profit: number;
+  avg_loss: number;
+  profit_factor: number;
+  total_pnl: number;
+  best_stock: string;
+  worst_stock: string;
+  best_regime: string;
+  computed_at: string;
+}
+
 export interface ScanResult {
   signals: Signal[];
+  ai_decisions: AiDecision[];
   scanned_at: string;
 }
 

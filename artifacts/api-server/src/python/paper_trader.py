@@ -5,6 +5,11 @@ Maintains portfolio state (cash, positions, trade history, P&L history)
 in a local JSON file. No real orders are ever placed.
 
 Initial capital: ₹5,000
+
+v0.4: Enhanced trade storage for Trade Replay.
+Each BUY record stores AI decision metadata (confidence, regime, rr_ratio,
+stop_loss, target, plain_english) so the Trade Replay page can show full context.
+Each SELL record stores realized P&L and exit type.
 """
 
 import json
@@ -56,7 +61,44 @@ class PortfolioState(TypedDict):
     pnl_history: list[PnlPoint]
 
 
-# ── State persistence ─────────────────────────────────────────────────────────
+class TradeReplayItem(TypedDict):
+    id: str
+    symbol: str
+    entry_time: str
+    exit_time: str
+    entry_price: float
+    exit_price: float
+    quantity: int
+    pnl: float
+    pnl_pct: float
+    signal_confidence: float
+    regime: str
+    ai_decision: str
+    rr_ratio: float
+    target: float
+    stop_loss: float
+    exit_type: str           # TARGET_HIT | STOP_HIT | SIGNAL_EXIT | MANUAL
+    reason_entry: str
+    reason_exit: str
+    plain_english: str
+
+
+class StrategyPerformance(TypedDict):
+    total_trades: int
+    winning_trades: int
+    losing_trades: int
+    win_rate: float
+    avg_profit: float
+    avg_loss: float
+    profit_factor: float
+    total_pnl: float
+    best_stock: str
+    worst_stock: str
+    best_regime: str
+    computed_at: str
+
+
+# ── State persistence ────────────────────────────────────────────────────────
 
 def _default_state() -> dict:
     return {
@@ -84,7 +126,7 @@ def _save_state(state: dict) -> None:
         json.dump(state, f, indent=2)
 
 
-# ── Portfolio calculations ─────────────────────────────────────────────────────
+# ── Portfolio calculations ────────────────────────────────────────────────────
 
 def _compute_portfolio(state: dict, current_prices: dict[str, float]) -> PortfolioState:
     cash = state["cash"]
@@ -125,11 +167,27 @@ def _compute_portfolio(state: dict, current_prices: dict[str, float]) -> Portfol
     )
 
 
-# ── Trade execution ────────────────────────────────────────────────────────────
+# ── Trade execution ───────────────────────────────────────────────────────────
 
-def execute_buy(symbol: str, quantity: int, price: float, reason: str = "") -> tuple[bool, str]:
+def execute_buy(
+    symbol: str,
+    quantity: int,
+    price: float,
+    reason: str = "",
+    # AI Decision metadata (stored for Trade Replay)
+    signal_confidence: float = 0.0,
+    regime: str = "UNKNOWN",
+    ai_decision: str = "",
+    rr_ratio: float = 0.0,
+    target: float = 0.0,
+    stop_loss_price: float = 0.0,
+    plain_english: str = "",
+) -> tuple[bool, str]:
     """
     Execute a paper buy order.
+
+    Additional metadata params are stored in the trade record
+    for Trade Replay and Strategy Performance analysis.
 
     Returns:
         (success, message)
@@ -146,7 +204,7 @@ def execute_buy(symbol: str, quantity: int, price: float, reason: str = "") -> t
     # Deduct cash
     state["cash"] -= total_cost
 
-    # Update position (average down / up)
+    # Update position (average up/down)
     sym = symbol.upper()
     if sym in state["positions"]:
         existing = state["positions"][sym]
@@ -162,29 +220,43 @@ def execute_buy(symbol: str, quantity: int, price: float, reason: str = "") -> t
             "avg_price": price,
         }
 
-    # Record trade
-    trade = Trade(
-        id=str(uuid.uuid4())[:8],
-        symbol=sym,
-        action="BUY",
-        quantity=quantity,
-        price=round(price, 2),
-        total=round(total_cost, 2),
-        timestamp=datetime.now().isoformat(),
-        reason=reason,
-    )
+    # Record trade with full metadata
+    trade: dict = {
+        "id": str(uuid.uuid4())[:8],
+        "symbol": sym,
+        "action": "BUY",
+        "quantity": quantity,
+        "price": round(price, 2),
+        "total": round(total_cost, 2),
+        "timestamp": datetime.now().isoformat(),
+        "reason": reason,
+        # AI Decision metadata
+        "signal_confidence": round(signal_confidence, 1),
+        "regime": regime,
+        "ai_decision": ai_decision or "BUY",
+        "rr_ratio": round(rr_ratio, 2),
+        "target": round(target, 2),
+        "stop_loss": round(stop_loss_price, 2),
+        "plain_english": plain_english,
+    }
     state["trades"].append(trade)
 
-    # Update P&L snapshot
     _append_pnl_snapshot(state, price, sym)
-
     _save_state(state)
     return True, f"Bought {quantity} × {sym} @ ₹{price:.2f} = ₹{total_cost:.2f}"
 
 
-def execute_sell(symbol: str, quantity: int, price: float, reason: str = "") -> tuple[bool, str]:
+def execute_sell(
+    symbol: str,
+    quantity: int,
+    price: float,
+    reason: str = "",
+    exit_type: str = "SIGNAL_EXIT",
+) -> tuple[bool, str]:
     """
     Execute a paper sell order.
+
+    exit_type: TARGET_HIT | STOP_HIT | SIGNAL_EXIT | MANUAL
 
     Returns:
         (success, message)
@@ -202,7 +274,11 @@ def execute_sell(symbol: str, quantity: int, price: float, reason: str = "") -> 
     if existing["quantity"] < quantity:
         return False, f"Only {existing['quantity']} shares available, tried to sell {quantity}"
 
+    avg_price = existing["avg_price"]
     total_proceeds = quantity * price
+    realized_pnl = (price - avg_price) * quantity
+    realized_pnl_pct = (realized_pnl / (avg_price * quantity)) * 100 if avg_price > 0 else 0.0
+
     state["cash"] += total_proceeds
 
     # Reduce / close position
@@ -212,31 +288,33 @@ def execute_sell(symbol: str, quantity: int, price: float, reason: str = "") -> 
     else:
         state["positions"][sym]["quantity"] = remaining
 
-    # Record trade
-    trade = Trade(
-        id=str(uuid.uuid4())[:8],
-        symbol=sym,
-        action="SELL",
-        quantity=quantity,
-        price=round(price, 2),
-        total=round(total_proceeds, 2),
-        timestamp=datetime.now().isoformat(),
-        reason=reason,
-    )
+    # Record trade with P&L
+    trade: dict = {
+        "id": str(uuid.uuid4())[:8],
+        "symbol": sym,
+        "action": "SELL",
+        "quantity": quantity,
+        "price": round(price, 2),
+        "total": round(total_proceeds, 2),
+        "timestamp": datetime.now().isoformat(),
+        "reason": reason,
+        # Sell-specific fields
+        "entry_price": round(avg_price, 2),
+        "pnl": round(realized_pnl, 2),
+        "pnl_pct": round(realized_pnl_pct, 2),
+        "exit_type": exit_type,
+    }
     state["trades"].append(trade)
 
-    # Update P&L snapshot
     _append_pnl_snapshot(state, price, sym)
-
     _save_state(state)
-    return True, f"Sold {quantity} × {sym} @ ₹{price:.2f} = ₹{total_proceeds:.2f}"
+    return True, f"Sold {quantity} × {sym} @ ₹{price:.2f} | P&L: ₹{realized_pnl:.2f}"
 
 
 def _append_pnl_snapshot(state: dict, latest_price: float, latest_symbol: str) -> None:
     """Append a portfolio value snapshot to pnl_history."""
     invested = 0.0
     for sym, pos in state.get("positions", {}).items():
-        # Use latest price for the symbol just traded, otherwise use avg_price as proxy
         ltp = latest_price if sym == latest_symbol else pos["avg_price"]
         invested += pos["quantity"] * ltp
 
@@ -246,12 +324,147 @@ def _append_pnl_snapshot(state: dict, latest_price: float, latest_symbol: str) -
         "value": round(total, 2),
     })
 
-    # Keep last 500 snapshots
     if len(state["pnl_history"]) > 500:
         state["pnl_history"] = state["pnl_history"][-500:]
 
 
-# ── Public query helpers ───────────────────────────────────────────────────────
+# ── Trade Replay ──────────────────────────────────────────────────────────────
+
+def get_trade_replay() -> list[TradeReplayItem]:
+    """
+    Match BUY→SELL pairs and return enriched round-trip records.
+    FIFO matching per symbol. Only completed round trips are returned.
+    """
+    state = _load_state()
+    trades = state.get("trades", [])
+
+    # Stack of open BUY trades per symbol (FIFO)
+    open_buys: dict[str, list[dict]] = {}
+    replay_items: list[TradeReplayItem] = []
+
+    for trade in trades:
+        sym = trade.get("symbol", "")
+        action = trade.get("action", "")
+
+        if action == "BUY":
+            open_buys.setdefault(sym, []).append(trade)
+
+        elif action == "SELL" and sym in open_buys and open_buys[sym]:
+            buy_trade = open_buys[sym].pop(0)
+
+            entry_price = buy_trade.get("price", 0.0)
+            exit_price = trade.get("price", 0.0)
+            qty = trade.get("quantity", 0)
+            pnl = round((exit_price - entry_price) * qty, 2)
+            pnl_pct = round((pnl / (entry_price * qty)) * 100, 2) if entry_price > 0 else 0.0
+
+            # Determine exit type from stored metadata or price comparison
+            exit_type = trade.get("exit_type", "SIGNAL_EXIT")
+            target = buy_trade.get("target", 0.0)
+            stop_loss = buy_trade.get("stop_loss", 0.0)
+            if exit_type == "SIGNAL_EXIT":
+                if target > 0 and exit_price >= target * 0.99:
+                    exit_type = "TARGET_HIT"
+                elif stop_loss > 0 and exit_price <= stop_loss * 1.01:
+                    exit_type = "STOP_HIT"
+
+            replay_items.append(TradeReplayItem(
+                id=trade.get("id", ""),
+                symbol=sym,
+                entry_time=buy_trade.get("timestamp", ""),
+                exit_time=trade.get("timestamp", ""),
+                entry_price=entry_price,
+                exit_price=exit_price,
+                quantity=qty,
+                pnl=pnl,
+                pnl_pct=pnl_pct,
+                signal_confidence=buy_trade.get("signal_confidence", 0.0),
+                regime=buy_trade.get("regime", "UNKNOWN"),
+                ai_decision=buy_trade.get("ai_decision", "UNKNOWN"),
+                rr_ratio=buy_trade.get("rr_ratio", 0.0),
+                target=target,
+                stop_loss=stop_loss,
+                exit_type=exit_type,
+                reason_entry=buy_trade.get("reason", ""),
+                reason_exit=trade.get("reason", ""),
+                plain_english=buy_trade.get("plain_english", ""),
+            ))
+
+    return sorted(replay_items, key=lambda x: x["exit_time"], reverse=True)
+
+
+def get_strategy_performance() -> StrategyPerformance:
+    """
+    Compute strategy performance metrics from all completed trade pairs.
+    """
+    replay = get_trade_replay()
+
+    if not replay:
+        return StrategyPerformance(
+            total_trades=0, winning_trades=0, losing_trades=0,
+            win_rate=0.0, avg_profit=0.0, avg_loss=0.0,
+            profit_factor=0.0, total_pnl=0.0,
+            best_stock="—", worst_stock="—", best_regime="—",
+            computed_at=datetime.now().isoformat(),
+        )
+
+    winners = [t for t in replay if t["pnl"] > 0]
+    losers  = [t for t in replay if t["pnl"] < 0]
+
+    total = len(replay)
+    win_count = len(winners)
+    loss_count = len(losers)
+    win_rate = (win_count / total * 100) if total > 0 else 0.0
+
+    avg_profit = sum(t["pnl"] for t in winners) / win_count if winners else 0.0
+    avg_loss   = sum(t["pnl"] for t in losers)  / loss_count if losers  else 0.0
+
+    total_profits = sum(t["pnl"] for t in winners)
+    total_losses  = abs(sum(t["pnl"] for t in losers))
+    profit_factor = (total_profits / total_losses) if total_losses > 0 else 999.0
+
+    # Per-stock P&L
+    stock_pnl: dict[str, float] = {}
+    for t in replay:
+        stock_pnl[t["symbol"]] = stock_pnl.get(t["symbol"], 0.0) + t["pnl"]
+
+    best_stock  = max(stock_pnl, key=lambda k: stock_pnl[k]) if stock_pnl else "—"
+    worst_stock = min(stock_pnl, key=lambda k: stock_pnl[k]) if stock_pnl else "—"
+
+    # Best regime by win rate
+    regime_wins:  dict[str, int] = {}
+    regime_total: dict[str, int] = {}
+    for t in replay:
+        reg = t.get("regime", "UNKNOWN")
+        regime_total[reg] = regime_total.get(reg, 0) + 1
+        if t["pnl"] > 0:
+            regime_wins[reg] = regime_wins.get(reg, 0) + 1
+
+    if regime_total:
+        best_regime = max(
+            regime_total,
+            key=lambda r: (regime_wins.get(r, 0) / regime_total[r])
+        )
+    else:
+        best_regime = "—"
+
+    return StrategyPerformance(
+        total_trades=total,
+        winning_trades=win_count,
+        losing_trades=loss_count,
+        win_rate=round(win_rate, 1),
+        avg_profit=round(avg_profit, 2),
+        avg_loss=round(avg_loss, 2),
+        profit_factor=round(profit_factor, 2),
+        total_pnl=round(sum(t["pnl"] for t in replay), 2),
+        best_stock=best_stock,
+        worst_stock=worst_stock,
+        best_regime=best_regime,
+        computed_at=datetime.now().isoformat(),
+    )
+
+
+# ── Public query helpers ──────────────────────────────────────────────────────
 
 def get_trades() -> list[Trade]:
     """Return all recorded trades, newest first."""
@@ -268,7 +481,6 @@ def get_portfolio(current_prices: Optional[dict[str, float]] = None) -> Portfoli
     """
     state = _load_state()
     prices = current_prices or {}
-    # Fill missing prices with avg_price as proxy
     for sym, pos in state.get("positions", {}).items():
         if sym not in prices:
             prices[sym] = pos["avg_price"]

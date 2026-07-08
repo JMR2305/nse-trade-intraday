@@ -10,6 +10,8 @@ import MarketOverview from "@/pages/MarketOverview";
 import Signals from "@/pages/Signals";
 import Trades from "@/pages/Trades";
 import Watchlist from "@/pages/Watchlist";
+import AiDecision from "@/pages/AiDecision";
+import TradeReplay from "@/pages/TradeReplay";
 
 const queryClient = new QueryClient();
 
@@ -20,6 +22,8 @@ function Router() {
         <Route path="/" component={Dashboard} />
         <Route path="/market" component={MarketOverview} />
         <Route path="/signals" component={Signals} />
+        <Route path="/ai-decision" component={AiDecision} />
+        <Route path="/trade-replay" component={TradeReplay} />
         <Route path="/trades" component={Trades} />
         <Route path="/watchlist" component={Watchlist} />
         <Route component={NotFound} />

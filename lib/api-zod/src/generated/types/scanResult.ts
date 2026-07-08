@@ -5,9 +5,11 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { AiDecision } from './aiDecision';
 import type { Signal } from './signal';
 
 export interface ScanResult {
   signals: Signal[];
+  ai_decisions: AiDecision[];
   scanned_at: string;
 }

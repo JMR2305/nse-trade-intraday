@@ -7,6 +7,9 @@
  */
 
 export * from './actionResult';
+export * from './aiDecision';
+export * from './aiDecisionDecision';
+export * from './aiDecisionRiskLevel';
 export * from './errorResponse';
 export * from './explanation';
 export * from './healthStatus';
@@ -23,7 +26,10 @@ export * from './signal';
 export * from './signalRiskLevel';
 export * from './signalSignal';
 export * from './stockSnapshot';
+export * from './strategyPerformance';
 export * from './trade';
 export * from './tradeAction';
+export * from './tradeReplayItem';
+export * from './tradeReplayItemExitType';
 export * from './watchlistAddRequest';
 export * from './watchlistResponse';

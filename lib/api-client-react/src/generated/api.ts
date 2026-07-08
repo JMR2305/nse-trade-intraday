@@ -21,13 +21,16 @@ import type {
 
 import type {
   ActionResult,
+  AiDecision,
   ErrorResponse,
   HealthStatus,
   MarketOverview,
   Portfolio,
   ScanResult,
   Signal,
+  StrategyPerformance,
   Trade,
+  TradeReplayItem,
   WatchlistAddRequest,
   WatchlistResponse
 } from './api.schemas';
@@ -663,6 +666,240 @@ export const useRemoveFromWatchlist = <TError = ErrorType<ErrorResponse>,
       > => {
       return useMutation(getRemoveFromWatchlistMutationOptions(options));
     }
+
+export const getGetAiDecisionsUrl = () => {
+
+
+
+
+  return `/api/ai-decisions`
+}
+
+/**
+ * Returns AI Decision Engine results from the last scan
+ * @summary Get cached AI decisions
+ */
+export const getAiDecisions = async ( options?: RequestInit): Promise<AiDecision[]> => {
+
+  return customFetch<AiDecision[]>(getGetAiDecisionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAiDecisionsQueryKey = () => {
+    return [
+    `/api/ai-decisions`
+    ] as const;
+    }
+
+
+export const getGetAiDecisionsQueryOptions = <TData = Awaited<ReturnType<typeof getAiDecisions>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAiDecisions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAiDecisionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAiDecisions>>> = ({ signal }) => getAiDecisions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAiDecisions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAiDecisionsQueryResult = NonNullable<Awaited<ReturnType<typeof getAiDecisions>>>
+export type GetAiDecisionsQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get cached AI decisions
+ */
+
+export function useGetAiDecisions<TData = Awaited<ReturnType<typeof getAiDecisions>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAiDecisions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAiDecisionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetTradeReplayUrl = () => {
+
+
+
+
+  return `/api/trade-replay`
+}
+
+/**
+ * Returns completed BUY→SELL round trips with full metadata
+ * @summary Get trade replay data
+ */
+export const getTradeReplay = async ( options?: RequestInit): Promise<TradeReplayItem[]> => {
+
+  return customFetch<TradeReplayItem[]>(getGetTradeReplayUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTradeReplayQueryKey = () => {
+    return [
+    `/api/trade-replay`
+    ] as const;
+    }
+
+
+export const getGetTradeReplayQueryOptions = <TData = Awaited<ReturnType<typeof getTradeReplay>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTradeReplay>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTradeReplayQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTradeReplay>>> = ({ signal }) => getTradeReplay({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTradeReplay>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTradeReplayQueryResult = NonNullable<Awaited<ReturnType<typeof getTradeReplay>>>
+export type GetTradeReplayQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get trade replay data
+ */
+
+export function useGetTradeReplay<TData = Awaited<ReturnType<typeof getTradeReplay>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTradeReplay>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTradeReplayQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetStrategyPerformanceUrl = () => {
+
+
+
+
+  return `/api/strategy-performance`
+}
+
+/**
+ * Returns aggregated win rate, profit factor, best stock, etc.
+ * @summary Get strategy performance metrics
+ */
+export const getStrategyPerformance = async ( options?: RequestInit): Promise<StrategyPerformance> => {
+
+  return customFetch<StrategyPerformance>(getGetStrategyPerformanceUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStrategyPerformanceQueryKey = () => {
+    return [
+    `/api/strategy-performance`
+    ] as const;
+    }
+
+
+export const getGetStrategyPerformanceQueryOptions = <TData = Awaited<ReturnType<typeof getStrategyPerformance>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStrategyPerformance>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStrategyPerformanceQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStrategyPerformance>>> = ({ signal }) => getStrategyPerformance({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStrategyPerformance>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStrategyPerformanceQueryResult = NonNullable<Awaited<ReturnType<typeof getStrategyPerformance>>>
+export type GetStrategyPerformanceQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get strategy performance metrics
+ */
+
+export function useGetStrategyPerformance<TData = Awaited<ReturnType<typeof getStrategyPerformance>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStrategyPerformance>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStrategyPerformanceQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetMarketOverviewUrl = () => {
 

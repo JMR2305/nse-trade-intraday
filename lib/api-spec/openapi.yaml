@@ -180,6 +180,70 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /ai-decisions:
+    get:
+      operationId: getAiDecisions
+      tags: [trading]
+      summary: Get cached AI decisions
+      description: Returns AI Decision Engine results from the last scan
+      responses:
+        "200":
+          description: List of AI decisions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AiDecision"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trade-replay:
+    get:
+      operationId: getTradeReplay
+      tags: [trading]
+      summary: Get trade replay data
+      description: Returns completed BUY→SELL round trips with full metadata
+      responses:
+        "200":
+          description: Trade replay items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TradeReplayItem"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /strategy-performance:
+    get:
+      operationId: getStrategyPerformance
+      tags: [trading]
+      summary: Get strategy performance metrics
+      description: Returns aggregated win rate, profit factor, best stock, etc.
+      responses:
+        "200":
+          description: Strategy performance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StrategyPerformance"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /market-overview:
     get:
       operationId: getMarketOverview
@@ -390,6 +454,169 @@ components:
         - timestamp
         - reason
 
+    AiDecision:
+      type: object
+      properties:
+        stock:
+          type: string
+        raw_signal:
+          type: string
+        decision:
+          type: string
+          enum: [STRONG_BUY, BUY, STRONG_SELL, SELL, WATCH, NO_TRADE]
+        confidence:
+          type: number
+        risk_level:
+          type: string
+          enum: [LOW, MEDIUM, HIGH]
+        entry_price:
+          type: number
+        stop_loss:
+          type: number
+        target:
+          type: number
+        rr_ratio:
+          type: number
+        upgrade_reasons:
+          type: array
+          items:
+            type: string
+        downgrade_reasons:
+          type: array
+          items:
+            type: string
+        plain_english:
+          type: string
+        regime:
+          type: string
+        timeframe_alignment:
+          type: integer
+        pass_all_rules:
+          type: boolean
+        time:
+          type: string
+      required:
+        - stock
+        - raw_signal
+        - decision
+        - confidence
+        - risk_level
+        - entry_price
+        - stop_loss
+        - target
+        - rr_ratio
+        - upgrade_reasons
+        - downgrade_reasons
+        - plain_english
+        - regime
+        - timeframe_alignment
+        - pass_all_rules
+        - time
+
+    TradeReplayItem:
+      type: object
+      properties:
+        id:
+          type: string
+        symbol:
+          type: string
+        entry_time:
+          type: string
+        exit_time:
+          type: string
+        entry_price:
+          type: number
+        exit_price:
+          type: number
+        quantity:
+          type: integer
+        pnl:
+          type: number
+        pnl_pct:
+          type: number
+        signal_confidence:
+          type: number
+        regime:
+          type: string
+        ai_decision:
+          type: string
+        rr_ratio:
+          type: number
+        target:
+          type: number
+        stop_loss:
+          type: number
+        exit_type:
+          type: string
+          enum: [TARGET_HIT, STOP_HIT, SIGNAL_EXIT, MANUAL]
+        reason_entry:
+          type: string
+        reason_exit:
+          type: string
+        plain_english:
+          type: string
+      required:
+        - id
+        - symbol
+        - entry_time
+        - exit_time
+        - entry_price
+        - exit_price
+        - quantity
+        - pnl
+        - pnl_pct
+        - signal_confidence
+        - regime
+        - ai_decision
+        - rr_ratio
+        - target
+        - stop_loss
+        - exit_type
+        - reason_entry
+        - reason_exit
+        - plain_english
+
+    StrategyPerformance:
+      type: object
+      properties:
+        total_trades:
+          type: integer
+        winning_trades:
+          type: integer
+        losing_trades:
+          type: integer
+        win_rate:
+          type: number
+        avg_profit:
+          type: number
+        avg_loss:
+          type: number
+        profit_factor:
+          type: number
+        total_pnl:
+          type: number
+        best_stock:
+          type: string
+        worst_stock:
+          type: string
+        best_regime:
+          type: string
+        computed_at:
+          type: string
+      required:
+        - total_trades
+        - winning_trades
+        - losing_trades
+        - win_rate
+        - avg_profit
+        - avg_loss
+        - profit_factor
+        - total_pnl
+        - best_stock
+        - worst_stock
+        - best_regime
+        - computed_at
+
     ScanResult:
       type: object
       properties:
@@ -397,10 +624,15 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Signal"
+        ai_decisions:
+          type: array
+          items:
+            $ref: "#/components/schemas/AiDecision"
         scanned_at:
           type: string
       required:
         - signals
+        - ai_decisions
         - scanned_at
 
     WatchlistResponse:

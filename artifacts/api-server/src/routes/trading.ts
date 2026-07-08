@@ -80,8 +80,12 @@ router.get("/trades", async (_req, res) => {
 // POST /api/run-scan
 router.post("/run-scan", async (_req, res) => {
   try {
-    const signals = await runPython(["scan"]) as unknown[];
-    res.json({ signals, scanned_at: new Date().toISOString() });
+    const result = await runPython(["scan"]) as Record<string, unknown>;
+    res.json({
+      signals: result.signals ?? [],
+      ai_decisions: result.ai_decisions ?? [],
+      scanned_at: result.scanned_at ?? new Date().toISOString(),
+    });
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
@@ -127,6 +131,36 @@ router.delete("/watchlist/:symbol", async (req, res) => {
 router.post("/portfolio/reset", async (_req, res) => {
   try {
     const data = await runPython(["reset"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/ai-decisions
+router.get("/ai-decisions", async (_req, res) => {
+  try {
+    const data = await runPython(["ai_decisions"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/trade-replay
+router.get("/trade-replay", async (_req, res) => {
+  try {
+    const data = await runPython(["trade_replay"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/strategy-performance
+router.get("/strategy-performance", async (_req, res) => {
+  try {
+    const data = await runPython(["strategy_performance"]);
     res.json(data);
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
