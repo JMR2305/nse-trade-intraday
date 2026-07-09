@@ -965,6 +965,87 @@ export interface PaperBasketResult {
   learning: SignalLearningState;
 }
 
+export interface TradeIntelligenceRecord {
+  trade_id: string;
+  /** paper_basket | paper_trade | historical_replay */
+  source: string;
+  date: string;
+  symbol: string;
+  sector?: string | null;
+  strategy?: string | null;
+  market_regime?: string | null;
+  holding_period?: number | null;
+  entry_price?: number | null;
+  exit_price?: number | null;
+  quantity?: number | null;
+  profit_loss?: number | null;
+  return_percent?: number | null;
+  ema9?: number | null;
+  ema20?: number | null;
+  ema50?: number | null;
+  ema200?: number | null;
+  rsi?: number | null;
+  macd?: number | null;
+  macd_signal?: number | null;
+  vwap?: number | null;
+  atr?: number | null;
+  adx?: number | null;
+  supertrend?: number | null;
+  volume_ratio?: number | null;
+  opportunity_score?: number | null;
+  trade_quality?: number | null;
+  confidence?: number | null;
+  risk_reward?: number | null;
+  outcome?: string | null;
+  /** Winning = 1, Losing = 0 */
+  outcome_classification: number;
+  recorded_at?: string | null;
+}
+
+export interface TradeIntelligenceBreakdownRow {
+  name: string;
+  trades: number;
+  wins: number;
+  losses: number;
+  win_rate: number;
+  avg_return_pct: number;
+  total_pnl: number;
+}
+
+export interface TradeIntelligenceSummary {
+  total_trades: number;
+  winning_trades: number;
+  losing_trades: number;
+  win_rate: number;
+  average_return_pct: number;
+  average_holding_days: number;
+  total_pnl: number;
+  regime_breakdown: TradeIntelligenceBreakdownRow[];
+  strategy_breakdown: TradeIntelligenceBreakdownRow[];
+  source_breakdown: TradeIntelligenceBreakdownRow[];
+}
+
+export interface TradeIntelligenceResult {
+  summary: TradeIntelligenceSummary;
+  trades: TradeIntelligenceRecord[];
+  generated_at: string;
+}
+
+export interface TradeIntelligenceImportResult {
+  imported_paper_trades: number;
+  note: string;
+  total_trades: number;
+  winning_trades?: number;
+  losing_trades?: number;
+  win_rate?: number;
+  average_return_pct?: number;
+  average_holding_days?: number;
+  total_pnl?: number;
+  regime_breakdown?: TradeIntelligenceBreakdownRow[];
+  strategy_breakdown?: TradeIntelligenceBreakdownRow[];
+  source_breakdown?: TradeIntelligenceBreakdownRow[];
+}
+
 export interface ErrorResponse {
   error: string;
 }
@@ -1090,5 +1171,12 @@ period?: string;
 export type GetIndicatorsParams = {
 interval?: string;
 period?: string;
+};
+
+export type GetTradeIntelligenceParams = {
+/**
+ * Maximum number of trades to return.
+ */
+limit?: number;
 };
 

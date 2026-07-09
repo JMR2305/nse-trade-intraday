@@ -545,6 +545,21 @@ def run_paper_basket(
         **load_weights(), "adjustments": {}, "records_used": 0,
     }
 
+    # ── Trade Intelligence (Sprint 3): store completed basket trades ─────
+    try:
+        from trade_intelligence import record_basket_trades
+        regime_name = regime_info.get("regime", "")
+        record_basket_trades(
+            replay_items, valid, model="old",
+            holding_period=holding_period, market_regime=regime_name,
+        )
+        record_basket_trades(
+            replay_items, improved_valid, model="improved",
+            holding_period=holding_period, market_regime=regime_name,
+        )
+    except Exception:
+        pass  # recording must never break a basket test
+
     result: dict = dict(PaperBasketResult(
         selection_date=selection_date,
         buy_date=buy_date,

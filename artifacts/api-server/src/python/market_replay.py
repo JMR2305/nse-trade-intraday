@@ -75,6 +75,7 @@ class ReplayItem(TypedDict):
     rsi:                float
     macd_hist:          float
     total_trades:       int
+    indicators_at_entry: dict    # full indicator snapshot on the scan date
     error:              str | None
 
 
@@ -148,7 +149,7 @@ def _empty_replay_item(symbol: str, scan_date: str, holding_period: int, error: 
         price_on_scan_date=0.0, price_after_holding=None, return_pct=None,
         outcome="Pending", outcome_label="Pending", why_signal=error, what_happened="",
         rr_ratio=0.0, above_ema20=False, above_ema50=False, volume_ratio=0.0,
-        rsi=0.0, macd_hist=0.0, total_trades=0, error=error,
+        rsi=0.0, macd_hist=0.0, total_trades=0, indicators_at_entry={}, error=error,
     )
 
 
@@ -308,6 +309,20 @@ def replay_stock(
         rsi=round(float(last_row.get("rsi", 0.0) or 0.0), 1),
         macd_hist=round(float(last_row.get("macd_hist", 0.0) or 0.0), 4),
         total_trades=int(metrics.get("total_trades", 0)),
+        indicators_at_entry={
+            "ema9":         round(float(last_row.get("ema9", 0.0) or 0.0), 2),
+            "ema20":        round(float(last_row.get("ema20", 0.0) or 0.0), 2),
+            "ema50":        round(float(last_row.get("ema50", 0.0) or 0.0), 2),
+            "ema200":       round(float(last_row.get("ema200", 0.0) or 0.0), 2),
+            "rsi":          round(float(last_row.get("rsi", 0.0) or 0.0), 2),
+            "macd":         round(float(last_row.get("macd_line", 0.0) or 0.0), 4),
+            "macd_signal":  round(float(last_row.get("macd_signal", 0.0) or 0.0), 4),
+            "vwap":         round(float(last_row.get("vwap", 0.0) or 0.0), 2),
+            "atr":          round(float(last_row.get("atr", 0.0) or 0.0), 2),
+            "adx":          round(float(last_row.get("adx", 0.0) or 0.0), 2),
+            "supertrend":   round(float(last_row.get("supertrend", 0.0) or 0.0), 2),
+            "volume_ratio": round(float(last_row.get("volume_ratio", 0.0) or 0.0), 2),
+        },
         error=None,
     )
 
@@ -377,6 +392,13 @@ def run_market_replay(
                 f"over the next {it['holding_period']} trading day(s) ({return_pct:+.1f}%). "
                 f"Signal was {action} after quality filtering, outcome: {outcome}."
             )
+
+    # ── Trade Intelligence (Sprint 3): store completed BUY/STRONG BUY trades ─
+    try:
+        from trade_intelligence import record_replay_trades
+        record_replay_trades(items, market_regime=regime_info.get("regime", ""))
+    except Exception:
+        pass  # recording must never break a replay run
 
     valid = [it for it in items if it["error"] is None]
     resolved = [it for it in valid if it["return_pct"] is not None]

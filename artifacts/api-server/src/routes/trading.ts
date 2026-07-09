@@ -255,6 +255,30 @@ router.get("/learning-summary", async (_req, res) => {
   }
 });
 
+// GET /api/trade-intelligence
+// Trade Intelligence Database (Sprint 3) — historical completed paper trades
+// with indicators at entry, AI metrics, and win/loss classification.
+router.get("/trade-intelligence", async (req, res) => {
+  try {
+    const limit = String(parseInt(String(req.query.limit ?? "200"), 10) || 200);
+    const data = await runPython(["trade_intelligence", limit]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/trade-intelligence/import
+// Backfill the trade intelligence table from existing paper portfolio history.
+router.post("/trade-intelligence/import", async (_req, res) => {
+  try {
+    const data = await runPython(["trade_intelligence_import"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // POST /api/paper-basket
 // Paper Basket Testing Layer — paper trading only, no real orders. Selects a
 // basket of stocks from the previous day's data (no lookahead bias), then

@@ -47,3 +47,6 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Trade intelligence local database (runtime state)
+artifacts/api-server/src/python/trade_intelligence.db

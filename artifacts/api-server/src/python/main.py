@@ -254,6 +254,18 @@ def cmd_paper_basket(
     return dict(result)
 
 
+def cmd_trade_intelligence(limit: int = 200) -> dict:
+    """Trade Intelligence Database (Sprint 3) — historical completed paper trades."""
+    from trade_intelligence import get_intelligence
+    return get_intelligence(limit=limit)
+
+
+def cmd_trade_intelligence_import() -> dict:
+    """Backfill Trade Intelligence from existing paper portfolio history."""
+    from trade_intelligence import import_existing
+    return import_existing()
+
+
 def _read_json_cache(filename: str) -> list | dict:
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
     if os.path.exists(path):
@@ -379,6 +391,12 @@ def main():
                 min_rr         = float(args[8]) if len(args) > 8 else 2.0,
                 include_watch  = (args[9].lower() in ("1", "true", "yes")) if len(args) > 9 else False,
             )
+        elif command == "trade_intelligence":
+            result = cmd_trade_intelligence(
+                limit = int(args[1]) if len(args) > 1 else 200,
+            )
+        elif command == "trade_intelligence_import":
+            result = cmd_trade_intelligence_import()
         else:
             error_msg = f"Unknown command: {command}"
 

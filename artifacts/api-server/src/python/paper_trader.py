@@ -318,6 +318,15 @@ def execute_sell(
 
     _append_pnl_snapshot(state, price, sym)
     _save_state(state)
+
+    # ── Trade Intelligence (Sprint 3): store the completed paper trade ───
+    try:
+        from trade_intelligence import record_paper_trade
+        from market_scanner import _sector_of
+        record_paper_trade(trade, sector=_sector_of(sym))
+    except Exception:
+        pass  # recording must never break a sell order
+
     return True, f"Sold {quantity} × {sym} @ ₹{price:.2f} | P&L: ₹{realized_pnl:.2f}"
 
 

@@ -28,6 +28,7 @@ import type {
   GetIndicatorsParams,
   GetMarketDataParams,
   GetMarketReplayParams,
+  GetTradeIntelligenceParams,
   HealthStatus,
   IndicatorResult,
   LearningSummary,
@@ -49,6 +50,8 @@ import type {
   StrategyLabRequest,
   StrategyPerformance,
   Trade,
+  TradeIntelligenceImportResult,
+  TradeIntelligenceResult,
   TradeReplayItem,
   WatchlistAddRequest,
   WatchlistResponse
@@ -1639,6 +1642,163 @@ export const useRunPaperBasket = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getRunPaperBasketMutationOptions(options));
+    }
+
+export const getGetTradeIntelligenceUrl = (params?: GetTradeIntelligenceParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/trade-intelligence?${stringifiedParams}` : `/api/trade-intelligence`
+}
+
+/**
+ * Historical database of every completed paper trade (Paper Basket Test, Paper Trades, Historical Replay) with indicators at entry, AI metrics, and win/loss classification. Storage only — no AI learning here.
+ * @summary Trade Intelligence Database
+ */
+export const getTradeIntelligence = async (params?: GetTradeIntelligenceParams, options?: RequestInit): Promise<TradeIntelligenceResult> => {
+
+  return customFetch<TradeIntelligenceResult>(getGetTradeIntelligenceUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTradeIntelligenceQueryKey = (params?: GetTradeIntelligenceParams,) => {
+    return [
+    `/api/trade-intelligence`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetTradeIntelligenceQueryOptions = <TData = Awaited<ReturnType<typeof getTradeIntelligence>>, TError = ErrorType<ErrorResponse>>(params?: GetTradeIntelligenceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTradeIntelligence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTradeIntelligenceQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTradeIntelligence>>> = ({ signal }) => getTradeIntelligence(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTradeIntelligence>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTradeIntelligenceQueryResult = NonNullable<Awaited<ReturnType<typeof getTradeIntelligence>>>
+export type GetTradeIntelligenceQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Trade Intelligence Database
+ */
+
+export function useGetTradeIntelligence<TData = Awaited<ReturnType<typeof getTradeIntelligence>>, TError = ErrorType<ErrorResponse>>(
+ params?: GetTradeIntelligenceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTradeIntelligence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTradeIntelligenceQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getImportTradeIntelligenceUrl = () => {
+
+
+
+
+  return `/api/trade-intelligence/import`
+}
+
+/**
+ * Imports completed trades from the existing paper portfolio history. Paper Basket Tests and Historical Replays are recorded automatically each time they run.
+ * @summary Backfill the Trade Intelligence Database
+ */
+export const importTradeIntelligence = async ( options?: RequestInit): Promise<TradeIntelligenceImportResult> => {
+
+  return customFetch<TradeIntelligenceImportResult>(getImportTradeIntelligenceUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getImportTradeIntelligenceMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importTradeIntelligence>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importTradeIntelligence>>, TError,void, TContext> => {
+
+const mutationKey = ['importTradeIntelligence'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importTradeIntelligence>>, void> = () => {
+
+
+          return  importTradeIntelligence(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportTradeIntelligenceMutationResult = NonNullable<Awaited<ReturnType<typeof importTradeIntelligence>>>
+
+    export type ImportTradeIntelligenceMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Backfill the Trade Intelligence Database
+ */
+export const useImportTradeIntelligence = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importTradeIntelligence>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof importTradeIntelligence>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getImportTradeIntelligenceMutationOptions(options));
     }
 
 export const getRunOptimizerUrl = () => {

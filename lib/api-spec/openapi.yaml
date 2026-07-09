@@ -517,6 +517,60 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /trade-intelligence:
+    get:
+      operationId: getTradeIntelligence
+      tags: [trading]
+      summary: Trade Intelligence Database
+      description: >
+        Historical database of every completed paper trade (Paper Basket Test,
+        Paper Trades, Historical Replay) with indicators at entry, AI metrics,
+        and win/loss classification. Storage only — no AI learning here.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 200
+          description: Maximum number of trades to return.
+      responses:
+        "200":
+          description: Trade intelligence data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TradeIntelligenceResult"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trade-intelligence/import:
+    post:
+      operationId: importTradeIntelligence
+      tags: [trading]
+      summary: Backfill the Trade Intelligence Database
+      description: >
+        Imports completed trades from the existing paper portfolio history.
+        Paper Basket Tests and Historical Replays are recorded automatically
+        each time they run.
+      responses:
+        "200":
+          description: Import result with updated summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TradeIntelligenceImportResult"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /optimizer:
     post:
       operationId: runOptimizer
@@ -2110,6 +2164,119 @@ components:
         updated_at:      { type: string }
         records_used:    { type: integer }
       required: [weights, samples_learned, updated_at]
+
+    TradeIntelligenceRecord:
+      type: object
+      properties:
+        trade_id:        { type: string }
+        source:          { type: string, description: "paper_basket | paper_trade | historical_replay" }
+        date:            { type: string }
+        symbol:          { type: string }
+        sector:          { type: string, nullable: true }
+        strategy:        { type: string, nullable: true }
+        market_regime:   { type: string, nullable: true }
+        holding_period:  { type: integer, nullable: true }
+        entry_price:     { type: number, nullable: true }
+        exit_price:      { type: number, nullable: true }
+        quantity:        { type: integer, nullable: true }
+        profit_loss:     { type: number, nullable: true }
+        return_percent:  { type: number, nullable: true }
+        ema9:            { type: number, nullable: true }
+        ema20:           { type: number, nullable: true }
+        ema50:           { type: number, nullable: true }
+        ema200:          { type: number, nullable: true }
+        rsi:             { type: number, nullable: true }
+        macd:            { type: number, nullable: true }
+        macd_signal:     { type: number, nullable: true }
+        vwap:            { type: number, nullable: true }
+        atr:             { type: number, nullable: true }
+        adx:             { type: number, nullable: true }
+        supertrend:      { type: number, nullable: true }
+        volume_ratio:    { type: number, nullable: true }
+        opportunity_score: { type: number, nullable: true }
+        trade_quality:   { type: number, nullable: true }
+        confidence:      { type: number, nullable: true }
+        risk_reward:     { type: number, nullable: true }
+        outcome:         { type: string, nullable: true }
+        outcome_classification: { type: integer, description: "Winning = 1, Losing = 0" }
+        recorded_at:     { type: string, nullable: true }
+      required: [trade_id, source, date, symbol, outcome_classification]
+
+    TradeIntelligenceBreakdownRow:
+      type: object
+      properties:
+        name:           { type: string }
+        trades:         { type: integer }
+        wins:           { type: integer }
+        losses:         { type: integer }
+        win_rate:       { type: number }
+        avg_return_pct: { type: number }
+        total_pnl:      { type: number }
+      required: [name, trades, wins, losses, win_rate, avg_return_pct, total_pnl]
+
+    TradeIntelligenceSummary:
+      type: object
+      properties:
+        total_trades:         { type: integer }
+        winning_trades:       { type: integer }
+        losing_trades:        { type: integer }
+        win_rate:             { type: number }
+        average_return_pct:   { type: number }
+        average_holding_days: { type: number }
+        total_pnl:            { type: number }
+        regime_breakdown:
+          type: array
+          items: { $ref: "#/components/schemas/TradeIntelligenceBreakdownRow" }
+        strategy_breakdown:
+          type: array
+          items: { $ref: "#/components/schemas/TradeIntelligenceBreakdownRow" }
+        source_breakdown:
+          type: array
+          items: { $ref: "#/components/schemas/TradeIntelligenceBreakdownRow" }
+      required:
+        - total_trades
+        - winning_trades
+        - losing_trades
+        - win_rate
+        - average_return_pct
+        - average_holding_days
+        - total_pnl
+        - regime_breakdown
+        - strategy_breakdown
+        - source_breakdown
+
+    TradeIntelligenceResult:
+      type: object
+      properties:
+        summary: { $ref: "#/components/schemas/TradeIntelligenceSummary" }
+        trades:
+          type: array
+          items: { $ref: "#/components/schemas/TradeIntelligenceRecord" }
+        generated_at: { type: string }
+      required: [summary, trades, generated_at]
+
+    TradeIntelligenceImportResult:
+      type: object
+      properties:
+        imported_paper_trades: { type: integer }
+        note:                  { type: string }
+        total_trades:          { type: integer }
+        winning_trades:        { type: integer }
+        losing_trades:         { type: integer }
+        win_rate:              { type: number }
+        average_return_pct:    { type: number }
+        average_holding_days:  { type: number }
+        total_pnl:             { type: number }
+        regime_breakdown:
+          type: array
+          items: { $ref: "#/components/schemas/TradeIntelligenceBreakdownRow" }
+        strategy_breakdown:
+          type: array
+          items: { $ref: "#/components/schemas/TradeIntelligenceBreakdownRow" }
+        source_breakdown:
+          type: array
+          items: { $ref: "#/components/schemas/TradeIntelligenceBreakdownRow" }
+      required: [imported_paper_trades, note, total_trades]
 
     ErrorResponse:
       type: object

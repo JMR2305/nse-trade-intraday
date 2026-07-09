@@ -803,6 +803,135 @@ export const RunPaperBasketResponse = zod.object({
 
 
 /**
+ * Historical database of every completed paper trade (Paper Basket Test, Paper Trades, Historical Replay) with indicators at entry, AI metrics, and win/loss classification. Storage only — no AI learning here.
+ * @summary Trade Intelligence Database
+ */
+export const getTradeIntelligenceQueryLimitDefault = 200;
+
+export const GetTradeIntelligenceQueryParams = zod.object({
+  "limit": zod.coerce.number().default(getTradeIntelligenceQueryLimitDefault).describe('Maximum number of trades to return.')
+})
+
+export const GetTradeIntelligenceResponse = zod.object({
+  "summary": zod.object({
+  "total_trades": zod.number(),
+  "winning_trades": zod.number(),
+  "losing_trades": zod.number(),
+  "win_rate": zod.number(),
+  "average_return_pct": zod.number(),
+  "average_holding_days": zod.number(),
+  "total_pnl": zod.number(),
+  "regime_breakdown": zod.array(zod.object({
+  "name": zod.string(),
+  "trades": zod.number(),
+  "wins": zod.number(),
+  "losses": zod.number(),
+  "win_rate": zod.number(),
+  "avg_return_pct": zod.number(),
+  "total_pnl": zod.number()
+})),
+  "strategy_breakdown": zod.array(zod.object({
+  "name": zod.string(),
+  "trades": zod.number(),
+  "wins": zod.number(),
+  "losses": zod.number(),
+  "win_rate": zod.number(),
+  "avg_return_pct": zod.number(),
+  "total_pnl": zod.number()
+})),
+  "source_breakdown": zod.array(zod.object({
+  "name": zod.string(),
+  "trades": zod.number(),
+  "wins": zod.number(),
+  "losses": zod.number(),
+  "win_rate": zod.number(),
+  "avg_return_pct": zod.number(),
+  "total_pnl": zod.number()
+}))
+}),
+  "trades": zod.array(zod.object({
+  "trade_id": zod.string(),
+  "source": zod.string().describe('paper_basket | paper_trade | historical_replay'),
+  "date": zod.string(),
+  "symbol": zod.string(),
+  "sector": zod.string().nullish(),
+  "strategy": zod.string().nullish(),
+  "market_regime": zod.string().nullish(),
+  "holding_period": zod.number().nullish(),
+  "entry_price": zod.number().nullish(),
+  "exit_price": zod.number().nullish(),
+  "quantity": zod.number().nullish(),
+  "profit_loss": zod.number().nullish(),
+  "return_percent": zod.number().nullish(),
+  "ema9": zod.number().nullish(),
+  "ema20": zod.number().nullish(),
+  "ema50": zod.number().nullish(),
+  "ema200": zod.number().nullish(),
+  "rsi": zod.number().nullish(),
+  "macd": zod.number().nullish(),
+  "macd_signal": zod.number().nullish(),
+  "vwap": zod.number().nullish(),
+  "atr": zod.number().nullish(),
+  "adx": zod.number().nullish(),
+  "supertrend": zod.number().nullish(),
+  "volume_ratio": zod.number().nullish(),
+  "opportunity_score": zod.number().nullish(),
+  "trade_quality": zod.number().nullish(),
+  "confidence": zod.number().nullish(),
+  "risk_reward": zod.number().nullish(),
+  "outcome": zod.string().nullish(),
+  "outcome_classification": zod.number().describe('Winning = 1, Losing = 0'),
+  "recorded_at": zod.string().nullish()
+})),
+  "generated_at": zod.string()
+})
+
+
+/**
+ * Imports completed trades from the existing paper portfolio history. Paper Basket Tests and Historical Replays are recorded automatically each time they run.
+ * @summary Backfill the Trade Intelligence Database
+ */
+export const ImportTradeIntelligenceResponse = zod.object({
+  "imported_paper_trades": zod.number(),
+  "note": zod.string(),
+  "total_trades": zod.number(),
+  "winning_trades": zod.number().optional(),
+  "losing_trades": zod.number().optional(),
+  "win_rate": zod.number().optional(),
+  "average_return_pct": zod.number().optional(),
+  "average_holding_days": zod.number().optional(),
+  "total_pnl": zod.number().optional(),
+  "regime_breakdown": zod.array(zod.object({
+  "name": zod.string(),
+  "trades": zod.number(),
+  "wins": zod.number(),
+  "losses": zod.number(),
+  "win_rate": zod.number(),
+  "avg_return_pct": zod.number(),
+  "total_pnl": zod.number()
+})).optional(),
+  "strategy_breakdown": zod.array(zod.object({
+  "name": zod.string(),
+  "trades": zod.number(),
+  "wins": zod.number(),
+  "losses": zod.number(),
+  "win_rate": zod.number(),
+  "avg_return_pct": zod.number(),
+  "total_pnl": zod.number()
+})).optional(),
+  "source_breakdown": zod.array(zod.object({
+  "name": zod.string(),
+  "trades": zod.number(),
+  "wins": zod.number(),
+  "losses": zod.number(),
+  "win_rate": zod.number(),
+  "avg_return_pct": zod.number(),
+  "total_pnl": zod.number()
+})).optional()
+})
+
+
+/**
  * @summary Strategy Optimizer — test all parameter combinations, return top 10
  */
 export const runOptimizerBodyInitialCapitalDefault = 5000;
