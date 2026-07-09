@@ -88,17 +88,26 @@ MARKET_CONF_MOD_BEARISH: float = -15.0
 MARKET_CONF_MOD_NEUTRAL: float = 0.0
 
 # ── Sector mapping (for sector strength computation) ──────────────────────────
+# Approximates the NIFTY 50 universe, grouped into 11 sectors for
+# the Market Scanner's Sector Strength module (Sprint 1.5).
 
 SECTOR_MAP: dict[str, list[str]] = {
-    "IT":       ["TCS", "INFY", "WIPRO", "HCLTECH", "TECHM"],
-    "BANKING":  ["HDFCBANK", "ICICIBANK", "SBIN", "AXISBANK", "KOTAKBANK", "BAJFINANCE"],
-    "ENERGY":   ["RELIANCE", "ONGC", "POWERGRID", "NTPC", "TATAPOWER"],
-    "INFRA":    ["LT", "ULTRACEMCO", "GRASIM", "ACC"],
-    "AUTO":     ["MARUTI", "TATAMOTORS", "BAJAJ-AUTO", "EICHERMOT", "M&M"],
-    "FMCG":     ["HINDUNILVR", "NESTLEIND", "BRITANNIA", "DABUR"],
-    "PHARMA":   ["SUNPHARMA", "CIPLA", "DRREDDY", "DIVISLAB"],
-    "METALS":   ["TATASTEEL", "HINDALCO", "JSWSTEEL", "COALINDIA"],
+    "IT":        ["TCS", "INFY", "WIPRO", "HCLTECH", "TECHM", "LTIM"],
+    "BANKING":   ["HDFCBANK", "ICICIBANK", "SBIN", "AXISBANK", "KOTAKBANK", "INDUSINDBK"],
+    "FINANCE":   ["BAJFINANCE", "BAJAJFINSV", "HDFCLIFE", "SBILIFE", "SHRIRAMFIN"],
+    "ENERGY":    ["RELIANCE", "ONGC", "POWERGRID", "NTPC", "COALINDIA"],
+    "INFRA":     ["LT", "ULTRACEMCO", "GRASIM", "ADANIPORTS"],
+    "AUTO":      ["MARUTI", "TATAMOTORS", "BAJAJ-AUTO", "EICHERMOT", "M&M", "HEROMOTOCO"],
+    "FMCG":      ["HINDUNILVR", "NESTLEIND", "BRITANNIA", "ITC", "TATACONSUM"],
+    "PHARMA":    ["SUNPHARMA", "CIPLA", "DRREDDY", "DIVISLAB", "APOLLOHOSP"],
+    "METALS":    ["TATASTEEL", "HINDALCO", "JSWSTEEL", "ADANIENT"],
+    "CONSUMER":  ["TITAN", "ASIANPAINT", "TRENT"],
+    "TELECOM":   ["BHARTIARTL"],
 }
+
+# Flattened NIFTY 50 universe (derived from SECTOR_MAP) — used by the
+# Market Scanner (Sprint 1.5) to scan the full index.
+NIFTY_50: list[str] = [sym for syms in SECTOR_MAP.values() for sym in syms]
 
 # ── Default watchlist ─────────────────────────────────────────────────────────
 

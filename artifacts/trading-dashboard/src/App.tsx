@@ -16,6 +16,7 @@ import Backtest from "@/pages/Backtest";
 import Validate from "@/pages/Validate";
 import StrategyLab from "@/pages/StrategyLab";
 import Optimizer from "@/pages/Optimizer";
+import MarketScanner from "@/pages/MarketScanner";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +26,7 @@ function Router() {
       <Switch>
         <Route path="/" component={Dashboard} />
         <Route path="/market" component={MarketOverview} />
+        <Route path="/market-scanner" component={MarketScanner} />
         <Route path="/signals" component={Signals} />
         <Route path="/ai-decision" component={AiDecision} />
         <Route path="/trade-replay" component={TradeReplay} />

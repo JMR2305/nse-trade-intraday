@@ -155,6 +155,100 @@ export interface ExplainabilityReport {
   one_liner: string;
 }
 
+export type ScanItemFinalAction = typeof ScanItemFinalAction[keyof typeof ScanItemFinalAction];
+
+
+export const ScanItemFinalAction = {
+  STRONG_BUY: 'STRONG BUY',
+  BUY: 'BUY',
+  WATCH: 'WATCH',
+  IGNORE: 'IGNORE',
+} as const;
+
+export type ScanItemHeat = typeof ScanItemHeat[keyof typeof ScanItemHeat];
+
+
+export const ScanItemHeat = {
+  GREEN: 'GREEN',
+  YELLOW: 'YELLOW',
+  RED: 'RED',
+} as const;
+
+export interface ScanItem {
+  rank: number;
+  stock: string;
+  sector: string;
+  price: number;
+  best_strategy_id: string;
+  best_strategy_name: string;
+  strategy_type: string;
+  best_regime: string;
+  strategies_tested: number;
+  live_signal: boolean;
+  signal_reason: string;
+  opportunity_score: number;
+  trade_quality: number;
+  confidence: number;
+  expected_risk: number;
+  expected_reward: number;
+  rr_ratio: number;
+  final_action: ScanItemFinalAction;
+  heat: ScanItemHeat;
+  win_rate: number;
+  profit_factor: number;
+  net_pnl_pct: number;
+  total_trades: number;
+  sharpe_ratio: number;
+  entry_price: number;
+  stop_loss: number;
+  target: number;
+  error?: string | null;
+}
+
+export type SectorStrengthStrengthLabel = typeof SectorStrengthStrengthLabel[keyof typeof SectorStrengthStrengthLabel];
+
+
+export const SectorStrengthStrengthLabel = {
+  STRONG: 'STRONG',
+  NEUTRAL: 'NEUTRAL',
+  WEAK: 'WEAK',
+} as const;
+
+export interface SectorStrength {
+  rank: number;
+  sector: string;
+  stock_count: number;
+  avg_opportunity: number;
+  strong_buys: number;
+  buys: number;
+  watches: number;
+  ignores: number;
+  strength_label: SectorStrengthStrengthLabel;
+}
+
+export interface DashboardSummary {
+  total_scanned: number;
+  strong_buy_count: number;
+  buy_count: number;
+  watch_count: number;
+  ignore_count: number;
+  strongest_sector: string;
+  weakest_sector: string;
+  best_stock: string;
+  best_stock_score: number;
+  avg_market_score: number;
+  scanned_at: string;
+}
+
+export interface MarketScanResult {
+  scanned_at: string;
+  universe_size: number;
+  items: ScanItem[];
+  watchlist: string[];
+  sectors: SectorStrength[];
+  summary: DashboardSummary;
+}
+
 export type OpportunityItemStatus = typeof OpportunityItemStatus[keyof typeof OpportunityItemStatus];
 
 

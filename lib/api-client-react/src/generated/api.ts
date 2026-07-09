@@ -32,6 +32,7 @@ import type {
   MarketContext,
   MarketDataResult,
   MarketOverview,
+  MarketScanResult,
   OpportunityItem,
   OptimizerRequest,
   OptimizerResult,
@@ -746,6 +747,84 @@ export function useGetOpportunityScan<TData = Awaited<ReturnType<typeof getOppor
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetOpportunityScanQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMarketScanUrl = () => {
+
+
+
+
+  return `/api/market-scan`
+}
+
+/**
+ * Scans all NIFTY 50 stocks, runs every validated strategy per stock, selects the best-performing one, ranks opportunities, computes sector strength, builds the dynamic AI watchlist, heat map, and dashboard summary. Paper trading only — no real orders are placed.
+ * @summary Sprint 1.5 — scan the full NIFTY 50 universe
+ */
+export const getMarketScan = async ( options?: RequestInit): Promise<MarketScanResult> => {
+
+  return customFetch<MarketScanResult>(getGetMarketScanUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMarketScanQueryKey = () => {
+    return [
+    `/api/market-scan`
+    ] as const;
+    }
+
+
+export const getGetMarketScanQueryOptions = <TData = Awaited<ReturnType<typeof getMarketScan>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMarketScan>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMarketScanQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMarketScan>>> = ({ signal }) => getMarketScan({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMarketScan>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMarketScanQueryResult = NonNullable<Awaited<ReturnType<typeof getMarketScan>>>
+export type GetMarketScanQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Sprint 1.5 — scan the full NIFTY 50 universe
+ */
+
+export function useGetMarketScan<TData = Awaited<ReturnType<typeof getMarketScan>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMarketScan>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMarketScanQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

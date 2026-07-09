@@ -202,6 +202,30 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /market-scan:
+    get:
+      operationId: getMarketScan
+      tags: [trading]
+      summary: Sprint 1.5 — scan the full NIFTY 50 universe
+      description: >
+        Scans all NIFTY 50 stocks, runs every validated strategy per stock,
+        selects the best-performing one, ranks opportunities, computes
+        sector strength, builds the dynamic AI watchlist, heat map, and
+        dashboard summary. Paper trading only — no real orders are placed.
+      responses:
+        "200":
+          description: Full market scan result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketScanResult"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /market-context:
     get:
       operationId: getMarketContext
@@ -738,6 +762,150 @@ components:
         - final_confidence
         - summary
         - one_liner
+
+    ScanItem:
+      type: object
+      properties:
+        rank:               { type: integer }
+        stock:              { type: string }
+        sector:             { type: string }
+        price:              { type: number }
+        best_strategy_id:   { type: string }
+        best_strategy_name: { type: string }
+        strategy_type:      { type: string }
+        best_regime:        { type: string }
+        strategies_tested:  { type: integer }
+        live_signal:        { type: boolean }
+        signal_reason:      { type: string }
+        opportunity_score:  { type: number }
+        trade_quality:      { type: number }
+        confidence:         { type: number }
+        expected_risk:      { type: number }
+        expected_reward:    { type: number }
+        rr_ratio:           { type: number }
+        final_action:
+          type: string
+          enum: [STRONG BUY, BUY, WATCH, IGNORE]
+        heat:
+          type: string
+          enum: [GREEN, YELLOW, RED]
+        win_rate:      { type: number }
+        profit_factor: { type: number }
+        net_pnl_pct:   { type: number }
+        total_trades:  { type: integer }
+        sharpe_ratio:  { type: number }
+        entry_price:   { type: number }
+        stop_loss:     { type: number }
+        target:        { type: number }
+        error:
+          type: string
+          nullable: true
+      required:
+        - rank
+        - stock
+        - sector
+        - price
+        - best_strategy_id
+        - best_strategy_name
+        - strategy_type
+        - best_regime
+        - strategies_tested
+        - live_signal
+        - signal_reason
+        - opportunity_score
+        - trade_quality
+        - confidence
+        - expected_risk
+        - expected_reward
+        - rr_ratio
+        - final_action
+        - heat
+        - win_rate
+        - profit_factor
+        - net_pnl_pct
+        - total_trades
+        - sharpe_ratio
+        - entry_price
+        - stop_loss
+        - target
+
+    SectorStrength:
+      type: object
+      properties:
+        rank:            { type: integer }
+        sector:          { type: string }
+        stock_count:     { type: integer }
+        avg_opportunity: { type: number }
+        strong_buys:     { type: integer }
+        buys:            { type: integer }
+        watches:         { type: integer }
+        ignores:         { type: integer }
+        strength_label:
+          type: string
+          enum: [STRONG, NEUTRAL, WEAK]
+      required:
+        - rank
+        - sector
+        - stock_count
+        - avg_opportunity
+        - strong_buys
+        - buys
+        - watches
+        - ignores
+        - strength_label
+
+    DashboardSummary:
+      type: object
+      properties:
+        total_scanned:    { type: integer }
+        strong_buy_count: { type: integer }
+        buy_count:        { type: integer }
+        watch_count:      { type: integer }
+        ignore_count:     { type: integer }
+        strongest_sector: { type: string }
+        weakest_sector:   { type: string }
+        best_stock:       { type: string }
+        best_stock_score: { type: number }
+        avg_market_score: { type: number }
+        scanned_at:       { type: string }
+      required:
+        - total_scanned
+        - strong_buy_count
+        - buy_count
+        - watch_count
+        - ignore_count
+        - strongest_sector
+        - weakest_sector
+        - best_stock
+        - best_stock_score
+        - avg_market_score
+        - scanned_at
+
+    MarketScanResult:
+      type: object
+      properties:
+        scanned_at:    { type: string }
+        universe_size: { type: integer }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScanItem"
+        watchlist:
+          type: array
+          items: { type: string }
+        sectors:
+          type: array
+          items:
+            $ref: "#/components/schemas/SectorStrength"
+        summary:
+          $ref: "#/components/schemas/DashboardSummary"
+      required:
+        - scanned_at
+        - universe_size
+        - items
+        - watchlist
+        - sectors
+        - summary
 
     OpportunityItem:
       type: object

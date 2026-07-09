@@ -212,6 +212,71 @@ export const GetOpportunityScanResponse = zod.array(GetOpportunityScanResponseIt
 
 
 /**
+ * Scans all NIFTY 50 stocks, runs every validated strategy per stock, selects the best-performing one, ranks opportunities, computes sector strength, builds the dynamic AI watchlist, heat map, and dashboard summary. Paper trading only — no real orders are placed.
+ * @summary Sprint 1.5 — scan the full NIFTY 50 universe
+ */
+export const GetMarketScanResponse = zod.object({
+  "scanned_at": zod.string(),
+  "universe_size": zod.number(),
+  "items": zod.array(zod.object({
+  "rank": zod.number(),
+  "stock": zod.string(),
+  "sector": zod.string(),
+  "price": zod.number(),
+  "best_strategy_id": zod.string(),
+  "best_strategy_name": zod.string(),
+  "strategy_type": zod.string(),
+  "best_regime": zod.string(),
+  "strategies_tested": zod.number(),
+  "live_signal": zod.boolean(),
+  "signal_reason": zod.string(),
+  "opportunity_score": zod.number(),
+  "trade_quality": zod.number(),
+  "confidence": zod.number(),
+  "expected_risk": zod.number(),
+  "expected_reward": zod.number(),
+  "rr_ratio": zod.number(),
+  "final_action": zod.enum(['STRONG BUY', 'BUY', 'WATCH', 'IGNORE']),
+  "heat": zod.enum(['GREEN', 'YELLOW', 'RED']),
+  "win_rate": zod.number(),
+  "profit_factor": zod.number(),
+  "net_pnl_pct": zod.number(),
+  "total_trades": zod.number(),
+  "sharpe_ratio": zod.number(),
+  "entry_price": zod.number(),
+  "stop_loss": zod.number(),
+  "target": zod.number(),
+  "error": zod.string().nullish()
+})),
+  "watchlist": zod.array(zod.string()),
+  "sectors": zod.array(zod.object({
+  "rank": zod.number(),
+  "sector": zod.string(),
+  "stock_count": zod.number(),
+  "avg_opportunity": zod.number(),
+  "strong_buys": zod.number(),
+  "buys": zod.number(),
+  "watches": zod.number(),
+  "ignores": zod.number(),
+  "strength_label": zod.enum(['STRONG', 'NEUTRAL', 'WEAK'])
+})),
+  "summary": zod.object({
+  "total_scanned": zod.number(),
+  "strong_buy_count": zod.number(),
+  "buy_count": zod.number(),
+  "watch_count": zod.number(),
+  "ignore_count": zod.number(),
+  "strongest_sector": zod.string(),
+  "weakest_sector": zod.string(),
+  "best_stock": zod.string(),
+  "best_stock_score": zod.number(),
+  "avg_market_score": zod.number(),
+  "scanned_at": zod.string()
+})
+})
+
+
+/**
  * Returns synthesised market score, bias, and sector strength
  * @summary Get market context
  */

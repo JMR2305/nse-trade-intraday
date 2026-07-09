@@ -147,6 +147,33 @@ router.get("/opportunity-scan", async (_req, res) => {
   }
 });
 
+// GET /api/market-scan
+// Scanning the full NIFTY 50 universe takes ~20-30s, so cache the result for
+// a short window to keep repeat page loads / polling fast.
+const MARKET_SCAN_CACHE_MS = 2 * 60 * 1000;
+let marketScanCache: { data: unknown; ts: number } | null = null;
+let marketScanInFlight: Promise<unknown> | null = null;
+
+router.get("/market-scan", async (req, res) => {
+  try {
+    const force = req.query.refresh === "true";
+    if (!force && marketScanCache && Date.now() - marketScanCache.ts < MARKET_SCAN_CACHE_MS) {
+      res.json(marketScanCache.data);
+      return;
+    }
+    if (!marketScanInFlight) {
+      marketScanInFlight = runPython(["market_scan"]).finally(() => {
+        marketScanInFlight = null;
+      });
+    }
+    const data = await marketScanInFlight;
+    marketScanCache = { data, ts: Date.now() };
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/market-context
 router.get("/market-context", async (_req, res) => {
   try {

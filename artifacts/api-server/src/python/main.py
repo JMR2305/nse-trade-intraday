@@ -27,6 +27,8 @@ All commands output JSON to stdout. Errors output {"error": "..."} with exit cod
 import sys
 import json
 import os
+import io
+import contextlib
 from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -195,6 +197,15 @@ def cmd_strategies() -> list:
     return list_strategies()
 
 
+def cmd_market_scan() -> dict:
+    """Sprint 1.5 — full NIFTY 50 universe scan (paper trading, no real orders)."""
+    from market_scanner import run_market_scan
+    state = _load_state()
+    cash = state.get("cash", 5000.0)
+    result = run_market_scan(capital=cash)
+    return dict(result)
+
+
 def _read_json_cache(filename: str) -> list | dict:
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
     if os.path.exists(path):
@@ -216,7 +227,11 @@ def main():
 
     command = args[0].lower()
 
+    _stdout_buf = io.StringIO()
+    result = None
+    error_msg = None
     try:
+      with contextlib.redirect_stdout(_stdout_buf):
         if command == "portfolio":
             result = cmd_portfolio()
         elif command == "signals":
@@ -275,6 +290,8 @@ def main():
             )
         elif command == "strategies":
             result = cmd_strategies()
+        elif command == "market_scan":
+            result = cmd_market_scan()
         elif command == "optimizer" and len(args) >= 4:
             from strategy_optimizer import run_optimizer
             result = run_optimizer(
@@ -295,15 +312,18 @@ def main():
                 interval        = args[5] if len(args) > 5 else "1d",
             )
         else:
-            print(json.dumps({"error": f"Unknown command: {command}"}))
-            sys.exit(1)
-
-        print(json.dumps(result, default=str))
+            error_msg = f"Unknown command: {command}"
 
     except Exception as e:
         import traceback
         print(json.dumps({"error": str(e), "trace": traceback.format_exc()}))
         sys.exit(1)
+
+    if error_msg is not None:
+        print(json.dumps({"error": error_msg}))
+        sys.exit(1)
+
+    print(json.dumps(result, default=str))
 
 
 if __name__ == "__main__":
