@@ -6,3 +6,9 @@ id = "9ZRZOqPgYv1etZQeNnU91"
 uri = "file://attached_assets/screenshots/36830e86-38f2-47db-b0ee-cd777f704977-00-2o9sd95d297k5_sisko_replit_dev.png"
 type = "image"
 title = "Live site — Paper Basket Test visible in sidebar"
+
+[[outputs]]
+id = "onLuA6bYYdsNYzt63as5b"
+uri = "file://exports/paper_basket_outcomes_jul1-6.csv"
+type = "table"
+title = "Paper Basket Outcomes — Jul 1–6, 2026"
