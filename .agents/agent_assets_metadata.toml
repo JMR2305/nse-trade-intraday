@@ -12,3 +12,9 @@ id = "onLuA6bYYdsNYzt63as5b"
 uri = "file://exports/paper_basket_outcomes_jul1-6.csv"
 type = "table"
 title = "Paper Basket Outcomes — Jul 1–6, 2026"
+
+[[outputs]]
+id = "iMckoQoZkJaEVykSnw9r4"
+uri = "file://exports/paper_basket_winrate_jun20-jul6.csv"
+type = "table"
+title = "Paper Basket Win Rate & P&L — Jun 20 to Jul 6, 2026"

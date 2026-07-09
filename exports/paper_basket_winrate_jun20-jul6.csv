@@ -1,0 +1,21 @@
+selection_date,total_investment,net_pnl_rupees,net_return_pct,winning_stocks,losing_stocks,win_rate_pct,best_stock,worst_stock
+2026-06-22,66662.0,-804.9,-1.21,3,7,30.0,AXISBANK,ONGC
+2026-06-23,61658.5,94.1,0.15,4,6,40.0,TATACONSUM,ONGC
+2026-06-24,65396.1,-512.3,-0.78,2,8,20.0,JSWSTEEL,KOTAKBANK
+2026-06-25,72811.8,-1164.2,-1.6,4,6,40.0,POWERGRID,TATACONSUM
+2026-06-26,74748.2,-1032.3,-1.38,4,6,40.0,NTPC,TATACONSUM
+2026-06-29,71796.6,167.3,0.23,6,4,60.0,TATACONSUM,COALINDIA
+2026-06-30,60381.5,1181.4,1.96,7,3,70.0,HCLTECH,NTPC
+2026-07-01,74152.4,262.8,0.35,5,5,50.0,ONGC,AXISBANK
+2026-07-02,72269.0,471.7,0.65,5,5,50.0,HCLTECH,COALINDIA
+2026-07-03,64765.9,-849.9,-1.31,2,8,20.0,ONGC,KOTAKBANK
+2026-07-06,72296.5,-372.9,-0.52,1,9,10.0,HCLTECH,NTPC
+
+OVERALL
+total_invested,756938.5
+total_net_pnl,-2559.2
+overall_return_pct,-0.34
+overall_win_rate_pct,39.1
+winning_trades,43
+losing_trades,67
+note,This is historical paper testing only. No real orders are placed.
