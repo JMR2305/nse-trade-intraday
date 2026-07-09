@@ -217,6 +217,13 @@ def cmd_market_replay(scan_date: str, holding_period: int, interval: str) -> dic
     return dict(result)
 
 
+def cmd_learning_summary() -> dict:
+    """Strategy Learning Engine summary (v0.9) — recommendation only, no auto-trading."""
+    from learning_engine import compute_learning_summary
+    result = compute_learning_summary()
+    return dict(result)
+
+
 def _read_json_cache(filename: str) -> list | dict:
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
     if os.path.exists(path):
@@ -328,6 +335,8 @@ def main():
                 initial_capital = float(args[4]) if len(args) > 4 else 5000.0,
                 interval        = args[5] if len(args) > 5 else "1d",
             )
+        elif command == "learning_summary":
+            result = cmd_learning_summary()
         else:
             error_msg = f"Unknown command: {command}"
 

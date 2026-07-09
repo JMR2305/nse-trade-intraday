@@ -27,6 +27,15 @@ const OUTCOME_CONFIG: Record<string, { color: string; icon: React.ReactNode }> =
   Pending: { color: "text-muted-foreground", icon: <Clock3 className="h-3.5 w-3.5" /> },
 };
 
+const OUTCOME_LABEL_COLOR: Record<string, string> = {
+  Excellent:    "text-emerald-400 bg-emerald-400/10 border-emerald-500/30",
+  Good:         "text-lime-400 bg-lime-400/10 border-lime-500/30",
+  Weak:         "text-yellow-400 bg-yellow-400/10 border-yellow-500/30",
+  "Small Loss": "text-orange-400 bg-orange-400/10 border-orange-500/30",
+  Failed:       "text-red-400 bg-red-400/10 border-red-500/30",
+  Pending:      "text-muted-foreground bg-muted/20 border-border/30",
+};
+
 const HOLDING_PERIODS = [1, 3, 5, 10] as const;
 const INTERVALS = ["daily", "hourly"] as const;
 
@@ -92,6 +101,11 @@ function ReplayRow({ item }: { item: any }) {
           {outcomeCfg.icon}
           {item.outcome}
         </span>
+      </td>
+      <td className="py-2 px-3">
+        <Badge variant="outline" className={`font-mono text-[10px] ${OUTCOME_LABEL_COLOR[item.outcome_label] ?? OUTCOME_LABEL_COLOR.Pending}`}>
+          {item.outcome_label}
+        </Badge>
       </td>
       <td className="py-2 px-3 text-xs text-muted-foreground max-w-xs">
         <div className="font-mono">{item.why_signal}</div>
@@ -247,6 +261,41 @@ export default function MarketReplay() {
             </Card>
           </div>
 
+          {/* Performance Analytics */}
+          {summary && (
+            <Card className="bg-card/50 backdrop-blur border-border/50">
+              <CardHeader className="py-3 px-4 border-b border-border/50">
+                <CardTitle className="font-mono text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  Performance Analytics — simulated equal-weighted paper trades on taken signals
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 space-y-4">
+                {summary.reliability_warning && (
+                  <div className="text-xs font-mono text-yellow-400/90 bg-yellow-400/5 border border-yellow-500/20 rounded px-3 py-2">
+                    {summary.reliability_warning}
+                  </div>
+                )}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <SummaryCard label="Starting Capital" value={`₹${summary.starting_capital.toLocaleString("en-IN")}`} />
+                  <SummaryCard
+                    label="Ending Capital"
+                    value={`₹${summary.ending_capital.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`}
+                    sub={`${summary.total_return_pct >= 0 ? "+" : ""}${summary.total_return_pct.toFixed(2)}%`}
+                    color={summary.total_return_pct >= 0 ? "text-emerald-400" : "text-red-400"}
+                  />
+                  <SummaryCard
+                    label="Expectancy / Trade"
+                    value={`₹${summary.expectancy.toFixed(0)}`}
+                    color={summary.expectancy >= 0 ? "text-emerald-400" : "text-red-400"}
+                  />
+                  <SummaryCard label="Max Drawdown" value={`${summary.max_drawdown_pct.toFixed(2)}%`} color="text-red-400" />
+                  <SummaryCard label="Max Consecutive Wins" value={summary.max_consecutive_wins} color="text-emerald-400" />
+                  <SummaryCard label="Max Consecutive Losses" value={summary.max_consecutive_losses} color="text-red-400" />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Outcome comparison table */}
           <Card className="bg-card/50 backdrop-blur border-border/50">
             <CardHeader className="py-3 px-4 border-b border-border/50">
@@ -266,6 +315,7 @@ export default function MarketReplay() {
                     <th className="py-2 px-3">Price after {holdingPeriod}d</th>
                     <th className="py-2 px-3">Return</th>
                     <th className="py-2 px-3">Outcome</th>
+                    <th className="py-2 px-3">Grade</th>
                     <th className="py-2 px-3">Explanation</th>
                   </tr>
                 </thead>

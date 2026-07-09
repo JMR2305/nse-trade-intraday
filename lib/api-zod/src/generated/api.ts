@@ -308,6 +308,7 @@ export const GetMarketReplayResponse = zod.object({
   "price_after_holding": zod.number().nullable(),
   "return_pct": zod.number().nullable(),
   "outcome": zod.enum(['Correct', 'Wrong', 'Neutral', 'Pending']),
+  "outcome_label": zod.enum(['Excellent', 'Good', 'Weak', 'Small Loss', 'Failed', 'Pending']),
   "why_signal": zod.string(),
   "what_happened": zod.string(),
   "error": zod.string().nullable()
@@ -328,7 +329,16 @@ export const GetMarketReplayResponse = zod.object({
   "best_signal": zod.string(),
   "best_signal_return": zod.number(),
   "worst_signal": zod.string(),
-  "worst_signal_return": zod.number()
+  "worst_signal_return": zod.number(),
+  "starting_capital": zod.number(),
+  "ending_capital": zod.number(),
+  "total_return_pct": zod.number(),
+  "expectancy": zod.number(),
+  "max_drawdown_pct": zod.number(),
+  "max_consecutive_wins": zod.number(),
+  "max_consecutive_losses": zod.number(),
+  "capital_curve": zod.array(zod.number()),
+  "reliability_warning": zod.string().nullable()
 })
 })
 
@@ -476,6 +486,10 @@ export const RunBacktestResponse = zod.object({
   "avg_duration_bars": zod.number(),
   "sharpe_ratio": zod.number(),
   "data_source": zod.string(),
+  "expectancy": zod.number(),
+  "max_consecutive_wins": zod.number(),
+  "max_consecutive_losses": zod.number(),
+  "capital_curve": zod.array(zod.number()),
   "trades": zod.array(zod.object({
   "trade_no": zod.number(),
   "entry_date": zod.string(),
@@ -617,9 +631,37 @@ export const GetTradeReplayResponseItem = zod.object({
   "exit_type": zod.enum(['TARGET_HIT', 'STOP_HIT', 'SIGNAL_EXIT', 'MANUAL']),
   "reason_entry": zod.string(),
   "reason_exit": zod.string(),
-  "plain_english": zod.string()
+  "plain_english": zod.string(),
+  "strategy_id": zod.string(),
+  "strategy_name": zod.string(),
+  "outcome_classification": zod.enum(['Excellent', 'Good', 'Weak', 'Small Loss', 'Failed'])
 })
 export const GetTradeReplayResponse = zod.array(GetTradeReplayResponseItem)
+
+
+/**
+ * Per-strategy reliability metrics (win rate, profit factor, expectancy) computed from the Trade Journal, plus a recommended relative allocation weight adjustment. Recommendation only — no orders are placed or modified automatically.
+ * @summary Strategy Learning Engine summary
+ */
+export const GetLearningSummaryResponse = zod.object({
+  "strategies": zod.array(zod.object({
+  "strategy_id": zod.string(),
+  "strategy_name": zod.string(),
+  "total_trades": zod.number(),
+  "win_rate": zod.number(),
+  "profit_factor": zod.number(),
+  "expectancy": zod.number(),
+  "net_pnl": zod.number(),
+  "current_weight": zod.number(),
+  "recommended_weight": zod.number(),
+  "direction": zod.enum(['increase', 'decrease', 'hold']),
+  "reason": zod.string(),
+  "reliability_warning": zod.string().nullable()
+})),
+  "total_trades": zod.number(),
+  "computed_at": zod.string(),
+  "overall_warning": zod.string().nullable()
+})
 
 
 /**

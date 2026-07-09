@@ -7,6 +7,7 @@
  */
 import type { ReplayItemHistoricalAction } from './replayItemHistoricalAction';
 import type { ReplayItemOutcome } from './replayItemOutcome';
+import type { ReplayItemOutcomeLabel } from './replayItemOutcomeLabel';
 
 export interface ReplayItem {
   stock: string;
@@ -23,6 +24,7 @@ export interface ReplayItem {
   price_after_holding: number | null;
   return_pct: number | null;
   outcome: ReplayItemOutcome;
+  outcome_label: ReplayItemOutcomeLabel;
   why_signal: string;
   what_happened: string;
   error: string | null;

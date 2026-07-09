@@ -32,6 +32,7 @@ from market_scanner import (
     _sector_of, _final_action, _heat_of, _strategy_perf_score,
     _confidence_score, _opportunity_score,
 )
+from analytics_engine import compute_trade_analytics, classify_outcome
 
 import pandas as pd
 
@@ -62,6 +63,7 @@ class ReplayItem(TypedDict):
     price_after_holding: float | None
     return_pct:         float | None
     outcome:            str      # Correct | Wrong | Neutral | Pending
+    outcome_label:      str      # Excellent | Good | Weak | Small Loss | Failed | Pending
     why_signal:         str
     what_happened:      str
     error:              str | None
@@ -84,6 +86,16 @@ class ReplaySummary(TypedDict):
     best_signal_return:   float
     worst_signal:         str
     worst_signal_return:  float
+    # ── Performance Analytics (v0.9) ────────────────────────────────────
+    starting_capital:       float
+    ending_capital:         float
+    total_return_pct:       float
+    expectancy:             float
+    max_drawdown_pct:       float
+    max_consecutive_wins:   int
+    max_consecutive_losses: int
+    capital_curve:          list   # list[float]
+    reliability_warning:    str | None
 
 
 class MarketReplayResult(TypedDict):
@@ -125,7 +137,7 @@ def _empty_replay_item(symbol: str, scan_date: str, holding_period: int, error: 
         best_strategy_id="", best_strategy_name="",
         historical_action="IGNORE", opportunity_score=0.0, trade_quality=0.0, confidence=0.0,
         price_on_scan_date=0.0, price_after_holding=None, return_pct=None,
-        outcome="Pending", why_signal=error, what_happened="", error=error,
+        outcome="Pending", outcome_label="Pending", why_signal=error, what_happened="", error=error,
     )
 
 
@@ -275,6 +287,7 @@ def replay_stock(
         price_after_holding=price_after_holding,
         return_pct=return_pct,
         outcome=outcome,
+        outcome_label=classify_outcome(return_pct),
         why_signal=why_signal,
         what_happened=what_happened,
         error=None,
@@ -333,6 +346,23 @@ def run_market_replay(
     best_item = max(resolved, key=lambda it: it["return_pct"]) if resolved else None
     worst_item = min(resolved, key=lambda it: it["return_pct"]) if resolved else None
 
+    # ── Performance Analytics: simulate the capital path if every resolved
+    # BUY/STRONG BUY signal had actually been taken, equal-weighted, in the
+    # order ranked by opportunity score. ─────────────────────────────────
+    taken = [it for it in resolved if it["historical_action"] in ("STRONG BUY", "BUY")]
+    n_taken = len(taken) or 1
+    alloc_per_trade = capital / n_taken
+    sim_trades = [{"pnl": alloc_per_trade * (it["return_pct"] / 100.0)} for it in taken]
+    analytics = compute_trade_analytics(sim_trades, capital)
+
+    reliability_warning = None
+    if len(taken) < 10:
+        reliability_warning = (
+            f"Only {len(taken)} BUY/STRONG BUY signal(s) resolved — results are not "
+            f"statistically reliable yet. Re-run with a longer holding period, a wider "
+            f"universe, or an earlier scan date for more samples before trusting these stats."
+        )
+
     summary = ReplaySummary(
         scan_date=scan_date,
         holding_period=holding_period,
@@ -350,6 +380,15 @@ def run_market_replay(
         best_signal_return=best_item["return_pct"] if best_item else 0.0,
         worst_signal=worst_item["stock"] if worst_item else "",
         worst_signal_return=worst_item["return_pct"] if worst_item else 0.0,
+        starting_capital=analytics["starting_capital"],
+        ending_capital=analytics["ending_capital"],
+        total_return_pct=analytics["total_return_pct"],
+        expectancy=analytics["expectancy"],
+        max_drawdown_pct=analytics["max_drawdown_pct"],
+        max_consecutive_wins=analytics["max_consecutive_wins"],
+        max_consecutive_losses=analytics["max_consecutive_losses"],
+        capital_curve=analytics["capital_curve"],
+        reliability_warning=reliability_warning,
     )
 
     return MarketReplayResult(

@@ -1,0 +1,125 @@
+Build v0.9 Performance Analytics, Trade Journal, and Learning Engine.
+
+Important:
+- Keep paper trading only.
+- Do not place real orders.
+- Do not add unnecessary UI pages.
+- Improve existing Market Replay, Trade Replay, and Analytics sections.
+
+1. Improve Market Replay outcome classification
+
+Replace only Correct/Wrong/Neutral with:
+
+Return > +5% = Excellent
+Return +2% to +5% = Good
+Return 0% to +2% = Weak
+Return 0% to -2% = Small Loss
+Return < -2% = Failed
+
+Still keep Correct/Wrong/Neutral internally if needed, but show the richer classification in UI.
+
+2. Add Performance Analytics
+
+For Market Replay and Backtest show:
+
+- Starting capital
+- Ending capital
+- Total return %
+- Total trades
+- Win rate
+- Average win
+- Average loss
+- Profit factor
+- Expectancy per trade
+- Maximum drawdown
+- Consecutive wins
+- Consecutive losses
+- Capital curve
+
+Example:
+Starting Capital: ₹5,000
+Ending Capital: ₹5,860
+Return: +17.2%
+Expectancy: +₹48 per trade
+
+3. Improve Trade Journal
+
+For every paper trade store:
+
+- Trade ID
+- Date
+- Stock
+- Strategy
+- Entry price
+- Exit price
+- Quantity
+- P&L
+- Return %
+- Entry reason
+- Exit reason
+- Confidence
+- Market regime
+- Risk/reward
+- Stop loss
+- Target
+- Outcome classification
+
+4. Add Learning Engine
+
+Create backend module:
+backend/learning_engine.py
+
+It should calculate strategy performance from historical/paper trades:
+
+For each strategy:
+- Total trades
+- Win rate
+- Average return
+- Profit factor
+- Expectancy
+- Max drawdown
+- Reliability score
+
+Then generate strategy weights:
+
+If strategy win rate > 60% and profit factor > 1.5:
+Increase weight
+
+If win rate < 45% or profit factor < 1:
+Decrease weight
+
+If trades < 10:
+Mark as “Not enough data”
+
+5. Add Learning Summary section
+
+Show:
+
+Strategy
+Trades
+Win Rate
+Profit Factor
+Expectancy
+Current Weight
+Recommended Weight
+Reason
+
+Example:
+Trend Rider
+Trades: 42
+Win Rate: 64%
+Profit Factor: 1.8
+Current Weight: 25%
+Recommended Weight: 32%
+Reason: Strong performance in trending markets.
+
+6. Add warnings
+
+If trade sample size is small:
+Show “Learning not reliable yet — needs more trades.”
+
+If expectancy is negative:
+Show “Strategy currently has negative expectancy.”
+
+7. Keep all code modular.
+Do not break existing Market Scanner, Market Replay, Backtest, Strategy Lab, or Optimizer.

@@ -245,6 +245,16 @@ router.get("/trade-replay", async (_req, res) => {
   }
 });
 
+// GET /api/learning-summary
+router.get("/learning-summary", async (_req, res) => {
+  try {
+    const data = await runPython(["learning_summary"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/strategy-performance
 router.get("/strategy-performance", async (_req, res) => {
   try {

@@ -33,6 +33,7 @@ from market_data_engine import fetch_candles_df
 from indicator_engine import compute_indicators_df
 from strategies import get_strategy, StrategyBase
 from config import INITIAL_CAPITAL, MAX_RISK_PCT, MAX_CAPITAL_PER_TRADE_PCT
+from analytics_engine import compute_trade_analytics
 
 
 # ── TypedDicts ─────────────────────────────────────────────────────────────────
@@ -142,6 +143,11 @@ class BacktestResult(TypedDict):
     validation:              dict   # ValidationSummary
     debug_candles:           list   # list[DebugCandle], populated when debug=True
     rejected_trades_detail:  list   # list[RejectedTrade], always populated
+    # ── Performance Analytics (v0.9) ────────────────────────────────────
+    expectancy:              float  # avg ₹ P&L per trade
+    max_consecutive_wins:    int
+    max_consecutive_losses:  int
+    capital_curve:           list   # list[float], capital after each trade
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -192,6 +198,7 @@ def _empty_result(symbol: str, strategy: str, error: str) -> BacktestResult:
         avg_duration_bars=0.0, sharpe_ratio=0.0, data_source="none",
         trades=[], equity_curve=[], computed_at=datetime.now().isoformat(), error=error,
         validation=empty_validation, debug_candles=[], rejected_trades_detail=[],
+        expectancy=0.0, max_consecutive_wins=0, max_consecutive_losses=0, capital_curve=[],
     )
 
 
@@ -751,6 +758,8 @@ def run_backtest(
     )
     validation["log_file_path"] = log_path
 
+    analytics = compute_trade_analytics(trades, initial_capital)
+
     return BacktestResult(
         symbol            = symbol.upper(),
         strategy          = strategy_name,
@@ -784,6 +793,10 @@ def run_backtest(
         validation        = validation,
         debug_candles     = debug_candles_list,
         rejected_trades_detail = rejected_trades_detail,
+        expectancy              = analytics["expectancy"],
+        max_consecutive_wins    = analytics["max_consecutive_wins"],
+        max_consecutive_losses  = analytics["max_consecutive_losses"],
+        capital_curve           = analytics["capital_curve"],
     )
 
 

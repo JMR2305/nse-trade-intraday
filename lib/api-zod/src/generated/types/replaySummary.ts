@@ -23,4 +23,13 @@ export interface ReplaySummary {
   best_signal_return: number;
   worst_signal: string;
   worst_signal_return: number;
+  starting_capital: number;
+  ending_capital: number;
+  total_return_pct: number;
+  expectancy: number;
+  max_drawdown_pct: number;
+  max_consecutive_wins: number;
+  max_consecutive_losses: number;
+  capital_curve: number[];
+  reliability_warning: string | null;
 }

@@ -30,6 +30,7 @@ import type {
   GetMarketReplayParams,
   HealthStatus,
   IndicatorResult,
+  LearningSummary,
   MarketContext,
   MarketDataResult,
   MarketOverview,
@@ -1476,6 +1477,84 @@ export function useGetTradeReplay<TData = Awaited<ReturnType<typeof getTradeRepl
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetTradeReplayQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetLearningSummaryUrl = () => {
+
+
+
+
+  return `/api/learning-summary`
+}
+
+/**
+ * Per-strategy reliability metrics (win rate, profit factor, expectancy) computed from the Trade Journal, plus a recommended relative allocation weight adjustment. Recommendation only — no orders are placed or modified automatically.
+ * @summary Strategy Learning Engine summary
+ */
+export const getLearningSummary = async ( options?: RequestInit): Promise<LearningSummary> => {
+
+  return customFetch<LearningSummary>(getGetLearningSummaryUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLearningSummaryQueryKey = () => {
+    return [
+    `/api/learning-summary`
+    ] as const;
+    }
+
+
+export const getGetLearningSummaryQueryOptions = <TData = Awaited<ReturnType<typeof getLearningSummary>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLearningSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLearningSummaryQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLearningSummary>>> = ({ signal }) => getLearningSummary({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLearningSummary>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLearningSummaryQueryResult = NonNullable<Awaited<ReturnType<typeof getLearningSummary>>>
+export type GetLearningSummaryQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Strategy Learning Engine summary
+ */
+
+export function useGetLearningSummary<TData = Awaited<ReturnType<typeof getLearningSummary>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLearningSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLearningSummaryQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

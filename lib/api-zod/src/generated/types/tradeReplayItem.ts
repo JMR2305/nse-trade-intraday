@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { TradeReplayItemExitType } from './tradeReplayItemExitType';
+import type { TradeReplayItemOutcomeClassification } from './tradeReplayItemOutcomeClassification';
 
 export interface TradeReplayItem {
   id: string;
@@ -27,4 +28,7 @@ export interface TradeReplayItem {
   reason_entry: string;
   reason_exit: string;
   plain_english: string;
+  strategy_id: string;
+  strategy_name: string;
+  outcome_classification: TradeReplayItemOutcomeClassification;
 }

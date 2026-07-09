@@ -458,6 +458,29 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /learning-summary:
+    get:
+      operationId: getLearningSummary
+      tags: [trading]
+      summary: Strategy Learning Engine summary
+      description: >
+        Per-strategy reliability metrics (win rate, profit factor, expectancy) computed
+        from the Trade Journal, plus a recommended relative allocation weight adjustment.
+        Recommendation only — no orders are placed or modified automatically.
+      responses:
+        "200":
+          description: Learning summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningSummary"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /optimizer:
     post:
       operationId: runOptimizer
@@ -984,6 +1007,9 @@ components:
         outcome:
           type: string
           enum: [Correct, Wrong, Neutral, Pending]
+        outcome_label:
+          type: string
+          enum: [Excellent, Good, Weak, Small Loss, Failed, Pending]
         why_signal:      { type: string }
         what_happened:   { type: string }
         error:
@@ -1004,6 +1030,7 @@ components:
         - price_after_holding
         - return_pct
         - outcome
+        - outcome_label
         - why_signal
         - what_happened
         - error
@@ -1027,6 +1054,19 @@ components:
         best_signal_return:  { type: number }
         worst_signal:        { type: string }
         worst_signal_return: { type: number }
+        starting_capital:    { type: number }
+        ending_capital:      { type: number }
+        total_return_pct:    { type: number }
+        expectancy:          { type: number }
+        max_drawdown_pct:    { type: number }
+        max_consecutive_wins:   { type: integer }
+        max_consecutive_losses: { type: integer }
+        capital_curve:
+          type: array
+          items: { type: number }
+        reliability_warning:
+          type: string
+          nullable: true
       required:
         - scan_date
         - holding_period
@@ -1044,6 +1084,15 @@ components:
         - best_signal_return
         - worst_signal
         - worst_signal_return
+        - starting_capital
+        - ending_capital
+        - total_return_pct
+        - expectancy
+        - max_drawdown_pct
+        - max_consecutive_wins
+        - max_consecutive_losses
+        - capital_curve
+        - reliability_warning
 
     MarketReplayResult:
       type: object
@@ -1271,6 +1320,13 @@ components:
           type: string
         plain_english:
           type: string
+        strategy_id:
+          type: string
+        strategy_name:
+          type: string
+        outcome_classification:
+          type: string
+          enum: [Excellent, Good, Weak, Small Loss, Failed]
       required:
         - id
         - symbol
@@ -1291,6 +1347,9 @@ components:
         - reason_entry
         - reason_exit
         - plain_english
+        - strategy_id
+        - strategy_name
+        - outcome_classification
 
     StrategyPerformance:
       type: object
@@ -1704,6 +1763,12 @@ components:
         avg_duration_bars: { type: number }
         sharpe_ratio:      { type: number }
         data_source:       { type: string }
+        expectancy:              { type: number }
+        max_consecutive_wins:    { type: integer }
+        max_consecutive_losses:  { type: integer }
+        capital_curve:
+          type: array
+          items: { type: number }
         trades:
           type: array
           items:
@@ -1730,8 +1795,60 @@ components:
                  losing_trades, breakeven_trades, win_rate, net_pnl, net_pnl_pct,
                  profit_factor, max_drawdown, max_drawdown_pct, avg_profit, avg_loss,
                  best_trade, worst_trade, avg_duration_bars, sharpe_ratio,
-                 data_source, trades, equity_curve, computed_at,
+                 data_source, expectancy, max_consecutive_wins, max_consecutive_losses,
+                 capital_curve, trades, equity_curve, computed_at,
                  validation, debug_candles, rejected_trades_detail]
+
+    StrategyLearning:
+      type: object
+      properties:
+        strategy_id:         { type: string }
+        strategy_name:       { type: string }
+        total_trades:        { type: integer }
+        win_rate:            { type: number }
+        profit_factor:       { type: number }
+        expectancy:          { type: number }
+        net_pnl:             { type: number }
+        current_weight:      { type: number }
+        recommended_weight:  { type: number }
+        direction:
+          type: string
+          enum: [increase, decrease, hold]
+        reason:              { type: string }
+        reliability_warning:
+          type: string
+          nullable: true
+      required:
+        - strategy_id
+        - strategy_name
+        - total_trades
+        - win_rate
+        - profit_factor
+        - expectancy
+        - net_pnl
+        - current_weight
+        - recommended_weight
+        - direction
+        - reason
+        - reliability_warning
+
+    LearningSummary:
+      type: object
+      properties:
+        strategies:
+          type: array
+          items:
+            $ref: "#/components/schemas/StrategyLearning"
+        total_trades:  { type: integer }
+        computed_at:   { type: string }
+        overall_warning:
+          type: string
+          nullable: true
+      required:
+        - strategies
+        - total_trades
+        - computed_at
+        - overall_warning
 
     ErrorResponse:
       type: object

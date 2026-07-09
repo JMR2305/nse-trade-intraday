@@ -18,6 +18,8 @@ from datetime import datetime
 from typing import TypedDict, Optional
 import uuid
 
+from analytics_engine import classify_outcome
+
 INITIAL_CAPITAL = 5000.0
 
 STATE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -81,6 +83,10 @@ class TradeReplayItem(TypedDict):
     reason_entry: str
     reason_exit: str
     plain_english: str
+    # ── Trade Journal enrichment (v0.9) ─────────────────────────────────
+    strategy_id:            str
+    strategy_name:          str
+    outcome_classification: str   # Excellent | Good | Weak | Small Loss | Failed
 
 
 class StrategyPerformance(TypedDict):
@@ -182,6 +188,8 @@ def execute_buy(
     target: float = 0.0,
     stop_loss_price: float = 0.0,
     plain_english: str = "",
+    strategy_id: str = "",
+    strategy_name: str = "",
 ) -> tuple[bool, str]:
     """
     Execute a paper buy order.
@@ -238,6 +246,8 @@ def execute_buy(
         "target": round(target, 2),
         "stop_loss": round(stop_loss_price, 2),
         "plain_english": plain_english,
+        "strategy_id": strategy_id or "ai_scan",
+        "strategy_name": strategy_name or "AI Scan",
     }
     state["trades"].append(trade)
 
@@ -388,6 +398,9 @@ def get_trade_replay() -> list[TradeReplayItem]:
                 reason_entry=buy_trade.get("reason", ""),
                 reason_exit=trade.get("reason", ""),
                 plain_english=buy_trade.get("plain_english", ""),
+                strategy_id=buy_trade.get("strategy_id", "ai_scan"),
+                strategy_name=buy_trade.get("strategy_name", "AI Scan"),
+                outcome_classification=classify_outcome(pnl_pct),
             ))
 
     return sorted(replay_items, key=lambda x: x["exit_time"], reverse=True)

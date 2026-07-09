@@ -1,0 +1,1 @@
+- [API server route restart](api-server-route-restart.md) — new Express routes in artifacts/api-server don't show up until the workflow is restarted; curl after adding a route to verify.

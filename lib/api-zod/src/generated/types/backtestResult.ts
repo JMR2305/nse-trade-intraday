@@ -36,6 +36,10 @@ export interface BacktestResult {
   avg_duration_bars: number;
   sharpe_ratio: number;
   data_source: string;
+  expectancy: number;
+  max_consecutive_wins: number;
+  max_consecutive_losses: number;
+  capital_curve: number[];
   trades: BacktestTrade[];
   equity_curve: number[];
   computed_at: string;

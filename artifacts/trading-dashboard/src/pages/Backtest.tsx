@@ -394,6 +394,24 @@ export default function Backtest() {
             </div>
           </div>
 
+          {/* Performance Analytics — expectancy, streaks */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="bg-card border border-border rounded-lg p-3">
+              <div className="text-xs text-muted-foreground font-mono">Expectancy / Trade</div>
+              <div className={`font-mono font-bold ${result.expectancy >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                {result.expectancy >= 0 ? "+" : ""}₹{result.expectancy.toFixed(2)}
+              </div>
+            </div>
+            <div className="bg-card border border-border rounded-lg p-3">
+              <div className="text-xs text-muted-foreground font-mono">Max Consecutive Wins</div>
+              <div className="font-mono font-bold text-emerald-400">{result.max_consecutive_wins}</div>
+            </div>
+            <div className="bg-card border border-border rounded-lg p-3">
+              <div className="text-xs text-muted-foreground font-mono">Max Consecutive Losses</div>
+              <div className="font-mono font-bold text-red-400">{result.max_consecutive_losses}</div>
+            </div>
+          </div>
+
           {/* Equity curve (simple bar chart using divs) */}
           {result.equity_curve.length > 1 && (
             <div className="bg-card border border-border rounded-lg p-4">

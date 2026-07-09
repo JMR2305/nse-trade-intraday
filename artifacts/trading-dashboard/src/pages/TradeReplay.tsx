@@ -2,7 +2,9 @@ import { useState } from "react";
 import {
   useGetTradeReplay,
   useGetStrategyPerformance,
+  useGetLearningSummary,
   type TradeReplayItem,
+  type StrategyLearning,
 } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
 import {
@@ -19,6 +21,10 @@ import {
   AlertCircle,
   BarChart2,
   Percent,
+  GraduationCap,
+  ArrowUpRight,
+  ArrowDownRight,
+  Minus,
 } from "lucide-react";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -44,6 +50,23 @@ function ExitBadge({ type }: { type: string }) {
     <span className={`inline-flex items-center gap-1 font-mono text-xs px-2 py-0.5 rounded border ${m.color}`}>
       <Icon className="h-3 w-3" />
       {m.label}
+    </span>
+  );
+}
+
+const OUTCOME_META: Record<string, { color: string }> = {
+  Excellent:   { color: "text-emerald-400 bg-emerald-400/10 border-emerald-500/30" },
+  Good:        { color: "text-lime-400 bg-lime-400/10 border-lime-500/30" },
+  Weak:        { color: "text-yellow-400 bg-yellow-400/10 border-yellow-500/30" },
+  "Small Loss": { color: "text-orange-400 bg-orange-400/10 border-orange-500/30" },
+  Failed:      { color: "text-red-400 bg-red-400/10 border-red-500/30" },
+};
+
+function OutcomeBadge({ label }: { label: string }) {
+  const m = OUTCOME_META[label] ?? OUTCOME_META.Weak;
+  return (
+    <span className={`inline-flex items-center font-mono text-xs px-2 py-0.5 rounded border ${m.color}`}>
+      {label}
     </span>
   );
 }
@@ -168,6 +191,106 @@ function PerformanceSection() {
   );
 }
 
+// ── Learning Summary Section ────────────────────────────────────────────────────
+
+const DIRECTION_META: Record<string, { icon: typeof ArrowUpRight; color: string; label: string }> = {
+  increase: { icon: ArrowUpRight,   color: "text-emerald-400", label: "Increase weight" },
+  decrease: { icon: ArrowDownRight, color: "text-red-400",     label: "Decrease weight" },
+  hold:     { icon: Minus,          color: "text-muted-foreground", label: "Hold weight" },
+};
+
+function StrategyLearningCard({ s }: { s: StrategyLearning }) {
+  const dm = DIRECTION_META[s.direction] ?? DIRECTION_META.hold;
+  const DirIcon = dm.icon;
+  return (
+    <div className="rounded-lg border border-border bg-card p-4 space-y-3" data-testid={`learning-card-${s.strategy_id}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <div className="font-mono font-bold text-sm">{s.strategy_name}</div>
+          <div className="text-xs text-muted-foreground/60 font-mono">{s.total_trades} completed trades</div>
+        </div>
+        <span className={`inline-flex items-center gap-1 font-mono text-xs px-2 py-0.5 rounded border border-border ${dm.color}`}>
+          <DirIcon className="h-3 w-3" />
+          {dm.label}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 text-center">
+        <div>
+          <div className="text-xs text-muted-foreground font-mono">WIN RATE</div>
+          <div className="font-mono font-bold text-sm">{s.win_rate.toFixed(0)}%</div>
+        </div>
+        <div>
+          <div className="text-xs text-muted-foreground font-mono">PROFIT FACTOR</div>
+          <div className="font-mono font-bold text-sm">{s.profit_factor >= 99 ? "∞" : s.profit_factor.toFixed(2)}</div>
+        </div>
+        <div>
+          <div className="text-xs text-muted-foreground font-mono">EXPECTANCY</div>
+          <div className={`font-mono font-bold text-sm ${s.expectancy >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+            {formatCurrency(s.expectancy)}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between text-xs font-mono bg-muted/20 rounded px-2 py-1.5">
+        <span className="text-muted-foreground">Weight {s.current_weight.toFixed(2)}×</span>
+        <span className="text-muted-foreground/40">→</span>
+        <span className={dm.color}>{s.recommended_weight.toFixed(2)}×</span>
+      </div>
+
+      <p className="text-xs text-foreground/70 leading-relaxed">{s.reason}</p>
+
+      {s.reliability_warning && (
+        <div className="flex gap-1.5 text-xs text-yellow-400/90 bg-yellow-400/5 border border-yellow-500/20 rounded px-2 py-1.5">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+          <span>{s.reliability_warning}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LearningSection() {
+  const { data: learning, isLoading } = useGetLearningSummary();
+
+  if (isLoading) {
+    return (
+      <div className="rounded-lg border border-border bg-card p-6 text-center text-muted-foreground text-sm font-mono">
+        Computing strategy learning…
+      </div>
+    );
+  }
+
+  if (!learning) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2 text-sm text-foreground/70 bg-primary/5 border border-primary/20 rounded-lg p-3">
+        <GraduationCap className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+        <p className="leading-relaxed">
+          The Learning Engine only <strong>recommends</strong> allocation weight changes based on paper trading
+          history — it never places or resizes real orders automatically.
+        </p>
+      </div>
+
+      {learning.overall_warning && (
+        <div className="flex gap-2 text-sm text-yellow-400/90 bg-yellow-400/5 border border-yellow-500/20 rounded-lg p-3">
+          <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+          <p className="leading-relaxed">{learning.overall_warning}</p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+        {learning.strategies.map((s) => (
+          <StrategyLearningCard key={s.strategy_id} s={s} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Expanded Trade Detail ──────────────────────────────────────────────────────
 
 function TradeDetail({ t }: { t: TradeReplayItem }) {
@@ -215,6 +338,15 @@ function TradeDetail({ t }: { t: TradeReplayItem }) {
         </div>
       </div>
 
+      {/* Strategy + outcome classification */}
+      <div className="flex flex-wrap items-center gap-3 text-sm">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-muted-foreground font-mono">STRATEGY</span>
+          <span className="font-mono text-foreground">{t.strategy_name}</span>
+        </div>
+        <OutcomeBadge label={t.outcome_classification} />
+      </div>
+
       {/* Entry reason / AI explanation */}
       {t.plain_english && (
         <div className="flex gap-2 text-sm text-foreground/70 bg-primary/5 border border-primary/20 rounded-lg p-3">
@@ -236,7 +368,7 @@ function TradeDetail({ t }: { t: TradeReplayItem }) {
 
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
-type TabType = "replay" | "performance";
+type TabType = "replay" | "performance" | "learning";
 
 export default function TradeReplayPage() {
   const { data: trades = [], isLoading } = useGetTradeReplay();
@@ -261,7 +393,7 @@ export default function TradeReplayPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border">
-        {(["replay", "performance"] as TabType[]).map((t) => (
+        {(["replay", "performance", "learning"] as TabType[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -272,12 +404,14 @@ export default function TradeReplayPage() {
             }`}
             data-testid={`tab-${t}`}
           >
-            {t === "replay" ? "Trade Replay" : "Strategy Performance"}
+            {t === "replay" ? "Trade Replay" : t === "performance" ? "Strategy Performance" : "Learning Summary"}
           </button>
         ))}
       </div>
 
-      {tab === "performance" ? (
+      {tab === "learning" ? (
+        <LearningSection />
+      ) : tab === "performance" ? (
         <PerformanceSection />
       ) : (
         <div className="space-y-4">

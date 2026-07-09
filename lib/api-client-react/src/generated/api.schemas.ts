@@ -269,6 +269,18 @@ export const ReplayItemOutcome = {
   Pending: 'Pending',
 } as const;
 
+export type ReplayItemOutcomeLabel = typeof ReplayItemOutcomeLabel[keyof typeof ReplayItemOutcomeLabel];
+
+
+export const ReplayItemOutcomeLabel = {
+  Excellent: 'Excellent',
+  Good: 'Good',
+  Weak: 'Weak',
+  Small_Loss: 'Small Loss',
+  Failed: 'Failed',
+  Pending: 'Pending',
+} as const;
+
 export interface ReplayItem {
   stock: string;
   sector: string;
@@ -284,6 +296,7 @@ export interface ReplayItem {
   price_after_holding: number | null;
   return_pct: number | null;
   outcome: ReplayItemOutcome;
+  outcome_label: ReplayItemOutcomeLabel;
   why_signal: string;
   what_happened: string;
   error: string | null;
@@ -306,6 +319,15 @@ export interface ReplaySummary {
   best_signal_return: number;
   worst_signal: string;
   worst_signal_return: number;
+  starting_capital: number;
+  ending_capital: number;
+  total_return_pct: number;
+  expectancy: number;
+  max_drawdown_pct: number;
+  max_consecutive_wins: number;
+  max_consecutive_losses: number;
+  capital_curve: number[];
+  reliability_warning: string | null;
 }
 
 export interface MarketReplayResult {
@@ -450,6 +472,17 @@ export const TradeReplayItemExitType = {
   MANUAL: 'MANUAL',
 } as const;
 
+export type TradeReplayItemOutcomeClassification = typeof TradeReplayItemOutcomeClassification[keyof typeof TradeReplayItemOutcomeClassification];
+
+
+export const TradeReplayItemOutcomeClassification = {
+  Excellent: 'Excellent',
+  Good: 'Good',
+  Weak: 'Weak',
+  Small_Loss: 'Small Loss',
+  Failed: 'Failed',
+} as const;
+
 export interface TradeReplayItem {
   id: string;
   symbol: string;
@@ -470,6 +503,9 @@ export interface TradeReplayItem {
   reason_entry: string;
   reason_exit: string;
   plain_english: string;
+  strategy_id: string;
+  strategy_name: string;
+  outcome_classification: TradeReplayItemOutcomeClassification;
 }
 
 export interface StrategyPerformance {
@@ -744,6 +780,10 @@ export interface BacktestResult {
   avg_duration_bars: number;
   sharpe_ratio: number;
   data_source: string;
+  expectancy: number;
+  max_consecutive_wins: number;
+  max_consecutive_losses: number;
+  capital_curve: number[];
   trades: BacktestTrade[];
   equity_curve: number[];
   computed_at: string;
@@ -751,6 +791,37 @@ export interface BacktestResult {
   validation: ValidationSummary;
   debug_candles: DebugCandle[];
   rejected_trades_detail: RejectedTrade[];
+}
+
+export type StrategyLearningDirection = typeof StrategyLearningDirection[keyof typeof StrategyLearningDirection];
+
+
+export const StrategyLearningDirection = {
+  increase: 'increase',
+  decrease: 'decrease',
+  hold: 'hold',
+} as const;
+
+export interface StrategyLearning {
+  strategy_id: string;
+  strategy_name: string;
+  total_trades: number;
+  win_rate: number;
+  profit_factor: number;
+  expectancy: number;
+  net_pnl: number;
+  current_weight: number;
+  recommended_weight: number;
+  direction: StrategyLearningDirection;
+  reason: string;
+  reliability_warning: string | null;
+}
+
+export interface LearningSummary {
+  strategies: StrategyLearning[];
+  total_trades: number;
+  computed_at: string;
+  overall_warning: string | null;
 }
 
 export interface ErrorResponse {
