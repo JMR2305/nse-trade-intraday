@@ -973,7 +973,14 @@ export interface TradeIntelligenceRecord {
   symbol: string;
   sector?: string | null;
   strategy?: string | null;
+  /** How the trade was entered (EMA Cross, MACD Cross, Trend Rider, ...) */
+  entry_strategy?: string | null;
+  /** Why the trade was closed (Target Hit, Stop Hit, Signal Exit, Time Exit, Manual Exit) */
+  exit_reason?: string | null;
+  /** One of 7 regimes — never Unknown */
   market_regime?: string | null;
+  /** Annualised NIFTY volatility % at entry */
+  volatility?: number | null;
   holding_period?: number | null;
   entry_price?: number | null;
   exit_price?: number | null;
@@ -1012,6 +1019,33 @@ export interface TradeIntelligenceBreakdownRow {
   total_pnl: number;
 }
 
+export interface TradeIntelligenceBestWorst {
+  name: string;
+  avg_return_pct: number;
+  trades: number;
+}
+
+export interface TradeIntelligenceExtreme {
+  symbol: string;
+  profit_loss: number;
+  return_percent: number;
+  date: string;
+}
+
+export interface TradeIntelligenceStatistics {
+  best_strategy?: TradeIntelligenceBestWorst;
+  worst_strategy?: TradeIntelligenceBestWorst;
+  best_sector?: TradeIntelligenceBestWorst;
+  worst_sector?: TradeIntelligenceBestWorst;
+  best_regime?: TradeIntelligenceBestWorst;
+  worst_regime?: TradeIntelligenceBestWorst;
+  average_winning_trade?: number | null;
+  average_losing_trade?: number | null;
+  average_holding_days: number;
+  largest_winner?: TradeIntelligenceExtreme;
+  largest_loser?: TradeIntelligenceExtreme;
+}
+
 export interface TradeIntelligenceSummary {
   total_trades: number;
   winning_trades: number;
@@ -1022,7 +1056,10 @@ export interface TradeIntelligenceSummary {
   total_pnl: number;
   regime_breakdown: TradeIntelligenceBreakdownRow[];
   strategy_breakdown: TradeIntelligenceBreakdownRow[];
+  exit_reason_breakdown: TradeIntelligenceBreakdownRow[];
+  sector_breakdown: TradeIntelligenceBreakdownRow[];
   source_breakdown: TradeIntelligenceBreakdownRow[];
+  statistics: TradeIntelligenceStatistics;
 }
 
 export interface TradeIntelligenceResult {
@@ -1033,6 +1070,7 @@ export interface TradeIntelligenceResult {
 
 export interface TradeIntelligenceImportResult {
   imported_paper_trades: number;
+  repaired_rows?: number;
   note: string;
   total_trades: number;
   winning_trades?: number;

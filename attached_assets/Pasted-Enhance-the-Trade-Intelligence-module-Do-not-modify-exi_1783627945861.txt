@@ -1,0 +1,162 @@
+Enhance the Trade Intelligence module.
+
+Do not modify existing strategies or scoring logic.
+
+Focus only on improving the historical trade database.
+
+1. Fix Market Regime Classification
+
+Replace "Unknown" with a valid regime.
+
+Every trade must belong to exactly one:
+
+• Strong Bullish
+• Bullish
+• Neutral
+• Bearish
+• Strong Bearish
+• High Volatility
+• Low Volatility
+
+Never store Unknown.
+
+--------------------------------------------------
+
+2. Separate Entry Strategy from Exit Reason
+
+Current strategy breakdown incorrectly mixes:
+
+Trend Rider
+EMA Cross
+MACD Cross
+
+with
+
+TARGET_HIT
+STOP_HIT
+SIGNAL_EXIT
+
+Create two independent fields.
+
+Entry Strategy:
+- EMA Cross
+- MACD Cross
+- RSI Mean Reversion
+- Trend Rider
+- Breakout
+- Supertrend
+
+Exit Reason:
+- Target Hit
+- Stop Hit
+- Signal Exit
+- Time Exit
+- Manual Exit
+
+Update dashboard accordingly.
+
+--------------------------------------------------
+
+3. Store Indicator Snapshot
+
+When a trade is opened, permanently store:
+
+EMA9
+EMA20
+EMA50
+EMA200
+RSI
+MACD
+MACD Signal
+ATR
+ADX
+Supertrend
+VWAP
+Volume Ratio
+
+Also store:
+
+Opportunity Score
+Trade Quality
+Confidence
+Risk Reward
+
+These values must never change after entry.
+
+--------------------------------------------------
+
+4. Trade Detail Page
+
+Clicking a trade opens a detail panel.
+
+Display:
+
+Trade Summary
+Entry
+Exit
+Quantity
+Profit/Loss
+Return %
+Holding Days
+
+Market Context
+Sector
+Market Regime
+Volatility
+
+Indicator Snapshot
+
+Decision Snapshot
+
+Opportunity Score
+Confidence
+Trade Quality
+
+Exit Reason
+
+--------------------------------------------------
+
+5. Data Integrity
+
+Prevent duplicate historical trades.
+
+Unique key:
+
+Symbol
+Strategy
+Entry Date
+Holding Period
+
+--------------------------------------------------
+
+6. Historical Statistics
+
+Add analytics:
+
+Best Performing Strategy
+
+Worst Performing Strategy
+
+Best Sector
+
+Worst Sector
+
+Best Market Regime
+
+Worst Market Regime
+
+Average Winning Trade
+
+Average Losing Trade
+
+Average Holding Days
+
+Largest Winner
+
+Largest Loser
+
+--------------------------------------------------
+
+Do not build AI learning yet.
+
+This sprint prepares a high-quality historical dataset for the Predictive Intelligence Engine.

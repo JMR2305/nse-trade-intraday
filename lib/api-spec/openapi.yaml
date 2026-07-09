@@ -2174,7 +2174,10 @@ components:
         symbol:          { type: string }
         sector:          { type: string, nullable: true }
         strategy:        { type: string, nullable: true }
-        market_regime:   { type: string, nullable: true }
+        entry_strategy:  { type: string, nullable: true, description: "How the trade was entered (EMA Cross, MACD Cross, Trend Rider, ...)" }
+        exit_reason:     { type: string, nullable: true, description: "Why the trade was closed (Target Hit, Stop Hit, Signal Exit, Time Exit, Manual Exit)" }
+        market_regime:   { type: string, nullable: true, description: "One of 7 regimes — never Unknown" }
+        volatility:      { type: number, nullable: true, description: "Annualised NIFTY volatility % at entry" }
         holding_period:  { type: integer, nullable: true }
         entry_price:     { type: number, nullable: true }
         exit_price:      { type: number, nullable: true }
@@ -2230,9 +2233,17 @@ components:
         strategy_breakdown:
           type: array
           items: { $ref: "#/components/schemas/TradeIntelligenceBreakdownRow" }
+        exit_reason_breakdown:
+          type: array
+          items: { $ref: "#/components/schemas/TradeIntelligenceBreakdownRow" }
+        sector_breakdown:
+          type: array
+          items: { $ref: "#/components/schemas/TradeIntelligenceBreakdownRow" }
         source_breakdown:
           type: array
           items: { $ref: "#/components/schemas/TradeIntelligenceBreakdownRow" }
+        statistics:
+          $ref: "#/components/schemas/TradeIntelligenceStatistics"
       required:
         - total_trades
         - winning_trades
@@ -2243,7 +2254,43 @@ components:
         - total_pnl
         - regime_breakdown
         - strategy_breakdown
+        - exit_reason_breakdown
+        - sector_breakdown
         - source_breakdown
+        - statistics
+
+    TradeIntelligenceBestWorst:
+      type: object
+      properties:
+        name:           { type: string }
+        avg_return_pct: { type: number }
+        trades:         { type: integer }
+      required: [name, avg_return_pct, trades]
+
+    TradeIntelligenceExtreme:
+      type: object
+      properties:
+        symbol:         { type: string }
+        profit_loss:    { type: number }
+        return_percent: { type: number }
+        date:           { type: string }
+      required: [symbol, profit_loss, return_percent, date]
+
+    TradeIntelligenceStatistics:
+      type: object
+      properties:
+        best_strategy:  { $ref: "#/components/schemas/TradeIntelligenceBestWorst" }
+        worst_strategy: { $ref: "#/components/schemas/TradeIntelligenceBestWorst" }
+        best_sector:    { $ref: "#/components/schemas/TradeIntelligenceBestWorst" }
+        worst_sector:   { $ref: "#/components/schemas/TradeIntelligenceBestWorst" }
+        best_regime:    { $ref: "#/components/schemas/TradeIntelligenceBestWorst" }
+        worst_regime:   { $ref: "#/components/schemas/TradeIntelligenceBestWorst" }
+        average_winning_trade: { type: number, nullable: true }
+        average_losing_trade:  { type: number, nullable: true }
+        average_holding_days:  { type: number }
+        largest_winner: { $ref: "#/components/schemas/TradeIntelligenceExtreme" }
+        largest_loser:  { $ref: "#/components/schemas/TradeIntelligenceExtreme" }
+      required: [average_holding_days]
 
     TradeIntelligenceResult:
       type: object
@@ -2259,6 +2306,7 @@ components:
       type: object
       properties:
         imported_paper_trades: { type: integer }
+        repaired_rows:         { type: integer }
         note:                  { type: string }
         total_trades:          { type: integer }
         winning_trades:        { type: integer }

@@ -190,6 +190,8 @@ def execute_buy(
     plain_english: str = "",
     strategy_id: str = "",
     strategy_name: str = "",
+    opportunity_score: float = 0.0,
+    trade_quality: float = 0.0,
 ) -> tuple[bool, str]:
     """
     Execute a paper buy order.
@@ -248,7 +250,46 @@ def execute_buy(
         "plain_english": plain_english,
         "strategy_id": strategy_id or "ai_scan",
         "strategy_name": strategy_name or "AI Scan",
+        "opportunity_score": round(opportunity_score, 2) if opportunity_score else None,
+        "trade_quality": round(trade_quality, 2) if trade_quality else None,
     }
+
+    # ── Trade Intelligence: freeze the entry snapshot (indicators + regime).
+    # These values are stored on the BUY record and never change afterwards.
+    try:
+        from market_data import fetch_ohlcv
+        from indicator_engine import compute_indicators_df
+
+        df = fetch_ohlcv(sym, period="1y", interval="1d")
+        last = compute_indicators_df(df).iloc[-1]
+
+        def _v(col, nd=4):
+            try:
+                v = float(last.get(col))
+                return None if v != v else round(v, nd)  # NaN check
+            except (TypeError, ValueError):
+                return None
+
+        trade["indicators_at_entry"] = {
+            "ema9": _v("ema9", 2), "ema20": _v("ema20", 2),
+            "ema50": _v("ema50", 2), "ema200": _v("ema200", 2),
+            "rsi": _v("rsi", 2), "macd": _v("macd_line"),
+            "macd_signal": _v("macd_signal"), "vwap": _v("vwap", 2),
+            "atr": _v("atr", 2), "adx": _v("adx", 2),
+            "supertrend": _v("supertrend", 2), "volume_ratio": _v("volume_ratio", 2),
+        }
+    except Exception:
+        pass  # snapshot must never block a buy order
+
+    try:
+        from trade_intelligence import classify_regime
+
+        regime_info = classify_regime()
+        trade["market_regime_at_entry"] = regime_info.get("regime", "")
+        trade["volatility_at_entry"] = regime_info.get("volatility")
+    except Exception:
+        pass
+
     state["trades"].append(trade)
 
     _append_pnl_snapshot(state, price, sym)
@@ -321,9 +362,10 @@ def execute_sell(
 
     # ── Trade Intelligence (Sprint 3): store the completed paper trade ───
     try:
-        from trade_intelligence import record_paper_trade
+        from trade_intelligence import record_paper_trade, find_buy_trade
         from market_scanner import _sector_of
-        record_paper_trade(trade, sector=_sector_of(sym))
+        buy_trade = find_buy_trade(state, sym, trade["timestamp"])
+        record_paper_trade(trade, sector=_sector_of(sym), buy_trade=buy_trade)
     except Exception:
         pass  # recording must never break a sell order
 

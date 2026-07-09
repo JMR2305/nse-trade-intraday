@@ -9,6 +9,7 @@ import type { TradeIntelligenceBreakdownRow } from './tradeIntelligenceBreakdown
 
 export interface TradeIntelligenceImportResult {
   imported_paper_trades: number;
+  repaired_rows?: number;
   note: string;
   total_trades: number;
   winning_trades?: number;

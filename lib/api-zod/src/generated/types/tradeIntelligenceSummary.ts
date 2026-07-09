@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { TradeIntelligenceBreakdownRow } from './tradeIntelligenceBreakdownRow';
+import type { TradeIntelligenceStatistics } from './tradeIntelligenceStatistics';
 
 export interface TradeIntelligenceSummary {
   total_trades: number;
@@ -17,5 +18,8 @@ export interface TradeIntelligenceSummary {
   total_pnl: number;
   regime_breakdown: TradeIntelligenceBreakdownRow[];
   strategy_breakdown: TradeIntelligenceBreakdownRow[];
+  exit_reason_breakdown: TradeIntelligenceBreakdownRow[];
+  sector_breakdown: TradeIntelligenceBreakdownRow[];
   source_breakdown: TradeIntelligenceBreakdownRow[];
+  statistics: TradeIntelligenceStatistics;
 }

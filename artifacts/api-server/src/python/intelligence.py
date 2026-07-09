@@ -107,6 +107,7 @@ def _execute_trades(
     ai_decisions: list[dict],
     enriched_signals: list[dict],
     available_cash: float,
+    opportunity_scan: list[dict] | None = None,
 ) -> float:
     """
     Execute paper trades based on AI decisions.
@@ -115,6 +116,10 @@ def _execute_trades(
     state    = _load_state()
     positions = state.get("positions", {})
     cash     = available_cash
+    opp_by_stock = {
+        str(o.get("stock", "")).upper(): o.get("opportunity_score", 0.0) or 0.0
+        for o in (opportunity_scan or [])
+    }
 
     for ai_dec, enr in zip(ai_decisions, enriched_signals):
         symbol   = ai_dec.get("stock", "")
@@ -142,6 +147,10 @@ def _execute_trades(
                 target            = ai_dec.get("target", 0.0),
                 stop_loss_price   = ai_dec.get("stop_loss", 0.0),
                 plain_english     = expl.get("summary", ""),
+                opportunity_score = opp_by_stock.get(
+                    symbol.upper(), ai_dec.get("opportunity_score", 0.0) or 0.0
+                ),
+                trade_quality     = (enr.get("trade_quality") or {}).get("total_score", 0.0) or 0.0,
             )
             if ok:
                 cash -= qty * price
@@ -235,7 +244,8 @@ def run_intelligence_scan(
 
     # 9. Execute paper trades
     if execute_trades:
-        _execute_trades(ai_decisions, enriched_signals, available_cash)
+        _execute_trades(ai_decisions, enriched_signals, available_cash,
+                        opportunity_scan=opportunity_scan)
 
     # 10. Cache everything
     _write_cache(SIGNALS_CACHE,     signals)

@@ -14,7 +14,14 @@ export interface TradeIntelligenceRecord {
   symbol: string;
   sector?: string | null;
   strategy?: string | null;
+  /** How the trade was entered (EMA Cross, MACD Cross, Trend Rider, ...) */
+  entry_strategy?: string | null;
+  /** Why the trade was closed (Target Hit, Stop Hit, Signal Exit, Time Exit, Manual Exit) */
+  exit_reason?: string | null;
+  /** One of 7 regimes — never Unknown */
   market_regime?: string | null;
+  /** Annualised NIFTY volatility % at entry */
+  volatility?: number | null;
   holding_period?: number | null;
   entry_price?: number | null;
   exit_price?: number | null;

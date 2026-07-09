@@ -839,6 +839,24 @@ export const GetTradeIntelligenceResponse = zod.object({
   "avg_return_pct": zod.number(),
   "total_pnl": zod.number()
 })),
+  "exit_reason_breakdown": zod.array(zod.object({
+  "name": zod.string(),
+  "trades": zod.number(),
+  "wins": zod.number(),
+  "losses": zod.number(),
+  "win_rate": zod.number(),
+  "avg_return_pct": zod.number(),
+  "total_pnl": zod.number()
+})),
+  "sector_breakdown": zod.array(zod.object({
+  "name": zod.string(),
+  "trades": zod.number(),
+  "wins": zod.number(),
+  "losses": zod.number(),
+  "win_rate": zod.number(),
+  "avg_return_pct": zod.number(),
+  "total_pnl": zod.number()
+})),
   "source_breakdown": zod.array(zod.object({
   "name": zod.string(),
   "trades": zod.number(),
@@ -847,7 +865,54 @@ export const GetTradeIntelligenceResponse = zod.object({
   "win_rate": zod.number(),
   "avg_return_pct": zod.number(),
   "total_pnl": zod.number()
-}))
+})),
+  "statistics": zod.object({
+  "best_strategy": zod.object({
+  "name": zod.string(),
+  "avg_return_pct": zod.number(),
+  "trades": zod.number()
+}).optional(),
+  "worst_strategy": zod.object({
+  "name": zod.string(),
+  "avg_return_pct": zod.number(),
+  "trades": zod.number()
+}).optional(),
+  "best_sector": zod.object({
+  "name": zod.string(),
+  "avg_return_pct": zod.number(),
+  "trades": zod.number()
+}).optional(),
+  "worst_sector": zod.object({
+  "name": zod.string(),
+  "avg_return_pct": zod.number(),
+  "trades": zod.number()
+}).optional(),
+  "best_regime": zod.object({
+  "name": zod.string(),
+  "avg_return_pct": zod.number(),
+  "trades": zod.number()
+}).optional(),
+  "worst_regime": zod.object({
+  "name": zod.string(),
+  "avg_return_pct": zod.number(),
+  "trades": zod.number()
+}).optional(),
+  "average_winning_trade": zod.number().nullish(),
+  "average_losing_trade": zod.number().nullish(),
+  "average_holding_days": zod.number(),
+  "largest_winner": zod.object({
+  "symbol": zod.string(),
+  "profit_loss": zod.number(),
+  "return_percent": zod.number(),
+  "date": zod.string()
+}).optional(),
+  "largest_loser": zod.object({
+  "symbol": zod.string(),
+  "profit_loss": zod.number(),
+  "return_percent": zod.number(),
+  "date": zod.string()
+}).optional()
+})
 }),
   "trades": zod.array(zod.object({
   "trade_id": zod.string(),
@@ -856,7 +921,10 @@ export const GetTradeIntelligenceResponse = zod.object({
   "symbol": zod.string(),
   "sector": zod.string().nullish(),
   "strategy": zod.string().nullish(),
-  "market_regime": zod.string().nullish(),
+  "entry_strategy": zod.string().nullish().describe('How the trade was entered (EMA Cross, MACD Cross, Trend Rider, ...)'),
+  "exit_reason": zod.string().nullish().describe('Why the trade was closed (Target Hit, Stop Hit, Signal Exit, Time Exit, Manual Exit)'),
+  "market_regime": zod.string().nullish().describe('One of 7 regimes — never Unknown'),
+  "volatility": zod.number().nullish().describe('Annualised NIFTY volatility % at entry'),
   "holding_period": zod.number().nullish(),
   "entry_price": zod.number().nullish(),
   "exit_price": zod.number().nullish(),
@@ -893,6 +961,7 @@ export const GetTradeIntelligenceResponse = zod.object({
  */
 export const ImportTradeIntelligenceResponse = zod.object({
   "imported_paper_trades": zod.number(),
+  "repaired_rows": zod.number().optional(),
   "note": zod.string(),
   "total_trades": zod.number(),
   "winning_trades": zod.number().optional(),
