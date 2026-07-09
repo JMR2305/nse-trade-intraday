@@ -16,6 +16,7 @@ import {
   GitCompare,
   Settings2,
   Radar,
+  Clock,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         { href: "/",               label: "Dashboard",      icon: BarChart3 },
         { href: "/market",         label: "Market",         icon: Globe2    },
         { href: "/market-scanner", label: "Market Scanner", icon: Radar     },
+        { href: "/market-replay",  label: "Market Replay",  icon: Clock     },
       ],
     },
     {

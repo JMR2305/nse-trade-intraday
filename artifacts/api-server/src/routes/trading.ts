@@ -174,6 +174,47 @@ router.get("/market-scan", async (req, res) => {
   }
 });
 
+// GET /api/market-replay
+// Historical Market Scanner / Market Replay — paper trading only, no real
+// orders. Scanning ~50 stocks over a historical window takes ~15-20s, so
+// cache per (scan_date, holding_period, interval) combination.
+const MARKET_REPLAY_CACHE_MS = 10 * 60 * 1000;
+const marketReplayCache = new Map<string, { data: unknown; ts: number }>();
+const marketReplayInFlight = new Map<string, Promise<unknown>>();
+
+router.get("/market-replay", async (req, res) => {
+  try {
+    const scanDate = String(req.query.scan_date || "");
+    const holdingPeriod = String(req.query.holding_period || "5");
+    const interval = String(req.query.interval || "daily");
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(scanDate)) {
+      res.status(400).json({ error: "scan_date must be in YYYY-MM-DD format" });
+      return;
+    }
+
+    const cacheKey = `${scanDate}|${holdingPeriod}|${interval}`;
+    const cached = marketReplayCache.get(cacheKey);
+    if (cached && Date.now() - cached.ts < MARKET_REPLAY_CACHE_MS) {
+      res.json(cached.data);
+      return;
+    }
+
+    let inFlight = marketReplayInFlight.get(cacheKey);
+    if (!inFlight) {
+      inFlight = runPython(["market_replay", scanDate, holdingPeriod, interval]).finally(() => {
+        marketReplayInFlight.delete(cacheKey);
+      });
+      marketReplayInFlight.set(cacheKey, inFlight);
+    }
+    const data = await inFlight;
+    marketReplayCache.set(cacheKey, { data, ts: Date.now() });
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/market-context
 router.get("/market-context", async (_req, res) => {
   try {

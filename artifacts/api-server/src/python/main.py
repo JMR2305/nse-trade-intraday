@@ -206,6 +206,17 @@ def cmd_market_scan() -> dict:
     return dict(result)
 
 
+def cmd_market_replay(scan_date: str, holding_period: int, interval: str) -> dict:
+    """Historical Market Scanner / Market Replay (paper trading, no real orders)."""
+    from market_replay import run_market_replay
+    state = _load_state()
+    cash = state.get("cash", 5000.0)
+    result = run_market_replay(
+        scan_date=scan_date, holding_period=holding_period, interval=interval, capital=cash,
+    )
+    return dict(result)
+
+
 def _read_json_cache(filename: str) -> list | dict:
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
     if os.path.exists(path):
@@ -292,6 +303,12 @@ def main():
             result = cmd_strategies()
         elif command == "market_scan":
             result = cmd_market_scan()
+        elif command == "market_replay" and len(args) >= 2:
+            result = cmd_market_replay(
+                scan_date      = args[1],
+                holding_period = int(args[2]) if len(args) > 2 else 5,
+                interval       = args[3] if len(args) > 3 else "daily",
+            )
         elif command == "optimizer" and len(args) >= 4:
             from strategy_optimizer import run_optimizer
             result = run_optimizer(

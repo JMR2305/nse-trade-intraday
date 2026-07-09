@@ -249,6 +249,73 @@ export interface MarketScanResult {
   summary: DashboardSummary;
 }
 
+export type ReplayItemHistoricalAction = typeof ReplayItemHistoricalAction[keyof typeof ReplayItemHistoricalAction];
+
+
+export const ReplayItemHistoricalAction = {
+  STRONG_BUY: 'STRONG BUY',
+  BUY: 'BUY',
+  WATCH: 'WATCH',
+  IGNORE: 'IGNORE',
+} as const;
+
+export type ReplayItemOutcome = typeof ReplayItemOutcome[keyof typeof ReplayItemOutcome];
+
+
+export const ReplayItemOutcome = {
+  Correct: 'Correct',
+  Wrong: 'Wrong',
+  Neutral: 'Neutral',
+  Pending: 'Pending',
+} as const;
+
+export interface ReplayItem {
+  stock: string;
+  sector: string;
+  scan_date: string;
+  holding_period: number;
+  best_strategy_id: string;
+  best_strategy_name: string;
+  historical_action: ReplayItemHistoricalAction;
+  opportunity_score: number;
+  trade_quality: number;
+  confidence: number;
+  price_on_scan_date: number;
+  price_after_holding: number | null;
+  return_pct: number | null;
+  outcome: ReplayItemOutcome;
+  why_signal: string;
+  what_happened: string;
+  error: string | null;
+}
+
+export interface ReplaySummary {
+  scan_date: string;
+  holding_period: number;
+  interval: string;
+  total_scanned: number;
+  buy_signals: number;
+  watch_signals: number;
+  ignore_signals: number;
+  correct_calls: number;
+  wrong_calls: number;
+  neutral_calls: number;
+  accuracy_pct: number;
+  avg_return_pct: number;
+  best_signal: string;
+  best_signal_return: number;
+  worst_signal: string;
+  worst_signal_return: number;
+}
+
+export interface MarketReplayResult {
+  scan_date: string;
+  holding_period: number;
+  interval: string;
+  items: ReplayItem[];
+  summary: ReplaySummary;
+}
+
 export type OpportunityItemStatus = typeof OpportunityItemStatus[keyof typeof OpportunityItemStatus];
 
 
@@ -772,6 +839,36 @@ export interface OptimizerResult {
   stability_score: number;
   badge: string;
 }
+
+export type GetMarketReplayParams = {
+/**
+ * Historical date to scan, in YYYY-MM-DD format
+ */
+scan_date: string;
+/**
+ * Holding period in trading days
+ */
+holding_period?: GetMarketReplayHoldingPeriod;
+interval?: GetMarketReplayInterval;
+};
+
+export type GetMarketReplayHoldingPeriod = typeof GetMarketReplayHoldingPeriod[keyof typeof GetMarketReplayHoldingPeriod];
+
+
+export const GetMarketReplayHoldingPeriod = {
+  NUMBER_1: 1,
+  NUMBER_3: 3,
+  NUMBER_5: 5,
+  NUMBER_10: 10,
+} as const;
+
+export type GetMarketReplayInterval = typeof GetMarketReplayInterval[keyof typeof GetMarketReplayInterval];
+
+
+export const GetMarketReplayInterval = {
+  daily: 'daily',
+  hourly: 'hourly',
+} as const;
 
 export type GetMarketDataParams = {
 interval?: string;

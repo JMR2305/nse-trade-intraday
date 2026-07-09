@@ -277,6 +277,63 @@ export const GetMarketScanResponse = zod.object({
 
 
 /**
+ * Runs the market scanner as if a chosen past date were "today", using only data available up to that date to generate signals, then compares each signal with what actually happened over the chosen holding period. Paper trading only — no real orders.
+ * @summary Historical Market Scanner / Market Replay
+ */
+export const getMarketReplayQueryHoldingPeriodDefault = 5;
+export const getMarketReplayQueryIntervalDefault = `daily`;
+
+export const GetMarketReplayQueryParams = zod.object({
+  "scan_date": zod.coerce.string().describe('Historical date to scan, in YYYY-MM-DD format'),
+  "holding_period": zod.union([zod.literal(1),zod.literal(3),zod.literal(5),zod.literal(10)]).default(getMarketReplayQueryHoldingPeriodDefault).describe('Holding period in trading days'),
+  "interval": zod.enum(['daily', 'hourly']).default(getMarketReplayQueryIntervalDefault)
+})
+
+export const GetMarketReplayResponse = zod.object({
+  "scan_date": zod.string(),
+  "holding_period": zod.number(),
+  "interval": zod.string(),
+  "items": zod.array(zod.object({
+  "stock": zod.string(),
+  "sector": zod.string(),
+  "scan_date": zod.string(),
+  "holding_period": zod.number(),
+  "best_strategy_id": zod.string(),
+  "best_strategy_name": zod.string(),
+  "historical_action": zod.enum(['STRONG BUY', 'BUY', 'WATCH', 'IGNORE']),
+  "opportunity_score": zod.number(),
+  "trade_quality": zod.number(),
+  "confidence": zod.number(),
+  "price_on_scan_date": zod.number(),
+  "price_after_holding": zod.number().nullable(),
+  "return_pct": zod.number().nullable(),
+  "outcome": zod.enum(['Correct', 'Wrong', 'Neutral', 'Pending']),
+  "why_signal": zod.string(),
+  "what_happened": zod.string(),
+  "error": zod.string().nullable()
+})),
+  "summary": zod.object({
+  "scan_date": zod.string(),
+  "holding_period": zod.number(),
+  "interval": zod.string(),
+  "total_scanned": zod.number(),
+  "buy_signals": zod.number(),
+  "watch_signals": zod.number(),
+  "ignore_signals": zod.number(),
+  "correct_calls": zod.number(),
+  "wrong_calls": zod.number(),
+  "neutral_calls": zod.number(),
+  "accuracy_pct": zod.number(),
+  "avg_return_pct": zod.number(),
+  "best_signal": zod.string(),
+  "best_signal_return": zod.number(),
+  "worst_signal": zod.string(),
+  "worst_signal_return": zod.number()
+})
+})
+
+
+/**
  * Returns synthesised market score, bias, and sector strength
  * @summary Get market context
  */

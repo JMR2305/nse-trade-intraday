@@ -226,6 +226,58 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /market-replay:
+    get:
+      operationId: getMarketReplay
+      tags: [trading]
+      summary: Historical Market Scanner / Market Replay
+      description: >
+        Runs the market scanner as if a chosen past date were "today",
+        using only data available up to that date to generate signals,
+        then compares each signal with what actually happened over the
+        chosen holding period. Paper trading only — no real orders.
+      parameters:
+        - name: scan_date
+          in: query
+          required: true
+          description: Historical date to scan, in YYYY-MM-DD format
+          schema:
+            type: string
+        - name: holding_period
+          in: query
+          required: false
+          description: Holding period in trading days
+          schema:
+            type: integer
+            enum: [1, 3, 5, 10]
+            default: 5
+        - name: interval
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [daily, hourly]
+            default: daily
+      responses:
+        "200":
+          description: Historical replay result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketReplayResult"
+        "400":
+          description: Invalid scan_date
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /market-context:
     get:
       operationId: getMarketContext
@@ -905,6 +957,111 @@ components:
         - items
         - watchlist
         - sectors
+        - summary
+
+    ReplayItem:
+      type: object
+      properties:
+        stock:               { type: string }
+        sector:              { type: string }
+        scan_date:           { type: string }
+        holding_period:      { type: integer }
+        best_strategy_id:    { type: string }
+        best_strategy_name:  { type: string }
+        historical_action:
+          type: string
+          enum: [STRONG BUY, BUY, WATCH, IGNORE]
+        opportunity_score:   { type: number }
+        trade_quality:       { type: number }
+        confidence:          { type: number }
+        price_on_scan_date:  { type: number }
+        price_after_holding:
+          type: number
+          nullable: true
+        return_pct:
+          type: number
+          nullable: true
+        outcome:
+          type: string
+          enum: [Correct, Wrong, Neutral, Pending]
+        why_signal:      { type: string }
+        what_happened:   { type: string }
+        error:
+          type: string
+          nullable: true
+      required:
+        - stock
+        - sector
+        - scan_date
+        - holding_period
+        - best_strategy_id
+        - best_strategy_name
+        - historical_action
+        - opportunity_score
+        - trade_quality
+        - confidence
+        - price_on_scan_date
+        - price_after_holding
+        - return_pct
+        - outcome
+        - why_signal
+        - what_happened
+        - error
+
+    ReplaySummary:
+      type: object
+      properties:
+        scan_date:           { type: string }
+        holding_period:      { type: integer }
+        interval:            { type: string }
+        total_scanned:       { type: integer }
+        buy_signals:         { type: integer }
+        watch_signals:       { type: integer }
+        ignore_signals:      { type: integer }
+        correct_calls:       { type: integer }
+        wrong_calls:         { type: integer }
+        neutral_calls:       { type: integer }
+        accuracy_pct:        { type: number }
+        avg_return_pct:      { type: number }
+        best_signal:         { type: string }
+        best_signal_return:  { type: number }
+        worst_signal:        { type: string }
+        worst_signal_return: { type: number }
+      required:
+        - scan_date
+        - holding_period
+        - interval
+        - total_scanned
+        - buy_signals
+        - watch_signals
+        - ignore_signals
+        - correct_calls
+        - wrong_calls
+        - neutral_calls
+        - accuracy_pct
+        - avg_return_pct
+        - best_signal
+        - best_signal_return
+        - worst_signal
+        - worst_signal_return
+
+    MarketReplayResult:
+      type: object
+      properties:
+        scan_date:      { type: string }
+        holding_period: { type: integer }
+        interval:       { type: string }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReplayItem"
+        summary:
+          $ref: "#/components/schemas/ReplaySummary"
+      required:
+        - scan_date
+        - holding_period
+        - interval
+        - items
         - summary
 
     OpportunityItem:

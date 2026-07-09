@@ -27,11 +27,13 @@ import type {
   ErrorResponse,
   GetIndicatorsParams,
   GetMarketDataParams,
+  GetMarketReplayParams,
   HealthStatus,
   IndicatorResult,
   MarketContext,
   MarketDataResult,
   MarketOverview,
+  MarketReplayResult,
   MarketScanResult,
   OpportunityItem,
   OptimizerRequest,
@@ -825,6 +827,91 @@ export function useGetMarketScan<TData = Awaited<ReturnType<typeof getMarketScan
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetMarketScanQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMarketReplayUrl = (params: GetMarketReplayParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/market-replay?${stringifiedParams}` : `/api/market-replay`
+}
+
+/**
+ * Runs the market scanner as if a chosen past date were "today", using only data available up to that date to generate signals, then compares each signal with what actually happened over the chosen holding period. Paper trading only — no real orders.
+ * @summary Historical Market Scanner / Market Replay
+ */
+export const getMarketReplay = async (params: GetMarketReplayParams, options?: RequestInit): Promise<MarketReplayResult> => {
+
+  return customFetch<MarketReplayResult>(getGetMarketReplayUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMarketReplayQueryKey = (params?: GetMarketReplayParams,) => {
+    return [
+    `/api/market-replay`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetMarketReplayQueryOptions = <TData = Awaited<ReturnType<typeof getMarketReplay>>, TError = ErrorType<ErrorResponse>>(params: GetMarketReplayParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMarketReplay>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMarketReplayQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMarketReplay>>> = ({ signal }) => getMarketReplay(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMarketReplay>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMarketReplayQueryResult = NonNullable<Awaited<ReturnType<typeof getMarketReplay>>>
+export type GetMarketReplayQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Historical Market Scanner / Market Replay
+ */
+
+export function useGetMarketReplay<TData = Awaited<ReturnType<typeof getMarketReplay>>, TError = ErrorType<ErrorResponse>>(
+ params: GetMarketReplayParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMarketReplay>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMarketReplayQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
