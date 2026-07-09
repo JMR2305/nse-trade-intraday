@@ -275,6 +275,16 @@ def main():
             )
         elif command == "strategies":
             result = cmd_strategies()
+        elif command == "optimizer" and len(args) >= 4:
+            from strategy_optimizer import run_optimizer
+            result = run_optimizer(
+                symbol          = args[1],
+                start_date      = args[2],
+                end_date        = args[3],
+                initial_capital = float(args[4]) if len(args) > 4 else 5000.0,
+                interval        = args[5] if len(args) > 5 else "1d",
+                top_n           = int(args[6]) if len(args) > 6 else 10,
+            )
         elif command == "strategy_lab" and len(args) >= 4:
             from backtesting_engine import run_strategy_lab
             result = run_strategy_lab(

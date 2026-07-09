@@ -255,6 +255,28 @@ router.post("/backtest", async (req, res) => {
   }
 });
 
+// POST /api/optimizer
+router.post("/optimizer", async (req, res) => {
+  try {
+    const {
+      symbol, start_date, end_date,
+      initial_capital = 5000,
+      interval = "1d",
+      top_n = 10,
+    } = req.body as {
+      symbol: string; start_date: string; end_date: string;
+      initial_capital?: number; interval?: string; top_n?: number;
+    };
+    const data = await runPython([
+      "optimizer", symbol, start_date, end_date,
+      String(initial_capital), interval, String(top_n),
+    ]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // POST /api/strategy-lab
 router.post("/strategy-lab", async (req, res) => {
   try {

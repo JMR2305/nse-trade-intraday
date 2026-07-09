@@ -382,6 +382,33 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /optimizer:
+    post:
+      operationId: runOptimizer
+      tags: [trading]
+      summary: Strategy Optimizer — test all parameter combinations, return top 10
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OptimizerRequest"
+      responses:
+        "200":
+          description: Top N ranked parameter combinations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OptimizerResult"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /strategy-lab:
     post:
       operationId: runStrategyLab
@@ -1450,3 +1477,58 @@ components:
         - avg_duration_bars
         - best_trade
         - worst_trade
+
+    OptimizerRequest:
+      type: object
+      required: [symbol, start_date, end_date]
+      properties:
+        symbol:          { type: string, example: RELIANCE }
+        start_date:      { type: string, format: date }
+        end_date:        { type: string, format: date }
+        initial_capital: { type: number, default: 5000 }
+        interval:        { type: string, default: "1d" }
+        top_n:           { type: integer, default: 10 }
+
+    OptimizerResult:
+      type: object
+      properties:
+        rank:               { type: integer }
+        strategy_id:        { type: string }
+        strategy_name:      { type: string }
+        parameters_display: { type: string }
+        parameters:
+          type: object
+          additionalProperties: true
+        total_trades:       { type: integer }
+        winning_trades:     { type: integer }
+        losing_trades:      { type: integer }
+        win_rate:           { type: number }
+        net_pnl:            { type: number }
+        net_pnl_pct:        { type: number }
+        profit_factor:      { type: number }
+        max_drawdown:       { type: number }
+        max_drawdown_pct:   { type: number }
+        sharpe_ratio:       { type: number }
+        avg_duration_bars:  { type: number }
+        score:              { type: number }
+        warning:
+          type: string
+          nullable: true
+      required:
+        - rank
+        - strategy_id
+        - strategy_name
+        - parameters_display
+        - parameters
+        - total_trades
+        - winning_trades
+        - losing_trades
+        - win_rate
+        - net_pnl
+        - net_pnl_pct
+        - profit_factor
+        - max_drawdown
+        - max_drawdown_pct
+        - sharpe_ratio
+        - avg_duration_bars
+        - score

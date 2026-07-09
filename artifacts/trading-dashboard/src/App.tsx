@@ -15,6 +15,7 @@ import TradeReplay from "@/pages/TradeReplay";
 import Backtest from "@/pages/Backtest";
 import Validate from "@/pages/Validate";
 import StrategyLab from "@/pages/StrategyLab";
+import Optimizer from "@/pages/Optimizer";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +33,7 @@ function Router() {
         <Route path="/backtest" component={Backtest} />
         <Route path="/validate" component={Validate} />
         <Route path="/strategy-lab" component={StrategyLab} />
+        <Route path="/optimizer" component={Optimizer} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

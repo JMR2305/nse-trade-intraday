@@ -501,6 +501,45 @@ export const GetTradeReplayResponse = zod.array(GetTradeReplayResponseItem)
 
 
 /**
+ * @summary Strategy Optimizer — test all parameter combinations, return top 10
+ */
+export const runOptimizerBodyInitialCapitalDefault = 5000;
+export const runOptimizerBodyIntervalDefault = `1d`;
+export const runOptimizerBodyTopNDefault = 10;
+
+export const RunOptimizerBody = zod.object({
+  "symbol": zod.string(),
+  "start_date": zod.coerce.date(),
+  "end_date": zod.coerce.date(),
+  "initial_capital": zod.number().default(runOptimizerBodyInitialCapitalDefault),
+  "interval": zod.string().default(runOptimizerBodyIntervalDefault),
+  "top_n": zod.number().default(runOptimizerBodyTopNDefault)
+})
+
+export const RunOptimizerResponseItem = zod.object({
+  "rank": zod.number(),
+  "strategy_id": zod.string(),
+  "strategy_name": zod.string(),
+  "parameters_display": zod.string(),
+  "parameters": zod.record(zod.string(), zod.unknown()),
+  "total_trades": zod.number(),
+  "winning_trades": zod.number(),
+  "losing_trades": zod.number(),
+  "win_rate": zod.number(),
+  "net_pnl": zod.number(),
+  "net_pnl_pct": zod.number(),
+  "profit_factor": zod.number(),
+  "max_drawdown": zod.number(),
+  "max_drawdown_pct": zod.number(),
+  "sharpe_ratio": zod.number(),
+  "avg_duration_bars": zod.number(),
+  "score": zod.number(),
+  "warning": zod.string().nullish()
+})
+export const RunOptimizerResponse = zod.array(RunOptimizerResponseItem)
+
+
+/**
  * Fetches OHLCV data once, computes indicators once, then runs all 6 strategies (EMA Cross, MACD Cross, Mean Reversion, Trend Rider, Breakout Hunter, Supertrend) sequentially. Returns a comparison table.
  * @summary Strategy Lab — compare all strategies on the same historical data
  */

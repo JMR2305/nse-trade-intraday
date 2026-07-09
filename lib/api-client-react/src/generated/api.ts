@@ -33,6 +33,8 @@ import type {
   MarketDataResult,
   MarketOverview,
   OpportunityItem,
+  OptimizerRequest,
+  OptimizerResult,
   Portfolio,
   ScanResult,
   Signal,
@@ -1319,6 +1321,77 @@ export function useGetTradeReplay<TData = Awaited<ReturnType<typeof getTradeRepl
 
 
 
+
+export const getRunOptimizerUrl = () => {
+
+
+
+
+  return `/api/optimizer`
+}
+
+/**
+ * @summary Strategy Optimizer — test all parameter combinations, return top 10
+ */
+export const runOptimizer = async (optimizerRequest: OptimizerRequest, options?: RequestInit): Promise<OptimizerResult[]> => {
+
+  return customFetch<OptimizerResult[]>(getRunOptimizerUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(optimizerRequest)
+  }
+);}
+
+
+
+
+
+export const getRunOptimizerMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runOptimizer>>, TError,{data: BodyType<OptimizerRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof runOptimizer>>, TError,{data: BodyType<OptimizerRequest>}, TContext> => {
+
+const mutationKey = ['runOptimizer'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof runOptimizer>>, {data: BodyType<OptimizerRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  runOptimizer(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RunOptimizerMutationResult = NonNullable<Awaited<ReturnType<typeof runOptimizer>>>
+    export type RunOptimizerMutationBody = BodyType<OptimizerRequest>
+    export type RunOptimizerMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Strategy Optimizer — test all parameter combinations, return top 10
+ */
+export const useRunOptimizer = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runOptimizer>>, TError,{data: BodyType<OptimizerRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof runOptimizer>>,
+        TError,
+        {data: BodyType<OptimizerRequest>},
+        TContext
+      > => {
+      return useMutation(getRunOptimizerMutationOptions(options));
+    }
 
 export const getRunStrategyLabUrl = () => {
 
