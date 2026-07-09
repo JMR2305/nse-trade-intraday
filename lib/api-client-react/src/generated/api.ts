@@ -39,6 +39,8 @@ import type {
   OpportunityItem,
   OptimizerRequest,
   OptimizerResult,
+  PaperBasketRequest,
+  PaperBasketResult,
   Portfolio,
   ScanResult,
   Signal,
@@ -1566,6 +1568,78 @@ export function useGetLearningSummary<TData = Awaited<ReturnType<typeof getLearn
 
 
 
+
+export const getRunPaperBasketUrl = () => {
+
+
+
+
+  return `/api/paper-basket`
+}
+
+/**
+ * Simulates buying a basket of stocks selected from the previous trading day's data (no lookahead bias), then paper-buys at the next trading day's open and paper-sells after the chosen holding period at close. Paper trading only — no real orders are ever placed.
+ * @summary Paper Basket Testing Layer
+ */
+export const runPaperBasket = async (paperBasketRequest: PaperBasketRequest, options?: RequestInit): Promise<PaperBasketResult> => {
+
+  return customFetch<PaperBasketResult>(getRunPaperBasketUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(paperBasketRequest)
+  }
+);}
+
+
+
+
+
+export const getRunPaperBasketMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runPaperBasket>>, TError,{data: BodyType<PaperBasketRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof runPaperBasket>>, TError,{data: BodyType<PaperBasketRequest>}, TContext> => {
+
+const mutationKey = ['runPaperBasket'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof runPaperBasket>>, {data: BodyType<PaperBasketRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  runPaperBasket(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RunPaperBasketMutationResult = NonNullable<Awaited<ReturnType<typeof runPaperBasket>>>
+    export type RunPaperBasketMutationBody = BodyType<PaperBasketRequest>
+    export type RunPaperBasketMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Paper Basket Testing Layer
+ */
+export const useRunPaperBasket = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runPaperBasket>>, TError,{data: BodyType<PaperBasketRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof runPaperBasket>>,
+        TError,
+        {data: BodyType<PaperBasketRequest>},
+        TContext
+      > => {
+      return useMutation(getRunPaperBasketMutationOptions(options));
+    }
 
 export const getRunOptimizerUrl = () => {
 

@@ -18,6 +18,7 @@ import StrategyLab from "@/pages/StrategyLab";
 import Optimizer from "@/pages/Optimizer";
 import MarketScanner from "@/pages/MarketScanner";
 import MarketReplay from "@/pages/MarketReplay";
+import PaperBasketTest from "@/pages/PaperBasketTest";
 
 const queryClient = new QueryClient();
 
@@ -38,6 +39,7 @@ function Router() {
         <Route path="/validate" component={Validate} />
         <Route path="/strategy-lab" component={StrategyLab} />
         <Route path="/optimizer" component={Optimizer} />
+        <Route path="/paper-basket-test" component={PaperBasketTest} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

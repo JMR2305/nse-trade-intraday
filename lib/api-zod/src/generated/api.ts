@@ -665,6 +665,67 @@ export const GetLearningSummaryResponse = zod.object({
 
 
 /**
+ * Simulates buying a basket of stocks selected from the previous trading day's data (no lookahead bias), then paper-buys at the next trading day's open and paper-sells after the chosen holding period at close. Paper trading only — no real orders are ever placed.
+ * @summary Paper Basket Testing Layer
+ */
+export const runPaperBasketBodyHoldingPeriodDefault = 5;
+export const runPaperBasketBodyNumStocksDefault = 10;
+export const runPaperBasketBodyQuantityDefault = 10;
+export const runPaperBasketBodyMethodDefault = `opportunity_score`;
+
+export const RunPaperBasketBody = zod.object({
+  "selection_date": zod.string().describe('Date to select the basket from (YYYY-MM-DD). Uses only data up to and including this date.'),
+  "holding_period": zod.union([zod.literal(1),zod.literal(3),zod.literal(5),zod.literal(10)]).default(runPaperBasketBodyHoldingPeriodDefault),
+  "num_stocks": zod.number().default(runPaperBasketBodyNumStocksDefault),
+  "quantity": zod.number().default(runPaperBasketBodyQuantityDefault),
+  "method": zod.enum(['opportunity_score', 'gainers', 'volume_spike', 'sector_strength']).default(runPaperBasketBodyMethodDefault)
+})
+
+export const RunPaperBasketResponse = zod.object({
+  "selection_date": zod.string(),
+  "buy_date": zod.string(),
+  "holding_period": zod.number(),
+  "method": zod.string(),
+  "method_label": zod.string(),
+  "num_stocks": zod.number(),
+  "quantity": zod.number(),
+  "items": zod.array(zod.object({
+  "stock": zod.string(),
+  "sector": zod.string(),
+  "selection_reason": zod.string(),
+  "rank_metric": zod.number(),
+  "buy_date": zod.string(),
+  "buy_price": zod.number().nullable(),
+  "sell_date": zod.string(),
+  "sell_price": zod.number().nullable(),
+  "quantity": zod.number(),
+  "investment": zod.number().nullable(),
+  "pnl_rupees": zod.number().nullable(),
+  "pnl_pct": zod.number().nullable(),
+  "outcome": zod.string(),
+  "error": zod.string().nullable()
+})),
+  "summary": zod.object({
+  "total_investment": zod.number(),
+  "final_value": zod.number(),
+  "net_pnl": zod.number(),
+  "net_return_pct": zod.number(),
+  "winning_stocks": zod.number(),
+  "losing_stocks": zod.number(),
+  "win_rate": zod.number(),
+  "best_stock": zod.string().nullable(),
+  "best_stock_return": zod.number().nullable(),
+  "worst_stock": zod.string().nullable(),
+  "worst_stock_return": zod.number().nullable(),
+  "average_return_pct": zod.number(),
+  "max_loss_stock": zod.string().nullable(),
+  "max_loss_rupees": zod.number().nullable()
+}),
+  "warning": zod.string()
+})
+
+
+/**
  * @summary Strategy Optimizer — test all parameter combinations, return top 10
  */
 export const runOptimizerBodyInitialCapitalDefault = 5000;

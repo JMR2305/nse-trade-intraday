@@ -255,6 +255,62 @@ router.get("/learning-summary", async (_req, res) => {
   }
 });
 
+// POST /api/paper-basket
+// Paper Basket Testing Layer — paper trading only, no real orders. Selects a
+// basket of stocks from the previous day's data (no lookahead bias), then
+// simulates buy at next trading day's open / sell after the holding period
+// at close. Full-universe scans (opportunity_score / sector_strength) take
+// ~15-25s, so cache per parameter combination.
+const PAPER_BASKET_CACHE_MS = 10 * 60 * 1000;
+const paperBasketCache = new Map<string, { data: unknown; ts: number }>();
+const paperBasketInFlight = new Map<string, Promise<unknown>>();
+
+router.post("/paper-basket", async (req, res) => {
+  try {
+    const {
+      selection_date,
+      holding_period = 5,
+      num_stocks = 10,
+      quantity = 10,
+      method = "opportunity_score",
+    } = req.body as {
+      selection_date: string;
+      holding_period?: number;
+      num_stocks?: number;
+      quantity?: number;
+      method?: string;
+    };
+
+    if (!selection_date || !/^\d{4}-\d{2}-\d{2}$/.test(selection_date)) {
+      res.status(400).json({ error: "selection_date is required in YYYY-MM-DD format" });
+      return;
+    }
+
+    const cacheKey = `${selection_date}|${holding_period}|${num_stocks}|${quantity}|${method}`;
+    const cached = paperBasketCache.get(cacheKey);
+    if (cached && Date.now() - cached.ts < PAPER_BASKET_CACHE_MS) {
+      res.json(cached.data);
+      return;
+    }
+
+    let inFlight = paperBasketInFlight.get(cacheKey);
+    if (!inFlight) {
+      inFlight = runPython([
+        "paper_basket", selection_date, String(holding_period),
+        String(num_stocks), String(quantity), method,
+      ]).finally(() => {
+        paperBasketInFlight.delete(cacheKey);
+      });
+      paperBasketInFlight.set(cacheKey, inFlight);
+    }
+    const data = await inFlight;
+    paperBasketCache.set(cacheKey, { data, ts: Date.now() });
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/strategy-performance
 router.get("/strategy-performance", async (_req, res) => {
   try {

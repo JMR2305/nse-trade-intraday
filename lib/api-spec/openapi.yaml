@@ -481,6 +481,42 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /paper-basket:
+    post:
+      operationId: runPaperBasket
+      tags: [trading]
+      summary: Paper Basket Testing Layer
+      description: >
+        Simulates buying a basket of stocks selected from the previous
+        trading day's data (no lookahead bias), then paper-buys at the next
+        trading day's open and paper-sells after the chosen holding period
+        at close. Paper trading only — no real orders are ever placed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaperBasketRequest"
+      responses:
+        "200":
+          description: Paper basket result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaperBasketResult"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /optimizer:
     post:
       operationId: runOptimizer
@@ -1849,6 +1885,125 @@ components:
         - total_trades
         - computed_at
         - overall_warning
+
+    PaperBasketRequest:
+      type: object
+      properties:
+        selection_date:
+          type: string
+          description: Date to select the basket from (YYYY-MM-DD). Uses only data up to and including this date.
+        holding_period:
+          type: integer
+          enum: [1, 3, 5, 10]
+          default: 5
+        num_stocks:
+          type: integer
+          default: 10
+        quantity:
+          type: integer
+          default: 10
+        method:
+          type: string
+          enum: [opportunity_score, gainers, volume_spike, sector_strength]
+          default: opportunity_score
+      required: [selection_date]
+
+    PaperBasketItem:
+      type: object
+      properties:
+        stock:              { type: string }
+        sector:              { type: string }
+        selection_reason:   { type: string }
+        rank_metric:         { type: number }
+        buy_date:            { type: string }
+        buy_price:           { type: number, nullable: true }
+        sell_date:           { type: string }
+        sell_price:          { type: number, nullable: true }
+        quantity:            { type: integer }
+        investment:          { type: number, nullable: true }
+        pnl_rupees:          { type: number, nullable: true }
+        pnl_pct:             { type: number, nullable: true }
+        outcome:             { type: string }
+        error:
+          type: string
+          nullable: true
+      required:
+        - stock
+        - sector
+        - selection_reason
+        - rank_metric
+        - buy_date
+        - buy_price
+        - sell_date
+        - sell_price
+        - quantity
+        - investment
+        - pnl_rupees
+        - pnl_pct
+        - outcome
+        - error
+
+    PaperBasketSummary:
+      type: object
+      properties:
+        total_investment:      { type: number }
+        final_value:            { type: number }
+        net_pnl:                { type: number }
+        net_return_pct:         { type: number }
+        winning_stocks:         { type: integer }
+        losing_stocks:          { type: integer }
+        win_rate:               { type: number }
+        best_stock:             { type: string, nullable: true }
+        best_stock_return:      { type: number, nullable: true }
+        worst_stock:            { type: string, nullable: true }
+        worst_stock_return:     { type: number, nullable: true }
+        average_return_pct:     { type: number }
+        max_loss_stock:         { type: string, nullable: true }
+        max_loss_rupees:        { type: number, nullable: true }
+      required:
+        - total_investment
+        - final_value
+        - net_pnl
+        - net_return_pct
+        - winning_stocks
+        - losing_stocks
+        - win_rate
+        - best_stock
+        - best_stock_return
+        - worst_stock
+        - worst_stock_return
+        - average_return_pct
+        - max_loss_stock
+        - max_loss_rupees
+
+    PaperBasketResult:
+      type: object
+      properties:
+        selection_date:  { type: string }
+        buy_date:        { type: string }
+        holding_period:  { type: integer }
+        method:          { type: string }
+        method_label:    { type: string }
+        num_stocks:      { type: integer }
+        quantity:        { type: integer }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaperBasketItem"
+        summary:
+          $ref: "#/components/schemas/PaperBasketSummary"
+        warning:         { type: string }
+      required:
+        - selection_date
+        - buy_date
+        - holding_period
+        - method
+        - method_label
+        - num_stocks
+        - quantity
+        - items
+        - summary
+        - warning
 
     ErrorResponse:
       type: object

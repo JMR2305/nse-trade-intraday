@@ -17,6 +17,7 @@ import {
   Settings2,
   Radar,
   Clock,
+  Layers,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
@@ -56,6 +57,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         { href: "/validate",     label: "Validate",     icon: ShieldCheck  },
         { href: "/strategy-lab", label: "Strategy Lab",  icon: GitCompare   },
         { href: "/optimizer",    label: "Optimizer",     icon: Settings2    },
+        { href: "/paper-basket-test", label: "Paper Basket Test", icon: Layers },
       ],
     },
   ];

@@ -824,6 +824,82 @@ export interface LearningSummary {
   overall_warning: string | null;
 }
 
+export type PaperBasketRequestHoldingPeriod = typeof PaperBasketRequestHoldingPeriod[keyof typeof PaperBasketRequestHoldingPeriod];
+
+
+export const PaperBasketRequestHoldingPeriod = {
+  NUMBER_1: 1,
+  NUMBER_3: 3,
+  NUMBER_5: 5,
+  NUMBER_10: 10,
+} as const;
+
+export type PaperBasketRequestMethod = typeof PaperBasketRequestMethod[keyof typeof PaperBasketRequestMethod];
+
+
+export const PaperBasketRequestMethod = {
+  opportunity_score: 'opportunity_score',
+  gainers: 'gainers',
+  volume_spike: 'volume_spike',
+  sector_strength: 'sector_strength',
+} as const;
+
+export interface PaperBasketRequest {
+  /** Date to select the basket from (YYYY-MM-DD). Uses only data up to and including this date. */
+  selection_date: string;
+  holding_period?: PaperBasketRequestHoldingPeriod;
+  num_stocks?: number;
+  quantity?: number;
+  method?: PaperBasketRequestMethod;
+}
+
+export interface PaperBasketItem {
+  stock: string;
+  sector: string;
+  selection_reason: string;
+  rank_metric: number;
+  buy_date: string;
+  buy_price: number | null;
+  sell_date: string;
+  sell_price: number | null;
+  quantity: number;
+  investment: number | null;
+  pnl_rupees: number | null;
+  pnl_pct: number | null;
+  outcome: string;
+  error: string | null;
+}
+
+export interface PaperBasketSummary {
+  total_investment: number;
+  final_value: number;
+  net_pnl: number;
+  net_return_pct: number;
+  winning_stocks: number;
+  losing_stocks: number;
+  win_rate: number;
+  best_stock: string | null;
+  best_stock_return: number | null;
+  worst_stock: string | null;
+  worst_stock_return: number | null;
+  average_return_pct: number;
+  max_loss_stock: string | null;
+  max_loss_rupees: number | null;
+}
+
+export interface PaperBasketResult {
+  selection_date: string;
+  buy_date: string;
+  holding_period: number;
+  method: string;
+  method_label: string;
+  num_stocks: number;
+  quantity: number;
+  items: PaperBasketItem[];
+  summary: PaperBasketSummary;
+  warning: string;
+}
+
 export interface ErrorResponse {
   error: string;
 }

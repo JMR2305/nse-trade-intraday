@@ -224,6 +224,28 @@ def cmd_learning_summary() -> dict:
     return dict(result)
 
 
+def cmd_paper_basket(
+    selection_date: str,
+    holding_period: int = 5,
+    num_stocks: int = 10,
+    quantity: int = 10,
+    method: str = "opportunity_score",
+) -> dict:
+    """Paper Basket Testing Layer (v0.9) — paper trading only, no real orders."""
+    from paper_basket import run_paper_basket
+    state = _load_state()
+    cash = state.get("cash", 5000.0)
+    result = run_paper_basket(
+        selection_date=selection_date,
+        holding_period=holding_period,
+        num_stocks=num_stocks,
+        quantity=quantity,
+        method=method,
+        capital=cash,
+    )
+    return dict(result)
+
+
 def _read_json_cache(filename: str) -> list | dict:
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
     if os.path.exists(path):
@@ -337,6 +359,14 @@ def main():
             )
         elif command == "learning_summary":
             result = cmd_learning_summary()
+        elif command == "paper_basket" and len(args) >= 2:
+            result = cmd_paper_basket(
+                selection_date = args[1],
+                holding_period = int(args[2]) if len(args) > 2 else 5,
+                num_stocks     = int(args[3]) if len(args) > 3 else 10,
+                quantity       = int(args[4]) if len(args) > 4 else 10,
+                method         = args[5] if len(args) > 5 else "opportunity_score",
+            )
         else:
             error_msg = f"Unknown command: {command}"
 
