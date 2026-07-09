@@ -22,14 +22,21 @@ import type {
 import type {
   ActionResult,
   AiDecision,
+  BacktestRequest,
+  BacktestResult,
   ErrorResponse,
+  GetIndicatorsParams,
+  GetMarketDataParams,
   HealthStatus,
+  IndicatorResult,
   MarketContext,
+  MarketDataResult,
   MarketOverview,
   OpportunityItem,
   Portfolio,
   ScanResult,
   Signal,
+  StrategyInfo,
   StrategyPerformance,
   Trade,
   TradeReplayItem,
@@ -813,6 +820,336 @@ export function useGetMarketContext<TData = Awaited<ReturnType<typeof getMarketC
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetMarketContextQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMarketDataUrl = (symbol: string,
+    params?: GetMarketDataParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/market-data/${symbol}?${stringifiedParams}` : `/api/market-data/${symbol}`
+}
+
+/**
+ * Fetches historical candles for an NSE symbol via yfinance (mock fallback)
+ * @summary Get OHLCV candle data
+ */
+export const getMarketData = async (symbol: string,
+    params?: GetMarketDataParams, options?: RequestInit): Promise<MarketDataResult> => {
+
+  return customFetch<MarketDataResult>(getGetMarketDataUrl(symbol,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMarketDataQueryKey = (symbol: string,
+    params?: GetMarketDataParams,) => {
+    return [
+    `/api/market-data/${symbol}`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetMarketDataQueryOptions = <TData = Awaited<ReturnType<typeof getMarketData>>, TError = ErrorType<ErrorResponse>>(symbol: string,
+    params?: GetMarketDataParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMarketData>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMarketDataQueryKey(symbol,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMarketData>>> = ({ signal }) => getMarketData(symbol,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: symbol !== null && symbol !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMarketData>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMarketDataQueryResult = NonNullable<Awaited<ReturnType<typeof getMarketData>>>
+export type GetMarketDataQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get OHLCV candle data
+ */
+
+export function useGetMarketData<TData = Awaited<ReturnType<typeof getMarketData>>, TError = ErrorType<ErrorResponse>>(
+ symbol: string,
+    params?: GetMarketDataParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMarketData>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMarketDataQueryOptions(symbol,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetIndicatorsUrl = (symbol: string,
+    params?: GetIndicatorsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/indicators/${symbol}?${stringifiedParams}` : `/api/indicators/${symbol}`
+}
+
+/**
+ * Returns EMA, RSI, MACD, VWAP, ATR, ADX, BB, Supertrend snapshot + series
+ * @summary Get computed technical indicators
+ */
+export const getIndicators = async (symbol: string,
+    params?: GetIndicatorsParams, options?: RequestInit): Promise<IndicatorResult> => {
+
+  return customFetch<IndicatorResult>(getGetIndicatorsUrl(symbol,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetIndicatorsQueryKey = (symbol: string,
+    params?: GetIndicatorsParams,) => {
+    return [
+    `/api/indicators/${symbol}`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetIndicatorsQueryOptions = <TData = Awaited<ReturnType<typeof getIndicators>>, TError = ErrorType<ErrorResponse>>(symbol: string,
+    params?: GetIndicatorsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getIndicators>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetIndicatorsQueryKey(symbol,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getIndicators>>> = ({ signal }) => getIndicators(symbol,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: symbol !== null && symbol !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getIndicators>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetIndicatorsQueryResult = NonNullable<Awaited<ReturnType<typeof getIndicators>>>
+export type GetIndicatorsQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get computed technical indicators
+ */
+
+export function useGetIndicators<TData = Awaited<ReturnType<typeof getIndicators>>, TError = ErrorType<ErrorResponse>>(
+ symbol: string,
+    params?: GetIndicatorsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getIndicators>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetIndicatorsQueryOptions(symbol,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRunBacktestUrl = () => {
+
+
+
+
+  return `/api/backtest`
+}
+
+/**
+ * Walk-forward simulation of a strategy on historical data. No real orders.
+ * @summary Run a paper backtest
+ */
+export const runBacktest = async (backtestRequest: BacktestRequest, options?: RequestInit): Promise<BacktestResult> => {
+
+  return customFetch<BacktestResult>(getRunBacktestUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(backtestRequest)
+  }
+);}
+
+
+
+
+
+export const getRunBacktestMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runBacktest>>, TError,{data: BodyType<BacktestRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof runBacktest>>, TError,{data: BodyType<BacktestRequest>}, TContext> => {
+
+const mutationKey = ['runBacktest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof runBacktest>>, {data: BodyType<BacktestRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  runBacktest(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RunBacktestMutationResult = NonNullable<Awaited<ReturnType<typeof runBacktest>>>
+    export type RunBacktestMutationBody = BodyType<BacktestRequest>
+    export type RunBacktestMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Run a paper backtest
+ */
+export const useRunBacktest = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runBacktest>>, TError,{data: BodyType<BacktestRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof runBacktest>>,
+        TError,
+        {data: BodyType<BacktestRequest>},
+        TContext
+      > => {
+      return useMutation(getRunBacktestMutationOptions(options));
+    }
+
+export const getGetStrategiesUrl = () => {
+
+
+
+
+  return `/api/strategies`
+}
+
+/**
+ * Returns all registered trading strategies with their rules
+ * @summary List available strategies
+ */
+export const getStrategies = async ( options?: RequestInit): Promise<StrategyInfo[]> => {
+
+  return customFetch<StrategyInfo[]>(getGetStrategiesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStrategiesQueryKey = () => {
+    return [
+    `/api/strategies`
+    ] as const;
+    }
+
+
+export const getGetStrategiesQueryOptions = <TData = Awaited<ReturnType<typeof getStrategies>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStrategies>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStrategiesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStrategies>>> = ({ signal }) => getStrategies({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStrategies>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStrategiesQueryResult = NonNullable<Awaited<ReturnType<typeof getStrategies>>>
+export type GetStrategiesQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary List available strategies
+ */
+
+export function useGetStrategies<TData = Awaited<ReturnType<typeof getStrategies>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStrategies>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStrategiesQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

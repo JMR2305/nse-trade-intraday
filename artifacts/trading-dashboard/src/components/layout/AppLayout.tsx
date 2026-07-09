@@ -11,6 +11,7 @@ import {
   Globe2,
   Brain,
   RotateCcw,
+  FlaskConical,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
@@ -41,9 +42,10 @@ export function AppLayout({ children }: AppLayoutProps) {
     {
       label: "Trades",
       items: [
-        { href: "/trade-replay", label: "Trade Replay", icon: RotateCcw },
-        { href: "/trades",       label: "All Trades",   icon: History   },
-        { href: "/watchlist",    label: "Watchlist",    icon: Eye       },
+        { href: "/trade-replay", label: "Trade Replay", icon: RotateCcw   },
+        { href: "/trades",       label: "All Trades",   icon: History     },
+        { href: "/watchlist",    label: "Watchlist",    icon: Eye         },
+        { href: "/backtest",     label: "Backtest",     icon: FlaskConical},
       ],
     },
   ];
@@ -92,7 +94,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         </div>
         <div className="p-4 border-t border-border flex justify-between items-center">
           <div className="text-xs text-sidebar-foreground/50 font-mono">
-            v0.4 - ACTIVE
+            v0.5 - ACTIVE
           </div>
           <Button
             variant="ghost"

@@ -236,6 +236,164 @@ export const GetMarketContextResponse = zod.object({
 
 
 /**
+ * Fetches historical candles for an NSE symbol via yfinance (mock fallback)
+ * @summary Get OHLCV candle data
+ */
+export const GetMarketDataParams = zod.object({
+  "symbol": zod.coerce.string()
+})
+
+export const getMarketDataQueryIntervalDefault = `1d`;
+export const getMarketDataQueryPeriodDefault = `3mo`;
+
+export const GetMarketDataQueryParams = zod.object({
+  "interval": zod.coerce.string().default(getMarketDataQueryIntervalDefault),
+  "period": zod.coerce.string().default(getMarketDataQueryPeriodDefault)
+})
+
+export const GetMarketDataResponse = zod.object({
+  "symbol": zod.string(),
+  "interval": zod.string(),
+  "candles": zod.array(zod.object({
+  "time": zod.string(),
+  "open": zod.number(),
+  "high": zod.number(),
+  "low": zod.number(),
+  "close": zod.number(),
+  "volume": zod.number()
+})),
+  "bar_count": zod.number(),
+  "source": zod.string(),
+  "fetched_at": zod.string()
+})
+
+
+/**
+ * Returns EMA, RSI, MACD, VWAP, ATR, ADX, BB, Supertrend snapshot + series
+ * @summary Get computed technical indicators
+ */
+export const GetIndicatorsParams = zod.object({
+  "symbol": zod.coerce.string()
+})
+
+export const getIndicatorsQueryIntervalDefault = `1d`;
+export const getIndicatorsQueryPeriodDefault = `3mo`;
+
+export const GetIndicatorsQueryParams = zod.object({
+  "interval": zod.coerce.string().default(getIndicatorsQueryIntervalDefault),
+  "period": zod.coerce.string().default(getIndicatorsQueryPeriodDefault)
+})
+
+export const GetIndicatorsResponse = zod.object({
+  "symbol": zod.string(),
+  "interval": zod.string(),
+  "bar_count": zod.number(),
+  "snapshot": zod.object({
+  "ema9": zod.number(),
+  "ema20": zod.number(),
+  "ema50": zod.number(),
+  "ema200": zod.number(),
+  "rsi": zod.number(),
+  "macd_line": zod.number(),
+  "macd_signal": zod.number(),
+  "macd_hist": zod.number(),
+  "vwap": zod.number(),
+  "atr": zod.number(),
+  "adx": zod.number(),
+  "bb_upper": zod.number(),
+  "bb_middle": zod.number(),
+  "bb_lower": zod.number(),
+  "supertrend": zod.number(),
+  "supertrend_dir": zod.string(),
+  "volume_avg": zod.number(),
+  "volume_ratio": zod.number(),
+  "volume_spike": zod.boolean()
+}),
+  "series": zod.record(zod.string(), zod.unknown()),
+  "computed_at": zod.string()
+})
+
+
+/**
+ * Walk-forward simulation of a strategy on historical data. No real orders.
+ * @summary Run a paper backtest
+ */
+export const RunBacktestBody = zod.object({
+  "symbol": zod.string(),
+  "strategy": zod.string(),
+  "start_date": zod.string(),
+  "end_date": zod.string(),
+  "initial_capital": zod.number().optional(),
+  "interval": zod.string().optional()
+})
+
+export const RunBacktestResponse = zod.object({
+  "symbol": zod.string(),
+  "strategy": zod.string(),
+  "strategy_name": zod.string(),
+  "interval": zod.string(),
+  "start_date": zod.string(),
+  "end_date": zod.string(),
+  "initial_capital": zod.number(),
+  "final_capital": zod.number(),
+  "total_trades": zod.number(),
+  "winning_trades": zod.number(),
+  "losing_trades": zod.number(),
+  "breakeven_trades": zod.number(),
+  "win_rate": zod.number(),
+  "net_pnl": zod.number(),
+  "net_pnl_pct": zod.number(),
+  "profit_factor": zod.number(),
+  "max_drawdown": zod.number(),
+  "max_drawdown_pct": zod.number(),
+  "avg_profit": zod.number(),
+  "avg_loss": zod.number(),
+  "best_trade": zod.number(),
+  "worst_trade": zod.number(),
+  "avg_duration_bars": zod.number(),
+  "sharpe_ratio": zod.number(),
+  "data_source": zod.string(),
+  "trades": zod.array(zod.object({
+  "trade_no": zod.number(),
+  "entry_date": zod.string(),
+  "exit_date": zod.string(),
+  "symbol": zod.string(),
+  "direction": zod.string(),
+  "entry_price": zod.number(),
+  "exit_price": zod.number(),
+  "stop_loss": zod.number(),
+  "target": zod.number(),
+  "quantity": zod.number(),
+  "pnl": zod.number(),
+  "pnl_pct": zod.number(),
+  "duration_bars": zod.number(),
+  "exit_reason": zod.string(),
+  "entry_reason": zod.string()
+})),
+  "equity_curve": zod.array(zod.number()),
+  "computed_at": zod.string(),
+  "error": zod.string().nullish()
+})
+
+
+/**
+ * Returns all registered trading strategies with their rules
+ * @summary List available strategies
+ */
+export const GetStrategiesResponseItem = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "description": zod.string(),
+  "type": zod.string(),
+  "best_interval": zod.string(),
+  "risk_pct": zod.number(),
+  "entry_rules": zod.array(zod.string()),
+  "exit_rules": zod.array(zod.string())
+})
+export const GetStrategiesResponse = zod.array(GetStrategiesResponseItem)
+
+
+/**
  * Returns AI Decision Engine results from the last scan
  * @summary Get cached AI decisions
  */

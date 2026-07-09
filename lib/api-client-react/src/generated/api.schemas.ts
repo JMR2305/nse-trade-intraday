@@ -410,7 +410,138 @@ export interface MarketOverview {
   scanned_at: string;
 }
 
+export interface Candle {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+export interface MarketDataResult {
+  symbol: string;
+  interval: string;
+  candles: Candle[];
+  bar_count: number;
+  source: string;
+  fetched_at: string;
+}
+
+export interface IndicatorSnapshot {
+  ema9: number;
+  ema20: number;
+  ema50: number;
+  ema200: number;
+  rsi: number;
+  macd_line: number;
+  macd_signal: number;
+  macd_hist: number;
+  vwap: number;
+  atr: number;
+  adx: number;
+  bb_upper: number;
+  bb_middle: number;
+  bb_lower: number;
+  supertrend: number;
+  supertrend_dir: string;
+  volume_avg: number;
+  volume_ratio: number;
+  volume_spike: boolean;
+}
+
+export type IndicatorResultSeries = { [key: string]: unknown };
+
+export interface IndicatorResult {
+  symbol: string;
+  interval: string;
+  bar_count: number;
+  snapshot: IndicatorSnapshot;
+  series: IndicatorResultSeries;
+  computed_at: string;
+}
+
+export interface StrategyInfo {
+  id: string;
+  name: string;
+  description: string;
+  type: string;
+  best_interval: string;
+  risk_pct: number;
+  entry_rules: string[];
+  exit_rules: string[];
+}
+
+export interface BacktestRequest {
+  symbol: string;
+  strategy: string;
+  start_date: string;
+  end_date: string;
+  initial_capital?: number;
+  interval?: string;
+}
+
+export interface BacktestTrade {
+  trade_no: number;
+  entry_date: string;
+  exit_date: string;
+  symbol: string;
+  direction: string;
+  entry_price: number;
+  exit_price: number;
+  stop_loss: number;
+  target: number;
+  quantity: number;
+  pnl: number;
+  pnl_pct: number;
+  duration_bars: number;
+  exit_reason: string;
+  entry_reason: string;
+}
+
+export interface BacktestResult {
+  symbol: string;
+  strategy: string;
+  strategy_name: string;
+  interval: string;
+  start_date: string;
+  end_date: string;
+  initial_capital: number;
+  final_capital: number;
+  total_trades: number;
+  winning_trades: number;
+  losing_trades: number;
+  breakeven_trades: number;
+  win_rate: number;
+  net_pnl: number;
+  net_pnl_pct: number;
+  profit_factor: number;
+  max_drawdown: number;
+  max_drawdown_pct: number;
+  avg_profit: number;
+  avg_loss: number;
+  best_trade: number;
+  worst_trade: number;
+  avg_duration_bars: number;
+  sharpe_ratio: number;
+  data_source: string;
+  trades: BacktestTrade[];
+  equity_curve: number[];
+  computed_at: string;
+  error?: string | null;
+}
+
 export interface ErrorResponse {
   error: string;
 }
+
+export type GetMarketDataParams = {
+interval?: string;
+period?: string;
+};
+
+export type GetIndicatorsParams = {
+interval?: string;
+period?: string;
+};
 

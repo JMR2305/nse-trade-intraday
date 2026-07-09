@@ -15,7 +15,7 @@
     "regime": "LOW_VOLATILITY",
     "timeframe_alignment": 2,
     "pass_all_rules": true,
-    "time": "2026-07-08T21:50:16.796906"
+    "time": "2026-07-08T22:11:00.295005"
   },
   {
     "stock": "TCS",
@@ -33,7 +33,7 @@
     "regime": "LOW_VOLATILITY",
     "timeframe_alignment": 2,
     "pass_all_rules": true,
-    "time": "2026-07-08T21:50:16.796915"
+    "time": "2026-07-08T22:11:00.295013"
   },
   {
     "stock": "INFY",
@@ -51,7 +51,7 @@
     "regime": "LOW_VOLATILITY",
     "timeframe_alignment": 1,
     "pass_all_rules": true,
-    "time": "2026-07-08T21:50:16.796921"
+    "time": "2026-07-08T22:11:00.295019"
   },
   {
     "stock": "HDFCBANK",
@@ -69,7 +69,7 @@
     "regime": "LOW_VOLATILITY",
     "timeframe_alignment": 2,
     "pass_all_rules": true,
-    "time": "2026-07-08T21:50:16.796927"
+    "time": "2026-07-08T22:11:00.295034"
   },
   {
     "stock": "ICICIBANK",
@@ -87,7 +87,7 @@
     "regime": "LOW_VOLATILITY",
     "timeframe_alignment": 2,
     "pass_all_rules": true,
-    "time": "2026-07-08T21:50:16.796932"
+    "time": "2026-07-08T22:11:00.295039"
   },
   {
     "stock": "SBIN",
@@ -105,7 +105,7 @@
     "regime": "LOW_VOLATILITY",
     "timeframe_alignment": 2,
     "pass_all_rules": true,
-    "time": "2026-07-08T21:50:16.796938"
+    "time": "2026-07-08T22:11:00.295044"
   },
   {
     "stock": "WIPRO",
@@ -123,7 +123,7 @@
     "regime": "LOW_VOLATILITY",
     "timeframe_alignment": 2,
     "pass_all_rules": true,
-    "time": "2026-07-08T21:50:16.796944"
+    "time": "2026-07-08T22:11:00.295049"
   },
   {
     "stock": "LT",
@@ -141,7 +141,7 @@
     "regime": "LOW_VOLATILITY",
     "timeframe_alignment": 3,
     "pass_all_rules": true,
-    "time": "2026-07-08T21:50:16.796959"
+    "time": "2026-07-08T22:11:00.295061"
   },
   {
     "stock": "BAJFINANCE",
@@ -159,7 +159,7 @@
     "regime": "LOW_VOLATILITY",
     "timeframe_alignment": 2,
     "pass_all_rules": true,
-    "time": "2026-07-08T21:50:16.796965"
+    "time": "2026-07-08T22:11:00.295067"
   },
   {
     "stock": "MARUTI",
@@ -173,12 +173,12 @@
     "rr_ratio": 0.0,
     "upgrade_reasons": [],
     "downgrade_reasons": [
-      "Cannot afford even 1 share at \u20b914538 \u2014 capital \u20b94135 insufficient"
+      "Cannot afford even 1 share at \u20b914538 \u2014 capital \u20b94600 insufficient"
     ],
     "plain_english": "The raw signal for MARUTI is WATCH with confidence 60. No actionable trade \u2014 monitoring only.",
     "regime": "LOW_VOLATILITY",
     "timeframe_alignment": 2,
     "pass_all_rules": true,
-    "time": "2026-07-08T21:50:16.796972"
+    "time": "2026-07-08T22:11:00.295074"
   }
 ]

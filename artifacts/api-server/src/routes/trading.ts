@@ -197,4 +197,70 @@ router.get("/market-overview", async (_req, res) => {
   }
 });
 
+// GET /api/market-data/:symbol?interval=1d&period=3mo
+router.get("/market-data/:symbol", async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { interval = "1d", period = "3mo" } = req.query as Record<string, string>;
+    const data = await runPython(["market_data", symbol, interval, period]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/indicators/:symbol?interval=1d&period=3mo
+router.get("/indicators/:symbol", async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { interval = "1d", period = "3mo" } = req.query as Record<string, string>;
+    const data = await runPython(["indicators", symbol, interval, period]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/backtest
+router.post("/backtest", async (req, res) => {
+  try {
+    const {
+      symbol,
+      strategy,
+      start_date,
+      end_date,
+      initial_capital = 5000,
+      interval = "1d",
+    } = req.body as {
+      symbol: string;
+      strategy: string;
+      start_date: string;
+      end_date: string;
+      initial_capital?: number;
+      interval?: string;
+    };
+    if (!symbol || !strategy || !start_date || !end_date) {
+      res.status(400).json({ error: "symbol, strategy, start_date, end_date are required" });
+      return;
+    }
+    const data = await runPython([
+      "backtest", symbol, strategy, start_date, end_date,
+      String(initial_capital), interval,
+    ]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/strategies
+router.get("/strategies", async (_req, res) => {
+  try {
+    const data = await runPython(["strategies"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 export default router;

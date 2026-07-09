@@ -12,6 +12,7 @@ import Trades from "@/pages/Trades";
 import Watchlist from "@/pages/Watchlist";
 import AiDecision from "@/pages/AiDecision";
 import TradeReplay from "@/pages/TradeReplay";
+import Backtest from "@/pages/Backtest";
 
 const queryClient = new QueryClient();
 
@@ -26,6 +27,7 @@ function Router() {
         <Route path="/trade-replay" component={TradeReplay} />
         <Route path="/trades" component={Trades} />
         <Route path="/watchlist" component={Watchlist} />
+        <Route path="/backtest" component={Backtest} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

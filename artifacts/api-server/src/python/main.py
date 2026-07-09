@@ -154,6 +154,45 @@ def cmd_reset() -> dict:
     return {"success": True, "message": "Portfolio reset to ₹5,000"}
 
 
+def cmd_market_data(symbol: str, interval: str = "1d", period: str = "3mo") -> dict:
+    from market_data_engine import fetch_candles
+    return dict(fetch_candles(symbol, interval=interval, period=period))
+
+
+def cmd_indicators(symbol: str, interval: str = "1d", period: str = "3mo") -> dict:
+    from market_data_engine import fetch_candles_df
+    from indicator_engine import compute_indicators
+    df = fetch_candles_df(symbol, interval=interval, period=period)
+    result = compute_indicators(df, symbol=symbol, interval=interval)
+    # Omit full series by default for fast response; caller can request with ?series=true
+    return dict(result)
+
+
+def cmd_backtest(
+    symbol: str,
+    strategy: str,
+    start_date: str,
+    end_date: str,
+    initial_capital: float = 5000.0,
+    interval: str = "1d",
+) -> dict:
+    from backtesting_engine import run_backtest
+    result = run_backtest(
+        symbol=symbol,
+        strategy_name=strategy,
+        start_date=start_date,
+        end_date=end_date,
+        initial_capital=initial_capital,
+        interval=interval,
+    )
+    return dict(result)
+
+
+def cmd_strategies() -> list:
+    from strategies import list_strategies
+    return list_strategies()
+
+
 def _read_json_cache(filename: str) -> list | dict:
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
     if os.path.exists(path):
@@ -210,6 +249,29 @@ def main():
                               args[4] if len(args) > 4 else "")
         elif command == "reset":
             result = cmd_reset()
+        elif command == "market_data" and len(args) >= 2:
+            result = cmd_market_data(
+                args[1],
+                args[2] if len(args) > 2 else "1d",
+                args[3] if len(args) > 3 else "3mo",
+            )
+        elif command == "indicators" and len(args) >= 2:
+            result = cmd_indicators(
+                args[1],
+                args[2] if len(args) > 2 else "1d",
+                args[3] if len(args) > 3 else "3mo",
+            )
+        elif command == "backtest" and len(args) >= 5:
+            result = cmd_backtest(
+                symbol          = args[1],
+                strategy        = args[2],
+                start_date      = args[3],
+                end_date        = args[4],
+                initial_capital = float(args[5]) if len(args) > 5 else 5000.0,
+                interval        = args[6] if len(args) > 6 else "1d",
+            )
+        elif command == "strategies":
+            result = cmd_strategies()
         else:
             print(json.dumps({"error": f"Unknown command: {command}"}))
             sys.exit(1)

@@ -222,6 +222,122 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /market-data/{symbol}:
+    get:
+      operationId: getMarketData
+      tags: [trading]
+      summary: Get OHLCV candle data
+      description: Fetches historical candles for an NSE symbol via yfinance (mock fallback)
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema: { type: string }
+        - name: interval
+          in: query
+          schema: { type: string, default: "1d" }
+        - name: period
+          in: query
+          schema: { type: string, default: "3mo" }
+      responses:
+        "200":
+          description: OHLCV candle data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketDataResult"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /indicators/{symbol}:
+    get:
+      operationId: getIndicators
+      tags: [trading]
+      summary: Get computed technical indicators
+      description: Returns EMA, RSI, MACD, VWAP, ATR, ADX, BB, Supertrend snapshot + series
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema: { type: string }
+        - name: interval
+          in: query
+          schema: { type: string, default: "1d" }
+        - name: period
+          in: query
+          schema: { type: string, default: "3mo" }
+      responses:
+        "200":
+          description: Indicator result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IndicatorResult"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /backtest:
+    post:
+      operationId: runBacktest
+      tags: [trading]
+      summary: Run a paper backtest
+      description: Walk-forward simulation of a strategy on historical data. No real orders.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BacktestRequest"
+      responses:
+        "200":
+          description: Backtest result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BacktestResult"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /strategies:
+    get:
+      operationId: getStrategies
+      tags: [trading]
+      summary: List available strategies
+      description: Returns all registered trading strategies with their rules
+      responses:
+        "200":
+          description: Strategy list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StrategyInfo"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /ai-decisions:
     get:
       operationId: getAiDecisions
@@ -979,6 +1095,167 @@ components:
         - top_strong
         - top_weak
         - scanned_at
+
+    Candle:
+      type: object
+      properties:
+        time:   { type: string }
+        open:   { type: number }
+        high:   { type: number }
+        low:    { type: number }
+        close:  { type: number }
+        volume: { type: number }
+      required: [time, open, high, low, close, volume]
+
+    MarketDataResult:
+      type: object
+      properties:
+        symbol:     { type: string }
+        interval:   { type: string }
+        candles:
+          type: array
+          items:
+            $ref: "#/components/schemas/Candle"
+        bar_count:  { type: integer }
+        source:     { type: string }
+        fetched_at: { type: string }
+      required: [symbol, interval, candles, bar_count, source, fetched_at]
+
+    IndicatorSnapshot:
+      type: object
+      properties:
+        ema9:           { type: number }
+        ema20:          { type: number }
+        ema50:          { type: number }
+        ema200:         { type: number }
+        rsi:            { type: number }
+        macd_line:      { type: number }
+        macd_signal:    { type: number }
+        macd_hist:      { type: number }
+        vwap:           { type: number }
+        atr:            { type: number }
+        adx:            { type: number }
+        bb_upper:       { type: number }
+        bb_middle:      { type: number }
+        bb_lower:       { type: number }
+        supertrend:     { type: number }
+        supertrend_dir: { type: string }
+        volume_avg:     { type: number }
+        volume_ratio:   { type: number }
+        volume_spike:   { type: boolean }
+      required: [ema9, ema20, ema50, ema200, rsi, macd_line, macd_signal,
+                 macd_hist, vwap, atr, adx, bb_upper, bb_middle, bb_lower,
+                 supertrend, supertrend_dir, volume_avg, volume_ratio, volume_spike]
+
+    IndicatorResult:
+      type: object
+      properties:
+        symbol:      { type: string }
+        interval:    { type: string }
+        bar_count:   { type: integer }
+        snapshot:
+          $ref: "#/components/schemas/IndicatorSnapshot"
+        series:
+          type: object
+          additionalProperties: true
+        computed_at: { type: string }
+      required: [symbol, interval, bar_count, snapshot, series, computed_at]
+
+    StrategyInfo:
+      type: object
+      properties:
+        id:             { type: string }
+        name:           { type: string }
+        description:    { type: string }
+        type:           { type: string }
+        best_interval:  { type: string }
+        risk_pct:       { type: number }
+        entry_rules:
+          type: array
+          items: { type: string }
+        exit_rules:
+          type: array
+          items: { type: string }
+      required: [id, name, description, type, best_interval, risk_pct, entry_rules, exit_rules]
+
+    BacktestRequest:
+      type: object
+      properties:
+        symbol:          { type: string }
+        strategy:        { type: string }
+        start_date:      { type: string }
+        end_date:        { type: string }
+        initial_capital: { type: number }
+        interval:        { type: string }
+      required: [symbol, strategy, start_date, end_date]
+
+    BacktestTrade:
+      type: object
+      properties:
+        trade_no:      { type: integer }
+        entry_date:    { type: string }
+        exit_date:     { type: string }
+        symbol:        { type: string }
+        direction:     { type: string }
+        entry_price:   { type: number }
+        exit_price:    { type: number }
+        stop_loss:     { type: number }
+        target:        { type: number }
+        quantity:      { type: integer }
+        pnl:           { type: number }
+        pnl_pct:       { type: number }
+        duration_bars: { type: integer }
+        exit_reason:   { type: string }
+        entry_reason:  { type: string }
+      required: [trade_no, entry_date, exit_date, symbol, direction,
+                 entry_price, exit_price, stop_loss, target, quantity,
+                 pnl, pnl_pct, duration_bars, exit_reason, entry_reason]
+
+    BacktestResult:
+      type: object
+      properties:
+        symbol:            { type: string }
+        strategy:          { type: string }
+        strategy_name:     { type: string }
+        interval:          { type: string }
+        start_date:        { type: string }
+        end_date:          { type: string }
+        initial_capital:   { type: number }
+        final_capital:     { type: number }
+        total_trades:      { type: integer }
+        winning_trades:    { type: integer }
+        losing_trades:     { type: integer }
+        breakeven_trades:  { type: integer }
+        win_rate:          { type: number }
+        net_pnl:           { type: number }
+        net_pnl_pct:       { type: number }
+        profit_factor:     { type: number }
+        max_drawdown:      { type: number }
+        max_drawdown_pct:  { type: number }
+        avg_profit:        { type: number }
+        avg_loss:          { type: number }
+        best_trade:        { type: number }
+        worst_trade:       { type: number }
+        avg_duration_bars: { type: number }
+        sharpe_ratio:      { type: number }
+        data_source:       { type: string }
+        trades:
+          type: array
+          items:
+            $ref: "#/components/schemas/BacktestTrade"
+        equity_curve:
+          type: array
+          items: { type: number }
+        computed_at: { type: string }
+        error:
+          type: string
+          nullable: true
+      required: [symbol, strategy, strategy_name, interval, start_date, end_date,
+                 initial_capital, final_capital, total_trades, winning_trades,
+                 losing_trades, breakeven_trades, win_rate, net_pnl, net_pnl_pct,
+                 profit_factor, max_drawdown, max_drawdown_pct, avg_profit, avg_loss,
+                 best_trade, worst_trade, avg_duration_bars, sharpe_ratio,
+                 data_source, trades, equity_curve, computed_at]
 
     ErrorResponse:
       type: object
