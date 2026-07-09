@@ -440,7 +440,14 @@ def _simulate(symbol: str, sector: str, strategy_id: str,
 def build_knowledge_base(years: int = 5) -> dict:
     """Run the full build. Writes progress to the status file as it goes."""
     # Durable single-build lock: refuse to start if another build is running.
-    if is_build_running():
+    # (The API server writes a placeholder status with THIS process's pid
+    # right after spawning us — ignore that; only a different live pid counts.)
+    _existing = read_status()
+    try:
+        _existing_pid = int(_existing.get("pid") or 0)
+    except (TypeError, ValueError):
+        _existing_pid = 0
+    if _existing.get("status") == "running" and _existing_pid != os.getpid():
         return {"error": "A build is already running", "status": "running"}
 
     period = _PERIOD_MAP.get(int(years), "5y")

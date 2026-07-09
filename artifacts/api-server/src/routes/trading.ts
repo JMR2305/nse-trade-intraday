@@ -364,6 +364,24 @@ router.post("/historical-knowledge/build", async (req, res) => {
     proc.on("error", () => { hkBuildRunning = false; });
     proc.unref();
 
+    // Write an immediate "running" placeholder so the UI sees the build as
+    // in-progress on its very next poll (the python process takes a few
+    // seconds to boot before it writes its own status). Python overwrites
+    // this file with its own progress as soon as it starts.
+    try {
+      fs.writeFileSync(HK_STATUS_PATH, JSON.stringify({
+        status: "running",
+        pid: proc.pid,
+        started_at: new Date().toISOString(),
+        years,
+        stocks_total: 50,
+        stocks_processed: 0,
+        trades_generated: 0,
+        skipped_symbols: [],
+        logs: ["Starting build process…"],
+      }));
+    } catch { /* non-fatal — python will write status shortly */ }
+
     res.json({ started: true, years, status: "running" });
   } catch (err: unknown) {
     hkBuildRunning = false;

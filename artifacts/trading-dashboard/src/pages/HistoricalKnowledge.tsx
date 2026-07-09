@@ -66,13 +66,19 @@ function GroupCard({ title, stat, positive }: {
 
 export default function HistoricalKnowledge() {
   const [years, setYears] = useState<1 | 3 | 5>(5);
+  // Poll aggressively for a short window after a build is kicked off, even if
+  // the status file hasn't flipped to "running" yet (the build process takes
+  // a few seconds to boot).
+  const [pollUntil, setPollUntil] = useState(0);
   const queryClient = useQueryClient();
 
   const { data: summary, isLoading } = useGetHistoricalKnowledgeSummary({
     query: {
       queryKey: getGetHistoricalKnowledgeSummaryQueryKey(),
       refetchInterval: (q) =>
-        q.state.data?.build?.status === "running" ? 4000 : false,
+        q.state.data?.build?.status === "running" || Date.now() < pollUntil
+          ? 3000
+          : false,
     },
   });
 
@@ -82,6 +88,7 @@ export default function HistoricalKnowledge() {
   const buildMutation = useBuildHistoricalKnowledge({
     mutation: {
       onSuccess: () => {
+        setPollUntil(Date.now() + 30_000);
         queryClient.invalidateQueries({ queryKey: getGetHistoricalKnowledgeSummaryQueryKey() });
       },
     },
