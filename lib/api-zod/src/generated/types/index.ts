@@ -48,6 +48,8 @@ export * from './signalRiskLevel';
 export * from './signalSignal';
 export * from './stockSnapshot';
 export * from './strategyInfo';
+export * from './strategyLabEntry';
+export * from './strategyLabRequest';
 export * from './strategyPerformance';
 export * from './trade';
 export * from './tradeAction';

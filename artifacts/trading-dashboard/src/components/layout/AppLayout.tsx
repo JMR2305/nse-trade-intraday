@@ -13,6 +13,7 @@ import {
   RotateCcw,
   FlaskConical,
   ShieldCheck,
+  GitCompare,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         { href: "/watchlist",    label: "Watchlist",    icon: Eye         },
         { href: "/backtest",     label: "Backtest",     icon: FlaskConical },
         { href: "/validate",     label: "Validate",     icon: ShieldCheck  },
+        { href: "/strategy-lab", label: "Strategy Lab",  icon: GitCompare   },
       ],
     },
   ];

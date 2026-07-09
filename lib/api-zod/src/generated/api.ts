@@ -501,6 +501,44 @@ export const GetTradeReplayResponse = zod.array(GetTradeReplayResponseItem)
 
 
 /**
+ * Fetches OHLCV data once, computes indicators once, then runs all 6 strategies (EMA Cross, MACD Cross, Mean Reversion, Trend Rider, Breakout Hunter, Supertrend) sequentially. Returns a comparison table.
+ * @summary Strategy Lab — compare all strategies on the same historical data
+ */
+export const runStrategyLabBodyInitialCapitalDefault = 5000;
+export const runStrategyLabBodyIntervalDefault = `1d`;
+
+export const RunStrategyLabBody = zod.object({
+  "symbol": zod.string(),
+  "start_date": zod.coerce.date(),
+  "end_date": zod.coerce.date(),
+  "initial_capital": zod.number().default(runStrategyLabBodyInitialCapitalDefault),
+  "interval": zod.string().default(runStrategyLabBodyIntervalDefault)
+})
+
+export const RunStrategyLabResponseItem = zod.object({
+  "strategy_id": zod.string(),
+  "strategy_name": zod.string(),
+  "strategy_type": zod.string(),
+  "best_regime": zod.string(),
+  "total_trades": zod.number(),
+  "winning_trades": zod.number(),
+  "losing_trades": zod.number(),
+  "win_rate": zod.number(),
+  "net_pnl": zod.number(),
+  "net_pnl_pct": zod.number(),
+  "profit_factor": zod.number(),
+  "max_drawdown": zod.number(),
+  "max_drawdown_pct": zod.number(),
+  "sharpe_ratio": zod.number(),
+  "avg_duration_bars": zod.number(),
+  "best_trade": zod.number(),
+  "worst_trade": zod.number(),
+  "error": zod.string().nullish()
+})
+export const RunStrategyLabResponse = zod.array(RunStrategyLabResponseItem)
+
+
+/**
  * Returns aggregated win rate, profit factor, best stock, etc.
  * @summary Get strategy performance metrics
  */

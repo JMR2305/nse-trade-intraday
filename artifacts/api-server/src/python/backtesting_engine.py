@@ -785,3 +785,271 @@ def run_backtest(
         debug_candles     = debug_candles_list,
         rejected_trades_detail = rejected_trades_detail,
     )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# STRATEGY LAB  — compare multiple strategies on the same data
+# ══════════════════════════════════════════════════════════════════════════════
+
+class StrategyLabEntry(TypedDict):
+    strategy_id:        str
+    strategy_name:      str
+    strategy_type:      str
+    best_regime:        str
+    total_trades:       int
+    winning_trades:     int
+    losing_trades:      int
+    win_rate:           float
+    net_pnl:            float
+    net_pnl_pct:        float
+    profit_factor:      float
+    max_drawdown:       float
+    max_drawdown_pct:   float
+    sharpe_ratio:       float
+    avg_duration_bars:  float
+    best_trade:         float
+    worst_trade:        float
+    error:              str | None
+
+
+def _empty_lab_entry(strategy_id: str, error: str) -> dict:
+    from strategies import STRATEGY_REGISTRY
+    s = STRATEGY_REGISTRY.get(strategy_id)
+    return {
+        "strategy_id": strategy_id,
+        "strategy_name": s.name if s else strategy_id,
+        "strategy_type": s.type if s else "UNKNOWN",
+        "best_regime": s.best_regime if s else "",
+        "total_trades": 0, "winning_trades": 0, "losing_trades": 0,
+        "win_rate": 0.0, "net_pnl": 0.0, "net_pnl_pct": 0.0,
+        "profit_factor": 0.0, "max_drawdown": 0.0, "max_drawdown_pct": 0.0,
+        "sharpe_ratio": 0.0, "avg_duration_bars": 0.0,
+        "best_trade": 0.0, "worst_trade": 0.0,
+        "error": error,
+    }
+
+
+def _run_lab_walk(rows, strategy, initial_capital: float) -> dict:
+    """
+    Simplified walk-forward loop for one strategy.
+    Uses same position-sizing and bar logic as run_backtest() — no debug overhead.
+    """
+    capital     = initial_capital
+    in_position = False
+    entry_price = 0.0
+    stop_loss   = 0.0
+    target      = 0.0
+    entry_bar   = 0
+    entry_qty   = 1
+
+    trades:       list = []
+    equity:       list = [capital]
+    peak          = capital
+    max_dd_abs    = 0.0
+    max_dd_pct    = 0.0
+    gross_profit  = 0.0
+    gross_loss    = 0.0
+    best_trade    = 0.0
+    worst_trade   = 0.0
+
+    n = len(rows)
+
+    for i in range(WARMUP_BARS, n):
+        row  = rows.iloc[i]
+        prev = rows.iloc[i - 1]
+
+        close = _safe_float(row.get("close", 0))
+        high  = _safe_float(row.get("high",  0))
+        low   = _safe_float(row.get("low",   0))
+        if close <= 0:
+            continue
+
+        if in_position:
+            exit_triggered = False
+            exit_price     = close
+
+            # Stop hit (intrabar low)
+            if low > 0 and low <= stop_loss:
+                exit_triggered = True
+                exit_price     = stop_loss
+            # Target hit (intrabar high)
+            elif high > 0 and high >= target:
+                exit_triggered = True
+                exit_price     = target
+            else:
+                should_exit, _ = strategy.check_exit(
+                    row, prev, entry_price, stop_loss, target
+                )
+                if should_exit:
+                    exit_triggered = True
+                    exit_price     = close
+
+            if exit_triggered:
+                pnl      = round((exit_price - entry_price) * entry_qty, 2)
+                duration = i - entry_bar
+                capital  = round(capital + pnl, 2)
+
+                if pnl >= 0:
+                    gross_profit += pnl
+                    best_trade    = max(best_trade, pnl)
+                else:
+                    gross_loss   += abs(pnl)
+                    worst_trade   = min(worst_trade, pnl)
+
+                trades.append({"pnl": pnl, "bars": duration})
+                in_position = False
+                equity.append(capital)
+
+                if capital > peak:
+                    peak = capital
+                else:
+                    dd_abs     = peak - capital
+                    dd_pct     = dd_abs / peak * 100 if peak > 0 else 0.0
+                    max_dd_abs = max(max_dd_abs, dd_abs)
+                    max_dd_pct = max(max_dd_pct, dd_pct)
+        else:
+            should_enter, _ = strategy.check_entry(row, prev)
+            if should_enter:
+                sl  = strategy.compute_stop_loss(row, close)
+                tgt = strategy.compute_target(close, sl)
+                rps = close - sl
+                if rps <= 0 or sl <= 0 or tgt <= close:
+                    continue
+                qty = int(capital * strategy.risk_pct / rps)
+                if qty < 1:
+                    continue
+                in_position = True
+                entry_price = close
+                stop_loss   = sl
+                target      = tgt
+                entry_bar   = i
+                entry_qty   = qty
+
+    # Close any open position at last bar
+    if in_position and n > WARMUP_BARS:
+        last_close = _safe_float(rows.iloc[n - 1].get("close", 0))
+        if last_close > 0:
+            pnl     = round((last_close - entry_price) * entry_qty, 2)
+            capital = round(capital + pnl, 2)
+            if pnl >= 0:
+                gross_profit += pnl
+                best_trade    = max(best_trade, pnl)
+            else:
+                gross_loss   += abs(pnl)
+                worst_trade   = min(worst_trade, pnl)
+            trades.append({"pnl": pnl, "bars": n - 1 - entry_bar})
+            equity.append(capital)
+
+    # Aggregate metrics
+    total_trades   = len(trades)
+    winning_trades = sum(1 for t in trades if t["pnl"] >= 0)
+    losing_trades  = total_trades - winning_trades
+    win_rate       = round(winning_trades / total_trades * 100, 2) if total_trades else 0.0
+    net_pnl        = round(capital - initial_capital, 2)
+    net_pnl_pct    = round(net_pnl / initial_capital * 100, 2) if initial_capital else 0.0
+    profit_factor  = (
+        round(gross_profit / gross_loss, 2) if gross_loss > 0
+        else (999.0 if gross_profit > 0 else 0.0)
+    )
+    avg_dur = (
+        round(sum(t["bars"] for t in trades) / total_trades, 1)
+        if total_trades else 0.0
+    )
+
+    # Annualised Sharpe from trade-level returns
+    returns = []
+    for j in range(1, len(equity)):
+        if equity[j - 1] > 0:
+            returns.append((equity[j] - equity[j - 1]) / equity[j - 1])
+    sharpe = 0.0
+    if len(returns) >= 2:
+        mu  = sum(returns) / len(returns)
+        sd  = math.sqrt(sum((r - mu) ** 2 for r in returns) / len(returns))
+        sharpe = round(mu / sd * math.sqrt(252) if sd > 0 else 0.0, 2)
+
+    return {
+        "total_trades":     total_trades,
+        "winning_trades":   winning_trades,
+        "losing_trades":    losing_trades,
+        "win_rate":         win_rate,
+        "net_pnl":          net_pnl,
+        "net_pnl_pct":      net_pnl_pct,
+        "profit_factor":    profit_factor,
+        "max_drawdown":     round(max_dd_abs, 2),
+        "max_drawdown_pct": round(max_dd_pct, 2),
+        "sharpe_ratio":     sharpe,
+        "avg_duration_bars": avg_dur,
+        "best_trade":       round(best_trade, 2),
+        "worst_trade":      round(worst_trade, 2),
+    }
+
+
+def run_strategy_lab(
+    symbol:          str,
+    start_date:      str,
+    end_date:        str,
+    initial_capital: float = 5000.0,
+    interval:        str   = "1d",
+    strategy_ids:    list  | None = None,
+) -> list:
+    """
+    Run all Lab strategies on the same OHLCV data (fetched & indicator-computed once).
+    Returns list of StrategyLabEntry dicts — one per strategy.
+    """
+    from strategies import get_strategy, LAB_STRATEGY_IDS
+
+    if strategy_ids is None:
+        strategy_ids = LAB_STRATEGY_IDS
+
+    # 1. Fetch data once
+    try:
+        period = _period_for_start(start_date)
+        df = fetch_candles_df(
+            symbol, interval=interval, period=period,
+            start=start_date, end=end_date,
+        )
+    except Exception as exc:
+        return [_empty_lab_entry(sid, str(exc)) for sid in strategy_ids]
+
+    if df.empty or len(df) < WARMUP_BARS + 5:
+        msg = f"Insufficient data: {len(df)} bars (need {WARMUP_BARS + 5}+)"
+        return [_empty_lab_entry(sid, msg) for sid in strategy_ids]
+
+    # 2. Compute indicators once
+    try:
+        enriched = compute_indicators_df(df)
+    except Exception as exc:
+        return [_empty_lab_entry(sid, f"Indicator error: {exc}") for sid in strategy_ids]
+
+    rows = enriched.reset_index(drop=False)
+
+    # 3. Run each strategy sequentially on shared enriched data
+    results: list = []
+    for sid in strategy_ids:
+        try:
+            strategy = get_strategy(sid)
+            metrics  = _run_lab_walk(rows, strategy, initial_capital)
+            results.append(StrategyLabEntry(
+                strategy_id       = strategy.id,
+                strategy_name     = strategy.name,
+                strategy_type     = strategy.type,
+                best_regime       = strategy.best_regime,
+                total_trades      = metrics["total_trades"],
+                winning_trades    = metrics["winning_trades"],
+                losing_trades     = metrics["losing_trades"],
+                win_rate          = metrics["win_rate"],
+                net_pnl           = metrics["net_pnl"],
+                net_pnl_pct       = metrics["net_pnl_pct"],
+                profit_factor     = metrics["profit_factor"],
+                max_drawdown      = metrics["max_drawdown"],
+                max_drawdown_pct  = metrics["max_drawdown_pct"],
+                sharpe_ratio      = metrics["sharpe_ratio"],
+                avg_duration_bars = metrics["avg_duration_bars"],
+                best_trade        = metrics["best_trade"],
+                worst_trade       = metrics["worst_trade"],
+                error             = None,
+            ))
+        except Exception as exc:
+            results.append(_empty_lab_entry(sid, str(exc)))
+
+    return results

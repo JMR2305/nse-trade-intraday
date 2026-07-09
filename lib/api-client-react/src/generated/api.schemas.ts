@@ -596,6 +596,35 @@ export interface ErrorResponse {
   error: string;
 }
 
+export interface StrategyLabRequest {
+  symbol: string;
+  start_date: string;
+  end_date: string;
+  initial_capital?: number;
+  interval?: string;
+}
+
+export interface StrategyLabEntry {
+  strategy_id: string;
+  strategy_name: string;
+  strategy_type: string;
+  best_regime: string;
+  total_trades: number;
+  winning_trades: number;
+  losing_trades: number;
+  win_rate: number;
+  net_pnl: number;
+  net_pnl_pct: number;
+  profit_factor: number;
+  max_drawdown: number;
+  max_drawdown_pct: number;
+  sharpe_ratio: number;
+  avg_duration_bars: number;
+  best_trade: number;
+  worst_trade: number;
+  error?: string | null;
+}
+
 export type GetMarketDataParams = {
 interval?: string;
 period?: string;

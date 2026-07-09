@@ -14,6 +14,7 @@ import AiDecision from "@/pages/AiDecision";
 import TradeReplay from "@/pages/TradeReplay";
 import Backtest from "@/pages/Backtest";
 import Validate from "@/pages/Validate";
+import StrategyLab from "@/pages/StrategyLab";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,7 @@ function Router() {
         <Route path="/watchlist" component={Watchlist} />
         <Route path="/backtest" component={Backtest} />
         <Route path="/validate" component={Validate} />
+        <Route path="/strategy-lab" component={StrategyLab} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

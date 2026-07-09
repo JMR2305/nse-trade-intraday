@@ -275,6 +275,15 @@ def main():
             )
         elif command == "strategies":
             result = cmd_strategies()
+        elif command == "strategy_lab" and len(args) >= 4:
+            from backtesting_engine import run_strategy_lab
+            result = run_strategy_lab(
+                symbol          = args[1],
+                start_date      = args[2],
+                end_date        = args[3],
+                initial_capital = float(args[4]) if len(args) > 4 else 5000.0,
+                interval        = args[5] if len(args) > 5 else "1d",
+            )
         else:
             print(json.dumps({"error": f"Unknown command: {command}"}))
             sys.exit(1)

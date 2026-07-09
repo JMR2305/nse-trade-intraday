@@ -37,6 +37,8 @@ import type {
   ScanResult,
   Signal,
   StrategyInfo,
+  StrategyLabEntry,
+  StrategyLabRequest,
   StrategyPerformance,
   Trade,
   TradeReplayItem,
@@ -1317,6 +1319,78 @@ export function useGetTradeReplay<TData = Awaited<ReturnType<typeof getTradeRepl
 
 
 
+
+export const getRunStrategyLabUrl = () => {
+
+
+
+
+  return `/api/strategy-lab`
+}
+
+/**
+ * Fetches OHLCV data once, computes indicators once, then runs all 6 strategies (EMA Cross, MACD Cross, Mean Reversion, Trend Rider, Breakout Hunter, Supertrend) sequentially. Returns a comparison table.
+ * @summary Strategy Lab — compare all strategies on the same historical data
+ */
+export const runStrategyLab = async (strategyLabRequest: StrategyLabRequest, options?: RequestInit): Promise<StrategyLabEntry[]> => {
+
+  return customFetch<StrategyLabEntry[]>(getRunStrategyLabUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(strategyLabRequest)
+  }
+);}
+
+
+
+
+
+export const getRunStrategyLabMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runStrategyLab>>, TError,{data: BodyType<StrategyLabRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof runStrategyLab>>, TError,{data: BodyType<StrategyLabRequest>}, TContext> => {
+
+const mutationKey = ['runStrategyLab'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof runStrategyLab>>, {data: BodyType<StrategyLabRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  runStrategyLab(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RunStrategyLabMutationResult = NonNullable<Awaited<ReturnType<typeof runStrategyLab>>>
+    export type RunStrategyLabMutationBody = BodyType<StrategyLabRequest>
+    export type RunStrategyLabMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Strategy Lab — compare all strategies on the same historical data
+ */
+export const useRunStrategyLab = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runStrategyLab>>, TError,{data: BodyType<StrategyLabRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof runStrategyLab>>,
+        TError,
+        {data: BodyType<StrategyLabRequest>},
+        TContext
+      > => {
+      return useMutation(getRunStrategyLabMutationOptions(options));
+    }
 
 export const getGetStrategyPerformanceUrl = () => {
 

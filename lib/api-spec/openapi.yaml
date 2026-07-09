@@ -382,6 +382,37 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /strategy-lab:
+    post:
+      operationId: runStrategyLab
+      tags: [trading]
+      summary: Strategy Lab — compare all strategies on the same historical data
+      description: >
+        Fetches OHLCV data once, computes indicators once, then runs all 6
+        strategies (EMA Cross, MACD Cross, Mean Reversion, Trend Rider,
+        Breakout Hunter, Supertrend) sequentially. Returns a comparison table.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StrategyLabRequest"
+      responses:
+        "200":
+          description: Array of per-strategy results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StrategyLabEntry"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /strategy-performance:
     get:
       operationId: getStrategyPerformance
@@ -1357,3 +1388,65 @@ components:
           type: string
       required:
         - error
+
+    StrategyLabRequest:
+      type: object
+      required: [symbol, start_date, end_date]
+      properties:
+        symbol:
+          type: string
+          example: RELIANCE
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        initial_capital:
+          type: number
+          default: 5000
+        interval:
+          type: string
+          default: "1d"
+
+    StrategyLabEntry:
+      type: object
+      properties:
+        strategy_id:        { type: string }
+        strategy_name:      { type: string }
+        strategy_type:      { type: string }
+        best_regime:        { type: string }
+        total_trades:       { type: integer }
+        winning_trades:     { type: integer }
+        losing_trades:      { type: integer }
+        win_rate:           { type: number }
+        net_pnl:            { type: number }
+        net_pnl_pct:        { type: number }
+        profit_factor:      { type: number }
+        max_drawdown:       { type: number }
+        max_drawdown_pct:   { type: number }
+        sharpe_ratio:       { type: number }
+        avg_duration_bars:  { type: number }
+        best_trade:         { type: number }
+        worst_trade:        { type: number }
+        error:
+          type: string
+          nullable: true
+      required:
+        - strategy_id
+        - strategy_name
+        - strategy_type
+        - best_regime
+        - total_trades
+        - winning_trades
+        - losing_trades
+        - win_rate
+        - net_pnl
+        - net_pnl_pct
+        - profit_factor
+        - max_drawdown
+        - max_drawdown_pct
+        - sharpe_ratio
+        - avg_duration_bars
+        - best_trade
+        - worst_trade
