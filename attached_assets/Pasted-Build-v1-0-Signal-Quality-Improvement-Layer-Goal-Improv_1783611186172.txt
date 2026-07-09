@@ -1,0 +1,104 @@
+Build v1.0 Signal Quality Improvement Layer.
+
+Goal:
+Improve paper basket test performance by reducing weak trades and learning from historical outcomes.
+
+Important:
+- Paper trading only.
+- No real orders.
+- Do not add unnecessary pages.
+- Improve Market Scanner, Market Replay, and Paper Basket Test logic.
+
+1. Add stricter trade filters
+
+Only allow BUY/STRONG BUY when:
+- Opportunity score >= 80
+- Confidence >= 70
+- Risk/reward >= 2.5
+- Sector is in top 3 strongest sectors
+- Market regime is Bullish or Neutral-Bullish
+- Stock is above EMA20 and EMA50
+- Volume is above 20-day average
+
+If any condition fails:
+Downgrade to WATCH or IGNORE.
+
+2. Add adaptive strategy selection
+
+For each stock:
+- Look back over recent historical period.
+- Compare strategies using win rate, profit factor, drawdown, and number of trades.
+- Select the best reliable strategy for that stock.
+- If no reliable strategy exists, mark stock as WATCH or IGNORE.
+
+3. Add signal quality score
+
+Calculate:
+- Trend score
+- Momentum score
+- Volume score
+- Sector score
+- Market regime score
+- Risk/reward score
+- Historical strategy reliability score
+
+Final Signal Quality Score out of 100.
+
+4. Add learning weights
+
+Create module:
+backend/signal_learning.py
+
+Use historical Market Replay and Paper Basket Test outcomes to adjust weights.
+
+If a factor appears often in winning trades:
+increase its weight slightly.
+
+If a factor appears often in losing trades:
+decrease its weight slightly.
+
+Keep weights transparent and bounded.
+Minimum weight: 5
+Maximum weight: 30
+
+5. Improve Paper Basket Test
+
+Add filters:
+- Trade only BUY/STRONG BUY signals by default.
+- Add option to include WATCH trades, but default should be OFF.
+- Add minimum score filter.
+- Add minimum confidence filter.
+- Add minimum risk/reward filter.
+
+Default basket rules:
+- Top 10 stocks
+- Quantity 10
+- Minimum score 80
+- Minimum confidence 70
+- Minimum risk/reward 2.5
+- Exclude WATCH signals
+
+6. Add comparison mode
+
+Paper Basket Test should compare:
+- Old model result
+- Improved filtered model result
+
+Show:
+- Total investment
+- Net P&L
+- Return %
+- Win rate
+- Number of trades
+- Best stock
+- Worst stock
+
+7. Add clear warning
+
+If no stocks pass the filters:
+Show:
+“No high-quality trades found. This is a valid outcome. Avoiding trades is better than taking weak trades.”
+
+Do not force trades just to fill the basket.
+
+Focus on improving signal quality, not increasing trade count.

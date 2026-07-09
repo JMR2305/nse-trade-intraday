@@ -273,12 +273,20 @@ router.post("/paper-basket", async (req, res) => {
       num_stocks = 10,
       quantity = 10,
       method = "opportunity_score",
+      min_score = 80,
+      min_confidence = 70,
+      min_rr = 2.5,
+      include_watch = false,
     } = req.body as {
       selection_date: string;
       holding_period?: number;
       num_stocks?: number;
       quantity?: number;
       method?: string;
+      min_score?: number;
+      min_confidence?: number;
+      min_rr?: number;
+      include_watch?: boolean;
     };
 
     if (!selection_date || !/^\d{4}-\d{2}-\d{2}$/.test(selection_date)) {
@@ -286,7 +294,7 @@ router.post("/paper-basket", async (req, res) => {
       return;
     }
 
-    const cacheKey = `${selection_date}|${holding_period}|${num_stocks}|${quantity}|${method}`;
+    const cacheKey = `${selection_date}|${holding_period}|${num_stocks}|${quantity}|${method}|${min_score}|${min_confidence}|${min_rr}|${include_watch}`;
     const cached = paperBasketCache.get(cacheKey);
     if (cached && Date.now() - cached.ts < PAPER_BASKET_CACHE_MS) {
       res.json(cached.data);
@@ -298,6 +306,8 @@ router.post("/paper-basket", async (req, res) => {
       inFlight = runPython([
         "paper_basket", selection_date, String(holding_period),
         String(num_stocks), String(quantity), method,
+        String(min_score), String(min_confidence), String(min_rr),
+        include_watch ? "true" : "false",
       ]).finally(() => {
         paperBasketInFlight.delete(cacheKey);
       });

@@ -672,13 +672,21 @@ export const runPaperBasketBodyHoldingPeriodDefault = 5;
 export const runPaperBasketBodyNumStocksDefault = 10;
 export const runPaperBasketBodyQuantityDefault = 10;
 export const runPaperBasketBodyMethodDefault = `opportunity_score`;
+export const runPaperBasketBodyMinScoreDefault = 80;
+export const runPaperBasketBodyMinConfidenceDefault = 70;
+export const runPaperBasketBodyMinRrDefault = 2.5;
+export const runPaperBasketBodyIncludeWatchDefault = false;
 
 export const RunPaperBasketBody = zod.object({
   "selection_date": zod.string().describe('Date to select the basket from (YYYY-MM-DD). Uses only data up to and including this date.'),
   "holding_period": zod.union([zod.literal(1),zod.literal(3),zod.literal(5),zod.literal(10)]).default(runPaperBasketBodyHoldingPeriodDefault),
   "num_stocks": zod.number().default(runPaperBasketBodyNumStocksDefault),
   "quantity": zod.number().default(runPaperBasketBodyQuantityDefault),
-  "method": zod.enum(['opportunity_score', 'gainers', 'volume_spike', 'sector_strength']).default(runPaperBasketBodyMethodDefault)
+  "method": zod.enum(['opportunity_score', 'gainers', 'volume_spike', 'sector_strength']).default(runPaperBasketBodyMethodDefault),
+  "min_score": zod.number().default(runPaperBasketBodyMinScoreDefault).describe('Minimum opportunity score for the improved filtered model.'),
+  "min_confidence": zod.number().default(runPaperBasketBodyMinConfidenceDefault).describe('Minimum confidence for the improved filtered model.'),
+  "min_rr": zod.number().default(runPaperBasketBodyMinRrDefault).describe('Minimum risk\/reward ratio for the improved filtered model.'),
+  "include_watch": zod.boolean().default(runPaperBasketBodyIncludeWatchDefault).describe('Include WATCH signals in the improved filtered model (default off).')
 })
 
 export const RunPaperBasketResponse = zod.object({
@@ -721,7 +729,76 @@ export const RunPaperBasketResponse = zod.object({
   "max_loss_stock": zod.string().nullable(),
   "max_loss_rupees": zod.number().nullable()
 }),
-  "warning": zod.string()
+  "warning": zod.string(),
+  "filters": zod.object({
+  "min_score": zod.number(),
+  "min_confidence": zod.number(),
+  "min_rr": zod.number(),
+  "include_watch": zod.boolean()
+}),
+  "regime": zod.object({
+  "regime": zod.string(),
+  "regime_score": zod.number(),
+  "detail": zod.string()
+}),
+  "improved": zod.object({
+  "items": zod.array(zod.object({
+  "stock": zod.string(),
+  "sector": zod.string(),
+  "selection_reason": zod.string(),
+  "rank_metric": zod.number(),
+  "buy_date": zod.string(),
+  "buy_price": zod.number().nullable(),
+  "sell_date": zod.string(),
+  "sell_price": zod.number().nullable(),
+  "quantity": zod.number(),
+  "investment": zod.number().nullable(),
+  "pnl_rupees": zod.number().nullable(),
+  "pnl_pct": zod.number().nullable(),
+  "outcome": zod.string(),
+  "error": zod.string().nullable()
+})),
+  "summary": zod.object({
+  "total_investment": zod.number(),
+  "final_value": zod.number(),
+  "net_pnl": zod.number(),
+  "net_return_pct": zod.number(),
+  "winning_stocks": zod.number(),
+  "losing_stocks": zod.number(),
+  "win_rate": zod.number(),
+  "best_stock": zod.string().nullable(),
+  "best_stock_return": zod.number().nullable(),
+  "worst_stock": zod.string().nullable(),
+  "worst_stock_return": zod.number().nullable(),
+  "average_return_pct": zod.number(),
+  "max_loss_stock": zod.string().nullable(),
+  "max_loss_rupees": zod.number().nullable()
+}),
+  "quality": zod.record(zod.string(), zod.object({
+  "signal_quality": zod.number(),
+  "quality_components": zod.record(zod.string(), zod.number()),
+  "filter_passed": zod.boolean(),
+  "filter_reasons": zod.array(zod.string()),
+  "action": zod.string()
+})),
+  "no_trades_message": zod.string().nullable()
+}),
+  "comparison": zod.array(zod.object({
+  "model": zod.string(),
+  "total_investment": zod.number(),
+  "net_pnl": zod.number(),
+  "net_return_pct": zod.number(),
+  "win_rate": zod.number(),
+  "trades": zod.number(),
+  "best_stock": zod.string().nullable(),
+  "worst_stock": zod.string().nullable()
+})),
+  "learning": zod.object({
+  "weights": zod.record(zod.string(), zod.number()),
+  "samples_learned": zod.number(),
+  "updated_at": zod.string(),
+  "records_used": zod.number().optional()
+})
 })
 
 

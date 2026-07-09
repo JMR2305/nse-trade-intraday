@@ -1,0 +1,13 @@
+{
+  "weights": {
+    "trend": 17.0,
+    "momentum": 11.0,
+    "volume": 11.0,
+    "sector": 9.0,
+    "regime": 11.0,
+    "risk_reward": 12.0,
+    "strategy_reliability": 15.0
+  },
+  "samples_learned": 10,
+  "updated_at": "2026-07-09T15:49:49.995597"
+}

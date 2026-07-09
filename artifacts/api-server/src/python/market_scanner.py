@@ -76,6 +76,12 @@ class ScanItem(TypedDict):
     entry_price:        float
     stop_loss:          float
     target:             float
+    # Signal Quality Layer (v1.0) raw inputs
+    above_ema20:        bool
+    above_ema50:        bool
+    volume_ratio:       float
+    rsi:                float
+    macd_hist:          float
     error:              str | None
 
 
@@ -214,6 +220,7 @@ def _empty_scan_item(symbol: str, error: str) -> ScanItem:
         final_action="IGNORE", heat="RED",
         win_rate=0.0, profit_factor=0.0, net_pnl_pct=0.0, total_trades=0, sharpe_ratio=0.0,
         entry_price=0.0, stop_loss=0.0, target=0.0,
+        above_ema20=False, above_ema50=False, volume_ratio=0.0, rsi=0.0, macd_hist=0.0,
         error=error,
     )
 
@@ -314,6 +321,11 @@ def scan_stock(symbol: str, capital: float = INITIAL_CAPITAL) -> ScanItem:
         entry_price=round(price, 2),
         stop_loss=stop_loss,
         target=target,
+        above_ema20=bool(price > float(last_row.get("ema20", 0.0) or 0.0) > 0),
+        above_ema50=bool(price > float(last_row.get("ema50", 0.0) or 0.0) > 0),
+        volume_ratio=round(float(last_row.get("volume_ratio", 0.0) or 0.0), 2),
+        rsi=round(float(last_row.get("rsi", 0.0) or 0.0), 1),
+        macd_hist=round(float(last_row.get("macd_hist", 0.0) or 0.0), 4),
         error=None,
     )
 
@@ -376,6 +388,15 @@ def run_market_scan(
     items.sort(key=lambda it: (it["error"] is None, it["opportunity_score"]), reverse=True)
     for i, it in enumerate(items, start=1):
         it["rank"] = i
+
+    # ── Signal Quality Layer (v1.0): quality score + strict filters ──────
+    # Downgrades weak BUY/STRONG BUY calls to WATCH/IGNORE and refreshes
+    # the heat map to match the filtered action.
+    from signal_quality import get_market_regime_as_of, annotate_items_with_quality
+    regime_info = get_market_regime_as_of(None)
+    annotate_items_with_quality(items, action_key="final_action", regime_info=regime_info)
+    for it in items:
+        it["heat"] = _heat_of(it["final_action"])
 
     valid_items = [it for it in items if it["error"] is None]
 

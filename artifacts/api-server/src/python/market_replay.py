@@ -33,6 +33,7 @@ from market_scanner import (
     _confidence_score, _opportunity_score,
 )
 from analytics_engine import compute_trade_analytics, classify_outcome
+from signal_quality import get_market_regime_as_of, annotate_items_with_quality
 
 import pandas as pd
 
@@ -66,6 +67,14 @@ class ReplayItem(TypedDict):
     outcome_label:      str      # Excellent | Good | Weak | Small Loss | Failed | Pending
     why_signal:         str
     what_happened:      str
+    # Signal Quality Layer (v1.0) raw inputs — computed from as-of data only
+    rr_ratio:           float
+    above_ema20:        bool
+    above_ema50:        bool
+    volume_ratio:       float
+    rsi:                float
+    macd_hist:          float
+    total_trades:       int
     error:              str | None
 
 
@@ -137,7 +146,9 @@ def _empty_replay_item(symbol: str, scan_date: str, holding_period: int, error: 
         best_strategy_id="", best_strategy_name="",
         historical_action="IGNORE", opportunity_score=0.0, trade_quality=0.0, confidence=0.0,
         price_on_scan_date=0.0, price_after_holding=None, return_pct=None,
-        outcome="Pending", outcome_label="Pending", why_signal=error, what_happened="", error=error,
+        outcome="Pending", outcome_label="Pending", why_signal=error, what_happened="",
+        rr_ratio=0.0, above_ema20=False, above_ema50=False, volume_ratio=0.0,
+        rsi=0.0, macd_hist=0.0, total_trades=0, error=error,
     )
 
 
@@ -290,6 +301,13 @@ def replay_stock(
         outcome_label=classify_outcome(return_pct),
         why_signal=why_signal,
         what_happened=what_happened,
+        rr_ratio=rr_ratio,
+        above_ema20=bool(price_on_scan_date > float(last_row.get("ema20", 0.0) or 0.0) > 0),
+        above_ema50=bool(price_on_scan_date > float(last_row.get("ema50", 0.0) or 0.0) > 0),
+        volume_ratio=round(float(last_row.get("volume_ratio", 0.0) or 0.0), 2),
+        rsi=round(float(last_row.get("rsi", 0.0) or 0.0), 1),
+        macd_hist=round(float(last_row.get("macd_hist", 0.0) or 0.0), 4),
+        total_trades=int(metrics.get("total_trades", 0)),
         error=None,
     )
 
@@ -323,6 +341,42 @@ def run_market_replay(
         items.append(replay_stock(sym, scan_date, holding_period, interval, capital))
 
     items.sort(key=lambda it: (it["error"] is None, it["opportunity_score"]), reverse=True)
+
+    # ── Signal Quality Layer (v1.0): quality score + strict filters ──────
+    # Downgrades weak BUY/STRONG BUY calls to WATCH/IGNORE using only
+    # as-of data (regime computed from index candles up to scan_date).
+    regime_info = get_market_regime_as_of(scan_date)
+    annotate_items_with_quality(items, action_key="historical_action", regime_info=regime_info)
+
+    # Re-derive outcomes from the FINAL (possibly downgraded) action so that
+    # summary metrics never mix a filtered action with a pre-filter outcome.
+    for it in items:
+        if it["error"] is not None or it["return_pct"] is None:
+            continue
+        action = it["historical_action"]
+        return_pct = it["return_pct"]
+        if action in ("STRONG BUY", "BUY"):
+            if return_pct > OUTCOME_THRESHOLD_PCT:
+                outcome = "Correct"
+            elif return_pct < -OUTCOME_THRESHOLD_PCT:
+                outcome = "Wrong"
+            else:
+                outcome = "Neutral"
+        elif action == "WATCH":
+            if abs(return_pct) <= WATCH_NEUTRAL_BAND_PCT:
+                outcome = "Neutral"
+            else:
+                outcome = "Correct" if return_pct > 0 else "Wrong"
+        else:  # IGNORE
+            outcome = "Correct" if return_pct <= OUTCOME_THRESHOLD_PCT else "Wrong"
+        if outcome != it["outcome"]:
+            it["outcome"] = outcome
+            it["what_happened"] = (
+                f"{it['stock']} {'rose' if return_pct >= 0 else 'fell'} from "
+                f"₹{it['price_on_scan_date']:.2f} to ₹{it['price_after_holding']:.2f} "
+                f"over the next {it['holding_period']} trading day(s) ({return_pct:+.1f}%). "
+                f"Signal was {action} after quality filtering, outcome: {outcome}."
+            )
 
     valid = [it for it in items if it["error"] is None]
     resolved = [it for it in valid if it["return_pct"] is not None]

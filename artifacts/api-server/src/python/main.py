@@ -230,8 +230,12 @@ def cmd_paper_basket(
     num_stocks: int = 10,
     quantity: int = 10,
     method: str = "opportunity_score",
+    min_score: float = 80.0,
+    min_confidence: float = 70.0,
+    min_rr: float = 2.5,
+    include_watch: bool = False,
 ) -> dict:
-    """Paper Basket Testing Layer (v0.9) — paper trading only, no real orders."""
+    """Paper Basket Testing Layer (v1.0) — paper trading only, no real orders."""
     from paper_basket import run_paper_basket
     state = _load_state()
     cash = state.get("cash", 5000.0)
@@ -242,6 +246,10 @@ def cmd_paper_basket(
         quantity=quantity,
         method=method,
         capital=cash,
+        min_score=min_score,
+        min_confidence=min_confidence,
+        min_rr=min_rr,
+        include_watch=include_watch,
     )
     return dict(result)
 
@@ -366,6 +374,10 @@ def main():
                 num_stocks     = int(args[3]) if len(args) > 3 else 10,
                 quantity       = int(args[4]) if len(args) > 4 else 10,
                 method         = args[5] if len(args) > 5 else "opportunity_score",
+                min_score      = float(args[6]) if len(args) > 6 else 80.0,
+                min_confidence = float(args[7]) if len(args) > 7 else 70.0,
+                min_rr         = float(args[8]) if len(args) > 8 else 2.5,
+                include_watch  = (args[9].lower() in ("1", "true", "yes")) if len(args) > 9 else False,
             )
         else:
             error_msg = f"Unknown command: {command}"

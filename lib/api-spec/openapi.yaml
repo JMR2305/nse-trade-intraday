@@ -1906,6 +1906,22 @@ components:
           type: string
           enum: [opportunity_score, gainers, volume_spike, sector_strength]
           default: opportunity_score
+        min_score:
+          type: number
+          default: 80
+          description: Minimum opportunity score for the improved filtered model.
+        min_confidence:
+          type: number
+          default: 70
+          description: Minimum confidence for the improved filtered model.
+        min_rr:
+          type: number
+          default: 2.5
+          description: Minimum risk/reward ratio for the improved filtered model.
+        include_watch:
+          type: boolean
+          default: false
+          description: Include WATCH signals in the improved filtered model (default off).
       required: [selection_date]
 
     PaperBasketItem:
@@ -1993,6 +2009,18 @@ components:
         summary:
           $ref: "#/components/schemas/PaperBasketSummary"
         warning:         { type: string }
+        filters:
+          $ref: "#/components/schemas/BasketFilters"
+        regime:
+          $ref: "#/components/schemas/MarketRegimeInfo"
+        improved:
+          $ref: "#/components/schemas/ImprovedBasket"
+        comparison:
+          type: array
+          items:
+            $ref: "#/components/schemas/BasketComparisonRow"
+        learning:
+          $ref: "#/components/schemas/SignalLearningState"
       required:
         - selection_date
         - buy_date
@@ -2004,6 +2032,84 @@ components:
         - items
         - summary
         - warning
+        - filters
+        - regime
+        - improved
+        - comparison
+        - learning
+
+    BasketFilters:
+      type: object
+      properties:
+        min_score:       { type: number }
+        min_confidence:  { type: number }
+        min_rr:          { type: number }
+        include_watch:   { type: boolean }
+      required: [min_score, min_confidence, min_rr, include_watch]
+
+    MarketRegimeInfo:
+      type: object
+      properties:
+        regime:        { type: string }
+        regime_score:  { type: number }
+        detail:        { type: string }
+      required: [regime, regime_score, detail]
+
+    ImprovedBasket:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaperBasketItem"
+        summary:
+          $ref: "#/components/schemas/PaperBasketSummary"
+        quality:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/BasketQualityInfo"
+        no_trades_message:
+          type: string
+          nullable: true
+      required: [items, summary, quality, no_trades_message]
+
+    BasketQualityInfo:
+      type: object
+      properties:
+        signal_quality:  { type: number }
+        quality_components:
+          type: object
+          additionalProperties: { type: number }
+        filter_passed:   { type: boolean }
+        filter_reasons:
+          type: array
+          items: { type: string }
+        action:          { type: string }
+      required: [signal_quality, quality_components, filter_passed, filter_reasons, action]
+
+    BasketComparisonRow:
+      type: object
+      properties:
+        model:             { type: string }
+        total_investment:  { type: number }
+        net_pnl:           { type: number }
+        net_return_pct:    { type: number }
+        win_rate:          { type: number }
+        trades:            { type: integer }
+        best_stock:        { type: string, nullable: true }
+        worst_stock:       { type: string, nullable: true }
+      required: [model, total_investment, net_pnl, net_return_pct, win_rate, trades, best_stock, worst_stock]
+
+    SignalLearningState:
+      type: object
+      properties:
+        weights:
+          type: object
+          additionalProperties: { type: number }
+        samples_learned: { type: integer }
+        updated_at:      { type: string }
+        records_used:    { type: integer }
+      required: [weights, samples_learned, updated_at]
 
     ErrorResponse:
       type: object

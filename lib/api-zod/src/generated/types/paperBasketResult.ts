@@ -5,8 +5,13 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { BasketComparisonRow } from './basketComparisonRow';
+import type { BasketFilters } from './basketFilters';
+import type { ImprovedBasket } from './improvedBasket';
+import type { MarketRegimeInfo } from './marketRegimeInfo';
 import type { PaperBasketItem } from './paperBasketItem';
 import type { PaperBasketSummary } from './paperBasketSummary';
+import type { SignalLearningState } from './signalLearningState';
 
 export interface PaperBasketResult {
   selection_date: string;
@@ -19,4 +24,9 @@ export interface PaperBasketResult {
   items: PaperBasketItem[];
   summary: PaperBasketSummary;
   warning: string;
+  filters: BasketFilters;
+  regime: MarketRegimeInfo;
+  improved: ImprovedBasket;
+  comparison: BasketComparisonRow[];
+  learning: SignalLearningState;
 }

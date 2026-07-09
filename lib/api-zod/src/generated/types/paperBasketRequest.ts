@@ -15,4 +15,12 @@ export interface PaperBasketRequest {
   num_stocks?: number;
   quantity?: number;
   method?: PaperBasketRequestMethod;
+  /** Minimum opportunity score for the improved filtered model. */
+  min_score?: number;
+  /** Minimum confidence for the improved filtered model. */
+  min_confidence?: number;
+  /** Minimum risk/reward ratio for the improved filtered model. */
+  min_rr?: number;
+  /** Include WATCH signals in the improved filtered model (default off). */
+  include_watch?: boolean;
 }

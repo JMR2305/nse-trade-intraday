@@ -851,6 +851,14 @@ export interface PaperBasketRequest {
   num_stocks?: number;
   quantity?: number;
   method?: PaperBasketRequestMethod;
+  /** Minimum opportunity score for the improved filtered model. */
+  min_score?: number;
+  /** Minimum confidence for the improved filtered model. */
+  min_confidence?: number;
+  /** Minimum risk/reward ratio for the improved filtered model. */
+  min_rr?: number;
+  /** Include WATCH signals in the improved filtered model (default off). */
+  include_watch?: boolean;
 }
 
 export interface PaperBasketItem {
@@ -887,6 +895,58 @@ export interface PaperBasketSummary {
   max_loss_rupees: number | null;
 }
 
+export interface BasketFilters {
+  min_score: number;
+  min_confidence: number;
+  min_rr: number;
+  include_watch: boolean;
+}
+
+export interface MarketRegimeInfo {
+  regime: string;
+  regime_score: number;
+  detail: string;
+}
+
+export type BasketQualityInfoQualityComponents = {[key: string]: number};
+
+export interface BasketQualityInfo {
+  signal_quality: number;
+  quality_components: BasketQualityInfoQualityComponents;
+  filter_passed: boolean;
+  filter_reasons: string[];
+  action: string;
+}
+
+export type ImprovedBasketQuality = {[key: string]: BasketQualityInfo};
+
+export interface ImprovedBasket {
+  items: PaperBasketItem[];
+  summary: PaperBasketSummary;
+  quality: ImprovedBasketQuality;
+  no_trades_message: string | null;
+}
+
+export interface BasketComparisonRow {
+  model: string;
+  total_investment: number;
+  net_pnl: number;
+  net_return_pct: number;
+  win_rate: number;
+  trades: number;
+  best_stock: string | null;
+  worst_stock: string | null;
+}
+
+export type SignalLearningStateWeights = {[key: string]: number};
+
+export interface SignalLearningState {
+  weights: SignalLearningStateWeights;
+  samples_learned: number;
+  updated_at: string;
+  records_used?: number;
+}
+
 export interface PaperBasketResult {
   selection_date: string;
   buy_date: string;
@@ -898,6 +958,11 @@ export interface PaperBasketResult {
   items: PaperBasketItem[];
   summary: PaperBasketSummary;
   warning: string;
+  filters: BasketFilters;
+  regime: MarketRegimeInfo;
+  improved: ImprovedBasket;
+  comparison: BasketComparisonRow[];
+  learning: SignalLearningState;
 }
 
 export interface ErrorResponse {
