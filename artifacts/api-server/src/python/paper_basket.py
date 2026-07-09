@@ -483,24 +483,24 @@ def run_paper_basket(
         min_score=min_score, min_confidence=min_confidence, min_rr=min_rr,
     )
 
-    allowed_actions = {"STRONG BUY", "BUY"}
-    if include_watch:
-        allowed_actions.add("WATCH")
-
     def _eligible(it: dict) -> bool:
         if it.get("error") is not None:
             return False
-        if it["historical_action"] not in allowed_actions:
+        # IGNORE means the signal was either poor quality or downgraded hard.
+        if it["historical_action"] == "IGNORE":
             return False
         if it["opportunity_score"] < min_score or it["confidence"] < min_confidence:
             return False
         if it["rr_ratio"] < min_rr:
             return False
-        # WATCH trades (when allowed) bypass the full strict gate but still
-        # respected the min score/confidence/RR floors above.
-        if not include_watch and not it["filter_passed"]:
-            return False
-        return True
+        if include_watch:
+            # Relaxed mode: WATCH signals allowed as long as the numeric
+            # floors above are met.
+            return True
+        # Strict mode: every strict gate must pass (sector, regime, trend,
+        # volume, reliability). The action LABEL (BUY vs WATCH) is just a
+        # score binning — a fully-passing setup is tradeable either way.
+        return it["filter_passed"]
 
     candidates = sorted(
         (it for it in annotated if _eligible(it)),

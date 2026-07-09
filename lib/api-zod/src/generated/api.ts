@@ -672,9 +672,9 @@ export const runPaperBasketBodyHoldingPeriodDefault = 5;
 export const runPaperBasketBodyNumStocksDefault = 10;
 export const runPaperBasketBodyQuantityDefault = 10;
 export const runPaperBasketBodyMethodDefault = `opportunity_score`;
-export const runPaperBasketBodyMinScoreDefault = 80;
-export const runPaperBasketBodyMinConfidenceDefault = 70;
-export const runPaperBasketBodyMinRrDefault = 2.5;
+export const runPaperBasketBodyMinScoreDefault = 50;
+export const runPaperBasketBodyMinConfidenceDefault = 50;
+export const runPaperBasketBodyMinRrDefault = 2;
 export const runPaperBasketBodyIncludeWatchDefault = false;
 
 export const RunPaperBasketBody = zod.object({

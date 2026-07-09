@@ -273,9 +273,9 @@ router.post("/paper-basket", async (req, res) => {
       num_stocks = 10,
       quantity = 10,
       method = "opportunity_score",
-      min_score = 80,
-      min_confidence = 70,
-      min_rr = 2.5,
+      min_score = 50,
+      min_confidence = 50,
+      min_rr = 2.0,
       include_watch = false,
     } = req.body as {
       selection_date: string;

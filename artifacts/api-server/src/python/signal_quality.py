@@ -23,9 +23,10 @@ from signal_learning import load_weights, FACTORS
 
 # ── Strict filter thresholds ─────────────────────────────────────────────────
 
-STRICT_MIN_SCORE       = 80.0   # opportunity score
-STRICT_MIN_CONFIDENCE  = 70.0
-STRICT_MIN_RR          = 2.5
+STRICT_MIN_SCORE       = 50.0   # opportunity score (composite rarely exceeds ~65 in practice)
+STRICT_MIN_CONFIDENCE  = 50.0
+STRICT_MIN_RR          = 2.0
+MIN_VOLUME_RATIO       = 0.75   # vs 20-day average — reject only unusually quiet stocks
 TOP_SECTORS            = 3
 ALLOWED_REGIMES        = {"Bullish", "Neutral-Bullish"}
 
@@ -252,7 +253,7 @@ def annotate_items_with_quality(
             regime=regime,
             above_ema20=bool(it.get("above_ema20")),
             above_ema50=bool(it.get("above_ema50")),
-            volume_above_avg=float(it.get("volume_ratio", 0.0) or 0.0) > 1.0,
+            volume_ratio=float(it.get("volume_ratio", 0.0) or 0.0),
             perf_score=float(it.get("trade_quality", 0.0)),
             total_trades=int(it.get("total_trades", 0) or 0),
             min_score=min_score, min_confidence=min_confidence, min_rr=min_rr,
@@ -286,7 +287,7 @@ def strict_filter_check(
     regime: str,
     above_ema20: bool,
     above_ema50: bool,
-    volume_above_avg: bool,
+    volume_ratio: float,
     perf_score: float,
     total_trades: int,
     min_score: float = STRICT_MIN_SCORE,
@@ -309,8 +310,10 @@ def strict_filter_check(
         failures.append("Price below EMA20")
     if not above_ema50:
         failures.append("Price below EMA50")
-    if not volume_above_avg:
-        failures.append("Volume below 20-day average")
+    if volume_ratio < MIN_VOLUME_RATIO:
+        failures.append(
+            f"Volume unusually quiet ({volume_ratio:.2f}x vs 20-day avg, need >= {MIN_VOLUME_RATIO:g}x)"
+        )
     if total_trades < MIN_RELIABLE_TRADES or perf_score < MIN_RELIABLE_PERF:
         failures.append(
             f"No reliable strategy (perf {perf_score:.1f}, {total_trades} trades — "

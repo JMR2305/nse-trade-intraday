@@ -1908,15 +1908,15 @@ components:
           default: opportunity_score
         min_score:
           type: number
-          default: 80
+          default: 50
           description: Minimum opportunity score for the improved filtered model.
         min_confidence:
           type: number
-          default: 70
+          default: 50
           description: Minimum confidence for the improved filtered model.
         min_rr:
           type: number
-          default: 2.5
+          default: 2
           description: Minimum risk/reward ratio for the improved filtered model.
         include_watch:
           type: boolean

@@ -188,9 +188,9 @@ export default function PaperBasketTest() {
   const [numStocks, setNumStocks] = useState(10);
   const [quantity, setQuantity] = useState(10);
   const [method, setMethod] = useState<PaperBasketRequestMethod>("opportunity_score");
-  const [minScore, setMinScore] = useState(80);
-  const [minConfidence, setMinConfidence] = useState(70);
-  const [minRr, setMinRr] = useState(2.5);
+  const [minScore, setMinScore] = useState(50);
+  const [minConfidence, setMinConfidence] = useState(50);
+  const [minRr, setMinRr] = useState(2.0);
   const [includeWatch, setIncludeWatch] = useState(false);
   const [result, setResult] = useState<PaperBasketResult | null>(null);
 
@@ -336,7 +336,7 @@ export default function PaperBasketTest() {
               <span className="text-xs font-mono text-muted-foreground">Include WATCH signals</span>
             </label>
             <span className="text-[11px] font-mono text-muted-foreground/60 pb-1.5">
-              Defaults 80 / 70 / 2.5 are the strict v1.0 quality gates.
+              Defaults 50 / 50 / 2.0 — plus sector, regime, trend and volume gates applied automatically.
             </span>
           </div>
         </div>
