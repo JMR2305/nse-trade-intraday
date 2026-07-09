@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { MultiPeriodEntry } from './multiPeriodEntry';
 import type { OptimizerResultParameters } from './optimizerResultParameters';
 
 export interface OptimizerResult {
@@ -24,6 +25,17 @@ export interface OptimizerResult {
   max_drawdown_pct: number;
   sharpe_ratio: number;
   avg_duration_bars: number;
-  score: number;
+  raw_score: number;
+  reliability_label: string;
+  reliability_multiplier: number;
+  final_score: number;
   warning?: string | null;
+  warnings: string[];
+  multi_period: MultiPeriodEntry[];
+  profitable_periods: number;
+  total_periods: number;
+  avg_win_rate_mp: number;
+  avg_drawdown_mp: number;
+  stability_score: number;
+  badge: string;
 }

@@ -634,6 +634,17 @@ export interface OptimizerRequest {
   top_n?: number;
 }
 
+export interface MultiPeriodEntry {
+  period: string;
+  bars: number;
+  trades: number;
+  win_rate: number;
+  net_pnl_pct: number;
+  max_drawdown_pct: number;
+  profitable: boolean;
+  skipped: boolean;
+}
+
 export type OptimizerResultParameters = { [key: string]: unknown };
 
 export interface OptimizerResult {
@@ -653,8 +664,19 @@ export interface OptimizerResult {
   max_drawdown_pct: number;
   sharpe_ratio: number;
   avg_duration_bars: number;
-  score: number;
+  raw_score: number;
+  reliability_label: string;
+  reliability_multiplier: number;
+  final_score: number;
   warning?: string | null;
+  warnings: string[];
+  multi_period: MultiPeriodEntry[];
+  profitable_periods: number;
+  total_periods: number;
+  avg_win_rate_mp: number;
+  avg_drawdown_mp: number;
+  stability_score: number;
+  badge: string;
 }
 
 export type GetMarketDataParams = {

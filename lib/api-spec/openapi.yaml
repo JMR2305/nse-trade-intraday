@@ -1489,6 +1489,19 @@ components:
         interval:        { type: string, default: "1d" }
         top_n:           { type: integer, default: 10 }
 
+    MultiPeriodEntry:
+      type: object
+      properties:
+        period:           { type: string }
+        bars:             { type: integer }
+        trades:           { type: integer }
+        win_rate:         { type: number }
+        net_pnl_pct:      { type: number }
+        max_drawdown_pct: { type: number }
+        profitable:       { type: boolean }
+        skipped:          { type: boolean }
+      required: [period, bars, trades, win_rate, net_pnl_pct, max_drawdown_pct, profitable, skipped]
+
     OptimizerResult:
       type: object
       properties:
@@ -1510,10 +1523,26 @@ components:
         max_drawdown_pct:   { type: number }
         sharpe_ratio:       { type: number }
         avg_duration_bars:  { type: number }
-        score:              { type: number }
+        raw_score:              { type: number }
+        reliability_label:      { type: string }
+        reliability_multiplier: { type: number }
+        final_score:            { type: number }
         warning:
           type: string
           nullable: true
+        warnings:
+          type: array
+          items: { type: string }
+        multi_period:
+          type: array
+          items:
+            $ref: "#/components/schemas/MultiPeriodEntry"
+        profitable_periods: { type: integer }
+        total_periods:      { type: integer }
+        avg_win_rate_mp:    { type: number }
+        avg_drawdown_mp:    { type: number }
+        stability_score:    { type: number }
+        badge:              { type: string }
       required:
         - rank
         - strategy_id
@@ -1531,4 +1560,15 @@ components:
         - max_drawdown_pct
         - sharpe_ratio
         - avg_duration_bars
-        - score
+        - raw_score
+        - reliability_label
+        - reliability_multiplier
+        - final_score
+        - warnings
+        - multi_period
+        - profitable_periods
+        - total_periods
+        - avg_win_rate_mp
+        - avg_drawdown_mp
+        - stability_score
+        - badge

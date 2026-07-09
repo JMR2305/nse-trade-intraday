@@ -533,8 +533,28 @@ export const RunOptimizerResponseItem = zod.object({
   "max_drawdown_pct": zod.number(),
   "sharpe_ratio": zod.number(),
   "avg_duration_bars": zod.number(),
-  "score": zod.number(),
-  "warning": zod.string().nullish()
+  "raw_score": zod.number(),
+  "reliability_label": zod.string(),
+  "reliability_multiplier": zod.number(),
+  "final_score": zod.number(),
+  "warning": zod.string().nullish(),
+  "warnings": zod.array(zod.string()),
+  "multi_period": zod.array(zod.object({
+  "period": zod.string(),
+  "bars": zod.number(),
+  "trades": zod.number(),
+  "win_rate": zod.number(),
+  "net_pnl_pct": zod.number(),
+  "max_drawdown_pct": zod.number(),
+  "profitable": zod.boolean(),
+  "skipped": zod.boolean()
+})),
+  "profitable_periods": zod.number(),
+  "total_periods": zod.number(),
+  "avg_win_rate_mp": zod.number(),
+  "avg_drawdown_mp": zod.number(),
+  "stability_score": zod.number(),
+  "badge": zod.string()
 })
 export const RunOptimizerResponse = zod.array(RunOptimizerResponseItem)
 

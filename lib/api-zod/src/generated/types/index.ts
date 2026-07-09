@@ -34,6 +34,7 @@ export * from './marketOverviewBankniftyTrend';
 export * from './marketOverviewNiftyTrend';
 export * from './marketOverviewRegime';
 export * from './marketOverviewVixStatus';
+export * from './multiPeriodEntry';
 export * from './opportunityItem';
 export * from './opportunityItemStatus';
 export * from './optimizerRequest';
