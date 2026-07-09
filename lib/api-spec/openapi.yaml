@@ -603,6 +603,107 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /historical-knowledge/build:
+    post:
+      operationId: buildHistoricalKnowledge
+      tags: [trading]
+      summary: Start a Historical Knowledge Base build
+      description: >
+        Simulates all existing strategies on NIFTY 50 stocks using Yahoo
+        Finance history (1, 3 or 5 years) and stores every simulated trade
+        with market context, indicator snapshots and decision metrics.
+        Research only — no orders. The build runs in the background; poll
+        the summary endpoint for progress.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                years:
+                  type: integer
+                  enum: [1, 3, 5]
+                  default: 5
+      responses:
+        "200":
+          description: Build started
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [started, years, status]
+                properties:
+                  started:
+                    type: boolean
+                  years:
+                    type: integer
+                  status:
+                    type: string
+        "409":
+          description: A build is already running
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /historical-knowledge/summary:
+    get:
+      operationId: getHistoricalKnowledgeSummary
+      tags: [trading]
+      summary: Historical Knowledge Base summary and build status
+      responses:
+        "200":
+          description: Aggregated knowledge base statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoricalKnowledgeSummary"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /historical-knowledge/trades:
+    get:
+      operationId: getHistoricalKnowledgeTrades
+      tags: [trading]
+      summary: List simulated historical trades
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 100 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+        - name: symbol
+          in: query
+          schema: { type: string }
+        - name: strategy
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Simulated trades page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoricalKnowledgeTrades"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /predictive-intelligence/evaluate:
     post:
       operationId: evaluatePredictiveIntelligence
@@ -2377,6 +2478,112 @@ components:
           type: array
           items: { type: string }
       required: [symbol, evidence, adjustment, warnings]
+
+    HistoricalKnowledgeBuildStatus:
+      type: object
+      properties:
+        status:           { type: string }
+        started_at:       { type: string }
+        finished_at:      { type: string }
+        years:            { type: integer }
+        period:           { type: string }
+        stocks_total:     { type: integer }
+        stocks_processed: { type: integer }
+        trades_generated: { type: integer }
+        strategies:
+          type: array
+          items: { type: string }
+        skipped_symbols:
+          type: array
+          items: { type: string }
+        logs:
+          type: array
+          items: { type: string }
+        warning: { type: string }
+      required: [status]
+
+    HistoricalKnowledgeGroupStat:
+      type: object
+      properties:
+        name:       { type: string }
+        trades:     { type: integer }
+        win_rate:   { type: number }
+        avg_return: { type: number }
+        net_pnl:    { type: number }
+      required: [name, trades, win_rate, avg_return, net_pnl]
+
+    HistoricalKnowledgeSummary:
+      type: object
+      properties:
+        build:
+          $ref: "#/components/schemas/HistoricalKnowledgeBuildStatus"
+        total_trades:       { type: integer }
+        winning_trades:     { type: integer }
+        losing_trades:      { type: integer }
+        win_rate:           { type: number }
+        average_return:     { type: number }
+        profit_factor:      { type: number }
+        stocks_covered:     { type: integer }
+        strategies_covered: { type: integer }
+        best_strategy:  { $ref: "#/components/schemas/HistoricalKnowledgeGroupStat" }
+        worst_strategy: { $ref: "#/components/schemas/HistoricalKnowledgeGroupStat" }
+        best_sector:    { $ref: "#/components/schemas/HistoricalKnowledgeGroupStat" }
+        worst_sector:   { $ref: "#/components/schemas/HistoricalKnowledgeGroupStat" }
+        warning: { type: string }
+      required:
+        [build, total_trades, winning_trades, losing_trades, win_rate,
+         average_return, profit_factor, stocks_covered, strategies_covered, warning]
+
+    HistoricalKnowledgeTrade:
+      type: object
+      properties:
+        id:                { type: integer }
+        symbol:            { type: string }
+        sector:            { type: string }
+        strategy:          { type: string }
+        entry_date:        { type: string }
+        exit_date:         { type: string }
+        holding_days:      { type: integer }
+        entry_price:       { type: number }
+        exit_price:        { type: number }
+        quantity:          { type: integer }
+        profit_loss:       { type: number }
+        return_percent:    { type: number }
+        winning:           { type: integer }
+        exit_reason:       { type: string }
+        market_regime:     { type: string }
+        nifty_trend:       { type: string }
+        banknifty_trend:   { type: string }
+        volatility_regime: { type: string }
+        ema9:              { type: number }
+        ema20:             { type: number }
+        ema50:             { type: number }
+        ema200:            { type: number }
+        rsi:               { type: number }
+        macd:              { type: number }
+        macd_signal:       { type: number }
+        vwap:              { type: number }
+        atr:               { type: number }
+        adx:               { type: number }
+        supertrend:        { type: number }
+        volume_ratio:      { type: number }
+        opportunity_score: { type: number }
+        trade_quality:     { type: number }
+        confidence:        { type: number }
+        risk_reward:       { type: number }
+        created_at:        { type: string }
+      required: [symbol, strategy, entry_date, exit_date]
+
+    HistoricalKnowledgeTrades:
+      type: object
+      properties:
+        total: { type: integer }
+        trades:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoricalKnowledgeTrade"
+        warning: { type: string }
+      required: [total, trades, warning]
 
     TradeIntelligenceBestWorst:
       type: object

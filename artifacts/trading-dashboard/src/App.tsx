@@ -20,6 +20,7 @@ import MarketScanner from "@/pages/MarketScanner";
 import MarketReplay from "@/pages/MarketReplay";
 import PaperBasketTest from "@/pages/PaperBasketTest";
 import TradeIntelligence from "@/pages/TradeIntelligence";
+import HistoricalKnowledge from "@/pages/HistoricalKnowledge";
 
 const queryClient = new QueryClient();
 
@@ -42,6 +43,7 @@ function Router() {
         <Route path="/optimizer" component={Optimizer} />
         <Route path="/paper-basket-test" component={PaperBasketTest} />
         <Route path="/trade-intelligence" component={TradeIntelligence} />
+        <Route path="/historical-knowledge" component={HistoricalKnowledge} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

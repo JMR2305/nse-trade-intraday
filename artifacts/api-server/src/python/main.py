@@ -281,6 +281,37 @@ def cmd_predictive_evaluate(candidate_json: str) -> dict:
     return evaluate_candidate(candidate)
 
 
+def cmd_historical_knowledge_build(years: str) -> dict:
+    """Run the full Historical Knowledge Base build (long-running)."""
+    from historical_knowledge_builder import build_knowledge_base
+    try:
+        y = int(years)
+    except ValueError:
+        y = 5
+    if y not in (1, 3, 5):
+        y = 5
+    return build_knowledge_base(y)
+
+
+def cmd_historical_knowledge_summary() -> dict:
+    from historical_knowledge_builder import knowledge_summary
+    return knowledge_summary()
+
+
+def cmd_historical_knowledge_trades(opts_json: str) -> dict:
+    from historical_knowledge_builder import knowledge_trades
+    try:
+        opts = json.loads(opts_json) if opts_json else {}
+    except Exception:
+        opts = {}
+    return knowledge_trades(
+        limit=int(opts.get("limit", 100)),
+        offset=int(opts.get("offset", 0)),
+        symbol=opts.get("symbol"),
+        strategy=opts.get("strategy"),
+    )
+
+
 def _read_json_cache(filename: str) -> list | dict:
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
     if os.path.exists(path):
@@ -414,6 +445,12 @@ def main():
             result = cmd_trade_intelligence_import()
         elif command == "predictive_intelligence" and len(args) >= 2:
             result = cmd_predictive_intelligence(args[1])
+        elif command == "historical_knowledge_build":
+            result = cmd_historical_knowledge_build(args[1] if len(args) >= 2 else "5")
+        elif command == "historical_knowledge_summary":
+            result = cmd_historical_knowledge_summary()
+        elif command == "historical_knowledge_trades":
+            result = cmd_historical_knowledge_trades(args[1] if len(args) >= 2 else "{}")
         elif command == "predictive_evaluate" and len(args) >= 2:
             result = cmd_predictive_evaluate(args[1])
         else:

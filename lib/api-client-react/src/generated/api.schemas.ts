@@ -1114,6 +1114,90 @@ export interface PredictiveEvidenceResult {
   warnings: string[];
 }
 
+export interface HistoricalKnowledgeBuildStatus {
+  status: string;
+  started_at?: string;
+  finished_at?: string;
+  years?: number;
+  period?: string;
+  stocks_total?: number;
+  stocks_processed?: number;
+  trades_generated?: number;
+  strategies?: string[];
+  skipped_symbols?: string[];
+  logs?: string[];
+  warning?: string;
+}
+
+export interface HistoricalKnowledgeGroupStat {
+  name: string;
+  trades: number;
+  win_rate: number;
+  avg_return: number;
+  net_pnl: number;
+}
+
+export interface HistoricalKnowledgeSummary {
+  build: HistoricalKnowledgeBuildStatus;
+  total_trades: number;
+  winning_trades: number;
+  losing_trades: number;
+  win_rate: number;
+  average_return: number;
+  profit_factor: number;
+  stocks_covered: number;
+  strategies_covered: number;
+  best_strategy?: HistoricalKnowledgeGroupStat;
+  worst_strategy?: HistoricalKnowledgeGroupStat;
+  best_sector?: HistoricalKnowledgeGroupStat;
+  worst_sector?: HistoricalKnowledgeGroupStat;
+  warning: string;
+}
+
+export interface HistoricalKnowledgeTrade {
+  id?: number;
+  symbol: string;
+  sector?: string;
+  strategy: string;
+  entry_date: string;
+  exit_date: string;
+  holding_days?: number;
+  entry_price?: number;
+  exit_price?: number;
+  quantity?: number;
+  profit_loss?: number;
+  return_percent?: number;
+  winning?: number;
+  exit_reason?: string;
+  market_regime?: string;
+  nifty_trend?: string;
+  banknifty_trend?: string;
+  volatility_regime?: string;
+  ema9?: number;
+  ema20?: number;
+  ema50?: number;
+  ema200?: number;
+  rsi?: number;
+  macd?: number;
+  macd_signal?: number;
+  vwap?: number;
+  atr?: number;
+  adx?: number;
+  supertrend?: number;
+  volume_ratio?: number;
+  opportunity_score?: number;
+  trade_quality?: number;
+  confidence?: number;
+  risk_reward?: number;
+  created_at?: string;
+}
+
+export interface HistoricalKnowledgeTrades {
+  total: number;
+  trades: HistoricalKnowledgeTrade[];
+  warning: string;
+}
+
 export interface TradeIntelligenceResult {
   summary: TradeIntelligenceSummary;
   trades: TradeIntelligenceRecord[];
@@ -1268,5 +1352,31 @@ export type GetTradeIntelligenceParams = {
  * Maximum number of trades to return.
  */
 limit?: number;
+};
+
+export type BuildHistoricalKnowledgeBodyYears = typeof BuildHistoricalKnowledgeBodyYears[keyof typeof BuildHistoricalKnowledgeBodyYears];
+
+
+export const BuildHistoricalKnowledgeBodyYears = {
+  NUMBER_1: 1,
+  NUMBER_3: 3,
+  NUMBER_5: 5,
+} as const;
+
+export type BuildHistoricalKnowledgeBody = {
+  years?: BuildHistoricalKnowledgeBodyYears;
+};
+
+export type BuildHistoricalKnowledge200 = {
+  started: boolean;
+  years: number;
+  status: string;
+};
+
+export type GetHistoricalKnowledgeTradesParams = {
+limit?: number;
+offset?: number;
+symbol?: string;
+strategy?: string;
 };
 

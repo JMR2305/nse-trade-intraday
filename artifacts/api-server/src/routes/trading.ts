@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { spawn } from "child_process";
 import path from "path";
+import fs from "fs";
 
 const router: IRouter = Router();
 
@@ -307,6 +308,89 @@ router.post("/predictive-intelligence/evaluate", async (req, res) => {
       return;
     }
     const data = await runPython(["predictive_evaluate", JSON.stringify(candidate)]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ── Historical Knowledge Base (Sprint 3 — Module 2A) ─────────────────────────
+// Builds a research dataset by simulating existing strategies on Yahoo
+// Finance history. Research only — no orders. The build is long-running
+// (NIFTY 50 × 6 strategies × up to 5 years), so it runs as a detached
+// python process and the UI polls the summary endpoint for progress.
+
+let hkBuildRunning = false;
+
+const HK_STATUS_PATH = path.join(PYTHON_DIR, "historical_knowledge_status.json");
+
+// Durable cross-process check: status file says "running" AND the recorded
+// builder pid is still alive. Survives API server restarts.
+function hkStatusFileRunning(): boolean {
+  try {
+    const status = JSON.parse(fs.readFileSync(HK_STATUS_PATH, "utf-8"));
+    if (status?.status !== "running") return false;
+    const pid = Number(status?.pid);
+    if (!Number.isInteger(pid) || pid <= 0) return false;
+    try {
+      process.kill(pid, 0);
+      return true; // builder process is alive
+    } catch {
+      return false; // stale status — builder is gone (python side reconciles it)
+    }
+  } catch {
+    return false;
+  }
+}
+
+// POST /api/historical-knowledge/build
+router.post("/historical-knowledge/build", async (req, res) => {
+  try {
+    const years = [1, 3, 5].includes(Number(req.body?.years)) ? Number(req.body.years) : 5;
+
+    // Check for an in-flight build (this process, or status file says running)
+    if (hkBuildRunning || hkStatusFileRunning()) {
+      res.status(409).json({ error: "A build is already running", status: "running" });
+      return;
+    }
+
+    hkBuildRunning = true;
+    const proc = spawn(
+      PYTHON_BIN,
+      [path.join(PYTHON_DIR, "main.py"), "historical_knowledge_build", String(years)],
+      { cwd: PYTHON_DIR, detached: true, stdio: "ignore" },
+    );
+    proc.on("exit", () => { hkBuildRunning = false; });
+    proc.on("error", () => { hkBuildRunning = false; });
+    proc.unref();
+
+    res.json({ started: true, years, status: "running" });
+  } catch (err: unknown) {
+    hkBuildRunning = false;
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/historical-knowledge/summary
+router.get("/historical-knowledge/summary", async (_req, res) => {
+  try {
+    const data = await runPython(["historical_knowledge_summary"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/historical-knowledge/trades
+router.get("/historical-knowledge/trades", async (req, res) => {
+  try {
+    const opts = {
+      limit: Number(req.query.limit) || 100,
+      offset: Number(req.query.offset) || 0,
+      symbol: req.query.symbol ? String(req.query.symbol) : undefined,
+      strategy: req.query.strategy ? String(req.query.strategy) : undefined,
+    };
+    const data = await runPython(["historical_knowledge_trades", JSON.stringify(opts)]);
     res.json(data);
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });

@@ -1030,6 +1030,137 @@ export const GetPredictiveIntelligenceResponse = zod.object({
 
 
 /**
+ * Simulates all existing strategies on NIFTY 50 stocks using Yahoo Finance history (1, 3 or 5 years) and stores every simulated trade with market context, indicator snapshots and decision metrics. Research only — no orders. The build runs in the background; poll the summary endpoint for progress.
+ * @summary Start a Historical Knowledge Base build
+ */
+export const buildHistoricalKnowledgeBodyYearsDefault = 5;
+
+export const BuildHistoricalKnowledgeBody = zod.object({
+  "years": zod.union([zod.literal(1),zod.literal(3),zod.literal(5)]).default(buildHistoricalKnowledgeBodyYearsDefault)
+})
+
+export const BuildHistoricalKnowledgeResponse = zod.object({
+  "started": zod.boolean(),
+  "years": zod.number(),
+  "status": zod.string()
+})
+
+
+/**
+ * @summary Historical Knowledge Base summary and build status
+ */
+export const GetHistoricalKnowledgeSummaryResponse = zod.object({
+  "build": zod.object({
+  "status": zod.string(),
+  "started_at": zod.string().optional(),
+  "finished_at": zod.string().optional(),
+  "years": zod.number().optional(),
+  "period": zod.string().optional(),
+  "stocks_total": zod.number().optional(),
+  "stocks_processed": zod.number().optional(),
+  "trades_generated": zod.number().optional(),
+  "strategies": zod.array(zod.string()).optional(),
+  "skipped_symbols": zod.array(zod.string()).optional(),
+  "logs": zod.array(zod.string()).optional(),
+  "warning": zod.string().optional()
+}),
+  "total_trades": zod.number(),
+  "winning_trades": zod.number(),
+  "losing_trades": zod.number(),
+  "win_rate": zod.number(),
+  "average_return": zod.number(),
+  "profit_factor": zod.number(),
+  "stocks_covered": zod.number(),
+  "strategies_covered": zod.number(),
+  "best_strategy": zod.object({
+  "name": zod.string(),
+  "trades": zod.number(),
+  "win_rate": zod.number(),
+  "avg_return": zod.number(),
+  "net_pnl": zod.number()
+}).optional(),
+  "worst_strategy": zod.object({
+  "name": zod.string(),
+  "trades": zod.number(),
+  "win_rate": zod.number(),
+  "avg_return": zod.number(),
+  "net_pnl": zod.number()
+}).optional(),
+  "best_sector": zod.object({
+  "name": zod.string(),
+  "trades": zod.number(),
+  "win_rate": zod.number(),
+  "avg_return": zod.number(),
+  "net_pnl": zod.number()
+}).optional(),
+  "worst_sector": zod.object({
+  "name": zod.string(),
+  "trades": zod.number(),
+  "win_rate": zod.number(),
+  "avg_return": zod.number(),
+  "net_pnl": zod.number()
+}).optional(),
+  "warning": zod.string()
+})
+
+
+/**
+ * @summary List simulated historical trades
+ */
+export const getHistoricalKnowledgeTradesQueryLimitDefault = 100;
+export const getHistoricalKnowledgeTradesQueryOffsetDefault = 0;
+
+export const GetHistoricalKnowledgeTradesQueryParams = zod.object({
+  "limit": zod.coerce.number().default(getHistoricalKnowledgeTradesQueryLimitDefault),
+  "offset": zod.coerce.number().default(getHistoricalKnowledgeTradesQueryOffsetDefault),
+  "symbol": zod.coerce.string().optional(),
+  "strategy": zod.coerce.string().optional()
+})
+
+export const GetHistoricalKnowledgeTradesResponse = zod.object({
+  "total": zod.number(),
+  "trades": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "symbol": zod.string(),
+  "sector": zod.string().optional(),
+  "strategy": zod.string(),
+  "entry_date": zod.string(),
+  "exit_date": zod.string(),
+  "holding_days": zod.number().optional(),
+  "entry_price": zod.number().optional(),
+  "exit_price": zod.number().optional(),
+  "quantity": zod.number().optional(),
+  "profit_loss": zod.number().optional(),
+  "return_percent": zod.number().optional(),
+  "winning": zod.number().optional(),
+  "exit_reason": zod.string().optional(),
+  "market_regime": zod.string().optional(),
+  "nifty_trend": zod.string().optional(),
+  "banknifty_trend": zod.string().optional(),
+  "volatility_regime": zod.string().optional(),
+  "ema9": zod.number().optional(),
+  "ema20": zod.number().optional(),
+  "ema50": zod.number().optional(),
+  "ema200": zod.number().optional(),
+  "rsi": zod.number().optional(),
+  "macd": zod.number().optional(),
+  "macd_signal": zod.number().optional(),
+  "vwap": zod.number().optional(),
+  "atr": zod.number().optional(),
+  "adx": zod.number().optional(),
+  "supertrend": zod.number().optional(),
+  "volume_ratio": zod.number().optional(),
+  "opportunity_score": zod.number().optional(),
+  "trade_quality": zod.number().optional(),
+  "confidence": zod.number().optional(),
+  "risk_reward": zod.number().optional(),
+  "created_at": zod.string().optional()
+})),
+  "warning": zod.string()
+})
+
+
+/**
  * Compares an explicit candidate trade setup (symbol plus any known indicator / AI-metric values) against similar historical trades.
  * @summary Evaluate an explicit candidate setup
  */

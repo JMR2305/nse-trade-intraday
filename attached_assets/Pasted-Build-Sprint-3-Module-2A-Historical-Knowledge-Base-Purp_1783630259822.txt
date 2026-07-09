@@ -1,0 +1,119 @@
+Build Sprint 3 - Module 2A: Historical Knowledge Base.
+
+Purpose:
+Create a large historical training dataset from Yahoo Finance before building the Learning Engine.
+
+Important:
+- Do not change existing strategy logic.
+- Do not place real orders.
+- Paper/research only.
+- Use Yahoo Finance data only.
+- If Yahoo data fails, skip that symbol and log it. Do not use mock data for historical knowledge.
+
+1. Create backend module:
+backend/historical_knowledge_builder.py
+
+2. Data universe:
+Use NIFTY 50 stocks.
+Convert symbols to Yahoo format:
+SBIN -> SBIN.NS
+RELIANCE -> RELIANCE.NS
+
+3. Historical period:
+Default: 5 years
+Options:
+- 1 year
+- 3 years
+- 5 years
+
+4. Run all existing strategies:
+- EMA Cross
+- MACD Cross
+- RSI Mean Reversion
+- Trend Rider
+- Breakout
+- Supertrend
+
+Do not modify strategy rules.
+
+5. For every simulated trade, store:
+
+symbol
+sector
+strategy
+entry_date
+exit_date
+holding_days
+entry_price
+exit_price
+quantity
+profit_loss
+return_percent
+winning
+
+Market context:
+market_regime
+nifty_trend
+banknifty_trend
+volatility_regime
+
+Indicator snapshot at entry:
+ema9
+ema20
+ema50
+ema200
+rsi
+macd
+macd_signal
+vwap
+atr
+adx
+supertrend
+volume_ratio
+
+Decision metrics:
+opportunity_score
+trade_quality
+confidence
+risk_reward
+
+6. Create database table:
+historical_knowledge_trades
+
+7. Prevent duplicates using:
+symbol + strategy + entry_date + exit_date
+
+8. Add API endpoints:
+
+POST /api/historical-knowledge/build
+GET /api/historical-knowledge/summary
+GET /api/historical-knowledge/trades
+
+9. Add simple UI section/page:
+Historical Knowledge
+
+Show:
+- Build status
+- Stocks processed
+- Strategies processed
+- Total simulated trades
+- Winning trades
+- Losing trades
+- Win rate
+- Average return
+- Profit factor
+- Best strategy
+- Worst strategy
+- Best sector
+- Worst sector
+
+10. Add logs:
+- Symbols skipped
+- Data download failures
+- Strategy errors
+- Number of trades generated per symbol
+
+11. Add warning:
+“This is historical simulation using Yahoo Finance data. It is for research only and not investment advice.”
+
+Focus on correctness, clean storage, and no lookahead bias.

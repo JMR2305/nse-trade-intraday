@@ -24,12 +24,17 @@ import type {
   AiDecision,
   BacktestRequest,
   BacktestResult,
+  BuildHistoricalKnowledge200,
+  BuildHistoricalKnowledgeBody,
   ErrorResponse,
+  GetHistoricalKnowledgeTradesParams,
   GetIndicatorsParams,
   GetMarketDataParams,
   GetMarketReplayParams,
   GetTradeIntelligenceParams,
   HealthStatus,
+  HistoricalKnowledgeSummary,
+  HistoricalKnowledgeTrades,
   IndicatorResult,
   LearningSummary,
   MarketContext,
@@ -1869,6 +1874,239 @@ export function useGetPredictiveIntelligence<TData = Awaited<ReturnType<typeof g
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetPredictiveIntelligenceQueryOptions(symbol,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getBuildHistoricalKnowledgeUrl = () => {
+
+
+
+
+  return `/api/historical-knowledge/build`
+}
+
+/**
+ * Simulates all existing strategies on NIFTY 50 stocks using Yahoo Finance history (1, 3 or 5 years) and stores every simulated trade with market context, indicator snapshots and decision metrics. Research only — no orders. The build runs in the background; poll the summary endpoint for progress.
+ * @summary Start a Historical Knowledge Base build
+ */
+export const buildHistoricalKnowledge = async (buildHistoricalKnowledgeBody?: BuildHistoricalKnowledgeBody, options?: RequestInit): Promise<BuildHistoricalKnowledge200> => {
+
+  return customFetch<BuildHistoricalKnowledge200>(getBuildHistoricalKnowledgeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(buildHistoricalKnowledgeBody)
+  }
+);}
+
+
+
+
+
+export const getBuildHistoricalKnowledgeMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof buildHistoricalKnowledge>>, TError,{data?: BodyType<BuildHistoricalKnowledgeBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof buildHistoricalKnowledge>>, TError,{data?: BodyType<BuildHistoricalKnowledgeBody>}, TContext> => {
+
+const mutationKey = ['buildHistoricalKnowledge'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof buildHistoricalKnowledge>>, {data?: BodyType<BuildHistoricalKnowledgeBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  buildHistoricalKnowledge(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type BuildHistoricalKnowledgeMutationResult = NonNullable<Awaited<ReturnType<typeof buildHistoricalKnowledge>>>
+    export type BuildHistoricalKnowledgeMutationBody = BodyType<BuildHistoricalKnowledgeBody> | undefined
+    export type BuildHistoricalKnowledgeMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Start a Historical Knowledge Base build
+ */
+export const useBuildHistoricalKnowledge = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof buildHistoricalKnowledge>>, TError,{data?: BodyType<BuildHistoricalKnowledgeBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof buildHistoricalKnowledge>>,
+        TError,
+        {data?: BodyType<BuildHistoricalKnowledgeBody>},
+        TContext
+      > => {
+      return useMutation(getBuildHistoricalKnowledgeMutationOptions(options));
+    }
+
+export const getGetHistoricalKnowledgeSummaryUrl = () => {
+
+
+
+
+  return `/api/historical-knowledge/summary`
+}
+
+/**
+ * @summary Historical Knowledge Base summary and build status
+ */
+export const getHistoricalKnowledgeSummary = async ( options?: RequestInit): Promise<HistoricalKnowledgeSummary> => {
+
+  return customFetch<HistoricalKnowledgeSummary>(getGetHistoricalKnowledgeSummaryUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetHistoricalKnowledgeSummaryQueryKey = () => {
+    return [
+    `/api/historical-knowledge/summary`
+    ] as const;
+    }
+
+
+export const getGetHistoricalKnowledgeSummaryQueryOptions = <TData = Awaited<ReturnType<typeof getHistoricalKnowledgeSummary>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHistoricalKnowledgeSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetHistoricalKnowledgeSummaryQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHistoricalKnowledgeSummary>>> = ({ signal }) => getHistoricalKnowledgeSummary({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getHistoricalKnowledgeSummary>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetHistoricalKnowledgeSummaryQueryResult = NonNullable<Awaited<ReturnType<typeof getHistoricalKnowledgeSummary>>>
+export type GetHistoricalKnowledgeSummaryQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Historical Knowledge Base summary and build status
+ */
+
+export function useGetHistoricalKnowledgeSummary<TData = Awaited<ReturnType<typeof getHistoricalKnowledgeSummary>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHistoricalKnowledgeSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetHistoricalKnowledgeSummaryQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetHistoricalKnowledgeTradesUrl = (params?: GetHistoricalKnowledgeTradesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/historical-knowledge/trades?${stringifiedParams}` : `/api/historical-knowledge/trades`
+}
+
+/**
+ * @summary List simulated historical trades
+ */
+export const getHistoricalKnowledgeTrades = async (params?: GetHistoricalKnowledgeTradesParams, options?: RequestInit): Promise<HistoricalKnowledgeTrades> => {
+
+  return customFetch<HistoricalKnowledgeTrades>(getGetHistoricalKnowledgeTradesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetHistoricalKnowledgeTradesQueryKey = (params?: GetHistoricalKnowledgeTradesParams,) => {
+    return [
+    `/api/historical-knowledge/trades`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetHistoricalKnowledgeTradesQueryOptions = <TData = Awaited<ReturnType<typeof getHistoricalKnowledgeTrades>>, TError = ErrorType<ErrorResponse>>(params?: GetHistoricalKnowledgeTradesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHistoricalKnowledgeTrades>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetHistoricalKnowledgeTradesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHistoricalKnowledgeTrades>>> = ({ signal }) => getHistoricalKnowledgeTrades(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getHistoricalKnowledgeTrades>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetHistoricalKnowledgeTradesQueryResult = NonNullable<Awaited<ReturnType<typeof getHistoricalKnowledgeTrades>>>
+export type GetHistoricalKnowledgeTradesQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary List simulated historical trades
+ */
+
+export function useGetHistoricalKnowledgeTrades<TData = Awaited<ReturnType<typeof getHistoricalKnowledgeTrades>>, TError = ErrorType<ErrorResponse>>(
+ params?: GetHistoricalKnowledgeTradesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHistoricalKnowledgeTrades>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetHistoricalKnowledgeTradesQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

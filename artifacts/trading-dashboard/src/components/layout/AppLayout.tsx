@@ -19,6 +19,7 @@ import {
   Clock,
   Layers,
   Database,
+  BookOpenText,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
@@ -60,6 +61,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         { href: "/optimizer",    label: "Optimizer",     icon: Settings2    },
         { href: "/paper-basket-test", label: "Paper Basket Test", icon: Layers },
         { href: "/trade-intelligence", label: "Trade Intelligence", icon: Database },
+        { href: "/historical-knowledge", label: "Historical Knowledge", icon: BookOpenText },
       ],
     },
   ];
