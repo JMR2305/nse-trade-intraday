@@ -460,7 +460,7 @@ def build_knowledge_base(years: int = 5) -> dict:
         "pid": os.getpid(),
         "years": int(years), "period": period,
         "stocks_total": len(NIFTY_50), "stocks_processed": 0,
-        "strategies": LAB_STRATEGY_IDS, "trades_generated": 0,
+        "strategies": LAB_STRATEGY_IDS, "trades_generated": 0, "new_trades_inserted": 0,
         "skipped_symbols": skipped, "logs": logs, "warning": RESEARCH_WARNING,
     }
     _write_status(status)
@@ -485,6 +485,7 @@ def _run_build(status: dict, period: str, logs: list[str], skipped: list[str]) -
         logs.append("WARNING: BANKNIFTY index data unavailable — trend defaults used.")
 
     total_inserted = 0
+    total_simulated = 0
     conn = _connect()
     cols = ["symbol", "sector", "strategy", "entry_date", "exit_date", "holding_days",
             "entry_price", "exit_price", "quantity", "profit_loss", "return_percent",
@@ -536,16 +537,21 @@ def _run_build(status: dict, period: str, logs: list[str], skipped: list[str]) -
                 conn.commit()
                 total_inserted += cur.rowcount if cur.rowcount > 0 else 0
                 sym_trades += len(trades)
+                total_simulated += len(trades)
 
         logs.append(f"OK {symbol}: {sym_trades} trades generated")
         status["stocks_processed"] += 1
-        status["trades_generated"] = total_inserted
+        # trades_generated = trades simulated this run (what the user expects
+        # to see); new_trades_inserted = rows actually added after dedupe.
+        status["trades_generated"] = total_simulated
+        status["new_trades_inserted"] = total_inserted
         _write_status(status)
 
     conn.close()
     status["status"] = "completed"
     status["finished_at"] = datetime.now().isoformat()
-    status["trades_generated"] = total_inserted
+    status["trades_generated"] = total_simulated
+    status["new_trades_inserted"] = total_inserted
     _write_status(status)
     return status
 

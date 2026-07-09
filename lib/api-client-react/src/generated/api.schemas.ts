@@ -1123,6 +1123,7 @@ export interface HistoricalKnowledgeBuildStatus {
   stocks_total?: number;
   stocks_processed?: number;
   trades_generated?: number;
+  new_trades_inserted?: number;
   strategies?: string[];
   skipped_symbols?: string[];
   logs?: string[];

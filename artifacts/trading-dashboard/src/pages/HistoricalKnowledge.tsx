@@ -170,10 +170,12 @@ export default function HistoricalKnowledge() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
               <Stat label="Stocks Processed" value={`${build.stocks_processed ?? 0} / ${build.stocks_total ?? 0}`} />
               <Stat label="Strategies" value={String(build.strategies?.length ?? 6)} />
-              <Stat label="Trades Generated" value={String(build.trades_generated ?? 0)} />
+              <Stat label="Trades Simulated" value={String(build.trades_generated ?? 0)} />
+              <Stat label="New Trades Added" value={String(build.new_trades_inserted ?? 0)}
+                valueClass={(build.new_trades_inserted ?? 0) > 0 ? "text-emerald-400" : undefined} />
               <Stat label="Symbols Skipped" value={String(build.skipped_symbols?.length ?? 0)}
                 valueClass={(build.skipped_symbols?.length ?? 0) > 0 ? "text-orange-400" : undefined} />
             </div>

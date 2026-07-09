@@ -377,6 +377,7 @@ router.post("/historical-knowledge/build", async (req, res) => {
         stocks_total: 50,
         stocks_processed: 0,
         trades_generated: 0,
+        new_trades_inserted: 0,
         skipped_symbols: [],
         logs: ["Starting build process…"],
       }));

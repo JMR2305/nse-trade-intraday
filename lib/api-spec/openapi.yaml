@@ -2490,6 +2490,7 @@ components:
         stocks_total:     { type: integer }
         stocks_processed: { type: integer }
         trades_generated: { type: integer }
+        new_trades_inserted: { type: integer }
         strategies:
           type: array
           items: { type: string }

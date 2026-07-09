@@ -1059,6 +1059,7 @@ export const GetHistoricalKnowledgeSummaryResponse = zod.object({
   "stocks_total": zod.number().optional(),
   "stocks_processed": zod.number().optional(),
   "trades_generated": zod.number().optional(),
+  "new_trades_inserted": zod.number().optional(),
   "strategies": zod.array(zod.string()).optional(),
   "skipped_symbols": zod.array(zod.string()).optional(),
   "logs": zod.array(zod.string()).optional(),
