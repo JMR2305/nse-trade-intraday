@@ -13,4 +13,5 @@ export interface BacktestRequest {
   end_date: string;
   initial_capital?: number;
   interval?: string;
+  debug?: boolean;
 }

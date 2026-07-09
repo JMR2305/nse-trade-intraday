@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { BacktestTrade } from './backtestTrade';
+import type { DebugCandle } from './debugCandle';
+import type { RejectedTrade } from './rejectedTrade';
+import type { ValidationSummary } from './validationSummary';
 
 export interface BacktestResult {
   symbol: string;
@@ -37,4 +40,7 @@ export interface BacktestResult {
   equity_curve: number[];
   computed_at: string;
   error?: string | null;
+  validation: ValidationSummary;
+  debug_candles: DebugCandle[];
+  rejected_trades_detail: RejectedTrade[];
 }

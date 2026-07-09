@@ -324,7 +324,8 @@ export const RunBacktestBody = zod.object({
   "start_date": zod.string(),
   "end_date": zod.string(),
   "initial_capital": zod.number().optional(),
-  "interval": zod.string().optional()
+  "interval": zod.string().optional(),
+  "debug": zod.boolean().optional()
 })
 
 export const RunBacktestResponse = zod.object({
@@ -372,7 +373,60 @@ export const RunBacktestResponse = zod.object({
 })),
   "equity_curve": zod.array(zod.number()),
   "computed_at": zod.string(),
-  "error": zod.string().nullish()
+  "error": zod.string().nullish(),
+  "validation": zod.object({
+  "total_candles": zod.number(),
+  "warmup_candles": zod.number(),
+  "active_candles": zod.number(),
+  "buy_signals_fired": zod.number(),
+  "buy_signals_while_flat": zod.number(),
+  "sell_signals_fired": zod.number(),
+  "executed_trades": zod.number(),
+  "rejected_trades": zod.number(),
+  "skipped_while_invested": zod.number(),
+  "rejection_breakdown": zod.record(zod.string(), zod.unknown()),
+  "rule_failure_counts": zod.record(zod.string(), zod.unknown()),
+  "most_common_failure": zod.string(),
+  "zero_trade_diagnosis": zod.array(zod.string()),
+  "log_file_path": zod.string()
+}),
+  "debug_candles": zod.array(zod.object({
+  "date": zod.string(),
+  "close": zod.number(),
+  "ema9": zod.number(),
+  "ema20": zod.number(),
+  "ema50": zod.number(),
+  "rsi": zod.number(),
+  "macd_line": zod.number(),
+  "macd_signal": zod.number(),
+  "vwap": zod.number(),
+  "adx": zod.number(),
+  "bb_upper": zod.number(),
+  "bb_lower": zod.number(),
+  "volume_ratio": zod.number(),
+  "in_position": zod.boolean(),
+  "buy_signal": zod.boolean(),
+  "sell_signal": zod.boolean(),
+  "failed_rules": zod.array(zod.string()),
+  "rule_checks": zod.array(zod.object({
+  "rule": zod.string(),
+  "current_value": zod.string(),
+  "required_value": zod.string(),
+  "passed": zod.boolean()
+}))
+})),
+  "rejected_trades_detail": zod.array(zod.object({
+  "date": zod.string(),
+  "close": zod.number(),
+  "rejection_type": zod.string(),
+  "explanation": zod.string(),
+  "rule_checks": zod.array(zod.object({
+  "rule": zod.string(),
+  "current_value": zod.string(),
+  "required_value": zod.string(),
+  "passed": zod.boolean()
+}))
+}))
 })
 
 

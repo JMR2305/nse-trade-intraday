@@ -1178,6 +1178,87 @@ components:
           items: { type: string }
       required: [id, name, description, type, best_interval, risk_pct, entry_rules, exit_rules]
 
+    RuleCheck:
+      type: object
+      properties:
+        rule:           { type: string }
+        current_value:  { type: string }
+        required_value: { type: string }
+        passed:         { type: boolean }
+      required: [rule, current_value, required_value, passed]
+
+    DebugCandle:
+      type: object
+      properties:
+        date:         { type: string }
+        close:        { type: number }
+        ema9:         { type: number }
+        ema20:        { type: number }
+        ema50:        { type: number }
+        rsi:          { type: number }
+        macd_line:    { type: number }
+        macd_signal:  { type: number }
+        vwap:         { type: number }
+        adx:          { type: number }
+        bb_upper:     { type: number }
+        bb_lower:     { type: number }
+        volume_ratio: { type: number }
+        in_position:  { type: boolean }
+        buy_signal:   { type: boolean }
+        sell_signal:  { type: boolean }
+        failed_rules:
+          type: array
+          items: { type: string }
+        rule_checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/RuleCheck"
+      required: [date, close, ema9, ema20, ema50, rsi, macd_line, macd_signal,
+                 vwap, adx, bb_upper, bb_lower, volume_ratio, in_position,
+                 buy_signal, sell_signal, failed_rules, rule_checks]
+
+    RejectedTrade:
+      type: object
+      properties:
+        date:           { type: string }
+        close:          { type: number }
+        rejection_type: { type: string }
+        explanation:    { type: string }
+        rule_checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/RuleCheck"
+      required: [date, close, rejection_type, explanation, rule_checks]
+
+    ValidationSummary:
+      type: object
+      properties:
+        total_candles:          { type: integer }
+        warmup_candles:         { type: integer }
+        active_candles:         { type: integer }
+        buy_signals_fired:      { type: integer }
+        buy_signals_while_flat: { type: integer }
+        sell_signals_fired:     { type: integer }
+        executed_trades:        { type: integer }
+        rejected_trades:        { type: integer }
+        skipped_while_invested: { type: integer }
+        rejection_breakdown:
+          type: object
+          additionalProperties: true
+        rule_failure_counts:
+          type: object
+          additionalProperties: true
+        most_common_failure:    { type: string }
+        zero_trade_diagnosis:
+          type: array
+          items: { type: string }
+        log_file_path:          { type: string }
+      required: [total_candles, warmup_candles, active_candles,
+                 buy_signals_fired, buy_signals_while_flat, sell_signals_fired,
+                 executed_trades, rejected_trades, skipped_while_invested,
+                 rejection_breakdown, rule_failure_counts, most_common_failure,
+                 zero_trade_diagnosis, log_file_path]
+
     BacktestRequest:
       type: object
       properties:
@@ -1187,6 +1268,7 @@ components:
         end_date:        { type: string }
         initial_capital: { type: number }
         interval:        { type: string }
+        debug:           { type: boolean }
       required: [symbol, strategy, start_date, end_date]
 
     BacktestTrade:
@@ -1250,12 +1332,23 @@ components:
         error:
           type: string
           nullable: true
+        validation:
+          $ref: "#/components/schemas/ValidationSummary"
+        debug_candles:
+          type: array
+          items:
+            $ref: "#/components/schemas/DebugCandle"
+        rejected_trades_detail:
+          type: array
+          items:
+            $ref: "#/components/schemas/RejectedTrade"
       required: [symbol, strategy, strategy_name, interval, start_date, end_date,
                  initial_capital, final_capital, total_trades, winning_trades,
                  losing_trades, breakeven_trades, win_rate, net_pnl, net_pnl_pct,
                  profit_factor, max_drawdown, max_drawdown_pct, avg_profit, avg_loss,
                  best_trade, worst_trade, avg_duration_bars, sharpe_ratio,
-                 data_source, trades, equity_curve, computed_at]
+                 data_source, trades, equity_curve, computed_at,
+                 validation, debug_candles, rejected_trades_detail]
 
     ErrorResponse:
       type: object

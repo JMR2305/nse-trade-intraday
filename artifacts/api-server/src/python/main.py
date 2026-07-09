@@ -175,6 +175,7 @@ def cmd_backtest(
     end_date: str,
     initial_capital: float = 5000.0,
     interval: str = "1d",
+    debug: bool = False,
 ) -> dict:
     from backtesting_engine import run_backtest
     result = run_backtest(
@@ -184,6 +185,7 @@ def cmd_backtest(
         end_date=end_date,
         initial_capital=initial_capital,
         interval=interval,
+        debug=debug,
     )
     return dict(result)
 
@@ -269,6 +271,7 @@ def main():
                 end_date        = args[4],
                 initial_capital = float(args[5]) if len(args) > 5 else 5000.0,
                 interval        = args[6] if len(args) > 6 else "1d",
+                debug           = (args[7].lower() == "true") if len(args) > 7 else False,
             )
         elif command == "strategies":
             result = cmd_strategies()

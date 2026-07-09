@@ -12,6 +12,7 @@ import {
   Brain,
   RotateCcw,
   FlaskConical,
+  ShieldCheck,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
@@ -45,7 +46,8 @@ export function AppLayout({ children }: AppLayoutProps) {
         { href: "/trade-replay", label: "Trade Replay", icon: RotateCcw   },
         { href: "/trades",       label: "All Trades",   icon: History     },
         { href: "/watchlist",    label: "Watchlist",    icon: Eye         },
-        { href: "/backtest",     label: "Backtest",     icon: FlaskConical},
+        { href: "/backtest",     label: "Backtest",     icon: FlaskConical },
+        { href: "/validate",     label: "Validate",     icon: ShieldCheck  },
       ],
     },
   ];

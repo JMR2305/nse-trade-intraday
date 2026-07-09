@@ -13,6 +13,7 @@ import Watchlist from "@/pages/Watchlist";
 import AiDecision from "@/pages/AiDecision";
 import TradeReplay from "@/pages/TradeReplay";
 import Backtest from "@/pages/Backtest";
+import Validate from "@/pages/Validate";
 
 const queryClient = new QueryClient();
 
@@ -28,6 +29,7 @@ function Router() {
         <Route path="/trades" component={Trades} />
         <Route path="/watchlist" component={Watchlist} />
         <Route path="/backtest" component={Backtest} />
+        <Route path="/validate" component={Validate} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

@@ -472,6 +472,63 @@ export interface StrategyInfo {
   exit_rules: string[];
 }
 
+export interface RuleCheck {
+  rule: string;
+  current_value: string;
+  required_value: string;
+  passed: boolean;
+}
+
+export interface DebugCandle {
+  date: string;
+  close: number;
+  ema9: number;
+  ema20: number;
+  ema50: number;
+  rsi: number;
+  macd_line: number;
+  macd_signal: number;
+  vwap: number;
+  adx: number;
+  bb_upper: number;
+  bb_lower: number;
+  volume_ratio: number;
+  in_position: boolean;
+  buy_signal: boolean;
+  sell_signal: boolean;
+  failed_rules: string[];
+  rule_checks: RuleCheck[];
+}
+
+export interface RejectedTrade {
+  date: string;
+  close: number;
+  rejection_type: string;
+  explanation: string;
+  rule_checks: RuleCheck[];
+}
+
+export type ValidationSummaryRejectionBreakdown = { [key: string]: unknown };
+
+export type ValidationSummaryRuleFailureCounts = { [key: string]: unknown };
+
+export interface ValidationSummary {
+  total_candles: number;
+  warmup_candles: number;
+  active_candles: number;
+  buy_signals_fired: number;
+  buy_signals_while_flat: number;
+  sell_signals_fired: number;
+  executed_trades: number;
+  rejected_trades: number;
+  skipped_while_invested: number;
+  rejection_breakdown: ValidationSummaryRejectionBreakdown;
+  rule_failure_counts: ValidationSummaryRuleFailureCounts;
+  most_common_failure: string;
+  zero_trade_diagnosis: string[];
+  log_file_path: string;
+}
+
 export interface BacktestRequest {
   symbol: string;
   strategy: string;
@@ -479,6 +536,7 @@ export interface BacktestRequest {
   end_date: string;
   initial_capital?: number;
   interval?: string;
+  debug?: boolean;
 }
 
 export interface BacktestTrade {
@@ -529,6 +587,9 @@ export interface BacktestResult {
   equity_curve: number[];
   computed_at: string;
   error?: string | null;
+  validation: ValidationSummary;
+  debug_candles: DebugCandle[];
+  rejected_trades_detail: RejectedTrade[];
 }
 
 export interface ErrorResponse {

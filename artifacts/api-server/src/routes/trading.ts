@@ -231,6 +231,7 @@ router.post("/backtest", async (req, res) => {
       end_date,
       initial_capital = 5000,
       interval = "1d",
+      debug = false,
     } = req.body as {
       symbol: string;
       strategy: string;
@@ -238,6 +239,7 @@ router.post("/backtest", async (req, res) => {
       end_date: string;
       initial_capital?: number;
       interval?: string;
+      debug?: boolean;
     };
     if (!symbol || !strategy || !start_date || !end_date) {
       res.status(400).json({ error: "symbol, strategy, start_date, end_date are required" });
@@ -245,7 +247,7 @@ router.post("/backtest", async (req, res) => {
     }
     const data = await runPython([
       "backtest", symbol, strategy, start_date, end_date,
-      String(initial_capital), interval,
+      String(initial_capital), interval, debug ? "true" : "false",
     ]);
     res.json(data);
   } catch (err: unknown) {

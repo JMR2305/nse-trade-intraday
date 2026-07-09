@@ -3,11 +3,12 @@ strategies.py
 Strategy Framework — defines entry/exit rules for paper-trading strategies.
 
 Each strategy:
-  - check_entry()    : Should we open a position? Returns (bool, reason)
-  - check_exit()     : Should we close a position? Returns (bool, reason)
-  - stop_loss()      : Where is the stop loss?
-  - target()         : Where is the profit target?
-  - risk_pct         : fraction of capital risked per trade (e.g. 0.01 = 1%)
+  - check_entry()         : Should we open a position? Returns (bool, reason)
+  - check_exit()          : Should we close a position? Returns (bool, reason)
+  - inspect_entry_rules() : Per-rule pass/fail breakdown (for rule inspector / debug)
+  - stop_loss()           : Where is the stop loss?
+  - target()              : Where is the profit target?
+  - risk_pct              : fraction of capital risked per trade (e.g. 0.01 = 1%)
 
 Available strategies:
   trend_rider      : EMA crossover + MACD + RSI + VWAP confirmation
@@ -23,6 +24,17 @@ from typing import TypedDict
 
 import numpy as np
 import pandas as pd
+
+
+# ── Safe float helper ─────────────────────────────────────────────────────────
+
+def _sf(v, default: float = 0.0) -> float:
+    """Safe float — returns default on NaN / Inf / TypeError."""
+    try:
+        f = float(v)
+        return default if (math.isnan(f) or math.isinf(f)) else f
+    except (TypeError, ValueError):
+        return default
 
 
 # ── Info TypedDict (returned by GET /api/strategies) ─────────────────────────
@@ -87,9 +99,27 @@ class StrategyBase:
         """
         return False, ""
 
+    def inspect_entry_rules(
+        self,
+        row: pd.Series,
+        prev: pd.Series,
+    ) -> list:
+        """
+        Return per-rule pass/fail for the Rule Inspector and debug mode.
+
+        Returns a list of dicts:
+            {
+                "rule":           str   — human-readable rule description
+                "current_value":  str   — what the indicator shows right now
+                "required_value": str   — what is needed to pass
+                "passed":         bool  — True if the rule is satisfied
+            }
+        """
+        return []
+
     def compute_stop_loss(self, row: pd.Series, entry_price: float) -> float:
         """ATR-based stop by default: entry - 2×ATR."""
-        atr = float(row.get("atr", 0)) or entry_price * 0.02
+        atr = _sf(row.get("atr", 0)) or entry_price * 0.02
         return round(entry_price - 2 * atr, 2)
 
     def compute_target(self, entry_price: float, stop_loss: float) -> float:
@@ -142,39 +172,80 @@ class TrendRider(StrategyBase):
     ]
 
     def check_entry(self, row: pd.Series, prev: pd.Series) -> tuple[bool, str]:
-        ema9  = float(row.get("ema9",  0))
-        ema20 = float(row.get("ema20", 0))
-        ema50 = float(row.get("ema50", 0))
-        rsi   = float(row.get("rsi",   50))
-        macd_line   = float(row.get("macd_line",   0))
-        macd_signal = float(row.get("macd_signal", 0))
-        vwap  = float(row.get("vwap",  0))
-        close = float(row.get("close", 0))
+        ema9  = _sf(row.get("ema9",  0))
+        ema20 = _sf(row.get("ema20", 0))
+        ema50 = _sf(row.get("ema50", 0))
+        rsi   = _sf(row.get("rsi",   50))
+        macd_line   = _sf(row.get("macd_line",   0))
+        macd_signal = _sf(row.get("macd_signal", 0))
+        vwap  = _sf(row.get("vwap",  0))
+        close = _sf(row.get("close", 0))
 
         if not (ema9 > 0 and ema20 > 0 and ema50 > 0):
             return False, "indicators not ready"
 
-        ema_stacked = ema9 > ema20 > ema50
-        rsi_ok      = 40 <= rsi <= 68
+        ema_stacked  = ema9 > ema20 > ema50
+        rsi_ok       = 40 <= rsi <= 68
         macd_bullish = macd_line > macd_signal
-        above_vwap  = vwap > 0 and close > vwap
+        above_vwap   = vwap > 0 and close > vwap
 
         if ema_stacked and rsi_ok and macd_bullish and above_vwap:
             return True, f"EMA stack ✓, RSI {rsi:.0f}, MACD bullish, above VWAP"
         return False, ""
 
+    def inspect_entry_rules(self, row: pd.Series, prev: pd.Series) -> list:
+        ema9  = _sf(row.get("ema9",  0))
+        ema20 = _sf(row.get("ema20", 0))
+        ema50 = _sf(row.get("ema50", 0))
+        rsi   = _sf(row.get("rsi",   50))
+        macd_line   = _sf(row.get("macd_line",   0))
+        macd_signal = _sf(row.get("macd_signal", 0))
+        vwap  = _sf(row.get("vwap",  0))
+        close = _sf(row.get("close", 0))
+
+        ema_stacked  = ema9 > ema20 > ema50
+        rsi_ok       = 40 <= rsi <= 68
+        macd_bullish = macd_line > macd_signal
+        above_vwap   = vwap > 0 and close > vwap
+
+        return [
+            {
+                "rule":           "EMA9 > EMA20 > EMA50 (stacked bullish)",
+                "current_value":  f"EMA9={ema9:.1f}, EMA20={ema20:.1f}, EMA50={ema50:.1f}",
+                "required_value": "EMA9 > EMA20 > EMA50",
+                "passed":         ema_stacked,
+            },
+            {
+                "rule":           "RSI between 40 and 68",
+                "current_value":  f"RSI={rsi:.1f}",
+                "required_value": "40 ≤ RSI ≤ 68",
+                "passed":         rsi_ok,
+            },
+            {
+                "rule":           "MACD line above signal",
+                "current_value":  f"MACD={macd_line:.3f}, Signal={macd_signal:.3f}",
+                "required_value": "MACD > Signal",
+                "passed":         macd_bullish,
+            },
+            {
+                "rule":           "Close above rolling VWAP",
+                "current_value":  f"Close={close:.1f}, VWAP={vwap:.1f}",
+                "required_value": "Close > VWAP",
+                "passed":         above_vwap,
+            },
+        ]
+
     def check_exit(self, row, prev, entry_price, stop_loss, target) -> tuple[bool, str]:
-        ema9  = float(row.get("ema9",  0))
-        ema20 = float(row.get("ema20", 0))
-        prev9 = float(prev.get("ema9",  0))
-        prev20 = float(prev.get("ema20", 0))
-        # Death cross: EMA9 crosses below EMA20
+        ema9   = _sf(row.get("ema9",   0))
+        ema20  = _sf(row.get("ema20",  0))
+        prev9  = _sf(prev.get("ema9",  0))
+        prev20 = _sf(prev.get("ema20", 0))
         if prev9 > prev20 and ema9 < ema20:
             return True, "EMA9 crossed below EMA20 (death cross)"
         return False, ""
 
     def compute_stop_loss(self, row: pd.Series, entry_price: float) -> float:
-        atr = float(row.get("atr", 0)) or entry_price * 0.02
+        atr = _sf(row.get("atr", 0)) or entry_price * 0.02
         return round(entry_price - 2 * atr, 2)
 
     def compute_target(self, entry_price: float, stop_loss: float) -> float:
@@ -220,29 +291,68 @@ class BreakoutHunter(StrategyBase):
     ]
 
     def check_entry(self, row: pd.Series, prev: pd.Series) -> tuple[bool, str]:
-        close    = float(row.get("close",    0))
-        bb_upper = float(row.get("bb_upper", 0))
-        bb_mid   = float(row.get("bb_middle",0))
-        adx      = float(row.get("adx",      0))
-        vol_ratio= float(row.get("volume_ratio", 0))
+        close    = _sf(row.get("close",    0))
+        bb_upper = _sf(row.get("bb_upper", 0))
+        bb_mid   = _sf(row.get("bb_middle",0))
+        adx      = _sf(row.get("adx",      0))
+        vol_ratio = _sf(row.get("volume_ratio", 0))
         st_dir   = str(row.get("supertrend_dir", "DOWN"))
 
         if not (close > 0 and bb_upper > 0):
             return False, "indicators not ready"
 
-        breakout    = close > bb_upper
-        adx_strong  = adx >= 25
-        vol_ok      = vol_ratio >= 1.5
-        st_up       = st_dir == "UP"
+        breakout   = close > bb_upper
+        adx_strong = adx >= 25
+        vol_ok     = vol_ratio >= 1.5
+        st_up      = st_dir == "UP"
 
         if breakout and adx_strong and vol_ok and st_up:
             return True, (f"BB breakout (close {close:.0f} > upper {bb_upper:.0f}), "
                           f"ADX {adx:.0f}, vol {vol_ratio:.1f}×, ST=UP")
         return False, ""
 
+    def inspect_entry_rules(self, row: pd.Series, prev: pd.Series) -> list:
+        close    = _sf(row.get("close",    0))
+        bb_upper = _sf(row.get("bb_upper", 0))
+        adx      = _sf(row.get("adx",      0))
+        vol_ratio = _sf(row.get("volume_ratio", 0))
+        st_dir   = str(row.get("supertrend_dir", "DOWN"))
+
+        breakout   = close > bb_upper and bb_upper > 0
+        adx_strong = adx >= 25
+        vol_ok     = vol_ratio >= 1.5
+        st_up      = st_dir == "UP"
+
+        return [
+            {
+                "rule":           "Close > Bollinger Band upper (breakout)",
+                "current_value":  f"Close={close:.1f}, BB Upper={bb_upper:.1f}",
+                "required_value": "Close > BB Upper",
+                "passed":         breakout,
+            },
+            {
+                "rule":           "ADX > 25 (strong trend)",
+                "current_value":  f"ADX={adx:.1f}",
+                "required_value": "ADX ≥ 25",
+                "passed":         adx_strong,
+            },
+            {
+                "rule":           "Volume ≥ 1.5× 20-period average",
+                "current_value":  f"Vol Ratio={vol_ratio:.2f}×",
+                "required_value": "Vol Ratio ≥ 1.5×",
+                "passed":         vol_ok,
+            },
+            {
+                "rule":           "Supertrend direction is UP",
+                "current_value":  f"Supertrend={st_dir}",
+                "required_value": "UP",
+                "passed":         st_up,
+            },
+        ]
+
     def check_exit(self, row, prev, entry_price, stop_loss, target) -> tuple[bool, str]:
-        close  = float(row.get("close",    0))
-        bb_mid = float(row.get("bb_middle",0))
+        close  = _sf(row.get("close",    0))
+        bb_mid = _sf(row.get("bb_middle",0))
         st_dir = str(row.get("supertrend_dir", "UP"))
 
         if bb_mid > 0 and close < bb_mid:
@@ -252,10 +362,10 @@ class BreakoutHunter(StrategyBase):
         return False, ""
 
     def compute_stop_loss(self, row: pd.Series, entry_price: float) -> float:
-        bb_mid = float(row.get("bb_middle", 0))
+        bb_mid = _sf(row.get("bb_middle", 0))
         if bb_mid > 0:
             return round(bb_mid, 2)
-        atr = float(row.get("atr", 0)) or entry_price * 0.02
+        atr = _sf(row.get("atr", 0)) or entry_price * 0.02
         return round(entry_price - 2 * atr, 2)
 
     def compute_target(self, entry_price: float, stop_loss: float) -> float:
@@ -298,26 +408,57 @@ class MeanReversion(StrategyBase):
     ]
 
     def check_entry(self, row: pd.Series, prev: pd.Series) -> tuple[bool, str]:
-        close    = float(row.get("close",    0))
-        rsi      = float(row.get("rsi",     50))
-        bb_lower = float(row.get("bb_lower", 0))
-        adx      = float(row.get("adx",      0))
+        close    = _sf(row.get("close",    0))
+        rsi      = _sf(row.get("rsi",     50))
+        bb_lower = _sf(row.get("bb_lower", 0))
+        adx      = _sf(row.get("adx",      0))
 
         if not (close > 0 and bb_lower > 0):
             return False, "indicators not ready"
 
         oversold  = rsi < 38
-        at_bb_low = close <= bb_lower * 1.01   # within 1% of BB lower
-        not_trend = adx < 35                   # avoid strong trending/crashing moves
+        at_bb_low = close <= bb_lower * 1.01
+        not_trend = adx < 35
 
         if oversold and at_bb_low and not_trend:
             return True, f"RSI {rsi:.0f} oversold, at BB lower {bb_lower:.0f}, ADX {adx:.0f}"
         return False, ""
 
+    def inspect_entry_rules(self, row: pd.Series, prev: pd.Series) -> list:
+        close    = _sf(row.get("close",    0))
+        rsi      = _sf(row.get("rsi",     50))
+        bb_lower = _sf(row.get("bb_lower", 0))
+        adx      = _sf(row.get("adx",      0))
+
+        oversold  = rsi < 38
+        at_bb_low = (close <= bb_lower * 1.01) if bb_lower > 0 else False
+        not_trend = adx < 35
+
+        return [
+            {
+                "rule":           "RSI < 38 (oversold)",
+                "current_value":  f"RSI={rsi:.1f}",
+                "required_value": "RSI < 38",
+                "passed":         oversold,
+            },
+            {
+                "rule":           "Close within 1% of BB lower band",
+                "current_value":  f"Close={close:.1f}, BB Lower={bb_lower:.1f}",
+                "required_value": "Close ≤ BB Lower × 1.01",
+                "passed":         at_bb_low,
+            },
+            {
+                "rule":           "ADX < 35 (not strongly trending)",
+                "current_value":  f"ADX={adx:.1f}",
+                "required_value": "ADX < 35",
+                "passed":         not_trend,
+            },
+        ]
+
     def check_exit(self, row, prev, entry_price, stop_loss, target) -> tuple[bool, str]:
-        close  = float(row.get("close",    0))
-        rsi    = float(row.get("rsi",     50))
-        bb_mid = float(row.get("bb_middle",0))
+        close  = _sf(row.get("close",    0))
+        rsi    = _sf(row.get("rsi",     50))
+        bb_mid = _sf(row.get("bb_middle",0))
 
         if rsi > 55:
             return True, f"RSI recovered to {rsi:.0f}"
@@ -326,7 +467,7 @@ class MeanReversion(StrategyBase):
         return False, ""
 
     def compute_stop_loss(self, row: pd.Series, entry_price: float) -> float:
-        atr = float(row.get("atr", 0)) or entry_price * 0.015
+        atr = _sf(row.get("atr", 0)) or entry_price * 0.015
         return round(entry_price - 1.5 * atr, 2)
 
     def compute_target(self, entry_price: float, stop_loss: float) -> float:
