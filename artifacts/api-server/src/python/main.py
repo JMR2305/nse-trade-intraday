@@ -266,6 +266,21 @@ def cmd_trade_intelligence_import() -> dict:
     return import_existing()
 
 
+def cmd_predictive_intelligence(symbol: str) -> dict:
+    """Historical evidence for a live candidate built from current data."""
+    from predictive_intelligence import evaluate_symbol
+    return evaluate_symbol(symbol)
+
+
+def cmd_predictive_evaluate(candidate_json: str) -> dict:
+    """Historical evidence for an explicit candidate payload (JSON string)."""
+    from predictive_intelligence import evaluate_candidate
+    candidate = json.loads(candidate_json)
+    if not isinstance(candidate, dict) or not candidate.get("symbol"):
+        return {"error": "candidate must be an object with a 'symbol' field"}
+    return evaluate_candidate(candidate)
+
+
 def _read_json_cache(filename: str) -> list | dict:
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
     if os.path.exists(path):
@@ -397,6 +412,10 @@ def main():
             )
         elif command == "trade_intelligence_import":
             result = cmd_trade_intelligence_import()
+        elif command == "predictive_intelligence" and len(args) >= 2:
+            result = cmd_predictive_intelligence(args[1])
+        elif command == "predictive_evaluate" and len(args) >= 2:
+            result = cmd_predictive_evaluate(args[1])
         else:
             error_msg = f"Unknown command: {command}"
 

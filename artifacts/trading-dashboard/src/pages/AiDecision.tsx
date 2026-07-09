@@ -7,6 +7,7 @@ import {
   type AiDecision,
 } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
+import HistoricalEvidence from "@/components/HistoricalEvidence";
 import {
   Brain,
   ChevronDown,
@@ -265,6 +266,9 @@ function OpportunityDetail({
           <div className="text-sm font-mono font-bold text-emerald-400">{formatCurrency(item.target)}</div>
         </div>
       </div>
+
+      {/* Historical evidence from the Trade Intelligence database */}
+      <HistoricalEvidence symbol={item.stock} defaultOpen />
     </div>
   );
 }

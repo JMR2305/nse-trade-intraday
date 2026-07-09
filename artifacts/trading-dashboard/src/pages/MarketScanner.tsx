@@ -1,14 +1,15 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   useGetMarketScan,
   getGetMarketScanQueryKey,
 } from "@workspace/api-client-react";
+import { EvidenceBody } from "@/components/HistoricalEvidence";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatTime } from "@/lib/format";
 import {
   RefreshCcw, Flame, TrendingUp, TrendingDown, Eye, Ban,
-  Star, LayoutGrid, ListOrdered, Building2,
+  Star, LayoutGrid, ListOrdered, Building2, History,
 } from "lucide-react";
 
 // ── Config maps ───────────────────────────────────────────────────────────────
@@ -67,8 +68,14 @@ function HeatTile({
 
 function RankRow({ item, rank }: { item: any; rank: number }) {
   const cfg = ACTION_CONFIG[item.final_action] ?? ACTION_CONFIG["IGNORE"];
+  const [open, setOpen] = useState(false);
   return (
-    <tr className="border-b border-border/30 hover:bg-muted/10 transition-colors">
+    <>
+    <tr
+      className="border-b border-border/30 hover:bg-muted/10 transition-colors cursor-pointer"
+      onClick={() => setOpen((o) => !o)}
+      data-testid={`row-scan-${item.stock}`}
+    >
       <td className="py-2 px-3 text-xs font-mono text-muted-foreground">{rank}</td>
       <td className="py-2 px-3">
         <div className="font-mono font-bold text-sm">{item.stock}</div>
@@ -94,6 +101,18 @@ function RankRow({ item, rank }: { item: any; rank: number }) {
         </Badge>
       </td>
     </tr>
+    {open && (
+      <tr className="border-b border-border/30 bg-zinc-900/40">
+        <td colSpan={9} className="py-3 px-4">
+          <div className="flex items-center gap-1.5 text-xs font-mono text-primary/80 uppercase tracking-wider mb-2">
+            <History className="h-3.5 w-3.5" />
+            Historical Evidence — {item.stock}
+          </div>
+          <EvidenceBody symbol={item.stock} />
+        </td>
+      </tr>
+    )}
+    </>
   );
 }
 

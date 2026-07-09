@@ -279,6 +279,40 @@ router.post("/trade-intelligence/import", async (_req, res) => {
   }
 });
 
+// GET /api/predictive-intelligence/:symbol
+// Predictive Intelligence Engine (Sprint 3) — historical evidence for a
+// candidate built from live indicators + cached AI metrics. Evidence layer
+// only; never modifies scanner logic or places orders.
+router.get("/predictive-intelligence/:symbol", async (req, res) => {
+  try {
+    const symbol = String(req.params.symbol || "").trim().toUpperCase();
+    if (!symbol) {
+      res.status(400).json({ error: "symbol is required" });
+      return;
+    }
+    const data = await runPython(["predictive_intelligence", symbol]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/predictive-intelligence/evaluate
+// Evaluate an explicit candidate setup against historical trades.
+router.post("/predictive-intelligence/evaluate", async (req, res) => {
+  try {
+    const candidate = req.body ?? {};
+    if (typeof candidate !== "object" || !candidate.symbol) {
+      res.status(400).json({ error: "body must include a 'symbol' field" });
+      return;
+    }
+    const data = await runPython(["predictive_evaluate", JSON.stringify(candidate)]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // POST /api/paper-basket
 // Paper Basket Testing Layer — paper trading only, no real orders. Selects a
 // basket of stocks from the previous day's data (no lookahead bias), then

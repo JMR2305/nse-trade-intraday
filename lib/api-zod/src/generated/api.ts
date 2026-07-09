@@ -1001,6 +1001,78 @@ export const ImportTradeIntelligenceResponse = zod.object({
 
 
 /**
+ * Predictive Intelligence Engine — builds a candidate setup for the symbol from live indicators, sector, current market regime and cached AI metrics, then compares it with similar historical trades in the Trade Intelligence database. Evidence layer only — existing scanner logic is unchanged and no orders are placed.
+ * @summary Historical evidence for a symbol
+ */
+export const GetPredictiveIntelligenceParams = zod.object({
+  "symbol": zod.coerce.string().describe('NSE symbol, e.g. RELIANCE.')
+})
+
+export const GetPredictiveIntelligenceResponse = zod.object({
+  "symbol": zod.string(),
+  "candidate_features": zod.record(zod.string(), zod.string()).optional(),
+  "evidence": zod.object({
+  "matches": zod.number(),
+  "exact_matches": zod.number(),
+  "win_rate": zod.number().nullish(),
+  "average_return": zod.number().nullish(),
+  "average_win": zod.number().nullish(),
+  "average_loss": zod.number().nullish(),
+  "profit_factor": zod.number().nullish(),
+  "expected_value": zod.number().nullish(),
+  "confidence_level": zod.enum(['HIGH', 'MEDIUM', 'LOW', 'INSUFFICIENT'])
+}),
+  "adjustment": zod.number(),
+  "base_confidence": zod.number().nullish(),
+  "adjusted_confidence": zod.number().nullish(),
+  "warnings": zod.array(zod.string())
+})
+
+
+/**
+ * Compares an explicit candidate trade setup (symbol plus any known indicator / AI-metric values) against similar historical trades.
+ * @summary Evaluate an explicit candidate setup
+ */
+export const EvaluatePredictiveIntelligenceBody = zod.object({
+  "symbol": zod.string(),
+  "sector": zod.string().optional(),
+  "entry_strategy": zod.string().optional(),
+  "market_regime": zod.string().optional(),
+  "rsi": zod.number().optional(),
+  "macd": zod.number().optional(),
+  "macd_signal": zod.number().optional(),
+  "ema9": zod.number().optional(),
+  "ema20": zod.number().optional(),
+  "ema50": zod.number().optional(),
+  "adx": zod.number().optional(),
+  "volume_ratio": zod.number().optional(),
+  "opportunity_score": zod.number().optional(),
+  "confidence": zod.number().optional(),
+  "risk_reward": zod.number().optional()
+})
+
+export const EvaluatePredictiveIntelligenceResponse = zod.object({
+  "symbol": zod.string(),
+  "candidate_features": zod.record(zod.string(), zod.string()).optional(),
+  "evidence": zod.object({
+  "matches": zod.number(),
+  "exact_matches": zod.number(),
+  "win_rate": zod.number().nullish(),
+  "average_return": zod.number().nullish(),
+  "average_win": zod.number().nullish(),
+  "average_loss": zod.number().nullish(),
+  "profit_factor": zod.number().nullish(),
+  "expected_value": zod.number().nullish(),
+  "confidence_level": zod.enum(['HIGH', 'MEDIUM', 'LOW', 'INSUFFICIENT'])
+}),
+  "adjustment": zod.number(),
+  "base_confidence": zod.number().nullish(),
+  "adjusted_confidence": zod.number().nullish(),
+  "warnings": zod.array(zod.string())
+})
+
+
+/**
  * @summary Strategy Optimizer — test all parameter combinations, return top 10
  */
 export const runOptimizerBodyInitialCapitalDefault = 5000;

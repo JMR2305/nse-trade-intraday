@@ -43,6 +43,8 @@ import type {
   PaperBasketRequest,
   PaperBasketResult,
   Portfolio,
+  PredictiveCandidate,
+  PredictiveEvidenceResult,
   ScanResult,
   Signal,
   StrategyInfo,
@@ -1799,6 +1801,156 @@ export const useImportTradeIntelligence = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getImportTradeIntelligenceMutationOptions(options));
+    }
+
+export const getGetPredictiveIntelligenceUrl = (symbol: string,) => {
+
+
+
+
+  return `/api/predictive-intelligence/${symbol}`
+}
+
+/**
+ * Predictive Intelligence Engine — builds a candidate setup for the symbol from live indicators, sector, current market regime and cached AI metrics, then compares it with similar historical trades in the Trade Intelligence database. Evidence layer only — existing scanner logic is unchanged and no orders are placed.
+ * @summary Historical evidence for a symbol
+ */
+export const getPredictiveIntelligence = async (symbol: string, options?: RequestInit): Promise<PredictiveEvidenceResult> => {
+
+  return customFetch<PredictiveEvidenceResult>(getGetPredictiveIntelligenceUrl(symbol),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPredictiveIntelligenceQueryKey = (symbol: string,) => {
+    return [
+    `/api/predictive-intelligence/${symbol}`
+    ] as const;
+    }
+
+
+export const getGetPredictiveIntelligenceQueryOptions = <TData = Awaited<ReturnType<typeof getPredictiveIntelligence>>, TError = ErrorType<ErrorResponse>>(symbol: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPredictiveIntelligence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPredictiveIntelligenceQueryKey(symbol);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPredictiveIntelligence>>> = ({ signal }) => getPredictiveIntelligence(symbol, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: symbol !== null && symbol !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPredictiveIntelligence>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPredictiveIntelligenceQueryResult = NonNullable<Awaited<ReturnType<typeof getPredictiveIntelligence>>>
+export type GetPredictiveIntelligenceQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Historical evidence for a symbol
+ */
+
+export function useGetPredictiveIntelligence<TData = Awaited<ReturnType<typeof getPredictiveIntelligence>>, TError = ErrorType<ErrorResponse>>(
+ symbol: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPredictiveIntelligence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPredictiveIntelligenceQueryOptions(symbol,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getEvaluatePredictiveIntelligenceUrl = () => {
+
+
+
+
+  return `/api/predictive-intelligence/evaluate`
+}
+
+/**
+ * Compares an explicit candidate trade setup (symbol plus any known indicator / AI-metric values) against similar historical trades.
+ * @summary Evaluate an explicit candidate setup
+ */
+export const evaluatePredictiveIntelligence = async (predictiveCandidate: PredictiveCandidate, options?: RequestInit): Promise<PredictiveEvidenceResult> => {
+
+  return customFetch<PredictiveEvidenceResult>(getEvaluatePredictiveIntelligenceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(predictiveCandidate)
+  }
+);}
+
+
+
+
+
+export const getEvaluatePredictiveIntelligenceMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof evaluatePredictiveIntelligence>>, TError,{data: BodyType<PredictiveCandidate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof evaluatePredictiveIntelligence>>, TError,{data: BodyType<PredictiveCandidate>}, TContext> => {
+
+const mutationKey = ['evaluatePredictiveIntelligence'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof evaluatePredictiveIntelligence>>, {data: BodyType<PredictiveCandidate>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  evaluatePredictiveIntelligence(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EvaluatePredictiveIntelligenceMutationResult = NonNullable<Awaited<ReturnType<typeof evaluatePredictiveIntelligence>>>
+    export type EvaluatePredictiveIntelligenceMutationBody = BodyType<PredictiveCandidate>
+    export type EvaluatePredictiveIntelligenceMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Evaluate an explicit candidate setup
+ */
+export const useEvaluatePredictiveIntelligence = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof evaluatePredictiveIntelligence>>, TError,{data: BodyType<PredictiveCandidate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof evaluatePredictiveIntelligence>>,
+        TError,
+        {data: BodyType<PredictiveCandidate>},
+        TContext
+      > => {
+      return useMutation(getEvaluatePredictiveIntelligenceMutationOptions(options));
     }
 
 export const getRunOptimizerUrl = () => {

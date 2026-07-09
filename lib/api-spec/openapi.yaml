@@ -571,6 +571,72 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /predictive-intelligence/{symbol}:
+    get:
+      operationId: getPredictiveIntelligence
+      tags: [trading]
+      summary: Historical evidence for a symbol
+      description: >
+        Predictive Intelligence Engine — builds a candidate setup for the
+        symbol from live indicators, sector, current market regime and cached
+        AI metrics, then compares it with similar historical trades in the
+        Trade Intelligence database. Evidence layer only — existing scanner
+        logic is unchanged and no orders are placed.
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+          description: NSE symbol, e.g. RELIANCE.
+      responses:
+        "200":
+          description: Historical evidence summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PredictiveEvidenceResult"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /predictive-intelligence/evaluate:
+    post:
+      operationId: evaluatePredictiveIntelligence
+      tags: [trading]
+      summary: Evaluate an explicit candidate setup
+      description: >
+        Compares an explicit candidate trade setup (symbol plus any known
+        indicator / AI-metric values) against similar historical trades.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PredictiveCandidate"
+      responses:
+        "200":
+          description: Historical evidence summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PredictiveEvidenceResult"
+        "400":
+          description: Invalid candidate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /optimizer:
     post:
       operationId: runOptimizer
@@ -2258,6 +2324,59 @@ components:
         - sector_breakdown
         - source_breakdown
         - statistics
+
+    PredictiveCandidate:
+      type: object
+      properties:
+        symbol:            { type: string }
+        sector:            { type: string }
+        entry_strategy:    { type: string }
+        market_regime:     { type: string }
+        rsi:               { type: number }
+        macd:              { type: number }
+        macd_signal:       { type: number }
+        ema9:              { type: number }
+        ema20:             { type: number }
+        ema50:             { type: number }
+        adx:               { type: number }
+        volume_ratio:      { type: number }
+        opportunity_score: { type: number }
+        confidence:        { type: number }
+        risk_reward:       { type: number }
+      required: [symbol]
+
+    PredictiveEvidence:
+      type: object
+      properties:
+        matches:          { type: integer }
+        exact_matches:    { type: integer }
+        win_rate:         { type: number, nullable: true }
+        average_return:   { type: number, nullable: true }
+        average_win:      { type: number, nullable: true }
+        average_loss:     { type: number, nullable: true }
+        profit_factor:    { type: number, nullable: true }
+        expected_value:   { type: number, nullable: true }
+        confidence_level:
+          type: string
+          enum: [HIGH, MEDIUM, LOW, INSUFFICIENT]
+      required: [matches, exact_matches, confidence_level]
+
+    PredictiveEvidenceResult:
+      type: object
+      properties:
+        symbol: { type: string }
+        candidate_features:
+          type: object
+          additionalProperties: { type: string }
+        evidence:
+          $ref: "#/components/schemas/PredictiveEvidence"
+        adjustment:          { type: number }
+        base_confidence:     { type: number, nullable: true }
+        adjusted_confidence: { type: number, nullable: true }
+        warnings:
+          type: array
+          items: { type: string }
+      required: [symbol, evidence, adjustment, warnings]
 
     TradeIntelligenceBestWorst:
       type: object

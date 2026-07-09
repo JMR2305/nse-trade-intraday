@@ -1062,6 +1062,58 @@ export interface TradeIntelligenceSummary {
   statistics: TradeIntelligenceStatistics;
 }
 
+export interface PredictiveCandidate {
+  symbol: string;
+  sector?: string;
+  entry_strategy?: string;
+  market_regime?: string;
+  rsi?: number;
+  macd?: number;
+  macd_signal?: number;
+  ema9?: number;
+  ema20?: number;
+  ema50?: number;
+  adx?: number;
+  volume_ratio?: number;
+  opportunity_score?: number;
+  confidence?: number;
+  risk_reward?: number;
+}
+
+export type PredictiveEvidenceConfidenceLevel = typeof PredictiveEvidenceConfidenceLevel[keyof typeof PredictiveEvidenceConfidenceLevel];
+
+
+export const PredictiveEvidenceConfidenceLevel = {
+  HIGH: 'HIGH',
+  MEDIUM: 'MEDIUM',
+  LOW: 'LOW',
+  INSUFFICIENT: 'INSUFFICIENT',
+} as const;
+
+export interface PredictiveEvidence {
+  matches: number;
+  exact_matches: number;
+  win_rate?: number | null;
+  average_return?: number | null;
+  average_win?: number | null;
+  average_loss?: number | null;
+  profit_factor?: number | null;
+  expected_value?: number | null;
+  confidence_level: PredictiveEvidenceConfidenceLevel;
+}
+
+export type PredictiveEvidenceResultCandidateFeatures = {[key: string]: string};
+
+export interface PredictiveEvidenceResult {
+  symbol: string;
+  candidate_features?: PredictiveEvidenceResultCandidateFeatures;
+  evidence: PredictiveEvidence;
+  adjustment: number;
+  base_confidence?: number | null;
+  adjusted_confidence?: number | null;
+  warnings: string[];
+}
+
 export interface TradeIntelligenceResult {
   summary: TradeIntelligenceSummary;
   trades: TradeIntelligenceRecord[];

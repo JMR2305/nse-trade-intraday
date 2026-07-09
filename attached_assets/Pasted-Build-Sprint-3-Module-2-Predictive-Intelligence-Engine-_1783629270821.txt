@@ -1,0 +1,106 @@
+Build Sprint 3 - Module 2: Predictive Intelligence Engine.
+
+Purpose:
+Use the Trade Intelligence database to estimate whether a new trade setup is likely to succeed based on similar historical trades.
+
+Important:
+- Do not replace existing scanner logic.
+- Add this as an evidence layer on top of existing signals.
+- Paper trading only.
+- No real orders.
+
+1. Create backend module:
+backend/predictive_intelligence.py
+
+2. For every candidate trade, compare it with historical trades using similarity scoring.
+
+Compare:
+- Symbol
+- Sector
+- Entry strategy
+- Market regime
+- RSI bucket
+- MACD direction
+- EMA alignment
+- ADX bucket
+- Volume ratio bucket
+- Opportunity score bucket
+- Confidence bucket
+- Risk/reward bucket
+
+3. Similarity rules
+
+Exact match:
+- Same symbol
+- Same sector
+- Same strategy
+- Same market regime
+
+Near match:
+- Same sector but different symbol
+- Same strategy but different market regime
+- Similar RSI/ADX/volume/confidence buckets
+
+4. Return evidence summary:
+
+For each candidate trade show:
+- Historical matches
+- Win rate of similar trades
+- Average return
+- Average win
+- Average loss
+- Profit factor
+- Expected value
+- Confidence level
+
+Confidence level:
+- HIGH if matches >= 50
+- MEDIUM if matches 20-49
+- LOW if matches 5-19
+- INSUFFICIENT if matches < 5
+
+5. Use evidence to adjust final signal
+
+If historical win rate > 60% and expected value positive:
+Increase confidence by 5-10 points.
+
+If historical win rate < 45% or expected value negative:
+Reduce confidence by 10-20 points.
+
+If matches < 5:
+Do not adjust; show “insufficient evidence”.
+
+6. Add UI section on AI Decision and Market Scanner
+
+Show:
+
+Historical Evidence:
+- Similar trades found
+- Win rate
+- Average return
+- Expected value
+- Evidence confidence
+
+Example:
+Similar historical trades: 84
+Win rate: 67%
+Average return: +3.2%
+Expected value: +1.8%
+Evidence confidence: HIGH
+
+7. Add warnings
+
+If historical evidence is negative:
+“Similar setups have historically underperformed.”
+
+If evidence is insufficient:
+“Not enough historical examples yet.”
+
+8. Add API endpoints:
+
+GET /api/predictive-intelligence/{symbol}
+POST /api/predictive-intelligence/evaluate
+
+9. Keep code modular.
+
+Do not break existing Market Scanner, Market Replay, Trade Intelligence, Backtest, Strategy Lab, or Optimizer.
