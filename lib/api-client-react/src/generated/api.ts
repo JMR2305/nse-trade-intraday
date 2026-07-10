@@ -32,12 +32,16 @@ import type {
   GetMarketDataParams,
   GetMarketReplayParams,
   GetTradeDecisionsParams,
+  GetTradeEvaluationsParams,
   GetTradeIntelligenceParams,
   HealthStatus,
   HistoricalKnowledgeSummary,
   HistoricalKnowledgeTrades,
   IndicatorResult,
+  LearningActionResult,
+  LearningCycleResult,
   LearningInsights,
+  LearningReview,
   LearningSummary,
   MarketContext,
   MarketDataResult,
@@ -61,6 +65,7 @@ import type {
   StrategyPerformance,
   Trade,
   TradeDecisionsResponse,
+  TradeEvaluation,
   TradeIntelligenceImportResult,
   TradeIntelligenceResult,
   TradeReplayItem,
@@ -2352,6 +2357,455 @@ export function useGetLearningInsights<TData = Awaited<ReturnType<typeof getLear
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetLearningInsightsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetLearningReviewUrl = () => {
+
+
+
+
+  return `/api/learning-review`
+}
+
+/**
+ * Full self-evaluation report — every evaluated paper trade with its prediction snapshot, prediction vs actual outcome, MFE/MAE, evidence-based failure causes and success factors, confidence calibration bands, proposed (never auto-applied) learning adjustments, and model version history. Read-only; paper trading research only.
+ * @summary Learning Review — v2.0 Adaptive Self-Evaluation report
+ */
+export const getLearningReview = async ( options?: RequestInit): Promise<LearningReview> => {
+
+  return customFetch<LearningReview>(getGetLearningReviewUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLearningReviewQueryKey = () => {
+    return [
+    `/api/learning-review`
+    ] as const;
+    }
+
+
+export const getGetLearningReviewQueryOptions = <TData = Awaited<ReturnType<typeof getLearningReview>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLearningReview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLearningReviewQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLearningReview>>> = ({ signal }) => getLearningReview({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLearningReview>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLearningReviewQueryResult = NonNullable<Awaited<ReturnType<typeof getLearningReview>>>
+export type GetLearningReviewQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Learning Review — v2.0 Adaptive Self-Evaluation report
+ */
+
+export function useGetLearningReview<TData = Awaited<ReturnType<typeof getLearningReview>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLearningReview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLearningReviewQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRunLearningCycleUrl = () => {
+
+
+
+
+  return `/api/learning-cycle`
+}
+
+/**
+ * Evaluates any pending completed trades, aggregates learn-eligible outcomes, and (re)computes PROPOSED adjustments. Analysis Mode only — no adjustment is ever applied without explicit approval, and mock-data trades are never learned from.
+ * @summary Run a learning cycle (Analysis Mode — applies nothing)
+ */
+export const runLearningCycle = async ( options?: RequestInit): Promise<LearningCycleResult> => {
+
+  return customFetch<LearningCycleResult>(getRunLearningCycleUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRunLearningCycleMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runLearningCycle>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof runLearningCycle>>, TError,void, TContext> => {
+
+const mutationKey = ['runLearningCycle'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof runLearningCycle>>, void> = () => {
+
+
+          return  runLearningCycle(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RunLearningCycleMutationResult = NonNullable<Awaited<ReturnType<typeof runLearningCycle>>>
+
+    export type RunLearningCycleMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Run a learning cycle (Analysis Mode — applies nothing)
+ */
+export const useRunLearningCycle = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runLearningCycle>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof runLearningCycle>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getRunLearningCycleMutationOptions(options));
+    }
+
+export const getApproveLearningAdjustmentUrl = (id: number,) => {
+
+
+
+
+  return `/api/learning-adjustments/${id}/approve`
+}
+
+/**
+ * Runs out-of-sample validation first; the adjustment is applied (as a new model version) only if the proposed model does not worsen expectancy, profit factor, max drawdown or risk-adjusted return on unseen data. Failing validation auto-rejects the proposal.
+ * @summary Approve a proposed learning adjustment
+ */
+export const approveLearningAdjustment = async (id: number, options?: RequestInit): Promise<LearningActionResult> => {
+
+  return customFetch<LearningActionResult>(getApproveLearningAdjustmentUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getApproveLearningAdjustmentMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveLearningAdjustment>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveLearningAdjustment>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['approveLearningAdjustment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveLearningAdjustment>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  approveLearningAdjustment(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveLearningAdjustmentMutationResult = NonNullable<Awaited<ReturnType<typeof approveLearningAdjustment>>>
+
+    export type ApproveLearningAdjustmentMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Approve a proposed learning adjustment
+ */
+export const useApproveLearningAdjustment = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveLearningAdjustment>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveLearningAdjustment>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getApproveLearningAdjustmentMutationOptions(options));
+    }
+
+export const getRejectLearningAdjustmentUrl = (id: number,) => {
+
+
+
+
+  return `/api/learning-adjustments/${id}/reject`
+}
+
+/**
+ * @summary Reject a proposed learning adjustment
+ */
+export const rejectLearningAdjustment = async (id: number, options?: RequestInit): Promise<LearningActionResult> => {
+
+  return customFetch<LearningActionResult>(getRejectLearningAdjustmentUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRejectLearningAdjustmentMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectLearningAdjustment>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectLearningAdjustment>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['rejectLearningAdjustment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectLearningAdjustment>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  rejectLearningAdjustment(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectLearningAdjustmentMutationResult = NonNullable<Awaited<ReturnType<typeof rejectLearningAdjustment>>>
+
+    export type RejectLearningAdjustmentMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Reject a proposed learning adjustment
+ */
+export const useRejectLearningAdjustment = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectLearningAdjustment>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rejectLearningAdjustment>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRejectLearningAdjustmentMutationOptions(options));
+    }
+
+export const getRollbackModelVersionUrl = (version: number,) => {
+
+
+
+
+  return `/api/learning-rollback/${version}`
+}
+
+/**
+ * Marks the given model version (and any later ones) as rolled back and restores the previous surviving version's weights.
+ * @summary Roll back a model version
+ */
+export const rollbackModelVersion = async (version: number, options?: RequestInit): Promise<LearningActionResult> => {
+
+  return customFetch<LearningActionResult>(getRollbackModelVersionUrl(version),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRollbackModelVersionMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rollbackModelVersion>>, TError,{version: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rollbackModelVersion>>, TError,{version: number}, TContext> => {
+
+const mutationKey = ['rollbackModelVersion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rollbackModelVersion>>, {version: number}> = (props) => {
+          const {version} = props ?? {};
+
+          return  rollbackModelVersion(version,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RollbackModelVersionMutationResult = NonNullable<Awaited<ReturnType<typeof rollbackModelVersion>>>
+
+    export type RollbackModelVersionMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Roll back a model version
+ */
+export const useRollbackModelVersion = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rollbackModelVersion>>, TError,{version: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rollbackModelVersion>>,
+        TError,
+        {version: number},
+        TContext
+      > => {
+      return useMutation(getRollbackModelVersionMutationOptions(options));
+    }
+
+export const getGetTradeEvaluationsUrl = (params?: GetTradeEvaluationsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/trade-evaluations?${stringifiedParams}` : `/api/trade-evaluations`
+}
+
+/**
+ * @summary Evaluated completed paper trades (prediction vs actual)
+ */
+export const getTradeEvaluations = async (params?: GetTradeEvaluationsParams, options?: RequestInit): Promise<TradeEvaluation[]> => {
+
+  return customFetch<TradeEvaluation[]>(getGetTradeEvaluationsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTradeEvaluationsQueryKey = (params?: GetTradeEvaluationsParams,) => {
+    return [
+    `/api/trade-evaluations`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetTradeEvaluationsQueryOptions = <TData = Awaited<ReturnType<typeof getTradeEvaluations>>, TError = ErrorType<ErrorResponse>>(params?: GetTradeEvaluationsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTradeEvaluations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTradeEvaluationsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTradeEvaluations>>> = ({ signal }) => getTradeEvaluations(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTradeEvaluations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTradeEvaluationsQueryResult = NonNullable<Awaited<ReturnType<typeof getTradeEvaluations>>>
+export type GetTradeEvaluationsQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Evaluated completed paper trades (prediction vs actual)
+ */
+
+export function useGetTradeEvaluations<TData = Awaited<ReturnType<typeof getTradeEvaluations>>, TError = ErrorType<ErrorResponse>>(
+ params?: GetTradeEvaluationsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTradeEvaluations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTradeEvaluationsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

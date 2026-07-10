@@ -147,6 +147,7 @@ function DetailRow({ d }: { d: TradeDecision }) {
             <dl className="space-y-1 font-mono text-xs">
               <div className="flex justify-between"><dt className="text-muted-foreground">Technical confidence</dt><dd>{fmt(d.base_confidence, 0)}</dd></div>
               <div className="flex justify-between"><dt className="text-muted-foreground">Learning adjustment</dt><dd className={d.learning_adjustment >= 0 ? "text-green-400" : "text-red-400"}>{d.learning_adjustment >= 0 ? "+" : ""}{fmt(d.learning_adjustment, 0)}</dd></div>
+              <div className="flex justify-between"><dt className="text-muted-foreground">Model adjustment (v{d.model_version ?? 0})</dt><dd className={(d.model_adjustment ?? 0) >= 0 ? "text-green-400" : "text-red-400"}>{(d.model_adjustment ?? 0) >= 0 ? "+" : ""}{fmt(d.model_adjustment ?? 0, 1)}</dd></div>
               <div className="flex justify-between"><dt className="text-muted-foreground">Final confidence</dt><dd className="font-bold">{fmt(d.final_confidence, 0)}</dd></div>
               <div className="flex justify-between"><dt className="text-muted-foreground">Historical matches</dt><dd>{d.historical_trades}</dd></div>
               <div className="flex justify-between"><dt className="text-muted-foreground">Win rate</dt><dd>{fmt(d.historical_win_rate, 0)}%</dd></div>
@@ -240,13 +241,14 @@ export default function TradeDecisions() {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
         <SummaryCard label="Strong Buy" value={data?.strong_buy_count ?? 0} color="text-emerald-300" />
         <SummaryCard label="Buy" value={data?.buy_count ?? 0} color="text-green-400" />
         <SummaryCard label="Exit" value={data?.exit_count ?? 0} color="text-orange-400" />
         <SummaryCard label="Watch" value={data?.watch_count ?? 0} color="text-yellow-400" />
         <SummaryCard label="Avoid" value={data?.avoid_count ?? 0} color="text-red-400" />
         <SummaryCard label="Market Regime" value={data?.market_regime ?? "—"} />
+        <SummaryCard label="Model Version" value={`v${data?.model_version ?? 0}`} />
         <SummaryCard label="Last Updated" value={updatedTime} />
       </div>
 

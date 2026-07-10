@@ -10,6 +10,7 @@ import type { TradeDecision } from './tradeDecision';
 export interface TradeDecisionsResponse {
   generated_at: string;
   market_regime: string;
+  model_version?: number;
   universe_size: number;
   strong_buy_count: number;
   buy_count: number;

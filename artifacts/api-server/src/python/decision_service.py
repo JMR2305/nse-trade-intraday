@@ -71,6 +71,9 @@ class TradeDecision(TypedDict):
     base_confidence: float
     learning_adjustment: float
     final_confidence: float
+    # v2.0 Adaptive Self-Evaluation model (bounded, versioned, rollback-able)
+    model_version: int
+    model_adjustment: float
     # Historical evidence
     historical_expectancy: float
     historical_profit_factor: float
@@ -208,7 +211,10 @@ def _build_breakdown(item: dict, data_ok: bool, regime_strength: float,
 
 
 def _decide(item: dict, positions: dict, trades: list,
-            regime_strength: float = 50.0) -> TradeDecision:
+            regime_strength: float = 50.0,
+            model_weights: dict | None = None,
+            model_version: int = 0,
+            regime_now_hint: str = "") -> TradeDecision:
     sym    = str(item.get("stock", "")).upper()
     err    = item.get("error")
     fc     = float(item.get("final_confidence", item.get("confidence", 0.0)) or 0.0)
@@ -240,6 +246,29 @@ def _decide(item: dict, positions: dict, trades: list,
         regime_now = "Neutral"
     regime_match = str(item.get("best_regime", "")).lower() in str(regime_now).lower() \
         or str(regime_now).lower() in str(item.get("best_regime", "")).lower()
+
+    # ── v2.0 Adaptive Self-Evaluation model modifier ─────────────────────────
+    # Bounded (±15 total), versioned and rollback-able. Applied ONLY to the
+    # confidence number. It can NEVER override hard risk filters (the
+    # data-quality and filter_passed gates below run regardless) and can
+    # NEVER create a BUY on its own (guarded in the recommendation logic).
+    model_adj = 0.0
+    if model_weights:
+        try:
+            from model_versioning import modifier_for, confidence_band
+            model_adj, _scopes = modifier_for({
+                "strategy_id": item.get("best_strategy_id", ""),
+                "symbol": sym,
+                "sector": item.get("sector", ""),
+                "regime": regime_now,
+                "pattern": (f"{item.get('best_strategy_name', '')} · "
+                            f"{item.get('sector', '')} · {item.get('best_regime', '')}"),
+                "confidence_band": confidence_band(fc),
+            }, model_weights)
+        except Exception:
+            model_adj = 0.0
+    fc_raw = fc                       # confidence BEFORE the v2 model modifier
+    fc = round(max(0.0, min(100.0, fc + model_adj)), 1)
 
     low_reliability = n_hist < RELIABLE_SAMPLE
 
@@ -287,11 +316,15 @@ def _decide(item: dict, positions: dict, trades: list,
         if rr < 2.0:
             failed.append(f"Risk/reward {rr:.1f}:1 < 2:1")
 
-        if (fc >= STRONG_BUY_CONF and exp > 1.0 and pf >= 1.5
+        # SAFETY: a positive v2 model adjustment can never create a buy on
+        # its own — the UNADJUSTED confidence must also clear the bar.
+        if (fc >= STRONG_BUY_CONF and fc_raw >= STRONG_BUY_CONF
+                and exp > 1.0 and pf >= 1.5
                 and not low_reliability and rr >= 2.0 and filter_passed):
             recommendation = "STRONG_BUY"
             reason = f"Confidence {fc:.0f}, expectancy {exp:+.2f}%, PF {pf:.2f}, R:R {rr:.1f}:1"
-        elif (BUY_CONF <= fc < STRONG_BUY_CONF and exp > 0 and pf > 1.2 and rr >= 2.0):
+        elif (BUY_CONF <= fc < STRONG_BUY_CONF and fc_raw >= BUY_CONF
+                and exp > 0 and pf > 1.2 and rr >= 2.0):
             recommendation = "BUY"
             reason = f"Confidence {fc:.0f}, expectancy {exp:+.2f}%, PF {pf:.2f}, R:R {rr:.1f}:1"
         elif fc >= WATCH_CONF:
@@ -313,6 +346,12 @@ def _decide(item: dict, positions: dict, trades: list,
         f"{recommendation.replace('_', ' ')}: {reason}.",
         f"Base technical confidence {base:.0f}, learning adjustment {adj:+.0f} → final {fc:.0f}.",
     ]
+    if model_adj != 0.0:
+        parts.append(
+            f"Self-evaluation model v{model_version} adjusted confidence by "
+            f"{model_adj:+.1f} points (bounded, approved learning — never "
+            f"creates a buy on its own)."
+        )
     if n_hist > 0:
         parts.append(
             f"Best pattern: {item.get('best_strategy_name', '')} in {item.get('sector', '')} "
@@ -342,6 +381,8 @@ def _decide(item: dict, positions: dict, trades: list,
         base_confidence=round(base, 1),
         learning_adjustment=round(adj, 1),
         final_confidence=round(fc, 1),
+        model_version=int(model_version),
+        model_adjustment=round(model_adj, 1),
         historical_expectancy=round(exp, 2),
         historical_profit_factor=round(pf, 2),
         historical_win_rate=round(wr, 1),
@@ -395,7 +436,18 @@ def get_trade_decisions() -> dict:
     learning_meta = scan.get("learning") or {}
     regime_strength = float(learning_meta.get("regime_strength", 50.0) or 50.0)
 
-    decisions = [_decide(it, positions, trades, regime_strength)
+    # v2.0 Adaptive Self-Evaluation: active model version + bounded weights
+    try:
+        from model_versioning import get_active_version
+        active_model = get_active_version()
+        model_version = int(active_model.get("version", 0))
+        model_weights = dict(active_model.get("weights", {}))
+    except Exception:
+        model_version, model_weights = 0, {}
+
+    decisions = [_decide(it, positions, trades, regime_strength,
+                         model_weights=model_weights,
+                         model_version=model_version)
                  for it in scan["items"]]
 
     decisions.sort(key=lambda d: (_ORDER.get(d["recommendation"], 9),
@@ -408,6 +460,7 @@ def get_trade_decisions() -> dict:
     return {
         "generated_at": datetime.now().isoformat(),
         "market_regime": regime_now,
+        "model_version": model_version,
         "universe_size": len(decisions),
         "strong_buy_count": counts["STRONG_BUY"],
         "buy_count": counts["BUY"],

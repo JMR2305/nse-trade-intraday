@@ -1332,6 +1332,8 @@ export interface TradeDecision {
   base_confidence: number;
   learning_adjustment: number;
   final_confidence: number;
+  model_version: number;
+  model_adjustment: number;
   historical_expectancy: number;
   historical_profit_factor: number;
   historical_win_rate: number;
@@ -1360,6 +1362,7 @@ export interface TradeDecision {
 export interface TradeDecisionsResponse {
   generated_at: string;
   market_regime: string;
+  model_version?: number;
   universe_size: number;
   strong_buy_count: number;
   buy_count: number;
@@ -1439,6 +1442,209 @@ export interface TradeIntelligenceImportResult {
   strategy_breakdown?: TradeIntelligenceBreakdownRow[];
   source_breakdown?: TradeIntelligenceBreakdownRow[];
 }
+
+export type FailureCauseSeverity = typeof FailureCauseSeverity[keyof typeof FailureCauseSeverity];
+
+
+export const FailureCauseSeverity = {
+  High: 'High',
+  Medium: 'Medium',
+  Low: 'Low',
+} as const;
+
+export interface FailureCause {
+  cause: string;
+  evidence: string;
+  severity: FailureCauseSeverity;
+  diagnosis_confidence: number;
+}
+
+export interface SuccessFactor {
+  factor: string;
+  evidence: string;
+  weight: number;
+}
+
+export interface CalibrationBand {
+  band: string;
+  trades: number;
+  predicted_success_rate: number;
+  actual_success_rate: number | null;
+  gap: number | null;
+  conclusion: string;
+  recommended_correction: number;
+}
+
+export type ProposedAdjustmentStatus = typeof ProposedAdjustmentStatus[keyof typeof ProposedAdjustmentStatus];
+
+
+export const ProposedAdjustmentStatus = {
+  PROPOSED: 'PROPOSED',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
+  APPLIED: 'APPLIED',
+} as const;
+
+export interface ProposedAdjustment {
+  id: number;
+  created_at: string;
+  scope_type: string;
+  scope_key: string;
+  points: number;
+  size_multiplier: number;
+  reason: string;
+  sample_size: number;
+  status: ProposedAdjustmentStatus;
+  decided_at?: string | null;
+  applied_version?: number | null;
+  [key: string]: unknown;
+ }
+
+export type ModelVersionStatus = typeof ModelVersionStatus[keyof typeof ModelVersionStatus];
+
+
+export const ModelVersionStatus = {
+  ACTIVE: 'ACTIVE',
+  ROLLED_BACK: 'ROLLED_BACK',
+} as const;
+
+export interface ModelVersion {
+  version: number;
+  created_at: string;
+  reason: string;
+  sample_size: number;
+  expected_impact: string;
+  status: ModelVersionStatus;
+  [key: string]: unknown;
+ }
+
+export interface TradeEvaluation {
+  trade_id: string;
+  buy_trade_id?: string;
+  symbol: string;
+  sector?: string;
+  entry_time: string;
+  exit_time: string;
+  entry_price: number;
+  exit_price: number;
+  exit_type: string;
+  actual_return: number;
+  actual_holding_days: number;
+  mfe?: number | null;
+  mae?: number | null;
+  max_gap_pct?: number | null;
+  stop_hit: number;
+  target_hit: number;
+  direction_correct: number;
+  expected_return?: number | null;
+  prediction_error?: number | null;
+  predicted_confidence?: number | null;
+  calibration_error?: number | null;
+  outcome_class: string;
+  failure_causes: FailureCause[];
+  success_factors: SuccessFactor[];
+  lesson: string;
+  learn_eligible: number;
+  data_source: string;
+  model_version: number;
+  [key: string]: unknown;
+ }
+
+export interface LearningReviewTrade {
+  trade_id: string;
+  symbol: string;
+  sector?: string;
+  entry_time: string;
+  exit_time: string;
+  entry_price?: number;
+  exit_price?: number;
+  exit_type: string;
+  predicted_confidence?: number | null;
+  expected_return?: number | null;
+  actual_return: number;
+  prediction_error?: number | null;
+  actual_holding_days: number;
+  expected_holding_days?: number | null;
+  mfe?: number | null;
+  mae?: number | null;
+  stop_hit: boolean;
+  target_hit: boolean;
+  direction_correct: boolean;
+  outcome_class: string;
+  failure_causes: FailureCause[];
+  success_factors: SuccessFactor[];
+  lesson: string;
+  learn_eligible: boolean;
+  data_source?: string;
+  model_version: number;
+  strategy_name?: string | null;
+  recommendation?: string | null;
+  pattern_matched?: string | null;
+  reliability_level?: string | null;
+  [key: string]: unknown;
+ }
+
+export type LearningReviewActiveWeights = {[key: string]: number};
+
+export type LearningReviewCommonFailureCausesItem = {
+  cause: string;
+  count: number;
+  example: string;
+  [key: string]: unknown;
+ };
+
+export type LearningReviewStrongestSuccessFactorsItem = {
+  factor: string;
+  count: number;
+  example: string;
+  [key: string]: unknown;
+ };
+
+export interface LearningReview {
+  generated_at: string;
+  mode: string;
+  active_model_version: number;
+  active_weights: LearningReviewActiveWeights;
+  trades_evaluated: number;
+  learn_eligible_trades: number;
+  successful_predictions: number;
+  failed_predictions: number;
+  avg_prediction_error?: number | null;
+  calibration_score: number | null;
+  calibration_bands: CalibrationBand[];
+  common_failure_causes: LearningReviewCommonFailureCausesItem[];
+  strongest_success_factors: LearningReviewStrongestSuccessFactorsItem[];
+  proposed_adjustments: ProposedAdjustment[];
+  model_versions: ModelVersion[];
+  trades: LearningReviewTrade[];
+  warnings: string[];
+  [key: string]: unknown;
+ }
+
+export type LearningCycleResultProposalsItem = { [key: string]: unknown };
+
+export interface LearningCycleResult {
+  mode: string;
+  evaluated_new: number;
+  eligible_trades: number;
+  proposals_created: number;
+  proposals: LearningCycleResultProposalsItem[];
+  calibration: CalibrationBand[];
+  notes: string[];
+  warning: string;
+  [key: string]: unknown;
+ }
+
+export type LearningActionResultValidation = { [key: string]: unknown } | null;
+
+export interface LearningActionResult {
+  success: boolean;
+  status?: string | null;
+  message: string;
+  model_version?: number | null;
+  validation?: LearningActionResultValidation;
+  [key: string]: unknown;
+ }
 
 export interface ErrorResponse {
   error: string;
@@ -1614,4 +1820,8 @@ export const GetTradeDecisionsForce = {
   true: 'true',
   false: 'false',
 } as const;
+
+export type GetTradeEvaluationsParams = {
+limit?: number;
+};
 

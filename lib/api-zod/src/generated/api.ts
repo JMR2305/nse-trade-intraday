@@ -1210,6 +1210,7 @@ export const GetTradeDecisionsQueryParams = zod.object({
 export const GetTradeDecisionsResponse = zod.object({
   "generated_at": zod.string(),
   "market_regime": zod.string(),
+  "model_version": zod.number().optional(),
   "universe_size": zod.number(),
   "strong_buy_count": zod.number(),
   "buy_count": zod.number(),
@@ -1227,6 +1228,8 @@ export const GetTradeDecisionsResponse = zod.object({
   "base_confidence": zod.number(),
   "learning_adjustment": zod.number(),
   "final_confidence": zod.number(),
+  "model_version": zod.number(),
+  "model_adjustment": zod.number(),
   "historical_expectancy": zod.number(),
   "historical_profit_factor": zod.number(),
   "historical_win_rate": zod.number(),
@@ -1712,6 +1715,231 @@ export const GetLearningInsightsResponse = zod.object({
 }).optional()
 })
 })
+
+
+/**
+ * Full self-evaluation report — every evaluated paper trade with its prediction snapshot, prediction vs actual outcome, MFE/MAE, evidence-based failure causes and success factors, confidence calibration bands, proposed (never auto-applied) learning adjustments, and model version history. Read-only; paper trading research only.
+ * @summary Learning Review — v2.0 Adaptive Self-Evaluation report
+ */
+export const GetLearningReviewResponse = zod.object({
+  "generated_at": zod.string(),
+  "mode": zod.string(),
+  "active_model_version": zod.number(),
+  "active_weights": zod.record(zod.string(), zod.number()),
+  "trades_evaluated": zod.number(),
+  "learn_eligible_trades": zod.number(),
+  "successful_predictions": zod.number(),
+  "failed_predictions": zod.number(),
+  "avg_prediction_error": zod.number().nullish(),
+  "calibration_score": zod.number().nullable(),
+  "calibration_bands": zod.array(zod.object({
+  "band": zod.string(),
+  "trades": zod.number(),
+  "predicted_success_rate": zod.number(),
+  "actual_success_rate": zod.number().nullable(),
+  "gap": zod.number().nullable(),
+  "conclusion": zod.string(),
+  "recommended_correction": zod.number()
+})),
+  "common_failure_causes": zod.array(zod.object({
+  "cause": zod.string(),
+  "count": zod.number(),
+  "example": zod.string()
+})),
+  "strongest_success_factors": zod.array(zod.object({
+  "factor": zod.string(),
+  "count": zod.number(),
+  "example": zod.string()
+})),
+  "proposed_adjustments": zod.array(zod.object({
+  "id": zod.number(),
+  "created_at": zod.string(),
+  "scope_type": zod.string(),
+  "scope_key": zod.string(),
+  "points": zod.number(),
+  "size_multiplier": zod.number(),
+  "reason": zod.string(),
+  "sample_size": zod.number(),
+  "status": zod.enum(['PROPOSED', 'APPROVED', 'REJECTED', 'APPLIED']),
+  "decided_at": zod.string().nullish(),
+  "applied_version": zod.number().nullish()
+})),
+  "model_versions": zod.array(zod.object({
+  "version": zod.number(),
+  "created_at": zod.string(),
+  "reason": zod.string(),
+  "sample_size": zod.number(),
+  "expected_impact": zod.string(),
+  "status": zod.enum(['ACTIVE', 'ROLLED_BACK'])
+})),
+  "trades": zod.array(zod.object({
+  "trade_id": zod.string(),
+  "symbol": zod.string(),
+  "sector": zod.string().optional(),
+  "entry_time": zod.string(),
+  "exit_time": zod.string(),
+  "entry_price": zod.number().optional(),
+  "exit_price": zod.number().optional(),
+  "exit_type": zod.string(),
+  "predicted_confidence": zod.number().nullish(),
+  "expected_return": zod.number().nullish(),
+  "actual_return": zod.number(),
+  "prediction_error": zod.number().nullish(),
+  "actual_holding_days": zod.number(),
+  "expected_holding_days": zod.number().nullish(),
+  "mfe": zod.number().nullish(),
+  "mae": zod.number().nullish(),
+  "stop_hit": zod.boolean(),
+  "target_hit": zod.boolean(),
+  "direction_correct": zod.boolean(),
+  "outcome_class": zod.string(),
+  "failure_causes": zod.array(zod.object({
+  "cause": zod.string(),
+  "evidence": zod.string(),
+  "severity": zod.enum(['High', 'Medium', 'Low']),
+  "diagnosis_confidence": zod.number()
+})),
+  "success_factors": zod.array(zod.object({
+  "factor": zod.string(),
+  "evidence": zod.string(),
+  "weight": zod.number()
+})),
+  "lesson": zod.string(),
+  "learn_eligible": zod.boolean(),
+  "data_source": zod.string().optional(),
+  "model_version": zod.number(),
+  "strategy_name": zod.string().nullish(),
+  "recommendation": zod.string().nullish(),
+  "pattern_matched": zod.string().nullish(),
+  "reliability_level": zod.string().nullish()
+})),
+  "warnings": zod.array(zod.string())
+})
+
+
+/**
+ * Evaluates any pending completed trades, aggregates learn-eligible outcomes, and (re)computes PROPOSED adjustments. Analysis Mode only — no adjustment is ever applied without explicit approval, and mock-data trades are never learned from.
+ * @summary Run a learning cycle (Analysis Mode — applies nothing)
+ */
+export const RunLearningCycleResponse = zod.object({
+  "mode": zod.string(),
+  "evaluated_new": zod.number(),
+  "eligible_trades": zod.number(),
+  "proposals_created": zod.number(),
+  "proposals": zod.array(zod.record(zod.string(), zod.unknown())),
+  "calibration": zod.array(zod.object({
+  "band": zod.string(),
+  "trades": zod.number(),
+  "predicted_success_rate": zod.number(),
+  "actual_success_rate": zod.number().nullable(),
+  "gap": zod.number().nullable(),
+  "conclusion": zod.string(),
+  "recommended_correction": zod.number()
+})),
+  "notes": zod.array(zod.string()),
+  "warning": zod.string()
+})
+
+
+/**
+ * Runs out-of-sample validation first; the adjustment is applied (as a new model version) only if the proposed model does not worsen expectancy, profit factor, max drawdown or risk-adjusted return on unseen data. Failing validation auto-rejects the proposal.
+ * @summary Approve a proposed learning adjustment
+ */
+export const ApproveLearningAdjustmentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApproveLearningAdjustmentResponse = zod.object({
+  "success": zod.boolean(),
+  "status": zod.string().nullish(),
+  "message": zod.string(),
+  "model_version": zod.number().nullish(),
+  "validation": zod.record(zod.string(), zod.unknown()).nullish()
+})
+
+
+/**
+ * @summary Reject a proposed learning adjustment
+ */
+export const RejectLearningAdjustmentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RejectLearningAdjustmentResponse = zod.object({
+  "success": zod.boolean(),
+  "status": zod.string().nullish(),
+  "message": zod.string(),
+  "model_version": zod.number().nullish(),
+  "validation": zod.record(zod.string(), zod.unknown()).nullish()
+})
+
+
+/**
+ * Marks the given model version (and any later ones) as rolled back and restores the previous surviving version's weights.
+ * @summary Roll back a model version
+ */
+export const RollbackModelVersionParams = zod.object({
+  "version": zod.coerce.number()
+})
+
+export const RollbackModelVersionResponse = zod.object({
+  "success": zod.boolean(),
+  "status": zod.string().nullish(),
+  "message": zod.string(),
+  "model_version": zod.number().nullish(),
+  "validation": zod.record(zod.string(), zod.unknown()).nullish()
+})
+
+
+/**
+ * @summary Evaluated completed paper trades (prediction vs actual)
+ */
+export const getTradeEvaluationsQueryLimitDefault = 200;
+
+export const GetTradeEvaluationsQueryParams = zod.object({
+  "limit": zod.coerce.number().default(getTradeEvaluationsQueryLimitDefault)
+})
+
+export const GetTradeEvaluationsResponseItem = zod.object({
+  "trade_id": zod.string(),
+  "buy_trade_id": zod.string().optional(),
+  "symbol": zod.string(),
+  "sector": zod.string().optional(),
+  "entry_time": zod.string(),
+  "exit_time": zod.string(),
+  "entry_price": zod.number(),
+  "exit_price": zod.number(),
+  "exit_type": zod.string(),
+  "actual_return": zod.number(),
+  "actual_holding_days": zod.number(),
+  "mfe": zod.number().nullish(),
+  "mae": zod.number().nullish(),
+  "max_gap_pct": zod.number().nullish(),
+  "stop_hit": zod.number(),
+  "target_hit": zod.number(),
+  "direction_correct": zod.number(),
+  "expected_return": zod.number().nullish(),
+  "prediction_error": zod.number().nullish(),
+  "predicted_confidence": zod.number().nullish(),
+  "calibration_error": zod.number().nullish(),
+  "outcome_class": zod.string(),
+  "failure_causes": zod.array(zod.object({
+  "cause": zod.string(),
+  "evidence": zod.string(),
+  "severity": zod.enum(['High', 'Medium', 'Low']),
+  "diagnosis_confidence": zod.number()
+})),
+  "success_factors": zod.array(zod.object({
+  "factor": zod.string(),
+  "evidence": zod.string(),
+  "weight": zod.number()
+})),
+  "lesson": zod.string(),
+  "learn_eligible": zod.number(),
+  "data_source": zod.string(),
+  "model_version": zod.number()
+})
+export const GetTradeEvaluationsResponse = zod.array(GetTradeEvaluationsResponseItem)
 
 
 /**

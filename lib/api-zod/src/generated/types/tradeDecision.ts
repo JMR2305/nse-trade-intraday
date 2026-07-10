@@ -18,6 +18,8 @@ export interface TradeDecision {
   base_confidence: number;
   learning_adjustment: number;
   final_confidence: number;
+  model_version: number;
+  model_adjustment: number;
   historical_expectancy: number;
   historical_profit_factor: number;
   historical_win_rate: number;

@@ -780,6 +780,162 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /learning-review:
+    get:
+      operationId: getLearningReview
+      tags: [trading]
+      summary: Learning Review — v2.0 Adaptive Self-Evaluation report
+      description: >
+        Full self-evaluation report — every evaluated paper trade with its
+        prediction snapshot, prediction vs actual outcome, MFE/MAE,
+        evidence-based failure causes and success factors, confidence
+        calibration bands, proposed (never auto-applied) learning
+        adjustments, and model version history. Read-only; paper trading
+        research only.
+      responses:
+        "200":
+          description: Learning review payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningReview"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /learning-cycle:
+    post:
+      operationId: runLearningCycle
+      tags: [trading]
+      summary: Run a learning cycle (Analysis Mode — applies nothing)
+      description: >
+        Evaluates any pending completed trades, aggregates learn-eligible
+        outcomes, and (re)computes PROPOSED adjustments. Analysis Mode only —
+        no adjustment is ever applied without explicit approval, and mock-data
+        trades are never learned from.
+      responses:
+        "200":
+          description: Learning cycle result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningCycleResult"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /learning-adjustments/{id}/approve:
+    post:
+      operationId: approveLearningAdjustment
+      tags: [trading]
+      summary: Approve a proposed learning adjustment
+      description: >
+        Runs out-of-sample validation first; the adjustment is applied (as a
+        new model version) only if the proposed model does not worsen
+        expectancy, profit factor, max drawdown or risk-adjusted return on
+        unseen data. Failing validation auto-rejects the proposal.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Approval outcome
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningActionResult"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /learning-adjustments/{id}/reject:
+    post:
+      operationId: rejectLearningAdjustment
+      tags: [trading]
+      summary: Reject a proposed learning adjustment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Rejection outcome
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningActionResult"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /learning-rollback/{version}:
+    post:
+      operationId: rollbackModelVersion
+      tags: [trading]
+      summary: Roll back a model version
+      description: >
+        Marks the given model version (and any later ones) as rolled back and
+        restores the previous surviving version's weights.
+      parameters:
+        - name: version
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Rollback outcome
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningActionResult"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trade-evaluations:
+    get:
+      operationId: getTradeEvaluations
+      tags: [trading]
+      summary: Evaluated completed paper trades (prediction vs actual)
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, default: 200 }
+      responses:
+        "200":
+          description: Trade evaluations with prediction snapshots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TradeEvaluation"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /predictive-intelligence/evaluate:
     post:
       operationId: evaluatePredictiveIntelligence
@@ -2782,6 +2938,8 @@ components:
         base_confidence:          { type: number }
         learning_adjustment:      { type: number }
         final_confidence:         { type: number }
+        model_version:            { type: integer }
+        model_adjustment:         { type: number }
         historical_expectancy:    { type: number }
         historical_profit_factor: { type: number }
         historical_win_rate:      { type: number }
@@ -2813,6 +2971,7 @@ components:
       required:
         [stock, sector, recommendation, data_status, low_reliability,
          base_confidence, learning_adjustment, final_confidence,
+         model_version, model_adjustment,
          historical_expectancy, historical_profit_factor, historical_win_rate,
          pattern_match_pct, historical_trades, best_pattern, regime_match,
          price, entry_price, stop_loss, target, rr_ratio,
@@ -2825,6 +2984,7 @@ components:
       properties:
         generated_at:           { type: string }
         market_regime:          { type: string }
+        model_version:          { type: integer }
         universe_size:          { type: integer }
         strong_buy_count:       { type: integer }
         buy_count:              { type: integer }
@@ -3017,6 +3177,252 @@ components:
           type: array
           items: { $ref: "#/components/schemas/TradeIntelligenceBreakdownRow" }
       required: [imported_paper_trades, note, total_trades]
+
+    FailureCause:
+      type: object
+      properties:
+        cause:                { type: string }
+        evidence:             { type: string }
+        severity:             { type: string, enum: [High, Medium, Low] }
+        diagnosis_confidence: { type: number }
+      required: [cause, evidence, severity, diagnosis_confidence]
+
+    SuccessFactor:
+      type: object
+      properties:
+        factor:   { type: string }
+        evidence: { type: string }
+        weight:   { type: number }
+      required: [factor, evidence, weight]
+
+    CalibrationBand:
+      type: object
+      properties:
+        band:                    { type: string }
+        trades:                  { type: integer }
+        predicted_success_rate:  { type: number }
+        actual_success_rate:     { type: number, nullable: true }
+        gap:                     { type: number, nullable: true }
+        conclusion:              { type: string }
+        recommended_correction:  { type: number }
+      required:
+        [band, trades, predicted_success_rate, actual_success_rate, gap,
+         conclusion, recommended_correction]
+
+    ProposedAdjustment:
+      type: object
+      additionalProperties: true
+      properties:
+        id:              { type: integer }
+        created_at:      { type: string }
+        scope_type:      { type: string }
+        scope_key:       { type: string }
+        points:          { type: number }
+        size_multiplier: { type: number }
+        reason:          { type: string }
+        sample_size:     { type: integer }
+        status:
+          type: string
+          enum: [PROPOSED, APPROVED, REJECTED, APPLIED]
+        decided_at:      { type: string, nullable: true }
+        applied_version: { type: integer, nullable: true }
+      required:
+        [id, created_at, scope_type, scope_key, points, size_multiplier,
+         reason, sample_size, status]
+
+    ModelVersion:
+      type: object
+      additionalProperties: true
+      properties:
+        version:         { type: integer }
+        created_at:      { type: string }
+        reason:          { type: string }
+        sample_size:     { type: integer }
+        expected_impact: { type: string }
+        status:          { type: string, enum: [ACTIVE, ROLLED_BACK] }
+      required: [version, created_at, reason, sample_size, expected_impact, status]
+
+    TradeEvaluation:
+      type: object
+      additionalProperties: true
+      properties:
+        trade_id:              { type: string }
+        buy_trade_id:          { type: string }
+        symbol:                { type: string }
+        sector:                { type: string }
+        entry_time:            { type: string }
+        exit_time:             { type: string }
+        entry_price:           { type: number }
+        exit_price:            { type: number }
+        exit_type:             { type: string }
+        actual_return:         { type: number }
+        actual_holding_days:   { type: number }
+        mfe:                   { type: number, nullable: true }
+        mae:                   { type: number, nullable: true }
+        max_gap_pct:           { type: number, nullable: true }
+        stop_hit:              { type: integer }
+        target_hit:            { type: integer }
+        direction_correct:     { type: integer }
+        expected_return:       { type: number, nullable: true }
+        prediction_error:      { type: number, nullable: true }
+        predicted_confidence:  { type: number, nullable: true }
+        calibration_error:     { type: number, nullable: true }
+        outcome_class:         { type: string }
+        failure_causes:
+          type: array
+          items: { $ref: "#/components/schemas/FailureCause" }
+        success_factors:
+          type: array
+          items: { $ref: "#/components/schemas/SuccessFactor" }
+        lesson:                { type: string }
+        learn_eligible:        { type: integer }
+        data_source:           { type: string }
+        model_version:         { type: integer }
+      required:
+        [trade_id, symbol, entry_time, exit_time, entry_price, exit_price,
+         exit_type, actual_return, actual_holding_days, stop_hit, target_hit,
+         direction_correct, outcome_class, failure_causes, success_factors,
+         lesson, learn_eligible, data_source, model_version]
+
+    LearningReviewTrade:
+      type: object
+      additionalProperties: true
+      properties:
+        trade_id:              { type: string }
+        symbol:                { type: string }
+        sector:                { type: string }
+        entry_time:            { type: string }
+        exit_time:             { type: string }
+        entry_price:           { type: number }
+        exit_price:            { type: number }
+        exit_type:             { type: string }
+        predicted_confidence:  { type: number, nullable: true }
+        expected_return:       { type: number, nullable: true }
+        actual_return:         { type: number }
+        prediction_error:      { type: number, nullable: true }
+        actual_holding_days:   { type: number }
+        expected_holding_days: { type: number, nullable: true }
+        mfe:                   { type: number, nullable: true }
+        mae:                   { type: number, nullable: true }
+        stop_hit:              { type: boolean }
+        target_hit:            { type: boolean }
+        direction_correct:     { type: boolean }
+        outcome_class:         { type: string }
+        failure_causes:
+          type: array
+          items: { $ref: "#/components/schemas/FailureCause" }
+        success_factors:
+          type: array
+          items: { $ref: "#/components/schemas/SuccessFactor" }
+        lesson:                { type: string }
+        learn_eligible:        { type: boolean }
+        data_source:           { type: string }
+        model_version:         { type: integer }
+        strategy_name:         { type: string, nullable: true }
+        recommendation:        { type: string, nullable: true }
+        pattern_matched:       { type: string, nullable: true }
+        reliability_level:     { type: string, nullable: true }
+      required:
+        [trade_id, symbol, entry_time, exit_time, exit_type, actual_return,
+         actual_holding_days, stop_hit, target_hit, direction_correct,
+         outcome_class, failure_causes, success_factors, lesson,
+         learn_eligible, model_version]
+
+    LearningReview:
+      type: object
+      additionalProperties: true
+      properties:
+        generated_at:           { type: string }
+        mode:                   { type: string }
+        active_model_version:   { type: integer }
+        active_weights:
+          type: object
+          additionalProperties: { type: number }
+        trades_evaluated:       { type: integer }
+        learn_eligible_trades:  { type: integer }
+        successful_predictions: { type: integer }
+        failed_predictions:     { type: integer }
+        avg_prediction_error:   { type: number, nullable: true }
+        calibration_score:      { type: number, nullable: true }
+        calibration_bands:
+          type: array
+          items: { $ref: "#/components/schemas/CalibrationBand" }
+        common_failure_causes:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+            properties:
+              cause:   { type: string }
+              count:   { type: integer }
+              example: { type: string }
+            required: [cause, count, example]
+        strongest_success_factors:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+            properties:
+              factor:  { type: string }
+              count:   { type: integer }
+              example: { type: string }
+            required: [factor, count, example]
+        proposed_adjustments:
+          type: array
+          items: { $ref: "#/components/schemas/ProposedAdjustment" }
+        model_versions:
+          type: array
+          items: { $ref: "#/components/schemas/ModelVersion" }
+        trades:
+          type: array
+          items: { $ref: "#/components/schemas/LearningReviewTrade" }
+        warnings:
+          type: array
+          items: { type: string }
+      required:
+        [generated_at, mode, active_model_version, active_weights,
+         trades_evaluated, learn_eligible_trades, successful_predictions,
+         failed_predictions, calibration_score, calibration_bands,
+         common_failure_causes, strongest_success_factors,
+         proposed_adjustments, model_versions, trades, warnings]
+
+    LearningCycleResult:
+      type: object
+      additionalProperties: true
+      properties:
+        mode:              { type: string }
+        evaluated_new:     { type: integer }
+        eligible_trades:   { type: integer }
+        proposals_created: { type: integer }
+        proposals:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        calibration:
+          type: array
+          items: { $ref: "#/components/schemas/CalibrationBand" }
+        notes:
+          type: array
+          items: { type: string }
+        warning:           { type: string }
+      required:
+        [mode, evaluated_new, eligible_trades, proposals_created, proposals,
+         calibration, notes, warning]
+
+    LearningActionResult:
+      type: object
+      additionalProperties: true
+      properties:
+        success:       { type: boolean }
+        status:        { type: string, nullable: true }
+        message:       { type: string }
+        model_version: { type: integer, nullable: true }
+        validation:
+          type: object
+          additionalProperties: true
+          nullable: true
+      required: [success, message]
 
     ErrorResponse:
       type: object

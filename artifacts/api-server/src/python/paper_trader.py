@@ -294,6 +294,14 @@ def execute_buy(
 
     _append_pnl_snapshot(state, price, sym)
     _save_state(state)
+
+    # ── v2.0 Self-Evaluation: permanently store the prediction snapshot ──
+    try:
+        from trade_evaluator import store_prediction_snapshot
+        store_prediction_snapshot(trade)
+    except Exception:
+        pass  # snapshot must never block a buy order
+
     return True, f"Bought {quantity} × {sym} @ ₹{price:.2f} = ₹{total_cost:.2f}"
 
 
@@ -367,7 +375,15 @@ def execute_sell(
         buy_trade = find_buy_trade(state, sym, trade["timestamp"])
         record_paper_trade(trade, sector=_sector_of(sym), buy_trade=buy_trade)
     except Exception:
-        pass  # recording must never break a sell order
+        buy_trade = None  # recording must never break a sell order
+
+    # ── v2.0 Self-Evaluation: evaluate the completed round trip ──────────
+    try:
+        from trade_evaluator import evaluate_closed_trade
+        if buy_trade:
+            evaluate_closed_trade(buy_trade, trade)
+    except Exception:
+        pass  # evaluation must never break a sell order
 
     return True, f"Sold {quantity} × {sym} @ ₹{price:.2f} | P&L: ₹{realized_pnl:.2f}"
 

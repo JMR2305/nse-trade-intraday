@@ -327,6 +327,40 @@ def cmd_historical_knowledge_trades(opts_json: str) -> dict:
     )
 
 
+def cmd_learning_review() -> dict:
+    """v2.0 Adaptive Self-Evaluation — full Learning Review page payload."""
+    from adaptive_adjustments import learning_review
+    return learning_review()
+
+
+def cmd_learning_cycle() -> dict:
+    """v2.0 — run a learning cycle in Analysis Mode (proposes, applies nothing)."""
+    from adaptive_adjustments import run_learning_cycle
+    return run_learning_cycle()
+
+
+def cmd_learning_approve(adj_id: str) -> dict:
+    """v2.0 — approve a proposed adjustment (validated out-of-sample first)."""
+    from adaptive_adjustments import approve_adjustment
+    return approve_adjustment(int(adj_id))
+
+
+def cmd_learning_reject(adj_id: str) -> dict:
+    from adaptive_adjustments import reject_adjustment
+    return reject_adjustment(int(adj_id))
+
+
+def cmd_learning_rollback(version: str) -> dict:
+    from model_versioning import rollback
+    return rollback(int(version))
+
+
+def cmd_trade_evaluations(limit: int = 200) -> list:
+    from trade_evaluator import backfill_evaluations, get_evaluation_with_snapshot
+    backfill_evaluations()
+    return get_evaluation_with_snapshot(limit=limit)
+
+
 def _read_json_cache(filename: str) -> list | dict:
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
     if os.path.exists(path):
@@ -474,6 +508,19 @@ def main():
             result = cmd_trade_decisions()
         elif command == "predictive_evaluate" and len(args) >= 2:
             result = cmd_predictive_evaluate(args[1])
+        elif command == "learning_review":
+            result = cmd_learning_review()
+        elif command == "learning_cycle":
+            result = cmd_learning_cycle()
+        elif command == "learning_approve" and len(args) >= 2:
+            result = cmd_learning_approve(args[1])
+        elif command == "learning_reject" and len(args) >= 2:
+            result = cmd_learning_reject(args[1])
+        elif command == "learning_rollback" and len(args) >= 2:
+            result = cmd_learning_rollback(args[1])
+        elif command == "trade_evaluations":
+            result = cmd_trade_evaluations(
+                int(args[1]) if len(args) > 1 else 200)
         else:
             error_msg = f"Unknown command: {command}"
 

@@ -1,0 +1,324 @@
+Build Version 2.0 — Adaptive Self-Evaluation Engine.
+
+Goal:
+After every completed paper trade, compare the bot’s prediction with the actual outcome, identify likely failure or success factors, and update future confidence adjustments.
+
+Important:
+- Paper trading and research only.
+- Do not place real orders.
+- Do not automatically rewrite core strategy rules.
+- Learning may adjust confidence, pattern ranking, strategy weighting, and position sizing only.
+- Every change must be explainable, logged, reversible, and based on sufficient evidence.
+- Do not learn from synthetic/mock price data.
+
+1. Create backend modules
+
+Create:
+
+backend/trade_evaluator.py
+backend/failure_analyzer.py
+backend/adaptive_learning.py
+backend/model_versioning.py
+
+2. Store prediction snapshot
+
+For every new paper trade, permanently store the complete state at entry:
+
+- Trade ID
+- Symbol
+- Sector
+- Entry date/time
+- Strategy
+- Recommendation
+- Base confidence
+- Historical adjustment
+- Final confidence
+- Expected return
+- Expected holding period
+- Expected risk/reward
+- Entry price
+- Stop-loss
+- Target
+- Market regime
+- Sector strength
+- Volatility regime
+- Data source and data quality
+
+Indicator snapshot:
+
+- EMA9
+- EMA20
+- EMA50
+- EMA200
+- RSI
+- MACD
+- MACD signal
+- ATR
+- ADX
+- Supertrend
+- VWAP
+- Volume ratio
+
+Historical evidence:
+
+- Pattern matched
+- Pattern rank
+- Historical matches
+- Historical win rate
+- Historical expectancy
+- Profit factor
+- Reliability level
+
+3. Evaluate completed trades
+
+When a paper trade closes, calculate:
+
+- Actual return
+- Actual holding period
+- Maximum favourable excursion
+- Maximum adverse excursion
+- Whether stop-loss was hit
+- Whether target was hit
+- Whether the signal direction was correct
+- Prediction error:
+  actual return minus expected return
+- Confidence calibration error
+- Outcome classification:
+  Excellent
+  Good
+  Weak Profit
+  Small Loss
+  Failed
+
+4. Failure analysis
+
+For every losing or underperforming trade, assign probable causes.
+
+Possible causes:
+
+- Entered against broader trend
+- Market regime changed after entry
+- Sector weakened
+- Volume confirmation was weak
+- Momentum reversed
+- Entry was too early
+- Entry was too late
+- Stop-loss too tight
+- Stop-loss too wide
+- Target unrealistic
+- Risk/reward estimate inaccurate
+- Historical sample unreliable
+- Pattern match too weak
+- High volatility
+- Overnight gap
+- Data quality problem
+- Strategy unsuitable for sector
+- Strategy unsuitable for market regime
+- Time exit too short
+- Time exit too long
+
+Each cause must include:
+
+- Cause name
+- Evidence
+- Severity
+- Confidence in diagnosis
+
+Do not assign a cause without supporting data.
+
+5. Success analysis
+
+For profitable trades, identify which factors contributed most:
+
+- Strong trend alignment
+- High-quality historical pattern
+- Sector strength
+- Market regime match
+- Volume confirmation
+- Momentum confirmation
+- Good risk/reward
+- Suitable holding period
+- Accurate stop and target
+
+6. Learning aggregation
+
+Aggregate completed trade outcomes by:
+
+- Strategy
+- Symbol
+- Sector
+- Market regime
+- Volatility regime
+- RSI band
+- ADX band
+- Volume band
+- Confidence band
+- Pattern
+- Holding period
+- Failure cause
+
+Calculate:
+
+- Trades
+- Wins
+- Losses
+- Win rate
+- Average return
+- Profit factor
+- Expectancy
+- Prediction error
+- Calibration accuracy
+- Maximum drawdown
+- Reliability
+
+7. Adaptive adjustments
+
+Learning may update:
+
+- Strategy confidence modifier
+- Sector modifier
+- Market regime modifier
+- Pattern quality modifier
+- Holding-period preference
+- Position-size multiplier
+
+Rules:
+
+- Minimum 30 completed trades before applying a group-level adjustment.
+- Minimum 15 trades for symbol-specific adjustments.
+- Use gradual changes only.
+- Maximum change per learning cycle: 3 confidence points.
+- Maximum total modifier: plus or minus 15 points.
+- Never override hard risk filters.
+- Never create BUY merely because of a learning adjustment.
+- Negative expectancy patterns must be penalized.
+- Positive expectancy patterns with reliable samples may receive a small boost.
+
+8. Confidence calibration
+
+Create calibration bands:
+
+- Predicted confidence 50–59
+- 60–69
+- 70–79
+- 80–89
+- 90–95
+
+For every band, compare:
+
+- Predicted success rate
+- Actual success rate
+- Calibration gap
+
+Example:
+
+Predicted confidence: 80–89
+Actual win rate: 57%
+Conclusion: Model is overconfident
+Recommended correction: -4 points
+
+Apply corrections gradually.
+
+9. Learning cycle
+
+Add two modes:
+
+A. Analysis Mode
+- Calculates proposed changes.
+- Does not apply them.
+
+B. Approved Learning Mode
+- Applies only reviewed and approved changes.
+
+Default to Analysis Mode.
+
+10. Model versioning and rollback
+
+Every applied learning update must create a model version.
+
+Store:
+
+- Version number
+- Date
+- Previous weights
+- New weights
+- Reason
+- Supporting sample size
+- Expected impact
+- Actual performance after deployment
+
+Add rollback support.
+
+11. Validation before applying changes
+
+Before accepting a proposed adjustment:
+
+- Run it on historical out-of-sample data.
+- Compare old model versus proposed model.
+- Reject the update if it worsens:
+  - Expectancy
+  - Profit factor
+  - Maximum drawdown
+  - Risk-adjusted return
+
+Do not approve changes based only on win rate.
+
+12. Add Learning Review page
+
+Show:
+
+- Trades evaluated
+- Successful predictions
+- Failed predictions
+- Average prediction error
+- Calibration score
+- Most common failure causes
+- Strongest success factors
+- Proposed confidence adjustments
+- Proposed strategy changes
+- Evidence and sample size
+- Approve
+- Reject
+- Roll back
+
+13. Trade review details
+
+For every completed trade, show:
+
+- What the bot predicted
+- What actually happened
+- Why the trade succeeded or failed
+- What lesson was extracted
+- Whether a model adjustment was proposed
+- Whether the adjustment was approved
+
+14. Safety warnings
+
+Show:
+
+“Adaptive learning is based on historical and paper-trading outcomes. It does not guarantee future profitability.”
+
+Show:
+
+“No learning change was applied because the sample size was insufficient.”
+
+15. Automated tests
+
+Add tests for:
+
+- Prediction error calculation
+- Failure-cause classification
+- Confidence calibration
+- Minimum sample-size rules
+- Modifier limits
+- Model version creation
+- Rollback
+- No learning from mock data
+- No override of hard risk filters
+
+Do not change the current Trade Decisions UI except to display:
+
+- Model version
+- Learning adjustment
+- Evidence reliability
+- A short learning explanation

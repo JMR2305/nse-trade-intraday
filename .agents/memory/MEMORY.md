@@ -2,3 +2,5 @@
 - [Signal filter calibration](signal-filter-calibration.md) — scanner scores top out ~55-65 in practice; action labels (BUY/WATCH) are score bins, gate on filter_passed not labels.
 - [API codegen lockstep](api-codegen-lockstep.md) — any openapi.yaml default/schema change must rerun api-spec codegen or generated zod defaults go stale.
 - [Expectancy learning conventions](expectancy-learning-conventions.md) — expectancy-based learning is canonical (not win-rate); scanner blend 40/30/15/10/5; UI must coalesce breakdown fields against stale cached payloads; never remove pages, only extend.
+- [Python package install workaround](python-package-install.md) — installLanguagePackages and uv fail here; use `python3 -m pip install --break-system-packages --prefix .pythonlibs`.
+- [Learning-data eligibility gate](learning-data-gate.md) — learn_eligible must verify data source across the FULL trade lifecycle (BUY snapshot, SELL fetch, evaluation fetch), never entry alone.

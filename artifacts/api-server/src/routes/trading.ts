@@ -664,6 +664,87 @@ router.post("/strategy-lab", async (req, res) => {
   }
 });
 
+// ── v2.0 Adaptive Self-Evaluation Engine ─────────────────────────────────────
+// Paper trading research only. Analysis Mode by default: proposals are never
+// applied without explicit approval, and mock-data trades are never learned
+// from. Learning can never change core strategy rules or create a BUY.
+
+// GET /api/learning-review — full self-evaluation report
+router.get("/learning-review", async (_req, res) => {
+  try {
+    const data = await runPython(["learning_review"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/learning-cycle — run a learning cycle (Analysis Mode)
+router.post("/learning-cycle", async (_req, res) => {
+  try {
+    const data = await runPython(["learning_cycle"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/learning-adjustments/:id/approve — validate out-of-sample, then apply
+router.post("/learning-adjustments/:id/approve", async (req, res) => {
+  try {
+    const id = parseInt(String(req.params.id), 10);
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: "id must be a positive integer" });
+      return;
+    }
+    const data = await runPython(["learning_approve", String(id)]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/learning-adjustments/:id/reject
+router.post("/learning-adjustments/:id/reject", async (req, res) => {
+  try {
+    const id = parseInt(String(req.params.id), 10);
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: "id must be a positive integer" });
+      return;
+    }
+    const data = await runPython(["learning_reject", String(id)]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/learning-rollback/:version — roll back a model version
+router.post("/learning-rollback/:version", async (req, res) => {
+  try {
+    const version = parseInt(String(req.params.version), 10);
+    if (!Number.isInteger(version) || version <= 0) {
+      res.status(400).json({ error: "version must be a positive integer" });
+      return;
+    }
+    const data = await runPython(["learning_rollback", String(version)]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/trade-evaluations — evaluated round trips (prediction vs actual)
+router.get("/trade-evaluations", async (req, res) => {
+  try {
+    const limit = String(parseInt(String(req.query.limit ?? "200"), 10) || 200);
+    const data = await runPython(["trade_evaluations", limit]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/strategies
 router.get("/strategies", async (_req, res) => {
   try {
