@@ -32,11 +32,12 @@ function titleize(s: string): string {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function PatternTable({ title, icon, patterns, dims }: {
+function PatternTable({ title, icon, patterns, dims, extraCols = [] }: {
   title: string;
   icon: React.ReactNode;
   patterns: any[];
   dims: { key: string; label: string }[];
+  extraCols?: { key: string; label: string; fmt?: (v: number) => string }[];
 }) {
   return (
     <Card className="bg-card/50 backdrop-blur border-border/50">
@@ -58,6 +59,9 @@ function PatternTable({ title, icon, patterns, dims }: {
               <th className="py-2 px-3">Avg Return</th>
               <th className="py-2 px-3">PF</th>
               <th className="py-2 px-3">Expectancy</th>
+              {extraCols.map((c) => (
+                <th key={c.key} className="py-2 px-3">{c.label}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -75,6 +79,11 @@ function PatternTable({ title, icon, patterns, dims }: {
                 <td className={`py-2 px-3 text-xs font-mono ${p.expectancy >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                   {p.expectancy >= 0 ? "+" : ""}{p.expectancy.toFixed(2)}%
                 </td>
+                {extraCols.map((c) => (
+                  <td key={c.key} className="py-2 px-3 text-xs font-mono text-muted-foreground">
+                    {c.fmt ? c.fmt(Number(p[c.key] ?? 0)) : Number(p[c.key] ?? 0).toFixed(2)}
+                  </td>
+                ))}
               </tr>
             ))}
           </tbody>
@@ -279,6 +288,91 @@ export default function LearningInsights() {
                 { key: "rsi_band", label: "RSI Band" },
                 { key: "adx_band", label: "ADX Band" },
               ]}
+            />
+          </div>
+
+          {/* ── Expectancy Engine (Sprint 4) ── */}
+          <div className="grid lg:grid-cols-2 gap-4">
+            <PatternTable
+              title="Top 20 by Expectancy"
+              icon={<TrendingUp className="h-3.5 w-3.5 text-emerald-400" />}
+              patterns={data?.top_expectancy_patterns ?? []}
+              dims={[
+                { key: "strategy", label: "Strategy" },
+                { key: "sector", label: "Sector" },
+                { key: "regime", label: "Regime" },
+              ]}
+            />
+            <PatternTable
+              title="Bottom 20 by Expectancy"
+              icon={<TrendingDown className="h-3.5 w-3.5 text-red-400" />}
+              patterns={data?.lowest_expectancy_patterns ?? []}
+              dims={[
+                { key: "strategy", label: "Strategy" },
+                { key: "sector", label: "Sector" },
+                { key: "regime", label: "Regime" },
+              ]}
+            />
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-4">
+            <PatternTable
+              title="Highest Sharpe (Most Consistent)"
+              icon={<ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />}
+              patterns={data?.highest_sharpe_patterns ?? []}
+              dims={[
+                { key: "strategy", label: "Strategy" },
+                { key: "sector", label: "Sector" },
+                { key: "regime", label: "Regime" },
+              ]}
+              extraCols={[{ key: "sharpe", label: "Sharpe" }]}
+            />
+            <PatternTable
+              title="Highest Kelly (Strongest Edge)"
+              icon={<TrendingUp className="h-3.5 w-3.5 text-primary" />}
+              patterns={data?.highest_kelly_patterns ?? []}
+              dims={[
+                { key: "strategy", label: "Strategy" },
+                { key: "sector", label: "Sector" },
+                { key: "regime", label: "Regime" },
+              ]}
+              extraCols={[{ key: "kelly_percent", label: "Kelly", fmt: (v) => `${v.toFixed(0)}%` }]}
+            />
+          </div>
+
+          <PatternTable
+            title="Largest Historical Drawdowns (Riskiest Patterns)"
+            icon={<ShieldAlert className="h-3.5 w-3.5 text-red-400" />}
+            patterns={data?.largest_drawdown_patterns ?? []}
+            dims={[
+              { key: "strategy", label: "Strategy" },
+              { key: "sector", label: "Sector" },
+              { key: "regime", label: "Regime" },
+            ]}
+            extraCols={[{ key: "max_drawdown", label: "Max DD", fmt: (v) => `${v.toFixed(1)}%` }]}
+          />
+
+          <div className="grid lg:grid-cols-3 gap-4">
+            <PatternTable
+              title="Best Risk-Adjusted Strategies"
+              icon={<ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />}
+              patterns={data?.best_risk_adjusted_strategies ?? []}
+              dims={[{ key: "strategy", label: "Strategy" }]}
+              extraCols={[{ key: "sharpe", label: "Sharpe" }]}
+            />
+            <PatternTable
+              title="Best Long-Term Strategies (10+ days)"
+              icon={<Activity className="h-3.5 w-3.5 text-primary" />}
+              patterns={data?.best_long_term_strategies ?? []}
+              dims={[{ key: "strategy", label: "Strategy" }]}
+              extraCols={[{ key: "avg_holding_days", label: "Avg Hold", fmt: (v) => `${v.toFixed(0)}d` }]}
+            />
+            <PatternTable
+              title="Best Swing Strategies (3-10 days)"
+              icon={<Activity className="h-3.5 w-3.5 text-primary" />}
+              patterns={data?.best_swing_strategies ?? []}
+              dims={[{ key: "strategy", label: "Strategy" }]}
+              extraCols={[{ key: "avg_holding_days", label: "Avg Hold", fmt: (v) => `${v.toFixed(0)}d` }]}
             />
           </div>
 

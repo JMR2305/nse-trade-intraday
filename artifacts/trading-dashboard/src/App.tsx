@@ -22,6 +22,7 @@ import PaperBasketTest from "@/pages/PaperBasketTest";
 import TradeIntelligence from "@/pages/TradeIntelligence";
 import HistoricalKnowledge from "@/pages/HistoricalKnowledge";
 import LearningInsights from "@/pages/LearningInsights";
+import PatternQuality from "@/pages/PatternQuality";
 
 const queryClient = new QueryClient();
 
@@ -46,6 +47,7 @@ function Router() {
         <Route path="/trade-intelligence" component={TradeIntelligence} />
         <Route path="/historical-knowledge" component={HistoricalKnowledge} />
         <Route path="/learning-insights" component={LearningInsights} />
+        <Route path="/pattern-quality" component={PatternQuality} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

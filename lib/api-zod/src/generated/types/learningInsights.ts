@@ -17,5 +17,13 @@ export interface LearningInsights {
   best_strategy_by_regime: LearningPattern[];
   most_reliable_setups: LearningPattern[];
   least_reliable_setups: LearningPattern[];
+  top_expectancy_patterns?: LearningPattern[];
+  lowest_expectancy_patterns?: LearningPattern[];
+  highest_sharpe_patterns?: LearningPattern[];
+  highest_kelly_patterns?: LearningPattern[];
+  largest_drawdown_patterns?: LearningPattern[];
+  best_risk_adjusted_strategies?: LearningPattern[];
+  best_long_term_strategies?: LearningPattern[];
+  best_swing_strategies?: LearningPattern[];
   heatmaps: LearningInsightsHeatmaps;
 }

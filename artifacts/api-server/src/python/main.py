@@ -303,6 +303,11 @@ def cmd_learning_insights() -> dict:
     return learning_insights()
 
 
+def cmd_pattern_quality() -> dict:
+    from adaptive_learning import pattern_quality
+    return pattern_quality()
+
+
 def cmd_historical_knowledge_trades(opts_json: str) -> dict:
     from historical_knowledge_builder import knowledge_trades
     try:
@@ -458,6 +463,8 @@ def main():
             result = cmd_historical_knowledge_trades(args[1] if len(args) >= 2 else "{}")
         elif command == "learning_insights":
             result = cmd_learning_insights()
+        elif command == "pattern_quality":
+            result = cmd_pattern_quality()
         elif command == "predictive_evaluate" and len(args) >= 2:
             result = cmd_predictive_evaluate(args[1])
         else:

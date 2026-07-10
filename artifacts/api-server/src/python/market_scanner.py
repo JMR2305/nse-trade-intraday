@@ -420,13 +420,22 @@ def run_market_scan(
             it.setdefault("historical_profit_factor", 0.0)
             it.setdefault("historical_avg_return", 0.0)
             it.setdefault("historical_expectancy", 0.0)
+            it.setdefault("historical_expectancy_rating", "Neutral")
+            it.setdefault("historical_kelly", 0.0)
+            it.setdefault("historical_avg_win", 0.0)
+            it.setdefault("historical_avg_loss", 0.0)
+            it.setdefault("expected_drawdown", 0.0)
+            it.setdefault("expected_holding_days", 0.0)
+            it.setdefault("historical_sharpe", 0.0)
             it.setdefault("learning_note", "Low historical confidence")
             it.setdefault("learning_explanation", "Learning layer unavailable.")
 
-    # Ranking (spec §5): rank by FINAL confidence, not base confidence.
+    # Ranking (Sprint 4): rank by the blended opportunity score —
+    # 40% technical + 30% expectancy + 15% profit factor + 10% risk
+    # + 5% sector strength. Final confidence breaks ties.
     items.sort(key=lambda it: (it["error"] is None,
-                               it.get("final_confidence", 0.0),
-                               it.get("opportunity_score", 0.0)), reverse=True)
+                               it.get("opportunity_score", 0.0),
+                               it.get("final_confidence", 0.0)), reverse=True)
     for i, it in enumerate(items, start=1):
         it["rank"] = i
 

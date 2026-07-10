@@ -8,6 +8,7 @@
 import type { OpportunityBreakdown } from './opportunityBreakdown';
 import type { ScanItemFinalAction } from './scanItemFinalAction';
 import type { ScanItemHeat } from './scanItemHeat';
+import type { ScanItemHistoricalExpectancyRating } from './scanItemHistoricalExpectancyRating';
 
 export interface ScanItem {
   rank: number;
@@ -44,6 +45,13 @@ export interface ScanItem {
   historical_profit_factor?: number;
   historical_avg_return?: number;
   historical_expectancy?: number;
+  historical_expectancy_rating?: ScanItemHistoricalExpectancyRating;
+  historical_kelly?: number;
+  historical_avg_win?: number;
+  historical_avg_loss?: number;
+  expected_drawdown?: number;
+  expected_holding_days?: number;
+  historical_sharpe?: number;
   learning_adjustment?: number;
   final_confidence?: number;
   learning_note?: string;

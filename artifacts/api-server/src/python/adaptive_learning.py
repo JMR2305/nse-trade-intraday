@@ -20,14 +20,17 @@ from trade_intelligence import DB_PATH
 from predictive_intelligence import (
     rsi_bucket, adx_bucket, volume_bucket, rr_bucket, ema_alignment,
 )
+from expectancy import (
+    compute_metrics, expectancy_score, profit_factor_score, risk_score,
+)
 
 # ── Tunables (deterministic rule constants, per spec) ─────────────────────────
 
 MIN_TRADES          = 30      # below this: no adjustment, "Low historical confidence"
-BOOST_WIN_RATE      = 60.0    # win rate needed for a confidence boost
-BOOST_PROFIT_FACTOR = 1.5
-CUT_WIN_RATE        = 45.0    # win rate below which confidence is reduced
-CUT_PROFIT_FACTOR   = 1.0
+# Sprint 4: expectancy-based learning (replaces win-rate thresholds)
+BOOST_EXPECTANCY    = 0.5     # % expectancy per trade needed for a boost
+BOOST_PROFIT_FACTOR = 1.3
+CUT_EXPECTANCY      = -0.2    # % expectancy per trade below which we cut
 BOOST_MIN, BOOST_MAX = 5.0, 15.0
 CUT_MIN, CUT_MAX     = 5.0, 20.0
 CONF_FLOOR, CONF_CAP = 5.0, 95.0
@@ -181,49 +184,28 @@ def find_similar(cand: dict, knowledge: list[dict]) -> tuple[list[dict], str]:
 
 
 def pattern_stats(trades: list[dict]) -> dict:
-    """Wins / losses / win rate / avg return / profit factor / expectancy."""
-    n = len(trades)
-    if n == 0:
-        return {"trades": 0, "wins": 0, "losses": 0, "win_rate": 0.0,
-                "average_return": 0.0, "profit_factor": 0.0, "expectancy": 0.0}
-    rets   = [float(t.get("return_percent") or 0.0) for t in trades]
-    wins   = [r for r in rets if r > 0]
-    losses = [r for r in rets if r <= 0]
-    gross_win  = sum(wins)
-    gross_loss = abs(sum(losses))
-    wr = len(wins) / n * 100.0
-    pf = round(gross_win / gross_loss, 2) if gross_loss > 0 else (999.0 if gross_win > 0 else 0.0)
-    avg_win  = (gross_win / len(wins)) if wins else 0.0
-    avg_loss = (sum(losses) / len(losses)) if losses else 0.0
-    expectancy = (wr / 100.0) * avg_win + (1 - wr / 100.0) * avg_loss
-    return {
-        "trades": n,
-        "wins": len(wins),
-        "losses": len(losses),
-        "win_rate": round(wr, 1),
-        "average_return": round(sum(rets) / n, 2),
-        "profit_factor": min(pf, 999.0),
-        "expectancy": round(expectancy, 2),
-    }
+    """Full expectancy-engine metrics for a group of trades (Sprint 4)."""
+    return compute_metrics(trades)
 
 
 # ── Confidence adjustment (spec §2) ──────────────────────────────────────────
 
 def confidence_adjustment(stats: dict) -> tuple[float, str]:
     """
-    Returns (adjustment, note). Deterministic per spec:
-      >=30 trades, WR>60, PF>1.5  → +5..+15 (scaled by how far above thresholds)
-      >=30 trades, WR<45, PF<1    → -5..-20
-      <30 trades                  → 0, "Low historical confidence"
+    Returns (adjustment, note). Deterministic, EXPECTANCY-based (Sprint 4):
+      >=30 trades, expectancy >= +0.5%, PF > 1.3 → +5..+15 (scaled by expectancy)
+      >=30 trades, expectancy <= -0.2%           → -5..-20 (scaled by expectancy)
+      <30 trades                                 → 0, "Low historical confidence"
+      otherwise                                  → 0, "Mixed historical evidence"
     """
-    n, wr, pf = stats["trades"], stats["win_rate"], stats["profit_factor"]
+    n, exp, pf = stats["trades"], stats["expectancy"], stats["profit_factor"]
     if n < MIN_TRADES:
         return 0.0, "Low historical confidence"
-    if wr > BOOST_WIN_RATE and pf > BOOST_PROFIT_FACTOR:
-        extra = (wr - BOOST_WIN_RATE) * 0.4 + (min(pf, 4.0) - BOOST_PROFIT_FACTOR) * 2.0
+    if exp >= BOOST_EXPECTANCY and pf > BOOST_PROFIT_FACTOR:
+        extra = (exp - BOOST_EXPECTANCY) * 5.0 + (min(pf, 4.0) - BOOST_PROFIT_FACTOR) * 2.0
         return round(min(BOOST_MAX, BOOST_MIN + extra), 1), ""
-    if wr < CUT_WIN_RATE and pf < CUT_PROFIT_FACTOR:
-        extra = (CUT_WIN_RATE - wr) * 0.5 + (CUT_PROFIT_FACTOR - max(pf, 0.0)) * 5.0
+    if exp <= CUT_EXPECTANCY:
+        extra = (CUT_EXPECTANCY - exp) * 7.0 + (1.0 - min(pf, 1.0)) * 5.0
         return round(-min(CUT_MAX, CUT_MIN + extra), 1), ""
     return 0.0, "Mixed historical evidence"
 
@@ -232,34 +214,45 @@ def clamp_confidence(v: float) -> float:
     return round(max(CONF_FLOOR, min(CONF_CAP, v)), 1)
 
 
-# ── Historical success + opportunity blend (spec §3) ─────────────────────────
+# ── Historical scores + opportunity blend (Sprint 4: 40/30/15/10/5) ──────────
 
-def historical_success_score(stats: dict) -> float:
-    """0-100 from win rate (60%) and profit factor (40%); neutral 50 when thin."""
+def historical_component_scores(stats: dict) -> tuple[float, float, float]:
+    """(expectancy_score, pf_score, risk_score), all 0-100. Neutral 50 when thin."""
     if stats["trades"] < MIN_TRADES:
-        return 50.0
-    pf_score = min(stats["profit_factor"], 3.0) / 3.0 * 100.0
-    return round(min(100.0, max(0.0, stats["win_rate"] * 0.6 + pf_score * 0.4)), 1)
+        return 50.0, 50.0, 50.0
+    return (
+        expectancy_score(stats["expectancy"]),
+        profit_factor_score(stats["profit_factor"]),
+        risk_score(stats["max_drawdown"]),
+    )
 
 
-def blended_opportunity(technical: float, historical: float,
-                        sector_strength: float, regime_strength: float) -> dict:
-    """40% technical + 30% historical + 20% sector + 10% regime, with breakdown."""
-    contrib_t = technical * 0.40
-    contrib_h = historical * 0.30
-    contrib_s = sector_strength * 0.20
-    contrib_r = regime_strength * 0.10
-    score = round(max(0.0, min(100.0, contrib_t + contrib_h + contrib_s + contrib_r)), 1)
+def blended_opportunity(technical: float, exp_score: float, pf_score: float,
+                        rsk_score: float, sector_strength: float) -> dict:
+    """
+    Sprint 4 scanner ranking blend:
+      40% Technical + 30% Historical Expectancy + 15% Profit Factor
+      + 10% Risk + 5% Sector Strength — with a visible breakdown.
+    """
+    contrib_t  = technical * 0.40
+    contrib_e  = exp_score * 0.30
+    contrib_pf = pf_score * 0.15
+    contrib_rk = rsk_score * 0.10
+    contrib_s  = sector_strength * 0.05
+    score = round(max(0.0, min(100.0,
+        contrib_t + contrib_e + contrib_pf + contrib_rk + contrib_s)), 1)
     return {
         "score": score,
         "technical_score": round(technical, 1),
-        "historical_score": round(historical, 1),
+        "expectancy_score": round(exp_score, 1),
+        "pf_score": round(pf_score, 1),
+        "risk_score": round(rsk_score, 1),
         "sector_strength_score": round(sector_strength, 1),
-        "regime_strength_score": round(regime_strength, 1),
         "technical_contribution": round(contrib_t, 1),
-        "historical_contribution": round(contrib_h, 1),
+        "expectancy_contribution": round(contrib_e, 1),
+        "pf_contribution": round(contrib_pf, 1),
+        "risk_contribution": round(contrib_rk, 1),
         "sector_contribution": round(contrib_s, 1),
-        "regime_contribution": round(contrib_r, 1),
     }
 
 
@@ -267,21 +260,24 @@ def blended_opportunity(technical: float, historical: float,
 
 def build_explanation(strategy_name: str, match_context: str,
                       stats: dict, adjustment: float, note: str) -> str:
-    n, wr = stats["trades"], stats["win_rate"]
+    n, exp = stats["trades"], stats["expectancy"]
+    rating = stats.get("expectancy_rating", "Neutral")
     where = f"{strategy_name} setups {match_context}"
     if note == "Low historical confidence":
         return (f"No adjustment — only {n} similar historical trades found for "
                 f"{where} (need {MIN_TRADES}+). Low historical confidence.")
     if adjustment > 0:
-        return (f"Confidence increased because similar {where} achieved a "
-                f"{wr:.0f}% win rate over {n} historical trades "
-                f"(profit factor {stats['profit_factor']:.2f}).")
+        return (f"Confidence increased because similar {where} earned "
+                f"{exp:+.2f}% expectancy per trade over {n} historical trades "
+                f"({rating}; profit factor {stats['profit_factor']:.2f}, "
+                f"win rate {stats['win_rate']:.0f}%).")
     if adjustment < 0:
-        return (f"Confidence reduced because similar {where} lost money in "
-                f"{100 - wr:.0f}% of {n} historical trades "
-                f"(profit factor {stats['profit_factor']:.2f}).")
-    return (f"No adjustment — similar {where} showed mixed results "
-            f"({wr:.0f}% win rate over {n} trades). Mixed historical evidence.")
+        return (f"Confidence reduced because similar {where} had "
+                f"{exp:+.2f}% expectancy per trade over {n} historical trades "
+                f"({rating}; profit factor {stats['profit_factor']:.2f}, "
+                f"average loser -{stats['avg_loss']:.2f}%).")
+    return (f"No adjustment — similar {where} showed {exp:+.2f}% expectancy "
+            f"per trade over {n} trades ({rating}). Mixed historical evidence.")
 
 
 # ── Current market regime (same taxonomy as the knowledge base) ──────────────
@@ -331,13 +327,17 @@ def annotate_scan_items(items: list[dict], strategy_names: dict[str, str] | None
             it.update({
                 "historical_trades": 0, "historical_win_rate": 0.0,
                 "historical_profit_factor": 0.0, "historical_avg_return": 0.0,
-                "historical_expectancy": 0.0, "learning_adjustment": 0.0,
+                "historical_expectancy": 0.0, "historical_expectancy_rating": "Neutral",
+                "historical_kelly": 0.0, "historical_avg_win": 0.0,
+                "historical_avg_loss": 0.0, "expected_drawdown": 0.0,
+                "expected_holding_days": 0.0, "historical_sharpe": 0.0,
+                "learning_adjustment": 0.0,
                 "final_confidence": clamp_confidence(base_conf),
                 "learning_note": "Low historical confidence",
                 "learning_explanation": "No learning applied — stock could not be scanned.",
                 "opportunity_breakdown": blended_opportunity(
-                    float(it.get("opportunity_score", 0.0)), 50.0,
-                    sector_strength.get(it.get("sector", ""), 0.0), regime_strength),
+                    float(it.get("opportunity_score", 0.0)), 50.0, 50.0, 50.0,
+                    sector_strength.get(it.get("sector", ""), 0.0)),
             })
             continue
 
@@ -355,11 +355,10 @@ def annotate_scan_items(items: list[dict], strategy_names: dict[str, str] | None
         final_conf = clamp_confidence(base_conf + adj)
 
         technical = float(it.get("opportunity_score", 0.0))
+        exp_sc, pf_sc, rsk_sc = historical_component_scores(stats)
         breakdown = blended_opportunity(
-            technical,
-            historical_success_score(stats),
+            technical, exp_sc, pf_sc, rsk_sc,
             sector_strength.get(it.get("sector", ""), 0.0),
-            regime_strength,
         )
 
         strategy_name = it.get("best_strategy_name") or it.get("best_strategy_id", "")
@@ -369,6 +368,13 @@ def annotate_scan_items(items: list[dict], strategy_names: dict[str, str] | None
             "historical_profit_factor": stats["profit_factor"],
             "historical_avg_return": stats["average_return"],
             "historical_expectancy": stats["expectancy"],
+            "historical_expectancy_rating": stats["expectancy_rating"],
+            "historical_kelly": stats["kelly_percent"],
+            "historical_avg_win": stats["avg_win"],
+            "historical_avg_loss": stats["avg_loss"],
+            "expected_drawdown": stats["max_drawdown"],
+            "expected_holding_days": stats["avg_holding_days"],
+            "historical_sharpe": stats["sharpe"],
             "learning_adjustment": adj,
             "final_confidence": final_conf,
             "learning_note": note,
@@ -376,7 +382,7 @@ def annotate_scan_items(items: list[dict], strategy_names: dict[str, str] | None
                 strategy_name, match_context, stats, adj, note),
             "opportunity_breakdown": breakdown,
         })
-        # Opportunity Score upgrade (spec §3): replace with the blended score.
+        # Opportunity Score upgrade: replace with the Sprint 4 blended score.
         it["opportunity_score"] = breakdown["score"]
 
     return {
@@ -444,29 +450,57 @@ def learning_insights() -> dict:
             "heatmaps": {},
         }
 
-    # Patterns: strategy × sector × regime
+    # Patterns: strategy × sector × regime — RANKED BY EXPECTANCY (Sprint 4)
     patterns = _pattern_rows(knowledge, ("strategy", "sector", "regime"))
-    by_score = sorted(patterns, key=lambda p: (p["win_rate"], p["profit_factor"], p["trades"]),
-                      reverse=True)
-    top_patterns = by_score[:10]
-    worst_patterns = list(reversed(by_score[-10:])) if len(by_score) > 10 else \
-        sorted(patterns, key=lambda p: (p["win_rate"], p["profit_factor"]))[:10]
+    by_exp = sorted(patterns,
+                    key=lambda p: (p["expectancy"], p["profit_factor"], p["trades"]),
+                    reverse=True)
+    top_patterns = by_exp[:10]
+    worst_patterns = sorted(patterns,
+                            key=lambda p: (p["expectancy"], p["profit_factor"]))[:10]
 
-    # Best strategy per sector / per regime
+    # Best strategy per sector / per regime — by expectancy
     def best_per(dim: str) -> list[dict]:
         rows = _pattern_rows(knowledge, (dim, "strategy"))
         best: dict[str, dict] = {}
         for r in rows:
             key = r[dim]
             cur = best.get(key)
-            if cur is None or (r["win_rate"], r["profit_factor"]) > (cur["win_rate"], cur["profit_factor"]):
+            if cur is None or (r["expectancy"], r["profit_factor"]) > (cur["expectancy"], cur["profit_factor"]):
                 best[key] = r
-        return sorted(best.values(), key=lambda r: r["win_rate"], reverse=True)
+        return sorted(best.values(), key=lambda r: r["expectancy"], reverse=True)
 
-    # Reliable setups: strategy × rsi_band × adx_band, >=30 trades
+    # Reliable setups: strategy × rsi_band × adx_band, >=30 trades — by expectancy
     setups = [s for s in _pattern_rows(knowledge, ("strategy", "rsi_band", "adx_band"))
               if s["trades"] >= _MIN_RELIABLE_TRADES]
-    setups_sorted = sorted(setups, key=lambda s: (s["win_rate"], s["profit_factor"]), reverse=True)
+    setups_sorted = sorted(setups, key=lambda s: (s["expectancy"], s["profit_factor"]),
+                           reverse=True)
+
+    # ── Sprint 4 expectancy sections ──────────────────────────────────────────
+    top_expectancy = by_exp[:20]
+    lowest_expectancy = sorted(patterns,
+                               key=lambda p: (p["expectancy"], p["profit_factor"]))[:20]
+    highest_sharpe = sorted(patterns, key=lambda p: (p["sharpe"], p["trades"]),
+                            reverse=True)[:10]
+    highest_kelly = sorted(patterns, key=lambda p: (p["kelly_percent"], p["trades"]),
+                           reverse=True)[:10]
+    largest_drawdown = sorted(patterns, key=lambda p: (p["max_drawdown"], p["trades"]),
+                              reverse=True)[:10]
+
+    # Per-strategy aggregate metrics (all trades of a strategy)
+    strat_rows = _pattern_rows(knowledge, ("strategy",))
+    best_risk_adjusted = sorted(strat_rows, key=lambda s: (s["sharpe"], s["expectancy"]),
+                                reverse=True)
+
+    # Long-term (>10 day holds) vs swing (4-10 day holds) strategy leaders
+    def strat_rows_for_band(band: str) -> list[dict]:
+        subset = [t for t in knowledge if t.get("hold_band") == band]
+        rows = _pattern_rows(subset, ("strategy",))
+        return sorted(rows, key=lambda s: (s["expectancy"], s["profit_factor"]),
+                      reverse=True)
+
+    best_long_term = strat_rows_for_band("long")
+    best_swing = strat_rows_for_band("medium")
 
     return {
         "knowledge_trades": len(knowledge),
@@ -478,10 +512,42 @@ def learning_insights() -> dict:
         "best_strategy_by_regime": best_per("regime"),
         "most_reliable_setups": setups_sorted[:10],
         "least_reliable_setups": list(reversed(setups_sorted[-10:])) if setups_sorted else [],
+        "top_expectancy_patterns": top_expectancy,
+        "lowest_expectancy_patterns": lowest_expectancy,
+        "highest_sharpe_patterns": highest_sharpe,
+        "highest_kelly_patterns": highest_kelly,
+        "largest_drawdown_patterns": largest_drawdown,
+        "best_risk_adjusted_strategies": best_risk_adjusted,
+        "best_long_term_strategies": best_long_term,
+        "best_swing_strategies": best_swing,
         "heatmaps": {
             "sector_strategy": _heatmap(knowledge, "sector", "strategy"),
             "regime_strategy": _heatmap(knowledge, "regime", "strategy"),
             "rsi_strategy":    _heatmap(knowledge, "rsi_band", "strategy"),
             "adx_strategy":    _heatmap(knowledge, "adx_band", "strategy"),
         },
+    }
+
+
+# ── Pattern Quality dashboard (Sprint 4) ─────────────────────────────────────
+
+def pattern_quality() -> dict:
+    """
+    All strategy × sector × regime patterns with the full expectancy metric
+    set, ranked by expectancy (rank 1 = highest expectancy).
+    """
+    knowledge = load_knowledge()
+    if not knowledge:
+        return {"knowledge_trades": 0, "patterns": [],
+                "warning": "Historical Knowledge Base is empty — build it first."}
+    rows = _pattern_rows(knowledge, ("strategy", "sector", "regime"))
+    rows.sort(key=lambda p: (p["expectancy"], p["profit_factor"], p["trades"]),
+              reverse=True)
+    for i, r in enumerate(rows, 1):
+        r["rank"] = i
+    return {
+        "knowledge_trades": len(knowledge),
+        "patterns": rows,
+        "warning": ("Deterministic aggregation of simulated historical trades. "
+                    "Research only — not investment advice."),
     }

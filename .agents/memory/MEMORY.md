@@ -1,3 +1,4 @@
 - [API server route restart](api-server-route-restart.md) — new Express routes in artifacts/api-server don't show up until the workflow is restarted; curl after adding a route to verify.
 - [Signal filter calibration](signal-filter-calibration.md) — scanner scores top out ~55-65 in practice; action labels (BUY/WATCH) are score bins, gate on filter_passed not labels.
 - [API codegen lockstep](api-codegen-lockstep.md) — any openapi.yaml default/schema change must rerun api-spec codegen or generated zod defaults go stale.
+- [Expectancy learning conventions](expectancy-learning-conventions.md) — expectancy-based learning is canonical (not win-rate); scanner blend 40/30/15/10/5; UI must coalesce breakdown fields against stale cached payloads; never remove pages, only extend.

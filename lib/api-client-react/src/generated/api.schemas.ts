@@ -174,16 +174,32 @@ export const ScanItemHeat = {
   RED: 'RED',
 } as const;
 
+export type ScanItemHistoricalExpectancyRating = typeof ScanItemHistoricalExpectancyRating[keyof typeof ScanItemHistoricalExpectancyRating];
+
+
+export const ScanItemHistoricalExpectancyRating = {
+  Excellent: 'Excellent',
+  Good: 'Good',
+  Neutral: 'Neutral',
+  Poor: 'Poor',
+  Negative: 'Negative',
+} as const;
+
+/**
+ * Sprint 4 scanner ranking blend — 40% technical + 30% historical expectancy + 15% profit factor + 10% risk + 5% sector strength.
+ */
 export interface OpportunityBreakdown {
   score: number;
   technical_score: number;
-  historical_score: number;
+  expectancy_score: number;
+  pf_score: number;
+  risk_score: number;
   sector_strength_score: number;
-  regime_strength_score: number;
   technical_contribution: number;
-  historical_contribution: number;
+  expectancy_contribution: number;
+  pf_contribution: number;
+  risk_contribution: number;
   sector_contribution: number;
-  regime_contribution: number;
 }
 
 export interface ScanItem {
@@ -221,6 +237,13 @@ export interface ScanItem {
   historical_profit_factor?: number;
   historical_avg_return?: number;
   historical_expectancy?: number;
+  historical_expectancy_rating?: ScanItemHistoricalExpectancyRating;
+  historical_kelly?: number;
+  historical_avg_win?: number;
+  historical_avg_loss?: number;
+  expected_drawdown?: number;
+  expected_holding_days?: number;
+  historical_sharpe?: number;
   learning_adjustment?: number;
   final_confidence?: number;
   learning_note?: string;
@@ -1234,6 +1257,20 @@ export interface HistoricalKnowledgeTrades {
   warning: string;
 }
 
+export type LearningPatternExpectancyRating = typeof LearningPatternExpectancyRating[keyof typeof LearningPatternExpectancyRating];
+
+
+export const LearningPatternExpectancyRating = {
+  Excellent: 'Excellent',
+  Good: 'Good',
+  Neutral: 'Neutral',
+  Poor: 'Poor',
+  Negative: 'Negative',
+} as const;
+
+/**
+ * A historical pattern with the full Sprint 4 expectancy metric set.
+ */
 export interface LearningPattern {
   strategy?: string;
   sector?: string;
@@ -1244,9 +1281,27 @@ export interface LearningPattern {
   wins: number;
   losses: number;
   win_rate: number;
+  loss_rate: number;
+  avg_win: number;
+  avg_loss: number;
   average_return: number;
   profit_factor: number;
   expectancy: number;
+  expected_value: number;
+  kelly_percent: number;
+  max_drawdown: number;
+  recovery_factor: number;
+  sharpe: number;
+  sortino: number;
+  avg_holding_days: number;
+  expectancy_rating: LearningPatternExpectancyRating;
+  rank?: number;
+}
+
+export interface PatternQuality {
+  knowledge_trades: number;
+  warning: string;
+  patterns: LearningPattern[];
 }
 
 export interface LearningHeatmapCell {
@@ -1279,6 +1334,14 @@ export interface LearningInsights {
   best_strategy_by_regime: LearningPattern[];
   most_reliable_setups: LearningPattern[];
   least_reliable_setups: LearningPattern[];
+  top_expectancy_patterns?: LearningPattern[];
+  lowest_expectancy_patterns?: LearningPattern[];
+  highest_sharpe_patterns?: LearningPattern[];
+  highest_kelly_patterns?: LearningPattern[];
+  largest_drawdown_patterns?: LearningPattern[];
+  best_risk_adjusted_strategies?: LearningPattern[];
+  best_long_term_strategies?: LearningPattern[];
+  best_swing_strategies?: LearningPattern[];
   heatmaps: LearningInsightsHeatmaps;
 }
 

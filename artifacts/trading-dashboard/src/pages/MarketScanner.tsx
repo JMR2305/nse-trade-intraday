@@ -66,6 +66,23 @@ function HeatTile({
   );
 }
 
+const RATING_COLOR: Record<string, string> = {
+  Excellent: "text-emerald-400 bg-emerald-500/10 border-emerald-500/30",
+  Good:      "text-green-400 bg-green-500/10 border-green-500/30",
+  Neutral:   "text-yellow-400 bg-yellow-500/10 border-yellow-500/30",
+  Poor:      "text-orange-400 bg-orange-500/10 border-orange-500/30",
+  Negative:  "text-red-400 bg-red-500/10 border-red-500/30",
+};
+
+function RatingBadge({ rating }: { rating?: string }) {
+  const r = rating ?? "Neutral";
+  return (
+    <span className={`inline-block rounded border px-1.5 py-0.5 text-[10px] font-mono font-bold ${RATING_COLOR[r] ?? RATING_COLOR.Neutral}`}>
+      {r}
+    </span>
+  );
+}
+
 function LearningAdjBadge({ adj }: { adj: number }) {
   if (adj > 0) return <span className="text-xs font-mono font-bold text-emerald-400">+{adj.toFixed(0)}</span>;
   if (adj < 0) return <span className="text-xs font-mono font-bold text-red-400">{adj.toFixed(0)}</span>;
@@ -73,16 +90,18 @@ function LearningAdjBadge({ adj }: { adj: number }) {
 }
 
 function BreakdownBar({ label, score, contribution, weight, color }: {
-  label: string; score: number; contribution: number; weight: string; color: string;
+  label: string; score?: number; contribution?: number; weight: string; color: string;
 }) {
+  const s = Number(score ?? 0);
+  const c = Number(contribution ?? 0);
   return (
     <div className="flex items-center gap-2">
       <span className="text-[10px] font-mono text-muted-foreground w-32">{label} ({weight})</span>
       <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(100, Math.max(0, score))}%` }} />
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(100, Math.max(0, s))}%` }} />
       </div>
       <span className="text-[10px] font-mono w-16 text-right text-muted-foreground">
-        {score.toFixed(0)} → {contribution.toFixed(1)}
+        {s.toFixed(0)} → {c.toFixed(1)}
       </span>
     </div>
   );
@@ -148,14 +167,23 @@ function RankRow({ item, rank }: { item: any; rank: number }) {
               <Brain className="h-3.5 w-3.5" />
               Adaptive Learning — {item.best_strategy_name}
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-7 gap-3 mb-3">
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-3">
               <div><div className="text-[10px] font-mono uppercase text-muted-foreground">Base Conf.</div><div className="text-sm font-mono font-bold">{(item.base_confidence ?? item.confidence).toFixed(0)}</div></div>
               <div><div className="text-[10px] font-mono uppercase text-muted-foreground">Hist. Trades</div><div className="text-sm font-mono font-bold">{item.historical_trades ?? 0}</div></div>
               <div><div className="text-[10px] font-mono uppercase text-muted-foreground">Hist. Win Rate</div><div className="text-sm font-mono font-bold">{(item.historical_win_rate ?? 0).toFixed(0)}%</div></div>
-              <div><div className="text-[10px] font-mono uppercase text-muted-foreground">Profit Factor</div><div className="text-sm font-mono font-bold">{(item.historical_profit_factor ?? 0).toFixed(2)}</div></div>
               <div><div className="text-[10px] font-mono uppercase text-muted-foreground">Learning</div><div className="text-sm"><LearningAdjBadge adj={item.learning_adjustment ?? 0} /></div></div>
               <div><div className="text-[10px] font-mono uppercase text-muted-foreground">Final Conf.</div><div className="text-sm font-mono font-bold text-primary">{(item.final_confidence ?? item.confidence).toFixed(0)}</div></div>
-              <div><div className="text-[10px] font-mono uppercase text-muted-foreground">Expected Return</div><div className={`text-sm font-mono font-bold ${(item.historical_avg_return ?? 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>{(item.historical_avg_return ?? 0) >= 0 ? "+" : ""}{(item.historical_avg_return ?? 0).toFixed(1)}%</div></div>
+              <div><div className="text-[10px] font-mono uppercase text-muted-foreground">Rating</div><div className="text-sm font-mono font-bold"><RatingBadge rating={item.historical_expectancy_rating} /></div></div>
+            </div>
+            {/* Expectancy Engine (Sprint 4) */}
+            <div className="grid grid-cols-2 md:grid-cols-7 gap-3 mb-3 rounded border border-border/30 bg-muted/10 p-2.5">
+              <div><div className="text-[10px] font-mono uppercase text-muted-foreground">Hist. Expectancy</div><div className={`text-sm font-mono font-bold ${(item.historical_expectancy ?? 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>{(item.historical_expectancy ?? 0) >= 0 ? "+" : ""}{(item.historical_expectancy ?? 0).toFixed(2)}%</div></div>
+              <div><div className="text-[10px] font-mono uppercase text-muted-foreground">Profit Factor</div><div className="text-sm font-mono font-bold">{(item.historical_profit_factor ?? 0).toFixed(2)}</div></div>
+              <div><div className="text-[10px] font-mono uppercase text-muted-foreground">Kelly</div><div className="text-sm font-mono font-bold">{(item.historical_kelly ?? 0).toFixed(0)}%</div></div>
+              <div><div className="text-[10px] font-mono uppercase text-muted-foreground">Avg Winner</div><div className="text-sm font-mono font-bold text-emerald-400">+{(item.historical_avg_win ?? 0).toFixed(1)}%</div></div>
+              <div><div className="text-[10px] font-mono uppercase text-muted-foreground">Avg Loser</div><div className="text-sm font-mono font-bold text-red-400">−{(item.historical_avg_loss ?? 0).toFixed(1)}%</div></div>
+              <div><div className="text-[10px] font-mono uppercase text-muted-foreground">Exp. Holding</div><div className="text-sm font-mono font-bold">{(item.expected_holding_days ?? 0).toFixed(0)} days</div></div>
+              <div><div className="text-[10px] font-mono uppercase text-muted-foreground">Exp. Drawdown</div><div className="text-sm font-mono font-bold text-yellow-400">{(item.expected_drawdown ?? 0).toFixed(1)}%</div></div>
             </div>
             {item.learning_explanation && (
               <p className="text-xs text-muted-foreground italic mb-3">{item.learning_explanation}</p>
@@ -166,9 +194,10 @@ function RankRow({ item, rank }: { item: any; rank: number }) {
                   Opportunity Score Breakdown — {bd.score.toFixed(0)}
                 </div>
                 <BreakdownBar label="Technical" weight="40%" score={bd.technical_score} contribution={bd.technical_contribution} color="bg-primary" />
-                <BreakdownBar label="Historical Success" weight="30%" score={bd.historical_score} contribution={bd.historical_contribution} color="bg-emerald-500" />
-                <BreakdownBar label="Sector Strength" weight="20%" score={bd.sector_strength_score} contribution={bd.sector_contribution} color="bg-yellow-500" />
-                <BreakdownBar label="Regime Strength" weight="10%" score={bd.regime_strength_score} contribution={bd.regime_contribution} color="bg-sky-500" />
+                <BreakdownBar label="Hist. Expectancy" weight="30%" score={bd.expectancy_score} contribution={bd.expectancy_contribution} color="bg-emerald-500" />
+                <BreakdownBar label="Profit Factor" weight="15%" score={bd.pf_score} contribution={bd.pf_contribution} color="bg-violet-500" />
+                <BreakdownBar label="Risk" weight="10%" score={bd.risk_score} contribution={bd.risk_contribution} color="bg-sky-500" />
+                <BreakdownBar label="Sector Strength" weight="5%" score={bd.sector_strength_score} contribution={bd.sector_contribution} color="bg-yellow-500" />
               </div>
             )}
           </div>

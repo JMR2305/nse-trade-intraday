@@ -5,7 +5,11 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { LearningPatternExpectancyRating } from './learningPatternExpectancyRating';
 
+/**
+ * A historical pattern with the full Sprint 4 expectancy metric set.
+ */
 export interface LearningPattern {
   strategy?: string;
   sector?: string;
@@ -16,7 +20,19 @@ export interface LearningPattern {
   wins: number;
   losses: number;
   win_rate: number;
+  loss_rate: number;
+  avg_win: number;
+  avg_loss: number;
   average_return: number;
   profit_factor: number;
   expectancy: number;
+  expected_value: number;
+  kelly_percent: number;
+  max_drawdown: number;
+  recovery_factor: number;
+  sharpe: number;
+  sortino: number;
+  avg_holding_days: number;
+  expectancy_rating: LearningPatternExpectancyRating;
+  rank?: number;
 }

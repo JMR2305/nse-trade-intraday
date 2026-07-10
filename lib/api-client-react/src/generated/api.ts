@@ -48,6 +48,7 @@ import type {
   OptimizerResult,
   PaperBasketRequest,
   PaperBasketResult,
+  PatternQuality,
   Portfolio,
   PredictiveCandidate,
   PredictiveEvidenceResult,
@@ -2108,6 +2109,84 @@ export function useGetHistoricalKnowledgeTrades<TData = Awaited<ReturnType<typeo
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetHistoricalKnowledgeTradesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPatternQualityUrl = () => {
+
+
+
+
+  return `/api/pattern-quality`
+}
+
+/**
+ * Every strategy × sector × regime pattern with the full expectancy metric set (avg win/loss, profit factor, expectancy, Kelly, Sharpe, Sortino, drawdown, holding days), ranked by expectancy. Research only.
+ * @summary Pattern Quality dashboard data (Expectancy Engine)
+ */
+export const getPatternQuality = async ( options?: RequestInit): Promise<PatternQuality> => {
+
+  return customFetch<PatternQuality>(getGetPatternQualityUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPatternQualityQueryKey = () => {
+    return [
+    `/api/pattern-quality`
+    ] as const;
+    }
+
+
+export const getGetPatternQualityQueryOptions = <TData = Awaited<ReturnType<typeof getPatternQuality>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPatternQuality>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPatternQualityQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPatternQuality>>> = ({ signal }) => getPatternQuality({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPatternQuality>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPatternQualityQueryResult = NonNullable<Awaited<ReturnType<typeof getPatternQuality>>>
+export type GetPatternQualityQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Pattern Quality dashboard data (Expectancy Engine)
+ */
+
+export function useGetPatternQuality<TData = Awaited<ReturnType<typeof getPatternQuality>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPatternQuality>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPatternQualityQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

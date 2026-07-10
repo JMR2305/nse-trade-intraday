@@ -20,6 +20,7 @@ import {
   Layers,
   Database,
   BookOpenText,
+  Gauge,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
@@ -63,6 +64,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         { href: "/trade-intelligence", label: "Trade Intelligence", icon: Database },
         { href: "/historical-knowledge", label: "Historical Knowledge", icon: BookOpenText },
         { href: "/learning-insights", label: "Learning Insights", icon: Brain },
+        { href: "/pattern-quality", label: "Pattern Quality", icon: Gauge },
       ],
     },
   ];

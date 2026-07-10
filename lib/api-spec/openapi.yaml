@@ -704,6 +704,29 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /pattern-quality:
+    get:
+      operationId: getPatternQuality
+      tags: [trading]
+      summary: Pattern Quality dashboard data (Expectancy Engine)
+      description: >
+        Every strategy × sector × regime pattern with the full expectancy
+        metric set (avg win/loss, profit factor, expectancy, Kelly, Sharpe,
+        Sortino, drawdown, holding days), ranked by expectancy. Research only.
+      responses:
+        "200":
+          description: Ranked pattern quality table
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PatternQuality"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /learning-insights:
     get:
       operationId: getLearningInsights
@@ -1160,6 +1183,16 @@ components:
         historical_profit_factor:  { type: number }
         historical_avg_return:     { type: number }
         historical_expectancy:     { type: number }
+        # Expectancy Engine (Sprint 4)
+        historical_expectancy_rating:
+          type: string
+          enum: [Excellent, Good, Neutral, Poor, Negative]
+        historical_kelly:          { type: number }
+        historical_avg_win:        { type: number }
+        historical_avg_loss:       { type: number }
+        expected_drawdown:         { type: number }
+        expected_holding_days:     { type: number }
+        historical_sharpe:         { type: number }
         learning_adjustment:       { type: number }
         final_confidence:          { type: number }
         learning_note:             { type: string }
@@ -2627,20 +2660,26 @@ components:
 
     OpportunityBreakdown:
       type: object
+      description: >
+        Sprint 4 scanner ranking blend — 40% technical + 30% historical
+        expectancy + 15% profit factor + 10% risk + 5% sector strength.
       properties:
-        score:                   { type: number }
-        technical_score:         { type: number }
-        historical_score:        { type: number }
-        sector_strength_score:   { type: number }
-        regime_strength_score:   { type: number }
-        technical_contribution:  { type: number }
-        historical_contribution: { type: number }
-        sector_contribution:     { type: number }
-        regime_contribution:     { type: number }
+        score:                    { type: number }
+        technical_score:          { type: number }
+        expectancy_score:         { type: number }
+        pf_score:                 { type: number }
+        risk_score:               { type: number }
+        sector_strength_score:    { type: number }
+        technical_contribution:   { type: number }
+        expectancy_contribution:  { type: number }
+        pf_contribution:          { type: number }
+        risk_contribution:        { type: number }
+        sector_contribution:      { type: number }
       required:
-        [score, technical_score, historical_score, sector_strength_score,
-         regime_strength_score, technical_contribution, historical_contribution,
-         sector_contribution, regime_contribution]
+        [score, technical_score, expectancy_score, pf_score, risk_score,
+         sector_strength_score, technical_contribution,
+         expectancy_contribution, pf_contribution, risk_contribution,
+         sector_contribution]
 
     LearningMeta:
       type: object
@@ -2655,21 +2694,51 @@ components:
 
     LearningPattern:
       type: object
+      description: >
+        A historical pattern with the full Sprint 4 expectancy metric set.
       properties:
-        strategy:       { type: string }
-        sector:         { type: string }
-        regime:         { type: string }
-        rsi_band:       { type: string }
-        adx_band:       { type: string }
-        trades:         { type: integer }
-        wins:           { type: integer }
-        losses:         { type: integer }
-        win_rate:       { type: number }
-        average_return: { type: number }
-        profit_factor:  { type: number }
-        expectancy:     { type: number }
+        strategy:          { type: string }
+        sector:            { type: string }
+        regime:            { type: string }
+        rsi_band:          { type: string }
+        adx_band:          { type: string }
+        trades:            { type: integer }
+        wins:              { type: integer }
+        losses:            { type: integer }
+        win_rate:          { type: number }
+        loss_rate:         { type: number }
+        avg_win:           { type: number }
+        avg_loss:          { type: number }
+        average_return:    { type: number }
+        profit_factor:     { type: number }
+        expectancy:        { type: number }
+        expected_value:    { type: number }
+        kelly_percent:     { type: number }
+        max_drawdown:      { type: number }
+        recovery_factor:   { type: number }
+        sharpe:            { type: number }
+        sortino:           { type: number }
+        avg_holding_days:  { type: number }
+        expectancy_rating:
+          type: string
+          enum: [Excellent, Good, Neutral, Poor, Negative]
+        rank:              { type: integer }
       required:
-        [trades, wins, losses, win_rate, average_return, profit_factor, expectancy]
+        [trades, wins, losses, win_rate, loss_rate, avg_win, avg_loss,
+         average_return, profit_factor, expectancy, expected_value,
+         kelly_percent, max_drawdown, recovery_factor, sharpe, sortino,
+         avg_holding_days, expectancy_rating]
+
+    PatternQuality:
+      type: object
+      properties:
+        knowledge_trades: { type: integer }
+        warning:          { type: string }
+        patterns:
+          type: array
+          items:
+            $ref: "#/components/schemas/LearningPattern"
+      required: [knowledge_trades, warning, patterns]
 
     LearningHeatmapCell:
       type: object
@@ -2722,6 +2791,38 @@ components:
           items:
             $ref: "#/components/schemas/LearningPattern"
         least_reliable_setups:
+          type: array
+          items:
+            $ref: "#/components/schemas/LearningPattern"
+        top_expectancy_patterns:
+          type: array
+          items:
+            $ref: "#/components/schemas/LearningPattern"
+        lowest_expectancy_patterns:
+          type: array
+          items:
+            $ref: "#/components/schemas/LearningPattern"
+        highest_sharpe_patterns:
+          type: array
+          items:
+            $ref: "#/components/schemas/LearningPattern"
+        highest_kelly_patterns:
+          type: array
+          items:
+            $ref: "#/components/schemas/LearningPattern"
+        largest_drawdown_patterns:
+          type: array
+          items:
+            $ref: "#/components/schemas/LearningPattern"
+        best_risk_adjusted_strategies:
+          type: array
+          items:
+            $ref: "#/components/schemas/LearningPattern"
+        best_long_term_strategies:
+          type: array
+          items:
+            $ref: "#/components/schemas/LearningPattern"
+        best_swing_strategies:
           type: array
           items:
             $ref: "#/components/schemas/LearningPattern"

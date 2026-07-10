@@ -6,14 +6,19 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Sprint 4 scanner ranking blend — 40% technical + 30% historical expectancy + 15% profit factor + 10% risk + 5% sector strength.
+ */
 export interface OpportunityBreakdown {
   score: number;
   technical_score: number;
-  historical_score: number;
+  expectancy_score: number;
+  pf_score: number;
+  risk_score: number;
   sector_strength_score: number;
-  regime_strength_score: number;
   technical_contribution: number;
-  historical_contribution: number;
+  expectancy_contribution: number;
+  pf_contribution: number;
+  risk_contribution: number;
   sector_contribution: number;
-  regime_contribution: number;
 }
