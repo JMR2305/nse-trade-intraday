@@ -23,6 +23,7 @@ export * from './buildHistoricalKnowledgeBodyYears';
 export * from './candle';
 export * from './dashboardSummary';
 export * from './debugCandle';
+export * from './decisionFactor';
 export * from './errorResponse';
 export * from './explainabilityReport';
 export * from './explanation';

@@ -1298,6 +1298,12 @@ export interface LearningPattern {
   rank?: number;
 }
 
+export interface DecisionFactor {
+  factor: string;
+  score: number;
+  contribution: number;
+}
+
 export type TradeDecisionRecommendation = typeof TradeDecisionRecommendation[keyof typeof TradeDecisionRecommendation];
 
 
@@ -1348,6 +1354,7 @@ export interface TradeDecision {
   reason: string;
   explanation: string;
   failed_conditions: string[];
+  breakdown: DecisionFactor[];
 }
 
 export interface TradeDecisionsResponse {

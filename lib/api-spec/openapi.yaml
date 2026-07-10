@@ -2759,6 +2759,14 @@ components:
          kelly_percent, max_drawdown, recovery_factor, sharpe, sortino,
          avg_holding_days, expectancy_rating]
 
+    DecisionFactor:
+      type: object
+      properties:
+        factor:       { type: string }
+        score:        { type: number }
+        contribution: { type: number }
+      required: [factor, score, contribution]
+
     TradeDecision:
       type: object
       properties:
@@ -2798,6 +2806,10 @@ components:
         failed_conditions:
           type: array
           items: { type: string }
+        breakdown:
+          type: array
+          items:
+            $ref: "#/components/schemas/DecisionFactor"
       required:
         [stock, sector, recommendation, data_status, low_reliability,
          base_confidence, learning_adjustment, final_confidence,
@@ -2806,7 +2818,7 @@ components:
          price, entry_price, stop_loss, target, rr_ratio,
          expected_holding_days, expected_drawdown, position_open,
          position_quantity, position_avg_price, position_pnl_pct,
-         exit_reason, reason, explanation, failed_conditions]
+         exit_reason, reason, explanation, failed_conditions, breakdown]
 
     TradeDecisionsResponse:
       type: object

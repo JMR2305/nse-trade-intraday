@@ -42,6 +42,25 @@ TIME_EXIT_MIN_DAYS = 30.0  # ... but never earlier than this many days
 _ORDER = {"STRONG_BUY": 0, "BUY": 1, "EXIT": 2, "WATCH": 3, "AVOID": 4}
 
 
+# Decision Breakdown display weights — how much of the final confidence is
+# attributed to each factor (explanatory only; never changes the decision).
+_BREAKDOWN_WEIGHTS = [
+    ("Technical Analysis",  0.35),
+    ("Historical Pattern",  0.25),
+    ("Sector Strength",     0.10),
+    ("Market Regime",       0.10),
+    ("Risk/Reward",         0.10),
+    ("Volume Confirmation", 0.05),
+    ("Data Quality",        0.05),
+]
+
+
+class DecisionFactor(TypedDict):
+    factor: str
+    score: float           # underlying signal strength 0-100
+    contribution: float    # points contributed to the final confidence
+
+
 class TradeDecision(TypedDict):
     stock: str
     sector: str
@@ -78,6 +97,7 @@ class TradeDecision(TypedDict):
     reason: str                  # short one-liner for the table
     explanation: str             # longer text for the expanded row
     failed_conditions: list
+    breakdown: list              # list[DecisionFactor] summing to final_confidence
 
 
 def _last_buy_meta(trades: list, symbol: str) -> dict:
@@ -131,7 +151,64 @@ def _check_exit(item: dict, pos: dict, buy_meta: dict) -> str:
     return ""
 
 
-def _decide(item: dict, positions: dict, trades: list) -> TradeDecision:
+def _build_breakdown(item: dict, data_ok: bool, regime_strength: float,
+                     final_confidence: float) -> list:
+    """
+    Decompose the final confidence into labeled factor contributions.
+    Purely explanatory — built from signals the engines already computed,
+    scaled so the contributions sum exactly to the final confidence.
+    Deterministic: same inputs always produce the same breakdown.
+    """
+    ob = item.get("opportunity_breakdown") or {}
+    technical = float(item.get("base_confidence", item.get("confidence", 0.0)) or 0.0)
+    exp_sc = float(ob.get("expectancy_score", 50.0) or 0.0)
+    pf_sc  = float(ob.get("pf_score", 50.0) or 0.0)
+    historical = (exp_sc + pf_sc) / 2.0
+    sector = float(ob.get("sector_strength_score", 0.0) or 0.0)
+    rr = float(item.get("rr_ratio", 0.0) or 0.0)
+    rr_score = max(0.0, min(100.0, rr / 3.0 * 100.0))
+    vol_ratio = float(item.get("volume_ratio", 0.0) or 0.0)
+    vol_score = max(0.0, min(100.0, vol_ratio / 2.0 * 100.0))
+    dq_score = 100.0 if data_ok else 0.0
+
+    scores = {
+        "Technical Analysis":  max(0.0, min(100.0, technical)),
+        "Historical Pattern":  max(0.0, min(100.0, historical)),
+        "Sector Strength":     max(0.0, min(100.0, sector)),
+        "Market Regime":       max(0.0, min(100.0, regime_strength)),
+        "Risk/Reward":         rr_score,
+        "Volume Confirmation": vol_score,
+        "Data Quality":        dq_score,
+    }
+
+    raw = [(name, w * scores[name]) for name, w in _BREAKDOWN_WEIGHTS]
+    total_raw = sum(v for _, v in raw)
+
+    breakdown: list[DecisionFactor] = []
+    if total_raw <= 0 or final_confidence <= 0:
+        for name, _ in _BREAKDOWN_WEIGHTS:
+            breakdown.append(DecisionFactor(
+                factor=name, score=round(scores[name], 1), contribution=0.0))
+        return breakdown
+
+    scale = final_confidence / total_raw
+    contributions = [round(v * scale, 1) for _, v in raw]
+    # Fix rounding drift so the column sums exactly to the final confidence.
+    drift = round(final_confidence - sum(contributions), 1)
+    if drift != 0:
+        idx = max(range(len(contributions)), key=lambda i: contributions[i])
+        corrected = round(contributions[idx] + drift, 1)
+        # Defensive: never let drift correction push a contribution negative.
+        contributions[idx] = max(0.0, corrected)
+
+    for (name, _), contrib in zip(raw, contributions):
+        breakdown.append(DecisionFactor(
+            factor=name, score=round(scores[name], 1), contribution=contrib))
+    return breakdown
+
+
+def _decide(item: dict, positions: dict, trades: list,
+            regime_strength: float = 50.0) -> TradeDecision:
     sym    = str(item.get("stock", "")).upper()
     err    = item.get("error")
     fc     = float(item.get("final_confidence", item.get("confidence", 0.0)) or 0.0)
@@ -290,6 +367,7 @@ def _decide(item: dict, positions: dict, trades: list) -> TradeDecision:
         reason=reason,
         explanation=" ".join(parts),
         failed_conditions=failed,
+        breakdown=_build_breakdown(item, data_ok, regime_strength, round(fc, 1)),
     )
 
 
@@ -314,7 +392,11 @@ def get_trade_decisions() -> dict:
     except Exception:
         regime_now = "Neutral"
 
-    decisions = [_decide(it, positions, trades) for it in scan["items"]]
+    learning_meta = scan.get("learning") or {}
+    regime_strength = float(learning_meta.get("regime_strength", 50.0) or 50.0)
+
+    decisions = [_decide(it, positions, trades, regime_strength)
+                 for it in scan["items"]]
 
     decisions.sort(key=lambda d: (_ORDER.get(d["recommendation"], 9),
                                   -d["final_confidence"]))

@@ -76,11 +76,52 @@ function rupee(n: number | undefined): string {
   return v > 0 ? `₹${v.toFixed(2)}` : "—";
 }
 
+function BreakdownPanel({ d }: { d: TradeDecision }) {
+  const rows = d.breakdown ?? [];
+  const maxContribution = Math.max(1, ...rows.map((b) => b.contribution));
+  return (
+    <div>
+      <div className="text-xs font-mono uppercase text-muted-foreground mb-2">
+        Decision Breakdown
+        <span className="ml-1 normal-case tracking-normal text-[9px] text-muted-foreground/70">
+          (estimated contribution)
+        </span>
+      </div>
+      <div className="space-y-1.5 font-mono text-xs">
+        {rows.map((b) => (
+          <div key={b.factor} className="flex items-center gap-2">
+            <span className="w-40 flex-shrink-0 text-muted-foreground">{b.factor}</span>
+            <div className="flex-1 h-1.5 rounded bg-border/40 overflow-hidden">
+              <div
+                className="h-full rounded bg-primary/70"
+                style={{ width: `${Math.max(0, (b.contribution / maxContribution) * 100)}%` }}
+              />
+            </div>
+            <span className="w-12 text-right font-bold">
+              {b.contribution >= 0 ? "+" : ""}
+              {b.contribution.toFixed(0)}
+            </span>
+          </div>
+        ))}
+        <div className="border-t border-border/50 mt-2 pt-2 flex items-center justify-between">
+          <span className="text-muted-foreground">Final Confidence</span>
+          <span className="font-bold text-sm">{d.final_confidence.toFixed(0)}%</span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground">Recommendation</span>
+          <RecBadge rec={d.recommendation} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DetailRow({ d }: { d: TradeDecision }) {
   return (
     <tr className="bg-muted/20">
       <td colSpan={11} className="px-6 py-4">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 text-sm">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 text-sm">
+          <BreakdownPanel d={d} />
           <div>
             <div className="text-xs font-mono uppercase text-muted-foreground mb-2">
               Why this recommendation

@@ -1248,7 +1248,12 @@ export const GetTradeDecisionsResponse = zod.object({
   "exit_reason": zod.string(),
   "reason": zod.string(),
   "explanation": zod.string(),
-  "failed_conditions": zod.array(zod.string())
+  "failed_conditions": zod.array(zod.string()),
+  "breakdown": zod.array(zod.object({
+  "factor": zod.string(),
+  "score": zod.number(),
+  "contribution": zod.number()
+}))
 }))
 })
 
