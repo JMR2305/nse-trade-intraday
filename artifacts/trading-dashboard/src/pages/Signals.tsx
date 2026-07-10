@@ -151,6 +151,15 @@ function SignalRow({ signal }: { signal: Signal }) {
         <td className="px-3 py-3 text-right font-mono text-sm">{formatCurrency(signal.price)}</td>
         <td className="px-3 py-3 text-right font-mono text-sm">{signal.quantity}</td>
         <td className="px-3 py-3"><ConfidenceBar value={signal.confidence} /></td>
+        <td className="px-3 py-3 text-left max-w-[220px]">
+          <span
+            className="text-xs text-foreground/80 line-clamp-2"
+            title={(signal.reasons ?? []).join("; ") || signal.explanation?.plain_english || ""}
+            data-testid={`text-reason-${signal.stock}`}
+          >
+            {signal.reasons?.[0] ?? signal.explanation?.plain_english ?? "—"}
+          </span>
+        </td>
         <td className="px-3 py-3 text-center">
           <span className={`text-xs font-mono font-bold ${riskCfg.color}`}>{riskCfg.label}</span>
         </td>
@@ -177,7 +186,7 @@ function SignalRow({ signal }: { signal: Signal }) {
       </tr>
       {expanded && hasExplanation && (
         <tr className="bg-muted/5">
-          <td colSpan={11} className="px-4 pb-3 pt-0">
+          <td colSpan={12} className="px-4 pb-3 pt-0">
             <ExplanationPanel signal={signal} />
           </td>
         </tr>
@@ -298,6 +307,7 @@ export default function Signals() {
                   <th className="font-mono text-[11px] uppercase text-muted-foreground text-right px-3 py-2.5">Price</th>
                   <th className="font-mono text-[11px] uppercase text-muted-foreground text-right px-3 py-2.5">Qty</th>
                   <th className="font-mono text-[11px] uppercase text-muted-foreground px-3 py-2.5">Confidence</th>
+                  <th className="font-mono text-[11px] uppercase text-muted-foreground text-left px-3 py-2.5">Reason</th>
                   <th className="font-mono text-[11px] uppercase text-muted-foreground text-center px-3 py-2.5">Risk</th>
                   <th className="font-mono text-[11px] uppercase text-muted-foreground text-center px-3 py-2.5 whitespace-nowrap">Timeframes</th>
                   <th className="font-mono text-[11px] uppercase text-muted-foreground text-center px-3 py-2.5">Regime</th>

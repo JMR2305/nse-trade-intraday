@@ -208,11 +208,18 @@ def make_ai_decision(signal: dict, available_cash: float = 5000.0) -> AiDecision
     else:
         # Downgrades triggered — reclassify (can only go down from raw_signal)
         candidate = _classify(confidence, is_bullish)
-        # Ensure we never upgrade via downgrade path
-        order = ["STRONG_BUY", "BUY", "WATCH", "NO_TRADE",
-                 "STRONG_SELL", "SELL", "WATCH", "NO_TRADE"]
-        raw_rank = order.index(raw_signal) if raw_signal in order else 3
-        cand_rank = order.index(candidate) if candidate in order else 3
+        # Ensure we never upgrade via downgrade path. Strength rank is
+        # direction-agnostic: 0 = strongest action, 3 = no action. Both the
+        # bullish (STRONG_BUY→BUY→WATCH→NO_TRADE) and bearish
+        # (STRONG_SELL→SELL→WATCH→NO_TRADE) ladders share WATCH/NO_TRADE.
+        _STRENGTH_RANK = {
+            "STRONG_BUY": 0, "STRONG_SELL": 0,
+            "BUY": 1, "SELL": 1,
+            "WATCH": 2,
+            "NO_TRADE": 3,
+        }
+        raw_rank = _STRENGTH_RANK.get(raw_signal, 3)
+        cand_rank = _STRENGTH_RANK.get(candidate, 3)
         decision = candidate if cand_rank >= raw_rank else raw_signal
 
     # Sanity: if no raw action, don't promote to STRONG
