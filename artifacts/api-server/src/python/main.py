@@ -308,6 +308,11 @@ def cmd_pattern_quality() -> dict:
     return pattern_quality()
 
 
+def cmd_trade_decisions() -> dict:
+    from decision_service import get_trade_decisions
+    return get_trade_decisions()
+
+
 def cmd_historical_knowledge_trades(opts_json: str) -> dict:
     from historical_knowledge_builder import knowledge_trades
     try:
@@ -465,6 +470,8 @@ def main():
             result = cmd_learning_insights()
         elif command == "pattern_quality":
             result = cmd_pattern_quality()
+        elif command == "trade_decisions":
+            result = cmd_trade_decisions()
         elif command == "predictive_evaluate" and len(args) >= 2:
             result = cmd_predictive_evaluate(args[1])
         else:

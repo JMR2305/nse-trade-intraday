@@ -440,6 +440,38 @@ router.get("/pattern-quality", async (_req, res) => {
   }
 });
 
+// GET /api/trade-decisions
+// Decision Service — combines scanner, expectancy, learning and paper
+// portfolio outputs into one clear recommendation per stock. Runs a full
+// universe scan (~20-30s), so cache briefly like /market-scan.
+const TRADE_DECISIONS_CACHE_MS = 10 * 60 * 1000;
+let tradeDecisionsCache: { data: unknown; ts: number } | null = null;
+let tradeDecisionsInFlight: Promise<unknown> | null = null;
+
+router.get("/trade-decisions", async (req, res) => {
+  try {
+    const force = req.query.force === "true";
+    if (!force && tradeDecisionsCache && Date.now() - tradeDecisionsCache.ts < TRADE_DECISIONS_CACHE_MS) {
+      res.json(tradeDecisionsCache.data);
+      return;
+    }
+    if (!tradeDecisionsInFlight) {
+      tradeDecisionsInFlight = runPython(["trade_decisions"])
+        .then((data) => {
+          tradeDecisionsCache = { data, ts: Date.now() };
+          return data;
+        })
+        .finally(() => {
+          tradeDecisionsInFlight = null;
+        });
+    }
+    const data = await tradeDecisionsInFlight;
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // POST /api/paper-basket
 // Paper Basket Testing Layer — paper trading only, no real orders. Selects a
 // basket of stocks from the previous day's data (no lookahead bias), then

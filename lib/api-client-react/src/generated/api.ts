@@ -31,6 +31,7 @@ import type {
   GetIndicatorsParams,
   GetMarketDataParams,
   GetMarketReplayParams,
+  GetTradeDecisionsParams,
   GetTradeIntelligenceParams,
   HealthStatus,
   HistoricalKnowledgeSummary,
@@ -59,6 +60,7 @@ import type {
   StrategyLabRequest,
   StrategyPerformance,
   Trade,
+  TradeDecisionsResponse,
   TradeIntelligenceImportResult,
   TradeIntelligenceResult,
   TradeReplayItem,
@@ -2109,6 +2111,91 @@ export function useGetHistoricalKnowledgeTrades<TData = Awaited<ReturnType<typeo
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetHistoricalKnowledgeTradesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetTradeDecisionsUrl = (params?: GetTradeDecisionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/trade-decisions?${stringifiedParams}` : `/api/trade-decisions`
+}
+
+/**
+ * Combines the scanner, expectancy engine, adaptive learning and paper portfolio into one deterministic recommendation per stock (STRONG_BUY / BUY / WATCH / EXIT / AVOID). Runs a full universe scan (~20-30s) and caches the result briefly. Paper trading only.
+ * @summary One clear recommendation per stock (Decision Dashboard)
+ */
+export const getTradeDecisions = async (params?: GetTradeDecisionsParams, options?: RequestInit): Promise<TradeDecisionsResponse> => {
+
+  return customFetch<TradeDecisionsResponse>(getGetTradeDecisionsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTradeDecisionsQueryKey = (params?: GetTradeDecisionsParams,) => {
+    return [
+    `/api/trade-decisions`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetTradeDecisionsQueryOptions = <TData = Awaited<ReturnType<typeof getTradeDecisions>>, TError = ErrorType<ErrorResponse>>(params?: GetTradeDecisionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTradeDecisions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTradeDecisionsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTradeDecisions>>> = ({ signal }) => getTradeDecisions(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTradeDecisions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTradeDecisionsQueryResult = NonNullable<Awaited<ReturnType<typeof getTradeDecisions>>>
+export type GetTradeDecisionsQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary One clear recommendation per stock (Decision Dashboard)
+ */
+
+export function useGetTradeDecisions<TData = Awaited<ReturnType<typeof getTradeDecisions>>, TError = ErrorType<ErrorResponse>>(
+ params?: GetTradeDecisionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTradeDecisions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTradeDecisionsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

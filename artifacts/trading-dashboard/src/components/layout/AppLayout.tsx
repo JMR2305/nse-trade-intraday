@@ -21,6 +21,7 @@ import {
   Database,
   BookOpenText,
   Gauge,
+  Target,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
@@ -37,7 +38,8 @@ export function AppLayout({ children }: AppLayoutProps) {
     {
       label: "Overview",
       items: [
-        { href: "/",               label: "Dashboard",      icon: BarChart3 },
+        { href: "/",               label: "Trade Decisions", icon: Target    },
+        { href: "/dashboard",      label: "Dashboard",      icon: BarChart3 },
         { href: "/market",         label: "Market",         icon: Globe2    },
         { href: "/market-scanner", label: "Market Scanner", icon: Radar     },
         { href: "/market-replay",  label: "Market Replay",  icon: Clock     },

@@ -23,6 +23,7 @@ import TradeIntelligence from "@/pages/TradeIntelligence";
 import HistoricalKnowledge from "@/pages/HistoricalKnowledge";
 import LearningInsights from "@/pages/LearningInsights";
 import PatternQuality from "@/pages/PatternQuality";
+import TradeDecisions from "@/pages/TradeDecisions";
 
 const queryClient = new QueryClient();
 
@@ -30,7 +31,8 @@ function Router() {
   return (
     <AppLayout>
       <Switch>
-        <Route path="/" component={Dashboard} />
+        <Route path="/" component={TradeDecisions} />
+        <Route path="/dashboard" component={Dashboard} />
         <Route path="/market" component={MarketOverview} />
         <Route path="/market-scanner" component={MarketScanner} />
         <Route path="/market-replay" component={MarketReplay} />

@@ -183,6 +183,18 @@ def _generate_mock_candles(
 
 # ── Public API ─────────────────────────────────────────────────────────────────
 
+# Tracks the data source ("yfinance" | "mock") of the most recent fetch per
+# symbol, so downstream consumers (e.g. the Decision Service) can detect when
+# mock/fallback data is active without re-fetching.
+_LAST_SOURCES: dict[str, str] = {}
+
+
+def get_last_source(symbol: str) -> str:
+    """Return the data source of the most recent fetch for `symbol`
+    ("yfinance" | "mock" | "unknown")."""
+    return _LAST_SOURCES.get(symbol.upper().replace(".NS", ""), "unknown")
+
+
 def fetch_candles(
     symbol:   str,
     interval: str  = "1d",
@@ -217,6 +229,8 @@ def fetch_candles(
     except Exception:
         source = "mock"
         candles = _generate_mock_candles(symbol, n_mock, interval)
+
+    _LAST_SOURCES[symbol.upper().replace(".NS", "")] = source
 
     return MarketDataResult(
         symbol     = symbol.upper().replace(".NS", ""),

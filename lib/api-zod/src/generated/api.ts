@@ -1200,6 +1200,60 @@ export const GetHistoricalKnowledgeTradesResponse = zod.object({
 
 
 /**
+ * Combines the scanner, expectancy engine, adaptive learning and paper portfolio into one deterministic recommendation per stock (STRONG_BUY / BUY / WATCH / EXIT / AVOID). Runs a full universe scan (~20-30s) and caches the result briefly. Paper trading only.
+ * @summary One clear recommendation per stock (Decision Dashboard)
+ */
+export const GetTradeDecisionsQueryParams = zod.object({
+  "force": zod.enum(['true', 'false']).optional().describe('Set to \"true\" to bypass the server-side cache.')
+})
+
+export const GetTradeDecisionsResponse = zod.object({
+  "generated_at": zod.string(),
+  "market_regime": zod.string(),
+  "universe_size": zod.number(),
+  "strong_buy_count": zod.number(),
+  "buy_count": zod.number(),
+  "watch_count": zod.number(),
+  "exit_count": zod.number(),
+  "avoid_count": zod.number(),
+  "data_unavailable_count": zod.number(),
+  "warning": zod.string(),
+  "decisions": zod.array(zod.object({
+  "stock": zod.string(),
+  "sector": zod.string(),
+  "recommendation": zod.enum(['STRONG_BUY', 'BUY', 'WATCH', 'EXIT', 'AVOID']),
+  "data_status": zod.enum(['OK', 'DATA_UNAVAILABLE']),
+  "low_reliability": zod.boolean(),
+  "base_confidence": zod.number(),
+  "learning_adjustment": zod.number(),
+  "final_confidence": zod.number(),
+  "historical_expectancy": zod.number(),
+  "historical_profit_factor": zod.number(),
+  "historical_win_rate": zod.number(),
+  "pattern_match_pct": zod.number(),
+  "historical_trades": zod.number(),
+  "best_pattern": zod.string(),
+  "regime_match": zod.boolean(),
+  "price": zod.number(),
+  "entry_price": zod.number(),
+  "stop_loss": zod.number(),
+  "target": zod.number(),
+  "rr_ratio": zod.number(),
+  "expected_holding_days": zod.number(),
+  "expected_drawdown": zod.number(),
+  "position_open": zod.boolean(),
+  "position_quantity": zod.number(),
+  "position_avg_price": zod.number(),
+  "position_pnl_pct": zod.number(),
+  "exit_reason": zod.string(),
+  "reason": zod.string(),
+  "explanation": zod.string(),
+  "failed_conditions": zod.array(zod.string())
+}))
+})
+
+
+/**
  * Every strategy × sector × regime pattern with the full expectancy metric set (avg win/loss, profit factor, expectancy, Kelly, Sharpe, Sortino, drawdown, holding days), ranked by expectancy. Research only.
  * @summary Pattern Quality dashboard data (Expectancy Engine)
  */

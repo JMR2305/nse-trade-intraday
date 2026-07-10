@@ -1,0 +1,173 @@
+Simplify the trading UI into a clear Decision Dashboard.
+
+Goal:
+All complex calculations remain in the backend.
+The UI should clearly show whether each stock is recommended for buying, exiting, watching, or avoiding, together with its confidence level.
+
+Important:
+- Keep paper trading only.
+- Do not change existing strategy, expectancy, learning, or risk logic.
+- Use the existing Historical Knowledge, Pattern Quality, and scanner calculations.
+- This is currently a long-only swing-trading system.
+- Do not show SHORT SELL until the future intraday/short-selling module is built.
+
+1. Create a backend Decision Service
+
+Create:
+backend/decision_service.py
+
+For every scanned stock, combine:
+
+- Technical score
+- Historical pattern expectancy
+- Historical profit factor
+- Pattern sample size
+- Pattern match percentage
+- Sector strength
+- Market regime compatibility
+- Risk/reward
+- Current volatility
+- Existing position status
+
+Return one final recommendation:
+
+STRONG_BUY
+BUY
+WATCH
+EXIT
+AVOID
+
+2. Recommendation rules
+
+STRONG_BUY:
+- Final confidence >= 85
+- Historical expectancy > 1%
+- Profit factor >= 1.5
+- Reliable historical sample
+- Risk/reward >= 2
+- No hard risk filter failed
+
+BUY:
+- Final confidence 75–84
+- Positive expectancy
+- Profit factor > 1.2
+- Risk/reward >= 2
+
+WATCH:
+- Final confidence 55–74
+- Setup is incomplete or historical evidence is weak
+
+AVOID:
+- Final confidence below 55
+- Negative expectancy
+- Poor historical pattern
+- Risk filter failed
+
+EXIT:
+- Only when a paper position is currently open and an exit condition occurs
+- Stop-loss hit
+- Target hit
+- Bearish exit signal
+- Time-based exit
+
+Do not recommend EXIT for a stock with no open position.
+
+3. Confidence calculation
+
+Display a final confidence score from 0 to 100.
+
+The backend must also return:
+
+- Base technical confidence
+- Historical learning adjustment
+- Final confidence
+- Historical expectancy
+- Profit factor
+- Pattern match percentage
+- Number of historical matches
+- Risk/reward
+- Entry price
+- Stop-loss
+- Target
+- Expected holding period
+- Short explanation
+
+4. Create Decision Dashboard UI
+
+Add a main page named:
+Trade Decisions
+
+Top summary cards:
+
+- Strong Buy count
+- Buy count
+- Watch count
+- Exit count
+- Avoid count
+- Market regime
+- Last updated time
+
+Main table:
+
+- Stock
+- Recommendation
+- Confidence
+- Current price
+- Entry
+- Stop-loss
+- Target
+- Risk/reward
+- Expected holding
+- Short reason
+
+Sort in this order:
+
+1. STRONG BUY
+2. BUY
+3. EXIT
+4. WATCH
+5. AVOID
+
+Within each group, sort by final confidence descending.
+
+5. Clear visual states
+
+STRONG BUY = strong green
+BUY = green
+WATCH = amber
+EXIT = red
+AVOID = grey
+
+Do not rely only on color; always show the recommendation text.
+
+6. Expandable explanation
+
+When a row is opened, show:
+
+- Why this recommendation was made
+- Technical confidence
+- Historical adjustment
+- Historical matches
+- Win rate
+- Expectancy
+- Profit factor
+- Best matching historical pattern
+- Failed conditions
+- Risk details
+
+7. Safety and data quality
+
+- If historical sample size is below 20, label confidence as LOW RELIABILITY.
+- If Yahoo data is unavailable or mock data is active, never issue BUY or STRONG BUY.
+- In that case show DATA UNAVAILABLE or WATCH.
+- Never force a recommendation.
+- Keep all decisions deterministic and reproducible.
+
+8. Add API endpoint
+
+GET /api/trade-decisions
+
+Return all decision fields required by the UI.
+
+Do not remove the existing research pages.
+Make Trade Decisions the default landing page.

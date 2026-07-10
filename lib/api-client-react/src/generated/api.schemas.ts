@@ -1298,6 +1298,72 @@ export interface LearningPattern {
   rank?: number;
 }
 
+export type TradeDecisionRecommendation = typeof TradeDecisionRecommendation[keyof typeof TradeDecisionRecommendation];
+
+
+export const TradeDecisionRecommendation = {
+  STRONG_BUY: 'STRONG_BUY',
+  BUY: 'BUY',
+  WATCH: 'WATCH',
+  EXIT: 'EXIT',
+  AVOID: 'AVOID',
+} as const;
+
+export type TradeDecisionDataStatus = typeof TradeDecisionDataStatus[keyof typeof TradeDecisionDataStatus];
+
+
+export const TradeDecisionDataStatus = {
+  OK: 'OK',
+  DATA_UNAVAILABLE: 'DATA_UNAVAILABLE',
+} as const;
+
+export interface TradeDecision {
+  stock: string;
+  sector: string;
+  recommendation: TradeDecisionRecommendation;
+  data_status: TradeDecisionDataStatus;
+  low_reliability: boolean;
+  base_confidence: number;
+  learning_adjustment: number;
+  final_confidence: number;
+  historical_expectancy: number;
+  historical_profit_factor: number;
+  historical_win_rate: number;
+  pattern_match_pct: number;
+  historical_trades: number;
+  best_pattern: string;
+  regime_match: boolean;
+  price: number;
+  entry_price: number;
+  stop_loss: number;
+  target: number;
+  rr_ratio: number;
+  expected_holding_days: number;
+  expected_drawdown: number;
+  position_open: boolean;
+  position_quantity: number;
+  position_avg_price: number;
+  position_pnl_pct: number;
+  exit_reason: string;
+  reason: string;
+  explanation: string;
+  failed_conditions: string[];
+}
+
+export interface TradeDecisionsResponse {
+  generated_at: string;
+  market_regime: string;
+  universe_size: number;
+  strong_buy_count: number;
+  buy_count: number;
+  watch_count: number;
+  exit_count: number;
+  avoid_count: number;
+  data_unavailable_count: number;
+  warning: string;
+  decisions: TradeDecision[];
+}
+
 export interface PatternQuality {
   knowledge_trades: number;
   warning: string;
@@ -1526,4 +1592,19 @@ offset?: number;
 symbol?: string;
 strategy?: string;
 };
+
+export type GetTradeDecisionsParams = {
+/**
+ * Set to "true" to bypass the server-side cache.
+ */
+force?: GetTradeDecisionsForce;
+};
+
+export type GetTradeDecisionsForce = typeof GetTradeDecisionsForce[keyof typeof GetTradeDecisionsForce];
+
+
+export const GetTradeDecisionsForce = {
+  true: 'true',
+  false: 'false',
+} as const;
 

@@ -704,6 +704,36 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /trade-decisions:
+    get:
+      operationId: getTradeDecisions
+      tags: [trading]
+      summary: One clear recommendation per stock (Decision Dashboard)
+      description: >
+        Combines the scanner, expectancy engine, adaptive learning and paper
+        portfolio into one deterministic recommendation per stock
+        (STRONG_BUY / BUY / WATCH / EXIT / AVOID). Runs a full universe scan
+        (~20-30s) and caches the result briefly. Paper trading only.
+      parameters:
+        - name: force
+          in: query
+          required: false
+          schema: { type: string, enum: ["true", "false"] }
+          description: Set to "true" to bypass the server-side cache.
+      responses:
+        "200":
+          description: Ranked trade decisions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TradeDecisionsResponse"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /pattern-quality:
     get:
       operationId: getPatternQuality
@@ -2728,6 +2758,77 @@ components:
          average_return, profit_factor, expectancy, expected_value,
          kelly_percent, max_drawdown, recovery_factor, sharpe, sortino,
          avg_holding_days, expectancy_rating]
+
+    TradeDecision:
+      type: object
+      properties:
+        stock:                    { type: string }
+        sector:                   { type: string }
+        recommendation:
+          type: string
+          enum: [STRONG_BUY, BUY, WATCH, EXIT, AVOID]
+        data_status:
+          type: string
+          enum: [OK, DATA_UNAVAILABLE]
+        low_reliability:          { type: boolean }
+        base_confidence:          { type: number }
+        learning_adjustment:      { type: number }
+        final_confidence:         { type: number }
+        historical_expectancy:    { type: number }
+        historical_profit_factor: { type: number }
+        historical_win_rate:      { type: number }
+        pattern_match_pct:        { type: number }
+        historical_trades:        { type: integer }
+        best_pattern:             { type: string }
+        regime_match:             { type: boolean }
+        price:                    { type: number }
+        entry_price:              { type: number }
+        stop_loss:                { type: number }
+        target:                   { type: number }
+        rr_ratio:                 { type: number }
+        expected_holding_days:    { type: number }
+        expected_drawdown:        { type: number }
+        position_open:            { type: boolean }
+        position_quantity:        { type: integer }
+        position_avg_price:       { type: number }
+        position_pnl_pct:         { type: number }
+        exit_reason:              { type: string }
+        reason:                   { type: string }
+        explanation:              { type: string }
+        failed_conditions:
+          type: array
+          items: { type: string }
+      required:
+        [stock, sector, recommendation, data_status, low_reliability,
+         base_confidence, learning_adjustment, final_confidence,
+         historical_expectancy, historical_profit_factor, historical_win_rate,
+         pattern_match_pct, historical_trades, best_pattern, regime_match,
+         price, entry_price, stop_loss, target, rr_ratio,
+         expected_holding_days, expected_drawdown, position_open,
+         position_quantity, position_avg_price, position_pnl_pct,
+         exit_reason, reason, explanation, failed_conditions]
+
+    TradeDecisionsResponse:
+      type: object
+      properties:
+        generated_at:           { type: string }
+        market_regime:          { type: string }
+        universe_size:          { type: integer }
+        strong_buy_count:       { type: integer }
+        buy_count:              { type: integer }
+        watch_count:            { type: integer }
+        exit_count:             { type: integer }
+        avoid_count:            { type: integer }
+        data_unavailable_count: { type: integer }
+        warning:                { type: string }
+        decisions:
+          type: array
+          items:
+            $ref: "#/components/schemas/TradeDecision"
+      required:
+        [generated_at, market_regime, universe_size, strong_buy_count,
+         buy_count, watch_count, exit_count, avoid_count,
+         data_unavailable_count, warning, decisions]
 
     PatternQuality:
       type: object
