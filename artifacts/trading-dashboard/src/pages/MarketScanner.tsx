@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatTime } from "@/lib/format";
 import {
   RefreshCcw, Flame, TrendingUp, TrendingDown, Eye, Ban,
-  Star, LayoutGrid, ListOrdered, Building2, History,
+  Star, LayoutGrid, ListOrdered, Building2, History, Brain,
 } from "lucide-react";
 
 // ── Config maps ───────────────────────────────────────────────────────────────
@@ -66,9 +66,33 @@ function HeatTile({
   );
 }
 
+function LearningAdjBadge({ adj }: { adj: number }) {
+  if (adj > 0) return <span className="text-xs font-mono font-bold text-emerald-400">+{adj.toFixed(0)}</span>;
+  if (adj < 0) return <span className="text-xs font-mono font-bold text-red-400">{adj.toFixed(0)}</span>;
+  return <span className="text-xs font-mono text-muted-foreground">0</span>;
+}
+
+function BreakdownBar({ label, score, contribution, weight, color }: {
+  label: string; score: number; contribution: number; weight: string; color: string;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[10px] font-mono text-muted-foreground w-32">{label} ({weight})</span>
+      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(100, Math.max(0, score))}%` }} />
+      </div>
+      <span className="text-[10px] font-mono w-16 text-right text-muted-foreground">
+        {score.toFixed(0)} → {contribution.toFixed(1)}
+      </span>
+    </div>
+  );
+}
+
 function RankRow({ item, rank }: { item: any; rank: number }) {
   const cfg = ACTION_CONFIG[item.final_action] ?? ACTION_CONFIG["IGNORE"];
   const [open, setOpen] = useState(false);
+  const bd = item.opportunity_breakdown;
+  const histThin = (item.historical_trades ?? 0) < 30;
   return (
     <>
     <tr
@@ -91,8 +115,22 @@ function RankRow({ item, rank }: { item: any; rank: number }) {
           <span className="text-xs font-mono w-8">{item.opportunity_score.toFixed(0)}</span>
         </div>
       </td>
-      <td className="py-2 px-3 text-xs font-mono text-muted-foreground">{item.trade_quality.toFixed(0)}</td>
-      <td className="py-2 px-3 text-xs font-mono text-muted-foreground">{item.confidence.toFixed(0)}%</td>
+      <td className="py-2 px-3 text-xs font-mono text-muted-foreground">
+        {(item.base_confidence ?? item.confidence).toFixed(0)}
+      </td>
+      <td className="py-2 px-3 text-xs font-mono text-muted-foreground">
+        {histThin ? (
+          <span title="Low historical confidence">{item.historical_trades ?? 0} trades</span>
+        ) : (
+          <span>
+            {item.historical_win_rate.toFixed(0)}% · {item.historical_trades} · PF {item.historical_profit_factor.toFixed(2)}
+          </span>
+        )}
+      </td>
+      <td className="py-2 px-3"><LearningAdjBadge adj={item.learning_adjustment ?? 0} /></td>
+      <td className="py-2 px-3 text-xs font-mono font-bold text-foreground">
+        {(item.final_confidence ?? item.confidence).toFixed(0)}
+      </td>
       <td className="py-2 px-3 text-xs font-mono text-muted-foreground">{item.rr_ratio.toFixed(1)}:1</td>
       <td className="py-2 px-3">
         <Badge variant="outline" className={`font-mono text-[10px] gap-1 ${cfg.bg} ${cfg.color}`}>
@@ -103,7 +141,37 @@ function RankRow({ item, rank }: { item: any; rank: number }) {
     </tr>
     {open && (
       <tr className="border-b border-border/30 bg-zinc-900/40">
-        <td colSpan={9} className="py-3 px-4">
+        <td colSpan={11} className="py-3 px-4">
+          {/* Learning card (Sprint 3 Module 3) */}
+          <div className="mb-4 rounded-md border border-border/40 bg-card/40 p-3">
+            <div className="flex items-center gap-1.5 text-xs font-mono text-primary/80 uppercase tracking-wider mb-2">
+              <Brain className="h-3.5 w-3.5" />
+              Adaptive Learning — {item.best_strategy_name}
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-7 gap-3 mb-3">
+              <div><div className="text-[10px] font-mono uppercase text-muted-foreground">Base Conf.</div><div className="text-sm font-mono font-bold">{(item.base_confidence ?? item.confidence).toFixed(0)}</div></div>
+              <div><div className="text-[10px] font-mono uppercase text-muted-foreground">Hist. Trades</div><div className="text-sm font-mono font-bold">{item.historical_trades ?? 0}</div></div>
+              <div><div className="text-[10px] font-mono uppercase text-muted-foreground">Hist. Win Rate</div><div className="text-sm font-mono font-bold">{(item.historical_win_rate ?? 0).toFixed(0)}%</div></div>
+              <div><div className="text-[10px] font-mono uppercase text-muted-foreground">Profit Factor</div><div className="text-sm font-mono font-bold">{(item.historical_profit_factor ?? 0).toFixed(2)}</div></div>
+              <div><div className="text-[10px] font-mono uppercase text-muted-foreground">Learning</div><div className="text-sm"><LearningAdjBadge adj={item.learning_adjustment ?? 0} /></div></div>
+              <div><div className="text-[10px] font-mono uppercase text-muted-foreground">Final Conf.</div><div className="text-sm font-mono font-bold text-primary">{(item.final_confidence ?? item.confidence).toFixed(0)}</div></div>
+              <div><div className="text-[10px] font-mono uppercase text-muted-foreground">Expected Return</div><div className={`text-sm font-mono font-bold ${(item.historical_avg_return ?? 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>{(item.historical_avg_return ?? 0) >= 0 ? "+" : ""}{(item.historical_avg_return ?? 0).toFixed(1)}%</div></div>
+            </div>
+            {item.learning_explanation && (
+              <p className="text-xs text-muted-foreground italic mb-3">{item.learning_explanation}</p>
+            )}
+            {bd && (
+              <div className="space-y-1.5">
+                <div className="text-[10px] font-mono uppercase text-muted-foreground tracking-wider">
+                  Opportunity Score Breakdown — {bd.score.toFixed(0)}
+                </div>
+                <BreakdownBar label="Technical" weight="40%" score={bd.technical_score} contribution={bd.technical_contribution} color="bg-primary" />
+                <BreakdownBar label="Historical Success" weight="30%" score={bd.historical_score} contribution={bd.historical_contribution} color="bg-emerald-500" />
+                <BreakdownBar label="Sector Strength" weight="20%" score={bd.sector_strength_score} contribution={bd.sector_contribution} color="bg-yellow-500" />
+                <BreakdownBar label="Regime Strength" weight="10%" score={bd.regime_strength_score} contribution={bd.regime_contribution} color="bg-sky-500" />
+              </div>
+            )}
+          </div>
           <div className="flex items-center gap-1.5 text-xs font-mono text-primary/80 uppercase tracking-wider mb-2">
             <History className="h-3.5 w-3.5" />
             Historical Evidence — {item.stock}
@@ -299,8 +367,10 @@ export default function MarketScanner() {
                 <th className="py-2 px-3">Strategy</th>
                 <th className="py-2 px-3">Price</th>
                 <th className="py-2 px-3">Opportunity</th>
-                <th className="py-2 px-3">Trade Qual.</th>
-                <th className="py-2 px-3">Confidence</th>
+                <th className="py-2 px-3">Base Conf.</th>
+                <th className="py-2 px-3">Hist. Evidence</th>
+                <th className="py-2 px-3">Learning</th>
+                <th className="py-2 px-3">Final Conf.</th>
                 <th className="py-2 px-3">R:R</th>
                 <th className="py-2 px-3">Action</th>
               </tr>

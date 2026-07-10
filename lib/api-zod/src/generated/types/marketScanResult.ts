@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DashboardSummary } from './dashboardSummary';
+import type { LearningMeta } from './learningMeta';
 import type { ScanItem } from './scanItem';
 import type { SectorStrength } from './sectorStrength';
 
@@ -16,4 +17,5 @@ export interface MarketScanResult {
   watchlist: string[];
   sectors: SectorStrength[];
   summary: DashboardSummary;
+  learning?: LearningMeta;
 }

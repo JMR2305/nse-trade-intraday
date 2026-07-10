@@ -1,0 +1,241 @@
+Build Sprint 3 - Module 3: Adaptive Learning Layer.
+
+Objective:
+Use the Historical Knowledge Base (3,355+ simulated trades) to improve Market Scanner decisions.
+
+Important:
+- Do NOT change any existing strategy logic.
+- Do NOT change entry or exit rules.
+- Learning must only adjust confidence and ranking.
+- Every adjustment must be explainable.
+- Never use black-box AI or ML.
+
+--------------------------------------------------
+1. Similar Pattern Search
+--------------------------------------------------
+
+For every new scanner signal:
+
+Search the historical database for similar trades based on:
+
+- Strategy
+- Sector
+- Market Regime
+- RSI band
+- ADX band
+- EMA alignment
+- Volume ratio band
+- Risk/Reward band
+- Holding period
+
+Return:
+
+- Similar Trades
+- Wins
+- Losses
+- Win Rate
+- Average Return
+- Profit Factor
+- Expectancy
+
+--------------------------------------------------
+2. Confidence Adjustment
+--------------------------------------------------
+
+Current scanner produces:
+
+Base Confidence
+
+Historical Learning then adjusts it.
+
+Rules:
+
+If
+
+Trades >= 30
+AND
+Win Rate > 60%
+AND
+Profit Factor > 1.5
+
+Increase confidence:
+
++5 to +15
+
+--------------------------------
+
+If
+
+Trades >= 30
+AND
+Win Rate < 45%
+AND
+Profit Factor < 1
+
+Reduce confidence:
+
+-5 to -20
+
+--------------------------------
+
+If
+
+Trades < 30
+
+Adjustment:
+
+0
+
+Show:
+
+Low historical confidence
+
+--------------------------------
+
+Never exceed
+
+95
+
+Never go below
+
+5
+
+--------------------------------------------------
+3. Opportunity Score Upgrade
+--------------------------------------------------
+
+Replace current Opportunity Score with:
+
+40%
+Technical Score
+
+30%
+Historical Success
+
+20%
+Sector Strength
+
+10%
+Market Regime Strength
+
+Show score breakdown.
+
+--------------------------------------------------
+4. Scanner Card
+--------------------------------------------------
+
+Each scanner card should now display:
+
+Base Confidence
+
+Historical Win Rate
+
+Historical Trades
+
+Learning Adjustment
+
+Final Confidence
+
+Historical Profit Factor
+
+Expected Return
+
+Example:
+
+Trend Rider
+
+Base Confidence
+72
+
+Historical Evidence
+
+Trades
+184
+
+Win Rate
+64%
+
+Profit Factor
+1.84
+
+Learning
++8
+
+Final Confidence
+80
+
+Expected Return
++2.3%
+
+--------------------------------------------------
+5. Ranking
+--------------------------------------------------
+
+Rank stocks using
+
+Final Confidence
+
+NOT Base Confidence
+
+--------------------------------------------------
+6. Explainability
+--------------------------------------------------
+
+Every recommendation must explain itself.
+
+Example:
+
+"Confidence increased because similar Trend Rider setups in Banking during Bullish markets achieved a 67% win rate over 142 historical trades."
+
+or
+
+"Confidence reduced because similar Breakout setups during Bearish markets lost money in 73% of historical trades."
+
+--------------------------------------------------
+7. Learning Dashboard
+--------------------------------------------------
+
+Add a new page:
+
+Learning Insights
+
+Show:
+
+Top Performing Patterns
+
+Worst Performing Patterns
+
+Best Strategies by Sector
+
+Best Strategies by Market Regime
+
+Most Reliable Setups
+
+Least Reliable Setups
+
+Heatmaps
+
+Sector × Strategy
+
+Regime × Strategy
+
+RSI Band × Strategy
+
+ADX Band × Strategy
+
+--------------------------------------------------
+8. Safety
+
+Learning NEVER changes strategy rules.
+
+Learning ONLY changes:
+
+Confidence
+
+Opportunity Score
+
+Ranking
+
+Explanation
+
+Keep every decision deterministic and reproducible.

@@ -21,6 +21,7 @@ import MarketReplay from "@/pages/MarketReplay";
 import PaperBasketTest from "@/pages/PaperBasketTest";
 import TradeIntelligence from "@/pages/TradeIntelligence";
 import HistoricalKnowledge from "@/pages/HistoricalKnowledge";
+import LearningInsights from "@/pages/LearningInsights";
 
 const queryClient = new QueryClient();
 
@@ -44,6 +45,7 @@ function Router() {
         <Route path="/paper-basket-test" component={PaperBasketTest} />
         <Route path="/trade-intelligence" component={TradeIntelligence} />
         <Route path="/historical-knowledge" component={HistoricalKnowledge} />
+        <Route path="/learning-insights" component={LearningInsights} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

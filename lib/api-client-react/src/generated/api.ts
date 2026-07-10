@@ -36,6 +36,7 @@ import type {
   HistoricalKnowledgeSummary,
   HistoricalKnowledgeTrades,
   IndicatorResult,
+  LearningInsights,
   LearningSummary,
   MarketContext,
   MarketDataResult,
@@ -2107,6 +2108,84 @@ export function useGetHistoricalKnowledgeTrades<TData = Awaited<ReturnType<typeo
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetHistoricalKnowledgeTradesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetLearningInsightsUrl = () => {
+
+
+
+
+  return `/api/learning-insights`
+}
+
+/**
+ * Deterministic aggregations over the Historical Knowledge Base — top/worst patterns, best strategies by sector and regime, most/least reliable setups, and four heatmaps. Research only.
+ * @summary Adaptive Learning insights dashboard data
+ */
+export const getLearningInsights = async ( options?: RequestInit): Promise<LearningInsights> => {
+
+  return customFetch<LearningInsights>(getGetLearningInsightsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLearningInsightsQueryKey = () => {
+    return [
+    `/api/learning-insights`
+    ] as const;
+    }
+
+
+export const getGetLearningInsightsQueryOptions = <TData = Awaited<ReturnType<typeof getLearningInsights>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLearningInsights>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLearningInsightsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLearningInsights>>> = ({ signal }) => getLearningInsights({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLearningInsights>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLearningInsightsQueryResult = NonNullable<Awaited<ReturnType<typeof getLearningInsights>>>
+export type GetLearningInsightsQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Adaptive Learning insights dashboard data
+ */
+
+export function useGetLearningInsights<TData = Awaited<ReturnType<typeof getLearningInsights>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLearningInsights>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLearningInsightsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -82,6 +82,7 @@ class ScanItem(TypedDict):
     volume_ratio:       float
     rsi:                float
     macd_hist:          float
+    adx:                float
     error:              str | None
 
 
@@ -221,6 +222,7 @@ def _empty_scan_item(symbol: str, error: str) -> ScanItem:
         win_rate=0.0, profit_factor=0.0, net_pnl_pct=0.0, total_trades=0, sharpe_ratio=0.0,
         entry_price=0.0, stop_loss=0.0, target=0.0,
         above_ema20=False, above_ema50=False, volume_ratio=0.0, rsi=0.0, macd_hist=0.0,
+        adx=0.0,
         error=error,
     )
 
@@ -326,6 +328,7 @@ def scan_stock(symbol: str, capital: float = INITIAL_CAPITAL) -> ScanItem:
         volume_ratio=round(float(last_row.get("volume_ratio", 0.0) or 0.0), 2),
         rsi=round(float(last_row.get("rsi", 0.0) or 0.0), 1),
         macd_hist=round(float(last_row.get("macd_hist", 0.0) or 0.0), 4),
+        adx=round(float(last_row.get("adx", 0.0) or 0.0), 1),
         error=None,
     )
 
@@ -398,6 +401,35 @@ def run_market_scan(
     for it in items:
         it["heat"] = _heat_of(it["final_action"])
 
+    # ── Adaptive Learning Layer (Sprint 3 Module 3) ──────────────────────
+    # Enriches each item with historical evidence, learning adjustment,
+    # final confidence, blended opportunity score + breakdown and an
+    # explanation. NEVER touches strategy/entry/exit logic or actions.
+    learning_meta: dict = {}
+    try:
+        from adaptive_learning import annotate_scan_items
+        learning_meta = annotate_scan_items(items)
+    except Exception as exc:
+        learning_meta = {"error": f"Learning layer unavailable: {exc}"}
+        for it in items:
+            it.setdefault("base_confidence", it.get("confidence", 0.0))
+            it.setdefault("final_confidence", it.get("confidence", 0.0))
+            it.setdefault("learning_adjustment", 0.0)
+            it.setdefault("historical_trades", 0)
+            it.setdefault("historical_win_rate", 0.0)
+            it.setdefault("historical_profit_factor", 0.0)
+            it.setdefault("historical_avg_return", 0.0)
+            it.setdefault("historical_expectancy", 0.0)
+            it.setdefault("learning_note", "Low historical confidence")
+            it.setdefault("learning_explanation", "Learning layer unavailable.")
+
+    # Ranking (spec §5): rank by FINAL confidence, not base confidence.
+    items.sort(key=lambda it: (it["error"] is None,
+                               it.get("final_confidence", 0.0),
+                               it.get("opportunity_score", 0.0)), reverse=True)
+    for i, it in enumerate(items, start=1):
+        it["rank"] = i
+
     valid_items = [it for it in items if it["error"] is None]
 
     sectors = _sector_strength(items)
@@ -434,7 +466,7 @@ def run_market_scan(
         scanned_at=datetime.now().isoformat(),
     )
 
-    return MarketScanResult(
+    result = MarketScanResult(
         scanned_at=summary["scanned_at"],
         universe_size=len(universe),
         items=items,
@@ -442,3 +474,5 @@ def run_market_scan(
         sectors=sectors,
         summary=summary,
     )
+    result["learning"] = learning_meta  # type: ignore[typeddict-unknown-key]
+    return result

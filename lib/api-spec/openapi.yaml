@@ -704,6 +704,29 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /learning-insights:
+    get:
+      operationId: getLearningInsights
+      tags: [trading]
+      summary: Adaptive Learning insights dashboard data
+      description: >
+        Deterministic aggregations over the Historical Knowledge Base —
+        top/worst patterns, best strategies by sector and regime,
+        most/least reliable setups, and four heatmaps. Research only.
+      responses:
+        "200":
+          description: Learning insights
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningInsights"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /predictive-intelligence/evaluate:
     post:
       operationId: evaluatePredictiveIntelligence
@@ -1129,6 +1152,20 @@ components:
         entry_price:   { type: number }
         stop_loss:     { type: number }
         target:        { type: number }
+        adx:           { type: number }
+        # Adaptive Learning Layer (Sprint 3 Module 3)
+        base_confidence:           { type: number }
+        historical_trades:         { type: integer }
+        historical_win_rate:       { type: number }
+        historical_profit_factor:  { type: number }
+        historical_avg_return:     { type: number }
+        historical_expectancy:     { type: number }
+        learning_adjustment:       { type: number }
+        final_confidence:          { type: number }
+        learning_note:             { type: string }
+        learning_explanation:      { type: string }
+        opportunity_breakdown:
+          $ref: "#/components/schemas/OpportunityBreakdown"
         error:
           type: string
           nullable: true
@@ -1231,6 +1268,8 @@ components:
             $ref: "#/components/schemas/SectorStrength"
         summary:
           $ref: "#/components/schemas/DashboardSummary"
+        learning:
+          $ref: "#/components/schemas/LearningMeta"
       required:
         - scanned_at
         - universe_size
@@ -2585,6 +2624,118 @@ components:
             $ref: "#/components/schemas/HistoricalKnowledgeTrade"
         warning: { type: string }
       required: [total, trades, warning]
+
+    OpportunityBreakdown:
+      type: object
+      properties:
+        score:                   { type: number }
+        technical_score:         { type: number }
+        historical_score:        { type: number }
+        sector_strength_score:   { type: number }
+        regime_strength_score:   { type: number }
+        technical_contribution:  { type: number }
+        historical_contribution: { type: number }
+        sector_contribution:     { type: number }
+        regime_contribution:     { type: number }
+      required:
+        [score, technical_score, historical_score, sector_strength_score,
+         regime_strength_score, technical_contribution, historical_contribution,
+         sector_contribution, regime_contribution]
+
+    LearningMeta:
+      type: object
+      properties:
+        market_regime:    { type: string }
+        regime_strength:  { type: number }
+        knowledge_trades: { type: integer }
+        error:            { type: string }
+        sector_strength:
+          type: object
+          additionalProperties: { type: number }
+
+    LearningPattern:
+      type: object
+      properties:
+        strategy:       { type: string }
+        sector:         { type: string }
+        regime:         { type: string }
+        rsi_band:       { type: string }
+        adx_band:       { type: string }
+        trades:         { type: integer }
+        wins:           { type: integer }
+        losses:         { type: integer }
+        win_rate:       { type: number }
+        average_return: { type: number }
+        profit_factor:  { type: number }
+        expectancy:     { type: number }
+      required:
+        [trades, wins, losses, win_rate, average_return, profit_factor, expectancy]
+
+    LearningHeatmapCell:
+      type: object
+      properties:
+        row:            { type: string }
+        col:            { type: string }
+        trades:         { type: integer }
+        win_rate:       { type: number }
+        average_return: { type: number }
+      required: [row, col, trades, win_rate, average_return]
+
+    LearningHeatmap:
+      type: object
+      properties:
+        rows:
+          type: array
+          items: { type: string }
+        cols:
+          type: array
+          items: { type: string }
+        cells:
+          type: array
+          items:
+            $ref: "#/components/schemas/LearningHeatmapCell"
+      required: [rows, cols, cells]
+
+    LearningInsights:
+      type: object
+      properties:
+        knowledge_trades: { type: integer }
+        warning:          { type: string }
+        top_patterns:
+          type: array
+          items:
+            $ref: "#/components/schemas/LearningPattern"
+        worst_patterns:
+          type: array
+          items:
+            $ref: "#/components/schemas/LearningPattern"
+        best_strategy_by_sector:
+          type: array
+          items:
+            $ref: "#/components/schemas/LearningPattern"
+        best_strategy_by_regime:
+          type: array
+          items:
+            $ref: "#/components/schemas/LearningPattern"
+        most_reliable_setups:
+          type: array
+          items:
+            $ref: "#/components/schemas/LearningPattern"
+        least_reliable_setups:
+          type: array
+          items:
+            $ref: "#/components/schemas/LearningPattern"
+        heatmaps:
+          type: object
+          properties:
+            sector_strategy: { $ref: "#/components/schemas/LearningHeatmap" }
+            regime_strategy: { $ref: "#/components/schemas/LearningHeatmap" }
+            rsi_strategy:    { $ref: "#/components/schemas/LearningHeatmap" }
+            adx_strategy:    { $ref: "#/components/schemas/LearningHeatmap" }
+      required:
+        [knowledge_trades, warning, top_patterns, worst_patterns,
+         best_strategy_by_sector, best_strategy_by_regime,
+         most_reliable_setups, least_reliable_setups, heatmaps]
 
     TradeIntelligenceBestWorst:
       type: object

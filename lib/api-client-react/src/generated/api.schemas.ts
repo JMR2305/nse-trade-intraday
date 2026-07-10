@@ -174,6 +174,18 @@ export const ScanItemHeat = {
   RED: 'RED',
 } as const;
 
+export interface OpportunityBreakdown {
+  score: number;
+  technical_score: number;
+  historical_score: number;
+  sector_strength_score: number;
+  regime_strength_score: number;
+  technical_contribution: number;
+  historical_contribution: number;
+  sector_contribution: number;
+  regime_contribution: number;
+}
+
 export interface ScanItem {
   rank: number;
   stock: string;
@@ -202,6 +214,18 @@ export interface ScanItem {
   entry_price: number;
   stop_loss: number;
   target: number;
+  adx?: number;
+  base_confidence?: number;
+  historical_trades?: number;
+  historical_win_rate?: number;
+  historical_profit_factor?: number;
+  historical_avg_return?: number;
+  historical_expectancy?: number;
+  learning_adjustment?: number;
+  final_confidence?: number;
+  learning_note?: string;
+  learning_explanation?: string;
+  opportunity_breakdown?: OpportunityBreakdown;
   error?: string | null;
 }
 
@@ -240,6 +264,16 @@ export interface DashboardSummary {
   scanned_at: string;
 }
 
+export type LearningMetaSectorStrength = {[key: string]: number};
+
+export interface LearningMeta {
+  market_regime?: string;
+  regime_strength?: number;
+  knowledge_trades?: number;
+  error?: string;
+  sector_strength?: LearningMetaSectorStrength;
+}
+
 export interface MarketScanResult {
   scanned_at: string;
   universe_size: number;
@@ -247,6 +281,7 @@ export interface MarketScanResult {
   watchlist: string[];
   sectors: SectorStrength[];
   summary: DashboardSummary;
+  learning?: LearningMeta;
 }
 
 export type ReplayItemHistoricalAction = typeof ReplayItemHistoricalAction[keyof typeof ReplayItemHistoricalAction];
@@ -1197,6 +1232,54 @@ export interface HistoricalKnowledgeTrades {
   total: number;
   trades: HistoricalKnowledgeTrade[];
   warning: string;
+}
+
+export interface LearningPattern {
+  strategy?: string;
+  sector?: string;
+  regime?: string;
+  rsi_band?: string;
+  adx_band?: string;
+  trades: number;
+  wins: number;
+  losses: number;
+  win_rate: number;
+  average_return: number;
+  profit_factor: number;
+  expectancy: number;
+}
+
+export interface LearningHeatmapCell {
+  row: string;
+  col: string;
+  trades: number;
+  win_rate: number;
+  average_return: number;
+}
+
+export interface LearningHeatmap {
+  rows: string[];
+  cols: string[];
+  cells: LearningHeatmapCell[];
+}
+
+export type LearningInsightsHeatmaps = {
+  sector_strategy?: LearningHeatmap;
+  regime_strategy?: LearningHeatmap;
+  rsi_strategy?: LearningHeatmap;
+  adx_strategy?: LearningHeatmap;
+};
+
+export interface LearningInsights {
+  knowledge_trades: number;
+  warning: string;
+  top_patterns: LearningPattern[];
+  worst_patterns: LearningPattern[];
+  best_strategy_by_sector: LearningPattern[];
+  best_strategy_by_regime: LearningPattern[];
+  most_reliable_setups: LearningPattern[];
+  least_reliable_setups: LearningPattern[];
+  heatmaps: LearningInsightsHeatmaps;
 }
 
 export interface TradeIntelligenceResult {

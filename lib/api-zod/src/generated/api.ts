@@ -246,6 +246,28 @@ export const GetMarketScanResponse = zod.object({
   "entry_price": zod.number(),
   "stop_loss": zod.number(),
   "target": zod.number(),
+  "adx": zod.number().optional(),
+  "base_confidence": zod.number().optional(),
+  "historical_trades": zod.number().optional(),
+  "historical_win_rate": zod.number().optional(),
+  "historical_profit_factor": zod.number().optional(),
+  "historical_avg_return": zod.number().optional(),
+  "historical_expectancy": zod.number().optional(),
+  "learning_adjustment": zod.number().optional(),
+  "final_confidence": zod.number().optional(),
+  "learning_note": zod.string().optional(),
+  "learning_explanation": zod.string().optional(),
+  "opportunity_breakdown": zod.object({
+  "score": zod.number(),
+  "technical_score": zod.number(),
+  "historical_score": zod.number(),
+  "sector_strength_score": zod.number(),
+  "regime_strength_score": zod.number(),
+  "technical_contribution": zod.number(),
+  "historical_contribution": zod.number(),
+  "sector_contribution": zod.number(),
+  "regime_contribution": zod.number()
+}).optional(),
   "error": zod.string().nullish()
 })),
   "watchlist": zod.array(zod.string()),
@@ -272,7 +294,14 @@ export const GetMarketScanResponse = zod.object({
   "best_stock_score": zod.number(),
   "avg_market_score": zod.number(),
   "scanned_at": zod.string()
-})
+}),
+  "learning": zod.object({
+  "market_regime": zod.string().optional(),
+  "regime_strength": zod.number().optional(),
+  "knowledge_trades": zod.number().optional(),
+  "error": zod.string().optional(),
+  "sector_strength": zod.record(zod.string(), zod.number()).optional()
+}).optional()
 })
 
 
@@ -1158,6 +1187,146 @@ export const GetHistoricalKnowledgeTradesResponse = zod.object({
   "created_at": zod.string().optional()
 })),
   "warning": zod.string()
+})
+
+
+/**
+ * Deterministic aggregations over the Historical Knowledge Base — top/worst patterns, best strategies by sector and regime, most/least reliable setups, and four heatmaps. Research only.
+ * @summary Adaptive Learning insights dashboard data
+ */
+export const GetLearningInsightsResponse = zod.object({
+  "knowledge_trades": zod.number(),
+  "warning": zod.string(),
+  "top_patterns": zod.array(zod.object({
+  "strategy": zod.string().optional(),
+  "sector": zod.string().optional(),
+  "regime": zod.string().optional(),
+  "rsi_band": zod.string().optional(),
+  "adx_band": zod.string().optional(),
+  "trades": zod.number(),
+  "wins": zod.number(),
+  "losses": zod.number(),
+  "win_rate": zod.number(),
+  "average_return": zod.number(),
+  "profit_factor": zod.number(),
+  "expectancy": zod.number()
+})),
+  "worst_patterns": zod.array(zod.object({
+  "strategy": zod.string().optional(),
+  "sector": zod.string().optional(),
+  "regime": zod.string().optional(),
+  "rsi_band": zod.string().optional(),
+  "adx_band": zod.string().optional(),
+  "trades": zod.number(),
+  "wins": zod.number(),
+  "losses": zod.number(),
+  "win_rate": zod.number(),
+  "average_return": zod.number(),
+  "profit_factor": zod.number(),
+  "expectancy": zod.number()
+})),
+  "best_strategy_by_sector": zod.array(zod.object({
+  "strategy": zod.string().optional(),
+  "sector": zod.string().optional(),
+  "regime": zod.string().optional(),
+  "rsi_band": zod.string().optional(),
+  "adx_band": zod.string().optional(),
+  "trades": zod.number(),
+  "wins": zod.number(),
+  "losses": zod.number(),
+  "win_rate": zod.number(),
+  "average_return": zod.number(),
+  "profit_factor": zod.number(),
+  "expectancy": zod.number()
+})),
+  "best_strategy_by_regime": zod.array(zod.object({
+  "strategy": zod.string().optional(),
+  "sector": zod.string().optional(),
+  "regime": zod.string().optional(),
+  "rsi_band": zod.string().optional(),
+  "adx_band": zod.string().optional(),
+  "trades": zod.number(),
+  "wins": zod.number(),
+  "losses": zod.number(),
+  "win_rate": zod.number(),
+  "average_return": zod.number(),
+  "profit_factor": zod.number(),
+  "expectancy": zod.number()
+})),
+  "most_reliable_setups": zod.array(zod.object({
+  "strategy": zod.string().optional(),
+  "sector": zod.string().optional(),
+  "regime": zod.string().optional(),
+  "rsi_band": zod.string().optional(),
+  "adx_band": zod.string().optional(),
+  "trades": zod.number(),
+  "wins": zod.number(),
+  "losses": zod.number(),
+  "win_rate": zod.number(),
+  "average_return": zod.number(),
+  "profit_factor": zod.number(),
+  "expectancy": zod.number()
+})),
+  "least_reliable_setups": zod.array(zod.object({
+  "strategy": zod.string().optional(),
+  "sector": zod.string().optional(),
+  "regime": zod.string().optional(),
+  "rsi_band": zod.string().optional(),
+  "adx_band": zod.string().optional(),
+  "trades": zod.number(),
+  "wins": zod.number(),
+  "losses": zod.number(),
+  "win_rate": zod.number(),
+  "average_return": zod.number(),
+  "profit_factor": zod.number(),
+  "expectancy": zod.number()
+})),
+  "heatmaps": zod.object({
+  "sector_strategy": zod.object({
+  "rows": zod.array(zod.string()),
+  "cols": zod.array(zod.string()),
+  "cells": zod.array(zod.object({
+  "row": zod.string(),
+  "col": zod.string(),
+  "trades": zod.number(),
+  "win_rate": zod.number(),
+  "average_return": zod.number()
+}))
+}).optional(),
+  "regime_strategy": zod.object({
+  "rows": zod.array(zod.string()),
+  "cols": zod.array(zod.string()),
+  "cells": zod.array(zod.object({
+  "row": zod.string(),
+  "col": zod.string(),
+  "trades": zod.number(),
+  "win_rate": zod.number(),
+  "average_return": zod.number()
+}))
+}).optional(),
+  "rsi_strategy": zod.object({
+  "rows": zod.array(zod.string()),
+  "cols": zod.array(zod.string()),
+  "cells": zod.array(zod.object({
+  "row": zod.string(),
+  "col": zod.string(),
+  "trades": zod.number(),
+  "win_rate": zod.number(),
+  "average_return": zod.number()
+}))
+}).optional(),
+  "adx_strategy": zod.object({
+  "rows": zod.array(zod.string()),
+  "cols": zod.array(zod.string()),
+  "cells": zod.array(zod.object({
+  "row": zod.string(),
+  "col": zod.string(),
+  "trades": zod.number(),
+  "win_rate": zod.number(),
+  "average_return": zod.number()
+}))
+}).optional()
+})
 })
 
 

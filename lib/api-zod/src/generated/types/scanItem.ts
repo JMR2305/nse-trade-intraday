@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { OpportunityBreakdown } from './opportunityBreakdown';
 import type { ScanItemFinalAction } from './scanItemFinalAction';
 import type { ScanItemHeat } from './scanItemHeat';
 
@@ -36,5 +37,17 @@ export interface ScanItem {
   entry_price: number;
   stop_loss: number;
   target: number;
+  adx?: number;
+  base_confidence?: number;
+  historical_trades?: number;
+  historical_win_rate?: number;
+  historical_profit_factor?: number;
+  historical_avg_return?: number;
+  historical_expectancy?: number;
+  learning_adjustment?: number;
+  final_confidence?: number;
+  learning_note?: string;
+  learning_explanation?: string;
+  opportunity_breakdown?: OpportunityBreakdown;
   error?: string | null;
 }

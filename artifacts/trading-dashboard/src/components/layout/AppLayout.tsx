@@ -62,6 +62,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         { href: "/paper-basket-test", label: "Paper Basket Test", icon: Layers },
         { href: "/trade-intelligence", label: "Trade Intelligence", icon: Database },
         { href: "/historical-knowledge", label: "Historical Knowledge", icon: BookOpenText },
+        { href: "/learning-insights", label: "Learning Insights", icon: Brain },
       ],
     },
   ];

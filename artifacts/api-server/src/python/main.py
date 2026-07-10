@@ -298,6 +298,11 @@ def cmd_historical_knowledge_summary() -> dict:
     return knowledge_summary()
 
 
+def cmd_learning_insights() -> dict:
+    from adaptive_learning import learning_insights
+    return learning_insights()
+
+
 def cmd_historical_knowledge_trades(opts_json: str) -> dict:
     from historical_knowledge_builder import knowledge_trades
     try:
@@ -451,6 +456,8 @@ def main():
             result = cmd_historical_knowledge_summary()
         elif command == "historical_knowledge_trades":
             result = cmd_historical_knowledge_trades(args[1] if len(args) >= 2 else "{}")
+        elif command == "learning_insights":
+            result = cmd_learning_insights()
         elif command == "predictive_evaluate" and len(args) >= 2:
             result = cmd_predictive_evaluate(args[1])
         else:

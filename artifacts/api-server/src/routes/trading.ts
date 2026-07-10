@@ -416,6 +416,18 @@ router.get("/historical-knowledge/trades", async (req, res) => {
   }
 });
 
+// GET /api/learning-insights
+// Adaptive Learning Layer (Sprint 3 Module 3) — deterministic aggregations
+// over the Historical Knowledge Base. Read-only, paper trading only.
+router.get("/learning-insights", async (_req, res) => {
+  try {
+    const data = await runPython(["learning_insights"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // POST /api/paper-basket
 // Paper Basket Testing Layer — paper trading only, no real orders. Selects a
 // basket of stocks from the previous day's data (no lookahead bias), then
