@@ -1338,6 +1338,23 @@ export interface SimilarityEvidenceStats {
   worst_outcome: number;
 }
 
+export interface RootCauseFactor {
+  factor: string;
+  lift: number;
+  winner_prevalence: number;
+  loser_prevalence: number;
+}
+
+export interface RootCauseAnalysis {
+  winners: number;
+  losers: number;
+  narrative: string;
+  factor_table: RootCauseFactor[];
+  shared_with_losers: RootCauseFactor[];
+  shared_with_winners: RootCauseFactor[];
+  current_factors: string[];
+}
+
 export type SimilarityEvidenceReliability = typeof SimilarityEvidenceReliability[keyof typeof SimilarityEvidenceReliability];
 
 
@@ -1349,6 +1366,7 @@ export const SimilarityEvidenceReliability = {
 } as const;
 
 export interface SimilarityEvidence {
+  root_cause?: RootCauseAnalysis | null;
   match_count: number;
   avg_similarity: number;
   reliability: SimilarityEvidenceReliability;
@@ -1396,6 +1414,62 @@ export interface EvidenceResearchResponse {
   market_regime: string;
   universe_size: number;
   records: EvidenceResearchRecord[];
+  safety: string;
+}
+
+export type FeatureImportanceEntryTrend = typeof FeatureImportanceEntryTrend[keyof typeof FeatureImportanceEntryTrend];
+
+
+export const FeatureImportanceEntryTrend = {
+  GAINING: 'GAINING',
+  LOSING: 'LOSING',
+  STABLE: 'STABLE',
+} as const;
+
+export type FeatureImportanceEntryDirection = typeof FeatureImportanceEntryDirection[keyof typeof FeatureImportanceEntryDirection];
+
+
+export const FeatureImportanceEntryDirection = {
+  HELPFUL: 'HELPFUL',
+  HARMFUL: 'HARMFUL',
+} as const;
+
+export interface FeatureImportanceEntry {
+  feature: string;
+  label: string;
+  importance: number;
+  raw_separation: number;
+  sample_size: number;
+  confidence: number;
+  best_value?: string | null;
+  best_value_lift: number;
+  worst_value?: string | null;
+  worst_value_lift: number;
+  static_weight: number;
+  contribution_pct: number;
+  target_weight: number;
+  current_weight: number;
+  trend: FeatureImportanceEntryTrend;
+  direction: FeatureImportanceEntryDirection;
+}
+
+export type FeatureImportanceHistoryPointImportance = {[key: string]: number};
+
+export interface FeatureImportanceHistoryPoint {
+  computed_at: string;
+  trade_count: number;
+  weights_updated: boolean;
+  importance: FeatureImportanceHistoryPointImportance;
+}
+
+export interface FeatureImportanceResponse {
+  features: FeatureImportanceEntry[];
+  history: FeatureImportanceHistoryPoint[];
+  updated_at: string | null;
+  total_trades: number;
+  weights_dynamic: boolean;
+  trades_until_next_update: number;
+  min_new_trades_per_update?: number;
   safety: string;
 }
 
@@ -2116,6 +2190,21 @@ export type GetEvidenceResearchRefresh = typeof GetEvidenceResearchRefresh[keyof
 
 
 export const GetEvidenceResearchRefresh = {
+  true: 'true',
+  false: 'false',
+} as const;
+
+export type GetFeatureImportanceParams = {
+/**
+ * Set to "true" to bypass the server-side cache.
+ */
+refresh?: GetFeatureImportanceRefresh;
+};
+
+export type GetFeatureImportanceRefresh = typeof GetFeatureImportanceRefresh[keyof typeof GetFeatureImportanceRefresh];
+
+
+export const GetFeatureImportanceRefresh = {
   true: 'true',
   false: 'false',
 } as const;

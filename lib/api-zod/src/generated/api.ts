@@ -1233,6 +1233,30 @@ export const GetTradeDecisionsResponse = zod.object({
   "similarity_adjustment": zod.number(),
   "evidence_reliability": zod.enum(['VERY_LOW', 'LOW', 'MEDIUM', 'HIGH']),
   "similarity_evidence": zod.object({
+  "root_cause": zod.object({
+  "winners": zod.number(),
+  "losers": zod.number(),
+  "narrative": zod.string(),
+  "factor_table": zod.array(zod.object({
+  "factor": zod.string(),
+  "lift": zod.number(),
+  "winner_prevalence": zod.number(),
+  "loser_prevalence": zod.number()
+})),
+  "shared_with_losers": zod.array(zod.object({
+  "factor": zod.string(),
+  "lift": zod.number(),
+  "winner_prevalence": zod.number(),
+  "loser_prevalence": zod.number()
+})),
+  "shared_with_winners": zod.array(zod.object({
+  "factor": zod.string(),
+  "lift": zod.number(),
+  "winner_prevalence": zod.number(),
+  "loser_prevalence": zod.number()
+})),
+  "current_factors": zod.array(zod.string())
+}).nullish(),
   "match_count": zod.number(),
   "avg_similarity": zod.number(),
   "reliability": zod.enum(['VERY_LOW', 'LOW', 'MEDIUM', 'HIGH']),
@@ -1347,6 +1371,48 @@ export const GetEvidenceResearchResponse = zod.object({
 })),
   "explanation": zod.string()
 })),
+  "safety": zod.string()
+})
+
+
+/**
+ * v2.2 Root Cause Intelligence. Shows which indicators consistently predicted success across all completed historical trades — ranked importance, contribution percentages, trends (gaining/losing importance over time), sample sizes and confidence. Also reports the dynamic similarity-weight status: weights rebalance gradually from evidence, only after at least 50 new completed trades, and no single trade can significantly alter the model. Deterministic and auditable. Paper trading and research only.
+ * @summary Rolling feature-importance report (Root Cause Intelligence)
+ */
+export const GetFeatureImportanceQueryParams = zod.object({
+  "refresh": zod.enum(['true', 'false']).optional().describe('Set to \"true\" to bypass the server-side cache.')
+})
+
+export const GetFeatureImportanceResponse = zod.object({
+  "features": zod.array(zod.object({
+  "feature": zod.string(),
+  "label": zod.string(),
+  "importance": zod.number(),
+  "raw_separation": zod.number(),
+  "sample_size": zod.number(),
+  "confidence": zod.number(),
+  "best_value": zod.string().nullish(),
+  "best_value_lift": zod.number(),
+  "worst_value": zod.string().nullish(),
+  "worst_value_lift": zod.number(),
+  "static_weight": zod.number(),
+  "contribution_pct": zod.number(),
+  "target_weight": zod.number(),
+  "current_weight": zod.number(),
+  "trend": zod.enum(['GAINING', 'LOSING', 'STABLE']),
+  "direction": zod.enum(['HELPFUL', 'HARMFUL'])
+})),
+  "history": zod.array(zod.object({
+  "computed_at": zod.string(),
+  "trade_count": zod.number(),
+  "weights_updated": zod.boolean(),
+  "importance": zod.record(zod.string(), zod.number())
+})),
+  "updated_at": zod.string().nullable(),
+  "total_trades": zod.number(),
+  "weights_dynamic": zod.boolean(),
+  "trades_until_next_update": zod.number(),
+  "min_new_trades_per_update": zod.number().optional(),
   "safety": zod.string()
 })
 

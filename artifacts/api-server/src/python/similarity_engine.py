@@ -307,9 +307,26 @@ def _vol_regime_sim(a: str | None, b: str | None) -> float | None:
     return 0.0
 
 
-def similarity_score(cur: dict, hist: dict) -> tuple[float, list[str]]:
+def get_active_weights() -> dict[str, float]:
+    """Dynamic feature weights (v2.2 Root Cause Intelligence) when available,
+    otherwise the static baseline. Dynamic weights are rebalanced gradually
+    from historical evidence, gated at >=50 new completed trades per update,
+    and always sum to 100 (validated defensively on load)."""
+    try:
+        import root_cause_engine
+        dyn = root_cause_engine.get_dynamic_weights()
+        if dyn is not None:
+            return dyn
+    except Exception:
+        pass
+    return WEIGHTS
+
+
+def similarity_score(cur: dict, hist: dict,
+                     weights: dict[str, float] | None = None) -> tuple[float, list[str]]:
     """Weighted similarity 0-100 between the current setup and one historical
     trade. Returns (score, missing_feature_names). Fully deterministic."""
+    w = weights if weights is not None else WEIGHTS
     missing: list[str] = []
     total = 0.0
 
@@ -318,7 +335,7 @@ def similarity_score(cur: dict, hist: dict) -> tuple[float, list[str]]:
         if sim is None:
             missing.append(name)
             return
-        total += WEIGHTS[name] * max(0.0, min(1.0, sim))
+        total += w[name] * max(0.0, min(1.0, sim))
 
     add("strategy", None if not cur["strategy"] or not hist["strategy"]
         else (1.0 if cur["strategy"] == hist["strategy"] else 0.0))
@@ -406,12 +423,13 @@ def find_matches(cur: dict, vectors: list[dict],
     `as_of` (lookahead prevention)."""
     as_of = as_of or datetime.now().strftime("%Y-%m-%d")
     missing_current = [f for f in WEIGHTS if _is_current_missing(cur, f)]
+    weights = get_active_weights()
     scored: list[dict] = []
     for h in vectors:
         # Lookahead prevention: evidence must be fully realized in the past.
         if not h["exit_date"] or h["exit_date"][:10] >= as_of:
             continue
-        sim, _missing = similarity_score(cur, h)
+        sim, _missing = similarity_score(cur, h, weights)
         if sim >= MIN_SIMILARITY:
             scored.append({**h, "similarity": sim,
                            "partial_match": _holding_mismatch(cur, h)})
@@ -642,15 +660,25 @@ def _display_match(m: dict) -> dict:
 
 def evidence_for_item(item: dict, vectors: list[dict],
                       regime_now: str = "Neutral",
-                      as_of: str | None = None) -> dict:
-    """Full evidence record for ONE stock (deterministic)."""
+                      as_of: str | None = None,
+                      root_cause_fn=None) -> dict:
+    """Full evidence record for ONE stock (deterministic). `root_cause_fn`
+    (v2.2) receives (current_features, matches, adjustment) and returns a
+    root-cause analysis dict — injected to avoid a circular import."""
     cur = extract_current_features(item, regime_now=regime_now)
     matches, missing_current = find_matches(cur, vectors, as_of=as_of)
     stats = evidence_stats(matches)
     reliability, reliability_reasons = classify_reliability(
         stats, matches, missing_current)
     adjustment, explanation = confidence_adjustment(stats, reliability)
+    root_cause = None
+    if root_cause_fn is not None:
+        try:
+            root_cause = root_cause_fn(cur, matches, adjustment)
+        except Exception:
+            root_cause = None
     return {
+        "root_cause": root_cause,
         "match_count": len(matches),
         "avg_similarity": stats["avg_similarity"],
         "reliability": reliability,
@@ -665,11 +693,13 @@ def evidence_for_item(item: dict, vectors: list[dict],
 
 
 def annotate_items_with_evidence(items: list[dict],
-                                 regime_now: str = "Neutral") -> dict:
+                                 regime_now: str = "Neutral",
+                                 root_cause_fn=None) -> dict:
     """Batch-process all scanned stocks IN PLACE (performance §14).
     Adds to each item: similarity_adjustment, evidence_reliability,
-    similarity_explanation, similarity_evidence. Items with scan errors or
-    no data get a zero adjustment. Returns processing metadata (logged)."""
+    similarity_explanation, similarity_evidence (incl. root_cause when a
+    root_cause_fn is provided). Items with scan errors or no data get a zero
+    adjustment. Returns processing metadata (logged)."""
     t0 = time.time()
     vectors = load_historical_vectors()
     total_matches = 0
@@ -681,7 +711,8 @@ def annotate_items_with_evidence(items: list[dict],
                                             "could not be scanned.")
             it["similarity_evidence"] = None
             continue
-        ev = evidence_for_item(it, vectors, regime_now=regime_now)
+        ev = evidence_for_item(it, vectors, regime_now=regime_now,
+                               root_cause_fn=root_cause_fn)
         it["similarity_adjustment"] = ev["adjustment"]
         it["evidence_reliability"] = ev["reliability"]
         it["similarity_explanation"] = ev["explanation"]

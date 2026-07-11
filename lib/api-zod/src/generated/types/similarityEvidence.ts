@@ -5,11 +5,13 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { RootCauseAnalysis } from './rootCauseAnalysis';
 import type { SimilarityEvidenceReliability } from './similarityEvidenceReliability';
 import type { SimilarityEvidenceStats } from './similarityEvidenceStats';
 import type { SimilarityMatch } from './similarityMatch';
 
 export interface SimilarityEvidence {
+  root_cause?: RootCauseAnalysis | null;
   match_count: number;
   avg_similarity: number;
   reliability: SimilarityEvidenceReliability;

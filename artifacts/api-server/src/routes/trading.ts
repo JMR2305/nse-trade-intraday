@@ -541,6 +541,40 @@ router.get("/evidence-research", async (req, res) => {
   }
 });
 
+// GET /api/feature-importance
+// v2.2 Root Cause Intelligence — rolling feature-importance report: which
+// indicators consistently predict success, their contribution percentages,
+// trends (gaining/losing importance), sample sizes and the dynamic
+// similarity-weight status. Weight updates are gated (>=50 new completed
+// trades) and gradual. Paper trading & research only.
+const FEATURE_IMPORTANCE_CACHE_MS = 10 * 60 * 1000;
+let featureImportanceCache: { data: unknown; ts: number } | null = null;
+let featureImportanceInFlight: Promise<unknown> | null = null;
+
+router.get("/feature-importance", async (req, res) => {
+  try {
+    const force = req.query.refresh === "true";
+    if (!force && featureImportanceCache && Date.now() - featureImportanceCache.ts < FEATURE_IMPORTANCE_CACHE_MS) {
+      res.json(featureImportanceCache.data);
+      return;
+    }
+    if (!featureImportanceInFlight) {
+      featureImportanceInFlight = runPython(["feature_importance"])
+        .then((data) => {
+          featureImportanceCache = { data, ts: Date.now() };
+          return data;
+        })
+        .finally(() => {
+          featureImportanceInFlight = null;
+        });
+    }
+    const data = await featureImportanceInFlight;
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // POST /api/paper-basket
 // Paper Basket Testing Layer — paper trading only, no real orders. Selects a
 // basket of stocks from the previous day's data (no lookahead bias), then

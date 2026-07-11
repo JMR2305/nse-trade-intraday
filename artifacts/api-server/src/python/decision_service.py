@@ -478,7 +478,19 @@ def get_trade_decisions() -> dict:
     # Failure here is non-fatal — decisions fall back to a zero adjustment.
     try:
         from similarity_engine import annotate_items_with_evidence
-        annotate_items_with_evidence(scan["items"], regime_now=regime_now)
+        try:
+            from root_cause_engine import (root_cause_for_item,
+                                           maybe_update_feature_importance)
+            # v2.2: opportunistic, gated (>=50 new completed trades) rolling
+            # feature-importance update. Cheap no-op when nothing changed.
+            try:
+                maybe_update_feature_importance()
+            except Exception:
+                pass
+        except Exception:
+            root_cause_for_item = None
+        annotate_items_with_evidence(scan["items"], regime_now=regime_now,
+                                     root_cause_fn=root_cause_for_item)
     except Exception as exc:
         for it in scan["items"]:
             it.setdefault("similarity_adjustment", 0.0)

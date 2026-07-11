@@ -28,7 +28,9 @@ import type {
   BuildHistoricalKnowledgeBody,
   ErrorResponse,
   EvidenceResearchResponse,
+  FeatureImportanceResponse,
   GetEvidenceResearchParams,
+  GetFeatureImportanceParams,
   GetHistoricalKnowledgeTradesParams,
   GetIndicatorsParams,
   GetMarketDataParams,
@@ -2290,6 +2292,91 @@ export function useGetEvidenceResearch<TData = Awaited<ReturnType<typeof getEvid
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetEvidenceResearchQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetFeatureImportanceUrl = (params?: GetFeatureImportanceParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/feature-importance?${stringifiedParams}` : `/api/feature-importance`
+}
+
+/**
+ * v2.2 Root Cause Intelligence. Shows which indicators consistently predicted success across all completed historical trades — ranked importance, contribution percentages, trends (gaining/losing importance over time), sample sizes and confidence. Also reports the dynamic similarity-weight status: weights rebalance gradually from evidence, only after at least 50 new completed trades, and no single trade can significantly alter the model. Deterministic and auditable. Paper trading and research only.
+ * @summary Rolling feature-importance report (Root Cause Intelligence)
+ */
+export const getFeatureImportance = async (params?: GetFeatureImportanceParams, options?: RequestInit): Promise<FeatureImportanceResponse> => {
+
+  return customFetch<FeatureImportanceResponse>(getGetFeatureImportanceUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetFeatureImportanceQueryKey = (params?: GetFeatureImportanceParams,) => {
+    return [
+    `/api/feature-importance`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetFeatureImportanceQueryOptions = <TData = Awaited<ReturnType<typeof getFeatureImportance>>, TError = ErrorType<ErrorResponse>>(params?: GetFeatureImportanceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFeatureImportance>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetFeatureImportanceQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getFeatureImportance>>> = ({ signal }) => getFeatureImportance(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getFeatureImportance>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetFeatureImportanceQueryResult = NonNullable<Awaited<ReturnType<typeof getFeatureImportance>>>
+export type GetFeatureImportanceQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Rolling feature-importance report (Root Cause Intelligence)
+ */
+
+export function useGetFeatureImportance<TData = Awaited<ReturnType<typeof getFeatureImportance>>, TError = ErrorType<ErrorResponse>>(
+ params?: GetFeatureImportanceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFeatureImportance>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetFeatureImportanceQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

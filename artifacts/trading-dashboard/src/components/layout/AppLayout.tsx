@@ -71,6 +71,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         { href: "/learning-insights", label: "Learning Insights", icon: Brain },
         { href: "/learning-review", label: "Learning Review", icon: GraduationCap },
         { href: "/pattern-quality", label: "Pattern Quality", icon: Gauge },
+        { href: "/feature-importance", label: "Feature Importance", icon: BarChart3 },
       ],
     },
   ];

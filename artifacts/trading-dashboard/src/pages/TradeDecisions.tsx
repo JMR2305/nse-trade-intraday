@@ -215,6 +215,66 @@ function SimilarityEvidencePanel({ d }: { d: TradeDecision }) {
             </ul>
           )}
           <p className="text-xs text-foreground/80">{ev.explanation}</p>
+          {ev.root_cause && (ev.root_cause.winners > 0 || ev.root_cause.losers > 0) && (
+            <div className="mt-3 rounded border border-border/50 bg-muted/20 p-3" data-testid="panel-root-cause">
+              <div className="text-xs font-mono uppercase text-muted-foreground mb-1">
+                Root Cause Analysis
+              </div>
+              <p className="text-xs text-foreground/90 leading-relaxed mb-2" data-testid="text-root-cause-narrative">
+                {ev.root_cause.narrative}
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px] font-mono">
+                {ev.root_cause.shared_with_losers.length > 0 && (
+                  <div>
+                    <div className="text-red-400/90 mb-1">Shared with losing trades</div>
+                    {ev.root_cause.shared_with_losers.map((f, i) => (
+                      <div key={i} className="flex justify-between gap-2" data-testid={`row-loser-factor-${i}`}>
+                        <span className="text-foreground/80">{f.factor}</span>
+                        <span className="text-red-400">{f.loser_prevalence.toFixed(0)}% of losers · {f.lift.toFixed(0)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {ev.root_cause.shared_with_winners.length > 0 && (
+                  <div>
+                    <div className="text-green-400/90 mb-1">Shared with winning trades</div>
+                    {ev.root_cause.shared_with_winners.map((f, i) => (
+                      <div key={i} className="flex justify-between gap-2" data-testid={`row-winner-factor-${i}`}>
+                        <span className="text-foreground/80">{f.factor}</span>
+                        <span className="text-green-400">{f.winner_prevalence.toFixed(0)}% of winners · +{f.lift.toFixed(0)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {ev.root_cause.factor_table.length > 0 && (
+                <div className="mt-2 overflow-x-auto">
+                  <table className="w-full text-[11px] font-mono">
+                    <thead>
+                      <tr className="text-muted-foreground text-left">
+                        <th className="pr-3 py-1 font-normal">Factor ({ev.root_cause.winners}W / {ev.root_cause.losers}L similar trades)</th>
+                        <th className="pr-3 py-1 font-normal text-right">Winners</th>
+                        <th className="pr-3 py-1 font-normal text-right">Losers</th>
+                        <th className="py-1 font-normal text-right">Predictive lift</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ev.root_cause.factor_table.map((f, i) => (
+                        <tr key={i} className="border-t border-border/30" data-testid={`row-factor-${i}`}>
+                          <td className="pr-3 py-0.5">{f.factor}</td>
+                          <td className="pr-3 py-0.5 text-right">{f.winner_prevalence.toFixed(0)}%</td>
+                          <td className="pr-3 py-0.5 text-right">{f.loser_prevalence.toFixed(0)}%</td>
+                          <td className={`py-0.5 text-right ${f.lift > 0 ? "text-green-400" : f.lift < 0 ? "text-red-400" : "text-muted-foreground"}`}>
+                            {f.lift > 0 ? "+" : ""}{f.lift.toFixed(0)}%
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
       <p className="text-[11px] text-yellow-400/80 mt-2 flex items-start gap-1">

@@ -768,6 +768,40 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /feature-importance:
+    get:
+      operationId: getFeatureImportance
+      tags: [trading]
+      summary: Rolling feature-importance report (Root Cause Intelligence)
+      description: >
+        v2.2 Root Cause Intelligence. Shows which indicators consistently
+        predicted success across all completed historical trades — ranked
+        importance, contribution percentages, trends (gaining/losing
+        importance over time), sample sizes and confidence. Also reports the
+        dynamic similarity-weight status: weights rebalance gradually from
+        evidence, only after at least 50 new completed trades, and no single
+        trade can significantly alter the model. Deterministic and auditable.
+        Paper trading and research only.
+      parameters:
+        - name: refresh
+          in: query
+          required: false
+          schema: { type: string, enum: ["true", "false"] }
+          description: Set to "true" to bypass the server-side cache.
+      responses:
+        "200":
+          description: Feature importance report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeatureImportanceResponse"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /portfolio-manager:
     get:
       operationId: getPortfolioManager
@@ -3089,9 +3123,47 @@ components:
          avg_holding_days, return_std, historical_drawdown, best_outcome,
          worst_outcome]
 
+    RootCauseFactor:
+      type: object
+      properties:
+        factor:            { type: string }
+        lift:              { type: number }
+        winner_prevalence: { type: number }
+        loser_prevalence:  { type: number }
+      required: [factor, lift, winner_prevalence, loser_prevalence]
+
+    RootCauseAnalysis:
+      type: object
+      properties:
+        winners:   { type: integer }
+        losers:    { type: integer }
+        narrative: { type: string }
+        factor_table:
+          type: array
+          items:
+            $ref: "#/components/schemas/RootCauseFactor"
+        shared_with_losers:
+          type: array
+          items:
+            $ref: "#/components/schemas/RootCauseFactor"
+        shared_with_winners:
+          type: array
+          items:
+            $ref: "#/components/schemas/RootCauseFactor"
+        current_factors:
+          type: array
+          items: { type: string }
+      required:
+        [winners, losers, narrative, factor_table, shared_with_losers,
+         shared_with_winners, current_factors]
+
     SimilarityEvidence:
       type: object
       properties:
+        root_cause:
+          allOf:
+            - $ref: "#/components/schemas/RootCauseAnalysis"
+          nullable: true
         match_count:     { type: integer }
         avg_similarity:  { type: number }
         reliability:
@@ -3163,6 +3235,72 @@ components:
             $ref: "#/components/schemas/EvidenceResearchRecord"
         safety:        { type: string }
       required: [generated_at, market_regime, universe_size, records, safety]
+
+    FeatureImportanceEntry:
+      type: object
+      properties:
+        feature:          { type: string }
+        label:            { type: string }
+        importance:       { type: number }
+        raw_separation:   { type: number }
+        sample_size:      { type: integer }
+        confidence:       { type: number }
+        best_value:
+          type: string
+          nullable: true
+        best_value_lift:  { type: number }
+        worst_value:
+          type: string
+          nullable: true
+        worst_value_lift: { type: number }
+        static_weight:    { type: number }
+        contribution_pct: { type: number }
+        target_weight:    { type: number }
+        current_weight:   { type: number }
+        trend:
+          type: string
+          enum: [GAINING, LOSING, STABLE]
+        direction:
+          type: string
+          enum: [HELPFUL, HARMFUL]
+      required:
+        [feature, label, importance, raw_separation, sample_size, confidence,
+         best_value_lift, worst_value_lift, static_weight, contribution_pct,
+         target_weight, current_weight, trend, direction]
+
+    FeatureImportanceHistoryPoint:
+      type: object
+      properties:
+        computed_at:     { type: string }
+        trade_count:     { type: integer }
+        weights_updated: { type: boolean }
+        importance:
+          type: object
+          additionalProperties: { type: number }
+      required: [computed_at, trade_count, weights_updated, importance]
+
+    FeatureImportanceResponse:
+      type: object
+      properties:
+        features:
+          type: array
+          items:
+            $ref: "#/components/schemas/FeatureImportanceEntry"
+        history:
+          type: array
+          items:
+            $ref: "#/components/schemas/FeatureImportanceHistoryPoint"
+        updated_at:
+          type: string
+          nullable: true
+        total_trades:              { type: integer }
+        weights_dynamic:           { type: boolean }
+        trades_until_next_update:  { type: integer }
+        min_new_trades_per_update: { type: integer }
+        safety:                    { type: string }
+      required:
+        [features, history, updated_at, total_trades, weights_dynamic,
+         trades_until_next_update, safety]
 
     TradeDecision:
       type: object

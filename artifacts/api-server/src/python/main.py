@@ -378,6 +378,13 @@ def cmd_evidence_research() -> dict:
     return get_evidence_research()
 
 
+def cmd_feature_importance() -> dict:
+    """v2.2 Root Cause Intelligence — rolling feature-importance report and
+    dynamic similarity-weight status (paper trading & research only)."""
+    from root_cause_engine import get_feature_importance_report
+    return get_feature_importance_report()
+
+
 def cmd_trade_evaluations(limit: int = 200) -> list:
     from trade_evaluator import backfill_evaluations, get_evaluation_with_snapshot
     backfill_evaluations()
@@ -549,6 +556,8 @@ def main():
             result = cmd_portfolio_manager()
         elif command == "evidence_research":
             result = cmd_evidence_research()
+        elif command == "feature_importance":
+            result = cmd_feature_importance()
         elif command == "trade_evaluations":
             result = cmd_trade_evaluations(
                 int(args[1]) if len(args) > 1 else 200)
