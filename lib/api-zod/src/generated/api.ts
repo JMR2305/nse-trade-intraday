@@ -1364,7 +1364,36 @@ export const GetTradeDecisionsResponse = zod.object({
   "factor": zod.string(),
   "score": zod.number(),
   "contribution": zod.number()
-}))
+})),
+  "analyst_summary": zod.string(),
+  "current_observation": zod.string(),
+  "historical_assessment": zod.string(),
+  "decision_reasoning": zod.string(),
+  "invalidation_conditions": zod.array(zod.object({
+  "metric": zod.string(),
+  "current_value": zod.string(),
+  "trigger_value": zod.string(),
+  "direction": zod.string(),
+  "why": zod.string(),
+  "met": zod.boolean()
+})),
+  "upgrade_conditions": zod.array(zod.object({
+  "metric": zod.string(),
+  "current_value": zod.string(),
+  "trigger_value": zod.string(),
+  "direction": zod.string(),
+  "why": zod.string(),
+  "met": zod.boolean()
+})),
+  "invalidation_met": zod.number(),
+  "upgrade_met": zod.number(),
+  "decision_state": zod.enum(['VALID', 'WEAKENING', 'INVALIDATED', 'IMPROVING', 'EXPIRED', 'DATA_LIMITED']),
+  "decision_timestamp": zod.string(),
+  "valid_until": zod.string().nullish(),
+  "validity_note": zod.string(),
+  "conflict_level": zod.enum(['NONE', 'LOW', 'MEDIUM', 'HIGH']),
+  "conflict_explanation": zod.string(),
+  "missing_data_fields": zod.array(zod.string())
 }))
 })
 
@@ -1511,7 +1540,8 @@ export const GetPortfolioManagerResponse = zod.object({
   "target": zod.number().optional(),
   "rr_ratio": zod.number().optional(),
   "model_adjustment": zod.number().optional(),
-  "rationale": zod.string()
+  "rationale": zod.string(),
+  "invalidation_note": zod.string().optional()
 })),
   "exits": zod.array(zod.object({
   "symbol": zod.string(),
@@ -1527,6 +1557,9 @@ export const GetPortfolioManagerResponse = zod.object({
 })),
   "skipped_total": zod.number().optional().describe('Total number of skipped candidates (skipped list is capped for display).'),
   "comparisons": zod.array(zod.string()),
+  "cash_reason": zod.string().optional().describe('Deterministic explanation of why the remaining cash is held.'),
+  "concentration_conflicts": zod.array(zod.string()).optional(),
+  "rebalance_triggers": zod.array(zod.string()).optional(),
   "sector_exposure": zod.array(zod.object({
   "sector": zod.string(),
   "value": zod.number(),

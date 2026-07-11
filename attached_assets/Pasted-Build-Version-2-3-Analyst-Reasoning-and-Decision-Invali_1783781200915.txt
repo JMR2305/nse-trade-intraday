@@ -1,0 +1,292 @@
+Build Version 2.3 — Analyst Reasoning and Decision Invalidation Layer.
+
+Goal:
+Make every trade recommendation read like a disciplined analyst assessment rather than a list of calculations.
+
+Important:
+- Paper trading and research only.
+- No real order execution.
+- Do not change existing strategy rules, similarity logic, portfolio logic, or learning safeguards.
+- This layer should improve reasoning, explanation, and decision monitoring.
+- Keep every conclusion deterministic, auditable, and based on available data.
+- Do not invent facts or explanations that are not supported by the underlying metrics.
+
+1. Create backend module
+
+Create:
+
+backend/analyst_reasoning.py
+
+Responsibilities:
+
+- Read the complete decision output.
+- Summarize current technical conditions.
+- Summarize historical similarity evidence.
+- Explain confidence increases and reductions.
+- Identify conflicting evidence.
+- Identify what would invalidate the current decision.
+- Identify what would strengthen the current decision.
+- Produce a concise analyst summary.
+
+2. Four-part reasoning structure
+
+For every stock, generate these sections:
+
+A. What the system sees now
+
+Include:
+
+- Current trend
+- Momentum
+- Volume
+- Volatility
+- Market regime
+- Sector strength
+- Risk/reward
+- Data quality
+- Open-position status
+
+Example:
+
+“WIPRO is trading below EMA20 and EMA50, momentum is weakening, volume is below confirmation level, and the broader market is Neutral.”
+
+B. What happened in similar historical setups
+
+Include only Historical Similarity Evidence:
+
+- Match count
+- Average similarity
+- Win rate
+- Expectancy
+- Profit factor
+- Average return
+- Expected drawdown
+- Average holding period
+- Evidence reliability
+
+Example:
+
+“Among 50 similar historical setups with 82% average similarity, only 35% were profitable. Expectancy was -0.50% and profit factor was 0.75.”
+
+C. Why this recommendation was made
+
+Explain:
+
+- Which factor had the greatest impact
+- Which evidence supported the recommendation
+- Which evidence contradicted it
+- Why the final recommendation remained BUY, WATCH, EXIT, or AVOID
+- The exact source of every adjustment
+
+Example:
+
+“The technical exit signal was already weak, and negative similarity evidence reduced confidence by another 7 points. Although the descriptive Pattern Knowledge result was mildly positive, it did not affect confidence.”
+
+D. What would invalidate or change the decision
+
+Generate specific measurable conditions.
+
+For BUY or STRONG BUY, show downside invalidation conditions such as:
+
+- Price closes below stop-loss
+- EMA trend turns bearish
+- RSI falls below a threshold
+- MACD turns bearish
+- Volume confirmation disappears
+- Sector ranking weakens
+- Market regime changes
+- Expected risk/reward falls below minimum
+
+For WATCH or AVOID, show upgrade conditions such as:
+
+- Price closes above EMA20 and EMA50
+- RSI improves into target range
+- MACD histogram turns positive
+- Volume ratio exceeds threshold
+- Opportunity score crosses minimum
+- Similarity expectancy turns positive
+- Market or sector strength improves
+
+For EXIT, show reversal conditions such as:
+
+- Bearish exit signal is cancelled
+- Price reclaims trend level
+- Momentum recovers
+- Stop or target logic changes
+
+Each condition must include:
+
+- Metric
+- Current value
+- Trigger value
+- Direction
+- Why it matters
+
+3. Decision monitoring state
+
+For every stock return:
+
+- Current recommendation
+- Confidence
+- Decision timestamp
+- Decision expiry
+- Current invalidation status
+- Number of invalidation conditions met
+- Number of upgrade conditions met
+- Decision state:
+  - VALID
+  - WEAKENING
+  - INVALIDATED
+  - IMPROVING
+  - EXPIRED
+
+4. Decision expiry
+
+Add a validity window.
+
+For swing trades:
+
+- Default decision validity: until the next completed daily candle
+- Open-position exit decisions remain valid until resolved or superseded
+- Recalculate after meaningful data changes
+
+Display:
+
+“Valid until next daily close”
+
+or
+
+“Re-evaluation required”
+
+5. Conflict detection
+
+Detect and show conflicts such as:
+
+- Technical evidence positive but similarity evidence negative
+- Pattern Knowledge positive but live technical data weak
+- Strong confidence but low data quality
+- High expectancy but poor risk/reward
+- Good individual setup but weak sector or market
+
+Classify conflict severity:
+
+- LOW
+- MEDIUM
+- HIGH
+
+Example:
+
+“High conflict: technical conditions are improving, but 50 similar historical setups had negative expectancy.”
+
+6. Analyst summary
+
+Generate a concise summary of no more than 120 words.
+
+Format:
+
+Recommendation:
+Confidence:
+Primary reason:
+Historical evidence:
+Main risk:
+What would change the decision:
+
+Example:
+
+“WATCH, confidence 61%. Technical momentum is improving, but current volume remains weak. Forty-two similar historical setups had slightly positive expectancy but only medium reliability. The main risk is a bearish market-regime shift. Upgrade to BUY only if price closes above EMA50 with volume above 1.5× average and risk/reward remains above 2:1.”
+
+7. Update Trade Decisions UI
+
+In each expanded stock row, add:
+
+- Analyst Summary
+- What the system sees now
+- Historical evidence
+- Why this recommendation
+- What would change the decision
+- Conflict warning
+- Decision state
+- Valid until
+
+Keep the main collapsed row simple:
+
+- Stock
+- Recommendation
+- Confidence
+- Decision state
+- Entry
+- Stop
+- Target
+- Hold period
+
+8. Update Portfolio Manager
+
+For each portfolio action, show:
+
+- Why selected
+- Why not selected
+- What could invalidate allocation
+- Cash-holding reason
+- Sector or concentration conflict
+- Rebalancing trigger
+
+Example:
+
+“Cash remains at 84% because no candidate met minimum confidence and positive-expectancy requirements.”
+
+9. Add API fields
+
+Update:
+
+GET /api/trade-decisions
+
+Return:
+
+- analyst_summary
+- current_observation
+- historical_assessment
+- decision_reasoning
+- invalidation_conditions
+- upgrade_conditions
+- decision_state
+- valid_until
+- conflict_level
+- conflict_explanation
+
+10. Do not confuse correlation with causation
+
+Root Cause Analysis must be labelled as:
+
+- Associated factor
+- Probable contributor
+- Not proven causal
+
+Do not state that a factor caused a loss unless directly supported by deterministic trade logic, such as stop-loss hit.
+
+11. Data quality safety
+
+When live data is unavailable:
+
+- State clearly that the decision is provisional.
+- Do not generate BUY or STRONG BUY.
+- Do not present fallback data as current market evidence.
+- Set decision state to DATA_LIMITED.
+- Show the missing-data fields.
+
+12. Automated tests
+
+Test:
+
+- Correct reasoning source attribution
+- No contradiction between sections
+- Invalidation threshold generation
+- Upgrade threshold generation
+- Conflict detection
+- Decision expiry
+- Data-limited behavior
+- EXIT reasoning for open positions
+- No unsupported causal claims
+- Deterministic summaries
+
+Do not add a separate navigation page.
+Enhance Trade Decisions and Portfolio Manager only.

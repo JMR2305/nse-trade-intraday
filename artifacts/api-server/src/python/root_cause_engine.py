@@ -288,8 +288,10 @@ def root_cause_for_item(cur: dict, matches: list[dict],
                 else ("both characteristics" if len(top) == 2
                       else "all of these characteristics"))
         narrative = (f"{pct}% of similar losing trades shared {names}. "
-                     f"The current setup has {both}. "
-                     f"This reduced confidence by {abs(adjustment):.0f} points.")
+                     f"The current setup has {both}. These are associated "
+                     f"factors — probable contributors, not proven causes. "
+                     f"The similarity evidence as a whole reduced confidence "
+                     f"by {abs(adjustment):.0f} points.")
     elif adjustment > 0 and shared_with_winners:
         top = shared_with_winners[:3]
         pct = round(sum(t["winner_prevalence"] for t in top) / len(top))
@@ -298,8 +300,10 @@ def root_cause_for_item(cur: dict, matches: list[dict],
                 else ("both characteristics" if len(top) == 2
                       else "all of these characteristics"))
         narrative = (f"{pct}% of similar winning trades shared {names}. "
-                     f"The current setup has {both}. "
-                     f"This increased confidence by {adjustment:.0f} points.")
+                     f"The current setup has {both}. These are associated "
+                     f"factors — probable contributors, not proven causes. "
+                     f"The similarity evidence as a whole increased "
+                     f"confidence by {adjustment:.0f} points.")
     elif shared_with_losers:
         names = _join_names([t["factor"] for t in shared_with_losers[:3]])
         narrative = (f"Similar losing trades commonly shared {names}, which "

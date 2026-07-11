@@ -7,3 +7,5 @@
 - [Learning engine invariants & testing quirks](learning-engine-invariants.md) — mock-data ban, ±3/±15 caps, mirror-finding shortlist trap, min-over-tests confidence gate, DB_PATH fixture rule.
 - [Benchmark evaluation fairness](benchmark-evaluation-fairness.md) — benchmark candidate sets must be persisted untruncated (UI caps never leak into learning) and returns measured to a deterministic horizon close, deferring if unavailable.
 - [Similarity evidence engine](similarity-evidence-engine.md) — match_count/reliability tier from full top-50 set, stats only over top-20 sample; low reliability never boosts confidence; no lookahead.
+- [Pytest suite timing](pytest-suite-timing.md) — full api-server pytest run exceeds the 2-min bash timeout (hypothesis tests alone ~45s); run test files individually with per-file timeouts.
+- [Analyst reasoning layer invariants](analyst-reasoning-invariants.md) — v2.3 analyst text must be deterministic, single-source attributed (no pattern numbers in similarity sections), and free of causal/predictive claims.

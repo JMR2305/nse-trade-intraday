@@ -1546,6 +1546,15 @@ export interface DecisionExplanationSections {
   summary: DecisionSummarySection;
 }
 
+export interface InvalidationCondition {
+  metric: string;
+  current_value: string;
+  trigger_value: string;
+  direction: string;
+  why: string;
+  met: boolean;
+}
+
 export type TradeDecisionRecommendation = typeof TradeDecisionRecommendation[keyof typeof TradeDecisionRecommendation];
 
 
@@ -1570,6 +1579,28 @@ export type TradeDecisionEvidenceReliability = typeof TradeDecisionEvidenceRelia
 
 export const TradeDecisionEvidenceReliability = {
   VERY_LOW: 'VERY_LOW',
+  LOW: 'LOW',
+  MEDIUM: 'MEDIUM',
+  HIGH: 'HIGH',
+} as const;
+
+export type TradeDecisionDecisionState = typeof TradeDecisionDecisionState[keyof typeof TradeDecisionDecisionState];
+
+
+export const TradeDecisionDecisionState = {
+  VALID: 'VALID',
+  WEAKENING: 'WEAKENING',
+  INVALIDATED: 'INVALIDATED',
+  IMPROVING: 'IMPROVING',
+  EXPIRED: 'EXPIRED',
+  DATA_LIMITED: 'DATA_LIMITED',
+} as const;
+
+export type TradeDecisionConflictLevel = typeof TradeDecisionConflictLevel[keyof typeof TradeDecisionConflictLevel];
+
+
+export const TradeDecisionConflictLevel = {
+  NONE: 'NONE',
   LOW: 'LOW',
   MEDIUM: 'MEDIUM',
   HIGH: 'HIGH',
@@ -1613,6 +1644,21 @@ export interface TradeDecision {
   explanation_sections: DecisionExplanationSections;
   failed_conditions: string[];
   breakdown: DecisionFactor[];
+  analyst_summary: string;
+  current_observation: string;
+  historical_assessment: string;
+  decision_reasoning: string;
+  invalidation_conditions: InvalidationCondition[];
+  upgrade_conditions: InvalidationCondition[];
+  invalidation_met: number;
+  upgrade_met: number;
+  decision_state: TradeDecisionDecisionState;
+  decision_timestamp: string;
+  valid_until?: string | null;
+  validity_note: string;
+  conflict_level: TradeDecisionConflictLevel;
+  conflict_explanation: string;
+  missing_data_fields: string[];
 }
 
 export interface TradeDecisionsResponse {
@@ -1663,6 +1709,7 @@ export interface PortfolioNewBuy {
   rr_ratio?: number;
   model_adjustment?: number;
   rationale: string;
+  invalidation_note?: string;
 }
 
 export interface PortfolioSkipped {
@@ -1762,6 +1809,10 @@ export interface PortfolioManagerResponse {
   /** Total number of skipped candidates (skipped list is capped for display). */
   skipped_total?: number;
   comparisons: string[];
+  /** Deterministic explanation of why the remaining cash is held. */
+  cash_reason?: string;
+  concentration_conflicts?: string[];
+  rebalance_triggers?: string[];
   sector_exposure: PortfolioSectorExposure[];
   metrics: PortfolioMetrics;
   benchmark_evaluations?: PortfolioBenchmarkEvaluation[];

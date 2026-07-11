@@ -108,6 +108,22 @@ class TradeDecision(TypedDict):
     explanation_sections: dict   # structured, single-source evidence sections
     failed_conditions: list
     breakdown: list              # list[DecisionFactor] summing to final_confidence
+    # v2.3 Analyst Reasoning and Decision Invalidation Layer
+    analyst_summary: str
+    current_observation: str
+    historical_assessment: str
+    decision_reasoning: str
+    invalidation_conditions: list
+    upgrade_conditions: list
+    invalidation_met: int
+    upgrade_met: int
+    decision_state: str          # VALID | WEAKENING | INVALIDATED | IMPROVING | EXPIRED | DATA_LIMITED
+    decision_timestamp: str
+    valid_until: str | None
+    validity_note: str
+    conflict_level: str          # NONE | LOW | MEDIUM | HIGH
+    conflict_explanation: str
+    missing_data_fields: list
 
 
 def _last_buy_meta(trades: list, symbol: str) -> dict:
@@ -508,7 +524,7 @@ def _decide(item: dict, positions: dict, trades: list,
         "summary": summary_section,
     }
 
-    return TradeDecision(
+    decision = dict(
         stock=sym,
         sector=str(item.get("sector", "")),
         recommendation=recommendation,
@@ -552,6 +568,33 @@ def _decide(item: dict, positions: dict, trades: list,
         failed_conditions=failed,
         breakdown=_build_breakdown(item, data_ok, regime_strength, round(fc, 1)),
     )
+
+    # ── v2.3 Analyst Reasoning and Decision Invalidation Layer ──────────────
+    # Purely explanatory + monitoring: never changes the recommendation or
+    # confidence above. Failure here must never break the decision itself.
+    try:
+        from analyst_reasoning import build_analyst_view
+        decision.update(build_analyst_view(decision, item, regime_now))
+    except Exception as exc:
+        decision.update({
+            "analyst_summary": f"Analyst reasoning unavailable: {exc}",
+            "current_observation": "",
+            "historical_assessment": "",
+            "decision_reasoning": "",
+            "invalidation_conditions": [],
+            "upgrade_conditions": [],
+            "invalidation_met": 0,
+            "upgrade_met": 0,
+            "decision_state": "DATA_LIMITED" if not data_ok else "VALID",
+            "decision_timestamp": datetime.now().isoformat(timespec="seconds"),
+            "valid_until": None,
+            "validity_note": "Re-evaluation required",
+            "conflict_level": "NONE",
+            "conflict_explanation": "",
+            "missing_data_fields": [],
+        })
+
+    return decision  # type: ignore[return-value]
 
 
 def get_trade_decisions() -> dict:

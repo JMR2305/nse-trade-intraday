@@ -345,6 +345,162 @@ function adjClass(v: number): string {
   return v > 0 ? "text-green-400" : v < 0 ? "text-red-400" : "text-muted-foreground";
 }
 
+const STATE_STYLE: Record<string, string> = {
+  VALID:        "text-green-400 bg-green-500/10 border-green-500/30",
+  WEAKENING:    "text-yellow-400 bg-yellow-500/10 border-yellow-500/30",
+  INVALIDATED:  "text-red-400 bg-red-500/10 border-red-500/30",
+  IMPROVING:    "text-sky-300 bg-sky-500/10 border-sky-500/30",
+  EXPIRED:      "text-slate-400 bg-slate-500/10 border-slate-500/30",
+  DATA_LIMITED: "text-slate-400 bg-slate-500/10 border-slate-500/30",
+};
+
+function StateBadge({ state }: { state?: string }) {
+  if (!state) return null;
+  return (
+    <span
+      className={`inline-block rounded border px-1.5 py-0.5 text-[9px] font-mono font-bold whitespace-nowrap ${
+        STATE_STYLE[state] ?? STATE_STYLE.VALID
+      }`}
+      data-testid={`badge-decision-state-${state.toLowerCase()}`}
+    >
+      {state.replace("_", " ")}
+    </span>
+  );
+}
+
+const CONFLICT_STYLE: Record<string, string> = {
+  LOW:    "border-yellow-500/30 bg-yellow-500/10 text-yellow-400",
+  MEDIUM: "border-orange-500/30 bg-orange-500/10 text-orange-400",
+  HIGH:   "border-red-500/30 bg-red-500/10 text-red-400",
+};
+
+function ConditionsTable({
+  title,
+  conditions,
+}: {
+  title: string;
+  conditions: TradeDecision["invalidation_conditions"];
+}) {
+  if (!conditions || conditions.length === 0) return null;
+  return (
+    <div className="mt-3">
+      <div className="text-[11px] font-mono uppercase text-muted-foreground mb-1">{title}</div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[11px] font-mono">
+          <thead>
+            <tr className="text-muted-foreground text-left">
+              <th className="pr-3 py-1 font-normal">Metric</th>
+              <th className="pr-3 py-1 font-normal">Now</th>
+              <th className="pr-3 py-1 font-normal">Trigger</th>
+              <th className="pr-3 py-1 font-normal">Status</th>
+              <th className="py-1 font-normal">Why it matters</th>
+            </tr>
+          </thead>
+          <tbody>
+            {conditions.map((c, i) => (
+              <tr key={i} className="border-t border-border/30" data-testid={`row-condition-${i}`}>
+                <td className="pr-3 py-1 font-bold">{c.metric}</td>
+                <td className="pr-3 py-1">{c.current_value}</td>
+                <td className="pr-3 py-1">
+                  {c.direction} {c.trigger_value}
+                </td>
+                <td className={`pr-3 py-1 font-bold ${c.met ? "text-red-400" : "text-green-400"}`}>
+                  {c.met ? "TRIGGERED" : "not met"}
+                </td>
+                <td className="py-1 text-muted-foreground">{c.why}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function AnalystPanel({ d }: { d: TradeDecision }) {
+  if (!d.analyst_summary) return null;
+  const isBuy = d.recommendation === "STRONG_BUY" || d.recommendation === "BUY";
+  const validUntil = d.valid_until ? new Date(d.valid_until).toLocaleString() : null;
+  return (
+    <div className="mt-4 border-t border-border/50 pt-4" data-testid="panel-analyst-reasoning">
+      <div className="flex items-center gap-2 flex-wrap mb-2">
+        <span className="text-xs font-mono uppercase text-muted-foreground">Analyst View</span>
+        <StateBadge state={d.decision_state} />
+        <span className="text-[10px] font-mono text-muted-foreground">
+          {validUntil ? `Valid until ${validUntil}` : d.validity_note}
+        </span>
+      </div>
+
+      <p
+        className="text-xs text-foreground/90 leading-relaxed rounded border border-border/50 bg-muted/20 p-3 mb-3"
+        data-testid="text-analyst-summary"
+      >
+        {d.analyst_summary}
+      </p>
+
+      {d.conflict_level && d.conflict_level !== "NONE" && (
+        <div
+          className={`flex items-start gap-2 rounded-md border px-3 py-2 text-xs mb-3 ${
+            CONFLICT_STYLE[d.conflict_level] ?? CONFLICT_STYLE.LOW
+          }`}
+          data-testid="banner-conflict"
+        >
+          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+          <div>
+            <span className="font-mono font-bold">{d.conflict_level} CONFLICT — </span>
+            {d.conflict_explanation}
+          </div>
+        </div>
+      )}
+
+      {d.decision_state === "DATA_LIMITED" && (d.missing_data_fields?.length ?? 0) > 0 && (
+        <div className="text-[11px] text-slate-400 font-mono mb-3" data-testid="text-missing-data">
+          Assessment is provisional — missing: {d.missing_data_fields.join(", ")}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 text-xs">
+        <div data-testid="panel-current-observation">
+          <div className="text-[11px] font-mono uppercase text-muted-foreground mb-1">
+            A. What the system sees now
+          </div>
+          <p className="text-foreground/80 leading-relaxed">{d.current_observation}</p>
+        </div>
+        <div data-testid="panel-historical-assessment">
+          <div className="text-[11px] font-mono uppercase text-muted-foreground mb-1">
+            B. What happened in similar setups
+          </div>
+          <p className="text-foreground/80 leading-relaxed">{d.historical_assessment}</p>
+        </div>
+        <div data-testid="panel-decision-reasoning">
+          <div className="text-[11px] font-mono uppercase text-muted-foreground mb-1">
+            C. Why this recommendation
+          </div>
+          <p className="text-foreground/80 leading-relaxed">{d.decision_reasoning}</p>
+        </div>
+      </div>
+
+      {isBuy ? (
+        <>
+          <ConditionsTable
+            title={`D. What would invalidate this decision (${d.invalidation_met ?? 0} of ${d.invalidation_conditions?.length ?? 0} triggered)`}
+            conditions={d.invalidation_conditions}
+          />
+        </>
+      ) : (
+        <ConditionsTable
+          title={
+            d.recommendation === "EXIT"
+              ? `D. What would argue against this exit (${d.upgrade_met ?? 0} of ${d.upgrade_conditions?.length ?? 0} met)`
+              : `D. What would upgrade this decision (${d.upgrade_met ?? 0} of ${d.upgrade_conditions?.length ?? 0} met)`
+          }
+          conditions={d.upgrade_conditions}
+        />
+      )}
+    </div>
+  );
+}
+
 function FinalSummaryPanel({ d }: { d: TradeDecision }) {
   const s = d.explanation_sections?.summary;
   if (!s) return null;
@@ -431,6 +587,7 @@ function DetailRow({ d }: { d: TradeDecision }) {
         <SimilarityEvidencePanel d={d} />
         <PatternKnowledgePanel d={d} />
         <FinalSummaryPanel d={d} />
+        <AnalystPanel d={d} />
       </td>
     </tr>
   );
@@ -588,6 +745,9 @@ export default function TradeDecisions() {
                             <span className="rounded border border-slate-500/30 bg-slate-500/10 px-1 py-0.5 text-[9px] font-mono text-slate-400 whitespace-nowrap">
                               DATA UNAVAILABLE
                             </span>
+                          )}
+                          {d.decision_state && d.decision_state !== "VALID" && (
+                            <StateBadge state={d.decision_state} />
                           )}
                         </div>
                       </td>

@@ -124,6 +124,12 @@ function NewBuyRow({ b }: { b: PortfolioNewBuy }) {
               <Info className="h-4 w-4 mt-0.5 flex-shrink-0 text-primary" />
               <p className="leading-relaxed">{b.rationale}</p>
             </div>
+            {b.invalidation_note && (
+              <div className="flex gap-2 items-start mt-2" data-testid={`text-invalidation-note-${b.symbol}`}>
+                <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0 text-yellow-400" />
+                <p className="leading-relaxed text-yellow-400/90">{b.invalidation_note}</p>
+              </div>
+            )}
           </td>
         </tr>
       )}
@@ -278,6 +284,19 @@ export default function PortfolioManager() {
         />
         <StatCard label="Model Version" value={`v${data?.model_version ?? 0}`} />
       </div>
+
+      {data?.cash_reason && (
+        <div
+          className="flex items-start gap-2 rounded-md border border-border/50 bg-card/40 px-3 py-2 text-sm text-muted-foreground"
+          data-testid="text-cash-reason"
+        >
+          <Info className="h-4 w-4 mt-0.5 flex-shrink-0 text-primary" />
+          <span className="leading-relaxed">
+            <span className="font-mono text-xs uppercase text-muted-foreground mr-2">Why this cash level:</span>
+            {data.cash_reason}
+          </span>
+        </div>
+      )}
 
       {/* Portfolio metrics */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -469,7 +488,40 @@ export default function PortfolioManager() {
             ))}
           </div>
         )}
+        {(data?.concentration_conflicts?.length ?? 0) > 0 && (
+          <div className="space-y-1 pt-1">
+            {data?.concentration_conflicts?.map((c, i) => (
+              <div
+                key={i}
+                className="flex items-start gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-400"
+                data-testid={`banner-concentration-conflict-${i}`}
+              >
+                <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <span className="leading-relaxed">{c}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* Rebalance triggers */}
+      {(data?.rebalance_triggers?.length ?? 0) > 0 && (
+        <div className="space-y-2">
+          <SectionTitle>What Would Change This Plan</SectionTitle>
+          <ul className="space-y-1">
+            {data?.rebalance_triggers?.map((t, i) => (
+              <li
+                key={i}
+                className="flex items-start gap-2 rounded-md border border-border/50 bg-card/40 px-3 py-2 text-sm text-muted-foreground leading-relaxed"
+                data-testid={`row-rebalance-trigger-${i}`}
+              >
+                <ChevronRight className="h-4 w-4 mt-0.5 flex-shrink-0 text-primary" />
+                {t}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Skipped + comparisons */}
       {(data?.skipped?.length ?? 0) > 0 && (

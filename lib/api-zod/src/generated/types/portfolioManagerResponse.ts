@@ -38,6 +38,10 @@ export interface PortfolioManagerResponse {
   /** Total number of skipped candidates (skipped list is capped for display). */
   skipped_total?: number;
   comparisons: string[];
+  /** Deterministic explanation of why the remaining cash is held. */
+  cash_reason?: string;
+  concentration_conflicts?: string[];
+  rebalance_triggers?: string[];
   sector_exposure: PortfolioSectorExposure[];
   metrics: PortfolioMetrics;
   benchmark_evaluations?: PortfolioBenchmarkEvaluation[];

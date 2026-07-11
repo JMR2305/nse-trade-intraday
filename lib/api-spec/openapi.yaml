@@ -3387,6 +3387,17 @@ components:
           $ref: "#/components/schemas/DecisionSummarySection"
       required: [technical, similarity, pattern, summary]
 
+    InvalidationCondition:
+      type: object
+      properties:
+        metric:        { type: string }
+        current_value: { type: string }
+        trigger_value: { type: string }
+        direction:     { type: string }
+        why:           { type: string }
+        met:           { type: boolean }
+      required: [metric, current_value, trigger_value, direction, why, met]
+
     TradeDecision:
       type: object
       properties:
@@ -3442,6 +3453,35 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DecisionFactor"
+        analyst_summary:       { type: string }
+        current_observation:   { type: string }
+        historical_assessment: { type: string }
+        decision_reasoning:    { type: string }
+        invalidation_conditions:
+          type: array
+          items:
+            $ref: "#/components/schemas/InvalidationCondition"
+        upgrade_conditions:
+          type: array
+          items:
+            $ref: "#/components/schemas/InvalidationCondition"
+        invalidation_met: { type: integer }
+        upgrade_met:      { type: integer }
+        decision_state:
+          type: string
+          enum: [VALID, WEAKENING, INVALIDATED, IMPROVING, EXPIRED, DATA_LIMITED]
+        decision_timestamp: { type: string }
+        valid_until:
+          type: string
+          nullable: true
+        validity_note: { type: string }
+        conflict_level:
+          type: string
+          enum: [NONE, LOW, MEDIUM, HIGH]
+        conflict_explanation: { type: string }
+        missing_data_fields:
+          type: array
+          items: { type: string }
       required:
         [stock, sector, recommendation, data_status, low_reliability,
          base_confidence, learning_adjustment, final_confidence,
@@ -3453,7 +3493,12 @@ components:
          expected_holding_days, expected_drawdown, position_open,
          position_quantity, position_avg_price, position_pnl_pct,
          exit_reason, reason, explanation, explanation_sections,
-         failed_conditions, breakdown]
+         failed_conditions, breakdown,
+         analyst_summary, current_observation, historical_assessment,
+         decision_reasoning, invalidation_conditions, upgrade_conditions,
+         invalidation_met, upgrade_met, decision_state, decision_timestamp,
+         validity_note, conflict_level, conflict_explanation,
+         missing_data_fields]
 
     TradeDecisionsResponse:
       type: object
@@ -3515,8 +3560,9 @@ components:
         stop_loss:        { type: number }
         target:           { type: number }
         rr_ratio:         { type: number }
-        model_adjustment: { type: number }
-        rationale:        { type: string }
+        model_adjustment:  { type: number }
+        rationale:         { type: string }
+        invalidation_note: { type: string }
       required:
         [symbol, sector, price, shares, allocation, weight_pct, score,
          confidence, rationale]
@@ -3641,6 +3687,15 @@ components:
           type: integer
           description: Total number of skipped candidates (skipped list is capped for display).
         comparisons:
+          type: array
+          items: { type: string }
+        cash_reason:
+          type: string
+          description: Deterministic explanation of why the remaining cash is held.
+        concentration_conflicts:
+          type: array
+          items: { type: string }
+        rebalance_triggers:
           type: array
           items: { type: string }
         sector_exposure:

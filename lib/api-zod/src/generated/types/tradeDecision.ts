@@ -7,8 +7,11 @@
  */
 import type { DecisionExplanationSections } from './decisionExplanationSections';
 import type { DecisionFactor } from './decisionFactor';
+import type { InvalidationCondition } from './invalidationCondition';
 import type { SimilarityEvidence } from './similarityEvidence';
+import type { TradeDecisionConflictLevel } from './tradeDecisionConflictLevel';
 import type { TradeDecisionDataStatus } from './tradeDecisionDataStatus';
+import type { TradeDecisionDecisionState } from './tradeDecisionDecisionState';
 import type { TradeDecisionEvidenceReliability } from './tradeDecisionEvidenceReliability';
 import type { TradeDecisionRecommendation } from './tradeDecisionRecommendation';
 
@@ -50,4 +53,19 @@ export interface TradeDecision {
   explanation_sections: DecisionExplanationSections;
   failed_conditions: string[];
   breakdown: DecisionFactor[];
+  analyst_summary: string;
+  current_observation: string;
+  historical_assessment: string;
+  decision_reasoning: string;
+  invalidation_conditions: InvalidationCondition[];
+  upgrade_conditions: InvalidationCondition[];
+  invalidation_met: number;
+  upgrade_met: number;
+  decision_state: TradeDecisionDecisionState;
+  decision_timestamp: string;
+  valid_until?: string | null;
+  validity_note: string;
+  conflict_level: TradeDecisionConflictLevel;
+  conflict_explanation: string;
+  missing_data_fields: string[];
 }

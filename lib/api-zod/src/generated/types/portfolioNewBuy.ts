@@ -23,4 +23,5 @@ export interface PortfolioNewBuy {
   rr_ratio?: number;
   model_adjustment?: number;
   rationale: string;
+  invalidation_note?: string;
 }

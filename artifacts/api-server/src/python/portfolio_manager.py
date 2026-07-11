@@ -340,6 +340,13 @@ def build_portfolio_plan(decisions: list[dict], state: dict,
                 f"{MAX_SECTOR_PCT * 100.0:.0f}% sector caps."
                 + (f" Learned model adjustment {_f(d.get('model_adjustment')):+.1f} "
                    f"points is already included." if _f(d.get("model_adjustment")) else "")),
+            "invalidation_note": (
+                (f"This allocation is invalidated if the price closes at or "
+                 f"below the stop-loss ₹{_f(d.get('stop_loss')):,.2f}, "
+                 if _f(d.get("stop_loss")) > 0 else
+                 "This allocation is invalidated ")
+                + f"if {sym}'s recommendation drops below BUY on a later "
+                  f"scan, or if live data becomes unavailable."),
         })
 
     # ── Why X over Y (comparisons vs best skipped candidates) ────────────
@@ -431,6 +438,62 @@ def build_portfolio_plan(decisions: list[dict], state: dict,
          "cap_pct": MAX_SECTOR_PCT * 100.0}
         for s, v in sorted(sec_after.items(), key=lambda kv: -kv[1])]
 
+    # ── v2.3 portfolio-level reasoning (deterministic, explanatory only) ─
+    cash_pct_after = cash_after / total_capital * 100.0
+    if stance == "HOLD_CASH":
+        cash_reason = (
+            f"100% cash: none of the {len(decisions)} scanned stocks "
+            f"currently clears the quality bar (risk-adjusted score >= "
+            f"{MIN_QUALITY_SCORE:.0f} with verified live data). Holding "
+            f"cash is the deliberate decision when edge is absent.")
+    elif not candidates:
+        cash_reason = (
+            f"₹{cash_after:,.0f} ({cash_pct_after:.0f}%) stays in cash: no "
+            f"new stock qualified as a BUY candidate this refresh.")
+    elif skipped and cash_after > 0:
+        cash_reason = (
+            f"₹{cash_after:,.0f} ({cash_pct_after:.0f}%) stays in cash after "
+            f"funding the top {len(new_buys)} of {len(candidates)} "
+            f"candidates — the rest were skipped for the specific reasons "
+            f"listed, not for lack of capital alone.")
+    else:
+        cash_reason = (
+            f"₹{cash_after:,.0f} ({cash_pct_after:.0f}%) remains as an "
+            f"unallocated buffer after position sizing under the "
+            f"{MAX_STOCK_PCT * 100.0:.0f}% stock and "
+            f"{MAX_SECTOR_PCT * 100.0:.0f}% sector caps.")
+
+    concentration_conflicts: list[str] = []
+    for s in sector_exposure:
+        if s["pct"] > MAX_SECTOR_PCT * 100.0 + REDUCE_TOLERANCE * 100.0:
+            concentration_conflicts.append(
+                f"{s['sector']} is {s['pct']:.0f}% of capital — above the "
+                f"{MAX_SECTOR_PCT * 100.0:.0f}% sector cap. New buys in this "
+                f"sector are blocked and a REDUCE is flagged.")
+        elif s["pct"] > MAX_SECTOR_PCT * 100.0 * 0.8:
+            concentration_conflicts.append(
+                f"{s['sector']} is {s['pct']:.0f}% of capital — within 20% "
+                f"of the {MAX_SECTOR_PCT * 100.0:.0f}% sector cap; further "
+                f"buys in this sector will be limited.")
+    for x in lines:
+        w_pct = x["value"] / total_capital * 100.0
+        if w_pct > MAX_STOCK_PCT * 100.0 + REDUCE_TOLERANCE * 100.0:
+            concentration_conflicts.append(
+                f"{x['symbol']} is {w_pct:.0f}% of capital — above the "
+                f"{MAX_STOCK_PCT * 100.0:.0f}% single-stock cap.")
+
+    rebalance_triggers: list[str] = [
+        f"Any position closing above {MAX_STOCK_PCT * 100.0:.0f}% of capital "
+        f"triggers a REDUCE recommendation.",
+        f"Any sector exceeding {MAX_SECTOR_PCT * 100.0:.0f}% of capital "
+        f"triggers a REDUCE of the weakest position in that sector.",
+        "A holding whose recommendation turns EXIT (stop-loss, target, "
+        "bearish signal or time limit) is flagged for exit at the next "
+        "refresh.",
+        "A holding whose evidence turns negative (AVOID with negative "
+        "expectancy) is flagged for REDUCE.",
+    ]
+
     # ── One-paragraph summary ────────────────────────────────────────────
     n_exits = sum(1 for h in holdings if h["action"] == "EXIT")
     if stance == "DEPLOY":
@@ -481,6 +544,9 @@ def build_portfolio_plan(decisions: list[dict], state: dict,
         "comparisons": comparisons,
         "sector_exposure": sector_exposure,
         "candidate_count": len(candidates),
+        "cash_reason": cash_reason,
+        "concentration_conflicts": concentration_conflicts,
+        "rebalance_triggers": rebalance_triggers,
         "metrics": {
             "portfolio_confidence": portfolio_confidence,
             "expected_monthly_return_pct": exp_monthly,
