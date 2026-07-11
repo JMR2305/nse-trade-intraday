@@ -23,6 +23,7 @@ import {
   BookOpenText,
   Gauge,
   Target,
+  Briefcase,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       label: "Overview",
       items: [
         { href: "/",               label: "Trade Decisions", icon: Target    },
+        { href: "/portfolio-manager", label: "Portfolio Manager", icon: Briefcase },
         { href: "/dashboard",      label: "Dashboard",      icon: BarChart3 },
         { href: "/market",         label: "Market",         icon: Globe2    },
         { href: "/market-scanner", label: "Market Scanner", icon: Radar     },

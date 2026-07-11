@@ -1262,6 +1262,136 @@ export const GetTradeDecisionsResponse = zod.object({
 
 
 /**
+ * v3.0 Portfolio Manager. Ranks the whole NSE-50 universe by expected risk-adjusted return, selects only the top opportunities, sizes positions dynamically (half-Kelly, confidence-scaled) under hard caps (max 20% per stock, 30% per sector, max 5 new positions unless confidence is exceptional), computes portfolio-level metrics, and tracks AI allocation vs an equal-weight benchmark. Runs a full universe scan (~20-30s) and caches the result briefly. Paper trading only — never places orders.
+ * @summary One portfolio-level decision per refresh (Portfolio Manager)
+ */
+export const GetPortfolioManagerQueryParams = zod.object({
+  "refresh": zod.enum(['true', 'false']).optional().describe('Set to \"true\" to bypass the server-side cache.')
+})
+
+export const GetPortfolioManagerResponse = zod.object({
+  "generated_at": zod.string(),
+  "market_regime": zod.string(),
+  "model_version": zod.number().optional(),
+  "stance": zod.enum(['DEPLOY', 'HOLD', 'HOLD_CASH']),
+  "summary": zod.string(),
+  "total_capital": zod.number(),
+  "invested_value": zod.number().optional(),
+  "planned_invested_value": zod.number().optional(),
+  "cash": zod.number(),
+  "cash_after": zod.number(),
+  "cash_pct": zod.number(),
+  "candidate_count": zod.number().optional(),
+  "decision_id": zod.number().optional(),
+  "warning": zod.string(),
+  "holdings": zod.array(zod.object({
+  "symbol": zod.string(),
+  "sector": zod.string(),
+  "quantity": zod.number(),
+  "avg_price": zod.number(),
+  "current_price": zod.number(),
+  "value": zod.number(),
+  "pnl_pct": zod.number(),
+  "weight_pct": zod.number(),
+  "confidence": zod.number().optional(),
+  "expectancy": zod.number().optional(),
+  "score": zod.number().optional(),
+  "action": zod.string(),
+  "action_reason": zod.string()
+})),
+  "new_buys": zod.array(zod.object({
+  "symbol": zod.string(),
+  "sector": zod.string(),
+  "price": zod.number(),
+  "shares": zod.number(),
+  "allocation": zod.number(),
+  "weight_pct": zod.number(),
+  "score": zod.number(),
+  "confidence": zod.number(),
+  "expectancy": zod.number().optional(),
+  "sharpe": zod.number().optional(),
+  "kelly": zod.number().optional(),
+  "stop_loss": zod.number().optional(),
+  "target": zod.number().optional(),
+  "rr_ratio": zod.number().optional(),
+  "model_adjustment": zod.number().optional(),
+  "rationale": zod.string()
+})),
+  "exits": zod.array(zod.object({
+  "symbol": zod.string(),
+  "reason": zod.string()
+})),
+  "skipped": zod.array(zod.object({
+  "symbol": zod.string(),
+  "sector": zod.string(),
+  "score": zod.number(),
+  "confidence": zod.number().optional(),
+  "expectancy": zod.number().optional(),
+  "reason": zod.string()
+})),
+  "skipped_total": zod.number().optional().describe('Total number of skipped candidates (skipped list is capped for display).'),
+  "comparisons": zod.array(zod.string()),
+  "sector_exposure": zod.array(zod.object({
+  "sector": zod.string(),
+  "value": zod.number(),
+  "pct": zod.number(),
+  "cap_pct": zod.number()
+})),
+  "metrics": zod.object({
+  "portfolio_confidence": zod.number(),
+  "expected_monthly_return_pct": zod.number(),
+  "expected_max_drawdown_pct": zod.number(),
+  "diversification_score": zod.number(),
+  "risk_score": zod.number(),
+  "positions_count": zod.number(),
+  "new_positions_count": zod.number(),
+  "max_stock_pct": zod.number().optional(),
+  "max_sector_pct": zod.number().optional(),
+  "max_new_positions": zod.number().optional()
+}),
+  "benchmark_evaluations": zod.array(zod.object({
+  "decision_id": zod.number().optional(),
+  "evaluated_at": zod.string().optional(),
+  "horizon_days": zod.number().optional(),
+  "ai_return_pct": zod.number().optional(),
+  "equal_weight_return_pct": zod.number().optional(),
+  "alpha_pct": zod.number().optional(),
+  "symbols_evaluated": zod.number().optional(),
+  "symbols_total": zod.number().optional(),
+  "data_source": zod.string().optional()
+})).optional(),
+  "allocation_performance": zod.object({
+  "evaluated_count": zod.number(),
+  "avg_ai_return_pct": zod.number().optional(),
+  "avg_equal_weight_return_pct": zod.number().optional(),
+  "avg_alpha_pct": zod.number().optional(),
+  "outperform_rate_pct": zod.number().optional(),
+  "verdict": zod.string()
+}).optional(),
+  "recent_decisions": zod.array(zod.object({
+  "id": zod.number(),
+  "created_at": zod.string(),
+  "regime": zod.string(),
+  "stance": zod.string(),
+  "new_buys_count": zod.number(),
+  "invested_pct": zod.number(),
+  "evaluated": zod.boolean(),
+  "evaluation": zod.object({
+  "decision_id": zod.number().optional(),
+  "evaluated_at": zod.string().optional(),
+  "horizon_days": zod.number().optional(),
+  "ai_return_pct": zod.number().optional(),
+  "equal_weight_return_pct": zod.number().optional(),
+  "alpha_pct": zod.number().optional(),
+  "symbols_evaluated": zod.number().optional(),
+  "symbols_total": zod.number().optional(),
+  "data_source": zod.string().optional()
+}).optional()
+})).optional()
+})
+
+
+/**
  * Every strategy × sector × regime pattern with the full expectancy metric set (avg win/loss, profit factor, expectancy, Kelly, Sharpe, Sortino, drawdown, holding days), ranked by expectancy. Research only.
  * @summary Pattern Quality dashboard data (Expectancy Engine)
  */

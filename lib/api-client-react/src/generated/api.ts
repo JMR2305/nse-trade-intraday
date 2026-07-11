@@ -31,6 +31,7 @@ import type {
   GetIndicatorsParams,
   GetMarketDataParams,
   GetMarketReplayParams,
+  GetPortfolioManagerParams,
   GetTradeDecisionsParams,
   GetTradeEvaluationsParams,
   GetTradeIntelligenceParams,
@@ -55,6 +56,7 @@ import type {
   PaperBasketResult,
   PatternQuality,
   Portfolio,
+  PortfolioManagerResponse,
   PredictiveCandidate,
   PredictiveEvidenceResult,
   ScanResult,
@@ -2201,6 +2203,91 @@ export function useGetTradeDecisions<TData = Awaited<ReturnType<typeof getTradeD
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetTradeDecisionsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPortfolioManagerUrl = (params?: GetPortfolioManagerParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/portfolio-manager?${stringifiedParams}` : `/api/portfolio-manager`
+}
+
+/**
+ * v3.0 Portfolio Manager. Ranks the whole NSE-50 universe by expected risk-adjusted return, selects only the top opportunities, sizes positions dynamically (half-Kelly, confidence-scaled) under hard caps (max 20% per stock, 30% per sector, max 5 new positions unless confidence is exceptional), computes portfolio-level metrics, and tracks AI allocation vs an equal-weight benchmark. Runs a full universe scan (~20-30s) and caches the result briefly. Paper trading only — never places orders.
+ * @summary One portfolio-level decision per refresh (Portfolio Manager)
+ */
+export const getPortfolioManager = async (params?: GetPortfolioManagerParams, options?: RequestInit): Promise<PortfolioManagerResponse> => {
+
+  return customFetch<PortfolioManagerResponse>(getGetPortfolioManagerUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPortfolioManagerQueryKey = (params?: GetPortfolioManagerParams,) => {
+    return [
+    `/api/portfolio-manager`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetPortfolioManagerQueryOptions = <TData = Awaited<ReturnType<typeof getPortfolioManager>>, TError = ErrorType<ErrorResponse>>(params?: GetPortfolioManagerParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPortfolioManager>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPortfolioManagerQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPortfolioManager>>> = ({ signal }) => getPortfolioManager(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPortfolioManager>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPortfolioManagerQueryResult = NonNullable<Awaited<ReturnType<typeof getPortfolioManager>>>
+export type GetPortfolioManagerQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary One portfolio-level decision per refresh (Portfolio Manager)
+ */
+
+export function useGetPortfolioManager<TData = Awaited<ReturnType<typeof getPortfolioManager>>, TError = ErrorType<ErrorResponse>>(
+ params?: GetPortfolioManagerParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPortfolioManager>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPortfolioManagerQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

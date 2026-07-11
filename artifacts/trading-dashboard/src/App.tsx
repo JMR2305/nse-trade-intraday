@@ -25,6 +25,7 @@ import LearningInsights from "@/pages/LearningInsights";
 import LearningReview from "@/pages/LearningReview";
 import PatternQuality from "@/pages/PatternQuality";
 import TradeDecisions from "@/pages/TradeDecisions";
+import PortfolioManager from "@/pages/PortfolioManager";
 
 const queryClient = new QueryClient();
 
@@ -33,6 +34,7 @@ function Router() {
     <AppLayout>
       <Switch>
         <Route path="/" component={TradeDecisions} />
+        <Route path="/portfolio-manager" component={PortfolioManager} />
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/market" component={MarketOverview} />
         <Route path="/market-scanner" component={MarketScanner} />

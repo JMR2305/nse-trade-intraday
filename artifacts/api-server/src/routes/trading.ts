@@ -472,6 +472,40 @@ router.get("/trade-decisions", async (req, res) => {
   }
 });
 
+// GET /api/portfolio-manager
+// v3.0 Portfolio Manager — ONE portfolio-level decision per refresh: ranks the
+// full universe by risk-adjusted return, allocates capital under hard caps
+// (20%/stock, 30%/sector, max 5 new positions), computes portfolio metrics and
+// tracks AI allocation vs an equal-weight benchmark. Runs a full universe scan
+// (~20-30s), so cache briefly like /trade-decisions. Paper trading only.
+const PORTFOLIO_MANAGER_CACHE_MS = 10 * 60 * 1000;
+let portfolioManagerCache: { data: unknown; ts: number } | null = null;
+let portfolioManagerInFlight: Promise<unknown> | null = null;
+
+router.get("/portfolio-manager", async (req, res) => {
+  try {
+    const force = req.query.refresh === "true";
+    if (!force && portfolioManagerCache && Date.now() - portfolioManagerCache.ts < PORTFOLIO_MANAGER_CACHE_MS) {
+      res.json(portfolioManagerCache.data);
+      return;
+    }
+    if (!portfolioManagerInFlight) {
+      portfolioManagerInFlight = runPython(["portfolio_manager"])
+        .then((data) => {
+          portfolioManagerCache = { data, ts: Date.now() };
+          return data;
+        })
+        .finally(() => {
+          portfolioManagerInFlight = null;
+        });
+    }
+    const data = await portfolioManagerInFlight;
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // POST /api/paper-basket
 // Paper Basket Testing Layer — paper trading only, no real orders. Selects a
 // basket of stocks from the previous day's data (no lookahead bias), then

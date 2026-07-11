@@ -78,6 +78,8 @@ class TradeDecision(TypedDict):
     historical_expectancy: float
     historical_profit_factor: float
     historical_win_rate: float
+    historical_sharpe: float
+    historical_kelly: float
     pattern_match_pct: float
     historical_trades: int
     best_pattern: str
@@ -397,6 +399,8 @@ def _decide(item: dict, positions: dict, trades: list,
         historical_expectancy=round(exp, 2),
         historical_profit_factor=round(pf, 2),
         historical_win_rate=round(wr, 1),
+        historical_sharpe=round(float(item.get("historical_sharpe", 0.0) or 0.0), 2),
+        historical_kelly=round(float(item.get("historical_kelly", 0.0) or 0.0), 2),
         pattern_match_pct=round(wr, 1),
         historical_trades=n_hist,
         best_pattern=(

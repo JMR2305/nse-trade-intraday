@@ -366,6 +366,12 @@ def cmd_hypothesis_reject(hyp_id: str) -> dict:
     return reject_hypothesis(int(hyp_id))
 
 
+def cmd_portfolio_manager() -> dict:
+    """v3.0 Portfolio Manager — ONE portfolio decision per refresh."""
+    from portfolio_manager import get_portfolio_manager
+    return get_portfolio_manager()
+
+
 def cmd_trade_evaluations(limit: int = 200) -> list:
     from trade_evaluator import backfill_evaluations, get_evaluation_with_snapshot
     backfill_evaluations()
@@ -533,6 +539,8 @@ def main():
             result = cmd_hypothesis_approve(args[1])
         elif command == "hypothesis_reject" and len(args) >= 2:
             result = cmd_hypothesis_reject(args[1])
+        elif command == "portfolio_manager":
+            result = cmd_portfolio_manager()
         elif command == "trade_evaluations":
             result = cmd_trade_evaluations(
                 int(args[1]) if len(args) > 1 else 200)

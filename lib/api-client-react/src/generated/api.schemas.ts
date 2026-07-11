@@ -1374,6 +1374,145 @@ export interface TradeDecisionsResponse {
   decisions: TradeDecision[];
 }
 
+export interface PortfolioHolding {
+  symbol: string;
+  sector: string;
+  quantity: number;
+  avg_price: number;
+  current_price: number;
+  value: number;
+  pnl_pct: number;
+  weight_pct: number;
+  confidence?: number;
+  expectancy?: number;
+  score?: number;
+  action: string;
+  action_reason: string;
+}
+
+export interface PortfolioNewBuy {
+  symbol: string;
+  sector: string;
+  price: number;
+  shares: number;
+  allocation: number;
+  weight_pct: number;
+  score: number;
+  confidence: number;
+  expectancy?: number;
+  sharpe?: number;
+  kelly?: number;
+  stop_loss?: number;
+  target?: number;
+  rr_ratio?: number;
+  model_adjustment?: number;
+  rationale: string;
+}
+
+export interface PortfolioSkipped {
+  symbol: string;
+  sector: string;
+  score: number;
+  confidence?: number;
+  expectancy?: number;
+  reason: string;
+}
+
+export interface PortfolioExit {
+  symbol: string;
+  reason: string;
+}
+
+export interface PortfolioSectorExposure {
+  sector: string;
+  value: number;
+  pct: number;
+  cap_pct: number;
+}
+
+export interface PortfolioMetrics {
+  portfolio_confidence: number;
+  expected_monthly_return_pct: number;
+  expected_max_drawdown_pct: number;
+  diversification_score: number;
+  risk_score: number;
+  positions_count: number;
+  new_positions_count: number;
+  max_stock_pct?: number;
+  max_sector_pct?: number;
+  max_new_positions?: number;
+}
+
+export interface PortfolioBenchmarkEvaluation {
+  decision_id?: number;
+  evaluated_at?: string;
+  horizon_days?: number;
+  ai_return_pct?: number;
+  equal_weight_return_pct?: number;
+  alpha_pct?: number;
+  symbols_evaluated?: number;
+  symbols_total?: number;
+  data_source?: string;
+}
+
+export interface AllocationPerformance {
+  evaluated_count: number;
+  avg_ai_return_pct?: number;
+  avg_equal_weight_return_pct?: number;
+  avg_alpha_pct?: number;
+  outperform_rate_pct?: number;
+  verdict: string;
+}
+
+export interface PortfolioRecentDecision {
+  id: number;
+  created_at: string;
+  regime: string;
+  stance: string;
+  new_buys_count: number;
+  invested_pct: number;
+  evaluated: boolean;
+  evaluation?: PortfolioBenchmarkEvaluation;
+}
+
+export type PortfolioManagerResponseStance = typeof PortfolioManagerResponseStance[keyof typeof PortfolioManagerResponseStance];
+
+
+export const PortfolioManagerResponseStance = {
+  DEPLOY: 'DEPLOY',
+  HOLD: 'HOLD',
+  HOLD_CASH: 'HOLD_CASH',
+} as const;
+
+export interface PortfolioManagerResponse {
+  generated_at: string;
+  market_regime: string;
+  model_version?: number;
+  stance: PortfolioManagerResponseStance;
+  summary: string;
+  total_capital: number;
+  invested_value?: number;
+  planned_invested_value?: number;
+  cash: number;
+  cash_after: number;
+  cash_pct: number;
+  candidate_count?: number;
+  decision_id?: number;
+  warning: string;
+  holdings: PortfolioHolding[];
+  new_buys: PortfolioNewBuy[];
+  exits: PortfolioExit[];
+  skipped: PortfolioSkipped[];
+  /** Total number of skipped candidates (skipped list is capped for display). */
+  skipped_total?: number;
+  comparisons: string[];
+  sector_exposure: PortfolioSectorExposure[];
+  metrics: PortfolioMetrics;
+  benchmark_evaluations?: PortfolioBenchmarkEvaluation[];
+  allocation_performance?: AllocationPerformance;
+  recent_decisions?: PortfolioRecentDecision[];
+}
+
 export interface PatternQuality {
   knowledge_trades: number;
   warning: string;
@@ -1854,6 +1993,21 @@ export type GetTradeDecisionsForce = typeof GetTradeDecisionsForce[keyof typeof 
 
 
 export const GetTradeDecisionsForce = {
+  true: 'true',
+  false: 'false',
+} as const;
+
+export type GetPortfolioManagerParams = {
+/**
+ * Set to "true" to bypass the server-side cache.
+ */
+refresh?: GetPortfolioManagerRefresh;
+};
+
+export type GetPortfolioManagerRefresh = typeof GetPortfolioManagerRefresh[keyof typeof GetPortfolioManagerRefresh];
+
+
+export const GetPortfolioManagerRefresh = {
   true: 'true',
   false: 'false',
 } as const;

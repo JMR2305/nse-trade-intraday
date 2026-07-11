@@ -734,6 +734,40 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /portfolio-manager:
+    get:
+      operationId: getPortfolioManager
+      tags: [trading]
+      summary: One portfolio-level decision per refresh (Portfolio Manager)
+      description: >
+        v3.0 Portfolio Manager. Ranks the whole NSE-50 universe by expected
+        risk-adjusted return, selects only the top opportunities, sizes
+        positions dynamically (half-Kelly, confidence-scaled) under hard caps
+        (max 20% per stock, 30% per sector, max 5 new positions unless
+        confidence is exceptional), computes portfolio-level metrics, and
+        tracks AI allocation vs an equal-weight benchmark. Runs a full
+        universe scan (~20-30s) and caches the result briefly. Paper trading
+        only — never places orders.
+      parameters:
+        - name: refresh
+          in: query
+          required: false
+          schema: { type: string, enum: ["true", "false"] }
+          description: Set to "true" to bypass the server-side cache.
+      responses:
+        "200":
+          description: Portfolio decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortfolioManagerResponse"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /pattern-quality:
     get:
       operationId: getPatternQuality
@@ -3054,6 +3088,192 @@ components:
         [generated_at, market_regime, universe_size, strong_buy_count,
          buy_count, watch_count, exit_count, avoid_count,
          data_unavailable_count, warning, decisions]
+
+    PortfolioHolding:
+      type: object
+      properties:
+        symbol:        { type: string }
+        sector:        { type: string }
+        quantity:      { type: integer }
+        avg_price:     { type: number }
+        current_price: { type: number }
+        value:         { type: number }
+        pnl_pct:       { type: number }
+        weight_pct:    { type: number }
+        confidence:    { type: number }
+        expectancy:    { type: number }
+        score:         { type: number }
+        action:        { type: string }
+        action_reason: { type: string }
+      required:
+        [symbol, sector, quantity, avg_price, current_price, value, pnl_pct,
+         weight_pct, action, action_reason]
+
+    PortfolioNewBuy:
+      type: object
+      properties:
+        symbol:           { type: string }
+        sector:           { type: string }
+        price:            { type: number }
+        shares:           { type: integer }
+        allocation:       { type: number }
+        weight_pct:       { type: number }
+        score:            { type: number }
+        confidence:       { type: number }
+        expectancy:       { type: number }
+        sharpe:           { type: number }
+        kelly:            { type: number }
+        stop_loss:        { type: number }
+        target:           { type: number }
+        rr_ratio:         { type: number }
+        model_adjustment: { type: number }
+        rationale:        { type: string }
+      required:
+        [symbol, sector, price, shares, allocation, weight_pct, score,
+         confidence, rationale]
+
+    PortfolioSkipped:
+      type: object
+      properties:
+        symbol:     { type: string }
+        sector:     { type: string }
+        score:      { type: number }
+        confidence: { type: number }
+        expectancy: { type: number }
+        reason:     { type: string }
+      required: [symbol, sector, score, reason]
+
+    PortfolioExit:
+      type: object
+      properties:
+        symbol: { type: string }
+        reason: { type: string }
+      required: [symbol, reason]
+
+    PortfolioSectorExposure:
+      type: object
+      properties:
+        sector:  { type: string }
+        value:   { type: number }
+        pct:     { type: number }
+        cap_pct: { type: number }
+      required: [sector, value, pct, cap_pct]
+
+    PortfolioMetrics:
+      type: object
+      properties:
+        portfolio_confidence:        { type: number }
+        expected_monthly_return_pct: { type: number }
+        expected_max_drawdown_pct:   { type: number }
+        diversification_score:       { type: number }
+        risk_score:                  { type: number }
+        positions_count:             { type: integer }
+        new_positions_count:         { type: integer }
+        max_stock_pct:               { type: number }
+        max_sector_pct:              { type: number }
+        max_new_positions:           { type: integer }
+      required:
+        [portfolio_confidence, expected_monthly_return_pct,
+         expected_max_drawdown_pct, diversification_score, risk_score,
+         positions_count, new_positions_count]
+
+    PortfolioBenchmarkEvaluation:
+      type: object
+      properties:
+        decision_id:             { type: integer }
+        evaluated_at:            { type: string }
+        horizon_days:            { type: integer }
+        ai_return_pct:           { type: number }
+        equal_weight_return_pct: { type: number }
+        alpha_pct:               { type: number }
+        symbols_evaluated:       { type: integer }
+        symbols_total:           { type: integer }
+        data_source:             { type: string }
+
+    AllocationPerformance:
+      type: object
+      properties:
+        evaluated_count:             { type: integer }
+        avg_ai_return_pct:           { type: number }
+        avg_equal_weight_return_pct: { type: number }
+        avg_alpha_pct:               { type: number }
+        outperform_rate_pct:         { type: number }
+        verdict:                     { type: string }
+      required: [evaluated_count, verdict]
+
+    PortfolioRecentDecision:
+      type: object
+      properties:
+        id:            { type: integer }
+        created_at:    { type: string }
+        regime:        { type: string }
+        stance:        { type: string }
+        new_buys_count: { type: integer }
+        invested_pct:  { type: number }
+        evaluated:     { type: boolean }
+        evaluation:
+          $ref: "#/components/schemas/PortfolioBenchmarkEvaluation"
+      required: [id, created_at, regime, stance, new_buys_count, invested_pct, evaluated]
+
+    PortfolioManagerResponse:
+      type: object
+      properties:
+        generated_at:           { type: string }
+        market_regime:          { type: string }
+        model_version:          { type: integer }
+        stance:                 { type: string, enum: [DEPLOY, HOLD, HOLD_CASH] }
+        summary:                { type: string }
+        total_capital:          { type: number }
+        invested_value:         { type: number }
+        planned_invested_value: { type: number }
+        cash:                   { type: number }
+        cash_after:             { type: number }
+        cash_pct:               { type: number }
+        candidate_count:        { type: integer }
+        decision_id:            { type: integer }
+        warning:                { type: string }
+        holdings:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortfolioHolding"
+        new_buys:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortfolioNewBuy"
+        exits:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortfolioExit"
+        skipped:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortfolioSkipped"
+        skipped_total:
+          type: integer
+          description: Total number of skipped candidates (skipped list is capped for display).
+        comparisons:
+          type: array
+          items: { type: string }
+        sector_exposure:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortfolioSectorExposure"
+        metrics:
+          $ref: "#/components/schemas/PortfolioMetrics"
+        benchmark_evaluations:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortfolioBenchmarkEvaluation"
+        allocation_performance:
+          $ref: "#/components/schemas/AllocationPerformance"
+        recent_decisions:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortfolioRecentDecision"
+      required:
+        [generated_at, market_regime, stance, summary, total_capital, cash,
+         cash_after, cash_pct, holdings, new_buys, exits, skipped,
+         comparisons, sector_exposure, metrics, warning]
 
     PatternQuality:
       type: object
