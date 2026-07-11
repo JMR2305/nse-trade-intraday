@@ -734,6 +734,40 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /evidence-research:
+    get:
+      operationId: getEvidenceResearch
+      tags: [trading]
+      summary: Evidence-based similarity research for every stock
+      description: >
+        v2.1 Evidence-Based Research Engine. Compares each stock's CURRENT
+        setup with historically similar setups from the knowledge base using
+        a weighted similarity score (0-100), and returns evidence statistics,
+        a reliability tier (VERY_LOW/LOW/MEDIUM/HIGH) and the bounded,
+        explainable confidence adjustment applied to the trade decision.
+        Deterministic and auditable; similarity never guarantees outcomes.
+        Runs the full decision pipeline (~20-30s) and caches briefly.
+        Paper trading and research only.
+      parameters:
+        - name: refresh
+          in: query
+          required: false
+          schema: { type: string, enum: ["true", "false"] }
+          description: Set to "true" to bypass the server-side cache.
+      responses:
+        "200":
+          description: Similarity evidence per stock
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvidenceResearchResponse"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /portfolio-manager:
     get:
       operationId: getPortfolioManager
@@ -3010,6 +3044,126 @@ components:
         contribution: { type: number }
       required: [factor, score, contribution]
 
+    SimilarityMatch:
+      type: object
+      properties:
+        symbol:         { type: string }
+        entry_date:     { type: string }
+        strategy:       { type: string }
+        sector:         { type: string }
+        regime:         { type: string }
+        similarity:     { type: number }
+        return_percent: { type: number }
+        holding_days:   { type: integer }
+        exit_reason:    { type: string }
+        partial_match:  { type: boolean }
+      required:
+        [symbol, entry_date, strategy, sector, regime, similarity,
+         return_percent, holding_days, exit_reason, partial_match]
+
+    SimilarityEvidenceStats:
+      type: object
+      properties:
+        matches:                  { type: integer }
+        avg_similarity:           { type: number }
+        wins:                     { type: integer }
+        losses:                   { type: integer }
+        win_rate:                 { type: number }
+        avg_return:               { type: number }
+        median_return:            { type: number }
+        avg_win_return:           { type: number }
+        avg_loss_return:          { type: number }
+        profit_factor:            { type: number }
+        expectancy:               { type: number }
+        max_adverse_excursion:    { type: number }
+        max_favourable_excursion: { type: number }
+        avg_holding_days:         { type: number }
+        return_std:               { type: number }
+        historical_drawdown:      { type: number }
+        best_outcome:             { type: number }
+        worst_outcome:            { type: number }
+      required:
+        [matches, avg_similarity, wins, losses, win_rate, avg_return,
+         median_return, avg_win_return, avg_loss_return, profit_factor,
+         expectancy, max_adverse_excursion, max_favourable_excursion,
+         avg_holding_days, return_std, historical_drawdown, best_outcome,
+         worst_outcome]
+
+    SimilarityEvidence:
+      type: object
+      properties:
+        match_count:     { type: integer }
+        avg_similarity:  { type: number }
+        reliability:
+          type: string
+          enum: [VERY_LOW, LOW, MEDIUM, HIGH]
+        reliability_reasons:
+          type: array
+          items: { type: string }
+        stats:
+          $ref: "#/components/schemas/SimilarityEvidenceStats"
+        adjustment:      { type: number }
+        explanation:     { type: string }
+        top_matches:
+          type: array
+          items:
+            $ref: "#/components/schemas/SimilarityMatch"
+        missing_features:
+          type: array
+          items: { type: string }
+        safety:          { type: string }
+      required:
+        [match_count, avg_similarity, reliability, reliability_reasons,
+         stats, adjustment, explanation, top_matches, missing_features,
+         safety]
+
+    EvidenceResearchRecord:
+      type: object
+      properties:
+        symbol:                 { type: string }
+        sector:                 { type: string }
+        recommendation:         { type: string }
+        final_confidence:       { type: number }
+        similarity_adjustment:  { type: number }
+        match_count:            { type: integer }
+        avg_similarity:         { type: number }
+        evidence_reliability:
+          type: string
+          enum: [VERY_LOW, LOW, MEDIUM, HIGH]
+        reliability_reasons:
+          type: array
+          items: { type: string }
+        win_rate:               { type: number }
+        expectancy:             { type: number }
+        profit_factor:          { type: number }
+        expected_return:        { type: number }
+        expected_drawdown:      { type: number }
+        expected_holding_days:  { type: number }
+        top_matches:
+          type: array
+          items:
+            $ref: "#/components/schemas/SimilarityMatch"
+        explanation:            { type: string }
+      required:
+        [symbol, sector, recommendation, final_confidence,
+         similarity_adjustment, match_count, avg_similarity,
+         evidence_reliability, reliability_reasons, win_rate, expectancy,
+         profit_factor, expected_return, expected_drawdown,
+         expected_holding_days, top_matches, explanation]
+
+    EvidenceResearchResponse:
+      type: object
+      properties:
+        generated_at:  { type: string }
+        market_regime: { type: string }
+        universe_size: { type: integer }
+        records:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvidenceResearchRecord"
+        safety:        { type: string }
+      required: [generated_at, market_regime, universe_size, records, safety]
+
     TradeDecision:
       type: object
       properties:
@@ -3027,6 +3181,14 @@ components:
         final_confidence:         { type: number }
         model_version:            { type: integer }
         model_adjustment:         { type: number }
+        similarity_adjustment:    { type: number }
+        evidence_reliability:
+          type: string
+          enum: [VERY_LOW, LOW, MEDIUM, HIGH]
+        similarity_evidence:
+          allOf:
+            - $ref: "#/components/schemas/SimilarityEvidence"
+          nullable: true
         historical_expectancy:    { type: number }
         historical_profit_factor: { type: number }
         historical_win_rate:      { type: number }
@@ -3059,6 +3221,7 @@ components:
         [stock, sector, recommendation, data_status, low_reliability,
          base_confidence, learning_adjustment, final_confidence,
          model_version, model_adjustment,
+         similarity_adjustment, evidence_reliability,
          historical_expectancy, historical_profit_factor, historical_win_rate,
          pattern_match_pct, historical_trades, best_pattern, regime_match,
          price, entry_price, stop_loss, target, rr_ratio,

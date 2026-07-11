@@ -1,0 +1,315 @@
+Build Version 2.1 — Evidence-Based Research Engine.
+
+Goal:
+For every stock, compare the current market setup with historically similar setups from the Historical Knowledge Base and use that evidence to improve the final recommendation and confidence.
+
+Important:
+- Paper trading and research only.
+- No real orders.
+- Do not replace the existing strategy engine.
+- Similarity evidence is an additional decision layer.
+- Keep all calculations deterministic, explainable, auditable, and reproducible.
+- Never use synthetic/mock records as historical evidence.
+- Do not issue BUY or STRONG BUY when current market data is fallback/mock/unavailable.
+
+1. Create backend module
+
+Create:
+
+backend/similarity_engine.py
+
+Responsibilities:
+
+- Read the current stock setup.
+- Search historical_knowledge_trades.
+- Calculate similarity between the current setup and every eligible historical trade.
+- Return the best matching historical examples.
+- Calculate evidence statistics from the matches.
+
+2. Current setup features
+
+For every stock capture:
+
+Identity and context:
+- Symbol
+- Sector
+- Strategy
+- Market regime
+- Volatility regime
+- Holding period
+
+Technical features:
+- RSI
+- ADX
+- MACD state
+- MACD histogram direction
+- EMA9 vs EMA20
+- EMA20 vs EMA50
+- EMA50 vs EMA200
+- Price above/below VWAP
+- Price above/below Supertrend
+- ATR as percentage of price
+- Volume ratio
+- Momentum direction
+- Trend strength
+
+Decision and risk:
+- Base technical confidence
+- Opportunity score
+- Trade quality
+- Risk/reward
+- Entry price
+- Stop-loss
+- Target
+
+3. Similarity score
+
+Calculate a weighted similarity score from 0 to 100.
+
+Default weights:
+
+- Strategy match: 15
+- Sector match: 10
+- Market regime match: 12
+- Volatility regime match: 8
+- RSI similarity: 8
+- ADX similarity: 8
+- MACD state match: 8
+- EMA alignment match: 10
+- VWAP state match: 5
+- Supertrend state match: 5
+- ATR similarity: 4
+- Volume-ratio similarity: 4
+- Momentum direction match: 3
+
+Total: 100
+
+Rules:
+
+- Exact categorical match receives full points.
+- Related regime match may receive partial points.
+- Numerical features use normalized distance.
+- Missing feature values receive zero contribution and reduce evidence quality.
+- The score calculation must be documented and testable.
+
+4. Historical match retrieval
+
+For each current stock:
+
+- Search only real Yahoo Finance historical simulations.
+- Exclude the current/future period.
+- Prevent lookahead bias.
+- Return the top 50 matches with similarity >= 65%.
+- Use the top 20 most similar matches for the primary evidence calculation.
+- Also return the top 5 examples for display.
+
+If fewer than 10 valid matches exist:
+- Mark evidence as LOW.
+- Do not increase confidence.
+- Allow only a small negative adjustment when the evidence is consistently poor.
+
+5. Evidence statistics
+
+Calculate from the selected historical matches:
+
+- Number of matches
+- Average similarity
+- Wins
+- Losses
+- Win rate
+- Average return
+- Median return
+- Average winning return
+- Average losing return
+- Profit factor
+- Expectancy
+- Maximum adverse excursion
+- Maximum favourable excursion
+- Average holding period
+- Return standard deviation
+- Historical drawdown
+- Best outcome
+- Worst outcome
+
+6. Evidence reliability
+
+Classify evidence:
+
+- Fewer than 10 matches = VERY LOW
+- 10–19 matches = LOW
+- 20–49 matches = MEDIUM
+- 50+ matches = HIGH
+
+Also reduce reliability when:
+
+- Average similarity is below 70%.
+- Important current features are missing.
+- The matches are concentrated in only one stock.
+- The evidence comes from a very narrow time period.
+
+Display the reason for the reliability classification.
+
+7. Evidence-based confidence adjustment
+
+Start from the existing final confidence before similarity evidence.
+
+Positive adjustment:
+
+If:
+- At least 20 matches
+- Average similarity >= 75%
+- Expectancy > +0.75%
+- Profit factor >= 1.5
+
+Then increase confidence gradually by +2 to +10.
+
+Negative adjustment:
+
+If:
+- At least 20 matches
+- Average similarity >= 75%
+- Expectancy < 0
+- Profit factor < 1.0
+
+Then reduce confidence gradually by -3 to -15.
+
+Rules:
+
+- Maximum similarity adjustment: +10 / -15.
+- Final confidence remains between 5 and 95.
+- Similarity evidence cannot override hard risk filters.
+- Similarity evidence cannot create BUY solely by itself.
+- Low or very-low reliability evidence cannot increase confidence.
+- Every adjustment must include a plain-English explanation.
+
+8. Decision integration
+
+Update the existing Decision Service.
+
+Final decision flow:
+
+1. Technical rules
+2. Historical pattern quality
+3. Learning adjustment
+4. Similarity evidence adjustment
+5. Hard risk filters
+6. Final recommendation
+
+Return:
+
+- Base technical confidence
+- Pattern-quality adjustment
+- Adaptive-learning adjustment
+- Similarity adjustment
+- Final confidence
+- Final recommendation
+- Evidence reliability
+- Primary explanation
+
+9. Add API endpoint
+
+GET /api/evidence-research
+
+Return one record per stock including:
+
+- Symbol
+- Recommendation
+- Final confidence
+- Similarity adjustment
+- Match count
+- Average similarity
+- Evidence reliability
+- Win rate
+- Expectancy
+- Profit factor
+- Expected return
+- Expected drawdown
+- Expected holding period
+- Top 5 historical matches
+- Explanation
+
+10. Update Trade Decisions UI
+
+Do not create another main navigation page unless necessary.
+
+Add the following to the expandable row in Trade Decisions:
+
+Historical Similarity Evidence
+
+- Matches found
+- Average similarity
+- Evidence reliability
+- Historical win rate
+- Historical expectancy
+- Profit factor
+- Expected drawdown
+- Expected holding period
+- Similarity adjustment
+
+Show the top 5 historical matches:
+
+- Symbol
+- Entry date
+- Strategy
+- Sector
+- Regime
+- Similarity %
+- Return %
+- Holding days
+- Exit reason
+
+11. Add concise natural-language explanation
+
+Example positive explanation:
+
+“Confidence increased by 7 points because 28 highly similar historical setups averaged 82% similarity, produced +1.84% expectancy, and had a 1.92 profit factor.”
+
+Example negative explanation:
+
+“Confidence decreased by 11 points because 35 highly similar historical setups produced -0.73% expectancy and a 0.71 profit factor.”
+
+Example insufficient evidence:
+
+“No confidence increase was applied because only 7 reliable historical matches were found.”
+
+12. Prevent common data errors
+
+- Do not compare current records with future trades.
+- Do not include duplicate historical trades.
+- Do not use mock or fallback records.
+- Do not mix long and short trades.
+- Do not compare intraday trades with swing trades.
+- Do not compare records with incompatible holding periods unless clearly labelled as partial matches.
+- Do not treat missing data as a positive match.
+
+13. Add automated tests
+
+Test:
+
+- Exact-match similarity
+- Partial numerical similarity
+- Missing feature handling
+- Lookahead prevention
+- Mock data exclusion
+- Duplicate exclusion
+- Top-match ranking
+- Evidence metric calculations
+- Confidence adjustment limits
+- Hard risk filter protection
+- Low-sample behavior
+- Deterministic reproducibility
+
+14. Performance
+
+- Cache historical feature vectors.
+- Avoid recalculating static historical indicators on every refresh.
+- Batch-process all NIFTY 50 stocks.
+- Log processing time and match counts.
+
+15. Safety message
+
+Show:
+
+“Historical similarity does not guarantee that the current trade will have the same outcome. Paper trading and research only.”
+
+Do not add automatic execution.

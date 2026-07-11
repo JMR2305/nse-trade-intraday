@@ -6,3 +6,4 @@
 - [Learning-data eligibility gate](learning-data-gate.md) — learn_eligible must verify data source across the FULL trade lifecycle (BUY snapshot, SELL fetch, evaluation fetch), never entry alone.
 - [Learning engine invariants & testing quirks](learning-engine-invariants.md) — mock-data ban, ±3/±15 caps, mirror-finding shortlist trap, min-over-tests confidence gate, DB_PATH fixture rule.
 - [Benchmark evaluation fairness](benchmark-evaluation-fairness.md) — benchmark candidate sets must be persisted untruncated (UI caps never leak into learning) and returns measured to a deterministic horizon close, deferring if unavailable.
+- [Similarity evidence engine](similarity-evidence-engine.md) — match_count/reliability tier from full top-50 set, stats only over top-20 sample; low reliability never boosts confidence; no lookahead.

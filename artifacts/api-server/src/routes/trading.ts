@@ -506,6 +506,41 @@ router.get("/portfolio-manager", async (req, res) => {
   }
 });
 
+// GET /api/evidence-research
+// v2.1 Evidence-Based Research Engine — for every stock, compares the current
+// setup with historical knowledge-base trades using a weighted similarity
+// score (0-100), returns evidence statistics, reliability tier and the
+// bounded confidence adjustment. Rides on the full decision pipeline (full
+// universe scan, ~20-30s), so cache briefly like /trade-decisions.
+// Paper trading & research only — similarity never guarantees outcomes.
+const EVIDENCE_RESEARCH_CACHE_MS = 10 * 60 * 1000;
+let evidenceResearchCache: { data: unknown; ts: number } | null = null;
+let evidenceResearchInFlight: Promise<unknown> | null = null;
+
+router.get("/evidence-research", async (req, res) => {
+  try {
+    const force = req.query.refresh === "true";
+    if (!force && evidenceResearchCache && Date.now() - evidenceResearchCache.ts < EVIDENCE_RESEARCH_CACHE_MS) {
+      res.json(evidenceResearchCache.data);
+      return;
+    }
+    if (!evidenceResearchInFlight) {
+      evidenceResearchInFlight = runPython(["evidence_research"])
+        .then((data) => {
+          evidenceResearchCache = { data, ts: Date.now() };
+          return data;
+        })
+        .finally(() => {
+          evidenceResearchInFlight = null;
+        });
+    }
+    const data = await evidenceResearchInFlight;
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // POST /api/paper-basket
 // Paper Basket Testing Layer — paper trading only, no real orders. Selects a
 // basket of stocks from the previous day's data (no lookahead bias), then

@@ -83,6 +83,18 @@ class ScanItem(TypedDict):
     rsi:                float
     macd_hist:          float
     adx:                float
+    # v2.1 Evidence Research: raw indicator snapshot (latest bar) so the
+    # similarity engine can compare the current setup with historical trades.
+    ema9:               float
+    ema20:              float
+    ema50:              float
+    ema200:             float
+    macd_line:          float
+    macd_signal:        float
+    vwap:               float
+    atr:                float
+    supertrend:         float
+    supertrend_dir:     str      # UP | DOWN
     error:              str | None
 
 
@@ -223,6 +235,9 @@ def _empty_scan_item(symbol: str, error: str) -> ScanItem:
         entry_price=0.0, stop_loss=0.0, target=0.0,
         above_ema20=False, above_ema50=False, volume_ratio=0.0, rsi=0.0, macd_hist=0.0,
         adx=0.0,
+        ema9=0.0, ema20=0.0, ema50=0.0, ema200=0.0,
+        macd_line=0.0, macd_signal=0.0, vwap=0.0, atr=0.0,
+        supertrend=0.0, supertrend_dir="",
         error=error,
     )
 
@@ -329,6 +344,16 @@ def scan_stock(symbol: str, capital: float = INITIAL_CAPITAL) -> ScanItem:
         rsi=round(float(last_row.get("rsi", 0.0) or 0.0), 1),
         macd_hist=round(float(last_row.get("macd_hist", 0.0) or 0.0), 4),
         adx=round(float(last_row.get("adx", 0.0) or 0.0), 1),
+        ema9=round(float(last_row.get("ema9", 0.0) or 0.0), 2),
+        ema20=round(float(last_row.get("ema20", 0.0) or 0.0), 2),
+        ema50=round(float(last_row.get("ema50", 0.0) or 0.0), 2),
+        ema200=round(float(last_row.get("ema200", 0.0) or 0.0), 2),
+        macd_line=round(float(last_row.get("macd_line", 0.0) or 0.0), 4),
+        macd_signal=round(float(last_row.get("macd_signal", 0.0) or 0.0), 4),
+        vwap=round(float(last_row.get("vwap", 0.0) or 0.0), 2),
+        atr=round(float(last_row.get("atr", 0.0) or 0.0), 2),
+        supertrend=round(float(last_row.get("supertrend", 0.0) or 0.0), 2),
+        supertrend_dir=str(last_row.get("supertrend_dir", "") or ""),
         error=None,
     )
 

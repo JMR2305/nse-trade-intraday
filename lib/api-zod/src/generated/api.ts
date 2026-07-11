@@ -1230,6 +1230,50 @@ export const GetTradeDecisionsResponse = zod.object({
   "final_confidence": zod.number(),
   "model_version": zod.number(),
   "model_adjustment": zod.number(),
+  "similarity_adjustment": zod.number(),
+  "evidence_reliability": zod.enum(['VERY_LOW', 'LOW', 'MEDIUM', 'HIGH']),
+  "similarity_evidence": zod.object({
+  "match_count": zod.number(),
+  "avg_similarity": zod.number(),
+  "reliability": zod.enum(['VERY_LOW', 'LOW', 'MEDIUM', 'HIGH']),
+  "reliability_reasons": zod.array(zod.string()),
+  "stats": zod.object({
+  "matches": zod.number(),
+  "avg_similarity": zod.number(),
+  "wins": zod.number(),
+  "losses": zod.number(),
+  "win_rate": zod.number(),
+  "avg_return": zod.number(),
+  "median_return": zod.number(),
+  "avg_win_return": zod.number(),
+  "avg_loss_return": zod.number(),
+  "profit_factor": zod.number(),
+  "expectancy": zod.number(),
+  "max_adverse_excursion": zod.number(),
+  "max_favourable_excursion": zod.number(),
+  "avg_holding_days": zod.number(),
+  "return_std": zod.number(),
+  "historical_drawdown": zod.number(),
+  "best_outcome": zod.number(),
+  "worst_outcome": zod.number()
+}),
+  "adjustment": zod.number(),
+  "explanation": zod.string(),
+  "top_matches": zod.array(zod.object({
+  "symbol": zod.string(),
+  "entry_date": zod.string(),
+  "strategy": zod.string(),
+  "sector": zod.string(),
+  "regime": zod.string(),
+  "similarity": zod.number(),
+  "return_percent": zod.number(),
+  "holding_days": zod.number(),
+  "exit_reason": zod.string(),
+  "partial_match": zod.boolean()
+})),
+  "missing_features": zod.array(zod.string()),
+  "safety": zod.string()
+}).nullish(),
   "historical_expectancy": zod.number(),
   "historical_profit_factor": zod.number(),
   "historical_win_rate": zod.number(),
@@ -1258,6 +1302,52 @@ export const GetTradeDecisionsResponse = zod.object({
   "contribution": zod.number()
 }))
 }))
+})
+
+
+/**
+ * v2.1 Evidence-Based Research Engine. Compares each stock's CURRENT setup with historically similar setups from the knowledge base using a weighted similarity score (0-100), and returns evidence statistics, a reliability tier (VERY_LOW/LOW/MEDIUM/HIGH) and the bounded, explainable confidence adjustment applied to the trade decision. Deterministic and auditable; similarity never guarantees outcomes. Runs the full decision pipeline (~20-30s) and caches briefly. Paper trading and research only.
+ * @summary Evidence-based similarity research for every stock
+ */
+export const GetEvidenceResearchQueryParams = zod.object({
+  "refresh": zod.enum(['true', 'false']).optional().describe('Set to \"true\" to bypass the server-side cache.')
+})
+
+export const GetEvidenceResearchResponse = zod.object({
+  "generated_at": zod.string(),
+  "market_regime": zod.string(),
+  "universe_size": zod.number(),
+  "records": zod.array(zod.object({
+  "symbol": zod.string(),
+  "sector": zod.string(),
+  "recommendation": zod.string(),
+  "final_confidence": zod.number(),
+  "similarity_adjustment": zod.number(),
+  "match_count": zod.number(),
+  "avg_similarity": zod.number(),
+  "evidence_reliability": zod.enum(['VERY_LOW', 'LOW', 'MEDIUM', 'HIGH']),
+  "reliability_reasons": zod.array(zod.string()),
+  "win_rate": zod.number(),
+  "expectancy": zod.number(),
+  "profit_factor": zod.number(),
+  "expected_return": zod.number(),
+  "expected_drawdown": zod.number(),
+  "expected_holding_days": zod.number(),
+  "top_matches": zod.array(zod.object({
+  "symbol": zod.string(),
+  "entry_date": zod.string(),
+  "strategy": zod.string(),
+  "sector": zod.string(),
+  "regime": zod.string(),
+  "similarity": zod.number(),
+  "return_percent": zod.number(),
+  "holding_days": zod.number(),
+  "exit_reason": zod.string(),
+  "partial_match": zod.boolean()
+})),
+  "explanation": zod.string()
+})),
+  "safety": zod.string()
 })
 
 

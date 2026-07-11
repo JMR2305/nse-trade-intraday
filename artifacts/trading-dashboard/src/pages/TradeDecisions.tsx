@@ -116,6 +116,116 @@ function BreakdownPanel({ d }: { d: TradeDecision }) {
   );
 }
 
+const RELIABILITY_STYLE: Record<string, string> = {
+  HIGH:     "text-emerald-300 bg-emerald-500/15 border-emerald-500/40",
+  MEDIUM:   "text-sky-300 bg-sky-500/10 border-sky-500/30",
+  LOW:      "text-yellow-400 bg-yellow-500/10 border-yellow-500/30",
+  VERY_LOW: "text-red-400 bg-red-500/10 border-red-500/30",
+};
+
+function SimilarityEvidencePanel({ d }: { d: TradeDecision }) {
+  const ev = d.similarity_evidence;
+  const reliability = d.evidence_reliability ?? "VERY_LOW";
+  const adj = d.similarity_adjustment ?? 0;
+  const stats = ev?.stats;
+  const matches = ev?.top_matches ?? [];
+  return (
+    <div className="mt-4 border-t border-border/50 pt-4" data-testid="panel-similarity-evidence">
+      <div className="flex items-center gap-2 flex-wrap mb-2">
+        <span className="text-xs font-mono uppercase text-muted-foreground">
+          Historical Similarity Evidence
+        </span>
+        <span
+          className={`inline-block rounded border px-2 py-0.5 text-[10px] font-mono font-bold ${
+            RELIABILITY_STYLE[reliability] ?? RELIABILITY_STYLE.VERY_LOW
+          }`}
+          data-testid="badge-evidence-reliability"
+        >
+          {reliability.replace("_", " ")} RELIABILITY
+        </span>
+        <span
+          className={`text-xs font-mono font-bold ${adj > 0 ? "text-green-400" : adj < 0 ? "text-red-400" : "text-muted-foreground"}`}
+          data-testid="text-similarity-adjustment"
+        >
+          {adj > 0 ? "+" : ""}{fmt(adj, 1)} confidence
+        </span>
+      </div>
+      {!ev || ev.match_count === 0 ? (
+        <p className="text-xs text-muted-foreground font-mono">
+          No sufficiently similar historical setups found (need ≥65% similarity).
+        </p>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2 mb-3 font-mono text-xs">
+            <div><div className="text-muted-foreground">Matches</div><div className="font-bold">{ev.match_count}</div></div>
+            <div><div className="text-muted-foreground">Avg similarity</div><div className="font-bold">{fmt(ev.avg_similarity, 0)}%</div></div>
+            <div><div className="text-muted-foreground">Win rate</div><div className="font-bold">{fmt(stats?.win_rate, 0)}%</div></div>
+            <div><div className="text-muted-foreground">Expectancy</div><div className={`font-bold ${(stats?.expectancy ?? 0) >= 0 ? "text-green-400" : "text-red-400"}`}>{(stats?.expectancy ?? 0) >= 0 ? "+" : ""}{fmt(stats?.expectancy)}%</div></div>
+            <div><div className="text-muted-foreground">Profit factor</div><div className="font-bold">{fmt(stats?.profit_factor)}</div></div>
+            <div><div className="text-muted-foreground">Avg return</div><div className={`font-bold ${(stats?.avg_return ?? 0) >= 0 ? "text-green-400" : "text-red-400"}`}>{(stats?.avg_return ?? 0) >= 0 ? "+" : ""}{fmt(stats?.avg_return)}%</div></div>
+            <div><div className="text-muted-foreground">Exp. drawdown</div><div className="font-bold text-red-400">{fmt(stats?.historical_drawdown)}%</div></div>
+            <div><div className="text-muted-foreground">Avg holding</div><div className="font-bold">{fmt(stats?.avg_holding_days, 0)}d</div></div>
+          </div>
+          {matches.length > 0 && (
+            <div className="overflow-x-auto mb-2">
+              <table className="w-full text-[11px] font-mono">
+                <thead>
+                  <tr className="text-muted-foreground text-left">
+                    <th className="pr-3 py-1 font-normal">Similar past setup</th>
+                    <th className="pr-3 py-1 font-normal">Date</th>
+                    <th className="pr-3 py-1 font-normal">Strategy</th>
+                    <th className="pr-3 py-1 font-normal">Sector</th>
+                    <th className="pr-3 py-1 font-normal">Regime</th>
+                    <th className="pr-3 py-1 font-normal text-right">Similarity</th>
+                    <th className="pr-3 py-1 font-normal text-right">Return</th>
+                    <th className="pr-3 py-1 font-normal text-right">Held</th>
+                    <th className="py-1 font-normal">Exit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {matches.map((m, i) => (
+                    <tr key={i} className="border-t border-border/30" data-testid={`row-similar-match-${i}`}>
+                      <td className="pr-3 py-1 font-bold">
+                        {m.symbol}
+                        {m.partial_match && (
+                          <span className="ml-1 text-[9px] text-yellow-400/80">(partial)</span>
+                        )}
+                      </td>
+                      <td className="pr-3 py-1">{m.entry_date}</td>
+                      <td className="pr-3 py-1">{m.strategy}</td>
+                      <td className="pr-3 py-1">{m.sector}</td>
+                      <td className="pr-3 py-1">{m.regime}</td>
+                      <td className="pr-3 py-1 text-right">{fmt(m.similarity, 0)}%</td>
+                      <td className={`pr-3 py-1 text-right ${m.return_percent >= 0 ? "text-green-400" : "text-red-400"}`}>
+                        {m.return_percent >= 0 ? "+" : ""}{fmt(m.return_percent)}%
+                      </td>
+                      <td className="pr-3 py-1 text-right">{m.holding_days}d</td>
+                      <td className="py-1">{m.exit_reason}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {ev.reliability_reasons.length > 0 && (
+            <ul className="list-disc list-inside text-[11px] text-muted-foreground space-y-0.5 mb-2">
+              {ev.reliability_reasons.map((r, i) => (
+                <li key={i}>{r}</li>
+              ))}
+            </ul>
+          )}
+          <p className="text-xs text-foreground/80">{ev.explanation}</p>
+        </>
+      )}
+      <p className="text-[11px] text-yellow-400/80 mt-2 flex items-start gap-1">
+        <AlertTriangle className="h-3 w-3 mt-0.5 flex-shrink-0" />
+        Historical similarity does not guarantee that the current trade will have the
+        same outcome. Paper trading and research only.
+      </p>
+    </div>
+  );
+}
+
 function DetailRow({ d }: { d: TradeDecision }) {
   return (
     <tr className="bg-muted/20">
@@ -181,6 +291,7 @@ function DetailRow({ d }: { d: TradeDecision }) {
             </dl>
           </div>
         </div>
+        <SimilarityEvidencePanel d={d} />
       </td>
     </tr>
   );

@@ -372,6 +372,12 @@ def cmd_portfolio_manager() -> dict:
     return get_portfolio_manager()
 
 
+def cmd_evidence_research() -> dict:
+    """v2.1 Evidence-Based Research — similarity evidence for every stock."""
+    from similarity_engine import get_evidence_research
+    return get_evidence_research()
+
+
 def cmd_trade_evaluations(limit: int = 200) -> list:
     from trade_evaluator import backfill_evaluations, get_evaluation_with_snapshot
     backfill_evaluations()
@@ -541,6 +547,8 @@ def main():
             result = cmd_hypothesis_reject(args[1])
         elif command == "portfolio_manager":
             result = cmd_portfolio_manager()
+        elif command == "evidence_research":
+            result = cmd_evidence_research()
         elif command == "trade_evaluations":
             result = cmd_trade_evaluations(
                 int(args[1]) if len(args) > 1 else 200)

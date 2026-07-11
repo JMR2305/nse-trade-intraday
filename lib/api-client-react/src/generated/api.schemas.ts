@@ -1304,6 +1304,101 @@ export interface DecisionFactor {
   contribution: number;
 }
 
+export interface SimilarityMatch {
+  symbol: string;
+  entry_date: string;
+  strategy: string;
+  sector: string;
+  regime: string;
+  similarity: number;
+  return_percent: number;
+  holding_days: number;
+  exit_reason: string;
+  partial_match: boolean;
+}
+
+export interface SimilarityEvidenceStats {
+  matches: number;
+  avg_similarity: number;
+  wins: number;
+  losses: number;
+  win_rate: number;
+  avg_return: number;
+  median_return: number;
+  avg_win_return: number;
+  avg_loss_return: number;
+  profit_factor: number;
+  expectancy: number;
+  max_adverse_excursion: number;
+  max_favourable_excursion: number;
+  avg_holding_days: number;
+  return_std: number;
+  historical_drawdown: number;
+  best_outcome: number;
+  worst_outcome: number;
+}
+
+export type SimilarityEvidenceReliability = typeof SimilarityEvidenceReliability[keyof typeof SimilarityEvidenceReliability];
+
+
+export const SimilarityEvidenceReliability = {
+  VERY_LOW: 'VERY_LOW',
+  LOW: 'LOW',
+  MEDIUM: 'MEDIUM',
+  HIGH: 'HIGH',
+} as const;
+
+export interface SimilarityEvidence {
+  match_count: number;
+  avg_similarity: number;
+  reliability: SimilarityEvidenceReliability;
+  reliability_reasons: string[];
+  stats: SimilarityEvidenceStats;
+  adjustment: number;
+  explanation: string;
+  top_matches: SimilarityMatch[];
+  missing_features: string[];
+  safety: string;
+}
+
+export type EvidenceResearchRecordEvidenceReliability = typeof EvidenceResearchRecordEvidenceReliability[keyof typeof EvidenceResearchRecordEvidenceReliability];
+
+
+export const EvidenceResearchRecordEvidenceReliability = {
+  VERY_LOW: 'VERY_LOW',
+  LOW: 'LOW',
+  MEDIUM: 'MEDIUM',
+  HIGH: 'HIGH',
+} as const;
+
+export interface EvidenceResearchRecord {
+  symbol: string;
+  sector: string;
+  recommendation: string;
+  final_confidence: number;
+  similarity_adjustment: number;
+  match_count: number;
+  avg_similarity: number;
+  evidence_reliability: EvidenceResearchRecordEvidenceReliability;
+  reliability_reasons: string[];
+  win_rate: number;
+  expectancy: number;
+  profit_factor: number;
+  expected_return: number;
+  expected_drawdown: number;
+  expected_holding_days: number;
+  top_matches: SimilarityMatch[];
+  explanation: string;
+}
+
+export interface EvidenceResearchResponse {
+  generated_at: string;
+  market_regime: string;
+  universe_size: number;
+  records: EvidenceResearchRecord[];
+  safety: string;
+}
+
 export type TradeDecisionRecommendation = typeof TradeDecisionRecommendation[keyof typeof TradeDecisionRecommendation];
 
 
@@ -1323,6 +1418,16 @@ export const TradeDecisionDataStatus = {
   DATA_UNAVAILABLE: 'DATA_UNAVAILABLE',
 } as const;
 
+export type TradeDecisionEvidenceReliability = typeof TradeDecisionEvidenceReliability[keyof typeof TradeDecisionEvidenceReliability];
+
+
+export const TradeDecisionEvidenceReliability = {
+  VERY_LOW: 'VERY_LOW',
+  LOW: 'LOW',
+  MEDIUM: 'MEDIUM',
+  HIGH: 'HIGH',
+} as const;
+
 export interface TradeDecision {
   stock: string;
   sector: string;
@@ -1334,6 +1439,9 @@ export interface TradeDecision {
   final_confidence: number;
   model_version: number;
   model_adjustment: number;
+  similarity_adjustment: number;
+  evidence_reliability: TradeDecisionEvidenceReliability;
+  similarity_evidence?: SimilarityEvidence | null;
   historical_expectancy: number;
   historical_profit_factor: number;
   historical_win_rate: number;
@@ -1993,6 +2101,21 @@ export type GetTradeDecisionsForce = typeof GetTradeDecisionsForce[keyof typeof 
 
 
 export const GetTradeDecisionsForce = {
+  true: 'true',
+  false: 'false',
+} as const;
+
+export type GetEvidenceResearchParams = {
+/**
+ * Set to "true" to bypass the server-side cache.
+ */
+refresh?: GetEvidenceResearchRefresh;
+};
+
+export type GetEvidenceResearchRefresh = typeof GetEvidenceResearchRefresh[keyof typeof GetEvidenceResearchRefresh];
+
+
+export const GetEvidenceResearchRefresh = {
   true: 'true',
   false: 'false',
 } as const;

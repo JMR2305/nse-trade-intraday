@@ -27,6 +27,8 @@ import type {
   BuildHistoricalKnowledge200,
   BuildHistoricalKnowledgeBody,
   ErrorResponse,
+  EvidenceResearchResponse,
+  GetEvidenceResearchParams,
   GetHistoricalKnowledgeTradesParams,
   GetIndicatorsParams,
   GetMarketDataParams,
@@ -2203,6 +2205,91 @@ export function useGetTradeDecisions<TData = Awaited<ReturnType<typeof getTradeD
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetTradeDecisionsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetEvidenceResearchUrl = (params?: GetEvidenceResearchParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/evidence-research?${stringifiedParams}` : `/api/evidence-research`
+}
+
+/**
+ * v2.1 Evidence-Based Research Engine. Compares each stock's CURRENT setup with historically similar setups from the knowledge base using a weighted similarity score (0-100), and returns evidence statistics, a reliability tier (VERY_LOW/LOW/MEDIUM/HIGH) and the bounded, explainable confidence adjustment applied to the trade decision. Deterministic and auditable; similarity never guarantees outcomes. Runs the full decision pipeline (~20-30s) and caches briefly. Paper trading and research only.
+ * @summary Evidence-based similarity research for every stock
+ */
+export const getEvidenceResearch = async (params?: GetEvidenceResearchParams, options?: RequestInit): Promise<EvidenceResearchResponse> => {
+
+  return customFetch<EvidenceResearchResponse>(getGetEvidenceResearchUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEvidenceResearchQueryKey = (params?: GetEvidenceResearchParams,) => {
+    return [
+    `/api/evidence-research`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetEvidenceResearchQueryOptions = <TData = Awaited<ReturnType<typeof getEvidenceResearch>>, TError = ErrorType<ErrorResponse>>(params?: GetEvidenceResearchParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEvidenceResearch>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEvidenceResearchQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEvidenceResearch>>> = ({ signal }) => getEvidenceResearch(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEvidenceResearch>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetEvidenceResearchQueryResult = NonNullable<Awaited<ReturnType<typeof getEvidenceResearch>>>
+export type GetEvidenceResearchQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Evidence-based similarity research for every stock
+ */
+
+export function useGetEvidenceResearch<TData = Awaited<ReturnType<typeof getEvidenceResearch>>, TError = ErrorType<ErrorResponse>>(
+ params?: GetEvidenceResearchParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEvidenceResearch>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetEvidenceResearchQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

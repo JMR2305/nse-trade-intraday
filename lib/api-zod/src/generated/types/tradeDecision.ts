@@ -6,7 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DecisionFactor } from './decisionFactor';
+import type { SimilarityEvidence } from './similarityEvidence';
 import type { TradeDecisionDataStatus } from './tradeDecisionDataStatus';
+import type { TradeDecisionEvidenceReliability } from './tradeDecisionEvidenceReliability';
 import type { TradeDecisionRecommendation } from './tradeDecisionRecommendation';
 
 export interface TradeDecision {
@@ -20,6 +22,9 @@ export interface TradeDecision {
   final_confidence: number;
   model_version: number;
   model_adjustment: number;
+  similarity_adjustment: number;
+  evidence_reliability: TradeDecisionEvidenceReliability;
+  similarity_evidence?: SimilarityEvidence | null;
   historical_expectancy: number;
   historical_profit_factor: number;
   historical_win_rate: number;

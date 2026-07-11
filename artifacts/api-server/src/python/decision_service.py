@@ -74,6 +74,10 @@ class TradeDecision(TypedDict):
     # v2.0 Adaptive Self-Evaluation model (bounded, versioned, rollback-able)
     model_version: int
     model_adjustment: float
+    # v2.1 Evidence-Based Research (similarity engine — bounded, explainable)
+    similarity_adjustment: float
+    evidence_reliability: str    # VERY_LOW | LOW | MEDIUM | HIGH
+    similarity_evidence: dict | None
     # Historical evidence
     historical_expectancy: float
     historical_profit_factor: float
@@ -283,6 +287,19 @@ def _decide(item: dict, positions: dict, trades: list,
     fc_raw = fc                       # confidence BEFORE the v2 model modifier
     fc = round(max(0.0, min(100.0, fc + model_adj)), 1)
 
+    # ── v2.1 Evidence-Based Research (similarity engine) modifier ────────────
+    # Bounded (+10 max / -15 max), deterministic and fully explainable.
+    # Applied AFTER the v2 model modifier, ONLY to the confidence number.
+    # It can NEVER override hard risk filters (data-quality and filter gates
+    # run regardless) and can NEVER create a BUY on its own — the fc_raw
+    # guard below requires the confidence BEFORE both modifiers to also
+    # clear the recommendation bar. Final confidence stays within 5-95.
+    sim_adj = float(item.get("similarity_adjustment", 0.0) or 0.0)
+    evidence_reliability = str(item.get("evidence_reliability", "") or "VERY_LOW")
+    similarity_evidence = item.get("similarity_evidence")
+    if sim_adj != 0.0:
+        fc = round(max(5.0, min(95.0, fc + sim_adj)), 1)
+
     low_reliability = n_hist < RELIABLE_SAMPLE
 
     pos = positions.get(sym) or {}
@@ -365,6 +382,9 @@ def _decide(item: dict, positions: dict, trades: list,
             f"{model_adj:+.1f} points (bounded, approved learning — never "
             f"creates a buy on its own)."
         )
+    sim_expl = str(item.get("similarity_explanation", "") or "")
+    if sim_expl:
+        parts.append(f"Similarity evidence ({evidence_reliability} reliability): {sim_expl}")
     if n_hist > 0:
         parts.append(
             f"Best pattern: {item.get('best_strategy_name', '')} in {item.get('sector', '')} "
@@ -396,6 +416,9 @@ def _decide(item: dict, positions: dict, trades: list,
         final_confidence=round(fc, 1),
         model_version=int(model_version),
         model_adjustment=round(model_adj, 1),
+        similarity_adjustment=round(sim_adj, 1),
+        evidence_reliability=evidence_reliability,
+        similarity_evidence=similarity_evidence if isinstance(similarity_evidence, dict) else None,
         historical_expectancy=round(exp, 2),
         historical_profit_factor=round(pf, 2),
         historical_win_rate=round(wr, 1),
@@ -450,6 +473,19 @@ def get_trade_decisions() -> dict:
 
     learning_meta = scan.get("learning") or {}
     regime_strength = float(learning_meta.get("regime_strength", 50.0) or 50.0)
+
+    # v2.1 Evidence-Based Research: batch similarity evidence for all stocks.
+    # Failure here is non-fatal — decisions fall back to a zero adjustment.
+    try:
+        from similarity_engine import annotate_items_with_evidence
+        annotate_items_with_evidence(scan["items"], regime_now=regime_now)
+    except Exception as exc:
+        for it in scan["items"]:
+            it.setdefault("similarity_adjustment", 0.0)
+            it.setdefault("evidence_reliability", "VERY_LOW")
+            it.setdefault("similarity_explanation",
+                          f"Similarity evidence unavailable: {exc}")
+            it.setdefault("similarity_evidence", None)
 
     # v2.0 Adaptive Self-Evaluation: active model version + bounded weights
     try:
