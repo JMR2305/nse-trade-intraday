@@ -416,6 +416,140 @@ router.get("/historical-knowledge/trades", async (req, res) => {
   }
 });
 
+// ── Walk-Forward Validation (v2.4) ───────────────────────────────────────────
+// Long-running rolling train/test validation with realistic execution costs.
+// Runs as a detached python process; the UI polls the status endpoint.
+// Research only — no orders.
+
+let wfRunActive = false;
+
+const WF_DIR = path.join(PYTHON_DIR, "validation_runs");
+const WF_STATUS_PATH = path.join(WF_DIR, "wf_status.json");
+const WF_RESULT_PATH = path.join(WF_DIR, "wf_result.json");
+const WF_CSV_FILES: Record<string, string> = {
+  report: "wf_report.csv",
+  trades: "wf_trades.csv",
+  windows: "wf_windows.csv",
+  calibration: "wf_calibration.csv",
+  costs: "wf_costs.csv",
+};
+
+function wfStatusFileRunning(): boolean {
+  try {
+    const status = JSON.parse(fs.readFileSync(WF_STATUS_PATH, "utf-8"));
+    if (status?.status !== "running") return false;
+    const pid = Number(status?.pid);
+    if (!Number.isInteger(pid) || pid <= 0) return false;
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false; // stale status — validator process is gone
+    }
+  } catch {
+    return false;
+  }
+}
+
+// POST /api/walk-forward/run
+router.post("/walk-forward/run", async (req, res) => {
+  try {
+    if (wfRunActive || wfStatusFileRunning()) {
+      res.status(409).json({ error: "A validation run is already in progress", status: "running" });
+      return;
+    }
+    const config = typeof req.body === "object" && req.body !== null ? req.body : {};
+
+    wfRunActive = true;
+    const proc = spawn(
+      PYTHON_BIN,
+      [path.join(PYTHON_DIR, "main.py"), "walk_forward_run", JSON.stringify(config)],
+      { cwd: PYTHON_DIR, detached: true, stdio: "ignore" },
+    );
+    proc.on("exit", () => { wfRunActive = false; });
+    proc.on("error", () => { wfRunActive = false; });
+    proc.unref();
+
+    // Immediate placeholder so the UI's next poll sees "running" before the
+    // python process boots and writes its own status.
+    try {
+      fs.mkdirSync(WF_DIR, { recursive: true });
+      fs.writeFileSync(WF_STATUS_PATH, JSON.stringify({
+        status: "running",
+        pid: proc.pid,
+        started_at: new Date().toISOString(),
+        phase: "starting validation process…",
+        progress_pct: 0,
+        windows_total: 0,
+        windows_done: 0,
+        logs: ["Starting walk-forward validation…"],
+        config,
+      }));
+    } catch { /* non-fatal — python writes status shortly */ }
+
+    res.json({ started: true, status: "running" });
+  } catch (err: unknown) {
+    wfRunActive = false;
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/walk-forward/status
+router.get("/walk-forward/status", async (_req, res) => {
+  try {
+    if (!fs.existsSync(WF_STATUS_PATH)) {
+      res.json({ status: "idle" });
+      return;
+    }
+    const status = JSON.parse(fs.readFileSync(WF_STATUS_PATH, "utf-8"));
+    // Reconcile: file says running but the process is dead → mark failed.
+    if (status?.status === "running" && !wfRunActive && !wfStatusFileRunning()) {
+      status.status = "failed";
+      status.error = status.error ?? "Validation process stopped unexpectedly";
+    }
+    res.json(status);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/walk-forward/result
+router.get("/walk-forward/result", async (_req, res) => {
+  try {
+    if (!fs.existsSync(WF_RESULT_PATH)) {
+      res.json({ available: false });
+      return;
+    }
+    const data = JSON.parse(fs.readFileSync(WF_RESULT_PATH, "utf-8"));
+    data.available = true;
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/walk-forward/export/:kind — download one of the 5 CSV exports
+router.get("/walk-forward/export/:kind", async (req, res) => {
+  try {
+    const kind = String(req.params.kind);
+    const file = WF_CSV_FILES[kind];
+    if (!file) {
+      res.status(400).json({ error: `Unknown export '${kind}'. Valid: ${Object.keys(WF_CSV_FILES).join(", ")}` });
+      return;
+    }
+    const full = path.join(WF_DIR, file);
+    if (!fs.existsSync(full)) {
+      res.status(404).json({ error: "No export available yet — run a validation first." });
+      return;
+    }
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="${file}"`);
+    fs.createReadStream(full).pipe(res);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/learning-insights
 // Adaptive Learning Layer (Sprint 3 Module 3) — deterministic aggregations
 // over the Historical Knowledge Base. Read-only, paper trading only.

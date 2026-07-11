@@ -1,0 +1,12 @@
+component,amount_inr
+brokerage,0.0
+stt,0.0
+exchange,0.0
+sebi,0.0
+stamp_duty,0.0
+gst,0.0
+slippage_and_spread,0.0
+total,0.0
+gross_pnl,0.0
+net_pnl,0.0
+cost_drag,0.0

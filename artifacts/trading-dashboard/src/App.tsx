@@ -25,6 +25,7 @@ import LearningInsights from "@/pages/LearningInsights";
 import LearningReview from "@/pages/LearningReview";
 import PatternQuality from "@/pages/PatternQuality";
 import FeatureImportance from "@/pages/FeatureImportance";
+import WalkForwardValidation from "@/pages/WalkForwardValidation";
 import TradeDecisions from "@/pages/TradeDecisions";
 import PortfolioManager from "@/pages/PortfolioManager";
 
@@ -56,6 +57,7 @@ function Router() {
         <Route path="/learning-review" component={LearningReview} />
         <Route path="/pattern-quality" component={PatternQuality} />
         <Route path="/feature-importance" component={FeatureImportance} />
+        <Route path="/walk-forward" component={WalkForwardValidation} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

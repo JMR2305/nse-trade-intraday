@@ -1172,6 +1172,152 @@ export interface PredictiveEvidenceResult {
   warnings: string[];
 }
 
+export type WalkForwardConfigTrainYears = typeof WalkForwardConfigTrainYears[keyof typeof WalkForwardConfigTrainYears];
+
+
+export const WalkForwardConfigTrainYears = {
+  NUMBER_1: 1,
+  NUMBER_2: 2,
+  NUMBER_3: 3,
+} as const;
+
+export type WalkForwardConfigTestMonths = typeof WalkForwardConfigTestMonths[keyof typeof WalkForwardConfigTestMonths];
+
+
+export const WalkForwardConfigTestMonths = {
+  NUMBER_1: 1,
+  NUMBER_3: 3,
+  NUMBER_6: 6,
+} as const;
+
+export type WalkForwardConfigStepMonths = typeof WalkForwardConfigStepMonths[keyof typeof WalkForwardConfigStepMonths];
+
+
+export const WalkForwardConfigStepMonths = {
+  NUMBER_1: 1,
+  NUMBER_3: 3,
+} as const;
+
+/**
+ * Execution-cost assumptions (percent units): slippage_pct, spread_pct, brokerage_pct, brokerage_flat, brokerage_max, stt_pct, exchange_pct, sebi_pct, stamp_pct, gst_pct, volume_participation_pct, allow_partial_fills, max_entry_gap_pct.
+ */
+export type WalkForwardConfigCostModel = { [key: string]: unknown };
+
+export type WalkForwardConfigIntrabarRule = typeof WalkForwardConfigIntrabarRule[keyof typeof WalkForwardConfigIntrabarRule];
+
+
+export const WalkForwardConfigIntrabarRule = {
+  conservative: 'conservative',
+  optimistic: 'optimistic',
+} as const;
+
+/**
+ * Verdict thresholds: min_expectancy, min_profit_factor, max_drawdown_pct, require_full_beats_base, max_single_stock_profit_share, max_single_window_profit_share, min_trades, min_windows.
+ */
+export type WalkForwardConfigVerdictCriteria = { [key: string]: unknown };
+
+/**
+ * Configuration for a walk-forward validation run. All fields optional; omitted values use safe defaults. Cost assumptions are fully visible and editable.
+ */
+export interface WalkForwardConfig {
+  train_years?: WalkForwardConfigTrainYears;
+  test_months?: WalkForwardConfigTestMonths;
+  step_months?: WalkForwardConfigStepMonths;
+  /** First training-window start (YYYY-MM-DD). Auto when empty. */
+  start_date?: string;
+  /** Last test-window end (YYYY-MM-DD). Auto when empty. */
+  end_date?: string;
+  initial_capital?: number;
+  /** Stock symbols to include. Empty → full NIFTY 50. */
+  universe?: string[];
+  /** When > 0, only the first N symbols of the universe are tested (quicker runs). */
+  universe_size?: number;
+  /** Strategy ids to include. Empty → all lab strategies. */
+  strategy_set?: string[];
+  /** Execution-cost assumptions (percent units): slippage_pct, spread_pct, brokerage_pct, brokerage_flat, brokerage_max, stt_pct, exchange_pct, sebi_pct, stamp_pct, gst_pct, volume_participation_pct, allow_partial_fills, max_entry_gap_pct. */
+  cost_model?: WalkForwardConfigCostModel;
+  intrabar_rule?: WalkForwardConfigIntrabarRule;
+  max_holding_days?: number;
+  min_confidence_execute?: number;
+  /** Verdict thresholds: min_expectancy, min_profit_factor, max_drawdown_pct, require_full_beats_base, max_single_stock_profit_share, max_single_window_profit_share, min_trades, min_windows. */
+  verdict_criteria?: WalkForwardConfigVerdictCriteria;
+  random_seed?: number;
+}
+
+export type WalkForwardStatusConfig = { [key: string]: unknown };
+
+export interface WalkForwardStatus {
+  /** idle | running | completed | failed */
+  status: string;
+  phase?: string;
+  progress_pct?: number;
+  windows_total?: number;
+  windows_done?: number;
+  started_at?: string;
+  updated_at?: string;
+  error?: string;
+  logs?: string[];
+  config?: WalkForwardStatusConfig;
+  [key: string]: unknown;
+ }
+
+export type WalkForwardResultConfig = { [key: string]: unknown };
+
+export type WalkForwardResultWindowsItem = { [key: string]: unknown };
+
+export type WalkForwardResultOverall = { [key: string]: unknown };
+
+export type WalkForwardResultLayerComparisonItem = { [key: string]: unknown };
+
+export type WalkForwardResultBenchmarks = { [key: string]: unknown };
+
+export type WalkForwardResultCalibrationItem = { [key: string]: unknown };
+
+export type WalkForwardResultRecommendationOutcomesItem = { [key: string]: unknown };
+
+export type WalkForwardResultStability = { [key: string]: unknown };
+
+export type WalkForwardResultVerdict = { [key: string]: unknown };
+
+export type WalkForwardResultCostBreakdown = { [key: string]: unknown };
+
+export type WalkForwardResultEquityCurveItem = { [key: string]: unknown };
+
+export type WalkForwardResultDrawdownCurveItem = { [key: string]: unknown };
+
+export type WalkForwardResultLookaheadAudit = { [key: string]: unknown };
+
+/**
+ * Full walk-forward validation report. Contains config echo, per-window results, overall metrics for the three model variants (base/layered/ full), layer comparison, six benchmarks, confidence calibration, recommendation outcome analysis, stability analysis, verdict, cost breakdown, equity and drawdown curves, and the lookahead audit.
+ */
+export interface WalkForwardResult {
+  available: boolean;
+  generated_at?: string;
+  run_seconds?: number;
+  config?: WalkForwardResultConfig;
+  intrabar_rule_label?: string;
+  universe_size?: number;
+  skipped_symbols?: string[];
+  adaptive_model_version?: number;
+  knowledge_trades_available?: number;
+  similarity_vectors_available?: number;
+  windows?: WalkForwardResultWindowsItem[];
+  overall?: WalkForwardResultOverall;
+  layer_comparison?: WalkForwardResultLayerComparisonItem[];
+  benchmarks?: WalkForwardResultBenchmarks;
+  calibration?: WalkForwardResultCalibrationItem[];
+  recommendation_outcomes?: WalkForwardResultRecommendationOutcomesItem[];
+  recommendations_issued?: number;
+  stability?: WalkForwardResultStability;
+  verdict?: WalkForwardResultVerdict;
+  cost_breakdown?: WalkForwardResultCostBreakdown;
+  equity_curve?: WalkForwardResultEquityCurveItem[];
+  drawdown_curve?: WalkForwardResultDrawdownCurveItem[];
+  lookahead_audit?: WalkForwardResultLookaheadAudit;
+  safety?: string;
+  [key: string]: unknown;
+ }
+
 export interface HistoricalKnowledgeBuildStatus {
   status: string;
   started_at?: string;
@@ -2279,6 +2425,11 @@ export type BuildHistoricalKnowledgeBody = {
 export type BuildHistoricalKnowledge200 = {
   started: boolean;
   years: number;
+  status: string;
+};
+
+export type RunWalkForwardValidation200 = {
+  started: boolean;
   status: string;
 };
 

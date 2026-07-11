@@ -1144,6 +1144,101 @@ export const GetHistoricalKnowledgeSummaryResponse = zod.object({
 
 
 /**
+ * Tests the complete decision engine on unseen historical periods using rolling train/test windows with realistic execution costs (slippage, brokerage, STT, GST, spread, partial fills). Long-running background process — poll the status endpoint. Research only, no orders.
+ * @summary Start a walk-forward validation run
+ */
+export const runWalkForwardValidationBodyTrainYearsDefault = 1;
+export const runWalkForwardValidationBodyTestMonthsDefault = 3;
+export const runWalkForwardValidationBodyStepMonthsDefault = 3;
+export const runWalkForwardValidationBodyInitialCapitalDefault = 5000;
+export const runWalkForwardValidationBodyIntrabarRuleDefault = `conservative`;
+export const runWalkForwardValidationBodyMaxHoldingDaysDefault = 20;
+export const runWalkForwardValidationBodyMinConfidenceExecuteDefault = 55;
+export const runWalkForwardValidationBodyRandomSeedDefault = 42;
+
+export const RunWalkForwardValidationBody = zod.object({
+  "train_years": zod.union([zod.literal(1),zod.literal(2),zod.literal(3)]).default(runWalkForwardValidationBodyTrainYearsDefault),
+  "test_months": zod.union([zod.literal(1),zod.literal(3),zod.literal(6)]).default(runWalkForwardValidationBodyTestMonthsDefault),
+  "step_months": zod.union([zod.literal(1),zod.literal(3)]).default(runWalkForwardValidationBodyStepMonthsDefault),
+  "start_date": zod.string().optional().describe('First training-window start (YYYY-MM-DD). Auto when empty.'),
+  "end_date": zod.string().optional().describe('Last test-window end (YYYY-MM-DD). Auto when empty.'),
+  "initial_capital": zod.number().default(runWalkForwardValidationBodyInitialCapitalDefault),
+  "universe": zod.array(zod.string()).optional().describe('Stock symbols to include. Empty → full NIFTY 50.'),
+  "universe_size": zod.number().optional().describe('When > 0, only the first N symbols of the universe are tested (quicker runs).'),
+  "strategy_set": zod.array(zod.string()).optional().describe('Strategy ids to include. Empty → all lab strategies.'),
+  "cost_model": zod.record(zod.string(), zod.unknown()).optional().describe('Execution-cost assumptions (percent units): slippage_pct, spread_pct, brokerage_pct, brokerage_flat, brokerage_max, stt_pct, exchange_pct, sebi_pct, stamp_pct, gst_pct, volume_participation_pct, allow_partial_fills, max_entry_gap_pct.\n'),
+  "intrabar_rule": zod.enum(['conservative', 'optimistic']).default(runWalkForwardValidationBodyIntrabarRuleDefault),
+  "max_holding_days": zod.number().default(runWalkForwardValidationBodyMaxHoldingDaysDefault),
+  "min_confidence_execute": zod.number().default(runWalkForwardValidationBodyMinConfidenceExecuteDefault),
+  "verdict_criteria": zod.record(zod.string(), zod.unknown()).optional().describe('Verdict thresholds: min_expectancy, min_profit_factor, max_drawdown_pct, require_full_beats_base, max_single_stock_profit_share, max_single_window_profit_share, min_trades, min_windows.\n'),
+  "random_seed": zod.number().default(runWalkForwardValidationBodyRandomSeedDefault)
+}).describe('Configuration for a walk-forward validation run. All fields optional; omitted values use safe defaults. Cost assumptions are fully visible and editable.\n')
+
+export const RunWalkForwardValidationResponse = zod.object({
+  "started": zod.boolean(),
+  "status": zod.string()
+})
+
+
+/**
+ * @summary Walk-forward validation progress
+ */
+export const GetWalkForwardStatusResponse = zod.object({
+  "status": zod.string().describe('idle | running | completed | failed'),
+  "phase": zod.string().optional(),
+  "progress_pct": zod.number().optional(),
+  "windows_total": zod.number().optional(),
+  "windows_done": zod.number().optional(),
+  "started_at": zod.string().optional(),
+  "updated_at": zod.string().optional(),
+  "error": zod.string().optional(),
+  "logs": zod.array(zod.string()).optional(),
+  "config": zod.record(zod.string(), zod.unknown()).optional()
+})
+
+
+/**
+ * @summary Latest completed walk-forward validation result
+ */
+export const GetWalkForwardResultResponse = zod.object({
+  "available": zod.boolean(),
+  "generated_at": zod.string().optional(),
+  "run_seconds": zod.number().optional(),
+  "config": zod.record(zod.string(), zod.unknown()).optional(),
+  "intrabar_rule_label": zod.string().optional(),
+  "universe_size": zod.number().optional(),
+  "skipped_symbols": zod.array(zod.string()).optional(),
+  "adaptive_model_version": zod.number().optional(),
+  "knowledge_trades_available": zod.number().optional(),
+  "similarity_vectors_available": zod.number().optional(),
+  "windows": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "overall": zod.record(zod.string(), zod.unknown()).optional(),
+  "layer_comparison": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "benchmarks": zod.record(zod.string(), zod.unknown()).optional(),
+  "calibration": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "recommendation_outcomes": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "recommendations_issued": zod.number().optional(),
+  "stability": zod.record(zod.string(), zod.unknown()).optional(),
+  "verdict": zod.record(zod.string(), zod.unknown()).optional(),
+  "cost_breakdown": zod.record(zod.string(), zod.unknown()).optional(),
+  "equity_curve": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "drawdown_curve": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "lookahead_audit": zod.record(zod.string(), zod.unknown()).optional(),
+  "safety": zod.string().optional()
+}).describe('Full walk-forward validation report. Contains config echo, per-window results, overall metrics for the three model variants (base\/layered\/ full), layer comparison, six benchmarks, confidence calibration, recommendation outcome analysis, stability analysis, verdict, cost breakdown, equity and drawdown curves, and the lookahead audit.\n')
+
+
+/**
+ * @summary Download a walk-forward validation CSV export
+ */
+export const ExportWalkForwardCsvParams = zod.object({
+  "kind": zod.enum(['report', 'trades', 'windows', 'calibration', 'costs'])
+})
+
+export const ExportWalkForwardCsvResponse = zod.unknown()
+
+
+/**
  * @summary List simulated historical trades
  */
 export const getHistoricalKnowledgeTradesQueryLimitDefault = 100;

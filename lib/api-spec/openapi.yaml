@@ -672,6 +672,124 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /walk-forward/run:
+    post:
+      operationId: runWalkForwardValidation
+      tags: [trading]
+      summary: Start a walk-forward validation run
+      description: >
+        Tests the complete decision engine on unseen historical periods using
+        rolling train/test windows with realistic execution costs (slippage,
+        brokerage, STT, GST, spread, partial fills). Long-running background
+        process — poll the status endpoint. Research only, no orders.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WalkForwardConfig"
+      responses:
+        "200":
+          description: Validation run started
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [started, status]
+                properties:
+                  started:
+                    type: boolean
+                  status:
+                    type: string
+        "409":
+          description: A validation run is already in progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /walk-forward/status:
+    get:
+      operationId: getWalkForwardStatus
+      tags: [trading]
+      summary: Walk-forward validation progress
+      responses:
+        "200":
+          description: Current run status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalkForwardStatus"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /walk-forward/result:
+    get:
+      operationId: getWalkForwardResult
+      tags: [trading]
+      summary: Latest completed walk-forward validation result
+      responses:
+        "200":
+          description: Full validation report (or available=false when none exists)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalkForwardResult"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /walk-forward/export/{kind}:
+    get:
+      operationId: exportWalkForwardCsv
+      tags: [trading]
+      summary: Download a walk-forward validation CSV export
+      parameters:
+        - name: kind
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [report, trades, windows, calibration, costs]
+      responses:
+        "200":
+          description: CSV file download
+          content:
+            text/csv:
+              schema:
+                type: string
+        "400":
+          description: Unknown export kind
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No export available yet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /historical-knowledge/trades:
     get:
       operationId: getHistoricalKnowledgeTrades
@@ -2891,6 +3009,190 @@ components:
           type: array
           items: { type: string }
       required: [symbol, evidence, adjustment, warnings]
+
+    WalkForwardConfig:
+      type: object
+      description: >
+        Configuration for a walk-forward validation run. All fields optional;
+        omitted values use safe defaults. Cost assumptions are fully visible
+        and editable.
+      properties:
+        train_years:
+          type: integer
+          enum: [1, 2, 3]
+          default: 1
+        test_months:
+          type: integer
+          enum: [1, 3, 6]
+          default: 3
+        step_months:
+          type: integer
+          enum: [1, 3]
+          default: 3
+        start_date:
+          type: string
+          description: First training-window start (YYYY-MM-DD). Auto when empty.
+        end_date:
+          type: string
+          description: Last test-window end (YYYY-MM-DD). Auto when empty.
+        initial_capital:
+          type: number
+          default: 5000
+        universe:
+          type: array
+          items: { type: string }
+          description: Stock symbols to include. Empty → full NIFTY 50.
+        universe_size:
+          type: integer
+          description: When > 0, only the first N symbols of the universe are tested (quicker runs).
+        strategy_set:
+          type: array
+          items: { type: string }
+          description: Strategy ids to include. Empty → all lab strategies.
+        cost_model:
+          type: object
+          additionalProperties: true
+          description: >
+            Execution-cost assumptions (percent units): slippage_pct,
+            spread_pct, brokerage_pct, brokerage_flat, brokerage_max, stt_pct,
+            exchange_pct, sebi_pct, stamp_pct, gst_pct,
+            volume_participation_pct, allow_partial_fills, max_entry_gap_pct.
+        intrabar_rule:
+          type: string
+          enum: [conservative, optimistic]
+          default: conservative
+        max_holding_days:
+          type: integer
+          default: 20
+        min_confidence_execute:
+          type: number
+          default: 55
+        verdict_criteria:
+          type: object
+          additionalProperties: true
+          description: >
+            Verdict thresholds: min_expectancy, min_profit_factor,
+            max_drawdown_pct, require_full_beats_base,
+            max_single_stock_profit_share, max_single_window_profit_share,
+            min_trades, min_windows.
+        random_seed:
+          type: integer
+          default: 42
+
+    WalkForwardStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          description: idle | running | completed | failed
+        phase:
+          type: string
+        progress_pct:
+          type: number
+        windows_total:
+          type: integer
+        windows_done:
+          type: integer
+        started_at:
+          type: string
+        updated_at:
+          type: string
+        error:
+          type: string
+        logs:
+          type: array
+          items: { type: string }
+        config:
+          type: object
+          additionalProperties: true
+      additionalProperties: true
+
+    WalkForwardResult:
+      type: object
+      required: [available]
+      description: >
+        Full walk-forward validation report. Contains config echo, per-window
+        results, overall metrics for the three model variants (base/layered/
+        full), layer comparison, six benchmarks, confidence calibration,
+        recommendation outcome analysis, stability analysis, verdict,
+        cost breakdown, equity and drawdown curves, and the lookahead audit.
+      properties:
+        available:
+          type: boolean
+        generated_at:
+          type: string
+        run_seconds:
+          type: number
+        config:
+          type: object
+          additionalProperties: true
+        intrabar_rule_label:
+          type: string
+        universe_size:
+          type: integer
+        skipped_symbols:
+          type: array
+          items: { type: string }
+        adaptive_model_version:
+          type: integer
+        knowledge_trades_available:
+          type: integer
+        similarity_vectors_available:
+          type: integer
+        windows:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        overall:
+          type: object
+          additionalProperties: true
+        layer_comparison:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        benchmarks:
+          type: object
+          additionalProperties: true
+        calibration:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        recommendation_outcomes:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        recommendations_issued:
+          type: integer
+        stability:
+          type: object
+          additionalProperties: true
+        verdict:
+          type: object
+          additionalProperties: true
+        cost_breakdown:
+          type: object
+          additionalProperties: true
+        equity_curve:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        drawdown_curve:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        lookahead_audit:
+          type: object
+          additionalProperties: true
+        safety:
+          type: string
+      additionalProperties: true
 
     HistoricalKnowledgeBuildStatus:
       type: object

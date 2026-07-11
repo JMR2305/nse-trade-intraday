@@ -22,6 +22,7 @@ import {
   Database,
   BookOpenText,
   Gauge,
+  Route,
   Target,
   Briefcase,
 } from "lucide-react";
@@ -72,6 +73,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         { href: "/learning-review", label: "Learning Review", icon: GraduationCap },
         { href: "/pattern-quality", label: "Pattern Quality", icon: Gauge },
         { href: "/feature-importance", label: "Feature Importance", icon: BarChart3 },
+        { href: "/walk-forward", label: "Walk-Forward Validation", icon: Route },
       ],
     },
   ];

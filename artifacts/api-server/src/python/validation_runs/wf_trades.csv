@@ -1,0 +1,1 @@
+window,variant,symbol,sector,recommendation,confidence,strategy_name,entry_date,entry_price,quantity,requested_quantity,partial_fill,gap_pct,invested,exit_date,exit_price,exit_reason,holding_days,gross_pnl,net_pnl,return_pct,total_costs,mae_pct,mfe_pct,intrabar_rule,market_regime,max_data_timestamp

@@ -298,6 +298,43 @@ def cmd_historical_knowledge_summary() -> dict:
     return knowledge_summary()
 
 
+def cmd_walk_forward_run(config_json: str) -> dict:
+    """Run a full walk-forward validation (long-running, detached)."""
+    from walk_forward_validator import run_validation
+    try:
+        cfg = json.loads(config_json) if config_json else {}
+    except Exception:
+        cfg = {}
+    result = run_validation(cfg)
+    # The full result is persisted to wf_result.json; return a light summary.
+    if "error" in result:
+        return result
+    return {
+        "completed": True,
+        "run_seconds": result.get("run_seconds"),
+        "verdict": (result.get("verdict") or {}).get("verdict"),
+        "windows": len(result.get("windows", [])),
+    }
+
+
+def cmd_walk_forward_status() -> dict:
+    from walk_forward_validator import read_status
+    return read_status()
+
+
+def cmd_walk_forward_result() -> dict:
+    from walk_forward_validator import read_result
+    return read_result()
+
+
+def cmd_walk_forward_export(kind: str) -> dict:
+    from walk_forward_validator import export_csv_path
+    p = export_csv_path(kind)
+    if not p:
+        return {"error": f"No export available for '{kind}' — run a validation first."}
+    return {"path": p}
+
+
 def cmd_learning_insights() -> dict:
     from adaptive_learning import learning_insights
     return learning_insights()
@@ -561,6 +598,14 @@ def main():
         elif command == "trade_evaluations":
             result = cmd_trade_evaluations(
                 int(args[1]) if len(args) > 1 else 200)
+        elif command == "walk_forward_run":
+            result = cmd_walk_forward_run(args[1] if len(args) >= 2 else "{}")
+        elif command == "walk_forward_status":
+            result = cmd_walk_forward_status()
+        elif command == "walk_forward_result":
+            result = cmd_walk_forward_result()
+        elif command == "walk_forward_export" and len(args) >= 2:
+            result = cmd_walk_forward_export(args[1])
         else:
             error_msg = f"Unknown command: {command}"
 

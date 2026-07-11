@@ -1,11 +1,1 @@
-- [API server route restart](api-server-route-restart.md) — new Express routes in artifacts/api-server don't show up until the workflow is restarted; curl after adding a route to verify.
-- [Signal filter calibration](signal-filter-calibration.md) — scanner scores top out ~55-65 in practice; action labels (BUY/WATCH) are score bins, gate on filter_passed not labels.
-- [API codegen lockstep](api-codegen-lockstep.md) — any openapi.yaml default/schema change must rerun api-spec codegen or generated zod defaults go stale.
-- [Expectancy learning conventions](expectancy-learning-conventions.md) — expectancy-based learning is canonical (not win-rate); scanner blend 40/30/15/10/5; UI must coalesce breakdown fields against stale cached payloads; never remove pages, only extend.
-- [Python package install workaround](python-package-install.md) — installLanguagePackages and uv fail here; use `python3 -m pip install --break-system-packages --prefix .pythonlibs`.
-- [Learning-data eligibility gate](learning-data-gate.md) — learn_eligible must verify data source across the FULL trade lifecycle (BUY snapshot, SELL fetch, evaluation fetch), never entry alone.
-- [Learning engine invariants & testing quirks](learning-engine-invariants.md) — mock-data ban, ±3/±15 caps, mirror-finding shortlist trap, min-over-tests confidence gate, DB_PATH fixture rule.
-- [Benchmark evaluation fairness](benchmark-evaluation-fairness.md) — benchmark candidate sets must be persisted untruncated (UI caps never leak into learning) and returns measured to a deterministic horizon close, deferring if unavailable.
-- [Similarity evidence engine](similarity-evidence-engine.md) — match_count/reliability tier from full top-50 set, stats only over top-20 sample; low reliability never boosts confidence; no lookahead.
-- [Pytest suite timing](pytest-suite-timing.md) — full api-server pytest run exceeds the 2-min bash timeout (hypothesis tests alone ~45s); run test files individually with per-file timeouts.
-- [Analyst reasoning layer invariants](analyst-reasoning-invariants.md) — v2.3 analyst text must be deterministic, single-source attributed (no pattern numbers in similarity sections), and free of causal/predictive claims.
+- [Walk-forward validation rules](walk-forward-validation.md) — audit every data source for lookahead; zero-trade windows are valid, not failed; benchmark aggregation is mixed-mode by design.

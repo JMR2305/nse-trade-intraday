@@ -63,6 +63,7 @@ import type {
   PortfolioManagerResponse,
   PredictiveCandidate,
   PredictiveEvidenceResult,
+  RunWalkForwardValidation200,
   ScanResult,
   Signal,
   StrategyInfo,
@@ -75,6 +76,9 @@ import type {
   TradeIntelligenceImportResult,
   TradeIntelligenceResult,
   TradeReplayItem,
+  WalkForwardConfig,
+  WalkForwardResult,
+  WalkForwardStatus,
   WatchlistAddRequest,
   WatchlistResponse
 } from './api.schemas';
@@ -2038,6 +2042,309 @@ export function useGetHistoricalKnowledgeSummary<TData = Awaited<ReturnType<type
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetHistoricalKnowledgeSummaryQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRunWalkForwardValidationUrl = () => {
+
+
+
+
+  return `/api/walk-forward/run`
+}
+
+/**
+ * Tests the complete decision engine on unseen historical periods using rolling train/test windows with realistic execution costs (slippage, brokerage, STT, GST, spread, partial fills). Long-running background process — poll the status endpoint. Research only, no orders.
+ * @summary Start a walk-forward validation run
+ */
+export const runWalkForwardValidation = async (walkForwardConfig?: WalkForwardConfig, options?: RequestInit): Promise<RunWalkForwardValidation200> => {
+
+  return customFetch<RunWalkForwardValidation200>(getRunWalkForwardValidationUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(walkForwardConfig)
+  }
+);}
+
+
+
+
+
+export const getRunWalkForwardValidationMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runWalkForwardValidation>>, TError,{data?: BodyType<WalkForwardConfig>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof runWalkForwardValidation>>, TError,{data?: BodyType<WalkForwardConfig>}, TContext> => {
+
+const mutationKey = ['runWalkForwardValidation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof runWalkForwardValidation>>, {data?: BodyType<WalkForwardConfig>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  runWalkForwardValidation(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RunWalkForwardValidationMutationResult = NonNullable<Awaited<ReturnType<typeof runWalkForwardValidation>>>
+    export type RunWalkForwardValidationMutationBody = BodyType<WalkForwardConfig> | undefined
+    export type RunWalkForwardValidationMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Start a walk-forward validation run
+ */
+export const useRunWalkForwardValidation = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runWalkForwardValidation>>, TError,{data?: BodyType<WalkForwardConfig>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof runWalkForwardValidation>>,
+        TError,
+        {data?: BodyType<WalkForwardConfig>},
+        TContext
+      > => {
+      return useMutation(getRunWalkForwardValidationMutationOptions(options));
+    }
+
+export const getGetWalkForwardStatusUrl = () => {
+
+
+
+
+  return `/api/walk-forward/status`
+}
+
+/**
+ * @summary Walk-forward validation progress
+ */
+export const getWalkForwardStatus = async ( options?: RequestInit): Promise<WalkForwardStatus> => {
+
+  return customFetch<WalkForwardStatus>(getGetWalkForwardStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetWalkForwardStatusQueryKey = () => {
+    return [
+    `/api/walk-forward/status`
+    ] as const;
+    }
+
+
+export const getGetWalkForwardStatusQueryOptions = <TData = Awaited<ReturnType<typeof getWalkForwardStatus>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWalkForwardStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWalkForwardStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWalkForwardStatus>>> = ({ signal }) => getWalkForwardStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWalkForwardStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetWalkForwardStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getWalkForwardStatus>>>
+export type GetWalkForwardStatusQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Walk-forward validation progress
+ */
+
+export function useGetWalkForwardStatus<TData = Awaited<ReturnType<typeof getWalkForwardStatus>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWalkForwardStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetWalkForwardStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetWalkForwardResultUrl = () => {
+
+
+
+
+  return `/api/walk-forward/result`
+}
+
+/**
+ * @summary Latest completed walk-forward validation result
+ */
+export const getWalkForwardResult = async ( options?: RequestInit): Promise<WalkForwardResult> => {
+
+  return customFetch<WalkForwardResult>(getGetWalkForwardResultUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetWalkForwardResultQueryKey = () => {
+    return [
+    `/api/walk-forward/result`
+    ] as const;
+    }
+
+
+export const getGetWalkForwardResultQueryOptions = <TData = Awaited<ReturnType<typeof getWalkForwardResult>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWalkForwardResult>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWalkForwardResultQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWalkForwardResult>>> = ({ signal }) => getWalkForwardResult({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWalkForwardResult>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetWalkForwardResultQueryResult = NonNullable<Awaited<ReturnType<typeof getWalkForwardResult>>>
+export type GetWalkForwardResultQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Latest completed walk-forward validation result
+ */
+
+export function useGetWalkForwardResult<TData = Awaited<ReturnType<typeof getWalkForwardResult>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWalkForwardResult>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetWalkForwardResultQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getExportWalkForwardCsvUrl = (kind: 'report' | 'trades' | 'windows' | 'calibration' | 'costs',) => {
+
+
+
+
+  return `/api/walk-forward/export/${kind}`
+}
+
+/**
+ * @summary Download a walk-forward validation CSV export
+ */
+export const exportWalkForwardCsv = async (kind: 'report' | 'trades' | 'windows' | 'calibration' | 'costs', options?: RequestInit): Promise<string> => {
+
+  return customFetch<string>(getExportWalkForwardCsvUrl(kind),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getExportWalkForwardCsvQueryKey = (kind: 'report' | 'trades' | 'windows' | 'calibration' | 'costs',) => {
+    return [
+    `/api/walk-forward/export/${kind}`
+    ] as const;
+    }
+
+
+export const getExportWalkForwardCsvQueryOptions = <TData = Awaited<ReturnType<typeof exportWalkForwardCsv>>, TError = ErrorType<ErrorResponse>>(kind: 'report' | 'trades' | 'windows' | 'calibration' | 'costs', options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportWalkForwardCsv>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getExportWalkForwardCsvQueryKey(kind);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportWalkForwardCsv>>> = ({ signal }) => exportWalkForwardCsv(kind, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: kind !== null && kind !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportWalkForwardCsv>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ExportWalkForwardCsvQueryResult = NonNullable<Awaited<ReturnType<typeof exportWalkForwardCsv>>>
+export type ExportWalkForwardCsvQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Download a walk-forward validation CSV export
+ */
+
+export function useExportWalkForwardCsv<TData = Awaited<ReturnType<typeof exportWalkForwardCsv>>, TError = ErrorType<ErrorResponse>>(
+ kind: 'report' | 'trades' | 'windows' | 'calibration' | 'costs', options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportWalkForwardCsv>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getExportWalkForwardCsvQueryOptions(kind,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

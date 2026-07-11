@@ -1,0 +1,341 @@
+Build Version 2.4 — Walk-Forward Validation and Realistic Execution Simulator.
+
+Goal:
+Test the complete Trade Decision Engine on unseen historical periods using realistic execution assumptions.
+
+Important:
+- Paper trading and research only.
+- Do not modify existing strategy rules, confidence rules, learning logic, similarity logic, or portfolio rules during a validation run.
+- Prevent lookahead bias and data leakage.
+- Do not use mock or synthetic data.
+- Validation results must be reproducible.
+
+1. Create backend modules
+
+Create:
+
+backend/walk_forward_validator.py
+backend/execution_simulator.py
+backend/validation_metrics.py
+
+2. Walk-forward structure
+
+Support:
+
+Training window:
+- 1 year
+- 2 years
+- 3 years
+
+Testing window:
+- 1 month
+- 3 months
+- 6 months
+
+Step size:
+- 1 month
+- 3 months
+
+Example:
+
+Train:
+January 2022 to December 2023
+
+Test:
+January 2024 to March 2024
+
+Then move forward:
+
+Train:
+April 2022 to March 2024
+
+Test:
+April 2024 to June 2024
+
+Repeat until the available dataset ends.
+
+3. Strict data separation
+
+During every testing window:
+
+- Historical Knowledge must contain only data available before the test date.
+- Similarity search must not use trades from the current or future testing period.
+- Adaptive learning must use only completed trades from earlier periods.
+- Pattern Quality must be calculated only from training data.
+- No future candle may influence entry, exit, indicators, confidence, regime, or ranking.
+- Log the maximum data timestamp used for every decision.
+
+4. Test the complete decision pipeline
+
+For each historical trading day:
+
+1. Reconstruct the market using data available at that time.
+2. Run the Market Scanner.
+3. Run Trade Decisions.
+4. Apply historical pattern adjustment.
+5. Apply adaptive learning adjustment.
+6. Apply similarity adjustment.
+7. Apply hard risk filters.
+8. Run Portfolio Manager.
+9. Record recommendations.
+10. Simulate the resulting trades.
+
+Do not use the final outcome when generating the original recommendation.
+
+5. Realistic execution simulator
+
+Support configurable assumptions:
+
+- Entry at next trading-day open
+- Entry at next candle open
+- Slippage:
+  - 0%
+  - 0.05%
+  - 0.10%
+  - 0.20%
+- Brokerage and transaction costs
+- STT
+- Exchange charges
+- GST
+- SEBI charges
+- Stamp duty
+- Bid/ask spread
+- Gap openings
+- Partial fills
+- Insufficient capital
+- Position-size rounding to whole shares
+
+Keep all cost assumptions visible and editable.
+
+6. Exit simulation
+
+Simulate:
+
+- Stop-loss hit
+- Target hit
+- Signal exit
+- Time exit
+- Portfolio exit
+- End-of-test forced close
+
+If stop and target are both touched in the same candle:
+
+- Use the conservative outcome by default.
+- Allow an alternate intrabar assumption for sensitivity testing.
+- Clearly label the selected rule.
+
+7. Benchmark comparison
+
+Compare the AI model against:
+
+- Buy and hold NIFTY 50
+- Equal-weight portfolio
+- Existing rule engine without learning
+- Technical-confidence-only model
+- Random selection benchmark
+- Cash benchmark
+
+8. Performance metrics
+
+Calculate:
+
+- Total trades
+- Winning trades
+- Losing trades
+- Win rate
+- Gross profit
+- Gross loss
+- Net profit after costs
+- Total return
+- Annualized return
+- Average return per trade
+- Expectancy
+- Profit factor
+- Sharpe ratio
+- Sortino ratio
+- Maximum drawdown
+- Recovery factor
+- Calmar ratio
+- Average holding period
+- Exposure percentage
+- Turnover
+- Total trading costs
+- Largest winner
+- Largest loser
+- Consecutive wins
+- Consecutive losses
+
+9. Confidence calibration
+
+For confidence bands:
+
+- 50–59
+- 60–69
+- 70–79
+- 80–89
+- 90–95
+
+Show:
+
+- Number of trades
+- Predicted success rate
+- Actual success rate
+- Calibration gap
+- Average return
+- Profit factor
+
+Flag:
+
+- Overconfident
+- Underconfident
+- Well calibrated
+- Insufficient sample
+
+10. Recommendation outcome analysis
+
+For each recommendation type show:
+
+- STRONG BUY
+- BUY
+- WATCH
+- AVOID
+- EXIT
+
+Calculate:
+
+- Number issued
+- Forward return after 1, 3, 5, 10, and 20 trading days
+- Win rate
+- Expectancy
+- Maximum adverse excursion
+- Maximum favourable excursion
+
+This must also test whether WATCH and AVOID decisions correctly prevented losses.
+
+11. Learning-layer comparison
+
+Run three versions on the same unseen data:
+
+A. Base technical engine only
+
+B. Technical + Historical Pattern + Similarity
+
+C. Full model including Adaptive Learning and Portfolio Manager
+
+Compare:
+
+- Net return
+- Expectancy
+- Profit factor
+- Drawdown
+- Sharpe
+- Number of trades
+- Trading costs
+
+Show whether each additional layer improved or worsened performance.
+
+12. Add new UI page
+
+Add:
+
+Walk-Forward Validation
+
+Controls:
+
+- Training window
+- Testing window
+- Step size
+- Initial capital
+- Slippage
+- Cost model
+- Universe
+- Strategy set
+- Run Validation
+
+Show:
+
+- Overall result
+- Old model versus full model
+- Test-window-by-test-window performance
+- Equity curve
+- Drawdown curve
+- Confidence calibration
+- Recommendation outcome table
+- Cost impact
+- Benchmark comparison
+- Failed validation windows
+
+13. Validation verdict
+
+Return one of:
+
+- PASSED
+- PASSED WITH CAUTION
+- FAILED
+- INSUFFICIENT DATA
+
+Suggested PASSED requirements:
+
+- Positive out-of-sample expectancy
+- Profit factor above 1.15 after costs
+- Maximum drawdown within configured limit
+- Full model outperforms base model
+- Results are not dependent on only one stock, sector, or test window
+- At least 100 completed out-of-sample trades
+
+Do not hardcode these requirements; make them configurable and visible.
+
+14. Stability analysis
+
+Show results by:
+
+- Year
+- Market regime
+- Sector
+- Strategy
+- Confidence band
+- Holding period
+- Bullish and bearish periods
+
+Flag if most profits came from:
+
+- One stock
+- One sector
+- One month
+- One strategy
+- A small number of trades
+
+15. Export
+
+Allow exporting:
+
+- Complete validation report CSV
+- All simulated trades CSV
+- Window-level metrics CSV
+- Confidence calibration CSV
+- Cost breakdown CSV
+
+16. Automated tests
+
+Test:
+
+- No lookahead bias
+- No future similarity matches
+- Correct rolling windows
+- Cost calculations
+- Slippage
+- Stop/target same-candle handling
+- Capital constraints
+- Position sizing
+- Benchmark calculation
+- Confidence calibration
+- Reproducibility
+- Model-version isolation
+
+17. Safety message
+
+Show:
+
+“Out-of-sample historical performance does not guarantee future results. Paper trading and research only.”
+
+Do not enable real broker execution.
