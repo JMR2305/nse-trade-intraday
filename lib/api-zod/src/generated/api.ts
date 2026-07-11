@@ -1319,6 +1319,46 @@ export const GetTradeDecisionsResponse = zod.object({
   "exit_reason": zod.string(),
   "reason": zod.string(),
   "explanation": zod.string(),
+  "explanation_sections": zod.object({
+  "technical": zod.object({
+  "technical_score": zod.number(),
+  "opportunity_score": zod.number(),
+  "risk_filters_passed": zod.boolean(),
+  "risk_filter_notes": zod.array(zod.string()),
+  "trend": zod.string(),
+  "momentum": zod.string(),
+  "volume": zod.string()
+}),
+  "similarity": zod.object({
+  "match_count": zod.number(),
+  "avg_similarity": zod.number(),
+  "win_rate": zod.number(),
+  "expectancy": zod.number(),
+  "profit_factor": zod.number(),
+  "adjustment": zod.number(),
+  "reliability": zod.enum(['VERY_LOW', 'LOW', 'MEDIUM', 'HIGH']),
+  "text": zod.string()
+}),
+  "pattern": zod.object({
+  "strategy": zod.string(),
+  "sector": zod.string(),
+  "regime": zod.string(),
+  "expectancy": zod.number(),
+  "profit_factor": zod.number(),
+  "sample_size": zod.number(),
+  "note": zod.string()
+}).nullable(),
+  "summary": zod.object({
+  "technical_confidence": zod.number(),
+  "learning_adjustment": zod.number(),
+  "model_adjustment": zod.number(),
+  "similarity_adjustment": zod.number(),
+  "pattern_adjustment": zod.number(),
+  "final_confidence": zod.number(),
+  "recommendation": zod.enum(['STRONG_BUY', 'BUY', 'WATCH', 'EXIT', 'AVOID']),
+  "learning_note": zod.string().nullable()
+})
+}).describe('Structured decision explanation. Every section references exactly one evidence source; the pattern section is descriptive only and never contributes a confidence adjustment.\n'),
   "failed_conditions": zod.array(zod.string()),
   "breakdown": zod.array(zod.object({
   "factor": zod.string(),

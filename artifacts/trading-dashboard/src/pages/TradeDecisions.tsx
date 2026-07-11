@@ -133,7 +133,7 @@ function SimilarityEvidencePanel({ d }: { d: TradeDecision }) {
     <div className="mt-4 border-t border-border/50 pt-4" data-testid="panel-similarity-evidence">
       <div className="flex items-center gap-2 flex-wrap mb-2">
         <span className="text-xs font-mono uppercase text-muted-foreground">
-          Historical Similarity Evidence
+          2. Historical Similarity Evidence
         </span>
         <span
           className={`inline-block rounded border px-2 py-0.5 text-[10px] font-mono font-bold ${
@@ -286,6 +286,97 @@ function SimilarityEvidencePanel({ d }: { d: TradeDecision }) {
   );
 }
 
+function TechnicalAnalysisPanel({ d }: { d: TradeDecision }) {
+  const t = d.explanation_sections?.technical;
+  if (!t) return null;
+  return (
+    <div data-testid="panel-technical-analysis">
+      <div className="text-xs font-mono uppercase text-muted-foreground mb-2">
+        1. Current Technical Analysis
+      </div>
+      <dl className="space-y-1 font-mono text-xs">
+        <div className="flex justify-between"><dt className="text-muted-foreground">Technical score</dt><dd>{fmt(t.technical_score, 0)}</dd></div>
+        <div className="flex justify-between"><dt className="text-muted-foreground">Opportunity score</dt><dd>{fmt(t.opportunity_score, 0)}</dd></div>
+        <div className="flex justify-between"><dt className="text-muted-foreground">Risk filters</dt><dd className={t.risk_filters_passed ? "text-green-400" : "text-red-400"}>{t.risk_filters_passed ? "Passed" : "Failed"}</dd></div>
+        {!t.risk_filters_passed && t.risk_filter_notes.length > 0 && (
+          <div className="text-red-400/80 text-[11px]">{t.risk_filter_notes.join("; ")}</div>
+        )}
+        <div className="flex justify-between gap-2"><dt className="text-muted-foreground">Trend</dt><dd className="text-right">{t.trend}</dd></div>
+        <div className="flex justify-between gap-2"><dt className="text-muted-foreground">Momentum</dt><dd className="text-right">{t.momentum}</dd></div>
+        <div className="flex justify-between gap-2"><dt className="text-muted-foreground">Volume</dt><dd className="text-right">{t.volume}</dd></div>
+      </dl>
+      <p className="text-[10px] text-muted-foreground mt-2">
+        Source: current market indicators only.
+      </p>
+    </div>
+  );
+}
+
+function PatternKnowledgePanel({ d }: { d: TradeDecision }) {
+  const p = d.explanation_sections?.pattern;
+  return (
+    <div className="mt-4 border-t border-border/50 pt-4" data-testid="panel-pattern-knowledge">
+      <div className="text-xs font-mono uppercase text-muted-foreground mb-2">
+        3. Pattern Knowledge
+      </div>
+      {!p ? (
+        <p className="text-xs text-muted-foreground font-mono">
+          No historical pattern data available yet.
+        </p>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 font-mono text-xs">
+          <div><div className="text-muted-foreground">Strategy</div><div className="font-bold">{p.strategy || "—"}</div></div>
+          <div><div className="text-muted-foreground">Sector</div><div className="font-bold">{p.sector || "—"}</div></div>
+          <div><div className="text-muted-foreground">Regime</div><div className="font-bold">{p.regime || "—"}</div></div>
+          <div><div className="text-muted-foreground">Historical expectancy</div><div className={`font-bold ${p.expectancy >= 0 ? "text-green-400" : "text-red-400"}`}>{p.expectancy >= 0 ? "+" : ""}{fmt(p.expectancy)}%</div></div>
+          <div><div className="text-muted-foreground">Profit factor</div><div className="font-bold">{fmt(p.profit_factor)}</div></div>
+          <div><div className="text-muted-foreground">Sample size</div><div className="font-bold">{p.sample_size}</div></div>
+        </div>
+      )}
+      <p className="text-[11px] text-muted-foreground mt-2 flex items-start gap-1" data-testid="text-pattern-note">
+        <Info className="h-3 w-3 mt-0.5 flex-shrink-0" />
+        This information is descriptive only and did not affect the confidence adjustment.
+      </p>
+    </div>
+  );
+}
+
+function adjClass(v: number): string {
+  return v > 0 ? "text-green-400" : v < 0 ? "text-red-400" : "text-muted-foreground";
+}
+
+function FinalSummaryPanel({ d }: { d: TradeDecision }) {
+  const s = d.explanation_sections?.summary;
+  if (!s) return null;
+  return (
+    <div className="mt-4 border-t border-border/50 pt-4" data-testid="panel-final-summary">
+      <div className="text-xs font-mono uppercase text-muted-foreground mb-2">
+        Final Decision Summary
+      </div>
+      <dl className="space-y-1 font-mono text-xs max-w-md">
+        <div className="flex justify-between"><dt className="text-muted-foreground">Technical confidence</dt><dd>{fmt(s.technical_confidence, 0)}</dd></div>
+        <div className="flex justify-between"><dt className="text-muted-foreground">Learning adjustment <span className="text-[10px]">(adaptive learning)</span></dt><dd className={adjClass(s.learning_adjustment)}>{s.learning_adjustment >= 0 ? "+" : ""}{fmt(s.learning_adjustment, 0)}</dd></div>
+        <div className="flex justify-between"><dt className="text-muted-foreground">Model adjustment <span className="text-[10px]">(self-evaluation model v{d.model_version ?? 0})</span></dt><dd className={adjClass(s.model_adjustment)}>{s.model_adjustment >= 0 ? "+" : ""}{fmt(s.model_adjustment, 1)}</dd></div>
+        <div className="flex justify-between"><dt className="text-muted-foreground">Similarity adjustment <span className="text-[10px]">(similar historical trades)</span></dt><dd className={adjClass(s.similarity_adjustment)}>{s.similarity_adjustment >= 0 ? "+" : ""}{fmt(s.similarity_adjustment, 1)}</dd></div>
+        {s.pattern_adjustment !== 0 && (
+          <div className="flex justify-between"><dt className="text-muted-foreground">Pattern adjustment</dt><dd className={adjClass(s.pattern_adjustment)}>{s.pattern_adjustment >= 0 ? "+" : ""}{fmt(s.pattern_adjustment, 1)}</dd></div>
+        )}
+        <div className="flex justify-between border-t border-border/50 pt-1 mt-1"><dt className="text-muted-foreground">Final confidence</dt><dd className="font-bold">{fmt(s.final_confidence, 0)}</dd></div>
+        <div className="flex justify-between items-center"><dt className="text-muted-foreground">Recommendation</dt><dd><RecBadge rec={s.recommendation} /></dd></div>
+      </dl>
+      {s.learning_note && (
+        <p className="text-[11px] text-muted-foreground mt-2" data-testid="text-learning-note">
+          {s.learning_note}
+        </p>
+      )}
+      <p className="text-[10px] text-muted-foreground mt-2">
+        Each adjustment comes from exactly one evidence source. Pattern knowledge is
+        descriptive only and contributes no adjustment.
+      </p>
+    </div>
+  );
+}
+
 function DetailRow({ d }: { d: TradeDecision }) {
   return (
     <tr className="bg-muted/20">
@@ -296,7 +387,9 @@ function DetailRow({ d }: { d: TradeDecision }) {
             <div className="text-xs font-mono uppercase text-muted-foreground mb-2">
               Why this recommendation
             </div>
-            <p className="text-foreground/90 leading-relaxed">{d.explanation}</p>
+            <p className="text-foreground/90 leading-relaxed">
+              {REC_LABEL[d.recommendation] ?? d.recommendation}: {d.reason}.
+            </p>
             {d.failed_conditions.length > 0 && (
               <div className="mt-3">
                 <div className="text-xs font-mono uppercase text-muted-foreground mb-1">
@@ -310,23 +403,7 @@ function DetailRow({ d }: { d: TradeDecision }) {
               </div>
             )}
           </div>
-          <div>
-            <div className="text-xs font-mono uppercase text-muted-foreground mb-2">
-              Confidence &amp; history
-            </div>
-            <dl className="space-y-1 font-mono text-xs">
-              <div className="flex justify-between"><dt className="text-muted-foreground">Technical confidence</dt><dd>{fmt(d.base_confidence, 0)}</dd></div>
-              <div className="flex justify-between"><dt className="text-muted-foreground">Learning adjustment</dt><dd className={d.learning_adjustment >= 0 ? "text-green-400" : "text-red-400"}>{d.learning_adjustment >= 0 ? "+" : ""}{fmt(d.learning_adjustment, 0)}</dd></div>
-              <div className="flex justify-between"><dt className="text-muted-foreground">Model adjustment (v{d.model_version ?? 0})</dt><dd className={(d.model_adjustment ?? 0) >= 0 ? "text-green-400" : "text-red-400"}>{(d.model_adjustment ?? 0) >= 0 ? "+" : ""}{fmt(d.model_adjustment ?? 0, 1)}</dd></div>
-              <div className="flex justify-between"><dt className="text-muted-foreground">Final confidence</dt><dd className="font-bold">{fmt(d.final_confidence, 0)}</dd></div>
-              <div className="flex justify-between"><dt className="text-muted-foreground">Historical matches</dt><dd>{d.historical_trades}</dd></div>
-              <div className="flex justify-between"><dt className="text-muted-foreground">Win rate</dt><dd>{fmt(d.historical_win_rate, 0)}%</dd></div>
-              <div className="flex justify-between"><dt className="text-muted-foreground">Expectancy</dt><dd className={d.historical_expectancy >= 0 ? "text-green-400" : "text-red-400"}>{d.historical_expectancy >= 0 ? "+" : ""}{fmt(d.historical_expectancy)}%</dd></div>
-              <div className="flex justify-between"><dt className="text-muted-foreground">Profit factor</dt><dd>{fmt(d.historical_profit_factor)}</dd></div>
-              <div className="flex justify-between"><dt className="text-muted-foreground">Best pattern</dt><dd className="text-right ml-2">{d.best_pattern}</dd></div>
-              <div className="flex justify-between"><dt className="text-muted-foreground">Regime match</dt><dd>{d.regime_match ? "Yes" : "No"}</dd></div>
-            </dl>
-          </div>
+          <TechnicalAnalysisPanel d={d} />
           <div>
             <div className="text-xs font-mono uppercase text-muted-foreground mb-2">
               Risk &amp; position
@@ -352,6 +429,8 @@ function DetailRow({ d }: { d: TradeDecision }) {
           </div>
         </div>
         <SimilarityEvidencePanel d={d} />
+        <PatternKnowledgePanel d={d} />
+        <FinalSummaryPanel d={d} />
       </td>
     </tr>
   );

@@ -1473,6 +1473,79 @@ export interface FeatureImportanceResponse {
   safety: string;
 }
 
+export interface DecisionTechnicalSection {
+  technical_score: number;
+  opportunity_score: number;
+  risk_filters_passed: boolean;
+  risk_filter_notes: string[];
+  trend: string;
+  momentum: string;
+  volume: string;
+}
+
+export type DecisionSimilaritySectionReliability = typeof DecisionSimilaritySectionReliability[keyof typeof DecisionSimilaritySectionReliability];
+
+
+export const DecisionSimilaritySectionReliability = {
+  VERY_LOW: 'VERY_LOW',
+  LOW: 'LOW',
+  MEDIUM: 'MEDIUM',
+  HIGH: 'HIGH',
+} as const;
+
+export interface DecisionSimilaritySection {
+  match_count: number;
+  avg_similarity: number;
+  win_rate: number;
+  expectancy: number;
+  profit_factor: number;
+  adjustment: number;
+  reliability: DecisionSimilaritySectionReliability;
+  text: string;
+}
+
+export interface DecisionPatternSection {
+  strategy: string;
+  sector: string;
+  regime: string;
+  expectancy: number;
+  profit_factor: number;
+  sample_size: number;
+  note: string;
+}
+
+export type DecisionSummarySectionRecommendation = typeof DecisionSummarySectionRecommendation[keyof typeof DecisionSummarySectionRecommendation];
+
+
+export const DecisionSummarySectionRecommendation = {
+  STRONG_BUY: 'STRONG_BUY',
+  BUY: 'BUY',
+  WATCH: 'WATCH',
+  EXIT: 'EXIT',
+  AVOID: 'AVOID',
+} as const;
+
+export interface DecisionSummarySection {
+  technical_confidence: number;
+  learning_adjustment: number;
+  model_adjustment: number;
+  similarity_adjustment: number;
+  pattern_adjustment: number;
+  final_confidence: number;
+  recommendation: DecisionSummarySectionRecommendation;
+  learning_note: string | null;
+}
+
+/**
+ * Structured decision explanation. Every section references exactly one evidence source; the pattern section is descriptive only and never contributes a confidence adjustment.
+ */
+export interface DecisionExplanationSections {
+  technical: DecisionTechnicalSection;
+  similarity: DecisionSimilaritySection;
+  pattern: DecisionPatternSection | null;
+  summary: DecisionSummarySection;
+}
+
 export type TradeDecisionRecommendation = typeof TradeDecisionRecommendation[keyof typeof TradeDecisionRecommendation];
 
 
@@ -1537,6 +1610,7 @@ export interface TradeDecision {
   exit_reason: string;
   reason: string;
   explanation: string;
+  explanation_sections: DecisionExplanationSections;
   failed_conditions: string[];
   breakdown: DecisionFactor[];
 }

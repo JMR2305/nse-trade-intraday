@@ -105,6 +105,7 @@ class TradeDecision(TypedDict):
     # Explanations
     reason: str                  # short one-liner for the table
     explanation: str             # longer text for the expanded row
+    explanation_sections: dict   # structured, single-source evidence sections
     failed_conditions: list
     breakdown: list              # list[DecisionFactor] summing to final_confidence
 
@@ -371,28 +372,124 @@ def _decide(item: dict, positions: dict, trades: list,
             recommendation = "AVOID"
             reason = f"Low confidence ({fc:.0f})"
 
-    # Build the longer explanation for the expanded row
-    parts = [
-        f"{recommendation.replace('_', ' ')}: {reason}.",
-        f"Base technical confidence {base:.0f}, learning adjustment {adj:+.0f} → final {fc:.0f}.",
-    ]
-    if model_adj != 0.0:
-        parts.append(
-            f"Self-evaluation model v{model_version} adjusted confidence by "
-            f"{model_adj:+.1f} points (bounded, approved learning — never "
-            f"creates a buy on its own)."
-        )
+    # ── Structured explanation: every statement references exactly ONE
+    #    evidence source. Three labelled sections + a final summary.
     sim_expl = str(item.get("similarity_explanation", "") or "")
-    if sim_expl:
-        parts.append(f"Similarity evidence ({evidence_reliability} reliability): {sim_expl}")
+    learning_expl = str(item.get("learning_explanation", "") or "")
+
+    # Section 1 — Current Technical Analysis (scanner indicators only)
+    above20 = bool(item.get("above_ema20", False))
+    above50 = bool(item.get("above_ema50", False))
+    st_dir = str(item.get("supertrend_dir", "") or "").upper()
+    rsi_v = float(item.get("rsi", 0.0) or 0.0)
+    macd_h = float(item.get("macd_hist", 0.0) or 0.0)
+    vol_ratio = float(item.get("volume_ratio", 0.0) or 0.0)
+    opp_score = float(item.get("opportunity_score", 0.0) or 0.0)
+    trend_txt = (
+        f"{'Above' if above20 else 'Below'} EMA20, "
+        f"{'above' if above50 else 'below'} EMA50"
+        + (f", supertrend {st_dir}" if st_dir else "")
+    )
+    momentum_txt = f"RSI {rsi_v:.0f}, MACD histogram {macd_h:+.2f}"
+    volume_txt = (f"{vol_ratio:.1f}× 20-day average volume"
+                  if vol_ratio > 0 else "No volume data")
+    filters_txt = ("All risk filters passed" if filter_passed
+                   else "Risk filter failed"
+                   + (f": {'; '.join(filter_reasons)}" if filter_reasons else ""))
+    technical_section = {
+        "technical_score": round(base, 1),
+        "opportunity_score": round(opp_score, 1),
+        "risk_filters_passed": filter_passed,
+        "risk_filter_notes": filter_reasons,
+        "trend": trend_txt,
+        "momentum": momentum_txt,
+        "volume": volume_txt,
+    }
+
+    # Section 2 — Historical Similarity Evidence (similar past trades ONLY)
+    sim_stats = (similarity_evidence or {}).get("stats") or {} \
+        if isinstance(similarity_evidence, dict) else {}
+    sim_matches = int((similarity_evidence or {}).get("match_count", 0) or 0) \
+        if isinstance(similarity_evidence, dict) else 0
+    sim_avg = float((similarity_evidence or {}).get("avg_similarity", 0.0) or 0.0) \
+        if isinstance(similarity_evidence, dict) else 0.0
+    similarity_section = {
+        "match_count": sim_matches,
+        "avg_similarity": round(sim_avg, 1),
+        "win_rate": round(float(sim_stats.get("win_rate", 0.0) or 0.0), 1),
+        "expectancy": round(float(sim_stats.get("expectancy", 0.0) or 0.0), 2),
+        "profit_factor": round(float(sim_stats.get("profit_factor", 0.0) or 0.0), 2),
+        "adjustment": round(sim_adj, 1),
+        "reliability": evidence_reliability,
+        "text": sim_expl,
+    }
+
+    # Section 3 — Pattern Knowledge (strongest historical pattern; descriptive)
+    PATTERN_NOTE = ("This information is descriptive only and did not affect "
+                    "the confidence adjustment.")
+    pattern_section = None
     if n_hist > 0:
+        pattern_section = {
+            "strategy": str(item.get("best_strategy_name", "") or ""),
+            "sector": str(item.get("sector", "") or ""),
+            "regime": str(item.get("best_regime", "") or ""),
+            "expectancy": round(exp, 2),
+            "profit_factor": round(pf, 2),
+            "sample_size": n_hist,
+            "note": PATTERN_NOTE,
+        }
+
+    # Final Decision Summary — one line per adjustment, one source each.
+    summary_section = {
+        "technical_confidence": round(base, 1),
+        "learning_adjustment": round(adj, 1),
+        "model_adjustment": round(model_adj, 1),
+        "similarity_adjustment": round(sim_adj, 1),
+        "pattern_adjustment": 0.0,
+        "final_confidence": round(fc, 1),
+        "recommendation": recommendation,
+        "learning_note": learning_expl or None,
+    }
+
+    parts = [f"{recommendation.replace('_', ' ')}: {reason}."]
+    parts.append(
+        f"[Current Technical Analysis] Technical score {base:.0f}, "
+        f"opportunity score {opp_score:.0f}. {filters_txt}. "
+        f"Trend: {trend_txt}. Momentum: {momentum_txt}. Volume: {volume_txt}."
+    )
+    if sim_matches > 0:
         parts.append(
-            f"Best pattern: {item.get('best_strategy_name', '')} in {item.get('sector', '')} "
-            f"({item.get('best_regime', '')} regime) — {n_hist} historical matches, "
-            f"{wr:.0f}% win rate, expectancy {exp:+.2f}%, PF {pf:.2f}."
+            f"[Historical Similarity Evidence] {sim_matches} similar past trades "
+            f"(avg similarity {sim_avg:.0f}%, {evidence_reliability.replace('_', ' ')} "
+            f"reliability): win rate {similarity_section['win_rate']:.0f}%, "
+            f"expectancy {similarity_section['expectancy']:+.2f}%, "
+            f"PF {similarity_section['profit_factor']:.2f}. "
+            f"Confidence adjustment from this evidence alone: {sim_adj:+.1f} points."
         )
     else:
-        parts.append("No historical pattern matches yet — evidence is limited.")
+        parts.append(
+            "[Historical Similarity Evidence] No sufficiently similar past "
+            "trades found — no similarity adjustment was applied."
+        )
+    if pattern_section:
+        parts.append(
+            f"[Pattern Knowledge] Strongest historical pattern: "
+            f"{pattern_section['strategy']} in {pattern_section['sector']} "
+            f"({pattern_section['regime']} regime) — expectancy {exp:+.2f}%, "
+            f"PF {pf:.2f}, sample size {n_hist}. {PATTERN_NOTE}"
+        )
+    else:
+        parts.append(
+            f"[Pattern Knowledge] No historical pattern data yet. {PATTERN_NOTE}"
+        )
+    parts.append(
+        f"[Final Decision Summary] Technical confidence {base:.0f}; "
+        f"learning adjustment {adj:+.0f} (adaptive learning); "
+        f"model adjustment {model_adj:+.1f} (self-evaluation model v{model_version}); "
+        f"similarity adjustment {sim_adj:+.1f} (similar historical trades); "
+        f"pattern adjustment +0 (descriptive only) → final confidence {fc:.0f} "
+        f"(bounded 5-95). Recommendation: {recommendation.replace('_', ' ')}."
+    )
     if low_reliability:
         parts.append(f"LOW RELIABILITY: fewer than {RELIABLE_SAMPLE} historical samples.")
     if not data_ok:
@@ -401,9 +498,15 @@ def _decide(item: dict, positions: dict, trades: list,
         parts.append(
             f"Open paper position: {pos_qty} shares @ ₹{pos_avg:.2f} ({pos_pnl_pct:+.2f}%)."
         )
-    learning_expl = str(item.get("learning_explanation", "") or "")
     if learning_expl:
         parts.append(learning_expl)
+
+    explanation_sections = {
+        "technical": technical_section,
+        "similarity": similarity_section,
+        "pattern": pattern_section,
+        "summary": summary_section,
+    }
 
     return TradeDecision(
         stock=sym,
@@ -445,6 +548,7 @@ def _decide(item: dict, positions: dict, trades: list,
         exit_reason=exit_reason,
         reason=reason,
         explanation=" ".join(parts),
+        explanation_sections=explanation_sections,
         failed_conditions=failed,
         breakdown=_build_breakdown(item, data_ok, regime_strength, round(fc, 1)),
     )

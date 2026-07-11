@@ -3302,6 +3302,91 @@ components:
         [features, history, updated_at, total_trades, weights_dynamic,
          trades_until_next_update, safety]
 
+    DecisionTechnicalSection:
+      type: object
+      properties:
+        technical_score:     { type: number }
+        opportunity_score:   { type: number }
+        risk_filters_passed: { type: boolean }
+        risk_filter_notes:
+          type: array
+          items: { type: string }
+        trend:               { type: string }
+        momentum:            { type: string }
+        volume:              { type: string }
+      required:
+        [technical_score, opportunity_score, risk_filters_passed,
+         risk_filter_notes, trend, momentum, volume]
+
+    DecisionSimilaritySection:
+      type: object
+      properties:
+        match_count:    { type: integer }
+        avg_similarity: { type: number }
+        win_rate:       { type: number }
+        expectancy:     { type: number }
+        profit_factor:  { type: number }
+        adjustment:     { type: number }
+        reliability:
+          type: string
+          enum: [VERY_LOW, LOW, MEDIUM, HIGH]
+        text:           { type: string }
+      required:
+        [match_count, avg_similarity, win_rate, expectancy, profit_factor,
+         adjustment, reliability, text]
+
+    DecisionPatternSection:
+      type: object
+      properties:
+        strategy:      { type: string }
+        sector:        { type: string }
+        regime:        { type: string }
+        expectancy:    { type: number }
+        profit_factor: { type: number }
+        sample_size:   { type: integer }
+        note:          { type: string }
+      required:
+        [strategy, sector, regime, expectancy, profit_factor, sample_size, note]
+
+    DecisionSummarySection:
+      type: object
+      properties:
+        technical_confidence:  { type: number }
+        learning_adjustment:   { type: number }
+        model_adjustment:      { type: number }
+        similarity_adjustment: { type: number }
+        pattern_adjustment:    { type: number }
+        final_confidence:      { type: number }
+        recommendation:
+          type: string
+          enum: [STRONG_BUY, BUY, WATCH, EXIT, AVOID]
+        learning_note:
+          type: string
+          nullable: true
+      required:
+        [technical_confidence, learning_adjustment, model_adjustment,
+         similarity_adjustment, pattern_adjustment, final_confidence,
+         recommendation, learning_note]
+
+    DecisionExplanationSections:
+      type: object
+      description: >
+        Structured decision explanation. Every section references exactly one
+        evidence source; the pattern section is descriptive only and never
+        contributes a confidence adjustment.
+      properties:
+        technical:
+          $ref: "#/components/schemas/DecisionTechnicalSection"
+        similarity:
+          $ref: "#/components/schemas/DecisionSimilaritySection"
+        pattern:
+          allOf:
+            - $ref: "#/components/schemas/DecisionPatternSection"
+          nullable: true
+        summary:
+          $ref: "#/components/schemas/DecisionSummarySection"
+      required: [technical, similarity, pattern, summary]
+
     TradeDecision:
       type: object
       properties:
@@ -3348,6 +3433,8 @@ components:
         exit_reason:              { type: string }
         reason:                   { type: string }
         explanation:              { type: string }
+        explanation_sections:
+          $ref: "#/components/schemas/DecisionExplanationSections"
         failed_conditions:
           type: array
           items: { type: string }
@@ -3365,7 +3452,8 @@ components:
          price, entry_price, stop_loss, target, rr_ratio,
          expected_holding_days, expected_drawdown, position_open,
          position_quantity, position_avg_price, position_pnl_pct,
-         exit_reason, reason, explanation, failed_conditions, breakdown]
+         exit_reason, reason, explanation, explanation_sections,
+         failed_conditions, breakdown]
 
     TradeDecisionsResponse:
       type: object

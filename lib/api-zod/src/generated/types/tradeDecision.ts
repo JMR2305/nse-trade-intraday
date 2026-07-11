@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { DecisionExplanationSections } from './decisionExplanationSections';
 import type { DecisionFactor } from './decisionFactor';
 import type { SimilarityEvidence } from './similarityEvidence';
 import type { TradeDecisionDataStatus } from './tradeDecisionDataStatus';
@@ -46,6 +47,7 @@ export interface TradeDecision {
   exit_reason: string;
   reason: string;
   explanation: string;
+  explanation_sections: DecisionExplanationSections;
   failed_conditions: string[];
   breakdown: DecisionFactor[];
 }
