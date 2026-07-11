@@ -1600,6 +1600,35 @@ export type LearningReviewStrongestSuccessFactorsItem = {
   [key: string]: unknown;
  };
 
+export type HypothesisDims = {[key: string]: string};
+
+export type HypothesisEvidence = { [key: string]: unknown } | null;
+
+export type HypothesisValidation = { [key: string]: unknown } | null;
+
+export type HypothesisEffectiveness = { [key: string]: unknown } | null;
+
+export interface Hypothesis {
+  id: number;
+  created_at: string;
+  dims?: HypothesisDims;
+  scope_type: string;
+  scope_key: string;
+  statement: string;
+  rationale: string;
+  direction: string;
+  magnitude_pct: number;
+  step_points: number;
+  confidence_pct: number;
+  sample_size: number;
+  evidence?: HypothesisEvidence;
+  status: string;
+  applied_version?: number | null;
+  validation?: HypothesisValidation;
+  effectiveness?: HypothesisEffectiveness;
+  [key: string]: unknown;
+ }
+
 export interface LearningReview {
   generated_at: string;
   mode: string;
@@ -1615,6 +1644,7 @@ export interface LearningReview {
   common_failure_causes: LearningReviewCommonFailureCausesItem[];
   strongest_success_factors: LearningReviewStrongestSuccessFactorsItem[];
   proposed_adjustments: ProposedAdjustment[];
+  hypotheses?: Hypothesis[];
   model_versions: ModelVersion[];
   trades: LearningReviewTrade[];
   warnings: string[];
@@ -1623,12 +1653,19 @@ export interface LearningReview {
 
 export type LearningCycleResultProposalsItem = { [key: string]: unknown };
 
+export type LearningCycleResultHypothesesItem = { [key: string]: unknown };
+
+export type LearningCycleResultEffectivenessActionsItem = { [key: string]: unknown };
+
 export interface LearningCycleResult {
   mode: string;
   evaluated_new: number;
   eligible_trades: number;
   proposals_created: number;
   proposals: LearningCycleResultProposalsItem[];
+  hypotheses_created?: number;
+  hypotheses?: LearningCycleResultHypothesesItem[];
+  effectiveness_actions?: LearningCycleResultEffectivenessActionsItem[];
   calibration: CalibrationBand[];
   notes: string[];
   warning: string;

@@ -355,6 +355,17 @@ def cmd_learning_rollback(version: str) -> dict:
     return rollback(int(version))
 
 
+def cmd_hypothesis_approve(hyp_id: str) -> dict:
+    """v2.1 — approve a hypothesis (validated out-of-sample first)."""
+    from hypothesis_engine import approve_hypothesis
+    return approve_hypothesis(int(hyp_id))
+
+
+def cmd_hypothesis_reject(hyp_id: str) -> dict:
+    from hypothesis_engine import reject_hypothesis
+    return reject_hypothesis(int(hyp_id))
+
+
 def cmd_trade_evaluations(limit: int = 200) -> list:
     from trade_evaluator import backfill_evaluations, get_evaluation_with_snapshot
     backfill_evaluations()
@@ -518,6 +529,10 @@ def main():
             result = cmd_learning_reject(args[1])
         elif command == "learning_rollback" and len(args) >= 2:
             result = cmd_learning_rollback(args[1])
+        elif command == "hypothesis_approve" and len(args) >= 2:
+            result = cmd_hypothesis_approve(args[1])
+        elif command == "hypothesis_reject" and len(args) >= 2:
+            result = cmd_hypothesis_reject(args[1])
         elif command == "trade_evaluations":
             result = cmd_trade_evaluations(
                 int(args[1]) if len(args) > 1 else 200)

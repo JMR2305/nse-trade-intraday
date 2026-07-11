@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CalibrationBand } from './calibrationBand';
+import type { LearningCycleResultEffectivenessActionsItem } from './learningCycleResultEffectivenessActionsItem';
+import type { LearningCycleResultHypothesesItem } from './learningCycleResultHypothesesItem';
 import type { LearningCycleResultProposalsItem } from './learningCycleResultProposalsItem';
 
 export interface LearningCycleResult {
@@ -14,6 +16,9 @@ export interface LearningCycleResult {
   eligible_trades: number;
   proposals_created: number;
   proposals: LearningCycleResultProposalsItem[];
+  hypotheses_created?: number;
+  hypotheses?: LearningCycleResultHypothesesItem[];
+  effectiveness_actions?: LearningCycleResultEffectivenessActionsItem[];
   calibration: CalibrationBand[];
   notes: string[];
   warning: string;

@@ -166,34 +166,62 @@ def rollback(version: int) -> dict:
 
 # ── Modifier lookup used by the Decision Service ─────────────────────────────
 
+def _context_values(context: dict) -> dict:
+    """Normalised per-dimension values for scope matching. Single-dimension
+    scopes and hypothesis combo scopes (e.g. 'strategy+sector+regime') both
+    match against these."""
+    vals = {}
+    if context.get("strategy_id"):
+        vals["strategy"] = str(context["strategy_id"]).strip().lower()
+    if context.get("symbol"):
+        vals["symbol"] = str(context["symbol"]).upper()
+    if context.get("sector"):
+        vals["sector"] = str(context["sector"]).upper()
+    if context.get("regime"):
+        vals["regime"] = str(context["regime"])
+    if context.get("pattern"):
+        vals["pattern"] = str(context["pattern"])
+    if context.get("confidence_band"):
+        vals["confidence_band"] = str(context["confidence_band"])
+    for band in ("rsi_band", "adx_band", "volume_band", "volatility_regime"):
+        if context.get(band):
+            vals[band] = str(context[band])
+    return vals
+
+
+def _scope_matches(vals: dict, scope: str) -> bool:
+    if "|" not in scope:
+        return False
+    scope_type, scope_key = scope.split("|", 1)
+    if "+" in scope_type:
+        dims = scope_type.split("+")
+        keys = scope_key.split("&")
+        if len(dims) != len(keys):
+            return False
+        return all(str(vals.get(d, "")).lower() == str(k).lower()
+                   for d, k in zip(dims, keys))
+    return str(vals.get(scope_type, "")).lower() == scope_key.lower() \
+        and scope_type in vals
+
+
 def modifier_for(context: dict, weights: dict | None = None) -> tuple[float, list[str]]:
     """Total learning modifier for a decision context, clamped to ±MAX_TOTAL.
     Context keys: strategy_id, symbol, sector, regime, pattern,
-    confidence_band. Returns (points, list of applied scope strings)."""
+    confidence_band, rsi_band, adx_band, volume_band, volatility_regime.
+    Supports single-dimension scopes ('sector|IT') and hypothesis combo
+    scopes ('strategy+sector+regime|macd_cross&BANKING&Strong Bull').
+    Returns (points, list of applied scope strings)."""
     if weights is None:
         weights = get_active_version()["weights"]
     if not weights:
         return 0.0, []
 
-    keys = []
-    if context.get("strategy_id"):
-        keys.append(f"strategy|{str(context['strategy_id']).strip().lower()}")
-    if context.get("symbol"):
-        keys.append(f"symbol|{str(context['symbol']).upper()}")
-    if context.get("sector"):
-        keys.append(f"sector|{str(context['sector']).upper()}")
-    if context.get("regime"):
-        keys.append(f"regime|{context['regime']}")
-    if context.get("pattern"):
-        keys.append(f"pattern|{context['pattern']}")
-    if context.get("confidence_band"):
-        keys.append(f"confidence_band|{context['confidence_band']}")
-
+    vals = _context_values(context)
     total, applied = 0.0, []
-    for k in keys:
-        if k in weights and weights[k] != 0:
-            total += float(weights[k])
-            applied.append(f"{k}: {weights[k]:+.1f}")
+    for scope, points in weights.items():
+        if points and _scope_matches(vals, scope):
+            total += float(points)
+            applied.append(f"{scope}: {points:+.1f}")
     return round(_clamp(total, -MAX_TOTAL, MAX_TOTAL), 1), applied
 
 

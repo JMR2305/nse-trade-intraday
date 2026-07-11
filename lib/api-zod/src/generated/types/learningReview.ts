@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CalibrationBand } from './calibrationBand';
+import type { Hypothesis } from './hypothesis';
 import type { LearningReviewActiveWeights } from './learningReviewActiveWeights';
 import type { LearningReviewCommonFailureCausesItem } from './learningReviewCommonFailureCausesItem';
 import type { LearningReviewStrongestSuccessFactorsItem } from './learningReviewStrongestSuccessFactorsItem';
@@ -28,6 +29,7 @@ export interface LearningReview {
   common_failure_causes: LearningReviewCommonFailureCausesItem[];
   strongest_success_factors: LearningReviewStrongestSuccessFactorsItem[];
   proposed_adjustments: ProposedAdjustment[];
+  hypotheses?: Hypothesis[];
   model_versions: ModelVersion[];
   trades: LearningReviewTrade[];
   warnings: string[];

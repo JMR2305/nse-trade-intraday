@@ -311,12 +311,32 @@ def run_learning_cycle() -> dict:
     if not proposals:
         notes.append(WARN_SAMPLE)
 
+    # ── v2.1 Hypothesis generation + effectiveness tracking ─────────────────
+    # After logging WHAT happened, infer WHY: mine recurring patterns across
+    # comparable trades, publish statistically confident hypotheses (as
+    # approval-gated proposals), and auto-rollback applied hypotheses that
+    # turned out to be ineffective.
+    hypotheses_created: list[dict] = []
+    effectiveness_actions: list[dict] = []
+    try:
+        import hypothesis_engine
+        effectiveness_actions = hypothesis_engine.track_effectiveness()
+        hypotheses_created = hypothesis_engine.generate_hypotheses(evals)
+        for a in effectiveness_actions:
+            if a.get("action") == "auto_rollback":
+                notes.append(f"Auto-rollback: {a.get('reason')}")
+    except Exception as exc:
+        notes.append(f"Hypothesis generation skipped: {exc}")
+
     return {
         "mode": "analysis",
         "evaluated_new": backfill.get("evaluated", 0),
         "eligible_trades": len(evals),
         "proposals_created": len(proposals),
         "proposals": proposals,
+        "hypotheses_created": len(hypotheses_created),
+        "hypotheses": hypotheses_created,
+        "effectiveness_actions": effectiveness_actions,
         "calibration": bands,
         "notes": notes,
         "warning": WARN_LEARNING,
@@ -334,16 +354,50 @@ def _kb_trades() -> list[dict]:
             "name='historical_knowledge_trades'").fetchone()
         if not row:
             return []
+        wanted = ["symbol", "sector", "strategy", "market_regime", "exit_date",
+                  "holding_days", "return_percent", "confidence", "rsi", "adx",
+                  "volume_ratio", "volatility_regime"]
+        have = {r[1] for r in conn.execute(
+            "PRAGMA table_info(historical_knowledge_trades)")}
+        cols = [c for c in wanted if c in have]
         rows = conn.execute(
-            "SELECT symbol, sector, strategy, market_regime, exit_date, "
-            "holding_days, return_percent, confidence FROM "
-            "historical_knowledge_trades ORDER BY exit_date").fetchall()
+            f"SELECT {', '.join(cols)} FROM historical_knowledge_trades "
+            f"ORDER BY exit_date").fetchall()
         return [dict(r) for r in rows]
     finally:
         conn.close()
 
 
+def _kb_dim_value(t: dict, dim: str) -> str:
+    """Value of one hypothesis dimension for a knowledge-base trade
+    (used for out-of-sample validation of combo scopes)."""
+    from predictive_intelligence import rsi_bucket, adx_bucket, volume_bucket
+    if dim == "strategy":
+        return str(t.get("strategy") or "").strip().lower()
+    if dim == "sector":
+        return str(t.get("sector") or "").upper()
+    if dim == "regime":
+        return str(t.get("market_regime") or "")
+    if dim == "rsi_band":
+        return rsi_bucket(t.get("rsi"))
+    if dim == "adx_band":
+        return adx_bucket(t.get("adx"))
+    if dim == "volume_band":
+        return volume_bucket(t.get("volume_ratio"))
+    if dim == "volatility_regime":
+        return str(t.get("volatility_regime") or "").strip().lower()
+    return ""
+
+
 def _in_scope(t: dict, scope_type: str, scope_key: str) -> bool:
+    # Hypothesis combo scopes, e.g. "strategy+sector+regime|x&Y&Z".
+    if "+" in scope_type:
+        dims = scope_type.split("+")
+        keys = scope_key.split("&")
+        if len(dims) != len(keys):
+            return False
+        return all(_kb_dim_value(t, d).lower() == str(k).strip().lower()
+                   for d, k in zip(dims, keys))
     if scope_type == "strategy":
         return str(t.get("strategy") or "").strip().lower() == scope_key
     if scope_type == "symbol":
@@ -557,6 +611,14 @@ def get_adjustments(include_decided: bool = True) -> list[dict]:
 
 # ── Learning Review payload (spec §12) ───────────────────────────────────────
 
+def _hypotheses_safe() -> list[dict]:
+    try:
+        import hypothesis_engine
+        return hypothesis_engine.get_hypotheses()
+    except Exception:
+        return []
+
+
 def learning_review() -> dict:
     import trade_evaluator
     trade_evaluator.backfill_evaluations()
@@ -645,6 +707,7 @@ def learning_review() -> dict:
         "strongest_success_factors": sorted(factor_counts.values(),
                                             key=lambda f: f["count"], reverse=True)[:10],
         "proposed_adjustments": get_adjustments(),
+        "hypotheses": _hypotheses_safe(),
         "model_versions": versions,
         "trades": trades_out,
         "warnings": [WARN_LEARNING] + notes,

@@ -883,6 +883,59 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /hypotheses/{id}/approve:
+    post:
+      operationId: approveHypothesis
+      tags: [trading]
+      summary: Approve a v2.1 hypothesis (validated out-of-sample, then applied)
+      description: >
+        Runs out-of-sample validation first; the hypothesis is applied (as a
+        bounded new model version, max ±3 points per step) only if it does not
+        worsen expectancy, profit factor, max drawdown or risk-adjusted return
+        on unseen data. Failing validation auto-rejects the hypothesis.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Approval outcome
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningActionResult"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /hypotheses/{id}/reject:
+    post:
+      operationId: rejectHypothesis
+      tags: [trading]
+      summary: Reject a v2.1 hypothesis
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Rejection outcome
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningActionResult"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /learning-rollback/{version}:
     post:
       operationId: rollbackModelVersion
@@ -3370,6 +3423,9 @@ components:
         proposed_adjustments:
           type: array
           items: { $ref: "#/components/schemas/ProposedAdjustment" }
+        hypotheses:
+          type: array
+          items: { $ref: "#/components/schemas/Hypothesis" }
         model_versions:
           type: array
           items: { $ref: "#/components/schemas/ModelVersion" }
@@ -3399,6 +3455,17 @@ components:
           items:
             type: object
             additionalProperties: true
+        hypotheses_created: { type: integer }
+        hypotheses:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        effectiveness_actions:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
         calibration:
           type: array
           items: { $ref: "#/components/schemas/CalibrationBand" }
@@ -3409,6 +3476,43 @@ components:
       required:
         [mode, evaluated_new, eligible_trades, proposals_created, proposals,
          calibration, notes, warning]
+
+    Hypothesis:
+      type: object
+      additionalProperties: true
+      properties:
+        id:              { type: integer }
+        created_at:      { type: string }
+        dims:
+          type: object
+          additionalProperties: { type: string }
+        scope_type:      { type: string }
+        scope_key:       { type: string }
+        statement:       { type: string }
+        rationale:       { type: string }
+        direction:       { type: string }
+        magnitude_pct:   { type: number }
+        step_points:     { type: number }
+        confidence_pct:  { type: number }
+        sample_size:     { type: integer }
+        evidence:
+          type: object
+          additionalProperties: true
+          nullable: true
+        status:          { type: string }
+        applied_version: { type: integer, nullable: true }
+        validation:
+          type: object
+          additionalProperties: true
+          nullable: true
+        effectiveness:
+          type: object
+          additionalProperties: true
+          nullable: true
+      required:
+        [id, created_at, scope_type, scope_key, statement, rationale,
+         direction, magnitude_pct, step_points, confidence_pct, sample_size,
+         status]
 
     LearningActionResult:
       type: object

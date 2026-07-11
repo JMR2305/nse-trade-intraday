@@ -1764,6 +1764,25 @@ export const GetLearningReviewResponse = zod.object({
   "decided_at": zod.string().nullish(),
   "applied_version": zod.number().nullish()
 })),
+  "hypotheses": zod.array(zod.object({
+  "id": zod.number(),
+  "created_at": zod.string(),
+  "dims": zod.record(zod.string(), zod.string()).optional(),
+  "scope_type": zod.string(),
+  "scope_key": zod.string(),
+  "statement": zod.string(),
+  "rationale": zod.string(),
+  "direction": zod.string(),
+  "magnitude_pct": zod.number(),
+  "step_points": zod.number(),
+  "confidence_pct": zod.number(),
+  "sample_size": zod.number(),
+  "evidence": zod.record(zod.string(), zod.unknown()).nullish(),
+  "status": zod.string(),
+  "applied_version": zod.number().nullish(),
+  "validation": zod.record(zod.string(), zod.unknown()).nullish(),
+  "effectiveness": zod.record(zod.string(), zod.unknown()).nullish()
+})).optional(),
   "model_versions": zod.array(zod.object({
   "version": zod.number(),
   "created_at": zod.string(),
@@ -1827,6 +1846,9 @@ export const RunLearningCycleResponse = zod.object({
   "eligible_trades": zod.number(),
   "proposals_created": zod.number(),
   "proposals": zod.array(zod.record(zod.string(), zod.unknown())),
+  "hypotheses_created": zod.number().optional(),
+  "hypotheses": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "effectiveness_actions": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
   "calibration": zod.array(zod.object({
   "band": zod.string(),
   "trades": zod.number(),
@@ -1866,6 +1888,39 @@ export const RejectLearningAdjustmentParams = zod.object({
 })
 
 export const RejectLearningAdjustmentResponse = zod.object({
+  "success": zod.boolean(),
+  "status": zod.string().nullish(),
+  "message": zod.string(),
+  "model_version": zod.number().nullish(),
+  "validation": zod.record(zod.string(), zod.unknown()).nullish()
+})
+
+
+/**
+ * Runs out-of-sample validation first; the hypothesis is applied (as a bounded new model version, max ±3 points per step) only if it does not worsen expectancy, profit factor, max drawdown or risk-adjusted return on unseen data. Failing validation auto-rejects the hypothesis.
+ * @summary Approve a v2.1 hypothesis (validated out-of-sample, then applied)
+ */
+export const ApproveHypothesisParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApproveHypothesisResponse = zod.object({
+  "success": zod.boolean(),
+  "status": zod.string().nullish(),
+  "message": zod.string(),
+  "model_version": zod.number().nullish(),
+  "validation": zod.record(zod.string(), zod.unknown()).nullish()
+})
+
+
+/**
+ * @summary Reject a v2.1 hypothesis
+ */
+export const RejectHypothesisParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RejectHypothesisResponse = zod.object({
   "success": zod.boolean(),
   "status": zod.string().nullish(),
   "message": zod.string(),

@@ -734,6 +734,41 @@ router.post("/learning-rollback/:version", async (req, res) => {
   }
 });
 
+// ── v2.1 Hypothesis Engine ───────────────────────────────────────────────────
+// Human-readable, statistically backed hypotheses mined from completed paper
+// trades. Approval is user-gated and bounded; ineffective applied hypotheses
+// are rolled back automatically by the learning cycle.
+
+// POST /api/hypotheses/:id/approve — validate out-of-sample, then apply
+router.post("/hypotheses/:id/approve", async (req, res) => {
+  try {
+    const id = parseInt(String(req.params.id), 10);
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: "id must be a positive integer" });
+      return;
+    }
+    const data = await runPython(["hypothesis_approve", String(id)]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/hypotheses/:id/reject
+router.post("/hypotheses/:id/reject", async (req, res) => {
+  try {
+    const id = parseInt(String(req.params.id), 10);
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: "id must be a positive integer" });
+      return;
+    }
+    const data = await runPython(["hypothesis_reject", String(id)]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/trade-evaluations — evaluated round trips (prediction vs actual)
 router.get("/trade-evaluations", async (req, res) => {
   try {

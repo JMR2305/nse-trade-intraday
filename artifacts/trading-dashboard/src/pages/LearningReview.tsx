@@ -7,18 +7,21 @@ import {
   useApproveLearningAdjustment,
   useRejectLearningAdjustment,
   useRollbackModelVersion,
+  useApproveHypothesis,
+  useRejectHypothesis,
 } from "@workspace/api-client-react";
 import type {
   LearningReviewTrade,
   ProposedAdjustment,
   ModelVersion,
   CalibrationBand,
+  Hypothesis,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   GraduationCap, RefreshCcw, PlayCircle, CheckCircle2, XCircle,
   Undo2, AlertTriangle, ChevronDown, ChevronRight, Scale, History,
-  FlaskConical, TrendingDown, TrendingUp,
+  FlaskConical, TrendingDown, TrendingUp, Lightbulb,
 } from "lucide-react";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -264,8 +267,27 @@ export default function LearningReview() {
       onError: (e) => setActionMsg(`Rollback failed: ${e instanceof Error ? e.message : String(e)}`),
     },
   });
+  const hypApproveMut = useApproveHypothesis({
+    mutation: {
+      onSuccess: (r) => {
+        setActionMsg(r.message);
+        invalidate();
+      },
+      onError: (e) => setActionMsg(`Hypothesis approve failed: ${e instanceof Error ? e.message : String(e)}`),
+    },
+  });
+  const hypRejectMut = useRejectHypothesis({
+    mutation: {
+      onSuccess: (r) => {
+        setActionMsg(r.message);
+        invalidate();
+      },
+      onError: (e) => setActionMsg(`Hypothesis reject failed: ${e instanceof Error ? e.message : String(e)}`),
+    },
+  });
 
-  const busy = cycleMut.isPending || approveMut.isPending || rejectMut.isPending || rollbackMut.isPending;
+  const busy = cycleMut.isPending || approveMut.isPending || rejectMut.isPending
+    || rollbackMut.isPending || hypApproveMut.isPending || hypRejectMut.isPending;
 
   if (isLoading && !data) {
     return (
@@ -283,6 +305,9 @@ export default function LearningReview() {
   const pending = proposals.filter((p) => p.status === "PROPOSED");
   const decided = proposals.filter((p) => p.status !== "PROPOSED");
   const versions = (data?.model_versions ?? []) as ModelVersion[];
+  const hypotheses = (data?.hypotheses ?? []) as Hypothesis[];
+  const pendingHyps = hypotheses.filter((h) => h.status === "PROPOSED");
+  const decidedHyps = hypotheses.filter((h) => h.status !== "PROPOSED");
   const weights = data?.active_weights ?? {};
   const weightEntries = Object.entries(weights).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
 
@@ -434,6 +459,110 @@ export default function LearningReview() {
                     <span>{scopeLabel(p)}</span>
                     <span>{signed(p.points, 1)} pts</span>
                     {p.applied_version ? <span>→ v{p.applied_version}</span> : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* v2.1 Hypotheses */}
+      <Card className="bg-card/50 backdrop-blur border-border/50">
+        <CardHeader className="py-3 px-4 border-b border-border/50">
+          <CardTitle className="font-mono text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+            <Lightbulb className="h-3.5 w-3.5 text-yellow-400" />
+            Hypotheses — patterns found by comparing wins vs losses ({pendingHyps.length} awaiting decision)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {hypotheses.length === 0 ? (
+            <div className="py-6 text-center text-muted-foreground text-sm font-mono">
+              No hypotheses yet — the system needs at least 30 completed trades in a
+              segment before it will claim a pattern.
+            </div>
+          ) : (
+            <div className="divide-y divide-border/30">
+              {pendingHyps.map((h) => (
+                <div key={h.id} className="px-4 py-3" data-testid={`row-hypothesis-${h.id}`}>
+                  <div className="flex flex-wrap items-start gap-3">
+                    <div className="flex-1 min-w-[260px]">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {h.direction === "reduce"
+                          ? <TrendingDown className="h-4 w-4 text-red-400 flex-shrink-0" />
+                          : <TrendingUp className="h-4 w-4 text-emerald-400 flex-shrink-0" />}
+                        <span className="font-mono text-sm font-bold">{h.statement}</span>
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 text-[11px] font-mono text-muted-foreground flex-wrap">
+                        <span className="text-primary">{fmt(h.confidence_pct, 0)}% statistical confidence</span>
+                        <span>· {h.sample_size} trades in segment</span>
+                        <span>· applied step capped at {signed(h.step_points, 1)} pts</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1.5">{h.rationale}</p>
+                      {h.evidence?.segment && h.evidence?.baseline ? (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          <span className="text-[10px] font-mono border border-red-500/30 text-red-300 rounded px-1.5 py-0.5">
+                            segment: {signed((h.evidence.segment as Record<string, number>).expectancy, 2)}% avg
+                            · {fmt((h.evidence.segment as Record<string, number>).win_rate, 0)}% wins
+                            · {(h.evidence.segment as Record<string, number>).trades} trades
+                          </span>
+                          <span className="text-[10px] font-mono border border-border text-muted-foreground rounded px-1.5 py-0.5">
+                            everything else: {signed((h.evidence.baseline as Record<string, number>).expectancy, 2)}% avg
+                            · {fmt((h.evidence.baseline as Record<string, number>).win_rate, 0)}% wins
+                            · {(h.evidence.baseline as Record<string, number>).trades} trades
+                          </span>
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => hypApproveMut.mutate({ id: h.id })}
+                        disabled={busy}
+                        className="flex items-center gap-1.5 rounded-md border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 px-3 py-1.5 text-xs font-mono hover:bg-emerald-500/20 disabled:opacity-50"
+                        data-testid={`button-hypothesis-approve-${h.id}`}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        APPROVE
+                      </button>
+                      <button
+                        onClick={() => hypRejectMut.mutate({ id: h.id })}
+                        disabled={busy}
+                        className="flex items-center gap-1.5 rounded-md border border-red-500/40 bg-red-500/10 text-red-300 px-3 py-1.5 text-xs font-mono hover:bg-red-500/20 disabled:opacity-50"
+                        data-testid={`button-hypothesis-reject-${h.id}`}
+                      >
+                        <XCircle className="h-3.5 w-3.5" />
+                        REJECT
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {decidedHyps.length > 0 && (
+            <div className="border-t border-border/50 px-4 py-2">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">
+                Previously decided / tracked
+              </div>
+              <div className="space-y-1.5">
+                {decidedHyps.slice(0, 8).map((h) => (
+                  <div key={h.id} className="text-xs font-mono text-muted-foreground" data-testid={`row-hypothesis-decided-${h.id}`}>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={
+                        h.status === "APPLIED" ? "text-emerald-400"
+                          : h.status === "ROLLED_BACK" ? "text-orange-400"
+                          : "text-red-400"
+                      }>
+                        {h.status.replace("_", " ")}
+                      </span>
+                      <span className="truncate">{h.statement}</span>
+                      {h.applied_version ? <span>→ v{h.applied_version}</span> : null}
+                    </div>
+                    {h.effectiveness?.note ? (
+                      <div className="text-[10px] text-muted-foreground/80 pl-1 mt-0.5">
+                        {String(h.effectiveness.note)}
+                      </div>
+                    ) : null}
                   </div>
                 ))}
               </div>

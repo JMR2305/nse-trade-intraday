@@ -256,6 +256,12 @@ def _decide(item: dict, positions: dict, trades: list,
     if model_weights:
         try:
             from model_versioning import modifier_for, confidence_band
+            from predictive_intelligence import (rsi_bucket, adx_bucket,
+                                                 volume_bucket)
+            _vol = item.get("volatility")
+            _vol_regime = ("high" if float(_vol) >= 22.0
+                           else "low" if float(_vol) <= 8.0
+                           else "normal") if _vol is not None else ""
             model_adj, _scopes = modifier_for({
                 "strategy_id": item.get("best_strategy_id", ""),
                 "symbol": sym,
@@ -264,6 +270,11 @@ def _decide(item: dict, positions: dict, trades: list,
                 "pattern": (f"{item.get('best_strategy_name', '')} · "
                             f"{item.get('sector', '')} · {item.get('best_regime', '')}"),
                 "confidence_band": confidence_band(fc),
+                # v2.1 hypothesis combo scopes (band dimensions)
+                "rsi_band": rsi_bucket(item.get("rsi")),
+                "adx_band": adx_bucket(item.get("adx")),
+                "volume_band": volume_bucket(item.get("volume_ratio")),
+                "volatility_regime": _vol_regime,
             }, model_weights)
         except Exception:
             model_adj = 0.0

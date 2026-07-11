@@ -2662,6 +2662,149 @@ export const useRejectLearningAdjustment = <TError = ErrorType<ErrorResponse>,
       return useMutation(getRejectLearningAdjustmentMutationOptions(options));
     }
 
+export const getApproveHypothesisUrl = (id: number,) => {
+
+
+
+
+  return `/api/hypotheses/${id}/approve`
+}
+
+/**
+ * Runs out-of-sample validation first; the hypothesis is applied (as a bounded new model version, max ±3 points per step) only if it does not worsen expectancy, profit factor, max drawdown or risk-adjusted return on unseen data. Failing validation auto-rejects the hypothesis.
+ * @summary Approve a v2.1 hypothesis (validated out-of-sample, then applied)
+ */
+export const approveHypothesis = async (id: number, options?: RequestInit): Promise<LearningActionResult> => {
+
+  return customFetch<LearningActionResult>(getApproveHypothesisUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getApproveHypothesisMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveHypothesis>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveHypothesis>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['approveHypothesis'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveHypothesis>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  approveHypothesis(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveHypothesisMutationResult = NonNullable<Awaited<ReturnType<typeof approveHypothesis>>>
+
+    export type ApproveHypothesisMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Approve a v2.1 hypothesis (validated out-of-sample, then applied)
+ */
+export const useApproveHypothesis = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveHypothesis>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveHypothesis>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getApproveHypothesisMutationOptions(options));
+    }
+
+export const getRejectHypothesisUrl = (id: number,) => {
+
+
+
+
+  return `/api/hypotheses/${id}/reject`
+}
+
+/**
+ * @summary Reject a v2.1 hypothesis
+ */
+export const rejectHypothesis = async (id: number, options?: RequestInit): Promise<LearningActionResult> => {
+
+  return customFetch<LearningActionResult>(getRejectHypothesisUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRejectHypothesisMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectHypothesis>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectHypothesis>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['rejectHypothesis'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectHypothesis>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  rejectHypothesis(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectHypothesisMutationResult = NonNullable<Awaited<ReturnType<typeof rejectHypothesis>>>
+
+    export type RejectHypothesisMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Reject a v2.1 hypothesis
+ */
+export const useRejectHypothesis = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectHypothesis>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rejectHypothesis>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRejectHypothesisMutationOptions(options));
+    }
+
 export const getRollbackModelVersionUrl = (version: number,) => {
 
 
