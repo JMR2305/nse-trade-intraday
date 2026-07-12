@@ -1,0 +1,322 @@
+PHASE 2B — Strategy Engine Audit and Edge Improvement
+
+The ranking and allocation logic is now behaving correctly. It rejects strategies with no demonstrated positive edge and holds cash when none qualify.
+
+The next objective is to diagnose why the current strategies fail out-of-sample and improve the strategy logic itself without overfitting.
+
+Do not change the ranking engine in this task.
+
+Current out-of-sample observations:
+- Base technical engine return: approximately -1.39%
+- Historical pattern + similarity model: approximately -4.21%
+- Existing adaptive full model: approximately -3.31%
+- Corrected gated model: 0 trades because no strategy passed the eligibility gates
+- Short holding periods perform poorly
+- Longer holding periods appear stronger
+- Performance varies materially by regime
+- Costs and slippage significantly reduce returns
+
+Implement an analysis-only Strategy Audit framework with the following requirements.
+
+1. Audit each strategy independently
+
+Audit these strategies separately:
+- EMA Cross
+- MACD Cross
+- Mean Reversion
+- Trend Rider
+- Supertrend Follow
+- Breakout Hunter
+
+For each strategy report:
+
+- Gross return
+- Net return after all costs
+- Profit factor
+- Expectancy per trade
+- Win rate
+- Average win
+- Average loss
+- Reward-to-risk realised
+- Maximum drawdown
+- Sharpe
+- Sortino
+- Average holding period
+- Median holding period
+- Maximum adverse excursion
+- Maximum favourable excursion
+- Stop-hit rate
+- Target-hit rate
+- Signal-exit rate
+- Time-exit rate
+- Trade count
+- Exposure
+- Turnover
+- Total execution costs
+
+Break the results down by:
+
+- Market regime
+- Sector
+- Holding-period bucket
+- Entry-condition subtype
+- Exit reason
+- Volatility band
+- Trend-strength band
+- Volume-confirmation band
+
+2. Entry-condition diagnostics
+
+For every strategy, identify which entry conditions are helping or hurting performance.
+
+Examples:
+- EMA alignment
+- Distance from EMA20, EMA50 and EMA200
+- RSI band
+- MACD histogram direction and magnitude
+- ADX band
+- Supertrend direction
+- Volume ratio
+- Price relative to VWAP
+- ATR percentage
+- Gap at entry
+- Sector strength
+- Market regime
+- Opportunity score
+- Confidence band
+
+For each condition show:
+
+- Trades with the condition
+- Trades without the condition
+- Win rate difference
+- Expectancy difference
+- Profit-factor difference
+- Drawdown difference
+- Statistical reliability
+- Whether the condition appears useful, harmful or inconclusive
+
+Do not claim a condition is useful when the sample is too small.
+
+3. Exit-logic diagnostics
+
+Analyse whether losses are caused mainly by:
+
+- Stop-loss too tight
+- Stop-loss too wide
+- Target too ambitious
+- Target too conservative
+- Time exit too early
+- Time exit too late
+- Signal exit too late
+- Same-candle stop/target ambiguity
+- Gap risk
+- Regime change after entry
+
+For each strategy compare alternative exits in analysis-only mode:
+
+A. Existing exit logic  
+B. ATR-based stop and target  
+C. Trailing stop  
+D. Signal exit only  
+E. Time exit only  
+F. Partial profit-taking with trailing remainder  
+G. Break-even stop after a configurable favourable move  
+
+Run all alternatives on identical entries so only exit logic changes.
+
+4. Holding-period analysis
+
+The current results suggest short holding periods are especially weak.
+
+For every strategy compare:
+
+- 1 day
+- 2–3 days
+- 4–7 days
+- 8–15 days
+- 16–20 days
+- Signal-based exit without a fixed holding limit
+
+Show net return, PF, expectancy, drawdown and trade count for each.
+
+Do not choose a holding period based on the active test window.
+
+Use training data only for selection and unseen data for evaluation.
+
+5. Strategy-specific regime rules
+
+Determine whether a strategy should be active only in certain regimes.
+
+Examples:
+
+- Trend strategies should require sufficient trend strength.
+- Mean reversion should require ranging or oversold/overbought conditions.
+- Breakout strategies should require volume and volatility expansion.
+- MACD and EMA strategies should not trade in weak, noisy conditions unless proven profitable.
+
+For each strategy-regime pair classify:
+
+- ELIGIBLE
+- WATCHLIST
+- DISABLED_NEGATIVE_EDGE
+- DISABLED_INSUFFICIENT_SAMPLE
+- DISABLED_UNSTABLE
+
+6. Cost-sensitivity analysis
+
+Re-run every strategy using:
+
+- Zero costs
+- Current realistic costs
+- Current costs plus 25%
+- Current costs plus 50%
+
+Show whether the strategy has a real gross edge or whether costs completely erase it.
+
+Highlight strategies where:
+
+- Gross edge is positive but net edge is negative
+- Turnover is the primary problem
+- Lower trade frequency could improve results
+
+7. Robustness checks
+
+For every proposed improvement run:
+
+- Walk-forward validation
+- Multiple test windows
+- Parameter perturbation
+- Different slippage assumptions
+- Different same-candle rules
+- Sub-period analysis
+- Regime stability analysis
+- Sector concentration analysis
+- Trade-sequence reshuffling or bootstrap confidence intervals
+
+Reject changes that work only under one narrow parameter setting.
+
+8. Controlled strategy variants
+
+For each existing strategy create only a small number of interpretable variants.
+
+Do not run a huge parameter search.
+
+Maximum three variants per strategy.
+
+Examples:
+
+EMA Cross:
+- Baseline
+- Trend-filtered
+- Trend-filtered plus volume confirmation
+
+MACD Cross:
+- Baseline
+- Histogram-strength filter
+- Histogram-strength plus ADX filter
+
+Mean Reversion:
+- Baseline
+- Oversold/overbought plus trend guard
+- Oversold/overbought plus volatility guard
+
+Trend Rider:
+- Baseline
+- Strong-ADX version
+- Strong-ADX plus pullback entry
+
+Supertrend Follow:
+- Baseline
+- Volume-confirmed
+- Higher-timeframe-aligned
+
+Breakout Hunter:
+- Baseline
+- Volume-expansion filter
+- Volume plus ATR-expansion filter
+
+9. Avoid overfitting
+
+Enforce:
+
+- No use of future data
+- No same-window learning
+- No optimisation on active test windows
+- Minimum sample requirements
+- Shrinkage for small samples
+- Multiple-window confirmation
+- Parameter simplicity
+- Full retention of rejected variants and failed results
+
+Do not automatically promote the best-looking in-sample variant.
+
+10. Add a new Walk-Forward section
+
+Create:
+
+STRATEGY AUDIT — PHASE 2B
+
+Include:
+
+- Strategy scorecards
+- Entry-condition diagnostics
+- Exit comparison
+- Holding-period comparison
+- Regime eligibility matrix
+- Cost sensitivity
+- Robustness results
+- Baseline versus improved variant
+- Recommendation: KEEP, MODIFY, DISABLE or INCONCLUSIVE
+- Exact reason for each recommendation
+
+11. Add model comparison variants
+
+Run on identical unseen data:
+
+A. Current base technical engine  
+B. Current calibrated model  
+C. Existing adaptive model  
+D. Corrected gated model  
+E. Best validated strategy variants only  
+F. Best validated variants plus corrected ranking and cash fallback  
+
+Show:
+
+- Net return
+- Net profit
+- Profit factor
+- Expectancy
+- Trades
+- Win rate
+- Sharpe
+- Sortino
+- Maximum drawdown
+- Exposure
+- Turnover
+- Costs
+- Cash percentage
+
+12. Safety and deployment
+
+Keep all Phase 2B changes in ANALYSIS ONLY mode.
+
+Do not replace live paper-trading strategy logic automatically.
+
+At completion report:
+
+1. Which strategies have genuine net positive edge
+2. Which strategies should be disabled
+3. Which entry filters helped
+4. Which exit rules helped
+5. Which holding periods worked best
+6. Whether costs are the main cause of failure
+7. Which proposed variants passed walk-forward validation
+8. Whether variant E or F improves over the base engine
+9. Whether any strategy is safe to approve for paper deployment
+10. Exact reasons if none are safe
+
+Important:
+Do not force a profitable result.
+A valid outcome may be that no current strategy has a reliable edge.
+Preserve every baseline and failed comparison.

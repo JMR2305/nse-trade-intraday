@@ -1653,6 +1653,47 @@ def run_validation(config: dict | None = None) -> dict:
                                   cfg.verdict_criteria)
     cost_breakdown = aggregate_costs(all_trades["C"])
 
+    # ── Phase 2B: Strategy Audit (ANALYSIS ONLY — never changes decisions) ──
+    status.update({"phase": "Phase 2B strategy audit", "progress_pct": 97})
+    _write_status(status)
+    try:
+        from strategy_audit import run_strategy_audit
+        _audit_first = pd.Timestamp(windows[0]["train_start"])
+        _audit_last = pd.Timestamp(end_date)
+        regime_by_date = {
+            str(d)[:10]: regime7_as_of(nifty, d)
+            for d in nifty.index if _audit_first <= d <= _audit_last
+        }
+        test_dates_by_window = {}
+        for w in window_results:
+            if w.get("failed"):
+                continue
+            _ts, _te = pd.Timestamp(w["test_start"]), pd.Timestamp(w["test_end"])
+            test_dates_by_window[w["label"]] = [
+                str(d)[:10] for d in nifty.index if _ts <= d <= _te]
+
+        def _audit_progress(msg: str) -> None:
+            status["logs"] = status["logs"][-8:] + [msg]
+            _write_status(status)
+
+        strategy_audit_report = run_strategy_audit(
+            sym_rows, window_results, regime_by_date, test_dates_by_window,
+            cfg, cost_model,
+            existing_overall={v: overall[v] for v in ("A", "B", "C", "D")},
+            existing_cash={
+                v: (round(cash_days[v]["cash_weighted"] / cash_days[v]["days"]
+                          * 100.0, 1) if cash_days[v]["days"] else 100.0)
+                for v in ("A", "B", "C", "D")
+            },
+            random_seed=cfg.random_seed,
+            progress_cb=_audit_progress,
+        )
+    except Exception as exc:  # explicit failure — never silently dropped
+        strategy_audit_report = {
+            "error": f"Strategy audit failed: {type(exc).__name__}: {exc}",
+            "safety": SAFETY_MESSAGE,
+        }
+
     equity_curve = [
         {"date": chained["dates"][i], "full_model": chained["C"][i],
          "base_model": chained["A"][i], "layered_model": chained["B"][i],
@@ -1688,6 +1729,7 @@ def run_validation(config: dict | None = None) -> dict:
         },
         "layer_comparison": layer_comparison,
         "phase2a": _phase2a_report(overall, layer_comparison, rejected_trades),
+        "strategy_audit": strategy_audit_report,
         "benchmarks": benchmarks_overall,
         "calibration": calibration,
         "calibration_report": calibration_report,

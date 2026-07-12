@@ -19,6 +19,7 @@ import {
   ChevronRight, Scale, Route,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import StrategyAuditSection from "@/components/StrategyAuditSection";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -511,6 +512,9 @@ export default function WalkForwardValidation() {
               </div>
             </Section>
           )}
+
+          {/* Phase 2B — strategy audit (analysis only) */}
+          {r.strategy_audit && <StrategyAuditSection audit={r.strategy_audit} />}
 
           {/* Benchmarks */}
           <Section title="Benchmarks">

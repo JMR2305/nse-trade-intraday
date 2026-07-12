@@ -3208,6 +3208,90 @@ components:
             recommendation: { type: string }
             deployment_note: { type: string }
           additionalProperties: true
+        strategy_audit:
+          type: object
+          nullable: true
+          description: >
+            Phase 2B strategy audit report (ANALYSIS ONLY — the ranking
+            engine and live pipeline are unchanged). Per-strategy scorecards
+            with 8 performance breakdowns, entry-condition diagnostics,
+            exit-rule alternatives A–G replayed on identical entries,
+            loss attribution, holding-period analysis, per-regime
+            eligibility, cost sensitivity, robustness checks, up to 3
+            entry-variant configurations per strategy (train-selected,
+            test-evaluated), model comparison A–F and a final report
+            answering the audit questions. If the audit step failed, the
+            object contains only an "error" string instead.
+          properties:
+            error: { type: string }
+            notional_per_trade: { type: number }
+            scorecards:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            entry_conditions:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            exit_comparison:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            loss_attribution:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            holding_comparison:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            regime_eligibility:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            cost_sensitivity:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            robustness:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            variants:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            model_comparison:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            recommendations:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            ef_selections:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            final_report:
+              type: object
+              nullable: true
+              additionalProperties: true
+            notes: { type: string }
+            safety: { type: string }
+          additionalProperties: true
         benchmarks:
           type: object
           additionalProperties: true

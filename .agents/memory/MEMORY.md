@@ -2,3 +2,4 @@
 - [Confidence calibration](confidence-calibration.md) — raw model confidence is heavily overconfident (~38% base win rate); always gate/size on calibrated probability, fit per-window with as_of cutoff to avoid lookahead.
 - [Strategy intelligence](strategy-intelligence.md) — dual disable gates (rolling PF first, then regime PF), ≥2-strategy floor, 40% cap; test fixtures need noise/interleaving.
 - [Phase 2A gated policy](phase2a-gated-policy.md) — corrected ranking exists only as analysis variants D/E; live pipeline stays on legacy C until user explicitly promotes D.
+- [Phase 2B audit conventions](phase2b-audit.md) — audit is aggregates-only add-on after the main run; internal variants A–E and audit table A–F are separate namespaces; robustness re-walks must keep signal-exit dates.

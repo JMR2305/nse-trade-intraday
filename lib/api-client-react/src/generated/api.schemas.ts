@@ -1318,6 +1318,56 @@ export type WalkForwardResultPhase2a = {
   [key: string]: unknown;
  } | null;
 
+export type WalkForwardResultStrategyAuditScorecardsItem = { [key: string]: unknown };
+
+export type WalkForwardResultStrategyAuditEntryConditionsItem = { [key: string]: unknown };
+
+export type WalkForwardResultStrategyAuditExitComparisonItem = { [key: string]: unknown };
+
+export type WalkForwardResultStrategyAuditLossAttributionItem = { [key: string]: unknown };
+
+export type WalkForwardResultStrategyAuditHoldingComparisonItem = { [key: string]: unknown };
+
+export type WalkForwardResultStrategyAuditRegimeEligibilityItem = { [key: string]: unknown };
+
+export type WalkForwardResultStrategyAuditCostSensitivityItem = { [key: string]: unknown };
+
+export type WalkForwardResultStrategyAuditRobustnessItem = { [key: string]: unknown };
+
+export type WalkForwardResultStrategyAuditVariantsItem = { [key: string]: unknown };
+
+export type WalkForwardResultStrategyAuditModelComparisonItem = { [key: string]: unknown };
+
+export type WalkForwardResultStrategyAuditRecommendationsItem = { [key: string]: unknown };
+
+export type WalkForwardResultStrategyAuditEfSelectionsItem = { [key: string]: unknown };
+
+export type WalkForwardResultStrategyAuditFinalReport = { [key: string]: unknown } | null;
+
+/**
+ * Phase 2B strategy audit report (ANALYSIS ONLY — the ranking engine and live pipeline are unchanged). Per-strategy scorecards with 8 performance breakdowns, entry-condition diagnostics, exit-rule alternatives A–G replayed on identical entries, loss attribution, holding-period analysis, per-regime eligibility, cost sensitivity, robustness checks, up to 3 entry-variant configurations per strategy (train-selected, test-evaluated), model comparison A–F and a final report answering the audit questions. If the audit step failed, the object contains only an "error" string instead.
+ */
+export type WalkForwardResultStrategyAudit = {
+  error?: string;
+  notional_per_trade?: number;
+  scorecards?: WalkForwardResultStrategyAuditScorecardsItem[];
+  entry_conditions?: WalkForwardResultStrategyAuditEntryConditionsItem[];
+  exit_comparison?: WalkForwardResultStrategyAuditExitComparisonItem[];
+  loss_attribution?: WalkForwardResultStrategyAuditLossAttributionItem[];
+  holding_comparison?: WalkForwardResultStrategyAuditHoldingComparisonItem[];
+  regime_eligibility?: WalkForwardResultStrategyAuditRegimeEligibilityItem[];
+  cost_sensitivity?: WalkForwardResultStrategyAuditCostSensitivityItem[];
+  robustness?: WalkForwardResultStrategyAuditRobustnessItem[];
+  variants?: WalkForwardResultStrategyAuditVariantsItem[];
+  model_comparison?: WalkForwardResultStrategyAuditModelComparisonItem[];
+  recommendations?: WalkForwardResultStrategyAuditRecommendationsItem[];
+  ef_selections?: WalkForwardResultStrategyAuditEfSelectionsItem[];
+  final_report?: WalkForwardResultStrategyAuditFinalReport;
+  notes?: string;
+  safety?: string;
+  [key: string]: unknown;
+ } | null;
+
 export type WalkForwardResultBenchmarks = { [key: string]: unknown };
 
 export type WalkForwardResultCalibrationItem = { [key: string]: unknown };
@@ -1457,6 +1507,8 @@ export interface WalkForwardResult {
   layer_comparison?: WalkForwardResultLayerComparisonItem[];
   /** Phase 2A analysis report (analysis only — the live pipeline is unchanged): corrected gated ranking + edge-proportional allocation evaluated as walk-forward variants D (default gates) and E (strict gates) against the preserved legacy policy (variant C). Includes the C/D/E comparison, rejected-trade diagnostics (with would-be outcomes computed after the fact — never fed back into decisions) and a deployment recommendation. */
   phase2a?: WalkForwardResultPhase2a;
+  /** Phase 2B strategy audit report (ANALYSIS ONLY — the ranking engine and live pipeline are unchanged). Per-strategy scorecards with 8 performance breakdowns, entry-condition diagnostics, exit-rule alternatives A–G replayed on identical entries, loss attribution, holding-period analysis, per-regime eligibility, cost sensitivity, robustness checks, up to 3 entry-variant configurations per strategy (train-selected, test-evaluated), model comparison A–F and a final report answering the audit questions. If the audit step failed, the object contains only an "error" string instead. */
+  strategy_audit?: WalkForwardResultStrategyAudit;
   benchmarks?: WalkForwardResultBenchmarks;
   calibration?: WalkForwardResultCalibrationItem[];
   /** Phase 1 confidence-calibration report for the full model: before (raw confidence / 100) vs after (per-window calibrated probability) Brier score, ECE and log loss, reliability-diagram bins for both, per-window calibrator metadata (method, training samples, version) and the calibrated-probability execution floor. */

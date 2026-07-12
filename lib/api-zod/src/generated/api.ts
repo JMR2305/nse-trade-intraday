@@ -1246,6 +1246,25 @@ export const GetWalkForwardResultResponse = zod.object({
   "recommendation": zod.string().optional(),
   "deployment_note": zod.string().optional()
 }).nullish().describe('Phase 2A analysis report (analysis only — the live pipeline is unchanged): corrected gated ranking + edge-proportional allocation evaluated as walk-forward variants D (default gates) and E (strict gates) against the preserved legacy policy (variant C). Includes the C\/D\/E comparison, rejected-trade diagnostics (with would-be outcomes computed after the fact — never fed back into decisions) and a deployment recommendation.\n'),
+  "strategy_audit": zod.object({
+  "error": zod.string().optional(),
+  "notional_per_trade": zod.number().optional(),
+  "scorecards": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "entry_conditions": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "exit_comparison": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "loss_attribution": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "holding_comparison": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "regime_eligibility": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "cost_sensitivity": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "robustness": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "variants": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "model_comparison": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "recommendations": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "ef_selections": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "final_report": zod.record(zod.string(), zod.unknown()).nullish(),
+  "notes": zod.string().optional(),
+  "safety": zod.string().optional()
+}).nullish().describe('Phase 2B strategy audit report (ANALYSIS ONLY — the ranking engine and live pipeline are unchanged). Per-strategy scorecards with 8 performance breakdowns, entry-condition diagnostics, exit-rule alternatives A–G replayed on identical entries, loss attribution, holding-period analysis, per-regime eligibility, cost sensitivity, robustness checks, up to 3 entry-variant configurations per strategy (train-selected, test-evaluated), model comparison A–F and a final report answering the audit questions. If the audit step failed, the object contains only an \"error\" string instead.\n'),
   "benchmarks": zod.record(zod.string(), zod.unknown()).optional(),
   "calibration": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
   "calibration_report": zod.object({
