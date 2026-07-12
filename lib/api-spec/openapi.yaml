@@ -3292,6 +3292,77 @@ components:
             notes: { type: string }
             safety: { type: string }
           additionalProperties: true
+        macd_optimization:
+          type: object
+          nullable: true
+          description: >
+            Phase 3 MACD optimization report (ANALYSIS ONLY — the live
+            pipeline is unchanged). Entry filters, exit variations and
+            portfolio risk rules for MACD Cross, each tested independently
+            with parameters selected on training windows and evaluated only
+            on unseen test windows. Includes baseline metrics (trade-level
+            and portfolio), a full comparison table with per-variation
+            verdicts and reasons, the combined configuration's out-of-sample
+            results and the final recommended configuration. If the step
+            failed, the object contains only an "error" string instead.
+          properties:
+            error: { type: string }
+            strategy_id: { type: string }
+            strategy_name: { type: string }
+            safety: { type: string }
+            methodology: { type: string }
+            windows_evaluated: { type: integer }
+            notional_per_trade: { type: number }
+            baseline:
+              type: object
+              nullable: true
+              properties:
+                trade_level:
+                  type: object
+                  additionalProperties: true
+                portfolio:
+                  type: object
+                  additionalProperties: true
+              additionalProperties: true
+            comparison_table:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: string }
+                  category: { type: string }
+                  name: { type: string }
+                  description: { type: string }
+                  trades: { type: integer, nullable: true }
+                  net_return_pct: { type: number, nullable: true }
+                  expectancy_pct: { type: number, nullable: true }
+                  profit_factor: { type: number, nullable: true }
+                  win_rate: { type: number, nullable: true }
+                  sharpe_ratio: { type: number, nullable: true }
+                  max_drawdown_pct: { type: number, nullable: true }
+                  total_costs: { type: number, nullable: true }
+                  vs_baseline_expectancy_diff: { type: number, nullable: true }
+                  verdict: { type: string }
+                  reason: { type: string }
+                  params_by_window:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                additionalProperties: true
+            combined:
+              type: object
+              nullable: true
+              additionalProperties: true
+            recommended_config:
+              type: object
+              nullable: true
+              additionalProperties: true
+            report:
+              type: object
+              nullable: true
+              additionalProperties: true
+          additionalProperties: true
         benchmarks:
           type: object
           additionalProperties: true

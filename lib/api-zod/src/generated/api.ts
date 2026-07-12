@@ -1265,6 +1265,40 @@ export const GetWalkForwardResultResponse = zod.object({
   "notes": zod.string().optional(),
   "safety": zod.string().optional()
 }).nullish().describe('Phase 2B strategy audit report (ANALYSIS ONLY — the ranking engine and live pipeline are unchanged). Per-strategy scorecards with 8 performance breakdowns, entry-condition diagnostics, exit-rule alternatives A–G replayed on identical entries, loss attribution, holding-period analysis, per-regime eligibility, cost sensitivity, robustness checks, up to 3 entry-variant configurations per strategy (train-selected, test-evaluated), model comparison A–F and a final report answering the audit questions. If the audit step failed, the object contains only an \"error\" string instead.\n'),
+  "macd_optimization": zod.object({
+  "error": zod.string().optional(),
+  "strategy_id": zod.string().optional(),
+  "strategy_name": zod.string().optional(),
+  "safety": zod.string().optional(),
+  "methodology": zod.string().optional(),
+  "windows_evaluated": zod.number().optional(),
+  "notional_per_trade": zod.number().optional(),
+  "baseline": zod.object({
+  "trade_level": zod.record(zod.string(), zod.unknown()).optional(),
+  "portfolio": zod.record(zod.string(), zod.unknown()).optional()
+}).nullish(),
+  "comparison_table": zod.array(zod.object({
+  "id": zod.string().optional(),
+  "category": zod.string().optional(),
+  "name": zod.string().optional(),
+  "description": zod.string().optional(),
+  "trades": zod.number().nullish(),
+  "net_return_pct": zod.number().nullish(),
+  "expectancy_pct": zod.number().nullish(),
+  "profit_factor": zod.number().nullish(),
+  "win_rate": zod.number().nullish(),
+  "sharpe_ratio": zod.number().nullish(),
+  "max_drawdown_pct": zod.number().nullish(),
+  "total_costs": zod.number().nullish(),
+  "vs_baseline_expectancy_diff": zod.number().nullish(),
+  "verdict": zod.string().optional(),
+  "reason": zod.string().optional(),
+  "params_by_window": zod.array(zod.record(zod.string(), zod.unknown())).optional()
+})).optional(),
+  "combined": zod.record(zod.string(), zod.unknown()).nullish(),
+  "recommended_config": zod.record(zod.string(), zod.unknown()).nullish(),
+  "report": zod.record(zod.string(), zod.unknown()).nullish()
+}).nullish().describe('Phase 3 MACD optimization report (ANALYSIS ONLY — the live pipeline is unchanged). Entry filters, exit variations and portfolio risk rules for MACD Cross, each tested independently with parameters selected on training windows and evaluated only on unseen test windows. Includes baseline metrics (trade-level and portfolio), a full comparison table with per-variation verdicts and reasons, the combined configuration\'s out-of-sample results and the final recommended configuration. If the step failed, the object contains only an \"error\" string instead.\n'),
   "benchmarks": zod.record(zod.string(), zod.unknown()).optional(),
   "calibration": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
   "calibration_report": zod.object({

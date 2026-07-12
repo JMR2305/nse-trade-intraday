@@ -1,0 +1,69 @@
+PHASE 3 – MACD OPTIMIZATION (NO NEW STRATEGIES)
+
+The Phase 2B audit has identified that only the MACD Cross strategy demonstrates a positive out-of-sample edge after realistic NSE transaction costs.
+
+Do NOT add new AI models, indicators, or trading strategies.
+
+Objective:
+Transform the existing MACD Cross strategy into a production-grade trading strategy while preserving walk-forward integrity and preventing any look-ahead bias.
+
+Requirements:
+
+1. Keep MACD Cross as the only active trading strategy.
+
+2. Improve entry quality using only filters that are validated out-of-sample, such as:
+   - ADX trend strength
+   - ATR volatility filters
+   - Volume confirmation
+   - Multi-timeframe trend confirmation (if already supported)
+   - Market regime filters
+   - Avoid low-quality MACD crossovers
+
+3. Optimize exits by testing:
+   - ATR-based stop-loss
+   - ATR-based profit targets
+   - Trailing stop variations
+   - Time-based exits
+   - Partial profit booking
+   - Dynamic risk-reward ratios
+
+4. Improve risk management:
+   - Volatility-adjusted position sizing
+   - Maximum portfolio exposure
+   - Risk per trade limits
+   - Correlation-aware allocation
+   - Daily loss limits
+   - Drawdown protection
+
+5. Test each improvement independently using walk-forward validation.
+   Reject any enhancement that fails to improve genuine out-of-sample performance.
+
+6. Produce a comparison table for every tested variation showing:
+   - Net Return
+   - Profit Factor
+   - Win Rate
+   - Sharpe Ratio
+   - Maximum Drawdown
+   - Expectancy
+   - Number of Trades
+   - Transaction Costs
+   - Walk-forward verdict
+
+7. Add a new section called:
+   "MACD Optimization Report"
+
+   It should summarize:
+   - Baseline MACD performance
+   - Each tested enhancement
+   - Accepted improvements
+   - Rejected improvements
+   - Reason for rejection
+   - Final recommended production configuration
+
+8. Never optimize on test data.
+   All parameter selection must be performed only on training windows before evaluating on unseen walk-forward windows.
+
+9. Do not modify any existing production strategy until a modification consistently outperforms the baseline MACD strategy in out-of-sample testing.
+
+Goal:
+Produce a single, robust, production-ready MACD trading strategy that survives realistic NSE costs and demonstrates improved walk-forward performance without introducing overfitting.

@@ -14,6 +14,7 @@ import type { WalkForwardResultDrawdownCurveItem } from './walkForwardResultDraw
 import type { WalkForwardResultEquityCurveItem } from './walkForwardResultEquityCurveItem';
 import type { WalkForwardResultLayerComparisonItem } from './walkForwardResultLayerComparisonItem';
 import type { WalkForwardResultLookaheadAudit } from './walkForwardResultLookaheadAudit';
+import type { WalkForwardResultMacdOptimization } from './walkForwardResultMacdOptimization';
 import type { WalkForwardResultOverall } from './walkForwardResultOverall';
 import type { WalkForwardResultPhase2a } from './walkForwardResultPhase2a';
 import type { WalkForwardResultRecommendationOutcomesItem } from './walkForwardResultRecommendationOutcomesItem';
@@ -44,6 +45,8 @@ export interface WalkForwardResult {
   phase2a?: WalkForwardResultPhase2a;
   /** Phase 2B strategy audit report (ANALYSIS ONLY — the ranking engine and live pipeline are unchanged). Per-strategy scorecards with 8 performance breakdowns, entry-condition diagnostics, exit-rule alternatives A–G replayed on identical entries, loss attribution, holding-period analysis, per-regime eligibility, cost sensitivity, robustness checks, up to 3 entry-variant configurations per strategy (train-selected, test-evaluated), model comparison A–F and a final report answering the audit questions. If the audit step failed, the object contains only an "error" string instead. */
   strategy_audit?: WalkForwardResultStrategyAudit;
+  /** Phase 3 MACD optimization report (ANALYSIS ONLY — the live pipeline is unchanged). Entry filters, exit variations and portfolio risk rules for MACD Cross, each tested independently with parameters selected on training windows and evaluated only on unseen test windows. Includes baseline metrics (trade-level and portfolio), a full comparison table with per-variation verdicts and reasons, the combined configuration's out-of-sample results and the final recommended configuration. If the step failed, the object contains only an "error" string instead. */
+  macd_optimization?: WalkForwardResultMacdOptimization;
   benchmarks?: WalkForwardResultBenchmarks;
   calibration?: WalkForwardResultCalibrationItem[];
   /** Phase 1 confidence-calibration report for the full model: before (raw confidence / 100) vs after (per-window calibrated probability) Brier score, ECE and log loss, reliability-diagram bins for both, per-window calibrator metadata (method, training samples, version) and the calibrated-probability execution floor. */

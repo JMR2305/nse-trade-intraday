@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import StrategyAuditSection from "@/components/StrategyAuditSection";
+import MacdOptimizationSection from "@/components/MacdOptimizationSection";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -515,6 +516,9 @@ export default function WalkForwardValidation() {
 
           {/* Phase 2B — strategy audit (analysis only) */}
           {r.strategy_audit && <StrategyAuditSection audit={r.strategy_audit} />}
+
+          {/* Phase 3 — MACD optimization (analysis only) */}
+          {r.macd_optimization && <MacdOptimizationSection opt={r.macd_optimization} />}
 
           {/* Benchmarks */}
           <Section title="Benchmarks">
