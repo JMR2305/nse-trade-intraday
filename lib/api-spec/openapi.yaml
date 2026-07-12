@@ -3161,6 +3161,45 @@ components:
           items:
             type: object
             additionalProperties: true
+        calibration_report:
+          type: object
+          nullable: true
+          description: >
+            Phase 1 confidence-calibration report for the full model:
+            before (raw confidence / 100) vs after (per-window calibrated
+            probability) Brier score, ECE and log loss, reliability-diagram
+            bins for both, per-window calibrator metadata (method, training
+            samples, version) and the calibrated-probability execution floor.
+          properties:
+            samples: { type: integer }
+            calibration_method: { type: string }
+            calibration_version: { type: integer }
+            min_calibrated_prob: { type: number }
+            before:
+              type: object
+              nullable: true
+              additionalProperties: true
+            after:
+              type: object
+              nullable: true
+              additionalProperties: true
+            reliability_raw:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            reliability_calibrated:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            windows:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            safety: { type: string }
+          additionalProperties: true
         recommendation_outcomes:
           type: array
           items:

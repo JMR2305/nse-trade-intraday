@@ -26,6 +26,7 @@ from signal_learning import load_weights, FACTORS
 STRICT_MIN_SCORE       = 50.0   # opportunity score (composite rarely exceeds ~65 in practice)
 STRICT_MIN_CONFIDENCE  = 50.0
 STRICT_MIN_RR          = 2.0
+MIN_CALIBRATED_PROB    = 0.30   # calibrated win probability floor (Phase 1 calibration)
 MIN_VOLUME_RATIO       = 0.75   # vs 20-day average — reject only unusually quiet stocks
 TOP_SECTORS            = 3
 ALLOWED_REGIMES        = {"Bullish", "Neutral-Bullish"}
@@ -219,6 +220,14 @@ def annotate_items_with_quality(
     regime = regime_info.get("regime", "Unknown")
     regime_score = float(regime_info.get("regime_score", 50.0))
 
+    # Confidence calibration (Phase 1): map each item's raw confidence to a
+    # calibrated win probability used as an additional strict filter.
+    try:
+        from confidence_calibration import get_or_fit_calibrator, apply_calibration
+        _calibrator = get_or_fit_calibrator()
+    except Exception:
+        _calibrator, apply_calibration = None, None
+
     valid = [it for it in items if it.get("error") is None]
 
     # Sector ranking by average opportunity score (as-of data only)
@@ -245,9 +254,20 @@ def annotate_items_with_quality(
         srank = sector_rank_of.get(it["sector"], 0)
         comps = components_from_item(it, srank, total_sectors, regime_score)
         quality = quality_score(comps, weights)
+        _conf = float(it.get("confidence", 0.0))
+        if apply_calibration is not None:
+            cal_p = apply_calibration(_calibrator, _conf)
+            it["raw_confidence"] = round(_conf, 1)
+            it["calibrated_probability"] = cal_p
+            it["calibrated_confidence"] = round(cal_p * 100.0, 1)
+            it["calibration_method"] = (_calibrator or {}).get("method", "identity")
+            it["calibration_version"] = int((_calibrator or {}).get("version", 0) or 0)
+        else:
+            cal_p = None
         passes, reasons = strict_filter_check(
             opportunity_score=float(it.get("opportunity_score", 0.0)),
-            confidence=float(it.get("confidence", 0.0)),
+            confidence=_conf,
+            calibrated_probability=cal_p,
             rr_ratio=float(it.get("rr_ratio", 0.0)),
             sector_rank=srank,
             regime=regime,
@@ -293,6 +313,8 @@ def strict_filter_check(
     min_score: float = STRICT_MIN_SCORE,
     min_confidence: float = STRICT_MIN_CONFIDENCE,
     min_rr: float = STRICT_MIN_RR,
+    calibrated_probability: float | None = None,
+    min_calibrated_prob: float = MIN_CALIBRATED_PROB,
 ) -> tuple[bool, list[str]]:
     """Returns (passes_all, list of failed-condition reasons)."""
     failures: list[str] = []
@@ -300,6 +322,11 @@ def strict_filter_check(
         failures.append(f"Opportunity score {opportunity_score:.1f} < {min_score:g}")
     if confidence < min_confidence:
         failures.append(f"Confidence {confidence:.1f} < {min_confidence:g}")
+    if calibrated_probability is not None and calibrated_probability < min_calibrated_prob:
+        failures.append(
+            f"Calibrated win probability {calibrated_probability * 100.0:.0f}% "
+            f"< {min_calibrated_prob * 100.0:.0f}% floor"
+        )
     if rr_ratio < min_rr:
         failures.append(f"Risk/reward {rr_ratio:.2f} < {min_rr:g}")
     if sector_rank <= 0 or sector_rank > TOP_SECTORS:

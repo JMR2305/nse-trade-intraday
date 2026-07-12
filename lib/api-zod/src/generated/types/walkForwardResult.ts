@@ -7,6 +7,7 @@
  */
 import type { WalkForwardResultBenchmarks } from './walkForwardResultBenchmarks';
 import type { WalkForwardResultCalibrationItem } from './walkForwardResultCalibrationItem';
+import type { WalkForwardResultCalibrationReport } from './walkForwardResultCalibrationReport';
 import type { WalkForwardResultConfig } from './walkForwardResultConfig';
 import type { WalkForwardResultCostBreakdown } from './walkForwardResultCostBreakdown';
 import type { WalkForwardResultDrawdownCurveItem } from './walkForwardResultDrawdownCurveItem';
@@ -38,6 +39,8 @@ export interface WalkForwardResult {
   layer_comparison?: WalkForwardResultLayerComparisonItem[];
   benchmarks?: WalkForwardResultBenchmarks;
   calibration?: WalkForwardResultCalibrationItem[];
+  /** Phase 1 confidence-calibration report for the full model: before (raw confidence / 100) vs after (per-window calibrated probability) Brier score, ECE and log loss, reliability-diagram bins for both, per-window calibrator metadata (method, training samples, version) and the calibrated-probability execution floor. */
+  calibration_report?: WalkForwardResultCalibrationReport;
   recommendation_outcomes?: WalkForwardResultRecommendationOutcomesItem[];
   recommendations_issued?: number;
   stability?: WalkForwardResultStability;

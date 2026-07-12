@@ -110,6 +110,7 @@ class ValidationConfig:
     intrabar_rule: str = INTRABAR_CONSERVATIVE
     max_holding_days: int = 20
     min_confidence_execute: float = 55.0
+    min_calibrated_prob: float = 0.30   # calibrated win-probability floor (variant C)
     verdict_criteria: dict = field(default_factory=dict)
     random_seed: int = 42
 
@@ -129,6 +130,7 @@ class ValidationConfig:
         cfg.initial_capital = float(cfg.initial_capital)
         cfg.max_holding_days = max(1, int(cfg.max_holding_days))
         cfg.min_confidence_execute = float(cfg.min_confidence_execute)
+        cfg.min_calibrated_prob = max(0.0, min(1.0, float(cfg.min_calibrated_prob)))
         cfg.random_seed = int(cfg.random_seed)
         cfg.universe = [str(s).upper() for s in (cfg.universe or [])]
         cfg.strategy_set = [str(s) for s in (cfg.strategy_set or [])]
@@ -544,6 +546,21 @@ def _recommendation_for(item: dict, variant: str, final_conf: float) -> str:
 
 # ── Portfolio simulation for one window / one variant ────────────────────────
 
+def _passes_entry_gate(variant: str, final_conf: float,
+                       cal_p: float | None, cfg) -> bool:
+    """Entry gate for a BUY candidate. Variant A (base) has no confidence
+    gate. Variants B/C require the raw-confidence floor; when a calibrated
+    probability is present (variant C only), the calibrated floor must ALSO
+    be met."""
+    if variant == "A":
+        return True
+    if final_conf < cfg.min_confidence_execute:
+        return False
+    if cal_p is not None and cal_p < cfg.min_calibrated_prob:
+        return False
+    return True
+
+
 def simulate_window_variant(
     variant: str,
     window: dict,
@@ -557,6 +574,7 @@ def simulate_window_variant(
     cost_model: CostModel,
     record_recommendations: list | None = None,
     lookahead_log: dict | None = None,
+    calibrator: dict | None = None,
 ) -> dict:
     """
     Day-by-day replay: exits first (stop/target intrabar, signal, time,
@@ -679,6 +697,11 @@ def simulate_window_variant(
                     "strategy_id": rec["best_strategy_id"],
                     "strategy_name": rec["best_strategy_name"],
                     "confidence": rec["final_confidence"],
+                    "raw_confidence": rec.get("raw_confidence", rec["final_confidence"]),
+                    "calibrated_probability": rec.get("calibrated_probability"),
+                    "calibrated_confidence": rec.get("calibrated_confidence"),
+                    "calibration_method": rec.get("calibration_method", ""),
+                    "calibration_version": rec.get("calibration_version", 0),
                     "recommendation": rec["recommendation"],
                     "sector": rec["sector"],
                     "market_regime": rec["market_regime"],
@@ -737,6 +760,16 @@ def simulate_window_variant(
                     "market_regime": regime,
                 })
 
+                # Confidence calibration (Phase 1) — the calibrator was fitted
+                # ONLY from knowledge trades that exited before this window's
+                # test start (no lookahead). Variant C filters and sizes on it.
+                cal_p = None
+                if calibrator is not None:
+                    from confidence_calibration import calibrate_prediction
+                    _cal = calibrate_prediction(calibrator, final_conf)
+                    cal_p = _cal["calibrated_probability"]
+                    item.update(_cal)
+
                 if record_recommendations is not None:
                     fe = forward_eval(sym_rows[sym], pos_idx)
                     record_recommendations.append({
@@ -747,7 +780,7 @@ def simulate_window_variant(
                     })
 
                 if recommendation in ("STRONG BUY", "BUY") and sym not in positions:
-                    if variant == "A" or final_conf >= cfg.min_confidence_execute:
+                    if _passes_entry_gate(variant, final_conf, cal_p, cfg):
                         candidates.append(item)
 
             candidates.sort(key=lambda it: (-it["final_confidence"],
@@ -795,7 +828,10 @@ def _allocation_for(variant: str, rec: dict, total_equity: float,
         for s, p in positions.items() if p.get("sector") == sector
     )
     sector_room = total_equity * MAX_SECTOR_PCT - sector_used
-    conf = float(rec.get("final_confidence", 50.0))
+    # Sizing uses the CALIBRATED confidence when available (Phase 1 calibration)
+    conf = float(rec.get("calibrated_confidence")
+                 if rec.get("calibrated_confidence") is not None
+                 else rec.get("final_confidence", 50.0))
     conf_scale = max(0.5, min(1.0, conf / 100.0 + 0.25))
     return max(0.0, min(stock_cap * conf_scale, sector_room))
 
@@ -824,6 +860,11 @@ def _close_position(trades: list, positions: dict, cost_model: CostModel,
     }
     meta = {
         "confidence": pos["confidence"], "recommendation": pos["recommendation"],
+        "raw_confidence": pos.get("raw_confidence", pos["confidence"]),
+        "calibrated_probability": pos.get("calibrated_probability"),
+        "calibrated_confidence": pos.get("calibrated_confidence"),
+        "calibration_method": pos.get("calibration_method", ""),
+        "calibration_version": pos.get("calibration_version", 0),
         "strategy_id": pos["strategy_id"], "strategy_name": pos["strategy_name"],
         "sector": pos["sector"], "market_regime": pos["market_regime"],
         "max_data_timestamp": pos["max_data_timestamp"],
@@ -1039,6 +1080,7 @@ def run_validation(config: dict | None = None) -> dict:
                      "max_knowledge_timestamp": "", "max_similarity_timestamp": ""}
     chained = {"A": [], "B": [], "C": [], "nifty": [], "dates": []}
     chain_factor = {"A": 1.0, "B": 1.0, "C": 1.0}
+    calibration_windows: list[dict] = []
 
     for wi, window in enumerate(windows):
         status.update({
@@ -1062,6 +1104,26 @@ def run_validation(config: dict | None = None) -> dict:
                                    "failure_reason": "No symbol had enough training data"})
             continue
 
+        # Confidence calibration (Phase 1): fit a calibrator PER WINDOW from
+        # knowledge trades that fully exited before the test window starts —
+        # the same no-lookahead rule as the pattern/similarity paths.
+        window_calibrator = None
+        try:
+            from confidence_calibration import (fit_calibrator,
+                                                training_samples_from_knowledge)
+            _cal_samples = training_samples_from_knowledge(as_of=window["test_start"])
+            window_calibrator = fit_calibrator(_cal_samples)
+            window_calibrator["version"] = wi + 1
+        except Exception:
+            window_calibrator = None
+        calibration_windows.append({
+            "window": window["label"],
+            "test_start": window["test_start"],
+            "method": (window_calibrator or {}).get("method", "unavailable"),
+            "training_samples": int((window_calibrator or {}).get("n_samples", 0) or 0),
+            "version": int((window_calibrator or {}).get("version", 0) or 0),
+        })
+
         variant_out = {}
         for variant in ("A", "B", "C"):
             variant_out[variant] = simulate_window_variant(
@@ -1069,6 +1131,7 @@ def run_validation(config: dict | None = None) -> dict:
                 ctx, cfg, cost_model,
                 record_recommendations=recommendations if variant == "C" else None,
                 lookahead_log=lookahead_log if variant == "C" else None,
+                calibrator=window_calibrator if variant == "C" else None,
             )
             for t in variant_out[variant]["trades"]:
                 t["window"] = window["label"]
@@ -1166,6 +1229,39 @@ def run_validation(config: dict | None = None) -> dict:
     }
 
     calibration = vm.compute_calibration(all_trades["C"])
+
+    # Phase 1 calibration report: before (raw/100) vs after (per-window
+    # calibrated probability recorded on each trade) quality metrics.
+    calibration_report = None
+    try:
+        from confidence_calibration import calibration_report_from_pairs
+        _ct = [t for t in all_trades["C"]
+               if t.get("calibrated_probability") is not None]
+        if _ct:
+            _methods = [t.get("calibration_method") or "identity" for t in _ct]
+            _method = max(set(_methods), key=_methods.count)
+            calibration_report = calibration_report_from_pairs(
+                [float(t.get("raw_confidence", t.get("confidence", 0.0)) or 0.0)
+                 for t in _ct],
+                [float(t["calibrated_probability"]) for t in _ct],
+                [1 if float(t.get("net_pnl", 0.0)) > 0 else 0 for t in _ct],
+                method=_method,
+                version=max(int(t.get("calibration_version", 0) or 0) for t in _ct),
+            )
+            calibration_report["windows"] = calibration_windows
+            calibration_report["min_calibrated_prob"] = cfg.min_calibrated_prob
+    except Exception:
+        calibration_report = None
+    if calibration_report is None:
+        calibration_report = {
+            "samples": 0, "calibration_method": "unavailable",
+            "calibration_version": 0, "before": None, "after": None,
+            "reliability_raw": [], "reliability_calibrated": [],
+            "windows": calibration_windows,
+            "min_calibrated_prob": cfg.min_calibrated_prob,
+            "safety": SAFETY_MESSAGE,
+        }
+
     rec_outcomes = vm.compute_recommendation_outcomes(recommendations)
     stability = vm.compute_stability(all_trades["C"])
     verdict = vm.evaluate_verdict(overall["C"], overall["A"], stability,
@@ -1206,6 +1302,7 @@ def run_validation(config: dict | None = None) -> dict:
         "layer_comparison": layer_comparison,
         "benchmarks": benchmarks_overall,
         "calibration": calibration,
+        "calibration_report": calibration_report,
         "recommendation_outcomes": rec_outcomes,
         "recommendations_issued": len(recommendations),
         "stability": stability,
@@ -1269,7 +1366,9 @@ def _export_csvs(result: dict, full_trades: list[dict]) -> None:
 
     # 2. All simulated trades (full model)
     trade_cols = ["window", "variant", "symbol", "sector", "recommendation",
-                  "confidence", "strategy_name", "entry_date", "entry_price",
+                  "confidence", "raw_confidence", "calibrated_probability",
+                  "calibrated_confidence", "calibration_method",
+                  "calibration_version", "strategy_name", "entry_date", "entry_price",
                   "quantity", "requested_quantity", "partial_fill", "gap_pct",
                   "invested", "exit_date", "exit_price", "exit_reason",
                   "holding_days", "gross_pnl", "net_pnl", "return_pct",

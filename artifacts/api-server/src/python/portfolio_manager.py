@@ -50,7 +50,8 @@ MAX_STOCK_PCT      = 0.20   # max 20% of total capital in one stock
 MAX_SECTOR_PCT     = 0.30   # max 30% of total capital in one sector
 MAX_NEW_POSITIONS  = 5      # max simultaneous new positions per decision
 MAX_NEW_EXCEPTIONAL = 7     # absolute cap when confidence is exceptional
-EXCEPTIONAL_CONF   = 90.0   # confidence needed to unlock slots 6-7
+EXCEPTIONAL_CONF   = 90.0   # RAW confidence needed to unlock slots 6-7 (legacy)
+EXCEPTIONAL_CAL_PROB = 0.60  # calibrated win probability to unlock slots 6-7
 MIN_QUALITY_SCORE  = 55.0   # risk-adjusted score below this -> keep cash
 MIN_ALLOC_FRACTION = 0.05   # positions smaller than 5% are not worth opening
 REDUCE_TOLERANCE   = 0.02   # allow 2pp drift above caps before REDUCE
@@ -93,6 +94,18 @@ def _f(v, default=0.0):
 
 # ── 1. Risk-adjusted return score ─────────────────────────────────────────────
 
+def _effective_confidence(d: dict) -> float:
+    """Confidence used for ranking/sizing decisions (0-100).
+
+    Prefers the CALIBRATED confidence (calibrated win probability × 100,
+    Phase 1 confidence calibration) and falls back to the raw final
+    confidence when no calibration fields are present."""
+    cal = d.get("calibrated_confidence")
+    if cal is not None:
+        return max(0.0, min(100.0, _f(cal)))
+    return max(0.0, min(100.0, _f(d.get("final_confidence"))))
+
+
 def risk_adjusted_score(d: dict) -> float:
     """
     0-100 expected risk-adjusted return score for one stock decision.
@@ -104,7 +117,7 @@ def risk_adjusted_score(d: dict) -> float:
       10% historical reliability (trades/30, capped)
       10% market-regime fit      (100 match / 40 mismatch)
     """
-    conf   = max(0.0, min(100.0, _f(d.get("final_confidence"))))
+    conf   = _effective_confidence(d)
     exp    = _f(d.get("historical_expectancy"))
     sharpe = _f(d.get("historical_sharpe"))
     kelly  = _f(d.get("historical_kelly"))
@@ -140,7 +153,7 @@ def target_fraction(d: dict) -> float:
     is unavailable), scaled by confidence, clamped to [5%, 20%].
     """
     kelly = max(0.0, _f(d.get("historical_kelly")))          # percent
-    conf  = max(0.0, min(100.0, _f(d.get("final_confidence"))))
+    conf  = _effective_confidence(d)
     base  = max(kelly / 2.0 / 100.0, 0.06)                   # fraction
     scaled = base * (0.6 + 0.4 * conf / 100.0)
     return max(MIN_ALLOC_FRACTION, min(MAX_STOCK_PCT, scaled))
@@ -272,7 +285,7 @@ def build_portfolio_plan(decisions: list[dict], state: dict,
         sym = str(d.get("stock", "")).upper()
         sector = str(d.get("sector", "") or "OTHER")
         price = _f(d.get("price"))
-        conf = _f(d.get("final_confidence"))
+        conf = _effective_confidence(d)
 
         if score < MIN_QUALITY_SCORE:
             _skip(d, score, f"Risk-adjusted score {score:.0f} is below the "
@@ -285,11 +298,22 @@ def build_portfolio_plan(decisions: list[dict], state: dict,
             _skip(d, score, f"Already at the absolute limit of "
                             f"{MAX_NEW_EXCEPTIONAL} new positions.")
             continue
-        if n_open >= MAX_NEW_POSITIONS and conf < EXCEPTIONAL_CONF:
-            _skip(d, score, f"Already opening {MAX_NEW_POSITIONS} new positions "
-                            f"— slots 6-7 need exceptional confidence "
-                            f"(>= {EXCEPTIONAL_CONF:.0f}), this has {conf:.0f}.")
-            continue
+        if n_open >= MAX_NEW_POSITIONS:
+            cal_p = d.get("calibrated_probability")
+            if cal_p is not None:
+                exceptional = _f(cal_p) >= EXCEPTIONAL_CAL_PROB
+                bar_txt = (f"calibrated win probability >= "
+                           f"{EXCEPTIONAL_CAL_PROB * 100.0:.0f}%, this has "
+                           f"{_f(cal_p) * 100.0:.0f}%")
+            else:
+                exceptional = conf >= EXCEPTIONAL_CONF
+                bar_txt = (f">= {EXCEPTIONAL_CONF:.0f} confidence, "
+                           f"this has {conf:.0f}")
+            if not exceptional:
+                _skip(d, score, f"Already opening {MAX_NEW_POSITIONS} new "
+                                f"positions — slots 6-7 need exceptional "
+                                f"conviction ({bar_txt}).")
+                continue
 
         frac = target_fraction(d)
         sector_room = MAX_SECTOR_PCT * total_capital - sector_running.get(sector, 0.0)

@@ -1,0 +1,38 @@
+{
+  "active": {
+    "method": "isotonic",
+    "params": {
+      "knots": [
+        {
+          "conf": 12.5,
+          "prob": 0.0
+        },
+        {
+          "conf": 18.75,
+          "prob": 0.181818
+        },
+        {
+          "conf": 31.25,
+          "prob": 0.286822
+        },
+        {
+          "conf": 62.5,
+          "prob": 0.327735
+        },
+        {
+          "conf": 93.75,
+          "prob": 0.684327
+        },
+        {
+          "conf": 100.0,
+          "prob": 1.0
+        }
+      ]
+    },
+    "n_samples": 3355,
+    "base_rate": 0.3842,
+    "fitted_at": "2026-07-12T12:27:34",
+    "version": 1
+  },
+  "updated_at": "2026-07-12T12:27:34"
+}

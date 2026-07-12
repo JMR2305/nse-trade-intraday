@@ -1,6 +1,6 @@
 band,trades,predicted_success_rate,actual_success_rate,calibration_gap,avg_return_pct,profit_factor,flag
-50-59,0,54.5,0.0,0.0,0.0,0.0,Insufficient sample
-60-69,0,64.5,0.0,0.0,0.0,0.0,Insufficient sample
-70-79,0,74.5,0.0,0.0,0.0,0.0,Insufficient sample
-80-89,0,84.5,0.0,0.0,0.0,0.0,Insufficient sample
+50-59,1,54.5,0.0,-54.5,-3.27,0.0,Insufficient sample
+60-69,7,64.5,28.6,-35.9,-2.6,0.24,Insufficient sample
+70-79,2,74.5,50.0,-24.5,-1.83,0.26,Insufficient sample
+80-89,2,84.5,50.0,-34.5,-0.39,0.42,Insufficient sample
 90-95,0,92.5,0.0,0.0,0.0,0.0,Insufficient sample

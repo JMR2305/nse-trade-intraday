@@ -1273,6 +1273,33 @@ export type WalkForwardResultBenchmarks = { [key: string]: unknown };
 
 export type WalkForwardResultCalibrationItem = { [key: string]: unknown };
 
+export type WalkForwardResultCalibrationReportBefore = { [key: string]: unknown } | null;
+
+export type WalkForwardResultCalibrationReportAfter = { [key: string]: unknown } | null;
+
+export type WalkForwardResultCalibrationReportReliabilityRawItem = { [key: string]: unknown };
+
+export type WalkForwardResultCalibrationReportReliabilityCalibratedItem = { [key: string]: unknown };
+
+export type WalkForwardResultCalibrationReportWindowsItem = { [key: string]: unknown };
+
+/**
+ * Phase 1 confidence-calibration report for the full model: before (raw confidence / 100) vs after (per-window calibrated probability) Brier score, ECE and log loss, reliability-diagram bins for both, per-window calibrator metadata (method, training samples, version) and the calibrated-probability execution floor.
+ */
+export type WalkForwardResultCalibrationReport = {
+  samples?: number;
+  calibration_method?: string;
+  calibration_version?: number;
+  min_calibrated_prob?: number;
+  before?: WalkForwardResultCalibrationReportBefore;
+  after?: WalkForwardResultCalibrationReportAfter;
+  reliability_raw?: WalkForwardResultCalibrationReportReliabilityRawItem[];
+  reliability_calibrated?: WalkForwardResultCalibrationReportReliabilityCalibratedItem[];
+  windows?: WalkForwardResultCalibrationReportWindowsItem[];
+  safety?: string;
+  [key: string]: unknown;
+ } | null;
+
 export type WalkForwardResultRecommendationOutcomesItem = { [key: string]: unknown };
 
 export type WalkForwardResultStability = { [key: string]: unknown };
@@ -1306,6 +1333,8 @@ export interface WalkForwardResult {
   layer_comparison?: WalkForwardResultLayerComparisonItem[];
   benchmarks?: WalkForwardResultBenchmarks;
   calibration?: WalkForwardResultCalibrationItem[];
+  /** Phase 1 confidence-calibration report for the full model: before (raw confidence / 100) vs after (per-window calibrated probability) Brier score, ECE and log loss, reliability-diagram bins for both, per-window calibrator metadata (method, training samples, version) and the calibrated-probability execution floor. */
+  calibration_report?: WalkForwardResultCalibrationReport;
   recommendation_outcomes?: WalkForwardResultRecommendationOutcomesItem[];
   recommendations_issued?: number;
   stability?: WalkForwardResultStability;

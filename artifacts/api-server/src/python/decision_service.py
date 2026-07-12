@@ -134,6 +134,44 @@ def _last_buy_meta(trades: list, symbol: str) -> dict:
     return {}
 
 
+# ── Confidence calibration (Phase 1) ─────────────────────────────────────────
+
+_CALIBRATOR_CACHE: dict = {"cal": None, "loaded_at": 0.0}
+_CALIBRATOR_TTL = 300.0  # re-read the persisted calibrator every 5 minutes
+
+
+def _active_calibrator() -> dict | None:
+    """Cached active calibrator (fitted from historical knowledge trades)."""
+    import time as _time
+    now = _time.time()
+    if (_CALIBRATOR_CACHE["cal"] is None
+            or now - _CALIBRATOR_CACHE["loaded_at"] > _CALIBRATOR_TTL):
+        try:
+            from confidence_calibration import get_or_fit_calibrator
+            _CALIBRATOR_CACHE["cal"] = get_or_fit_calibrator()
+        except Exception:
+            _CALIBRATOR_CACHE["cal"] = None
+        _CALIBRATOR_CACHE["loaded_at"] = now
+    return _CALIBRATOR_CACHE["cal"]
+
+
+def _calibration_fields(final_confidence: float) -> dict:
+    """raw confidence + calibrated probability + method/version for ONE
+    prediction. Falls back to identity (raw/100) when no calibrator exists."""
+    try:
+        from confidence_calibration import calibrate_prediction
+        return calibrate_prediction(_active_calibrator(), final_confidence)
+    except Exception:
+        p = max(0.0, min(1.0, float(final_confidence or 0.0) / 100.0))
+        return {
+            "raw_confidence": round(float(final_confidence or 0.0), 1),
+            "calibrated_probability": round(p, 6),
+            "calibrated_confidence": round(p * 100.0, 1),
+            "calibration_method": "identity",
+            "calibration_version": 0,
+        }
+
+
 def _held_days(buy_meta: dict) -> float:
     ts = buy_meta.get("timestamp", "")
     try:
@@ -568,6 +606,12 @@ def _decide(item: dict, positions: dict, trades: list,
         failed_conditions=failed,
         breakdown=_build_breakdown(item, data_ok, regime_strength, round(fc, 1)),
     )
+
+    # ── Confidence calibration (Phase 1) ─────────────────────────────────────
+    # Attach raw confidence, calibrated win probability and the method used.
+    # Never changes the recommendation logic above; downstream consumers
+    # (portfolio manager sizing, ranking) prefer calibrated_confidence.
+    decision.update(_calibration_fields(fc))
 
     # ── v2.3 Analyst Reasoning and Decision Invalidation Layer ──────────────
     # Purely explanatory + monitoring: never changes the recommendation or

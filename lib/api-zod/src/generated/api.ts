@@ -1216,6 +1216,18 @@ export const GetWalkForwardResultResponse = zod.object({
   "layer_comparison": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
   "benchmarks": zod.record(zod.string(), zod.unknown()).optional(),
   "calibration": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "calibration_report": zod.object({
+  "samples": zod.number().optional(),
+  "calibration_method": zod.string().optional(),
+  "calibration_version": zod.number().optional(),
+  "min_calibrated_prob": zod.number().optional(),
+  "before": zod.record(zod.string(), zod.unknown()).nullish(),
+  "after": zod.record(zod.string(), zod.unknown()).nullish(),
+  "reliability_raw": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "reliability_calibrated": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "windows": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "safety": zod.string().optional()
+}).nullish().describe('Phase 1 confidence-calibration report for the full model: before (raw confidence \/ 100) vs after (per-window calibrated probability) Brier score, ECE and log loss, reliability-diagram bins for both, per-window calibrator metadata (method, training samples, version) and the calibrated-probability execution floor.\n'),
   "recommendation_outcomes": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
   "recommendations_issued": zod.number().optional(),
   "stability": zod.record(zod.string(), zod.unknown()).optional(),

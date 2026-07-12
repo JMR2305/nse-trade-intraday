@@ -1,1 +1,2 @@
 - [Walk-forward validation rules](walk-forward-validation.md) — audit every data source for lookahead; zero-trade windows are valid, not failed; benchmark aggregation is mixed-mode by design.
+- [Confidence calibration](confidence-calibration.md) — raw model confidence is heavily overconfident (~38% base win rate); always gate/size on calibrated probability, fit per-window with as_of cutoff to avoid lookahead.

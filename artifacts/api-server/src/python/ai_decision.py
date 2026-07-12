@@ -50,6 +50,11 @@ class AiDecision(TypedDict):
     timeframe_alignment: int
     pass_all_rules: bool
     time: str
+    raw_confidence: float          # 0-100, before calibration
+    calibrated_probability: float  # 0-1 calibrated win probability
+    calibrated_confidence: float   # 0-100 (probability × 100)
+    calibration_method: str        # isotonic | platt | identity
+    calibration_version: int
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -257,11 +262,31 @@ def make_ai_decision(signal: dict, available_cash: float = 5000.0) -> AiDecision
             f"Confidence adjusted to {confidence:.0f}/100."
         )
 
+    # Confidence calibration (Phase 1): attach the calibrated win probability
+    # for the ADJUSTED confidence. Never blocks the decision on failure.
+    try:
+        from confidence_calibration import calibrate_prediction, get_or_fit_calibrator
+        _cal_fields = calibrate_prediction(get_or_fit_calibrator(), confidence)
+    except Exception:
+        _p = max(0.0, min(1.0, confidence / 100.0))
+        _cal_fields = {
+            "raw_confidence": round(confidence, 1),
+            "calibrated_probability": round(_p, 6),
+            "calibrated_confidence": round(_p * 100.0, 1),
+            "calibration_method": "identity",
+            "calibration_version": 0,
+        }
+
     return AiDecision(
         stock=stock,
         raw_signal=raw_signal,
         decision=decision,
         confidence=confidence,
+        raw_confidence=_cal_fields["raw_confidence"],
+        calibrated_probability=_cal_fields["calibrated_probability"],
+        calibrated_confidence=_cal_fields["calibrated_confidence"],
+        calibration_method=_cal_fields["calibration_method"],
+        calibration_version=_cal_fields["calibration_version"],
         risk_level=risk_level,
         entry_price=round(entry, 2),
         stop_loss=round(stop, 2),

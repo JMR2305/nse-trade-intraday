@@ -477,24 +477,97 @@ export default function WalkForwardValidation() {
             />
           </Section>
 
-          {/* Calibration */}
-          <Section title="Confidence Calibration">
-            <Tbl
-              cols={["Band", "Trades", "Predicted", "Actual", "Gap", "Avg return", "PF", "Assessment"]}
-              rows={(r.calibration ?? []).map((c: any) => [
-                c.band, c.trades, `${c.predicted_success_rate}%`, `${c.actual_success_rate}%`,
-                <span className={Math.abs(c.calibration_gap) > 7.5 ? "text-amber-400" : ""}>{c.calibration_gap > 0 ? "+" : ""}{c.calibration_gap}%</span>,
-                <span className={pnlClass(c.avg_return_pct)}>{fmtPct(c.avg_return_pct)}</span>,
-                fmtNum(c.profit_factor),
-                <span className={cn(
-                  c.flag === "Well calibrated" && "text-emerald-400",
-                  c.flag === "Overconfident" && "text-red-400",
-                  c.flag === "Underconfident" && "text-amber-400",
-                  c.flag === "Insufficient sample" && "text-zinc-400",
-                )}>{c.flag}</span>,
-              ])}
-              testId="table-calibration"
-            />
+          {/* Calibration report (Phase 1) */}
+          <Section title="Confidence Calibration Report">
+            {r.calibration_report && (r.calibration_report.samples ?? 0) > 0 ? (
+              <div className="space-y-4" data-testid="calibration-report">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <Stat label="Method" value={String(r.calibration_report.calibration_method ?? "—")} />
+                  <Stat label="Calibrator version" value={`v${r.calibration_report.calibration_version ?? 0}`} />
+                  <Stat label="Trades evaluated" value={String(r.calibration_report.samples ?? 0)} />
+                  <Stat label="Execution floor" value={`≥${((r.calibration_report.min_calibrated_prob ?? 0) * 100).toFixed(0)}% win prob`} />
+                </div>
+
+                <Tbl
+                  cols={["Metric", "Before (raw confidence)", "After (calibrated)", "Change"]}
+                  rows={[
+                    ["Brier score (lower = better)", "brier_score"],
+                    ["Expected Calibration Error (lower = better)", "ece"],
+                    ["Log loss (lower = better)", "log_loss"],
+                  ].map(([label, key]) => {
+                    const before = r.calibration_report?.before?.[key as string];
+                    const after = r.calibration_report?.after?.[key as string];
+                    const diff = before !== undefined && after !== undefined ? after - before : undefined;
+                    return [
+                      label,
+                      fmtNum(before, 4),
+                      fmtNum(after, 4),
+                      diff === undefined ? "—" : (
+                        <span className={diff < 0 ? "text-emerald-400" : diff > 0 ? "text-red-400" : ""}>
+                          {diff > 0 ? "+" : ""}{diff.toFixed(4)} {diff < 0 ? "(improved)" : diff > 0 ? "(worse)" : ""}
+                        </span>
+                      ),
+                    ];
+                  })}
+                  testId="table-calibration"
+                />
+
+                <div>
+                  <div className="text-[10px] font-mono uppercase tracking-wide text-muted-foreground mb-1">
+                    Reliability diagram — predicted win probability vs what actually happened
+                  </div>
+                  <div className="h-56">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart
+                        data={(r.calibration_report.reliability_calibrated ?? []).map((b: any, i: number) => {
+                          const rawBin = (r.calibration_report.reliability_raw ?? [])[i];
+                          const mid = ((b.bin_low + b.bin_high) / 2) * 100;
+                          return {
+                            mid: `${mid.toFixed(0)}%`,
+                            perfect: mid,
+                            calibrated: b.count > 0 ? b.observed_rate * 100 : null,
+                            raw: rawBin && rawBin.count > 0 ? rawBin.observed_rate * 100 : null,
+                          };
+                        })}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" />
+                        <XAxis dataKey="mid" tick={{ fontSize: 10, fill: "#a1a1aa" }} label={{ value: "Predicted win probability", position: "insideBottom", offset: -2, fontSize: 10, fill: "#71717a" }} />
+                        <YAxis tick={{ fontSize: 10, fill: "#a1a1aa" }} domain={[0, 100]} unit="%" />
+                        <Tooltip
+                          contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", fontSize: 11, fontFamily: "monospace" }}
+                          formatter={(v: any, name: any) => [v === null || v === undefined ? "—" : `${Number(v).toFixed(1)}%`, name]}
+                        />
+                        <Legend wrapperStyle={{ fontSize: 11, fontFamily: "monospace" }} />
+                        <Line type="monotone" dataKey="perfect" name="Perfect calibration" stroke="#52525b" strokeDasharray="6 4" dot={false} strokeWidth={1} />
+                        <Line type="monotone" dataKey="raw" name="Raw confidence" stroke="#f59e0b" dot={{ r: 2 }} strokeWidth={1.5} connectNulls />
+                        <Line type="monotone" dataKey="calibrated" name="Calibrated" stroke="#34d399" dot={{ r: 2 }} strokeWidth={1.5} connectNulls />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="text-[10px] font-mono text-muted-foreground mt-1">
+                    Closer to the dashed line = better. Points show the actual win rate of trades in each predicted-probability bucket.
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[10px] font-mono uppercase tracking-wide text-muted-foreground mb-1">
+                    Per-window calibrators (each fitted only on trades exited before its test window — no lookahead)
+                  </div>
+                  <Tbl
+                    cols={["Window", "Test start", "Method", "Training samples", "Version"]}
+                    rows={(r.calibration_report.windows ?? []).map((w: any) => [
+                      w.window, w.test_start, w.method, w.training_samples, `v${w.version}`,
+                    ])}
+                    testId="table-calibration-windows"
+                  />
+                </div>
+                <div className="text-[10px] font-mono text-muted-foreground">{r.calibration_report.safety}</div>
+              </div>
+            ) : (
+              <div className="text-xs font-mono text-muted-foreground" data-testid="text-no-calibration">
+                No calibration data — run a validation to generate the calibration report.
+              </div>
+            )}
           </Section>
 
           {/* Recommendation outcomes */}
