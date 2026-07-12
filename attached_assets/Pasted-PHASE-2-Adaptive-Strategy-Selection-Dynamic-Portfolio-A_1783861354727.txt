@@ -1,0 +1,86 @@
+PHASE 2 – Adaptive Strategy Selection & Dynamic Portfolio Allocation
+
+The confidence calibration system is now complete. The next objective is to improve out-of-sample profitability by making the AI selectively trade only the strategies that demonstrate an edge.
+
+Current observations:
+- Some strategies consistently lose money.
+- The full model still performs only marginally better than the base technical engine.
+- The system still appears to combine multiple strategies instead of dynamically selecting the best one.
+
+Implement the following:
+
+1. Strategy Performance Learning
+- Continuously track each strategy's:
+  - Net Return
+  - Profit Factor
+  - Win Rate
+  - Expectancy
+  - Max Drawdown
+  - Sharpe Ratio
+  - Trade Count
+- Calculate these separately for each market regime.
+
+2. Market Regime Detection
+Automatically classify the market into:
+- Bullish
+- Bearish
+- Neutral Bullish
+- Neutral Bearish
+- High Volatility
+- Low Volatility
+- Sideways
+
+3. Strategy-Regime Matrix
+Maintain historical performance of every strategy within every market regime.
+
+Example:
+
+EMA Cross
+  Bull
+  Bear
+  Sideways
+
+MACD
+  Bull
+  Bear
+  Sideways
+
+Trend Rider
+...
+
+4. Adaptive Strategy Selection
+Before every trade:
+- Detect the current market regime.
+- Rank all available strategies for that regime.
+- Use only the highest-ranked strategies.
+- Automatically disable strategies whose rolling performance deteriorates.
+
+5. Dynamic Portfolio Allocation
+Instead of allocating equally:
+- Allocate more capital to higher-confidence, higher-performing strategies.
+- Reduce or eliminate allocation to poor-performing strategies.
+- Enforce maximum exposure limits and diversification.
+
+6. Validation Enhancements
+Add a new "Strategy Intelligence" section to Walk-Forward Validation displaying:
+- Strategy ranking
+- Strategy enabled/disabled status
+- Performance by market regime
+- Allocation percentage
+- Rolling Profit Factor
+- Rolling Sharpe
+- Rolling Expectancy
+- Reason for enabling/disabling each strategy
+
+7. Adaptive Learning
+Performance scores should update only from completed out-of-sample trades.
+Never use future information or introduce look-ahead bias.
+
+8. Testing
+Run a fresh Walk-Forward Validation after implementation and confirm:
+- Strategy selection changes across different market regimes.
+- Losing strategies are automatically deprioritized or disabled.
+- Portfolio allocation adapts based on historical performance.
+- Look-ahead audit remains clean.
+
+The implementation should improve genuine out-of-sample performance rather than optimizing for in-sample results.

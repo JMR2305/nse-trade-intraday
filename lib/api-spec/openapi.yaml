@@ -3200,6 +3200,67 @@ components:
                 additionalProperties: true
             safety: { type: string }
           additionalProperties: true
+        strategy_intelligence:
+          type: object
+          nullable: true
+          description: >
+            Phase 2 adaptive strategy selection report: per-strategy
+            performance matrix (overall and per market regime), strategy
+            ranking with enable/disable decisions and human-readable
+            reasons for the current regime, dynamic allocation weights,
+            and per-window snapshots. Learned only from completed
+            out-of-sample trades (no lookahead).
+          properties:
+            current_regime: { type: string }
+            total_completed_trades: { type: integer }
+            note: { type: string }
+            ranking:
+              type: array
+              items:
+                type: object
+                properties:
+                  rank: { type: integer }
+                  strategy_id: { type: string }
+                  score: { type: number }
+                  enabled: { type: boolean }
+                  reason: { type: string }
+                  basis: { type: string }
+                  allocation_pct: { type: number }
+                  rolling_profit_factor: { type: number, nullable: true }
+                  rolling_sharpe: { type: number, nullable: true }
+                  rolling_expectancy_pct: { type: number, nullable: true }
+                  rolling_window: { type: integer }
+                  overall:
+                    type: object
+                    nullable: true
+                    additionalProperties: true
+                  in_regime:
+                    type: object
+                    nullable: true
+                    additionalProperties: true
+                additionalProperties: true
+            matrix:
+              type: object
+              additionalProperties: true
+            windows:
+              type: array
+              items:
+                type: object
+                properties:
+                  window: { type: string }
+                  test_start: { type: string }
+                  dominant_regime: { type: string }
+                  regime_days:
+                    type: object
+                    additionalProperties: true
+                  oos_trades_learned: { type: integer }
+                  ranking:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                additionalProperties: true
+          additionalProperties: true
         recommendation_outcomes:
           type: array
           items:

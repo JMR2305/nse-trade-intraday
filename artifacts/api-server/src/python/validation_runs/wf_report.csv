@@ -1,7 +1,7 @@
 section,metric,value
-meta,generated_at,2026-07-12T12:40:28
+meta,generated_at,2026-07-12T13:34:17
 meta,verdict,INSUFFICIENT DATA
-meta,verdict_summary,Only 12 completed out-of-sample trades across 2 test window(s) — at least 100 trades and 2 windows are required for a reliable verdict.
+meta,verdict_summary,Only 11 completed out-of-sample trades across 2 test window(s) — at least 100 trades and 2 windows are required for a reliable verdict.
 base model,total_trades,23
 base model,winning_trades,10
 base model,losing_trades,13
@@ -56,41 +56,46 @@ pattern+similarity,largest_winner,138.96
 pattern+similarity,largest_loser,-59.98
 pattern+similarity,max_consecutive_wins,3
 pattern+similarity,max_consecutive_losses,7
-full model,total_trades,12
+full model,total_trades,11
 full model,winning_trades,4
-full model,losing_trades,8
-full model,win_rate,33.3
-full model,gross_profit,46.06
-full model,gross_loss,-192.16
-full model,net_profit,-146.1
-full model,total_return_pct,-2.92
-full model,annualized_return_pct,-6.04
-full model,avg_return_per_trade_pct,-2.16
-full model,expectancy,-12.17
-full model,profit_factor,0.24
-full model,sharpe_ratio,-2.95
-full model,sortino_ratio,-5.23
-full model,max_drawdown_pct,5.0
-full model,recovery_factor,-0.58
-full model,calmar_ratio,-1.21
-full model,avg_holding_days,9.4
-full model,exposure_pct,94.2
-full model,turnover,1.42
-full model,total_costs,26.2
-full model,avg_win,11.52
-full model,avg_loss,24.02
-full model,largest_winner,20.14
-full model,largest_loser,-36.91
+full model,losing_trades,7
+full model,win_rate,36.4
+full model,gross_profit,211.45
+full model,gross_loss,-177.6
+full model,net_profit,33.85
+full model,total_return_pct,0.68
+full model,annualized_return_pct,1.43
+full model,avg_return_per_trade_pct,-0.19
+full model,expectancy,3.08
+full model,profit_factor,1.19
+full model,sharpe_ratio,-0.14
+full model,sortino_ratio,-0.48
+full model,max_drawdown_pct,2.33
+full model,recovery_factor,0.28
+full model,calmar_ratio,0.61
+full model,avg_holding_days,8.1
+full model,exposure_pct,74.2
+full model,turnover,1.48
+full model,total_costs,27.69
+full model,avg_win,52.86
+full model,avg_loss,25.37
+full model,largest_winner,138.96
+full model,largest_loser,-59.98
 full model,max_consecutive_wins,2
-full model,max_consecutive_losses,8
+full model,max_consecutive_losses,5
 benchmarks,nifty_buy_hold_pct,-5.22
 benchmarks,equal_weight_pct,-0.32
 benchmarks,rule_engine_pct,0.5
 benchmarks,technical_confidence_only_pct,-1.47
-benchmarks,random_selection_pct,-0.54
+benchmarks,random_selection_pct,-0.52
 benchmarks,cash_pct,0.0
-benchmarks,full_model_pct,-2.92
+benchmarks,full_model_pct,0.68
 benchmarks,note,Window returns summed across test windows (each window restarts at the configured capital); the full model line is the compounded overall return.
-verdict_check,Completed out-of-sample trades,observed=12 threshold=>=100 passed=False
+verdict_check,Completed out-of-sample trades,observed=11 threshold=>=100 passed=False
 verdict_check,Test windows evaluated,observed=2 threshold=>=2 passed=True
+stability_flag,concentration,346% of net profit came from one stock: HINDALCO
+stability_flag,concentration,354% of net profit came from one sector: METALS
+stability_flag,concentration,418% of net profit came from one month: 2026-04
+stability_flag,concentration,127% of net profit came from one strategy: Trend Rider
+stability_flag,concentration,Top 5 trades account for 608% of net profit — results depend on a small number of trades
 safety,message,Out-of-sample historical performance does not guarantee future results. Paper trading and research only.

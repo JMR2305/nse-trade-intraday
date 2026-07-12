@@ -156,6 +156,11 @@ def target_fraction(d: dict) -> float:
     conf  = _effective_confidence(d)
     base  = max(kelly / 2.0 / 100.0, 0.06)                   # fraction
     scaled = base * (0.6 + 0.4 * conf / 100.0)
+    # Phase 2: tilt sizing toward strategies ranked higher for the current
+    # regime (strategy_sizing_factor is bounded [0.5, 1.5] upstream).
+    sf = d.get("strategy_sizing_factor")
+    if sf is not None:
+        scaled *= max(0.5, min(1.5, _f(sf, 1.0)))
     return max(MIN_ALLOC_FRACTION, min(MAX_STOCK_PCT, scaled))
 
 
@@ -249,6 +254,7 @@ def build_portfolio_plan(decisions: list[dict], state: dict,
 
     # ── Rank BUY candidates by risk-adjusted score ───────────────────────
     candidates: list[dict] = []
+    skipped_strategies: list[dict] = []
     for d in decisions:
         sym = str(d.get("stock", "")).upper()
         if sym in {h["symbol"] for h in holdings}:
@@ -258,6 +264,16 @@ def build_portfolio_plan(decisions: list[dict], state: dict,
         if str(d.get("data_status", "")) != "OK":
             continue  # NEVER allocate on mock/unavailable data
         if _f(d.get("price")) <= 0:
+            continue
+        # Phase 2: adaptive strategy selection — never allocate to a
+        # strategy that is disabled for the current market regime.
+        if d.get("strategy_enabled") is False:
+            skipped_strategies.append({
+                "symbol": sym,
+                "strategy_id": str(d.get("strategy_id", "") or ""),
+                "reason": (str(d.get("strategy_reason", "") or "")
+                           or "Strategy disabled for the current regime."),
+            })
             continue
         candidates.append({"decision": d, "score": risk_adjusted_score(d)})
     candidates.sort(key=lambda c: (c["score"],
@@ -558,6 +574,7 @@ def build_portfolio_plan(decisions: list[dict], state: dict,
         "exits": exits,
         "skipped": skipped[:12],
         "skipped_total": len(skipped),
+        "skipped_strategies": skipped_strategies[:12],
         # Full candidate set for benchmark persistence (untruncated) — stripped
         # from the API payload by get_portfolio_manager().
         "_bench_candidates": (

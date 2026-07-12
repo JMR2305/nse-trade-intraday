@@ -60,6 +60,10 @@ from execution_simulator import (
     EXIT_SIGNAL, EXIT_TIME, EXIT_FORCED,
 )
 import validation_metrics as vm
+from strategy_intelligence import (
+    StrategyIntelligence, classify_regime, MAX_STRATEGY_ALLOC,
+    trades_from_knowledge as intel_trades_from_knowledge,
+)
 
 SAFETY_MESSAGE = ("Out-of-sample historical performance does not guarantee "
                   "future results. Paper trading and research only.")
@@ -267,6 +271,20 @@ def regime_as_of(nifty: pd.DataFrame, day: pd.Timestamp) -> str:
     if ret5 > 0:
         return "Neutral-Bearish"
     return "Bearish"
+
+
+def regime7_as_of(nifty: pd.DataFrame, day: pd.Timestamp) -> str:
+    """Phase 2: classify into the 7 canonical regimes using ONLY index
+    candles up to and including `day` (no lookahead)."""
+    span = nifty.loc[nifty.index <= day]
+    if len(span) < 55:
+        return "Sideways"
+    span = span.tail(80)
+    return classify_regime(
+        [float(c) for c in span["close"]],
+        [float(h) for h in span["high"]] if "high" in span.columns else None,
+        [float(l) for l in span["low"]] if "low" in span.columns else None,
+    )
 
 
 # ── Forward evaluation (outcome analysis only — never used for decisions) ────
@@ -575,6 +593,7 @@ def simulate_window_variant(
     record_recommendations: list | None = None,
     lookahead_log: dict | None = None,
     calibrator: dict | None = None,
+    strategy_intel: StrategyIntelligence | None = None,
 ) -> dict:
     """
     Day-by-day replay: exits first (stop/target intrabar, signal, time,
@@ -594,11 +613,16 @@ def simulate_window_variant(
     weights = ctx["model_weights"] if variant == "C" else None
 
     max_open = MAX_NEW_POSITIONS if variant == "C" else MAX_OPEN_POSITIONS_SIMPLE
+    intel_regime_days: dict[str, int] = {}
 
     for di, day in enumerate(test_days):
         day_str = day.strftime("%Y-%m-%d")
         is_last_day = di == len(test_days) - 1
         regime = regime_as_of(nifty, day)
+        regime7 = None
+        if strategy_intel is not None:
+            regime7 = regime7_as_of(nifty, day)
+            intel_regime_days[regime7] = intel_regime_days.get(regime7, 0) + 1
 
         # ── 1. Exits ────────────────────────────────────────────────────
         for sym in list(positions.keys()):
@@ -617,6 +641,10 @@ def simulate_window_variant(
                                     EXIT_FORCED, cfg.intrabar_rule)
                     cash += trades[-1]["exit_price"] * trades[-1]["quantity"] - \
                         trades[-1]["sell_costs"]["total"]
+                    if strategy_intel is not None:
+                        # Adaptive learning: feed the COMPLETED out-of-sample
+                        # trade back into the strategy intelligence.
+                        strategy_intel.add_completed_trade(trades[-1])
                 continue
             row = rows.iloc[pos_idx]
             candle = {"open": float(row["open"]), "high": float(row["high"]),
@@ -649,6 +677,9 @@ def simulate_window_variant(
                                 day_str, raw_exit, reason, cfg.intrabar_rule)
                 cash += trades[-1]["exit_price"] * trades[-1]["quantity"] - \
                     trades[-1]["sell_costs"]["total"]
+                if strategy_intel is not None:
+                    # Adaptive learning from completed out-of-sample trades only
+                    strategy_intel.add_completed_trade(trades[-1])
                 # Record an EXIT recommendation for outcome analysis
                 if record_recommendations is not None and reason == EXIT_SIGNAL:
                     fe = forward_eval(sym_rows[sym], date_pos[sym][day_str])
@@ -706,6 +737,10 @@ def simulate_window_variant(
                     "sector": rec["sector"],
                     "market_regime": rec["market_regime"],
                     "max_data_timestamp": rec["max_data_timestamp"],
+                    "intel_regime": rec.get("intel_regime"),
+                    "strategy_rank": rec.get("strategy_rank"),
+                    "strategy_reason": rec.get("strategy_reason", ""),
+                    "strategy_sizing_factor": rec.get("strategy_sizing_factor"),
                     "holding_days": 0,
                     "mae_pct": 0.0,
                     "mfe_pct": 0.0,
@@ -780,8 +815,25 @@ def simulate_window_variant(
                     })
 
                 if recommendation in ("STRONG BUY", "BUY") and sym not in positions:
-                    if _passes_entry_gate(variant, final_conf, cal_p, cfg):
-                        candidates.append(item)
+                    if not _passes_entry_gate(variant, final_conf, cal_p, cfg):
+                        continue
+                    # Phase 2: adaptive strategy selection — gate the entry on
+                    # whether this strategy is enabled for the CURRENT regime,
+                    # judged only from trades completed before this decision.
+                    if strategy_intel is not None and regime7 is not None:
+                        sid = str(item.get("best_strategy_id", "")).lower()
+                        rank_row = next(
+                            (r for r in strategy_intel.rank_for_regime(regime7)
+                             if r["strategy_id"] == sid), None)
+                        item["intel_regime"] = regime7
+                        item["strategy_rank"] = rank_row["rank"] if rank_row else None
+                        item["strategy_enabled"] = rank_row["enabled"] if rank_row else True
+                        item["strategy_reason"] = rank_row["reason"] if rank_row else ""
+                        item["strategy_sizing_factor"] = (
+                            strategy_intel.sizing_factor(sid, regime7))
+                        if not item["strategy_enabled"]:
+                            continue  # strategy disabled in this regime
+                    candidates.append(item)
 
             candidates.sort(key=lambda it: (-it["final_confidence"],
                                             -it["opportunity_score"], it["stock"]))
@@ -803,6 +855,7 @@ def simulate_window_variant(
         "equity_curve": equity_curve,
         "equity_dates": equity_dates,
         "metrics": metrics,
+        "intel_regime_days": intel_regime_days,
     }
 
 
@@ -833,7 +886,15 @@ def _allocation_for(variant: str, rec: dict, total_equity: float,
                  if rec.get("calibrated_confidence") is not None
                  else rec.get("final_confidence", 50.0))
     conf_scale = max(0.5, min(1.0, conf / 100.0 + 0.25))
-    return max(0.0, min(stock_cap * conf_scale, sector_room))
+    alloc = max(0.0, min(stock_cap * conf_scale, sector_room))
+    # Phase 2: dynamic allocation — tilt position size toward strategies
+    # ranked higher for the current regime (factor bounded [0.5, 1.5]).
+    # Re-clamp afterwards so the tilt can never break the per-stock cap
+    # or the remaining sector room.
+    sf = rec.get("strategy_sizing_factor")
+    if sf is not None:
+        alloc *= float(sf)
+    return max(0.0, min(alloc, stock_cap, sector_room))
 
 
 def _close_position(trades: list, positions: dict, cost_model: CostModel,
@@ -868,6 +929,9 @@ def _close_position(trades: list, positions: dict, cost_model: CostModel,
         "strategy_id": pos["strategy_id"], "strategy_name": pos["strategy_name"],
         "sector": pos["sector"], "market_regime": pos["market_regime"],
         "max_data_timestamp": pos["max_data_timestamp"],
+        "intel_regime": pos.get("intel_regime"),
+        "strategy_rank": pos.get("strategy_rank"),
+        "strategy_sizing_factor": pos.get("strategy_sizing_factor"),
     }
     trades.append(build_trade_record(sym, entry, exit_info, meta))
     del positions[sym]
@@ -1081,6 +1145,8 @@ def run_validation(config: dict | None = None) -> dict:
     chained = {"A": [], "B": [], "C": [], "nifty": [], "dates": []}
     chain_factor = {"A": 1.0, "B": 1.0, "C": 1.0}
     calibration_windows: list[dict] = []
+    intelligence_windows: list[dict] = []
+    last_intel: StrategyIntelligence | None = None
 
     for wi, window in enumerate(windows):
         status.update({
@@ -1124,6 +1190,17 @@ def run_validation(config: dict | None = None) -> dict:
             "version": int((window_calibrator or {}).get("version", 0) or 0),
         })
 
+        # Phase 2 strategy intelligence: built PER WINDOW from knowledge
+        # trades that fully exited before the test window starts (no
+        # lookahead); the simulation then feeds its own completed
+        # out-of-sample trades back in as they close (adaptive learning).
+        window_intel = None
+        try:
+            window_intel = StrategyIntelligence(
+                intel_trades_from_knowledge(as_of=window["test_start"]))
+        except Exception:
+            window_intel = None
+
         variant_out = {}
         for variant in ("A", "B", "C"):
             variant_out[variant] = simulate_window_variant(
@@ -1132,11 +1209,30 @@ def run_validation(config: dict | None = None) -> dict:
                 record_recommendations=recommendations if variant == "C" else None,
                 lookahead_log=lookahead_log if variant == "C" else None,
                 calibrator=window_calibrator if variant == "C" else None,
+                strategy_intel=window_intel if variant == "C" else None,
             )
             for t in variant_out[variant]["trades"]:
                 t["window"] = window["label"]
                 t["variant"] = variant
             all_trades[variant].extend(variant_out[variant]["trades"])
+
+        # Per-window strategy-intelligence snapshot (for the UI)
+        if window_intel is not None:
+            last_intel = window_intel
+            regime_days = variant_out["C"].get("intel_regime_days", {})
+            dominant = max(regime_days, key=regime_days.get) if regime_days else "Sideways"
+            intelligence_windows.append({
+                "window": window["label"],
+                "test_start": window["test_start"],
+                "dominant_regime": dominant,
+                "regime_days": regime_days,
+                "oos_trades_learned": len(variant_out["C"]["trades"]),
+                "ranking": [{
+                    "rank": r["rank"], "strategy_id": r["strategy_id"],
+                    "score": r["score"], "enabled": r["enabled"],
+                    "reason": r["reason"],
+                } for r in window_intel.rank_for_regime(dominant)],
+            })
 
         # chained equity curves (compounded across windows)
         n_days = len(variant_out["C"]["equity_dates"])
@@ -1262,6 +1358,31 @@ def run_validation(config: dict | None = None) -> dict:
             "safety": SAFETY_MESSAGE,
         }
 
+    # Phase 2: Strategy Intelligence report — the LAST window's intelligence
+    # (knowledge as-of its test start + every completed out-of-sample trade
+    # learned during the run), evaluated at the most recent market regime.
+    strategy_intelligence_report = None
+    try:
+        if last_intel is not None:
+            current_regime = regime7_as_of(nifty, nifty.index[-1])
+            _rep = last_intel.report(current_regime)
+            strategy_intelligence_report = {
+                "current_regime": current_regime,
+                "total_completed_trades": _rep["total_completed_trades"],
+                "ranking": _rep["ranking"],
+                "matrix": _rep["matrix"],
+                "windows": intelligence_windows,
+                "note": ("Strategies are ranked per market regime from "
+                         "completed trades only (knowledge trades that exited "
+                         "before each test window plus out-of-sample trades "
+                         "closed during the run — no lookahead). Disabled "
+                         "strategies are skipped at entry; allocation tilts "
+                         "toward higher-ranked strategies, capped at "
+                         f"{int(MAX_STRATEGY_ALLOC * 100)}% per strategy."),
+            }
+    except Exception:
+        strategy_intelligence_report = None
+
     rec_outcomes = vm.compute_recommendation_outcomes(recommendations)
     stability = vm.compute_stability(all_trades["C"])
     verdict = vm.evaluate_verdict(overall["C"], overall["A"], stability,
@@ -1303,6 +1424,7 @@ def run_validation(config: dict | None = None) -> dict:
         "benchmarks": benchmarks_overall,
         "calibration": calibration,
         "calibration_report": calibration_report,
+        "strategy_intelligence": strategy_intelligence_report,
         "recommendation_outcomes": rec_outcomes,
         "recommendations_issued": len(recommendations),
         "stability": stability,

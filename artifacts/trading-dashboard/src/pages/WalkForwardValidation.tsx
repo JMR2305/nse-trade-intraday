@@ -570,6 +570,92 @@ export default function WalkForwardValidation() {
             )}
           </Section>
 
+          {/* Phase 2 — Adaptive strategy selection */}
+          <Section title="Strategy Intelligence — Adaptive Strategy Selection">
+            {r.strategy_intelligence && (r.strategy_intelligence.ranking ?? []).length > 0 ? (
+              <div className="space-y-4" data-testid="strategy-intelligence">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <Stat label="Current regime" value={String(r.strategy_intelligence.current_regime ?? "—")} />
+                  <Stat label="Completed trades learned from" value={String(r.strategy_intelligence.total_completed_trades ?? 0)} />
+                  <Stat label="Strategies enabled" value={`${(r.strategy_intelligence.ranking ?? []).filter((x: any) => x.enabled).length} of ${(r.strategy_intelligence.ranking ?? []).length}`} />
+                  <Stat label="Max per strategy" value="40% of allocation" />
+                </div>
+
+                <div>
+                  <div className="text-[10px] font-mono uppercase tracking-wide text-muted-foreground mb-1">
+                    Strategy ranking for the current regime ({String(r.strategy_intelligence.current_regime ?? "")}) — losers are disabled with a reason
+                  </div>
+                  <Tbl
+                    cols={["#", "Strategy", "Status", "Score", "Allocation", "Rolling PF", "Rolling expectancy", "Win rate", "Trades", "Why"]}
+                    rows={(r.strategy_intelligence.ranking ?? []).map((s: any) => [
+                      s.rank,
+                      s.strategy_id,
+                      s.enabled ? (
+                        <span className="text-emerald-400">ENABLED</span>
+                      ) : (
+                        <span className="text-red-400">DISABLED</span>
+                      ),
+                      fmtNum(s.score, 1),
+                      s.enabled ? `${fmtNum(s.allocation_pct, 1)}%` : "0%",
+                      fmtNum(s.rolling_profit_factor, 2),
+                      s.rolling_expectancy_pct === null || s.rolling_expectancy_pct === undefined ? "—" : `${Number(s.rolling_expectancy_pct) > 0 ? "+" : ""}${Number(s.rolling_expectancy_pct).toFixed(2)}%`,
+                      s.overall?.win_rate === null || s.overall?.win_rate === undefined ? "—" : `${Number(s.overall.win_rate).toFixed(0)}%`,
+                      s.overall?.trade_count ?? 0,
+                      <span className="whitespace-normal text-[10px]">{s.reason}</span>,
+                    ])}
+                    testId="table-strategy-ranking"
+                  />
+                </div>
+
+                <div>
+                  <div className="text-[10px] font-mono uppercase tracking-wide text-muted-foreground mb-1">
+                    Strategy × regime matrix — profit factor (trades) per market regime, from completed trades only
+                  </div>
+                  <Tbl
+                    cols={["Strategy", ...["Bullish", "Bearish", "Neutral Bullish", "Neutral Bearish", "High Volatility", "Low Volatility", "Sideways"]]}
+                    rows={Object.entries(r.strategy_intelligence.matrix ?? {}).map(([sid, m]: [string, any]) => [
+                      sid,
+                      ...["Bullish", "Bearish", "Neutral Bullish", "Neutral Bearish", "High Volatility", "Low Volatility", "Sideways"].map((reg) => {
+                        const rm = m?.by_regime?.[reg];
+                        if (!rm || !rm.trade_count) return "—";
+                        const pf = rm.profit_factor;
+                        return (
+                          <span className={pf !== null && pf !== undefined ? (pf >= 1 ? "text-emerald-400" : "text-red-400") : ""}>
+                            {pf === null || pf === undefined ? "—" : Number(pf).toFixed(2)} ({rm.trade_count})
+                          </span>
+                        );
+                      }),
+                    ])}
+                    testId="table-strategy-regime-matrix"
+                  />
+                </div>
+
+                <div>
+                  <div className="text-[10px] font-mono uppercase tracking-wide text-muted-foreground mb-1">
+                    Per-window selection (each window learns only from trades completed before it; selection adapts as out-of-sample trades close)
+                  </div>
+                  <Tbl
+                    cols={["Window", "Dominant regime", "OOS trades learned", "Enabled strategies (rank order)", "Disabled"]}
+                    rows={(r.strategy_intelligence.windows ?? []).map((w: any) => [
+                      w.window,
+                      w.dominant_regime,
+                      w.oos_trades_learned,
+                      (w.ranking ?? []).filter((x: any) => x.enabled).map((x: any) => x.strategy_id).join(", ") || "—",
+                      (w.ranking ?? []).filter((x: any) => !x.enabled).map((x: any) => x.strategy_id).join(", ") || "—",
+                    ])}
+                    testId="table-strategy-windows"
+                  />
+                </div>
+
+                <div className="text-[10px] font-mono text-muted-foreground">{r.strategy_intelligence.note}</div>
+              </div>
+            ) : (
+              <div className="text-xs font-mono text-muted-foreground" data-testid="text-no-strategy-intelligence">
+                No strategy intelligence data — run a validation to generate the adaptive strategy selection report.
+              </div>
+            )}
+          </Section>
+
           {/* Recommendation outcomes */}
           <Section title={`Recommendation Outcomes (${r.recommendations_issued ?? 0} issued)`}>
             <Tbl

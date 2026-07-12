@@ -1228,6 +1228,35 @@ export const GetWalkForwardResultResponse = zod.object({
   "windows": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
   "safety": zod.string().optional()
 }).nullish().describe('Phase 1 confidence-calibration report for the full model: before (raw confidence \/ 100) vs after (per-window calibrated probability) Brier score, ECE and log loss, reliability-diagram bins for both, per-window calibrator metadata (method, training samples, version) and the calibrated-probability execution floor.\n'),
+  "strategy_intelligence": zod.object({
+  "current_regime": zod.string().optional(),
+  "total_completed_trades": zod.number().optional(),
+  "note": zod.string().optional(),
+  "ranking": zod.array(zod.object({
+  "rank": zod.number().optional(),
+  "strategy_id": zod.string().optional(),
+  "score": zod.number().optional(),
+  "enabled": zod.boolean().optional(),
+  "reason": zod.string().optional(),
+  "basis": zod.string().optional(),
+  "allocation_pct": zod.number().optional(),
+  "rolling_profit_factor": zod.number().nullish(),
+  "rolling_sharpe": zod.number().nullish(),
+  "rolling_expectancy_pct": zod.number().nullish(),
+  "rolling_window": zod.number().optional(),
+  "overall": zod.record(zod.string(), zod.unknown()).nullish(),
+  "in_regime": zod.record(zod.string(), zod.unknown()).nullish()
+})).optional(),
+  "matrix": zod.record(zod.string(), zod.unknown()).optional(),
+  "windows": zod.array(zod.object({
+  "window": zod.string().optional(),
+  "test_start": zod.string().optional(),
+  "dominant_regime": zod.string().optional(),
+  "regime_days": zod.record(zod.string(), zod.unknown()).optional(),
+  "oos_trades_learned": zod.number().optional(),
+  "ranking": zod.array(zod.record(zod.string(), zod.unknown())).optional()
+})).optional()
+}).nullish().describe('Phase 2 adaptive strategy selection report: per-strategy performance matrix (overall and per market regime), strategy ranking with enable\/disable decisions and human-readable reasons for the current regime, dynamic allocation weights, and per-window snapshots. Learned only from completed out-of-sample trades (no lookahead).\n'),
   "recommendation_outcomes": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
   "recommendations_issued": zod.number().optional(),
   "stability": zod.record(zod.string(), zod.unknown()).optional(),

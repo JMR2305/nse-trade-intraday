@@ -17,6 +17,7 @@ import type { WalkForwardResultLookaheadAudit } from './walkForwardResultLookahe
 import type { WalkForwardResultOverall } from './walkForwardResultOverall';
 import type { WalkForwardResultRecommendationOutcomesItem } from './walkForwardResultRecommendationOutcomesItem';
 import type { WalkForwardResultStability } from './walkForwardResultStability';
+import type { WalkForwardResultStrategyIntelligence } from './walkForwardResultStrategyIntelligence';
 import type { WalkForwardResultVerdict } from './walkForwardResultVerdict';
 import type { WalkForwardResultWindowsItem } from './walkForwardResultWindowsItem';
 
@@ -41,6 +42,8 @@ export interface WalkForwardResult {
   calibration?: WalkForwardResultCalibrationItem[];
   /** Phase 1 confidence-calibration report for the full model: before (raw confidence / 100) vs after (per-window calibrated probability) Brier score, ECE and log loss, reliability-diagram bins for both, per-window calibrator metadata (method, training samples, version) and the calibrated-probability execution floor. */
   calibration_report?: WalkForwardResultCalibrationReport;
+  /** Phase 2 adaptive strategy selection report: per-strategy performance matrix (overall and per market regime), strategy ranking with enable/disable decisions and human-readable reasons for the current regime, dynamic allocation weights, and per-window snapshots. Learned only from completed out-of-sample trades (no lookahead). */
+  strategy_intelligence?: WalkForwardResultStrategyIntelligence;
   recommendation_outcomes?: WalkForwardResultRecommendationOutcomesItem[];
   recommendations_issued?: number;
   stability?: WalkForwardResultStability;

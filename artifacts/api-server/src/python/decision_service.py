@@ -613,6 +613,34 @@ def _decide(item: dict, positions: dict, trades: list,
     # (portfolio manager sizing, ranking) prefer calibrated_confidence.
     decision.update(_calibration_fields(fc))
 
+    # ── Phase 2: Adaptive strategy selection ────────────────────────────────
+    # Rank this decision's strategy for the CURRENT regime from completed
+    # trades only. The portfolio manager skips disabled strategies and tilts
+    # sizing by strategy_sizing_factor. Failure here never breaks a decision.
+    try:
+        from strategy_intelligence import get_live_intelligence, normalize_regime
+        _sid = str(item.get("best_strategy_id", "") or "").lower()
+        _reg7 = normalize_regime(regime_now)
+        _intel = get_live_intelligence()
+        _row = next((r for r in _intel.rank_for_regime(_reg7)
+                     if r["strategy_id"] == _sid), None)
+        decision.update({
+            "strategy_id": _sid,
+            "strategy_regime": _reg7,
+            "strategy_rank": _row["rank"] if _row else None,
+            "strategy_enabled": bool(_row["enabled"]) if _row else True,
+            "strategy_reason": _row["reason"] if _row else "",
+            "strategy_sizing_factor": (_intel.sizing_factor(_sid, _reg7)
+                                       if _sid else 1.0),
+        })
+    except Exception:
+        decision.update({
+            "strategy_id": str(item.get("best_strategy_id", "") or "").lower(),
+            "strategy_regime": "", "strategy_rank": None,
+            "strategy_enabled": True, "strategy_reason": "",
+            "strategy_sizing_factor": 1.0,
+        })
+
     # ── v2.3 Analyst Reasoning and Decision Invalidation Layer ──────────────
     # Purely explanatory + monitoring: never changes the recommendation or
     # confidence above. Failure here must never break the decision itself.

@@ -1300,6 +1300,56 @@ export type WalkForwardResultCalibrationReport = {
   [key: string]: unknown;
  } | null;
 
+export type WalkForwardResultStrategyIntelligenceRankingItemOverall = { [key: string]: unknown } | null;
+
+export type WalkForwardResultStrategyIntelligenceRankingItemInRegime = { [key: string]: unknown } | null;
+
+export type WalkForwardResultStrategyIntelligenceRankingItem = {
+  rank?: number;
+  strategy_id?: string;
+  score?: number;
+  enabled?: boolean;
+  reason?: string;
+  basis?: string;
+  allocation_pct?: number;
+  rolling_profit_factor?: number | null;
+  rolling_sharpe?: number | null;
+  rolling_expectancy_pct?: number | null;
+  rolling_window?: number;
+  overall?: WalkForwardResultStrategyIntelligenceRankingItemOverall;
+  in_regime?: WalkForwardResultStrategyIntelligenceRankingItemInRegime;
+  [key: string]: unknown;
+ };
+
+export type WalkForwardResultStrategyIntelligenceMatrix = { [key: string]: unknown };
+
+export type WalkForwardResultStrategyIntelligenceWindowsItemRegimeDays = { [key: string]: unknown };
+
+export type WalkForwardResultStrategyIntelligenceWindowsItemRankingItem = { [key: string]: unknown };
+
+export type WalkForwardResultStrategyIntelligenceWindowsItem = {
+  window?: string;
+  test_start?: string;
+  dominant_regime?: string;
+  regime_days?: WalkForwardResultStrategyIntelligenceWindowsItemRegimeDays;
+  oos_trades_learned?: number;
+  ranking?: WalkForwardResultStrategyIntelligenceWindowsItemRankingItem[];
+  [key: string]: unknown;
+ };
+
+/**
+ * Phase 2 adaptive strategy selection report: per-strategy performance matrix (overall and per market regime), strategy ranking with enable/disable decisions and human-readable reasons for the current regime, dynamic allocation weights, and per-window snapshots. Learned only from completed out-of-sample trades (no lookahead).
+ */
+export type WalkForwardResultStrategyIntelligence = {
+  current_regime?: string;
+  total_completed_trades?: number;
+  note?: string;
+  ranking?: WalkForwardResultStrategyIntelligenceRankingItem[];
+  matrix?: WalkForwardResultStrategyIntelligenceMatrix;
+  windows?: WalkForwardResultStrategyIntelligenceWindowsItem[];
+  [key: string]: unknown;
+ } | null;
+
 export type WalkForwardResultRecommendationOutcomesItem = { [key: string]: unknown };
 
 export type WalkForwardResultStability = { [key: string]: unknown };
@@ -1335,6 +1385,8 @@ export interface WalkForwardResult {
   calibration?: WalkForwardResultCalibrationItem[];
   /** Phase 1 confidence-calibration report for the full model: before (raw confidence / 100) vs after (per-window calibrated probability) Brier score, ECE and log loss, reliability-diagram bins for both, per-window calibrator metadata (method, training samples, version) and the calibrated-probability execution floor. */
   calibration_report?: WalkForwardResultCalibrationReport;
+  /** Phase 2 adaptive strategy selection report: per-strategy performance matrix (overall and per market regime), strategy ranking with enable/disable decisions and human-readable reasons for the current regime, dynamic allocation weights, and per-window snapshots. Learned only from completed out-of-sample trades (no lookahead). */
+  strategy_intelligence?: WalkForwardResultStrategyIntelligence;
   recommendation_outcomes?: WalkForwardResultRecommendationOutcomesItem[];
   recommendations_issued?: number;
   stability?: WalkForwardResultStability;
