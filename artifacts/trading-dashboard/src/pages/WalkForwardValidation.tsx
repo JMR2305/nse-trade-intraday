@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import StrategyAuditSection from "@/components/StrategyAuditSection";
 import MacdOptimizationSection from "@/components/MacdOptimizationSection";
+import MacdRobustnessSection from "@/components/MacdRobustnessSection";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -519,6 +520,9 @@ export default function WalkForwardValidation() {
 
           {/* Phase 3 — MACD optimization (analysis only) */}
           {r.macd_optimization && <MacdOptimizationSection opt={r.macd_optimization} />}
+
+          {/* Phase 4 — MACD robustness analysis (analysis only) */}
+          {r.macd_robustness && <MacdRobustnessSection rob={r.macd_robustness} />}
 
           {/* Benchmarks */}
           <Section title="Benchmarks">

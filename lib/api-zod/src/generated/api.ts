@@ -1300,6 +1300,31 @@ export const GetWalkForwardResultResponse = zod.object({
   "report": zod.record(zod.string(), zod.unknown()).nullish()
 }).nullish().describe('Phase 3 MACD optimization report (ANALYSIS ONLY — the live pipeline is unchanged). Entry filters, exit variations and portfolio risk rules for MACD Cross, each tested independently with parameters selected on training windows and evaluated only on unseen test windows. Includes baseline metrics (trade-level and portfolio), a full comparison table with per-variation verdicts and reasons, the combined configuration\'s out-of-sample results and the final recommended configuration. If the step failed, the object contains only an \"error\" string instead.\n'),
   "benchmarks": zod.record(zod.string(), zod.unknown()).optional(),
+  "macd_robustness": zod.object({
+  "error": zod.string().optional(),
+  "safety": zod.string().optional(),
+  "strategy_id": zod.string().optional(),
+  "strategy_name": zod.string().optional(),
+  "total_oos_trades": zod.number().optional(),
+  "windows_evaluated": zod.number().optional(),
+  "baseline": zod.record(zod.string(), zod.unknown()).optional(),
+  "window_performance": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "breakdowns": zod.record(zod.string(), zod.unknown()).optional(),
+  "concentration": zod.record(zod.string(), zod.unknown()).optional(),
+  "stress_tests": zod.record(zod.string(), zod.unknown()).optional(),
+  "verdict": zod.object({
+  "verdict": zod.string().optional(),
+  "rationale": zod.string().optional(),
+  "checks": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "passed_count": zod.number().optional(),
+  "failed_count": zod.number().optional(),
+  "critical_failed_count": zod.number().optional(),
+  "passed": zod.array(zod.string()).optional(),
+  "failed": zod.array(zod.string()).optional()
+}).optional(),
+  "regime_recommendations": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "roadmap": zod.array(zod.record(zod.string(), zod.unknown())).optional()
+}).nullish().describe('Phase 4 MACD Robustness Analysis (ANALYSIS ONLY — never changes live decisions). Measures structural soundness via 8 breakdowns (by stock, sector, month, regime, holding period, volatility, ADX, entry subtype), 5 stress tests (leave-one-stock\/sector\/month out, top-5-trades removed, winsorized returns), and issues a conservative KEEP \/ RESTRICT \/ REJECT stability verdict with explicit pass\/fail checks, regime-specific enable\/disable recommendations and a prioritised improvement roadmap.\n'),
   "calibration": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
   "calibration_report": zod.object({
   "samples": zod.number().optional(),

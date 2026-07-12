@@ -15,6 +15,7 @@ import type { WalkForwardResultEquityCurveItem } from './walkForwardResultEquity
 import type { WalkForwardResultLayerComparisonItem } from './walkForwardResultLayerComparisonItem';
 import type { WalkForwardResultLookaheadAudit } from './walkForwardResultLookaheadAudit';
 import type { WalkForwardResultMacdOptimization } from './walkForwardResultMacdOptimization';
+import type { WalkForwardResultMacdRobustness } from './walkForwardResultMacdRobustness';
 import type { WalkForwardResultOverall } from './walkForwardResultOverall';
 import type { WalkForwardResultPhase2a } from './walkForwardResultPhase2a';
 import type { WalkForwardResultRecommendationOutcomesItem } from './walkForwardResultRecommendationOutcomesItem';
@@ -48,6 +49,8 @@ export interface WalkForwardResult {
   /** Phase 3 MACD optimization report (ANALYSIS ONLY — the live pipeline is unchanged). Entry filters, exit variations and portfolio risk rules for MACD Cross, each tested independently with parameters selected on training windows and evaluated only on unseen test windows. Includes baseline metrics (trade-level and portfolio), a full comparison table with per-variation verdicts and reasons, the combined configuration's out-of-sample results and the final recommended configuration. If the step failed, the object contains only an "error" string instead. */
   macd_optimization?: WalkForwardResultMacdOptimization;
   benchmarks?: WalkForwardResultBenchmarks;
+  /** Phase 4 MACD Robustness Analysis (ANALYSIS ONLY — never changes live decisions). Measures structural soundness via 8 breakdowns (by stock, sector, month, regime, holding period, volatility, ADX, entry subtype), 5 stress tests (leave-one-stock/sector/month out, top-5-trades removed, winsorized returns), and issues a conservative KEEP / RESTRICT / REJECT stability verdict with explicit pass/fail checks, regime-specific enable/disable recommendations and a prioritised improvement roadmap. */
+  macd_robustness?: WalkForwardResultMacdRobustness;
   calibration?: WalkForwardResultCalibrationItem[];
   /** Phase 1 confidence-calibration report for the full model: before (raw confidence / 100) vs after (per-window calibrated probability) Brier score, ECE and log loss, reliability-diagram bins for both, per-window calibrator metadata (method, training samples, version) and the calibrated-probability execution floor. */
   calibration_report?: WalkForwardResultCalibrationReport;

@@ -1699,7 +1699,7 @@ def run_validation(config: dict | None = None) -> dict:
         }
 
     # ── Phase 3: MACD optimization (ANALYSIS ONLY — never changes decisions) ─
-    status.update({"phase": "Phase 3 MACD optimization", "progress_pct": 98})
+    status.update({"phase": "Phase 3 MACD optimization", "progress_pct": 97})
     _write_status(status)
     try:
         from macd_optimizer import run_macd_optimization
@@ -1710,6 +1710,21 @@ def run_validation(config: dict | None = None) -> dict:
     except Exception as exc:  # explicit failure — never silently dropped
         macd_optimization_report = {
             "error": f"MACD optimization failed: {type(exc).__name__}: {exc}",
+            "safety": SAFETY_MESSAGE,
+        }
+
+    # ── Phase 4: MACD robustness (ANALYSIS ONLY — never changes decisions) ──
+    status.update({"phase": "Phase 4 MACD robustness analysis", "progress_pct": 99})
+    _write_status(status)
+    try:
+        from macd_robustness import run_macd_robustness
+
+        macd_robustness_report = run_macd_robustness(
+            sym_rows, window_results, regime_by_date, test_dates_by_window,
+            cfg, cost_model, progress_cb=_audit_progress)
+    except Exception as exc:  # explicit failure — never silently dropped
+        macd_robustness_report = {
+            "error": f"MACD robustness analysis failed: {type(exc).__name__}: {exc}",
             "safety": SAFETY_MESSAGE,
         }
 
@@ -1750,6 +1765,7 @@ def run_validation(config: dict | None = None) -> dict:
         "phase2a": _phase2a_report(overall, layer_comparison, rejected_trades),
         "strategy_audit": strategy_audit_report,
         "macd_optimization": macd_optimization_report,
+        "macd_robustness": macd_robustness_report,
         "benchmarks": benchmarks_overall,
         "calibration": calibration,
         "calibration_report": calibration_report,

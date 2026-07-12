@@ -1,5 +1,5 @@
 section,metric,value
-meta,generated_at,2026-07-12T20:07:22
+meta,generated_at,2026-07-12T21:44:39
 meta,verdict,INSUFFICIENT DATA
 meta,verdict_summary,Only 11 completed out-of-sample trades across 2 test window(s) — at least 100 trades and 2 windows are required for a reliable verdict.
 base model,total_trades,23

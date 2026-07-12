@@ -1427,6 +1427,55 @@ export type WalkForwardResultMacdOptimization = {
 
 export type WalkForwardResultBenchmarks = { [key: string]: unknown };
 
+export type WalkForwardResultMacdRobustnessBaseline = { [key: string]: unknown };
+
+export type WalkForwardResultMacdRobustnessWindowPerformanceItem = { [key: string]: unknown };
+
+export type WalkForwardResultMacdRobustnessBreakdowns = { [key: string]: unknown };
+
+export type WalkForwardResultMacdRobustnessConcentration = { [key: string]: unknown };
+
+export type WalkForwardResultMacdRobustnessStressTests = { [key: string]: unknown };
+
+export type WalkForwardResultMacdRobustnessVerdictChecksItem = { [key: string]: unknown };
+
+export type WalkForwardResultMacdRobustnessVerdict = {
+  verdict?: string;
+  rationale?: string;
+  checks?: WalkForwardResultMacdRobustnessVerdictChecksItem[];
+  passed_count?: number;
+  failed_count?: number;
+  critical_failed_count?: number;
+  passed?: string[];
+  failed?: string[];
+  [key: string]: unknown;
+ };
+
+export type WalkForwardResultMacdRobustnessRegimeRecommendationsItem = { [key: string]: unknown };
+
+export type WalkForwardResultMacdRobustnessRoadmapItem = { [key: string]: unknown };
+
+/**
+ * Phase 4 MACD Robustness Analysis (ANALYSIS ONLY — never changes live decisions). Measures structural soundness via 8 breakdowns (by stock, sector, month, regime, holding period, volatility, ADX, entry subtype), 5 stress tests (leave-one-stock/sector/month out, top-5-trades removed, winsorized returns), and issues a conservative KEEP / RESTRICT / REJECT stability verdict with explicit pass/fail checks, regime-specific enable/disable recommendations and a prioritised improvement roadmap.
+ */
+export type WalkForwardResultMacdRobustness = {
+  error?: string;
+  safety?: string;
+  strategy_id?: string;
+  strategy_name?: string;
+  total_oos_trades?: number;
+  windows_evaluated?: number;
+  baseline?: WalkForwardResultMacdRobustnessBaseline;
+  window_performance?: WalkForwardResultMacdRobustnessWindowPerformanceItem[];
+  breakdowns?: WalkForwardResultMacdRobustnessBreakdowns;
+  concentration?: WalkForwardResultMacdRobustnessConcentration;
+  stress_tests?: WalkForwardResultMacdRobustnessStressTests;
+  verdict?: WalkForwardResultMacdRobustnessVerdict;
+  regime_recommendations?: WalkForwardResultMacdRobustnessRegimeRecommendationsItem[];
+  roadmap?: WalkForwardResultMacdRobustnessRoadmapItem[];
+  [key: string]: unknown;
+ } | null;
+
 export type WalkForwardResultCalibrationItem = { [key: string]: unknown };
 
 export type WalkForwardResultCalibrationReportBefore = { [key: string]: unknown } | null;
@@ -1569,6 +1618,8 @@ export interface WalkForwardResult {
   /** Phase 3 MACD optimization report (ANALYSIS ONLY — the live pipeline is unchanged). Entry filters, exit variations and portfolio risk rules for MACD Cross, each tested independently with parameters selected on training windows and evaluated only on unseen test windows. Includes baseline metrics (trade-level and portfolio), a full comparison table with per-variation verdicts and reasons, the combined configuration's out-of-sample results and the final recommended configuration. If the step failed, the object contains only an "error" string instead. */
   macd_optimization?: WalkForwardResultMacdOptimization;
   benchmarks?: WalkForwardResultBenchmarks;
+  /** Phase 4 MACD Robustness Analysis (ANALYSIS ONLY — never changes live decisions). Measures structural soundness via 8 breakdowns (by stock, sector, month, regime, holding period, volatility, ADX, entry subtype), 5 stress tests (leave-one-stock/sector/month out, top-5-trades removed, winsorized returns), and issues a conservative KEEP / RESTRICT / REJECT stability verdict with explicit pass/fail checks, regime-specific enable/disable recommendations and a prioritised improvement roadmap. */
+  macd_robustness?: WalkForwardResultMacdRobustness;
   calibration?: WalkForwardResultCalibrationItem[];
   /** Phase 1 confidence-calibration report for the full model: before (raw confidence / 100) vs after (per-window calibrated probability) Brier score, ECE and log loss, reliability-diagram bins for both, per-window calibrator metadata (method, training samples, version) and the calibrated-probability execution floor. */
   calibration_report?: WalkForwardResultCalibrationReport;
