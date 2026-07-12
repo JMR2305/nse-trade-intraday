@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { WalkForwardResultStrategyIntelligenceWindowsItemGatedRankingItem } from './walkForwardResultStrategyIntelligenceWindowsItemGatedRankingItem';
 import type { WalkForwardResultStrategyIntelligenceWindowsItemRankingItem } from './walkForwardResultStrategyIntelligenceWindowsItemRankingItem';
 import type { WalkForwardResultStrategyIntelligenceWindowsItemRegimeDays } from './walkForwardResultStrategyIntelligenceWindowsItemRegimeDays';
 
@@ -15,5 +16,7 @@ export type WalkForwardResultStrategyIntelligenceWindowsItem = {
   regime_days?: WalkForwardResultStrategyIntelligenceWindowsItemRegimeDays;
   oos_trades_learned?: number;
   ranking?: WalkForwardResultStrategyIntelligenceWindowsItemRankingItem[];
+  gated_ranking?: WalkForwardResultStrategyIntelligenceWindowsItemGatedRankingItem[];
+  gated_cash_only?: boolean;
   [key: string]: unknown;
  };

@@ -1269,6 +1269,55 @@ export type WalkForwardResultOverall = { [key: string]: unknown };
 
 export type WalkForwardResultLayerComparisonItem = { [key: string]: unknown };
 
+export type WalkForwardResultPhase2aComparison = { [key: string]: unknown };
+
+export type WalkForwardResultPhase2aRejectedTradesSummaryByStatus = { [key: string]: unknown };
+
+export type WalkForwardResultPhase2aRejectedTradesSummaryByStrategy = { [key: string]: unknown };
+
+export type WalkForwardResultPhase2aRejectedTradesSummary = {
+  total_rejected?: number;
+  rejections_that_saved_money?: number;
+  rejections_that_cost_money?: number;
+  rejections_unknown_outcome?: number;
+  gate_precision_pct?: number | null;
+  by_status?: WalkForwardResultPhase2aRejectedTradesSummaryByStatus;
+  by_strategy?: WalkForwardResultPhase2aRejectedTradesSummaryByStrategy;
+  [key: string]: unknown;
+ };
+
+export type WalkForwardResultPhase2aRejectedTradesItem = {
+  symbol?: string;
+  sector?: string;
+  strategy_id?: string;
+  regime?: string;
+  proposed_date?: string;
+  window?: string;
+  status?: string;
+  rejection_reason?: string;
+  raw_profit_factor?: number | null;
+  adjusted_profit_factor?: number | null;
+  raw_expectancy_pct?: number | null;
+  adjusted_expectancy_pct?: number | null;
+  sample?: number;
+  confidence?: number;
+  would_be_outcome?: string;
+  [key: string]: unknown;
+ };
+
+/**
+ * Phase 2A analysis report (analysis only — the live pipeline is unchanged): corrected gated ranking + edge-proportional allocation evaluated as walk-forward variants D (default gates) and E (strict gates) against the preserved legacy policy (variant C). Includes the C/D/E comparison, rejected-trade diagnostics (with would-be outcomes computed after the fact — never fed back into decisions) and a deployment recommendation.
+ */
+export type WalkForwardResultPhase2a = {
+  description?: string;
+  comparison?: WalkForwardResultPhase2aComparison;
+  rejected_trades_summary?: WalkForwardResultPhase2aRejectedTradesSummary;
+  rejected_trades?: WalkForwardResultPhase2aRejectedTradesItem[];
+  recommendation?: string;
+  deployment_note?: string;
+  [key: string]: unknown;
+ } | null;
+
 export type WalkForwardResultBenchmarks = { [key: string]: unknown };
 
 export type WalkForwardResultCalibrationItem = { [key: string]: unknown };
@@ -1323,9 +1372,30 @@ export type WalkForwardResultStrategyIntelligenceRankingItem = {
 
 export type WalkForwardResultStrategyIntelligenceMatrix = { [key: string]: unknown };
 
+export type WalkForwardResultStrategyIntelligenceGatedGates = { [key: string]: unknown };
+
+export type WalkForwardResultStrategyIntelligenceGatedRankingItem = { [key: string]: unknown };
+
+/**
+ * Phase 2A corrected-policy report (variant D intelligence): hard eligibility gates, 7 status categories, Bayesian-shrunk metrics, evidence hierarchy and edge-proportional allocation with the unallocated remainder held as cash.
+ */
+export type WalkForwardResultStrategyIntelligenceGated = {
+  regime?: string;
+  policy?: string;
+  cash_only?: boolean;
+  portfolio_status?: string;
+  cash_pct?: number;
+  total_completed_trades?: number;
+  gates?: WalkForwardResultStrategyIntelligenceGatedGates;
+  ranking?: WalkForwardResultStrategyIntelligenceGatedRankingItem[];
+  [key: string]: unknown;
+ } | null;
+
 export type WalkForwardResultStrategyIntelligenceWindowsItemRegimeDays = { [key: string]: unknown };
 
 export type WalkForwardResultStrategyIntelligenceWindowsItemRankingItem = { [key: string]: unknown };
+
+export type WalkForwardResultStrategyIntelligenceWindowsItemGatedRankingItem = { [key: string]: unknown };
 
 export type WalkForwardResultStrategyIntelligenceWindowsItem = {
   window?: string;
@@ -1334,6 +1404,8 @@ export type WalkForwardResultStrategyIntelligenceWindowsItem = {
   regime_days?: WalkForwardResultStrategyIntelligenceWindowsItemRegimeDays;
   oos_trades_learned?: number;
   ranking?: WalkForwardResultStrategyIntelligenceWindowsItemRankingItem[];
+  gated_ranking?: WalkForwardResultStrategyIntelligenceWindowsItemGatedRankingItem[];
+  gated_cash_only?: boolean;
   [key: string]: unknown;
  };
 
@@ -1346,6 +1418,8 @@ export type WalkForwardResultStrategyIntelligence = {
   note?: string;
   ranking?: WalkForwardResultStrategyIntelligenceRankingItem[];
   matrix?: WalkForwardResultStrategyIntelligenceMatrix;
+  /** Phase 2A corrected-policy report (variant D intelligence): hard eligibility gates, 7 status categories, Bayesian-shrunk metrics, evidence hierarchy and edge-proportional allocation with the unallocated remainder held as cash. */
+  gated?: WalkForwardResultStrategyIntelligenceGated;
   windows?: WalkForwardResultStrategyIntelligenceWindowsItem[];
   [key: string]: unknown;
  } | null;
@@ -1381,6 +1455,8 @@ export interface WalkForwardResult {
   windows?: WalkForwardResultWindowsItem[];
   overall?: WalkForwardResultOverall;
   layer_comparison?: WalkForwardResultLayerComparisonItem[];
+  /** Phase 2A analysis report (analysis only — the live pipeline is unchanged): corrected gated ranking + edge-proportional allocation evaluated as walk-forward variants D (default gates) and E (strict gates) against the preserved legacy policy (variant C). Includes the C/D/E comparison, rejected-trade diagnostics (with would-be outcomes computed after the fact — never fed back into decisions) and a deployment recommendation. */
+  phase2a?: WalkForwardResultPhase2a;
   benchmarks?: WalkForwardResultBenchmarks;
   calibration?: WalkForwardResultCalibrationItem[];
   /** Phase 1 confidence-calibration report for the full model: before (raw confidence / 100) vs after (per-window calibrated probability) Brier score, ECE and log loss, reliability-diagram bins for both, per-window calibrator metadata (method, training samples, version) and the calibrated-probability execution floor. */

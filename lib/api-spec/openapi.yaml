@@ -3153,6 +3153,61 @@ components:
           items:
             type: object
             additionalProperties: true
+        phase2a:
+          type: object
+          nullable: true
+          description: >
+            Phase 2A analysis report (analysis only — the live pipeline is
+            unchanged): corrected gated ranking + edge-proportional
+            allocation evaluated as walk-forward variants D (default gates)
+            and E (strict gates) against the preserved legacy policy
+            (variant C). Includes the C/D/E comparison, rejected-trade
+            diagnostics (with would-be outcomes computed after the fact —
+            never fed back into decisions) and a deployment recommendation.
+          properties:
+            description: { type: string }
+            comparison:
+              type: object
+              additionalProperties: true
+            rejected_trades_summary:
+              type: object
+              properties:
+                total_rejected: { type: integer }
+                rejections_that_saved_money: { type: integer }
+                rejections_that_cost_money: { type: integer }
+                rejections_unknown_outcome: { type: integer }
+                gate_precision_pct: { type: number, nullable: true }
+                by_status:
+                  type: object
+                  additionalProperties: true
+                by_strategy:
+                  type: object
+                  additionalProperties: true
+              additionalProperties: true
+            rejected_trades:
+              type: array
+              items:
+                type: object
+                properties:
+                  symbol: { type: string }
+                  sector: { type: string }
+                  strategy_id: { type: string }
+                  regime: { type: string }
+                  proposed_date: { type: string }
+                  window: { type: string }
+                  status: { type: string }
+                  rejection_reason: { type: string }
+                  raw_profit_factor: { type: number, nullable: true }
+                  adjusted_profit_factor: { type: number, nullable: true }
+                  raw_expectancy_pct: { type: number, nullable: true }
+                  adjusted_expectancy_pct: { type: number, nullable: true }
+                  sample: { type: integer }
+                  confidence: { type: number }
+                  would_be_outcome: { type: string }
+                additionalProperties: true
+            recommendation: { type: string }
+            deployment_note: { type: string }
+          additionalProperties: true
         benchmarks:
           type: object
           additionalProperties: true
@@ -3242,6 +3297,30 @@ components:
             matrix:
               type: object
               additionalProperties: true
+            gated:
+              type: object
+              nullable: true
+              description: >
+                Phase 2A corrected-policy report (variant D intelligence):
+                hard eligibility gates, 7 status categories, Bayesian-shrunk
+                metrics, evidence hierarchy and edge-proportional allocation
+                with the unallocated remainder held as cash.
+              properties:
+                regime: { type: string }
+                policy: { type: string }
+                cash_only: { type: boolean }
+                portfolio_status: { type: string }
+                cash_pct: { type: number }
+                total_completed_trades: { type: integer }
+                gates:
+                  type: object
+                  additionalProperties: true
+                ranking:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: true
+              additionalProperties: true
             windows:
               type: array
               items:
@@ -3259,6 +3338,12 @@ components:
                     items:
                       type: object
                       additionalProperties: true
+                  gated_ranking:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                  gated_cash_only: { type: boolean }
                 additionalProperties: true
           additionalProperties: true
         recommendation_outcomes:

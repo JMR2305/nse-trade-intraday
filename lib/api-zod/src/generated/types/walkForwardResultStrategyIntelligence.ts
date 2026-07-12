@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { WalkForwardResultStrategyIntelligenceGated } from './walkForwardResultStrategyIntelligenceGated';
 import type { WalkForwardResultStrategyIntelligenceMatrix } from './walkForwardResultStrategyIntelligenceMatrix';
 import type { WalkForwardResultStrategyIntelligenceRankingItem } from './walkForwardResultStrategyIntelligenceRankingItem';
 import type { WalkForwardResultStrategyIntelligenceWindowsItem } from './walkForwardResultStrategyIntelligenceWindowsItem';
@@ -18,6 +19,8 @@ export type WalkForwardResultStrategyIntelligence = {
   note?: string;
   ranking?: WalkForwardResultStrategyIntelligenceRankingItem[];
   matrix?: WalkForwardResultStrategyIntelligenceMatrix;
+  /** Phase 2A corrected-policy report (variant D intelligence): hard eligibility gates, 7 status categories, Bayesian-shrunk metrics, evidence hierarchy and edge-proportional allocation with the unallocated remainder held as cash. */
+  gated?: WalkForwardResultStrategyIntelligenceGated;
   windows?: WalkForwardResultStrategyIntelligenceWindowsItem[];
   [key: string]: unknown;
  } | null;

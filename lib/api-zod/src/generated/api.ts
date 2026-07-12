@@ -1214,6 +1214,38 @@ export const GetWalkForwardResultResponse = zod.object({
   "windows": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
   "overall": zod.record(zod.string(), zod.unknown()).optional(),
   "layer_comparison": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "phase2a": zod.object({
+  "description": zod.string().optional(),
+  "comparison": zod.record(zod.string(), zod.unknown()).optional(),
+  "rejected_trades_summary": zod.object({
+  "total_rejected": zod.number().optional(),
+  "rejections_that_saved_money": zod.number().optional(),
+  "rejections_that_cost_money": zod.number().optional(),
+  "rejections_unknown_outcome": zod.number().optional(),
+  "gate_precision_pct": zod.number().nullish(),
+  "by_status": zod.record(zod.string(), zod.unknown()).optional(),
+  "by_strategy": zod.record(zod.string(), zod.unknown()).optional()
+}).optional(),
+  "rejected_trades": zod.array(zod.object({
+  "symbol": zod.string().optional(),
+  "sector": zod.string().optional(),
+  "strategy_id": zod.string().optional(),
+  "regime": zod.string().optional(),
+  "proposed_date": zod.string().optional(),
+  "window": zod.string().optional(),
+  "status": zod.string().optional(),
+  "rejection_reason": zod.string().optional(),
+  "raw_profit_factor": zod.number().nullish(),
+  "adjusted_profit_factor": zod.number().nullish(),
+  "raw_expectancy_pct": zod.number().nullish(),
+  "adjusted_expectancy_pct": zod.number().nullish(),
+  "sample": zod.number().optional(),
+  "confidence": zod.number().optional(),
+  "would_be_outcome": zod.string().optional()
+})).optional(),
+  "recommendation": zod.string().optional(),
+  "deployment_note": zod.string().optional()
+}).nullish().describe('Phase 2A analysis report (analysis only — the live pipeline is unchanged): corrected gated ranking + edge-proportional allocation evaluated as walk-forward variants D (default gates) and E (strict gates) against the preserved legacy policy (variant C). Includes the C\/D\/E comparison, rejected-trade diagnostics (with would-be outcomes computed after the fact — never fed back into decisions) and a deployment recommendation.\n'),
   "benchmarks": zod.record(zod.string(), zod.unknown()).optional(),
   "calibration": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
   "calibration_report": zod.object({
@@ -1248,13 +1280,25 @@ export const GetWalkForwardResultResponse = zod.object({
   "in_regime": zod.record(zod.string(), zod.unknown()).nullish()
 })).optional(),
   "matrix": zod.record(zod.string(), zod.unknown()).optional(),
+  "gated": zod.object({
+  "regime": zod.string().optional(),
+  "policy": zod.string().optional(),
+  "cash_only": zod.boolean().optional(),
+  "portfolio_status": zod.string().optional(),
+  "cash_pct": zod.number().optional(),
+  "total_completed_trades": zod.number().optional(),
+  "gates": zod.record(zod.string(), zod.unknown()).optional(),
+  "ranking": zod.array(zod.record(zod.string(), zod.unknown())).optional()
+}).nullish().describe('Phase 2A corrected-policy report (variant D intelligence): hard eligibility gates, 7 status categories, Bayesian-shrunk metrics, evidence hierarchy and edge-proportional allocation with the unallocated remainder held as cash.\n'),
   "windows": zod.array(zod.object({
   "window": zod.string().optional(),
   "test_start": zod.string().optional(),
   "dominant_regime": zod.string().optional(),
   "regime_days": zod.record(zod.string(), zod.unknown()).optional(),
   "oos_trades_learned": zod.number().optional(),
-  "ranking": zod.array(zod.record(zod.string(), zod.unknown())).optional()
+  "ranking": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "gated_ranking": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "gated_cash_only": zod.boolean().optional()
 })).optional()
 }).nullish().describe('Phase 2 adaptive strategy selection report: per-strategy performance matrix (overall and per market regime), strategy ranking with enable\/disable decisions and human-readable reasons for the current regime, dynamic allocation weights, and per-window snapshots. Learned only from completed out-of-sample trades (no lookahead).\n'),
   "recommendation_outcomes": zod.array(zod.record(zod.string(), zod.unknown())).optional(),

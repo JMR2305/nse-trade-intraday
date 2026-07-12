@@ -62,6 +62,7 @@ from execution_simulator import (
 import validation_metrics as vm
 from strategy_intelligence import (
     StrategyIntelligence, classify_regime, MAX_STRATEGY_ALLOC,
+    GATES_DEFAULT, GATES_STRICT, ST_ENABLED,
     trades_from_knowledge as intel_trades_from_knowledge,
 )
 
@@ -84,7 +85,14 @@ VARIANT_LABELS = {
     "A": "A — Base technical engine only",
     "B": "B — Technical + Historical Pattern + Similarity",
     "C": "C — Full model (adaptive learning + portfolio manager)",
+    "D": "D — Corrected gated ranking + edge-weighted allocation (Phase 2A)",
+    "E": "E — Strict gates: cash when no strategy qualifies (Phase 2A)",
 }
+
+# Variants that run the FULL model pipeline (calibration, model weights,
+# portfolio-manager caps). C uses the legacy strategy-intelligence policy;
+# D/E use the corrected gated policy (default / strict gates).
+FULL_VARIANTS = ("C", "D", "E")
 
 # Portfolio Manager limits (imported values, applied — never modified here)
 try:
@@ -579,6 +587,29 @@ def _passes_entry_gate(variant: str, final_conf: float,
     return True
 
 
+def _would_be_outcome(item: dict, fe: dict) -> str:
+    """Analysis-only estimate of what a REJECTED trade would have done,
+    from forward MAE/MFE vs the proposed stop/target distances. Computed
+    after the fact for diagnostics — never fed back into decisions."""
+    price = float(item.get("price") or 0.0)
+    stop = float(item.get("stop_loss") or 0.0)
+    target = float(item.get("target") or 0.0)
+    mae, mfe = fe.get("mae_pct"), fe.get("mfe_pct")
+    if price <= 0 or mae is None:
+        return "no forward data"
+    stop_pct = (stop - price) / price * 100.0 if stop > 0 else None
+    target_pct = (target - price) / price * 100.0 if target > 0 else None
+    if stop_pct is not None and mae <= stop_pct:
+        return f"would likely have hit stop ({stop_pct:.1f}%)"
+    if target_pct is not None and mfe is not None and mfe >= target_pct:
+        return f"would likely have hit target (+{target_pct:.1f}%)"
+    fr = fe.get("forward_returns") or {}
+    for h in ("20", "10", "5", "3", "1"):
+        if fr.get(h) is not None:
+            return f"held {h}d: {fr[h]:+.2f}% (no stop/target hit)"
+    return "no forward data"
+
+
 def simulate_window_variant(
     variant: str,
     window: dict,
@@ -594,6 +625,8 @@ def simulate_window_variant(
     lookahead_log: dict | None = None,
     calibrator: dict | None = None,
     strategy_intel: StrategyIntelligence | None = None,
+    intel_gates: dict | None = None,
+    rejected_log: list | None = None,
 ) -> dict:
     """
     Day-by-day replay: exits first (stop/target intrabar, signal, time,
@@ -610,10 +643,12 @@ def simulate_window_variant(
 
     knowledge = ctx["knowledge"]
     vectors = ctx["vectors"]
-    weights = ctx["model_weights"] if variant == "C" else None
+    weights = ctx["model_weights"] if variant in FULL_VARIANTS else None
 
-    max_open = MAX_NEW_POSITIONS if variant == "C" else MAX_OPEN_POSITIONS_SIMPLE
+    max_open = (MAX_NEW_POSITIONS if variant in FULL_VARIANTS
+                else MAX_OPEN_POSITIONS_SIMPLE)
     intel_regime_days: dict[str, int] = {}
+    daily_cash_frac: list[float] = []   # cash / equity, per trading day
 
     for di, day in enumerate(test_days):
         day_str = day.strftime("%Y-%m-%d")
@@ -741,6 +776,8 @@ def simulate_window_variant(
                     "strategy_rank": rec.get("strategy_rank"),
                     "strategy_reason": rec.get("strategy_reason", ""),
                     "strategy_sizing_factor": rec.get("strategy_sizing_factor"),
+                    "strategy_status": rec.get("strategy_status"),
+                    "strategy_weight": rec.get("strategy_weight"),
                     "holding_days": 0,
                     "mae_pct": 0.0,
                     "mfe_pct": 0.0,
@@ -769,10 +806,10 @@ def simulate_window_variant(
                 fc = item["confidence"]
                 pattern_adj = sim_adj = model_adj = 0.0
                 sim_max_ts = ""
-                if variant in ("B", "C"):
+                if variant != "A":
                     pattern_adj, _stats = _pattern_adjustment(item, knowledge_asof, regime)
                     sim_adj, sim_max_ts = _similarity_adjustment(item, vectors, regime, day_str)
-                if variant == "C":
+                if variant in FULL_VARIANTS:
                     model_adj = _model_adjustment(item, regime, fc, weights)
 
                 # Lookahead audit — covers EVERY data source in the decision:
@@ -820,7 +857,9 @@ def simulate_window_variant(
                     # Phase 2: adaptive strategy selection — gate the entry on
                     # whether this strategy is enabled for the CURRENT regime,
                     # judged only from trades completed before this decision.
-                    if strategy_intel is not None and regime7 is not None:
+                    if strategy_intel is not None and regime7 is not None \
+                            and intel_gates is None:
+                        # Legacy policy (variant C — previous behavior).
                         sid = str(item.get("best_strategy_id", "")).lower()
                         rank_row = next(
                             (r for r in strategy_intel.rank_for_regime(regime7)
@@ -833,6 +872,44 @@ def simulate_window_variant(
                             strategy_intel.sizing_factor(sid, regime7))
                         if not item["strategy_enabled"]:
                             continue  # strategy disabled in this regime
+                    elif strategy_intel is not None and regime7 is not None:
+                        # Phase 2A corrected policy (variants D/E): hard
+                        # eligibility gates, no diversification floor. If the
+                        # strategy is not ENABLED the trade is rejected and
+                        # logged for diagnostics (analysis-only).
+                        sid = str(item.get("best_strategy_id", "")).lower()
+                        rank_row = next(
+                            (r for r in strategy_intel.rank_gated(regime7, intel_gates)
+                             if r["strategy_id"] == sid), None)
+                        alloc_g = strategy_intel.gated_allocation(regime7, intel_gates)
+                        item["intel_regime"] = regime7
+                        item["strategy_rank"] = rank_row["rank"] if rank_row else None
+                        item["strategy_status"] = rank_row["status"] if rank_row else "UNKNOWN"
+                        item["strategy_enabled"] = bool(rank_row and rank_row["eligible"])
+                        item["strategy_reason"] = rank_row["reason"] if rank_row else \
+                            "Unknown strategy — no completed-trade history"
+                        item["strategy_weight"] = alloc_g["weights"].get(sid, 0.0)
+                        if not item["strategy_enabled"]:
+                            if rejected_log is not None:
+                                fe = forward_eval(sym_rows[sym], pos_idx)
+                                rejected_log.append({
+                                    "symbol": sym,
+                                    "sector": item.get("sector", "OTHER"),
+                                    "strategy_id": sid,
+                                    "regime": regime7,
+                                    "proposed_date": day_str,
+                                    "status": item["strategy_status"],
+                                    "rejection_reason": item["strategy_reason"],
+                                    "raw_profit_factor": rank_row["raw_profit_factor"] if rank_row else None,
+                                    "adjusted_profit_factor": rank_row["adjusted_profit_factor"] if rank_row else None,
+                                    "raw_expectancy_pct": rank_row["raw_expectancy_pct"] if rank_row else None,
+                                    "adjusted_expectancy_pct": rank_row["adjusted_expectancy_pct"] if rank_row else None,
+                                    "sample": rank_row["sample"] if rank_row else 0,
+                                    "confidence": final_conf,
+                                    "would_be_outcome": _would_be_outcome(item, fe),
+                                    "forward_returns": fe["forward_returns"],
+                                })
+                            continue  # not eligible → hold cash instead
                     candidates.append(item)
 
             candidates.sort(key=lambda it: (-it["final_confidence"],
@@ -846,9 +923,14 @@ def simulate_window_variant(
             equity += pos["quantity"] * _mark_price(sym_rows[sym], date_pos[sym], day)
         equity_curve.append(round(equity, 2))
         equity_dates.append(day_str)
+        daily_cash_frac.append(cash / equity if equity > 0 else 1.0)
 
     metrics = vm.compute_performance_metrics(
         trades, cfg.initial_capital, equity_curve, trading_days=len(test_days))
+    n_days = len(daily_cash_frac)
+    cash_time_pct = round(sum(daily_cash_frac) / n_days * 100.0, 1) if n_days else 100.0
+    full_cash_days_pct = round(
+        sum(1 for c in daily_cash_frac if c >= 0.999) / n_days * 100.0, 1) if n_days else 100.0
     return {
         "variant": variant,
         "trades": trades,
@@ -856,6 +938,8 @@ def simulate_window_variant(
         "equity_dates": equity_dates,
         "metrics": metrics,
         "intel_regime_days": intel_regime_days,
+        "cash_time_pct": cash_time_pct,        # avg fraction of equity in cash
+        "full_cash_days_pct": full_cash_days_pct,  # % of days 100% in cash
     }
 
 
@@ -870,9 +954,11 @@ def _mark_price(rows: pd.DataFrame, dpos: dict, day: pd.Timestamp) -> float:
 def _allocation_for(variant: str, rec: dict, total_equity: float,
                     positions: dict, sym_rows: dict, date_pos: dict,
                     day: pd.Timestamp) -> float:
-    """A/B: flat 20% of equity. C: Portfolio Manager caps — 20% per stock,
-    30% per sector, confidence-scaled sizing."""
-    if variant != "C":
+    """A/B: flat 20% of equity. C/D/E: Portfolio Manager caps — 20% per
+    stock, 30% per sector, confidence-scaled sizing. C tilts by the legacy
+    sizing factor; D/E cap by the gated per-strategy capital budget
+    (edge-weighted, max 40% per strategy — remainder stays in cash)."""
+    if variant not in FULL_VARIANTS:
         return total_equity * MAX_CAPITAL_PER_TRADE_PCT
     stock_cap = total_equity * MAX_STOCK_PCT
     sector = rec.get("sector", "OTHER")
@@ -887,14 +973,29 @@ def _allocation_for(variant: str, rec: dict, total_equity: float,
                  else rec.get("final_confidence", 50.0))
     conf_scale = max(0.5, min(1.0, conf / 100.0 + 0.25))
     alloc = max(0.0, min(stock_cap * conf_scale, sector_room))
-    # Phase 2: dynamic allocation — tilt position size toward strategies
-    # ranked higher for the current regime (factor bounded [0.5, 1.5]).
-    # Re-clamp afterwards so the tilt can never break the per-stock cap
-    # or the remaining sector room.
-    sf = rec.get("strategy_sizing_factor")
-    if sf is not None:
-        alloc *= float(sf)
-    return max(0.0, min(alloc, stock_cap, sector_room))
+    if variant == "C":
+        # Phase 2 (legacy): dynamic allocation — tilt position size toward
+        # strategies ranked higher for the current regime (factor bounded
+        # [0.5, 1.5]). Re-clamp afterwards so the tilt can never break the
+        # per-stock cap or the remaining sector room.
+        sf = rec.get("strategy_sizing_factor")
+        if sf is not None:
+            alloc *= float(sf)
+        return max(0.0, min(alloc, stock_cap, sector_room))
+    # Phase 2A (D/E): the strategy's gated weight is a hard capital budget.
+    # Capital already deployed to this strategy counts against the budget;
+    # what the budget doesn't cover stays in cash.
+    w = float(rec.get("strategy_weight") or 0.0)
+    if w <= 0.0:
+        return 0.0
+    sid = str(rec.get("best_strategy_id", "")).lower()
+    strategy_used = sum(
+        p["quantity"] * _mark_price(sym_rows[s], date_pos[s], day)
+        for s, p in positions.items()
+        if str(p.get("strategy_id", "")).lower() == sid
+    )
+    strategy_room = total_equity * w - strategy_used
+    return max(0.0, min(alloc, stock_cap, sector_room, strategy_room))
 
 
 def _close_position(trades: list, positions: dict, cost_model: CostModel,
@@ -932,6 +1033,8 @@ def _close_position(trades: list, positions: dict, cost_model: CostModel,
         "intel_regime": pos.get("intel_regime"),
         "strategy_rank": pos.get("strategy_rank"),
         "strategy_sizing_factor": pos.get("strategy_sizing_factor"),
+        "strategy_status": pos.get("strategy_status"),
+        "strategy_weight": pos.get("strategy_weight"),
     }
     trades.append(build_trade_record(sym, entry, exit_info, meta))
     del positions[sym]
@@ -1054,6 +1157,111 @@ def aggregate_costs(trades: list[dict]) -> dict:
     return agg
 
 
+def _phase2a_report(overall: dict, layer_comparison: list,
+                    rejected_trades: list) -> dict:
+    """Phase 2A analysis report (§11): compares the legacy ranking policy
+    (variant C) against the corrected gated policy (D) and strict gates (E),
+    summarizes rejected-trade diagnostics, and gives a deployment
+    recommendation. ANALYSIS ONLY — nothing here changes the live pipeline."""
+    rows = {r["variant"]: r for r in layer_comparison}
+    c, d, e = rows.get("C", {}), rows.get("D", {}), rows.get("E", {})
+
+    # Rejected-trades diagnostic: how often the gate was RIGHT to reject.
+    rej = rejected_trades
+    n_rej = len(rej)
+    saved = hurt = unknown = 0
+    for rt in rej:
+        out = rt.get("would_be_outcome", "")
+        if out.startswith("would likely have hit stop"):
+            saved += 1
+        elif out.startswith("would likely have hit target"):
+            hurt += 1
+        elif out.startswith("held"):
+            try:
+                val = float(out.split(":")[1].split("%")[0])
+                if val < 0:
+                    saved += 1
+                elif val > 0:
+                    hurt += 1
+                else:
+                    unknown += 1
+            except (ValueError, IndexError):
+                unknown += 1
+        else:
+            unknown += 1
+    by_status: dict[str, int] = {}
+    by_strategy: dict[str, int] = {}
+    for rt in rej:
+        by_status[rt.get("status", "UNKNOWN")] = by_status.get(rt.get("status", "UNKNOWN"), 0) + 1
+        sid = rt.get("strategy_id", "?")
+        by_strategy[sid] = by_strategy.get(sid, 0) + 1
+
+    def _num(row, key, default=0.0):
+        v = row.get(key)
+        return float(v) if v is not None else default
+
+    d_beats_c = (_num(d, "net_return_pct") > _num(c, "net_return_pct")
+                 and _num(d, "max_drawdown_pct") <= _num(c, "max_drawdown_pct") + 1e-9)
+    d_better_risk = _num(d, "max_drawdown_pct") < _num(c, "max_drawdown_pct")
+
+    if d_beats_c:
+        recommendation = (
+            "Variant D (gated policy) beat the legacy policy on return "
+            "without added drawdown in this run. Consider promoting D after "
+            "reviewing per-window stability — promotion is a manual decision, "
+            "nothing is auto-deployed.")
+    elif d_better_risk:
+        recommendation = (
+            "Variant D reduced drawdown versus the legacy policy but did not "
+            "improve net return. Keep the legacy policy live; re-evaluate D "
+            "after more completed trades accumulate.")
+    else:
+        recommendation = (
+            "Variant D did not improve on the legacy policy in this run. "
+            "Keep the legacy policy live. The gates may be starving the "
+            "system of trades at the current sample size — re-run after more "
+            "trade history accumulates.")
+
+    return {
+        "description": ("Phase 2A analysis: corrected ranking/allocation "
+                        "policy (hard eligibility gates, Bayesian shrinkage, "
+                        "evidence hierarchy, edge-proportional allocation "
+                        "with cash remainder) evaluated as walk-forward "
+                        "variants D (default gates) and E (strict gates) "
+                        "against the preserved legacy policy (variant C)."),
+        "comparison": {
+            "legacy_C": {k: c.get(k) for k in (
+                "net_return_pct", "profit_factor", "expectancy", "win_rate",
+                "max_drawdown_pct", "sharpe_ratio", "total_trades",
+                "exposure_pct", "turnover", "cash_time_pct", "full_cash_days_pct")},
+            "gated_D": {k: d.get(k) for k in (
+                "net_return_pct", "profit_factor", "expectancy", "win_rate",
+                "max_drawdown_pct", "sharpe_ratio", "total_trades",
+                "exposure_pct", "turnover", "cash_time_pct", "full_cash_days_pct")},
+            "strict_E": {k: e.get(k) for k in (
+                "net_return_pct", "profit_factor", "expectancy", "win_rate",
+                "max_drawdown_pct", "sharpe_ratio", "total_trades",
+                "exposure_pct", "turnover", "cash_time_pct", "full_cash_days_pct")},
+        },
+        "rejected_trades_summary": {
+            "total_rejected": n_rej,
+            "rejections_that_saved_money": saved,
+            "rejections_that_cost_money": hurt,
+            "rejections_unknown_outcome": unknown,
+            "gate_precision_pct": round(saved / (saved + hurt) * 100.0, 1)
+                                  if (saved + hurt) else None,
+            "by_status": by_status,
+            "by_strategy": by_strategy,
+        },
+        "rejected_trades": rej[:200],
+        "recommendation": recommendation,
+        "deployment_note": ("ANALYSIS ONLY. The live decision pipeline still "
+                            "uses the legacy policy (variant C). Deploying the "
+                            "gated policy requires an explicit, separate "
+                            "change."),
+    }
+
+
 # ── Main entry point ─────────────────────────────────────────────────────────
 
 def run_validation(config: dict | None = None) -> dict:
@@ -1137,16 +1345,21 @@ def run_validation(config: dict | None = None) -> dict:
     rng = random.Random(cfg.random_seed)
 
     # ── Window loop ─────────────────────────────────────────────────────────
+    VARIANTS = ("A", "B", "C", "D", "E")
     window_results = []
-    all_trades = {"A": [], "B": [], "C": []}
+    all_trades = {v: [] for v in VARIANTS}
     recommendations: list[dict] = []
     lookahead_log = {"decisions": 0, "violations": 0, "max_timestamp": "",
                      "max_knowledge_timestamp": "", "max_similarity_timestamp": ""}
-    chained = {"A": [], "B": [], "C": [], "nifty": [], "dates": []}
-    chain_factor = {"A": 1.0, "B": 1.0, "C": 1.0}
+    chained = {**{v: [] for v in VARIANTS}, "nifty": [], "dates": []}
+    chain_factor = {v: 1.0 for v in VARIANTS}
     calibration_windows: list[dict] = []
     intelligence_windows: list[dict] = []
     last_intel: StrategyIntelligence | None = None
+    last_intel_gated: StrategyIntelligence | None = None
+    rejected_trades: list[dict] = []
+    cash_days = {v: {"cash_weighted": 0.0, "full_cash": 0.0, "days": 0}
+                 for v in VARIANTS}
 
     for wi, window in enumerate(windows):
         status.update({
@@ -1194,27 +1407,46 @@ def run_validation(config: dict | None = None) -> dict:
         # trades that fully exited before the test window starts (no
         # lookahead); the simulation then feeds its own completed
         # out-of-sample trades back in as they close (adaptive learning).
-        window_intel = None
-        try:
-            window_intel = StrategyIntelligence(
-                intel_trades_from_knowledge(as_of=window["test_start"]))
-        except Exception:
-            window_intel = None
+        # C, D and E each get their OWN instance (they learn from their own
+        # out-of-sample trades) built from the identical starting data.
+        def _fresh_intel():
+            try:
+                return StrategyIntelligence(
+                    intel_trades_from_knowledge(as_of=window["test_start"]))
+            except Exception:
+                return None
+
+        window_intel = _fresh_intel()          # C — legacy policy
+        window_intel_d = _fresh_intel()        # D — gated policy
+        window_intel_e = _fresh_intel()        # E — strict gates
+
+        variant_intel = {"C": window_intel, "D": window_intel_d, "E": window_intel_e}
+        variant_gates = {"D": GATES_DEFAULT, "E": GATES_STRICT}
 
         variant_out = {}
-        for variant in ("A", "B", "C"):
+        for variant in VARIANTS:
             variant_out[variant] = simulate_window_variant(
                 variant, window, sym_rows, date_pos, trained, test_days, nifty,
                 ctx, cfg, cost_model,
                 record_recommendations=recommendations if variant == "C" else None,
                 lookahead_log=lookahead_log if variant == "C" else None,
-                calibrator=window_calibrator if variant == "C" else None,
-                strategy_intel=window_intel if variant == "C" else None,
+                calibrator=window_calibrator if variant in FULL_VARIANTS else None,
+                strategy_intel=variant_intel.get(variant),
+                intel_gates=variant_gates.get(variant),
+                rejected_log=rejected_trades if variant == "D" else None,
             )
             for t in variant_out[variant]["trades"]:
                 t["window"] = window["label"]
                 t["variant"] = variant
             all_trades[variant].extend(variant_out[variant]["trades"])
+            nd = len(test_days)
+            cash_days[variant]["cash_weighted"] += \
+                variant_out[variant]["cash_time_pct"] / 100.0 * nd
+            cash_days[variant]["full_cash"] += \
+                variant_out[variant]["full_cash_days_pct"] / 100.0 * nd
+            cash_days[variant]["days"] += nd
+        for rt in rejected_trades:
+            rt.setdefault("window", window["label"])
 
         # Per-window strategy-intelligence snapshot (for the UI)
         if window_intel is not None:
@@ -1232,7 +1464,23 @@ def run_validation(config: dict | None = None) -> dict:
                     "score": r["score"], "enabled": r["enabled"],
                     "reason": r["reason"],
                 } for r in window_intel.rank_for_regime(dominant)],
+                # Phase 2A: corrected-policy view of the SAME window (variant
+                # D's intelligence — gates, statuses, eligibility).
+                "gated_ranking": ([{
+                    "rank": r["rank"], "strategy_id": r["strategy_id"],
+                    "status": r["status"], "eligible": r["eligible"],
+                    "score": r["score"], "reason": r["reason"],
+                    "raw_profit_factor": r["raw_profit_factor"],
+                    "adjusted_profit_factor": r["adjusted_profit_factor"],
+                    "sample": r["sample"],
+                } for r in window_intel_d.rank_gated(dominant, GATES_DEFAULT)]
+                    if window_intel_d is not None else []),
+                "gated_cash_only": (window_intel_d.gated_allocation(
+                    dominant, GATES_DEFAULT)["cash_only"]
+                    if window_intel_d is not None else True),
             })
+        if window_intel_d is not None:
+            last_intel_gated = window_intel_d
 
         # chained equity curves (compounded across windows)
         n_days = len(variant_out["C"]["equity_dates"])
@@ -1244,11 +1492,11 @@ def run_validation(config: dict | None = None) -> dict:
         for i in range(n_days):
             d = variant_out["C"]["equity_dates"][i]
             chained["dates"].append(d)
-            for v in ("A", "B", "C"):
+            for v in VARIANTS:
                 val = variant_out[v]["equity_curve"][i] / cfg.initial_capital
                 chained[v].append(round(chain_factor[v] * val * cfg.initial_capital, 2))
             chained["nifty"].append(round(nifty_chain_base * nifty_curve.get(d, 1.0), 2))
-        for v in ("A", "B", "C"):
+        for v in VARIANTS:
             chain_factor[v] *= variant_out[v]["equity_curve"][-1] / cfg.initial_capital
 
         bench = {
@@ -1274,6 +1522,9 @@ def run_validation(config: dict | None = None) -> dict:
             "base_metrics": variant_out["A"]["metrics"],
             "layered_metrics": variant_out["B"]["metrics"],
             "full_metrics": variant_out["C"]["metrics"],
+            "gated_metrics": variant_out["D"]["metrics"],
+            "strict_metrics": variant_out["E"]["metrics"],
+            "cash_time_pct": {v: variant_out[v]["cash_time_pct"] for v in VARIANTS},
             "benchmarks": bench,
         })
 
@@ -1283,14 +1534,15 @@ def run_validation(config: dict | None = None) -> dict:
 
     total_test_days = sum(int(w.get("trading_days", 0)) for w in window_results)
     overall = {}
-    for v in ("A", "B", "C"):
+    for v in VARIANTS:
         trades_sorted = sorted(all_trades[v], key=lambda t: (t["exit_date"], t["symbol"]))
         overall[v] = vm.compute_performance_metrics(
             trades_sorted, cfg.initial_capital, chained[v], trading_days=total_test_days)
 
     layer_comparison = []
-    for v in ("A", "B", "C"):
+    for v in VARIANTS:
         m = overall[v]
+        cd = cash_days[v]
         layer_comparison.append({
             "variant": v, "label": VARIANT_LABELS[v],
             "net_return_pct": m["total_return_pct"],
@@ -1302,6 +1554,12 @@ def run_validation(config: dict | None = None) -> dict:
             "total_trades": m["total_trades"],
             "total_costs": m["total_costs"],
             "win_rate": m["win_rate"],
+            "exposure_pct": m["exposure_pct"],
+            "turnover": m["turnover"],
+            "cash_time_pct": round(cd["cash_weighted"] / cd["days"] * 100.0, 1)
+                             if cd["days"] else 100.0,
+            "full_cash_days_pct": round(cd["full_cash"] / cd["days"] * 100.0, 1)
+                                  if cd["days"] else 100.0,
         })
     for i, row in enumerate(layer_comparison):
         if i == 0:
@@ -1380,6 +1638,11 @@ def run_validation(config: dict | None = None) -> dict:
                          "toward higher-ranked strategies, capped at "
                          f"{int(MAX_STRATEGY_ALLOC * 100)}% per strategy."),
             }
+            # Phase 2A: corrected-policy report (variant D intelligence,
+            # analysis-only — the live pipeline is unchanged).
+            if last_intel_gated is not None:
+                strategy_intelligence_report["gated"] = \
+                    last_intel_gated.gated_report(current_regime, GATES_DEFAULT)
     except Exception:
         strategy_intelligence_report = None
 
@@ -1393,6 +1656,7 @@ def run_validation(config: dict | None = None) -> dict:
     equity_curve = [
         {"date": chained["dates"][i], "full_model": chained["C"][i],
          "base_model": chained["A"][i], "layered_model": chained["B"][i],
+         "gated_model": chained["D"][i], "strict_model": chained["E"][i],
          "nifty": chained["nifty"][i]}
         for i in range(len(chained["dates"]))
     ]
@@ -1419,8 +1683,11 @@ def run_validation(config: dict | None = None) -> dict:
             "base_metrics": overall["A"],
             "layered_metrics": overall["B"],
             "full_metrics": overall["C"],
+            "gated_metrics": overall["D"],
+            "strict_metrics": overall["E"],
         },
         "layer_comparison": layer_comparison,
+        "phase2a": _phase2a_report(overall, layer_comparison, rejected_trades),
         "benchmarks": benchmarks_overall,
         "calibration": calibration,
         "calibration_report": calibration_report,

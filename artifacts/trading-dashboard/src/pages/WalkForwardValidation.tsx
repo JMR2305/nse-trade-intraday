@@ -396,8 +396,10 @@ export default function WalkForwardValidation() {
                   <YAxis tick={{ fontSize: 9, fontFamily: "monospace" }} domain={["auto", "auto"]} />
                   <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", fontSize: 11, fontFamily: "monospace" }} />
                   <Legend wrapperStyle={{ fontSize: 10, fontFamily: "monospace" }} />
-                  <Line type="monotone" dataKey="full_model" name="Full model" stroke="#10b981" dot={false} strokeWidth={1.6} />
+                  <Line type="monotone" dataKey="full_model" name="Full model (C)" stroke="#10b981" dot={false} strokeWidth={1.6} />
                   <Line type="monotone" dataKey="base_model" name="Base (technical only)" stroke="#818cf8" dot={false} strokeWidth={1.2} />
+                  <Line type="monotone" dataKey="gated_model" name="Gated (D, Phase 2A)" stroke="#22d3ee" dot={false} strokeWidth={1.2} />
+                  <Line type="monotone" dataKey="strict_model" name="Strict gates (E)" stroke="#c084fc" dot={false} strokeWidth={1} strokeDasharray="4 3" />
                   <Line type="monotone" dataKey="nifty" name="NIFTY 50" stroke="#f59e0b" dot={false} strokeWidth={1.2} />
                 </LineChart>
               </ResponsiveContainer>
@@ -415,9 +417,9 @@ export default function WalkForwardValidation() {
           </Section>
 
           {/* Layer comparison */}
-          <Section title="Model Layer Comparison (A / B / C on identical data)">
+          <Section title="Model Layer Comparison (A–E on identical data)">
             <Tbl
-              cols={["Variant", "Net return", "Expectancy", "Profit factor", "Max DD", "Sharpe", "Trades", "Win rate", "Costs", "vs previous layer"]}
+              cols={["Variant", "Net return", "Expectancy", "Profit factor", "Max DD", "Sharpe", "Trades", "Win rate", "Costs", "Cash time", "vs previous layer"]}
               rows={(r.layer_comparison ?? []).map((row: any) => [
                 row.label,
                 <span className={pnlClass(row.net_return_pct)}>{fmtPct(row.net_return_pct)}</span>,
@@ -428,14 +430,87 @@ export default function WalkForwardValidation() {
                 row.total_trades,
                 `${fmtNum(row.win_rate, 1)}%`,
                 fmtINR(row.total_costs),
+                row.cash_time_pct === null || row.cash_time_pct === undefined ? "—" : `${fmtNum(row.cash_time_pct, 1)}%`,
                 row.vs_previous,
               ])}
               testId="table-layer-comparison"
             />
             <div className="text-[10px] font-mono text-muted-foreground mt-2">
               If a layer does not improve results out-of-sample, it is not adding value — this table shows that honestly.
+              Variants D and E are Phase 2A analysis-only policies (corrected gated ranking); the live system still runs variant C.
             </div>
           </Section>
+
+          {/* Phase 2A — corrected ranking analysis */}
+          {r.phase2a && (
+            <Section title="Phase 2A — Corrected Ranking & Allocation (Analysis Only)">
+              <div className="space-y-4" data-testid="phase2a-report">
+                <div className="text-xs font-mono text-muted-foreground whitespace-normal">
+                  {r.phase2a.description}
+                </div>
+                <Tbl
+                  cols={["Policy", "Net return", "PF", "Expectancy", "Win rate", "Max DD", "Sharpe", "Trades", "Cash time", "Fully-in-cash days"]}
+                  rows={[
+                    ["C — legacy (live)", r.phase2a.comparison?.legacy_C],
+                    ["D — gated (default)", r.phase2a.comparison?.gated_D],
+                    ["E — strict gates", r.phase2a.comparison?.strict_E],
+                  ].map(([label, m]: any) => [
+                    label,
+                    <span className={pnlClass(m?.net_return_pct)}>{fmtPct(m?.net_return_pct)}</span>,
+                    fmtNum(m?.profit_factor),
+                    <span className={pnlClass(m?.expectancy)}>{fmtINR(m?.expectancy)}</span>,
+                    `${fmtNum(m?.win_rate, 1)}%`,
+                    `${fmtNum(m?.max_drawdown_pct)}%`,
+                    fmtNum(m?.sharpe_ratio),
+                    m?.total_trades ?? "—",
+                    m?.cash_time_pct === null || m?.cash_time_pct === undefined ? "—" : `${fmtNum(m.cash_time_pct, 1)}%`,
+                    m?.full_cash_days_pct === null || m?.full_cash_days_pct === undefined ? "—" : `${fmtNum(m.full_cash_days_pct, 1)}%`,
+                  ])}
+                  testId="table-phase2a-comparison"
+                />
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <Stat label="Trades rejected by gates (D)" value={String(r.phase2a.rejected_trades_summary?.total_rejected ?? 0)} />
+                  <Stat label="Rejections that saved money" value={String(r.phase2a.rejected_trades_summary?.rejections_that_saved_money ?? 0)} valueClass="text-emerald-400" />
+                  <Stat label="Rejections that cost money" value={String(r.phase2a.rejected_trades_summary?.rejections_that_cost_money ?? 0)} valueClass="text-red-400" />
+                  <Stat
+                    label="Gate precision"
+                    value={r.phase2a.rejected_trades_summary?.gate_precision_pct === null || r.phase2a.rejected_trades_summary?.gate_precision_pct === undefined
+                      ? "—" : `${fmtNum(r.phase2a.rejected_trades_summary.gate_precision_pct, 1)}%`}
+                  />
+                </div>
+
+                {(r.phase2a.rejected_trades ?? []).length > 0 && (
+                  <div>
+                    <div className="text-[10px] font-mono uppercase tracking-wide text-muted-foreground mb-1">
+                      Rejected trades (first {Math.min((r.phase2a.rejected_trades ?? []).length, 50)} shown) — outcome computed after the fact, never fed back into decisions
+                    </div>
+                    <Tbl
+                      cols={["Date", "Stock", "Strategy", "Regime", "Status", "PF (raw→adj)", "Sample", "What would have happened"]}
+                      rows={(r.phase2a.rejected_trades ?? []).slice(0, 50).map((t: any) => [
+                        t.proposed_date,
+                        t.symbol,
+                        t.strategy_id,
+                        t.regime,
+                        <span className="text-red-400 text-[10px]">{t.status}</span>,
+                        `${fmtNum(t.raw_profit_factor, 2)} → ${fmtNum(t.adjusted_profit_factor, 2)}`,
+                        t.sample ?? "—",
+                        <span className="whitespace-normal text-[10px]">{t.would_be_outcome}</span>,
+                      ])}
+                      testId="table-phase2a-rejected"
+                    />
+                  </div>
+                )}
+
+                <div className="text-xs font-mono whitespace-normal bg-zinc-800/60 border border-zinc-700 rounded px-3 py-2" data-testid="text-phase2a-recommendation">
+                  {r.phase2a.recommendation}
+                </div>
+                <div className="text-[10px] font-mono text-amber-400 whitespace-normal">
+                  {r.phase2a.deployment_note}
+                </div>
+              </div>
+            </Section>
+          )}
 
           {/* Benchmarks */}
           <Section title="Benchmarks">
@@ -635,17 +710,50 @@ export default function WalkForwardValidation() {
                     Per-window selection (each window learns only from trades completed before it; selection adapts as out-of-sample trades close)
                   </div>
                   <Tbl
-                    cols={["Window", "Dominant regime", "OOS trades learned", "Enabled strategies (rank order)", "Disabled"]}
+                    cols={["Window", "Dominant regime", "OOS trades learned", "Enabled strategies (rank order)", "Disabled", "Eligible under Phase 2A gates"]}
                     rows={(r.strategy_intelligence.windows ?? []).map((w: any) => [
                       w.window,
                       w.dominant_regime,
                       w.oos_trades_learned,
                       (w.ranking ?? []).filter((x: any) => x.enabled).map((x: any) => x.strategy_id).join(", ") || "—",
                       (w.ranking ?? []).filter((x: any) => !x.enabled).map((x: any) => x.strategy_id).join(", ") || "—",
+                      w.gated_cash_only
+                        ? <span className="text-amber-400">CASH ONLY</span>
+                        : ((w.gated_ranking ?? []).filter((x: any) => x.eligible).map((x: any) => x.strategy_id).join(", ") || "—"),
                     ])}
                     testId="table-strategy-windows"
                   />
                 </div>
+
+                {r.strategy_intelligence.gated && (
+                  <div>
+                    <div className="text-[10px] font-mono uppercase tracking-wide text-muted-foreground mb-1">
+                      Phase 2A corrected policy (analysis only) — hard gates, shrunk metrics, edge-proportional allocation; unallocated capital stays in cash
+                    </div>
+                    <Tbl
+                      cols={["#", "Strategy", "Status", "PF (raw→adj)", "Expectancy (raw→adj)", "Sample", "Evidence", "Allocation", "Why"]}
+                      rows={(r.strategy_intelligence.gated.ranking ?? []).map((s: any) => [
+                        s.rank,
+                        s.strategy_id,
+                        s.eligible
+                          ? <span className="text-emerald-400 text-[10px]">{s.status}</span>
+                          : <span className={`text-[10px] ${s.status === "WATCHLIST" ? "text-amber-400" : "text-red-400"}`}>{s.status}</span>,
+                        `${fmtNum(s.raw_profit_factor, 2)} → ${fmtNum(s.adjusted_profit_factor, 2)}`,
+                        `${fmtNum(s.raw_expectancy_pct, 2)}% → ${fmtNum(s.adjusted_expectancy_pct, 2)}%`,
+                        s.sample ?? 0,
+                        <span className="text-[10px]">{s.evidence_level}</span>,
+                        s.eligible ? `${fmtNum(s.final_allocation_pct, 1)}%` : "0%",
+                        <span className="whitespace-normal text-[10px]">{s.reason}</span>,
+                      ])}
+                      testId="table-strategy-gated-ranking"
+                    />
+                    <div className="text-[10px] font-mono text-muted-foreground mt-1">
+                      {r.strategy_intelligence.gated.cash_only
+                        ? "No strategy passes the gates in the current regime — the corrected policy would hold 100% cash."
+                        : `Cash under the corrected policy: ${fmtNum(r.strategy_intelligence.gated.cash_pct, 1)}% (per-strategy cap 40%, never relaxed).`}
+                    </div>
+                  </div>
+                )}
 
                 <div className="text-[10px] font-mono text-muted-foreground">{r.strategy_intelligence.note}</div>
               </div>

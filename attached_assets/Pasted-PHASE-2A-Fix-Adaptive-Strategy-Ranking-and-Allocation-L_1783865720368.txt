@@ -1,0 +1,217 @@
+PHASE 2A — Fix Adaptive Strategy Ranking and Allocation Logic
+
+The adaptive strategy-selection feature is implemented, but the latest walk-forward result became worse:
+
+- Previous full-model return: approximately -1.29%
+- Current adaptive-model return: approximately -3.31%
+- Current profit factor: 0.71
+- Current expectancy: approximately -₹57 per trade
+- Trades reduced from 48 to 29
+
+The Strategy Intelligence section reveals a ranking defect:
+
+- supertrend_follow is ENABLED even though its rolling profit factor is only 0.35 and rolling expectancy is negative.
+- mean_reversion has rolling profit factor around 1.80 and positive expectancy, but receives the same allocation.
+- The system appears to re-enable a losing strategy solely to satisfy a minimum diversification rule.
+
+Fix the ranking and allocation policy. Do not add new indicators or strategies in this task.
+
+1. Remove forced diversification into losing strategies
+
+Do not enable a strategy merely because the system requires a minimum number of strategies.
+
+If only one strategy has a demonstrated positive edge, allow only one strategy to be enabled.
+
+Cash is preferable to allocating capital to a losing strategy.
+
+Remove any rule such as:
+- always enable at least two strategies
+- re-enable the highest-ranked disabled strategy for diversification
+- force full capital deployment
+
+2. Add hard eligibility gates
+
+A strategy-regime combination may receive capital only when all of these conditions pass:
+
+- Minimum completed training trades: configurable, default 30
+- Rolling profit factor >= 1.10
+- Rolling expectancy after costs > 0
+- Rolling net return after costs > 0
+- Maximum drawdown <= configured limit
+- Data quality valid
+- No look-ahead leakage
+- Strategy is not unstable across recent windows
+
+Preferred stronger eligibility:
+
+- Profit factor >= 1.20
+- Positive expectancy
+- At least 50 completed trades
+- Positive results in at least two independent historical periods or windows
+
+If no strategy passes, hold cash and issue no BUY recommendation.
+
+3. Correct the ranking formula
+
+Rank only strategies that pass the eligibility gates.
+
+Use a transparent composite score based on out-of-sample or prior completed trades:
+
+- 35% normalized profit factor
+- 30% normalized expectancy after costs
+- 15% normalized Sharpe or downside-risk-adjusted return
+- 10% drawdown score
+- 10% sample-size and stability score
+
+Do not allow win rate alone to dominate ranking.
+
+Cap extreme values so one noisy metric cannot overwhelm the score.
+
+Display every score component in Strategy Intelligence.
+
+4. Apply uncertainty shrinkage
+
+Small samples must be shrunk toward neutral performance.
+
+Examples:
+
+- A strategy with PF 2.0 over 5 trades must not outrank PF 1.3 over 150 trades solely because of the higher raw PF.
+- Use Bayesian shrinkage, confidence intervals, or another deterministic sample-size adjustment.
+- Show raw PF, adjusted PF, raw expectancy, adjusted expectancy, and sample count.
+
+5. Use regime-specific evidence correctly
+
+Priority:
+
+1. Strategy + current regime, when sufficiently sampled
+2. Strategy across related regimes
+3. Global strategy history
+
+Do not use a poorly sampled exact regime when a broader, more reliable estimate is available.
+
+Show:
+- Evidence level used
+- Sample count
+- Fallback reason
+- Reliability classification
+
+6. Correct capital allocation
+
+Allocate only among eligible strategies.
+
+Allocation must be proportional to positive adjusted edge, subject to:
+
+- Maximum 40% per strategy by default
+- Maximum 30% per sector
+- Maximum portfolio risk limits
+- Position-size limits
+- Available capital
+
+Do not split equally unless adjusted edges are effectively equal.
+
+Unallocated capital must remain as cash.
+
+Display:
+- Eligible allocation
+- Final allocation
+- Capital held as cash
+- Reason for any cap or reduction
+
+7. Add explicit status categories
+
+Use:
+
+- ENABLED
+- WATCHLIST
+- DISABLED_NEGATIVE_EDGE
+- DISABLED_INSUFFICIENT_SAMPLE
+- DISABLED_UNSTABLE
+- DISABLED_REGIME_MISMATCH
+- CASH_ONLY
+
+Do not label a negative-PF strategy as ENABLED.
+
+8. Add walk-forward comparison variants
+
+Run all variants on identical unseen data:
+
+A. Base technical engine  
+B. Calibrated full model before adaptive ranking  
+C. Existing adaptive ranking logic  
+D. Corrected gated ranking and edge-weighted allocation  
+E. Cash when no eligible strategy exists  
+
+Show:
+
+- Net return after all costs
+- Net profit
+- Trades
+- Win rate
+- Profit factor
+- Expectancy
+- Sharpe
+- Maximum drawdown
+- Exposure
+- Turnover
+- Total costs
+- Percentage of time held in cash
+
+Do not automatically deploy variant D unless it improves out-of-sample quality and passes safeguards.
+
+9. Add diagnostic table for rejected trades
+
+For every trade rejected by the new eligibility rules, show:
+
+- Stock
+- Strategy
+- Regime
+- Proposed date
+- Rejection reason
+- PF
+- Expectancy
+- Sample count
+- What the trade outcome would have been
+
+This is analysis-only and must not introduce look-ahead into decisions.
+
+10. Add automated tests
+
+Test:
+
+- A strategy with PF below 1.0 cannot be enabled
+- A strategy cannot be re-enabled only for diversification
+- Cash is allowed when no strategy qualifies
+- Positive-edge strategies receive more allocation than weaker ones
+- Small-sample extreme performance is shrunk
+- Allocation caps work
+- Sector caps work
+- Ranking is deterministic
+- Only prior completed trades are used
+- Same-window outcomes never affect selection
+- Costs are included in expectancy and PF
+- No fallback/mock data is used for learning
+- Previous behavior remains reproducible as a comparison variant
+
+11. Initial validation
+
+Run using the same configuration as the previous walk-forward test so results are directly comparable.
+
+At completion report:
+
+1. Which strategies were eligible in each window
+2. Which strategies were rejected and why
+3. Percentage of capital held as cash
+4. Performance of variants A–E
+5. Whether corrected ranking improved over:
+   - Base technical model
+   - Previous calibrated model
+   - Existing adaptive model
+6. Whether the corrected model is safe to approve
+7. Exact reasons if it is not safe
+
+Important:
+Do not optimize the ranking formula directly on the active test windows.
+Do not change existing strategy entry or exit logic.
+Do not force profitability.
+Do not automatically deploy.
+Keep the feature in ANALYSIS ONLY mode until explicitly approved.

@@ -15,6 +15,7 @@ import type { WalkForwardResultEquityCurveItem } from './walkForwardResultEquity
 import type { WalkForwardResultLayerComparisonItem } from './walkForwardResultLayerComparisonItem';
 import type { WalkForwardResultLookaheadAudit } from './walkForwardResultLookaheadAudit';
 import type { WalkForwardResultOverall } from './walkForwardResultOverall';
+import type { WalkForwardResultPhase2a } from './walkForwardResultPhase2a';
 import type { WalkForwardResultRecommendationOutcomesItem } from './walkForwardResultRecommendationOutcomesItem';
 import type { WalkForwardResultStability } from './walkForwardResultStability';
 import type { WalkForwardResultStrategyIntelligence } from './walkForwardResultStrategyIntelligence';
@@ -38,6 +39,8 @@ export interface WalkForwardResult {
   windows?: WalkForwardResultWindowsItem[];
   overall?: WalkForwardResultOverall;
   layer_comparison?: WalkForwardResultLayerComparisonItem[];
+  /** Phase 2A analysis report (analysis only — the live pipeline is unchanged): corrected gated ranking + edge-proportional allocation evaluated as walk-forward variants D (default gates) and E (strict gates) against the preserved legacy policy (variant C). Includes the C/D/E comparison, rejected-trade diagnostics (with would-be outcomes computed after the fact — never fed back into decisions) and a deployment recommendation. */
+  phase2a?: WalkForwardResultPhase2a;
   benchmarks?: WalkForwardResultBenchmarks;
   calibration?: WalkForwardResultCalibrationItem[];
   /** Phase 1 confidence-calibration report for the full model: before (raw confidence / 100) vs after (per-window calibrated probability) Brier score, ECE and log loss, reliability-diagram bins for both, per-window calibrator metadata (method, training samples, version) and the calibrated-probability execution floor. */
