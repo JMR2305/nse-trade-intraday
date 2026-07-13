@@ -3366,6 +3366,81 @@ components:
         benchmarks:
           type: object
           additionalProperties: true
+        alpha_generation:
+          type: object
+          nullable: true
+          description: >
+            Phase 5 Alpha Generation Engine (ANALYSIS ONLY — never changes
+            live decisions). Evaluates 10 new strategy candidates formed by
+            layering additional entry filters onto MACD Cross OOS trades.
+            Filters include multi-timeframe trend (ADX), relative strength vs
+            NIFTY 50, VWAP/volume participation, ATR volatility, market-regime
+            selection, sector focus, holding-period limits, and multi-signal
+            intersections. Each candidate receives a
+            KEEP_FOR_FURTHER_TESTING / INCONCLUSIVE / REJECT verdict based on
+            6 quality gates: positive expectancy, PF ≥ 1.10, ≥ 30 trades,
+            ≥ 50% windows positive, max drawdown < 60%, top-5 trade share
+            ≤ 70% of gross profit.
+          properties:
+            error: { type: string }
+            safety: { type: string }
+            total_oos_trades: { type: integer }
+            windows_evaluated: { type: integer }
+            window_labels:
+              type: array
+              items: { type: string }
+            baseline:
+              type: object
+              additionalProperties: true
+            candidates:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: string }
+                  name: { type: string }
+                  description: { type: string }
+                  components:
+                    type: array
+                    items: { type: string }
+                  filters:
+                    type: array
+                    items: { type: string }
+                  trades: { type: integer }
+                  pct_of_baseline: { type: number }
+                  metrics:
+                    type: object
+                    additionalProperties: true
+                  window_consistency:
+                    type: object
+                    additionalProperties: true
+                  regime_breakdown:
+                    type: array
+                    items: { type: object, additionalProperties: true }
+                  sector_breakdown:
+                    type: array
+                    items: { type: object, additionalProperties: true }
+                  concentration:
+                    type: object
+                    additionalProperties: true
+                  verdict: { type: string }
+                  verdict_rationale: { type: string }
+                  verdict_checks:
+                    type: array
+                    items: { type: object, additionalProperties: true }
+                  verdict_passed: { type: integer }
+                  verdict_failed: { type: integer }
+                  verdict_failed_checks:
+                    type: array
+                    items: { type: string }
+                additionalProperties: true
+            comparison_table:
+              type: array
+              items: { type: object, additionalProperties: true }
+            recommendation_summary:
+              type: array
+              items: { type: object, additionalProperties: true }
+          additionalProperties: true
         macd_robustness:
           type: object
           nullable: true

@@ -1,101 +1,96 @@
 section,metric,value
-meta,generated_at,2026-07-12T21:44:39
+meta,generated_at,2026-07-13T13:11:27
 meta,verdict,INSUFFICIENT DATA
-meta,verdict_summary,Only 11 completed out-of-sample trades across 2 test window(s) — at least 100 trades and 2 windows are required for a reliable verdict.
-base model,total_trades,23
-base model,winning_trades,10
-base model,losing_trades,13
-base model,win_rate,43.5
-base model,gross_profit,404.47
-base model,gross_loss,-478.09
-base model,net_profit,-73.62
-base model,total_return_pct,-1.47
-base model,annualized_return_pct,-3.07
-base model,avg_return_per_trade_pct,-0.53
-base model,expectancy,-3.2
-base model,profit_factor,0.85
-base model,sharpe_ratio,-0.65
-base model,sortino_ratio,-1.93
-base model,max_drawdown_pct,6.87
-base model,recovery_factor,-0.21
-base model,calmar_ratio,-0.45
-base model,avg_holding_days,9.3
+meta,verdict_summary,Only 29 completed out-of-sample trades across 2 test window(s) — at least 100 trades and 2 windows are required for a reliable verdict.
+base model,total_trades,54
+base model,winning_trades,20
+base model,losing_trades,34
+base model,win_rate,37.0
+base model,gross_profit,10107.12
+base model,gross_loss,-10801.34
+base model,net_profit,-694.22
+base model,total_return_pct,-1.39
+base model,annualized_return_pct,-2.89
+base model,avg_return_per_trade_pct,-0.09
+base model,expectancy,-12.86
+base model,profit_factor,0.94
+base model,sharpe_ratio,-0.17
+base model,sortino_ratio,-0.51
+base model,max_drawdown_pct,9.49
+base model,recovery_factor,-0.14
+base model,calmar_ratio,-0.3
+base model,avg_holding_days,9.2
 base model,exposure_pct,100.0
-base model,turnover,3.94
-base model,total_costs,73.23
-base model,avg_win,40.45
-base model,avg_loss,36.78
-base model,largest_winner,138.96
-base model,largest_loser,-59.98
-base model,max_consecutive_wins,3
-base model,max_consecutive_losses,8
-pattern+similarity,total_trades,20
-pattern+similarity,winning_trades,9
-pattern+similarity,losing_trades,11
-pattern+similarity,win_rate,45.0
-pattern+similarity,gross_profit,385.29
-pattern+similarity,gross_loss,-417.15
-pattern+similarity,net_profit,-31.86
-pattern+similarity,total_return_pct,-0.64
-pattern+similarity,annualized_return_pct,-1.33
-pattern+similarity,avg_return_per_trade_pct,-0.33
-pattern+similarity,expectancy,-1.59
-pattern+similarity,profit_factor,0.92
-pattern+similarity,sharpe_ratio,-0.36
-pattern+similarity,sortino_ratio,-1.12
-pattern+similarity,max_drawdown_pct,6.36
-pattern+similarity,recovery_factor,-0.1
-pattern+similarity,calmar_ratio,-0.21
-pattern+similarity,avg_holding_days,10.0
+base model,turnover,9.59
+base model,total_costs,2265.41
+base model,avg_win,505.36
+base model,avg_loss,317.69
+base model,largest_winner,1518.48
+base model,largest_loser,-608.59
+base model,max_consecutive_wins,7
+base model,max_consecutive_losses,9
+pattern+similarity,total_trades,60
+pattern+similarity,winning_trades,19
+pattern+similarity,losing_trades,41
+pattern+similarity,win_rate,31.7
+pattern+similarity,gross_profit,10985.64
+pattern+similarity,gross_loss,-13551.35
+pattern+similarity,net_profit,-2565.71
+pattern+similarity,total_return_pct,-5.13
+pattern+similarity,annualized_return_pct,-10.47
+pattern+similarity,avg_return_per_trade_pct,-0.45
+pattern+similarity,expectancy,-42.76
+pattern+similarity,profit_factor,0.81
+pattern+similarity,sharpe_ratio,-0.88
+pattern+similarity,sortino_ratio,-2.71
+pattern+similarity,max_drawdown_pct,9.83
+pattern+similarity,recovery_factor,-0.52
+pattern+similarity,calmar_ratio,-1.07
+pattern+similarity,avg_holding_days,8.0
 pattern+similarity,exposure_pct,100.0
-pattern+similarity,turnover,3.5
-pattern+similarity,total_costs,65.16
-pattern+similarity,avg_win,42.81
-pattern+similarity,avg_loss,37.92
-pattern+similarity,largest_winner,138.96
-pattern+similarity,largest_loser,-59.98
-pattern+similarity,max_consecutive_wins,3
-pattern+similarity,max_consecutive_losses,7
-full model,total_trades,11
-full model,winning_trades,4
-full model,losing_trades,7
-full model,win_rate,36.4
-full model,gross_profit,211.45
-full model,gross_loss,-177.6
-full model,net_profit,33.85
-full model,total_return_pct,0.68
-full model,annualized_return_pct,1.43
-full model,avg_return_per_trade_pct,-0.19
-full model,expectancy,3.08
-full model,profit_factor,1.19
-full model,sharpe_ratio,-0.14
-full model,sortino_ratio,-0.48
-full model,max_drawdown_pct,2.33
-full model,recovery_factor,0.28
-full model,calmar_ratio,0.61
-full model,avg_holding_days,8.1
-full model,exposure_pct,74.2
-full model,turnover,1.48
-full model,total_costs,27.69
-full model,avg_win,52.86
-full model,avg_loss,25.37
-full model,largest_winner,138.96
-full model,largest_loser,-59.98
+pattern+similarity,turnover,10.53
+pattern+similarity,total_costs,2482.42
+pattern+similarity,avg_win,578.19
+pattern+similarity,avg_loss,330.52
+pattern+similarity,largest_winner,1380.43
+pattern+similarity,largest_loser,-777.61
+pattern+similarity,max_consecutive_wins,5
+pattern+similarity,max_consecutive_losses,10
+full model,total_trades,29
+full model,winning_trades,10
+full model,losing_trades,19
+full model,win_rate,34.5
+full model,gross_profit,4087.35
+full model,gross_loss,-5799.45
+full model,net_profit,-1712.1
+full model,total_return_pct,-3.42
+full model,annualized_return_pct,-7.06
+full model,avg_return_per_trade_pct,-0.82
+full model,expectancy,-59.04
+full model,profit_factor,0.7
+full model,sharpe_ratio,-1.04
+full model,sortino_ratio,-4.46
+full model,max_drawdown_pct,6.01
+full model,recovery_factor,-0.56
+full model,calmar_ratio,-1.17
+full model,avg_holding_days,7.9
+full model,exposure_pct,100.0
+full model,turnover,4.05
+full model,total_costs,953.02
+full model,avg_win,408.74
+full model,avg_loss,305.23
+full model,largest_winner,1104.35
+full model,largest_loser,-441.47
 full model,max_consecutive_wins,2
-full model,max_consecutive_losses,5
+full model,max_consecutive_losses,4
 benchmarks,nifty_buy_hold_pct,-5.22
 benchmarks,equal_weight_pct,-0.32
-benchmarks,rule_engine_pct,0.5
-benchmarks,technical_confidence_only_pct,-1.47
-benchmarks,random_selection_pct,-0.52
+benchmarks,rule_engine_pct,-2.13
+benchmarks,technical_confidence_only_pct,-1.39
+benchmarks,random_selection_pct,-4.18
 benchmarks,cash_pct,0.0
-benchmarks,full_model_pct,0.68
+benchmarks,full_model_pct,-3.42
 benchmarks,note,Window returns summed across test windows (each window restarts at the configured capital); the full model line is the compounded overall return.
-verdict_check,Completed out-of-sample trades,observed=11 threshold=>=100 passed=False
+verdict_check,Completed out-of-sample trades,observed=29 threshold=>=100 passed=False
 verdict_check,Test windows evaluated,observed=2 threshold=>=2 passed=True
-stability_flag,concentration,346% of net profit came from one stock: HINDALCO
-stability_flag,concentration,354% of net profit came from one sector: METALS
-stability_flag,concentration,418% of net profit came from one month: 2026-04
-stability_flag,concentration,127% of net profit came from one strategy: Trend Rider
-stability_flag,concentration,Top 5 trades account for 608% of net profit — results depend on a small number of trades
 safety,message,Out-of-sample historical performance does not guarantee future results. Paper trading and research only.
