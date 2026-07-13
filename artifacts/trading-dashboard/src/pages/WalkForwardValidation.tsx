@@ -19,6 +19,7 @@ import {
   ChevronRight, Scale, Route,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 import StrategyAuditSection from "@/components/StrategyAuditSection";
 import MacdOptimizationSection from "@/components/MacdOptimizationSection";
 import MacdRobustnessSection from "@/components/MacdRobustnessSection";
@@ -28,6 +29,30 @@ import BalancedDecisionSection from "@/components/BalancedDecisionSection";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 const API_BASE = `${import.meta.env.BASE_URL}api`;
+
+async function downloadExport(kind: string, onError: (msg: string) => void) {
+  try {
+    const res = await fetch(`${API_BASE}/walk-forward/export/${kind}`);
+    if (!res.ok) {
+      let msg = `Download failed (HTTP ${res.status})`;
+      try {
+        const body = await res.json();
+        if (body?.error) msg = body.error;
+      } catch { /* non-JSON error body */ }
+      onError(msg);
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `wf_${kind}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    onError(err instanceof Error ? err.message : String(err));
+  }
+}
 
 const fmtINR = (v: number | undefined | null) =>
   v === undefined || v === null ? "—" : `₹${Number(v).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
@@ -139,6 +164,7 @@ const pnlClass = (v: number | undefined | null) =>
 
 export default function WalkForwardValidation() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [pollUntil, setPollUntil] = useState(0);
 
   // ── Config state ──────────────────────────────────────────────────────
@@ -867,11 +893,21 @@ export default function WalkForwardValidation() {
                 ["calibration", "Confidence calibration"],
                 ["costs", "Cost breakdown"],
               ].map(([kind, label]) => (
-                <a key={kind} href={`${API_BASE}/walk-forward/export/${kind}`} download>
-                  <Button variant="outline" size="sm" className="font-mono text-xs" data-testid={`button-export-${kind}`}>
-                    <Download className="h-3.5 w-3.5 mr-1.5" /> {label}
-                  </Button>
-                </a>
+                <Button
+                  key={kind}
+                  variant="outline"
+                  size="sm"
+                  className="font-mono text-xs"
+                  data-testid={`button-export-${kind}`}
+                  onClick={() => downloadExport(kind, (msg) =>
+                    toast({
+                      title: "Export failed",
+                      description: msg,
+                      variant: "destructive",
+                    }))}
+                >
+                  <Download className="h-3.5 w-3.5 mr-1.5" /> {label}
+                </Button>
               ))}
             </div>
           </Section>
