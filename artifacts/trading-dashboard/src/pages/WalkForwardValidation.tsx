@@ -25,6 +25,7 @@ import MacdOptimizationSection from "@/components/MacdOptimizationSection";
 import MacdRobustnessSection from "@/components/MacdRobustnessSection";
 import AlphaGenerationSection from "@/components/AlphaGenerationSection";
 import BalancedDecisionSection from "@/components/BalancedDecisionSection";
+import EvidenceExpansionSection from "@/components/EvidenceExpansionSection";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -560,6 +561,15 @@ export default function WalkForwardValidation() {
             <BalancedDecisionSection balanced={r.balanced_decision} />
           )}
 
+          {/* Phase 3A.5 — Evidence Expansion (analysis only) */}
+          {r.evidence_expansion && (
+            <EvidenceExpansionSection
+              data={r.evidence_expansion as any}
+              onDownload={(kind) => downloadExport(kind, (msg) =>
+                toast({ title: "Export failed", description: msg, variant: "destructive" }))}
+            />
+          )}
+
           {/* Benchmarks */}
           <Section title="Benchmarks">
             <Tbl
@@ -892,6 +902,8 @@ export default function WalkForwardValidation() {
                 ["windows", "Window-by-window metrics"],
                 ["calibration", "Confidence calibration"],
                 ["costs", "Cost breakdown"],
+                ["evidence_report", "Phase 3A.5 evidence report"],
+                ["evidence_trades", "Phase 3A.5 evidence trades"],
               ].map(([kind, label]) => (
                 <Button
                   key={kind}

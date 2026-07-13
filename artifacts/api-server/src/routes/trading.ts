@@ -432,6 +432,8 @@ const WF_CSV_FILES: Record<string, string> = {
   windows: "wf_windows.csv",
   calibration: "wf_calibration.csv",
   costs: "wf_costs.csv",
+  evidence_report: "wf_evidence_report.csv",
+  evidence_trades: "wf_evidence_trades.csv",
 };
 
 function wfStatusFileRunning(): boolean {

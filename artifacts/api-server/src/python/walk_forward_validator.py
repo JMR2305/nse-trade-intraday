@@ -79,6 +79,8 @@ CSV_FILES = {
     "windows": "wf_windows.csv",
     "calibration": "wf_calibration.csv",
     "costs": "wf_costs.csv",
+    "evidence_report": "wf_evidence_report.csv",
+    "evidence_trades": "wf_evidence_trades.csv",
 }
 
 VARIANT_LABELS = {
@@ -1780,6 +1782,21 @@ def run_validation(config: dict | None = None) -> dict:
             "safety": SAFETY_MESSAGE,
         }
 
+    # ── Phase 3A.5: Evidence Expansion (ANALYSIS ONLY) ───────────────────────
+    status.update({"phase": "Phase 3A.5 Evidence Expansion", "progress_pct": 99})
+    _write_status(status)
+    try:
+        from evidence_expansion import build_evidence_report as _build_evidence
+
+        evidence_expansion_report = _build_evidence(
+            all_trades["C"], window_results, calibration_report, cfg,
+            progress_cb=_audit_progress)
+    except Exception as exc:  # explicit failure — never silently dropped
+        evidence_expansion_report = {
+            "error": f"Evidence expansion failed: {type(exc).__name__}: {exc}",
+            "safety": SAFETY_MESSAGE,
+        }
+
     equity_curve = [
         {"date": chained["dates"][i], "full_model": chained["C"][i],
          "base_model": chained["A"][i], "layered_model": chained["B"][i],
@@ -1820,6 +1837,7 @@ def run_validation(config: dict | None = None) -> dict:
         "macd_robustness": macd_robustness_report,
         "alpha_generation": alpha_generation_report,
         "balanced_decision": balanced_decision_report,
+        "evidence_expansion": evidence_expansion_report,
         "benchmarks": benchmarks_overall,
         "calibration": calibration,
         "calibration_report": calibration_report,
