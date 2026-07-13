@@ -25,6 +25,7 @@ import {
   Route,
   Target,
   Briefcase,
+  TestTubes,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
@@ -74,6 +75,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         { href: "/pattern-quality", label: "Pattern Quality", icon: Gauge },
         { href: "/feature-importance", label: "Feature Importance", icon: BarChart3 },
         { href: "/walk-forward", label: "Walk-Forward Validation", icon: Route },
+        { href: "/experiments",  label: "Research Factory",        icon: TestTubes },
       ],
     },
   ];

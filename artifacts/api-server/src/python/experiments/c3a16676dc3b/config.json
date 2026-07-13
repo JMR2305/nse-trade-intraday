@@ -1,0 +1,12 @@
+{
+  "name": "Bear market test",
+  "train_years": 1,
+  "test_months": 3,
+  "step_months": 3,
+  "start_date": "2021-10-01",
+  "end_date": "2023-03-31",
+  "tags": [
+    "bear",
+    "2022"
+  ]
+}

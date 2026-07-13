@@ -612,6 +612,27 @@ def main():
         elif command == "chatgpt_report_generate":
             from research_package_builder import generate_chatgpt_report
             result = generate_chatgpt_report()
+        elif command == "experiment_submit" and len(args) >= 2:
+            from experiment_manager import submit_experiment
+            result = submit_experiment(json.loads(args[1]))
+        elif command == "experiment_list":
+            from experiment_manager import list_experiments
+            result = list_experiments()
+        elif command == "experiment_run" and len(args) >= 2:
+            from experiment_manager import run_experiment
+            result = run_experiment(args[1])
+        elif command == "experiment_get" and len(args) >= 2:
+            from experiment_manager import get_experiment
+            result = get_experiment(args[1])
+        elif command == "experiment_leaderboard":
+            from experiment_manager import get_leaderboard
+            result = get_leaderboard()
+        elif command == "experiment_delete" and len(args) >= 2:
+            from experiment_manager import delete_experiment
+            result = delete_experiment(args[1])
+        elif command == "experiment_check_running":
+            from experiment_manager import check_any_running
+            result = check_any_running()
         else:
             error_msg = f"Unknown command: {command}"
 

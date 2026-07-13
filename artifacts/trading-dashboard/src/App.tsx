@@ -28,6 +28,7 @@ import FeatureImportance from "@/pages/FeatureImportance";
 import WalkForwardValidation from "@/pages/WalkForwardValidation";
 import TradeDecisions from "@/pages/TradeDecisions";
 import PortfolioManager from "@/pages/PortfolioManager";
+import ExperimentManager from "@/pages/ExperimentManager";
 
 const queryClient = new QueryClient();
 
@@ -58,6 +59,7 @@ function Router() {
         <Route path="/pattern-quality" component={PatternQuality} />
         <Route path="/feature-importance" component={FeatureImportance} />
         <Route path="/walk-forward" component={WalkForwardValidation} />
+        <Route path="/experiments" component={ExperimentManager} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

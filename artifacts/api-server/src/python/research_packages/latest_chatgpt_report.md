@@ -14,8 +14,8 @@ Style:     Long-only, daily candles
 No real money — paper trading simulation only
 ```
 
-**Report date:** 2026-07-13 21:13:41  
-**Git commit:** `451fe2df83f5` — Add a new phase to expand out-of-sample evidence for analysis  
+**Report date:** 2026-07-13 21:29:11  
+**Git commit:** `388ff3c7bbe4` — Add research package and ChatGPT report export functionality  
 **Model version:** 0
 
 ---
@@ -34,7 +34,7 @@ No real money — paper trading simulation only
 ## Walk-Forward Validation Results
 
 **Overall Verdict:** INSUFFICIENT DATA
-**Evidence Quality (3A.5):** None
+**Evidence Quality (3A.5):** INSUFFICIENT_EVIDENCE
 
 > Only 29 completed out-of-sample trades across 2 test window(s) — at least 100 trades and 2 windows are required for a reliable verdict.
 
@@ -68,14 +68,50 @@ Log Loss:     —  (lower = better)
 ### Phase 3A.5 Evidence Expansion
 
 ```
-Verdict:              None
-OOS Trades:           — / 300 target
-Windows:              — / 8 target
-Expectancy/trade:     —
-Profitable windows:   —%
-Median return:        —
-Return dispersion:    —
+Verdict:              INSUFFICIENT_EVIDENCE
+OOS Trades:           29 / 300 target
+Windows:              2 / 8 target
+Expectancy/trade:     ₹-59
+Profitable windows:   0.0%
+Median return:        -1.71%
+Return dispersion:    1.89%
 ```
+
+### Market Regime Coverage
+
+| Regime | Trades | % |
+|--------|--------|---|
+| Bullish | 0 | 0.0% ⚠️ |
+| Neutral-Bullish | 4 | 13.8% ⚠️ |
+| Neutral-Bearish | 5 | 17.2% ⚠️ |
+| Bearish | 20 | 69.0% |
+| Sideways | 0 | 0.0% ⚠️ |
+| High-Volatility | 0 | 0.0% ⚠️ |
+| Low-Volatility | 0 | 0.0% ⚠️ |
+
+### Strategy Breakdown
+
+| Strategy | Trades | Net P&L | Win% | Expect. |
+|----------|--------|---------|------|---------|
+| Trend Rider | 19 | ₹-907 | 36.80% | ₹-48 |
+| MACD Cross | 6 | ₹-183 | 33.30% | ₹-31 |
+| Mean Reversion | 3 | ₹-661 | 0.00% | ₹-220 |
+| EMA Cross | 1 | ₹39 | 100.00% | ₹39 |
+
+### Sector Breakdown (top 10)
+
+| Sector | Trades | Net P&L | Win% |
+|--------|--------|---------|------|
+| METALS | 9 | ₹493 | 55.60% |
+| BANKING | 6 | ₹138 | 50.00% |
+| AUTO | 6 | ₹-183 | 33.30% |
+| ENERGY | 4 | ₹-969 | 0.00% |
+| PHARMA | 2 | ₹-479 | 0.00% |
+| FINANCE | 2 | ₹-712 | 0.00% |
+
+### ⚠️ Concentration Warnings
+
+- Strategy concentration: 'Trend Rider' contributes 77% of total profitable P&L
 
 ### Walk-Forward Windows
 

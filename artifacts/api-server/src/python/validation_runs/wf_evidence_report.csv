@@ -1,0 +1,65 @@
+section,metric,value
+verdict,verdict,INSUFFICIENT_EVIDENCE
+verdict,summary,"Only 29 completed OOS trades across 2 window(s). Need ≥100 trades and ≥4 windows for any evidence assessment. Recommended: train_years=2, test_months=3, step_months=3 going back ≥5 years (targets 10-12 windows and 300+ trades)."
+verdict_criterion,Minimum trades for any evidence,observed=29 threshold=100 passed=False
+verdict_criterion,Preferred trades (300 = research target),observed=29 threshold=300 passed=False
+verdict_criterion,Minimum windows for any evidence,observed=2 threshold=4 passed=False
+verdict_criterion,Preferred windows (8+),observed=2 threshold=8 passed=False
+verdict_criterion,Market regime diversity (3+ canonical regimes),observed=3 threshold=3 passed=True
+verdict_criterion,Profitable windows ≥ 50%,observed=0.0 threshold=50.0 passed=False
+verdict_criterion,Positive expectancy after costs (₹/trade),observed=-59.04 threshold=0.0 passed=False
+coverage,earliest_test_date,2026-01-12
+coverage,latest_test_date,2026-07-11
+coverage,years_covered,0.5
+summary,total_oos_trades,29
+summary,total_windows,2
+summary,expectancy_per_trade_inr,-59.04
+regime,Bullish,trades=0 pct=0.0% underrepresented=True
+regime,Neutral-Bullish,trades=4 pct=13.8% underrepresented=True
+regime,Neutral-Bearish,trades=5 pct=17.2% underrepresented=True
+regime,Bearish,trades=20 pct=69.0% underrepresented=False
+regime,Sideways,trades=0 pct=0.0% underrepresented=True
+regime,High-Volatility,trades=0 pct=0.0% underrepresented=True
+regime,Low-Volatility,trades=0 pct=0.0% underrepresented=True
+regime_warning,warning,Regime 'Bullish' has only 0 trade(s) — under-represented; conclusions may not generalise
+regime_warning,warning,Regime 'Neutral-Bullish' has only 4 trade(s) — under-represented; conclusions may not generalise
+regime_warning,warning,Regime 'Neutral-Bearish' has only 5 trade(s) — under-represented; conclusions may not generalise
+regime_warning,warning,Regime 'Sideways' has only 0 trade(s) — under-represented; conclusions may not generalise
+regime_warning,warning,Regime 'High-Volatility' has only 0 trade(s) — under-represented; conclusions may not generalise
+regime_warning,warning,Regime 'Low-Volatility' has only 0 trade(s) — under-represented; conclusions may not generalise
+regime_warning,warning,"No trades in regime(s): Bullish, Sideways, High-Volatility, Low-Volatility — extend the date range to cover more market conditions"
+strategy,Trend Rider,trades=19 net_pnl=-906.78 win_rate=36.8% expectancy=-47.73
+strategy,MACD Cross,trades=6 net_pnl=-183.46 win_rate=33.3% expectancy=-30.58
+strategy,Mean Reversion,trades=3 net_pnl=-660.59 win_rate=0.0% expectancy=-220.2
+strategy,EMA Cross,trades=1 net_pnl=38.73 win_rate=100.0% expectancy=38.73
+year,2026,trades=29 net_pnl=-1712.1 win_rate=34.5% expectancy=-59.04
+sector,METALS,trades=9 net_pnl=493.12 win_rate=55.6% expectancy=54.79
+sector,BANKING,trades=6 net_pnl=137.79 win_rate=50.0% expectancy=22.97
+sector,AUTO,trades=6 net_pnl=-183.46 win_rate=33.3% expectancy=-30.58
+sector,ENERGY,trades=4 net_pnl=-968.92 win_rate=0.0% expectancy=-242.23
+sector,PHARMA,trades=2 net_pnl=-479.07 win_rate=0.0% expectancy=-239.53
+sector,FINANCE,trades=2 net_pnl=-711.56 win_rate=0.0% expectancy=-355.78
+holding_period,Short (1-5d),trades=13 net_pnl=-2499.55 win_rate=15.4% expectancy=-192.27
+holding_period,Medium (6-15d),trades=11 net_pnl=-421.74 win_rate=27.3% expectancy=-38.34
+holding_period,Long (16+d),trades=5 net_pnl=1209.19 win_rate=100.0% expectancy=241.84
+stability,window_count,2
+stability,profitable_windows,0
+stability,profitable_windows_pct,0.0
+stability,median_return_pct,-1.71
+stability,median_profit_factor,0.615
+stability,return_dispersion,1.89
+stability,best_window,W1 (2026-01-12-2026-04-11) return=-0.38%
+stability,worst_window,W2 (2026-04-12-2026-07-11) return=-3.05%
+calibration_comparison,n_trades,29
+calibration_comparison,raw_brier_score,0.4001
+calibration_comparison,calibrated_brier_score,0.266
+calibration_comparison,brier_improvement,0.1341
+calibration_comparison,raw_ece,0.4056
+calibration_comparison,calibrated_ece,0.2141
+calibration_comparison,ece_improvement,0.1915
+calibration_comparison,raw_log_loss,1.0529
+calibration_comparison,calibrated_log_loss,0.7252
+calibration_comparison,log_loss_improvement,0.3277
+calibration_comparison,calibration_helps,True
+concentration_flag,warning,Strategy concentration: 'Trend Rider' contributes 77% of total profitable P&L
+safety,message,Out-of-sample historical performance does not guarantee future results. Paper trading and research only.

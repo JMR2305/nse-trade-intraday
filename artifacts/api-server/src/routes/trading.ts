@@ -552,6 +552,134 @@ router.get("/walk-forward/export/:kind", async (req, res) => {
   }
 });
 
+// ── Phase 4 Research Factory: Experiment Manager ──────────────────────────
+// READ-ONLY for list/leaderboard. WRITE for submit/run/delete.
+// No look-ahead bias — every experiment uses strict train/test splits.
+// Paper trading and research only.
+
+const EXPERIMENTS_DIR = path.join(PYTHON_DIR, "experiments");
+let expRunActive = false;
+
+function expRunning(): boolean {
+  // Check in-process flag first (fast path)
+  if (expRunActive) return true;
+  // Scan experiment dirs for any status.json showing "running"
+  try {
+    if (!fs.existsSync(EXPERIMENTS_DIR)) return false;
+    for (const id of fs.readdirSync(EXPERIMENTS_DIR)) {
+      const sp = path.join(EXPERIMENTS_DIR, id, "status.json");
+      if (!fs.existsSync(sp)) continue;
+      const st = JSON.parse(fs.readFileSync(sp, "utf8"));
+      if (st?.status !== "running") continue;
+      // Verify the process is still alive (stale check)
+      const pid = Number(st?.pid);
+      if (Number.isInteger(pid) && pid > 0) {
+        try { process.kill(pid, 0); return true; } catch { /* stale */ }
+      } else if (st?.status === "running") {
+        // No PID stored — trust the file (Python sets it synchronously)
+        return true;
+      }
+    }
+  } catch { /* ignore */ }
+  return false;
+}
+
+// GET /api/experiments — list all experiments (sorted newest first)
+router.get("/experiments", async (_req, res) => {
+  try {
+    const data = await runPython(["experiment_list"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/experiments/leaderboard — ranked completed experiments
+// NOTE: must come before /experiments/:id
+router.get("/experiments/leaderboard", async (_req, res) => {
+  try {
+    const data = await runPython(["experiment_leaderboard"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/experiments — submit a new experiment to the queue
+router.post("/experiments", async (req, res) => {
+  try {
+    const config = typeof req.body === "object" && req.body !== null ? req.body : {};
+    const data = await runPython(["experiment_submit", JSON.stringify(config)]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/experiments/:id/run — start executing a queued experiment
+router.post("/experiments/:id/run", async (req, res) => {
+  const expId = String(req.params.id);
+  const expDir = path.join(EXPERIMENTS_DIR, expId);
+  const expStatusPath = path.join(expDir, "status.json");
+
+  if (!fs.existsSync(expStatusPath)) {
+    res.status(404).json({ error: `Experiment ${expId} not found` });
+    return;
+  }
+
+  // Concurrency guard: block if walk-forward OR another experiment is running
+  if (wfRunActive || wfStatusFileRunning() || expRunActive || expRunning()) {
+    res.status(409).json({ error: "A validation run is already in progress. Wait for it to finish.", status: "running" });
+    return;
+  }
+
+  // Write placeholder "running" status so the UI sees it immediately
+  try {
+    const existing = JSON.parse(fs.readFileSync(expStatusPath, "utf8"));
+    fs.writeFileSync(expStatusPath, JSON.stringify({
+      ...existing,
+      status: "running",
+      started_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }, null, 2));
+  } catch { /* non-fatal — Python will overwrite */ }
+
+  expRunActive = true;
+  const proc = spawn(
+    PYTHON_BIN,
+    [path.join(PYTHON_DIR, "main.py"), "experiment_run", expId],
+    { cwd: PYTHON_DIR, detached: true, stdio: "ignore" },
+  );
+  proc.on("exit", () => { expRunActive = false; });
+  proc.on("error", () => { expRunActive = false; });
+  proc.unref();
+
+  res.json({ ok: true, id: expId, status: "running" });
+});
+
+// GET /api/experiments/:id — get status + result for one experiment
+router.get("/experiments/:id", async (req, res) => {
+  try {
+    const expId = String(req.params.id);
+    const data = await runPython(["experiment_get", expId]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// DELETE /api/experiments/:id — delete experiment and all its data
+router.delete("/experiments/:id", async (req, res) => {
+  try {
+    const expId = String(req.params.id);
+    const data = await runPython(["experiment_delete", expId]);
+    if ((data as any).error) { res.status(400).json(data); return; }
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // ── Research Package & ChatGPT Report export ──────────────────────────────
 // READ-ONLY — never modifies portfolio, positions, or model weights.
 // Gathers existing analysis results and packages them for offline review.

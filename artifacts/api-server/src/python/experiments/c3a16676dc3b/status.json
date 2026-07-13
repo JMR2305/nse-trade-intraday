@@ -1,0 +1,22 @@
+{
+  "id": "c3a16676dc3b",
+  "status": "queued",
+  "created_at": "2026-07-13T21:44:33.663484",
+  "updated_at": "2026-07-13T21:44:33.663484",
+  "name": "Bear market test",
+  "description": "",
+  "tags": [
+    "bear",
+    "2022"
+  ],
+  "config_summary": {
+    "train_years": 1,
+    "test_months": 3,
+    "step_months": 3,
+    "start_date": "2021-10-01",
+    "end_date": "2023-03-31",
+    "universe_size": 0,
+    "intrabar_rule": "conservative",
+    "max_holding_days": 20
+  }
+}
