@@ -606,6 +606,12 @@ def main():
             result = cmd_walk_forward_result()
         elif command == "walk_forward_export" and len(args) >= 2:
             result = cmd_walk_forward_export(args[1])
+        elif command == "research_package_generate":
+            from research_package_builder import generate_research_package
+            result = generate_research_package()
+        elif command == "chatgpt_report_generate":
+            from research_package_builder import generate_chatgpt_report
+            result = generate_chatgpt_report()
         else:
             error_msg = f"Unknown command: {command}"
 

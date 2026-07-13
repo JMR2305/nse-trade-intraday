@@ -552,6 +552,71 @@ router.get("/walk-forward/export/:kind", async (req, res) => {
   }
 });
 
+// ── Research Package & ChatGPT Report export ──────────────────────────────
+// READ-ONLY — never modifies portfolio, positions, or model weights.
+// Gathers existing analysis results and packages them for offline review.
+
+const PACKAGES_DIR = path.join(PYTHON_DIR, "research_packages");
+const LATEST_PACKAGE_JSON = path.join(PACKAGES_DIR, "latest_package.json");
+const LATEST_CHATGPT_MD = path.join(PACKAGES_DIR, "latest_chatgpt_report.md");
+
+// POST /api/research-package/generate — build timestamped ZIP
+router.post("/research-package/generate", async (_req, res) => {
+  try {
+    const data = await runPython(["research_package_generate"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/research-package/download — serve the latest ZIP
+router.get("/research-package/download", async (_req, res) => {
+  try {
+    if (!fs.existsSync(LATEST_PACKAGE_JSON)) {
+      res.status(404).json({ error: "No research package generated yet. Click 'Generate & Download' first." });
+      return;
+    }
+    const info = JSON.parse(fs.readFileSync(LATEST_PACKAGE_JSON, "utf8"));
+    const zipPath: string = info.zip_path;
+    if (!zipPath || !fs.existsSync(zipPath)) {
+      res.status(404).json({ error: "Package file not found — please regenerate." });
+      return;
+    }
+    const filename = path.basename(zipPath);
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    fs.createReadStream(zipPath).pipe(res);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/chatgpt-report/generate — build standalone markdown report
+router.post("/chatgpt-report/generate", async (_req, res) => {
+  try {
+    const data = await runPython(["chatgpt_report_generate"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/chatgpt-report/download — serve latest chatgpt_report.md
+router.get("/chatgpt-report/download", async (_req, res) => {
+  try {
+    if (!fs.existsSync(LATEST_CHATGPT_MD)) {
+      res.status(404).json({ error: "No ChatGPT report generated yet. Click 'Generate & Download' first." });
+      return;
+    }
+    res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+    res.setHeader("Content-Disposition", 'attachment; filename="chatgpt_report.md"');
+    fs.createReadStream(LATEST_CHATGPT_MD).pipe(res);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/learning-insights
 // Adaptive Learning Layer (Sprint 3 Module 3) — deterministic aggregations
 // over the Historical Knowledge Base. Read-only, paper trading only.

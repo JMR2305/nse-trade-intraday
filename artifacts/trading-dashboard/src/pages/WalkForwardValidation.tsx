@@ -26,6 +26,7 @@ import MacdRobustnessSection from "@/components/MacdRobustnessSection";
 import AlphaGenerationSection from "@/components/AlphaGenerationSection";
 import BalancedDecisionSection from "@/components/BalancedDecisionSection";
 import EvidenceExpansionSection from "@/components/EvidenceExpansionSection";
+import ResearchExportPanel from "@/components/ResearchExportPanel";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -892,6 +893,9 @@ export default function WalkForwardValidation() {
                 ))}
             </div>
           </Section>
+
+          {/* Research Export */}
+          <ResearchExportPanel />
 
           {/* Exports */}
           <Section title="CSV Exports" defaultOpen={false}>

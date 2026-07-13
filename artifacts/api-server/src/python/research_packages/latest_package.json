@@ -1,0 +1,11 @@
+{
+  "generated_at": "2026-07-13 21:13:26",
+  "zip_path": "/home/runner/workspace/artifacts/api-server/src/python/research_packages/research_package_20260713_211326.zip",
+  "zip_filename": "research_package_20260713_211326.zip",
+  "size_kb": 12.9,
+  "chatgpt_report_path": "/home/runner/workspace/artifacts/api-server/src/python/research_packages/latest_chatgpt_report.md",
+  "validation_available": true,
+  "verdict": "INSUFFICIENT DATA",
+  "ev_verdict": null,
+  "git_commit": "451fe2df83f5"
+}
