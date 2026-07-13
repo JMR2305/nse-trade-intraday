@@ -3441,6 +3441,69 @@ components:
               type: array
               items: { type: object, additionalProperties: true }
           additionalProperties: true
+        balanced_decision:
+          type: object
+          nullable: true
+          description: >
+            Phase 3A Balanced Decision Model (ANALYSIS ONLY — never changes
+            live decisions). A shadow scoring model "G" replayed over the
+            identical walk-forward windows: hard eligibility gates separated
+            from a 0-100 weighted ranking score (technical 30 / opportunity
+            20 / historical evidence 15 / adaptive learning 10 / regime 10 /
+            risk-reward 10 / volume 5), Bayesian-shrunk learning adjustments
+            capped at ±10/±10 (combined ±15), per-window confidence
+            calibration, shadow labels (STRONG BUY/BUY/WATCH/AVOID/
+            NO TRADE), A-G model comparison, decision transition matrix,
+            lookahead audit and an evidence-based REJECT / CONTINUE ANALYSIS
+            / ELIGIBLE FOR LIMITED SHADOW PAPER TEST verdict that never
+            auto-activates anything.
+          properties:
+            error: { type: string }
+            safety: { type: string }
+            phase: { type: string }
+            title: { type: string }
+            model_mapping_note: { type: string }
+            cash_time_pct: { type: number }
+            config:
+              type: object
+              additionalProperties: true
+            model_comparison:
+              type: array
+              items: { type: object, additionalProperties: true }
+            overall_metrics:
+              type: object
+              additionalProperties: true
+            windows:
+              type: array
+              items: { type: object, additionalProperties: true }
+            recommendation_distribution:
+              type: object
+              additionalProperties: true
+            transition_matrix:
+              type: object
+              additionalProperties: true
+            changed_decision_examples:
+              type: array
+              items: { type: object, additionalProperties: true }
+            calibration_comparison:
+              type: object
+              additionalProperties: true
+            false_positive_analysis:
+              type: object
+              additionalProperties: true
+            gate_failure_counts:
+              type: object
+              additionalProperties: true
+            concentration:
+              type: object
+              additionalProperties: true
+            safety_audit:
+              type: object
+              additionalProperties: true
+            final_recommendation:
+              type: object
+              additionalProperties: true
+          additionalProperties: true
         macd_robustness:
           type: object
           nullable: true

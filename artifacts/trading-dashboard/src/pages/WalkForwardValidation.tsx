@@ -23,6 +23,7 @@ import StrategyAuditSection from "@/components/StrategyAuditSection";
 import MacdOptimizationSection from "@/components/MacdOptimizationSection";
 import MacdRobustnessSection from "@/components/MacdRobustnessSection";
 import AlphaGenerationSection from "@/components/AlphaGenerationSection";
+import BalancedDecisionSection from "@/components/BalancedDecisionSection";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -527,6 +528,11 @@ export default function WalkForwardValidation() {
 
           {/* Phase 3 — Alpha Generation Engine (analysis only) */}
           {r.alpha_generation && <AlphaGenerationSection alpha={r.alpha_generation} />}
+
+          {/* Phase 3A — Balanced Decision Model (analysis only) */}
+          {r.balanced_decision && (
+            <BalancedDecisionSection balanced={r.balanced_decision} />
+          )}
 
           {/* Benchmarks */}
           <Section title="Benchmarks">

@@ -1,1 +1,2 @@
 - [Phase 4 robustness metrics](phase4-robustness-metrics.md) — _metrics() uses avg(return_pct) for expectancy and ruin-clamped equity curve for drawdown to stay ≤100% and match Phase 3 scale.
+- [Balanced decision shadow model](balanced-decision-shadow-model.md) — analysis-only shadow model wiring rules, spec F↔variant E mapping, config key contract, local test style.

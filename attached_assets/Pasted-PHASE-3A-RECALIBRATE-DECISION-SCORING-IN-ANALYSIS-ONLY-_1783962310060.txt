@@ -1,0 +1,271 @@
+PHASE 3A — RECALIBRATE DECISION SCORING IN ANALYSIS-ONLY MODE
+
+Do not modify the current live paper-trading decision engine, current portfolio, existing trades, or production recommendations.
+
+The goal is to build and evaluate a shadow decision model that improves the balance between:
+
+1. Technical strength
+2. Opportunity quality
+3. Historical similarity evidence
+4. Adaptive learning
+5. Data quality
+6. Market regime
+7. Risk filters
+
+CURRENT PROBLEM
+
+The current engine often allows negative learning and similarity adjustments to overwhelm otherwise reasonable technical setups.
+
+Examples of undesirable behaviour:
+
+- A technically strong setup can be rejected because opportunity score is slightly below a hard threshold.
+- Historical similarity can reduce confidence too aggressively.
+- Adaptive learning can dominate the base technical score.
+- Small differences around thresholds can cause abrupt WATCH versus AVOID outcomes.
+- Confidence scores may not represent actual historical win probability.
+- Strong setups may be filtered out even when several independent signals agree.
+
+IMPLEMENT A NEW ANALYSIS-ONLY SHADOW MODEL CALLED:
+
+Phase 3A — Balanced Decision Model
+
+Do not activate it for live decisions.
+
+A. SEPARATE SCORE FROM ELIGIBILITY
+
+Create two independent concepts:
+
+1. Eligibility gates
+2. Ranking/confidence score
+
+Eligibility gates should only reject a trade for serious issues such as:
+
+- Missing or fallback market data
+- Invalid price or indicator data
+- Risk/reward below the configured absolute minimum
+- Position sizing impossible
+- Strategy disabled by validated policy
+- Insufficient liquidity
+- Portfolio or sector risk limit exceeded
+
+Do not use minor score weaknesses as hard rejection gates.
+
+B. NORMALISED SCORE COMPONENTS
+
+Calculate each component on a 0–100 scale:
+
+- Technical quality
+- Opportunity quality
+- Historical evidence
+- Adaptive learning
+- Market regime alignment
+- Volume/liquidity confirmation
+- Risk/reward quality
+- Data quality
+
+Display the raw value, normalised value, weight, and weighted contribution for every component.
+
+C. INITIAL BALANCED WEIGHTS
+
+Use these initial configurable weights:
+
+- Technical quality: 30%
+- Opportunity quality: 20%
+- Historical evidence: 15%
+- Adaptive learning: 10%
+- Market regime alignment: 10%
+- Risk/reward quality: 10%
+- Volume/liquidity confirmation: 5%
+
+Data quality should act as a reliability multiplier rather than an ordinary additive score.
+
+All weights must be configurable and stored centrally.
+
+D. LIMIT NEGATIVE OVERRIDES
+
+Adaptive learning and historical similarity must refine the technical score, not completely dominate it.
+
+Apply these safeguards:
+
+- Maximum adaptive-learning adjustment: ±10 points
+- Maximum similarity adjustment: ±10 points
+- Maximum combined learning plus similarity adjustment: ±15 points
+- Apply Bayesian shrinkage when sample size is small
+- Reduce adjustment strength when historical evidence is inconsistent
+- Reduce adjustment strength when evidence comes from unrelated sectors, regimes, or strategies
+- Do not apply the same evidence twice through multiple components
+
+Show the pre-cap and post-cap adjustment.
+
+E. REPLACE CLIFF THRESHOLDS WITH GRADUAL PENALTIES
+
+Avoid abrupt decisions such as:
+
+Opportunity score 49 = reject
+Opportunity score 50 = acceptable
+
+Use smooth penalties around thresholds.
+
+Examples:
+
+- Opportunity scores between 40 and 55 should gradually affect confidence
+- Volume ratios below the preferred level should reduce confidence progressively
+- Regime mismatch should reduce confidence proportionally
+- Weak historical expectancy should reduce confidence based on reliability and sample size
+
+Hard rejection should only occur when an explicit eligibility gate fails.
+
+F. CONFIDENCE CALIBRATION
+
+The displayed final confidence should represent an estimated historical probability, not merely a sum of points.
+
+Use the existing no-look-ahead calibration process.
+
+Compare:
+
+- Raw balanced score
+- Calibrated win probability
+- Actual out-of-sample win rate
+- Brier score
+- Expected calibration error
+- Log loss
+
+Calibration must be fitted separately within each walk-forward window using only information available before that test window.
+
+G. SHADOW DECISION LABELS
+
+Generate analysis-only decisions using configurable thresholds:
+
+- STRONG BUY: calibrated probability >= 70%, all eligibility gates passed, positive net expectancy, sufficient sample reliability
+- BUY: calibrated probability >= 60%, all eligibility gates passed, positive net expectancy
+- WATCH: calibrated probability 45%–59%, or promising setup missing confirmation
+- AVOID: calibrated probability below 45%, negative validated expectancy, or important soft-risk concerns
+- NO TRADE: hard eligibility gate failed
+- EXIT: preserve the existing position-exit logic for comparison, but do not change live exits
+
+Do not force BUY signals. Cash remains valid when no setup qualifies.
+
+H. WALK-FORWARD COMPARISON
+
+Evaluate the Balanced Decision Model against:
+
+A — Base technical model
+B — Current calibrated model
+C — Existing adaptive model
+D — Corrected gated model
+E — Best strategy variants model
+F — Current regime-gated model
+G — New Phase 3A Balanced Decision Model
+
+Use identical dates, stocks, capital, transaction costs, slippage, execution assumptions, and no-look-ahead rules.
+
+Report for every model:
+
+- Trades
+- Net return
+- Gross return
+- Profit factor
+- Expectancy per trade
+- Win rate
+- Sharpe ratio
+- Maximum drawdown
+- Total costs
+- Average holding period
+- Cash percentage
+- Number of BUY and STRONG BUY decisions
+- Number of false-positive BUY decisions
+- Performance by market regime
+- Performance by confidence band
+- Performance by strategy
+- Performance by sector
+- Calibration metrics
+
+I. DECISION TRANSITION ANALYSIS
+
+Create a table showing how recommendations change between the current engine and Phase 3A:
+
+- Current AVOID → Phase 3A WATCH
+- Current WATCH → Phase 3A BUY
+- Current BUY → Phase 3A AVOID
+- Unchanged decisions
+
+For every changed decision, show the exact reason and component contributions.
+
+J. SAFETY AND VALIDATION
+
+Phase 3A must remain analysis-only.
+
+Do not:
+
+- Modify current live recommendations
+- Modify portfolio holdings
+- Create or close paper trades
+- Change existing decision thresholds
+- Change existing strategy enablement
+- Use future data
+- Optimise directly on test-window results
+- Claim improvement unless confirmed out-of-sample
+
+Add automated tests for:
+
+- Score component bounds
+- Adjustment caps
+- Smooth threshold behaviour
+- No duplicated evidence
+- No look-ahead leakage
+- Correct calibration-window isolation
+- Deterministic repeatability
+- Missing-data handling
+- Hard-gate versus soft-penalty separation
+
+K. USER INTERFACE
+
+Add a collapsible section inside Walk-Forward Validation:
+
+“PHASE 3A — BALANCED DECISION MODEL (Analysis Only)”
+
+Include:
+
+1. Model comparison table A–G
+2. Score weight configuration display
+3. Calibration report
+4. Recommendation distribution
+5. Decision transition matrix
+6. Component contribution examples
+7. Performance by confidence band
+8. Performance by regime
+9. Failure and safety audit
+10. Final recommendation:
+
+- REJECT
+- CONTINUE ANALYSIS
+- ELIGIBLE FOR LIMITED SHADOW PAPER TEST
+
+The final recommendation must be evidence-based and must never automatically activate the model.
+
+L. SUCCESS CRITERIA
+
+Do not approve Phase 3A merely because it generates more BUY signals.
+
+It should only be considered successful when it demonstrates out-of-sample:
+
+- Positive net expectancy after all costs
+- Profit factor above 1.10
+- Better calibration than the current model
+- Maximum drawdown within the configured limit
+- Results not concentrated in one stock, sector, month, or trade
+- Acceptable performance across multiple walk-forward windows
+- No look-ahead leakage
+- No material increase in false-positive BUY signals
+- A sufficient number of completed out-of-sample trades
+
+When implementation is complete, run the full automated test suite and walk-forward analysis.
+
+Return a concise implementation summary listing:
+
+- Files changed
+- Tests added
+- Test results
+- Whether any live behaviour changed
+- Where to view Phase 3A
+- Any limitations or insufficient-sample warnings

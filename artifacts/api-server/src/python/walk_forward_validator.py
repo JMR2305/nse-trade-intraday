@@ -1360,6 +1360,12 @@ def run_validation(config: dict | None = None) -> dict:
     rejected_trades: list[dict] = []
     cash_days = {v: {"cash_weighted": 0.0, "full_cash": 0.0, "days": 0}
                  for v in VARIANTS}
+    # Phase 3A (ANALYSIS ONLY): shadow Balanced Decision Model windows.
+    balanced_windows: list[dict] = []
+    balanced_errors: list[str] = []
+    balanced_lookahead = {"decisions": 0, "violations": 0, "max_timestamp": "",
+                          "max_knowledge_timestamp": "",
+                          "max_similarity_timestamp": ""}
 
     for wi, window in enumerate(windows):
         status.update({
@@ -1447,6 +1453,21 @@ def run_validation(config: dict | None = None) -> dict:
             cash_days[variant]["days"] += nd
         for rt in rejected_trades:
             rt.setdefault("window", window["label"])
+
+        # Phase 3A (ANALYSIS ONLY): replay the SAME window with the shadow
+        # Balanced Decision Model (model G). Identical execution mechanics
+        # and no-lookahead rules; failures are recorded, never silent.
+        try:
+            from balanced_decision_model import simulate_window_balanced
+
+            balanced_windows.append(simulate_window_balanced(
+                window, sym_rows, date_pos, trained, test_days, nifty,
+                ctx, cfg, cost_model, window_calibrator,
+                _fresh_intel(), GATES_DEFAULT,
+                lookahead_log=balanced_lookahead))
+        except Exception as exc:
+            balanced_errors.append(
+                f"{window['label']}: {type(exc).__name__}: {exc}")
 
         # Per-window strategy-intelligence snapshot (for the UI)
         if window_intel is not None:
@@ -1743,6 +1764,22 @@ def run_validation(config: dict | None = None) -> dict:
             "safety": SAFETY_MESSAGE,
         }
 
+    # ── Phase 3A: Balanced Decision Model (ANALYSIS ONLY — shadow model) ─
+    status.update({"phase": "Phase 3A Balanced Decision Model", "progress_pct": 99})
+    _write_status(status)
+    try:
+        from balanced_decision_model import build_balanced_report
+
+        balanced_decision_report = build_balanced_report(
+            balanced_windows, overall, layer_comparison, all_trades, cfg,
+            calibration_report, balanced_lookahead, balanced_errors,
+            progress_cb=_audit_progress)
+    except Exception as exc:  # explicit failure — never silently dropped
+        balanced_decision_report = {
+            "error": f"Balanced decision model failed: {type(exc).__name__}: {exc}",
+            "safety": SAFETY_MESSAGE,
+        }
+
     equity_curve = [
         {"date": chained["dates"][i], "full_model": chained["C"][i],
          "base_model": chained["A"][i], "layered_model": chained["B"][i],
@@ -1782,6 +1819,7 @@ def run_validation(config: dict | None = None) -> dict:
         "macd_optimization": macd_optimization_report,
         "macd_robustness": macd_robustness_report,
         "alpha_generation": alpha_generation_report,
+        "balanced_decision": balanced_decision_report,
         "benchmarks": benchmarks_overall,
         "calibration": calibration,
         "calibration_report": calibration_report,
