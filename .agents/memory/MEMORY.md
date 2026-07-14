@@ -1,13 +1,3 @@
-- [Phase 4 robustness metrics](phase4-robustness-metrics.md) — _metrics() uses avg(return_pct) for expectancy and ruin-clamped equity curve for drawdown to stay ≤100% and match Phase 3 scale.
-- [Balanced decision shadow model](balanced-decision-shadow-model.md) — analysis-only shadow model wiring rules, spec F↔variant E mapping, config key contract, local test style.
-- [Detached background-run status handshake](detached-run-status-handshake.md) — placeholder "running" must be accepted by the runner guard and carry a PID for stale detection.
-- [Trading Dashboard BASE_PATH fix](trading-dashboard-base-path.md) — artifact.toml previewPath/BASE_PATH must match the proxy-served path or all Wouter routes fail silently.
-- [API base path routing](api-base-path-routing.md) — dashboard API calls must use root /api via src/lib/api.ts helper, never `${BASE_URL}api` (SPA fallback returns HTML).
-- [Experiment runner reliability](experiment-runner-reliability.md) — detached runners need heartbeat files + captured stdout/stderr; PID checks lie (PID reuse); gc.collect per walk-forward window.
-- [Walk-forward run performance](walk-forward-performance.md) — per-decision Python scans over the knowledge base explode on late-dated windows; numpy fast path must stay equivalent to the slow loop.
-- [Research ledger conventions](research-ledger.md) — Phase 4.2 observational instrumentation rules: never alter sim decisions, verify rerun metric equivalence, join trades on window+symbol+entry_date.
-- [Research report engine conventions](report-engine-conventions.md) — file-based reports with hash idempotency, research-only guardrails, 19-section UI, confirm-to-queue suggestions.
-- [API route dev reload](api-route-reload.md) — new Express routes in the API server are not hot-reloaded; restart the API workflow before curl-testing new endpoints or they 404.
-- [Research intelligence conventions](research-intelligence-conventions.md) — Phase 5 engine rules: honest N/A for missing indicators, advisory-only outputs, safe numeric coercion for dirty trade CSVs.
-- [Trade data dimensions](trade-data-dimensions.md) — OOS trade records lack indicator fields (ADX/ATR/RSI/volume/volatility); analytics must report them NOT AVAILABLE, never fabricate.
-- [Evolution registry writes](evolution-registry-writes.md) — registry.json writes need flock + idempotency dedupe; tests must patch REGISTRY_PATH to a temp copy or they pollute real research data.
+- [Phase 7 live scan design](phase7-live-scan.md) — canonical scan has one scan_id/snapshot_ts; health endpoint probes 3 symbols only (quick); full scan via /live-data/scan/run.
+- [Phase 7 safety gates](phase7-safety-gates.md) — STALE→WATCH, UNAVAILABLE→IGNORE enforced in live_scan_engine._apply_quality_gate(); never in market_scanner.py.
+- [Phase 7 test pattern](phase7-tests.md) — 71 tests all unit-only (no network); import gate/report helpers directly; full scan tested via mocked SymbolFetchResult.

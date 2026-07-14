@@ -1,4 +1,4 @@
-# Phase 6.5 Meta-Learning export,2026-07-14T15:48:46Z,hash:dd113f6003aadfd8,meta-learning-1.0,no_lookahead:PASS,RESEARCH ONLY
+# Phase 6.5 Meta-Learning export,2026-07-14T18:38:28Z,hash:dd113f6003aadfd8,meta-learning-1.0,no_lookahead:PASS,RESEARCH ONLY
 
 ## table: strategy_health,rows: 4
 best_regime,dominant_failure_reason,evidence,expectancy_rs,max_drawdown_rs,net_pnl,oos_trades,profit_factor,recommended_action,status,strategy,win_rate,windows,worst_regime

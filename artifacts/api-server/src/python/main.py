@@ -713,6 +713,48 @@ def main():
             else:
                 from research_intelligence import trade_diagnostics
                 result = trade_diagnostics(_os.path.join(_EXP_DIR, args[1]))
+        elif command == "phase7_health":
+            # Quick provider probe — fetches 3 probe symbols only (fast, ~2-3s).
+            # If a cached full scan exists, merges its summary in.
+            from live_data_provider import LiveDataProvider
+            from live_scan_engine import load_cached_scan, SCAN_CACHE_FILE
+            import uuid as _uuid, datetime as _dt
+            _probe_syms = ["RELIANCE", "INFY", "TCS"]
+            _provider = LiveDataProvider()
+            _snap_id  = _uuid.uuid4().hex[:8]
+            _snap_ts  = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            _fresults = {s.upper(): _provider.fetch_symbol(s) for s in _probe_syms}
+            _health   = _provider.build_health_report(_fresults, _snap_id, _snap_ts)
+            from dataclasses import asdict as _asdict
+            _cached = load_cached_scan()
+            result  = {
+                "success": True,
+                "provider_health": _asdict(_health),
+                "scan_audit": _cached.get("scan_audit") if _cached else None,
+                "summary": _cached.get("summary") if _cached else None,
+                "cache_exists": _cached is not None,
+                "cache_scan_id": _cached.get("scan_id") if _cached else None,
+                "cache_snapshot_ts": _cached.get("snapshot_ts") if _cached else None,
+                "label": "PAPER / LIVE DATA VALIDATION",
+                "note": "Provider health probed with 3 symbols. Run /api/live-data/scan for full NIFTY 50 scan.",
+            }
+        elif command == "phase7_scan":
+            from live_scan_engine import get_or_run_scan
+            force = len(args) > 1 and args[1] == "force"
+            result = get_or_run_scan(max_age_s=600, force=force)
+            result["success"] = True
+        elif command == "phase7_recommendations":
+            from live_scan_engine import get_or_run_scan
+            full = get_or_run_scan(max_age_s=600)
+            result = {"success": True, "recommendations": full.get("recommendations", []),
+                      "scan_id": full.get("scan_id"), "snapshot_ts": full.get("snapshot_ts"),
+                      "summary": full.get("summary"), "label": "PAPER / LIVE DATA VALIDATION"}
+        elif command == "phase7_report":
+            from live_scan_engine import get_or_run_scan
+            from phase7_report import generate_report
+            scan = get_or_run_scan(max_age_s=600)
+            result = generate_report(scan)
+            result["success"] = True
         elif command == "meta_health":
             from meta_learning import cmd_health
             result = cmd_health()

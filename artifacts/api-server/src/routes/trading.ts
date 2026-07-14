@@ -784,6 +784,95 @@ router.get("/research/intelligence", async (_req, res) => {
   }
 });
 
+// ── Phase 7 — Live Market Intelligence (paper/research only) ────────────────
+// All Phase 7 routes serve the SAME canonical scan result (via cache).
+// No real broker APIs are called. No real orders are placed.
+
+const P7_CACHE_MS = 10 * 60 * 1000;  // 10 min — same as trade-decisions
+let p7Cache: { data: unknown; ts: number } | null = null;
+let p7InFlight: Promise<unknown> | null = null;
+
+async function getP7Scan(force = false): Promise<unknown> {
+  if (!force && p7Cache && Date.now() - p7Cache.ts < P7_CACHE_MS) return p7Cache.data;
+  if (!p7InFlight) {
+    p7InFlight = runPython(["phase7_scan", ...(force ? ["force"] : [])])
+      .then((data) => { p7Cache = { data, ts: Date.now() }; return data; })
+      .finally(() => { p7InFlight = null; });
+  }
+  return p7InFlight;
+}
+
+// GET /api/live-data/health — provider health + scan audit (uses cached scan)
+router.get("/live-data/health", async (req, res) => {
+  try {
+    const force = req.query.force === "true";
+    res.json(await runPython(["phase7_health", ...(force ? ["force"] : [])]));
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/live-data/scan — full canonical scan (all pages must consume this)
+router.get("/live-data/scan", async (req, res) => {
+  try {
+    const force = req.query.force === "true";
+    res.json(await getP7Scan(force));
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/live-data/scan/run — trigger fresh scan explicitly
+router.post("/live-data/scan/run", async (_req, res) => {
+  try {
+    p7Cache = null;  // invalidate Phase 7 cache; other caches expire naturally
+    res.json(await getP7Scan(true));
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/live-data/recommendations — ranked recommendations from canonical scan
+router.get("/live-data/recommendations", async (req, res) => {
+  try {
+    const scan = await getP7Scan(req.query.force === "true") as any;
+    res.json({
+      success: true,
+      scan_id: scan?.scan_id, snapshot_ts: scan?.snapshot_ts,
+      recommendations: scan?.recommendations ?? [],
+      summary: scan?.summary ?? {},
+      label: "PAPER / LIVE DATA VALIDATION",
+    });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/live-data/report?file=json|csv|html — Phase 7 validation report download
+router.get("/live-data/report", async (req, res) => {
+  try {
+    const kind = String(req.query.file ?? "html");
+    if (!["json", "csv", "html"].includes(kind)) {
+      res.status(400).json({ success: false, error: "file must be json, csv or html" }); return;
+    }
+    const meta = await runPython(["phase7_report"]) as any;
+    if (!meta?.success) { res.status(500).json(meta ?? { success: false, error: "Report failed" }); return; }
+    const filePath = String(meta[kind] ?? "");
+    const expectedDir = path.join(PYTHON_DIR, "exports");
+    const resolved = path.resolve(filePath);
+    if (!resolved.startsWith(expectedDir + path.sep) || !fs.existsSync(resolved)) {
+      res.status(500).json({ success: false, error: "Report file missing" }); return;
+    }
+    const ctype = kind === "json" ? "application/json; charset=utf-8"
+      : kind === "csv" ? "text/csv; charset=utf-8" : "text/html; charset=utf-8";
+    res.setHeader("Content-Type", ctype);
+    res.setHeader("Content-Disposition", `attachment; filename="phase7_report.${kind}"`);
+    fs.createReadStream(resolved).pipe(res);
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // ── Phase 6.5 — Meta-Learning (research only) ───────────────────────────────
 const META_GETS: Record<string, string> = {
   health: "meta_health",
