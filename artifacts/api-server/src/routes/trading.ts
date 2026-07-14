@@ -2010,4 +2010,129 @@ router.get("/broker/export", async (req, res) => {
   }
 });
 
+// ── Phase 9 — AI Copilot, Alerts & Explainability ──────────────────────────
+
+// GET /api/copilot/summary
+router.get("/copilot/summary", async (_req, res) => {
+  try {
+    const data = await runPython(["phase9_copilot"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/copilot/alerts/generate
+router.post("/copilot/alerts/generate", async (_req, res) => {
+  try {
+    const data = await runPython(["phase9_alerts_generate"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/copilot/alerts?limit=
+router.get("/copilot/alerts", async (req, res) => {
+  try {
+    const limit = String(parseInt(String(req.query.limit ?? "100"), 10) || 100);
+    const data = await runPython(["phase9_alerts", limit]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/copilot/alerts/read  { alert_id: "..." | "all" }
+router.post("/copilot/alerts/read", async (req, res) => {
+  try {
+    const alertId = String(req.body?.alert_id ?? "all");
+    const data = await runPython(["phase9_alerts_read", alertId]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/copilot/briefing
+router.get("/copilot/briefing", async (_req, res) => {
+  try {
+    const data = await runPython(["phase9_briefing"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/copilot/explanations?limit=
+router.get("/copilot/explanations", async (req, res) => {
+  try {
+    const limit = String(parseInt(String(req.query.limit ?? "20"), 10) || 20);
+    const data = await runPython(["phase9_explanations", limit]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/copilot/explain/:symbol
+router.get("/copilot/explain/:symbol", async (req, res) => {
+  try {
+    const data = await runPython(["phase9_explain", String(req.params.symbol).toUpperCase()]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/copilot/why-not/:symbol
+router.get("/copilot/why-not/:symbol", async (req, res) => {
+  try {
+    const data = await runPython(["phase9_why_not", String(req.params.symbol).toUpperCase()]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/copilot/watchlist-insights
+router.get("/copilot/watchlist-insights", async (_req, res) => {
+  try {
+    const data = await runPython(["phase9_watchlist_insights"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/copilot/confidence-history?symbol=
+router.get("/copilot/confidence-history", async (req, res) => {
+  try {
+    const args = ["phase9_confidence_history"];
+    if (req.query.symbol) args.push(String(req.query.symbol).toUpperCase());
+    const data = await runPython(args);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/copilot/export?kind=json|csv
+router.get("/copilot/export", async (req, res) => {
+  try {
+    const kind = String(req.query.kind ?? "json").toLowerCase();
+    const data = await runPython(["phase9_export", kind]) as { file?: string };
+    if (data?.file && fs.existsSync(data.file)) {
+      const filename = kind === "csv" ? "phase9_alerts.csv" : "phase9_export.json";
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("Content-Type", kind === "csv" ? "text/csv" : "application/json");
+      res.send(fs.readFileSync(data.file));
+    } else {
+      res.json(data);
+    }
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 export default router;

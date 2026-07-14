@@ -29,9 +29,12 @@ import {
   TestTubes,
   Wifi,
   ShieldAlert,
+  Bot,
+  Bell,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
+import CopilotPanel from "@/components/CopilotPanel";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -60,6 +63,8 @@ export function AppLayout({ children }: AppLayoutProps) {
       items: [
         { href: "/signals",     label: "Signals",     icon: Activity },
         { href: "/ai-decision", label: "AI Decision", icon: Brain    },
+        { href: "/ai-copilot",   label: "AI Copilot",    icon: Bot  },
+        { href: "/notifications", label: "Notifications", icon: Bell },
       ],
     },
     {
@@ -151,6 +156,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         <div className="flex-1 overflow-auto p-6 lg:p-8 z-10 relative">
           {children}
         </div>
+        <CopilotPanel />
       </main>
     </div>
   );

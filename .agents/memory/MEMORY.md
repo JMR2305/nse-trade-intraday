@@ -2,3 +2,5 @@
 - [Phase 7 safety gates](phase7-safety-gates.md) — STALE→WATCH, UNAVAILABLE→IGNORE enforced in live_scan_engine._apply_quality_gate(); never in market_scanner.py.
 - [Phase 8 broker safety design](phase8-broker-safety.md) — credential masking, no-auto-execution guarantee, two-step confirm tokens, MockBrokerClient fallback.
 - [Phase 8 test pattern](phase8-tests.md) — 95 tests, all unit (no real broker), 8 mocked scenarios; run python3 test_phase8.py in artifacts/api-server/src/python/.
+- [Watchlist default fallback](watchlist-default.md) — watchlist.json may not exist; any reader must fall back to config.DEFAULT_WATCHLIST like main.py does, or features silently show empty.
+- [Phase 9 copilot design](phase9-copilot.md) — read-only engine over cached scan snapshots; alerts dedup by type+symbol+scan_id; confidence snapshots idempotent per scan_id.

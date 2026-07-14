@@ -984,6 +984,52 @@ def main():
                             _w.writerow([_e.get(_c, "") for _c in _cols])
             result = {"success": True, "file": _fpath, "kind": _kind}
 
+        # ── Phase 9 — AI Copilot, Alerts & Explainability ─────────────────────
+        elif command == "phase9_copilot":
+            from copilot_engine import copilot_summary, record_confidence_snapshot
+            record_confidence_snapshot()  # idempotent per scan_id
+            result = copilot_summary()
+        elif command == "phase9_alerts_generate":
+            from copilot_engine import generate_alerts, record_confidence_snapshot
+            record_confidence_snapshot()
+            result = generate_alerts()
+        elif command == "phase9_alerts":
+            from copilot_engine import list_alerts
+            _limit = int(args[1]) if len(args) > 1 else 100
+            result = list_alerts(_limit)
+        elif command == "phase9_alerts_read":
+            from copilot_engine import mark_alerts_read
+            result = mark_alerts_read(args[1] if len(args) > 1 else "all")
+        elif command == "phase9_briefing":
+            from copilot_engine import daily_briefing
+            result = daily_briefing()
+        elif command == "phase9_explanations":
+            from copilot_engine import trade_explanations
+            _limit = int(args[1]) if len(args) > 1 else 20
+            result = trade_explanations(_limit)
+        elif command == "phase9_explain":
+            if len(args) < 2:
+                result = {"success": False, "error": "Usage: phase9_explain <symbol>"}
+            else:
+                from copilot_engine import trade_explanation
+                result = trade_explanation(args[1])
+        elif command == "phase9_why_not":
+            if len(args) < 2:
+                result = {"success": False, "error": "Usage: phase9_why_not <symbol>"}
+            else:
+                from copilot_engine import why_not
+                result = why_not(args[1])
+        elif command == "phase9_watchlist_insights":
+            from copilot_engine import watchlist_insights
+            result = watchlist_insights()
+        elif command == "phase9_confidence_history":
+            from copilot_engine import confidence_history, record_confidence_snapshot
+            record_confidence_snapshot()
+            result = confidence_history(args[1] if len(args) > 1 else None)
+        elif command == "phase9_export":
+            from copilot_engine import export_phase9
+            result = export_phase9(args[1].lower() if len(args) > 1 else "json")
+
         elif command == "meta_health":
             from meta_learning import cmd_health
             result = cmd_health()

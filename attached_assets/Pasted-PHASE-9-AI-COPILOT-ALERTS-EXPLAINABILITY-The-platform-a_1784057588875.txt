@@ -1,0 +1,291 @@
+PHASE 9 – AI COPILOT, ALERTS & EXPLAINABILITY
+
+The platform already includes:
+
+- Market Intelligence
+- Market Scanner
+- Signals
+- AI Decision
+- Portfolio Manager
+- Strategy Research
+- Paper Trading
+- Broker Integration framework
+
+Now implement an AI Copilot layer that assists the user throughout the trading day.
+
+=========================
+1. AI COPILOT PANEL
+=========================
+
+Create a collapsible AI Copilot panel accessible from every page.
+
+The Copilot should continuously summarize:
+
+• Current market regime
+• Market sentiment
+• Portfolio health
+• Open risks
+• Best opportunities
+• Stocks to avoid
+• Highest confidence trade today
+
+Example:
+
+Today's Summary
+
+Market:
+Neutral-Bullish
+
+Best Opportunity:
+HDFCBANK
+Confidence 86
+
+Avoid:
+WIPRO
+Weak momentum
+
+Portfolio Risk:
+Low
+
+Cash:
+₹4,600
+
+Open Positions:
+1
+
+=========================
+2. SMART ALERTS
+=========================
+
+Generate intelligent alerts.
+
+Examples:
+
+BUY ALERT
+
+SELL ALERT
+
+STOP LOSS HIT
+
+TARGET ACHIEVED
+
+High Volume Breakout
+
+Momentum Increasing
+
+Weakening Trend
+
+Volatility Rising
+
+Risk Limit Reached
+
+Market Regime Changed
+
+Sector Rotation
+
+Confidence Increased
+
+Confidence Decreased
+
+Each alert should include:
+
+timestamp
+
+reason
+
+confidence
+
+severity
+
+affected stock
+
+action recommendation
+
+=========================
+3. DAILY BRIEFING
+=========================
+
+Create an AI-generated daily briefing.
+
+Include:
+
+Market Summary
+
+Top sectors
+
+Weak sectors
+
+Today's opportunities
+
+Portfolio summary
+
+Risk assessment
+
+Expected volatility
+
+Economic events (placeholder)
+
+Example:
+
+Good Morning
+
+Market remains Neutral Bullish.
+
+Financial sector strongest.
+
+Avoid IT today.
+
+Watch HDFCBANK.
+
+Portfolio risk remains Low.
+
+=========================
+4. TRADE EXPLANATIONS
+=========================
+
+Every BUY, SELL, WATCH or IGNORE recommendation should explain:
+
+Why?
+
+Indicators supporting it
+
+Indicators against it
+
+Risk
+
+Expected holding period
+
+Historical success rate
+
+Expected reward
+
+Example:
+
+BUY HDFCBANK
+
+Reasons:
+
+EMA20 crossed EMA50
+
+RSI improving
+
+Volume above average
+
+Market supportive
+
+Risk:
+Low
+
+Expected Hold:
+7-12 days
+
+Historical Win Rate:
+67%
+
+=========================
+5. WHY NOT BUY?
+=========================
+
+For ignored stocks show:
+
+Why not selected
+
+Missing confirmations
+
+Confidence lost
+
+Which rule failed
+
+Example:
+
+ICICIBANK
+
+Ignored because
+
+Weak volume
+
+RSI below threshold
+
+Market regime mismatch
+
+=========================
+6. NOTIFICATIONS PAGE
+=========================
+
+Create a Notification Center.
+
+Sections:
+
+Today's Alerts
+
+Unread
+
+Executed Trades
+
+Risk Alerts
+
+AI Suggestions
+
+Market Alerts
+
+=========================
+7. WATCHLIST INSIGHTS
+=========================
+
+Each watchlist stock should display:
+
+Trend
+
+Momentum
+
+Strength
+
+Confidence
+
+Estimated upside
+
+Estimated downside
+
+Risk
+
+Holding period
+
+=========================
+8. AI CONFIDENCE HISTORY
+=========================
+
+Add charts showing confidence over time.
+
+Display:
+
+Confidence trend
+
+Signal evolution
+
+Opportunity score evolution
+
+Trade quality evolution
+
+=========================
+9. VOICE-READY RESPONSES
+=========================
+
+Prepare all AI summaries in a format suitable for future text-to-speech support.
+
+=========================
+10. SAFETY
+=========================
+
+Maintain all existing safeguards:
+
+Research remains separate.
+
+No automatic live trading.
+
+Manual confirmation required before execution.
+
+Keep paper trading fully functional.
+
+No look-ahead bias.
+
+Provide CSV export for all alerts and AI summaries.
