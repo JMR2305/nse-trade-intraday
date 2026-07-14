@@ -1,0 +1,17 @@
+{
+  "name": "Bear Market (verify fix)",
+  "template_id": "bear_market",
+  "template_family": "market_conditions",
+  "tags": [
+    "verify"
+  ],
+  "train_years": 1,
+  "test_months": 3,
+  "step_months": 3,
+  "start_date": "2021-10-01",
+  "end_date": "2023-03-31",
+  "universe_size": 0,
+  "intrabar_rule": "conservative",
+  "max_holding_days": 20,
+  "min_confidence_execute": 55
+}

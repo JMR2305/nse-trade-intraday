@@ -1,0 +1,12 @@
+component,amount_inr
+brokerage,0.0
+stt,107.87
+exchange,3.2
+sebi,0.11
+stamp_duty,8.09
+gst,0.6
+slippage_and_spread,80.91
+total,200.78
+gross_pnl,115.42
+net_pnl,-85.36
+cost_drag,200.78

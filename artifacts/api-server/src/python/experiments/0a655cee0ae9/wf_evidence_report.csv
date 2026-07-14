@@ -1,0 +1,62 @@
+section,metric,value
+verdict,verdict,INSUFFICIENT_EVIDENCE
+verdict,summary,"Only 63 completed OOS trades across 2 window(s). Need ≥100 trades and ≥4 windows for any evidence assessment. Recommended: train_years=2, test_months=3, step_months=3 going back ≥5 years (targets 10-12 windows and 300+ trades)."
+verdict_criterion,Minimum trades for any evidence,observed=63 threshold=100 passed=False
+verdict_criterion,Preferred trades (300 = research target),observed=63 threshold=300 passed=False
+verdict_criterion,Minimum windows for any evidence,observed=2 threshold=4 passed=False
+verdict_criterion,Preferred windows (8+),observed=2 threshold=8 passed=False
+verdict_criterion,Market regime diversity (3+ canonical regimes),observed=4 threshold=3 passed=True
+verdict_criterion,Profitable windows ≥ 50%,observed=50.0 threshold=50.0 passed=True
+verdict_criterion,Positive expectancy after costs (₹/trade),observed=-1.35 threshold=0.0 passed=False
+coverage,earliest_test_date,2022-10-01
+coverage,latest_test_date,2023-03-31
+coverage,years_covered,0.5
+summary,total_oos_trades,63
+summary,total_windows,2
+summary,expectancy_per_trade_inr,-1.35
+regime,Bullish,trades=17 pct=27.0% underrepresented=False
+regime,Neutral-Bullish,trades=16 pct=25.4% underrepresented=False
+regime,Neutral-Bearish,trades=19 pct=30.2% underrepresented=False
+regime,Bearish,trades=11 pct=17.5% underrepresented=False
+regime,Sideways,trades=0 pct=0.0% underrepresented=True
+regime,High-Volatility,trades=0 pct=0.0% underrepresented=True
+regime,Low-Volatility,trades=0 pct=0.0% underrepresented=True
+regime_warning,warning,Regime 'Sideways' has only 0 trade(s) — under-represented; conclusions may not generalise
+regime_warning,warning,Regime 'High-Volatility' has only 0 trade(s) — under-represented; conclusions may not generalise
+regime_warning,warning,Regime 'Low-Volatility' has only 0 trade(s) — under-represented; conclusions may not generalise
+regime_warning,warning,"No trades in regime(s): Sideways, High-Volatility, Low-Volatility — extend the date range to cover more market conditions"
+strategy,Mean Reversion,trades=39 net_pnl=71.41 win_rate=61.5% expectancy=1.83
+strategy,MACD Cross,trades=21 net_pnl=-166.34 win_rate=23.8% expectancy=-7.92
+strategy,Trend Rider,trades=3 net_pnl=9.57 win_rate=33.3% expectancy=3.19
+year,2022,trades=29 net_pnl=76.84 win_rate=51.7% expectancy=2.65
+year,2023,trades=34 net_pnl=-162.2 win_rate=44.1% expectancy=-4.77
+sector,IT,trades=37 net_pnl=22.56 win_rate=59.5% expectancy=0.61
+sector,BANKING,trades=12 net_pnl=-104.49 win_rate=25.0% expectancy=-8.71
+sector,ENERGY,trades=10 net_pnl=71.46 win_rate=50.0% expectancy=7.15
+sector,FINANCE,trades=2 net_pnl=-26.04 win_rate=0.0% expectancy=-13.02
+sector,INFRA,trades=1 net_pnl=-17.24 win_rate=0.0% expectancy=-17.24
+sector,FMCG,trades=1 net_pnl=-31.61 win_rate=0.0% expectancy=-31.61
+holding_period,Short (1-5d),trades=47 net_pnl=-165.37 win_rate=48.9% expectancy=-3.52
+holding_period,Medium (6-15d),trades=11 net_pnl=-97.72 win_rate=36.4% expectancy=-8.88
+holding_period,Long (16+d),trades=5 net_pnl=177.73 win_rate=60.0% expectancy=35.55
+stability,window_count,2
+stability,profitable_windows,1
+stability,profitable_windows_pct,50.0
+stability,median_return_pct,-0.85
+stability,median_profit_factor,0.885
+stability,return_dispersion,3.38
+stability,best_window,W1 (2022-10-01-2022-12-31) return=1.54%
+stability,worst_window,W2 (2023-01-01-2023-03-31) return=-3.24%
+calibration_comparison,n_trades,63
+calibration_comparison,raw_brier_score,0.3095
+calibration_comparison,calibrated_brier_score,0.3095
+calibration_comparison,brier_improvement,0.0
+calibration_comparison,raw_ece,0.2781
+calibration_comparison,calibrated_ece,0.2781
+calibration_comparison,ece_improvement,0.0
+calibration_comparison,raw_log_loss,0.8372
+calibration_comparison,calibrated_log_loss,0.8372
+calibration_comparison,log_loss_improvement,0.0
+calibration_comparison,calibration_helps,False
+concentration_flag,warning,Strategy concentration: 'Mean Reversion' contributes 51% of total profitable P&L
+safety,message,Out-of-sample historical performance does not guarantee future results. Paper trading and research only.

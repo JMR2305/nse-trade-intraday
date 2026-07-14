@@ -1,0 +1,50 @@
+[
+ {
+  "ts": "2026-07-14T10:04:18",
+  "msg": "queued \u2014 experiment \"Bear Market (verify fix)\" created"
+ },
+ {
+  "ts": "2026-07-14T10:04:25",
+  "msg": "starting \u2014 runner process launched (pid 1006, attempt at 2026-07-14T10:04:25)"
+ },
+ {
+  "ts": "2026-07-14T10:04:25",
+  "msg": "loading data \u2014 fetching historical prices for the universe"
+ },
+ {
+  "ts": "2026-07-14T10:04:25",
+  "msg": "loading data \u2014 prefetching 50 symbols (2021-05-04 \u2192 2023-04-01)"
+ },
+ {
+  "ts": "2026-07-14T10:04:40",
+  "msg": "walk-forward \u2014 training + simulating window 1/2 (2022-10-01 \u2192 2022-12-31)"
+ },
+ {
+  "ts": "2026-07-14T10:05:09",
+  "msg": "walk-forward \u2014 window 1/2 done"
+ },
+ {
+  "ts": "2026-07-14T10:05:09",
+  "msg": "walk-forward \u2014 training + simulating window 2/2 (2023-01-01 \u2192 2023-03-31)"
+ },
+ {
+  "ts": "2026-07-14T10:05:41",
+  "msg": "walk-forward \u2014 window 2/2 done"
+ },
+ {
+  "ts": "2026-07-14T10:05:41",
+  "msg": "scoring \u2014 aggregating results across windows"
+ },
+ {
+  "ts": "2026-07-14T10:05:47",
+  "msg": "scoring \u2014 computing leaderboard score and overfitting checks"
+ },
+ {
+  "ts": "2026-07-14T10:05:47",
+  "msg": "report generation \u2014 extracting headline metrics"
+ },
+ {
+  "ts": "2026-07-14T10:05:47",
+  "msg": "completed \u2014 verdict: INSUFFICIENT DATA, score 17.0/100"
+ }
+]

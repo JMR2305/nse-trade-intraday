@@ -1266,8 +1266,15 @@ def _phase2a_report(overall: dict, layer_comparison: list,
 
 # ── Main entry point ─────────────────────────────────────────────────────────
 
-def run_validation(config: dict | None = None) -> dict:
+def run_validation(config: dict | None = None, on_stage=None) -> dict:
     t0 = time.time()
+
+    def _stage(msg: str) -> None:
+        if on_stage is not None:
+            try:
+                on_stage(msg)
+            except Exception:
+                pass
     cfg = ValidationConfig.from_dict(config)
     cost_model = CostModel.from_dict(cfg.cost_model)
     cfg.cost_model = cost_model.to_dict()
@@ -1312,6 +1319,8 @@ def run_validation(config: dict | None = None) -> dict:
     fetch_end = (datetime.strptime(end_date, "%Y-%m-%d")
                  + timedelta(days=1)).strftime("%Y-%m-%d")
 
+    _stage(f"loading data — prefetching {len(universe)} symbols "
+           f"({fetch_start} → {fetch_end})")
     sym_rows: dict[str, pd.DataFrame] = {}
     skipped: list[str] = []
     for i, sym in enumerate(universe):
@@ -1374,8 +1383,11 @@ def run_validation(config: dict | None = None) -> dict:
             "phase": f"window {wi + 1}/{len(windows)} "
                      f"({window['test_start']} → {window['test_end']})",
             "progress_pct": round(20 + wi / len(windows) * 75.0),
+            "windows_done": wi,
         })
         _write_status(status)
+        _stage(f"walk-forward — training + simulating window {wi + 1}/{len(windows)} "
+               f"({window['test_start']} → {window['test_end']})")
 
         t_start = pd.Timestamp(window["test_start"])
         t_end = pd.Timestamp(window["test_end"])
@@ -1551,9 +1563,19 @@ def run_validation(config: dict | None = None) -> dict:
             "benchmarks": bench,
         })
 
+        # Persist per-window progress and release per-window memory: long runs
+        # were dying from memory exhaustion accumulated across windows.
+        status["windows_done"] = wi + 1
+        _write_status(status)
+        _stage(f"walk-forward — window {wi + 1}/{len(windows)} done")
+        del trained, variant_out
+        import gc
+        gc.collect()
+
     # ── Aggregation ─────────────────────────────────────────────────────────
     status.update({"phase": "aggregating results", "progress_pct": 96})
     _write_status(status)
+    _stage("scoring — aggregating results across windows")
 
     total_test_days = sum(int(w.get("trading_days", 0)) for w in window_results)
     overall = {}

@@ -29,6 +29,8 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import threading
+import time
 import uuid
 from datetime import datetime
 
@@ -236,6 +238,93 @@ def _config_path(exp_id: str) -> str:
 def _result_path(exp_id: str) -> str:
     return os.path.join(_exp_dir(exp_id), "wf_result.json")
 
+def _heartbeat_path(exp_id: str) -> str:
+    return os.path.join(_exp_dir(exp_id), "heartbeat.json")
+
+def _exec_log_path(exp_id: str) -> str:
+    return os.path.join(_exp_dir(exp_id), "exec_log.json")
+
+def _runner_log_path(exp_id: str) -> str:
+    return os.path.join(_exp_dir(exp_id), "runner.log")
+
+
+HEARTBEAT_INTERVAL_S = 5
+HEARTBEAT_STALE_S = 30
+
+
+def _log_stage(exp_id: str, msg: str) -> None:
+    """Append a timestamped stage event to the experiment's execution log."""
+    p = _exec_log_path(exp_id)
+    log: list = []
+    try:
+        if os.path.exists(p):
+            with open(p) as f:
+                log = json.load(f)
+    except Exception:
+        log = []
+    log.append({"ts": datetime.now().isoformat(timespec="seconds"), "msg": msg})
+    log = log[-100:]
+    tmp = p + ".tmp"
+    try:
+        with open(tmp, "w") as f:
+            json.dump(log, f, indent=1)
+        os.replace(tmp, p)
+    except Exception:
+        pass
+
+
+def _read_exec_log(exp_id: str) -> list:
+    try:
+        with open(_exec_log_path(exp_id)) as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+
+def _write_heartbeat(exp_id: str) -> None:
+    p = _heartbeat_path(exp_id)
+    tmp = p + ".tmp"
+    try:
+        with open(tmp, "w") as f:
+            json.dump({"ts": time.time(), "pid": os.getpid(),
+                       "at": datetime.now().isoformat(timespec="seconds")}, f)
+        os.replace(tmp, p)
+    except Exception:
+        pass
+
+
+def _start_heartbeat(exp_id: str) -> threading.Event:
+    """Background thread that refreshes heartbeat.json every few seconds."""
+    stop = threading.Event()
+
+    def _beat():
+        while not stop.is_set():
+            _write_heartbeat(exp_id)
+            stop.wait(HEARTBEAT_INTERVAL_S)
+
+    t = threading.Thread(target=_beat, daemon=True, name=f"heartbeat-{exp_id}")
+    t.start()
+    return stop
+
+
+def _heartbeat_age(exp_id: str) -> float | None:
+    """Seconds since last heartbeat, or None if no heartbeat file exists."""
+    try:
+        with open(_heartbeat_path(exp_id)) as f:
+            hb = json.load(f)
+        return max(0.0, time.time() - float(hb.get("ts", 0)))
+    except Exception:
+        return None
+
+
+def _runner_log_tail(exp_id: str, max_chars: int = 800) -> str:
+    try:
+        with open(_runner_log_path(exp_id), "r", errors="replace") as f:
+            data = f.read()
+        return data[-max_chars:].strip()
+    except Exception:
+        return ""
+
 def _pid_alive(pid) -> bool:
     """True only if the PID exists AND is actually an experiment runner.
 
@@ -267,28 +356,47 @@ def _reconcile_stale(exp_id: str, status: dict) -> dict:
     """
     if status.get("status") != "running":
         return status
-    if _pid_alive(status.get("pid")):
+
+    hb_age = _heartbeat_age(exp_id)
+    pid_ok = _pid_alive(status.get("pid"))
+
+    # Healthy if the heartbeat is fresh, or (no heartbeat file yet) PID is alive
+    if hb_age is not None and hb_age <= HEARTBEAT_STALE_S:
+        return status
+    if hb_age is None and pid_ok:
         return status
 
-    # Grace period: don't kill runs started within the last 2 minutes
-    started = status.get("started_at") or status.get("updated_at") or ""
-    try:
-        started_dt = datetime.fromisoformat(str(started).replace("Z", "+00:00"))
-        age = (datetime.now(started_dt.tzinfo) - started_dt).total_seconds()
-        if age < 120:
-            return status
-    except Exception:
-        pass
+    # Startup grace period: only when no heartbeat was ever written (runner
+    # may still be booting). Once a heartbeat exists, the 30s stale rule wins.
+    if hb_age is None:
+        started = status.get("started_at") or status.get("updated_at") or ""
+        try:
+            started_dt = datetime.fromisoformat(str(started).replace("Z", "+00:00"))
+            age = (datetime.now(started_dt.tzinfo) - started_dt).total_seconds()
+            if age < 120:
+                return status
+        except Exception:
+            pass
+
+    if hb_age is not None and hb_age > HEARTBEAT_STALE_S:
+        reason = (f"Heartbeat stopped {int(hb_age)}s ago (limit {HEARTBEAT_STALE_S}s) — "
+                  "the runner process died without reporting an error. Most likely "
+                  "killed by the OS (out-of-memory) or a server/workflow restart.")
+    else:
+        reason = ("Runner process is no longer alive and never wrote a completion "
+                  "status — likely killed by a server restart or out-of-memory.")
+
+    log_tail = _runner_log_tail(exp_id)
+    if log_tail:
+        reason += f"\nLast runner output:\n{log_tail}"
 
     status["status"] = "failed"
-    status["error"] = (
-        "Run process terminated unexpectedly (stale 'running' state reconciled). "
-        "The runner process is no longer alive — likely killed by a server restart "
-        "or out-of-memory. Re-queue or re-run the experiment."
-    )
+    status["error"] = reason
+    status["failed_at"] = datetime.now().isoformat()
     status["updated_at"] = datetime.now().isoformat()
     try:
         _write_status(exp_id, status)
+        _log_stage(exp_id, f"failed — {reason.splitlines()[0]}")
     except Exception:
         pass
     return status
@@ -349,6 +457,7 @@ def list_experiments() -> dict:
                 except Exception:
                     pass
 
+        status["exec_log"] = _read_exec_log(exp_id)
         experiments.append(status)
 
     experiments.sort(key=lambda x: x.get("created_at", ""), reverse=True)
@@ -414,6 +523,7 @@ def submit_experiment(config: dict) -> dict:
         },
     }
     _write_status(exp_id, payload)
+    _log_stage(exp_id, f"queued — experiment \"{payload.get('name')}\" created")
     return {"ok": True, "id": exp_id, "status": "queued"}
 
 
@@ -442,6 +552,17 @@ def run_experiment(exp_id: str) -> dict:
     exp_out = _exp_dir(exp_id)
     os.makedirs(exp_out, exist_ok=True)
 
+    # Dump native tracebacks (segfault/fatal signal) to stderr → runner.log
+    try:
+        import faulthandler
+        faulthandler.enable()
+    except Exception:
+        pass
+
+    # Fresh execution log for this attempt (keep prior attempts' history)
+    _log_stage(exp_id, "starting — runner process launched "
+                       f"(pid {os.getpid()}, attempt at {datetime.now().isoformat(timespec='seconds')})")
+
     now = datetime.now().isoformat()
     _write_status(exp_id, {
         **status,
@@ -449,7 +570,12 @@ def run_experiment(exp_id: str) -> dict:
         "pid":        os.getpid(),
         "started_at": now,
         "updated_at": now,
+        "error":      None,
+        "trace":      None,
     })
+
+    _write_heartbeat(exp_id)
+    hb_stop = _start_heartbeat(exp_id)
 
     import walk_forward_validator as wfv
     try:
@@ -480,11 +606,17 @@ def run_experiment(exp_id: str) -> dict:
         }
         wf_config = {k: v for k, v in config.items() if k not in EXPERIMENT_KEYS}
 
-        result = wfv.run_validation(wf_config)
+        _log_stage(exp_id, "loading data — fetching historical prices for the universe")
+        result = wfv.run_validation(wf_config, on_stage=lambda m: _log_stage(exp_id, m))
 
+        if isinstance(result, dict) and result.get("error"):
+            raise RuntimeError(str(result["error"]))
+
+        _log_stage(exp_id, "scoring — computing leaderboard score and overfitting checks")
         score_info = _compute_score(result)
         auto_rejected, flags = _check_overfitting(result)
         final_status = "rejected" if auto_rejected else "completed"
+        _log_stage(exp_id, "report generation — extracting headline metrics")
         headline = _extract_headline(result)
 
         now = datetime.now().isoformat()
@@ -500,6 +632,9 @@ def run_experiment(exp_id: str) -> dict:
             "auto_rejected":    auto_rejected,
             "metrics":          headline,
         })
+        _log_stage(exp_id, f"completed — verdict: {headline.get('verdict')}, "
+                           f"score {score_info['total']}/100"
+                           + (" (auto-rejected: overfitting flags)" if auto_rejected else ""))
 
         return {
             "ok":           True,
@@ -509,20 +644,33 @@ def run_experiment(exp_id: str) -> dict:
             "auto_rejected": auto_rejected,
         }
 
-    except Exception as exc:
+    except BaseException as exc:
         import traceback
+        trace = traceback.format_exc()
         now = datetime.now().isoformat()
         _write_status(exp_id, {
             **_read_status(exp_id),
             "status":     "failed",
             "failed_at":  now,
             "updated_at": now,
-            "error":      str(exc),
-            "trace":      traceback.format_exc()[:2000],
+            "error":      str(exc) or type(exc).__name__,
+            "trace":      trace[:4000],
         })
+        _log_stage(exp_id, f"failed — {type(exc).__name__}: {str(exc)[:200]}")
+        try:
+            import sys
+            print(trace, file=sys.stderr, flush=True)  # → runner.log
+        except Exception:
+            pass
+        if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+            raise
         return {"error": str(exc), "id": exp_id, "status": "failed"}
 
     finally:
+        try:
+            hb_stop.set()
+        except Exception:
+            pass
         # ── Always restore module globals ──────────────────────────────────
         wfv.VALIDATION_DIR = orig_vdir
         wfv.STATUS_PATH    = orig_sp
@@ -555,6 +703,7 @@ def get_experiment(exp_id: str) -> dict:
             except Exception:
                 pass
 
+    status["exec_log"] = _read_exec_log(exp_id)
     return status
 
 

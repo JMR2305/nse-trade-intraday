@@ -98,6 +98,8 @@ interface Experiment {
   template_family?: string;
   wf_progress?: any;
   error?: string;
+  trace?: string;
+  exec_log?: { ts: string; msg: string }[];
 }
 
 interface LeaderboardEntry extends Experiment {
@@ -396,6 +398,11 @@ function ExperimentCard({ exp, onRun, onDelete }: {
               <Play className="h-3 w-3 mr-1" />Run
             </Button>
           )}
+          {exp.status === "failed" && (
+            <Button size="sm" className="h-6 px-2 font-mono text-[11px] bg-amber-600 hover:bg-amber-500 text-white" onClick={() => onRun(exp.id)}>
+              <Play className="h-3 w-3 mr-1" />Retry
+            </Button>
+          )}
           {exp.status !== "running" && (
             <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-zinc-500 hover:text-red-400" onClick={() => onDelete(exp.id)}>
               <Trash2 className="h-3.5 w-3.5" />
@@ -435,6 +442,29 @@ function ExperimentCard({ exp, onRun, onDelete }: {
             <div key={l}><span className="text-zinc-500">{l} </span><span className="text-zinc-200">{String(v??"—")}</span></div>
           ))}
           {exp.score_breakdown && <div className="col-span-4 mt-1"><ScoreBar score={exp.score??0} breakdown={exp.score_breakdown}/></div>}
+        </div>
+      )}
+      {expanded && exp.status === "failed" && exp.trace && (
+        <div className="pt-1 border-t border-zinc-800">
+          <p className="text-[10px] font-mono text-zinc-500 mb-1">Crash trace</p>
+          <pre className="text-[9px] font-mono text-red-300/80 bg-zinc-900/70 border border-zinc-800 rounded p-2 max-h-40 overflow-auto whitespace-pre-wrap">{exp.trace}</pre>
+        </div>
+      )}
+      {expanded && exp.exec_log && exp.exec_log.length > 0 && (
+        <div className="pt-1 border-t border-zinc-800">
+          <p className="text-[10px] font-mono text-zinc-500 mb-1">Execution log</p>
+          <div className="space-y-0.5 max-h-40 overflow-auto">
+            {exp.exec_log.map((e, i) => (
+              <div key={i} className="flex gap-2 text-[9px] font-mono">
+                <span className="text-zinc-600 flex-shrink-0">{e.ts.replace("T", " ")}</span>
+                <span className={cn(
+                  e.msg.startsWith("failed") ? "text-red-400"
+                    : e.msg.startsWith("completed") ? "text-emerald-400"
+                    : "text-zinc-400"
+                )}>{e.msg}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -630,7 +660,11 @@ function GroupedLeaderboard({ entries, onDelete }: {
 
 export default function ExperimentManager() {
   const { toast } = useToast();
-  const [tab, setTab] = useState<Tab>("templates");
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    return (["templates", "queue", "batches", "leaderboard"] as Tab[]).includes(t as Tab)
+      ? (t as Tab) : "templates";
+  });
   const [experiments, setExperiments] = useState<Experiment[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [batchCount, setBatchCount] = useState(0);

@@ -696,12 +696,56 @@ router.post("/experiments/:id/run", async (req, res) => {
   }
 
   expRunActive = true;
+  // Capture runner stdout/stderr to runner.log so crashes (OOM kills, native
+  // faults) leave a trace instead of vanishing with stdio: "ignore".
+  const runnerLogPath = path.join(expDir, "runner.log");
+  let logFd: number | null = null;
+  try {
+    logFd = fs.openSync(runnerLogPath, "a");
+    fs.writeSync(logFd, `\n──── runner attempt ${new Date().toISOString()} ────\n`);
+  } catch { logFd = null; }
   const proc = spawn(
     PYTHON_BIN,
     [path.join(PYTHON_DIR, "main.py"), "experiment_run", expId],
-    { cwd: PYTHON_DIR, detached: true, stdio: "ignore" },
+    {
+      cwd: PYTHON_DIR,
+      detached: true,
+      stdio: logFd !== null ? ["ignore", logFd, logFd] : "ignore",
+    },
   );
-  proc.on("exit", () => { expRunActive = false; });
+  if (logFd !== null) { try { fs.closeSync(logFd); } catch { /* noop */ } }
+  const childPid = proc.pid ?? null;
+  proc.on("exit", (code, signal) => {
+    expRunActive = false;
+    // If the runner was killed (signal / non-zero exit) before it could write
+    // a final status, record the failure with the exit details.
+    if (code === 0) return;
+    try {
+      const st = JSON.parse(fs.readFileSync(expStatusPath, "utf8"));
+      if (st.status !== "running" || (childPid !== null && st.pid !== childPid)) return;
+      let tail = "";
+      try {
+        const log = fs.readFileSync(runnerLogPath, "utf8");
+        tail = log.slice(-800).trim();
+      } catch { /* noop */ }
+      const why = signal
+        ? `Runner process killed by signal ${signal} — most likely out-of-memory (OOM). `
+        : `Runner process exited with code ${code} without writing a result. `;
+      fs.writeFileSync(expStatusPath, JSON.stringify({
+        ...st,
+        status: "failed",
+        error: why + (tail ? `\nLast runner output:\n${tail}` : "No runner output captured."),
+        failed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, null, 2));
+      // Append to the execution log so the UI timeline shows the crash.
+      const execLogPath = path.join(expDir, "exec_log.json");
+      let execLog: Array<{ ts: string; msg: string }> = [];
+      try { execLog = JSON.parse(fs.readFileSync(execLogPath, "utf8")); } catch { /* noop */ }
+      execLog.push({ ts: new Date().toISOString().slice(0, 19), msg: `failed — ${why.trim()}` });
+      fs.writeFileSync(execLogPath, JSON.stringify(execLog.slice(-100), null, 1));
+    } catch { /* noop */ }
+  });
   proc.on("error", () => { expRunActive = false; });
   proc.unref();
 
