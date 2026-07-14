@@ -1,0 +1,64 @@
+section,metric,value
+verdict,verdict,INSUFFICIENT_EVIDENCE
+verdict,summary,"Only 37 completed OOS trades across 7 window(s). Need ≥100 trades and ≥4 windows for any evidence assessment. Recommended: train_years=2, test_months=3, step_months=3 going back ≥5 years (targets 10-12 windows and 300+ trades)."
+verdict_criterion,Minimum trades for any evidence,observed=37 threshold=100 passed=False
+verdict_criterion,Preferred trades (300 = research target),observed=37 threshold=300 passed=False
+verdict_criterion,Minimum windows for any evidence,observed=7 threshold=4 passed=True
+verdict_criterion,Preferred windows (8+),observed=7 threshold=8 passed=False
+verdict_criterion,Market regime diversity (3+ canonical regimes),observed=4 threshold=3 passed=True
+verdict_criterion,Profitable windows ≥ 50%,observed=50.0 threshold=50.0 passed=True
+verdict_criterion,Positive expectancy after costs (₹/trade),observed=-8.85 threshold=0.0 passed=False
+coverage,earliest_test_date,2024-04-01
+coverage,latest_test_date,2025-12-31
+coverage,years_covered,1.7
+summary,total_oos_trades,37
+summary,total_windows,7
+summary,expectancy_per_trade_inr,-8.85
+regime,Bullish,trades=9 pct=24.3% underrepresented=True
+regime,Neutral-Bullish,trades=13 pct=35.1% underrepresented=False
+regime,Neutral-Bearish,trades=7 pct=18.9% underrepresented=True
+regime,Bearish,trades=8 pct=21.6% underrepresented=True
+regime,Sideways,trades=0 pct=0.0% underrepresented=True
+regime,High-Volatility,trades=0 pct=0.0% underrepresented=True
+regime,Low-Volatility,trades=0 pct=0.0% underrepresented=True
+regime_warning,warning,Regime 'Bullish' has only 9 trade(s) — under-represented; conclusions may not generalise
+regime_warning,warning,Regime 'Neutral-Bearish' has only 7 trade(s) — under-represented; conclusions may not generalise
+regime_warning,warning,Regime 'Bearish' has only 8 trade(s) — under-represented; conclusions may not generalise
+regime_warning,warning,Regime 'Sideways' has only 0 trade(s) — under-represented; conclusions may not generalise
+regime_warning,warning,Regime 'High-Volatility' has only 0 trade(s) — under-represented; conclusions may not generalise
+regime_warning,warning,Regime 'Low-Volatility' has only 0 trade(s) — under-represented; conclusions may not generalise
+regime_warning,warning,"No trades in regime(s): Sideways, High-Volatility, Low-Volatility — extend the date range to cover more market conditions"
+strategy,Trend Rider,trades=29 net_pnl=-248.94 win_rate=34.5% expectancy=-8.58
+strategy,MACD Cross,trades=6 net_pnl=-81.31 win_rate=16.7% expectancy=-13.55
+strategy,Mean Reversion,trades=2 net_pnl=2.64 win_rate=50.0% expectancy=1.32
+year,2024,trades=33 net_pnl=-302.87 win_rate=33.3% expectancy=-9.18
+year,2025,trades=4 net_pnl=-24.74 win_rate=25.0% expectancy=-6.18
+sector,ENERGY,trades=21 net_pnl=-142.94 win_rate=33.3% expectancy=-6.81
+sector,FINANCE,trades=11 net_pnl=-122.96 win_rate=36.4% expectancy=-11.18
+sector,IT,trades=3 net_pnl=-20.68 win_rate=33.3% expectancy=-6.89
+sector,METALS,trades=2 net_pnl=-41.03 win_rate=0.0% expectancy=-20.52
+holding_period,Medium (6-15d),trades=17 net_pnl=-322.75 win_rate=17.6% expectancy=-18.99
+holding_period,Short (1-5d),trades=11 net_pnl=-254.77 win_rate=0.0% expectancy=-23.16
+holding_period,Long (16+d),trades=9 net_pnl=249.91 win_rate=100.0% expectancy=27.77
+stability,window_count,4
+stability,profitable_windows,2
+stability,profitable_windows_pct,50.0
+stability,median_return_pct,-0.25
+stability,median_profit_factor,0.715
+stability,return_dispersion,3.87
+stability,best_window,W2 (2024-07-01-2024-09-30) return=1.27%
+stability,worst_window,W3 (2024-10-01-2024-12-31) return=-7.33%
+calibration_comparison,n_trades,37
+calibration_comparison,raw_brier_score,0.4299
+calibration_comparison,calibrated_brier_score,0.3058
+calibration_comparison,brier_improvement,0.1241
+calibration_comparison,raw_ece,0.4441
+calibration_comparison,calibrated_ece,0.2755
+calibration_comparison,ece_improvement,0.1686
+calibration_comparison,raw_log_loss,1.1689
+calibration_comparison,calibrated_log_loss,0.8143
+calibration_comparison,log_loss_improvement,0.3546
+calibration_comparison,calibration_helps,True
+concentration_flag,warning,Sector concentration: 'ENERGY' contributes 63% of total profitable P&L
+concentration_flag,warning,Strategy concentration: 'Trend Rider' contributes 89% of total profitable P&L
+safety,message,Out-of-sample historical performance does not guarantee future results. Paper trading and research only.

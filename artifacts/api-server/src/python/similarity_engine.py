@@ -307,19 +307,30 @@ def _vol_regime_sim(a: str | None, b: str | None) -> float | None:
     return 0.0
 
 
+_WEIGHTS_CACHE: dict = {"ts": 0.0, "weights": None}
+_WEIGHTS_TTL = 10.0  # seconds — dynamic weights change rarely (gated updates)
+
+
 def get_active_weights() -> dict[str, float]:
     """Dynamic feature weights (v2.2 Root Cause Intelligence) when available,
     otherwise the static baseline. Dynamic weights are rebalanced gradually
     from historical evidence, gated at >=50 new completed trades per update,
-    and always sum to 100 (validated defensively on load)."""
+    and always sum to 100 (validated defensively on load). Cached briefly —
+    the DB lookup dominated hot loops in walk-forward runs."""
+    now = time.time()
+    if _WEIGHTS_CACHE["weights"] is not None and now - _WEIGHTS_CACHE["ts"] < _WEIGHTS_TTL:
+        return _WEIGHTS_CACHE["weights"]
+    weights = WEIGHTS
     try:
         import root_cause_engine
         dyn = root_cause_engine.get_dynamic_weights()
         if dyn is not None:
-            return dyn
+            weights = dyn
     except Exception:
         pass
-    return WEIGHTS
+    _WEIGHTS_CACHE["ts"] = now
+    _WEIGHTS_CACHE["weights"] = weights
+    return weights
 
 
 def similarity_score(cur: dict, hist: dict,
@@ -415,6 +426,139 @@ def load_historical_vectors(force: bool = False) -> list[dict]:
 
 # ── 4. Match retrieval ────────────────────────────────────────────────────────
 
+# Vectorized scoring (performance): walk-forward runs call find_matches once
+# per candidate per day — a pure-Python scan over every historical vector made
+# long runs ~100x slower. The numpy path computes identical scores in bulk.
+try:
+    import numpy as _np
+except Exception:  # pragma: no cover
+    _np = None
+
+_PREP_CACHE: dict = {"key": None, "prep": None}
+
+_VOL_ADJ_MAP = {"LOW": ("NORMAL",), "NORMAL": ("LOW", "HIGH"), "HIGH": ("NORMAL",)}
+
+
+def _codes(values: list, extra_missing=("",)) -> tuple:
+    """Encode a categorical column as int codes (-1 = missing) + value→code map."""
+    mapping: dict = {}
+    codes = _np.empty(len(values), dtype=_np.int64)
+    for i, v in enumerate(values):
+        if v is None or v in extra_missing:
+            codes[i] = -1
+            continue
+        c = mapping.get(v)
+        if c is None:
+            c = len(mapping)
+            mapping[v] = c
+        codes[i] = c
+    return codes, mapping
+
+
+def _prep_vectors(vectors: list[dict]) -> dict:
+    """Precompute numpy columns for a vectors list (cached on identity+len).
+    Categorical features are int-encoded so all comparisons stay in numpy."""
+    # Keyed on list identity + length + the DB-content key of the hist cache,
+    # so a rebuilt vectors list can never collide with a stale prep cache.
+    key = (id(vectors), len(vectors), _HIST_CACHE["key"])
+    if _PREP_CACHE["key"] == key:
+        return _PREP_CACHE["prep"]
+    n = len(vectors)
+
+    def num(field):
+        return _np.array([v.get(field) if v.get(field) is not None else _np.nan
+                          for v in vectors], dtype=float)
+
+    ema = _np.full((n, 3), _np.nan)
+    for i, v in enumerate(vectors):
+        ea = v.get("ema_align")
+        if ea is not None:
+            ema[i] = [1.0 if b else 0.0 for b in ea]
+
+    prep = {"n": n, "cat": {}, "rsi": num("rsi"), "adx": num("adx"),
+            "atr_pct": num("atr_pct"), "volume": num("volume"), "ema": ema,
+            "exit_date": _np.array([str(v.get("exit_date") or "")[:10]
+                                    for v in vectors]),
+            "id": _np.array([v.get("id") or 0 for v in vectors], dtype=_np.int64)}
+    for name, field in (("strategy", "strategy"), ("sector", "sector"),
+                        ("macd_state", "macd_state"), ("vwap", "vwap_state"),
+                        ("supertrend", "supertrend_state"), ("momentum", "momentum"),
+                        ("vol_regime", "vol_regime")):
+        prep["cat"][name] = _codes([v.get(field) for v in vectors])
+
+    regimes_l = [(str(v.get("regime")).strip().lower() if v.get("regime") else None)
+                 for v in vectors]
+    prep["cat"]["regime"] = _codes(regimes_l)
+    # Family id per historical row (-1 = no family) for partial regime credit.
+    fam_of = {r: fi for fi, fam in enumerate(_REGIME_FAMILIES) for r in fam}
+    prep["regime_fam"] = _np.array([fam_of.get(r, -1) if r else -1
+                                    for r in regimes_l], dtype=_np.int64)
+    _PREP_CACHE["key"] = key
+    _PREP_CACHE["prep"] = prep
+    return prep
+
+
+def _scores_vectorized(cur: dict, prep: dict, w: dict[str, float]):
+    """Similarity scores (0-100) for every historical vector — identical
+    semantics to similarity_score(): missing features contribute zero."""
+    total = _np.zeros(prep["n"])
+
+    def add_eq(wname: str, curval, cat_name: str):
+        nonlocal total
+        if curval is None or curval == "":
+            return
+        codes, mapping = prep["cat"][cat_name]
+        c = mapping.get(curval, -2)
+        total += w[wname] * (codes == c)
+
+    add_eq("strategy", cur.get("strategy"), "strategy")
+    add_eq("sector", cur.get("sector"), "sector")
+    add_eq("macd_state", cur.get("macd_state"), "macd_state")
+    add_eq("vwap_state", cur.get("vwap_state"), "vwap")
+    add_eq("supertrend", cur.get("supertrend_state"), "supertrend")
+    add_eq("momentum", cur.get("momentum"), "momentum")
+
+    # regime: exact = 1.0, same family = 0.5
+    creg = (str(cur.get("regime")).strip().lower() if cur.get("regime") else "")
+    if creg:
+        codes, mapping = prep["cat"]["regime"]
+        eq = codes == mapping.get(creg, -2)
+        total += w["regime"] * eq
+        cfam = next((fi for fi, fam in enumerate(_REGIME_FAMILIES) if creg in fam), -2)
+        rel = (prep["regime_fam"] == cfam) & ~eq
+        total += 0.5 * w["regime"] * rel
+
+    # vol_regime: exact = 1.0, adjacent = 0.5
+    cvol = cur.get("vol_regime")
+    if cvol:
+        codes, mapping = prep["cat"]["vol_regime"]
+        eq = codes == mapping.get(cvol, -2)
+        total += w["vol_regime"] * eq
+        adj_codes = [mapping[a] for a in _VOL_ADJ_MAP.get(cvol, ()) if a in mapping]
+        if adj_codes:
+            adj = _np.isin(codes, adj_codes) & ~eq
+            total += 0.5 * w["vol_regime"] * adj
+
+    # numeric features: 1 - |a-b|/scale clipped to [0, 1]; NaN contributes 0
+    for wname, field, scale in (("rsi", "rsi", RSI_SCALE), ("adx", "adx", ADX_SCALE),
+                                ("atr", "atr_pct", ATR_SCALE), ("volume", "volume", VOL_SCALE)):
+        cv = cur.get(field)
+        if cv is None:
+            continue
+        sim = _np.clip(1.0 - _np.abs(prep[field] - cv) / scale, 0.0, 1.0)
+        total += w[wname] * _np.nan_to_num(sim)
+
+    # EMA alignment: 3 sub-relations, each worth 1/3 of the weight
+    cea = cur.get("ema_align")
+    if cea is not None:
+        cvec = _np.array([1.0 if b else 0.0 for b in cea])
+        valid = ~_np.isnan(prep["ema"][:, 0])
+        matches = (prep["ema"][valid] == cvec).sum(axis=1) / 3.0
+        total[valid] += w["ema_align"] * matches
+
+    return _np.round(total, 2)
+
+
 def find_matches(cur: dict, vectors: list[dict],
                  as_of: str | None = None) -> tuple[list[dict], list[str]]:
     """Return up to MAX_MATCHES historical matches with similarity >=
@@ -425,14 +569,30 @@ def find_matches(cur: dict, vectors: list[dict],
     missing_current = [f for f in WEIGHTS if _is_current_missing(cur, f)]
     weights = get_active_weights()
     scored: list[dict] = []
-    for h in vectors:
-        # Lookahead prevention: evidence must be fully realized in the past.
-        if not h["exit_date"] or h["exit_date"][:10] >= as_of:
-            continue
-        sim, _missing = similarity_score(cur, h, weights)
-        if sim >= MIN_SIMILARITY:
-            scored.append({**h, "similarity": sim,
+    if _np is not None and len(vectors) >= 50:
+        prep = _prep_vectors(vectors)
+        sims = _scores_vectorized(cur, prep, weights)
+        eligible = ((prep["exit_date"] != "") & (prep["exit_date"] < as_of)
+                    & (sims >= MIN_SIMILARITY))
+        idx = _np.nonzero(eligible)[0]
+        if idx.size:
+            # Same deterministic order as the sort below: sim desc, then
+            # exit_date asc, then id asc — done in numpy before building dicts.
+            order = _np.lexsort((prep["id"][idx], prep["exit_date"][idx], -sims[idx]))
+            idx = idx[order[:MAX_MATCHES]]
+        for i in idx:
+            h = vectors[i]
+            scored.append({**h, "similarity": float(sims[i]),
                            "partial_match": _holding_mismatch(cur, h)})
+    else:
+        for h in vectors:
+            # Lookahead prevention: evidence must be fully realized in the past.
+            if not h["exit_date"] or h["exit_date"][:10] >= as_of:
+                continue
+            sim, _missing = similarity_score(cur, h, weights)
+            if sim >= MIN_SIMILARITY:
+                scored.append({**h, "similarity": sim,
+                               "partial_match": _holding_mismatch(cur, h)})
     scored.sort(key=lambda m: (-m["similarity"], m["exit_date"], m["id"] or 0),
                 reverse=False)
     return scored[:MAX_MATCHES], missing_current

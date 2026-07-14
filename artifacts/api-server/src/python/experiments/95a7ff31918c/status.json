@@ -1,8 +1,8 @@
 {
   "id": "95a7ff31918c",
-  "status": "failed",
+  "status": "completed",
   "created_at": "2026-07-14T05:33:23.783696",
-  "updated_at": "2026-07-14T09:57:25.152964",
+  "updated_at": "2026-07-14T12:08:35.489169",
   "name": "Bull Market \u2014 Jul 2026",
   "description": "",
   "tags": [],
@@ -34,7 +34,43 @@
     "max_holding_days": 20,
     "min_confidence_execute": 55
   },
-  "pid": 802,
-  "started_at": "2026-07-14T09:17:27.978332",
-  "error": "Run process terminated unexpectedly (stale 'running' state reconciled). The runner process is no longer alive \u2014 likely killed by a server restart or out-of-memory. Re-queue or re-run the experiment."
+  "pid": 968,
+  "started_at": "2026-07-14T12:06:00.633387",
+  "error": null,
+  "trace": null,
+  "failed_at": "2026-07-14T12:06:00.631286",
+  "completed_at": "2026-07-14T12:08:35.489169",
+  "verdict": "INSUFFICIENT DATA",
+  "score": 17.0,
+  "score_breakdown": {
+    "profit_factor": 0.0,
+    "expectancy": 0.0,
+    "sharpe": 0.0,
+    "drawdown": 15.0,
+    "calibration": 0.0,
+    "evidence": 2.0
+  },
+  "overfitting_flags": [
+    "trades_low (37 < 50)"
+  ],
+  "auto_rejected": false,
+  "metrics": {
+    "total_trades": 37,
+    "total_return_pct": -6.55,
+    "net_pnl": -327.61,
+    "win_rate": 32.4,
+    "profit_factor": 0.52,
+    "expectancy": -8.85,
+    "sharpe": -1.2,
+    "max_drawdown_pct": 9.62,
+    "brier_score": null,
+    "ece": null,
+    "ev_verdict": "INSUFFICIENT_EVIDENCE",
+    "ev_trades": 37,
+    "windows": 7,
+    "generated_at": "2026-07-14T12:08:35",
+    "run_seconds": 154.6,
+    "verdict": "INSUFFICIENT DATA",
+    "universe_size": 48
+  }
 }

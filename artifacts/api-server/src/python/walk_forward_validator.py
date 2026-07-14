@@ -612,6 +612,11 @@ def _would_be_outcome(item: dict, fe: dict) -> str:
     return "no forward data"
 
 
+# Per-window cache for (pattern_adj, sim_adj, sim_max_ts) keyed by (day, symbol):
+# identical inputs across variants B–E. Cleared at the start of every window.
+_ADJ_CACHE: dict = {}
+
+
 def simulate_window_variant(
     variant: str,
     window: dict,
@@ -809,8 +814,17 @@ def simulate_window_variant(
                 pattern_adj = sim_adj = model_adj = 0.0
                 sim_max_ts = ""
                 if variant != "A":
-                    pattern_adj, _stats = _pattern_adjustment(item, knowledge_asof, regime)
-                    sim_adj, sim_max_ts = _similarity_adjustment(item, vectors, regime, day_str)
+                    # The pattern/similarity adjustments depend only on the
+                    # (day, symbol) setup — identical across variants B–E, so
+                    # cache them per window (major speedup on long runs).
+                    _ck = (day_str, sym)
+                    _hit = _ADJ_CACHE.get(_ck)
+                    if _hit is None:
+                        pattern_adj, _stats = _pattern_adjustment(item, knowledge_asof, regime)
+                        sim_adj, sim_max_ts = _similarity_adjustment(item, vectors, regime, day_str)
+                        _ADJ_CACHE[_ck] = (pattern_adj, sim_adj, sim_max_ts)
+                    else:
+                        pattern_adj, sim_adj, sim_max_ts = _hit
                 if variant in FULL_VARIANTS:
                     model_adj = _model_adjustment(item, regime, fc, weights)
 
@@ -1388,6 +1402,7 @@ def run_validation(config: dict | None = None, on_stage=None) -> dict:
         _write_status(status)
         _stage(f"walk-forward — training + simulating window {wi + 1}/{len(windows)} "
                f"({window['test_start']} → {window['test_end']})")
+        _ADJ_CACHE.clear()
 
         t_start = pd.Timestamp(window["test_start"])
         t_end = pd.Timestamp(window["test_end"])

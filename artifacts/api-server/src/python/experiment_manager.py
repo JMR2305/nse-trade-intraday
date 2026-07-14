@@ -281,12 +281,25 @@ def _read_exec_log(exp_id: str) -> list:
         return []
 
 
+def _rss_mb() -> float:
+    """Resident memory of this process in MB (Linux)."""
+    try:
+        with open("/proc/self/status") as f:
+            for line in f:
+                if line.startswith("VmRSS:"):
+                    return round(int(line.split()[1]) / 1024.0, 1)
+    except Exception:
+        pass
+    return 0.0
+
+
 def _write_heartbeat(exp_id: str) -> None:
     p = _heartbeat_path(exp_id)
     tmp = p + ".tmp"
     try:
         with open(tmp, "w") as f:
             json.dump({"ts": time.time(), "pid": os.getpid(),
+                       "rss_mb": _rss_mb(),
                        "at": datetime.now().isoformat(timespec="seconds")}, f)
         os.replace(tmp, p)
     except Exception:
@@ -607,7 +620,9 @@ def run_experiment(exp_id: str) -> dict:
         wf_config = {k: v for k, v in config.items() if k not in EXPERIMENT_KEYS}
 
         _log_stage(exp_id, "loading data — fetching historical prices for the universe")
-        result = wfv.run_validation(wf_config, on_stage=lambda m: _log_stage(exp_id, m))
+        result = wfv.run_validation(
+            wf_config,
+            on_stage=lambda m: _log_stage(exp_id, f"{m} [mem {_rss_mb():.0f} MB]"))
 
         if isinstance(result, dict) and result.get("error"):
             raise RuntimeError(str(result["error"]))
