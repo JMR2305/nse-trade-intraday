@@ -5,3 +5,4 @@
 - [API base path routing](api-base-path-routing.md) — dashboard API calls must use root /api via src/lib/api.ts helper, never `${BASE_URL}api` (SPA fallback returns HTML).
 - [Experiment runner reliability](experiment-runner-reliability.md) — detached runners need heartbeat files + captured stdout/stderr; PID checks lie (PID reuse); gc.collect per walk-forward window.
 - [Walk-forward run performance](walk-forward-performance.md) — per-decision Python scans over the knowledge base explode on late-dated windows; numpy fast path must stay equivalent to the slow loop.
+- [Research ledger conventions](research-ledger.md) — Phase 4.2 observational instrumentation rules: never alter sim decisions, verify rerun metric equivalence, join trades on window+symbol+entry_date.

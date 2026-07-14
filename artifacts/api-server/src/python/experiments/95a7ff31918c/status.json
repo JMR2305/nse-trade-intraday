@@ -2,7 +2,7 @@
   "id": "95a7ff31918c",
   "status": "completed",
   "created_at": "2026-07-14T05:33:23.783696",
-  "updated_at": "2026-07-14T12:08:35.489169",
+  "updated_at": "2026-07-14T12:27:14.849732",
   "name": "Bull Market \u2014 Jul 2026",
   "description": "",
   "tags": [],
@@ -34,12 +34,12 @@
     "max_holding_days": 20,
     "min_confidence_execute": 55
   },
-  "pid": 968,
-  "started_at": "2026-07-14T12:06:00.633387",
+  "pid": 2404,
+  "started_at": "2026-07-14T12:24:22.667949",
   "error": null,
   "trace": null,
-  "failed_at": "2026-07-14T12:06:00.631286",
-  "completed_at": "2026-07-14T12:08:35.489169",
+  "failed_at": "2026-07-14T12:24:22.666148",
+  "completed_at": "2026-07-14T12:27:14.849732",
   "verdict": "INSUFFICIENT DATA",
   "score": 17.0,
   "score_breakdown": {
@@ -57,7 +57,7 @@
   "metrics": {
     "total_trades": 37,
     "total_return_pct": -6.55,
-    "net_pnl": -327.61,
+    "net_pnl": -327.62,
     "win_rate": 32.4,
     "profit_factor": 0.52,
     "expectancy": -8.85,
@@ -68,8 +68,8 @@
     "ev_verdict": "INSUFFICIENT_EVIDENCE",
     "ev_trades": 37,
     "windows": 7,
-    "generated_at": "2026-07-14T12:08:35",
-    "run_seconds": 154.6,
+    "generated_at": "2026-07-14T12:27:14",
+    "run_seconds": 171.4,
     "verdict": "INSUFFICIENT DATA",
     "universe_size": 48
   }

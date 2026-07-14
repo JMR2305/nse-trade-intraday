@@ -1,5 +1,5 @@
 section,metric,value
-meta,generated_at,2026-07-14T12:08:35
+meta,generated_at,2026-07-14T12:27:14
 meta,verdict,INSUFFICIENT DATA
 meta,verdict_summary,Only 37 completed out-of-sample trades across 7 test window(s) — at least 100 trades and 2 windows are required for a reliable verdict.
 base model,total_trades,75
@@ -61,8 +61,8 @@ full model,winning_trades,12
 full model,losing_trades,25
 full model,win_rate,32.4
 full model,gross_profit,353.75
-full model,gross_loss,-681.36
-full model,net_profit,-327.61
+full model,gross_loss,-681.37
+full model,net_profit,-327.62
 full model,total_return_pct,-6.55
 full model,annualized_return_pct,-3.85
 full model,avg_return_per_trade_pct,-1.42

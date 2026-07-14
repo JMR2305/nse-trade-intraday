@@ -178,5 +178,101 @@
  {
   "ts": "2026-07-14T12:08:35",
   "msg": "completed \u2014 verdict: INSUFFICIENT DATA, score 17.0/100"
+ },
+ {
+  "ts": "2026-07-14T12:24:22",
+  "msg": "failed \u2014 Heartbeat stopped 951s ago (limit 30s) \u2014 the runner process died without reporting an error. Most likely killed by the OS (out-of-memory) or a server/workflow restart."
+ },
+ {
+  "ts": "2026-07-14T12:24:22",
+  "msg": "starting \u2014 runner process launched (pid 2404, attempt at 2026-07-14T12:24:22)"
+ },
+ {
+  "ts": "2026-07-14T12:24:22",
+  "msg": "loading data \u2014 fetching historical prices for the universe"
+ },
+ {
+  "ts": "2026-07-14T12:24:22",
+  "msg": "loading data \u2014 prefetching 50 symbols (2022-11-02 \u2192 2026-01-01) [mem 93 MB]"
+ },
+ {
+  "ts": "2026-07-14T12:24:38",
+  "msg": "walk-forward \u2014 training + simulating window 1/7 (2024-04-01 \u2192 2024-06-30) [mem 142 MB]"
+ },
+ {
+  "ts": "2026-07-14T12:24:55",
+  "msg": "walk-forward \u2014 window 1/7 done [mem 163 MB]"
+ },
+ {
+  "ts": "2026-07-14T12:24:55",
+  "msg": "walk-forward \u2014 training + simulating window 2/7 (2024-07-01 \u2192 2024-09-30) [mem 163 MB]"
+ },
+ {
+  "ts": "2026-07-14T12:25:14",
+  "msg": "walk-forward \u2014 window 2/7 done [mem 184 MB]"
+ },
+ {
+  "ts": "2026-07-14T12:25:14",
+  "msg": "walk-forward \u2014 training + simulating window 3/7 (2024-10-01 \u2192 2024-12-31) [mem 184 MB]"
+ },
+ {
+  "ts": "2026-07-14T12:25:33",
+  "msg": "walk-forward \u2014 window 3/7 done [mem 204 MB]"
+ },
+ {
+  "ts": "2026-07-14T12:25:33",
+  "msg": "walk-forward \u2014 training + simulating window 4/7 (2025-01-01 \u2192 2025-03-31) [mem 204 MB]"
+ },
+ {
+  "ts": "2026-07-14T12:25:52",
+  "msg": "walk-forward \u2014 window 4/7 done [mem 215 MB]"
+ },
+ {
+  "ts": "2026-07-14T12:25:52",
+  "msg": "walk-forward \u2014 training + simulating window 5/7 (2025-04-01 \u2192 2025-06-30) [mem 215 MB]"
+ },
+ {
+  "ts": "2026-07-14T12:26:11",
+  "msg": "walk-forward \u2014 window 5/7 done [mem 219 MB]"
+ },
+ {
+  "ts": "2026-07-14T12:26:11",
+  "msg": "walk-forward \u2014 training + simulating window 6/7 (2025-07-01 \u2192 2025-09-30) [mem 219 MB]"
+ },
+ {
+  "ts": "2026-07-14T12:26:31",
+  "msg": "walk-forward \u2014 window 6/7 done [mem 229 MB]"
+ },
+ {
+  "ts": "2026-07-14T12:26:32",
+  "msg": "walk-forward \u2014 training + simulating window 7/7 (2025-10-01 \u2192 2025-12-31) [mem 229 MB]"
+ },
+ {
+  "ts": "2026-07-14T12:26:52",
+  "msg": "walk-forward \u2014 window 7/7 done [mem 241 MB]"
+ },
+ {
+  "ts": "2026-07-14T12:26:52",
+  "msg": "scoring \u2014 aggregating results across windows [mem 241 MB]"
+ },
+ {
+  "ts": "2026-07-14T12:27:14",
+  "msg": "scoring \u2014 computing leaderboard score and overfitting checks"
+ },
+ {
+  "ts": "2026-07-14T12:27:14",
+  "msg": "report generation \u2014 extracting headline metrics"
+ },
+ {
+  "ts": "2026-07-14T12:27:14",
+  "msg": "analysis \u2014 running strategy improvement analytics"
+ },
+ {
+  "ts": "2026-07-14T12:27:14",
+  "msg": "analysis complete \u2014 20544 ledger rows analyzed (analysis.json)"
+ },
+ {
+  "ts": "2026-07-14T12:27:14",
+  "msg": "completed \u2014 verdict: INSUFFICIENT DATA, score 17.0/100"
  }
 ]

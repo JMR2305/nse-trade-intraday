@@ -37,6 +37,7 @@ import os
 import random
 import time
 import csv as _csv
+from collections import Counter as _Counter
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timedelta
 
@@ -300,13 +301,13 @@ def regime7_as_of(nifty: pd.DataFrame, day: pd.Timestamp) -> str:
 # ── Forward evaluation (outcome analysis only — never used for decisions) ────
 
 def forward_eval(rows: pd.DataFrame, day_pos: int) -> dict:
-    """Forward returns 1/3/5/10/20 trading days after row `day_pos`, plus
-    MAE/MFE over the 20-day forward window (vs that day's close)."""
+    """Forward returns 1/3/5/10/15/20/30 trading days after row `day_pos`,
+    plus MAE/MFE over the 20-day forward window (vs that day's close)."""
     base_close = float(rows.iloc[day_pos]["close"])
     out = {"forward_returns": {}, "mae_pct": None, "mfe_pct": None}
     if base_close <= 0:
         return out
-    for h in (1, 3, 5, 10, 20):
+    for h in (1, 3, 5, 10, 15, 20, 30):
         p = day_pos + h
         out["forward_returns"][str(h)] = (
             round((float(rows.iloc[p]["close"]) - base_close) / base_close * 100.0, 2)
@@ -634,6 +635,7 @@ def simulate_window_variant(
     strategy_intel: StrategyIntelligence | None = None,
     intel_gates: dict | None = None,
     rejected_log: list | None = None,
+    research_ledger: list | None = None,
 ) -> dict:
     """
     Day-by-day replay: exits first (stop/target intrabar, signal, time,
@@ -735,10 +737,15 @@ def simulate_window_variant(
         if not is_last_day:  # entering on the forced-close day is pointless
             for rec in pending:
                 sym = rec["stock"]
+                _lr = rec.get("_ledger_row")  # research ledger (analysis only)
                 if sym in positions or len(positions) >= max_open:
+                    if _lr is not None:
+                        _lr["stage"] = "rejected_position_limit"
                     continue
                 pos_idx = date_pos[sym].get(day_str)
                 if pos_idx is None:
+                    if _lr is not None:
+                        _lr["stage"] = "rejected_no_trading_day"
                     continue
                 row = sym_rows[sym].iloc[pos_idx]
                 candle = {"date": day_str, "open": float(row["open"]),
@@ -750,10 +757,18 @@ def simulate_window_variant(
                 alloc = _allocation_for(variant, rec, total_equity, positions,
                                         sym_rows, date_pos, day)
                 if alloc <= 0:
+                    if _lr is not None:
+                        _lr["stage"] = "rejected_allocation_caps"
                     continue
                 fill = simulate_entry(cost_model, candle, rec["price"], cash, alloc)
                 if not fill.get("filled"):
+                    if _lr is not None:
+                        _lr["stage"] = "rejected_fill"
                     continue
+                if _lr is not None:
+                    _lr["stage"] = "entered"
+                    _lr["entry_date"] = day_str
+                    _lr["fill_price"] = fill["fill_price"]
                 cash -= fill["cash_used"]
                 positions[sym] = {
                     "entry_date": day_str,
@@ -867,8 +882,66 @@ def simulate_window_variant(
                         "mae_pct": fe["mae_pct"], "mfe_pct": fe["mfe_pct"],
                     })
 
+                # ── Research ledger (ANALYSIS ONLY — never affects decisions).
+                # One row per evaluated candidate with features, the gate
+                # outcome and forward returns, consumed by strategy_analyzer.
+                led = None
+                if research_ledger is not None:
+                    _fe = forward_eval(sym_rows[sym], pos_idx)
+                    _price = float(item.get("price") or 0.0)
+                    _atr = float(item.get("atr") or 0.0)
+                    led = {
+                        "window": window.get("label", ""),
+                        "date": day_str, "symbol": sym,
+                        "sector": item.get("sector", "OTHER"),
+                        "strategy_id": item.get("best_strategy_id", ""),
+                        "regime": regime,
+                        "live_signal": bool(item.get("live_signal")),
+                        "technical_action": item.get("technical_action", ""),
+                        "recommendation": recommendation,
+                        "base_confidence": item.get("base_confidence"),
+                        "pattern_adjustment": item.get("pattern_adjustment", 0.0),
+                        "similarity_adjustment": item.get("similarity_adjustment", 0.0),
+                        "model_adjustment": item.get("model_adjustment", 0.0),
+                        "final_confidence": final_conf,
+                        "calibrated_probability": cal_p,
+                        "opportunity_score": item.get("opportunity_score"),
+                        "rr_ratio": item.get("rr_ratio"),
+                        "rsi": item.get("rsi"), "adx": item.get("adx"),
+                        "volume_ratio": item.get("volume_ratio"),
+                        "atr_pct": round(_atr / _price * 100.0, 3) if _price > 0 and _atr > 0 else None,
+                        "macd_state": ("BULLISH" if float(item.get("macd_line") or 0) >= float(item.get("macd_signal") or 0) else "BEARISH"),
+                        "above_ema20": item.get("above_ema20"),
+                        "above_ema50": item.get("above_ema50"),
+                        "price": _price,
+                        "stop_loss": item.get("stop_loss"),
+                        "target": item.get("target"),
+                        "stage": "not_buy_signal",
+                        "entry_date": None, "fill_price": None,
+                        "fwd_1": _fe["forward_returns"].get("1"),
+                        "fwd_3": _fe["forward_returns"].get("3"),
+                        "fwd_5": _fe["forward_returns"].get("5"),
+                        "fwd_10": _fe["forward_returns"].get("10"),
+                        "fwd_15": _fe["forward_returns"].get("15"),
+                        "fwd_20": _fe["forward_returns"].get("20"),
+                        "fwd_30": _fe["forward_returns"].get("30"),
+                        "mae_pct": _fe["mae_pct"], "mfe_pct": _fe["mfe_pct"],
+                    }
+                    research_ledger.append(led)
+
                 if recommendation in ("STRONG BUY", "BUY") and sym not in positions:
                     if not _passes_entry_gate(variant, final_conf, cal_p, cfg):
+                        if led is not None:
+                            if cal_p is not None and cal_p < cfg.min_calibrated_prob \
+                                    and final_conf >= cfg.min_confidence_execute:
+                                led["stage"] = "rejected_calibrated_prob"
+                            elif (final_conf - float(item.get("similarity_adjustment") or 0.0)
+                                  >= cfg.min_confidence_execute > final_conf):
+                                # counterfactual: would have passed WITHOUT the
+                                # (negative) similarity adjustment
+                                led["stage"] = "rejected_confidence_similarity"
+                            else:
+                                led["stage"] = "rejected_confidence"
                         continue
                     # Phase 2: adaptive strategy selection — gate the entry on
                     # whether this strategy is enabled for the CURRENT regime,
@@ -887,6 +960,8 @@ def simulate_window_variant(
                         item["strategy_sizing_factor"] = (
                             strategy_intel.sizing_factor(sid, regime7))
                         if not item["strategy_enabled"]:
+                            if led is not None:
+                                led["stage"] = "rejected_strategy_gate"
                             continue  # strategy disabled in this regime
                     elif strategy_intel is not None and regime7 is not None:
                         # Phase 2A corrected policy (variants D/E): hard
@@ -925,13 +1000,27 @@ def simulate_window_variant(
                                     "would_be_outcome": _would_be_outcome(item, fe),
                                     "forward_returns": fe["forward_returns"],
                                 })
+                            if led is not None:
+                                led["stage"] = "rejected_strategy_gate"
                             continue  # not eligible → hold cash instead
+                    if led is not None:
+                        led["stage"] = "candidate_pool"
+                        item["_ledger_row"] = led
                     candidates.append(item)
+                elif led is not None and recommendation in ("STRONG BUY", "BUY") \
+                        and sym in positions:
+                    led["stage"] = "already_in_position"
 
             candidates.sort(key=lambda it: (-it["final_confidence"],
                                             -it["opportunity_score"], it["stock"]))
             slots = max(0, max_open - len(positions))
             pending = candidates[:slots]
+            if research_ledger is not None:
+                for _pos_i, it in enumerate(candidates):
+                    _lr = it.get("_ledger_row")
+                    if _lr is not None:
+                        _lr["stage"] = ("queued" if _pos_i < slots
+                                        else "rejected_no_slot")
 
         # ── 4. Mark to market ────────────────────────────────────────────
         equity = cash
@@ -1383,6 +1472,7 @@ def run_validation(config: dict | None = None, on_stage=None) -> dict:
     last_intel: StrategyIntelligence | None = None
     last_intel_gated: StrategyIntelligence | None = None
     rejected_trades: list[dict] = []
+    research_ledger: list[dict] = []   # Phase 4.2 — analysis only (variant C)
     cash_days = {v: {"cash_weighted": 0.0, "full_cash": 0.0, "days": 0}
                  for v in VARIANTS}
     # Phase 3A (ANALYSIS ONLY): shadow Balanced Decision Model windows.
@@ -1469,6 +1559,7 @@ def run_validation(config: dict | None = None, on_stage=None) -> dict:
                 strategy_intel=variant_intel.get(variant),
                 intel_gates=variant_gates.get(variant),
                 rejected_log=rejected_trades if variant == "D" else None,
+                research_ledger=research_ledger if variant == "C" else None,
             )
             for t in variant_out[variant]["trades"]:
                 t["window"] = window["label"]
@@ -1869,6 +1960,14 @@ def run_validation(config: dict | None = None, on_stage=None) -> dict:
         },
         "layer_comparison": layer_comparison,
         "phase2a": _phase2a_report(overall, layer_comparison, rejected_trades),
+        # Phase 4.2 — Strategy Improvement Framework (analysis only): the
+        # full per-candidate ledger is written to research_ledger.csv (too
+        # large for JSON); only stage counts are embedded here.
+        "research_ledger_summary": {
+            "rows": len(research_ledger),
+            "stages": dict(sorted(_Counter(
+                r["stage"] for r in research_ledger).items())),
+        },
         "strategy_audit": strategy_audit_report,
         "macd_optimization": macd_optimization_report,
         "macd_robustness": macd_robustness_report,
@@ -1907,6 +2006,7 @@ def run_validation(config: dict | None = None, on_stage=None) -> dict:
         json.dump(result, f)
 
     _export_csvs(result, all_trades["C"])
+    _export_research_ledger(research_ledger)
 
     status.update({"status": "completed", "phase": "done", "progress_pct": 100,
                    "windows_done": len(window_results)})
@@ -1915,6 +2015,20 @@ def run_validation(config: dict | None = None, on_stage=None) -> dict:
 
 
 # ── CSV exports ──────────────────────────────────────────────────────────────
+
+def _export_research_ledger(ledger: list[dict]) -> None:
+    """Phase 4.2 (analysis only): every variant-C candidate evaluated during
+    the walk-forward, with features, gate outcome and forward returns."""
+    if not ledger:
+        return
+    os.makedirs(VALIDATION_DIR, exist_ok=True)
+    cols = list(ledger[0].keys())
+    with open(os.path.join(VALIDATION_DIR, "research_ledger.csv"),
+              "w", newline="") as f:
+        w = _csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
+        w.writeheader()
+        w.writerows(ledger)
+
 
 def _export_csvs(result: dict, full_trades: list[dict]) -> None:
     os.makedirs(VALIDATION_DIR, exist_ok=True)

@@ -29,15 +29,15 @@ regime_warning,warning,Regime 'High-Volatility' has only 0 trade(s) — under-re
 regime_warning,warning,Regime 'Low-Volatility' has only 0 trade(s) — under-represented; conclusions may not generalise
 regime_warning,warning,"No trades in regime(s): Sideways, High-Volatility, Low-Volatility — extend the date range to cover more market conditions"
 strategy,Trend Rider,trades=29 net_pnl=-248.94 win_rate=34.5% expectancy=-8.58
-strategy,MACD Cross,trades=6 net_pnl=-81.31 win_rate=16.7% expectancy=-13.55
+strategy,MACD Cross,trades=6 net_pnl=-81.32 win_rate=16.7% expectancy=-13.55
 strategy,Mean Reversion,trades=2 net_pnl=2.64 win_rate=50.0% expectancy=1.32
-year,2024,trades=33 net_pnl=-302.87 win_rate=33.3% expectancy=-9.18
+year,2024,trades=33 net_pnl=-302.88 win_rate=33.3% expectancy=-9.18
 year,2025,trades=4 net_pnl=-24.74 win_rate=25.0% expectancy=-6.18
 sector,ENERGY,trades=21 net_pnl=-142.94 win_rate=33.3% expectancy=-6.81
 sector,FINANCE,trades=11 net_pnl=-122.96 win_rate=36.4% expectancy=-11.18
 sector,IT,trades=3 net_pnl=-20.68 win_rate=33.3% expectancy=-6.89
-sector,METALS,trades=2 net_pnl=-41.03 win_rate=0.0% expectancy=-20.52
-holding_period,Medium (6-15d),trades=17 net_pnl=-322.75 win_rate=17.6% expectancy=-18.99
+sector,METALS,trades=2 net_pnl=-41.04 win_rate=0.0% expectancy=-20.52
+holding_period,Medium (6-15d),trades=17 net_pnl=-322.76 win_rate=17.6% expectancy=-18.99
 holding_period,Short (1-5d),trades=11 net_pnl=-254.77 win_rate=0.0% expectancy=-23.16
 holding_period,Long (16+d),trades=9 net_pnl=249.91 win_rate=100.0% expectancy=27.77
 stability,window_count,4

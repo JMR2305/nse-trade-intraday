@@ -634,6 +634,20 @@ def run_experiment(exp_id: str) -> dict:
         _log_stage(exp_id, "report generation — extracting headline metrics")
         headline = _extract_headline(result)
 
+        # Phase 4.2 — Strategy Improvement Framework (analysis only). Never
+        # fail the experiment if the analyzer breaks.
+        try:
+            _log_stage(exp_id, "analysis — running strategy improvement analytics")
+            from strategy_analyzer import analyze_experiment
+            _an = analyze_experiment(exp_out)
+            if _an.get("error"):
+                _log_stage(exp_id, f"analysis skipped — {_an['error']}")
+            else:
+                _log_stage(exp_id, f"analysis complete — {_an.get('ledger_rows', 0)} "
+                                   "ledger rows analyzed (analysis.json)")
+        except Exception as _ae:  # noqa: BLE001
+            _log_stage(exp_id, f"analysis failed (non-fatal): {_ae}")
+
         now = datetime.now().isoformat()
         _write_status(exp_id, {
             **_read_status(exp_id),

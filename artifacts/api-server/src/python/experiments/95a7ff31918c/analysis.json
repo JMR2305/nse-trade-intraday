@@ -1,0 +1,1084 @@
+{
+ "generated_at": "2026-07-14T12:31:14",
+ "ledger_rows": 20544,
+ "safety": "Paper trading and research only. No real orders are placed.",
+ "failure_diagnosis": {
+  "verdict": "INSUFFICIENT DATA",
+  "verdict_summary": "Only 37 completed out-of-sample trades across 7 test window(s) \u2014 at least 100 trades and 2 windows are required for a reliable verdict.",
+  "failed_checks": [
+   {
+    "name": "Completed out-of-sample trades",
+    "observed": 37,
+    "threshold": ">=100"
+   }
+  ],
+  "score_total": 17.0,
+  "weakest_score_components": [
+   {
+    "component": "profit_factor",
+    "points": 0.0,
+    "max_points": 25,
+    "pct_of_max": 0.0
+   },
+   {
+    "component": "expectancy",
+    "points": 0.0,
+    "max_points": 20,
+    "pct_of_max": 0.0
+   },
+   {
+    "component": "sharpe",
+    "points": 0.0,
+    "max_points": 20,
+    "pct_of_max": 0.0
+   }
+  ],
+  "overfitting_flags": [
+   "trades_low (37 < 50)"
+  ],
+  "headline_metrics": {
+   "total_trades": 37,
+   "win_rate": 32.4,
+   "profit_factor": 0.52,
+   "expectancy": -8.85,
+   "sharpe_ratio": -1.2,
+   "max_drawdown_pct": 9.62,
+   "total_return_pct": -6.55
+  }
+ },
+ "opportunity_funnel": {
+  "total_evaluated": 20544,
+  "buy_signals": 661,
+  "entered": 37,
+  "conversion_pct": 5.6,
+  "stages": [
+   {
+    "stage": "not_buy_signal",
+    "count": 19601,
+    "pct_of_evaluated": 95.41
+   },
+   {
+    "stage": "already_in_position",
+    "count": 282,
+    "pct_of_evaluated": 1.37
+   },
+   {
+    "stage": "rejected_strategy_gate",
+    "count": 529,
+    "pct_of_evaluated": 2.57
+   },
+   {
+    "stage": "rejected_no_slot",
+    "count": 10,
+    "pct_of_evaluated": 0.05
+   },
+   {
+    "stage": "rejected_fill",
+    "count": 84,
+    "pct_of_evaluated": 0.41
+   },
+   {
+    "stage": "queued",
+    "count": 1,
+    "pct_of_evaluated": 0.0
+   },
+   {
+    "stage": "entered",
+    "count": 37,
+    "pct_of_evaluated": 0.18
+   }
+  ],
+  "unknown_stages": {},
+  "notes": [
+   "The engine has NO explicit volatility or liquidity gates \u2014 no candidates are rejected on those criteria (reported as absent, not zero-by-measurement).",
+   "'rejected_confidence_similarity' marks candidates that would have passed the confidence floor WITHOUT the negative similarity adjustment (counterfactual attribution)."
+  ]
+ },
+ "threshold_sensitivity": {
+  "current_thresholds": {
+   "min_confidence_execute": 55.0,
+   "min_calibrated_prob": 0.3,
+   "volume_filter": "none (engine has no volume gate \u2014 sweep is hypothetical)"
+  },
+  "outcome_model": "approx: stop assumed hit first if 20d MAE <= stop distance; else target if 20d MFE >= target distance; else raw forward return at the horizon (default 10d)",
+  "confidence_sweep": [
+   {
+    "min_confidence": 45,
+    "n": 650,
+    "win_rate": 42.5,
+    "avg_return_pct": 0.09,
+    "expectancy_pct": 0.09,
+    "profit_factor": 1.04
+   },
+   {
+    "min_confidence": 50,
+    "n": 650,
+    "win_rate": 42.5,
+    "avg_return_pct": 0.09,
+    "expectancy_pct": 0.09,
+    "profit_factor": 1.04
+   },
+   {
+    "min_confidence": 55,
+    "n": 650,
+    "win_rate": 42.5,
+    "avg_return_pct": 0.09,
+    "expectancy_pct": 0.09,
+    "profit_factor": 1.04
+   },
+   {
+    "min_confidence": 60,
+    "n": 627,
+    "win_rate": 42.7,
+    "avg_return_pct": 0.15,
+    "expectancy_pct": 0.15,
+    "profit_factor": 1.06
+   },
+   {
+    "min_confidence": 65,
+    "n": 571,
+    "win_rate": 42.6,
+    "avg_return_pct": 0.14,
+    "expectancy_pct": 0.14,
+    "profit_factor": 1.06
+   },
+   {
+    "min_confidence": 70,
+    "n": 438,
+    "win_rate": 42.0,
+    "avg_return_pct": 0.16,
+    "expectancy_pct": 0.16,
+    "profit_factor": 1.07
+   },
+   {
+    "min_confidence": 75,
+    "n": 308,
+    "win_rate": 44.2,
+    "avg_return_pct": 0.42,
+    "expectancy_pct": 0.42,
+    "profit_factor": 1.18
+   }
+  ],
+  "calibrated_prob_sweep": [
+   {
+    "min_calibrated_prob": 0.2,
+    "n": 650,
+    "win_rate": 42.5,
+    "avg_return_pct": 0.09,
+    "expectancy_pct": 0.09,
+    "profit_factor": 1.04
+   },
+   {
+    "min_calibrated_prob": 0.25,
+    "n": 650,
+    "win_rate": 42.5,
+    "avg_return_pct": 0.09,
+    "expectancy_pct": 0.09,
+    "profit_factor": 1.04
+   },
+   {
+    "min_calibrated_prob": 0.3,
+    "n": 650,
+    "win_rate": 42.5,
+    "avg_return_pct": 0.09,
+    "expectancy_pct": 0.09,
+    "profit_factor": 1.04
+   },
+   {
+    "min_calibrated_prob": 0.35,
+    "n": 649,
+    "win_rate": 42.4,
+    "avg_return_pct": 0.09,
+    "expectancy_pct": 0.09,
+    "profit_factor": 1.04
+   },
+   {
+    "min_calibrated_prob": 0.4,
+    "n": 642,
+    "win_rate": 42.4,
+    "avg_return_pct": 0.08,
+    "expectancy_pct": 0.08,
+    "profit_factor": 1.03
+   },
+   {
+    "min_calibrated_prob": 0.45,
+    "n": 591,
+    "win_rate": 42.1,
+    "avg_return_pct": 0.08,
+    "expectancy_pct": 0.08,
+    "profit_factor": 1.03
+   },
+   {
+    "min_calibrated_prob": 0.5,
+    "n": 523,
+    "win_rate": 43.4,
+    "avg_return_pct": 0.26,
+    "expectancy_pct": 0.26,
+    "profit_factor": 1.11
+   }
+  ],
+  "volume_ratio_sweep": [
+   {
+    "min_volume_ratio": 0.0,
+    "n": 650,
+    "win_rate": 42.5,
+    "avg_return_pct": 0.09,
+    "expectancy_pct": 0.09,
+    "profit_factor": 1.04
+   },
+   {
+    "min_volume_ratio": 0.5,
+    "n": 567,
+    "win_rate": 40.7,
+    "avg_return_pct": 0.03,
+    "expectancy_pct": 0.03,
+    "profit_factor": 1.01
+   },
+   {
+    "min_volume_ratio": 0.75,
+    "n": 379,
+    "win_rate": 39.6,
+    "avg_return_pct": -0.2,
+    "expectancy_pct": -0.2,
+    "profit_factor": 0.92
+   },
+   {
+    "min_volume_ratio": 1.0,
+    "n": 240,
+    "win_rate": 37.5,
+    "avg_return_pct": -0.31,
+    "expectancy_pct": -0.31,
+    "profit_factor": 0.88
+   },
+   {
+    "min_volume_ratio": 1.25,
+    "n": 146,
+    "win_rate": 38.4,
+    "avg_return_pct": -0.46,
+    "expectancy_pct": -0.46,
+    "profit_factor": 0.83
+   },
+   {
+    "min_volume_ratio": 1.5,
+    "n": 98,
+    "win_rate": 39.8,
+    "avg_return_pct": -0.06,
+    "expectancy_pct": -0.06,
+    "profit_factor": 0.98
+   }
+  ],
+  "hold_days_sweep": [
+   {
+    "hold_days": 5,
+    "n": 38,
+    "win_rate": 26.3,
+    "avg_return_pct": -2.32,
+    "expectancy_pct": -2.32,
+    "profit_factor": 0.28
+   },
+   {
+    "hold_days": 10,
+    "n": 37,
+    "win_rate": 24.3,
+    "avg_return_pct": -2.06,
+    "expectancy_pct": -2.06,
+    "profit_factor": 0.4
+   },
+   {
+    "hold_days": 15,
+    "n": 37,
+    "win_rate": 29.7,
+    "avg_return_pct": -1.6,
+    "expectancy_pct": -1.6,
+    "profit_factor": 0.54
+   },
+   {
+    "hold_days": 20,
+    "n": 37,
+    "win_rate": 35.1,
+    "avg_return_pct": -0.94,
+    "expectancy_pct": -0.94,
+    "profit_factor": 0.71
+   },
+   {
+    "hold_days": 30,
+    "n": 37,
+    "win_rate": 32.4,
+    "avg_return_pct": -1.18,
+    "expectancy_pct": -1.18,
+    "profit_factor": 0.65
+   }
+  ]
+ },
+ "feature_impact": {
+  "ic_note": "Spearman rank correlation between each feature at decision time and the 10-day forward return across ALL buy-signal candidates (entered or not). |IC| > 0.05 is meaningful at this sample size; sign shows direction.",
+  "feature_ic": [
+   {
+    "feature": "rsi",
+    "spearman_ic_vs_fwd10": -0.165,
+    "n": 650
+   },
+   {
+    "feature": "atr_pct",
+    "spearman_ic_vs_fwd10": 0.11,
+    "n": 650
+   },
+   {
+    "feature": "volume_ratio",
+    "spearman_ic_vs_fwd10": -0.093,
+    "n": 650
+   },
+   {
+    "feature": "rr_ratio",
+    "spearman_ic_vs_fwd10": 0.074,
+    "n": 650
+   },
+   {
+    "feature": "pattern_adjustment",
+    "spearman_ic_vs_fwd10": 0.072,
+    "n": 650
+   },
+   {
+    "feature": "adx",
+    "spearman_ic_vs_fwd10": -0.072,
+    "n": 650
+   },
+   {
+    "feature": "calibrated_probability",
+    "spearman_ic_vs_fwd10": 0.067,
+    "n": 650
+   },
+   {
+    "feature": "similarity_adjustment",
+    "spearman_ic_vs_fwd10": -0.063,
+    "n": 650
+   },
+   {
+    "feature": "final_confidence",
+    "spearman_ic_vs_fwd10": -0.005,
+    "n": 650
+   },
+   {
+    "feature": "base_confidence",
+    "spearman_ic_vs_fwd10": -0.003,
+    "n": 650
+   },
+   {
+    "feature": "opportunity_score",
+    "spearman_ic_vs_fwd10": -0.002,
+    "n": 650
+   }
+  ],
+  "winner_vs_loser_deltas": [
+   {
+    "feature": "rsi",
+    "winners_mean": 45.02,
+    "losers_mean": 48.56,
+    "delta": -3.539
+   },
+   {
+    "feature": "pattern_adjustment",
+    "winners_mean": 4.767,
+    "losers_mean": 5.708,
+    "delta": -0.941
+   },
+   {
+    "feature": "opportunity_score",
+    "winners_mean": 68.633,
+    "losers_mean": 67.716,
+    "delta": 0.917
+   },
+   {
+    "feature": "base_confidence",
+    "winners_mean": 70.358,
+    "losers_mean": 69.584,
+    "delta": 0.774
+   },
+   {
+    "feature": "final_confidence",
+    "winners_mean": 76.392,
+    "losers_mean": 77.06,
+    "delta": -0.668
+   },
+   {
+    "feature": "adx",
+    "winners_mean": 27.131,
+    "losers_mean": 27.631,
+    "delta": -0.501
+   },
+   {
+    "feature": "similarity_adjustment",
+    "winners_mean": 2.1,
+    "losers_mean": 1.768,
+    "delta": 0.332
+   },
+   {
+    "feature": "atr_pct",
+    "winners_mean": 2.924,
+    "losers_mean": 2.647,
+    "delta": 0.276
+   },
+   {
+    "feature": "volume_ratio",
+    "winners_mean": 0.87,
+    "losers_mean": 1.049,
+    "delta": -0.179
+   },
+   {
+    "feature": "calibrated_probability",
+    "winners_mean": 0.585,
+    "losers_mean": 0.592,
+    "delta": -0.007
+   },
+   {
+    "feature": "rr_ratio",
+    "winners_mean": 2.833,
+    "losers_mean": 2.84,
+    "delta": -0.007
+   },
+   {
+    "feature": "model_adjustment",
+    "winners_mean": 0.0,
+    "losers_mean": 0.0,
+    "delta": 0.0
+   }
+  ],
+  "realized_trades_joined": 37
+ },
+ "false_positives": {
+  "n_trades": 37,
+  "n_losing_trades": 25,
+  "loss_rate_pct": 67.6,
+  "high_confidence_losers": 21,
+  "losers_by_exit_reason": {
+   "Stop-Loss Hit": 15,
+   "Signal Exit": 9,
+   "End-of-Test Forced Close": 1
+  },
+  "losers_by_regime": {
+   "Neutral-Bullish": 10,
+   "Neutral-Bearish": 6,
+   "Bullish": 5,
+   "Bearish": 4
+  },
+  "losers_by_strategy": {
+   "trend_rider": 19,
+   "macd_cross": 5,
+   "mean_reversion": 1
+  },
+  "worst": [
+   {
+    "window": "W3",
+    "date": "2024-10-25",
+    "symbol": "SHRIRAMFIN",
+    "sector": "FINANCE",
+    "strategy_id": "trend_rider",
+    "regime": "Bearish",
+    "final_confidence": 67.2,
+    "calibrated_probability": 0.497357,
+    "similarity_adjustment": 0.0,
+    "pattern_adjustment": 0.0,
+    "rsi": 34.822861122462584,
+    "adx": 30.376000918415283,
+    "volume_ratio": 2.142980411687182,
+    "rr_ratio": 3.0,
+    "exit_reason": "Stop-Loss Hit",
+    "holding_days": 12,
+    "return_pct": -9.78
+   },
+   {
+    "window": "W3",
+    "date": "2024-10-10",
+    "symbol": "SHRIRAMFIN",
+    "sector": "FINANCE",
+    "strategy_id": "trend_rider",
+    "regime": "Neutral-Bullish",
+    "final_confidence": 67.2,
+    "calibrated_probability": 0.497357,
+    "similarity_adjustment": 0.0,
+    "pattern_adjustment": 0.0,
+    "rsi": 46.936332205667405,
+    "adx": 40.23008787170382,
+    "volume_ratio": 0.6060586420474475,
+    "rr_ratio": 3.0,
+    "exit_reason": "Stop-Loss Hit",
+    "holding_days": 10,
+    "return_pct": -6.66
+   },
+   {
+    "window": "W3",
+    "date": "2024-10-23",
+    "symbol": "ONGC",
+    "sector": "ENERGY",
+    "strategy_id": "trend_rider",
+    "regime": "Neutral-Bullish",
+    "final_confidence": 79.3,
+    "calibrated_probability": 0.62605,
+    "similarity_adjustment": 0.0,
+    "pattern_adjustment": 0.0,
+    "rsi": 30.75903581106957,
+    "adx": 36.80649652696918,
+    "volume_ratio": 1.1621191942480904,
+    "rr_ratio": 3.0,
+    "exit_reason": "Stop-Loss Hit",
+    "holding_days": 14,
+    "return_pct": -6.52
+   },
+   {
+    "window": "W2",
+    "date": "2024-07-15",
+    "symbol": "ONGC",
+    "sector": "ENERGY",
+    "strategy_id": "trend_rider",
+    "regime": "Bullish",
+    "final_confidence": 83.4,
+    "calibrated_probability": 0.65393,
+    "similarity_adjustment": 9.6,
+    "pattern_adjustment": 0.0,
+    "rsi": 79.21331916977064,
+    "adx": 23.451380359793788,
+    "volume_ratio": 2.315451974905508,
+    "rr_ratio": 3.0,
+    "exit_reason": "Stop-Loss Hit",
+    "holding_days": 4,
+    "return_pct": -6.46
+   },
+   {
+    "window": "W3",
+    "date": "2024-10-04",
+    "symbol": "ONGC",
+    "sector": "ENERGY",
+    "strategy_id": "trend_rider",
+    "regime": "Neutral-Bullish",
+    "final_confidence": 79.3,
+    "calibrated_probability": 0.62605,
+    "similarity_adjustment": 0.0,
+    "pattern_adjustment": 0.0,
+    "rsi": 44.80301076494229,
+    "adx": 25.27802639174301,
+    "volume_ratio": 1.131183947419027,
+    "rr_ratio": 3.0,
+    "exit_reason": "Stop-Loss Hit",
+    "holding_days": 9,
+    "return_pct": -6.01
+   },
+   {
+    "window": "W3",
+    "date": "2024-12-16",
+    "symbol": "SHRIRAMFIN",
+    "sector": "FINANCE",
+    "strategy_id": "trend_rider",
+    "regime": "Neutral-Bearish",
+    "final_confidence": 82.2,
+    "calibrated_probability": 0.656893,
+    "similarity_adjustment": 0.0,
+    "pattern_adjustment": 15.0,
+    "rsi": 52.53674494825222,
+    "adx": 20.75361170990253,
+    "volume_ratio": 0.4468482887127237,
+    "rr_ratio": 3.0,
+    "exit_reason": "Stop-Loss Hit",
+    "holding_days": 1,
+    "return_pct": -5.99
+   },
+   {
+    "window": "W3",
+    "date": "2024-12-13",
+    "symbol": "ONGC",
+    "sector": "ENERGY",
+    "strategy_id": "trend_rider",
+    "regime": "Neutral-Bearish",
+    "final_confidence": 79.3,
+    "calibrated_probability": 0.62605,
+    "similarity_adjustment": 0.0,
+    "pattern_adjustment": 0.0,
+    "rsi": 44.61260735864988,
+    "adx": 20.493371421511146,
+    "volume_ratio": 0.8841721241100606,
+    "rr_ratio": 3.0,
+    "exit_reason": "Stop-Loss Hit",
+    "holding_days": 3,
+    "return_pct": -5.87
+   },
+   {
+    "window": "W2",
+    "date": "2024-07-02",
+    "symbol": "SHRIRAMFIN",
+    "sector": "FINANCE",
+    "strategy_id": "trend_rider",
+    "regime": "Bullish",
+    "final_confidence": 59.3,
+    "calibrated_probability": 0.395988,
+    "similarity_adjustment": -15.0,
+    "pattern_adjustment": 10.0,
+    "rsi": 58.94745307421187,
+    "adx": 31.04222389411752,
+    "volume_ratio": 1.3771961902736167,
+    "rr_ratio": 3.0,
+    "exit_reason": "Signal Exit",
+    "holding_days": 15,
+    "return_pct": -5.52
+   },
+   {
+    "window": "W2",
+    "date": "2024-07-31",
+    "symbol": "POWERGRID",
+    "sector": "ENERGY",
+    "strategy_id": "trend_rider",
+    "regime": "Bullish",
+    "final_confidence": 89.8,
+    "calibrated_probability": 0.722429,
+    "similarity_adjustment": 6.9,
+    "pattern_adjustment": 9.7,
+    "rsi": 61.683478003586885,
+    "adx": 19.81977930618402,
+    "volume_ratio": 1.3269610938924512,
+    "rr_ratio": 3.0,
+    "exit_reason": "Signal Exit",
+    "holding_days": 9,
+    "return_pct": -5.39
+   },
+   {
+    "window": "W3",
+    "date": "2024-10-01",
+    "symbol": "SHRIRAMFIN",
+    "sector": "FINANCE",
+    "strategy_id": "trend_rider",
+    "regime": "Neutral-Bullish",
+    "final_confidence": 82.2,
+    "calibrated_probability": 0.656893,
+    "similarity_adjustment": 0.0,
+    "pattern_adjustment": 15.0,
+    "rsi": 66.24905940658815,
+    "adx": 58.463923108920014,
+    "volume_ratio": 0.6216395276353334,
+    "rr_ratio": 3.0,
+    "exit_reason": "Stop-Loss Hit",
+    "holding_days": 1,
+    "return_pct": -5.09
+   },
+   {
+    "window": "W3",
+    "date": "2024-10-18",
+    "symbol": "ONGC",
+    "sector": "ENERGY",
+    "strategy_id": "trend_rider",
+    "regime": "Neutral-Bullish",
+    "final_confidence": 79.3,
+    "calibrated_probability": 0.62605,
+    "similarity_adjustment": 0.0,
+    "pattern_adjustment": 0.0,
+    "rsi": 39.28170084844168,
+    "adx": 32.39829750612726,
+    "volume_ratio": 0.8425714454848438,
+    "rr_ratio": 3.0,
+    "exit_reason": "Stop-Loss Hit",
+    "holding_days": 2,
+    "return_pct": -4.98
+   },
+   {
+    "window": "W3",
+    "date": "2024-10-07",
+    "symbol": "POWERGRID",
+    "sector": "ENERGY",
+    "strategy_id": "trend_rider",
+    "regime": "Neutral-Bullish",
+    "final_confidence": 60.3,
+    "calibrated_probability": 0.423971,
+    "similarity_adjustment": 0.0,
+    "pattern_adjustment": 0.0,
+    "rsi": 38.94815079514248,
+    "adx": 17.32540070667384,
+    "volume_ratio": 0.80177727071383,
+    "rr_ratio": 3.0,
+    "exit_reason": "Stop-Loss Hit",
+    "holding_days": 14,
+    "return_pct": -4.86
+   },
+   {
+    "window": "W3",
+    "date": "2024-12-19",
+    "symbol": "POWERGRID",
+    "sector": "ENERGY",
+    "strategy_id": "trend_rider",
+    "regime": "Bearish",
+    "final_confidence": 60.3,
+    "calibrated_probability": 0.423971,
+    "similarity_adjustment": 0.0,
+    "pattern_adjustment": 0.0,
+    "rsi": 43.8028738178279,
+    "adx": 13.1428019775263,
+    "volume_ratio": 0.6525743389345462,
+    "rr_ratio": 3.0,
+    "exit_reason": "Stop-Loss Hit",
+    "holding_days": 5,
+    "return_pct": -4.8
+   },
+   {
+    "window": "W3",
+    "date": "2024-11-05",
+    "symbol": "BAJFINANCE",
+    "sector": "FINANCE",
+    "strategy_id": "macd_cross",
+    "regime": "Bearish",
+    "final_confidence": 91.2,
+    "calibrated_probability": 0.752615,
+    "similarity_adjustment": 10.0,
+    "pattern_adjustment": 12.8,
+    "rsi": 44.7263700213072,
+    "adx": 29.59723037174178,
+    "volume_ratio": 1.2031241518153215,
+    "rr_ratio": 2.5,
+    "exit_reason": "Signal Exit",
+    "holding_days": 4,
+    "return_pct": -4.64
+   },
+   {
+    "window": "W6",
+    "date": "2025-09-10",
+    "symbol": "WIPRO",
+    "sector": "IT",
+    "strategy_id": "macd_cross",
+    "regime": "Neutral-Bearish",
+    "final_confidence": 70.2,
+    "calibrated_probability": 0.473482,
+    "similarity_adjustment": 3.8,
+    "pattern_adjustment": 0.0,
+    "rsi": 59.58727660205064,
+    "adx": 17.281347514307186,
+    "volume_ratio": 1.7526217439908922,
+    "rr_ratio": 2.5,
+    "exit_reason": "Stop-Loss Hit",
+    "holding_days": 9,
+    "return_pct": -4.43
+   }
+  ]
+ },
+ "missed_opportunities": {
+  "n_rejected": 613,
+  "outcome_model": "same stop/target-aware 10-day approximation as the threshold sweeps",
+  "by_stage": {
+   "rejected_fill": {
+    "n": 84,
+    "win_rate": 45.2,
+    "avg_return_pct": 0.03,
+    "expectancy_pct": 0.03,
+    "profit_factor": 1.02,
+    "missed_winners": 38
+   },
+   "rejected_no_slot": {
+    "n": 10,
+    "win_rate": 90.0,
+    "avg_return_pct": 8.75,
+    "expectancy_pct": 8.75,
+    "profit_factor": 19.0,
+    "missed_winners": 9
+   },
+   "rejected_strategy_gate": {
+    "n": 519,
+    "win_rate": 42.4,
+    "avg_return_pct": 0.09,
+    "expectancy_pct": 0.09,
+    "profit_factor": 1.04,
+    "missed_winners": 220
+   }
+  },
+  "best_missed": [
+   {
+    "window": "W1",
+    "date": "2024-06-19",
+    "symbol": "ONGC",
+    "sector": "ENERGY",
+    "strategy_id": "trend_rider",
+    "regime": "Bullish",
+    "stage": "rejected_strategy_gate",
+    "final_confidence": 87.4,
+    "calibrated_probability": 0.746055,
+    "similarity_adjustment": 0.0,
+    "volume_ratio": 0.5975582600550486,
+    "rr_ratio": 3.0,
+    "approx_ret": 21.99,
+    "fwd_10": 1.16,
+    "fwd_20": 22.15,
+    "mfe_pct": 22.74
+   },
+   {
+    "window": "W1",
+    "date": "2024-06-20",
+    "symbol": "ONGC",
+    "sector": "ENERGY",
+    "strategy_id": "trend_rider",
+    "regime": "Bullish",
+    "stage": "rejected_strategy_gate",
+    "final_confidence": 87.4,
+    "calibrated_probability": 0.746055,
+    "similarity_adjustment": 0.0,
+    "volume_ratio": 0.5802559970584641,
+    "rr_ratio": 3.0,
+    "approx_ret": 21.17,
+    "fwd_10": 1.91,
+    "fwd_20": 17.58,
+    "mfe_pct": 22.6
+   },
+   {
+    "window": "W1",
+    "date": "2024-06-21",
+    "symbol": "ONGC",
+    "sector": "ENERGY",
+    "strategy_id": "trend_rider",
+    "regime": "Neutral-Bullish",
+    "stage": "rejected_strategy_gate",
+    "final_confidence": 87.4,
+    "calibrated_probability": 0.746055,
+    "similarity_adjustment": 0.0,
+    "volume_ratio": 0.7880041526092971,
+    "rr_ratio": 3.0,
+    "approx_ret": 20.75,
+    "fwd_10": 6.88,
+    "fwd_20": 18.97,
+    "mfe_pct": 23.6
+   },
+   {
+    "window": "W1",
+    "date": "2024-06-24",
+    "symbol": "ONGC",
+    "sector": "ENERGY",
+    "strategy_id": "trend_rider",
+    "regime": "Neutral-Bullish",
+    "stage": "rejected_strategy_gate",
+    "final_confidence": 87.4,
+    "calibrated_probability": 0.746055,
+    "similarity_adjustment": 0.0,
+    "volume_ratio": 0.3325078563908462,
+    "rr_ratio": 3.0,
+    "approx_ret": 19.98,
+    "fwd_10": 10.84,
+    "fwd_20": 16.39,
+    "mfe_pct": 23.49
+   },
+   {
+    "window": "W1",
+    "date": "2024-06-25",
+    "symbol": "ONGC",
+    "sector": "ENERGY",
+    "strategy_id": "trend_rider",
+    "regime": "Bullish",
+    "stage": "rejected_strategy_gate",
+    "final_confidence": 87.4,
+    "calibrated_probability": 0.746055,
+    "similarity_adjustment": 0.0,
+    "volume_ratio": 0.6575978394205148,
+    "rr_ratio": 3.0,
+    "approx_ret": 19.68,
+    "fwd_10": 11.4,
+    "fwd_20": 19.68,
+    "mfe_pct": 24.83
+   },
+   {
+    "window": "W1",
+    "date": "2024-06-26",
+    "symbol": "ONGC",
+    "sector": "ENERGY",
+    "strategy_id": "trend_rider",
+    "regime": "Bullish",
+    "stage": "rejected_strategy_gate",
+    "final_confidence": 79.4,
+    "calibrated_probability": 0.664205,
+    "similarity_adjustment": 0.0,
+    "volume_ratio": 0.4814463111124802,
+    "rr_ratio": 3.0,
+    "approx_ret": 19.04,
+    "fwd_10": 11.35,
+    "fwd_20": 25.42,
+    "mfe_pct": 26.07
+   },
+   {
+    "window": "W1",
+    "date": "2024-06-10",
+    "symbol": "SHRIRAMFIN",
+    "sector": "FINANCE",
+    "strategy_id": "trend_rider",
+    "regime": "Neutral-Bullish",
+    "stage": "rejected_strategy_gate",
+    "final_confidence": 67.2,
+    "calibrated_probability": 0.539383,
+    "similarity_adjustment": 0.0,
+    "volume_ratio": 0.6430271082415108,
+    "rr_ratio": 3.0,
+    "approx_ret": 18.69,
+    "fwd_10": 18.69,
+    "fwd_20": 10.83,
+    "mfe_pct": 21.45
+   },
+   {
+    "window": "W1",
+    "date": "2024-06-27",
+    "symbol": "ONGC",
+    "sector": "ENERGY",
+    "strategy_id": "trend_rider",
+    "regime": "Bullish",
+    "stage": "rejected_strategy_gate",
+    "final_confidence": 79.4,
+    "calibrated_probability": 0.664205,
+    "similarity_adjustment": 0.0,
+    "volume_ratio": 0.999256256247012,
+    "rr_ratio": 3.0,
+    "approx_ret": 18.43,
+    "fwd_10": 13.93,
+    "fwd_20": 23.96,
+    "mfe_pct": 26.54
+   },
+   {
+    "window": "W1",
+    "date": "2024-06-11",
+    "symbol": "SHRIRAMFIN",
+    "sector": "FINANCE",
+    "strategy_id": "trend_rider",
+    "regime": "Bullish",
+    "stage": "rejected_strategy_gate",
+    "final_confidence": 71.3,
+    "calibrated_probability": 0.581331,
+    "similarity_adjustment": 5.0,
+    "volume_ratio": 0.6364441515107825,
+    "rr_ratio": 3.0,
+    "approx_ret": 18.0,
+    "fwd_10": 18.0,
+    "fwd_20": 9.04,
+    "mfe_pct": 20.78
+   },
+   {
+    "window": "W1",
+    "date": "2024-05-09",
+    "symbol": "POWERGRID",
+    "sector": "ENERGY",
+    "strategy_id": "trend_rider",
+    "regime": "Neutral-Bullish",
+    "stage": "rejected_strategy_gate",
+    "final_confidence": 95.0,
+    "calibrated_probability": 0.848819,
+    "similarity_adjustment": 10.0,
+    "volume_ratio": 0.5840560354294987,
+    "rr_ratio": 3.0,
+    "approx_ret": 17.23,
+    "fwd_10": 7.65,
+    "fwd_20": 4.46,
+    "mfe_pct": 17.74
+   },
+   {
+    "window": "W1",
+    "date": "2024-05-07",
+    "symbol": "POWERGRID",
+    "sector": "ENERGY",
+    "strategy_id": "trend_rider",
+    "regime": "Neutral-Bullish",
+    "stage": "rejected_strategy_gate",
+    "final_confidence": 95.0,
+    "calibrated_probability": 0.848819,
+    "similarity_adjustment": 10.0,
+    "volume_ratio": 0.7346795541202695,
+    "rr_ratio": 3.0,
+    "approx_ret": 16.81,
+    "fwd_10": 10.33,
+    "fwd_20": 1.2,
+    "mfe_pct": 18.1
+   },
+   {
+    "window": "W1",
+    "date": "2024-06-07",
+    "symbol": "SHRIRAMFIN",
+    "sector": "FINANCE",
+    "strategy_id": "trend_rider",
+    "regime": "Bullish",
+    "stage": "rejected_strategy_gate",
+    "final_confidence": 71.2,
+    "calibrated_probability": 0.580308,
+    "similarity_adjustment": 4.9,
+    "volume_ratio": 0.4723532167721205,
+    "rr_ratio": 3.0,
+    "approx_ret": 15.38,
+    "fwd_10": 15.38,
+    "fwd_20": 12.42,
+    "mfe_pct": 22.48
+   },
+   {
+    "window": "W1",
+    "date": "2024-06-04",
+    "symbol": "ONGC",
+    "sector": "ENERGY",
+    "strategy_id": "trend_rider",
+    "regime": "Neutral-Bullish",
+    "stage": "rejected_strategy_gate",
+    "final_confidence": 79.4,
+    "calibrated_probability": 0.664205,
+    "similarity_adjustment": 0.0,
+    "volume_ratio": 4.230363278266576,
+    "rr_ratio": 3.0,
+    "approx_ret": 14.92,
+    "fwd_10": 14.92,
+    "fwd_20": 16.25,
+    "mfe_pct": 18.41
+   },
+   {
+    "window": "W1",
+    "date": "2024-05-09",
+    "symbol": "HINDALCO",
+    "sector": "METALS",
+    "strategy_id": "macd_cross",
+    "regime": "Neutral-Bullish",
+    "stage": "rejected_strategy_gate",
+    "final_confidence": 65.2,
+    "calibrated_probability": 0.51892,
+    "similarity_adjustment": 0.0,
+    "volume_ratio": 0.638747777384428,
+    "rr_ratio": 2.5,
+    "approx_ret": 14.86,
+    "fwd_10": 8.69,
+    "fwd_20": 9.84,
+    "mfe_pct": 15.47
+   },
+   {
+    "window": "W1",
+    "date": "2024-05-07",
+    "symbol": "HINDALCO",
+    "sector": "METALS",
+    "strategy_id": "macd_cross",
+    "regime": "Neutral-Bullish",
+    "stage": "rejected_strategy_gate",
+    "final_confidence": 80.2,
+    "calibrated_probability": 0.67239,
+    "similarity_adjustment": 0.0,
+    "volume_ratio": 1.0777947712516582,
+    "rr_ratio": 2.5,
+    "approx_ret": 14.49,
+    "fwd_10": 10.38,
+    "fwd_20": 12.1,
+    "mfe_pct": 15.33
+   }
+  ]
+ },
+ "research_summary": {
+  "method": "Deterministic rule-based synthesis of sections 1-6 \u2014 no LLM involved; every statement is traceable to the data above.",
+  "findings": [
+   "Verdict 'INSUFFICIENT DATA' \u2014 failed gates: Completed out-of-sample trades.",
+   "Score component 'profit_factor' earned 0.0/25 points (0% of max) \u2014 a primary drag.",
+   "Score component 'expectancy' earned 0.0/20 points (0% of max) \u2014 a primary drag.",
+   "Score component 'sharpe' earned 0.0/20 points (0% of max) \u2014 a primary drag.",
+   "Only 5.6% of buy signals became trades (37/661); the biggest chokepoints are visible in the funnel stages.",
+   "The confidence sweep peaks at floor 75 (expectancy 0.42%/trade on n=308) vs the current 55.0.",
+   "Hold-days sweep (approximate, stop/target-aware): best expectancy at 20d (-0.94%/trade).",
+   "Feature 'rsi' shows the strongest link to 10-day forward returns (IC -0.165, n=650) \u2014 lower values preceded better outcomes.",
+   "Feature 'atr_pct' shows the strongest link to 10-day forward returns (IC 0.11, n=650) \u2014 higher values preceded better outcomes.",
+   "Feature 'volume_ratio' shows the strongest link to 10-day forward returns (IC -0.093, n=650) \u2014 lower values preceded better outcomes.",
+   "25 losing trades (67.6% of realized trades); most common losing exit: 'Stop-Loss Hit' (15 trades).",
+   "21 losers carried confidence >= 65 \u2014 high confidence did not protect against losses; calibration or feature quality is suspect."
+  ],
+  "recommendations": [
+   "Run an experiment with min_confidence_execute=75 to validate the sweep out-of-sample.",
+   "Inspect the 'worst' false-positive list for shared characteristics (regime, strategy, sector) before trusting confidence-weighted sizing."
+  ],
+  "caveats": [
+   "All 'would-have' returns are approximations (stop/target inferred from 20-day MAE/MFE; no intraday ordering).",
+   "This is research-only output; nothing here changes live trading."
+  ]
+ }
+}

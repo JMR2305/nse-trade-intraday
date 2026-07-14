@@ -1,0 +1,16 @@
+window,date,symbol,sector,strategy_id,regime,stage,final_confidence,calibrated_probability,similarity_adjustment,volume_ratio,rr_ratio,approx_ret,fwd_10,fwd_20,mfe_pct
+W1,2024-06-19,ONGC,ENERGY,trend_rider,Bullish,rejected_strategy_gate,87.4,0.746055,0.0,0.5975582600550486,3.0,21.99,1.16,22.15,22.74
+W1,2024-06-20,ONGC,ENERGY,trend_rider,Bullish,rejected_strategy_gate,87.4,0.746055,0.0,0.5802559970584641,3.0,21.17,1.91,17.58,22.6
+W1,2024-06-21,ONGC,ENERGY,trend_rider,Neutral-Bullish,rejected_strategy_gate,87.4,0.746055,0.0,0.7880041526092971,3.0,20.75,6.88,18.97,23.6
+W1,2024-06-24,ONGC,ENERGY,trend_rider,Neutral-Bullish,rejected_strategy_gate,87.4,0.746055,0.0,0.3325078563908462,3.0,19.98,10.84,16.39,23.49
+W1,2024-06-25,ONGC,ENERGY,trend_rider,Bullish,rejected_strategy_gate,87.4,0.746055,0.0,0.6575978394205148,3.0,19.68,11.4,19.68,24.83
+W1,2024-06-26,ONGC,ENERGY,trend_rider,Bullish,rejected_strategy_gate,79.4,0.664205,0.0,0.4814463111124802,3.0,19.04,11.35,25.42,26.07
+W1,2024-06-10,SHRIRAMFIN,FINANCE,trend_rider,Neutral-Bullish,rejected_strategy_gate,67.2,0.539383,0.0,0.6430271082415108,3.0,18.69,18.69,10.83,21.45
+W1,2024-06-27,ONGC,ENERGY,trend_rider,Bullish,rejected_strategy_gate,79.4,0.664205,0.0,0.999256256247012,3.0,18.43,13.93,23.96,26.54
+W1,2024-06-11,SHRIRAMFIN,FINANCE,trend_rider,Bullish,rejected_strategy_gate,71.3,0.581331,5.0,0.6364441515107825,3.0,18.0,18.0,9.04,20.78
+W1,2024-05-09,POWERGRID,ENERGY,trend_rider,Neutral-Bullish,rejected_strategy_gate,95.0,0.848819,10.0,0.5840560354294987,3.0,17.23,7.65,4.46,17.74
+W1,2024-05-07,POWERGRID,ENERGY,trend_rider,Neutral-Bullish,rejected_strategy_gate,95.0,0.848819,10.0,0.7346795541202695,3.0,16.81,10.33,1.2,18.1
+W1,2024-06-07,SHRIRAMFIN,FINANCE,trend_rider,Bullish,rejected_strategy_gate,71.2,0.580308,4.9,0.4723532167721205,3.0,15.38,15.38,12.42,22.48
+W1,2024-06-04,ONGC,ENERGY,trend_rider,Neutral-Bullish,rejected_strategy_gate,79.4,0.664205,0.0,4.230363278266576,3.0,14.92,14.92,16.25,18.41
+W1,2024-05-09,HINDALCO,METALS,macd_cross,Neutral-Bullish,rejected_strategy_gate,65.2,0.51892,0.0,0.638747777384428,2.5,14.86,8.69,9.84,15.47
+W1,2024-05-07,HINDALCO,METALS,macd_cross,Neutral-Bullish,rejected_strategy_gate,80.2,0.67239,0.0,1.0777947712516582,2.5,14.49,10.38,12.1,15.33

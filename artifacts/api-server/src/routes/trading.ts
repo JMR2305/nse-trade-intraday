@@ -765,6 +765,42 @@ router.post("/experiments/:id/run", async (req, res) => {
   res.json({ ok: true, id: expId, status: "running" });
 });
 
+// Experiment ids are hex slugs — reject anything else before it reaches the
+// filesystem layer (defense in depth; Python validates again).
+const SAFE_EXP_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+// GET /api/experiments/:id/analysis — Phase 4.2 strategy improvement analysis
+// (analysis only — reads analysis.json produced after a run)
+router.get("/experiments/:id/analysis", async (req, res) => {
+  try {
+    if (!SAFE_EXP_ID.test(String(req.params.id))) {
+      res.status(400).json({ error: "Invalid experiment id" });
+      return;
+    }
+    const data = await runPython(["experiment_analysis_get", String(req.params.id)]);
+    if ((data as any).error) { res.status(404).json(data); return; }
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/experiments/:id/analyze — (re)run the analyzer on a finished
+// experiment's outputs. READ-ONLY with respect to the experiment result.
+router.post("/experiments/:id/analyze", async (req, res) => {
+  try {
+    if (!SAFE_EXP_ID.test(String(req.params.id))) {
+      res.status(400).json({ error: "Invalid experiment id" });
+      return;
+    }
+    const data = await runPython(["experiment_analyze", String(req.params.id)]);
+    if ((data as any).error) { res.status(400).json(data); return; }
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/experiments/:id — get status + result for one experiment
 router.get("/experiments/:id", async (req, res) => {
   try {

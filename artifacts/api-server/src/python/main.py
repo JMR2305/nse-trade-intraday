@@ -630,6 +630,30 @@ def main():
         elif command == "experiment_delete" and len(args) >= 2:
             from experiment_manager import delete_experiment
             result = delete_experiment(args[1])
+        elif command == "experiment_analyze" and len(args) >= 2:
+            # Phase 4.2 — Strategy Improvement Framework (analysis only)
+            import os as _os
+            import re as _re
+            from experiment_manager import EXPERIMENTS_DIR as _EXP_DIR
+            if not _re.fullmatch(r"[A-Za-z0-9_-]{1,64}", args[1]):
+                result = {"error": "Invalid experiment id"}
+            else:
+                from strategy_analyzer import analyze_experiment
+                result = analyze_experiment(_os.path.join(_EXP_DIR, args[1]))
+        elif command == "experiment_analysis_get" and len(args) >= 2:
+            import os as _os
+            import re as _re
+            from experiment_manager import EXPERIMENTS_DIR as _EXP_DIR
+            if not _re.fullmatch(r"[A-Za-z0-9_-]{1,64}", args[1]):
+                result = {"error": "Invalid experiment id"}
+            else:
+                _ap = _os.path.join(_EXP_DIR, args[1], "analysis.json")
+                if _os.path.exists(_ap):
+                    with open(_ap) as _f:
+                        result = json.load(_f)
+                else:
+                    result = {"error": "No analysis found for this experiment. "
+                                       "Run it (or POST /analyze) to generate one."}
         elif command == "experiment_check_running":
             from experiment_manager import check_any_running
             result = check_any_running()
