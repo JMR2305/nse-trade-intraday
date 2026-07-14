@@ -1863,4 +1863,151 @@ router.get("/strategies", async (_req, res) => {
   }
 });
 
+// ── Phase 8: Broker Integration & Live Execution Readiness ────────────────────
+
+// GET /api/broker/status — full broker + mode + safety + scan status
+router.get("/broker/status", async (_req, res) => {
+  try {
+    const data = await runPython(["phase8_status"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/broker/health — quick connection probe
+router.get("/broker/health", async (_req, res) => {
+  try {
+    const data = await runPython(["phase8_health"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/broker/account — profile, margins, holdings, positions, orders
+router.get("/broker/account", async (_req, res) => {
+  try {
+    const data = await runPython(["phase8_account"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/broker/mode
+router.get("/broker/mode", async (_req, res) => {
+  try {
+    const data = await runPython(["phase8_mode_get"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/broker/mode  body: { mode: "RESEARCH_ONLY" | "PAPER_TRADING" | "LIVE_ASSISTED" }
+router.post("/broker/mode", async (req, res) => {
+  try {
+    const { mode } = req.body as { mode: string };
+    if (!mode) return res.status(400).json({ error: "mode required" });
+    const data = await runPython(["phase8_mode_set", mode]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/broker/readiness — full readiness checklist + score
+router.get("/broker/readiness", async (_req, res) => {
+  try {
+    const data = await runPython(["phase8_readiness"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/broker/order/preview  body: { symbol, side, quantity, entry_price?, stop_loss?, target? }
+router.post("/broker/order/preview", async (req, res) => {
+  try {
+    const { symbol, side, quantity, entry_price = 0, stop_loss = 0, target = 0 } =
+      req.body as { symbol: string; side: string; quantity: number;
+                    entry_price?: number; stop_loss?: number; target?: number };
+    if (!symbol || !side || !quantity)
+      return res.status(400).json({ error: "symbol, side, quantity required" });
+    const data = await runPython([
+      "phase8_preview", symbol, side, String(quantity),
+      String(entry_price), String(stop_loss), String(target),
+    ]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/broker/order/confirm1  body: { preview_id, token }
+router.post("/broker/order/confirm1", async (req, res) => {
+  try {
+    const { preview_id, token } = req.body as { preview_id: string; token: string };
+    if (!preview_id || !token) return res.status(400).json({ error: "preview_id and token required" });
+    const data = await runPython(["phase8_confirm1", preview_id, token]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/broker/order/confirm2  body: { preview_id, token }
+router.post("/broker/order/confirm2", async (req, res) => {
+  try {
+    const { preview_id, token } = req.body as { preview_id: string; token: string };
+    if (!preview_id || !token) return res.status(400).json({ error: "preview_id and token required" });
+    const data = await runPython(["phase8_confirm2", preview_id, token]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/broker/kill-switch  body: { activate: boolean }
+router.post("/broker/kill-switch", async (req, res) => {
+  try {
+    const { activate } = req.body as { activate: boolean };
+    if (typeof activate !== "boolean") return res.status(400).json({ error: "activate (boolean) required" });
+    const data = await runPython(["phase8_kill_switch", activate ? "on" : "off"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/broker/audit?limit=100
+router.get("/broker/audit", async (req, res) => {
+  try {
+    const limit = String(parseInt(String(req.query.limit ?? "100"), 10) || 100);
+    const data = await runPython(["phase8_audit", limit]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/broker/export?kind=json|csv
+router.get("/broker/export", async (req, res) => {
+  try {
+    const kind = String(req.query.kind ?? "json").toLowerCase();
+    const data = await runPython(["phase8_export", kind]) as { file?: string };
+    if (data?.file && fs.existsSync(data.file)) {
+      const filename = `phase8_export.${kind}`;
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("Content-Type", kind === "csv" ? "text/csv" : "application/json");
+      res.send(fs.readFileSync(data.file));
+    } else {
+      res.json(data);
+    }
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 export default router;

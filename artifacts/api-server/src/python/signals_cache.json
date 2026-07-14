@@ -1,7 +1,7 @@
 [
   {
     "stock": "RELIANCE",
-    "time": "2026-07-13T13:52:00.816440",
+    "time": "2026-07-14T19:05:57.445800",
     "signal": "NO_TRADE",
     "quantity": 0,
     "price": 1296.9,
@@ -10,10 +10,9 @@
       "Price \u20b91296.90 below VWAP \u20b91296.90 (+15)",
       "EMA20 1304.4 < EMA50 1321.7 \u2014 death cross (+15)",
       "EMA9 1299.4 < EMA20 1304.4 \u2014 short-term momentum down (+10)",
-      "MACD bearish: -6.719 < -6.701 (+15)",
-      "EMA stack: 9=1299.4 20=1304.4 50=1321.7 200=1378.3",
+      "MACD bearish: -6.719 < -6.702 (+15)",
+      "EMA stack: 9=1299.4 20=1304.4 50=1321.7 200=1380.0",
       "ATR=22.88 (1.8%) | Risk=LOW",
-      "MTF gate: only 2/4 timeframes agree \u2014 capped at NO_TRADE",
       "Regime: SIDEWAYS | adj_buy=-10.0 adj_sell=-10.0"
     ],
     "risk_level": "LOW",
@@ -23,29 +22,28 @@
       "trend": "Strong downtrend \u2014 all EMAs stacked bearishly (EMA9 < EMA20 < EMA50).",
       "momentum": "Bullish RSI 47. MACD bearish (line below signal).",
       "volume": "Normal volume (0.7\u00d7) \u2014 no special conviction.",
-      "indicator_summary": "Price inside Bollinger Bands (\u20b91279\u2013\u20b91340) \u2014 normal range. Timeframes: \u2717 5M, \u2713 15M, \u2717 1H, \u2713 1D.",
+      "indicator_summary": "Price inside Bollinger Bands (\u20b91279\u2013\u20b91340) \u2014 normal range. Timeframes: \u2717 5M, \u2713 15M, \u2713 1H, \u2713 1D.",
       "regime_impact": "SIDEWAYS market regime: SELL confidence reduced by 10 points.",
       "plain_english": "No clear trade setup. Confidence below 60 (45/100). Stay out and wait for better alignment across indicators."
     },
-    "timeframe_alignment": 2,
+    "timeframe_alignment": 3,
     "regime": "SIDEWAYS"
   },
   {
     "stock": "TCS",
-    "time": "2026-07-13T13:52:01.654487",
+    "time": "2026-07-14T19:05:58.234837",
     "signal": "NO_TRADE",
     "quantity": 0,
     "price": 2181.5,
     "confidence": 40.0,
     "reasons": [
-      "MACD bullish: -33.365 > -47.412 (+15)",
+      "MACD bullish: -33.359 > -47.403 (+15)",
       "RSI 55.1 in bullish momentum zone 45\u201365 (+10)",
       "Volume 2.4\u00d7 avg on up-candle \u2014 strong buying (+10)",
       "Supertrend bullish \u2014 trend following confirmation (+10)",
       "ADX 21.3 \u2014 trend strength confirmed (+5)",
-      "EMA stack: 9=2092.0 20=2109.0 50=2203.5 200=2603.4",
+      "EMA stack: 9=2092.0 20=2109.0 50=2202.9 200=2582.0",
       "ATR=66.55 (3.1%) | Risk=MEDIUM",
-      "MTF gate: only 2/4 timeframes agree \u2014 capped at NO_TRADE",
       "Regime: SIDEWAYS | adj_buy=-10.0 adj_sell=-10.0"
     ],
     "risk_level": "MEDIUM",
@@ -55,16 +53,16 @@
       "trend": "Strong downtrend \u2014 all EMAs stacked bearishly (EMA9 < EMA20 < EMA50).",
       "momentum": "Bullish RSI 55. MACD bullish (line above signal).",
       "volume": "Very strong volume (2.4\u00d7 average) \u2014 confirms conviction.",
-      "indicator_summary": "Price inside Bollinger Bands (\u20b91978\u2013\u20b92224) \u2014 normal range. Timeframes: \u2717 5M, \u2717 15M, \u2713 1H, \u2713 1D.",
+      "indicator_summary": "Price inside Bollinger Bands (\u20b91978\u2013\u20b92224) \u2014 normal range. Timeframes: \u2713 5M, \u2713 15M, \u2713 1H, \u2713 1D.",
       "regime_impact": "SIDEWAYS market regime: SELL confidence reduced by 10 points.",
       "plain_english": "No clear trade setup. Confidence below 60 (40/100). Stay out and wait for better alignment across indicators."
     },
-    "timeframe_alignment": 2,
+    "timeframe_alignment": 4,
     "regime": "SIDEWAYS"
   },
   {
     "stock": "INFY",
-    "time": "2026-07-13T13:52:02.529663",
+    "time": "2026-07-14T19:05:59.084313",
     "signal": "NO_TRADE",
     "quantity": 0,
     "price": 1102.6,
@@ -73,9 +71,9 @@
       "Price \u20b91102.60 below VWAP \u20b91102.60 (+15)",
       "EMA20 1070.8 < EMA50 1115.8 \u2014 death cross (+15)",
       "EMA9 1064.3 < EMA20 1070.8 \u2014 short-term momentum down (+10)",
-      "EMA stack: 9=1064.3 20=1070.8 50=1115.8 200=1306.6",
+      "EMA stack: 9=1064.3 20=1070.8 50=1115.8 200=1306.8",
       "ATR=34.32 (3.1%) | Risk=MEDIUM",
-      "MTF gate: only 1/4 timeframes agree \u2014 capped at NO_TRADE",
+      "MTF gate: only 2/4 timeframes agree \u2014 capped at NO_TRADE",
       "Regime: SIDEWAYS | adj_buy=-10.0 adj_sell=-10.0"
     ],
     "risk_level": "MEDIUM",
@@ -85,29 +83,29 @@
       "trend": "Strong downtrend \u2014 all EMAs stacked bearishly (EMA9 < EMA20 < EMA50).",
       "momentum": "Bullish RSI 54. MACD bullish (line above signal).",
       "volume": "Normal volume (1.4\u00d7) \u2014 no special conviction.",
-      "indicator_summary": "Price inside Bollinger Bands (\u20b9975\u2013\u20b91148) \u2014 normal range. Timeframes: \u2713 5M, \u2717 15M, \u2717 1H, \u2717 1D.",
+      "indicator_summary": "Price inside Bollinger Bands (\u20b9975\u2013\u20b91148) \u2014 normal range. Timeframes: \u2713 5M, \u2713 15M, \u2717 1H, \u2717 1D.",
       "regime_impact": "SIDEWAYS market regime: SELL confidence reduced by 10 points.",
       "plain_english": "No clear trade setup. Confidence below 60 (30/100). Stay out and wait for better alignment across indicators."
     },
-    "timeframe_alignment": 1,
+    "timeframe_alignment": 2,
     "regime": "SIDEWAYS"
   },
   {
     "stock": "HDFCBANK",
-    "time": "2026-07-13T13:52:03.395819",
+    "time": "2026-07-14T19:05:59.944653",
     "signal": "WATCH",
     "quantity": 1,
     "price": 817.95,
     "confidence": 65.0,
     "reasons": [
-      "EMA20 799.1 > EMA50 785.5 \u2014 golden cross (+15)",
+      "EMA20 799.1 > EMA50 785.4 \u2014 golden cross (+15)",
       "EMA9 813.4 > EMA20 799.1 \u2014 short-term momentum up (+10)",
-      "MACD bullish: 15.850 > 14.242 (+15)",
+      "MACD bullish: 15.851 > 14.243 (+15)",
       "RSI 62.3 in bullish momentum zone 45\u201365 (+10)",
       "Price near/breaking resistance \u2014 breakout signal (+10)",
       "Supertrend bullish \u2014 trend following confirmation (+10)",
       "ADX 31.2 \u2014 trend strength confirmed (+5)",
-      "EMA stack: 9=813.4 20=799.1 50=785.5 200=833.9",
+      "EMA stack: 9=813.4 20=799.1 50=785.4 200=830.5",
       "ATR=15.13 (1.8%) | Risk=LOW",
       "MTF gate: only 2/4 timeframes agree \u2014 capped at WATCH",
       "Regime: SIDEWAYS | adj_buy=-10.0 adj_sell=-10.0"
@@ -119,7 +117,7 @@
       "trend": "Strong uptrend \u2014 all EMAs stacked bullishly (EMA9 > EMA20 > EMA50).",
       "momentum": "Bullish RSI 62. MACD bullish (line above signal).",
       "volume": "Normal volume (0.6\u00d7) \u2014 no special conviction.",
-      "indicator_summary": "Price inside Bollinger Bands (\u20b9763\u2013\u20b9835) \u2014 normal range. Timeframes: \u2717 5M, \u2713 15M, \u2717 1H, \u2713 1D.",
+      "indicator_summary": "Price inside Bollinger Bands (\u20b9763\u2013\u20b9835) \u2014 normal range. Timeframes: \u2713 5M, \u2717 15M, \u2717 1H, \u2713 1D.",
       "regime_impact": "SIDEWAYS market regime: BUY confidence reduced by 10 points.",
       "plain_english": "Signal is too weak to act on. Indicators are mixed \u2014 only 65/100 confidence. Monitor for confirmation before entering."
     },
@@ -128,19 +126,19 @@
   },
   {
     "stock": "ICICIBANK",
-    "time": "2026-07-13T13:52:04.144738",
+    "time": "2026-07-14T19:06:00.808697",
     "signal": "NO_TRADE",
     "quantity": 0,
     "price": 1409.5,
     "confidence": 50.0,
     "reasons": [
-      "EMA20 1374.9 > EMA50 1338.8 \u2014 golden cross (+15)",
+      "EMA20 1374.9 > EMA50 1338.7 \u2014 golden cross (+15)",
       "EMA9 1395.9 > EMA20 1374.9 \u2014 short-term momentum up (+10)",
       "RSI 64.0 in bullish momentum zone 45\u201365 (+10)",
       "Price near/breaking resistance \u2014 breakout signal (+10)",
       "Supertrend bullish \u2014 trend following confirmation (+10)",
       "ADX 33.2 \u2014 trend strength confirmed (+5)",
-      "EMA stack: 9=1395.9 20=1374.9 50=1338.8 200=1356.0",
+      "EMA stack: 9=1395.9 20=1374.9 50=1338.7 200=1350.6",
       "ATR=25.47 (1.8%) | Risk=LOW",
       "Regime: SIDEWAYS | adj_buy=-10.0 adj_sell=-10.0"
     ],
@@ -160,7 +158,7 @@
   },
   {
     "stock": "SBIN",
-    "time": "2026-07-13T13:52:05.168190",
+    "time": "2026-07-14T19:06:01.605700",
     "signal": "NO_TRADE",
     "quantity": 0,
     "price": 1037.0,
@@ -170,8 +168,9 @@
       "EMA9 1033.5 > EMA20 1028.8 \u2014 short-term momentum up (+10)",
       "RSI 55.2 in bullish momentum zone 45\u201365 (+10)",
       "Supertrend bullish \u2014 trend following confirmation (+10)",
-      "EMA stack: 9=1033.5 20=1028.8 50=1022.0 200=1028.4",
+      "EMA stack: 9=1033.5 20=1028.8 50=1022.0 200=1028.3",
       "ATR=18.94 (1.8%) | Risk=LOW",
+      "MTF gate: only 1/4 timeframes agree \u2014 capped at NO_TRADE",
       "Regime: SIDEWAYS | adj_buy=-10.0 adj_sell=-10.0"
     ],
     "risk_level": "LOW",
@@ -181,16 +180,16 @@
       "trend": "Strong uptrend \u2014 all EMAs stacked bullishly (EMA9 > EMA20 > EMA50).",
       "momentum": "Bullish RSI 55. MACD bearish (line below signal).",
       "volume": "Normal volume (0.8\u00d7) \u2014 no special conviction.",
-      "indicator_summary": "Price inside Bollinger Bands (\u20b91015\u2013\u20b91055) \u2014 normal range. Timeframes: \u2717 5M, \u2713 15M, \u2713 1H, \u2713 1D.",
+      "indicator_summary": "Price inside Bollinger Bands (\u20b91015\u2013\u20b91055) \u2014 normal range. Timeframes: \u2717 5M, \u2717 15M, \u2717 1H, \u2713 1D.",
       "regime_impact": "SIDEWAYS market regime: SELL confidence reduced by 10 points.",
       "plain_english": "No clear trade setup. Confidence below 60 (35/100). Stay out and wait for better alignment across indicators."
     },
-    "timeframe_alignment": 3,
+    "timeframe_alignment": 1,
     "regime": "SIDEWAYS"
   },
   {
     "stock": "WIPRO",
-    "time": "2026-07-13T13:52:05.982266",
+    "time": "2026-07-14T19:06:02.479808",
     "signal": "NO_TRADE",
     "quantity": 5,
     "price": 178.43,
@@ -200,7 +199,7 @@
       "EMA20 177.4 < EMA50 185.5 \u2014 death cross (+15)",
       "EMA9 175.0 < EMA20 177.4 \u2014 short-term momentum down (+10)",
       "ADX 24.9 \u2014 trend strength confirmed (+5)",
-      "EMA stack: 9=175.0 20=177.4 50=185.5 200=214.0",
+      "EMA stack: 9=175.0 20=177.4 50=185.5 200=212.9",
       "ATR=4.14 (2.3%) | Risk=MEDIUM",
       "MTF gate: only 1/4 timeframes agree \u2014 capped at NO_TRADE",
       "Regime: SIDEWAYS | adj_buy=-10.0 adj_sell=-10.0"
@@ -212,7 +211,7 @@
       "trend": "Strong downtrend \u2014 all EMAs stacked bearishly (EMA9 < EMA20 < EMA50).",
       "momentum": "Bullish RSI 48. MACD bullish (line above signal).",
       "volume": "Normal volume (1.0\u00d7) \u2014 no special conviction.",
-      "indicator_summary": "Price inside Bollinger Bands (\u20b9168\u2013\u20b9184) \u2014 normal range. Timeframes: \u2713 5M, \u2717 15M, \u2717 1H, \u2717 1D.",
+      "indicator_summary": "Price inside Bollinger Bands (\u20b9168\u2013\u20b9184) \u2014 normal range. Timeframes: \u2717 5M, \u2713 15M, \u2717 1H, \u2717 1D.",
       "regime_impact": "SIDEWAYS market regime: SELL confidence reduced by 10 points.",
       "plain_english": "No clear trade setup. Confidence below 60 (35/100). Stay out and wait for better alignment across indicators."
     },
@@ -221,7 +220,7 @@
   },
   {
     "stock": "LT",
-    "time": "2026-07-13T13:52:06.877363",
+    "time": "2026-07-14T19:06:03.352593",
     "signal": "NO_TRADE",
     "quantity": 0,
     "price": 3928.5,
@@ -229,9 +228,9 @@
     "reasons": [
       "Price \u20b93928.50 below VWAP \u20b93928.50 (+15)",
       "EMA9 3982.7 < EMA20 4029.1 \u2014 short-term momentum down (+10)",
-      "MACD bearish: -29.241 < 2.678 (+15)",
+      "MACD bearish: -29.239 < 2.680 (+15)",
       "ADX 21.9 \u2014 trend strength confirmed (+5)",
-      "EMA stack: 9=3982.7 20=4029.1 50=4013.8 200=3928.8",
+      "EMA stack: 9=3982.7 20=4029.1 50=4013.6 200=3922.5",
       "ATR=74.91 (1.9%) | Risk=LOW",
       "MTF gate: only 2/4 timeframes agree \u2014 capped at NO_TRADE",
       "Regime: SIDEWAYS | adj_buy=-10.0 adj_sell=-10.0"
@@ -243,7 +242,7 @@
       "trend": "Moderate uptrend \u2014 EMA20 above EMA50 with short-term pullback.",
       "momentum": "Neutral RSI 39. MACD bearish (line below signal).",
       "volume": "Normal volume (0.9\u00d7) \u2014 no special conviction.",
-      "indicator_summary": "Price inside Bollinger Bands (\u20b93864\u2013\u20b94332) \u2014 normal range. Timeframes: \u2713 5M, \u2717 15M, \u2717 1H, \u2713 1D.",
+      "indicator_summary": "Price inside Bollinger Bands (\u20b93864\u2013\u20b94332) \u2014 normal range. Timeframes: \u2717 5M, \u2717 15M, \u2713 1H, \u2713 1D.",
       "regime_impact": "SIDEWAYS market regime: SELL confidence reduced by 10 points.",
       "plain_english": "No clear trade setup. Confidence below 60 (35/100). Stay out and wait for better alignment across indicators."
     },
@@ -252,7 +251,7 @@
   },
   {
     "stock": "BAJFINANCE",
-    "time": "2026-07-13T13:52:07.902959",
+    "time": "2026-07-14T19:06:04.080081",
     "signal": "WATCH",
     "quantity": 0,
     "price": 1022.6,
@@ -265,8 +264,9 @@
       "Price near/breaking resistance \u2014 breakout signal (+10)",
       "Supertrend bullish \u2014 trend following confirmation (+10)",
       "ADX 38.0 \u2014 trend strength confirmed (+5)",
-      "EMA stack: 9=1013.7 20=991.3 50=956.6 200=937.5",
+      "EMA stack: 9=1013.7 20=991.3 50=956.6 200=936.6",
       "ATR=23.64 (2.3%) | Risk=MEDIUM",
+      "MTF gate: only 2/4 timeframes agree \u2014 capped at WATCH",
       "Regime: SIDEWAYS | adj_buy=-10.0 adj_sell=-10.0"
     ],
     "risk_level": "MEDIUM",
@@ -276,27 +276,28 @@
       "trend": "Strong uptrend \u2014 all EMAs stacked bullishly (EMA9 > EMA20 > EMA50).",
       "momentum": "Bullish RSI 64. MACD bullish (line above signal).",
       "volume": "Normal volume (0.6\u00d7) \u2014 no special conviction.",
-      "indicator_summary": "Price inside Bollinger Bands (\u20b9931\u2013\u20b91054) \u2014 normal range. Timeframes: \u2713 5M, \u2713 15M, \u2713 1H, \u2713 1D.",
+      "indicator_summary": "Price inside Bollinger Bands (\u20b9931\u2013\u20b91054) \u2014 normal range. Timeframes: \u2717 5M, \u2713 15M, \u2717 1H, \u2713 1D.",
       "regime_impact": "SIDEWAYS market regime: BUY confidence reduced by 10 points.",
       "plain_english": "Signal is too weak to act on. Indicators are mixed \u2014 only 65/100 confidence. Monitor for confirmation before entering."
     },
-    "timeframe_alignment": 4,
+    "timeframe_alignment": 2,
     "regime": "SIDEWAYS"
   },
   {
     "stock": "MARUTI",
-    "time": "2026-07-13T13:52:08.898618",
+    "time": "2026-07-14T19:06:04.824789",
     "signal": "NO_TRADE",
     "quantity": 0,
     "price": 13695.0,
     "confidence": 35.0,
     "reasons": [
-      "EMA20 13831.9 > EMA50 13630.5 \u2014 golden cross (+15)",
+      "EMA20 13831.9 > EMA50 13628.5 \u2014 golden cross (+15)",
       "EMA9 13945.8 > EMA20 13831.9 \u2014 short-term momentum up (+10)",
       "RSI 48.9 in bullish momentum zone 45\u201365 (+10)",
       "Supertrend bullish \u2014 trend following confirmation (+10)",
-      "EMA stack: 9=13945.8 20=13831.9 50=13630.5 200=14477.5",
+      "EMA stack: 9=13945.8 20=13831.9 50=13628.5 200=14397.4",
       "ATR=323.57 (2.4%) | Risk=MEDIUM",
+      "MTF gate: only 2/4 timeframes agree \u2014 capped at NO_TRADE",
       "Regime: SIDEWAYS | adj_buy=-10.0 adj_sell=-10.0"
     ],
     "risk_level": "MEDIUM",
@@ -306,11 +307,11 @@
       "trend": "Strong uptrend \u2014 all EMAs stacked bullishly (EMA9 > EMA20 > EMA50).",
       "momentum": "Bullish RSI 49. MACD bearish (line below signal).",
       "volume": "Normal volume (0.8\u00d7) \u2014 no special conviction.",
-      "indicator_summary": "Price inside Bollinger Bands (\u20b913026\u2013\u20b914641) \u2014 normal range. Timeframes: \u2713 5M, \u2713 15M, \u2713 1H, \u2713 1D.",
+      "indicator_summary": "Price inside Bollinger Bands (\u20b913026\u2013\u20b914641) \u2014 normal range. Timeframes: \u2717 5M, \u2713 15M, \u2717 1H, \u2713 1D.",
       "regime_impact": "SIDEWAYS market regime: SELL confidence reduced by 10 points.",
       "plain_english": "No clear trade setup. Confidence below 60 (35/100). Stay out and wait for better alignment across indicators."
     },
-    "timeframe_alignment": 4,
+    "timeframe_alignment": 2,
     "regime": "SIDEWAYS"
   }
 ]

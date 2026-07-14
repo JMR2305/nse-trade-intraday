@@ -1,0 +1,18 @@
+{
+  "execution_mode": "PAPER_TRADING",
+  "safety_controls": {
+    "kill_switch": false,
+    "daily_loss_limit": -500.0,
+    "max_orders_per_day": 5,
+    "per_stock_exposure_pct": 20.0,
+    "total_deployed_cap_pct": 80.0,
+    "cooldown_after_fail_s": 300.0,
+    "auto_block_stale_data": true,
+    "auto_block_disconnected": true,
+    "order_value_max": 1500.0,
+    "min_rr_ratio": 1.5,
+    "max_daily_orders": 5,
+    "note": "Research & assisted-execution only. User is responsible for every live order."
+  },
+  "kill_switch_changed_at": "2026-07-14T19:22:08Z"
+}

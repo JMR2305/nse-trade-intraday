@@ -1,0 +1,27 @@
+[
+ {
+  "event": "KILL_SWITCH_TOGGLED",
+  "activated": false,
+  "mode": "PAPER_TRADING",
+  "ts": "2026-07-14T19:22:08Z",
+  "audit_id": "3cd4f0bc22"
+ },
+ {
+  "event": "PREVIEW_CREATED",
+  "symbol": "RELIANCE",
+  "side": "BUY",
+  "quantity": 1,
+  "entry_price": 2500.0,
+  "mode": "PAPER_TRADING",
+  "validation_passed": false,
+  "failure_reasons": [
+   "NSE CLOSED \u2014 00:52 IST Wed",
+   "Sector Energy: \u20b92500.00 > cap \u20b91750.00 (35%)",
+   "Order \u20b92500.00 > limit \u20b91000.00"
+  ],
+  "preview_id": "30c357947646",
+  "status": "VALIDATION_FAILED",
+  "ts": "2026-07-14T19:22:08Z",
+  "audit_id": "6dbe295ad6"
+ }
+]

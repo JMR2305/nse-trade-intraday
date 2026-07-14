@@ -32,6 +32,7 @@ import ExperimentManager from "@/pages/ExperimentManager";
 import ResearchIntelligence from "@/pages/ResearchIntelligence";
 import StrategyEvolution from "@/pages/StrategyEvolution";
 import LiveDataHealth from "@/pages/LiveDataHealth";
+import BrokerExecution from "@/pages/BrokerExecution";
 
 const queryClient = new QueryClient();
 
@@ -66,6 +67,7 @@ function Router() {
         <Route path="/research-intelligence" component={ResearchIntelligence} />
         <Route path="/strategy-evolution" component={StrategyEvolution} />
         <Route path="/live-data-health" component={LiveDataHealth} />
+        <Route path="/broker-execution" component={BrokerExecution} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

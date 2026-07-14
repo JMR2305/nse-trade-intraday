@@ -28,6 +28,7 @@ import {
   Briefcase,
   TestTubes,
   Wifi,
+  ShieldAlert,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
@@ -50,7 +51,8 @@ export function AppLayout({ children }: AppLayoutProps) {
         { href: "/market",          label: "Market",          icon: Globe2    },
         { href: "/market-scanner",  label: "Market Scanner",  icon: Radar     },
         { href: "/market-replay",   label: "Market Replay",   icon: Clock     },
-        { href: "/live-data-health", label: "Live Data Health", icon: Wifi     },
+        { href: "/live-data-health",  label: "Live Data Health",  icon: Wifi        },
+        { href: "/broker-execution",  label: "Broker & Execution", icon: ShieldAlert },
       ],
     },
     {

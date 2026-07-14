@@ -755,6 +755,235 @@ def main():
             scan = get_or_run_scan(max_age_s=600)
             result = generate_report(scan)
             result["success"] = True
+
+        # ── Phase 8 — Broker Integration & Live Execution Readiness ──────────
+        elif command == "phase8_status":
+            from broker_client import get_broker_client, masked_creds
+            from execution_engine import (get_execution_mode, get_safety_controls,
+                                          get_daily_order_count)
+            from live_scan_engine import load_cached_scan
+            from dataclasses import asdict as _dc_asdict
+            _client = get_broker_client()
+            _conn   = _client.test_connection()
+            _scan   = load_cached_scan()
+            _dq     = "UNKNOWN"
+            _scan_ts = None
+            if _scan:
+                _ph = _scan.get("provider_health", {})
+                _dq = "LIVE" if _ph.get("quality_summary", {}).get("LIVE", 0) > 0 else \
+                      "NEAR_LIVE" if _ph.get("quality_summary", {}).get("NEAR_LIVE", 0) > 0 else \
+                      "STALE"
+                _scan_ts = _scan.get("snapshot_ts")
+            _sc = get_safety_controls()
+            result = {
+                "success": True,
+                "execution_mode": get_execution_mode(),
+                "broker": _dc_asdict(_conn),
+                "safety_controls": _dc_asdict(_sc),
+                "daily_orders_today": get_daily_order_count(),
+                "data_quality": _dq,
+                "last_scan_ts": _scan_ts,
+                "credentials": masked_creds(),
+                "label": "PAPER / LIVE DATA VALIDATION",
+                "warning": ("Research and assisted-execution tool only. "
+                            "User is responsible for every live order."),
+            }
+        elif command == "phase8_health":
+            from broker_client import get_broker_client, masked_creds
+            from dataclasses import asdict as _dc_asdict
+            _client = get_broker_client()
+            _conn   = _client.test_connection()
+            result  = {"success": True, "broker": _dc_asdict(_conn),
+                       "credentials": masked_creds(),
+                       "is_mock": _conn.is_mock,
+                       "label": "PAPER / LIVE DATA VALIDATION"}
+        elif command == "phase8_account":
+            from broker_client import get_broker_client
+            from dataclasses import asdict as _dc_asdict
+            _client = get_broker_client()
+            try:
+                _profile  = _dc_asdict(_client.get_profile())
+                _margins  = _dc_asdict(_client.get_margins())
+                _holdings = [_dc_asdict(h) for h in _client.get_holdings()]
+                _positions = [_dc_asdict(p) for p in _client.get_positions()]
+                _orders   = [_dc_asdict(o) for o in _client.get_orders(limit=20)]
+                result = {"success": True, "profile": _profile, "margins": _margins,
+                          "holdings": _holdings, "positions": _positions,
+                          "orders": _orders, "is_mock": _client.is_mock}
+            except Exception as e:
+                result = {"success": False, "error": str(e)}
+        elif command == "phase8_mode_get":
+            from execution_engine import get_execution_mode
+            result = {"success": True, "execution_mode": get_execution_mode()}
+        elif command == "phase8_mode_set":
+            if len(args) < 2:
+                result = {"success": False, "error": "Usage: phase8_mode_set <mode>"}
+            else:
+                from execution_engine import set_execution_mode
+                _mode = args[1].upper()
+                set_execution_mode(_mode)
+                result = {"success": True, "execution_mode": _mode,
+                          "warning": "LIVE_ASSISTED requires explicit per-order confirmation. No auto-execution."
+                                     if _mode == "LIVE_ASSISTED" else ""}
+        elif command == "phase8_readiness":
+            from broker_client import get_broker_client
+            from execution_engine import get_execution_mode
+            from live_scan_engine import load_cached_scan
+            from readiness_checker import LiveReadinessChecker
+            from dataclasses import asdict as _dc_asdict
+            import json as _json
+            _client = get_broker_client()
+            _conn   = _client.test_connection()
+            _margins = _client.get_margins()
+            _scan   = load_cached_scan()
+            _dq     = "UNKNOWN"; _scan_ts = None
+            if _scan:
+                _ph = _scan.get("provider_health", {})
+                _dq = next((q for q in ["LIVE","NEAR_LIVE","STALE","UNAVAILABLE"]
+                             if _ph.get("quality_summary",{}).get(q,0) > 0), "UNKNOWN")
+                _scan_ts = _scan.get("snapshot_ts")
+            from paper_trader import STATE_FILE
+            _paper_count = 0
+            try:
+                _state = _json.load(open(STATE_FILE))
+                _paper_count = len([t for t in _state.get("trades", []) if t.get("action") == "BUY"])
+            except Exception:
+                pass
+            _checker = LiveReadinessChecker(
+                broker_connection_status=_dc_asdict(_conn),
+                available_cash=_margins.available_cash,
+                data_quality=_dq, last_scan_ts=_scan_ts,
+                paper_trade_count=_paper_count,
+            )
+            _r = _checker.check()
+            result = {"success": True, **_dc_asdict(_r)}
+        elif command == "phase8_preview":
+            if len(args) < 4:
+                result = {"success": False, "error": "Usage: phase8_preview <symbol> <side> <qty> [entry] [sl] [target]"}
+            else:
+                import json as _json
+                from broker_client import get_broker_client
+                from execution_engine import get_engine, get_execution_mode
+                from live_scan_engine import load_cached_scan
+                from dataclasses import asdict as _dc_asdict
+                _sym   = args[1].upper()
+                _side  = args[2].upper()
+                _qty   = int(args[3])
+                _entry = float(args[4]) if len(args) > 4 else 0.0
+                _sl    = float(args[5]) if len(args) > 5 else 0.0
+                _tgt   = float(args[6]) if len(args) > 6 else 0.0
+                _client = get_broker_client()
+                _conn   = _client.test_connection()
+                _margins = _client.get_margins()
+                _scan   = load_cached_scan()
+                _dq     = "UNKNOWN"
+                if _scan and _entry == 0.0:
+                    for _rec in _scan.get("recommendations", []):
+                        if _rec.get("symbol") == _sym:
+                            _entry = _rec.get("entry_price", 0.0)
+                            _sl    = _sl or _rec.get("stop_loss", 0.0)
+                            _tgt   = _tgt or _rec.get("target_price", 0.0)
+                            _dq    = _rec.get("data_quality", "UNKNOWN")
+                            break
+                _engine = get_engine(_client)
+                _preview = _engine.build_preview(
+                    symbol=_sym, side=_side, quantity=_qty,
+                    entry_price=_entry, stop_loss=_sl, target=_tgt,
+                    data_quality=_dq, available_cash=_margins.available_cash,
+                    broker_connected=_conn.connected,
+                )
+                result = {"success": True, **_dc_asdict(_preview)}
+        elif command == "phase8_confirm1":
+            if len(args) < 3:
+                result = {"success": False, "error": "Usage: phase8_confirm1 <preview_id> <token>"}
+            else:
+                from execution_engine import get_engine
+                result = get_engine().step1_confirm(args[1], args[2])
+        elif command == "phase8_confirm2":
+            if len(args) < 3:
+                result = {"success": False, "error": "Usage: phase8_confirm2 <preview_id> <token>"}
+            else:
+                from broker_client import get_broker_client
+                from execution_engine import get_engine
+                _client = get_broker_client()
+                result = get_engine(_client).step2_submit(args[1], args[2])
+        elif command == "phase8_kill_switch":
+            if len(args) < 2:
+                result = {"success": False, "error": "Usage: phase8_kill_switch <on|off>"}
+            else:
+                from execution_engine import toggle_kill_switch
+                from dataclasses import asdict as _dc_asdict
+                _activate = args[1].lower() == "on"
+                _sc = toggle_kill_switch(_activate)
+                result = {"success": True, "kill_switch": _activate,
+                          "safety_controls": _dc_asdict(_sc),
+                          "message": f"Kill switch {'ACTIVATED — all orders blocked' if _activate else 'DEACTIVATED'}"}
+        elif command == "phase8_audit":
+            from execution_engine import get_audit_log
+            _limit = int(args[1]) if len(args) > 1 else 100
+            result = {"success": True, "audit_log": get_audit_log(_limit),
+                      "total_returned": min(_limit, 500)}
+        elif command == "phase8_export":
+            import json as _j
+            from broker_client import get_broker_client, masked_creds
+            from execution_engine import (get_execution_mode, get_safety_controls,
+                                          get_audit_log)
+            from live_scan_engine import load_cached_scan
+            from readiness_checker import LiveReadinessChecker
+            from dataclasses import asdict as _dc_asdict
+            import csv as _csv
+            _kind = args[1].lower() if len(args) > 1 else "json"
+            _client  = get_broker_client()
+            _conn    = _client.test_connection()
+            _margins = _client.get_margins()
+            _scan    = load_cached_scan()
+            _dq = "UNKNOWN"; _scan_ts = None
+            if _scan:
+                _ph = _scan.get("provider_health", {})
+                _dq = next((q for q in ["LIVE","NEAR_LIVE","STALE","UNAVAILABLE"]
+                             if _ph.get("quality_summary",{}).get(q,0)>0), "UNKNOWN")
+                _scan_ts = _scan.get("snapshot_ts")
+            _checker = LiveReadinessChecker(
+                broker_connection_status=_dc_asdict(_conn),
+                available_cash=_margins.available_cash,
+                data_quality=_dq, last_scan_ts=_scan_ts)
+            _ready = _checker.check()
+            _audit = get_audit_log(500)
+            _bundle = {
+                "generated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "phase": "8", "label": "PAPER / LIVE DATA VALIDATION",
+                "execution_mode": get_execution_mode(),
+                "credentials": masked_creds(),
+                "broker_health": _dc_asdict(_conn),
+                "margins": _dc_asdict(_margins),
+                "readiness": _dc_asdict(_ready),
+                "safety_controls": _dc_asdict(get_safety_controls()),
+                "audit_log": _audit,
+            }
+            import os as _os2
+            _export_dir = _os.path.join(_os.path.dirname(__file__), "exports")
+            _os2.makedirs(_export_dir, exist_ok=True)
+            if _kind == "json":
+                _fpath = _os.path.join(_export_dir, "phase8_export.json")
+                with open(_fpath, "w") as _f:
+                    _j.dump(_bundle, _f, indent=1, default=str)
+            else:
+                _fpath = _os.path.join(_export_dir, "phase8_export.csv")
+                with open(_fpath, "w", newline="") as _f:
+                    _w = _csv.writer(_f)
+                    _w.writerow(["## Phase 8 Broker & Execution Export", _bundle["generated_at"]])
+                    _w.writerow(["execution_mode", _bundle["execution_mode"]])
+                    _w.writerow(["broker_connected", _bundle["broker_health"].get("connected")])
+                    _w.writerow(["readiness_status", _bundle["readiness"]["status"]])
+                    _w.writerow(["readiness_score", _bundle["readiness"]["score"]])
+                    _w.writerow([]); _w.writerow(["## Audit Log"])
+                    if _audit:
+                        _cols = sorted({k for e in _audit for k in e.keys()})
+                        _w.writerow(_cols)
+                        for _e in _audit:
+                            _w.writerow([_e.get(_c, "") for _c in _cols])
+            result = {"success": True, "file": _fpath, "kind": _kind}
+
         elif command == "meta_health":
             from meta_learning import cmd_health
             result = cmd_health()

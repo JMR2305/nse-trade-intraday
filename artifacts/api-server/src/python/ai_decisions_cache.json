@@ -18,9 +18,9 @@
     "downgrade_reasons": [],
     "plain_english": "The raw signal for RELIANCE is NO_TRADE with confidence 45. No actionable trade \u2014 monitoring only.",
     "regime": "SIDEWAYS",
-    "timeframe_alignment": 2,
+    "timeframe_alignment": 3,
     "pass_all_rules": true,
-    "time": "2026-07-13T13:52:08.948568"
+    "time": "2026-07-14T19:06:04.826113"
   },
   {
     "stock": "TCS",
@@ -41,9 +41,9 @@
     "downgrade_reasons": [],
     "plain_english": "The raw signal for TCS is NO_TRADE with confidence 40. No actionable trade \u2014 monitoring only.",
     "regime": "SIDEWAYS",
-    "timeframe_alignment": 2,
+    "timeframe_alignment": 4,
     "pass_all_rules": true,
-    "time": "2026-07-13T13:52:08.948701"
+    "time": "2026-07-14T19:06:04.826220"
   },
   {
     "stock": "INFY",
@@ -64,9 +64,9 @@
     "downgrade_reasons": [],
     "plain_english": "The raw signal for INFY is NO_TRADE with confidence 30. No actionable trade \u2014 monitoring only.",
     "regime": "SIDEWAYS",
-    "timeframe_alignment": 1,
+    "timeframe_alignment": 2,
     "pass_all_rules": true,
-    "time": "2026-07-13T13:52:08.948785"
+    "time": "2026-07-14T19:06:04.826278"
   },
   {
     "stock": "HDFCBANK",
@@ -89,7 +89,7 @@
     "regime": "SIDEWAYS",
     "timeframe_alignment": 2,
     "pass_all_rules": true,
-    "time": "2026-07-13T13:52:08.948862"
+    "time": "2026-07-14T19:06:04.826341"
   },
   {
     "stock": "ICICIBANK",
@@ -112,7 +112,7 @@
     "regime": "SIDEWAYS",
     "timeframe_alignment": 4,
     "pass_all_rules": true,
-    "time": "2026-07-13T13:52:08.948939"
+    "time": "2026-07-14T19:06:04.826405"
   },
   {
     "stock": "SBIN",
@@ -133,9 +133,9 @@
     "downgrade_reasons": [],
     "plain_english": "The raw signal for SBIN is NO_TRADE with confidence 35. No actionable trade \u2014 monitoring only.",
     "regime": "SIDEWAYS",
-    "timeframe_alignment": 3,
+    "timeframe_alignment": 1,
     "pass_all_rules": true,
-    "time": "2026-07-13T13:52:08.949019"
+    "time": "2026-07-14T19:06:04.826464"
   },
   {
     "stock": "WIPRO",
@@ -158,7 +158,7 @@
     "regime": "SIDEWAYS",
     "timeframe_alignment": 1,
     "pass_all_rules": true,
-    "time": "2026-07-13T13:52:08.949093"
+    "time": "2026-07-14T19:06:04.826524"
   },
   {
     "stock": "LT",
@@ -181,7 +181,7 @@
     "regime": "SIDEWAYS",
     "timeframe_alignment": 2,
     "pass_all_rules": true,
-    "time": "2026-07-13T13:52:08.949174"
+    "time": "2026-07-14T19:06:04.826590"
   },
   {
     "stock": "BAJFINANCE",
@@ -202,9 +202,9 @@
     "downgrade_reasons": [],
     "plain_english": "The raw signal for BAJFINANCE is WATCH with confidence 65. No actionable trade \u2014 monitoring only.",
     "regime": "SIDEWAYS",
-    "timeframe_alignment": 4,
+    "timeframe_alignment": 2,
     "pass_all_rules": true,
-    "time": "2026-07-13T13:52:08.949245"
+    "time": "2026-07-14T19:06:04.826648"
   },
   {
     "stock": "MARUTI",
@@ -227,8 +227,8 @@
     ],
     "plain_english": "The raw signal for MARUTI is NO_TRADE with confidence 35. No actionable trade \u2014 monitoring only.",
     "regime": "SIDEWAYS",
-    "timeframe_alignment": 4,
+    "timeframe_alignment": 2,
     "pass_all_rules": true,
-    "time": "2026-07-13T13:52:08.949315"
+    "time": "2026-07-14T19:06:04.826704"
   }
 ]
