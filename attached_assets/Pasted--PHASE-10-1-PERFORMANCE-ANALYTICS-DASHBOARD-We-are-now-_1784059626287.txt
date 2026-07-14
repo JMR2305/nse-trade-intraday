@@ -1,0 +1,271 @@
+# PHASE 10.1 – PERFORMANCE ANALYTICS DASHBOARD
+
+We are now entering Phase 10 of the NSE Trader project.
+
+Objective:
+Create a brand-new page called **Performance Analytics** that transforms the application into a professional institutional-grade analytics platform.
+
+IMPORTANT:
+- Follow the existing dark theme.
+- Reuse the existing design system, cards, tables, badges, charts, spacing, and typography.
+- Do NOT break any existing functionality.
+- Use cached paper-trading data wherever available.
+- If sufficient historical data is unavailable, generate placeholder calculations while ensuring the architecture automatically supports real historical data as it accumulates.
+- The page must be fully responsive for desktop and tablet.
+
+----------------------------------------------------
+PAGE NAME
+----------------------------------------------------
+
+Performance Analytics
+
+Sidebar Icon:
+📊
+
+----------------------------------------------------
+SECTION 1 – PERFORMANCE SUMMARY
+----------------------------------------------------
+
+Create summary cards for:
+
+• Total Portfolio Return
+• Today's Return
+• Weekly Return
+• Monthly Return
+• Total Trades
+• Win Rate
+• Profit Factor
+• Average Winner
+• Average Loser
+• Expectancy
+
+Each card should display:
+
+- Current Value
+- Small trend indicator
+- Color coding
+- Tooltip explaining the metric
+
+----------------------------------------------------
+SECTION 2 – RISK ANALYTICS
+----------------------------------------------------
+
+Create a Risk Analytics section showing:
+
+• Maximum Drawdown
+• Current Drawdown
+• Sharpe Ratio
+• Sortino Ratio
+• Calmar Ratio
+• Portfolio Volatility
+• Beta
+• Risk Score
+
+Include appropriate visual gauges and progress bars.
+
+----------------------------------------------------
+SECTION 3 – PERFORMANCE CHARTS
+----------------------------------------------------
+
+Create professional charts for:
+
+1. Equity Curve
+
+2. Daily P&L
+
+3. Monthly Returns
+
+4. Drawdown Curve
+
+5. Cumulative Profit
+
+6. Win vs Loss Pie Chart
+
+All charts should automatically update from historical trading data.
+
+----------------------------------------------------
+SECTION 4 – STRATEGY PERFORMANCE
+----------------------------------------------------
+
+Create a table showing:
+
+Strategy
+Trades
+Wins
+Losses
+Win Rate
+Average Return
+Profit Factor
+Total Profit
+
+Include strategies such as:
+
+Trend Rider
+Supertrend
+Mean Reversion
+MACD Cross
+EMA Pullback
+VWAP
+Momentum
+Breakout
+
+----------------------------------------------------
+SECTION 5 – SECTOR PERFORMANCE
+----------------------------------------------------
+
+Display:
+
+Sector
+Trades
+Win Rate
+Average Return
+Total Profit
+
+Include sectors such as:
+
+IT
+Banking
+Finance
+Auto
+Pharma
+Energy
+FMCG
+Metals
+Infra
+Telecom
+
+----------------------------------------------------
+SECTION 6 – BEST & WORST TRADES
+----------------------------------------------------
+
+Create cards for:
+
+Best Trade
+
+Display:
+
+Stock
+Entry
+Exit
+Holding Days
+Return %
+Profit
+Strategy Used
+
+Worst Trade
+
+Display:
+
+Stock
+Loss %
+Loss Amount
+Reason
+Holding Days
+
+----------------------------------------------------
+SECTION 7 – AI PERFORMANCE
+----------------------------------------------------
+
+Create an AI Performance section showing:
+
+Prediction Accuracy
+
+Confidence Accuracy
+
+Average Confidence
+
+Average Opportunity Score
+
+Buy Signal Accuracy
+
+Sell Signal Accuracy
+
+Exit Signal Accuracy
+
+Average Holding Period
+
+Trade Quality Score
+
+Learning Score
+
+Display these using modern gauges and KPI cards.
+
+----------------------------------------------------
+SECTION 8 – HISTORICAL PERFORMANCE
+----------------------------------------------------
+
+Create a table containing:
+
+Trade Date
+
+Stock
+
+Strategy
+
+Entry
+
+Exit
+
+Return %
+
+Duration
+
+Confidence
+
+Opportunity Score
+
+Outcome
+
+Allow sorting and filtering.
+
+----------------------------------------------------
+SECTION 9 – BENCHMARK COMPARISON
+----------------------------------------------------
+
+Compare AI Portfolio against:
+
+NIFTY 50
+
+Bank Nifty
+
+Equal Weight Portfolio
+
+Buy & Hold
+
+Display:
+
+Return
+
+Outperformance
+
+Alpha
+
+Beta
+
+----------------------------------------------------
+SECTION 10 – EXPORTS
+----------------------------------------------------
+
+Provide buttons to export:
+
+PDF Report
+
+Excel Report
+
+CSV
+
+Performance Snapshot
+
+----------------------------------------------------
+GENERAL REQUIREMENTS
+----------------------------------------------------
+
+- Use reusable React components.
+- Keep the page responsive.
+- Follow existing UI styling.
+- Add loading skeletons where appropriate.
+- Display meaningful empty states if insufficient data exists.
+- Ensure charts automatically become richer as more historical trading data is collected.
+- Keep the implementation modular so future analytics can easily be added.
+
+This page should feel comparable to the analytics section of a professional institutional trading platform rather than a basic dashboard.

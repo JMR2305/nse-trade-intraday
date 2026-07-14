@@ -35,6 +35,7 @@ import LiveDataHealth from "@/pages/LiveDataHealth";
 import BrokerExecution from "@/pages/BrokerExecution";
 import AiCopilot from "@/pages/AiCopilot";
 import Notifications from "@/pages/Notifications";
+import PerformanceAnalytics from "@/pages/PerformanceAnalytics";
 
 const queryClient = new QueryClient();
 
@@ -72,6 +73,7 @@ function Router() {
         <Route path="/broker-execution" component={BrokerExecution} />
         <Route path="/ai-copilot" component={AiCopilot} />
         <Route path="/notifications" component={Notifications} />
+        <Route path="/performance-analytics" component={PerformanceAnalytics} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

@@ -2135,4 +2135,38 @@ router.get("/copilot/export", async (req, res) => {
   }
 });
 
+// ── Phase 10.1 — Performance Analytics ──────────────────────────────────────
+
+// GET /api/analytics/performance
+router.get("/analytics/performance", async (_req, res) => {
+  try {
+    const data = await runPython(["phase10_analytics"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/analytics/export?kind=json|csv|snapshot
+router.get("/analytics/export", async (req, res) => {
+  try {
+    const kind = String(req.query.kind ?? "json").toLowerCase();
+    if (!["json", "csv", "snapshot"].includes(kind)) {
+      res.status(400).json({ error: `Invalid export kind '${kind}'. Use json, csv, or snapshot.` });
+      return;
+    }
+    const data = await runPython(["phase10_export", kind]) as { file?: string };
+    if (data?.file && fs.existsSync(data.file)) {
+      const filename = path.basename(data.file);
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("Content-Type", kind === "csv" ? "text/csv" : "application/json");
+      res.send(fs.readFileSync(data.file));
+    } else {
+      res.json(data);
+    }
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 export default router;

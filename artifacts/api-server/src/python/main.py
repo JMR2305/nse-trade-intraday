@@ -1030,6 +1030,14 @@ def main():
             from copilot_engine import export_phase9
             result = export_phase9(args[1].lower() if len(args) > 1 else "json")
 
+        # ── Phase 10.1 — Performance Analytics ───────────────────────────────
+        elif command == "phase10_analytics":
+            from phase10_analytics import performance_analytics
+            result = performance_analytics()
+        elif command == "phase10_export":
+            from phase10_analytics import export_analytics
+            result = export_analytics(args[1].lower() if len(args) > 1 else "json")
+
         elif command == "meta_health":
             from meta_learning import cmd_health
             result = cmd_health()

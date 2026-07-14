@@ -1,0 +1,491 @@
+{
+  "success": true,
+  "generated_at": "2026-07-14T20:18:18Z",
+  "label": "PAPER / LIVE DATA VALIDATION",
+  "initial_capital": 5000.0,
+  "data_sufficiency": {
+    "closed_trades": 3,
+    "equity_points": 9,
+    "note": "Metrics computed from available paper-trading history; values flagged 'estimated' enrich automatically as more trades accumulate."
+  },
+  "summary": {
+    "total_return_pct": 9.84,
+    "total_return_amount": 492.15,
+    "portfolio_value": 5492.15,
+    "today_return": 0.0,
+    "weekly_return": 465.0,
+    "monthly_return": 465.0,
+    "total_trades": 3,
+    "win_rate_pct": 66.67,
+    "profit_factor": 8.75,
+    "avg_winner": 262.5,
+    "avg_loser": 60.0,
+    "expectancy": 155.0,
+    "wins": 2,
+    "losses": 1
+  },
+  "risk": {
+    "max_drawdown_pct": 1.15,
+    "current_drawdown_pct": 0.0,
+    "sharpe": 8.18,
+    "sortino": 47.2,
+    "calmar": 8.56,
+    "volatility_pct": 37.18,
+    "beta": -10.33,
+    "beta_estimated": true,
+    "risk_score": 51.6,
+    "risk_level": "MEDIUM",
+    "estimated": true,
+    "observations": 8
+  },
+  "charts": {
+    "equity_curve": [
+      {
+        "ts": "2026-07-08T20:59:59",
+        "date": "2026-07-08",
+        "equity": 5000.0
+      },
+      {
+        "ts": "2026-07-08T20:59:59",
+        "date": "2026-07-08",
+        "equity": 5000.0
+      },
+      {
+        "ts": "2026-07-08T21:50:57",
+        "date": "2026-07-08",
+        "equity": 5000.0
+      },
+      {
+        "ts": "2026-07-08T21:50:57",
+        "date": "2026-07-08",
+        "equity": 5225.0
+      },
+      {
+        "ts": "2026-07-08T21:50:57",
+        "date": "2026-07-08",
+        "equity": 5225.0
+      },
+      {
+        "ts": "2026-07-08T21:50:57",
+        "date": "2026-07-08",
+        "equity": 5165.0
+      },
+      {
+        "ts": "2026-07-08T21:50:57",
+        "date": "2026-07-08",
+        "equity": 5165.0
+      },
+      {
+        "ts": "2026-07-08T21:50:57",
+        "date": "2026-07-08",
+        "equity": 5465.0
+      },
+      {
+        "ts": "2026-07-14T20:18:18",
+        "date": "2026-07-14",
+        "equity": 5492.15
+      }
+    ],
+    "daily_pnl": [
+      {
+        "date": "2026-07-08",
+        "pnl": 465.0
+      }
+    ],
+    "monthly_returns": [
+      {
+        "month": "2026-07",
+        "pnl": 465.0,
+        "return_pct": 9.3
+      }
+    ],
+    "drawdown": [
+      {
+        "date": "2026-07-08",
+        "drawdown_pct": 0.0
+      },
+      {
+        "date": "2026-07-08",
+        "drawdown_pct": 0.0
+      },
+      {
+        "date": "2026-07-08",
+        "drawdown_pct": 0.0
+      },
+      {
+        "date": "2026-07-08",
+        "drawdown_pct": 0.0
+      },
+      {
+        "date": "2026-07-08",
+        "drawdown_pct": 0.0
+      },
+      {
+        "date": "2026-07-08",
+        "drawdown_pct": -1.15
+      },
+      {
+        "date": "2026-07-08",
+        "drawdown_pct": -1.15
+      },
+      {
+        "date": "2026-07-08",
+        "drawdown_pct": 0.0
+      },
+      {
+        "date": "2026-07-14",
+        "drawdown_pct": 0.0
+      }
+    ],
+    "cumulative_profit": [
+      {
+        "date": "2026-07-08",
+        "cumulative_profit": 465.0
+      }
+    ],
+    "win_loss": {
+      "wins": 2,
+      "losses": 1
+    }
+  },
+  "strategy_performance": [
+    {
+      "strategy": "AI Scan",
+      "trades": 3,
+      "wins": 2,
+      "losses": 1,
+      "win_rate_pct": 66.67,
+      "avg_return_pct": 3.8,
+      "profit_factor": 8.75,
+      "total_profit": 465.0
+    },
+    {
+      "strategy": "Trend Rider",
+      "trades": 0,
+      "wins": 0,
+      "losses": 0,
+      "win_rate_pct": 0.0,
+      "avg_return_pct": 0.0,
+      "profit_factor": 0.0,
+      "total_profit": 0.0
+    },
+    {
+      "strategy": "Supertrend",
+      "trades": 0,
+      "wins": 0,
+      "losses": 0,
+      "win_rate_pct": 0.0,
+      "avg_return_pct": 0.0,
+      "profit_factor": 0.0,
+      "total_profit": 0.0
+    },
+    {
+      "strategy": "Mean Reversion",
+      "trades": 0,
+      "wins": 0,
+      "losses": 0,
+      "win_rate_pct": 0.0,
+      "avg_return_pct": 0.0,
+      "profit_factor": 0.0,
+      "total_profit": 0.0
+    },
+    {
+      "strategy": "MACD Cross",
+      "trades": 0,
+      "wins": 0,
+      "losses": 0,
+      "win_rate_pct": 0.0,
+      "avg_return_pct": 0.0,
+      "profit_factor": 0.0,
+      "total_profit": 0.0
+    },
+    {
+      "strategy": "EMA Pullback",
+      "trades": 0,
+      "wins": 0,
+      "losses": 0,
+      "win_rate_pct": 0.0,
+      "avg_return_pct": 0.0,
+      "profit_factor": 0.0,
+      "total_profit": 0.0
+    },
+    {
+      "strategy": "VWAP",
+      "trades": 0,
+      "wins": 0,
+      "losses": 0,
+      "win_rate_pct": 0.0,
+      "avg_return_pct": 0.0,
+      "profit_factor": 0.0,
+      "total_profit": 0.0
+    },
+    {
+      "strategy": "Momentum",
+      "trades": 0,
+      "wins": 0,
+      "losses": 0,
+      "win_rate_pct": 0.0,
+      "avg_return_pct": 0.0,
+      "profit_factor": 0.0,
+      "total_profit": 0.0
+    },
+    {
+      "strategy": "Breakout",
+      "trades": 0,
+      "wins": 0,
+      "losses": 0,
+      "win_rate_pct": 0.0,
+      "avg_return_pct": 0.0,
+      "profit_factor": 0.0,
+      "total_profit": 0.0
+    }
+  ],
+  "sector_performance": [
+    {
+      "sector": "BANKING",
+      "trades": 3,
+      "wins": 2,
+      "losses": 1,
+      "win_rate_pct": 66.67,
+      "avg_return_pct": 3.8,
+      "profit_factor": 8.75,
+      "total_profit": 465.0
+    },
+    {
+      "sector": "IT",
+      "trades": 0,
+      "wins": 0,
+      "losses": 0,
+      "win_rate_pct": 0.0,
+      "avg_return_pct": 0.0,
+      "profit_factor": 0.0,
+      "total_profit": 0.0
+    },
+    {
+      "sector": "FINANCE",
+      "trades": 0,
+      "wins": 0,
+      "losses": 0,
+      "win_rate_pct": 0.0,
+      "avg_return_pct": 0.0,
+      "profit_factor": 0.0,
+      "total_profit": 0.0
+    },
+    {
+      "sector": "AUTO",
+      "trades": 0,
+      "wins": 0,
+      "losses": 0,
+      "win_rate_pct": 0.0,
+      "avg_return_pct": 0.0,
+      "profit_factor": 0.0,
+      "total_profit": 0.0
+    },
+    {
+      "sector": "PHARMA",
+      "trades": 0,
+      "wins": 0,
+      "losses": 0,
+      "win_rate_pct": 0.0,
+      "avg_return_pct": 0.0,
+      "profit_factor": 0.0,
+      "total_profit": 0.0
+    },
+    {
+      "sector": "ENERGY",
+      "trades": 0,
+      "wins": 0,
+      "losses": 0,
+      "win_rate_pct": 0.0,
+      "avg_return_pct": 0.0,
+      "profit_factor": 0.0,
+      "total_profit": 0.0
+    },
+    {
+      "sector": "FMCG",
+      "trades": 0,
+      "wins": 0,
+      "losses": 0,
+      "win_rate_pct": 0.0,
+      "avg_return_pct": 0.0,
+      "profit_factor": 0.0,
+      "total_profit": 0.0
+    },
+    {
+      "sector": "METALS",
+      "trades": 0,
+      "wins": 0,
+      "losses": 0,
+      "win_rate_pct": 0.0,
+      "avg_return_pct": 0.0,
+      "profit_factor": 0.0,
+      "total_profit": 0.0
+    },
+    {
+      "sector": "INFRA",
+      "trades": 0,
+      "wins": 0,
+      "losses": 0,
+      "win_rate_pct": 0.0,
+      "avg_return_pct": 0.0,
+      "profit_factor": 0.0,
+      "total_profit": 0.0
+    },
+    {
+      "sector": "TELECOM",
+      "trades": 0,
+      "wins": 0,
+      "losses": 0,
+      "win_rate_pct": 0.0,
+      "avg_return_pct": 0.0,
+      "profit_factor": 0.0,
+      "total_profit": 0.0
+    }
+  ],
+  "best_worst": {
+    "best": {
+      "trade_id": "58152a3e",
+      "date": "2026-07-08",
+      "symbol": "SBIN",
+      "sector": "BANKING",
+      "strategy": "AI Scan",
+      "entry": 1020.0,
+      "exit": 1095.0,
+      "quantity": 4,
+      "pnl": 300.0,
+      "return_pct": 7.35,
+      "holding_days": 0,
+      "exit_type": "SIGNAL_EXIT",
+      "reason": "Near target \u2014 partial exit",
+      "confidence": 82.0,
+      "opportunity_score": null,
+      "outcome": "WIN"
+    },
+    "worst": {
+      "trade_id": "c5ed96de",
+      "date": "2026-07-08",
+      "symbol": "ICICIBANK",
+      "sector": "BANKING",
+      "strategy": "AI Scan",
+      "entry": 1400.0,
+      "exit": 1380.0,
+      "quantity": 3,
+      "pnl": -60.0,
+      "return_pct": -1.43,
+      "holding_days": 0,
+      "exit_type": "STOP_HIT",
+      "reason": "Stop loss triggered",
+      "confidence": 65.0,
+      "opportunity_score": null,
+      "outcome": "LOSS"
+    }
+  },
+  "ai_performance": {
+    "prediction_accuracy_pct": 66.67,
+    "confidence_accuracy_pct": 66.67,
+    "avg_confidence": 14.04,
+    "avg_opportunity_score": 24.33,
+    "buy_signal_accuracy_pct": 66.67,
+    "sell_signal_accuracy_pct": 100.0,
+    "exit_signal_accuracy_pct": 100.0,
+    "avg_holding_days": 0.0,
+    "trade_quality_score": 100.0,
+    "learning_score": 83.33,
+    "estimated": true,
+    "closed_trades_used": 3
+  },
+  "historical_trades": [
+    {
+      "trade_id": "e74d9c83",
+      "date": "2026-07-08",
+      "symbol": "HDFCBANK",
+      "sector": "BANKING",
+      "strategy": "AI Scan",
+      "entry": 820.0,
+      "exit": 865.0,
+      "quantity": 5,
+      "pnl": 225.0,
+      "return_pct": 5.49,
+      "holding_days": 0,
+      "exit_type": "TARGET_HIT",
+      "reason": "Target approached \u2014 taking profit",
+      "confidence": 72.0,
+      "opportunity_score": null,
+      "outcome": "WIN"
+    },
+    {
+      "trade_id": "c5ed96de",
+      "date": "2026-07-08",
+      "symbol": "ICICIBANK",
+      "sector": "BANKING",
+      "strategy": "AI Scan",
+      "entry": 1400.0,
+      "exit": 1380.0,
+      "quantity": 3,
+      "pnl": -60.0,
+      "return_pct": -1.43,
+      "holding_days": 0,
+      "exit_type": "STOP_HIT",
+      "reason": "Stop loss triggered",
+      "confidence": 65.0,
+      "opportunity_score": null,
+      "outcome": "LOSS"
+    },
+    {
+      "trade_id": "58152a3e",
+      "date": "2026-07-08",
+      "symbol": "SBIN",
+      "sector": "BANKING",
+      "strategy": "AI Scan",
+      "entry": 1020.0,
+      "exit": 1095.0,
+      "quantity": 4,
+      "pnl": 300.0,
+      "return_pct": 7.35,
+      "holding_days": 0,
+      "exit_type": "SIGNAL_EXIT",
+      "reason": "Near target \u2014 partial exit",
+      "confidence": 82.0,
+      "opportunity_score": null,
+      "outcome": "WIN"
+    }
+  ],
+  "benchmarks": [
+    {
+      "benchmark": "NIFTY 50",
+      "benchmark_return_pct": -0.9,
+      "portfolio_return_pct": 9.84,
+      "outperformance_pct": 10.74,
+      "alpha": 10.74,
+      "beta": 1.0,
+      "estimated": false
+    },
+    {
+      "benchmark": "Bank Nifty",
+      "benchmark_return_pct": -0.27,
+      "portfolio_return_pct": 9.84,
+      "outperformance_pct": 10.11,
+      "alpha": 10.11,
+      "beta": 1.0,
+      "estimated": false
+    },
+    {
+      "benchmark": "Equal Weight Portfolio",
+      "benchmark_return_pct": -0.81,
+      "portfolio_return_pct": 9.84,
+      "outperformance_pct": 10.65,
+      "alpha": 10.57,
+      "beta": 0.9,
+      "estimated": false
+    },
+    {
+      "benchmark": "Buy & Hold",
+      "benchmark_return_pct": -0.9,
+      "portfolio_return_pct": 9.84,
+      "outperformance_pct": 10.74,
+      "alpha": 10.74,
+      "beta": 1.0,
+      "estimated": false
+    }
+  ]
+}
