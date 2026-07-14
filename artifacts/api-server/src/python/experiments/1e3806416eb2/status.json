@@ -1,8 +1,8 @@
 {
   "id": "1e3806416eb2",
-  "status": "queued",
+  "status": "rejected",
   "created_at": "2026-07-14T04:55:17.224255",
-  "updated_at": "2026-07-14T04:55:17.224255",
+  "updated_at": "2026-07-14T05:44:44.715015",
   "name": "Submission Pipeline Test",
   "description": "",
   "tags": [
@@ -18,7 +18,7 @@
     "universe_size": 0,
     "intrabar_rule": "conservative",
     "max_holding_days": 20,
-    "min_confidence_execute": 55.0
+    "min_confidence_execute": 55
   },
   "batch_id": "",
   "batch_name": "",
@@ -34,6 +34,42 @@
     "universe_size": 0,
     "intrabar_rule": "conservative",
     "max_holding_days": 20,
-    "min_confidence_execute": 55.0
+    "min_confidence_execute": 55
+  },
+  "pid": 346,
+  "started_at": "2026-07-14T05:33:38.369556",
+  "completed_at": "2026-07-14T05:44:44.715015",
+  "verdict": "INSUFFICIENT DATA",
+  "score": 17.0,
+  "score_breakdown": {
+    "profit_factor": 0.0,
+    "expectancy": 0.0,
+    "sharpe": 0.0,
+    "drawdown": 15.0,
+    "calibration": 0.0,
+    "evidence": 2.0
+  },
+  "overfitting_flags": [
+    "insufficient_oos_trades (10 < 25 hard limit)"
+  ],
+  "auto_rejected": true,
+  "metrics": {
+    "total_trades": 10,
+    "total_return_pct": -1.2,
+    "net_pnl": -59.75,
+    "win_rate": 30.0,
+    "profit_factor": 0.69,
+    "expectancy": -5.97,
+    "sharpe": -0.97,
+    "max_drawdown_pct": 3.6,
+    "brier_score": null,
+    "ece": null,
+    "ev_verdict": "INSUFFICIENT_EVIDENCE",
+    "ev_trades": 10,
+    "windows": 2,
+    "generated_at": "2026-07-14T05:44:44",
+    "run_seconds": 666.1,
+    "verdict": "INSUFFICIENT DATA",
+    "universe_size": 48
   }
 }

@@ -236,15 +236,74 @@ def _config_path(exp_id: str) -> str:
 def _result_path(exp_id: str) -> str:
     return os.path.join(_exp_dir(exp_id), "wf_result.json")
 
+def _pid_alive(pid) -> bool:
+    """True only if the PID exists AND is actually an experiment runner.
+
+    A bare os.kill(pid, 0) check is unsafe: after a crash/restart the PID can
+    be reused by an unrelated process, leaving a dead run stuck at 'running'.
+    """
+    try:
+        pid = int(pid)
+        if pid <= 0:
+            return False
+        os.kill(pid, 0)
+    except (TypeError, ValueError, ProcessLookupError):
+        return False
+    except PermissionError:
+        pass  # exists; verify identity below
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            cmdline = f.read().replace(b"\0", b" ").decode("utf-8", "replace")
+    except Exception:
+        return False
+    return ("experiment_run" in cmdline or "main.py" in cmdline) and "python" in cmdline.lower()
+
+
+def _reconcile_stale(exp_id: str, status: dict) -> dict:
+    """If a status says 'running' but the runner process is gone, mark it failed.
+
+    A grace period protects the placeholder written just before spawn
+    (which may briefly lack a live PID).
+    """
+    if status.get("status") != "running":
+        return status
+    if _pid_alive(status.get("pid")):
+        return status
+
+    # Grace period: don't kill runs started within the last 2 minutes
+    started = status.get("started_at") or status.get("updated_at") or ""
+    try:
+        started_dt = datetime.fromisoformat(str(started).replace("Z", "+00:00"))
+        age = (datetime.now(started_dt.tzinfo) - started_dt).total_seconds()
+        if age < 120:
+            return status
+    except Exception:
+        pass
+
+    status["status"] = "failed"
+    status["error"] = (
+        "Run process terminated unexpectedly (stale 'running' state reconciled). "
+        "The runner process is no longer alive — likely killed by a server restart "
+        "or out-of-memory. Re-queue or re-run the experiment."
+    )
+    status["updated_at"] = datetime.now().isoformat()
+    try:
+        _write_status(exp_id, status)
+    except Exception:
+        pass
+    return status
+
+
 def _read_status(exp_id: str) -> dict:
     p = _status_path(exp_id)
     if not os.path.exists(p):
         return {}
     try:
         with open(p) as f:
-            return json.load(f)
+            status = json.load(f)
     except Exception:
         return {}
+    return _reconcile_stale(exp_id, status)
 
 def _write_status(exp_id: str, payload: dict) -> None:
     p   = _status_path(exp_id)

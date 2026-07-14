@@ -1,0 +1,40 @@
+{
+  "id": "95a7ff31918c",
+  "status": "running",
+  "created_at": "2026-07-14T05:33:23.783696",
+  "updated_at": "2026-07-14T09:17:27.978332",
+  "name": "Bull Market \u2014 Jul 2026",
+  "description": "",
+  "tags": [],
+  "config_hash": "6d319b942c83",
+  "canonical_config": {
+    "train_years": 1,
+    "test_months": 3,
+    "step_months": 3,
+    "start_date": "2023-04-01",
+    "end_date": "2025-12-31",
+    "universe_size": 0,
+    "intrabar_rule": "conservative",
+    "max_holding_days": 20,
+    "min_confidence_execute": 55
+  },
+  "batch_id": "",
+  "batch_name": "",
+  "batch_index": 0,
+  "template_id": "bull_market",
+  "template_family": "market_conditions",
+  "config_summary": {
+    "train_years": 1,
+    "test_months": 3,
+    "step_months": 3,
+    "start_date": "2023-04-01",
+    "end_date": "2025-12-31",
+    "universe_size": 0,
+    "intrabar_rule": "conservative",
+    "max_holding_days": 20,
+    "min_confidence_execute": 55
+  },
+  "pid": 802,
+  "started_at": "2026-07-14T09:17:27.978332",
+  "error": "Run process terminated unexpectedly (stale 'running' state reconciled). The runner process is no longer alive \u2014 likely killed by a server restart or out-of-memory. Re-queue or re-run the experiment."
+}

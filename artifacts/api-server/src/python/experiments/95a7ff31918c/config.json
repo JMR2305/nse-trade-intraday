@@ -1,0 +1,14 @@
+{
+  "train_years": 1,
+  "test_months": 3,
+  "step_months": 3,
+  "start_date": "2023-04-01",
+  "end_date": "2025-12-31",
+  "universe_size": 0,
+  "intrabar_rule": "conservative",
+  "max_holding_days": 20,
+  "min_confidence_execute": 55,
+  "name": "Bull Market \u2014 Jul 2026",
+  "template_id": "bull_market",
+  "template_family": "market_conditions"
+}

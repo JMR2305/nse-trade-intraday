@@ -1,0 +1,96 @@
+section,metric,value
+meta,generated_at,2026-07-14T08:26:02
+meta,verdict,INSUFFICIENT DATA
+meta,verdict_summary,Only 63 completed out-of-sample trades across 2 test window(s) — at least 100 trades and 2 windows are required for a reliable verdict.
+base model,total_trades,69
+base model,winning_trades,30
+base model,losing_trades,39
+base model,win_rate,43.5
+base model,gross_profit,629.19
+base model,gross_loss,-788.7
+base model,net_profit,-159.51
+base model,total_return_pct,-3.19
+base model,annualized_return_pct,-6.38
+base model,avg_return_per_trade_pct,-0.28
+base model,expectancy,-2.31
+base model,profit_factor,0.8
+base model,sharpe_ratio,-1.02
+base model,sortino_ratio,-2.19
+base model,max_drawdown_pct,10.18
+base model,recovery_factor,-0.3
+base model,calmar_ratio,-0.63
+base model,avg_holding_days,4.5
+base model,exposure_pct,100.0
+base model,turnover,12.1
+base model,total_costs,225.2
+base model,avg_win,20.97
+base model,avg_loss,20.22
+base model,largest_winner,102.4
+base model,largest_loser,-53.05
+base model,max_consecutive_wins,5
+base model,max_consecutive_losses,8
+pattern+similarity,total_trades,69
+pattern+similarity,winning_trades,30
+pattern+similarity,losing_trades,39
+pattern+similarity,win_rate,43.5
+pattern+similarity,gross_profit,629.19
+pattern+similarity,gross_loss,-788.7
+pattern+similarity,net_profit,-159.51
+pattern+similarity,total_return_pct,-3.19
+pattern+similarity,annualized_return_pct,-6.38
+pattern+similarity,avg_return_per_trade_pct,-0.28
+pattern+similarity,expectancy,-2.31
+pattern+similarity,profit_factor,0.8
+pattern+similarity,sharpe_ratio,-1.02
+pattern+similarity,sortino_ratio,-2.19
+pattern+similarity,max_drawdown_pct,10.18
+pattern+similarity,recovery_factor,-0.3
+pattern+similarity,calmar_ratio,-0.63
+pattern+similarity,avg_holding_days,4.5
+pattern+similarity,exposure_pct,100.0
+pattern+similarity,turnover,12.1
+pattern+similarity,total_costs,225.2
+pattern+similarity,avg_win,20.97
+pattern+similarity,avg_loss,20.22
+pattern+similarity,largest_winner,102.4
+pattern+similarity,largest_loser,-53.05
+pattern+similarity,max_consecutive_wins,5
+pattern+similarity,max_consecutive_losses,8
+full model,total_trades,63
+full model,winning_trades,30
+full model,losing_trades,33
+full model,win_rate,47.6
+full model,gross_profit,514.13
+full model,gross_loss,-599.5
+full model,net_profit,-85.37
+full model,total_return_pct,-1.71
+full model,annualized_return_pct,-3.44
+full model,avg_return_per_trade_pct,-0.17
+full model,expectancy,-1.36
+full model,profit_factor,0.86
+full model,sharpe_ratio,-0.61
+full model,sortino_ratio,-1.31
+full model,max_drawdown_pct,7.43
+full model,recovery_factor,-0.22
+full model,calmar_ratio,-0.46
+full model,avg_holding_days,4.3
+full model,exposure_pct,100.0
+full model,turnover,10.78
+full model,total_costs,200.8
+full model,avg_win,17.14
+full model,avg_loss,18.17
+full model,largest_winner,102.4
+full model,largest_loser,-53.05
+full model,max_consecutive_wins,4
+full model,max_consecutive_losses,7
+benchmarks,nifty_buy_hold_pct,2.61
+benchmarks,equal_weight_pct,0.43
+benchmarks,rule_engine_pct,2.72
+benchmarks,technical_confidence_only_pct,-3.19
+benchmarks,random_selection_pct,-2.2
+benchmarks,cash_pct,0.0
+benchmarks,full_model_pct,-1.71
+benchmarks,note,Window returns summed across test windows (each window restarts at the configured capital); the full model line is the compounded overall return.
+verdict_check,Completed out-of-sample trades,observed=63 threshold=>=100 passed=False
+verdict_check,Test windows evaluated,observed=2 threshold=>=2 passed=True
+safety,message,Out-of-sample historical performance does not guarantee future results. Paper trading and research only.

@@ -1,8 +1,8 @@
 {
   "id": "c3b29a0fe086",
-  "status": "queued",
+  "status": "completed",
   "created_at": "2026-07-14T04:55:17.946356",
-  "updated_at": "2026-07-14T04:55:17.946356",
+  "updated_at": "2026-07-14T08:26:02.378012",
   "name": "Bear Market Smoke Test",
   "description": "",
   "tags": [],
@@ -16,7 +16,7 @@
     "universe_size": 0,
     "intrabar_rule": "conservative",
     "max_holding_days": 20,
-    "min_confidence_execute": 55.0
+    "min_confidence_execute": 55
   },
   "batch_id": "",
   "batch_name": "",
@@ -32,6 +32,40 @@
     "universe_size": 0,
     "intrabar_rule": "conservative",
     "max_holding_days": 20,
-    "min_confidence_execute": 55.0
+    "min_confidence_execute": 55
+  },
+  "pid": 281,
+  "started_at": "2026-07-14T08:24:24.911617",
+  "completed_at": "2026-07-14T08:26:02.378012",
+  "verdict": "INSUFFICIENT DATA",
+  "score": 17.0,
+  "score_breakdown": {
+    "profit_factor": 0.0,
+    "expectancy": 0.0,
+    "sharpe": 0.0,
+    "drawdown": 15.0,
+    "calibration": 0.0,
+    "evidence": 2.0
+  },
+  "overfitting_flags": [],
+  "auto_rejected": false,
+  "metrics": {
+    "total_trades": 63,
+    "total_return_pct": -1.71,
+    "net_pnl": -85.37,
+    "win_rate": 47.6,
+    "profit_factor": 0.86,
+    "expectancy": -1.36,
+    "sharpe": -0.61,
+    "max_drawdown_pct": 7.43,
+    "brier_score": null,
+    "ece": null,
+    "ev_verdict": "INSUFFICIENT_EVIDENCE",
+    "ev_trades": 63,
+    "windows": 2,
+    "generated_at": "2026-07-14T08:26:02",
+    "run_seconds": 97.4,
+    "verdict": "INSUFFICIENT DATA",
+    "universe_size": 48
   }
 }
