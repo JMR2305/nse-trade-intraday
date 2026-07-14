@@ -1,0 +1,253 @@
+# 🚀 Phase 5 – AI Research Intelligence & Strategy Improvement Engine
+
+The Research Factory UI is now mature and functioning well. The next phase is not about adding more dashboards. It is about making the research engine genuinely intelligent.
+
+Important Principles
+
+- Continue operating in Research Only mode.
+- No feature in this phase should influence live or paper trading automatically.
+- All outputs must clearly state that recommendations are research suggestions only.
+- Maintain strict no-lookahead validation and walk-forward methodology.
+
+---------------------------------------------------------
+1. Trade Diagnostics Engine
+---------------------------------------------------------
+
+Create a detailed diagnostics engine that automatically analyzes every completed trade.
+
+For every winning and losing trade, explain:
+
+- Why the trade was entered.
+- Why it succeeded or failed.
+- Market regime at entry.
+- Sector strength.
+- Trend strength.
+- Confidence score.
+- Indicator values (MACD, RSI, EMA, ATR, etc.).
+- Holding period.
+- Exit reason.
+- Whether the trade respected all filters.
+- Whether another strategy would have avoided or improved the result.
+
+Create an expandable "Trade Diagnosis" section for every trade.
+
+---------------------------------------------------------
+2. Winning vs Losing Pattern Discovery
+---------------------------------------------------------
+
+Build an AI pattern discovery engine that scans all completed experiments and automatically identifies patterns.
+
+Examples:
+
+- Trend Rider performs best during strong bullish trends.
+- Mean Reversion performs better during sideways markets.
+- MACD Cross struggles after gap openings.
+- High-confidence trades are not necessarily higher quality.
+- Energy sector underperformed.
+- Finance sector produced most drawdown.
+- Long holding periods reduced expectancy.
+
+Display findings in a new Research Insights page.
+
+---------------------------------------------------------
+3. AI Recommendation Engine
+---------------------------------------------------------
+
+Generate research recommendations after every completed experiment.
+
+Examples:
+
+- Increase confidence threshold from 55% to 68%.
+- Reduce maximum holding period from 20 to 12 days.
+- Add sector-strength filter.
+- Skip Neutral-Bullish regime.
+- Reduce Trend Rider allocation.
+- Increase Mean Reversion allocation.
+- Require higher ADX before Trend Rider entries.
+- Remove strategies that consistently underperform.
+
+Recommendations must:
+
+- Never modify live settings automatically.
+- Clearly indicate expected benefit.
+- Explain supporting evidence.
+- Show confidence level for each recommendation.
+
+---------------------------------------------------------
+4. Experiment Comparison Dashboard
+---------------------------------------------------------
+
+Create a comparison workspace where multiple completed experiments can be analyzed side-by-side.
+
+Compare:
+
+- Profit Factor
+- Expectancy
+- Net Return
+- Net P&L
+- Win Rate
+- Sharpe Ratio
+- Drawdown
+- Recovery
+- Calibration
+- Evidence Score
+- Number of Trades
+- Market Regime
+- Best Strategy
+- Worst Strategy
+
+Allow comparison of:
+
+- Bear Market
+- Bull Market
+- Sideways
+- High Volatility
+- Low Volatility
+- Custom Experiments
+
+Include sortable tables and visual comparisons.
+
+---------------------------------------------------------
+5. Cross-Experiment Learning
+---------------------------------------------------------
+
+Instead of treating experiments independently, allow the system to learn across all experiments.
+
+Examples:
+
+- Which strategy performs consistently?
+- Which sectors consistently underperform?
+- Which market regime is safest?
+- Which confidence band produces the highest expectancy?
+- Which parameter combinations repeatedly fail?
+- Which filters consistently improve performance?
+
+Present these findings in a dedicated Learning Summary.
+
+---------------------------------------------------------
+6. Portfolio Improvement Suggestions
+---------------------------------------------------------
+
+Create a research-only optimizer that suggests improvements such as:
+
+- Reweight strategy allocations.
+- Reduce exposure during weak regimes.
+- Increase cash allocation during poor market conditions.
+- Adjust confidence thresholds.
+- Adjust holding periods.
+- Recommend enabling or disabling strategies.
+
+All suggestions are advisory only.
+
+---------------------------------------------------------
+7. Strategy Health Score
+---------------------------------------------------------
+
+Create an overall health score for every strategy based on:
+
+- Profit Factor
+- Sharpe
+- Drawdown
+- Stability
+- Consistency
+- Evidence Quality
+- Calibration
+- Robustness
+
+Display:
+
+- Excellent
+- Good
+- Average
+- Weak
+- Reject
+
+with explanations for the rating.
+
+---------------------------------------------------------
+8. Historical Learning Timeline
+---------------------------------------------------------
+
+Create a timeline showing how the AI has improved over time.
+
+Include:
+
+- Strategy changes
+- Parameter improvements
+- Evidence growth
+- Calibration improvements
+- Performance evolution
+- Major discoveries
+- Recommendation history
+
+---------------------------------------------------------
+9. Visual Analytics
+---------------------------------------------------------
+
+Add additional charts where appropriate:
+
+- Strategy contribution over time
+- Sector contribution over time
+- Confidence vs Expectancy
+- Trade duration distribution
+- Monthly performance heatmap
+- Win/Loss calendar
+- Parameter sensitivity charts
+- Recommendation impact projections
+
+Maintain the existing dark theme and responsive layout.
+
+---------------------------------------------------------
+10. Completion Report
+---------------------------------------------------------
+
+After implementation, provide:
+
+Summary
+
+- Features implemented
+- Files modified
+- APIs added
+- Database changes
+- Performance considerations
+
+Screenshots
+
+Provide screenshots of:
+
+- Trade Diagnostics page
+- Research Insights page
+- Experiment Comparison dashboard
+- AI Recommendation panel
+- Strategy Health dashboard
+- Learning Timeline
+- Any new visualizations
+
+Demonstration
+
+Run at least one completed experiment and demonstrate:
+
+- Trade diagnosis
+- AI-generated recommendations
+- Cross-experiment learning
+- Strategy comparison
+- Research insights
+
+---------------------------------------------------------
+Safety Requirements
+---------------------------------------------------------
+
+Maintain all existing safeguards:
+
+- Research Only
+- Paper Trading Only
+- No Live Orders
+- No Auto Promotion
+- No Automatic Strategy Changes
+- Strict Walk-Forward Validation
+- No Look-Ahead Bias
+- Out-of-Sample Evaluation
+
+Ensure every recommendation is clearly labelled as research guidance only and cannot influence live execution without explicit user approval.
+
+This phase marks the transition from a research dashboard to a true AI Quant Research Assistant capable of learning from historical experiments, explaining results, and recommending evidence-based strategy improvements while preserving strict research-only safety controls.

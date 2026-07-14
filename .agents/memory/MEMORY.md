@@ -7,3 +7,5 @@
 - [Walk-forward run performance](walk-forward-performance.md) — per-decision Python scans over the knowledge base explode on late-dated windows; numpy fast path must stay equivalent to the slow loop.
 - [Research ledger conventions](research-ledger.md) — Phase 4.2 observational instrumentation rules: never alter sim decisions, verify rerun metric equivalence, join trades on window+symbol+entry_date.
 - [Research report engine conventions](report-engine-conventions.md) — file-based reports with hash idempotency, research-only guardrails, 19-section UI, confirm-to-queue suggestions.
+- [API route dev reload](api-route-reload.md) — new Express routes in the API server are not hot-reloaded; restart the API workflow before curl-testing new endpoints or they 404.
+- [Research intelligence conventions](research-intelligence-conventions.md) — Phase 5 engine rules: honest N/A for missing indicators, advisory-only outputs, safe numeric coercion for dirty trade CSVs.

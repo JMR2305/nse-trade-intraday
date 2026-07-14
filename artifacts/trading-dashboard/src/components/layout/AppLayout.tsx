@@ -76,6 +76,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         { href: "/feature-importance", label: "Feature Importance", icon: BarChart3 },
         { href: "/walk-forward", label: "Walk-Forward Validation", icon: Route },
         { href: "/experiments",  label: "Research Factory",        icon: TestTubes },
+        { href: "/research-intelligence", label: "Research Intelligence", icon: Brain },
       ],
     },
   ];

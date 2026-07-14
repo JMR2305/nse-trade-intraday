@@ -692,6 +692,27 @@ def main():
                 elif command == "report_export_csv":
                     from report_exports import export_csv_zip
                     result = export_csv_zip(_dir)
+        elif command == "research_intelligence":
+            # Phase 5 — cross-experiment research intelligence (analysis only)
+            from research_intelligence import build_intelligence
+            result = build_intelligence()
+        elif command == "experiment_compare" and len(args) >= 2:
+            import re as _re
+            from research_intelligence import compare_experiments
+            _ids = [i for i in args[1].split(",") if _re.fullmatch(r"[A-Za-z0-9_-]{1,64}", i)]
+            result = compare_experiments(_ids[:12])
+        elif command == "trade_diagnostics" and len(args) >= 2:
+            import os as _os
+            import re as _re
+            from experiment_manager import EXPERIMENTS_DIR as _EXP_DIR
+            if not _re.fullmatch(r"[A-Za-z0-9_-]{1,64}", args[1]):
+                result = {"success": False,
+                          "error": {"code": "INVALID_ID",
+                                    "message": "Invalid experiment id.",
+                                    "details": "id must match [A-Za-z0-9_-]{1,64}"}}
+            else:
+                from research_intelligence import trade_diagnostics
+                result = trade_diagnostics(_os.path.join(_EXP_DIR, args[1]))
         elif command == "experiment_check_running":
             from experiment_manager import check_any_running
             result = check_any_running()

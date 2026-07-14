@@ -769,6 +769,57 @@ router.post("/experiments/:id/run", async (req, res) => {
 // filesystem layer (defense in depth; Python validates again).
 const SAFE_EXP_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
+// ── Phase 5 — AI Research Intelligence (research only, advisory) ────────────
+// Nothing here modifies live/paper trading; outputs are research suggestions.
+
+// GET /api/research/intelligence — cross-experiment insights, learning summary,
+// strategy health, recommendations, portfolio suggestions, timeline
+router.get("/research/intelligence", async (_req, res) => {
+  try {
+    const data = await runPython(["research_intelligence"]) as any;
+    if (!data?.success) { res.status(500).json(data); return; }
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/experiments/compare?ids=a,b,c — side-by-side latest-report comparison
+// (registered before /experiments/:id so "compare" is not treated as an id)
+router.get("/experiments/compare", async (req, res) => {
+  try {
+    const raw = String(req.query.ids ?? "");
+    const ids = raw.split(",").map(s => s.trim()).filter(s => SAFE_EXP_ID.test(s));
+    if (ids.length === 0) {
+      res.status(400).json({ success: false, error: "Provide ?ids=<id1>,<id2> (valid experiment ids)" });
+      return;
+    }
+    const data = await runPython(["experiment_compare", ids.slice(0, 12).join(",")]) as any;
+    if (!data?.success) { res.status(500).json(data); return; }
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/experiments/:id/trade-diagnostics — per-trade diagnosis (read-only)
+router.get("/experiments/:id/trade-diagnostics", async (req, res) => {
+  try {
+    if (!SAFE_EXP_ID.test(String(req.params.id))) {
+      res.status(400).json({ success: false, error: { code: "INVALID_ID", message: "Invalid experiment id.", details: "" } });
+      return;
+    }
+    const data = await runPython(["trade_diagnostics", String(req.params.id)]) as any;
+    if (!data?.success) {
+      res.status((data?.error?.code === "NOT_FOUND") ? 404 : 500).json(data);
+      return;
+    }
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/experiments/:id/analysis — Phase 4.2 strategy improvement analysis
 // (analysis only — reads analysis.json produced after a run)
 router.get("/experiments/:id/analysis", async (req, res) => {
