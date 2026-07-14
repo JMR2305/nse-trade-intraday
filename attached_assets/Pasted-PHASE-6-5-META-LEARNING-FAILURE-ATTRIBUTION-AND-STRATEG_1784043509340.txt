@@ -1,0 +1,460 @@
+PHASE 6.5 — META-LEARNING, FAILURE ATTRIBUTION, AND STRATEGY-GATING INTELLIGENCE
+
+Objective:
+Upgrade the existing Research Intelligence and Strategy Evolution modules so the platform learns WHY a strategy succeeds or fails, under which market conditions it should be enabled, and what measurable conditions would justify re-testing it.
+
+This phase is strictly RESEARCH ONLY.
+
+Do not:
+- modify live or paper-trading decisions
+- place orders
+- auto-promote any strategy
+- change the current production strategy-selection logic
+- use future or test-period information during training
+- introduce look-ahead leakage
+
+Preserve all existing Research Factory, Walk-Forward Validation, Research Intelligence, Strategy Evolution, CSV, JSON, and HTML export functionality.
+
+==================================================
+1. BUILD A META-LEARNING ANALYSIS ENGINE
+==================================================
+
+Create a backend service that analyses completed out-of-sample trades and experiment results across:
+
+- strategy
+- strategy version
+- market regime
+- sector
+- stock
+- confidence band
+- holding period
+- entry subtype
+- exit reason
+- ADX band
+- ATR percentile
+- volatility regime
+- volume ratio
+- opening gap
+- EMA alignment
+- trend direction
+- RSI band
+- MACD histogram state
+- time period
+- experiment window
+
+The engine must identify conditions associated with:
+
+- positive expectancy
+- negative expectancy
+- high drawdown
+- poor calibration
+- false-positive trades
+- premature exits
+- excessive holding periods
+- profit concentration
+- few-trade dependence
+- regime-specific success or failure
+- sector-specific success or failure
+
+Only use data available before each out-of-sample decision.
+
+==================================================
+2. FAILURE ATTRIBUTION
+==================================================
+
+For every strategy and strategy version, generate a Failure Attribution report.
+
+Include:
+
+- primary failure reason
+- secondary contributing reasons
+- evidence strength
+- sample size
+- expectancy per trade
+- profit factor
+- win rate
+- maximum drawdown
+- calibration error
+- confidence-band performance
+- affected market regimes
+- affected sectors
+- affected holding periods
+- top losing conditions
+- top profitable conditions
+- whether costs caused the failure
+- whether the strategy had negative gross edge before costs
+- whether failure was broad or concentrated
+
+Example classifications:
+
+- NEGATIVE_GROSS_EDGE
+- COST_SENSITIVE
+- REGIME_MISMATCH
+- POOR_ENTRY_FILTER
+- POOR_EXIT_LOGIC
+- OVERCONFIDENT
+- FEW_TRADE_DEPENDENT
+- SECTOR_CONCENTRATION
+- STOCK_CONCENTRATION
+- EXCESSIVE_DRAWDOWN
+- UNSTABLE_ACROSS_WINDOWS
+- INSUFFICIENT_EVIDENCE
+- POSSIBLE_EDGE_REQUIRES_MORE_DATA
+
+Do not present causal claims unless supported by evidence. Use wording such as “associated with” when causality is not established.
+
+==================================================
+3. CONDITION-BASED STRATEGY ELIGIBILITY
+==================================================
+
+For each strategy, generate a research-only eligibility policy.
+
+Example:
+
+Strategy: Trend Rider
+
+Eligible only when:
+- ADX >= 22
+- ATR percentile between 35 and 80
+- price above EMA20 and EMA50
+- market regime is Bullish or Neutral-Bullish
+- volume ratio >= 0.80
+- calibrated confidence >= 65
+- minimum historical sample requirement is met
+
+Ineligible when:
+- ADX < 18
+- sideways regime detected
+- negative rolling expectancy
+- profit factor below 1.0
+- confidence calibration is unreliable
+- insufficient evidence exists
+
+Each rule must display:
+
+- condition
+- threshold
+- source metric
+- sample size
+- expectancy with condition
+- expectancy without condition
+- uplift
+- confidence level
+- whether the rule passed robustness checks
+
+Do not activate these rules in the live system. Label them:
+
+RESEARCH CANDIDATE — HUMAN APPROVAL REQUIRED
+
+==================================================
+4. ROBUSTNESS AND ANTI-OVERFITTING RULES
+==================================================
+
+A meta-learning insight must not be treated as reliable unless it satisfies configurable checks such as:
+
+- minimum 30 out-of-sample trades
+- minimum 2 test windows
+- positive expectancy in more than one window
+- acceptable drawdown
+- no severe stock concentration
+- no severe sector concentration
+- no single-month dependence
+- no top-five-trade dependence
+- survives reasonable parameter perturbation
+- survives cost and slippage stress
+- no look-ahead leakage
+- no future-data contamination
+
+Evidence labels:
+
+- INSUFFICIENT
+- VERY LOW
+- LOW
+- MODERATE
+- STRONG
+
+Use conservative thresholds. Never label small samples as strong evidence.
+
+==================================================
+5. ADD A NEW “META-LEARNING” TAB
+==================================================
+
+Add a new tab inside Research Intelligence named:
+
+Meta-Learning
+
+Sections:
+
+A. Strategy Health Summary
+Show each strategy with:
+
+- overall status
+- OOS trades
+- expectancy
+- profit factor
+- drawdown
+- evidence strength
+- dominant failure reason
+- best regime
+- worst regime
+- recommended research action
+
+Possible research actions:
+
+- KEEP RESEARCHING
+- RESTRICT BY REGIME
+- MODIFY ENTRY FILTER
+- MODIFY EXIT LOGIC
+- REDUCE HOLDING PERIOD
+- REQUIRE MORE DATA
+- ARCHIVE
+- REJECT
+- PROMISING — HUMAN REVIEW REQUIRED
+
+B. Why Strategies Failed
+Expandable cards containing:
+
+- failure attribution
+- supporting metrics
+- affected conditions
+- gross versus net performance
+- reliability warnings
+
+C. Eligibility Map
+A matrix:
+
+Rows:
+- strategies
+
+Columns:
+- Bullish
+- Bearish
+- Neutral-Bullish
+- Neutral-Bearish
+- Sideways
+- High Volatility
+- Low Volatility
+
+Cells should show:
+
+- eligible
+- research-only
+- insufficient evidence
+- ineligible
+- sample count
+- expectancy
+- profit factor
+
+D. What Would Improve the Strategy
+Display measurable changes that could justify another experiment.
+
+Examples:
+
+- require ADX >= 22
+- remove entries after gaps above 2%
+- shorten max holding from 20 to 10 days
+- avoid Neutral-Bearish regimes
+- require volume ratio >= 0.8
+- use ATR-based exit
+- raise or lower confidence threshold
+
+Every suggestion must show its historical uplift and sample size.
+
+E. Contradictions
+Detect and display contradictions such as:
+
+- high confidence but negative expectancy
+- research intelligence says profitable while walk-forward validation says unprofitable
+- strategy marked enabled despite negative rolling edge
+- strategy performs well overall but fails in the current regime
+- a child strategy is worse than its parent
+- reported positive return caused by only a few trades
+
+==================================================
+6. STRATEGY EVOLUTION INTEGRATION
+==================================================
+
+Connect Meta-Learning to Strategy Evolution.
+
+Allow Meta-Learning findings to create DRAFT research mutations such as:
+
+- regime restriction
+- ADX threshold
+- ATR percentile threshold
+- volume confirmation
+- gap filter
+- confidence threshold
+- holding-period adjustment
+- exit-rule adjustment
+- sector restriction
+
+Rules:
+
+- mutations must remain DRAFT
+- no automatic promotion
+- human approval required before testing
+- each mutation must include its parent strategy
+- include the evidence that generated it
+- include expected benefit
+- include known risk
+- include sample size
+- include experiment hypothesis
+- include an undo/archive action
+
+Do not create unlimited mutations. Limit suggestions to the top 3 evidence-supported changes per strategy.
+
+==================================================
+7. ADD STRATEGY COMPARISON
+==================================================
+
+Allow comparison of:
+
+- parent strategy
+- child strategy
+- existing live strategy
+- research candidate
+- strict cash fallback
+
+Compare on identical out-of-sample data:
+
+- net return
+- expectancy
+- profit factor
+- Sharpe
+- Sortino
+- maximum drawdown
+- win rate
+- trade count
+- costs
+- calibration
+- stability across windows
+- concentration
+- cash exposure
+
+Clearly show whether the mutation improved or worsened the parent.
+
+==================================================
+8. EXPORTS
+==================================================
+
+Add complete export buttons to Meta-Learning:
+
+- CSV
+- JSON
+- HTML
+
+The export must contain machine-readable tables for:
+
+1. strategy_health
+2. failure_attribution
+3. regime_eligibility
+4. sector_eligibility
+5. condition_uplift
+6. confidence_analysis
+7. holding_period_analysis
+8. exit_reason_analysis
+9. cost_sensitivity
+10. concentration_risk
+11. robustness_checks
+12. contradictions
+13. recommended_mutations
+14. parent_child_comparison
+15. evidence_summary
+
+Include:
+
+- generated_at
+- source experiment IDs
+- source data hash
+- model version
+- no-lookahead audit result
+- sample counts
+- warnings
+- research-only disclaimer
+
+Add a “Download Complete Meta-Learning Report” button.
+
+==================================================
+9. DATA QUALITY AND ERROR HANDLING
+==================================================
+
+Do not silently display empty or fabricated values.
+
+When data is unavailable, show:
+
+- NOT AVAILABLE
+- INSUFFICIENT DATA
+- NOT APPLICABLE
+
+Add graceful handling for:
+
+- empty responses
+- invalid JSON
+- stale backend process
+- duplicate experiment records
+- missing strategy names
+- missing regime values
+- null metrics
+- partial exports
+
+All API endpoints must always return valid JSON, including errors.
+
+Frontend fetch logic must check:
+
+- HTTP status
+- content type
+- empty response body
+- JSON parsing failure
+
+Display clear user-facing error messages without crashing the page.
+
+==================================================
+10. VALIDATION TESTS
+==================================================
+
+Add automated tests confirming:
+
+- no look-ahead leakage
+- no live or paper-trading state is modified
+- meta-learning uses out-of-sample data only
+- small samples are not marked strong
+- gross versus net edge is calculated correctly
+- condition uplift compares identical populations correctly
+- parent-child comparisons use identical test periods
+- exports contain all required tables
+- empty API responses do not cause JSON parsing errors
+- mutations remain Draft
+- no automatic promotion occurs
+- duplicate insights are deduplicated
+- evidence labels are assigned correctly
+
+==================================================
+11. ACCEPTANCE CRITERIA
+==================================================
+
+Phase 6.5 is complete only when:
+
+- the Meta-Learning tab loads without errors
+- every strategy has a health summary
+- failure reasons are traceable to metrics
+- eligibility rules show evidence and sample size
+- contradictions are detected
+- draft mutations can be created in Strategy Evolution
+- no mutation changes live or paper trading
+- CSV, JSON, and HTML reports download successfully
+- exports contain all required datasets
+- all API responses remain valid JSON
+- no-lookahead audit passes
+- automated tests pass
+
+At the end, provide a completion summary listing:
+
+- files created
+- files modified
+- database changes
+- API endpoints added
+- tests added
+- known limitations
+- screenshots/pages to inspect
+- exact location of the Complete Meta-Learning Report download
+- confirmation that live and paper-trading behaviour remains unchanged
