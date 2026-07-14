@@ -1,0 +1,2162 @@
+{
+ "generated_at": "2026-07-14T15:27:01Z",
+ "phase": "Phase 6 \u2014 Strategy Evolution Laboratory",
+ "safety": {
+  "research_only": true,
+  "affects_live_trading": false,
+  "affects_paper_trading": false,
+  "auto_promotion": false,
+  "note": "Strategy Evolution Laboratory produces research candidates only. Human approval is required before any future deployment."
+ },
+ "strategy_registry": [
+  {
+   "strategy_id": "root_trend_rider",
+   "name": "Trend Rider",
+   "base_strategy": "trend_rider",
+   "parent_id": null,
+   "version": 1,
+   "created_at": "2026-07-14T15:23:05Z",
+   "status": "Research",
+   "author": "system (built-in)",
+   "notes": "EMA stack + MACD + RSI + VWAP \u2014 classic trend following",
+   "change_summary": "Baseline built-in strategy (version 1).",
+   "mutation": null,
+   "config_level": false,
+   "proposed_config": null,
+   "best_regime": "Strong uptrend",
+   "linked_experiment_ids": [
+    "0a655cee0ae9",
+    "1e3806416eb2",
+    "95a7ff31918c",
+    "c3a16676dc3b",
+    "c3b29a0fe086"
+   ],
+   "evaluation": null,
+   "current_performance": {
+    "trades": 46,
+    "win_rate": 32.6,
+    "net_pnl": -270.85,
+    "expectancy_rs": -5.89,
+    "profit_factor": 0.69,
+    "sharpe_proxy": -0.133,
+    "evidence": "MODERATE"
+   },
+   "evidence_score": 26,
+   "research_verdict": "UNDERPERFORMING"
+  },
+  {
+   "strategy_id": "root_breakout_hunter",
+   "name": "Breakout Hunter",
+   "base_strategy": "breakout_hunter",
+   "parent_id": null,
+   "version": 1,
+   "created_at": "2026-07-14T15:23:05Z",
+   "status": "Research",
+   "author": "system (built-in)",
+   "notes": "BB upper breakout + ADX strength + volume surge",
+   "change_summary": "Baseline built-in strategy (version 1).",
+   "mutation": null,
+   "config_level": false,
+   "proposed_config": null,
+   "best_regime": "High volatility breakout",
+   "linked_experiment_ids": [],
+   "evaluation": null,
+   "current_performance": null,
+   "evidence_score": 0,
+   "research_verdict": "NO_DATA"
+  },
+  {
+   "strategy_id": "root_mean_reversion",
+   "name": "Mean Reversion",
+   "base_strategy": "mean_reversion",
+   "parent_id": null,
+   "version": 1,
+   "created_at": "2026-07-14T15:23:05Z",
+   "status": "Research",
+   "author": "system (built-in)",
+   "notes": "RSI oversold + BB lower band bounce (non-trending market)",
+   "change_summary": "Baseline built-in strategy (version 1).",
+   "mutation": null,
+   "config_level": false,
+   "proposed_config": null,
+   "best_regime": "Ranging / sideways",
+   "linked_experiment_ids": [
+    "0a655cee0ae9",
+    "1e3806416eb2",
+    "95a7ff31918c",
+    "c3a16676dc3b",
+    "c3b29a0fe086"
+   ],
+   "evaluation": null,
+   "current_performance": {
+    "trades": 120,
+    "win_rate": 60.8,
+    "net_pnl": 205.11,
+    "expectancy_rs": 1.71,
+    "profit_factor": 1.34,
+    "sharpe_proxy": 0.12,
+    "evidence": "STRONG"
+   },
+   "evidence_score": 80,
+   "research_verdict": "PROMISING"
+  },
+  {
+   "strategy_id": "root_ema_cross",
+   "name": "EMA Cross",
+   "base_strategy": "ema_cross",
+   "parent_id": null,
+   "version": 1,
+   "created_at": "2026-07-14T15:23:05Z",
+   "status": "Research",
+   "author": "system (built-in)",
+   "notes": "EMA9 golden cross above EMA20 \u2014 simple momentum entry",
+   "change_summary": "Baseline built-in strategy (version 1).",
+   "mutation": null,
+   "config_level": false,
+   "proposed_config": null,
+   "best_regime": "Trending (momentum)",
+   "linked_experiment_ids": [
+    "1e3806416eb2"
+   ],
+   "evaluation": null,
+   "current_performance": {
+    "trades": 1,
+    "win_rate": 100.0,
+    "net_pnl": 2.62,
+    "expectancy_rs": 2.62,
+    "profit_factor": null,
+    "sharpe_proxy": null,
+    "evidence": "INSUFFICIENT"
+   },
+   "evidence_score": 0,
+   "research_verdict": "MARGINAL"
+  },
+  {
+   "strategy_id": "root_macd_cross",
+   "name": "MACD Cross",
+   "base_strategy": "macd_cross",
+   "parent_id": null,
+   "version": 1,
+   "created_at": "2026-07-14T15:23:05Z",
+   "status": "Research",
+   "author": "system (built-in)",
+   "notes": "MACD line crosses above signal \u2014 momentum entry",
+   "change_summary": "Baseline built-in strategy (version 1).",
+   "mutation": null,
+   "config_level": false,
+   "proposed_config": null,
+   "best_regime": "Trending (momentum)",
+   "linked_experiment_ids": [
+    "0a655cee0ae9",
+    "95a7ff31918c",
+    "c3a16676dc3b",
+    "c3b29a0fe086"
+   ],
+   "evaluation": null,
+   "current_performance": {
+    "trades": 69,
+    "win_rate": 23.2,
+    "net_pnl": -580.36,
+    "expectancy_rs": -8.41,
+    "profit_factor": 0.52,
+    "sharpe_proxy": -0.294,
+    "evidence": "MODERATE"
+   },
+   "evidence_score": 34,
+   "research_verdict": "UNDERPERFORMING"
+  },
+  {
+   "strategy_id": "root_supertrend_follow",
+   "name": "Supertrend",
+   "base_strategy": "supertrend_follow",
+   "parent_id": null,
+   "version": 1,
+   "created_at": "2026-07-14T15:23:05Z",
+   "status": "Research",
+   "author": "system (built-in)",
+   "notes": "Trade Supertrend direction flip to UP \u2014 sustained trend",
+   "change_summary": "Baseline built-in strategy (version 1).",
+   "mutation": null,
+   "config_level": false,
+   "proposed_config": null,
+   "best_regime": "Sustained trend",
+   "linked_experiment_ids": [],
+   "evaluation": null,
+   "current_performance": null,
+   "evidence_score": 0,
+   "research_verdict": "NO_DATA"
+  },
+  {
+   "strategy_id": "3fd2e66958e3",
+   "name": "Trend Rider \u2014 confidence_threshold=60",
+   "base_strategy": "trend_rider",
+   "parent_id": "root_trend_rider",
+   "version": 2,
+   "created_at": "2026-07-14T15:23:06Z",
+   "status": "Archived",
+   "author": "researcher",
+   "notes": "Controlled mutation of Trend Rider: only 'confidence_threshold' changed (55 \u2192 60). Requires human approval before any use.",
+   "change_summary": "confidence_threshold: 55 \u2192 60 (score)",
+   "mutation": {
+    "parameter": "confidence_threshold",
+    "from": 55,
+    "to": 60,
+    "unit": "score",
+    "expected_benefit": "Higher thresholds trade less but may improve win rate; lower thresholds increase sample size.",
+    "observed_benefit": "Profit factor +0.34 vs parent",
+    "observed_drawback": null,
+    "confidence_in_recommendation": "LOW",
+    "evidence_for": "63 candidate OOS trades (MODERATE)",
+    "evidence_against": "Uncontrolled axes: start_date, end_date"
+   },
+   "config_level": true,
+   "proposed_config": {
+    "min_confidence_execute": 60
+   },
+   "testable_now": true,
+   "testing_note": "Config-level parameter \u2014 can be tested by submitting a Research Factory experiment with the proposed config.",
+   "linked_experiment_ids": [
+    "0a655cee0ae9"
+   ],
+   "evaluation": {
+    "at": "2026-07-14T15:23:18Z",
+    "exp_candidate": "0a655cee0ae9",
+    "exp_parent": "95a7ff31918c",
+    "rules": [
+     {
+      "rule": "Improves profit factor",
+      "passed": true,
+      "detail": "candidate 0.86 vs parent 0.52"
+     },
+     {
+      "rule": "Maintains or improves Sharpe",
+      "passed": true,
+      "detail": "candidate -0.61 vs parent -1.2 (tolerance \u22120.05)"
+     },
+     {
+      "rule": "Does not materially increase drawdown",
+      "passed": true,
+      "detail": "candidate 7.43% vs parent 9.62% (limit 12.54%)"
+     },
+     {
+      "rule": "Maintains calibration",
+      "passed": false,
+      "detail": "ECE unavailable \u2014 cannot verify, so rule fails honestly"
+     },
+     {
+      "rule": "Passes walk-forward validation",
+      "passed": true,
+      "detail": "1/2 positive windows (need \u226550%)"
+     },
+     {
+      "rule": "Passes evidence thresholds",
+      "passed": true,
+      "detail": "63 OOS trades (need \u226530)"
+     },
+     {
+      "rule": "Passes robustness screen",
+      "passed": false,
+      "detail": "robustness verdict: REJECT (score 75)"
+     }
+    ],
+    "survives": false,
+    "robustness_score": 75,
+    "robustness_reasons": [
+     "Loses after realistic costs (net profit \u2264 0 including commissions/slippage)."
+    ]
+   },
+   "history": [
+    {
+     "at": "2026-07-14T15:23:18Z",
+     "from": "Draft",
+     "to": "Archived",
+     "note": "Survival rules failed: 2 rule(s)"
+    }
+   ],
+   "current_performance": {
+    "trades": 46,
+    "win_rate": 32.6,
+    "net_pnl": -270.85,
+    "expectancy_rs": -5.89,
+    "profit_factor": 0.69,
+    "sharpe_proxy": -0.133,
+    "evidence": "MODERATE"
+   },
+   "evidence_score": null
+  },
+  {
+   "strategy_id": "ff66dfb193a5",
+   "name": "Trend Rider \u2014 confidence_threshold=65",
+   "base_strategy": "trend_rider",
+   "parent_id": "root_trend_rider",
+   "version": 2,
+   "created_at": "2026-07-14T15:23:06Z",
+   "status": "Draft",
+   "author": "researcher",
+   "notes": "Controlled mutation of Trend Rider: only 'confidence_threshold' changed (55 \u2192 65). Requires human approval before any use.",
+   "change_summary": "confidence_threshold: 55 \u2192 65 (score)",
+   "mutation": {
+    "parameter": "confidence_threshold",
+    "from": 55,
+    "to": 65,
+    "unit": "score",
+    "expected_benefit": "Higher thresholds trade less but may improve win rate; lower thresholds increase sample size.",
+    "observed_benefit": null,
+    "observed_drawback": null,
+    "confidence_in_recommendation": null,
+    "evidence_for": null,
+    "evidence_against": null
+   },
+   "config_level": true,
+   "proposed_config": {
+    "min_confidence_execute": 65
+   },
+   "testable_now": true,
+   "testing_note": "Config-level parameter \u2014 can be tested by submitting a Research Factory experiment with the proposed config.",
+   "linked_experiment_ids": [],
+   "evaluation": null,
+   "current_performance": {
+    "trades": 46,
+    "win_rate": 32.6,
+    "net_pnl": -270.85,
+    "expectancy_rs": -5.89,
+    "profit_factor": 0.69,
+    "sharpe_proxy": -0.133,
+    "evidence": "MODERATE"
+   },
+   "evidence_score": null
+  },
+  {
+   "strategy_id": "505565311ecf",
+   "name": "Trend Rider \u2014 confidence_threshold=70",
+   "base_strategy": "trend_rider",
+   "parent_id": "root_trend_rider",
+   "version": 2,
+   "created_at": "2026-07-14T15:23:06Z",
+   "status": "Draft",
+   "author": "researcher",
+   "notes": "Controlled mutation of Trend Rider: only 'confidence_threshold' changed (55 \u2192 70). Requires human approval before any use.",
+   "change_summary": "confidence_threshold: 55 \u2192 70 (score)",
+   "mutation": {
+    "parameter": "confidence_threshold",
+    "from": 55,
+    "to": 70,
+    "unit": "score",
+    "expected_benefit": "Higher thresholds trade less but may improve win rate; lower thresholds increase sample size.",
+    "observed_benefit": null,
+    "observed_drawback": null,
+    "confidence_in_recommendation": null,
+    "evidence_for": null,
+    "evidence_against": null
+   },
+   "config_level": true,
+   "proposed_config": {
+    "min_confidence_execute": 70
+   },
+   "testable_now": true,
+   "testing_note": "Config-level parameter \u2014 can be tested by submitting a Research Factory experiment with the proposed config.",
+   "linked_experiment_ids": [],
+   "evaluation": null,
+   "current_performance": {
+    "trades": 46,
+    "win_rate": 32.6,
+    "net_pnl": -270.85,
+    "expectancy_rs": -5.89,
+    "profit_factor": 0.69,
+    "sharpe_proxy": -0.133,
+    "evidence": "MODERATE"
+   },
+   "evidence_score": null
+  },
+  {
+   "strategy_id": "4b814b5c33a8",
+   "name": "Trend Rider \u2014 confidence_threshold=75",
+   "base_strategy": "trend_rider",
+   "parent_id": "root_trend_rider",
+   "version": 2,
+   "created_at": "2026-07-14T15:23:06Z",
+   "status": "Draft",
+   "author": "researcher",
+   "notes": "Controlled mutation of Trend Rider: only 'confidence_threshold' changed (55 \u2192 75). Requires human approval before any use.",
+   "change_summary": "confidence_threshold: 55 \u2192 75 (score)",
+   "mutation": {
+    "parameter": "confidence_threshold",
+    "from": 55,
+    "to": 75,
+    "unit": "score",
+    "expected_benefit": "Higher thresholds trade less but may improve win rate; lower thresholds increase sample size.",
+    "observed_benefit": null,
+    "observed_drawback": null,
+    "confidence_in_recommendation": null,
+    "evidence_for": null,
+    "evidence_against": null
+   },
+   "config_level": true,
+   "proposed_config": {
+    "min_confidence_execute": 75
+   },
+   "testable_now": true,
+   "testing_note": "Config-level parameter \u2014 can be tested by submitting a Research Factory experiment with the proposed config.",
+   "linked_experiment_ids": [],
+   "evaluation": null,
+   "current_performance": {
+    "trades": 46,
+    "win_rate": 32.6,
+    "net_pnl": -270.85,
+    "expectancy_rs": -5.89,
+    "profit_factor": 0.69,
+    "sharpe_proxy": -0.133,
+    "evidence": "MODERATE"
+   },
+   "evidence_score": null
+  },
+  {
+   "strategy_id": "382749947f3d",
+   "name": "Trend Rider \u2014 holding_days=5",
+   "base_strategy": "trend_rider",
+   "parent_id": "root_trend_rider",
+   "version": 3,
+   "created_at": "2026-07-14T15:23:06Z",
+   "status": "Draft",
+   "author": "researcher",
+   "notes": "Controlled mutation of Trend Rider: only 'holding_days' changed (20 \u2192 5). Requires human approval before any use.",
+   "change_summary": "holding_days: 20 \u2192 5 (days)",
+   "mutation": {
+    "parameter": "holding_days",
+    "from": 20,
+    "to": 5,
+    "unit": "days",
+    "expected_benefit": "Shorter holds reduce time-based exits and exposure; longer holds let trends develop.",
+    "observed_benefit": null,
+    "observed_drawback": null,
+    "confidence_in_recommendation": null,
+    "evidence_for": null,
+    "evidence_against": null
+   },
+   "config_level": true,
+   "proposed_config": {
+    "max_holding_days": 5
+   },
+   "testable_now": true,
+   "testing_note": "Config-level parameter \u2014 can be tested by submitting a Research Factory experiment with the proposed config.",
+   "linked_experiment_ids": [],
+   "evaluation": null,
+   "current_performance": {
+    "trades": 46,
+    "win_rate": 32.6,
+    "net_pnl": -270.85,
+    "expectancy_rs": -5.89,
+    "profit_factor": 0.69,
+    "sharpe_proxy": -0.133,
+    "evidence": "MODERATE"
+   },
+   "evidence_score": null
+  },
+  {
+   "strategy_id": "cbc67a70c32a",
+   "name": "Trend Rider \u2014 holding_days=10",
+   "base_strategy": "trend_rider",
+   "parent_id": "root_trend_rider",
+   "version": 3,
+   "created_at": "2026-07-14T15:23:06Z",
+   "status": "Draft",
+   "author": "researcher",
+   "notes": "Controlled mutation of Trend Rider: only 'holding_days' changed (20 \u2192 10). Requires human approval before any use.",
+   "change_summary": "holding_days: 20 \u2192 10 (days)",
+   "mutation": {
+    "parameter": "holding_days",
+    "from": 20,
+    "to": 10,
+    "unit": "days",
+    "expected_benefit": "Shorter holds reduce time-based exits and exposure; longer holds let trends develop.",
+    "observed_benefit": null,
+    "observed_drawback": null,
+    "confidence_in_recommendation": null,
+    "evidence_for": null,
+    "evidence_against": null
+   },
+   "config_level": true,
+   "proposed_config": {
+    "max_holding_days": 10
+   },
+   "testable_now": true,
+   "testing_note": "Config-level parameter \u2014 can be tested by submitting a Research Factory experiment with the proposed config.",
+   "linked_experiment_ids": [],
+   "evaluation": null,
+   "current_performance": {
+    "trades": 46,
+    "win_rate": 32.6,
+    "net_pnl": -270.85,
+    "expectancy_rs": -5.89,
+    "profit_factor": 0.69,
+    "sharpe_proxy": -0.133,
+    "evidence": "MODERATE"
+   },
+   "evidence_score": null
+  },
+  {
+   "strategy_id": "ede58d25fc4d",
+   "name": "Trend Rider \u2014 holding_days=15",
+   "base_strategy": "trend_rider",
+   "parent_id": "root_trend_rider",
+   "version": 3,
+   "created_at": "2026-07-14T15:23:06Z",
+   "status": "Draft",
+   "author": "researcher",
+   "notes": "Controlled mutation of Trend Rider: only 'holding_days' changed (20 \u2192 15). Requires human approval before any use.",
+   "change_summary": "holding_days: 20 \u2192 15 (days)",
+   "mutation": {
+    "parameter": "holding_days",
+    "from": 20,
+    "to": 15,
+    "unit": "days",
+    "expected_benefit": "Shorter holds reduce time-based exits and exposure; longer holds let trends develop.",
+    "observed_benefit": null,
+    "observed_drawback": null,
+    "confidence_in_recommendation": null,
+    "evidence_for": null,
+    "evidence_against": null
+   },
+   "config_level": true,
+   "proposed_config": {
+    "max_holding_days": 15
+   },
+   "testable_now": true,
+   "testing_note": "Config-level parameter \u2014 can be tested by submitting a Research Factory experiment with the proposed config.",
+   "linked_experiment_ids": [],
+   "evaluation": null,
+   "current_performance": {
+    "trades": 46,
+    "win_rate": 32.6,
+    "net_pnl": -270.85,
+    "expectancy_rs": -5.89,
+    "profit_factor": 0.69,
+    "sharpe_proxy": -0.133,
+    "evidence": "MODERATE"
+   },
+   "evidence_score": null
+  },
+  {
+   "strategy_id": "4392ad527908",
+   "name": "Trend Rider \u2014 holding_days=30",
+   "base_strategy": "trend_rider",
+   "parent_id": "root_trend_rider",
+   "version": 3,
+   "created_at": "2026-07-14T15:23:06Z",
+   "status": "Draft",
+   "author": "researcher",
+   "notes": "Controlled mutation of Trend Rider: only 'holding_days' changed (20 \u2192 30). Requires human approval before any use.",
+   "change_summary": "holding_days: 20 \u2192 30 (days)",
+   "mutation": {
+    "parameter": "holding_days",
+    "from": 20,
+    "to": 30,
+    "unit": "days",
+    "expected_benefit": "Shorter holds reduce time-based exits and exposure; longer holds let trends develop.",
+    "observed_benefit": null,
+    "observed_drawback": null,
+    "confidence_in_recommendation": null,
+    "evidence_for": null,
+    "evidence_against": null
+   },
+   "config_level": true,
+   "proposed_config": {
+    "max_holding_days": 30
+   },
+   "testable_now": true,
+   "testing_note": "Config-level parameter \u2014 can be tested by submitting a Research Factory experiment with the proposed config.",
+   "linked_experiment_ids": [],
+   "evaluation": null,
+   "current_performance": {
+    "trades": 46,
+    "win_rate": 32.6,
+    "net_pnl": -270.85,
+    "expectancy_rs": -5.89,
+    "profit_factor": 0.69,
+    "sharpe_proxy": -0.133,
+    "evidence": "MODERATE"
+   },
+   "evidence_score": null
+  }
+ ],
+ "family_tree": [
+  {
+   "strategy_id": "root_breakout_hunter",
+   "name": "Breakout Hunter",
+   "version": 1,
+   "status": "Research",
+   "change_summary": "Baseline built-in strategy (version 1).",
+   "created_at": "2026-07-14T15:23:05Z",
+   "mutation": null,
+   "evaluation": null,
+   "performance": null,
+   "children": []
+  },
+  {
+   "strategy_id": "root_ema_cross",
+   "name": "EMA Cross",
+   "version": 1,
+   "status": "Research",
+   "change_summary": "Baseline built-in strategy (version 1).",
+   "created_at": "2026-07-14T15:23:05Z",
+   "mutation": null,
+   "evaluation": null,
+   "performance": {
+    "trades": 1,
+    "win_rate": 100.0,
+    "net_pnl": 2.62,
+    "expectancy_rs": 2.62,
+    "profit_factor": null,
+    "sharpe_proxy": null,
+    "evidence": "INSUFFICIENT"
+   },
+   "children": []
+  },
+  {
+   "strategy_id": "root_macd_cross",
+   "name": "MACD Cross",
+   "version": 1,
+   "status": "Research",
+   "change_summary": "Baseline built-in strategy (version 1).",
+   "created_at": "2026-07-14T15:23:05Z",
+   "mutation": null,
+   "evaluation": null,
+   "performance": {
+    "trades": 69,
+    "win_rate": 23.2,
+    "net_pnl": -580.36,
+    "expectancy_rs": -8.41,
+    "profit_factor": 0.52,
+    "sharpe_proxy": -0.294,
+    "evidence": "MODERATE"
+   },
+   "children": []
+  },
+  {
+   "strategy_id": "root_mean_reversion",
+   "name": "Mean Reversion",
+   "version": 1,
+   "status": "Research",
+   "change_summary": "Baseline built-in strategy (version 1).",
+   "created_at": "2026-07-14T15:23:05Z",
+   "mutation": null,
+   "evaluation": null,
+   "performance": {
+    "trades": 120,
+    "win_rate": 60.8,
+    "net_pnl": 205.11,
+    "expectancy_rs": 1.71,
+    "profit_factor": 1.34,
+    "sharpe_proxy": 0.12,
+    "evidence": "STRONG"
+   },
+   "children": []
+  },
+  {
+   "strategy_id": "root_supertrend_follow",
+   "name": "Supertrend",
+   "version": 1,
+   "status": "Research",
+   "change_summary": "Baseline built-in strategy (version 1).",
+   "created_at": "2026-07-14T15:23:05Z",
+   "mutation": null,
+   "evaluation": null,
+   "performance": null,
+   "children": []
+  },
+  {
+   "strategy_id": "root_trend_rider",
+   "name": "Trend Rider",
+   "version": 1,
+   "status": "Research",
+   "change_summary": "Baseline built-in strategy (version 1).",
+   "created_at": "2026-07-14T15:23:05Z",
+   "mutation": null,
+   "evaluation": null,
+   "performance": {
+    "trades": 46,
+    "win_rate": 32.6,
+    "net_pnl": -270.85,
+    "expectancy_rs": -5.89,
+    "profit_factor": 0.69,
+    "sharpe_proxy": -0.133,
+    "evidence": "MODERATE"
+   },
+   "children": [
+    {
+     "strategy_id": "3fd2e66958e3",
+     "name": "Trend Rider \u2014 confidence_threshold=60",
+     "version": 2,
+     "status": "Archived",
+     "change_summary": "confidence_threshold: 55 \u2192 60 (score)",
+     "created_at": "2026-07-14T15:23:06Z",
+     "mutation": {
+      "parameter": "confidence_threshold",
+      "from": 55,
+      "to": 60,
+      "unit": "score",
+      "expected_benefit": "Higher thresholds trade less but may improve win rate; lower thresholds increase sample size.",
+      "observed_benefit": "Profit factor +0.34 vs parent",
+      "observed_drawback": null,
+      "confidence_in_recommendation": "LOW",
+      "evidence_for": "63 candidate OOS trades (MODERATE)",
+      "evidence_against": "Uncontrolled axes: start_date, end_date"
+     },
+     "evaluation": false,
+     "performance": null,
+     "children": []
+    },
+    {
+     "strategy_id": "ff66dfb193a5",
+     "name": "Trend Rider \u2014 confidence_threshold=65",
+     "version": 2,
+     "status": "Draft",
+     "change_summary": "confidence_threshold: 55 \u2192 65 (score)",
+     "created_at": "2026-07-14T15:23:06Z",
+     "mutation": {
+      "parameter": "confidence_threshold",
+      "from": 55,
+      "to": 65,
+      "unit": "score",
+      "expected_benefit": "Higher thresholds trade less but may improve win rate; lower thresholds increase sample size.",
+      "observed_benefit": null,
+      "observed_drawback": null,
+      "confidence_in_recommendation": null,
+      "evidence_for": null,
+      "evidence_against": null
+     },
+     "evaluation": null,
+     "performance": null,
+     "children": []
+    },
+    {
+     "strategy_id": "505565311ecf",
+     "name": "Trend Rider \u2014 confidence_threshold=70",
+     "version": 2,
+     "status": "Draft",
+     "change_summary": "confidence_threshold: 55 \u2192 70 (score)",
+     "created_at": "2026-07-14T15:23:06Z",
+     "mutation": {
+      "parameter": "confidence_threshold",
+      "from": 55,
+      "to": 70,
+      "unit": "score",
+      "expected_benefit": "Higher thresholds trade less but may improve win rate; lower thresholds increase sample size.",
+      "observed_benefit": null,
+      "observed_drawback": null,
+      "confidence_in_recommendation": null,
+      "evidence_for": null,
+      "evidence_against": null
+     },
+     "evaluation": null,
+     "performance": null,
+     "children": []
+    },
+    {
+     "strategy_id": "4b814b5c33a8",
+     "name": "Trend Rider \u2014 confidence_threshold=75",
+     "version": 2,
+     "status": "Draft",
+     "change_summary": "confidence_threshold: 55 \u2192 75 (score)",
+     "created_at": "2026-07-14T15:23:06Z",
+     "mutation": {
+      "parameter": "confidence_threshold",
+      "from": 55,
+      "to": 75,
+      "unit": "score",
+      "expected_benefit": "Higher thresholds trade less but may improve win rate; lower thresholds increase sample size.",
+      "observed_benefit": null,
+      "observed_drawback": null,
+      "confidence_in_recommendation": null,
+      "evidence_for": null,
+      "evidence_against": null
+     },
+     "evaluation": null,
+     "performance": null,
+     "children": []
+    },
+    {
+     "strategy_id": "382749947f3d",
+     "name": "Trend Rider \u2014 holding_days=5",
+     "version": 3,
+     "status": "Draft",
+     "change_summary": "holding_days: 20 \u2192 5 (days)",
+     "created_at": "2026-07-14T15:23:06Z",
+     "mutation": {
+      "parameter": "holding_days",
+      "from": 20,
+      "to": 5,
+      "unit": "days",
+      "expected_benefit": "Shorter holds reduce time-based exits and exposure; longer holds let trends develop.",
+      "observed_benefit": null,
+      "observed_drawback": null,
+      "confidence_in_recommendation": null,
+      "evidence_for": null,
+      "evidence_against": null
+     },
+     "evaluation": null,
+     "performance": null,
+     "children": []
+    },
+    {
+     "strategy_id": "cbc67a70c32a",
+     "name": "Trend Rider \u2014 holding_days=10",
+     "version": 3,
+     "status": "Draft",
+     "change_summary": "holding_days: 20 \u2192 10 (days)",
+     "created_at": "2026-07-14T15:23:06Z",
+     "mutation": {
+      "parameter": "holding_days",
+      "from": 20,
+      "to": 10,
+      "unit": "days",
+      "expected_benefit": "Shorter holds reduce time-based exits and exposure; longer holds let trends develop.",
+      "observed_benefit": null,
+      "observed_drawback": null,
+      "confidence_in_recommendation": null,
+      "evidence_for": null,
+      "evidence_against": null
+     },
+     "evaluation": null,
+     "performance": null,
+     "children": []
+    },
+    {
+     "strategy_id": "ede58d25fc4d",
+     "name": "Trend Rider \u2014 holding_days=15",
+     "version": 3,
+     "status": "Draft",
+     "change_summary": "holding_days: 20 \u2192 15 (days)",
+     "created_at": "2026-07-14T15:23:06Z",
+     "mutation": {
+      "parameter": "holding_days",
+      "from": 20,
+      "to": 15,
+      "unit": "days",
+      "expected_benefit": "Shorter holds reduce time-based exits and exposure; longer holds let trends develop.",
+      "observed_benefit": null,
+      "observed_drawback": null,
+      "confidence_in_recommendation": null,
+      "evidence_for": null,
+      "evidence_against": null
+     },
+     "evaluation": null,
+     "performance": null,
+     "children": []
+    },
+    {
+     "strategy_id": "4392ad527908",
+     "name": "Trend Rider \u2014 holding_days=30",
+     "version": 3,
+     "status": "Draft",
+     "change_summary": "holding_days: 20 \u2192 30 (days)",
+     "created_at": "2026-07-14T15:23:06Z",
+     "mutation": {
+      "parameter": "holding_days",
+      "from": 20,
+      "to": 30,
+      "unit": "days",
+      "expected_benefit": "Shorter holds reduce time-based exits and exposure; longer holds let trends develop.",
+      "observed_benefit": null,
+      "observed_drawback": null,
+      "confidence_in_recommendation": null,
+      "evidence_for": null,
+      "evidence_against": null
+     },
+     "evaluation": null,
+     "performance": null,
+     "children": []
+    }
+   ]
+  }
+ ],
+ "evolution_timeline": [
+  {
+   "at": "2026-07-14T15:23:05Z",
+   "type": "created",
+   "strategy_id": "root_trend_rider",
+   "name": "Trend Rider",
+   "what_changed": "Baseline built-in strategy (version 1).",
+   "why": "Baseline strategy",
+   "status": "Research"
+  },
+  {
+   "at": "2026-07-14T15:23:05Z",
+   "type": "created",
+   "strategy_id": "root_breakout_hunter",
+   "name": "Breakout Hunter",
+   "what_changed": "Baseline built-in strategy (version 1).",
+   "why": "Baseline strategy",
+   "status": "Research"
+  },
+  {
+   "at": "2026-07-14T15:23:05Z",
+   "type": "created",
+   "strategy_id": "root_mean_reversion",
+   "name": "Mean Reversion",
+   "what_changed": "Baseline built-in strategy (version 1).",
+   "why": "Baseline strategy",
+   "status": "Research"
+  },
+  {
+   "at": "2026-07-14T15:23:05Z",
+   "type": "created",
+   "strategy_id": "root_ema_cross",
+   "name": "EMA Cross",
+   "what_changed": "Baseline built-in strategy (version 1).",
+   "why": "Baseline strategy",
+   "status": "Research"
+  },
+  {
+   "at": "2026-07-14T15:23:05Z",
+   "type": "created",
+   "strategy_id": "root_macd_cross",
+   "name": "MACD Cross",
+   "what_changed": "Baseline built-in strategy (version 1).",
+   "why": "Baseline strategy",
+   "status": "Research"
+  },
+  {
+   "at": "2026-07-14T15:23:05Z",
+   "type": "created",
+   "strategy_id": "root_supertrend_follow",
+   "name": "Supertrend",
+   "what_changed": "Baseline built-in strategy (version 1).",
+   "why": "Baseline strategy",
+   "status": "Research"
+  },
+  {
+   "at": "2026-07-14T15:23:06Z",
+   "type": "created",
+   "strategy_id": "3fd2e66958e3",
+   "name": "Trend Rider \u2014 confidence_threshold=60",
+   "what_changed": "confidence_threshold: 55 \u2192 60 (score)",
+   "why": "Higher thresholds trade less but may improve win rate; lower thresholds increase sample size.",
+   "status": "Archived"
+  },
+  {
+   "at": "2026-07-14T15:23:06Z",
+   "type": "created",
+   "strategy_id": "ff66dfb193a5",
+   "name": "Trend Rider \u2014 confidence_threshold=65",
+   "what_changed": "confidence_threshold: 55 \u2192 65 (score)",
+   "why": "Higher thresholds trade less but may improve win rate; lower thresholds increase sample size.",
+   "status": "Draft"
+  },
+  {
+   "at": "2026-07-14T15:23:06Z",
+   "type": "created",
+   "strategy_id": "505565311ecf",
+   "name": "Trend Rider \u2014 confidence_threshold=70",
+   "what_changed": "confidence_threshold: 55 \u2192 70 (score)",
+   "why": "Higher thresholds trade less but may improve win rate; lower thresholds increase sample size.",
+   "status": "Draft"
+  },
+  {
+   "at": "2026-07-14T15:23:06Z",
+   "type": "created",
+   "strategy_id": "4b814b5c33a8",
+   "name": "Trend Rider \u2014 confidence_threshold=75",
+   "what_changed": "confidence_threshold: 55 \u2192 75 (score)",
+   "why": "Higher thresholds trade less but may improve win rate; lower thresholds increase sample size.",
+   "status": "Draft"
+  },
+  {
+   "at": "2026-07-14T15:23:06Z",
+   "type": "created",
+   "strategy_id": "382749947f3d",
+   "name": "Trend Rider \u2014 holding_days=5",
+   "what_changed": "holding_days: 20 \u2192 5 (days)",
+   "why": "Shorter holds reduce time-based exits and exposure; longer holds let trends develop.",
+   "status": "Draft"
+  },
+  {
+   "at": "2026-07-14T15:23:06Z",
+   "type": "created",
+   "strategy_id": "cbc67a70c32a",
+   "name": "Trend Rider \u2014 holding_days=10",
+   "what_changed": "holding_days: 20 \u2192 10 (days)",
+   "why": "Shorter holds reduce time-based exits and exposure; longer holds let trends develop.",
+   "status": "Draft"
+  },
+  {
+   "at": "2026-07-14T15:23:06Z",
+   "type": "created",
+   "strategy_id": "ede58d25fc4d",
+   "name": "Trend Rider \u2014 holding_days=15",
+   "what_changed": "holding_days: 20 \u2192 15 (days)",
+   "why": "Shorter holds reduce time-based exits and exposure; longer holds let trends develop.",
+   "status": "Draft"
+  },
+  {
+   "at": "2026-07-14T15:23:06Z",
+   "type": "created",
+   "strategy_id": "4392ad527908",
+   "name": "Trend Rider \u2014 holding_days=30",
+   "what_changed": "holding_days: 20 \u2192 30 (days)",
+   "why": "Shorter holds reduce time-based exits and exposure; longer holds let trends develop.",
+   "status": "Draft"
+  },
+  {
+   "at": "2026-07-14T15:23:18Z",
+   "type": "status_change",
+   "strategy_id": "3fd2e66958e3",
+   "name": "Trend Rider \u2014 confidence_threshold=60",
+   "what_changed": "Draft \u2192 Archived",
+   "why": "Survival rules failed: 2 rule(s)",
+   "status": "Archived"
+  },
+  {
+   "at": "2026-07-14T15:23:18Z",
+   "type": "evaluation",
+   "strategy_id": "3fd2e66958e3",
+   "name": "Trend Rider \u2014 confidence_threshold=60",
+   "what_changed": "Survival rules applied",
+   "why": "5/7 rules passed",
+   "status": "Archived"
+  }
+ ],
+ "mutation_history": [
+  {
+   "strategy_id": "3fd2e66958e3",
+   "name": "Trend Rider \u2014 confidence_threshold=60",
+   "base_strategy": "trend_rider",
+   "parent_id": "root_trend_rider",
+   "version": 2,
+   "created_at": "2026-07-14T15:23:06Z",
+   "status": "Archived",
+   "author": "researcher",
+   "notes": "Controlled mutation of Trend Rider: only 'confidence_threshold' changed (55 \u2192 60). Requires human approval before any use.",
+   "change_summary": "confidence_threshold: 55 \u2192 60 (score)",
+   "mutation": {
+    "parameter": "confidence_threshold",
+    "from": 55,
+    "to": 60,
+    "unit": "score",
+    "expected_benefit": "Higher thresholds trade less but may improve win rate; lower thresholds increase sample size.",
+    "observed_benefit": "Profit factor +0.34 vs parent",
+    "observed_drawback": null,
+    "confidence_in_recommendation": "LOW",
+    "evidence_for": "63 candidate OOS trades (MODERATE)",
+    "evidence_against": "Uncontrolled axes: start_date, end_date"
+   },
+   "config_level": true,
+   "proposed_config": {
+    "min_confidence_execute": 60
+   },
+   "testable_now": true,
+   "testing_note": "Config-level parameter \u2014 can be tested by submitting a Research Factory experiment with the proposed config.",
+   "linked_experiment_ids": [
+    "0a655cee0ae9"
+   ],
+   "evaluation": {
+    "at": "2026-07-14T15:23:18Z",
+    "exp_candidate": "0a655cee0ae9",
+    "exp_parent": "95a7ff31918c",
+    "rules": [
+     {
+      "rule": "Improves profit factor",
+      "passed": true,
+      "detail": "candidate 0.86 vs parent 0.52"
+     },
+     {
+      "rule": "Maintains or improves Sharpe",
+      "passed": true,
+      "detail": "candidate -0.61 vs parent -1.2 (tolerance \u22120.05)"
+     },
+     {
+      "rule": "Does not materially increase drawdown",
+      "passed": true,
+      "detail": "candidate 7.43% vs parent 9.62% (limit 12.54%)"
+     },
+     {
+      "rule": "Maintains calibration",
+      "passed": false,
+      "detail": "ECE unavailable \u2014 cannot verify, so rule fails honestly"
+     },
+     {
+      "rule": "Passes walk-forward validation",
+      "passed": true,
+      "detail": "1/2 positive windows (need \u226550%)"
+     },
+     {
+      "rule": "Passes evidence thresholds",
+      "passed": true,
+      "detail": "63 OOS trades (need \u226530)"
+     },
+     {
+      "rule": "Passes robustness screen",
+      "passed": false,
+      "detail": "robustness verdict: REJECT (score 75)"
+     }
+    ],
+    "survives": false,
+    "robustness_score": 75,
+    "robustness_reasons": [
+     "Loses after realistic costs (net profit \u2264 0 including commissions/slippage)."
+    ]
+   },
+   "history": [
+    {
+     "at": "2026-07-14T15:23:18Z",
+     "from": "Draft",
+     "to": "Archived",
+     "note": "Survival rules failed: 2 rule(s)"
+    }
+   ],
+   "current_performance": {
+    "trades": 46,
+    "win_rate": 32.6,
+    "net_pnl": -270.85,
+    "expectancy_rs": -5.89,
+    "profit_factor": 0.69,
+    "sharpe_proxy": -0.133,
+    "evidence": "MODERATE"
+   },
+   "evidence_score": null
+  },
+  {
+   "strategy_id": "ff66dfb193a5",
+   "name": "Trend Rider \u2014 confidence_threshold=65",
+   "base_strategy": "trend_rider",
+   "parent_id": "root_trend_rider",
+   "version": 2,
+   "created_at": "2026-07-14T15:23:06Z",
+   "status": "Draft",
+   "author": "researcher",
+   "notes": "Controlled mutation of Trend Rider: only 'confidence_threshold' changed (55 \u2192 65). Requires human approval before any use.",
+   "change_summary": "confidence_threshold: 55 \u2192 65 (score)",
+   "mutation": {
+    "parameter": "confidence_threshold",
+    "from": 55,
+    "to": 65,
+    "unit": "score",
+    "expected_benefit": "Higher thresholds trade less but may improve win rate; lower thresholds increase sample size.",
+    "observed_benefit": null,
+    "observed_drawback": null,
+    "confidence_in_recommendation": null,
+    "evidence_for": null,
+    "evidence_against": null
+   },
+   "config_level": true,
+   "proposed_config": {
+    "min_confidence_execute": 65
+   },
+   "testable_now": true,
+   "testing_note": "Config-level parameter \u2014 can be tested by submitting a Research Factory experiment with the proposed config.",
+   "linked_experiment_ids": [],
+   "evaluation": null,
+   "current_performance": {
+    "trades": 46,
+    "win_rate": 32.6,
+    "net_pnl": -270.85,
+    "expectancy_rs": -5.89,
+    "profit_factor": 0.69,
+    "sharpe_proxy": -0.133,
+    "evidence": "MODERATE"
+   },
+   "evidence_score": null
+  },
+  {
+   "strategy_id": "505565311ecf",
+   "name": "Trend Rider \u2014 confidence_threshold=70",
+   "base_strategy": "trend_rider",
+   "parent_id": "root_trend_rider",
+   "version": 2,
+   "created_at": "2026-07-14T15:23:06Z",
+   "status": "Draft",
+   "author": "researcher",
+   "notes": "Controlled mutation of Trend Rider: only 'confidence_threshold' changed (55 \u2192 70). Requires human approval before any use.",
+   "change_summary": "confidence_threshold: 55 \u2192 70 (score)",
+   "mutation": {
+    "parameter": "confidence_threshold",
+    "from": 55,
+    "to": 70,
+    "unit": "score",
+    "expected_benefit": "Higher thresholds trade less but may improve win rate; lower thresholds increase sample size.",
+    "observed_benefit": null,
+    "observed_drawback": null,
+    "confidence_in_recommendation": null,
+    "evidence_for": null,
+    "evidence_against": null
+   },
+   "config_level": true,
+   "proposed_config": {
+    "min_confidence_execute": 70
+   },
+   "testable_now": true,
+   "testing_note": "Config-level parameter \u2014 can be tested by submitting a Research Factory experiment with the proposed config.",
+   "linked_experiment_ids": [],
+   "evaluation": null,
+   "current_performance": {
+    "trades": 46,
+    "win_rate": 32.6,
+    "net_pnl": -270.85,
+    "expectancy_rs": -5.89,
+    "profit_factor": 0.69,
+    "sharpe_proxy": -0.133,
+    "evidence": "MODERATE"
+   },
+   "evidence_score": null
+  },
+  {
+   "strategy_id": "4b814b5c33a8",
+   "name": "Trend Rider \u2014 confidence_threshold=75",
+   "base_strategy": "trend_rider",
+   "parent_id": "root_trend_rider",
+   "version": 2,
+   "created_at": "2026-07-14T15:23:06Z",
+   "status": "Draft",
+   "author": "researcher",
+   "notes": "Controlled mutation of Trend Rider: only 'confidence_threshold' changed (55 \u2192 75). Requires human approval before any use.",
+   "change_summary": "confidence_threshold: 55 \u2192 75 (score)",
+   "mutation": {
+    "parameter": "confidence_threshold",
+    "from": 55,
+    "to": 75,
+    "unit": "score",
+    "expected_benefit": "Higher thresholds trade less but may improve win rate; lower thresholds increase sample size.",
+    "observed_benefit": null,
+    "observed_drawback": null,
+    "confidence_in_recommendation": null,
+    "evidence_for": null,
+    "evidence_against": null
+   },
+   "config_level": true,
+   "proposed_config": {
+    "min_confidence_execute": 75
+   },
+   "testable_now": true,
+   "testing_note": "Config-level parameter \u2014 can be tested by submitting a Research Factory experiment with the proposed config.",
+   "linked_experiment_ids": [],
+   "evaluation": null,
+   "current_performance": {
+    "trades": 46,
+    "win_rate": 32.6,
+    "net_pnl": -270.85,
+    "expectancy_rs": -5.89,
+    "profit_factor": 0.69,
+    "sharpe_proxy": -0.133,
+    "evidence": "MODERATE"
+   },
+   "evidence_score": null
+  },
+  {
+   "strategy_id": "382749947f3d",
+   "name": "Trend Rider \u2014 holding_days=5",
+   "base_strategy": "trend_rider",
+   "parent_id": "root_trend_rider",
+   "version": 3,
+   "created_at": "2026-07-14T15:23:06Z",
+   "status": "Draft",
+   "author": "researcher",
+   "notes": "Controlled mutation of Trend Rider: only 'holding_days' changed (20 \u2192 5). Requires human approval before any use.",
+   "change_summary": "holding_days: 20 \u2192 5 (days)",
+   "mutation": {
+    "parameter": "holding_days",
+    "from": 20,
+    "to": 5,
+    "unit": "days",
+    "expected_benefit": "Shorter holds reduce time-based exits and exposure; longer holds let trends develop.",
+    "observed_benefit": null,
+    "observed_drawback": null,
+    "confidence_in_recommendation": null,
+    "evidence_for": null,
+    "evidence_against": null
+   },
+   "config_level": true,
+   "proposed_config": {
+    "max_holding_days": 5
+   },
+   "testable_now": true,
+   "testing_note": "Config-level parameter \u2014 can be tested by submitting a Research Factory experiment with the proposed config.",
+   "linked_experiment_ids": [],
+   "evaluation": null,
+   "current_performance": {
+    "trades": 46,
+    "win_rate": 32.6,
+    "net_pnl": -270.85,
+    "expectancy_rs": -5.89,
+    "profit_factor": 0.69,
+    "sharpe_proxy": -0.133,
+    "evidence": "MODERATE"
+   },
+   "evidence_score": null
+  },
+  {
+   "strategy_id": "cbc67a70c32a",
+   "name": "Trend Rider \u2014 holding_days=10",
+   "base_strategy": "trend_rider",
+   "parent_id": "root_trend_rider",
+   "version": 3,
+   "created_at": "2026-07-14T15:23:06Z",
+   "status": "Draft",
+   "author": "researcher",
+   "notes": "Controlled mutation of Trend Rider: only 'holding_days' changed (20 \u2192 10). Requires human approval before any use.",
+   "change_summary": "holding_days: 20 \u2192 10 (days)",
+   "mutation": {
+    "parameter": "holding_days",
+    "from": 20,
+    "to": 10,
+    "unit": "days",
+    "expected_benefit": "Shorter holds reduce time-based exits and exposure; longer holds let trends develop.",
+    "observed_benefit": null,
+    "observed_drawback": null,
+    "confidence_in_recommendation": null,
+    "evidence_for": null,
+    "evidence_against": null
+   },
+   "config_level": true,
+   "proposed_config": {
+    "max_holding_days": 10
+   },
+   "testable_now": true,
+   "testing_note": "Config-level parameter \u2014 can be tested by submitting a Research Factory experiment with the proposed config.",
+   "linked_experiment_ids": [],
+   "evaluation": null,
+   "current_performance": {
+    "trades": 46,
+    "win_rate": 32.6,
+    "net_pnl": -270.85,
+    "expectancy_rs": -5.89,
+    "profit_factor": 0.69,
+    "sharpe_proxy": -0.133,
+    "evidence": "MODERATE"
+   },
+   "evidence_score": null
+  },
+  {
+   "strategy_id": "ede58d25fc4d",
+   "name": "Trend Rider \u2014 holding_days=15",
+   "base_strategy": "trend_rider",
+   "parent_id": "root_trend_rider",
+   "version": 3,
+   "created_at": "2026-07-14T15:23:06Z",
+   "status": "Draft",
+   "author": "researcher",
+   "notes": "Controlled mutation of Trend Rider: only 'holding_days' changed (20 \u2192 15). Requires human approval before any use.",
+   "change_summary": "holding_days: 20 \u2192 15 (days)",
+   "mutation": {
+    "parameter": "holding_days",
+    "from": 20,
+    "to": 15,
+    "unit": "days",
+    "expected_benefit": "Shorter holds reduce time-based exits and exposure; longer holds let trends develop.",
+    "observed_benefit": null,
+    "observed_drawback": null,
+    "confidence_in_recommendation": null,
+    "evidence_for": null,
+    "evidence_against": null
+   },
+   "config_level": true,
+   "proposed_config": {
+    "max_holding_days": 15
+   },
+   "testable_now": true,
+   "testing_note": "Config-level parameter \u2014 can be tested by submitting a Research Factory experiment with the proposed config.",
+   "linked_experiment_ids": [],
+   "evaluation": null,
+   "current_performance": {
+    "trades": 46,
+    "win_rate": 32.6,
+    "net_pnl": -270.85,
+    "expectancy_rs": -5.89,
+    "profit_factor": 0.69,
+    "sharpe_proxy": -0.133,
+    "evidence": "MODERATE"
+   },
+   "evidence_score": null
+  },
+  {
+   "strategy_id": "4392ad527908",
+   "name": "Trend Rider \u2014 holding_days=30",
+   "base_strategy": "trend_rider",
+   "parent_id": "root_trend_rider",
+   "version": 3,
+   "created_at": "2026-07-14T15:23:06Z",
+   "status": "Draft",
+   "author": "researcher",
+   "notes": "Controlled mutation of Trend Rider: only 'holding_days' changed (20 \u2192 30). Requires human approval before any use.",
+   "change_summary": "holding_days: 20 \u2192 30 (days)",
+   "mutation": {
+    "parameter": "holding_days",
+    "from": 20,
+    "to": 30,
+    "unit": "days",
+    "expected_benefit": "Shorter holds reduce time-based exits and exposure; longer holds let trends develop.",
+    "observed_benefit": null,
+    "observed_drawback": null,
+    "confidence_in_recommendation": null,
+    "evidence_for": null,
+    "evidence_against": null
+   },
+   "config_level": true,
+   "proposed_config": {
+    "max_holding_days": 30
+   },
+   "testable_now": true,
+   "testing_note": "Config-level parameter \u2014 can be tested by submitting a Research Factory experiment with the proposed config.",
+   "linked_experiment_ids": [],
+   "evaluation": null,
+   "current_performance": {
+    "trades": 46,
+    "win_rate": 32.6,
+    "net_pnl": -270.85,
+    "expectancy_rs": -5.89,
+    "profit_factor": 0.69,
+    "sharpe_proxy": -0.133,
+    "evidence": "MODERATE"
+   },
+   "evidence_score": null
+  }
+ ],
+ "ab_tests": [
+  {
+   "id": "6e756c53bb31",
+   "created_at": "2026-07-14T15:23:18Z",
+   "parent_strategy": {
+    "id": "root_trend_rider",
+    "name": "Trend Rider",
+    "experiment_id": "95a7ff31918c"
+   },
+   "candidate_strategy": {
+    "id": "3fd2e66958e3",
+    "name": "Trend Rider \u2014 confidence_threshold=60",
+    "experiment_id": "0a655cee0ae9",
+    "change_summary": "confidence_threshold: 55 \u2192 60 (score)"
+   },
+   "controlled": false,
+   "matched_axes": [
+    "train_years",
+    "test_months",
+    "step_months",
+    "universe_size",
+    "intrabar_rule"
+   ],
+   "differing_axes": [
+    "start_date",
+    "end_date"
+   ],
+   "metric_checks": [
+    {
+     "metric": "profit_factor",
+     "parent": 0.52,
+     "candidate": 0.86,
+     "winner": "candidate"
+    },
+    {
+     "metric": "sharpe",
+     "parent": -1.2,
+     "candidate": -0.61,
+     "winner": "candidate"
+    },
+    {
+     "metric": "net_return_pct",
+     "parent": -6.55,
+     "candidate": -1.71,
+     "winner": "candidate"
+    },
+    {
+     "metric": "max_drawdown_pct",
+     "parent": 9.62,
+     "candidate": 7.43,
+     "winner": "candidate"
+    },
+    {
+     "metric": "calibration_ece",
+     "parent": null,
+     "candidate": null,
+     "winner": "NO_DATA"
+    }
+   ],
+   "winner": "candidate",
+   "confidence": "LOW",
+   "evidence": {
+    "parent_trades": 37,
+    "candidate_trades": 63,
+    "parent_evidence": "MODERATE",
+    "candidate_evidence": "MODERATE",
+    "evidence_difference": 26
+   },
+   "statistical_difference": {
+    "welch_t": -0.033,
+    "interpretation": "NOT_DISTINGUISHABLE",
+    "basis": "per-window total returns"
+   },
+   "recommendation": "Comparison is NOT fully controlled (differing: start_date, end_date). Re-run both experiments with identical settings before drawing conclusions.",
+   "parent_metrics": {
+    "trades": 37,
+    "windows": 7,
+    "window_returns_pct": [
+     0.0,
+     1.27,
+     -7.33,
+     0.0,
+     0.0,
+     -0.55,
+     0.05
+    ],
+    "positive_windows": 2,
+    "net_return_pct": -6.55,
+    "net_profit": -327.62,
+    "total_costs": 83.08,
+    "profit_factor": 0.52,
+    "sharpe": -1.2,
+    "sortino": -3.29,
+    "max_drawdown_pct": 9.62,
+    "win_rate": 32.4,
+    "expectancy": -8.85,
+    "calibration_ece": null,
+    "overfitting_flags": [
+     "trades_low (37 < 50)"
+    ]
+   },
+   "candidate_metrics": {
+    "trades": 63,
+    "windows": 2,
+    "window_returns_pct": [
+     1.54,
+     -3.24
+    ],
+    "positive_windows": 1,
+    "net_return_pct": -1.71,
+    "net_profit": -85.36,
+    "total_costs": 200.79,
+    "profit_factor": 0.86,
+    "sharpe": -0.61,
+    "sortino": -1.31,
+    "max_drawdown_pct": 7.43,
+    "win_rate": 47.6,
+    "expectancy": -1.35,
+    "calibration_ece": null,
+    "overfitting_flags": []
+   },
+   "safety": {
+    "research_only": true,
+    "affects_live_trading": false,
+    "affects_paper_trading": false,
+    "auto_promotion": false,
+    "note": "Strategy Evolution Laboratory produces research candidates only. Human approval is required before any future deployment."
+   }
+  }
+ ],
+ "robustness_reports": [
+  {
+   "at": "2026-07-14T15:23:18Z",
+   "exp_candidate": "0a655cee0ae9",
+   "exp_parent": "95a7ff31918c",
+   "rules": [
+    {
+     "rule": "Improves profit factor",
+     "passed": true,
+     "detail": "candidate 0.86 vs parent 0.52"
+    },
+    {
+     "rule": "Maintains or improves Sharpe",
+     "passed": true,
+     "detail": "candidate -0.61 vs parent -1.2 (tolerance \u22120.05)"
+    },
+    {
+     "rule": "Does not materially increase drawdown",
+     "passed": true,
+     "detail": "candidate 7.43% vs parent 9.62% (limit 12.54%)"
+    },
+    {
+     "rule": "Maintains calibration",
+     "passed": false,
+     "detail": "ECE unavailable \u2014 cannot verify, so rule fails honestly"
+    },
+    {
+     "rule": "Passes walk-forward validation",
+     "passed": true,
+     "detail": "1/2 positive windows (need \u226550%)"
+    },
+    {
+     "rule": "Passes evidence thresholds",
+     "passed": true,
+     "detail": "63 OOS trades (need \u226530)"
+    },
+    {
+     "rule": "Passes robustness screen",
+     "passed": false,
+     "detail": "robustness verdict: REJECT (score 75)"
+    }
+   ],
+   "survives": false,
+   "robustness_score": 75,
+   "robustness_reasons": [
+    "Loses after realistic costs (net profit \u2264 0 including commissions/slippage)."
+   ]
+  }
+ ],
+ "knowledge_base": [
+  {
+   "strategy": "Mean Reversion",
+   "works_well": [
+    {
+     "context": "Sector: ENERGY",
+     "trades": 9,
+     "expectancy_rs": 15.27,
+     "win_rate": 77.8,
+     "net_pnl": 137.44,
+     "confidence": "INSUFFICIENT",
+     "evidence": "9 OOS trades across 5 experiment(s)",
+     "experiment_ids": [
+      "0a655cee0ae9",
+      "1e3806416eb2",
+      "95a7ff31918c",
+      "c3a16676dc3b",
+      "c3b29a0fe086"
+     ]
+    },
+    {
+     "context": "Market regime: Neutral-Bullish",
+     "trades": 32,
+     "expectancy_rs": 9.47,
+     "win_rate": 78.1,
+     "net_pnl": 303.17,
+     "confidence": "MODERATE",
+     "evidence": "32 OOS trades across 4 experiment(s)",
+     "experiment_ids": [
+      "0a655cee0ae9",
+      "95a7ff31918c",
+      "c3a16676dc3b",
+      "c3b29a0fe086"
+     ]
+    },
+    {
+     "context": "Market regime: Bearish",
+     "trades": 22,
+     "expectancy_rs": 1.66,
+     "win_rate": 68.2,
+     "net_pnl": 36.61,
+     "confidence": "WEAK",
+     "evidence": "22 OOS trades across 4 experiment(s)",
+     "experiment_ids": [
+      "0a655cee0ae9",
+      "1e3806416eb2",
+      "c3a16676dc3b",
+      "c3b29a0fe086"
+     ]
+    },
+    {
+     "context": "Sector: IT",
+     "trades": 111,
+     "expectancy_rs": 0.61,
+     "win_rate": 59.5,
+     "net_pnl": 67.67,
+     "confidence": "STRONG",
+     "evidence": "111 OOS trades across 3 experiment(s)",
+     "experiment_ids": [
+      "0a655cee0ae9",
+      "c3a16676dc3b",
+      "c3b29a0fe086"
+     ]
+    }
+   ],
+   "fails": [
+    {
+     "context": "Market regime: Neutral-Bearish",
+     "trades": 33,
+     "expectancy_rs": -2.34,
+     "win_rate": 45.5,
+     "net_pnl": -77.13,
+     "confidence": "MODERATE",
+     "evidence": "33 OOS trades across 3 experiment(s)",
+     "experiment_ids": [
+      "0a655cee0ae9",
+      "c3a16676dc3b",
+      "c3b29a0fe086"
+     ]
+    },
+    {
+     "context": "Market regime: Bullish",
+     "trades": 33,
+     "expectancy_rs": -1.74,
+     "win_rate": 54.5,
+     "net_pnl": -57.54,
+     "confidence": "MODERATE",
+     "evidence": "33 OOS trades across 3 experiment(s)",
+     "experiment_ids": [
+      "0a655cee0ae9",
+      "c3a16676dc3b",
+      "c3b29a0fe086"
+     ]
+    }
+   ],
+   "total_trades": 120
+  },
+  {
+   "strategy": "MACD Cross",
+   "works_well": [
+    {
+     "context": "Market regime: Neutral-Bullish",
+     "trades": 15,
+     "expectancy_rs": 7.21,
+     "win_rate": 40.0,
+     "net_pnl": 108.12,
+     "confidence": "WEAK",
+     "evidence": "15 OOS trades across 3 experiment(s)",
+     "experiment_ids": [
+      "0a655cee0ae9",
+      "c3a16676dc3b",
+      "c3b29a0fe086"
+     ]
+    }
+   ],
+   "fails": [
+    {
+     "context": "Sector: FMCG",
+     "trades": 3,
+     "expectancy_rs": -31.61,
+     "win_rate": 0.0,
+     "net_pnl": -94.83,
+     "confidence": "INSUFFICIENT",
+     "evidence": "3 OOS trades across 3 experiment(s)",
+     "experiment_ids": [
+      "0a655cee0ae9",
+      "c3a16676dc3b",
+      "c3b29a0fe086"
+     ]
+    },
+    {
+     "context": "Market regime: Bullish",
+     "trades": 13,
+     "expectancy_rs": -26.59,
+     "win_rate": 0.0,
+     "net_pnl": -345.73,
+     "confidence": "WEAK",
+     "evidence": "13 OOS trades across 4 experiment(s)",
+     "experiment_ids": [
+      "0a655cee0ae9",
+      "95a7ff31918c",
+      "c3a16676dc3b",
+      "c3b29a0fe086"
+     ]
+    },
+    {
+     "context": "Market regime: Bearish",
+     "trades": 13,
+     "expectancy_rs": -16.52,
+     "win_rate": 23.1,
+     "net_pnl": -214.73,
+     "confidence": "WEAK",
+     "evidence": "13 OOS trades across 4 experiment(s)",
+     "experiment_ids": [
+      "0a655cee0ae9",
+      "95a7ff31918c",
+      "c3a16676dc3b",
+      "c3b29a0fe086"
+     ]
+    },
+    {
+     "context": "Sector: FINANCE",
+     "trades": 8,
+     "expectancy_rs": -11.38,
+     "win_rate": 12.5,
+     "net_pnl": -91.02,
+     "confidence": "INSUFFICIENT",
+     "evidence": "8 OOS trades across 4 experiment(s)",
+     "experiment_ids": [
+      "0a655cee0ae9",
+      "95a7ff31918c",
+      "c3a16676dc3b",
+      "c3b29a0fe086"
+     ]
+    },
+    {
+     "context": "Sector: BANKING",
+     "trades": 36,
+     "expectancy_rs": -8.71,
+     "win_rate": 25.0,
+     "net_pnl": -313.49,
+     "confidence": "MODERATE",
+     "evidence": "36 OOS trades across 3 experiment(s)",
+     "experiment_ids": [
+      "0a655cee0ae9",
+      "c3a16676dc3b",
+      "c3b29a0fe086"
+     ]
+    },
+    {
+     "context": "Market regime: Neutral-Bearish",
+     "trades": 28,
+     "expectancy_rs": -4.57,
+     "win_rate": 25.0,
+     "net_pnl": -128.02,
+     "confidence": "WEAK",
+     "evidence": "28 OOS trades across 4 experiment(s)",
+     "experiment_ids": [
+      "0a655cee0ae9",
+      "95a7ff31918c",
+      "c3a16676dc3b",
+      "c3b29a0fe086"
+     ]
+    },
+    {
+     "context": "Sector: ENERGY",
+     "trades": 18,
+     "expectancy_rs": -0.7,
+     "win_rate": 33.3,
+     "net_pnl": -12.6,
+     "confidence": "WEAK",
+     "evidence": "18 OOS trades across 3 experiment(s)",
+     "experiment_ids": [
+      "0a655cee0ae9",
+      "c3a16676dc3b",
+      "c3b29a0fe086"
+     ]
+    }
+   ],
+   "total_trades": 69
+  },
+  {
+   "strategy": "Trend Rider",
+   "works_well": [
+    {
+     "context": "Market regime: Bullish",
+     "trades": 15,
+     "expectancy_rs": 9.27,
+     "win_rate": 46.7,
+     "net_pnl": 139.09,
+     "confidence": "WEAK",
+     "evidence": "15 OOS trades across 5 experiment(s)",
+     "experiment_ids": [
+      "0a655cee0ae9",
+      "1e3806416eb2",
+      "95a7ff31918c",
+      "c3a16676dc3b",
+      "c3b29a0fe086"
+     ]
+    },
+    {
+     "context": "Sector: METALS",
+     "trades": 4,
+     "expectancy_rs": 5.87,
+     "win_rate": 50.0,
+     "net_pnl": 23.48,
+     "confidence": "INSUFFICIENT",
+     "evidence": "4 OOS trades across 1 experiment(s)",
+     "experiment_ids": [
+      "1e3806416eb2"
+     ]
+    },
+    {
+     "context": "Market regime: Bearish",
+     "trades": 12,
+     "expectancy_rs": 2.47,
+     "win_rate": 41.7,
+     "net_pnl": 29.64,
+     "confidence": "WEAK",
+     "evidence": "12 OOS trades across 2 experiment(s)",
+     "experiment_ids": [
+      "1e3806416eb2",
+      "95a7ff31918c"
+     ]
+    }
+   ],
+   "fails": [
+    {
+     "context": "Market regime: Neutral-Bullish",
+     "trades": 15,
+     "expectancy_rs": -23.29,
+     "win_rate": 13.3,
+     "net_pnl": -349.31,
+     "confidence": "WEAK",
+     "evidence": "15 OOS trades across 5 experiment(s)",
+     "experiment_ids": [
+      "0a655cee0ae9",
+      "1e3806416eb2",
+      "95a7ff31918c",
+      "c3a16676dc3b",
+      "c3b29a0fe086"
+     ]
+    },
+    {
+     "context": "Market regime: Neutral-Bearish",
+     "trades": 4,
+     "expectancy_rs": -22.57,
+     "win_rate": 25.0,
+     "net_pnl": -90.27,
+     "confidence": "INSUFFICIENT",
+     "evidence": "4 OOS trades across 2 experiment(s)",
+     "experiment_ids": [
+      "1e3806416eb2",
+      "95a7ff31918c"
+     ]
+    },
+    {
+     "context": "Sector: INFRA",
+     "trades": 3,
+     "expectancy_rs": -17.24,
+     "win_rate": 0.0,
+     "net_pnl": -51.72,
+     "confidence": "INSUFFICIENT",
+     "evidence": "3 OOS trades across 3 experiment(s)",
+     "experiment_ids": [
+      "0a655cee0ae9",
+      "c3a16676dc3b",
+      "c3b29a0fe086"
+     ]
+    },
+    {
+     "context": "Sector: FINANCE",
+     "trades": 9,
+     "expectancy_rs": -12.23,
+     "win_rate": 33.3,
+     "net_pnl": -110.06,
+     "confidence": "INSUFFICIENT",
+     "evidence": "9 OOS trades across 1 experiment(s)",
+     "experiment_ids": [
+      "95a7ff31918c"
+     ]
+    },
+    {
+     "context": "Sector: ENERGY",
+     "trades": 29,
+     "expectancy_rs": -4.8,
+     "win_rate": 31.0,
+     "net_pnl": -139.25,
+     "confidence": "WEAK",
+     "evidence": "29 OOS trades across 5 experiment(s)",
+     "experiment_ids": [
+      "0a655cee0ae9",
+      "1e3806416eb2",
+      "95a7ff31918c",
+      "c3a16676dc3b",
+      "c3b29a0fe086"
+     ]
+    }
+   ],
+   "total_trades": 46
+  },
+  {
+   "strategy": "EMA Cross",
+   "works_well": [],
+   "fails": [],
+   "total_trades": 1
+  }
+ ],
+ "candidate_leaderboard": [
+  {
+   "strategy_id": "3fd2e66958e3",
+   "name": "Trend Rider \u2014 confidence_threshold=60",
+   "status": "Archived",
+   "change_summary": "confidence_threshold: 55 \u2192 60 (score)",
+   "tested": true,
+   "profit_factor": 0.86,
+   "sharpe": -0.61,
+   "net_return_pct": -1.71,
+   "max_drawdown_pct": 7.43,
+   "trades": 63,
+   "evidence": "MODERATE",
+   "window_positive_pct": 50.0,
+   "robustness_score": 75
+  },
+  {
+   "strategy_id": "ff66dfb193a5",
+   "name": "Trend Rider \u2014 confidence_threshold=65",
+   "status": "Draft",
+   "change_summary": "confidence_threshold: 55 \u2192 65 (score)",
+   "tested": false,
+   "profit_factor": null,
+   "sharpe": null,
+   "net_return_pct": null,
+   "max_drawdown_pct": null,
+   "trades": null,
+   "evidence": "INSUFFICIENT",
+   "window_positive_pct": null,
+   "robustness_score": null
+  },
+  {
+   "strategy_id": "505565311ecf",
+   "name": "Trend Rider \u2014 confidence_threshold=70",
+   "status": "Draft",
+   "change_summary": "confidence_threshold: 55 \u2192 70 (score)",
+   "tested": false,
+   "profit_factor": null,
+   "sharpe": null,
+   "net_return_pct": null,
+   "max_drawdown_pct": null,
+   "trades": null,
+   "evidence": "INSUFFICIENT",
+   "window_positive_pct": null,
+   "robustness_score": null
+  },
+  {
+   "strategy_id": "4b814b5c33a8",
+   "name": "Trend Rider \u2014 confidence_threshold=75",
+   "status": "Draft",
+   "change_summary": "confidence_threshold: 55 \u2192 75 (score)",
+   "tested": false,
+   "profit_factor": null,
+   "sharpe": null,
+   "net_return_pct": null,
+   "max_drawdown_pct": null,
+   "trades": null,
+   "evidence": "INSUFFICIENT",
+   "window_positive_pct": null,
+   "robustness_score": null
+  },
+  {
+   "strategy_id": "382749947f3d",
+   "name": "Trend Rider \u2014 holding_days=5",
+   "status": "Draft",
+   "change_summary": "holding_days: 20 \u2192 5 (days)",
+   "tested": false,
+   "profit_factor": null,
+   "sharpe": null,
+   "net_return_pct": null,
+   "max_drawdown_pct": null,
+   "trades": null,
+   "evidence": "INSUFFICIENT",
+   "window_positive_pct": null,
+   "robustness_score": null
+  },
+  {
+   "strategy_id": "cbc67a70c32a",
+   "name": "Trend Rider \u2014 holding_days=10",
+   "status": "Draft",
+   "change_summary": "holding_days: 20 \u2192 10 (days)",
+   "tested": false,
+   "profit_factor": null,
+   "sharpe": null,
+   "net_return_pct": null,
+   "max_drawdown_pct": null,
+   "trades": null,
+   "evidence": "INSUFFICIENT",
+   "window_positive_pct": null,
+   "robustness_score": null
+  },
+  {
+   "strategy_id": "ede58d25fc4d",
+   "name": "Trend Rider \u2014 holding_days=15",
+   "status": "Draft",
+   "change_summary": "holding_days: 20 \u2192 15 (days)",
+   "tested": false,
+   "profit_factor": null,
+   "sharpe": null,
+   "net_return_pct": null,
+   "max_drawdown_pct": null,
+   "trades": null,
+   "evidence": "INSUFFICIENT",
+   "window_positive_pct": null,
+   "robustness_score": null
+  },
+  {
+   "strategy_id": "4392ad527908",
+   "name": "Trend Rider \u2014 holding_days=30",
+   "status": "Draft",
+   "change_summary": "holding_days: 20 \u2192 30 (days)",
+   "tested": false,
+   "profit_factor": null,
+   "sharpe": null,
+   "net_return_pct": null,
+   "max_drawdown_pct": null,
+   "trades": null,
+   "evidence": "INSUFFICIENT",
+   "window_positive_pct": null,
+   "robustness_score": null
+  }
+ ],
+ "rejected_candidates": [
+  {
+   "strategy_id": "3fd2e66958e3",
+   "name": "Trend Rider \u2014 confidence_threshold=60",
+   "base_strategy": "trend_rider",
+   "parent_id": "root_trend_rider",
+   "version": 2,
+   "created_at": "2026-07-14T15:23:06Z",
+   "status": "Archived",
+   "author": "researcher",
+   "notes": "Controlled mutation of Trend Rider: only 'confidence_threshold' changed (55 \u2192 60). Requires human approval before any use.",
+   "change_summary": "confidence_threshold: 55 \u2192 60 (score)",
+   "mutation": {
+    "parameter": "confidence_threshold",
+    "from": 55,
+    "to": 60,
+    "unit": "score",
+    "expected_benefit": "Higher thresholds trade less but may improve win rate; lower thresholds increase sample size.",
+    "observed_benefit": "Profit factor +0.34 vs parent",
+    "observed_drawback": null,
+    "confidence_in_recommendation": "LOW",
+    "evidence_for": "63 candidate OOS trades (MODERATE)",
+    "evidence_against": "Uncontrolled axes: start_date, end_date"
+   },
+   "config_level": true,
+   "proposed_config": {
+    "min_confidence_execute": 60
+   },
+   "testable_now": true,
+   "testing_note": "Config-level parameter \u2014 can be tested by submitting a Research Factory experiment with the proposed config.",
+   "linked_experiment_ids": [
+    "0a655cee0ae9"
+   ],
+   "evaluation": {
+    "at": "2026-07-14T15:23:18Z",
+    "exp_candidate": "0a655cee0ae9",
+    "exp_parent": "95a7ff31918c",
+    "rules": [
+     {
+      "rule": "Improves profit factor",
+      "passed": true,
+      "detail": "candidate 0.86 vs parent 0.52"
+     },
+     {
+      "rule": "Maintains or improves Sharpe",
+      "passed": true,
+      "detail": "candidate -0.61 vs parent -1.2 (tolerance \u22120.05)"
+     },
+     {
+      "rule": "Does not materially increase drawdown",
+      "passed": true,
+      "detail": "candidate 7.43% vs parent 9.62% (limit 12.54%)"
+     },
+     {
+      "rule": "Maintains calibration",
+      "passed": false,
+      "detail": "ECE unavailable \u2014 cannot verify, so rule fails honestly"
+     },
+     {
+      "rule": "Passes walk-forward validation",
+      "passed": true,
+      "detail": "1/2 positive windows (need \u226550%)"
+     },
+     {
+      "rule": "Passes evidence thresholds",
+      "passed": true,
+      "detail": "63 OOS trades (need \u226530)"
+     },
+     {
+      "rule": "Passes robustness screen",
+      "passed": false,
+      "detail": "robustness verdict: REJECT (score 75)"
+     }
+    ],
+    "survives": false,
+    "robustness_score": 75,
+    "robustness_reasons": [
+     "Loses after realistic costs (net profit \u2264 0 including commissions/slippage)."
+    ]
+   },
+   "history": [
+    {
+     "at": "2026-07-14T15:23:18Z",
+     "from": "Draft",
+     "to": "Archived",
+     "note": "Survival rules failed: 2 rule(s)"
+    }
+   ],
+   "current_performance": {
+    "trades": 46,
+    "win_rate": 32.6,
+    "net_pnl": -270.85,
+    "expectancy_rs": -5.89,
+    "profit_factor": 0.69,
+    "sharpe_proxy": -0.133,
+    "evidence": "MODERATE"
+   },
+   "evidence_score": null
+  }
+ ]
+}

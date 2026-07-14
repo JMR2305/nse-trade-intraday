@@ -1,0 +1,86 @@
+{
+  "generated_at": "2026-07-14T21:10:17Z",
+  "summary": {
+    "total_return_pct": 9.84,
+    "total_return_amount": 492.15,
+    "portfolio_value": 5492.15,
+    "today_return": 0.0,
+    "weekly_return": 465.0,
+    "monthly_return": 465.0,
+    "total_trades": 3,
+    "win_rate_pct": 66.67,
+    "profit_factor": 8.75,
+    "avg_winner": 262.5,
+    "avg_loser": 60.0,
+    "expectancy": 155.0,
+    "wins": 2,
+    "losses": 1
+  },
+  "risk": {
+    "max_drawdown_pct": 1.15,
+    "current_drawdown_pct": 0.0,
+    "sharpe": 8.18,
+    "sortino": 47.2,
+    "calmar": 8.56,
+    "volatility_pct": 37.18,
+    "beta": -10.33,
+    "beta_estimated": true,
+    "risk_score": 51.6,
+    "risk_level": "MEDIUM",
+    "estimated": true,
+    "observations": 8
+  },
+  "ai_performance": {
+    "prediction_accuracy_pct": 66.67,
+    "confidence_accuracy_pct": 66.67,
+    "avg_confidence": 14.04,
+    "avg_opportunity_score": 24.33,
+    "buy_signal_accuracy_pct": 66.67,
+    "sell_signal_accuracy_pct": 100.0,
+    "exit_signal_accuracy_pct": 100.0,
+    "avg_holding_days": 0.0,
+    "trade_quality_score": 100.0,
+    "learning_score": 83.33,
+    "estimated": true,
+    "closed_trades_used": 3
+  },
+  "benchmarks": [
+    {
+      "benchmark": "NIFTY 50",
+      "benchmark_return_pct": -0.9,
+      "portfolio_return_pct": 9.84,
+      "outperformance_pct": 10.74,
+      "alpha": 10.74,
+      "beta": 1.0,
+      "estimated": false
+    },
+    {
+      "benchmark": "Bank Nifty",
+      "benchmark_return_pct": -0.27,
+      "portfolio_return_pct": 9.84,
+      "outperformance_pct": 10.11,
+      "alpha": 10.11,
+      "beta": 1.0,
+      "estimated": false
+    },
+    {
+      "benchmark": "Equal Weight Portfolio",
+      "benchmark_return_pct": -0.81,
+      "portfolio_return_pct": 9.84,
+      "outperformance_pct": 10.65,
+      "alpha": 10.57,
+      "beta": 0.9,
+      "estimated": false
+    },
+    {
+      "benchmark": "Buy & Hold",
+      "benchmark_return_pct": -0.9,
+      "portfolio_return_pct": 9.84,
+      "outperformance_pct": 10.74,
+      "alpha": 10.74,
+      "beta": 1.0,
+      "estimated": false
+    }
+  ],
+  "label": "PAPER / LIVE DATA VALIDATION"
+}

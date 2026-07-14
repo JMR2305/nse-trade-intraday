@@ -1,0 +1,5 @@
+Suite,Type,Passed,Failed,Skipped
+Unit Tests (Phase 10 suite),Backend/Python,150,0,0
+Integration Tests (curl endpoint checks),Backend/API,Manual: /api/analytics/* verified 200/400,0,0
+Frontend Tests,Frontend,Not Available,Not Available,Not Available
+Performance Tests,Backend,Not Available,Not Available,Not Available

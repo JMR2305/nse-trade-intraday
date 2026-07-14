@@ -1,0 +1,305 @@
+# Create "Phase Review Package"
+
+After every completed phase, generate a downloadable review package for ChatGPT.
+
+The objective is to allow a complete technical review without requiring dozens of screenshots.
+
+Create a ZIP file named:
+
+Phase10_Review_Package.zip
+
+(or automatically use the current phase number.)
+
+The ZIP should contain the following:
+
+==================================================
+1. implementation_summary.md
+==================================================
+
+Include:
+
+- Phase number
+- Date
+- Features implemented
+- Files modified
+- Files created
+- Database migrations
+- API endpoints added
+- Tests added
+- Tests passed
+- Known limitations
+- TODO items
+- Bugs
+- Performance notes
+
+==================================================
+2. ui_summary.csv
+==================================================
+
+One row for every page.
+
+Columns:
+
+Page
+Section
+Component
+Status
+Data Source
+Uses Real Data
+Uses Placeholder
+Responsive
+Export Supported
+Notes
+
+==================================================
+3. metrics_summary.csv
+==================================================
+
+Include every KPI displayed in the application.
+
+Examples:
+
+Metric
+Value
+Calculation
+Source
+Available
+Notes
+
+==================================================
+4. screenshots
+==================================================
+
+Automatically capture screenshots of every major page.
+
+Dashboard
+
+Market
+
+Market Scanner
+
+Signals
+
+AI Decision
+
+Portfolio Manager
+
+Performance Analytics
+
+Research Factory
+
+Research Report
+
+Strategy Evolution
+
+Research Intelligence
+
+Meta Learning
+
+AI Copilot
+
+Trade Replay
+
+Notification Center
+
+Pattern Quality
+
+Feature Importance
+
+Learning Review
+
+Learning Insights
+
+Portfolio Analytics
+
+Each screenshot:
+
+1920x1080
+
+PNG
+
+==================================================
+5. exports
+==================================================
+
+Automatically include:
+
+CSV exports
+
+JSON exports
+
+Research Report
+
+Meta Learning Report
+
+Performance Analytics export
+
+Strategy Evolution export
+
+==================================================
+6. api_endpoints.csv
+==================================================
+
+List:
+
+Endpoint
+
+Method
+
+Description
+
+Status
+
+==================================================
+7. database_schema.csv
+==================================================
+
+List:
+
+Table
+
+Columns
+
+Purpose
+
+Relationships
+
+==================================================
+8. feature_matrix.csv
+==================================================
+
+Every implemented feature.
+
+Columns:
+
+Feature
+
+Phase
+
+Implemented
+
+Tested
+
+Working
+
+Comments
+
+==================================================
+9. test_results.csv
+==================================================
+
+Include:
+
+Unit Tests
+
+Integration Tests
+
+Frontend Tests
+
+Backend Tests
+
+Performance Tests
+
+Passed
+
+Failed
+
+Skipped
+
+==================================================
+10. review_summary.md
+==================================================
+
+Provide an honest implementation review.
+
+Sections:
+
+Completed
+
+Partially Complete
+
+Missing
+
+Known Issues
+
+Future Improvements
+
+Risk Assessment
+
+==================================================
+11. app_manifest.json
+==================================================
+
+Include:
+
+Version
+
+Phase
+
+Pages
+
+Routes
+
+Components
+
+Database Version
+
+API Version
+
+==================================================
+12. README.md
+==================================================
+
+Explain the review package.
+
+==================================================
+ZIP
+==================================================
+
+Compress everything into:
+
+Phase10_Review_Package.zip
+
+==================================================
+EXPORT
+==================================================
+
+Add a new button in Settings:
+
+"Generate Review Package"
+
+When clicked:
+
+Generate the ZIP.
+
+Download automatically.
+
+Display:
+
+Files included
+
+Generation time
+
+Total size
+
+Any warnings
+
+==================================================
+QUALITY REQUIREMENTS
+==================================================
+
+Do not generate placeholder screenshots.
+
+Only include existing pages.
+
+Mark unavailable sections honestly.
+
+Do not fabricate metrics.
+
+If data is unavailable, clearly state:
+
+"Not Available"
+
+rather than inventing values.
+
+The package must be complete enough that ChatGPT can review the entire phase from the ZIP contents without requiring additional screenshots.

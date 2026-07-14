@@ -1,0 +1,26 @@
+Metric,Value,Calculation,Source,Available,Notes
+Total Return %,9.84,(portfolio value - 5000) / 5000 * 100,state.json cash+positions,Yes,Includes open position marks
+Portfolio Value,5492.15,cash + sum(qty * last known price),state.json + scan cache prices,Yes,
+Today's Return,0.0,sum of realized P&L closed today,state.json trades,Yes,
+Weekly Return,465.0,"realized P&L, last 7 days",state.json trades,Yes,
+Monthly Return,465.0,"realized P&L, last 30 days",state.json trades,Yes,
+Total Trades,3,count of closed SELL legs,state.json trades,Yes,
+Win Rate %,66.67,wins / closed trades * 100,state.json trades,Yes,
+Profit Factor,8.75,gross profit / gross loss,state.json trades,Yes,Capped at 999 when no losses
+Avg Winner,262.5,gross profit / wins,state.json trades,Yes,
+Avg Loser,60.0,gross loss / losses,state.json trades,Yes,
+Expectancy,155.0,winrate*avgWin - lossrate*avgLoss,state.json trades,Yes,
+Max Drawdown %,1.15,largest peak-to-trough equity decline,equity curve,Yes,
+Sharpe Ratio,8.18,mean/std of period returns * sqrt(252),equity curve,Yes,Estimated (8 observations)
+Sortino Ratio,47.2,mean/downside-std * sqrt(252),equity curve,Yes,Estimated
+Calmar Ratio,8.56,total return / max drawdown,derived,Yes,
+Volatility % (ann.),37.18,std of period returns * sqrt(252),equity curve,Yes,Estimated
+Beta vs NIFTY,-10.33,portfolio daily % / NIFTY daily %,market_context_cache.json,Yes,Single-observation estimate
+Risk Score,51.6,composite: drawdown+volatility+VIX+exposure,derived,Yes,Level: MEDIUM
+Prediction Accuracy %,66.67,profitable closed trades %,state.json trades,Yes,Estimated below 20 trades
+Confidence Accuracy %,66.67,confidence>=50 matching outcome %,BUY-record confidence,Yes,
+Avg Confidence,14.04,"mean calibrated confidence, latest scan",phase7_scan_cache.json,Yes,
+Avg Opportunity Score,24.33,"mean opportunity score, latest scan",phase7_scan_cache.json,Yes,
+Avg Holding Period (days),0.0,mean days FIFO buy→sell,state.json trades,Yes,
+Trade Quality Score,100.0,"gate-pass quality, latest confidence snapshot",phase9_confidence_history.json,Yes,
+Learning Score,83.33,(prediction accuracy + trade quality) / 2,derived,Yes,

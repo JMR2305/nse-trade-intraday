@@ -2169,4 +2169,68 @@ router.get("/analytics/export", async (req, res) => {
   }
 });
 
+// ── Phase Review Package ─────────────────────────────────────────────────────
+
+function runNode(scriptPath: string, args: string[]): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn("node", [scriptPath, ...args], { cwd: process.cwd() });
+    let stdout = "";
+    let stderr = "";
+    proc.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });
+    proc.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
+    proc.on("close", (code) => {
+      if (code !== 0) return reject(new Error(stderr || `node exited ${code}`));
+      try { resolve(JSON.parse(stdout.trim())); }
+      catch { reject(new Error(`Failed to parse node output: ${stdout.slice(0, 300)}`)); }
+    });
+    proc.on("error", reject);
+  });
+}
+
+let reviewPackageBusy = false;
+
+// POST /api/review-package/generate — capture screenshots, then build the ZIP
+router.post("/review-package/generate", async (_req, res) => {
+  if (reviewPackageBusy) {
+    res.status(409).json({ error: "A review package is already being generated. Please wait." });
+    return;
+  }
+  reviewPackageBusy = true;
+  try {
+    const shotsDir = path.join(PYTHON_DIR, "review_screenshots");
+    let shots: { captured?: unknown[]; failed?: unknown[]; error?: string } = {};
+    try {
+      shots = await runNode(
+        path.join(process.cwd(), "src", "scripts", "capture_screenshots.mjs"),
+        [shotsDir],
+      ) as typeof shots;
+    } catch (e: unknown) {
+      shots = { error: e instanceof Error ? e.message : String(e) };
+    }
+    const result = await runPython(["review_package", shotsDir]) as Record<string, unknown>;
+    const warnings = (result.warnings as string[]) ?? [];
+    if (shots.error) warnings.push(`Screenshot capture failed: ${shots.error}`);
+    if (shots.failed && (shots.failed as unknown[]).length > 0) {
+      warnings.push(`${(shots.failed as unknown[]).length} page(s) failed to capture`);
+    }
+    res.json({ ...result, warnings, screenshot_failures: shots.failed ?? [] });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  } finally {
+    reviewPackageBusy = false;
+  }
+});
+
+// GET /api/review-package/download — stream the most recently generated ZIP
+router.get("/review-package/download", (_req, res) => {
+  const zipPath = path.join(PYTHON_DIR, "Phase10_Review_Package.zip");
+  if (!fs.existsSync(zipPath)) {
+    res.status(404).json({ error: "No review package has been generated yet." });
+    return;
+  }
+  res.setHeader("Content-Type", "application/zip");
+  res.setHeader("Content-Disposition", `attachment; filename="${path.basename(zipPath)}"`);
+  fs.createReadStream(zipPath).pipe(res);
+});
+
 export default router;

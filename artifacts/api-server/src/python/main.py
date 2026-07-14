@@ -1037,6 +1037,9 @@ def main():
         elif command == "phase10_export":
             from phase10_analytics import export_analytics
             result = export_analytics(args[1].lower() if len(args) > 1 else "json")
+        elif command == "review_package":
+            from review_package import build_package
+            result = build_package(args[1] if len(args) > 1 else None)
 
         elif command == "meta_health":
             from meta_learning import cmd_health

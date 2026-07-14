@@ -5,3 +5,4 @@
 - [Watchlist default fallback](watchlist-default.md) — watchlist.json may not exist; any reader must fall back to config.DEFAULT_WATCHLIST like main.py does, or features silently show empty.
 - [Phase 9 copilot design](phase9-copilot.md) — read-only engine over cached scan snapshots; alerts dedup by type+symbol+scan_id; confidence snapshots idempotent per scan_id.
 - [Analytics data integrity](analytics-data-integrity.md) — historical trade analytics must FIFO-match BUY lots and read immutable trade-time metadata, never mutable scan caches.
+- [Headless screenshot capture](headless-screenshot-capture.md) — dashboard pages poll forever; use domcontentloaded + delay, not networkidle2; nix chromium + puppeteer-core.

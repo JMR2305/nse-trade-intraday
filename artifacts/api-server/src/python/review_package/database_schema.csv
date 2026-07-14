@@ -1,0 +1,9 @@
+Table,Columns,Purpose,Relationships
+(none),-,No SQL database is used. Persistence is JSON files listed below.,-
+state.json,JSON document (see purpose),"Portfolio state: cash, positions, trades, pnl_history",Written by paper_trader on every order
+watchlist.json,JSON document (see purpose),User watchlist symbols,Falls back to config.DEFAULT_WATCHLIST when absent
+phase7_scan_cache.json,JSON document (see purpose),Latest live scan snapshot (recommendations),Overwritten by each scan run
+market_context_cache.json,JSON document (see purpose),NIFTY/BankNifty/VIX market context,Refreshed by market context engine
+phase9_alerts.json,JSON document (see purpose),"Copilot alerts, deduped by type+symbol+scan_id",Appended by copilot engine
+phase9_confidence_history.json,JSON document (see purpose),Confidence calibration snapshots per scan,Idempotent per scan_id
+knowledge_base.json,JSON document (see purpose),Historical trade knowledge for learning,Updated on trade close

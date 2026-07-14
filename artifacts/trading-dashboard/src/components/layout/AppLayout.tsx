@@ -91,6 +91,12 @@ export function AppLayout({ children }: AppLayoutProps) {
         { href: "/strategy-evolution", label: "Strategy Evolution", icon: Dna },
       ],
     },
+    {
+      label: "System",
+      items: [
+        { href: "/settings", label: "Settings", icon: Settings2 },
+      ],
+    },
   ];
 
   return (
