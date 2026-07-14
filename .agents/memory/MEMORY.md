@@ -9,3 +9,5 @@
 - [Research report engine conventions](report-engine-conventions.md) — file-based reports with hash idempotency, research-only guardrails, 19-section UI, confirm-to-queue suggestions.
 - [API route dev reload](api-route-reload.md) — new Express routes in the API server are not hot-reloaded; restart the API workflow before curl-testing new endpoints or they 404.
 - [Research intelligence conventions](research-intelligence-conventions.md) — Phase 5 engine rules: honest N/A for missing indicators, advisory-only outputs, safe numeric coercion for dirty trade CSVs.
+- [Trade data dimensions](trade-data-dimensions.md) — OOS trade records lack indicator fields (ADX/ATR/RSI/volume/volatility); analytics must report them NOT AVAILABLE, never fabricate.
+- [Evolution registry writes](evolution-registry-writes.md) — registry.json writes need flock + idempotency dedupe; tests must patch REGISTRY_PATH to a temp copy or they pollute real research data.

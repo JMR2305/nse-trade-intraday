@@ -784,6 +784,69 @@ router.get("/research/intelligence", async (_req, res) => {
   }
 });
 
+// ── Phase 6.5 — Meta-Learning (research only) ───────────────────────────────
+const META_GETS: Record<string, string> = {
+  health: "meta_health",
+  failures: "meta_failures",
+  eligibility: "meta_eligibility",
+  improvements: "meta_improvements",
+  contradictions: "meta_contradictions",
+};
+for (const [route, cmd] of Object.entries(META_GETS)) {
+  router.get(`/meta-learning/${route}`, async (_req, res) => {
+    try { res.json(await runPython([cmd])); }
+    catch (err: unknown) { res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) }); }
+  });
+}
+
+// GET /api/meta-learning/compare?a=<expId>&b=<expId>
+router.get("/meta-learning/compare", async (req, res) => {
+  try {
+    const a = String(req.query.a ?? ""), b = String(req.query.b ?? "");
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(a) || !/^[A-Za-z0-9_-]{1,64}$/.test(b)) {
+      res.status(400).json({ success: false, error: "Query params a and b must be experiment ids" }); return;
+    }
+    res.json(await runPython(["meta_compare", a, b]));
+  } catch (err: unknown) { res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) }); }
+});
+
+// POST /api/meta-learning/create-mutation { strategyName, parameter, value, evidence? }
+// Creates a DRAFT research mutation in the evolution registry. Never activates anything.
+router.post("/meta-learning/create-mutation", async (req, res) => {
+  try {
+    const { strategyName, parameter, value, evidence } = req.body ?? {};
+    if (typeof strategyName !== "string" || !strategyName.trim() || strategyName.length > 80 ||
+        typeof parameter !== "string" || !/^[A-Za-z0-9_.-]{1,64}$/.test(parameter) ||
+        typeof value !== "string" || !value.trim() || value.length > 120) {
+      res.status(400).json({ success: false, error: "strategyName, parameter and value are required" }); return;
+    }
+    res.json(await runPython(["meta_create_mutation", strategyName.trim(), parameter,
+      value.trim(), String(evidence ?? "").slice(0, 400)]));
+  } catch (err: unknown) { res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) }); }
+});
+
+// GET /api/meta-learning/export?file=csv|json|html — Complete Meta-Learning Report
+router.get("/meta-learning/export", async (req, res) => {
+  try {
+    const kind = String(req.query.file ?? "csv");
+    if (!["csv", "json", "html"].includes(kind)) { res.status(400).json({ success: false, error: "file must be csv, json or html" }); return; }
+    const meta = await runPython(["meta_export"]) as any;
+    if (!meta?.success) { res.status(500).json(meta ?? { success: false, error: "Export failed" }); return; }
+    const filePath = kind === "csv" ? meta.csv_file : kind === "json" ? meta.json_file : meta.html_file;
+    const expectedDir = path.join(PYTHON_DIR, "exports");
+    const resolved = path.resolve(String(filePath ?? ""));
+    if (!resolved.startsWith(expectedDir + path.sep) || !fs.existsSync(resolved)) {
+      res.status(500).json({ success: false, error: "Export file missing after generation" });
+      return;
+    }
+    const ctype = kind === "csv" ? "text/csv; charset=utf-8"
+      : kind === "json" ? "application/json; charset=utf-8" : "text/html; charset=utf-8";
+    res.setHeader("Content-Type", ctype);
+    res.setHeader("Content-Disposition", `attachment; filename="${path.basename(resolved)}"`);
+    fs.createReadStream(resolved).pipe(res);
+  } catch (err: unknown) { res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) }); }
+});
+
 // ── Phase 6 — Strategy Evolution Laboratory (research only) ─────────────────
 const EVO_ID = /^[A-Za-z0-9_-]{1,64}$/;
 

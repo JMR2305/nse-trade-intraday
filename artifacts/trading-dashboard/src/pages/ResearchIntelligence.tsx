@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { apiJson } from "@/lib/api";
 import { ContributionChart } from "@/pages/experiments/ReportCharts";
 import { StatusBadge } from "@/pages/experiments/ResearchReport";
+import MetaLearningTab from "@/pages/MetaLearningTab";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -329,7 +330,12 @@ export default function ResearchIntelligence() {
             <TabsTrigger value="diagnostics" className="text-[10px] font-mono h-6"><Stethoscope className="h-3 w-3 mr-1" />Trade Diagnostics</TabsTrigger>
             <TabsTrigger value="compare" className="text-[10px] font-mono h-6"><GitCompare className="h-3 w-3 mr-1" />Compare</TabsTrigger>
             <TabsTrigger value="timeline" className="text-[10px] font-mono h-6"><History className="h-3 w-3 mr-1" />Timeline</TabsTrigger>
+            <TabsTrigger value="meta" className="text-[10px] font-mono h-6"><Brain className="h-3 w-3 mr-1" />Meta-Learning</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="meta" className="mt-2">
+            <MetaLearningTab />
+          </TabsContent>
 
           <TabsContent value="insights" className="space-y-2 mt-2">
             {(intel.insights ?? []).length === 0 && <p className="text-[10px] font-mono text-zinc-500">No evidence-backed patterns identified yet — more completed experiments are needed.</p>}

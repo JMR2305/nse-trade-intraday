@@ -713,6 +713,31 @@ def main():
             else:
                 from research_intelligence import trade_diagnostics
                 result = trade_diagnostics(_os.path.join(_EXP_DIR, args[1]))
+        elif command == "meta_health":
+            from meta_learning import cmd_health
+            result = cmd_health()
+        elif command == "meta_failures":
+            from meta_learning import cmd_failures
+            result = cmd_failures()
+        elif command == "meta_eligibility":
+            from meta_learning import cmd_eligibility
+            result = cmd_eligibility()
+        elif command == "meta_improvements":
+            from meta_learning import cmd_improvements
+            result = cmd_improvements()
+        elif command == "meta_contradictions":
+            from meta_learning import cmd_contradictions
+            result = cmd_contradictions()
+        elif command == "meta_compare" and len(args) >= 3:
+            from meta_learning import cmd_compare
+            result = cmd_compare(args[1], args[2])
+        elif command == "meta_create_mutation" and len(args) >= 4:
+            from meta_learning import cmd_create_mutation
+            result = cmd_create_mutation(args[1], args[2], args[3],
+                                         args[4] if len(args) >= 5 else "")
+        elif command == "meta_export":
+            from meta_learning import cmd_export
+            result = cmd_export()
         elif command == "evolution_registry":
             from strategy_evolution import cmd_registry
             result = cmd_registry()
