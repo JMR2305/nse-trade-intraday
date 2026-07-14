@@ -343,7 +343,9 @@ def run_experiment(exp_id: str) -> dict:
     status = _read_status(exp_id)
     if not status:
         return {"error": f"Experiment {exp_id} not found"}
-    if status.get("status") not in ("queued", "failed"):
+    # "running" is allowed because the Node.js layer writes a placeholder
+    # "running" status immediately before spawning this process.
+    if status.get("status") not in ("queued", "failed", "running"):
         return {"error": f"Experiment {exp_id} is not runnable "
                          f"(current status: {status.get('status')})"}
 
@@ -358,6 +360,7 @@ def run_experiment(exp_id: str) -> dict:
     _write_status(exp_id, {
         **status,
         "status":     "running",
+        "pid":        os.getpid(),
         "started_at": now,
         "updated_at": now,
     })

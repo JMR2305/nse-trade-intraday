@@ -633,17 +633,6 @@ router.post("/experiments/:id/run", async (req, res) => {
     return;
   }
 
-  // Write placeholder "running" status so the UI sees it immediately
-  try {
-    const existing = JSON.parse(fs.readFileSync(expStatusPath, "utf8"));
-    fs.writeFileSync(expStatusPath, JSON.stringify({
-      ...existing,
-      status: "running",
-      started_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }, null, 2));
-  } catch { /* non-fatal — Python will overwrite */ }
-
   expRunActive = true;
   const proc = spawn(
     PYTHON_BIN,
@@ -653,6 +642,19 @@ router.post("/experiments/:id/run", async (req, res) => {
   proc.on("exit", () => { expRunActive = false; });
   proc.on("error", () => { expRunActive = false; });
   proc.unref();
+
+  // Write placeholder "running" status (with the child PID) so the UI sees
+  // it immediately and stale-detection can verify the process is alive.
+  try {
+    const existing = JSON.parse(fs.readFileSync(expStatusPath, "utf8"));
+    fs.writeFileSync(expStatusPath, JSON.stringify({
+      ...existing,
+      status: "running",
+      pid: proc.pid ?? null,
+      started_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }, null, 2));
+  } catch { /* non-fatal — Python will overwrite */ }
 
   res.json({ ok: true, id: expId, status: "running" });
 });
