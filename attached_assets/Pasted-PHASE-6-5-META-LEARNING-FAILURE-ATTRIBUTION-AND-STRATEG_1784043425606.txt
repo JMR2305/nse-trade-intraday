@@ -1,0 +1,121 @@
+PHASE 6.5 — META-LEARNING, FAILURE ATTRIBUTION, AND STRATEGY-GATING INTELLIGENCE
+
+Objective:
+Upgrade the existing Research Intelligence and Strategy Evolution modules so the platform learns WHY a strategy succeeds or fails, under which market conditions it should be enabled, and what measurable conditions would justify re-testing it.
+
+This phase is strictly RESEARCH ONLY.
+
+Do not:
+- modify live or paper-trading decisions
+- place orders
+- auto-promote any strategy
+- change the current production strategy-selection logic
+- use future or test-period information during training
+- introduce look-ahead leakage
+
+Preserve all existing Research Factory, Walk-Forward Validation, Research Intelligence, Strategy Evolution, CSV, JSON, and HTML export functionality.
+
+==================================================
+1. BUILD A META-LEARNING ANALYSIS ENGINE
+==================================================
+
+Create a backend service that analyses completed out-of-sample trades and experiment results across:
+
+- strategy
+- strategy version
+- market regime
+- sector
+- stock
+- confidence band
+- holding period
+- entry subtype
+- exit reason
+- ADX band
+- ATR percentile
+- volatility regime
+- volume ratio
+- opening gap
+- EMA alignment
+- trend direction
+- RSI band
+- MACD histogram state
+- time period
+- experiment window
+
+The engine must identify conditions associated with:
+
+- positive expectancy
+- negative expectancy
+- high drawdown
+- poor calibration
+- false-positive trades
+- premature exits
+- excessive holding periods
+- profit concentration
+- few-trade dependence
+- regime-specific success or failure
+- sector-specific success or failure
+
+Only use data available before each out-of-sample decision.
+
+==================================================
+2. FAILURE ATTRIBUTION
+==================================================
+
+For every strategy and strategy version, generate a Failure Attribution report.
+
+Include:
+
+- primary failure reason
+- secondary contributing reasons
+- evidence strength
+- sample size
+- expectancy per trade
+- profit factor
+- win rate
+- maximum drawdown
+- calibration error
+- confidence-band performance
+- affected market regimes
+- affected sectors
+- affected holding periods
+- top losing conditions
+- top profitable conditions
+- whether costs caused the failure
+- whether the strategy had negative gross edge before costs
+- whether failure was broad or concentrated
+
+Example classifications:
+
+- NEGATIVE_GROSS_EDGE
+- COST_SENSITIVE
+- REGIME_MISMATCH
+- POOR_ENTRY_FILTER
+- POOR_EXIT_LOGIC
+- OVERCONFIDENT
+- FEW_TRADE_DEPENDENT
+- SECTOR_CONCENTRATION
+- STOCK_CONCENTRATION
+- EXCESSIVE_DRAWDOWN
+- UNSTABLE_ACROSS_WINDOWS
+- INSUFFICIENT_EVIDENCE
+- POSSIBLE_EDGE_REQUIRES_MORE_DATA
+
+Do not present causal claims unless supported by evidence. Use wording such as “associated with” when causality is not established.
+
+==================================================
+3. CONDITION-BASED STRATEGY ELIGIBILITY
+==================================================
+
+For each strategy, generate a research-only eligibility policy.
+
+Example:
+
+Strategy: Trend Rider
+
+Eligible only when:
+- ADX >= 22
+- ATR percentile between 35 and 80
+- price above EMA20 and EMA50
+- market regime is Bullish or Neutral-Bullish
+- volume ratio >=
