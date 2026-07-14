@@ -34,6 +34,7 @@ import {
   type ExistingExperiment,
 } from "@/pages/experiments/ExperimentTemplates";
 import { BatchQueue } from "@/pages/experiments/BatchQueue";
+import { ResearchReport } from "@/pages/experiments/ResearchReport";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -448,6 +449,11 @@ function ExperimentCard({ exp, onRun, onDelete }: {
         <div className="pt-1 border-t border-zinc-800">
           <p className="text-[10px] font-mono text-zinc-500 mb-1">Crash trace</p>
           <pre className="text-[9px] font-mono text-red-300/80 bg-zinc-900/70 border border-zinc-800 rounded p-2 max-h-40 overflow-auto whitespace-pre-wrap">{exp.trace}</pre>
+        </div>
+      )}
+      {expanded && ["completed", "rejected"].includes(exp.status) && (
+        <div className="pt-2 border-t border-zinc-800">
+          <ResearchReport expId={exp.id} />
         </div>
       )}
       {expanded && exp.exec_log && exp.exec_log.length > 0 && (

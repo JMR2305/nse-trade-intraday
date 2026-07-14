@@ -801,6 +801,160 @@ router.post("/experiments/:id/analyze", async (req, res) => {
   }
 });
 
+// ── Phase 4.3 — Research Report Engine (research only) ─────────────────────
+// Reports never modify experiment results or live/paper trading behavior.
+
+const reportErr = (res: any, data: any, notFound = false) => {
+  const code = (data?.error?.code ?? "") as string;
+  const status = notFound || code === "REPORT_NOT_FOUND" || code === "NOT_FOUND" ? 404
+    : code === "INVALID_ID" ? 400
+    : code === "EXPERIMENT_NOT_FINISHED" ? 409
+    : 500;
+  res.status(status).json(data);
+};
+
+// GET /api/experiments/:id/report — latest completed research report (or ?version=N)
+router.get("/experiments/:id/report", async (req, res) => {
+  try {
+    if (!SAFE_EXP_ID.test(String(req.params.id))) {
+      res.status(400).json({ success: false, error: { code: "INVALID_ID", message: "Invalid experiment id.", details: "" } });
+      return;
+    }
+    const args = ["report_get", String(req.params.id)];
+    if (req.query.version && /^\d+$/.test(String(req.query.version))) args.push(String(req.query.version));
+    const data = await runPython(args) as any;
+    if (!data?.success) { reportErr(res, data); return; }
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: { code: "REPORT_GENERATION_FAILED", message: "Failed to load research report.", details: err instanceof Error ? err.message : String(err) } });
+  }
+});
+
+// GET /api/experiments/:id/report/status — lifecycle status (NONE/GENERATING/COMPLETED/FAILED/OUTDATED)
+router.get("/experiments/:id/report/status", async (req, res) => {
+  try {
+    if (!SAFE_EXP_ID.test(String(req.params.id))) {
+      res.status(400).json({ success: false, error: { code: "INVALID_ID", message: "Invalid experiment id.", details: "" } });
+      return;
+    }
+    const data = await runPython(["report_status", String(req.params.id)]) as any;
+    if (!data?.success) { reportErr(res, data); return; }
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: { code: "REPORT_STATUS_FAILED", message: "Failed to read report status.", details: err instanceof Error ? err.message : String(err) } });
+  }
+});
+
+// POST /api/experiments/:id/report/generate — generate (skips if source unchanged)
+// POST /api/experiments/:id/report/regenerate — force a new version
+for (const [route, force] of [["generate", false], ["regenerate", true]] as const) {
+  router.post(`/experiments/:id/report/${route}`, async (req, res) => {
+    try {
+      if (!SAFE_EXP_ID.test(String(req.params.id))) {
+        res.status(400).json({ success: false, error: { code: "INVALID_ID", message: "Invalid experiment id.", details: "" } });
+        return;
+      }
+      const args = ["report_generate", String(req.params.id)];
+      if (force) args.push("force");
+      const data = await runPython(args) as any;
+      if (!data?.success) { reportErr(res, data); return; }
+      res.json(data);
+    } catch (err: unknown) {
+      res.status(500).json({ success: false, error: { code: "REPORT_GENERATION_FAILED", message: "Research report generation failed.", details: err instanceof Error ? err.message : String(err) } });
+    }
+  });
+}
+
+// GET /api/experiments/:id/report/export/json — download report JSON
+router.get("/experiments/:id/report/export/json", async (req, res) => {
+  try {
+    if (!SAFE_EXP_ID.test(String(req.params.id))) {
+      res.status(400).json({ success: false, error: { code: "INVALID_ID", message: "Invalid experiment id.", details: "" } });
+      return;
+    }
+    const data = await runPython(["report_get", String(req.params.id)]) as any;
+    if (!data?.success) { reportErr(res, data); return; }
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Content-Disposition", `attachment; filename="research_report_${req.params.id}.json"`);
+    res.json(data.report);
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: { code: "EXPORT_FAILED", message: "JSON export failed.", details: err instanceof Error ? err.message : String(err) } });
+  }
+});
+
+// GET /api/experiments/:id/report/export/html — printable HTML report
+router.get("/experiments/:id/report/export/html", async (req, res) => {
+  try {
+    if (!SAFE_EXP_ID.test(String(req.params.id))) {
+      res.status(400).json({ success: false, error: { code: "INVALID_ID", message: "Invalid experiment id.", details: "" } });
+      return;
+    }
+    const data = await runPython(["report_export_html", String(req.params.id)]) as any;
+    if (!data?.success || !data?.path) { reportErr(res, data); return; }
+    const full = path.resolve(String(data.path));
+    if (!full.startsWith(path.resolve(EXPERIMENTS_DIR)) || !fs.existsSync(full)) {
+      res.status(404).json({ success: false, error: { code: "REPORT_NOT_FOUND", message: "HTML report file not found.", details: "" } });
+      return;
+    }
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    fs.createReadStream(full).pipe(res);
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: { code: "EXPORT_FAILED", message: "HTML export failed.", details: err instanceof Error ? err.message : String(err) } });
+  }
+});
+
+// GET /api/experiments/:id/report/export/csv — ZIP of CSV files
+router.get("/experiments/:id/report/export/csv", async (req, res) => {
+  try {
+    if (!SAFE_EXP_ID.test(String(req.params.id))) {
+      res.status(400).json({ success: false, error: { code: "INVALID_ID", message: "Invalid experiment id.", details: "" } });
+      return;
+    }
+    const data = await runPython(["report_export_csv", String(req.params.id)]) as any;
+    if (!data?.success || !data?.path) { reportErr(res, data); return; }
+    const full = path.resolve(String(data.path));
+    if (!full.startsWith(path.resolve(EXPERIMENTS_DIR)) || !fs.existsSync(full)) {
+      res.status(404).json({ success: false, error: { code: "REPORT_NOT_FOUND", message: "CSV export file not found.", details: "" } });
+      return;
+    }
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="research_report_${req.params.id}_csv.zip"`);
+    fs.createReadStream(full).pipe(res);
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: { code: "EXPORT_FAILED", message: "CSV export failed.", details: err instanceof Error ? err.message : String(err) } });
+  }
+});
+
+// POST /api/experiments/:id/suggested-experiments/:suggestionId/queue
+// Queues a suggested next experiment. Requires explicit user confirmation in
+// the UI (confirm: true in the body) — never auto-queued.
+router.post("/experiments/:id/suggested-experiments/:suggestionId/queue", async (req, res) => {
+  try {
+    if (!SAFE_EXP_ID.test(String(req.params.id))) {
+      res.status(400).json({ success: false, error: { code: "INVALID_ID", message: "Invalid experiment id.", details: "" } });
+      return;
+    }
+    if (req.body?.confirm !== true) {
+      res.status(400).json({ success: false, error: { code: "CONFIRMATION_REQUIRED", message: "Queueing a suggested experiment requires explicit confirmation.", details: "Send { confirm: true }." } });
+      return;
+    }
+    const data = await runPython(["report_get", String(req.params.id)]) as any;
+    if (!data?.success) { reportErr(res, data); return; }
+    const suggestions = data.report?.next_experiments?.suggestions ?? [];
+    const sug = suggestions.find((s: any) => s.id === String(req.params.suggestionId));
+    if (!sug) {
+      res.status(404).json({ success: false, error: { code: "SUGGESTION_NOT_FOUND", message: "Suggested experiment not found in the latest report.", details: String(req.params.suggestionId) } });
+      return;
+    }
+    const cfg = { ...(sug.treatment_config ?? {}), name: sug.name, description: `Suggested by research report for experiment ${req.params.id}: ${sug.hypothesis}` };
+    delete (cfg as any).exclude_regime; // research-only field not supported by the runner
+    const submitted = await runPython(["experiment_submit", JSON.stringify(cfg)]) as any;
+    res.json(submitted);
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: { code: "QUEUE_FAILED", message: "Failed to queue suggested experiment.", details: err instanceof Error ? err.message : String(err) } });
+  }
+});
+
 // GET /api/experiments/:id — get status + result for one experiment
 router.get("/experiments/:id", async (req, res) => {
   try {

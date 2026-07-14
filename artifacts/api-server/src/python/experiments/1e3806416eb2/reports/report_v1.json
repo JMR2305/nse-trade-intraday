@@ -1,0 +1,4149 @@
+{
+ "schema_version": 1,
+ "experiment_id": "1e3806416eb2",
+ "generated_at": "2026-07-14T13:07:47.494364+00:00",
+ "disclaimer": "Research only \u2014 out-of-sample historical performance does not guarantee future results. This report does not affect live or paper-trading strategy selection.",
+ "safety": {
+  "research_only": true,
+  "affects_live_trading": false,
+  "affects_paper_trading": false,
+  "auto_promotion": false
+ },
+ "executive_summary": {
+  "experiment_name": "Submission Pipeline Test",
+  "template": "",
+  "template_family": "",
+  "date_range": {
+   "start": "",
+   "end": ""
+  },
+  "train_years": 1,
+  "test_months": 3,
+  "step_months": 3,
+  "windows": 2,
+  "oos_trades": 10,
+  "net_return_pct": -1.2,
+  "net_pnl": -59.75,
+  "profit_factor": 0.69,
+  "expectancy_rs": -5.97,
+  "win_rate": 30.0,
+  "sharpe": -0.97,
+  "max_drawdown_pct": 3.6,
+  "total_costs": 24.29,
+  "evidence_verdict": "INSUFFICIENT_EVIDENCE",
+  "overfitting_flags": [
+   "insufficient_oos_trades (10 < 25 hard limit)"
+  ],
+  "final_verdict": "INSUFFICIENT DATA",
+  "score": 17.0,
+  "explanation": "The experiment produced 10 out-of-sample trades across 2 test window(s). Key findings: negative net expectancy of Rs -5.97 per trade after costs; profit factor of 0.69 (below 1); the result did not meet the minimum evidence requirement. Final research verdict: INSUFFICIENT DATA. No live or paper-trading behavior is affected by this report."
+ },
+ "performance_analysis": {
+  "gross_pnl": -35.44,
+  "net_pnl": -59.75,
+  "gross_return_note": "Gross figures are before configured transaction costs.",
+  "net_return_pct": -1.2,
+  "annualized_return_pct": -2.51,
+  "total_costs": 24.29,
+  "cost_drag_pct_of_gross_profit": 18.1703,
+  "profit_factor": 0.69,
+  "expectancy_rs": -5.97,
+  "win_rate": 30.0,
+  "avg_win": 44.56,
+  "avg_loss": 27.63,
+  "median_win": 9.05,
+  "median_loss": -27.79,
+  "payoff_ratio": 1.6127,
+  "sharpe": -0.97,
+  "sortino": -2.98,
+  "calmar": -0.7,
+  "recovery_factor": -0.33,
+  "turnover": 1.31,
+  "exposure_pct": 68.1,
+  "avg_holding_days": 8.1,
+  "median_holding_days": 8.5,
+  "max_consecutive_wins": 2,
+  "max_consecutive_losses": 5,
+  "best_month": {
+   "month": "2026-04",
+   "trades": 2,
+   "net_pnl": 124.63
+  },
+  "worst_month": {
+   "month": "2026-03",
+   "trades": 2,
+   "net_pnl": -50.93
+  },
+  "best_window": {
+   "window": "W1",
+   "trades": 5,
+   "net_return_pct": 0.52,
+   "profit_factor": 1.24,
+   "win_rate": 60.0,
+   "max_drawdown_pct": 3.6
+  },
+  "worst_window": {
+   "window": "W2",
+   "trades": 5,
+   "net_return_pct": -1.72,
+   "profit_factor": 0.0,
+   "win_rate": 0.0,
+   "max_drawdown_pct": 2.33
+  },
+  "pct_profitable_windows": 50.0,
+  "windows": [
+   {
+    "window": "W1",
+    "trades": 5,
+    "net_return_pct": 0.52,
+    "profit_factor": 1.24,
+    "win_rate": 60.0,
+    "max_drawdown_pct": 3.6
+   },
+   {
+    "window": "W2",
+    "trades": 5,
+    "net_return_pct": -1.72,
+    "profit_factor": 0.0,
+    "win_rate": 0.0,
+    "max_drawdown_pct": 2.33
+   }
+  ],
+  "benchmarks": {
+   "strategy_net_return_pct": -1.2,
+   "nifty_buy_hold_pct": -5.01,
+   "equal_weight_universe_pct": -0.12,
+   "cash_pct": 0.0,
+   "base_model_pct": -2.6,
+   "note": "Window returns summed across test windows (each window restarts at the configured capital); the full model line is the compounded overall return."
+  }
+ },
+ "risk_analysis": {
+  "max_drawdown_pct": 3.6,
+  "drawdown_episodes_material": 1,
+  "avg_drawdown_pct": 1.9195,
+  "longest_drawdown_days": 57,
+  "time_underwater_pct": 93.2773,
+  "largest_single_trade_loss": -59.98,
+  "p5_trade_return_pct": -6.0835,
+  "p95_trade_return_pct": 8.228,
+  "downside_deviation_pct": 1.9624,
+  "risk_of_ruin_estimate_pct": 100.0,
+  "risk_of_ruin_note": "Rough Gaussian estimate over 25 sequential trades \u2014 an approximation, not a measured probability.",
+  "concentration": {
+   "stock": {
+    "top_group": "HINDALCO",
+    "top_profit_share_pct": 17.5643
+   },
+   "sector": {
+    "top_group": "METALS",
+    "top_profit_share_pct": 19.5242
+   },
+   "strategy": {
+    "top_group": "EMA Cross",
+    "top_profit_share_pct": 1.9599
+   },
+   "regime": {
+    "top_group": "Neutral-Bearish",
+    "top_profit_share_pct": 8.7298
+   }
+  },
+  "top5_trades_profit_share_pct": 87.0586,
+  "top5_losses_share_pct": 91.0562,
+  "depends_on_few_trades": true,
+  "warnings": [
+   "Top five trades generated 87% of total profit \u2014 results depend on a small number of trades.",
+   "Most losses (73%) occurred in the Bearish regime."
+  ]
+ },
+ "trade_distribution": {
+  "tables": {
+   "by_strategy": [
+    {
+     "group": "Trend Rider",
+     "trades": 8,
+     "wins": 2,
+     "losses": 6,
+     "win_rate": 25.0,
+     "gross_pnl": -29.13,
+     "net_pnl": -50.62,
+     "avg_return_pct": -1.26,
+     "median_return_pct": -3.48,
+     "expectancy_rs": -6.3275,
+     "profit_factor": 0.7214,
+     "avg_holding_days": 9.375,
+     "total_costs": 21.48,
+     "sample_label": "VERY LOW"
+    },
+    {
+     "group": "EMA Cross",
+     "trades": 1,
+     "wins": 1,
+     "losses": 0,
+     "win_rate": 100.0,
+     "gross_pnl": 4.12,
+     "net_pnl": 2.62,
+     "avg_return_pct": 0.65,
+     "median_return_pct": 0.65,
+     "expectancy_rs": 2.62,
+     "profit_factor": null,
+     "avg_holding_days": 1.0,
+     "total_costs": 1.5,
+     "sample_label": "VERY LOW"
+    },
+    {
+     "group": "Mean Reversion",
+     "trades": 1,
+     "wins": 0,
+     "losses": 1,
+     "win_rate": 0.0,
+     "gross_pnl": -10.43,
+     "net_pnl": -11.75,
+     "avg_return_pct": -3.27,
+     "median_return_pct": -3.27,
+     "expectancy_rs": -11.75,
+     "profit_factor": 0.0,
+     "avg_holding_days": 5.0,
+     "total_costs": 1.32,
+     "sample_label": "VERY LOW"
+    }
+   ],
+   "by_stock": [
+    {
+     "group": "HINDALCO",
+     "trades": 4,
+     "wins": 2,
+     "losses": 2,
+     "win_rate": 50.0,
+     "gross_pnl": 37.03,
+     "net_pnl": 23.48,
+     "avg_return_pct": 0.86,
+     "median_return_pct": -2.05,
+     "expectancy_rs": 5.87,
+     "profit_factor": 1.2183,
+     "avg_holding_days": 11.25,
+     "total_costs": 13.54,
+     "sample_label": "VERY LOW"
+    },
+    {
+     "group": "ONGC",
+     "trades": 4,
+     "wins": 0,
+     "losses": 4,
+     "win_rate": 0.0,
+     "gross_pnl": -66.16,
+     "net_pnl": -74.1,
+     "avg_return_pct": -3.38,
+     "median_return_pct": -3.48,
+     "expectancy_rs": -18.525,
+     "profit_factor": 0.0,
+     "avg_holding_days": 7.5,
+     "total_costs": 7.94,
+     "sample_label": "VERY LOW"
+    },
+    {
+     "group": "NTPC",
+     "trades": 1,
+     "wins": 0,
+     "losses": 1,
+     "win_rate": 0.0,
+     "gross_pnl": -10.43,
+     "net_pnl": -11.75,
+     "avg_return_pct": -3.27,
+     "median_return_pct": -3.27,
+     "expectancy_rs": -11.75,
+     "profit_factor": 0.0,
+     "avg_holding_days": 5.0,
+     "total_costs": 1.32,
+     "sample_label": "VERY LOW"
+    },
+    {
+     "group": "TATASTEEL",
+     "trades": 1,
+     "wins": 1,
+     "losses": 0,
+     "win_rate": 100.0,
+     "gross_pnl": 4.12,
+     "net_pnl": 2.62,
+     "avg_return_pct": 0.65,
+     "median_return_pct": 0.65,
+     "expectancy_rs": 2.62,
+     "profit_factor": null,
+     "avg_holding_days": 1.0,
+     "total_costs": 1.5,
+     "sample_label": "VERY LOW"
+    }
+   ],
+   "by_sector": [
+    {
+     "group": "ENERGY",
+     "trades": 5,
+     "wins": 0,
+     "losses": 5,
+     "win_rate": 0.0,
+     "gross_pnl": -76.59,
+     "net_pnl": -85.85,
+     "avg_return_pct": -3.358,
+     "median_return_pct": -3.27,
+     "expectancy_rs": -17.17,
+     "profit_factor": 0.0,
+     "avg_holding_days": 7.0,
+     "total_costs": 9.26,
+     "sample_label": "VERY LOW"
+    },
+    {
+     "group": "METALS",
+     "trades": 5,
+     "wins": 3,
+     "losses": 2,
+     "win_rate": 60.0,
+     "gross_pnl": 41.15,
+     "net_pnl": 26.1,
+     "avg_return_pct": 0.818,
+     "median_return_pct": 0.65,
+     "expectancy_rs": 5.22,
+     "profit_factor": 1.2426,
+     "avg_holding_days": 9.2,
+     "total_costs": 15.04,
+     "sample_label": "VERY LOW"
+    }
+   ],
+   "by_regime": [
+    {
+     "group": "Bearish",
+     "trades": 6,
+     "wins": 1,
+     "losses": 5,
+     "win_rate": 16.6667,
+     "gross_pnl": -4.12,
+     "net_pnl": -18.27,
+     "avg_return_pct": -1.355,
+     "median_return_pct": -4.055,
+     "expectancy_rs": -3.045,
+     "profit_factor": 0.8698,
+     "avg_holding_days": 7.3333,
+     "total_costs": 14.14,
+     "sample_label": "VERY LOW"
+    },
+    {
+     "group": "Neutral-Bearish",
+     "trades": 2,
+     "wins": 2,
+     "losses": 0,
+     "win_rate": 100.0,
+     "gross_pnl": 16.6,
+     "net_pnl": 11.67,
+     "avg_return_pct": 0.82,
+     "median_return_pct": 0.82,
+     "expectancy_rs": 5.835,
+     "profit_factor": null,
+     "avg_holding_days": 8.0,
+     "total_costs": 4.93,
+     "sample_label": "VERY LOW"
+    },
+    {
+     "group": "Bullish",
+     "trades": 1,
+     "wins": 0,
+     "losses": 1,
+     "win_rate": 0.0,
+     "gross_pnl": -3.72,
+     "net_pnl": -5.55,
+     "avg_return_pct": -1.12,
+     "median_return_pct": -1.12,
+     "expectancy_rs": -5.55,
+     "profit_factor": 0.0,
+     "avg_holding_days": 2.0,
+     "total_costs": 1.83,
+     "sample_label": "VERY LOW"
+    },
+    {
+     "group": "Neutral-Bullish",
+     "trades": 1,
+     "wins": 0,
+     "losses": 1,
+     "win_rate": 0.0,
+     "gross_pnl": -44.2,
+     "net_pnl": -47.6,
+     "avg_return_pct": -5.09,
+     "median_return_pct": -5.09,
+     "expectancy_rs": -47.6,
+     "profit_factor": 0.0,
+     "avg_holding_days": 19.0,
+     "total_costs": 3.4,
+     "sample_label": "VERY LOW"
+    }
+   ],
+   "by_exit_reason": [
+    {
+     "group": "Stop-Loss Hit",
+     "trades": 4,
+     "wins": 0,
+     "losses": 4,
+     "win_rate": 0.0,
+     "gross_pnl": -138.07,
+     "net_pnl": -147.98,
+     "avg_return_pct": -5.1025,
+     "median_return_pct": -5.265,
+     "expectancy_rs": -36.995,
+     "profit_factor": 0.0,
+     "avg_holding_days": 8.5,
+     "total_costs": 9.91,
+     "sample_label": "VERY LOW"
+    },
+    {
+     "group": "End-of-Test Forced Close",
+     "trades": 3,
+     "wins": 2,
+     "losses": 1,
+     "win_rate": 66.6667,
+     "gross_pnl": 125.85,
+     "net_pnl": 119.08,
+     "avg_return_pct": 4.56,
+     "median_return_pct": 0.65,
+     "expectancy_rs": 39.6933,
+     "profit_factor": 22.4559,
+     "avg_holding_days": 4.0,
+     "total_costs": 6.76,
+     "sample_label": "VERY LOW"
+    },
+    {
+     "group": "Signal Exit",
+     "trades": 3,
+     "wins": 1,
+     "losses": 2,
+     "win_rate": 33.3333,
+     "gross_pnl": -23.22,
+     "net_pnl": -30.85,
+     "avg_return_pct": -1.99,
+     "median_return_pct": -2.12,
+     "expectancy_rs": -10.2833,
+     "profit_factor": 0.2268,
+     "avg_holding_days": 11.6667,
+     "total_costs": 7.63,
+     "sample_label": "VERY LOW"
+    }
+   ],
+   "by_year": [
+    {
+     "group": "2026",
+     "trades": 10,
+     "wins": 3,
+     "losses": 7,
+     "win_rate": 30.0,
+     "gross_pnl": -35.44,
+     "net_pnl": -59.75,
+     "avg_return_pct": -1.27,
+     "median_return_pct": -2.695,
+     "expectancy_rs": -5.975,
+     "profit_factor": 0.6911,
+     "avg_holding_days": 8.1,
+     "total_costs": 24.3,
+     "sample_label": "LOW"
+    }
+   ],
+   "by_month": [
+    {
+     "group": "2026-03",
+     "trades": 2,
+     "wins": 1,
+     "losses": 1,
+     "win_rate": 50.0,
+     "gross_pnl": 68.75,
+     "net_pnl": 62.03,
+     "avg_return_pct": 3.77,
+     "median_return_pct": 3.77,
+     "expectancy_rs": 31.015,
+     "profit_factor": 2.0342,
+     "avg_holding_days": 5.5,
+     "total_costs": 6.71,
+     "sample_label": "VERY LOW"
+    },
+    {
+     "group": "2026-04",
+     "trades": 2,
+     "wins": 1,
+     "losses": 1,
+     "win_rate": 50.0,
+     "gross_pnl": -5.88,
+     "net_pnl": -9.49,
+     "avg_return_pct": -0.735,
+     "median_return_pct": -0.735,
+     "expectancy_rs": -4.745,
+     "profit_factor": 0.2164,
+     "avg_holding_days": 5.0,
+     "total_costs": 3.61,
+     "sample_label": "VERY LOW"
+    },
+    {
+     "group": "2026-06",
+     "trades": 2,
+     "wins": 0,
+     "losses": 2,
+     "win_rate": 0.0,
+     "gross_pnl": -37.17,
+     "net_pnl": -40.4,
+     "avg_return_pct": -4.355,
+     "median_return_pct": -4.355,
+     "expectancy_rs": -20.2,
+     "profit_factor": 0.0,
+     "avg_holding_days": 6.5,
+     "total_costs": 3.23,
+     "sample_label": "VERY LOW"
+    },
+    {
+     "group": "2026-01",
+     "trades": 1,
+     "wins": 0,
+     "losses": 1,
+     "win_rate": 0.0,
+     "gross_pnl": -44.2,
+     "net_pnl": -47.6,
+     "avg_return_pct": -5.09,
+     "median_return_pct": -5.09,
+     "expectancy_rs": -47.6,
+     "profit_factor": 0.0,
+     "avg_holding_days": 19.0,
+     "total_costs": 3.4,
+     "sample_label": "VERY LOW"
+    },
+    {
+     "group": "2026-02",
+     "trades": 1,
+     "wins": 1,
+     "losses": 0,
+     "win_rate": 100.0,
+     "gross_pnl": 12.48,
+     "net_pnl": 9.05,
+     "avg_return_pct": 0.99,
+     "median_return_pct": 0.99,
+     "expectancy_rs": 9.05,
+     "profit_factor": null,
+     "avg_holding_days": 15.0,
+     "total_costs": 3.43,
+     "sample_label": "VERY LOW"
+    },
+    {
+     "group": "2026-05",
+     "trades": 1,
+     "wins": 0,
+     "losses": 1,
+     "win_rate": 0.0,
+     "gross_pnl": -25.7,
+     "net_pnl": -27.79,
+     "avg_return_pct": -4.84,
+     "median_return_pct": -4.84,
+     "expectancy_rs": -27.79,
+     "profit_factor": 0.0,
+     "avg_holding_days": 11.0,
+     "total_costs": 2.09,
+     "sample_label": "VERY LOW"
+    },
+    {
+     "group": "2026-07",
+     "trades": 1,
+     "wins": 0,
+     "losses": 1,
+     "win_rate": 0.0,
+     "gross_pnl": -3.72,
+     "net_pnl": -5.55,
+     "avg_return_pct": -1.12,
+     "median_return_pct": -1.12,
+     "expectancy_rs": -5.55,
+     "profit_factor": 0.0,
+     "avg_holding_days": 2.0,
+     "total_costs": 1.83,
+     "sample_label": "VERY LOW"
+    }
+   ],
+   "by_holding_period": [
+    {
+     "group": "0-1d",
+     "trades": 1,
+     "wins": 1,
+     "losses": 0,
+     "win_rate": 100.0,
+     "gross_pnl": 4.12,
+     "net_pnl": 2.62,
+     "avg_return_pct": 0.65,
+     "median_return_pct": 0.65,
+     "expectancy_rs": 2.62,
+     "profit_factor": null,
+     "avg_holding_days": 1.0,
+     "total_costs": 1.5,
+     "sample_label": "VERY LOW"
+    },
+    {
+     "group": "2-3d",
+     "trades": 2,
+     "wins": 0,
+     "losses": 2,
+     "win_rate": 0.0,
+     "gross_pnl": -60.42,
+     "net_pnl": -65.53,
+     "avg_return_pct": -3.865,
+     "median_return_pct": -3.865,
+     "expectancy_rs": -32.765,
+     "profit_factor": 0.0,
+     "avg_holding_days": 2.0,
+     "total_costs": 5.11,
+     "sample_label": "VERY LOW"
+    },
+    {
+     "group": "4-7d",
+     "trades": 1,
+     "wins": 0,
+     "losses": 1,
+     "win_rate": 0.0,
+     "gross_pnl": -10.43,
+     "net_pnl": -11.75,
+     "avg_return_pct": -3.27,
+     "median_return_pct": -3.27,
+     "expectancy_rs": -11.75,
+     "profit_factor": 0.0,
+     "avg_holding_days": 5.0,
+     "total_costs": 1.32,
+     "sample_label": "VERY LOW"
+    },
+    {
+     "group": "8-15d",
+     "trades": 5,
+     "wins": 2,
+     "losses": 3,
+     "win_rate": 40.0,
+     "gross_pnl": 75.49,
+     "net_pnl": 62.51,
+     "avg_return_pct": 0.548,
+     "median_return_pct": -2.12,
+     "expectancy_rs": 12.502,
+     "profit_factor": 1.9119,
+     "avg_holding_days": 10.4,
+     "total_costs": 12.97,
+     "sample_label": "VERY LOW"
+    },
+    {
+     "group": "16-20d",
+     "trades": 1,
+     "wins": 0,
+     "losses": 1,
+     "win_rate": 0.0,
+     "gross_pnl": -44.2,
+     "net_pnl": -47.6,
+     "avg_return_pct": -5.09,
+     "median_return_pct": -5.09,
+     "expectancy_rs": -47.6,
+     "profit_factor": 0.0,
+     "avg_holding_days": 19.0,
+     "total_costs": 3.4,
+     "sample_label": "VERY LOW"
+    }
+   ],
+   "by_confidence_band": [
+    {
+     "group": "55-60",
+     "trades": 1,
+     "wins": 0,
+     "losses": 1,
+     "win_rate": 0.0,
+     "gross_pnl": -10.43,
+     "net_pnl": -11.75,
+     "avg_return_pct": -3.27,
+     "median_return_pct": -3.27,
+     "expectancy_rs": -11.75,
+     "profit_factor": 0.0,
+     "avg_holding_days": 5.0,
+     "total_costs": 1.32,
+     "sample_label": "VERY LOW"
+    },
+    {
+     "group": "60-65",
+     "trades": 3,
+     "wins": 0,
+     "losses": 3,
+     "win_rate": 0.0,
+     "gross_pnl": -40.46,
+     "net_pnl": -46.31,
+     "avg_return_pct": -2.8933,
+     "median_return_pct": -2.12,
+     "expectancy_rs": -15.4367,
+     "profit_factor": 0.0,
+     "avg_holding_days": 6.3333,
+     "total_costs": 5.85,
+     "sample_label": "VERY LOW"
+    },
+    {
+     "group": "75-80",
+     "trades": 1,
+     "wins": 0,
+     "losses": 1,
+     "win_rate": 0.0,
+     "gross_pnl": -25.7,
+     "net_pnl": -27.79,
+     "avg_return_pct": -4.84,
+     "median_return_pct": -4.84,
+     "expectancy_rs": -27.79,
+     "profit_factor": 0.0,
+     "avg_holding_days": 11.0,
+     "total_costs": 2.09,
+     "sample_label": "VERY LOW"
+    },
+    {
+     "group": "80+",
+     "trades": 5,
+     "wins": 3,
+     "losses": 2,
+     "win_rate": 60.0,
+     "gross_pnl": 41.15,
+     "net_pnl": 26.1,
+     "avg_return_pct": 0.818,
+     "median_return_pct": 0.65,
+     "expectancy_rs": 5.22,
+     "profit_factor": 1.2426,
+     "avg_holding_days": 9.2,
+     "total_costs": 15.04,
+     "sample_label": "VERY LOW"
+    }
+   ],
+   "by_gap_pct": [
+    {
+     "group": "<-1%",
+     "trades": 1,
+     "wins": 0,
+     "losses": 1,
+     "win_rate": 0.0,
+     "gross_pnl": -56.7,
+     "net_pnl": -59.98,
+     "avg_return_pct": -6.61,
+     "median_return_pct": -6.61,
+     "expectancy_rs": -59.98,
+     "profit_factor": 0.0,
+     "avg_holding_days": 2.0,
+     "total_costs": 3.28,
+     "sample_label": "VERY LOW"
+    },
+    {
+     "group": "-1..0%",
+     "trades": 2,
+     "wins": 0,
+     "losses": 2,
+     "win_rate": 0.0,
+     "gross_pnl": -37.17,
+     "net_pnl": -40.4,
+     "avg_return_pct": -4.355,
+     "median_return_pct": -4.355,
+     "expectancy_rs": -20.2,
+     "profit_factor": 0.0,
+     "avg_holding_days": 6.5,
+     "total_costs": 3.23,
+     "sample_label": "VERY LOW"
+    },
+    {
+     "group": "0..1%",
+     "trades": 4,
+     "wins": 2,
+     "losses": 2,
+     "win_rate": 50.0,
+     "gross_pnl": -37.6,
+     "net_pnl": -48.04,
+     "avg_return_pct": -1.3925,
+     "median_return_pct": -0.735,
+     "expectancy_rs": -12.01,
+     "profit_factor": 0.1954,
+     "avg_holding_days": 11.0,
+     "total_costs": 10.44,
+     "sample_label": "VERY LOW"
+    },
+    {
+     "group": "1..2%",
+     "trades": 2,
+     "wins": 1,
+     "losses": 1,
+     "win_rate": 50.0,
+     "gross_pnl": 121.73,
+     "net_pnl": 116.46,
+     "avg_return_pct": 6.515,
+     "median_return_pct": 6.515,
+     "expectancy_rs": 58.23,
+     "profit_factor": 21.9838,
+     "avg_holding_days": 5.5,
+     "total_costs": 5.26,
+     "sample_label": "VERY LOW"
+    },
+    {
+     "group": ">2%",
+     "trades": 1,
+     "wins": 0,
+     "losses": 1,
+     "win_rate": 0.0,
+     "gross_pnl": -25.7,
+     "net_pnl": -27.79,
+     "avg_return_pct": -4.84,
+     "median_return_pct": -4.84,
+     "expectancy_rs": -27.79,
+     "profit_factor": 0.0,
+     "avg_holding_days": 11.0,
+     "total_costs": 2.09,
+     "sample_label": "VERY LOW"
+    }
+   ],
+   "by_volume_ratio": [],
+   "by_adx_band": [],
+   "by_volatility_band": [],
+   "by_opportunity_score": [],
+   "by_risk_reward": []
+  },
+  "notes": [
+   "All trades are long-only (no short side in this system).",
+   "Groups labelled VERY LOW / LOW have too few trades to be reliable, regardless of profitability."
+  ]
+ },
+ "confidence_analysis": {
+  "samples": 10,
+  "method": "isotonic",
+  "before_calibration": {
+   "brier_score": 0.3657,
+   "ece": 0.4363,
+   "log_loss": 0.9752
+  },
+  "after_calibration": {
+   "brier_score": 0.1971,
+   "ece": 0.3168,
+   "log_loss": 0.5846
+  },
+  "reliability_buckets": [
+   {
+    "range": "0.3-0.4",
+    "count": 4,
+    "predicted_win_prob": 0.3353,
+    "actual_win_rate": 0.0,
+    "gap": -0.3353
+   },
+   {
+    "range": "0.4-0.5",
+    "count": 1,
+    "predicted_win_prob": 0.4793,
+    "actual_win_rate": 0.0,
+    "gap": -0.4793
+   },
+   {
+    "range": "0.5-0.6",
+    "count": 4,
+    "predicted_win_prob": 0.5781,
+    "actual_win_rate": 0.75,
+    "gap": 0.1719
+   },
+   {
+    "range": "0.6-0.7",
+    "count": 1,
+    "predicted_win_prob": 0.6601,
+    "actual_win_rate": 0.0,
+    "gap": -0.6601
+   }
+  ],
+  "high_confidence_losses": 3,
+  "low_confidence_winners": 0,
+  "negative_expectancy_bands": [],
+  "warnings": [
+   "Calibration metrics are based on only 10 samples (LOW) \u2014 treat with caution."
+  ]
+ },
+ "false_positive_analysis": {
+  "definition": "BUY/STRONG BUY entries that lost money after costs, hit the stop, or never achieved at least +1% favourable excursion.",
+  "from_phase42_analysis": null,
+  "count": 7,
+  "total_trades": 10,
+  "rate_pct": 70.0,
+  "avg_mae_pct": -4.9243,
+  "avg_mfe_pct": 4.08,
+  "avg_holding_days": 8.0,
+  "exit_reasons": [
+   {
+    "group": "Stop-Loss Hit",
+    "trades": 4,
+    "wins": 0,
+    "losses": 4,
+    "win_rate": 0.0,
+    "gross_pnl": -138.07,
+    "net_pnl": -147.98,
+    "avg_return_pct": -5.1025,
+    "median_return_pct": -5.265,
+    "expectancy_rs": -36.995,
+    "profit_factor": 0.0,
+    "avg_holding_days": 8.5,
+    "total_costs": 9.91,
+    "sample_label": "VERY LOW"
+   },
+   {
+    "group": "Signal Exit",
+    "trades": 2,
+    "wins": 0,
+    "losses": 2,
+    "win_rate": 0.0,
+    "gross_pnl": -35.7,
+    "net_pnl": -39.9,
+    "avg_return_pct": -3.48,
+    "median_return_pct": -3.48,
+    "expectancy_rs": -19.95,
+    "profit_factor": 0.0,
+    "avg_holding_days": 10.0,
+    "total_costs": 4.2,
+    "sample_label": "VERY LOW"
+   },
+   {
+    "group": "End-of-Test Forced Close",
+    "trades": 1,
+    "wins": 0,
+    "losses": 1,
+    "win_rate": 0.0,
+    "gross_pnl": -3.72,
+    "net_pnl": -5.55,
+    "avg_return_pct": -1.12,
+    "median_return_pct": -1.12,
+    "expectancy_rs": -5.55,
+    "profit_factor": 0.0,
+    "avg_holding_days": 2.0,
+    "total_costs": 1.83,
+    "sample_label": "VERY LOW"
+   }
+  ],
+  "subgroup_rates": [
+   {
+    "dimension": "sector",
+    "group": "ENERGY",
+    "sample_count": 5,
+    "baseline_rate_pct": 70.0,
+    "subgroup_rate_pct": 100.0,
+    "abs_difference_pct": 30.0,
+    "reliability": "VERY LOW"
+   },
+   {
+    "dimension": "sector",
+    "group": "METALS",
+    "sample_count": 5,
+    "baseline_rate_pct": 70.0,
+    "subgroup_rate_pct": 40.0,
+    "abs_difference_pct": -30.0,
+    "reliability": "VERY LOW"
+   },
+   {
+    "dimension": "confidence band",
+    "group": "60-70",
+    "sample_count": 3,
+    "baseline_rate_pct": 70.0,
+    "subgroup_rate_pct": 100.0,
+    "abs_difference_pct": 30.0,
+    "reliability": "VERY LOW"
+   },
+   {
+    "dimension": "confidence band",
+    "group": "70+",
+    "sample_count": 6,
+    "baseline_rate_pct": 70.0,
+    "subgroup_rate_pct": 50.0,
+    "abs_difference_pct": -20.0,
+    "reliability": "VERY LOW"
+   },
+   {
+    "dimension": "regime",
+    "group": "Bearish",
+    "sample_count": 6,
+    "baseline_rate_pct": 70.0,
+    "subgroup_rate_pct": 83.3333,
+    "abs_difference_pct": 13.3333,
+    "reliability": "VERY LOW"
+   },
+   {
+    "dimension": "strategy",
+    "group": "Trend Rider",
+    "sample_count": 8,
+    "baseline_rate_pct": 70.0,
+    "subgroup_rate_pct": 75.0,
+    "abs_difference_pct": 5.0,
+    "reliability": "VERY LOW"
+   }
+  ],
+  "language_note": "Associations only \u2014 no causal claims. Example: false-positive trades were more frequently associated with the subgroups showing the largest positive differences above, given sufficient samples."
+ },
+ "missed_opportunity_analysis": {
+  "available": false,
+  "note": "Missed-opportunity analysis unavailable because historical rejected-candidate snapshots were not persisted for this experiment."
+ },
+ "feature_analysis": {
+  "from_phase42_analysis": null,
+  "features": [],
+  "note": "Entry-time feature snapshots unavailable \u2014 feature analysis limited to Phase 4.2 output."
+ },
+ "parameter_sensitivity": {
+  "sweeps": {},
+  "highlights": [],
+  "note": "Sweeps use the stop/target-aware approximation documented in the Phase 4.2 analysis. No single 'best' value is recommended from maximum return alone \u2014 prefer stable parameter ranges. Values with VERY LOW / LOW evidence should not drive decisions."
+ },
+ "regime_analysis": {
+  "tables": [
+   {
+    "group": "Bearish",
+    "trades": 6,
+    "wins": 1,
+    "losses": 5,
+    "win_rate": 16.6667,
+    "gross_pnl": -4.12,
+    "net_pnl": -18.27,
+    "avg_return_pct": -1.355,
+    "median_return_pct": -4.055,
+    "expectancy_rs": -3.045,
+    "profit_factor": 0.8698,
+    "avg_holding_days": 7.3333,
+    "total_costs": 14.14,
+    "sample_label": "VERY LOW",
+    "pct_of_trades": 60.0,
+    "pct_of_net_pnl": 30.5774,
+    "window_consistency": {
+     "windows": 2,
+     "profitable_windows": 1
+    }
+   },
+   {
+    "group": "Neutral-Bearish",
+    "trades": 2,
+    "wins": 2,
+    "losses": 0,
+    "win_rate": 100.0,
+    "gross_pnl": 16.6,
+    "net_pnl": 11.67,
+    "avg_return_pct": 0.82,
+    "median_return_pct": 0.82,
+    "expectancy_rs": 5.835,
+    "profit_factor": null,
+    "avg_holding_days": 8.0,
+    "total_costs": 4.93,
+    "sample_label": "VERY LOW",
+    "pct_of_trades": 20.0,
+    "pct_of_net_pnl": -19.5314,
+    "window_consistency": {
+     "windows": 1,
+     "profitable_windows": 1
+    }
+   },
+   {
+    "group": "Bullish",
+    "trades": 1,
+    "wins": 0,
+    "losses": 1,
+    "win_rate": 0.0,
+    "gross_pnl": -3.72,
+    "net_pnl": -5.55,
+    "avg_return_pct": -1.12,
+    "median_return_pct": -1.12,
+    "expectancy_rs": -5.55,
+    "profit_factor": 0.0,
+    "avg_holding_days": 2.0,
+    "total_costs": 1.83,
+    "sample_label": "VERY LOW",
+    "pct_of_trades": 10.0,
+    "pct_of_net_pnl": 9.2887,
+    "window_consistency": {
+     "windows": 1,
+     "profitable_windows": 0
+    }
+   },
+   {
+    "group": "Neutral-Bullish",
+    "trades": 1,
+    "wins": 0,
+    "losses": 1,
+    "win_rate": 0.0,
+    "gross_pnl": -44.2,
+    "net_pnl": -47.6,
+    "avg_return_pct": -5.09,
+    "median_return_pct": -5.09,
+    "expectancy_rs": -47.6,
+    "profit_factor": 0.0,
+    "avg_holding_days": 19.0,
+    "total_costs": 3.4,
+    "sample_label": "VERY LOW",
+    "pct_of_trades": 10.0,
+    "pct_of_net_pnl": 79.6653,
+    "window_consistency": {
+     "windows": 1,
+     "profitable_windows": 0
+    }
+   }
+  ],
+  "eligibility_recommendations": [
+   {
+    "regime": "Bearish",
+    "recommendation": "INCONCLUSIVE",
+    "trades": 6,
+    "expectancy_rs": -3.045,
+    "sample_label": "VERY LOW"
+   },
+   {
+    "regime": "Neutral-Bearish",
+    "recommendation": "INCONCLUSIVE",
+    "trades": 2,
+    "expectancy_rs": 5.835,
+    "sample_label": "VERY LOW"
+   },
+   {
+    "regime": "Bullish",
+    "recommendation": "INCONCLUSIVE",
+    "trades": 1,
+    "expectancy_rs": -5.55,
+    "sample_label": "VERY LOW"
+   },
+   {
+    "regime": "Neutral-Bullish",
+    "recommendation": "INCONCLUSIVE",
+    "trades": 1,
+    "expectancy_rs": -47.6,
+    "sample_label": "VERY LOW"
+   }
+  ],
+  "disclaimer": "Analysis-only regime recommendation \u2014 not used by live strategy selection."
+ },
+ "holding_period_analysis": {
+  "tables": [
+   {
+    "group": "0-1d",
+    "trades": 1,
+    "wins": 1,
+    "losses": 0,
+    "win_rate": 100.0,
+    "gross_pnl": 4.12,
+    "net_pnl": 2.62,
+    "avg_return_pct": 0.65,
+    "median_return_pct": 0.65,
+    "expectancy_rs": 2.62,
+    "profit_factor": null,
+    "avg_holding_days": 1.0,
+    "total_costs": 1.5,
+    "sample_label": "VERY LOW",
+    "avg_mae_pct": 0.0,
+    "avg_mfe_pct": 2.12,
+    "exit_reasons": {
+     "End-of-Test Forced Close": 1
+    }
+   },
+   {
+    "group": "2-3d",
+    "trades": 2,
+    "wins": 0,
+    "losses": 2,
+    "win_rate": 0.0,
+    "gross_pnl": -60.42,
+    "net_pnl": -65.53,
+    "avg_return_pct": -3.865,
+    "median_return_pct": -3.865,
+    "expectancy_rs": -32.765,
+    "profit_factor": 0.0,
+    "avg_holding_days": 2.0,
+    "total_costs": 5.11,
+    "sample_label": "VERY LOW",
+    "avg_mae_pct": -5.035,
+    "avg_mfe_pct": 0.525,
+    "exit_reasons": {
+     "Stop-Loss Hit": 1,
+     "End-of-Test Forced Close": 1
+    }
+   },
+   {
+    "group": "4-7d",
+    "trades": 1,
+    "wins": 0,
+    "losses": 1,
+    "win_rate": 0.0,
+    "gross_pnl": -10.43,
+    "net_pnl": -11.75,
+    "avg_return_pct": -3.27,
+    "median_return_pct": -3.27,
+    "expectancy_rs": -11.75,
+    "profit_factor": 0.0,
+    "avg_holding_days": 5.0,
+    "total_costs": 1.32,
+    "sample_label": "VERY LOW",
+    "avg_mae_pct": -3.42,
+    "avg_mfe_pct": 1.25,
+    "exit_reasons": {
+     "Stop-Loss Hit": 1
+    }
+   },
+   {
+    "group": "8-15d",
+    "trades": 5,
+    "wins": 2,
+    "losses": 3,
+    "win_rate": 40.0,
+    "gross_pnl": 75.49,
+    "net_pnl": 62.51,
+    "avg_return_pct": 0.548,
+    "median_return_pct": -2.12,
+    "expectancy_rs": 12.502,
+    "profit_factor": 1.9119,
+    "avg_holding_days": 10.4,
+    "total_costs": 12.97,
+    "sample_label": "VERY LOW",
+    "avg_mae_pct": -3.956,
+    "avg_mfe_pct": 7.648,
+    "exit_reasons": {
+     "Signal Exit": 3,
+     "End-of-Test Forced Close": 1,
+     "Stop-Loss Hit": 1
+    }
+   },
+   {
+    "group": "16-20d",
+    "trades": 1,
+    "wins": 0,
+    "losses": 1,
+    "win_rate": 0.0,
+    "gross_pnl": -44.2,
+    "net_pnl": -47.6,
+    "avg_return_pct": -5.09,
+    "median_return_pct": -5.09,
+    "expectancy_rs": -47.6,
+    "profit_factor": 0.0,
+    "avg_holding_days": 19.0,
+    "total_costs": 3.4,
+    "sample_label": "VERY LOW",
+    "avg_mae_pct": -5.29,
+    "avg_mfe_pct": 9.65,
+    "exit_reasons": {
+     "Stop-Loss Hit": 1
+    }
+   }
+  ],
+  "alternative_exits": [],
+  "alternative_exit_note": "Controlled alternative-exit analysis using forward returns stored during simulation (gross of costs, close-to-close). Approximation only \u2014 actual stop/target behaviour is not replayed."
+ },
+ "drawdown_analysis": {
+  "equity_curve": [
+   {
+    "date": "2026-01-13",
+    "full_model": 5000.0,
+    "base_model": 5000.0,
+    "layered_model": 5000.0,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 5000.0
+   },
+   {
+    "date": "2026-01-14",
+    "full_model": 5000.0,
+    "base_model": 5012.46,
+    "layered_model": 5012.46,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4987.04
+   },
+   {
+    "date": "2026-01-16",
+    "full_model": 5000.0,
+    "base_model": 4991.87,
+    "layered_model": 4991.87,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4992.63
+   },
+   {
+    "date": "2026-01-19",
+    "full_model": 4999.63,
+    "base_model": 4997.14,
+    "layered_model": 4997.14,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4971.48
+   },
+   {
+    "date": "2026-01-20",
+    "full_model": 4987.84,
+    "base_model": 4985.35,
+    "layered_model": 4985.35,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4902.88
+   },
+   {
+    "date": "2026-01-21",
+    "full_model": 4998.89,
+    "base_model": 4996.4,
+    "layered_model": 4996.4,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4888.31
+   },
+   {
+    "date": "2026-01-22",
+    "full_model": 5004.11,
+    "base_model": 5001.62,
+    "layered_model": 5001.62,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4914.04
+   },
+   {
+    "date": "2026-01-23",
+    "full_model": 5009.93,
+    "base_model": 5007.44,
+    "layered_model": 5007.44,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4867.16
+   },
+   {
+    "date": "2026-01-27",
+    "full_model": 5021.42,
+    "base_model": 5018.93,
+    "layered_model": 5018.93,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4891.79
+   },
+   {
+    "date": "2026-01-28",
+    "full_model": 5057.58,
+    "base_model": 5055.09,
+    "layered_model": 5055.09,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4924.31
+   },
+   {
+    "date": "2026-01-29",
+    "full_model": 5083.3,
+    "base_model": 5080.81,
+    "layered_model": 5080.81,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4939.1
+   },
+   {
+    "date": "2026-01-30",
+    "full_model": 5022.16,
+    "base_model": 5019.67,
+    "layered_model": 5019.67,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4920.01
+   },
+   {
+    "date": "2026-02-02",
+    "full_model": 4990.23,
+    "base_model": 4987.74,
+    "layered_model": 4987.74,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4874.88
+   },
+   {
+    "date": "2026-02-03",
+    "full_model": 5014.9,
+    "base_model": 5012.41,
+    "layered_model": 5012.41,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4999.08
+   },
+   {
+    "date": "2026-02-04",
+    "full_model": 5024.5,
+    "base_model": 5022.01,
+    "layered_model": 5022.01,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 5008.49
+   },
+   {
+    "date": "2026-02-05",
+    "full_model": 4995.16,
+    "base_model": 4992.67,
+    "layered_model": 4992.67,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4982.61
+   },
+   {
+    "date": "2026-02-06",
+    "full_model": 5002.22,
+    "base_model": 4999.73,
+    "layered_model": 4999.73,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4992.5
+   },
+   {
+    "date": "2026-02-09",
+    "full_model": 5023.81,
+    "base_model": 5021.32,
+    "layered_model": 5021.32,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 5026.23
+   },
+   {
+    "date": "2026-02-10",
+    "full_model": 5028.43,
+    "base_model": 5025.94,
+    "layered_model": 5025.94,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 5039.42
+   },
+   {
+    "date": "2026-02-11",
+    "full_model": 5025.5,
+    "base_model": 5023.01,
+    "layered_model": 5023.01,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 5043.05
+   },
+   {
+    "date": "2026-02-12",
+    "full_model": 5023.96,
+    "base_model": 5021.47,
+    "layered_model": 5021.47,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 5014.55
+   },
+   {
+    "date": "2026-02-13",
+    "full_model": 4968.84,
+    "base_model": 4964.74,
+    "layered_model": 4964.74,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4949.25
+   },
+   {
+    "date": "2026-02-16",
+    "full_model": 4952.4,
+    "base_model": 4975.4,
+    "layered_model": 4975.4,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4990.37
+   },
+   {
+    "date": "2026-02-17",
+    "full_model": 4952.4,
+    "base_model": 4958.14,
+    "layered_model": 4958.14,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4998.66
+   },
+   {
+    "date": "2026-02-18",
+    "full_model": 4952.4,
+    "base_model": 4967.24,
+    "layered_model": 4967.24,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 5016.91
+   },
+   {
+    "date": "2026-02-19",
+    "full_model": 4952.4,
+    "base_model": 4973.61,
+    "layered_model": 4973.61,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4945.99
+   },
+   {
+    "date": "2026-02-20",
+    "full_model": 4952.4,
+    "base_model": 5003.5,
+    "layered_model": 5003.5,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4968.71
+   },
+   {
+    "date": "2026-02-23",
+    "full_model": 4952.4,
+    "base_model": 4984.1,
+    "layered_model": 4984.1,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4996.25
+   },
+   {
+    "date": "2026-02-24",
+    "full_model": 4952.96,
+    "base_model": 4990.72,
+    "layered_model": 4990.72,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4940.22
+   },
+   {
+    "date": "2026-02-25",
+    "full_model": 4967.44,
+    "base_model": 5005.19,
+    "layered_model": 5005.19,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4951.46
+   },
+   {
+    "date": "2026-02-26",
+    "full_model": 4971.32,
+    "base_model": 5009.07,
+    "layered_model": 5009.07,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4954.19
+   },
+   {
+    "date": "2026-02-27",
+    "full_model": 4954.8,
+    "base_model": 4992.56,
+    "layered_model": 4992.56,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4892.42
+   },
+   {
+    "date": "2026-03-02",
+    "full_model": 4970.02,
+    "base_model": 5007.78,
+    "layered_model": 5007.78,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4831.61
+   },
+   {
+    "date": "2026-03-04",
+    "full_model": 4951.92,
+    "base_model": 4989.67,
+    "layered_model": 4989.67,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4756.76
+   },
+   {
+    "date": "2026-03-05",
+    "full_model": 4984.9,
+    "base_model": 5022.65,
+    "layered_model": 5022.65,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4812.22
+   },
+   {
+    "date": "2026-03-06",
+    "full_model": 4988.83,
+    "base_model": 5026.58,
+    "layered_model": 5026.58,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4750.93
+   },
+   {
+    "date": "2026-03-09",
+    "full_model": 4975.35,
+    "base_model": 5013.1,
+    "layered_model": 5013.1,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4668.85
+   },
+   {
+    "date": "2026-03-10",
+    "full_model": 4986.54,
+    "base_model": 5024.29,
+    "layered_model": 5024.29,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4714.23
+   },
+   {
+    "date": "2026-03-11",
+    "full_model": 4989.02,
+    "base_model": 5026.78,
+    "layered_model": 5026.78,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4637.53
+   },
+   {
+    "date": "2026-03-12",
+    "full_model": 4999.62,
+    "base_model": 5037.38,
+    "layered_model": 5037.38,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4593.28
+   },
+   {
+    "date": "2026-03-13",
+    "full_model": 4940.23,
+    "base_model": 4977.99,
+    "layered_model": 4977.99,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4498.45
+   },
+   {
+    "date": "2026-03-16",
+    "full_model": 4951.27,
+    "base_model": 4989.03,
+    "layered_model": 4989.03,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4548.52
+   },
+   {
+    "date": "2026-03-17",
+    "full_model": 4966.69,
+    "base_model": 5002.78,
+    "layered_model": 5002.78,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4582.01
+   },
+   {
+    "date": "2026-03-18",
+    "full_model": 4961.45,
+    "base_model": 5001.13,
+    "layered_model": 5001.13,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4620.22
+   },
+   {
+    "date": "2026-03-19",
+    "full_model": 4944.83,
+    "base_model": 4965.32,
+    "layered_model": 4965.32,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4469.51
+   },
+   {
+    "date": "2026-03-20",
+    "full_model": 4922.15,
+    "base_model": 4942.64,
+    "layered_model": 4942.64,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4491.34
+   },
+   {
+    "date": "2026-03-23",
+    "full_model": 4901.48,
+    "base_model": 4921.97,
+    "layered_model": 4921.97,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4374.4
+   },
+   {
+    "date": "2026-03-24",
+    "full_model": 4901.48,
+    "base_model": 4925.95,
+    "layered_model": 4925.95,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4452.07
+   },
+   {
+    "date": "2026-03-25",
+    "full_model": 4902.45,
+    "base_model": 4939.88,
+    "layered_model": 4939.88,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4528.64
+   },
+   {
+    "date": "2026-03-27",
+    "full_model": 4900.51,
+    "base_model": 4937.94,
+    "layered_model": 4937.94,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4434.04
+   },
+   {
+    "date": "2026-03-30",
+    "full_model": 4918.17,
+    "base_model": 4955.6,
+    "layered_model": 4955.6,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4339.18
+   },
+   {
+    "date": "2026-04-01",
+    "full_model": 4938.21,
+    "base_model": 4975.64,
+    "layered_model": 4975.64,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4406.8
+   },
+   {
+    "date": "2026-04-02",
+    "full_model": 4949.8,
+    "base_model": 4987.23,
+    "layered_model": 4987.23,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4413.34
+   },
+   {
+    "date": "2026-04-06",
+    "full_model": 4960.94,
+    "base_model": 4998.37,
+    "layered_model": 4998.37,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4462.92
+   },
+   {
+    "date": "2026-04-07",
+    "full_model": 4987.85,
+    "base_model": 5025.28,
+    "layered_model": 5025.28,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4493.12
+   },
+   {
+    "date": "2026-04-08",
+    "full_model": 4985.17,
+    "base_model": 5022.6,
+    "layered_model": 5022.6,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4662.88
+   },
+   {
+    "date": "2026-04-09",
+    "full_model": 5019.42,
+    "base_model": 5057.71,
+    "layered_model": 5057.71,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4619.7
+   },
+   {
+    "date": "2026-04-10",
+    "full_model": 5026.11,
+    "base_model": 5067.47,
+    "layered_model": 5067.47,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4673.23
+   },
+   {
+    "date": "2026-04-13",
+    "full_model": 5026.11,
+    "base_model": 5067.47,
+    "layered_model": 5067.47,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4673.23
+   },
+   {
+    "date": "2026-04-15",
+    "full_model": 5026.11,
+    "base_model": 5073.88,
+    "layered_model": 5073.88,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4749.41
+   },
+   {
+    "date": "2026-04-16",
+    "full_model": 5026.11,
+    "base_model": 5066.95,
+    "layered_model": 5066.95,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4742.63
+   },
+   {
+    "date": "2026-04-17",
+    "full_model": 5026.11,
+    "base_model": 5076.59,
+    "layered_model": 5076.59,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4773.37
+   },
+   {
+    "date": "2026-04-20",
+    "full_model": 5026.11,
+    "base_model": 5072.87,
+    "layered_model": 5072.87,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4775.58
+   },
+   {
+    "date": "2026-04-21",
+    "full_model": 5026.11,
+    "base_model": 5073.26,
+    "layered_model": 5073.26,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4817.09
+   },
+   {
+    "date": "2026-04-22",
+    "full_model": 5026.11,
+    "base_model": 5078.98,
+    "layered_model": 5078.98,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4778.18
+   },
+   {
+    "date": "2026-04-23",
+    "full_model": 5026.11,
+    "base_model": 5078.47,
+    "layered_model": 5078.47,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4737.99
+   },
+   {
+    "date": "2026-04-24",
+    "full_model": 5026.11,
+    "base_model": 5070.72,
+    "layered_model": 5070.72,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4684.07
+   },
+   {
+    "date": "2026-04-27",
+    "full_model": 5024.79,
+    "base_model": 5086.78,
+    "layered_model": 5086.78,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4722.24
+   },
+   {
+    "date": "2026-04-28",
+    "full_model": 5055.75,
+    "base_model": 5140.67,
+    "layered_model": 5140.67,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4703.23
+   },
+   {
+    "date": "2026-04-29",
+    "full_model": 5055.96,
+    "base_model": 5144.27,
+    "layered_model": 5144.27,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4738.89
+   },
+   {
+    "date": "2026-04-30",
+    "full_model": 5052.24,
+    "base_model": 5120.7,
+    "layered_model": 5120.7,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4703.59
+   },
+   {
+    "date": "2026-05-04",
+    "full_model": 5038.87,
+    "base_model": 5102.47,
+    "layered_model": 5102.47,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4727.45
+   },
+   {
+    "date": "2026-05-05",
+    "full_model": 5032.94,
+    "base_model": 5088.37,
+    "layered_model": 5088.37,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4710.5
+   },
+   {
+    "date": "2026-05-06",
+    "full_model": 5014.54,
+    "base_model": 5077.04,
+    "layered_model": 5077.04,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4768.94
+   },
+   {
+    "date": "2026-05-07",
+    "full_model": 5020.77,
+    "base_model": 5092.89,
+    "layered_model": 5092.89,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4768.1
+   },
+   {
+    "date": "2026-05-08",
+    "full_model": 5011.32,
+    "base_model": 5068.27,
+    "layered_model": 5068.27,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4738.6
+   },
+   {
+    "date": "2026-05-11",
+    "full_model": 5013.94,
+    "base_model": 5027.46,
+    "layered_model": 5027.46,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4667.98
+   },
+   {
+    "date": "2026-05-12",
+    "full_model": 5028.1,
+    "base_model": 5049.54,
+    "layered_model": 5049.54,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4582.46
+   },
+   {
+    "date": "2026-05-13",
+    "full_model": 5033.43,
+    "base_model": 5083.39,
+    "layered_model": 5083.39,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4588.94
+   },
+   {
+    "date": "2026-05-14",
+    "full_model": 5040.97,
+    "base_model": 5110.54,
+    "layered_model": 5110.54,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4643.23
+   },
+   {
+    "date": "2026-05-15",
+    "full_model": 5037.85,
+    "base_model": 5089.45,
+    "layered_model": 5089.45,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4634.2
+   },
+   {
+    "date": "2026-05-18",
+    "full_model": 5033.53,
+    "base_model": 5031.33,
+    "layered_model": 5031.33,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4635.46
+   },
+   {
+    "date": "2026-05-19",
+    "full_model": 5032.12,
+    "base_model": 5027.47,
+    "layered_model": 5027.47,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4629.2
+   },
+   {
+    "date": "2026-05-20",
+    "full_model": 5035.74,
+    "base_model": 5026.01,
+    "layered_model": 5026.01,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4637.23
+   },
+   {
+    "date": "2026-05-21",
+    "full_model": 5030.81,
+    "base_model": 5024.8,
+    "layered_model": 5024.8,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4636.39
+   },
+   {
+    "date": "2026-05-22",
+    "full_model": 5019.05,
+    "base_model": 5007.71,
+    "layered_model": 5007.71,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4649.05
+   },
+   {
+    "date": "2026-05-25",
+    "full_model": 5008.9,
+    "base_model": 5017.12,
+    "layered_model": 5017.12,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4710.28
+   },
+   {
+    "date": "2026-05-26",
+    "full_model": 5014.03,
+    "base_model": 5024.75,
+    "layered_model": 5024.75,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4687.16
+   },
+   {
+    "date": "2026-05-27",
+    "full_model": 4986.0,
+    "base_model": 4998.46,
+    "layered_model": 4998.46,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4685.87
+   },
+   {
+    "date": "2026-05-29",
+    "full_model": 4986.0,
+    "base_model": 4934.78,
+    "layered_model": 4934.78,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4615.43
+   },
+   {
+    "date": "2026-06-01",
+    "full_model": 4986.0,
+    "base_model": 4931.13,
+    "layered_model": 4931.13,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4583.06
+   },
+   {
+    "date": "2026-06-02",
+    "full_model": 4988.8,
+    "base_model": 4936.11,
+    "layered_model": 4936.11,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4602.85
+   },
+   {
+    "date": "2026-06-03",
+    "full_model": 4994.22,
+    "base_model": 4959.45,
+    "layered_model": 4963.43,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4587.57
+   },
+   {
+    "date": "2026-06-04",
+    "full_model": 4993.82,
+    "base_model": 4961.71,
+    "layered_model": 4966.51,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4589.71
+   },
+   {
+    "date": "2026-06-05",
+    "full_model": 4988.19,
+    "base_model": 4926.9,
+    "layered_model": 4941.32,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4579.94
+   },
+   {
+    "date": "2026-06-08",
+    "full_model": 4990.76,
+    "base_model": 4916.34,
+    "layered_model": 4934.82,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4532.18
+   },
+   {
+    "date": "2026-06-09",
+    "full_model": 4972.61,
+    "base_model": 4907.6,
+    "layered_model": 4926.09,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4555.52
+   },
+   {
+    "date": "2026-06-10",
+    "full_model": 4954.32,
+    "base_model": 4861.14,
+    "layered_model": 4899.72,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4550.2
+   },
+   {
+    "date": "2026-06-11",
+    "full_model": 4955.93,
+    "base_model": 4859.55,
+    "layered_model": 4898.08,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4539.74
+   },
+   {
+    "date": "2026-06-12",
+    "full_model": 4951.42,
+    "base_model": 4874.89,
+    "layered_model": 4934.72,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4630.16
+   },
+   {
+    "date": "2026-06-15",
+    "full_model": 4945.38,
+    "base_model": 4849.69,
+    "layered_model": 4909.11,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4675.44
+   },
+   {
+    "date": "2026-06-16",
+    "full_model": 4945.38,
+    "base_model": 4867.81,
+    "layered_model": 4912.13,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4701.94
+   },
+   {
+    "date": "2026-06-17",
+    "full_model": 4945.38,
+    "base_model": 4879.77,
+    "layered_model": 4924.1,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4720.87
+   },
+   {
+    "date": "2026-06-18",
+    "full_model": 4945.38,
+    "base_model": 4899.78,
+    "layered_model": 4931.13,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4737.0
+   },
+   {
+    "date": "2026-06-19",
+    "full_model": 4945.38,
+    "base_model": 4904.15,
+    "layered_model": 4927.7,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4706.64
+   },
+   {
+    "date": "2026-06-22",
+    "full_model": 4945.38,
+    "base_model": 4904.29,
+    "layered_model": 4925.31,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4724.24
+   },
+   {
+    "date": "2026-06-23",
+    "full_model": 4945.38,
+    "base_model": 4874.04,
+    "layered_model": 4900.03,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4669.59
+   },
+   {
+    "date": "2026-06-24",
+    "full_model": 4945.38,
+    "base_model": 4831.73,
+    "layered_model": 4873.02,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4708.31
+   },
+   {
+    "date": "2026-06-25",
+    "full_model": 4945.38,
+    "base_model": 4791.2,
+    "layered_model": 4842.62,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4715.05
+   },
+   {
+    "date": "2026-06-29",
+    "full_model": 4945.38,
+    "base_model": 4801.27,
+    "layered_model": 4854.41,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4693.54
+   },
+   {
+    "date": "2026-06-30",
+    "full_model": 4945.38,
+    "base_model": 4799.7,
+    "layered_model": 4844.48,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4677.76
+   },
+   {
+    "date": "2026-07-01",
+    "full_model": 4945.38,
+    "base_model": 4790.72,
+    "layered_model": 4817.22,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4705.22
+   },
+   {
+    "date": "2026-07-02",
+    "full_model": 4945.38,
+    "base_model": 4806.66,
+    "layered_model": 4837.37,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4738.51
+   },
+   {
+    "date": "2026-07-03",
+    "full_model": 4945.38,
+    "base_model": 4829.11,
+    "layered_model": 4859.82,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4757.16
+   },
+   {
+    "date": "2026-07-06",
+    "full_model": 4945.38,
+    "base_model": 4886.52,
+    "layered_model": 4917.23,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4788.42
+   },
+   {
+    "date": "2026-07-07",
+    "full_model": 4945.38,
+    "base_model": 4871.19,
+    "layered_model": 4901.91,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4782.22
+   },
+   {
+    "date": "2026-07-08",
+    "full_model": 4944.78,
+    "base_model": 4876.73,
+    "layered_model": 4907.45,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4680.95
+   },
+   {
+    "date": "2026-07-09",
+    "full_model": 4938.04,
+    "base_model": 4841.3,
+    "layered_model": 4884.13,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4696.78
+   },
+   {
+    "date": "2026-07-10",
+    "full_model": 4939.8,
+    "base_model": 4867.58,
+    "layered_model": 4909.92,
+    "gated_model": 5000.0,
+    "strict_model": 5000.0,
+    "nifty": 4744.62
+   }
+  ],
+  "drawdown_curve": [
+   {
+    "date": "2026-01-13",
+    "drawdown_pct": 0.0
+   },
+   {
+    "date": "2026-01-14",
+    "drawdown_pct": 0.0
+   },
+   {
+    "date": "2026-01-16",
+    "drawdown_pct": 0.0
+   },
+   {
+    "date": "2026-01-19",
+    "drawdown_pct": 0.01
+   },
+   {
+    "date": "2026-01-20",
+    "drawdown_pct": 0.24
+   },
+   {
+    "date": "2026-01-21",
+    "drawdown_pct": 0.02
+   },
+   {
+    "date": "2026-01-22",
+    "drawdown_pct": 0.0
+   },
+   {
+    "date": "2026-01-23",
+    "drawdown_pct": 0.0
+   },
+   {
+    "date": "2026-01-27",
+    "drawdown_pct": 0.0
+   },
+   {
+    "date": "2026-01-28",
+    "drawdown_pct": 0.0
+   },
+   {
+    "date": "2026-01-29",
+    "drawdown_pct": 0.0
+   },
+   {
+    "date": "2026-01-30",
+    "drawdown_pct": 1.2
+   },
+   {
+    "date": "2026-02-02",
+    "drawdown_pct": 1.83
+   },
+   {
+    "date": "2026-02-03",
+    "drawdown_pct": 1.35
+   },
+   {
+    "date": "2026-02-04",
+    "drawdown_pct": 1.16
+   },
+   {
+    "date": "2026-02-05",
+    "drawdown_pct": 1.73
+   },
+   {
+    "date": "2026-02-06",
+    "drawdown_pct": 1.6
+   },
+   {
+    "date": "2026-02-09",
+    "drawdown_pct": 1.17
+   },
+   {
+    "date": "2026-02-10",
+    "drawdown_pct": 1.08
+   },
+   {
+    "date": "2026-02-11",
+    "drawdown_pct": 1.14
+   },
+   {
+    "date": "2026-02-12",
+    "drawdown_pct": 1.17
+   },
+   {
+    "date": "2026-02-13",
+    "drawdown_pct": 2.25
+   },
+   {
+    "date": "2026-02-16",
+    "drawdown_pct": 2.58
+   },
+   {
+    "date": "2026-02-17",
+    "drawdown_pct": 2.58
+   },
+   {
+    "date": "2026-02-18",
+    "drawdown_pct": 2.58
+   },
+   {
+    "date": "2026-02-19",
+    "drawdown_pct": 2.58
+   },
+   {
+    "date": "2026-02-20",
+    "drawdown_pct": 2.58
+   },
+   {
+    "date": "2026-02-23",
+    "drawdown_pct": 2.58
+   },
+   {
+    "date": "2026-02-24",
+    "drawdown_pct": 2.56
+   },
+   {
+    "date": "2026-02-25",
+    "drawdown_pct": 2.28
+   },
+   {
+    "date": "2026-02-26",
+    "drawdown_pct": 2.2
+   },
+   {
+    "date": "2026-02-27",
+    "drawdown_pct": 2.53
+   },
+   {
+    "date": "2026-03-02",
+    "drawdown_pct": 2.23
+   },
+   {
+    "date": "2026-03-04",
+    "drawdown_pct": 2.58
+   },
+   {
+    "date": "2026-03-05",
+    "drawdown_pct": 1.94
+   },
+   {
+    "date": "2026-03-06",
+    "drawdown_pct": 1.86
+   },
+   {
+    "date": "2026-03-09",
+    "drawdown_pct": 2.12
+   },
+   {
+    "date": "2026-03-10",
+    "drawdown_pct": 1.9
+   },
+   {
+    "date": "2026-03-11",
+    "drawdown_pct": 1.85
+   },
+   {
+    "date": "2026-03-12",
+    "drawdown_pct": 1.65
+   },
+   {
+    "date": "2026-03-13",
+    "drawdown_pct": 2.81
+   },
+   {
+    "date": "2026-03-16",
+    "drawdown_pct": 2.6
+   },
+   {
+    "date": "2026-03-17",
+    "drawdown_pct": 2.29
+   },
+   {
+    "date": "2026-03-18",
+    "drawdown_pct": 2.4
+   },
+   {
+    "date": "2026-03-19",
+    "drawdown_pct": 2.72
+   },
+   {
+    "date": "2026-03-20",
+    "drawdown_pct": 3.17
+   },
+   {
+    "date": "2026-03-23",
+    "drawdown_pct": 3.58
+   },
+   {
+    "date": "2026-03-24",
+    "drawdown_pct": 3.58
+   },
+   {
+    "date": "2026-03-25",
+    "drawdown_pct": 3.56
+   },
+   {
+    "date": "2026-03-27",
+    "drawdown_pct": 3.6
+   },
+   {
+    "date": "2026-03-30",
+    "drawdown_pct": 3.25
+   },
+   {
+    "date": "2026-04-01",
+    "drawdown_pct": 2.85
+   },
+   {
+    "date": "2026-04-02",
+    "drawdown_pct": 2.63
+   },
+   {
+    "date": "2026-04-06",
+    "drawdown_pct": 2.41
+   },
+   {
+    "date": "2026-04-07",
+    "drawdown_pct": 1.88
+   },
+   {
+    "date": "2026-04-08",
+    "drawdown_pct": 1.93
+   },
+   {
+    "date": "2026-04-09",
+    "drawdown_pct": 1.26
+   },
+   {
+    "date": "2026-04-10",
+    "drawdown_pct": 1.13
+   },
+   {
+    "date": "2026-04-13",
+    "drawdown_pct": 1.13
+   },
+   {
+    "date": "2026-04-15",
+    "drawdown_pct": 1.13
+   },
+   {
+    "date": "2026-04-16",
+    "drawdown_pct": 1.13
+   },
+   {
+    "date": "2026-04-17",
+    "drawdown_pct": 1.13
+   },
+   {
+    "date": "2026-04-20",
+    "drawdown_pct": 1.13
+   },
+   {
+    "date": "2026-04-21",
+    "drawdown_pct": 1.13
+   },
+   {
+    "date": "2026-04-22",
+    "drawdown_pct": 1.13
+   },
+   {
+    "date": "2026-04-23",
+    "drawdown_pct": 1.13
+   },
+   {
+    "date": "2026-04-24",
+    "drawdown_pct": 1.13
+   },
+   {
+    "date": "2026-04-27",
+    "drawdown_pct": 1.15
+   },
+   {
+    "date": "2026-04-28",
+    "drawdown_pct": 0.54
+   },
+   {
+    "date": "2026-04-29",
+    "drawdown_pct": 0.54
+   },
+   {
+    "date": "2026-04-30",
+    "drawdown_pct": 0.61
+   },
+   {
+    "date": "2026-05-04",
+    "drawdown_pct": 0.87
+   },
+   {
+    "date": "2026-05-05",
+    "drawdown_pct": 0.99
+   },
+   {
+    "date": "2026-05-06",
+    "drawdown_pct": 1.35
+   },
+   {
+    "date": "2026-05-07",
+    "drawdown_pct": 1.23
+   },
+   {
+    "date": "2026-05-08",
+    "drawdown_pct": 1.42
+   },
+   {
+    "date": "2026-05-11",
+    "drawdown_pct": 1.36
+   },
+   {
+    "date": "2026-05-12",
+    "drawdown_pct": 1.09
+   },
+   {
+    "date": "2026-05-13",
+    "drawdown_pct": 0.98
+   },
+   {
+    "date": "2026-05-14",
+    "drawdown_pct": 0.83
+   },
+   {
+    "date": "2026-05-15",
+    "drawdown_pct": 0.89
+   },
+   {
+    "date": "2026-05-18",
+    "drawdown_pct": 0.98
+   },
+   {
+    "date": "2026-05-19",
+    "drawdown_pct": 1.01
+   },
+   {
+    "date": "2026-05-20",
+    "drawdown_pct": 0.94
+   },
+   {
+    "date": "2026-05-21",
+    "drawdown_pct": 1.03
+   },
+   {
+    "date": "2026-05-22",
+    "drawdown_pct": 1.26
+   },
+   {
+    "date": "2026-05-25",
+    "drawdown_pct": 1.46
+   },
+   {
+    "date": "2026-05-26",
+    "drawdown_pct": 1.36
+   },
+   {
+    "date": "2026-05-27",
+    "drawdown_pct": 1.91
+   },
+   {
+    "date": "2026-05-29",
+    "drawdown_pct": 1.91
+   },
+   {
+    "date": "2026-06-01",
+    "drawdown_pct": 1.91
+   },
+   {
+    "date": "2026-06-02",
+    "drawdown_pct": 1.86
+   },
+   {
+    "date": "2026-06-03",
+    "drawdown_pct": 1.75
+   },
+   {
+    "date": "2026-06-04",
+    "drawdown_pct": 1.76
+   },
+   {
+    "date": "2026-06-05",
+    "drawdown_pct": 1.87
+   },
+   {
+    "date": "2026-06-08",
+    "drawdown_pct": 1.82
+   },
+   {
+    "date": "2026-06-09",
+    "drawdown_pct": 2.18
+   },
+   {
+    "date": "2026-06-10",
+    "drawdown_pct": 2.54
+   },
+   {
+    "date": "2026-06-11",
+    "drawdown_pct": 2.51
+   },
+   {
+    "date": "2026-06-12",
+    "drawdown_pct": 2.59
+   },
+   {
+    "date": "2026-06-15",
+    "drawdown_pct": 2.71
+   },
+   {
+    "date": "2026-06-16",
+    "drawdown_pct": 2.71
+   },
+   {
+    "date": "2026-06-17",
+    "drawdown_pct": 2.71
+   },
+   {
+    "date": "2026-06-18",
+    "drawdown_pct": 2.71
+   },
+   {
+    "date": "2026-06-19",
+    "drawdown_pct": 2.71
+   },
+   {
+    "date": "2026-06-22",
+    "drawdown_pct": 2.71
+   },
+   {
+    "date": "2026-06-23",
+    "drawdown_pct": 2.71
+   },
+   {
+    "date": "2026-06-24",
+    "drawdown_pct": 2.71
+   },
+   {
+    "date": "2026-06-25",
+    "drawdown_pct": 2.71
+   },
+   {
+    "date": "2026-06-29",
+    "drawdown_pct": 2.71
+   },
+   {
+    "date": "2026-06-30",
+    "drawdown_pct": 2.71
+   },
+   {
+    "date": "2026-07-01",
+    "drawdown_pct": 2.71
+   },
+   {
+    "date": "2026-07-02",
+    "drawdown_pct": 2.71
+   },
+   {
+    "date": "2026-07-03",
+    "drawdown_pct": 2.71
+   },
+   {
+    "date": "2026-07-06",
+    "drawdown_pct": 2.71
+   },
+   {
+    "date": "2026-07-07",
+    "drawdown_pct": 2.71
+   },
+   {
+    "date": "2026-07-08",
+    "drawdown_pct": 2.73
+   },
+   {
+    "date": "2026-07-09",
+    "drawdown_pct": 2.86
+   },
+   {
+    "date": "2026-07-10",
+    "drawdown_pct": 2.82
+   }
+  ],
+  "episodes": [
+   {
+    "start_date": "2026-01-29",
+    "trough_date": "2026-03-27",
+    "recovery_date": null,
+    "depth_pct": 3.5959,
+    "duration_days": 57,
+    "trades_during": 3,
+    "dominant_strategy": "Trend Rider",
+    "dominant_sector": "METALS",
+    "dominant_regime": "Bearish",
+    "main_loss_contributors": [
+     {
+      "symbol": "HINDALCO",
+      "net_pnl": -59.98,
+      "exit_date": "2026-03-23"
+     },
+     {
+      "symbol": "HINDALCO",
+      "net_pnl": -47.6,
+      "exit_date": "2026-02-16"
+     }
+    ]
+   },
+   {
+    "start_date": "2026-01-16",
+    "trough_date": "2026-01-20",
+    "recovery_date": "2026-01-22",
+    "depth_pct": 0.2432,
+    "duration_days": 6,
+    "trades_during": 0
+   }
+  ],
+  "largest_drawdown_explanation": "The largest drawdown was 3.5959% deep, starting 2026-01-29, occurring mainly during the Bearish regime, with the largest losses from Trend Rider trades."
+ },
+ "trade_examples": {
+  "top_winners": [
+   {
+    "symbol": "HINDALCO",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-03-25",
+    "exit_date": "2026-04-10",
+    "entry_price": 862.1519,
+    "exit_price": 986.2111,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": 14.15,
+    "net_pnl": 122.01,
+    "total_costs": 3.43,
+    "confidence": 81.7,
+    "calibrated_probability": 0.5865,
+    "opportunity_score": null,
+    "market_regime": "Bearish",
+    "sector": "METALS",
+    "exit_reason": "End-of-Test Forced Close",
+    "mae_pct": -1.37,
+    "mfe_pct": 14.87,
+    "holding_days": 9,
+    "window": "W1",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "HINDALCO",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-02-24",
+    "exit_date": "2026-03-18",
+    "entry_price": 916.4097,
+    "exit_price": 927.5116,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": 0.99,
+    "net_pnl": 9.05,
+    "total_costs": 3.43,
+    "confidence": 80.5,
+    "calibrated_probability": 0.5743,
+    "opportunity_score": null,
+    "market_regime": "Neutral-Bearish",
+    "sector": "METALS",
+    "exit_reason": "Signal Exit",
+    "mae_pct": -2.72,
+    "mfe_pct": 6.76,
+    "holding_days": 15,
+    "window": "W1",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "TATASTEEL",
+    "strategy_name": "EMA Cross",
+    "entry_date": "2026-04-09",
+    "exit_date": "2026-04-10",
+    "entry_price": 200.5279,
+    "exit_price": 202.2834,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": 0.65,
+    "net_pnl": 2.62,
+    "total_costs": 1.5,
+    "confidence": 81.1,
+    "calibrated_probability": 0.5804,
+    "opportunity_score": null,
+    "market_regime": "Neutral-Bearish",
+    "sector": "METALS",
+    "exit_reason": "End-of-Test Forced Close",
+    "mae_pct": 0.0,
+    "mfe_pct": 2.12,
+    "holding_days": 1,
+    "window": "W1",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "ONGC",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-07-08",
+    "exit_date": "2026-07-10",
+    "entry_price": 247.0051,
+    "exit_price": 244.7763,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": -1.12,
+    "net_pnl": -5.55,
+    "total_costs": 1.83,
+    "confidence": 64.3,
+    "calibrated_probability": 0.3466,
+    "opportunity_score": null,
+    "market_regime": "Bullish",
+    "sector": "ENERGY",
+    "exit_reason": "End-of-Test Forced Close",
+    "mae_pct": -1.66,
+    "mfe_pct": 1.05,
+    "holding_days": 2,
+    "window": "W2",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "NTPC",
+    "strategy_name": "Mean Reversion",
+    "entry_date": "2026-06-08",
+    "exit_date": "2026-06-15",
+    "entry_price": 359.2192,
+    "exit_price": 348.2586,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": -3.27,
+    "net_pnl": -11.75,
+    "total_costs": 1.32,
+    "confidence": 58.5,
+    "calibrated_probability": 0.3211,
+    "opportunity_score": null,
+    "market_regime": "Bearish",
+    "sector": "ENERGY",
+    "exit_reason": "Stop-Loss Hit",
+    "mae_pct": -3.42,
+    "mfe_pct": 1.25,
+    "holding_days": 5,
+    "window": "W2",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "ONGC",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-04-27",
+    "exit_date": "2026-05-11",
+    "entry_price": 286.2145,
+    "exit_price": 280.7892,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": -2.12,
+    "net_pnl": -12.11,
+    "total_costs": 2.11,
+    "confidence": 64.6,
+    "calibrated_probability": 0.3501,
+    "opportunity_score": null,
+    "market_regime": "Bearish",
+    "sector": "ENERGY",
+    "exit_reason": "Signal Exit",
+    "mae_pct": -2.99,
+    "mfe_pct": 7.44,
+    "holding_days": 9,
+    "window": "W2",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "ONGC",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-05-12",
+    "exit_date": "2026-05-27",
+    "entry_price": 287.1152,
+    "exit_price": 273.8445,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": -4.84,
+    "net_pnl": -27.79,
+    "total_costs": 2.09,
+    "confidence": 75.7,
+    "calibrated_probability": 0.4793,
+    "opportunity_score": null,
+    "market_regime": "Bearish",
+    "sector": "ENERGY",
+    "exit_reason": "Signal Exit",
+    "mae_pct": -5.11,
+    "mfe_pct": 6.21,
+    "holding_days": 11,
+    "window": "W2",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "ONGC",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-06-02",
+    "exit_date": "2026-06-12",
+    "entry_price": 263.3474,
+    "exit_price": 249.5927,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": -5.44,
+    "net_pnl": -28.65,
+    "total_costs": 1.91,
+    "confidence": 60.7,
+    "calibrated_probability": 0.3236,
+    "opportunity_score": null,
+    "market_regime": "Bearish",
+    "sector": "ENERGY",
+    "exit_reason": "Stop-Loss Hit",
+    "mae_pct": -7.59,
+    "mfe_pct": 2.96,
+    "holding_days": 8,
+    "window": "W2",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "HINDALCO",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-01-19",
+    "exit_date": "2026-02-16",
+    "entry_price": 934.3298,
+    "exit_price": 888.7629,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": -5.09,
+    "net_pnl": -47.6,
+    "total_costs": 3.4,
+    "confidence": 89.0,
+    "calibrated_probability": 0.6601,
+    "opportunity_score": null,
+    "market_regime": "Neutral-Bullish",
+    "sector": "METALS",
+    "exit_reason": "Stop-Loss Hit",
+    "mae_pct": -5.29,
+    "mfe_pct": 9.65,
+    "holding_days": 19,
+    "window": "W1",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "HINDALCO",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-03-19",
+    "exit_date": "2026-03-23",
+    "entry_price": 907.9475,
+    "exit_price": 849.9249,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": -6.61,
+    "net_pnl": -59.98,
+    "total_costs": 3.28,
+    "confidence": 80.2,
+    "calibrated_probability": 0.5713,
+    "opportunity_score": null,
+    "market_regime": "Bearish",
+    "sector": "METALS",
+    "exit_reason": "Stop-Loss Hit",
+    "mae_pct": -8.41,
+    "mfe_pct": 0.0,
+    "holding_days": 2,
+    "window": "W1",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   }
+  ],
+  "top_losers": [
+   {
+    "symbol": "HINDALCO",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-03-19",
+    "exit_date": "2026-03-23",
+    "entry_price": 907.9475,
+    "exit_price": 849.9249,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": -6.61,
+    "net_pnl": -59.98,
+    "total_costs": 3.28,
+    "confidence": 80.2,
+    "calibrated_probability": 0.5713,
+    "opportunity_score": null,
+    "market_regime": "Bearish",
+    "sector": "METALS",
+    "exit_reason": "Stop-Loss Hit",
+    "mae_pct": -8.41,
+    "mfe_pct": 0.0,
+    "holding_days": 2,
+    "window": "W1",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "HINDALCO",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-01-19",
+    "exit_date": "2026-02-16",
+    "entry_price": 934.3298,
+    "exit_price": 888.7629,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": -5.09,
+    "net_pnl": -47.6,
+    "total_costs": 3.4,
+    "confidence": 89.0,
+    "calibrated_probability": 0.6601,
+    "opportunity_score": null,
+    "market_regime": "Neutral-Bullish",
+    "sector": "METALS",
+    "exit_reason": "Stop-Loss Hit",
+    "mae_pct": -5.29,
+    "mfe_pct": 9.65,
+    "holding_days": 19,
+    "window": "W1",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "ONGC",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-06-02",
+    "exit_date": "2026-06-12",
+    "entry_price": 263.3474,
+    "exit_price": 249.5927,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": -5.44,
+    "net_pnl": -28.65,
+    "total_costs": 1.91,
+    "confidence": 60.7,
+    "calibrated_probability": 0.3236,
+    "opportunity_score": null,
+    "market_regime": "Bearish",
+    "sector": "ENERGY",
+    "exit_reason": "Stop-Loss Hit",
+    "mae_pct": -7.59,
+    "mfe_pct": 2.96,
+    "holding_days": 8,
+    "window": "W2",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "ONGC",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-05-12",
+    "exit_date": "2026-05-27",
+    "entry_price": 287.1152,
+    "exit_price": 273.8445,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": -4.84,
+    "net_pnl": -27.79,
+    "total_costs": 2.09,
+    "confidence": 75.7,
+    "calibrated_probability": 0.4793,
+    "opportunity_score": null,
+    "market_regime": "Bearish",
+    "sector": "ENERGY",
+    "exit_reason": "Signal Exit",
+    "mae_pct": -5.11,
+    "mfe_pct": 6.21,
+    "holding_days": 11,
+    "window": "W2",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "ONGC",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-04-27",
+    "exit_date": "2026-05-11",
+    "entry_price": 286.2145,
+    "exit_price": 280.7892,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": -2.12,
+    "net_pnl": -12.11,
+    "total_costs": 2.11,
+    "confidence": 64.6,
+    "calibrated_probability": 0.3501,
+    "opportunity_score": null,
+    "market_regime": "Bearish",
+    "sector": "ENERGY",
+    "exit_reason": "Signal Exit",
+    "mae_pct": -2.99,
+    "mfe_pct": 7.44,
+    "holding_days": 9,
+    "window": "W2",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "NTPC",
+    "strategy_name": "Mean Reversion",
+    "entry_date": "2026-06-08",
+    "exit_date": "2026-06-15",
+    "entry_price": 359.2192,
+    "exit_price": 348.2586,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": -3.27,
+    "net_pnl": -11.75,
+    "total_costs": 1.32,
+    "confidence": 58.5,
+    "calibrated_probability": 0.3211,
+    "opportunity_score": null,
+    "market_regime": "Bearish",
+    "sector": "ENERGY",
+    "exit_reason": "Stop-Loss Hit",
+    "mae_pct": -3.42,
+    "mfe_pct": 1.25,
+    "holding_days": 5,
+    "window": "W2",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "ONGC",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-07-08",
+    "exit_date": "2026-07-10",
+    "entry_price": 247.0051,
+    "exit_price": 244.7763,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": -1.12,
+    "net_pnl": -5.55,
+    "total_costs": 1.83,
+    "confidence": 64.3,
+    "calibrated_probability": 0.3466,
+    "opportunity_score": null,
+    "market_regime": "Bullish",
+    "sector": "ENERGY",
+    "exit_reason": "End-of-Test Forced Close",
+    "mae_pct": -1.66,
+    "mfe_pct": 1.05,
+    "holding_days": 2,
+    "window": "W2",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "TATASTEEL",
+    "strategy_name": "EMA Cross",
+    "entry_date": "2026-04-09",
+    "exit_date": "2026-04-10",
+    "entry_price": 200.5279,
+    "exit_price": 202.2834,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": 0.65,
+    "net_pnl": 2.62,
+    "total_costs": 1.5,
+    "confidence": 81.1,
+    "calibrated_probability": 0.5804,
+    "opportunity_score": null,
+    "market_regime": "Neutral-Bearish",
+    "sector": "METALS",
+    "exit_reason": "End-of-Test Forced Close",
+    "mae_pct": 0.0,
+    "mfe_pct": 2.12,
+    "holding_days": 1,
+    "window": "W1",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "HINDALCO",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-02-24",
+    "exit_date": "2026-03-18",
+    "entry_price": 916.4097,
+    "exit_price": 927.5116,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": 0.99,
+    "net_pnl": 9.05,
+    "total_costs": 3.43,
+    "confidence": 80.5,
+    "calibrated_probability": 0.5743,
+    "opportunity_score": null,
+    "market_regime": "Neutral-Bearish",
+    "sector": "METALS",
+    "exit_reason": "Signal Exit",
+    "mae_pct": -2.72,
+    "mfe_pct": 6.76,
+    "holding_days": 15,
+    "window": "W1",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "HINDALCO",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-03-25",
+    "exit_date": "2026-04-10",
+    "entry_price": 862.1519,
+    "exit_price": 986.2111,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": 14.15,
+    "net_pnl": 122.01,
+    "total_costs": 3.43,
+    "confidence": 81.7,
+    "calibrated_probability": 0.5865,
+    "opportunity_score": null,
+    "market_regime": "Bearish",
+    "sector": "METALS",
+    "exit_reason": "End-of-Test Forced Close",
+    "mae_pct": -1.37,
+    "mfe_pct": 14.87,
+    "holding_days": 9,
+    "window": "W1",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   }
+  ],
+  "highest_mae": [
+   {
+    "symbol": "HINDALCO",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-03-19",
+    "exit_date": "2026-03-23",
+    "entry_price": 907.9475,
+    "exit_price": 849.9249,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": -6.61,
+    "net_pnl": -59.98,
+    "total_costs": 3.28,
+    "confidence": 80.2,
+    "calibrated_probability": 0.5713,
+    "opportunity_score": null,
+    "market_regime": "Bearish",
+    "sector": "METALS",
+    "exit_reason": "Stop-Loss Hit",
+    "mae_pct": -8.41,
+    "mfe_pct": 0.0,
+    "holding_days": 2,
+    "window": "W1",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "ONGC",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-06-02",
+    "exit_date": "2026-06-12",
+    "entry_price": 263.3474,
+    "exit_price": 249.5927,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": -5.44,
+    "net_pnl": -28.65,
+    "total_costs": 1.91,
+    "confidence": 60.7,
+    "calibrated_probability": 0.3236,
+    "opportunity_score": null,
+    "market_regime": "Bearish",
+    "sector": "ENERGY",
+    "exit_reason": "Stop-Loss Hit",
+    "mae_pct": -7.59,
+    "mfe_pct": 2.96,
+    "holding_days": 8,
+    "window": "W2",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "HINDALCO",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-01-19",
+    "exit_date": "2026-02-16",
+    "entry_price": 934.3298,
+    "exit_price": 888.7629,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": -5.09,
+    "net_pnl": -47.6,
+    "total_costs": 3.4,
+    "confidence": 89.0,
+    "calibrated_probability": 0.6601,
+    "opportunity_score": null,
+    "market_regime": "Neutral-Bullish",
+    "sector": "METALS",
+    "exit_reason": "Stop-Loss Hit",
+    "mae_pct": -5.29,
+    "mfe_pct": 9.65,
+    "holding_days": 19,
+    "window": "W1",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "ONGC",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-05-12",
+    "exit_date": "2026-05-27",
+    "entry_price": 287.1152,
+    "exit_price": 273.8445,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": -4.84,
+    "net_pnl": -27.79,
+    "total_costs": 2.09,
+    "confidence": 75.7,
+    "calibrated_probability": 0.4793,
+    "opportunity_score": null,
+    "market_regime": "Bearish",
+    "sector": "ENERGY",
+    "exit_reason": "Signal Exit",
+    "mae_pct": -5.11,
+    "mfe_pct": 6.21,
+    "holding_days": 11,
+    "window": "W2",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "NTPC",
+    "strategy_name": "Mean Reversion",
+    "entry_date": "2026-06-08",
+    "exit_date": "2026-06-15",
+    "entry_price": 359.2192,
+    "exit_price": 348.2586,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": -3.27,
+    "net_pnl": -11.75,
+    "total_costs": 1.32,
+    "confidence": 58.5,
+    "calibrated_probability": 0.3211,
+    "opportunity_score": null,
+    "market_regime": "Bearish",
+    "sector": "ENERGY",
+    "exit_reason": "Stop-Loss Hit",
+    "mae_pct": -3.42,
+    "mfe_pct": 1.25,
+    "holding_days": 5,
+    "window": "W2",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "ONGC",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-04-27",
+    "exit_date": "2026-05-11",
+    "entry_price": 286.2145,
+    "exit_price": 280.7892,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": -2.12,
+    "net_pnl": -12.11,
+    "total_costs": 2.11,
+    "confidence": 64.6,
+    "calibrated_probability": 0.3501,
+    "opportunity_score": null,
+    "market_regime": "Bearish",
+    "sector": "ENERGY",
+    "exit_reason": "Signal Exit",
+    "mae_pct": -2.99,
+    "mfe_pct": 7.44,
+    "holding_days": 9,
+    "window": "W2",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "HINDALCO",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-02-24",
+    "exit_date": "2026-03-18",
+    "entry_price": 916.4097,
+    "exit_price": 927.5116,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": 0.99,
+    "net_pnl": 9.05,
+    "total_costs": 3.43,
+    "confidence": 80.5,
+    "calibrated_probability": 0.5743,
+    "opportunity_score": null,
+    "market_regime": "Neutral-Bearish",
+    "sector": "METALS",
+    "exit_reason": "Signal Exit",
+    "mae_pct": -2.72,
+    "mfe_pct": 6.76,
+    "holding_days": 15,
+    "window": "W1",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "ONGC",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-07-08",
+    "exit_date": "2026-07-10",
+    "entry_price": 247.0051,
+    "exit_price": 244.7763,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": -1.12,
+    "net_pnl": -5.55,
+    "total_costs": 1.83,
+    "confidence": 64.3,
+    "calibrated_probability": 0.3466,
+    "opportunity_score": null,
+    "market_regime": "Bullish",
+    "sector": "ENERGY",
+    "exit_reason": "End-of-Test Forced Close",
+    "mae_pct": -1.66,
+    "mfe_pct": 1.05,
+    "holding_days": 2,
+    "window": "W2",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "HINDALCO",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-03-25",
+    "exit_date": "2026-04-10",
+    "entry_price": 862.1519,
+    "exit_price": 986.2111,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": 14.15,
+    "net_pnl": 122.01,
+    "total_costs": 3.43,
+    "confidence": 81.7,
+    "calibrated_probability": 0.5865,
+    "opportunity_score": null,
+    "market_regime": "Bearish",
+    "sector": "METALS",
+    "exit_reason": "End-of-Test Forced Close",
+    "mae_pct": -1.37,
+    "mfe_pct": 14.87,
+    "holding_days": 9,
+    "window": "W1",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "TATASTEEL",
+    "strategy_name": "EMA Cross",
+    "entry_date": "2026-04-09",
+    "exit_date": "2026-04-10",
+    "entry_price": 200.5279,
+    "exit_price": 202.2834,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": 0.65,
+    "net_pnl": 2.62,
+    "total_costs": 1.5,
+    "confidence": 81.1,
+    "calibrated_probability": 0.5804,
+    "opportunity_score": null,
+    "market_regime": "Neutral-Bearish",
+    "sector": "METALS",
+    "exit_reason": "End-of-Test Forced Close",
+    "mae_pct": 0.0,
+    "mfe_pct": 2.12,
+    "holding_days": 1,
+    "window": "W1",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   }
+  ],
+  "high_confidence_losses": [
+   {
+    "symbol": "HINDALCO",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-01-19",
+    "exit_date": "2026-02-16",
+    "entry_price": 934.3298,
+    "exit_price": 888.7629,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": -5.09,
+    "net_pnl": -47.6,
+    "total_costs": 3.4,
+    "confidence": 89.0,
+    "calibrated_probability": 0.6601,
+    "opportunity_score": null,
+    "market_regime": "Neutral-Bullish",
+    "sector": "METALS",
+    "exit_reason": "Stop-Loss Hit",
+    "mae_pct": -5.29,
+    "mfe_pct": 9.65,
+    "holding_days": 19,
+    "window": "W1",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "HINDALCO",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-03-19",
+    "exit_date": "2026-03-23",
+    "entry_price": 907.9475,
+    "exit_price": 849.9249,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": -6.61,
+    "net_pnl": -59.98,
+    "total_costs": 3.28,
+    "confidence": 80.2,
+    "calibrated_probability": 0.5713,
+    "opportunity_score": null,
+    "market_regime": "Bearish",
+    "sector": "METALS",
+    "exit_reason": "Stop-Loss Hit",
+    "mae_pct": -8.41,
+    "mfe_pct": 0.0,
+    "holding_days": 2,
+    "window": "W1",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "ONGC",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-05-12",
+    "exit_date": "2026-05-27",
+    "entry_price": 287.1152,
+    "exit_price": 273.8445,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": -4.84,
+    "net_pnl": -27.79,
+    "total_costs": 2.09,
+    "confidence": 75.7,
+    "calibrated_probability": 0.4793,
+    "opportunity_score": null,
+    "market_regime": "Bearish",
+    "sector": "ENERGY",
+    "exit_reason": "Signal Exit",
+    "mae_pct": -5.11,
+    "mfe_pct": 6.21,
+    "holding_days": 11,
+    "window": "W2",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "ONGC",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-04-27",
+    "exit_date": "2026-05-11",
+    "entry_price": 286.2145,
+    "exit_price": 280.7892,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": -2.12,
+    "net_pnl": -12.11,
+    "total_costs": 2.11,
+    "confidence": 64.6,
+    "calibrated_probability": 0.3501,
+    "opportunity_score": null,
+    "market_regime": "Bearish",
+    "sector": "ENERGY",
+    "exit_reason": "Signal Exit",
+    "mae_pct": -2.99,
+    "mfe_pct": 7.44,
+    "holding_days": 9,
+    "window": "W2",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "ONGC",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-07-08",
+    "exit_date": "2026-07-10",
+    "entry_price": 247.0051,
+    "exit_price": 244.7763,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": -1.12,
+    "net_pnl": -5.55,
+    "total_costs": 1.83,
+    "confidence": 64.3,
+    "calibrated_probability": 0.3466,
+    "opportunity_score": null,
+    "market_regime": "Bullish",
+    "sector": "ENERGY",
+    "exit_reason": "End-of-Test Forced Close",
+    "mae_pct": -1.66,
+    "mfe_pct": 1.05,
+    "holding_days": 2,
+    "window": "W2",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "ONGC",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-06-02",
+    "exit_date": "2026-06-12",
+    "entry_price": 263.3474,
+    "exit_price": 249.5927,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": -5.44,
+    "net_pnl": -28.65,
+    "total_costs": 1.91,
+    "confidence": 60.7,
+    "calibrated_probability": 0.3236,
+    "opportunity_score": null,
+    "market_regime": "Bearish",
+    "sector": "ENERGY",
+    "exit_reason": "Stop-Loss Hit",
+    "mae_pct": -7.59,
+    "mfe_pct": 2.96,
+    "holding_days": 8,
+    "window": "W2",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "NTPC",
+    "strategy_name": "Mean Reversion",
+    "entry_date": "2026-06-08",
+    "exit_date": "2026-06-15",
+    "entry_price": 359.2192,
+    "exit_price": 348.2586,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": -3.27,
+    "net_pnl": -11.75,
+    "total_costs": 1.32,
+    "confidence": 58.5,
+    "calibrated_probability": 0.3211,
+    "opportunity_score": null,
+    "market_regime": "Bearish",
+    "sector": "ENERGY",
+    "exit_reason": "Stop-Loss Hit",
+    "mae_pct": -3.42,
+    "mfe_pct": 1.25,
+    "holding_days": 5,
+    "window": "W2",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   }
+  ],
+  "low_confidence_winners": [
+   {
+    "symbol": "HINDALCO",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-02-24",
+    "exit_date": "2026-03-18",
+    "entry_price": 916.4097,
+    "exit_price": 927.5116,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": 0.99,
+    "net_pnl": 9.05,
+    "total_costs": 3.43,
+    "confidence": 80.5,
+    "calibrated_probability": 0.5743,
+    "opportunity_score": null,
+    "market_regime": "Neutral-Bearish",
+    "sector": "METALS",
+    "exit_reason": "Signal Exit",
+    "mae_pct": -2.72,
+    "mfe_pct": 6.76,
+    "holding_days": 15,
+    "window": "W1",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "TATASTEEL",
+    "strategy_name": "EMA Cross",
+    "entry_date": "2026-04-09",
+    "exit_date": "2026-04-10",
+    "entry_price": 200.5279,
+    "exit_price": 202.2834,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": 0.65,
+    "net_pnl": 2.62,
+    "total_costs": 1.5,
+    "confidence": 81.1,
+    "calibrated_probability": 0.5804,
+    "opportunity_score": null,
+    "market_regime": "Neutral-Bearish",
+    "sector": "METALS",
+    "exit_reason": "End-of-Test Forced Close",
+    "mae_pct": 0.0,
+    "mfe_pct": 2.12,
+    "holding_days": 1,
+    "window": "W1",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   },
+   {
+    "symbol": "HINDALCO",
+    "strategy_name": "Trend Rider",
+    "entry_date": "2026-03-25",
+    "exit_date": "2026-04-10",
+    "entry_price": 862.1519,
+    "exit_price": 986.2111,
+    "stop_loss": null,
+    "target": null,
+    "return_pct": 14.15,
+    "net_pnl": 122.01,
+    "total_costs": 3.43,
+    "confidence": 81.7,
+    "calibrated_probability": 0.5865,
+    "opportunity_score": null,
+    "market_regime": "Bearish",
+    "sector": "METALS",
+    "exit_reason": "End-of-Test Forced Close",
+    "mae_pct": -1.37,
+    "mfe_pct": 14.87,
+    "holding_days": 9,
+    "window": "W1",
+    "rsi": null,
+    "adx": null,
+    "volume_ratio": null,
+    "atr_pct": null,
+    "macd_state": null
+   }
+  ],
+  "note": "Row details use entry-time stored data only."
+ },
+ "strengths": [
+  {
+   "title": "Calibration improved raw confidence",
+   "explanation": "Brier score improved from 0.3657 to 0.1971.",
+   "supporting_metric": "brier_before_vs_after",
+   "sample_count": 10,
+   "reliability": "LOW",
+   "source_section": "confidence_analysis"
+  }
+ ],
+ "weaknesses": [
+  {
+   "title": "Negative expectancy after costs",
+   "explanation": "Average trade lost Rs 5.97 net of costs.",
+   "supporting_metric": "expectancy_rs=-5.97",
+   "sample_count": 10,
+   "reliability": "LOW",
+   "source_section": "performance"
+  },
+  {
+   "title": "Profit factor below 1",
+   "explanation": "Gross losses exceeded gross profits.",
+   "supporting_metric": "profit_factor=0.69",
+   "sample_count": 10,
+   "reliability": "LOW",
+   "source_section": "performance"
+  },
+  {
+   "title": "Low trade count",
+   "explanation": "Only 10 out-of-sample trades \u2014 evidence is LOW.",
+   "supporting_metric": "oos_trades=10",
+   "sample_count": 10,
+   "reliability": "LOW",
+   "source_section": "executive_summary"
+  },
+  {
+   "title": "Performance depends on few trades",
+   "explanation": "Top five trades produced 87.0586% of profit.",
+   "supporting_metric": "top5_share=87.0586%",
+   "sample_count": 10,
+   "reliability": "LOW",
+   "source_section": "risk"
+  },
+  {
+   "title": "Concentration warning",
+   "explanation": "Top five trades generated 87% of total profit \u2014 results depend on a small number of trades.",
+   "supporting_metric": "see risk section",
+   "sample_count": 10,
+   "reliability": "LOW",
+   "source_section": "risk"
+  },
+  {
+   "title": "Concentration warning",
+   "explanation": "Most losses (73%) occurred in the Bearish regime.",
+   "supporting_metric": "see risk section",
+   "sample_count": 10,
+   "reliability": "LOW",
+   "source_section": "risk"
+  },
+  {
+   "title": "Calibration warning",
+   "explanation": "Calibration metrics are based on only 10 samples (LOW) \u2014 treat with caution.",
+   "supporting_metric": "see confidence section",
+   "sample_count": 10,
+   "reliability": "LOW",
+   "source_section": "confidence_analysis"
+  }
+ ],
+ "recommendations": [
+  {
+   "priority": "HIGH",
+   "category": "Increase evidence period",
+   "action": "Extend the date range or widen windows to reach at least 100 out-of-sample trades.",
+   "reason": "Only 10 OOS trades \u2014 below the 100-trade evidence requirement.",
+   "evidence": "oos_trades=10",
+   "expected_research_value": "High \u2014 verdicts are currently statistically weak.",
+   "risk": "None \u2014 current results cannot be trusted either way.",
+   "suggested_controlled_experiment": "Same config with a longer start\u2013end range (e.g. +2 years).",
+   "may_affect_live_logic": false
+  }
+ ],
+ "next_experiments": {
+  "suggestions": [
+   {
+    "id": "hold_short",
+    "name": "Shorter max holding period (10d)",
+    "hypothesis": "Losses grow with holding time in this experiment; earlier exits may cut tail losses.",
+    "primary_variable": "max_holding_days",
+    "control_config": {
+     "train_years": 1,
+     "test_months": 3,
+     "step_months": 3,
+     "start_date": "",
+     "end_date": "",
+     "max_holding_days": 20,
+     "min_confidence_execute": 55,
+     "intrabar_rule": "conservative"
+    },
+    "treatment_config": {
+     "train_years": 1,
+     "test_months": 3,
+     "step_months": 3,
+     "start_date": "",
+     "end_date": "",
+     "max_holding_days": 10,
+     "min_confidence_execute": 55,
+     "intrabar_rule": "conservative"
+    },
+    "required_date_range": " to ",
+    "required_sample_target": 100,
+    "success_criteria": "Profit factor >= 1.15 and positive expectancy with >= 100 OOS trades and >= 2 profitable windows.",
+    "rejection_criteria": "Expectancy remains negative or evidence stays below 50 trades.",
+    "expected_runtime_estimate_min": 3,
+    "priority": "MEDIUM",
+    "rationale": "Holding-period table shows deteriorating expectancy in longer bands (verify in report).",
+    "queue_requires_confirmation": true
+   },
+   {
+    "id": "step_shift",
+    "name": "Shifted window phase",
+    "hypothesis": "Robust results should not depend on window phase alignment.",
+    "primary_variable": "start_date (+1 month phase shift)",
+    "control_config": {
+     "train_years": 1,
+     "test_months": 3,
+     "step_months": 3,
+     "start_date": "",
+     "end_date": "",
+     "max_holding_days": 20,
+     "min_confidence_execute": 55,
+     "intrabar_rule": "conservative"
+    },
+    "treatment_config": {
+     "train_years": 1,
+     "test_months": 3,
+     "step_months": 3,
+     "start_date": "",
+     "end_date": "",
+     "max_holding_days": 20,
+     "min_confidence_execute": 55,
+     "intrabar_rule": "conservative"
+    },
+    "required_date_range": " to ",
+    "required_sample_target": 100,
+    "success_criteria": "Profit factor >= 1.15 and positive expectancy with >= 100 OOS trades and >= 2 profitable windows.",
+    "rejection_criteria": "Expectancy remains negative or evidence stays below 50 trades.",
+    "expected_runtime_estimate_min": 3,
+    "priority": "LOW",
+    "rationale": "Window-phase robustness check \u2014 a genuinely robust result survives phase shifts.",
+    "queue_requires_confirmation": true
+   }
+  ],
+  "note": "Suggestions follow controlled-experiment principles: one variable at a time, walk-forward evaluation, realistic costs. Queueing always requires explicit user confirmation \u2014 nothing is auto-queued."
+ },
+ "final_verdict": {
+  "verdict": "INSUFFICIENT DATA",
+  "reasons": [
+   "10 OOS trades (< 100) across 2 windows.",
+   "Overfitting flags: insufficient_oos_trades (10 < 25 hard limit)"
+  ],
+  "thresholds": {
+   "min_trades": 100,
+   "min_windows": 2,
+   "reject_pf_below": 0.8,
+   "promising_pf_above": 1.15,
+   "max_drawdown_pct": 20.0
+  },
+  "engine_verdict_reference": "INSUFFICIENT DATA",
+  "disclaimer": "Even a PROMISING verdict is research-only and does not affect the live system. Never deploy based on this report."
+ },
+ "diagnostics": {
+  "source_trade_count": 10,
+  "variant_c_trades_used": 10,
+  "duplicate_rows_removed": 0,
+  "invalid_rows_ignored": 0,
+  "ledger_rows": 0,
+  "missing_sources": [
+   "analysis.json",
+   "research_ledger.csv"
+  ],
+  "windows_used": 2,
+  "date_boundaries": {
+   "start": "",
+   "end": ""
+  },
+  "cost_model": {
+   "slippage_pct": 0.05,
+   "spread_pct": 0.05,
+   "brokerage_pct": 0.0,
+   "brokerage_flat": 0.0,
+   "brokerage_max": 20.0,
+   "stt_pct": 0.1,
+   "exchange_pct": 0.00297,
+   "sebi_pct": 0.0001,
+   "stamp_pct": 0.015,
+   "gst_pct": 18.0,
+   "volume_participation_pct": 5.0,
+   "allow_partial_fills": true,
+   "max_entry_gap_pct": 3.0,
+   "entry_timing": "next_day_open"
+  },
+  "intrabar_rule": "Conservative: if stop and target are touched in the same candle, the stop-loss is assumed to trigger first.",
+  "lookahead_audit": {
+   "decisions_logged": 5616,
+   "violations": 0,
+   "status": "CLEAN"
+  },
+  "generation_seconds": 0.17
+ },
+ "report_version": 1,
+ "source_result_hash": "52713b05b9cb5362"
+}

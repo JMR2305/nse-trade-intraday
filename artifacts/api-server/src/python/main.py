@@ -654,6 +654,44 @@ def main():
                 else:
                     result = {"error": "No analysis found for this experiment. "
                                        "Run it (or POST /analyze) to generate one."}
+        elif command in ("report_get", "report_status", "report_generate",
+                         "report_export_html", "report_export_csv") and len(args) >= 2:
+            # Phase 4.3 — Research report engine (analysis only)
+            import os as _os
+            import re as _re
+            from experiment_manager import EXPERIMENTS_DIR as _EXP_DIR
+            if not _re.fullmatch(r"[A-Za-z0-9_-]{1,64}", args[1]):
+                result = {"success": False,
+                          "error": {"code": "INVALID_ID",
+                                    "message": "Invalid experiment id.",
+                                    "details": "id must match [A-Za-z0-9_-]{1,64}"}}
+            else:
+                _dir = _os.path.join(_EXP_DIR, args[1])
+                if command == "report_get":
+                    from report_engine import get_report
+                    _v = None
+                    if len(args) >= 3 and args[2].isdigit():
+                        _v = int(args[2])
+                    result = get_report(_dir, version=_v)
+                elif command == "report_status":
+                    from report_engine import report_status
+                    result = report_status(_dir)
+                elif command == "report_generate":
+                    from report_engine import generate_report
+                    _force = len(args) >= 3 and args[2] == "force"
+                    result = generate_report(_dir, force=_force)
+                    if result.get("success") and not result.get("skipped"):
+                        try:
+                            from report_exports import export_html
+                            export_html(_dir)
+                        except Exception:
+                            pass
+                elif command == "report_export_html":
+                    from report_exports import export_html
+                    result = export_html(_dir)
+                elif command == "report_export_csv":
+                    from report_exports import export_csv_zip
+                    result = export_csv_zip(_dir)
         elif command == "experiment_check_running":
             from experiment_manager import check_any_running
             result = check_any_running()

@@ -1,0 +1,1119 @@
+Implement Phase 4.3 — Comprehensive Experiment Research Report Engine.
+
+IMPORTANT SAFETY REQUIREMENTS
+
+This phase is strictly for research and paper trading.
+
+Do not:
+- Place real orders.
+- Connect this feature to live order execution.
+- Modify live paper-trading decisions.
+- Change the current Trade Decisions, Market Scanner, AI Decision, portfolio manager, ranking, confidence, or strategy-selection logic.
+- Automatically promote any experiment or strategy.
+- overwrite existing experiment results.
+- alter the existing walk-forward calculation methodology.
+- introduce lookahead bias.
+
+All analysis must use only information that was available within each experiment’s valid train/test boundaries.
+
+Every new UI section must clearly display:
+
+“Research only — out-of-sample historical performance does not guarantee future results. This report does not affect live or paper-trading strategy selection.”
+
+==================================================
+PHASE 4.3 OBJECTIVE
+==================================================
+
+After every Research Factory experiment finishes, automatically generate a detailed and structured research report explaining:
+
+1. What happened.
+2. Why the result occurred.
+3. Where the strategy performed well.
+4. Where it failed.
+5. Whether the evidence is reliable.
+6. Which improvements are supported by evidence.
+7. What experiment should be run next.
+8. Whether the strategy should be rejected, investigated further, or remain inconclusive.
+
+The report must be available:
+
+- Inside the Research Factory experiment detail page.
+- As downloadable JSON.
+- As downloadable CSV files.
+- As a printable HTML report.
+- Through a stable backend API.
+- In the complete experiment export.
+
+Do not generate unsupported conclusions. Use deterministic calculations and rule-based research summaries. An LLM-generated narrative may be added only as an optional explanatory layer, but all claims must be traceable to computed metrics.
+
+==================================================
+1. DATABASE AND PERSISTENCE
+==================================================
+
+Create persistent storage for the generated report.
+
+Add a table or equivalent persistent model named:
+
+experiment_research_reports
+
+Recommended fields:
+
+- id
+- experiment_id
+- report_version
+- status
+- generated_at
+- source_result_hash
+- executive_summary_json
+- performance_analysis_json
+- risk_analysis_json
+- trade_distribution_json
+- confidence_analysis_json
+- false_positive_analysis_json
+- missed_opportunity_analysis_json
+- feature_analysis_json
+- parameter_sensitivity_json
+- regime_analysis_json
+- holding_period_analysis_json
+- drawdown_analysis_json
+- trade_examples_json
+- strengths_json
+- weaknesses_json
+- recommendations_json
+- next_experiments_json
+- final_verdict_json
+- diagnostics_json
+- generation_error
+- created_at
+- updated_at
+
+Use the project’s existing database and migration framework.
+
+Requirements:
+
+- One experiment may have multiple report versions.
+- The latest successful report must be easy to retrieve.
+- Re-running report generation must be idempotent.
+- Do not duplicate a report if the experiment result hash has not changed.
+- Preserve older reports for auditability.
+- Store sufficient source references so every reported claim can be traced to metrics or trade records.
+
+==================================================
+2. REPORT GENERATION PIPELINE
+==================================================
+
+Automatically generate the report after an experiment reaches:
+
+- completed
+- rejected
+- auto-rejected
+
+Do not generate it while the experiment is queued or running.
+
+Report lifecycle:
+
+PENDING
+GENERATING
+COMPLETED
+FAILED
+
+If report generation fails:
+
+- Do not mark the experiment itself as failed.
+- Save the report error.
+- Show a “Retry report generation” button.
+- Return valid JSON error responses.
+- Never allow an empty or HTML server response to cause a frontend JSON parsing error.
+
+Add a manual endpoint and UI action:
+
+“Regenerate Research Report”
+
+The report generator must use:
+
+- Experiment configuration.
+- Walk-forward windows.
+- All simulated out-of-sample trades.
+- Recommendation outcomes where available.
+- Confidence values.
+- Entry and exit data.
+- Market regime.
+- Strategy.
+- Sector.
+- Holding period.
+- Costs.
+- Drawdown series.
+- Historical similarity information, if stored.
+- Feature values available at entry.
+- Benchmark returns.
+- Rejected or skipped opportunities, if available.
+
+Never use future data relative to the simulated decision timestamp.
+
+==================================================
+3. EXECUTIVE SUMMARY
+==================================================
+
+Generate an executive summary containing:
+
+- Experiment name.
+- Experiment type/template.
+- Date range.
+- Training, test and step periods.
+- Number of walk-forward windows.
+- Number of out-of-sample trades.
+- Net return.
+- Net P&L.
+- Profit factor.
+- Expectancy per trade.
+- Win rate.
+- Sharpe ratio.
+- Maximum drawdown.
+- Total costs.
+- Evidence verdict.
+- Overfitting flags.
+- Final research verdict.
+- A concise explanation of the result.
+
+Example output style:
+
+“The experiment produced negative net expectancy after costs across 63 out-of-sample trades and two test windows. Profit factor was 0.86 and the result did not meet the minimum evidence requirement. The strategy should not be promoted. Additional testing with broader evidence is required.”
+
+The explanation must be generated from rules, not invented.
+
+==================================================
+4. PERFORMANCE ANALYSIS
+==================================================
+
+Include:
+
+- Gross return.
+- Net return.
+- Gross P&L.
+- Net P&L.
+- Total trading costs.
+- Cost drag percentage.
+- Profit factor.
+- Expectancy per trade.
+- Win rate.
+- Average win.
+- Average loss.
+- Median win.
+- Median loss.
+- Payoff ratio.
+- Sharpe.
+- Sortino, if available.
+- Calmar, if available.
+- Recovery factor.
+- Turnover.
+- Exposure.
+- Average and median holding period.
+- Maximum consecutive wins.
+- Maximum consecutive losses.
+- Best month.
+- Worst month.
+- Best window.
+- Worst window.
+- Percentage of profitable windows.
+- Return compared with NIFTY 50.
+- Return compared with equal-weight universe.
+- Return compared with cash.
+- Return compared with the current base model.
+
+Clearly distinguish:
+
+- gross performance
+- net-of-cost performance
+- benchmark-relative performance
+
+==================================================
+5. RISK ANALYSIS
+==================================================
+
+Calculate and display:
+
+- Maximum drawdown.
+- Drawdown duration.
+- Average drawdown.
+- Number of material drawdowns.
+- Time underwater.
+- Largest one-day or one-trade loss.
+- Tail-loss statistics.
+- 5th percentile trade return.
+- 95th percentile trade return.
+- Downside deviation.
+- Risk of ruin estimate, clearly labelled as an estimate.
+- Position concentration.
+- Stock concentration.
+- Sector concentration.
+- Strategy concentration.
+- Regime concentration.
+- Month concentration.
+- Top 5 trades’ contribution to profit.
+- Top 5 losses’ contribution to loss.
+- Whether results depend on a small number of trades.
+
+Add concentration warnings such as:
+
+- “More than 40% of profit came from one stock.”
+- “Top five trades generated more than 70% of net profit.”
+- “Most losses occurred in one market regime.”
+
+Only display a warning when the computed threshold is breached.
+
+==================================================
+6. TRADE DISTRIBUTION
+==================================================
+
+Generate breakdown tables for:
+
+- By strategy.
+- By stock.
+- By sector.
+- By market regime.
+- By calendar year.
+- By month.
+- By holding period.
+- By confidence band.
+- By opportunity-score band.
+- By risk/reward band.
+- By entry subtype.
+- By exit reason.
+- By volatility band.
+- By ADX/trend-strength band.
+- By volume-ratio band.
+- By gap percentage.
+- By long/short side, if applicable.
+
+For every breakdown show where applicable:
+
+- trades
+- wins
+- losses
+- win rate
+- gross P&L
+- net P&L
+- average return
+- median return
+- expectancy
+- profit factor
+- maximum drawdown
+- average holding period
+- costs
+- evidence/sample label
+
+Use minimum sample labels:
+
+- 0–9: VERY LOW
+- 10–24: LOW
+- 25–49: LIMITED
+- 50–99: MODERATE
+- 100+: STRONGER
+
+Do not describe a group as reliable solely because it is profitable.
+
+==================================================
+7. CONFIDENCE CALIBRATION
+==================================================
+
+Analyse raw and calibrated confidence.
+
+Include:
+
+- Brier score.
+- Expected calibration error.
+- Log loss.
+- Reliability buckets.
+- Predicted win probability.
+- Actual win rate.
+- Sample count.
+- Average return.
+- Profit factor.
+- Calibration gap.
+- Before-versus-after calibration comparison.
+- High-confidence losing trades.
+- Low-confidence winning trades.
+- Confidence bands producing negative expectancy.
+- Confidence threshold sensitivity.
+
+Add warnings when:
+
+- Higher confidence does not correspond with better outcomes.
+- A confidence bucket is materially overconfident.
+- Calibration metrics are based on insufficient samples.
+- Confidence is being treated as trade quality despite negative expectancy.
+
+Do not display zero as a real metric when the value is unavailable. Display “N/A”.
+
+==================================================
+8. FALSE-POSITIVE ANALYSIS
+==================================================
+
+Define false positives clearly.
+
+For BUY or STRONG BUY recommendations, analyse trades that:
+
+- lost money after costs, or
+- hit the stop, or
+- failed to achieve a configurable minimum favourable excursion.
+
+Show:
+
+- Number and percentage of false positives.
+- False positives by strategy.
+- False positives by regime.
+- False positives by sector.
+- False positives by confidence band.
+- False positives by volatility.
+- False positives by volume.
+- False positives by entry subtype.
+- Common indicator conditions.
+- Average MAE.
+- Average MFE.
+- Average holding period.
+- Common exit reasons.
+- Top recurring combinations of failure conditions.
+
+Do not claim causation. Use language such as:
+
+“False-positive trades were more frequently associated with low volume and neutral-bearish regimes.”
+
+Every conclusion must include:
+
+- sample count
+- baseline rate
+- subgroup rate
+- absolute difference
+- reliability label
+
+==================================================
+9. MISSED-OPPORTUNITY ANALYSIS
+==================================================
+
+Where sufficient stored scanner/recommendation data exists, analyse:
+
+- WATCH or AVOID stocks that subsequently rose.
+- Ignored setups that later met a configurable return threshold.
+- Stocks excluded by confidence floors.
+- Stocks excluded by regime gates.
+- Stocks excluded by strategy eligibility.
+- Stocks excluded because of unavailable data.
+
+For each category show:
+
+- number of cases
+- forward return after 1, 3, 5, 10 and 20 days
+- average MFE
+- average MAE
+- reason for exclusion
+- confidence at decision time
+- regime
+- strategy
+- sample reliability
+
+This is diagnostic only. Do not automatically weaken safety gates.
+
+If the required source history is not stored, display:
+
+“Missed-opportunity analysis unavailable because historical rejected-candidate snapshots were not persisted.”
+
+Do not fabricate results.
+
+==================================================
+10. FEATURE AND CONDITION ANALYSIS
+==================================================
+
+Analyse available entry-time features such as:
+
+- RSI.
+- MACD histogram.
+- ADX.
+- ATR percentage.
+- Volume ratio.
+- Price versus EMA20.
+- Price versus EMA50.
+- Price versus EMA200.
+- Supertrend direction.
+- Gap percentage.
+- Opportunity score.
+- Base confidence.
+- Calibrated confidence.
+- Historical similarity.
+- Historical expectancy.
+- Sector rank.
+- Market regime.
+
+For each feature:
+
+- Compare winners versus losers.
+- Compare accepted versus rejected opportunities where available.
+- Bin continuous values.
+- Show sample size.
+- Show win rate.
+- Show expectancy.
+- Show profit factor.
+- Show average return.
+- Show confidence interval or bootstrap range where feasible.
+- Show whether results are stable across test windows.
+
+Do not label a feature as important merely because one bucket performed well.
+
+Create a feature assessment:
+
+- SUPPORTED
+- POSSIBLY USEFUL
+- INCONCLUSIVE
+- UNHELPFUL
+- HARMFUL
+
+Require multi-window consistency and minimum evidence before using SUPPORTED.
+
+==================================================
+11. PARAMETER SENSITIVITY
+==================================================
+
+Build parameter sensitivity from available experiments and, when possible, from controlled analysis.
+
+Parameters may include:
+
+- Minimum confidence.
+- Maximum holding period.
+- Stop distance.
+- Target distance.
+- ATR multiplier.
+- Risk/reward requirement.
+- Volume threshold.
+- ADX threshold.
+- RSI threshold.
+- Entry-gap threshold.
+- Training period.
+- Test period.
+- Step size.
+- Strategy eligibility thresholds.
+
+Show:
+
+- parameter value
+- trade count
+- net return
+- expectancy
+- profit factor
+- Sharpe
+- maximum drawdown
+- win rate
+- stability across windows
+- score
+- evidence verdict
+
+Highlight:
+
+- flat/stable regions
+- unstable peaks
+- probable overfitting
+- values that improve one metric while damaging risk
+- values with insufficient evidence
+
+Do not recommend a single “best” value based only on maximum return.
+
+Prefer stable parameter ranges.
+
+==================================================
+12. MARKET REGIME ANALYSIS
+==================================================
+
+Analyse performance in:
+
+- Bullish.
+- Bearish.
+- Neutral-bullish.
+- Neutral-bearish.
+- Sideways.
+- High volatility.
+- Low volatility.
+- Any existing project regime labels.
+
+Show:
+
+- trades
+- expectancy
+- profit factor
+- net return
+- win rate
+- drawdown
+- average holding period
+- costs
+- percentage of total trades
+- percentage of total P&L
+- window consistency
+
+Generate a regime eligibility recommendation:
+
+- ELIGIBLE
+- RESTRICT
+- DISABLE
+- INCONCLUSIVE
+
+Do not activate these recommendations in the live system.
+
+Display:
+
+“Analysis-only regime recommendation — not used by live strategy selection.”
+
+==================================================
+13. HOLDING-PERIOD ANALYSIS
+==================================================
+
+Analyse:
+
+- 0–1 days
+- 2–3 days
+- 4–7 days
+- 8–15 days
+- 16–20 days
+- 21+ days, when applicable
+
+Show:
+
+- trades
+- win rate
+- expectancy
+- profit factor
+- net P&L
+- drawdown
+- average MFE
+- average MAE
+- exit reason distribution
+- costs
+
+Also calculate performance if trades had hypothetically exited at:
+
+- 1 day
+- 3 days
+- 5 days
+- 10 days
+- current strategy exit
+
+Only calculate when valid historical prices are available without lookahead contamination.
+
+Clearly label these as controlled alternative-exit analysis.
+
+==================================================
+14. DRAWDOWN TIMELINE
+==================================================
+
+Create:
+
+- Equity curve.
+- Underwater/drawdown curve.
+- Drawdown episodes table.
+- Start date.
+- Trough date.
+- Recovery date.
+- Depth.
+- Duration.
+- Trades during episode.
+- Dominant strategy.
+- Dominant sector.
+- Dominant regime.
+- Main loss contributors.
+
+Add a plain-language explanation for the largest drawdown.
+
+Example:
+
+“The largest drawdown occurred primarily during the neutral-bearish regime, with 61% of losses coming from Trend Rider trades.”
+
+Only state this when numerically supported.
+
+==================================================
+15. BEST AND WORST TRADE EXAMPLES
+==================================================
+
+Show at least:
+
+- Top 10 winning trades.
+- Top 10 losing trades.
+- Top 10 highest-MAE trades.
+- Top 10 high-confidence losses.
+- Top 10 low-confidence winners.
+
+Columns:
+
+- stock
+- strategy
+- entry date
+- exit date
+- entry
+- exit
+- stop
+- target
+- return
+- net P&L
+- cost
+- confidence
+- opportunity score
+- regime
+- sector
+- exit reason
+- MAE
+- MFE
+- holding days
+- experiment window
+
+Allow each row to expand into a detailed trade explanation using stored entry-time data only.
+
+==================================================
+16. STRENGTHS AND WEAKNESSES
+==================================================
+
+Generate structured lists.
+
+Each item must contain:
+
+- title
+- explanation
+- supporting metric
+- sample count
+- reliability
+- source section
+
+Examples of valid strength statements:
+
+- Positive expectancy in bearish regimes across at least two windows.
+- Costs remain below 15% of gross profit.
+- Confidence calibration improved relative to raw confidence.
+
+Examples of valid weakness statements:
+
+- Negative expectancy after costs.
+- Profit factor below 1.
+- Performance depends on fewer than five trades.
+- Large losses concentrated in short holding periods.
+- High-confidence recommendations remain overconfident.
+- Result appears only in one test window.
+- Strategy deteriorates after realistic costs.
+
+Do not generate generic text.
+
+==================================================
+17. RESEARCH RECOMMENDATIONS
+==================================================
+
+Generate recommendations using evidence-based rules.
+
+Each recommendation must contain:
+
+- priority: HIGH / MEDIUM / LOW
+- category
+- action
+- reason
+- evidence
+- expected research value
+- risk
+- suggested controlled experiment
+- whether it may affect live logic: always FALSE in Phase 4.3
+
+Possible categories:
+
+- Disable strategy from further testing.
+- Restrict to a market regime.
+- Increase evidence period.
+- Test a holding-period change.
+- Test an exit-rule change.
+- Test a confidence threshold.
+- Investigate a feature.
+- Improve data coverage.
+- Reduce turnover.
+- Reduce concentration.
+- Fix calibration.
+- Reject apparent improvement as overfit.
+
+Never recommend deployment with real capital.
+
+==================================================
+18. NEXT EXPERIMENT GENERATOR
+==================================================
+
+Generate 3–5 suggested experiments.
+
+Each suggestion must include:
+
+- name
+- hypothesis
+- one primary variable being tested
+- control configuration
+- treatment configuration
+- required date range
+- required sample target
+- success criteria
+- rejection criteria
+- expected runtime estimate
+- priority
+- rationale
+
+Follow controlled-experiment principles:
+
+- Change one major factor at a time.
+- Keep all other settings constant.
+- Use walk-forward evaluation.
+- Apply realistic costs.
+- Require multiple windows.
+- Require minimum OOS trades.
+- Reject overfit results.
+- Never auto-queue without explicit user confirmation.
+
+Add a “Preview Experiment” button and a “Queue Experiment” button.
+
+Queueing requires user confirmation.
+
+==================================================
+19. FINAL RESEARCH VERDICT
+==================================================
+
+The final verdict must be one of:
+
+- REJECT
+- INSUFFICIENT DATA
+- INCONCLUSIVE
+- CONTINUE RESEARCH
+- PROMISING — RESEARCH ONLY
+
+Do not use APPROVED, DEPLOY, LIVE, SAFE FOR CAPITAL, or similar language.
+
+Suggested minimum logic:
+
+REJECT when:
+- Net expectancy is materially negative with sufficient evidence, or
+- Profit factor is materially below 1 with sufficient evidence, or
+- Multiple robustness failures exist.
+
+INSUFFICIENT DATA when:
+- Too few OOS trades, or
+- Too few windows, or
+- Missing core evidence.
+
+INCONCLUSIVE when:
+- Metrics are close to zero or inconsistent across windows.
+
+CONTINUE RESEARCH when:
+- Some evidence is positive but robustness requirements are not met.
+
+PROMISING — RESEARCH ONLY when:
+- Positive net expectancy.
+- Profit factor above configured threshold.
+- Acceptable drawdown.
+- Multiple profitable windows.
+- Minimum trade count met.
+- No severe concentration.
+- No hard overfitting flags.
+
+Even “PROMISING — RESEARCH ONLY” must not affect the live system.
+
+Display the exact reasons and thresholds used.
+
+==================================================
+20. USER INTERFACE
+==================================================
+
+Inside Research Factory, add a new experiment detail view.
+
+Recommended sections:
+
+1. Research Verdict
+2. Executive Summary
+3. Performance
+4. Risk
+5. Equity and Drawdown
+6. Trade Distribution
+7. Confidence Calibration
+8. False Positives
+9. Missed Opportunities
+10. Feature Analysis
+11. Parameter Sensitivity
+12. Market Regimes
+13. Holding Period
+14. Best and Worst Trades
+15. Strengths and Weaknesses
+16. Recommendations
+17. Next Experiments
+18. Diagnostics
+19. Exports
+
+UI requirements:
+
+- Mobile responsive.
+- Tables horizontally scroll on smaller screens.
+- Sections use expandable panels.
+- Loading state.
+- Empty state.
+- Error state.
+- Retry action.
+- Report-generation progress state.
+- Do not freeze the page during generation.
+- Use existing project styling.
+- Maintain readable spacing.
+- Display “N/A” for unavailable values.
+- Never show undefined, null, NaN, Infinity or misleading zeroes.
+
+Add a prominent report-status badge:
+
+- Generating
+- Ready
+- Failed
+- Outdated
+
+If experiment results change, mark the existing report as OUTDATED.
+
+==================================================
+21. API ENDPOINTS
+==================================================
+
+Add or adapt endpoints similar to:
+
+GET /api/research-factory/experiments/:experimentId/report
+POST /api/research-factory/experiments/:experimentId/report/generate
+POST /api/research-factory/experiments/:experimentId/report/regenerate
+GET /api/research-factory/experiments/:experimentId/report/status
+GET /api/research-factory/experiments/:experimentId/report/export/json
+GET /api/research-factory/experiments/:experimentId/report/export/html
+GET /api/research-factory/experiments/:experimentId/report/export/csv
+POST /api/research-factory/experiments/:experimentId/suggested-experiments/:suggestionId/queue
+
+All endpoints must:
+
+- Return valid JSON for JSON endpoints.
+- Set the correct Content-Type.
+- Return structured errors.
+- Never return an empty body when the frontend expects JSON.
+- Validate experiment IDs.
+- Handle missing trades.
+- Handle missing metrics.
+- Handle partial experiment records.
+- Avoid exposing stack traces to the UI.
+
+Recommended error response:
+
+{
+  "success": false,
+  "error": {
+    "code": "REPORT_GENERATION_FAILED",
+    "message": "Research report generation failed.",
+    "details": "Safe diagnostic message"
+  }
+}
+
+==================================================
+22. EXPORTS
+==================================================
+
+JSON export must include:
+
+- report metadata
+- experiment metadata
+- configuration
+- safety flags
+- source result hash
+- all report sections
+- thresholds
+- evidence counts
+- diagnostics
+- recommended experiments
+- final verdict
+- report version
+
+CSV export may be a ZIP containing separate CSV files:
+
+- summary.csv
+- performance.csv
+- risk.csv
+- windows.csv
+- trades.csv
+- strategies.csv
+- stocks.csv
+- sectors.csv
+- regimes.csv
+- confidence_bands.csv
+- false_positives.csv
+- missed_opportunities.csv
+- features.csv
+- holding_periods.csv
+- drawdowns.csv
+- best_trades.csv
+- worst_trades.csv
+- recommendations.csv
+- next_experiments.csv
+
+Printable HTML report must:
+
+- Include all major sections.
+- Be readable without JavaScript after generation.
+- Include generation date.
+- Include experiment ID.
+- Include report version.
+- Include research-only disclaimer on the first and final page.
+- Avoid external assets that may fail during printing.
+
+Update the current full Research Factory export so that completed reports are included.
+
+==================================================
+23. COMPUTATION QUALITY
+==================================================
+
+Use existing project utilities wherever possible.
+
+Requirements:
+
+- All returns must be net of configured costs unless explicitly labelled gross.
+- Do not add percentages arithmetically when compounding is required.
+- Avoid divide-by-zero.
+- Validate dates.
+- Validate number types.
+- Distinguish rupee expectancy from percentage expectancy.
+- Use consistent rounding.
+- Preserve full precision internally.
+- Use deterministic sorting.
+- Use timezone-aware timestamps.
+- Do not double-count duplicated trades.
+- Do not mix in-sample trades with out-of-sample trades.
+- Do not mix recommendation outcome rows with executed trade rows unless clearly separated.
+
+Add a report diagnostics section containing:
+
+- source trade count
+- duplicate rows removed
+- invalid rows ignored
+- missing fields
+- windows used
+- date boundaries
+- cost model
+- intrabar rule
+- lookahead audit status
+- report-generation duration
+- result hash
+- report version
+
+==================================================
+24. TESTING
+==================================================
+
+Add backend and frontend tests.
+
+Backend tests must cover:
+
+1. Completed experiment with sufficient trade data.
+2. Experiment with insufficient data.
+3. Auto-rejected experiment.
+4. Experiment with no trades.
+5. Experiment with missing optional metrics.
+6. Duplicate trade rows.
+7. Division-by-zero scenarios.
+8. Missing confidence data.
+9. Missing benchmark data.
+10. Missing feature data.
+11. Report regeneration.
+12. Report versioning.
+13. Source hash unchanged.
+14. Source hash changed.
+15. JSON export.
+16. CSV ZIP export.
+17. HTML export.
+18. Structured API errors.
+19. No-lookahead date validation.
+20. Report failure does not change experiment status.
+
+Frontend tests must cover:
+
+- loading
+- ready
+- failed
+- outdated
+- empty sections
+- mobile layout
+- table scrolling
+- regenerate button
+- export buttons
+- next-experiment preview
+- queue confirmation
+- N/A formatting
+- no undefined or NaN rendering
+
+==================================================
+25. ACCEPTANCE TEST
+==================================================
+
+Run the implementation against existing experiments already visible in Research Factory, including:
+
+- Bear market test
+- Bear Market Smoke Test
+- Bull Market — Jul 2026
+- Bear Market (verify fix)
+- Submission Pipeline Test
+
+For each experiment verify:
+
+- A report is generated.
+- Correct experiment metrics are used.
+- The rejected experiment remains rejected.
+- No experiment status changes because of report generation.
+- No live or paper-trading selection changes.
+- The JSON report downloads correctly.
+- CSV ZIP downloads correctly.
+- HTML report opens correctly.
+- Missing ECE/Brier values display as N/A.
+- Insufficient evidence is clearly stated.
+- Overfitting flags appear.
+- Final verdict is traceable to thresholds.
+- Report regeneration works.
+- No frontend JSON parsing errors occur.
+- No server process crash occurs.
+
+For the current Bull Market experiment, the report must correctly reflect approximately:
+
+- 37 out-of-sample trades
+- negative return
+- profit factor below 1
+- negative expectancy
+- insufficient evidence
+- low-trade-count warning
+
+Do not hardcode these values. Derive them from stored results.
+
+==================================================
+26. DELIVERY REQUIREMENTS
+==================================================
+
+Before making changes:
+
+- Inspect the existing Research Factory architecture.
+- Identify existing experiment, trade, walk-forward, export and database models.
+- Reuse existing utilities.
+- Avoid creating a parallel duplicate system.
+
+After implementation:
+
+1. Run migrations.
+2. Run backend tests.
+3. Run frontend tests.
+4. Run lint/type checks.
+5. Generate reports for existing experiments.
+6. Verify downloads.
+7. Verify mobile layout.
+8. Verify no live logic was changed.
+9. Provide a concise implementation summary.
+
+In your final response, report:
+
+- Files created.
+- Files modified.
+- Database migrations.
+- API endpoints added.
+- Tests added.
+- Tests passed.
+- Existing experiments used for verification.
+- Any unavailable source fields.
+- Any sections that correctly display N/A.
+- Confirmation that live and paper-trading strategy selection were not modified.
+
+Do not merely create placeholder cards or static text.
+
+Every report section must be backed by real stored experiment data, and unsupported analysis must explicitly display that the required source data is unavailable.

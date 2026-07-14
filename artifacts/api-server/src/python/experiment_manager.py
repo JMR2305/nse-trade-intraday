@@ -648,6 +648,26 @@ def run_experiment(exp_id: str) -> dict:
         except Exception as _ae:  # noqa: BLE001
             _log_stage(exp_id, f"analysis failed (non-fatal): {_ae}")
 
+        # Phase 4.3 — Research report engine (analysis only). Report failure
+        # never changes experiment status; errors are stored in reports/index.json.
+        try:
+            _log_stage(exp_id, "research report — generating")
+            from report_engine import generate_report as _gen_report
+            _rr = _gen_report(exp_out)
+            if _rr.get("success"):
+                _log_stage(exp_id, f"research report v{_rr.get('version')} "
+                                   f"{'skipped (unchanged)' if _rr.get('skipped') else 'generated'}")
+                try:
+                    from report_exports import export_html as _exp_html
+                    _exp_html(exp_out)
+                except Exception:
+                    pass
+            else:
+                _log_stage(exp_id, "research report failed (non-fatal): "
+                                   f"{(_rr.get('error') or {}).get('details')}")
+        except Exception as _re:  # noqa: BLE001
+            _log_stage(exp_id, f"research report failed (non-fatal): {_re}")
+
         now = datetime.now().isoformat()
         _write_status(exp_id, {
             **_read_status(exp_id),
