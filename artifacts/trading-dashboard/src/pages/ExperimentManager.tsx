@@ -544,6 +544,11 @@ function LeaderboardCard({ entry, rank, onDelete }: {
           )}
         </div>
       )}
+      {expanded && ["completed", "rejected"].includes(entry.status) && (
+        <div className="pt-2 border-t border-zinc-800">
+          <ResearchReport expId={entry.id} />
+        </div>
+      )}
     </div>
   );
 }

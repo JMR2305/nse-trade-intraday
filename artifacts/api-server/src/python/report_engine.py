@@ -1164,6 +1164,8 @@ def build_report(exp_dir):
         "experiment_id": status.get("id") or os.path.basename(exp_dir),
         "generated_at": _now_iso(),
         "disclaimer": DISCLAIMER,
+        "research_only": True,
+        "live_orders_affected": False,
         "safety": {"research_only": True, "affects_live_trading": False,
                    "affects_paper_trading": False, "auto_promotion": False},
         "executive_summary": exec_s,

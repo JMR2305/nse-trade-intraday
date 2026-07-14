@@ -1,0 +1,144 @@
+Phase 4.3 is incomplete.
+
+The Research Factory leaderboard and CSV/JSON exports work, but the expanded experiment detail does not contain the requested comprehensive Research Report.
+
+Implement the missing per-experiment Research Report feature.
+
+Requirements:
+
+1. Add a “Research Report” section inside every expanded completed experiment card in:
+   Research Factory → Leaderboard.
+
+2. Add a button:
+   “Generate Research Report”
+
+3. After generation, show these sections inside the experiment detail:
+
+   A. Executive Summary
+   - Experiment name
+   - Configuration
+   - Date range
+   - Number of test windows
+   - OOS trades
+   - Final verdict
+   - Evidence quality
+   - Score and score breakdown
+   - One-paragraph interpretation
+
+   B. Performance Summary
+   - Net return
+   - Net P&L
+   - Profit factor
+   - Expectancy per trade
+   - Sharpe
+   - Win rate
+   - Maximum drawdown
+   - Average win
+   - Average loss
+   - Maximum consecutive losses
+   - Total transaction costs
+
+   C. Window-by-Window Results
+   - Train period
+   - Test period
+   - Trades
+   - Return
+   - Profit factor
+   - Expectancy
+   - Drawdown
+   - Verdict for each window
+
+   D. Risk and Stability Analysis
+   - Profit concentration by stock
+   - Profit concentration by sector
+   - Profit concentration by month
+   - Profit concentration by strategy
+   - Top-5 trade contribution
+   - Drawdown episodes
+   - Regime-level performance
+   - Holding-period performance
+
+   E. Trade Distribution
+   - Best trades
+   - Worst trades
+   - Winners versus losers
+   - Holding-day buckets
+   - Exit-reason breakdown
+   - Strategy breakdown
+   - Sector breakdown
+   - Market-regime breakdown
+
+   F. Model Quality
+   - Calibration metrics
+   - Brier score
+   - ECE
+   - Confidence-band results
+   - Reliability assessment
+   - Clearly show “not available” when sample size is insufficient
+
+   G. Root-Cause Analysis
+   - Main causes of losses
+   - Whether costs caused the failure
+   - Whether poor entries, poor exits, regime mismatch, or low confidence caused the failure
+   - Evidence-based explanation only; do not invent reasons
+
+   H. Strengths and Weaknesses
+   - What worked
+   - What failed
+   - Conditions where results improved
+   - Conditions where results deteriorated
+
+   I. Recommended Next Experiments
+   - Suggest only experiments supported by the result data
+   - Include exact configuration changes
+   - Do not recommend deploying to live trading
+   - Mark every recommendation as research-only
+
+4. Add report metadata:
+   - report_version
+   - generated_at
+   - experiment_id
+   - source_result_hash
+   - report_status
+   - research_only = true
+   - live_orders_affected = false
+
+5. Add buttons inside each experiment:
+   - Generate Research Report
+   - Regenerate Report
+   - Download Report JSON
+   - Download Report CSV
+   - Download Printable HTML
+
+6. The exported report must contain all detailed sections, not only leaderboard summary fields.
+
+7. Do not alter:
+   - live paper-trading strategy selection
+   - Trade Decisions
+   - Market Scanner
+   - portfolio positions
+   - order logic
+   - existing walk-forward calculations
+
+8. Handle insufficient evidence honestly:
+   - Do not fabricate calibration, trade-distribution, or concentration results.
+   - Display “Insufficient evidence” or “Not available” with the reason.
+
+9. Add automated tests confirming:
+   - Bull Market experiment displays the Research Report section
+   - report generation succeeds
+   - report persists after refresh
+   - JSON contains all report sections
+   - HTML download works
+   - rejected experiments cannot be presented as deployable
+   - no live-order or paper-strategy code is modified
+
+10. After implementation, run the app and verify specifically:
+    Research Factory → Leaderboard → Bull Market — Jul 2026 → expand card
+
+Return a concise completion summary listing:
+- files changed
+- API routes added
+- database/storage changes
+- tests run
+- exact page and button to inspect
