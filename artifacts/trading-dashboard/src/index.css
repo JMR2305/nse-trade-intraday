@@ -316,3 +316,57 @@
     inset: -1px;
   }
 }
+
+/* Phase 4.4 — Research Report print stylesheet */
+@media print {
+  aside, nav, header, .print-hide {
+    display: none !important;
+  }
+  html, body {
+    background: #fff !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  main, main > div {
+    overflow: visible !important;
+    height: auto !important;
+    padding: 0 !important;
+  }
+  .flex.h-screen {
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+  .report-print, .report-print * {
+    background: #fff !important;
+    color: #111 !important;
+    border-color: #bbb !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+  .report-print {
+    font-size: 11px !important;
+  }
+  .report-section, .report-chart-card, .report-header {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .report-table {
+    overflow: visible !important;
+  }
+  .report-table table {
+    width: 100% !important;
+  }
+  .report-table thead {
+    display: table-header-group;
+  }
+  .report-table tr {
+    break-inside: avoid;
+  }
+  .print-footer {
+    display: block !important;
+  }
+  @page {
+    margin: 14mm 10mm;
+  }
+}

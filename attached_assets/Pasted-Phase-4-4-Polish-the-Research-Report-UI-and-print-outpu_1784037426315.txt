@@ -1,0 +1,191 @@
+Phase 4.4 — Polish the Research Report UI and print output.
+
+Do not add new trading logic, strategies, AI models, ranking logic, or live-trading behavior in this phase.
+
+The existing Research Report already works and includes JSON, CSV, Print, Regenerate, Research Verdict, Executive Summary, and research-only safeguards. Preserve all current functionality.
+
+Goal:
+Turn the current report from a basic set of collapsible sections into a polished, professional research report suitable for serious review and clean PDF printing.
+
+Requirements:
+
+1. Add a professional report header
+- Experiment name
+- Report version
+- Generated date/time
+- Research-only badge
+- Verdict badge
+- Overall score
+- Configuration summary
+- Evidence status
+- No-live-impact disclaimer
+
+2. Add top summary scorecards
+Show:
+- Net return
+- Net P&L
+- Profit factor
+- Expectancy per trade
+- Sharpe ratio
+- Maximum drawdown
+- Win rate
+- Total trades
+- Test windows
+- Evidence verdict
+- Overall research score
+
+Use clear positive, negative, warning, and neutral visual states.
+
+3. Add a table of contents
+Include clickable links to:
+- Research Verdict
+- Executive Summary
+- Performance
+- Equity and Drawdown
+- Trade Distribution
+- Strategy Contribution
+- Sector Contribution
+- Market-Regime Contribution
+- Holding-Period Analysis
+- Calibration and Evidence
+- Overfitting and Robustness Checks
+- Configuration
+- Final Recommendation
+
+Clicking a table-of-contents item should scroll to the corresponding report section.
+
+4. Add Expand All and Collapse All controls
+- All major report sections must remain collapsible.
+- Add Expand All and Collapse All buttons near the top.
+- Preserve individual section toggles.
+
+5. Add charts only when underlying data is available
+Create reusable report charts for:
+- Equity curve
+- Drawdown curve
+- Monthly or period returns
+- Win/loss distribution
+- Holding-period distribution
+- Trade-return distribution
+- Strategy contribution
+- Sector contribution
+- Market-regime contribution
+- Confidence distribution
+- Calibration chart
+
+Rules:
+- Never fabricate chart data.
+- When source data is unavailable, display a consistent “Not available for this experiment” state.
+- Charts must resize correctly on mobile, tablet, desktop, and print.
+- Charts must not overflow their cards.
+
+6. Improve status badges
+Use consistent badges for:
+- PASS
+- FAIL
+- WARNING
+- REJECTED
+- PROMISING
+- INCONCLUSIVE
+- INSUFFICIENT DATA
+- INSUFFICIENT EVIDENCE
+- RESEARCH ONLY
+
+Do not rely on colour alone; include readable text and icons where appropriate.
+
+7. Improve missing-data handling
+- Replace blank cells, null, undefined, NaN, and empty chart areas with “Not available”.
+- Add a short reason when possible, such as:
+  “Not available because fewer than 100 out-of-sample trades were recorded.”
+- Do not display misleading zeroes where the value is actually unavailable.
+
+8. Improve report navigation
+- Add a floating or sticky Back to top control.
+- Add previous-section and next-section navigation at the bottom of each major section.
+- Keep navigation usable on mobile.
+
+9. Improve the final recommendation section
+Show:
+- Final verdict
+- Key reasons
+- Main risks
+- Evidence limitations
+- Whether further research is recommended
+- What should be tested next
+- Explicit statement that the report does not approve live deployment
+
+10. Improve print and PDF formatting
+Create a dedicated print stylesheet.
+
+Print requirements:
+- Hide application sidebar, page navigation, buttons, and interactive-only controls.
+- Keep report title, configuration, scorecards, charts, tables, verdict, disclaimer, and final recommendation.
+- Avoid cards being split awkwardly across pages.
+- Repeat table headers across printed pages.
+- Use readable font sizes and spacing.
+- Use white or print-friendly backgrounds.
+- Ensure charts remain visible.
+- Add page numbers if practical.
+- Add a footer:
+  “Research only — historical out-of-sample performance does not guarantee future results.”
+
+11. Preserve export consistency
+- JSON, CSV, on-screen report, and printed report must use the same source data.
+- Do not calculate conflicting metrics independently in the frontend.
+- Reuse the existing backend report payload.
+- Keep current export buttons working.
+- Regenerate must refresh the report without altering experiment results.
+
+12. Add defensive error handling
+- Report page must not crash when any optional section is missing.
+- Handle null arrays, missing metrics, incomplete experiments, rejected experiments, and insufficient-data experiments.
+- Show an inline error state instead of a blank screen.
+- Log meaningful errors without exposing sensitive information.
+
+13. Responsive design
+Verify on:
+- Mobile portrait
+- Tablet landscape
+- Desktop
+- Print preview
+
+Avoid horizontal page overflow. Wide tables may scroll inside their own container on screen, but must render cleanly in print.
+
+14. Tests
+Add tests for:
+- Report renders for a completed experiment
+- Report renders for insufficient-data experiment
+- Report renders for rejected experiment
+- Null and missing optional metrics
+- Expand All / Collapse All
+- Table-of-contents navigation
+- Print-only visibility rules
+- JSON and CSV exports still work
+- Regenerate still works
+- No live-trading state is modified
+
+15. Safety constraints
+- Research only.
+- No real orders.
+- No paper-trading strategy-selection changes.
+- No automatic promotion.
+- No changes to current live decision logic.
+- Do not remove existing disclaimers.
+
+Acceptance criteria:
+- Existing report functionality remains intact.
+- The report looks professional on screen.
+- Print preview is clean and suitable for saving as PDF.
+- Missing information is clearly explained.
+- Charts are derived only from genuine stored experiment data.
+- No live or paper-trading behavior changes.
+- All existing and new tests pass.
+
+After implementation:
+1. Run the automated test suite.
+2. Open one completed experiment report.
+3. Open one insufficient-data report.
+4. Open one rejected experiment report.
+5. Verify JSON, CSV, Print, and Regenerate.
+6. Check mobile and desktop layouts.
+7. Provide a concise implementation summary, files changed, test results, and any unavailable charts caused by missing backend data.
