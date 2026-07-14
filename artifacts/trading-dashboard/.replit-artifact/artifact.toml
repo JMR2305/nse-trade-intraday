@@ -1,5 +1,5 @@
 kind = "web"
-previewPath = "/"
+previewPath = "/trading-dashboard/"
 title = "NSE Trading Dashboard"
 version = "1.0.0"
 id = "artifacts/trading-dashboard"
@@ -11,7 +11,7 @@ version = "1.0.0"
 
 [[services]]
 name = "web"
-paths = [ "/" ]
+paths = [ "/trading-dashboard/" ]
 localPort = 24210
 
 [services.development]
@@ -28,4 +28,4 @@ to = "/index.html"
 
 [services.env]
 PORT = "24210"
-BASE_PATH = "/"
+BASE_PATH = "/trading-dashboard/"

@@ -298,6 +298,8 @@ def list_experiments() -> dict:
 
 def submit_experiment(config: dict) -> dict:
     """Submit a new experiment to the queue."""
+    import hashlib as _hashlib
+
     exp_id = uuid.uuid4().hex[:12]
     os.makedirs(_exp_dir(exp_id), exist_ok=True)
 
@@ -307,24 +309,49 @@ def submit_experiment(config: dict) -> dict:
     with open(_config_path(exp_id), "w") as f:
         json.dump(safe_config, f, indent=2)
 
+    # Canonical config for duplicate detection (stored in status.json)
+    canonical = {
+        "train_years":             int(safe_config.get("train_years") or 1),
+        "test_months":             int(safe_config.get("test_months") or 3),
+        "step_months":             int(safe_config.get("step_months") or 3),
+        "start_date":              str(safe_config.get("start_date") or ""),
+        "end_date":                str(safe_config.get("end_date") or ""),
+        "universe_size":           int(safe_config.get("universe_size") or 0),
+        "intrabar_rule":           str(safe_config.get("intrabar_rule") or "conservative"),
+        "max_holding_days":        int(safe_config.get("max_holding_days") or 20),
+        "min_confidence_execute":  float(safe_config.get("min_confidence_execute") or 55),
+    }
+    config_hash = _hashlib.md5(
+        json.dumps(canonical, sort_keys=True).encode()
+    ).hexdigest()[:12]
+
     now = datetime.now().isoformat()
     payload = {
-        "id":          exp_id,
-        "status":      "queued",
-        "created_at":  now,
-        "updated_at":  now,
-        "name":        safe_config.get("name", "Unnamed Experiment"),
-        "description": safe_config.get("description", ""),
-        "tags":        safe_config.get("tags", []),
+        "id":             exp_id,
+        "status":         "queued",
+        "created_at":     now,
+        "updated_at":     now,
+        "name":           safe_config.get("name", "Unnamed Experiment"),
+        "description":    safe_config.get("description", ""),
+        "tags":           safe_config.get("tags", []),
+        "config_hash":    config_hash,
+        "canonical_config": canonical,
+        # Batch / template provenance
+        "batch_id":       safe_config.get("batch_id", ""),
+        "batch_name":     safe_config.get("batch_name", ""),
+        "batch_index":    int(safe_config.get("batch_index") or 0),
+        "template_id":    safe_config.get("template_id", ""),
+        "template_family": safe_config.get("template_family", ""),
         "config_summary": {
-            "train_years":  safe_config.get("train_years", 1),
-            "test_months":  safe_config.get("test_months", 3),
-            "step_months":  safe_config.get("step_months", 3),
-            "start_date":   safe_config.get("start_date", ""),
-            "end_date":     safe_config.get("end_date", ""),
-            "universe_size": safe_config.get("universe_size", 0),
-            "intrabar_rule": safe_config.get("intrabar_rule", "conservative"),
-            "max_holding_days": safe_config.get("max_holding_days", 20),
+            "train_years":  canonical["train_years"],
+            "test_months":  canonical["test_months"],
+            "step_months":  canonical["step_months"],
+            "start_date":   canonical["start_date"],
+            "end_date":     canonical["end_date"],
+            "universe_size": canonical["universe_size"],
+            "intrabar_rule": canonical["intrabar_rule"],
+            "max_holding_days": canonical["max_holding_days"],
+            "min_confidence_execute": canonical["min_confidence_execute"],
         },
     }
     _write_status(exp_id, payload)
@@ -387,7 +414,11 @@ def run_experiment(exp_id: str) -> dict:
 
     try:
         # Strip experiment-only keys before passing to ValidationConfig
-        EXPERIMENT_KEYS = {"name", "description", "tags"}
+        EXPERIMENT_KEYS = {
+            "name", "description", "tags",
+            "batch_id", "batch_name", "batch_index",
+            "template_id", "template_family",
+        }
         wf_config = {k: v for k, v in config.items() if k not in EXPERIMENT_KEYS}
 
         result = wfv.run_validation(wf_config)
@@ -498,6 +529,13 @@ def get_leaderboard() -> dict:
             "auto_rejected":    st.get("auto_rejected", False),
             "metrics":          st.get("metrics", {}),
             "config_summary":   st.get("config_summary", {}),
+            "canonical_config": st.get("canonical_config", {}),
+            "config_hash":      st.get("config_hash", ""),
+            "batch_id":         st.get("batch_id", ""),
+            "batch_name":       st.get("batch_name", ""),
+            "batch_index":      st.get("batch_index", 0),
+            "template_id":      st.get("template_id", ""),
+            "template_family":  st.get("template_family", ""),
             "completed_at":     st.get("completed_at", ""),
             "created_at":       st.get("created_at", ""),
         })
@@ -509,6 +547,322 @@ def get_leaderboard() -> dict:
 
     return {"entries": entries, "total": len(entries), "total_all": total_all}
 
+
+# ── Phase 4.1: Batch management, duplicate detection, and export ───────────
+
+import hashlib as _hashlib
+
+def get_config_hash(config: dict) -> str:
+    """Canonical MD5 hash of walk-forward config (for duplicate detection)."""
+    canonical = {
+        "train_years":            int(config.get("train_years") or 1),
+        "test_months":            int(config.get("test_months") or 3),
+        "step_months":            int(config.get("step_months") or 3),
+        "start_date":             str(config.get("start_date") or ""),
+        "end_date":               str(config.get("end_date") or ""),
+        "universe_size":          int(config.get("universe_size") or 0),
+        "intrabar_rule":          str(config.get("intrabar_rule") or "conservative"),
+        "max_holding_days":       int(config.get("max_holding_days") or 20),
+        "min_confidence_execute": float(config.get("min_confidence_execute") or 55),
+    }
+    return _hashlib.md5(json.dumps(canonical, sort_keys=True).encode()).hexdigest()[:12]
+
+
+def check_duplicate(config: dict) -> dict:
+    """
+    Return any existing experiments with the same canonical config.
+    Checks stored config_hash first; falls back to recomputing from config.json
+    for experiments created before the hash field was added.
+    """
+    new_hash = get_config_hash(config)
+    matches: list[dict] = []
+    if not os.path.exists(EXPERIMENTS_DIR):
+        return {"duplicate": False, "matches": [], "hash": new_hash}
+
+    for exp_id in os.listdir(EXPERIMENTS_DIR):
+        d = _exp_dir(exp_id)
+        if not os.path.isdir(d):
+            continue
+        st = _read_status(exp_id)
+        if not st:
+            continue
+        existing_hash = st.get("config_hash")
+        if not existing_hash:
+            cfg = _read_config(exp_id)
+            existing_hash = get_config_hash(cfg) if cfg else ""
+        if existing_hash == new_hash:
+            matches.append({
+                "id":         exp_id,
+                "name":       st.get("name"),
+                "status":     st.get("status"),
+                "created_at": st.get("created_at"),
+                "score":      st.get("score"),
+            })
+
+    return {"duplicate": len(matches) > 0, "matches": matches, "hash": new_hash}
+
+
+def list_batches() -> dict:
+    """
+    Group experiments by batch_id.  Returns a list of batch objects each
+    containing their experiments sorted by batch_index with aggregate counts.
+    Only experiments with a non-empty batch_id are included.
+    """
+    if not os.path.exists(EXPERIMENTS_DIR):
+        return {"batches": [], "total": 0}
+
+    batches: dict[str, dict] = {}
+    for exp_id in os.listdir(EXPERIMENTS_DIR):
+        if not os.path.isdir(_exp_dir(exp_id)):
+            continue
+        st = _read_status(exp_id)
+        if not st:
+            continue
+        batch_id = st.get("batch_id", "")
+        if not batch_id:
+            continue
+
+        if batch_id not in batches:
+            batches[batch_id] = {
+                "id":             batch_id,
+                "name":           st.get("batch_name") or f"Batch {batch_id[:6]}",
+                "template_family": st.get("template_family", ""),
+                "template_id":    st.get("template_id", ""),
+                "experiments":    [],
+            }
+
+        batches[batch_id]["experiments"].append({
+            "id":               exp_id,
+            "name":             st.get("name"),
+            "status":           st.get("status"),
+            "batch_index":      int(st.get("batch_index") or 0),
+            "score":            st.get("score"),
+            "verdict":          st.get("verdict"),
+            "overfitting_flags": st.get("overfitting_flags", []),
+            "auto_rejected":    st.get("auto_rejected", False),
+            "metrics":          st.get("metrics"),
+            "created_at":       st.get("created_at", ""),
+            "completed_at":     st.get("completed_at", ""),
+            "started_at":       st.get("started_at", ""),
+            "error":            st.get("error", ""),
+            "wf_progress":      None,  # populated below for running exp
+        })
+
+    result = []
+    for batch in batches.values():
+        exps = sorted(batch["experiments"], key=lambda x: x.get("batch_index", 0))
+        # Attach wf_progress for running experiments
+        for exp in exps:
+            if exp["status"] == "running":
+                wsp = os.path.join(_exp_dir(exp["id"]), "wf_status.json")
+                if os.path.exists(wsp):
+                    try:
+                        with open(wsp) as f:
+                            exp["wf_progress"] = json.load(f)
+                    except Exception:
+                        pass
+
+        total     = len(exps)
+        completed = sum(1 for e in exps if e["status"] in ("completed", "rejected"))
+        failed    = sum(1 for e in exps if e["status"] == "failed")
+        running   = sum(1 for e in exps if e["status"] == "running")
+        queued    = sum(1 for e in exps if e["status"] == "queued")
+
+        if running:
+            b_status = "running"
+        elif queued:
+            b_status = "queued"
+        elif failed and completed + failed == total:
+            b_status = "failed"
+        elif completed + failed == total:
+            b_status = "completed"
+        else:
+            b_status = "partial"
+
+        dates = [e["created_at"] for e in exps if e.get("created_at")]
+        batch["experiments"] = exps
+        batch["total"]       = total
+        batch["completed"]   = completed
+        batch["failed"]      = failed
+        batch["running"]     = running
+        batch["queued"]      = queued
+        batch["status"]      = b_status
+        batch["created_at"]  = min(dates) if dates else ""
+        result.append(batch)
+
+    result.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    return {"batches": result, "total": len(result)}
+
+
+def get_batch(batch_id: str) -> dict:
+    """Get a single batch by ID (thin wrapper around list_batches)."""
+    result = list_batches()
+    for batch in result["batches"]:
+        if batch["id"] == batch_id:
+            return batch
+    return {"error": f"Batch {batch_id} not found"}
+
+
+def export_experiments_csv(exp_ids_json: str | None = None) -> dict:
+    """
+    Generate a CSV report for the given experiment IDs (or all experiments).
+    Returns {"ok": True, "csv": "<csv string>", "row_count": N}.
+    """
+    import csv
+    import io
+
+    exp_ids = json.loads(exp_ids_json) if exp_ids_json else None
+    all_exps = list_experiments()["experiments"]
+    if exp_ids:
+        id_set = set(exp_ids)
+        all_exps = [e for e in all_exps if e.get("id") in id_set]
+
+    # Sort: completed/rejected by score first, others appended
+    completed = [e for e in all_exps if e.get("status") in ("completed", "rejected")]
+    completed.sort(key=lambda x: (1 if x.get("auto_rejected") else 0, -(x.get("score") or 0)))
+    others    = [e for e in all_exps if e.get("status") not in ("completed", "rejected")]
+    sorted_exps = completed + others
+
+    headers = [
+        "rank", "id", "name", "tags", "template_family", "template_id",
+        "batch_id", "batch_name", "batch_index",
+        "status", "verdict", "score",
+        "profit_factor", "expectancy_inr", "sharpe_ratio", "max_drawdown_pct",
+        "win_rate_pct", "total_trades", "total_return_pct", "net_pnl_inr",
+        "calibration_ece", "brier_score",
+        "evidence_verdict", "evidence_trades", "windows",
+        "overfitting_flags", "auto_rejected",
+        "train_years", "test_months", "step_months",
+        "start_date", "end_date", "intrabar_rule",
+        "max_holding_days", "min_confidence_execute",
+        "created_at", "started_at", "completed_at",
+        "safety_note",
+    ]
+
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(headers)
+
+    for rank_idx, exp in enumerate(sorted_exps):
+        m  = exp.get("metrics") or {}
+        cs = exp.get("config_summary") or {}
+        rank = rank_idx + 1 if exp.get("status") in ("completed", "rejected") else ""
+        flags = " | ".join(exp.get("overfitting_flags") or [])
+        tags  = ", ".join(exp.get("tags") or [])
+        w.writerow([
+            rank, exp.get("id"), exp.get("name"), tags,
+            exp.get("template_family", ""), exp.get("template_id", ""),
+            exp.get("batch_id", ""), exp.get("batch_name", ""), exp.get("batch_index", ""),
+            exp.get("status"), m.get("verdict") or exp.get("verdict"), exp.get("score", ""),
+            m.get("profit_factor", ""), m.get("expectancy", ""),
+            m.get("sharpe", ""), m.get("max_drawdown_pct", ""),
+            m.get("win_rate", ""), m.get("total_trades", ""),
+            m.get("total_return_pct", ""), m.get("net_pnl", ""),
+            m.get("ece", ""), m.get("brier_score", ""),
+            m.get("ev_verdict", ""), m.get("ev_trades", ""), m.get("windows", ""),
+            flags, exp.get("auto_rejected", ""),
+            cs.get("train_years", ""), cs.get("test_months", ""), cs.get("step_months", ""),
+            cs.get("start_date", ""), cs.get("end_date", ""),
+            cs.get("intrabar_rule", ""), cs.get("max_holding_days", ""),
+            cs.get("min_confidence_execute", ""),
+            exp.get("created_at", ""), exp.get("started_at", ""), exp.get("completed_at", ""),
+            SAFETY_NOTE,
+        ])
+
+    return {"ok": True, "csv": buf.getvalue(), "row_count": len(sorted_exps)}
+
+
+def export_experiments_json(exp_ids_json: str | None = None) -> dict:
+    """
+    Generate a machine-readable JSON report (all experiments or specified IDs).
+    The report is self-contained and suitable for sharing without screenshots.
+    """
+    exp_ids = json.loads(exp_ids_json) if exp_ids_json else None
+    all_exps = list_experiments()["experiments"]
+    if exp_ids:
+        id_set = set(exp_ids)
+        all_exps = [e for e in all_exps if e.get("id") in id_set]
+
+    leaderboard = get_leaderboard()
+
+    report: dict = {
+        "generated_at":      datetime.now().isoformat(),
+        "safety_note":       SAFETY_NOTE,
+        "research_only":     True,
+        "paper_trading_only": True,
+        "auto_promotion":    False,
+        "live_orders_affected": False,
+        "system": {
+            "universe":  "NIFTY 50",
+            "capital":   "₹5,000 (paper)",
+            "execution": "strict no-lookahead walk-forward train/test splits",
+        },
+        "summary": {
+            "total_experiments": len(all_exps),
+            "completed": sum(1 for e in all_exps if e.get("status") == "completed"),
+            "rejected":  sum(1 for e in all_exps if e.get("status") == "rejected"),
+            "failed":    sum(1 for e in all_exps if e.get("status") == "failed"),
+            "queued":    sum(1 for e in all_exps if e.get("status") == "queued"),
+        },
+        "leaderboard_top3": leaderboard["entries"][:3] if leaderboard.get("entries") else [],
+        "experiments": [],
+    }
+
+    for exp in all_exps:
+        m  = exp.get("metrics") or {}
+        cs = exp.get("config_summary") or {}
+        report["experiments"].append({
+            "id":           exp.get("id"),
+            "name":         exp.get("name"),
+            "description":  exp.get("description"),
+            "tags":         exp.get("tags"),
+            "template_id":  exp.get("template_id"),
+            "template_family": exp.get("template_family"),
+            "batch_id":     exp.get("batch_id"),
+            "batch_name":   exp.get("batch_name"),
+            "batch_index":  exp.get("batch_index"),
+            "status":       exp.get("status"),
+            "auto_rejected": exp.get("auto_rejected"),
+            "overfitting_flags": exp.get("overfitting_flags"),
+            "rejection_reason": " | ".join(exp.get("overfitting_flags") or []) or None,
+            "score":            exp.get("score"),
+            "score_breakdown":  exp.get("score_breakdown"),
+            "verdict":          m.get("verdict") or exp.get("verdict"),
+            "evidence_verdict": m.get("ev_verdict"),
+            "evidence_label":   "RESEARCH_ONLY",
+            "metrics": {
+                "profit_factor":      m.get("profit_factor"),
+                "expectancy_inr":     m.get("expectancy"),
+                "sharpe_ratio":       m.get("sharpe"),
+                "max_drawdown_pct":   m.get("max_drawdown_pct"),
+                "win_rate_pct":       m.get("win_rate"),
+                "total_trades":       m.get("total_trades"),
+                "total_return_pct":   m.get("total_return_pct"),
+                "net_pnl_inr":        m.get("net_pnl"),
+                "calibration_ece":    m.get("ece"),
+                "brier_score":        m.get("brier_score"),
+                "evidence_trades":    m.get("ev_trades"),
+                "windows":            m.get("windows"),
+            },
+            "config": {
+                "train_years":            cs.get("train_years"),
+                "test_months":            cs.get("test_months"),
+                "step_months":            cs.get("step_months"),
+                "start_date":             cs.get("start_date"),
+                "end_date":               cs.get("end_date"),
+                "intrabar_rule":          cs.get("intrabar_rule"),
+                "max_holding_days":       cs.get("max_holding_days"),
+                "min_confidence_execute": cs.get("min_confidence_execute"),
+                "universe_size":          cs.get("universe_size"),
+            },
+            "timestamps": {
+                "created":   exp.get("created_at"),
+                "started":   exp.get("started_at"),
+                "completed": exp.get("completed_at"),
+            },
+        })
+
+    return {"ok": True, "report": report}
 
 def delete_experiment(exp_id: str) -> dict:
     """Delete an experiment and all its data (irreversible)."""

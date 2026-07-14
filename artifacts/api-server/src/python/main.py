@@ -633,6 +633,21 @@ def main():
         elif command == "experiment_check_running":
             from experiment_manager import check_any_running
             result = check_any_running()
+        elif command == "experiment_batch_list":
+            from experiment_manager import list_batches
+            result = list_batches()
+        elif command == "experiment_batch_get" and len(args) >= 2:
+            from experiment_manager import get_batch
+            result = get_batch(args[1])
+        elif command == "experiment_check_duplicate" and len(args) >= 2:
+            from experiment_manager import check_duplicate
+            result = check_duplicate(json.loads(args[1]))
+        elif command == "experiment_export_csv":
+            from experiment_manager import export_experiments_csv
+            result = export_experiments_csv(args[1] if len(args) >= 2 else None)
+        elif command == "experiment_export_json":
+            from experiment_manager import export_experiments_json
+            result = export_experiments_json(args[1] if len(args) >= 2 else None)
         else:
             error_msg = f"Unknown command: {command}"
 

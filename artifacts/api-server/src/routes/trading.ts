@@ -584,6 +584,68 @@ function expRunning(): boolean {
   return false;
 }
 
+// ── Phase 4.1: Batches, duplicate check, export ───────────────────────────
+
+// GET /api/batches — list all batches (experiments grouped by batch_id)
+router.get("/batches", async (_req, res) => {
+  try {
+    const data = await runPython(["experiment_batch_list"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/batches/:batchId — single batch
+router.get("/batches/:batchId", async (req, res) => {
+  try {
+    const data = await runPython(["experiment_batch_get", String(req.params.batchId)]);
+    if ((data as any).error) { res.status(404).json(data); return; }
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/experiments/check-duplicate — check if config matches existing experiment
+router.post("/experiments/check-duplicate", async (req, res) => {
+  try {
+    const config = typeof req.body === "object" && req.body !== null ? req.body : {};
+    const data = await runPython(["experiment_check_duplicate", JSON.stringify(config)]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/experiments/export/csv — CSV export (all experiments or ?ids=...)
+router.get("/experiments/export/csv", async (req, res) => {
+  try {
+    const ids = req.query.ids ? JSON.stringify(String(req.query.ids).split(",")) : undefined;
+    const data = await runPython(ids ? ["experiment_export_csv", ids] : ["experiment_export_csv"]) as any;
+    if (data.error) { res.status(500).json(data); return; }
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="experiments_${Date.now()}.csv"`);
+    res.send(data.csv ?? "");
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/experiments/export/json — JSON report (all or ?ids=...)
+router.get("/experiments/export/json", async (req, res) => {
+  try {
+    const ids = req.query.ids ? JSON.stringify(String(req.query.ids).split(",")) : undefined;
+    const data = await runPython(ids ? ["experiment_export_json", ids] : ["experiment_export_json"]) as any;
+    if (data.error) { res.status(500).json(data); return; }
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Content-Disposition", `attachment; filename="experiment_report_${Date.now()}.json"`);
+    res.json(data.report ?? {});
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/experiments — list all experiments (sorted newest first)
 router.get("/experiments", async (_req, res) => {
   try {

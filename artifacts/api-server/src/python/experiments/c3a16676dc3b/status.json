@@ -1,8 +1,8 @@
 {
   "id": "c3a16676dc3b",
-  "status": "running",
+  "status": "completed",
   "created_at": "2026-07-13T21:44:33.663484",
-  "updated_at": "2026-07-14T04:06:46.353795",
+  "updated_at": "2026-07-14T04:08:12.665733",
   "name": "Bear market test",
   "description": "",
   "tags": [
@@ -20,5 +20,37 @@
     "max_holding_days": 20
   },
   "pid": 755,
-  "started_at": "2026-07-14T04:06:46.353795"
+  "started_at": "2026-07-14T04:06:46.353795",
+  "completed_at": "2026-07-14T04:08:12.665733",
+  "verdict": "INSUFFICIENT DATA",
+  "score": 17.0,
+  "score_breakdown": {
+    "profit_factor": 0.0,
+    "expectancy": 0.0,
+    "sharpe": 0.0,
+    "drawdown": 15.0,
+    "calibration": 0.0,
+    "evidence": 2.0
+  },
+  "overfitting_flags": [],
+  "auto_rejected": false,
+  "metrics": {
+    "total_trades": 63,
+    "total_return_pct": -1.71,
+    "net_pnl": -85.38,
+    "win_rate": 47.6,
+    "profit_factor": 0.86,
+    "expectancy": -1.36,
+    "sharpe": -0.61,
+    "max_drawdown_pct": 7.43,
+    "brier_score": null,
+    "ece": null,
+    "ev_verdict": "INSUFFICIENT_EVIDENCE",
+    "ev_trades": 63,
+    "windows": 2,
+    "generated_at": "2026-07-14T04:08:12",
+    "run_seconds": 86.2,
+    "verdict": "INSUFFICIENT DATA",
+    "universe_size": 48
+  }
 }

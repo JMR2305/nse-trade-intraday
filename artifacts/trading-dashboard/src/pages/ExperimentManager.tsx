@@ -1,13 +1,14 @@
 /**
- * ExperimentManager.tsx — Phase 4 Research Factory: Experiment Manager.
+ * ExperimentManager.tsx — Phase 4 + 4.1 Research Factory.
  *
- * Queue and run multiple walk-forward experiments across different date
- * ranges, regimes, and config variants.  Ranked leaderboard with composite
- * objective score.  Auto-rejected experiments highlighted at the bottom.
+ * 4 tabs:
+ *   Templates  — 8 ready-to-run template families (5 market conditions + 3 sweeps)
+ *   Queue      — submit custom experiments + live queue list
+ *   Batches    — sequential batch runner with progress, elapsed time, cancel
+ *   Leaderboard — ranked results with grouped/comparison views + CSV/JSON export
  *
- * No look-ahead bias — every experiment uses the same strict train/test
- * split logic as the main Walk-Forward Validation.
- * Paper trading and research only.
+ * Paper trading and research only.  No look-ahead bias.
+ * No auto-promotion.  No live orders affected.
  */
 import { useState, useEffect, useCallback } from "react";
 import {
@@ -22,15 +23,24 @@ import {
 } from "@/components/ui/select";
 import {
   FlaskConical, Loader2, Play, Trash2, ChevronDown, ChevronRight,
-  Trophy, Medal, AlertTriangle, CheckCircle2, Clock, XCircle,
-  BarChart3, Plus, RefreshCw,
+  Trophy, AlertTriangle, CheckCircle2, Clock, XCircle,
+  BarChart3, Plus, RefreshCw, BookTemplate, Layers, Download,
+  TestTubes,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import {
+  ExperimentTemplates,
+  type ExistingExperiment,
+} from "@/pages/experiments/ExperimentTemplates";
+import { BatchQueue } from "@/pages/experiments/BatchQueue";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 const API_BASE = `${import.meta.env.BASE_URL}api`;
+
+type Tab = "templates" | "queue" | "batches" | "leaderboard";
+type LeaderboardView = "all" | "family" | "compare";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -43,6 +53,7 @@ interface ConfigSummary {
   universe_size: number;
   intrabar_rule: string;
   max_holding_days: number;
+  min_confidence_execute?: number;
 }
 
 interface Metrics {
@@ -60,7 +71,6 @@ interface Metrics {
   ev_trades?: number;
   windows?: number;
   verdict?: string;
-  universe_size?: number;
 }
 
 interface Experiment {
@@ -79,6 +89,13 @@ interface Experiment {
   auto_rejected?: boolean;
   metrics?: Metrics;
   config_summary?: ConfigSummary;
+  canonical_config?: any;
+  config_hash?: string;
+  batch_id?: string;
+  batch_name?: string;
+  batch_index?: number;
+  template_id?: string;
+  template_family?: string;
   wf_progress?: any;
   error?: string;
 }
@@ -87,84 +104,7 @@ interface LeaderboardEntry extends Experiment {
   score: number;
 }
 
-// ── Presets ────────────────────────────────────────────────────────────────
-
-interface Preset {
-  id: string;
-  label: string;
-  description: string;
-  config: Partial<FormConfig>;
-}
-
-interface FormConfig {
-  name: string;
-  description: string;
-  tags: string;
-  train_years: string;
-  test_months: string;
-  step_months: string;
-  start_date: string;
-  end_date: string;
-  universe_size: string;
-  max_holding_days: string;
-  intrabar_rule: string;
-  min_confidence_execute: string;
-}
-
-const PRESETS: Preset[] = [
-  {
-    id: "standard",
-    label: "Standard",
-    description: "1yr train, 3mo test — baseline config, full NIFTY 50",
-    config: { train_years: "1", test_months: "3", step_months: "3", start_date: "", end_date: "", universe_size: "0", max_holding_days: "20", intrabar_rule: "conservative", min_confidence_execute: "55" },
-  },
-  {
-    id: "long_evidence",
-    label: "Long Evidence",
-    description: "2yr train, 3mo test — recommended for 300+ OOS trades (PASS)",
-    config: { train_years: "2", test_months: "3", step_months: "3", start_date: "", end_date: "", universe_size: "0", max_holding_days: "20", intrabar_rule: "conservative", min_confidence_execute: "55" },
-  },
-  {
-    id: "bear_market",
-    label: "Bear Market Focus",
-    description: "Oct 2021 – Mar 2023 — post-peak bear cycle",
-    config: { train_years: "1", test_months: "3", step_months: "3", start_date: "2021-10-01", end_date: "2023-03-31", universe_size: "0", max_holding_days: "20", intrabar_rule: "conservative", min_confidence_execute: "55" },
-  },
-  {
-    id: "bull_market",
-    label: "Bull Market Focus",
-    description: "Apr 2023 – Dec 2025 — recovery and bull cycle",
-    config: { train_years: "1", test_months: "3", step_months: "3", start_date: "2023-04-01", end_date: "2025-12-31", universe_size: "0", max_holding_days: "20", intrabar_rule: "conservative", min_confidence_execute: "55" },
-  },
-  {
-    id: "wide_sweep",
-    label: "Wide Sweep",
-    description: "1yr train, 6mo test — fewer windows, broader OOS slices",
-    config: { train_years: "1", test_months: "6", step_months: "6", start_date: "", end_date: "", universe_size: "0", max_holding_days: "20", intrabar_rule: "conservative", min_confidence_execute: "55" },
-  },
-  {
-    id: "tight_stops",
-    label: "Tight Stops",
-    description: "Standard config with optimistic same-candle rule",
-    config: { train_years: "1", test_months: "3", step_months: "3", start_date: "", end_date: "", universe_size: "0", max_holding_days: "15", intrabar_rule: "optimistic", min_confidence_execute: "60" },
-  },
-  {
-    id: "custom",
-    label: "Custom",
-    description: "Fully manual — set every parameter",
-    config: {},
-  },
-];
-
-const DEFAULT_FORM: FormConfig = {
-  name: "", description: "", tags: "",
-  train_years: "1", test_months: "3", step_months: "3",
-  start_date: "", end_date: "", universe_size: "0",
-  max_holding_days: "20", intrabar_rule: "conservative",
-  min_confidence_execute: "55",
-};
-
-// ── Helpers ────────────────────────────────────────────────────────────────
+// ── Shared helpers ─────────────────────────────────────────────────────────
 
 function fmtPct(v?: number | null) {
   if (v == null) return "—";
@@ -191,11 +131,11 @@ function timeAgo(iso?: string) {
 
 function statusBadge(status: Experiment["status"]) {
   switch (status) {
-    case "queued":    return <Badge variant="outline" className="text-zinc-400 border-zinc-600 font-mono text-[10px]"><Clock className="h-3 w-3 mr-1" /> Queued</Badge>;
-    case "running":   return <Badge variant="outline" className="text-sky-400 border-sky-500 font-mono text-[10px] animate-pulse"><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Running</Badge>;
-    case "completed": return <Badge variant="outline" className="text-emerald-400 border-emerald-600 font-mono text-[10px]"><CheckCircle2 className="h-3 w-3 mr-1" /> Completed</Badge>;
-    case "rejected":  return <Badge variant="outline" className="text-amber-400 border-amber-600 font-mono text-[10px]"><AlertTriangle className="h-3 w-3 mr-1" /> Rejected</Badge>;
-    case "failed":    return <Badge variant="outline" className="text-red-400 border-red-600 font-mono text-[10px]"><XCircle className="h-3 w-3 mr-1" /> Failed</Badge>;
+    case "queued":    return <Badge variant="outline" className="text-zinc-400 border-zinc-600 font-mono text-[10px]"><Clock className="h-3 w-3 mr-1" />Queued</Badge>;
+    case "running":   return <Badge variant="outline" className="text-sky-400 border-sky-500 font-mono text-[10px] animate-pulse"><Loader2 className="h-3 w-3 mr-1 animate-spin" />Running</Badge>;
+    case "completed": return <Badge variant="outline" className="text-emerald-400 border-emerald-600 font-mono text-[10px]"><CheckCircle2 className="h-3 w-3 mr-1" />Completed</Badge>;
+    case "rejected":  return <Badge variant="outline" className="text-amber-400 border-amber-600 font-mono text-[10px]"><AlertTriangle className="h-3 w-3 mr-1" />Rejected</Badge>;
+    case "failed":    return <Badge variant="outline" className="text-red-400 border-red-600 font-mono text-[10px]"><XCircle className="h-3 w-3 mr-1" />Failed</Badge>;
   }
 }
 
@@ -217,6 +157,15 @@ function rankMedal(rank: number) {
   return <span className="text-zinc-500 font-mono text-xs">#{rank}</span>;
 }
 
+const FAMILY_LABELS: Record<string, string> = {
+  market_conditions: "Market Conditions",
+  confidence_sweep:  "Confidence Sweep",
+  holding_sweep:     "Holding-Period Sweep",
+  window_sweep:      "Window Sweep",
+};
+
+// ── ScoreBar ───────────────────────────────────────────────────────────────
+
 function ScoreBar({ score, breakdown }: { score: number; breakdown?: Record<string, number> }) {
   const pct = Math.min(100, score);
   const color = score >= 60 ? "bg-emerald-500" : score >= 35 ? "bg-amber-500" : "bg-red-500";
@@ -226,20 +175,18 @@ function ScoreBar({ score, breakdown }: { score: number; breakdown?: Record<stri
         <div className="flex-1 h-2 bg-zinc-700 rounded-full overflow-hidden">
           <div className={cn("h-full rounded-full transition-all", color)} style={{ width: `${pct}%` }} />
         </div>
-        <span className="text-xs font-mono font-bold tabular-nums">{score.toFixed(1)}<span className="text-zinc-500">/100</span></span>
+        <span className="text-xs font-mono font-bold tabular-nums">
+          {score.toFixed(1)}<span className="text-zinc-500">/100</span>
+        </span>
       </div>
       {breakdown && (
         <div className="flex flex-wrap gap-1">
-          {[
-            ["PF", breakdown.profit_factor, 25],
-            ["Exp", breakdown.expectancy, 20],
-            ["Sharpe", breakdown.sharpe, 20],
-            ["DD", breakdown.drawdown, 15],
-            ["Cal", breakdown.calibration, 10],
-            ["Evid", breakdown.evidence, 10],
-          ].map(([lbl, val, max]) => (
-            <span key={String(lbl)} className="text-[9px] font-mono text-zinc-400">
-              {lbl} <span className="text-zinc-200">{Number(val).toFixed(0)}</span>/{max}
+          {([ ["PF", breakdown.profit_factor, 25], ["Exp", breakdown.expectancy, 20],
+              ["Sharpe", breakdown.sharpe, 20], ["DD", breakdown.drawdown, 15],
+              ["Cal", breakdown.calibration, 10], ["Evid", breakdown.evidence, 10],
+          ] as [string, number, number][]).map(([lbl, val, max]) => (
+            <span key={lbl} className="text-[9px] font-mono text-zinc-400">
+              {lbl} <span className="text-zinc-200">{Number(val ?? 0).toFixed(0)}</span>/{max}
             </span>
           ))}
         </div>
@@ -248,12 +195,22 @@ function ScoreBar({ score, breakdown }: { score: number; breakdown?: Record<stri
   );
 }
 
-// ── Submit Form ────────────────────────────────────────────────────────────
+// ── SubmitForm ─────────────────────────────────────────────────────────────
+
+const PRESETS = [
+  { id: "standard", label: "Standard", desc: "1yr/3mo — baseline", config: { train_years:"1",test_months:"3",step_months:"3",start_date:"",end_date:"",universe_size:"0",max_holding_days:"20",intrabar_rule:"conservative",min_confidence_execute:"55" } },
+  { id: "long",     label: "Long Evidence", desc: "2yr/3mo — for PASS",   config: { train_years:"2",test_months:"3",step_months:"3",start_date:"",end_date:"",universe_size:"0",max_holding_days:"20",intrabar_rule:"conservative",min_confidence_execute:"55" } },
+  { id: "wide",     label: "Wide Sweep",  desc: "1yr/6mo — fewer windows", config: { train_years:"1",test_months:"6",step_months:"6",start_date:"",end_date:"",universe_size:"0",max_holding_days:"20",intrabar_rule:"conservative",min_confidence_execute:"55" } },
+  { id: "custom",   label: "Custom",      desc: "Manual config",           config: {} },
+];
+const DEFAULT_FORM = { name:"",description:"",tags:"",train_years:"1",test_months:"3",step_months:"3",start_date:"",end_date:"",universe_size:"0",max_holding_days:"20",intrabar_rule:"conservative",min_confidence_execute:"55" };
+
+type FormConfig = typeof DEFAULT_FORM;
 
 function SubmitForm({ onSubmitted }: { onSubmitted: () => void }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
-  const [preset, setPreset] = useState<string>("standard");
+  const [preset, setPreset] = useState("standard");
   const [form, setForm] = useState<FormConfig>({ ...DEFAULT_FORM, ...PRESETS[0].config });
   const [submitting, setSubmitting] = useState(false);
 
@@ -263,48 +220,37 @@ function SubmitForm({ onSubmitted }: { onSubmitted: () => void }) {
     setPreset(pid);
     setForm(f => ({ ...f, ...p.config }));
   }
-
-  function set(k: keyof FormConfig, v: string) {
-    setForm(f => ({ ...f, [k]: v }));
-  }
+  function set(k: keyof FormConfig, v: string) { setForm(f => ({ ...f, [k]: v })); }
 
   async function handleSubmit() {
     if (!form.name.trim()) {
-      toast({ title: "Name required", description: "Give this experiment a name.", variant: "destructive" });
+      toast({ title: "Name required", variant: "destructive" });
       return;
     }
     setSubmitting(true);
     try {
-      const payload = {
-        name: form.name.trim(),
-        description: form.description.trim(),
-        tags: form.tags.split(",").map(t => t.trim()).filter(Boolean),
-        train_years: parseInt(form.train_years),
-        test_months: parseInt(form.test_months),
-        step_months: parseInt(form.step_months),
-        start_date: form.start_date.trim(),
-        end_date: form.end_date.trim(),
-        universe_size: parseInt(form.universe_size) || 0,
-        max_holding_days: parseInt(form.max_holding_days) || 20,
-        intrabar_rule: form.intrabar_rule,
-        min_confidence_execute: parseFloat(form.min_confidence_execute) || 55,
-      };
       const res = await fetch(`${API_BASE}/experiments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          name: form.name.trim(), description: form.description.trim(),
+          tags: form.tags.split(",").map(t => t.trim()).filter(Boolean),
+          train_years: parseInt(form.train_years), test_months: parseInt(form.test_months),
+          step_months: parseInt(form.step_months), start_date: form.start_date.trim(),
+          end_date: form.end_date.trim(), universe_size: parseInt(form.universe_size)||0,
+          max_holding_days: parseInt(form.max_holding_days)||20, intrabar_rule: form.intrabar_rule,
+          min_confidence_execute: parseFloat(form.min_confidence_execute)||55,
+        }),
       });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
-      toast({ title: "Experiment queued", description: `"${form.name}" added to the queue.` });
+      toast({ title: "Experiment queued", description: `"${form.name}" added.` });
       setForm({ ...DEFAULT_FORM, ...PRESETS.find(x => x.id === preset)?.config });
       setOpen(false);
       onSubmitted();
     } catch (e) {
       toast({ title: "Submit failed", description: String(e), variant: "destructive" });
-    } finally {
-      setSubmitting(false);
-    }
+    } finally { setSubmitting(false); }
   }
 
   return (
@@ -312,122 +258,75 @@ function SubmitForm({ onSubmitted }: { onSubmitted: () => void }) {
       <CardHeader className="py-3 cursor-pointer" onClick={() => setOpen(o => !o)}>
         <CardTitle className="text-sm font-mono flex items-center gap-2">
           <Plus className="h-4 w-4 text-emerald-400" />
-          New Experiment
+          Custom Experiment
           {open ? <ChevronDown className="h-4 w-4 ml-auto text-zinc-500" /> : <ChevronRight className="h-4 w-4 ml-auto text-zinc-500" />}
         </CardTitle>
       </CardHeader>
       {open && (
-        <CardContent className="pt-0 space-y-4">
-          {/* Presets */}
-          <div>
-            <Label className="text-[10px] font-mono text-zinc-400 mb-1.5 block">PRESET</Label>
-            <div className="flex flex-wrap gap-1.5">
-              {PRESETS.map(p => (
-                <button
-                  key={p.id}
-                  onClick={() => applyPreset(p.id)}
-                  className={cn(
-                    "px-2.5 py-1 rounded text-[11px] font-mono border transition-colors",
-                    preset === p.id
-                      ? "bg-violet-600 border-violet-500 text-white"
-                      : "border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-300"
-                  )}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-            {preset !== "custom" && (
-              <p className="text-[10px] font-mono text-zinc-500 mt-1">
-                {PRESETS.find(p => p.id === preset)?.description}
-              </p>
-            )}
+        <CardContent className="pt-0 space-y-3">
+          <div className="flex flex-wrap gap-1.5">
+            {PRESETS.map(p => (
+              <button key={p.id} onClick={() => applyPreset(p.id)}
+                className={cn("px-2.5 py-1 rounded text-[11px] font-mono border transition-colors",
+                  preset === p.id ? "bg-violet-600 border-violet-500 text-white" : "border-zinc-700 text-zinc-400 hover:border-zinc-500")}>
+                {p.label}
+              </button>
+            ))}
           </div>
-
-          {/* Name + Description */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2">
             <div>
-              <Label className="text-[10px] font-mono text-zinc-400 mb-1 block">EXPERIMENT NAME *</Label>
-              <Input className="h-8 font-mono text-xs" value={form.name}
-                onChange={e => set("name", e.target.value)} placeholder="e.g. Bear market 2022 test" />
+              <Label className="text-[10px] font-mono text-zinc-400 mb-1 block">NAME *</Label>
+              <Input className="h-8 font-mono text-xs" value={form.name} onChange={e => set("name", e.target.value)} placeholder="Experiment name" />
             </div>
             <div>
-              <Label className="text-[10px] font-mono text-zinc-400 mb-1 block">TAGS (comma-separated)</Label>
-              <Input className="h-8 font-mono text-xs" value={form.tags}
-                onChange={e => set("tags", e.target.value)} placeholder="bear, 2022, 1yr-train" />
+              <Label className="text-[10px] font-mono text-zinc-400 mb-1 block">TAGS</Label>
+              <Input className="h-8 font-mono text-xs" value={form.tags} onChange={e => set("tags", e.target.value)} placeholder="tag1, tag2" />
             </div>
           </div>
-
-          <div>
-            <Label className="text-[10px] font-mono text-zinc-400 mb-1 block">DESCRIPTION (optional)</Label>
-            <Input className="h-8 font-mono text-xs" value={form.description}
-              onChange={e => set("description", e.target.value)} placeholder="What are you testing?" />
-          </div>
-
-          {/* Walk-Forward Config */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2">
             <div>
-              <Label className="text-[10px] font-mono text-zinc-400 mb-1 block">TRAINING PERIOD</Label>
+              <Label className="text-[10px] font-mono text-zinc-400 mb-1 block">TRAIN</Label>
               <Select value={form.train_years} onValueChange={v => set("train_years", v)}>
                 <SelectTrigger className="h-8 font-mono text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">1 year</SelectItem>
-                  <SelectItem value="2">2 years</SelectItem>
-                  <SelectItem value="3">3 years</SelectItem>
-                </SelectContent>
+                <SelectContent>{[1,2,3].map(n => <SelectItem key={n} value={String(n)}>{n}yr</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div>
-              <Label className="text-[10px] font-mono text-zinc-400 mb-1 block">TEST PERIOD</Label>
+              <Label className="text-[10px] font-mono text-zinc-400 mb-1 block">TEST</Label>
               <Select value={form.test_months} onValueChange={v => set("test_months", v)}>
                 <SelectTrigger className="h-8 font-mono text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">1 month</SelectItem>
-                  <SelectItem value="3">3 months</SelectItem>
-                  <SelectItem value="6">6 months</SelectItem>
-                </SelectContent>
+                <SelectContent>{[1,2,3,6].map(n => <SelectItem key={n} value={String(n)}>{n}mo</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div>
-              <Label className="text-[10px] font-mono text-zinc-400 mb-1 block">STEP SIZE</Label>
+              <Label className="text-[10px] font-mono text-zinc-400 mb-1 block">STEP</Label>
               <Select value={form.step_months} onValueChange={v => set("step_months", v)}>
                 <SelectTrigger className="h-8 font-mono text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">1 month</SelectItem>
-                  <SelectItem value="3">3 months</SelectItem>
-                </SelectContent>
+                <SelectContent>{[1,2,3,6].map(n => <SelectItem key={n} value={String(n)}>{n}mo</SelectItem>)}</SelectContent>
               </Select>
             </div>
           </div>
-
-          {/* Date Range */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2">
             <div>
-              <Label className="text-[10px] font-mono text-zinc-400 mb-1 block">START DATE (optional, YYYY-MM-DD)</Label>
-              <Input className="h-8 font-mono text-xs" value={form.start_date}
-                onChange={e => set("start_date", e.target.value)} placeholder="e.g. 2021-10-01" />
+              <Label className="text-[10px] font-mono text-zinc-400 mb-1 block">START (optional)</Label>
+              <Input className="h-8 font-mono text-xs" value={form.start_date} onChange={e => set("start_date", e.target.value)} placeholder="2021-10-01" />
             </div>
             <div>
-              <Label className="text-[10px] font-mono text-zinc-400 mb-1 block">END DATE (optional, YYYY-MM-DD)</Label>
-              <Input className="h-8 font-mono text-xs" value={form.end_date}
-                onChange={e => set("end_date", e.target.value)} placeholder="e.g. 2023-03-31" />
+              <Label className="text-[10px] font-mono text-zinc-400 mb-1 block">END (optional)</Label>
+              <Input className="h-8 font-mono text-xs" value={form.end_date} onChange={e => set("end_date", e.target.value)} placeholder="2023-03-31" />
             </div>
           </div>
-
-          {/* Advanced */}
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-3 gap-2">
             <div>
-              <Label className="text-[10px] font-mono text-zinc-400 mb-1 block">MAX HOLD (days)</Label>
-              <Input className="h-8 font-mono text-xs" value={form.max_holding_days}
-                onChange={e => set("max_holding_days", e.target.value)} />
+              <Label className="text-[10px] font-mono text-zinc-400 mb-1 block">MAX HOLD</Label>
+              <Input className="h-8 font-mono text-xs" value={form.max_holding_days} onChange={e => set("max_holding_days", e.target.value)} />
             </div>
             <div>
-              <Label className="text-[10px] font-mono text-zinc-400 mb-1 block">UNIVERSE SIZE (0=all)</Label>
-              <Input className="h-8 font-mono text-xs" value={form.universe_size}
-                onChange={e => set("universe_size", e.target.value)} />
+              <Label className="text-[10px] font-mono text-zinc-400 mb-1 block">CONF %</Label>
+              <Input className="h-8 font-mono text-xs" value={form.min_confidence_execute} onChange={e => set("min_confidence_execute", e.target.value)} />
             </div>
             <div>
-              <Label className="text-[10px] font-mono text-zinc-400 mb-1 block">INTRABAR RULE</Label>
+              <Label className="text-[10px] font-mono text-zinc-400 mb-1 block">INTRABAR</Label>
               <Select value={form.intrabar_rule} onValueChange={v => set("intrabar_rule", v)}>
                 <SelectTrigger className="h-8 font-mono text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -436,24 +335,12 @@ function SubmitForm({ onSubmitted }: { onSubmitted: () => void }) {
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label className="text-[10px] font-mono text-zinc-400 mb-1 block">MIN CONFIDENCE %</Label>
-              <Input className="h-8 font-mono text-xs" value={form.min_confidence_execute}
-                onChange={e => set("min_confidence_execute", e.target.value)} />
-            </div>
           </div>
-
-          <div className="flex justify-end gap-2 pt-1">
-            <Button variant="outline" size="sm" className="font-mono text-xs" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              className="font-mono text-xs bg-emerald-600 hover:bg-emerald-500 text-white"
-              onClick={handleSubmit}
-              disabled={submitting}
-            >
-              {submitting ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Submitting…</> : <><Plus className="h-3.5 w-3.5 mr-1.5" />Queue Experiment</>}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" className="font-mono text-xs" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button size="sm" className="font-mono text-xs bg-emerald-600 hover:bg-emerald-500 text-white"
+              onClick={handleSubmit} disabled={submitting}>
+              {submitting ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Queuing…</> : <><Plus className="h-3.5 w-3.5 mr-1.5" />Queue</>}
             </Button>
           </div>
         </CardContent>
@@ -462,12 +349,10 @@ function SubmitForm({ onSubmitted }: { onSubmitted: () => void }) {
   );
 }
 
-// ── Experiment Queue Card ──────────────────────────────────────────────────
+// ── ExperimentCard ─────────────────────────────────────────────────────────
 
 function ExperimentCard({ exp, onRun, onDelete }: {
-  exp: Experiment;
-  onRun: (id: string) => void;
-  onDelete: (id: string) => void;
+  exp: Experiment; onRun: (id: string) => void; onDelete: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const cs = exp.config_summary;
@@ -475,152 +360,102 @@ function ExperimentCard({ exp, onRun, onDelete }: {
 
   return (
     <div className={cn(
-      "rounded-md border p-3 space-y-2 transition-colors",
+      "rounded-md border p-3 space-y-2",
       exp.status === "running" ? "border-sky-500/40 bg-sky-500/5"
-        : exp.status === "completed" ? "border-zinc-700 bg-zinc-800/20"
         : exp.status === "rejected" ? "border-amber-500/30 bg-amber-500/5"
         : exp.status === "failed" ? "border-red-500/30 bg-red-500/5"
-        : "border-zinc-700 bg-zinc-800/20",
+        : "border-zinc-700 bg-zinc-800/20"
     )}>
       <div className="flex items-start gap-2 flex-wrap">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             {statusBadge(exp.status)}
             <span className="text-xs font-mono font-semibold truncate">{exp.name}</span>
-            {exp.tags?.map(t => (
-              <Badge key={t} variant="outline" className="text-[9px] font-mono text-zinc-500 border-zinc-700 px-1">{t}</Badge>
-            ))}
-            {exp.auto_rejected && (
-              <Badge variant="outline" className="text-amber-400 border-amber-600 text-[9px] font-mono">AUTO-REJECTED</Badge>
+            {exp.tags?.map(t => <Badge key={t} variant="outline" className="text-[9px] font-mono text-zinc-500 border-zinc-700 px-1">{t}</Badge>)}
+            {exp.template_family && (
+              <Badge variant="outline" className="text-[9px] font-mono text-violet-400 border-violet-700 px-1">
+                {FAMILY_LABELS[exp.template_family] ?? exp.template_family}
+              </Badge>
             )}
+            {exp.batch_id && (
+              <Badge variant="outline" className="text-[9px] font-mono text-sky-400 border-sky-800 px-1">batch</Badge>
+            )}
+            {exp.auto_rejected && <Badge variant="outline" className="text-amber-400 border-amber-600 text-[9px] font-mono">AUTO-REJECTED</Badge>}
           </div>
-          {exp.description && (
-            <p className="text-[10px] font-mono text-zinc-500 mt-0.5">{exp.description}</p>
-          )}
           {cs && (
             <p className="text-[10px] font-mono text-zinc-500 mt-0.5">
-              {cs.train_years}yr train · {cs.test_months}mo test · {cs.step_months}mo step
-              {cs.start_date ? ` · ${cs.start_date}–${cs.end_date || "now"}` : " · all available history"}
-              {cs.intrabar_rule === "optimistic" ? " · optimistic" : ""}
+              {cs.train_years}yr/{cs.test_months}mo · {cs.start_date ? `${cs.start_date}–${cs.end_date||"now"}` : "all history"}
               {" · "}{timeAgo(exp.created_at)}
             </p>
           )}
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
           {exp.verdict && verdictBadge(exp.verdict)}
-          {exp.score != null && (
-            <span className="text-[10px] font-mono text-zinc-300 bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5">
-              {exp.score.toFixed(1)}/100
-            </span>
-          )}
+          {exp.score != null && <span className="text-[10px] font-mono text-zinc-300 bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5">{exp.score.toFixed(1)}/100</span>}
           {exp.status === "queued" && (
-            <Button size="sm" className="h-6 px-2 font-mono text-[11px] bg-sky-600 hover:bg-sky-500 text-white"
-              onClick={() => onRun(exp.id)}>
-              <Play className="h-3 w-3 mr-1" /> Run
+            <Button size="sm" className="h-6 px-2 font-mono text-[11px] bg-sky-600 hover:bg-sky-500 text-white" onClick={() => onRun(exp.id)}>
+              <Play className="h-3 w-3 mr-1" />Run
             </Button>
           )}
           {exp.status !== "running" && (
-            <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-zinc-500 hover:text-red-400"
-              onClick={() => onDelete(exp.id)}>
+            <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-zinc-500 hover:text-red-400" onClick={() => onDelete(exp.id)}>
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
           )}
-          {(exp.status === "completed" || exp.status === "rejected" || exp.status === "failed") && (
+          {["completed","rejected","failed"].includes(exp.status) && (
             <button className="text-zinc-500 hover:text-zinc-300" onClick={() => setExpanded(e => !e)}>
               {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
             </button>
           )}
         </div>
       </div>
-
-      {/* Running progress */}
       {exp.status === "running" && prog && (
-        <div className="space-y-1">
+        <div className="space-y-0.5">
           <div className="flex justify-between text-[10px] font-mono text-zinc-400">
             <span>{prog.phase || "Initializing…"}</span>
             <span>{prog.progress_pct != null ? `${prog.progress_pct}%` : "…"}</span>
           </div>
           {prog.progress_pct != null && (
             <div className="h-1 bg-zinc-700 rounded-full">
-              <div className="h-full bg-sky-500 rounded-full transition-all" style={{ width: `${prog.progress_pct}%` }} />
+              <div className="h-full bg-sky-500 rounded-full" style={{ width: `${prog.progress_pct}%` }} />
             </div>
-          )}
-          {prog.logs?.length > 0 && (
-            <p className="text-[9px] font-mono text-zinc-500 truncate">{prog.logs[prog.logs.length - 1]}</p>
           )}
         </div>
       )}
-
-      {/* Overfitting flags */}
       {exp.auto_rejected && exp.overfitting_flags && exp.overfitting_flags.length > 0 && (
         <div className="text-[10px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded px-2 py-1.5">
-          <span className="font-semibold">Auto-rejected — overfitting flags:</span>
-          <ul className="mt-0.5 space-y-0.5">
-            {exp.overfitting_flags.map(f => <li key={f}>• {f}</li>)}
-          </ul>
+          Auto-rejected: {exp.overfitting_flags.join(" · ")}
         </div>
       )}
-
-      {/* Failed error */}
       {exp.status === "failed" && exp.error && (
-        <div className="text-[10px] font-mono text-red-400 bg-red-500/10 border border-red-500/30 rounded px-2 py-1.5">
-          {exp.error.slice(0, 300)}
-        </div>
+        <div className="text-[10px] font-mono text-red-400 bg-red-500/10 border border-red-500/30 rounded px-2 py-1.5">{exp.error.slice(0,300)}</div>
       )}
-
-      {/* Expanded metrics */}
       {expanded && exp.metrics && (
-        <div className="pt-1 border-t border-zinc-800">
-          <div className="grid grid-cols-4 gap-x-4 gap-y-1 text-[10px] font-mono">
-            {[
-              ["Trades", exp.metrics.total_trades],
-              ["Return", fmtPct(exp.metrics.total_return_pct)],
-              ["Net P&L", fmtINR(exp.metrics.net_pnl)],
-              ["Win Rate", fmtPct(exp.metrics.win_rate)],
-              ["Profit Factor", fmtNum(exp.metrics.profit_factor)],
-              ["Expectancy", fmtINR(exp.metrics.expectancy)],
-              ["Sharpe", fmtNum(exp.metrics.sharpe)],
-              ["Drawdown", fmtPct(exp.metrics.max_drawdown_pct)],
-              ["Brier", fmtNum(exp.metrics.brier_score, 4)],
-              ["ECE", fmtNum(exp.metrics.ece, 4)],
-              ["Evidence", exp.metrics.ev_verdict ?? "—"],
-              ["OOS Trades", exp.metrics.ev_trades ?? "—"],
-            ].map(([lbl, val]) => (
-              <div key={String(lbl)}>
-                <span className="text-zinc-500">{lbl} </span>
-                <span className="text-zinc-200">{String(val ?? "—")}</span>
-              </div>
-            ))}
-          </div>
-          {exp.score_breakdown && (
-            <div className="mt-2">
-              <ScoreBar score={exp.score ?? 0} breakdown={exp.score_breakdown} />
-            </div>
-          )}
+        <div className="pt-1 border-t border-zinc-800 grid grid-cols-4 gap-x-4 gap-y-1 text-[10px] font-mono">
+          {([["Trades",exp.metrics.total_trades],["Return",fmtPct(exp.metrics.total_return_pct)],["Win Rate",fmtPct(exp.metrics.win_rate)],["PF",fmtNum(exp.metrics.profit_factor)],["Exp",fmtINR(exp.metrics.expectancy)],["Sharpe",fmtNum(exp.metrics.sharpe)],["DD",fmtPct(exp.metrics.max_drawdown_pct)],["ECE",fmtNum(exp.metrics.ece,4)]] as [string,any][]).map(([l,v])=>(
+            <div key={l}><span className="text-zinc-500">{l} </span><span className="text-zinc-200">{String(v??"—")}</span></div>
+          ))}
+          {exp.score_breakdown && <div className="col-span-4 mt-1"><ScoreBar score={exp.score??0} breakdown={exp.score_breakdown}/></div>}
         </div>
       )}
     </div>
   );
 }
 
-// ── Leaderboard Entry ──────────────────────────────────────────────────────
+// ── LeaderboardCard ────────────────────────────────────────────────────────
 
 function LeaderboardCard({ entry, rank, onDelete }: {
-  entry: LeaderboardEntry;
-  rank: number;
-  onDelete: (id: string) => void;
+  entry: LeaderboardEntry; rank: number; onDelete: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const m = entry.metrics ?? {};
-
   return (
     <div className={cn(
-      "rounded-md border p-3 space-y-2 transition-colors",
-      entry.auto_rejected
-        ? "border-amber-500/20 bg-amber-500/5 opacity-70"
-        : rank === 1 ? "border-yellow-500/40 bg-yellow-500/5"
-        : rank === 2 ? "border-zinc-400/30 bg-zinc-400/5"
-        : rank === 3 ? "border-amber-700/30 bg-amber-700/5"
+      "rounded-md border p-3 space-y-2",
+      entry.auto_rejected ? "border-amber-500/20 bg-amber-500/5 opacity-75"
+        : rank===1 ? "border-yellow-500/40 bg-yellow-500/5"
+        : rank===2 ? "border-zinc-400/30"
+        : rank===3 ? "border-amber-700/30"
         : "border-zinc-700 bg-zinc-800/20"
     )}>
       <div className="flex items-start gap-3 flex-wrap">
@@ -628,18 +463,15 @@ function LeaderboardCard({ entry, rank, onDelete }: {
         <div className="flex-1 min-w-0 space-y-1">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-mono font-semibold">{entry.name}</span>
-            {entry.tags?.map(t => (
-              <Badge key={t} variant="outline" className="text-[9px] font-mono text-zinc-500 border-zinc-700 px-1">{t}</Badge>
-            ))}
-            {verdictBadge(entry.verdict)}
-            {entry.metrics?.ev_verdict && (
-              <Badge variant="outline" className="text-[9px] font-mono text-sky-400 border-sky-700 px-1">
-                Ev: {entry.metrics.ev_verdict}
+            {entry.template_family && (
+              <Badge variant="outline" className="text-[9px] font-mono text-violet-400 border-violet-700 px-1">
+                {FAMILY_LABELS[entry.template_family]??entry.template_family}
               </Badge>
             )}
-            {entry.auto_rejected && (
-              <Badge variant="outline" className="text-amber-400 border-amber-600 text-[9px] font-mono">AUTO-REJECTED</Badge>
-            )}
+            {entry.tags?.map(t=><Badge key={t} variant="outline" className="text-[9px] font-mono text-zinc-500 border-zinc-700 px-1">{t}</Badge>)}
+            {verdictBadge(entry.verdict)}
+            {m.ev_verdict && <Badge variant="outline" className="text-[9px] font-mono text-sky-400 border-sky-700 px-1">Ev:{m.ev_verdict}</Badge>}
+            {entry.auto_rejected && <Badge variant="outline" className="text-amber-400 border-amber-600 text-[9px] font-mono">AUTO-REJECTED</Badge>}
           </div>
           <ScoreBar score={entry.score} breakdown={entry.score_breakdown} />
           <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[10px] font-mono text-zinc-400">
@@ -648,63 +480,32 @@ function LeaderboardCard({ entry, rank, onDelete }: {
             <span>Sharpe <span className="text-zinc-200">{fmtNum(m.sharpe)}</span></span>
             <span>DD <span className="text-zinc-200">{fmtPct(m.max_drawdown_pct)}</span></span>
             <span>WR <span className="text-zinc-200">{fmtPct(m.win_rate)}</span></span>
-            <span>ECE <span className="text-zinc-200">{fmtNum(m.ece, 4)}</span></span>
-            <span>Trades <span className="text-zinc-200">{m.total_trades ?? "—"}</span></span>
-            <span>Win <span className="text-zinc-200">{m.windows ?? "—"} windows</span></span>
+            <span>ECE <span className="text-zinc-200">{fmtNum(m.ece,4)}</span></span>
+            <span>Trades <span className="text-zinc-200">{m.total_trades??"—"}</span></span>
+            <span>Win <span className="text-zinc-200">{m.windows??"—"} win</span></span>
           </div>
-          {entry.config_summary && (
-            <p className="text-[10px] font-mono text-zinc-500">
-              {entry.config_summary.train_years}yr / {entry.config_summary.test_months}mo test
-              {entry.config_summary.start_date ? ` · ${entry.config_summary.start_date}–${entry.config_summary.end_date || "now"}` : ""}
-              {" · "}{timeAgo(entry.completed_at)}
-            </p>
-          )}
           {entry.auto_rejected && entry.overfitting_flags && (
             <p className="text-[10px] font-mono text-amber-400">
-              ⚠ {entry.overfitting_flags[0]}
-              {entry.overfitting_flags.length > 1 ? ` +${entry.overfitting_flags.length - 1} more` : ""}
+              ⚠ {entry.overfitting_flags[0]}{entry.overfitting_flags.length>1?` +${entry.overfitting_flags.length-1} more`:""}
             </p>
           )}
         </div>
         <div className="flex-shrink-0 flex gap-1">
-          <button className="text-zinc-500 hover:text-zinc-300" onClick={() => setExpanded(e => !e)}>
-            {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          <button className="text-zinc-500 hover:text-zinc-300" onClick={() => setExpanded(e=>!e)}>
+            {expanded?<ChevronDown className="h-4 w-4"/>:<ChevronRight className="h-4 w-4"/>}
           </button>
-          <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-zinc-500 hover:text-red-400"
-            onClick={() => onDelete(entry.id)}>
-            <Trash2 className="h-3.5 w-3.5" />
+          <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-zinc-500 hover:text-red-400" onClick={() => onDelete(entry.id)}>
+            <Trash2 className="h-3.5 w-3.5"/>
           </Button>
         </div>
       </div>
-
       {expanded && (
         <div className="pt-2 border-t border-zinc-800 grid grid-cols-3 gap-x-4 gap-y-1 text-[10px] font-mono">
-          {[
-            ["Score", `${entry.score.toFixed(1)}/100`],
-            ["Trades", m.total_trades],
-            ["Return %", fmtPct(m.total_return_pct)],
-            ["Net P&L", fmtINR(m.net_pnl)],
-            ["Win Rate", fmtPct(m.win_rate)],
-            ["Profit Factor", fmtNum(m.profit_factor)],
-            ["Expectancy", fmtINR(m.expectancy)],
-            ["Sharpe Ratio", fmtNum(m.sharpe)],
-            ["Max Drawdown", fmtPct(m.max_drawdown_pct)],
-            ["Brier Score", fmtNum(m.brier_score, 4)],
-            ["ECE", fmtNum(m.ece, 4)],
-            ["Evidence Verdict", m.ev_verdict ?? "—"],
-            ["Evidence Trades", m.ev_trades],
-            ["Windows", m.windows],
-            ["Universe", m.universe_size ? `${m.universe_size} stocks` : "NIFTY 50"],
-          ].map(([lbl, val]) => (
-            <div key={String(lbl)}>
-              <span className="text-zinc-500">{lbl} </span>
-              <span className="text-zinc-200">{String(val ?? "—")}</span>
-            </div>
+          {([["Score",`${entry.score.toFixed(1)}/100`],["Trades",m.total_trades],["Return",fmtPct(m.total_return_pct)],["PF",fmtNum(m.profit_factor)],["Exp",fmtINR(m.expectancy)],["Sharpe",fmtNum(m.sharpe)],["DD",fmtPct(m.max_drawdown_pct)],["Win Rate",fmtPct(m.win_rate)],["ECE",fmtNum(m.ece,4)],["Evidence",m.ev_verdict??"—"],["Ev Trades",m.ev_trades],["Windows",m.windows]] as [string,any][]).map(([l,v])=>(
+            <div key={l}><span className="text-zinc-500">{l} </span><span className="text-zinc-200">{String(v??"—")}</span></div>
           ))}
-          {entry.overfitting_flags && entry.overfitting_flags.length > 0 && (
-            <div className="col-span-3 text-amber-400 mt-1">
-              Flags: {entry.overfitting_flags.join(" · ")}
-            </div>
+          {entry.overfitting_flags && entry.overfitting_flags.length>0 && (
+            <div className="col-span-3 text-amber-400 mt-1">Flags: {entry.overfitting_flags.join(" · ")}</div>
           )}
         </div>
       )}
@@ -712,19 +513,133 @@ function LeaderboardCard({ entry, rank, onDelete }: {
   );
 }
 
-// ── Main Page ──────────────────────────────────────────────────────────────
+// ── ComparisonTable ────────────────────────────────────────────────────────
+
+function ComparisonTable({ entries }: { entries: LeaderboardEntry[] }) {
+  if (entries.length === 0) {
+    return <p className="text-sm font-mono text-muted-foreground text-center py-8">No completed experiments to compare.</p>;
+  }
+  const cols: [string, (e: LeaderboardEntry) => any, string?][] = [
+    ["Score",   e => e.score?.toFixed(1)??"—",                    "tabular-nums text-right"],
+    ["OOS Trades", e => e.metrics?.total_trades??"—",             "tabular-nums text-right"],
+    ["Return %",e => fmtPct(e.metrics?.total_return_pct),         "tabular-nums text-right"],
+    ["Exp (₹)", e => fmtINR(e.metrics?.expectancy),               "tabular-nums text-right"],
+    ["PF",      e => fmtNum(e.metrics?.profit_factor),            "tabular-nums text-right"],
+    ["Sharpe",  e => fmtNum(e.metrics?.sharpe),                   "tabular-nums text-right"],
+    ["DD %",    e => fmtPct(e.metrics?.max_drawdown_pct),         "tabular-nums text-right"],
+    ["Win %",   e => fmtPct(e.metrics?.win_rate),                 "tabular-nums text-right"],
+    ["ECE",     e => fmtNum(e.metrics?.ece,4),                    "tabular-nums text-right"],
+    ["Evidence",e => e.metrics?.ev_verdict??"—",                  ""],
+    ["Verdict", e => e.verdict??"—",                              ""],
+    ["Rejection",e=>e.overfitting_flags?.[0]?.split("(")[0].trim()??"—", "max-w-[120px] truncate text-amber-400"],
+  ];
+  return (
+    <div className="overflow-x-auto rounded-md border border-zinc-800">
+      <table className="w-full text-[10px] font-mono">
+        <thead className="bg-zinc-900 border-b border-zinc-800">
+          <tr>
+            <th className="sticky left-0 bg-zinc-900 text-left px-3 py-2 text-zinc-400 font-semibold min-w-[140px]">#  Name</th>
+            {cols.map(([h]) => <th key={h} className="px-3 py-2 text-zinc-400 font-semibold text-right whitespace-nowrap">{h}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map((entry, idx) => {
+            const rank = entry.auto_rejected ? null : idx + 1;
+            return (
+              <tr key={entry.id}
+                className={cn(
+                  "border-b border-zinc-800/50 hover:bg-zinc-800/30",
+                  entry.auto_rejected && "opacity-60"
+                )}>
+                <td className="sticky left-0 bg-zinc-900 px-3 py-1.5 text-left">
+                  <div className="flex items-center gap-1.5">
+                    {rank ? rankMedal(rank) : <span className="text-amber-500 text-[10px]">✗</span>}
+                    <span className="truncate max-w-[110px] text-zinc-200">{entry.name}</span>
+                  </div>
+                  {entry.template_family && (
+                    <div className="text-[9px] text-zinc-600 ml-5 truncate">
+                      {FAMILY_LABELS[entry.template_family]??entry.template_family}
+                    </div>
+                  )}
+                </td>
+                {cols.map(([h, fn, cls]) => (
+                  <td key={h} className={cn("px-3 py-1.5 text-zinc-300", cls)}>
+                    {String(fn(entry))}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── Grouped leaderboard ────────────────────────────────────────────────────
+
+function GroupedLeaderboard({ entries, onDelete }: {
+  entries: LeaderboardEntry[]; onDelete: (id: string) => void;
+}) {
+  const groups: Record<string, LeaderboardEntry[]> = {};
+  for (const e of entries) {
+    const fam = e.template_family || "custom";
+    if (!groups[fam]) groups[fam] = [];
+    groups[fam].push(e);
+  }
+  const ORDER = ["market_conditions","confidence_sweep","holding_sweep","window_sweep","custom"];
+  const sortedKeys = [...new Set([...ORDER, ...Object.keys(groups)])].filter(k => groups[k]?.length);
+
+  if (sortedKeys.length === 0) {
+    return <p className="text-sm font-mono text-muted-foreground text-center py-8">No completed experiments.</p>;
+  }
+
+  return (
+    <div className="space-y-5">
+      {sortedKeys.map(fam => {
+        const grpEntries = groups[fam];
+        const label = FAMILY_LABELS[fam] ?? (fam === "custom" ? "Custom / No Template" : fam);
+        let rankOffset = 0;
+        return (
+          <div key={fam}>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[11px] font-mono font-semibold text-zinc-300">{label}</span>
+              <Badge variant="outline" className="text-[9px] font-mono text-zinc-500 border-zinc-700">
+                {grpEntries.filter(e=>!e.auto_rejected).length} valid · {grpEntries.length} total
+              </Badge>
+            </div>
+            <div className="space-y-2">
+              {grpEntries.map(entry => {
+                if (!entry.auto_rejected) rankOffset++;
+                return (
+                  <LeaderboardCard
+                    key={entry.id} entry={entry}
+                    rank={entry.auto_rejected ? grpEntries.length : rankOffset}
+                    onDelete={onDelete}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Main page ──────────────────────────────────────────────────────────────
 
 export default function ExperimentManager() {
   const { toast } = useToast();
+  const [tab, setTab] = useState<Tab>("templates");
   const [experiments, setExperiments] = useState<Experiment[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [activeTab, setActiveTab] = useState<"queue" | "leaderboard">("queue");
-  const [runningId, setRunningId] = useState<string | null>(null);
+  const [batchCount, setBatchCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [lbView, setLbView] = useState<LeaderboardView>("all");
 
   const hasRunning = experiments.some(e => e.status === "running");
-  const queuedCount = experiments.filter(e => e.status === "queued").length;
-  const completedCount = experiments.filter(e => e.status === "completed" || e.status === "rejected").length;
+  const completedCount = leaderboard.length;
 
   const fetchExperiments = useCallback(async () => {
     try {
@@ -742,53 +657,51 @@ export default function ExperimentManager() {
     } catch { /* silent */ }
   }, []);
 
-  async function fetchAll() {
-    setLoading(true);
-    await Promise.all([fetchExperiments(), fetchLeaderboard()]);
-    setLoading(false);
-  }
-
-  // Initial load + poll while running
-  useEffect(() => {
-    fetchAll();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const fetchBatchCount = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/batches`);
+      const data = await res.json();
+      if (data.batches) setBatchCount(data.batches.length);
+    } catch { /* silent */ }
   }, []);
 
+  const fetchAll = useCallback(async () => {
+    await Promise.all([fetchExperiments(), fetchLeaderboard(), fetchBatchCount()]);
+  }, [fetchExperiments, fetchLeaderboard, fetchBatchCount]);
+
+  useEffect(() => {
+    setLoading(true);
+    fetchAll().finally(() => setLoading(false));
+  }, [fetchAll]);
+
+  // Poll while running
   useEffect(() => {
     if (!hasRunning) return;
-    const timer = setInterval(async () => {
+    const t = setInterval(async () => {
       await fetchExperiments();
-      // Refresh leaderboard when a run just finished
-      const wasRunning = hasRunning;
-      if (wasRunning) fetchLeaderboard();
+      fetchLeaderboard();
     }, 4000);
-    return () => clearInterval(timer);
+    return () => clearInterval(t);
   }, [hasRunning, fetchExperiments, fetchLeaderboard]);
 
-  // Watch for transition out of running → refresh leaderboard
   useEffect(() => {
-    if (!hasRunning) {
-      fetchLeaderboard();
-    }
+    if (!hasRunning) { fetchLeaderboard(); fetchBatchCount(); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasRunning]);
 
   async function handleRun(id: string) {
     if (hasRunning) {
-      toast({ title: "Already running", description: "One experiment is already in progress. Wait for it to finish.", variant: "destructive" });
+      toast({ title: "Already running", description: "Wait for the current experiment to finish.", variant: "destructive" });
       return;
     }
-    setRunningId(id);
     try {
       const res = await fetch(`${API_BASE}/experiments/${id}/run`, { method: "POST" });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
-      toast({ title: "Experiment started", description: "Walk-forward validation is now running." });
+      toast({ title: "Started", description: "Walk-forward validation running." });
       await fetchExperiments();
     } catch (e) {
-      toast({ title: "Failed to start", description: String(e), variant: "destructive" });
-    } finally {
-      setRunningId(null);
+      toast({ title: "Failed", description: String(e), variant: "destructive" });
     }
   }
 
@@ -797,15 +710,39 @@ export default function ExperimentManager() {
       const res = await fetch(`${API_BASE}/experiments/${id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
-      toast({ title: "Deleted", description: "Experiment removed." });
+      toast({ title: "Deleted" });
       await fetchAll();
     } catch (e) {
       toast({ title: "Delete failed", description: String(e), variant: "destructive" });
     }
   }
 
+  function downloadExport(type: "csv" | "json") {
+    const url = `${API_BASE}/experiments/export/${type}`;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `experiments_${Date.now()}.${type}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    toast({ title: `Downloading ${type.toUpperCase()}`, description: "Research-only export — no live order data." });
+  }
+
+  const existingForTemplates: ExistingExperiment[] = experiments.map(e => ({
+    id: e.id, name: e.name, status: e.status,
+    config_hash: e.config_hash, canonical_config: e.canonical_config,
+    config_summary: e.config_summary,
+  }));
+
+  const TABS = [
+    { id: "templates" as Tab, label: "Templates",      icon: BookTemplate, count: null },
+    { id: "queue"     as Tab, label: "Queue",          icon: TestTubes,    count: experiments.length },
+    { id: "batches"   as Tab, label: "Batches",        icon: Layers,       count: batchCount },
+    { id: "leaderboard" as Tab, label: "Leaderboard",  icon: Trophy,       count: completedCount },
+  ];
+
   return (
-    <div className="space-y-4 max-w-5xl mx-auto">
+    <div className="space-y-4 max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
@@ -814,15 +751,14 @@ export default function ExperimentManager() {
             Research Factory
           </h1>
           <p className="text-sm font-mono text-muted-foreground mt-1">
-            Queue and compare walk-forward experiments · ranked leaderboard · auto-reject overfitting
+            Templates · batch runner · ranked leaderboard · CSV/JSON export · auto-reject overfitting
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-[10px] font-mono text-violet-300 border-violet-500/40">
             PAPER · RESEARCH ONLY
           </Badge>
-          <Button size="sm" variant="outline" className="font-mono text-xs gap-1.5"
-            onClick={fetchAll} disabled={loading}>
+          <Button size="sm" variant="outline" className="font-mono text-xs gap-1.5" onClick={() => fetchAll()} disabled={loading}>
             <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
             Refresh
           </Button>
@@ -831,44 +767,42 @@ export default function ExperimentManager() {
 
       {/* Safety banner */}
       <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] font-mono text-amber-400">
-        ⚠ Out-of-sample historical performance does not guarantee future results.
-        Every experiment uses strict train/test splits with no look-ahead bias.
-        Paper trading and research only.
+        ⚠ Out-of-sample historical performance does not guarantee future results. Strict no-lookahead
+        train/test splits. Paper trading and research only. Results do not affect live strategy selection.
       </div>
-
-      {/* Submit form */}
-      <SubmitForm onSubmitted={fetchAll} />
 
       {/* Tabs */}
       <div className="flex gap-0 border border-zinc-700 rounded-md overflow-hidden w-fit">
-        {[
-          { id: "queue" as const, label: `Queue (${experiments.length})`, icon: Clock },
-          { id: "leaderboard" as const, label: `Leaderboard (${completedCount})`, icon: Trophy },
-        ].map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => setActiveTab(id)}
+        {TABS.map(({ id, label, icon: Icon, count }) => (
+          <button key={id} onClick={() => setTab(id)}
             className={cn(
-              "px-4 py-2 text-xs font-mono flex items-center gap-1.5 transition-colors",
-              activeTab === id ? "bg-zinc-700 text-zinc-100" : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"
-            )}
-          >
+              "px-4 py-2 text-xs font-mono flex items-center gap-1.5 transition-colors border-r border-zinc-700 last:border-r-0",
+              tab === id ? "bg-zinc-700 text-zinc-100" : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"
+            )}>
             <Icon className="h-3.5 w-3.5" />
             {label}
+            {count != null && count > 0 && (
+              <span className="bg-zinc-600 text-zinc-200 rounded-full text-[9px] px-1.5 ml-0.5">{count}</span>
+            )}
             {id === "queue" && hasRunning && (
-              <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse ml-0.5" />
+              <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
             )}
           </button>
         ))}
       </div>
 
-      {/* Queue tab */}
-      {activeTab === "queue" && (
-        <div className="space-y-2">
+      {/* ── Templates tab ────────────────────────────────────────────────── */}
+      {tab === "templates" && (
+        <ExperimentTemplates existing={existingForTemplates} onQueued={fetchAll} />
+      )}
+
+      {/* ── Queue tab ────────────────────────────────────────────────────── */}
+      {tab === "queue" && (
+        <div className="space-y-3">
+          <SubmitForm onSubmitted={fetchAll} />
           {loading && experiments.length === 0 && (
             <div className="text-center py-10 text-sm font-mono text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2 text-zinc-600" />
-              Loading experiments…
+              <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2 text-zinc-600" />Loading…
             </div>
           )}
           {!loading && experiments.length === 0 && (
@@ -876,66 +810,82 @@ export default function ExperimentManager() {
               <CardContent className="py-10 text-center">
                 <FlaskConical className="h-8 w-8 mx-auto mb-3 text-zinc-700" />
                 <p className="text-sm font-mono text-muted-foreground">No experiments yet.</p>
-                <p className="text-xs font-mono text-zinc-600 mt-1">Click <strong>New Experiment</strong> above to queue your first run.</p>
+                <p className="text-xs font-mono text-zinc-600 mt-1">Use the Templates tab to add one.</p>
               </CardContent>
             </Card>
           )}
           {experiments.map(exp => (
-            <ExperimentCard
-              key={exp.id}
-              exp={exp}
-              onRun={handleRun}
-              onDelete={handleDelete}
-            />
+            <ExperimentCard key={exp.id} exp={exp} onRun={handleRun} onDelete={handleDelete} />
           ))}
-          {queuedCount > 0 && !hasRunning && (
-            <p className="text-[10px] font-mono text-zinc-500 text-center py-1">
-              {queuedCount} experiment{queuedCount !== 1 ? "s" : ""} queued — click <strong>Run</strong> to execute one at a time.
-            </p>
-          )}
         </div>
       )}
 
-      {/* Leaderboard tab */}
-      {activeTab === "leaderboard" && (
-        <div className="space-y-2">
+      {/* ── Batches tab ──────────────────────────────────────────────────── */}
+      {tab === "batches" && (
+        <BatchQueue hasAnyRunning={hasRunning} onExperimentsChanged={fetchAll} />
+      )}
+
+      {/* ── Leaderboard tab ──────────────────────────────────────────────── */}
+      {tab === "leaderboard" && (
+        <div className="space-y-3">
+          {/* Toolbar */}
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex gap-0 border border-zinc-700 rounded overflow-hidden">
+              {([ ["all","All",BarChart3], ["family","By Family",Layers], ["compare","Compare",Trophy] ] as const).map(([v,l,Icon])=>(
+                <button key={v} onClick={() => setLbView(v)}
+                  className={cn("px-3 py-1.5 text-[11px] font-mono flex items-center gap-1.5 border-r border-zinc-700 last:border-r-0",
+                    lbView===v ? "bg-zinc-700 text-zinc-100" : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800")}>
+                  <Icon className="h-3.5 w-3.5"/>{l}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-1.5">
+              <Button size="sm" variant="outline" className="font-mono text-xs h-8 gap-1.5" onClick={() => downloadExport("csv")}>
+                <Download className="h-3.5 w-3.5"/>CSV
+              </Button>
+              <Button size="sm" variant="outline" className="font-mono text-xs h-8 gap-1.5" onClick={() => downloadExport("json")}>
+                <Download className="h-3.5 w-3.5"/>JSON
+              </Button>
+            </div>
+          </div>
+
+          {/* Score legend (only when not in compare mode) */}
+          {lbView !== "compare" && leaderboard.length > 0 && (
+            <p className="text-[10px] font-mono text-zinc-500">
+              Score 0–100: profit factor(25) + expectancy(20) + Sharpe(20) + drawdown(15) + calibration(10) + evidence(10).
+              Auto-rejected entries shown at bottom.
+            </p>
+          )}
+
           {leaderboard.length === 0 && (
             <Card>
-              <CardContent className="py-10 text-center">
-                <Trophy className="h-8 w-8 mx-auto mb-3 text-zinc-700" />
+              <CardContent className="py-10 text-center space-y-2">
+                <Trophy className="h-8 w-8 mx-auto text-zinc-700" />
                 <p className="text-sm font-mono text-muted-foreground">No completed experiments yet.</p>
-                <p className="text-xs font-mono text-zinc-600 mt-1">Run an experiment to see it ranked here.</p>
+                <p className="text-xs font-mono text-zinc-600">
+                  {experiments.some(e=>e.status==="queued") ? "Experiments are queued — go to the Queue tab and click Run." : "Use the Templates tab to queue your first experiment."}
+                </p>
               </CardContent>
             </Card>
           )}
-          {leaderboard.length > 0 && (
-            <div className="flex items-center gap-2 text-[10px] font-mono text-zinc-500 pb-1">
-              <BarChart3 className="h-3.5 w-3.5" />
-              Scored 0–100: profit factor (25) + expectancy (20) + Sharpe (20) + drawdown (15) + calibration (10) + evidence (10)
-              · Auto-rejected if overfitting hard-flags triggered
-            </div>
-          )}
-          {(() => {
+
+          {lbView === "all" && (() => {
             let rank = 0;
-            return leaderboard.map(entry => {
-              if (!entry.auto_rejected) rank++;
-              return (
-                <LeaderboardCard
-                  key={entry.id}
-                  entry={entry}
-                  rank={entry.auto_rejected ? leaderboard.length : rank}
-                  onDelete={handleDelete}
-                />
-              );
+            return leaderboard.map(e => {
+              if (!e.auto_rejected) rank++;
+              return <LeaderboardCard key={e.id} entry={e} rank={e.auto_rejected ? leaderboard.length : rank} onDelete={handleDelete} />;
             });
           })()}
+
+          {lbView === "family" && <GroupedLeaderboard entries={leaderboard} onDelete={handleDelete} />}
+
+          {lbView === "compare" && <ComparisonTable entries={leaderboard} />}
         </div>
       )}
 
-      {/* Safety footer */}
+      {/* Footer */}
       <p className="text-[10px] font-mono text-zinc-600 text-center border-t border-zinc-800 pt-3">
-        All experiments share the NIFTY 50 universe · ₹5,000 capital · strict no-look-ahead train/test splits ·
-        live paper-trading behaviour unchanged by experiments
+        NIFTY 50 universe · ₹5,000 paper capital · no auto-promotion · no live orders affected
       </p>
     </div>
   );
