@@ -1,0 +1,130 @@
+[
+ {
+  "id": "6e756c53bb31",
+  "created_at": "2026-07-14T15:23:18Z",
+  "parent_strategy": {
+   "id": "root_trend_rider",
+   "name": "Trend Rider",
+   "experiment_id": "95a7ff31918c"
+  },
+  "candidate_strategy": {
+   "id": "3fd2e66958e3",
+   "name": "Trend Rider \u2014 confidence_threshold=60",
+   "experiment_id": "0a655cee0ae9",
+   "change_summary": "confidence_threshold: 55 \u2192 60 (score)"
+  },
+  "controlled": false,
+  "matched_axes": [
+   "train_years",
+   "test_months",
+   "step_months",
+   "universe_size",
+   "intrabar_rule"
+  ],
+  "differing_axes": [
+   "start_date",
+   "end_date"
+  ],
+  "metric_checks": [
+   {
+    "metric": "profit_factor",
+    "parent": 0.52,
+    "candidate": 0.86,
+    "winner": "candidate"
+   },
+   {
+    "metric": "sharpe",
+    "parent": -1.2,
+    "candidate": -0.61,
+    "winner": "candidate"
+   },
+   {
+    "metric": "net_return_pct",
+    "parent": -6.55,
+    "candidate": -1.71,
+    "winner": "candidate"
+   },
+   {
+    "metric": "max_drawdown_pct",
+    "parent": 9.62,
+    "candidate": 7.43,
+    "winner": "candidate"
+   },
+   {
+    "metric": "calibration_ece",
+    "parent": null,
+    "candidate": null,
+    "winner": "NO_DATA"
+   }
+  ],
+  "winner": "candidate",
+  "confidence": "LOW",
+  "evidence": {
+   "parent_trades": 37,
+   "candidate_trades": 63,
+   "parent_evidence": "MODERATE",
+   "candidate_evidence": "MODERATE",
+   "evidence_difference": 26
+  },
+  "statistical_difference": {
+   "welch_t": -0.033,
+   "interpretation": "NOT_DISTINGUISHABLE",
+   "basis": "per-window total returns"
+  },
+  "recommendation": "Comparison is NOT fully controlled (differing: start_date, end_date). Re-run both experiments with identical settings before drawing conclusions.",
+  "parent_metrics": {
+   "trades": 37,
+   "windows": 7,
+   "window_returns_pct": [
+    0.0,
+    1.27,
+    -7.33,
+    0.0,
+    0.0,
+    -0.55,
+    0.05
+   ],
+   "positive_windows": 2,
+   "net_return_pct": -6.55,
+   "net_profit": -327.62,
+   "total_costs": 83.08,
+   "profit_factor": 0.52,
+   "sharpe": -1.2,
+   "sortino": -3.29,
+   "max_drawdown_pct": 9.62,
+   "win_rate": 32.4,
+   "expectancy": -8.85,
+   "calibration_ece": null,
+   "overfitting_flags": [
+    "trades_low (37 < 50)"
+   ]
+  },
+  "candidate_metrics": {
+   "trades": 63,
+   "windows": 2,
+   "window_returns_pct": [
+    1.54,
+    -3.24
+   ],
+   "positive_windows": 1,
+   "net_return_pct": -1.71,
+   "net_profit": -85.36,
+   "total_costs": 200.79,
+   "profit_factor": 0.86,
+   "sharpe": -0.61,
+   "sortino": -1.31,
+   "max_drawdown_pct": 7.43,
+   "win_rate": 47.6,
+   "expectancy": -1.35,
+   "calibration_ece": null,
+   "overfitting_flags": []
+  },
+  "safety": {
+   "research_only": true,
+   "affects_live_trading": false,
+   "affects_paper_trading": false,
+   "auto_promotion": false,
+   "note": "Strategy Evolution Laboratory produces research candidates only. Human approval is required before any future deployment."
+  }
+ }
+]

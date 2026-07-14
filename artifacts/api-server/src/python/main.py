@@ -713,6 +713,40 @@ def main():
             else:
                 from research_intelligence import trade_diagnostics
                 result = trade_diagnostics(_os.path.join(_EXP_DIR, args[1]))
+        elif command == "evolution_registry":
+            from strategy_evolution import cmd_registry
+            result = cmd_registry()
+        elif command == "evolution_mutate" and len(args) >= 2:
+            from strategy_evolution import cmd_mutate
+            _params = json.loads(args[2]) if len(args) >= 3 else None
+            result = cmd_mutate(args[1], _params)
+        elif command == "evolution_set_status" and len(args) >= 3:
+            from strategy_evolution import cmd_set_status
+            result = cmd_set_status(args[1], args[2], args[3] if len(args) >= 4 else "")
+        elif command == "evolution_ab_test" and len(args) >= 5:
+            from strategy_evolution import cmd_ab_test
+            result = cmd_ab_test(args[1], args[2], args[3], args[4])
+        elif command == "evolution_ab_list":
+            from strategy_evolution import cmd_ab_list
+            result = cmd_ab_list()
+        elif command == "evolution_robustness" and len(args) >= 2:
+            from strategy_evolution import cmd_robustness
+            result = cmd_robustness(args[1])
+        elif command == "evolution_evaluate" and len(args) >= 4:
+            from strategy_evolution import cmd_evaluate
+            result = cmd_evaluate(args[1], args[2], args[3])
+        elif command == "evolution_tree":
+            from strategy_evolution import cmd_tree
+            result = cmd_tree()
+        elif command == "evolution_leaderboard":
+            from strategy_evolution import cmd_leaderboard
+            result = cmd_leaderboard()
+        elif command == "evolution_knowledge":
+            from strategy_evolution import cmd_knowledge
+            result = cmd_knowledge()
+        elif command == "evolution_export":
+            from strategy_evolution import cmd_export
+            result = cmd_export()
         elif command == "phase5_export":
             # Phase 5 review CSV export — read-only reporting, no trading impact
             from phase5_export import cmd_phase5_export

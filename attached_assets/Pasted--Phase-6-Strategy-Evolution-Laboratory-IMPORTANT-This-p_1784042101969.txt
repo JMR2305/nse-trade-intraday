@@ -1,0 +1,448 @@
+# Phase 6 – Strategy Evolution Laboratory
+
+IMPORTANT
+
+This phase is research-only.
+
+Do NOT:
+- Place live orders.
+- Modify existing Trade Decision logic.
+- Modify paper-trading execution.
+- Automatically change strategy parameters.
+- Automatically promote any strategy into production.
+- Introduce look-ahead bias.
+
+All new capabilities are for controlled research and require explicit human approval before any future deployment.
+
+==========================================================
+OBJECTIVE
+==========================================================
+
+Build a Strategy Evolution Laboratory that allows the platform to generate, compare, test and rank new strategy variations using the existing Research Factory.
+
+Instead of asking:
+
+"Did this strategy work?"
+
+the platform should answer:
+
+"How can this strategy be improved while remaining statistically robust?"
+
+==========================================================
+1. STRATEGY VERSIONING
+==========================================================
+
+Create a persistent Strategy Registry.
+
+Each strategy should have:
+
+- Strategy ID
+- Strategy Name
+- Parent Strategy
+- Version
+- Creation Date
+- Status
+    Draft
+    Research
+    Candidate
+    Archived
+- Author
+- Notes
+- Change Summary
+- Current Performance
+- Evidence Score
+- Research Verdict
+
+Display a Strategy Family Tree showing how each strategy evolved.
+
+==========================================================
+2. STRATEGY MUTATION ENGINE
+==========================================================
+
+Create a controlled mutation engine.
+
+Allow controlled variations such as:
+
+Confidence Threshold
+
+55
+60
+65
+70
+75
+
+Holding Days
+
+5
+10
+15
+20
+30
+
+ATR Multiplier
+
+0.8
+1.0
+1.2
+1.5
+
+ADX Threshold
+
+15
+20
+25
+30
+
+Volume Filter
+
+0.5
+0.75
+1.0
+1.25
+
+EMA combinations
+
+20/50
+20/100
+50/200
+
+RSI Thresholds
+
+30
+35
+40
+
+Supertrend settings
+
+Risk Reward ratios
+
+Stop-loss logic
+
+Take-profit logic
+
+Exit rules
+
+Only ONE major parameter should change per experiment.
+
+Generate multiple candidate variants.
+
+Do NOT activate them automatically.
+
+==========================================================
+3. CONTROLLED A/B TESTING
+==========================================================
+
+Compare:
+
+Parent Strategy
+
+vs
+
+Candidate Strategy
+
+using identical:
+
+Training Period
+
+Testing Period
+
+Walk-forward Windows
+
+Cost Model
+
+Universe
+
+Capital
+
+Market Regime
+
+Produce:
+
+Winner
+
+Confidence
+
+Evidence Difference
+
+Statistical Difference
+
+Recommendation
+
+==========================================================
+4. ROBUSTNESS TESTING
+==========================================================
+
+Automatically reject strategies that:
+
+Depend on very few trades.
+
+Depend on one market regime.
+
+Depend on one sector.
+
+Depend on one stock.
+
+Lose after realistic costs.
+
+Have unstable walk-forward results.
+
+Show probable overfitting.
+
+Have inconsistent calibration.
+
+Create a Robustness Score.
+
+==========================================================
+5. STRATEGY GENEALOGY
+==========================================================
+
+Create a timeline showing:
+
+Strategy A
+
+↓
+
+Version 2
+
+↓
+
+Version 3
+
+↓
+
+Candidate 5
+
+↓
+
+Rejected
+
+Include:
+
+What changed
+
+Why it changed
+
+Performance before
+
+Performance after
+
+Research Verdict
+
+==========================================================
+6. EVOLUTION DASHBOARD
+==========================================================
+
+Create a new page:
+
+Strategy Evolution
+
+Show:
+
+Strategy Family Tree
+
+Current Active Research
+
+Candidates
+
+Rejected Variants
+
+Archived Variants
+
+Evolution Timeline
+
+Leaderboard
+
+Best Performing Variant
+
+Most Stable Variant
+
+Highest Evidence Variant
+
+==========================================================
+7. IMPROVEMENT EXPLANATIONS
+==========================================================
+
+Every mutation should explain:
+
+What changed
+
+Expected benefit
+
+Observed benefit
+
+Observed drawback
+
+Confidence in recommendation
+
+Evidence supporting recommendation
+
+Evidence against recommendation
+
+Never claim certainty.
+
+==========================================================
+8. SURVIVAL RULES
+==========================================================
+
+A strategy survives only if it:
+
+Improves Profit Factor.
+
+Maintains or improves Sharpe.
+
+Does not materially increase drawdown.
+
+Maintains calibration.
+
+Passes walk-forward validation.
+
+Passes evidence thresholds.
+
+Otherwise archive it.
+
+==========================================================
+9. STRATEGY KNOWLEDGE BASE
+==========================================================
+
+Store lessons learned.
+
+Example:
+
+Trend Rider
+
+Works well:
+
+Bull Market
+
+ADX >25
+
+Finance
+
+Fails:
+
+Neutral Bull
+
+ADX<18
+
+Gap Up
+
+Technology
+
+Each lesson must contain:
+
+Evidence
+
+Trade Count
+
+Confidence
+
+Experiment IDs
+
+==========================================================
+10. SAFETY
+==========================================================
+
+Nothing produced here may:
+
+Change live trading.
+
+Change paper trading.
+
+Modify Trade Decisions.
+
+Modify Market Scanner.
+
+Modify Portfolio.
+
+Only produce research candidates.
+
+==========================================================
+11. EXPORTS
+==========================================================
+
+Extend Research Package exports.
+
+Include:
+
+Strategy Registry
+
+Family Tree
+
+Evolution Timeline
+
+Mutation History
+
+A/B Tests
+
+Robustness Report
+
+Knowledge Base
+
+Candidate Leaderboard
+
+Rejected Candidates
+
+CSV
+
+JSON
+
+Printable HTML
+
+==========================================================
+12. TESTING
+==========================================================
+
+Verify:
+
+Strategy creation
+
+Mutation generation
+
+Parent/child links
+
+A/B comparison
+
+Rejection logic
+
+Robustness scoring
+
+Family tree rendering
+
+Export generation
+
+No impact on live or paper trading
+
+==========================================================
+13. SUCCESS CRITERIA
+==========================================================
+
+When complete, the platform should be able to:
+
+Create new strategy candidates.
+
+Compare them objectively.
+
+Reject weak variants automatically.
+
+Preserve every experiment.
+
+Explain every improvement.
+
+Build a long-term knowledge base.
+
+Maintain complete auditability.
+
+Never modify production behaviour automatically.
+
+Finally generate a "Phase 6 Completion Report" including:
+
+- Features implemented
+- Database changes
+- API endpoints
+- UI pages added
+- Files modified
+- Test results
+- Example Strategy Family Tree
+- Example A/B comparison
+- Example mutation history
+- Confirmation that live and paper-trading logic remain unchanged.

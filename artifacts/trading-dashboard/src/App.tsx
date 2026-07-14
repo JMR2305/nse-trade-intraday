@@ -30,6 +30,7 @@ import TradeDecisions from "@/pages/TradeDecisions";
 import PortfolioManager from "@/pages/PortfolioManager";
 import ExperimentManager from "@/pages/ExperimentManager";
 import ResearchIntelligence from "@/pages/ResearchIntelligence";
+import StrategyEvolution from "@/pages/StrategyEvolution";
 
 const queryClient = new QueryClient();
 
@@ -62,6 +63,7 @@ function Router() {
         <Route path="/walk-forward" component={WalkForwardValidation} />
         <Route path="/experiments" component={ExperimentManager} />
         <Route path="/research-intelligence" component={ResearchIntelligence} />
+        <Route path="/strategy-evolution" component={StrategyEvolution} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

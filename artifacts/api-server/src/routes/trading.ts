@@ -784,6 +784,120 @@ router.get("/research/intelligence", async (_req, res) => {
   }
 });
 
+// ── Phase 6 — Strategy Evolution Laboratory (research only) ─────────────────
+const EVO_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+router.get("/evolution/registry", async (_req, res) => {
+  try { res.json(await runPython(["evolution_registry"])); }
+  catch (err: unknown) { res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) }); }
+});
+
+router.get("/evolution/tree", async (_req, res) => {
+  try { res.json(await runPython(["evolution_tree"])); }
+  catch (err: unknown) { res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) }); }
+});
+
+router.get("/evolution/leaderboard", async (_req, res) => {
+  try { res.json(await runPython(["evolution_leaderboard"])); }
+  catch (err: unknown) { res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) }); }
+});
+
+router.get("/evolution/knowledge", async (_req, res) => {
+  try { res.json(await runPython(["evolution_knowledge"])); }
+  catch (err: unknown) { res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) }); }
+});
+
+router.get("/evolution/ab-tests", async (_req, res) => {
+  try { res.json(await runPython(["evolution_ab_list"])); }
+  catch (err: unknown) { res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) }); }
+});
+
+router.get("/evolution/robustness/:expId", async (req, res) => {
+  try {
+    if (!EVO_ID.test(req.params.expId)) { res.status(400).json({ success: false, error: "Invalid experiment id" }); return; }
+    res.json(await runPython(["evolution_robustness", req.params.expId]));
+  } catch (err: unknown) { res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) }); }
+});
+
+// POST /api/evolution/mutate { strategyId, parameters? } — creates Draft research
+// variants in the registry only. Never activates anything.
+router.post("/evolution/mutate", async (req, res) => {
+  try {
+    const { strategyId, parameters } = req.body ?? {};
+    if (typeof strategyId !== "string" || !EVO_ID.test(strategyId)) {
+      res.status(400).json({ success: false, error: "Invalid strategyId" }); return;
+    }
+    const args = ["evolution_mutate", strategyId];
+    if (Array.isArray(parameters) && parameters.length > 0) {
+      args.push(JSON.stringify(parameters.filter((p: unknown) => typeof p === "string").slice(0, 20)));
+    }
+    res.json(await runPython(args));
+  } catch (err: unknown) { res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) }); }
+});
+
+// POST /api/evolution/status { strategyId, status, note? } — explicit human action
+router.post("/evolution/status", async (req, res) => {
+  try {
+    const { strategyId, status, note } = req.body ?? {};
+    if (typeof strategyId !== "string" || !EVO_ID.test(strategyId) || typeof status !== "string") {
+      res.status(400).json({ success: false, error: "strategyId and status are required" }); return;
+    }
+    res.json(await runPython(["evolution_set_status", strategyId, status, String(note ?? "").slice(0, 300)]));
+  } catch (err: unknown) { res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) }); }
+});
+
+// POST /api/evolution/ab-test { parentId, candidateId, expParent, expCandidate }
+router.post("/evolution/ab-test", async (req, res) => {
+  try {
+    const { parentId, candidateId, expParent, expCandidate } = req.body ?? {};
+    for (const v of [parentId, candidateId, expParent, expCandidate]) {
+      if (typeof v !== "string" || !EVO_ID.test(v)) {
+        res.status(400).json({ success: false, error: "parentId, candidateId, expParent, expCandidate are required ids" });
+        return;
+      }
+    }
+    res.json(await runPython(["evolution_ab_test", parentId, candidateId, expParent, expCandidate]));
+  } catch (err: unknown) { res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) }); }
+});
+
+// POST /api/evolution/evaluate { candidateId, expCandidate, expParent } — survival rules
+router.post("/evolution/evaluate", async (req, res) => {
+  try {
+    const { candidateId, expCandidate, expParent } = req.body ?? {};
+    for (const v of [candidateId, expCandidate, expParent]) {
+      if (typeof v !== "string" || !EVO_ID.test(v)) {
+        res.status(400).json({ success: false, error: "candidateId, expCandidate, expParent are required ids" });
+        return;
+      }
+    }
+    res.json(await runPython(["evolution_evaluate", candidateId, expCandidate, expParent]));
+  } catch (err: unknown) { res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) }); }
+});
+
+// GET /api/evolution/export?file=csv|json|html — downloadable research package
+router.get("/evolution/export", async (req, res) => {
+  try {
+    const kind = String(req.query.file ?? "csv");
+    if (!["csv", "json", "html"].includes(kind)) { res.status(400).json({ success: false, error: "file must be csv, json or html" }); return; }
+    const meta = await runPython(["evolution_export"]) as any;
+    if (!meta?.success) { res.status(500).json(meta ?? { success: false, error: "Export failed" }); return; }
+    const filePath = kind === "csv" ? meta.csv_file : kind === "json" ? meta.json_file : meta.html_file;
+    const expectedDir = path.join(PYTHON_DIR, "exports");
+    const resolved = path.resolve(String(filePath ?? ""));
+    if (!resolved.startsWith(expectedDir + path.sep) || !fs.existsSync(resolved)) {
+      res.status(500).json({ success: false, error: "Export file missing after generation" });
+      return;
+    }
+    const ctype = kind === "csv" ? "text/csv; charset=utf-8"
+      : kind === "json" ? "application/json; charset=utf-8" : "text/html; charset=utf-8";
+    res.setHeader("Content-Type", ctype);
+    res.setHeader("Content-Disposition", `attachment; filename="${path.basename(resolved)}"`);
+    res.setHeader("X-Row-Count", String(meta.csv_rows ?? ""));
+    res.setHeader("Access-Control-Expose-Headers", "X-Row-Count");
+    fs.createReadStream(resolved).pipe(res);
+  } catch (err: unknown) { res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) }); }
+});
+
 // GET /api/research/phase5-review-export?file=main|summary — Phase 5 review CSVs
 // Read-only reporting: generates both CSVs (main) or serves the last generated
 // summary. Never modifies trading behaviour.

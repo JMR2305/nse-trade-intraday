@@ -21,6 +21,7 @@ import {
   Layers,
   Database,
   BookOpenText,
+  Dna,
   Gauge,
   Route,
   Target,
@@ -77,6 +78,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         { href: "/walk-forward", label: "Walk-Forward Validation", icon: Route },
         { href: "/experiments",  label: "Research Factory",        icon: TestTubes },
         { href: "/research-intelligence", label: "Research Intelligence", icon: Brain },
+        { href: "/strategy-evolution", label: "Strategy Evolution", icon: Dna },
       ],
     },
   ];
