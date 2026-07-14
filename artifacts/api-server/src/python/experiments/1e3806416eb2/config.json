@@ -1,0 +1,15 @@
+{
+  "name": "Submission Pipeline Test",
+  "tags": [
+    "smoke"
+  ],
+  "train_years": 1,
+  "test_months": 3,
+  "step_months": 3,
+  "start_date": null,
+  "end_date": null,
+  "universe_size": 0,
+  "max_holding_days": 20,
+  "intrabar_rule": "conservative",
+  "min_confidence_execute": 55
+}

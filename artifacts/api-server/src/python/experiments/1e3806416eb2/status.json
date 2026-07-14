@@ -1,0 +1,39 @@
+{
+  "id": "1e3806416eb2",
+  "status": "queued",
+  "created_at": "2026-07-14T04:55:17.224255",
+  "updated_at": "2026-07-14T04:55:17.224255",
+  "name": "Submission Pipeline Test",
+  "description": "",
+  "tags": [
+    "smoke"
+  ],
+  "config_hash": "a36546c5ad1a",
+  "canonical_config": {
+    "train_years": 1,
+    "test_months": 3,
+    "step_months": 3,
+    "start_date": "",
+    "end_date": "",
+    "universe_size": 0,
+    "intrabar_rule": "conservative",
+    "max_holding_days": 20,
+    "min_confidence_execute": 55.0
+  },
+  "batch_id": "",
+  "batch_name": "",
+  "batch_index": 0,
+  "template_id": "",
+  "template_family": "",
+  "config_summary": {
+    "train_years": 1,
+    "test_months": 3,
+    "step_months": 3,
+    "start_date": "",
+    "end_date": "",
+    "universe_size": 0,
+    "intrabar_rule": "conservative",
+    "max_holding_days": 20,
+    "min_confidence_execute": 55.0
+  }
+}

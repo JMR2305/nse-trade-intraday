@@ -22,7 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-const API_BASE = `${import.meta.env.BASE_URL}api`;
+import { apiJson } from "@/lib/api";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -310,7 +310,7 @@ function PreviewModal({ template, existing, onClose, onQueued }: {
     }
     setSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/experiments`, {
+      const data = await apiJson("/experiments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -320,9 +320,8 @@ function PreviewModal({ template, existing, onClose, onQueued }: {
           template_family: template.family,
         }),
       });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
-      toast({ title: "Experiment queued", description: `"${singleName}" added to queue.` });
+      const expId = data?.experiment?.id || data?.id || "";
+      toast({ title: "Experiment queued", description: `"${singleName}"${expId ? ` (${expId})` : ""} added to queue.` });
       onQueued();
       onClose();
     } catch (e) {
@@ -349,9 +348,9 @@ function PreviewModal({ template, existing, onClose, onQueued }: {
     }
     setSubmitting(true);
     try {
-      const results = await Promise.all(
+      await Promise.all(
         variants.map((v, idx) =>
-          fetch(`${API_BASE}/experiments`, {
+          apiJson("/experiments", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -364,11 +363,9 @@ function PreviewModal({ template, existing, onClose, onQueued }: {
               template_id: template.id,
               template_family: template.family,
             }),
-          }).then(r => r.json())
+          })
         )
       );
-      const failed = results.filter(r => r.error);
-      if (failed.length > 0) throw new Error(failed[0].error);
       toast({
         title: "Batch queued",
         description: `${variants.length} experiments added as batch "${batchName}".`,

@@ -2,3 +2,4 @@
 - [Balanced decision shadow model](balanced-decision-shadow-model.md) — analysis-only shadow model wiring rules, spec F↔variant E mapping, config key contract, local test style.
 - [Detached background-run status handshake](detached-run-status-handshake.md) — placeholder "running" must be accepted by the runner guard and carry a PID for stale detection.
 - [Trading Dashboard BASE_PATH fix](trading-dashboard-base-path.md) — artifact.toml previewPath/BASE_PATH must match the proxy-served path or all Wouter routes fail silently.
+- [API base path routing](api-base-path-routing.md) — dashboard API calls must use root /api via src/lib/api.ts helper, never `${BASE_URL}api` (SPA fallback returns HTML).

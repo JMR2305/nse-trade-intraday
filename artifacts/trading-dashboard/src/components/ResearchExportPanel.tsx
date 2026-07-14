@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const API_BASE = `${import.meta.env.BASE_URL}api`;
+import { API_BASE } from "@/lib/api";
 
 type GenStatus = "idle" | "generating" | "done" | "error";
 

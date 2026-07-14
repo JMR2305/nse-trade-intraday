@@ -1,0 +1,214 @@
+Fix the Research Factory experiment submission and export pipeline.
+
+Current problems:
+1. Clicking “Queue Experiment” fails with:
+   SyntaxError: Failed to execute 'json' on 'Response': Unexpected end of JSON input
+2. The downloaded CSV and JSON exports are actually HTML pages instead of real data files.
+3. Both the Custom Experiment form and template Preview & Queue dialog show the same submission failure.
+
+Scope:
+Fix only the Research Factory/API submission, queue persistence, status refresh, and export handling. Do not change the trading strategy logic, ranking logic, walk-forward calculations, live paper-trading behaviour, or model thresholds.
+
+A. Diagnose the request flow
+Trace the full flow from:
+- Custom Experiment → Queue
+- Template Preview → Queue Experiment
+- Parameter Sweep → Preview & Queue
+through the frontend API client, server route, validation layer, database/storage layer, and response handler.
+
+Use the browser Network tab and server logs to identify:
+- request URL and HTTP method
+- submitted payload
+- response status
+- response Content-Type
+- backend exception or routing failure
+- whether the request is reaching the correct server route
+
+B. Fix backend API responses
+Every experiment endpoint must always return valid JSON, including errors.
+
+Successful create response example:
+{
+  "success": true,
+  "experiment": {
+    "id": "...",
+    "name": "...",
+    "status": "QUEUED"
+  }
+}
+
+Error response example:
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Readable error message",
+    "details": {}
+  }
+}
+
+Requirements:
+- Never return an empty body.
+- Never return an HTML error page from an API route.
+- Set Content-Type to application/json.
+- Wrap route handlers in error handling.
+- Log the full backend error and request ID server-side.
+- Return the correct 4xx or 5xx status.
+- Ensure all execution paths explicitly return a response.
+- Verify the route is registered under the same URL used by the frontend.
+
+C. Fix frontend response handling
+Do not call response.json() blindly.
+
+Implement a shared safe API helper that:
+1. reads response.text()
+2. checks response.ok
+3. checks Content-Type
+4. parses JSON only when a non-empty valid JSON body exists
+5. reports status code, endpoint, and a shortened response body when parsing fails
+
+Example behaviour:
+- Empty body → “Server returned an empty response”
+- HTML body → “Expected JSON but received HTML”
+- Non-2xx response → show backend error message
+- Valid success JSON → proceed normally
+
+Prevent duplicate submissions:
+- Disable the Queue button while submitting.
+- Show a loading state.
+- Use an idempotency key or disable repeated clicks.
+- Re-enable the button after success or failure.
+
+D. Validate and normalize experiment payloads
+Use one shared schema for custom, template, and batch experiments.
+
+Validate:
+- name is required
+- training period
+- test period
+- step size
+- start and end dates
+- start date is before end date
+- max holding days
+- minimum confidence
+- intrabar rule
+- universe size
+- tags
+- template or batch metadata
+
+Normalize UI values consistently, for example:
+- “1 year” and “1yr” must map to one canonical backend value
+- “3 months” and “3mo” must map to one canonical value
+- empty optional dates must become null, not invalid strings
+- numeric inputs must be submitted as numbers
+
+Return field-level validation errors to the UI.
+
+E. Persist and verify the queue item
+On successful submission:
+- Create a unique experiment ID.
+- Save the complete normalized configuration.
+- Save status as QUEUED.
+- Save created_at and updated_at.
+- Preserve template name, batch ID, and tags when applicable.
+- Return the saved database record.
+
+After submission:
+- Automatically close the preview modal if applicable.
+- Show a success toast containing the experiment name and ID.
+- Refresh the Queue tab automatically.
+- The newly queued experiment must be visible immediately.
+- Preserve the selected Research Factory tab.
+- Poll or refresh status while experiments are QUEUED or RUNNING.
+- Refresh Batches and Leaderboard after completion.
+
+F. Fix CSV and JSON exports
+The current export downloads contain the Vite/React HTML page instead of experiment data.
+
+Investigate:
+- wrong export URL
+- frontend fallback route intercepting `/api/...`
+- missing API prefix
+- authentication redirect
+- server route order
+- incorrect Content-Disposition
+- using window.location against a SPA route
+- returning index.html when the export route is not found
+
+CSV endpoint must return:
+- Content-Type: text/csv; charset=utf-8
+- Content-Disposition: attachment; filename="research-factory-experiments-<timestamp>.csv"
+- actual CSV rows
+
+JSON endpoint must return:
+- Content-Type: application/json; charset=utf-8
+- Content-Disposition: attachment; filename="research-factory-experiments-<timestamp>.json"
+- actual JSON data
+
+Exported content should include, where available:
+- experiment ID
+- name
+- status
+- tags
+- template
+- batch ID
+- created and completed timestamps
+- training/test/step periods
+- start/end dates
+- maximum holding days
+- minimum confidence
+- intrabar rule
+- universe size
+- trades
+- net return
+- net P&L
+- profit factor
+- expectancy
+- Sharpe
+- drawdown
+- win rate
+- evidence status
+- score
+- rejection reason
+
+Do not allow the SPA catch-all route to handle API or export URLs.
+
+G. Add focused tests
+Add automated tests for:
+1. valid custom experiment submission
+2. valid Bear Market template submission
+3. invalid payload returns structured JSON
+4. backend exception returns structured JSON
+5. empty backend response is handled safely by frontend
+6. HTML response is handled safely by frontend
+7. duplicate clicks do not create duplicate experiments
+8. queued experiment persists and appears in Queue
+9. CSV export contains CSV, not HTML
+10. JSON export contains parseable JSON, not HTML
+11. API routes are not intercepted by the SPA fallback
+12. existing walk-forward and paper-trading tests still pass
+
+H. Required verification
+After implementing the fix, perform this exact smoke test:
+1. Open Research Factory.
+2. Queue one custom experiment named “Submission Pipeline Test”.
+3. Queue one Bear Market template experiment.
+4. Confirm both appear in Queue with unique IDs.
+5. Refresh the browser and confirm both remain.
+6. Confirm status changes are visible.
+7. Download the CSV and verify the first line is a CSV header, not `<!DOCTYPE html>`.
+8. Download the JSON and verify it begins with `{` or `[`, not `<!DOCTYPE html>`.
+9. Confirm no console error and no “Unexpected end of JSON input”.
+10. Confirm live paper-trading behaviour remains unchanged.
+
+At completion, provide:
+- root cause
+- files changed
+- API routes fixed
+- payload example
+- success and failure response examples
+- test results
+- screenshot or concise verification report showing the two queued experiments
+- confirmation that CSV and JSON exports contain actual data
+
+Do not merely suppress the error. Fix the underlying routing, response, persistence, and export problems.

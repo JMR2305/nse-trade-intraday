@@ -1,0 +1,13 @@
+{
+  "name": "Bear Market Smoke Test",
+  "template_id": "bear-market",
+  "template_family": "market-condition",
+  "train_years": 1,
+  "test_months": 3,
+  "step_months": 3,
+  "start_date": "2021-10-01",
+  "end_date": "2023-03-31",
+  "intrabar_rule": "conservative",
+  "max_holding_days": 20,
+  "min_confidence_execute": 55
+}

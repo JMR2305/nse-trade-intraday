@@ -37,7 +37,7 @@ import { BatchQueue } from "@/pages/experiments/BatchQueue";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-const API_BASE = `${import.meta.env.BASE_URL}api`;
+import { API_BASE, apiJson } from "@/lib/api";
 
 type Tab = "templates" | "queue" | "batches" | "leaderboard";
 type LeaderboardView = "all" | "family" | "compare";
@@ -229,22 +229,21 @@ function SubmitForm({ onSubmitted }: { onSubmitted: () => void }) {
     }
     setSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/experiments`, {
+      const data = await apiJson("/experiments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: form.name.trim(), description: form.description.trim(),
           tags: form.tags.split(",").map(t => t.trim()).filter(Boolean),
           train_years: parseInt(form.train_years), test_months: parseInt(form.test_months),
-          step_months: parseInt(form.step_months), start_date: form.start_date.trim(),
-          end_date: form.end_date.trim(), universe_size: parseInt(form.universe_size)||0,
+          step_months: parseInt(form.step_months), start_date: form.start_date.trim() || null,
+          end_date: form.end_date.trim() || null, universe_size: parseInt(form.universe_size)||0,
           max_holding_days: parseInt(form.max_holding_days)||20, intrabar_rule: form.intrabar_rule,
           min_confidence_execute: parseFloat(form.min_confidence_execute)||55,
         }),
       });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
-      toast({ title: "Experiment queued", description: `"${form.name}" added.` });
+      const expId = data?.experiment?.id || data?.id || "";
+      toast({ title: "Experiment queued", description: `"${form.name}"${expId ? ` (${expId})` : ""} added.` });
       setForm({ ...DEFAULT_FORM, ...PRESETS.find(x => x.id === preset)?.config });
       setOpen(false);
       onSubmitted();
@@ -643,24 +642,21 @@ export default function ExperimentManager() {
 
   const fetchExperiments = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/experiments`);
-      const data = await res.json();
+      const data = await apiJson("/experiments");
       if (data.experiments) setExperiments(data.experiments);
     } catch { /* silent */ }
   }, []);
 
   const fetchLeaderboard = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/experiments/leaderboard`);
-      const data = await res.json();
+      const data = await apiJson("/experiments/leaderboard");
       if (data.entries) setLeaderboard(data.entries);
     } catch { /* silent */ }
   }, []);
 
   const fetchBatchCount = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/batches`);
-      const data = await res.json();
+      const data = await apiJson("/batches");
       if (data.batches) setBatchCount(data.batches.length);
     } catch { /* silent */ }
   }, []);
@@ -695,9 +691,7 @@ export default function ExperimentManager() {
       return;
     }
     try {
-      const res = await fetch(`${API_BASE}/experiments/${id}/run`, { method: "POST" });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+      await apiJson(`/experiments/${id}/run`, { method: "POST" });
       toast({ title: "Started", description: "Walk-forward validation running." });
       await fetchExperiments();
     } catch (e) {
@@ -707,9 +701,7 @@ export default function ExperimentManager() {
 
   async function handleDelete(id: string) {
     try {
-      const res = await fetch(`${API_BASE}/experiments/${id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+      await apiJson(`/experiments/${id}`, { method: "DELETE" });
       toast({ title: "Deleted" });
       await fetchAll();
     } catch (e) {

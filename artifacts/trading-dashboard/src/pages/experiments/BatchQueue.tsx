@@ -20,7 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-const API_BASE = `${import.meta.env.BASE_URL}api`;
+import { apiJson } from "@/lib/api";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -277,8 +277,7 @@ export function BatchQueue({
 
   const fetchBatches = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/batches`);
-      const data = await res.json();
+      const data = await apiJson("/batches");
       if (data.batches) setBatches(data.batches);
     } catch { /* silent */ }
   }, []);
@@ -329,15 +328,11 @@ export function BatchQueue({
         }
 
         // Kick off next experiment
-        fetch(`${API_BASE}/experiments/${nextQueued.id}/run`, { method: "POST" })
-          .then(r => r.json())
-          .then(d => {
-            if (d.error) {
-              toast({ title: "Auto-advance failed", description: d.error, variant: "destructive" });
-              setAutoRunBatchId(null);
-            } else {
-              onExperimentsChanged();
-            }
+        apiJson(`/experiments/${nextQueued.id}/run`, { method: "POST" })
+          .then(() => { onExperimentsChanged(); })
+          .catch(e => {
+            toast({ title: "Auto-advance failed", description: String(e), variant: "destructive" });
+            setAutoRunBatchId(null);
           });
         return current;
       });
@@ -357,9 +352,7 @@ export function BatchQueue({
     setBatchStartTimes(t => ({ ...t, [batch.id]: t[batch.id] ?? Date.now() }));
     setAutoRunBatchId(batch.id);
     try {
-      const res = await fetch(`${API_BASE}/experiments/${nextQueued.id}/run`, { method: "POST" });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+      await apiJson(`/experiments/${nextQueued.id}/run`, { method: "POST" });
       await fetchBatches();
       await onExperimentsChanged();
       toast({

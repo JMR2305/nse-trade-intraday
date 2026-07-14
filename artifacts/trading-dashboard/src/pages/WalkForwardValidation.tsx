@@ -30,7 +30,7 @@ import ResearchExportPanel from "@/components/ResearchExportPanel";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-const API_BASE = `${import.meta.env.BASE_URL}api`;
+import { API_BASE } from "@/lib/api";
 
 async function downloadExport(kind: string, onError: (msg: string) => void) {
   try {
