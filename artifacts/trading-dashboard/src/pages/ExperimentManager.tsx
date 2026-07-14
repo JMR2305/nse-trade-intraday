@@ -681,6 +681,7 @@ export default function ExperimentManager() {
   const [batchCount, setBatchCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [lbView, setLbView] = useState<LeaderboardView>("all");
+  const [phase5Exporting, setPhase5Exporting] = useState(false);
 
   const hasRunning = experiments.some(e => e.status === "running");
   const completedCount = leaderboard.length;
@@ -751,6 +752,43 @@ export default function ExperimentManager() {
       await fetchAll();
     } catch (e) {
       toast({ title: "Delete failed", description: String(e), variant: "destructive" });
+    }
+  }
+
+  async function downloadPhase5Review() {
+    setPhase5Exporting(true);
+    toast({ title: "Generating Phase 5 review export…", description: "Collecting all Phase 5 research data. This can take up to a minute." });
+    try {
+      let totalRows = 0;
+      for (const file of ["main", "summary"] as const) {
+        const resp = await fetch(`${API_BASE}/research/phase5-review-export?file=${file}`);
+        const ctype = resp.headers.get("Content-Type") ?? "";
+        if (!resp.ok || !ctype.includes("text/csv")) {
+          let detail = "";
+          try {
+            detail = ctype.includes("application/json")
+              ? (JSON.stringify((await resp.json())?.error ?? "") || "")
+              : (await resp.text()).slice(0, 300);
+          } catch { /* unreadable body */ }
+          throw new Error(`Export failed (HTTP ${resp.status})${detail ? `: ${detail}` : ""}`);
+        }
+        const rows = Number(resp.headers.get("X-Row-Count") ?? 0);
+        totalRows += rows;
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = file === "main" ? "phase5_review_export.csv" : "phase5_review_summary.csv";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+      toast({ title: "Phase 5 review export downloaded", description: `${totalRows} rows across phase5_review_export.csv + phase5_review_summary.csv. Research only.` });
+    } catch (e) {
+      toast({ title: "Phase 5 export failed", description: String(e instanceof Error ? e.message : e), variant: "destructive" });
+    } finally {
+      setPhase5Exporting(false);
     }
   }
 
@@ -882,6 +920,9 @@ export default function ExperimentManager() {
               </Button>
               <Button size="sm" variant="outline" className="font-mono text-xs h-8 gap-1.5" onClick={() => downloadExport("json")}>
                 <Download className="h-3.5 w-3.5"/>JSON
+              </Button>
+              <Button size="sm" variant="outline" className="font-mono text-xs h-8 gap-1.5" disabled={phase5Exporting} onClick={downloadPhase5Review}>
+                <Download className="h-3.5 w-3.5"/>{phase5Exporting ? "Exporting…" : "Export Phase 5 Review CSV"}
               </Button>
             </div>
           </div>

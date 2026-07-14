@@ -1,0 +1,43 @@
+page,section,implementation_status,record_count,key_result,evidence_level,major_issue,recommended_next_step,source_page_url
+Research Factory,Experiment queue,COMPLETE,5,5 experiments in registry,INSUFFICIENT,,,/experiments
+Research Factory,Batches,COMPLETE,0,0 batches,,,,/experiments
+Research Factory,Leaderboard,COMPLETE,0,0 ranked entries,,,,/experiments
+Research Factory,Research verdict,COMPLETE,5,from 5 completed experiments' latest reports,INSUFFICIENT,,,/experiments
+Research Factory,Executive summary,COMPLETE,4,from 5 completed experiments' latest reports,INSUFFICIENT,,,/experiments
+Research Factory,Performance,COMPLETE,4,from 5 completed experiments' latest reports,INSUFFICIENT,,,/experiments
+Research Factory,Risk,COMPLETE,4,from 5 completed experiments' latest reports,INSUFFICIENT,,,/experiments
+Research Factory,Equity and drawdown,COMPLETE,4,from 5 completed experiments' latest reports,INSUFFICIENT,,,/experiments
+Research Factory,Trade distribution,COMPLETE,4,from 5 completed experiments' latest reports,INSUFFICIENT,,,/experiments
+Research Factory,Confidence calibration,COMPLETE,4,from 5 completed experiments' latest reports,INSUFFICIENT,,,/experiments
+Research Factory,False positives,COMPLETE,4,from 5 completed experiments' latest reports,INSUFFICIENT,,,/experiments
+Research Factory,False negatives,COMPLETE,4,from 5 completed experiments' latest reports,INSUFFICIENT,,,/experiments
+Research Factory,Overfitting and robustness,COMPLETE,4,from 5 completed experiments' latest reports,INSUFFICIENT,,,/experiments
+Research Factory,Market-regime contribution,COMPLETE,4,from 5 completed experiments' latest reports,INSUFFICIENT,,,/experiments
+Research Factory,Final recommendation,COMPLETE,4,from 5 completed experiments' latest reports,INSUFFICIENT,,,/experiments
+Research Factory,Strategy contribution,COMPLETE,4,4 groups,INSUFFICIENT,,,/research-intelligence
+Research Factory,Sector contribution,COMPLETE,7,7 groups,INSUFFICIENT,,,/research-intelligence
+Research Factory,Market-regime contribution,COMPLETE,4,4 groups,INSUFFICIENT,,,/research-intelligence
+Research Factory,Research insights,COMPLETE,13,13 insights,WEAK,,,/research-intelligence
+Research Factory,AI recommendations,COMPLETE,12,12 advisory recommendations,WEAK,,,/research-intelligence
+Research Factory,Strategy health,COMPLETE,4,4 strategies scored,INSUFFICIENT,,,/research-intelligence
+Research Factory,Cross-experiment findings,COMPLETE,5,learning summary highlights,INSUFFICIENT,,,/research-intelligence
+Research Factory,Experiment comparison,COMPLETE,5,5 experiments compared,INSUFFICIENT,,,/research-intelligence (Compare)
+Learning Insights,Winning patterns,COMPLETE,10,10 patterns,WEAK,,,/learning-insights
+Learning Insights,Losing patterns,COMPLETE,10,10 patterns,WEAK,,,/learning-insights
+Learning Insights,Strategy-level findings,COMPLETE,6,6 patterns,INSUFFICIENT,,,/learning-insights
+Learning Insights,Sector-level findings,COMPLETE,11,11 patterns,WEAK,,,/learning-insights
+Learning Insights,Regime-level findings,COMPLETE,7,7 patterns,INSUFFICIENT,,,/learning-insights
+Learning Insights,Confidence-band findings,COMPLETE,4,4 bands,INSUFFICIENT,,,/learning-insights
+Learning Insights,Cross-experiment learning,COMPLETE,0,see Research Factory > Cross-experiment findings rows,,,,/learning-insights
+Learning Insights,Recommendations,COMPLETE,0,see Research Factory > AI recommendations rows,,,,/learning-insights
+Learning Review,Model versions,COMPLETE,1,active model v0,INSUFFICIENT,,,/learning-review
+Learning Review,Before-versus-after comparisons,COMPLETE,5,5 calibration bands,INSUFFICIENT,,,/learning-review
+Learning Review,Recommendation history,COMPLETE,0,0 proposed adjustments,,,,/learning-review
+Learning Review,Learning timeline,COMPLETE,19,19 events,WEAK,,,/learning-review
+Learning Review,Strategy improvement history,PARTIAL,0,No dedicated improvement-history store; timeline + recommendations cover current state,,,Collect more data,/learning-review
+Pattern Quality,Pattern stability,COMPLETE,134,134 patterns from 3355 knowledge trades,STRONG,,,/pattern-quality
+Pattern Quality,Recall / false negatives,PARTIAL,0,"Recall and false negatives are not tracked in the knowledge base — reported blank, not fabricated",,,Collect more data,/pattern-quality
+Feature Importance,Feature importance,COMPLETE,13,13 features from 3355 trades,WEAK,,,/feature-importance
+Trade Replay,Paper trade replay,COMPLETE,3,3 paper trades,INSUFFICIENT,,,/trade-replay
+Trade Replay,Trade diagnosis,COMPLETE,236,236 diagnosed OOS trades across 5 experiments,STRONG,,,/trade-replay
+AI Decision,AI decisions,COMPLETE,10,10 cached stock decisions (analysis only),WEAK,,,/ai-decision

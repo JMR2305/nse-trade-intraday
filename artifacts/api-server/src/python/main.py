@@ -713,6 +713,27 @@ def main():
             else:
                 from research_intelligence import trade_diagnostics
                 result = trade_diagnostics(_os.path.join(_EXP_DIR, args[1]))
+        elif command == "phase5_export":
+            # Phase 5 review CSV export — read-only reporting, no trading impact
+            from phase5_export import cmd_phase5_export
+            from experiment_manager import (
+                list_experiments as _p5_list, list_batches as _p5_batches,
+                get_leaderboard as _p5_lb,
+            )
+            result = cmd_phase5_export(
+                args[1] if len(args) > 1 else "generate",
+                {
+                    "experiment_list": _p5_list,
+                    "experiment_batch_list": _p5_batches,
+                    "experiment_leaderboard": _p5_lb,
+                    "learning_insights": cmd_learning_insights,
+                    "learning_review": cmd_learning_review,
+                    "pattern_quality": cmd_pattern_quality,
+                    "feature_importance": cmd_feature_importance,
+                    "trade_replay": cmd_trade_replay,
+                    "ai_decisions": cmd_ai_decisions,
+                },
+            )
         elif command == "experiment_check_running":
             from experiment_manager import check_any_running
             result = check_any_running()

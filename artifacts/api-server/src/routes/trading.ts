@@ -784,6 +784,32 @@ router.get("/research/intelligence", async (_req, res) => {
   }
 });
 
+// GET /api/research/phase5-review-export?file=main|summary — Phase 5 review CSVs
+// Read-only reporting: generates both CSVs (main) or serves the last generated
+// summary. Never modifies trading behaviour.
+router.get("/research/phase5-review-export", async (req, res) => {
+  try {
+    const which = String(req.query.file ?? "main") === "summary" ? "summary" : "main";
+    const meta = await runPython(["phase5_export", which === "main" ? "generate" : "reuse"]) as any;
+    if (!meta?.success) { res.status(500).json(meta ?? { success: false, error: "Export generation failed" }); return; }
+    const filePath = which === "main" ? meta.main_file : meta.summary_file;
+    const expectedDir = path.join(PYTHON_DIR, "exports");
+    const resolved = path.resolve(String(filePath ?? ""));
+    if (!resolved.startsWith(expectedDir + path.sep) || !fs.existsSync(resolved)) {
+      res.status(500).json({ success: false, error: "Export file missing after generation" });
+      return;
+    }
+    const filename = which === "main" ? "phase5_review_export.csv" : "phase5_review_summary.csv";
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("X-Row-Count", String(which === "main" ? meta.main_rows : meta.summary_rows));
+    res.setHeader("Access-Control-Expose-Headers", "X-Row-Count");
+    fs.createReadStream(resolved).pipe(res);
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/experiments/compare?ids=a,b,c — side-by-side latest-report comparison
 // (registered before /experiments/:id so "compare" is not treated as an id)
 router.get("/experiments/compare", async (req, res) => {

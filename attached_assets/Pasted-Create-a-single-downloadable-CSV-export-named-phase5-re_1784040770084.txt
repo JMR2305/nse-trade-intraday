@@ -1,0 +1,241 @@
+Create a single downloadable CSV export named:
+
+phase5_review_export.csv
+
+The purpose of this export is to let an external reviewer evaluate all Phase 5 functionality without needing screenshots.
+
+Do not change live trading, paper-trading decisions, strategy selection, order placement, or production behaviour. This is a read-only reporting/export feature.
+
+EXPORT STRUCTURE
+
+Use one CSV file with one row per review item. Include these columns:
+
+1. export_generated_at
+2. app_version
+3. phase
+4. page
+5. section
+6. sub_section
+7. record_type
+8. entity_name
+9. experiment_name
+10. experiment_id
+11. strategy
+12. stock
+13. sector
+14. market_regime
+15. model_version
+16. status
+17. recommendation
+18. confidence
+19. evidence_level
+20. sample_size
+21. trades
+22. test_windows
+23. net_return_pct
+24. net_pnl
+25. gross_pnl
+26. profit_factor
+27. expectancy_per_trade
+28. win_rate_pct
+29. sharpe
+30. sortino
+31. max_drawdown_pct
+32. calibration_brier
+33. calibration_ece
+34. calibration_log_loss
+35. precision
+36. recall
+37. false_positives
+38. false_negatives
+39. feature_name
+40. feature_importance
+41. pattern_name
+42. pattern_type
+43. pattern_result
+44. pattern_expectancy
+45. pattern_profit_factor
+46. diagnosis
+47. reason
+48. supporting_evidence
+49. opposing_evidence
+50. suggested_improvement
+51. strategy_health_score
+52. risk_flag
+53. overfitting_flag
+54. data_quality_flag
+55. source_page_url
+56. source_record_id
+57. implementation_status
+58. files_modified
+59. api_endpoint
+60. notes
+
+PAGES AND SECTIONS TO INCLUDE
+
+Export records from all available Phase 5 areas:
+
+A. Research Factory
+- Experiment queue
+- Batches
+- Leaderboard
+- Experiment comparison
+- Research verdict
+- Executive summary
+- Performance
+- Risk
+- Equity and drawdown
+- Trade distribution
+- Strategy contribution
+- Sector contribution
+- Market-regime contribution
+- Confidence calibration
+- Evidence quality
+- False positives
+- False negatives
+- Overfitting and robustness
+- Final recommendation
+- Research insights
+- AI recommendations
+- Strategy health
+- Cross-experiment findings
+
+B. Learning Insights
+- Winning patterns
+- Losing patterns
+- Strategy-level findings
+- Sector-level findings
+- Regime-level findings
+- Confidence-band findings
+- Cross-experiment learning
+- Recommendations
+
+C. Learning Review
+- Model versions
+- Recommendation history
+- Learning timeline
+- Strategy improvement history
+- Before-versus-after comparisons
+
+D. Pattern Quality
+- Precision
+- Recall
+- False positives
+- False negatives
+- Pattern stability
+- Confidence reliability
+- Sample size
+- Evidence quality
+
+E. Feature Importance
+- Feature name
+- Importance score
+- Rank
+- Direction of influence
+- Strategy
+- Regime
+- Experiment
+- Sample size
+
+F. Trade Replay
+For every available completed trade, export:
+- Entry reason
+- Exit reason
+- Why the trade won or lost
+- Strategy
+- Regime
+- Confidence
+- Indicators at entry
+- Risk/reward
+- MAE
+- MFE
+- Holding period
+- Trade diagnosis
+- Suggested improvement
+
+G. AI Decision
+- Stock
+- Decision
+- Confidence
+- Technical score
+- Opportunity score
+- Historical evidence
+- Learning adjustment
+- Similarity adjustment
+- Risk-filter result
+- Final reason
+- Conditions required to upgrade or downgrade the decision
+
+H. Completion and implementation audit
+Include one row for each Phase 5 feature with:
+- page
+- section
+- implementation_status: COMPLETE, PARTIAL, MISSING, or ERROR
+- files_modified
+- api_endpoint
+- database table or migration, where relevant
+- remaining TODO
+- known limitation
+- test status
+
+CSV RULES
+
+1. Use UTF-8 encoding.
+2. Properly escape commas, quotation marks, and multiline text.
+3. Do not put arrays or objects into cells without serializing them as compact JSON.
+4. Use one consistent header row.
+5. Leave unavailable values blank; do not invent values.
+6. Clearly mark insufficient evidence and low sample sizes.
+7. Include research-only and analysis-only labels where applicable.
+8. Include failed, rejected, incomplete, and empty-result records rather than hiding them.
+9. Do not export secrets, API keys, passwords, tokens, cookies, personal information, or broker credentials.
+10. Do not expose internal stack traces. Use a safe error summary in the notes column.
+11. Ensure numeric fields contain raw numeric values without currency symbols or percentage signs. Use separate unit-aware column names such as net_return_pct.
+12. Add source_page_url and source_record_id so every row can be traced back to the UI or database record.
+
+USER INTERFACE
+
+Add a button in Research Factory labelled:
+
+Export Phase 5 Review CSV
+
+Place it near the existing CSV/JSON export controls.
+
+When clicked:
+- Generate the file from current stored data.
+- Download phase5_review_export.csv.
+- Show a success message containing the number of rows exported.
+- Show a clear error message if generation fails.
+- Do not call response.json() blindly. Verify the HTTP status and Content-Type first.
+- For a file response, handle it as a Blob.
+- If the server returns an error, safely read text or JSON depending on Content-Type.
+
+VALIDATION
+
+After implementation:
+
+1. Generate the CSV.
+2. Confirm it opens correctly in Excel or Google Sheets.
+3. Confirm the column count is identical for every row.
+4. Confirm there are no malformed rows.
+5. Confirm multiline explanations remain inside one cell.
+6. Confirm no secrets are present.
+7. Confirm every listed Phase 5 page has at least one implementation-audit row, even when that feature is missing.
+8. Report:
+   - total rows
+   - pages included
+   - sections included
+   - missing sections
+   - files changed
+   - API endpoint added
+   - tests performed
+
+Also create a smaller second file named:
+
+phase5_review_summary.csv
+
+It should contain one row per page/section with these columns:
+
+page, section, implementation_status, record_count, key_result, evidence_level, major_issue, recommended_next_step, source_page_url
+
+Do not claim completion until both CSV files have been generated and successfully downloaded.
