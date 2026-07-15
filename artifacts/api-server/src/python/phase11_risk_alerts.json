@@ -15,6 +15,14 @@
       "message": "WIPRO holds 5 vs recommended 2 at current limits",
       "ts": "2026-07-15T03:38:18.372993",
       "acknowledged": false
+    },
+    {
+      "key": "LIQUIDITY_WARNING|2026-07-15|WIPRO",
+      "type": "LIQUIDITY_WARNING",
+      "severity": "WARNING",
+      "message": "WIPRO volume ratio 0.11 < floor 0.3",
+      "ts": "2026-07-15T04:24:41.326388",
+      "acknowledged": false
     }
   ]
 }

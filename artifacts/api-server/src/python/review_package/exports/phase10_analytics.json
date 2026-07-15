@@ -1,6 +1,6 @@
 {
   "success": true,
-  "generated_at": "2026-07-14T21:21:35Z",
+  "generated_at": "2026-07-15T04:53:46Z",
   "label": "PAPER / LIVE DATA VALIDATION",
   "initial_capital": 5000.0,
   "data_sufficiency": {
@@ -9,11 +9,11 @@
     "note": "Metrics computed from available paper-trading history; values flagged 'estimated' enrich automatically as more trades accumulate."
   },
   "summary": {
-    "total_return_pct": 9.84,
-    "total_return_amount": 492.15,
-    "portfolio_value": 5492.15,
+    "total_return_pct": 9.56,
+    "total_return_amount": 478.15,
+    "portfolio_value": 5478.15,
     "today_return": 0.0,
-    "weekly_return": 465.0,
+    "weekly_return": 0.0,
     "monthly_return": 465.0,
     "total_trades": 3,
     "win_rate_pct": 66.67,
@@ -27,10 +27,10 @@
   "risk": {
     "max_drawdown_pct": 1.15,
     "current_drawdown_pct": 0.0,
-    "sharpe": 8.18,
-    "sortino": 47.2,
-    "calmar": 8.56,
-    "volatility_pct": 37.18,
+    "sharpe": 7.93,
+    "sortino": 45.95,
+    "calmar": 8.31,
+    "volatility_pct": 37.36,
     "beta": -10.33,
     "beta_estimated": true,
     "risk_score": 51.6,
@@ -81,9 +81,9 @@
         "equity": 5465.0
       },
       {
-        "ts": "2026-07-14T21:21:35",
-        "date": "2026-07-14",
-        "equity": 5492.15
+        "ts": "2026-07-15T04:53:46",
+        "date": "2026-07-15",
+        "equity": 5478.15
       }
     ],
     "daily_pnl": [
@@ -133,7 +133,7 @@
         "drawdown_pct": 0.0
       },
       {
-        "date": "2026-07-14",
+        "date": "2026-07-15",
         "drawdown_pct": 0.0
       }
     ],
@@ -383,8 +383,8 @@
   "ai_performance": {
     "prediction_accuracy_pct": 66.67,
     "confidence_accuracy_pct": 66.67,
-    "avg_confidence": 14.04,
-    "avg_opportunity_score": 24.33,
+    "avg_confidence": 13.89,
+    "avg_opportunity_score": 23.88,
     "buy_signal_accuracy_pct": 66.67,
     "sell_signal_accuracy_pct": 100.0,
     "exit_signal_accuracy_pct": 100.0,
@@ -454,36 +454,36 @@
     {
       "benchmark": "NIFTY 50",
       "benchmark_return_pct": -0.9,
-      "portfolio_return_pct": 9.84,
-      "outperformance_pct": 10.74,
-      "alpha": 10.74,
+      "portfolio_return_pct": 9.56,
+      "outperformance_pct": 10.46,
+      "alpha": 10.46,
       "beta": 1.0,
       "estimated": false
     },
     {
       "benchmark": "Bank Nifty",
       "benchmark_return_pct": -0.27,
-      "portfolio_return_pct": 9.84,
-      "outperformance_pct": 10.11,
-      "alpha": 10.11,
+      "portfolio_return_pct": 9.56,
+      "outperformance_pct": 9.83,
+      "alpha": 9.83,
       "beta": 1.0,
       "estimated": false
     },
     {
       "benchmark": "Equal Weight Portfolio",
       "benchmark_return_pct": -0.81,
-      "portfolio_return_pct": 9.84,
-      "outperformance_pct": 10.65,
-      "alpha": 10.57,
+      "portfolio_return_pct": 9.56,
+      "outperformance_pct": 10.37,
+      "alpha": 10.29,
       "beta": 0.9,
       "estimated": false
     },
     {
       "benchmark": "Buy & Hold",
       "benchmark_return_pct": -0.9,
-      "portfolio_return_pct": 9.84,
-      "outperformance_pct": 10.74,
-      "alpha": 10.74,
+      "portfolio_return_pct": 9.56,
+      "outperformance_pct": 10.46,
+      "alpha": 10.46,
       "beta": 1.0,
       "estimated": false
     }

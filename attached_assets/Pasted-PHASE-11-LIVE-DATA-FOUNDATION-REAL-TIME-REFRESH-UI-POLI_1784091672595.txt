@@ -1,0 +1,585 @@
+PHASE 11 — LIVE DATA FOUNDATION, REAL-TIME REFRESH, UI POLISH, AND PAPER-TRADING SAFETY
+
+Continue from the existing NSE Trader codebase. Do not rebuild the app from scratch and do not remove working functionality.
+
+PRIMARY GOAL
+
+Create a production-ready live-data foundation that makes the application update reliably during NSE trading hours while remaining strictly paper-trading and research-only.
+
+This phase must not place, modify, or cancel any real broker order.
+
+==================================================
+1. NON-NEGOTIABLE SAFETY RULES
+==================================================
+
+1. Preserve paper-trading-only behavior.
+2. Do not enable real-money execution.
+3. Do not create automatic broker order placement.
+4. Broker integration may read account, holdings, positions, margins, quotes, and order status only.
+5. Any execution-related UI must remain disabled and clearly labelled:
+   “PAPER TRADING ONLY — NO LIVE ORDERS”
+6. Never fabricate live data.
+7. If live data is unavailable, display the exact fallback source, age, and limitation.
+8. No recommendation may become BUY or STRONG BUY when the required live-data fields are stale or unavailable.
+9. Preserve all existing no-lookahead research protections.
+10. Existing working routes and reports must continue functioning.
+
+==================================================
+2. LIVE DATA ARCHITECTURE
+==================================================
+
+Implement a provider-independent market-data service.
+
+Create a common interface such as:
+
+MarketDataProvider
+- connect()
+- disconnect()
+- subscribe(symbols)
+- unsubscribe(symbols)
+- getQuote(symbol)
+- getQuotes(symbols)
+- getHistoricalCandles(symbol, interval, from, to)
+- getMarketStatus()
+- healthCheck()
+
+Support the currently configured provider first.
+
+Design adapters so additional providers can later be added without changing the strategy engine.
+
+Required normalized quote fields:
+
+- symbol
+- exchange
+- lastPrice
+- open
+- high
+- low
+- previousClose
+- change
+- changePercent
+- volume
+- bid
+- ask
+- bidQuantity
+- askQuantity
+- lastTradeTime
+- providerTimestamp
+- receivedTimestamp
+- dataSource
+- isLive
+- isStale
+- staleSeconds
+- errorCode
+- errorMessage
+
+Do not silently replace missing fields with zero.
+
+Use null for unavailable values and show “Unavailable” in the UI.
+
+==================================================
+3. REAL-TIME STREAMING
+==================================================
+
+Implement a WebSocket or server-sent-events layer between the backend and frontend.
+
+Requirements:
+
+- Maintain one shared backend connection to the market-data provider.
+- Avoid opening a separate external provider connection for every browser tab.
+- Broadcast normalized market updates to connected clients.
+- Subscribe only to required symbols.
+- Reconnect automatically with exponential backoff.
+- Add heartbeat monitoring.
+- Detect stale streams.
+- Prevent duplicate subscriptions.
+- Restore subscriptions after reconnect.
+- Store the last valid quote per symbol.
+- Log connection and reconnection events.
+- Do not crash the application when the provider disconnects.
+
+Suggested event types:
+
+- market.quote
+- market.status
+- market.health
+- scan.started
+- scan.progress
+- scan.completed
+- scan.failed
+- portfolio.updated
+- recommendation.updated
+- notification.created
+
+==================================================
+4. MARKET-HOURS-AWARE BEHAVIOUR
+==================================================
+
+Use Asia/Kolkata timezone consistently.
+
+Implement states:
+
+- PRE_OPEN
+- OPEN
+- CLOSED
+- WEEKEND
+- HOLIDAY
+- PROVIDER_UNAVAILABLE
+- DELAYED
+
+Do not hardcode only Monday–Friday logic.
+
+Create a configurable market calendar service so NSE holidays can be updated.
+
+During OPEN:
+- Enable streaming updates.
+- Show live-data freshness.
+- Refresh derived indicators at a controlled interval.
+- Do not continuously rerun the complete strategy engine for every tick.
+
+Outside market hours:
+- Stop unnecessary high-frequency polling.
+- Display the last market close.
+- Display the timestamp of the last valid data.
+- Permit manual research scans using cached or historical data.
+- Clearly label such scans as non-live.
+
+==================================================
+5. SCAN ORCHESTRATION
+==================================================
+
+Separate lightweight quote updates from full scans.
+
+Implement:
+
+A. Lightweight refresh
+- Updates quotes, P&L, market status, and data health.
+- Does not generate duplicate trades.
+- Does not rerun expensive historical analysis.
+
+B. Full strategy scan
+- User-triggered or scheduled at a configurable interval.
+- Runs with a distributed or database lock.
+- Prevents two scans from running simultaneously.
+- Generates a unique scan ID.
+- Saves start time, end time, status, source, data freshness, and errors.
+- Emits progress updates to the frontend.
+
+C. Post-scan processing
+- Update recommendations.
+- Update portfolio plan.
+- Create notifications.
+- Save a diagnostic snapshot.
+- Never execute a broker order.
+
+Add idempotency so refreshing the page or retrying a request does not create duplicate scan results or paper trades.
+
+==================================================
+6. LIVE DATA HEALTH PAGE
+==================================================
+
+Upgrade the existing Live Data Health page.
+
+Show:
+
+- Overall status
+- Provider name
+- Connection status
+- Market status
+- WebSocket status
+- Last heartbeat
+- Last successful quote
+- Symbols subscribed
+- Symbols healthy
+- Symbols stale
+- Symbols failed
+- Average latency
+- Maximum latency
+- Reconnection count
+- API error count
+- Rate-limit status
+- Cache status
+- Database status
+- Background-worker status
+- Last completed scan
+- Current scan status
+
+Add a per-symbol table:
+
+- Symbol
+- Last price
+- Provider timestamp
+- Received timestamp
+- Age
+- Source
+- Live / delayed / fallback
+- Status
+- Error
+
+Add filters:
+
+- All
+- Healthy
+- Stale
+- Failed
+- Fallback
+
+Add buttons:
+
+- Refresh health
+- Reconnect stream
+- Retry failed symbols
+- Export JSON
+- Export CSV
+- Download complete Phase 11 diagnostic bundle
+
+The reconnect and retry buttons must not place or affect trades.
+
+==================================================
+7. DATA FRESHNESS GATES
+==================================================
+
+Create centralized freshness rules.
+
+Example configurable defaults:
+
+- Live quote healthy: age <= 15 seconds during market hours
+- Delayed: age > 15 seconds and <= 60 seconds
+- Stale: age > 60 seconds
+- Historical or fallback: never treated as live
+
+Recommendations must obey:
+
+- STRONG BUY and BUY require healthy live price and volume.
+- WATCH may be shown with delayed data but must display a warning.
+- Stale or fallback data must result in NO TRADE, WATCH, or DATA UNAVAILABLE according to current safety logic.
+- Existing holdings may still receive EXIT warnings if risk rules can be evaluated safely, but the reason must identify missing or stale data.
+- Never show fake confidence precision when evidence is missing.
+
+Add a “Data Qualification” section to every expanded trade explanation showing:
+
+- Required fields
+- Available fields
+- Missing fields
+- Freshness
+- Source
+- Gate outcome
+
+==================================================
+8. UI IMPROVEMENTS FROM PHASE 10 REVIEW
+==================================================
+
+Fix the following across the application:
+
+A. AI Copilot floating button
+- Do not cover tables, charts, or important controls.
+- Keep it collapsed by default.
+- Allow the user to close or minimize it.
+- On mobile, dock it above the bottom navigation area.
+- Auto-collapse while scrolling.
+- Preserve its last open or closed state locally.
+
+B. Table readability
+- Increase row padding slightly.
+- Improve wrapping for long explanations.
+- Keep headers visible while scrolling where practical.
+- Add horizontal scrolling on mobile rather than cutting columns.
+
+C. Empty strategy rows
+- Where a strategy has no trades, show “No trades yet.”
+- Do not fill performance cells with misleading zeros.
+
+D. Risk labels
+Show a clear status beside applicable metrics:
+- GOOD
+- MEDIUM
+- HIGH
+- INSUFFICIENT DATA
+
+E. Beta handling
+- Do not display unrealistic beta values such as -12.4 as a normal result.
+- Require an adequate number of observations.
+- When evidence is insufficient, display:
+  “N/A — insufficient return history”
+- Keep the raw calculation only in diagnostic output.
+
+F. Model version
+Replace plain “v0” labels with a meaningful field such as:
+“Research Engine v1.0”
+Use one centralized version constant.
+
+G. Dashboard market-status widget
+Add:
+- NIFTY 50
+- BANK NIFTY
+- INDIA VIX
+- Market Open / Closed / Delayed
+- Last update
+- Next scheduled scan countdown
+- Data provider status
+
+H. Benchmark indicators
+Show:
+- Outperformed
+- Underperformed
+- Insufficient data
+
+Do not use only color to communicate status.
+
+==================================================
+9. PERFORMANCE ANALYTICS VALIDATION
+==================================================
+
+The existing Performance Analytics page currently has very few closed trades.
+
+Ensure:
+
+- All estimated metrics are clearly labelled.
+- Sharpe, Sortino, Calmar, volatility, beta, and learning scores require minimum sample thresholds.
+- Ratios derived from fewer than the configured minimum observations show:
+  “Estimated — limited evidence”
+  or
+  “N/A — insufficient history”
+- Do not present extreme values as reliable.
+- Add the exact sample count beside every estimated metric.
+- Benchmark periods must match the portfolio evaluation period.
+- Do not compare a short portfolio period against an unrelated benchmark period.
+- Validate that total return amount, total return percentage, equity curve, monthly return, and trade-level P&L reconcile.
+
+Add automated reconciliation checks and display a warning if totals differ beyond a small tolerance.
+
+==================================================
+10. OBSERVABILITY AND RELIABILITY
+==================================================
+
+Add structured logs with:
+
+- timestamp
+- level
+- service
+- event
+- requestId
+- scanId
+- symbol
+- provider
+- latencyMs
+- status
+- errorCode
+- safe error message
+
+Do not log:
+- access tokens
+- refresh tokens
+- API secrets
+- authorization headers
+- complete broker responses containing private data
+
+Add:
+
+- global API error handler
+- frontend error boundary
+- failed-job retry policy
+- stale-running-job reconciliation
+- graceful shutdown
+- database connection checks
+- health endpoints:
+  /health/live
+  /health/ready
+  /health/details
+
+The detailed endpoint must exclude secrets.
+
+==================================================
+11. RATE LIMITING, CACHE, AND RESOURCE CONTROL
+==================================================
+
+Implement:
+
+- Quote cache with TTL
+- Historical-candle cache
+- Request deduplication
+- Provider request throttling
+- Retry only for retryable errors
+- Exponential backoff with jitter
+- Maximum retry limits
+- Circuit breaker after repeated provider failures
+- Background cleanup of expired cache entries
+- Protection against unlimited in-memory growth
+
+The system must run reliably on limited Replit resources.
+
+Do not start multiple uncontrolled workers.
+
+==================================================
+12. SECURITY HARDENING
+==================================================
+
+Verify:
+
+- Secrets are only read from environment variables or Replit Secrets.
+- No secret is returned to the frontend.
+- No secret is printed in logs.
+- All state-changing API routes validate input.
+- Add reasonable request-size limits.
+- Add rate limiting to scan and reconnect endpoints.
+- Prevent arbitrary symbol injection.
+- Permit only valid NSE symbols from the configured universe or validated instrument list.
+- Escape user-visible errors.
+- Do not expose stack traces in production responses.
+
+==================================================
+13. NOTIFICATIONS
+==================================================
+
+Update Notification Center to support:
+
+- Live data disconnected
+- Live data restored
+- Symbol stale
+- Symbol recovered
+- Scan started
+- Scan completed
+- Scan failed
+- Recommendation changed
+- Holding exit warning
+- Risk limit warning
+
+Prevent repeated duplicate alerts.
+
+Use deduplication keys and cooldown periods.
+
+Allow severity filters:
+
+- INFO
+- WARNING
+- CRITICAL
+
+Do not send external email, SMS, WhatsApp, or push notifications in this phase unless such integrations already exist and are safely disabled by default.
+
+==================================================
+14. DIAGNOSTIC EXPORT FOR REVIEW
+==================================================
+
+Create a single downloadable file:
+
+phase11_diagnostic_bundle.json
+
+It must include:
+
+- generatedAt
+- appVersion
+- environment
+- paperTradingOnly: true
+- liveExecutionEnabled: false
+- provider configuration summary without secrets
+- market status
+- connection health
+- WebSocket health
+- subscription summary
+- per-symbol freshness
+- cache health
+- database health
+- worker health
+- most recent scan metadata
+- scan reconciliation results
+- recommendation counts
+- data-quality gate counts
+- portfolio summary
+- performance reconciliation
+- estimated-metric warnings
+- notification summary
+- recent sanitized errors
+- automated-test results
+- acceptance-check results
+
+Also create:
+
+phase11_summary.csv
+
+Include one row per symbol and relevant system-level summary rows.
+
+Add download buttons on the Live Data Health page.
+
+==================================================
+15. AUTOMATED TESTS
+==================================================
+
+Add tests for:
+
+1. Quote normalization
+2. Missing fields remain null
+3. Fresh, delayed, stale, and fallback classification
+4. BUY blocked on stale data
+5. Fallback data cannot produce BUY
+6. Reconnection restores subscriptions
+7. Duplicate subscriptions are prevented
+8. Duplicate scans are prevented
+9. Duplicate paper trades are prevented
+10. Market-hours state handling
+11. Weekend handling
+12. Provider failure handling
+13. Rate-limit handling
+14. Metric reconciliation
+15. Beta suppression with insufficient evidence
+16. AI Copilot does not block mobile controls
+17. Diagnostic bundle contains no secrets
+18. Existing research and walk-forward pages still load
+19. Existing paper-trading workflow still functions
+20. No live-order API is invoked
+
+==================================================
+16. ACCEPTANCE CRITERIA
+==================================================
+
+Phase 11 is complete only when:
+
+- The app builds without errors.
+- Existing pages continue working.
+- Live market updates can stream through the shared backend connection.
+- Reconnection works.
+- Market status is correct for Asia/Kolkata.
+- Live-data freshness is visible.
+- Stale data cannot generate unsafe BUY recommendations.
+- Full scans are locked and idempotent.
+- Performance metrics clearly identify insufficient evidence.
+- Unrealistic beta is suppressed in the UI.
+- The AI Copilot button does not cover content.
+- Diagnostic JSON and CSV exports download successfully.
+- Automated tests pass.
+- No secrets appear in frontend responses, logs, or diagnostic exports.
+- No real broker order can be placed.
+
+==================================================
+17. IMPLEMENTATION PROCESS
+==================================================
+
+Before changing code:
+
+1. Inspect the existing architecture.
+2. Identify the current market-data provider and scan flow.
+3. Identify existing WebSocket, polling, cache, worker, and health-check code.
+4. Reuse working components.
+5. Create a concise implementation plan.
+6. Implement incrementally.
+7. Run tests after each major change.
+8. Fix all type, lint, build, and runtime errors.
+9. Do not stop after only creating a plan.
+10. Complete the implementation and provide a final completion report.
+
+FINAL COMPLETION REPORT
+
+At completion, provide:
+
+- Files changed
+- Database changes
+- APIs added or changed
+- Live-data provider used
+- Streaming method used
+- Freshness thresholds
+- Safety gates added
+- Tests run and results
+- Known limitations
+- Exact pages to inspect
+- Exact buttons to test
+- Paths of phase11_diagnostic_bundle.json and phase11_summary.csv
+- Confirmation that live execution remains disabled

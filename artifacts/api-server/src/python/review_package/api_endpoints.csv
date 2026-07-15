@@ -121,3 +121,14 @@ Endpoint,Method,Description,Status
 /api/analytics/export,GET,Download analytics export (kind=json|csv|snapshot),Active
 /api/review-package/generate,POST,Build the Phase Review Package ZIP,Active
 /api/review-package/download,GET,Download the generated review package ZIP,Active
+/api/risk/dashboard,GET,See route implementation in trading.ts,Active
+/api/risk/assess,POST,See route implementation in trading.ts,Active
+/api/risk/position-size,POST,See route implementation in trading.ts,Active
+/api/risk/analytics,GET,See route implementation in trading.ts,Active
+/api/risk/approval-cards,GET,See route implementation in trading.ts,Active
+/api/risk/alerts,GET,See route implementation in trading.ts,Active
+/api/risk/kill-switch,GET,See route implementation in trading.ts,Active
+/api/risk/kill-switch/trigger,POST,See route implementation in trading.ts,Active
+/api/risk/kill-switch/resume,POST,See route implementation in trading.ts,Active
+/api/risk/config,GET,See route implementation in trading.ts,Active
+/api/risk/config,POST,See route implementation in trading.ts,Active
