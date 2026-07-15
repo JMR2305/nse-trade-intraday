@@ -9,11 +9,11 @@ import { spawn } from "child_process";
 import path from "path";
 
 const router: IRouter = Router();
-const PYTHON_DIR = path.join(process.cwd(), "src", "python");
+import { PYTHON_DIR, PYTHON_BIN } from "../lib/python-env";
 
 function runPython(args: string[], timeoutMs = 30_000): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    const proc = spawn("python3", [path.join(PYTHON_DIR, "main.py"), ...args], {
+    const proc = spawn(PYTHON_BIN, [path.join(PYTHON_DIR, "main.py"), ...args], {
       cwd: PYTHON_DIR,
     });
     let stdout = "";

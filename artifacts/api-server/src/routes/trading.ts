@@ -6,8 +6,7 @@ import { eventBus } from "../lib/events";
 
 const router: IRouter = Router();
 
-const PYTHON_DIR = path.join(process.cwd(), "src", "python");
-const PYTHON_BIN = "python3";
+import { PYTHON_DIR, PYTHON_BIN } from "../lib/python-env";
 
 function runPython(args: string[]): Promise<unknown> {
   return new Promise((resolve, reject) => {
