@@ -162,5 +162,46 @@
     },
     "decision_summary": "0 STRONG BUY, 0 BUY, 4 WATCH, 44 IGNORE across 50 stocks; best INDUSINDBK (43.9); avg score 23.6",
     "label": "PAPER / RESEARCH ONLY"
+  },
+  {
+    "audit_id": "a15_ec7503842451",
+    "scan_id": "ec7503842451",
+    "timestamp": "2026-07-15T14:48:38Z",
+    "recorded_at": "2026-07-15T14:50:17Z",
+    "duration_s": 38.83,
+    "stocks_processed": 50,
+    "stocks_valid": 48,
+    "strategies_executed": [
+      "Breakout Hunter",
+      "EMA Cross",
+      "MACD Cross",
+      "Mean Reversion",
+      "Trend Rider"
+    ],
+    "signals_generated": {
+      "strong_buy": 0,
+      "buy": 0,
+      "watch": 4,
+      "ignore": 44
+    },
+    "warnings": [],
+    "warning_count": 0,
+    "errors": [
+      "LTIM: Data fetch failed: No data returned for LTIM.NS",
+      "TATAMOTORS: Data fetch failed: No data returned for TATAMOTORS.NS"
+    ],
+    "error_count": 2,
+    "learning_events": [
+      "Adaptive learning active (bounded, human-governed)"
+    ],
+    "risk_checks": {
+      "quality_gates_applied": true,
+      "rr_gate_applied": true,
+      "volume_gate_applied": true,
+      "stale_cap_applied": true,
+      "gate_failures": 0
+    },
+    "decision_summary": "0 STRONG BUY, 0 BUY, 4 WATCH, 44 IGNORE across 50 stocks; best INDUSINDBK (43.9); avg score 23.6",
+    "label": "PAPER / RESEARCH ONLY"
   }
 ]

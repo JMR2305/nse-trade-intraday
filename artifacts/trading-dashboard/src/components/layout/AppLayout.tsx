@@ -101,6 +101,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     {
       label: "System",
       items: [
+        { href: "/validation", label: "Paper Trading Validation", icon: ShieldCheck },
         { href: "/risk", label: "Risk Management", icon: ShieldCheck },
         { href: "/settings", label: "Settings", icon: Settings2 },
       ],

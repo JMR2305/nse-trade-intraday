@@ -1452,6 +1452,70 @@ def main():
         elif command == "phase15_readiness":
             from phase15_diagnostics import readiness_report
             result = readiness_report()
+        elif command == "phase16_overview":
+            from phase16_validation import validation_overview
+            result = validation_overview()
+        elif command == "phase16_scorecard":
+            from phase16_validation import strategy_scorecard
+            result = strategy_scorecard()
+        elif command == "phase16_confidence":
+            from phase16_validation import confidence_validation
+            result = confidence_validation()
+        elif command == "phase16_regimes":
+            from phase16_validation import regime_validation
+            result = regime_validation()
+        elif command == "phase16_sectors":
+            from phase16_validation import sector_validation
+            result = sector_validation()
+        elif command == "phase16_ai":
+            from phase16_validation import ai_decision_validation
+            result = ai_decision_validation()
+        elif command == "phase16_trades":
+            from phase16_validation import trade_review
+            result = trade_review()
+        elif command == "phase16_weekly":
+            from phase16_validation import weekly_report
+            result = {"success": True, **weekly_report()}
+        elif command == "phase16_monthly":
+            from phase16_validation import monthly_report
+            result = {"success": True, **monthly_report()}
+        elif command == "phase16_recommendations":
+            from phase16_validation import improvement_recommendations
+            result = improvement_recommendations()
+        elif command == "phase16_failures":
+            from phase16_validation import failure_analysis
+            result = failure_analysis()
+        elif command == "phase16_successes":
+            from phase16_validation import success_analysis
+            result = success_analysis()
+        elif command == "phase16_timeline":
+            from phase16_validation import validation_timeline
+            result = validation_timeline()
+        elif command == "phase16_bugs":
+            from phase16_validation import bug_detection
+            result = bug_detection()
+        elif command == "phase16_all":
+            import phase16_validation as p16
+            result = {
+                "success": True,
+                "overview": p16.validation_overview(),
+                "scorecard": p16.strategy_scorecard(),
+                "confidence": p16.confidence_validation(),
+                "regimes": p16.regime_validation(),
+                "sectors": p16.sector_validation(),
+                "ai": p16.ai_decision_validation(),
+                "trades": p16.trade_review(),
+                "weekly": {"success": True, **p16.weekly_report()},
+                "monthly": {"success": True, **p16.monthly_report()},
+                "recommendations": p16.improvement_recommendations(),
+                "failures": p16.failure_analysis(),
+                "successes": p16.success_analysis(),
+                "timeline": p16.validation_timeline(),
+                "bugs": p16.bug_detection(),
+            }
+        elif command == "phase16_export":
+            from phase16_exports import build_exports
+            result = build_exports()
         else:
             error_msg = f"Unknown command: {command}"
 

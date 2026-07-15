@@ -10,3 +10,4 @@
 - [Phase 14 learning governance](phase14-learning-governance.md) — safety state (freeze/IGNORE-lock) must be enforced at decision time from authoritative state, never from cached adjustment artifacts.
 - [Phase 15 canonical context](phase15-canonical-context.md) — all cross-page values incl. regime derive from the phase7 snapshot only; risk gate models post-trade exposure with intended qty.
 - [Review package generator](review-package-generator.md) — Settings builds Phase{N}_Review_Package.zip; bump PHASE in review_package.py + download route together; honesty rules: no placeholders.
+- [Phase 16 validation dashboard](phase16-validation.md) — ai_decisions_cache uses `decision` field; aggregate *_all CLI command beats 14 parallel python spawns; match verdict enums UI↔backend.

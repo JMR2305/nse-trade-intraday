@@ -1,5 +1,5 @@
 {
- "active_version": "cal_v10",
+ "active_version": "cal_v11",
  "calibrators": [
   {
    "version": "cal_v1",
@@ -247,6 +247,33 @@
   {
    "version": "cal_v10",
    "created_at": "2026-07-15T14:43:50.926476+00:00",
+   "method": "identity",
+   "calibrator": {
+    "method": "identity"
+   },
+   "train_samples": 0,
+   "test_samples": 8,
+   "data_cutoff": "2026-07-09T20:29:36.205327",
+   "metrics_before": {
+    "brier": 0.2437,
+    "ece": 0.4695,
+    "log_loss": 0.6729,
+    "n": 8
+   },
+   "metrics_after": {
+    "brier": 0.2437,
+    "ece": 0.4695,
+    "log_loss": 0.6729,
+    "n": 8
+   },
+   "status": "ARCHIVED",
+   "reject_reason": null,
+   "note": "identity calibration \u2014 insufficient evidence (8 < 30)",
+   "warning": "Only 8 completed trades \u2014 calibration unreliable below 100."
+  },
+  {
+   "version": "cal_v11",
+   "created_at": "2026-07-15T14:50:18.209425+00:00",
    "method": "identity",
    "calibrator": {
     "method": "identity"

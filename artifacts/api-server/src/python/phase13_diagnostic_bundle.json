@@ -1,14 +1,14 @@
 {
   "bundle_version": 1,
   "phase": 13,
-  "generated_at": "2026-07-15T14:43:50Z",
+  "generated_at": "2026-07-15T14:50:18Z",
   "engine_version": "Research Engine v1.0 \u00b7 Phase 13",
   "mode": "PAPER_TRADING_RESEARCH_ONLY",
   "label": "PAPER / RESEARCH ONLY",
   "market_status": {
     "state": "CLOSED",
     "is_open": false,
-    "now_ist": "2026-07-15T20:13:50.864982+05:30",
+    "now_ist": "2026-07-15T20:20:18.143885+05:30",
     "timezone": "Asia/Kolkata",
     "session": {
       "pre_open": "09:00",
@@ -20,7 +20,7 @@
     "next_transition": {
       "event": "market_open",
       "at_ist": "2026-07-16T09:15:00+05:30",
-      "seconds_until": 46869
+      "seconds_until": 46481
     },
     "upcoming_holidays": [
       {
@@ -43,8 +43,8 @@
     "provider_id": "yfinance",
     "circuit_breaker": "CLOSED",
     "consecutive_failures": 0,
-    "last_success_ts": "2026-07-15T14:37:44Z",
-    "total_fetches": 66,
+    "last_success_ts": "2026-07-15T14:47:47Z",
+    "total_fetches": 69,
     "total_errors": 0,
     "cached_symbols": 3,
     "quote_ttl_s": 20.0,
@@ -226,8 +226,8 @@
     {
       "file": "phase13_cache.json",
       "exists": true,
-      "size_bytes": 147520,
-      "modified": "2026-07-15T14:43:50Z"
+      "size_bytes": 147519,
+      "modified": "2026-07-15T14:50:18Z"
     },
     {
       "file": "phase13_proposals.json",
@@ -239,25 +239,25 @@
       "file": "phase13_audit_report.json",
       "exists": true,
       "size_bytes": 3146,
-      "modified": "2026-07-15T14:43:50Z"
+      "modified": "2026-07-15T14:50:18Z"
     },
     {
       "file": "phase13_diagnostic_bundle.json",
       "exists": true,
       "size_bytes": 6532,
-      "modified": "2026-07-15T14:38:18Z"
+      "modified": "2026-07-15T14:43:50Z"
     },
     {
       "file": "phase13_summary.csv",
       "exists": true,
       "size_bytes": 2283,
-      "modified": "2026-07-15T14:38:18Z"
+      "modified": "2026-07-15T14:43:50Z"
     },
     {
       "file": "phase7_scan_cache.json",
       "exists": true,
       "size_bytes": 65577,
-      "modified": "2026-07-15T14:34:09Z"
+      "modified": "2026-07-15T14:49:17Z"
     },
     {
       "file": "market_context_cache.json",

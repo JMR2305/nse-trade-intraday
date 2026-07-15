@@ -6,6 +6,7 @@ import phase12Router from "./phase12";
 import phase13Router from "./phase13";
 import phase14Router from "./phase14";
 import phase15Router from "./phase15";
+import phase16Router from "./phase16";
 
 const router: IRouter = Router();
 
@@ -15,6 +16,7 @@ router.use(phase12Router);
 router.use(phase13Router);
 router.use(phase14Router);
 router.use(phase15Router);
+router.use(phase16Router);
 router.use(tradingRouter);
 
 export default router;

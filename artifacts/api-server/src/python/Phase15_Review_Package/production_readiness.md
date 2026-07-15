@@ -1,11 +1,11 @@
 # Phase 15 Production Readiness Report
 
-Generated 2026-07-15 14:43 UTC — PAPER TRADING / RESEARCH ONLY.
+Generated 2026-07-15 14:50 UTC — PAPER TRADING / RESEARCH ONLY.
 
 ## Runtime health
 - API server and dashboard were running at generation time (this package was produced through them).
 - System health: OK · memory 94.7 MB ·
-  context build latency 1.3 ms (see diagnostics.json).
+  context build latency 1.4 ms (see diagnostics.json).
 
 ## Build status
 - TypeScript typechecks clean for api-server (phase15 routes) and trading-dashboard at package time.
@@ -40,13 +40,13 @@ Generated 2026-07-15 14:43 UTC — PAPER TRADING / RESEARCH ONLY.
   1 warn, 0 fail
 
 ## Readiness checklist
-- **unified_scan_context** — PASS: Canonical scan b44bbd5dc575 — single scan_id/snapshot_ts: True
+- **unified_scan_context** — PASS: Canonical scan ec7503842451 — single scan_id/snapshot_ts: True
 - **cross_page_consistency** — WARN: 72 checks, 49 mismatches
-- **no_stale_data** — PASS: Scan age 10m
+- **no_stale_data** — PASS: Scan age 1m
 - **data_quality_engine** — PASS: Avg score 91.2; DO_NOT_TRADE symbols: 2
 - **risk_engine** — PASS: Gate on INDUSINDBK: CLEARED (10/10 checks passed)
 - **paper_trading** — PASS: Portfolio value ₹5465.00, 1 positions, 3 completed round trips
 - **ai_explainability** — PASS: 12 explanation factors for INDUSINDBK
 - **ai_copilot** — PASS: Copilot answered from cached data only
 - **learning_module** — PASS: Learning active; no auto-promotion; human approval mandatory
-- **audit_logging** — PASS: Audit record for scan b44bbd5dc575
+- **audit_logging** — PASS: Audit record for scan ec7503842451
