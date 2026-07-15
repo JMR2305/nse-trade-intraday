@@ -1266,6 +1266,47 @@ def main():
         elif command == "phase12_bundle":
             from phase12_diagnostics import build_phase12_bundle
             result = {"success": True, "bundle": build_phase12_bundle()}
+
+        # ── Phase 13 — Institutional AI & Strategy Evolution ──────────────────
+        elif command == "phase13_analysis":
+            from phase13_intelligence import run_phase13_analysis
+            from paper_trader import _load_state as _p13_state
+            _p13_cash = _p13_state().get("cash", 5000.0)
+            _p13_syms = args[1].split(",") if len(args) > 1 and args[1] else None
+            _p13_force = len(args) > 2 and args[2] == "force"
+            result = {"success": True,
+                      **run_phase13_analysis(symbols=_p13_syms, force=_p13_force,
+                                             available_cash=_p13_cash)}
+        elif command == "phase13_regime":
+            from phase13_intelligence import detect_market_regime
+            import os as _os13; import json as _j13
+            _mc13 = _j13.load(open(_os13.path.join(_os13.path.dirname(__file__), "market_context_cache.json"))) if _os13.path.exists(_os13.path.join(_os13.path.dirname(__file__), "market_context_cache.json")) else {}
+            result = {"success": True, **detect_market_regime(_mc13)}
+        elif command == "phase13_sector_rotation":
+            from phase13_intelligence import run_phase13_analysis
+            from paper_trader import _load_state as _p13_sr
+            _d = run_phase13_analysis(available_cash=_p13_sr().get("cash", 5000.0))
+            result = {"success": True, "sector_rotation": _d.get("sector_rotation", []),
+                      "regime": _d.get("regime"), "generated_at": _d.get("generated_at"),
+                      "label": "PAPER / RESEARCH ONLY"}
+        elif command == "phase13_bundle":
+            from phase13_diagnostics import build_phase13_bundle
+            result = {"success": True, "bundle": build_phase13_bundle()}
+        elif command == "phase13_evolution":
+            from phase13_strategy_evolution import generate_evolution_proposals
+            _p13_force_ev = len(args) > 1 and args[1] == "force"
+            result = generate_evolution_proposals(force=_p13_force_ev)
+        elif command == "phase13_evolution_list":
+            from phase13_strategy_evolution import list_proposals
+            _ev_status = args[1] if len(args) > 1 else None
+            result = list_proposals(status=_ev_status)
+        elif command == "phase13_evolution_review" and len(args) >= 3:
+            from phase13_strategy_evolution import review_proposal
+            _notes = args[3] if len(args) > 3 else ""
+            result = review_proposal(args[1], args[2], _notes)
+        elif command == "phase13_audit":
+            from phase13_audit import build_audit_report
+            result = {"success": True, "report": build_audit_report()}
         else:
             error_msg = f"Unknown command: {command}"
 

@@ -1,0 +1,63 @@
+key,value
+generated_at,2026-07-15T11:36:11Z
+engine_version,Research Engine v1.0 · Phase 13
+mode,PAPER_TRADING_RESEARCH_ONLY
+market_status.state,CLOSED
+market_status.is_open,False
+market_status.now_ist,2026-07-15T17:06:10.998232+05:30
+market_status.timezone,Asia/Kolkata
+market_status.session.pre_open,09:00
+market_status.session.open,09:15
+market_status.session.close,15:30
+market_status.session.post_close,16:00
+market_status.holiday_today,
+market_status.next_transition.event,market_open
+market_status.next_transition.at_ist,2026-07-16T09:15:00+05:30
+market_status.next_transition.seconds_until,58129
+market_status.upcoming_holidays,[3 items]
+market_status.label,PAPER / RESEARCH ONLY
+regime.regime,RANGE_BOUND
+regime.confidence,100.0
+regime.all_scores.TRENDING_UP,15.0
+regime.all_scores.TRENDING_DOWN,15.0
+regime.all_scores.VOLATILE,20.0
+regime.all_scores.RANGE_BOUND,100.0
+regime.all_scores.CRISIS,0.0
+regime.prev_regime,RANGE_BOUND
+regime.regime_duration_bars,2
+regime.regime_changed,False
+regime.score_multiplier,0.95
+regime.eligible_strategies,[1 items]
+regime.inputs.vix,18.0
+regime.inputs.nifty_trend,SIDEWAYS
+regime.inputs.market_score,50.0
+regime.inputs.breadth,50.0
+regime.reasoning,"VIX=18.0, trend=SIDEWAYS, mkt_score=50, breadth=50"
+factor_weights.trend,0.15
+factor_weights.momentum,0.12
+factor_weights.volatility,0.06
+factor_weights.volume,0.07
+factor_weights.relative_strength,0.12
+factor_weights.market_regime,0.1
+factor_weights.sector_strength,0.07
+factor_weights.liquidity,0.05
+factor_weights.hist_expectancy,0.08
+factor_weights.calibration_quality,0.02
+factor_weights.data_freshness,0.02
+factor_weights.historical_similarity,0.06
+factor_weights.risk_reward,0.05
+factor_weights.portfolio_context,0.03
+action_summary.AVOID,48
+action_summary.WATCH,2
+evidence_distribution.insufficient,50
+audit_summary.trade_count,3
+audit_summary.interpretation,Insufficient evidence (3 trades). Minimum 20 OOS trades needed for reliable comparison.
+audit_summary.p13_expectancy,146.59
+audit_summary.p12_expectancy,146.59
+scan_staleness.stale,False
+scan_staleness.age_minutes,51.0
+sample_counts.symbols_analyzed,50
+sample_counts.completed_trades,3
+self_tests.results,[13 items]
+self_tests.passed,13
+self_tests.failed,0

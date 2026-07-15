@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { apiJson } from "@/lib/api";
 import {
   useGetMarketScan,
   getGetMarketScanQueryKey,
@@ -32,6 +34,44 @@ const STRENGTH_COLOR: Record<string, string> = {
   NEUTRAL: "text-yellow-400",
   WEAK:    "text-red-400",
 };
+
+// ── Phase 13 sector rotation strip ────────────────────────────────────────────
+
+const MOM_COLOR: Record<string, string> = {
+  STRONG: "text-emerald-400", OUTPERFORMING: "text-green-400", NEUTRAL: "text-slate-400",
+  UNDERPERFORMING: "text-orange-400", WEAK: "text-red-400",
+};
+
+function Phase13SectorStrip() {
+  const { data } = useQuery({
+    queryKey: ["/api/phase13/sector-rotation"],
+    queryFn: () => apiJson<any>("/phase13/sector-rotation"),
+    staleTime: 120_000,
+  });
+  const rows = (data?.sector_rotation ?? []).slice(0, 6) as Array<{sector: string; rank: number|null; avg_score: number|null; vs_median: number|null; momentum: string; stock_count: number}>;
+  if (!rows.length) return null;
+  return (
+    <Card className="bg-card/40 border-border/40 backdrop-blur">
+      <CardContent className="p-3">
+        <div className="flex items-center gap-2 mb-2">
+          <Brain className="h-3.5 w-3.5 text-purple-400" />
+          <span className="text-[11px] font-mono text-muted-foreground uppercase tracking-wider">Phase 13 · Sector Rotation</span>
+          <span className="text-[10px] font-mono text-zinc-600">· {data?.regime?.regime?.replace("_"," ") ?? "—"} regime</span>
+          <a href="/phase13?tab=sectors" className="ml-auto text-[10px] font-mono text-muted-foreground hover:text-foreground underline">Full view →</a>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {rows.map(r => (
+            <div key={r.sector} className="rounded border border-border/30 px-2 py-1 text-[10px] font-mono">
+              <span className="font-bold">{r.rank}. {r.sector}</span>
+              {r.avg_score != null && <span className="text-muted-foreground ml-1">{r.avg_score.toFixed(0)}</span>}
+              {r.momentum && <span className={`ml-1 ${MOM_COLOR[r.momentum] ?? ""}`}>[{r.momentum}]</span>}
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -269,6 +309,9 @@ export default function MarketScanner() {
           </button>
         </div>
       </div>
+
+      {/* Phase 13 sector rotation strip */}
+      <Phase13SectorStrip />
 
       {/* Dashboard summary */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">

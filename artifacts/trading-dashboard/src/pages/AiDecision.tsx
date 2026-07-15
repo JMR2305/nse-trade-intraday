@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { apiJson } from "@/lib/api";
 import {
   useGetOpportunityScan,
   useGetAiDecisions,
@@ -308,6 +310,37 @@ function RulesCard() {
   );
 }
 
+// ── Phase 13 regime banner ─────────────────────────────────────────────────────
+
+const REGIME_P13_STYLE: Record<string, string> = {
+  TRENDING_UP:   "text-emerald-400 bg-emerald-500/8 border-emerald-500/25",
+  RANGE_BOUND:   "text-blue-400 bg-blue-500/8 border-blue-500/25",
+  TRENDING_DOWN: "text-orange-400 bg-orange-500/8 border-orange-500/25",
+  VOLATILE:      "text-yellow-400 bg-yellow-500/8 border-yellow-500/25",
+  CRISIS:        "text-red-400 bg-red-500/8 border-red-500/25",
+};
+
+function Phase13RegimeBanner() {
+  const { data } = useQuery({
+    queryKey: ["/api/phase13/regime"],
+    queryFn: () => apiJson<any>("/phase13/regime"),
+    staleTime: 120_000,
+  });
+  if (!data?.regime) return null;
+  const style = REGIME_P13_STYLE[data.regime] ?? REGIME_P13_STYLE.RANGE_BOUND;
+  return (
+    <div className={`flex items-center justify-between flex-wrap gap-2 rounded border px-3 py-2 text-xs font-mono ${style}`}>
+      <div className="flex items-center gap-3">
+        <span className="font-bold">P13 Regime: {data.regime.replace("_", " ")}</span>
+        <span className="text-muted-foreground">conf={data.confidence?.toFixed(0)} · bars={data.regime_duration_bars}</span>
+        <span>Eligible strategies: <span className="text-foreground">{data.eligible_strategies?.join(", ") || "none"}</span></span>
+        {data.regime_changed && <span className="text-yellow-400">↗ REGIME CHANGE from {data.prev_regime?.replace("_", " ")}</span>}
+      </div>
+      <a href="/phase13" className="underline text-muted-foreground hover:text-foreground transition-colors">Full P13 Intel →</a>
+    </div>
+  );
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function AiDecisionPage() {
@@ -352,6 +385,9 @@ export default function AiDecisionPage() {
           {runScan.isPending ? "Scanning…" : "Run Scan"}
         </button>
       </div>
+
+      {/* Phase 13 regime banner */}
+      <Phase13RegimeBanner />
 
       {/* Rules reference */}
       <RulesCard />

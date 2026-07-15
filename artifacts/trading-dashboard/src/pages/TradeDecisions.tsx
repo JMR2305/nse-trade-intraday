@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { apiJson } from "@/lib/api";
 import {
   useGetTradeDecisions,
   getGetTradeDecisionsQueryKey,
@@ -29,6 +31,38 @@ const REC_LABEL: Record<string, string> = {
   WATCH:      "WATCH",
   AVOID:      "AVOID",
 };
+
+// ── Phase 13 regime strip ──────────────────────────────────────────────────────
+
+const P13_REGIME_STYLE: Record<string, string> = {
+  TRENDING_UP:   "text-emerald-400 border-emerald-500/30 bg-emerald-500/8",
+  RANGE_BOUND:   "text-blue-400 border-blue-500/30 bg-blue-500/8",
+  TRENDING_DOWN: "text-orange-400 border-orange-500/30 bg-orange-500/8",
+  VOLATILE:      "text-yellow-400 border-yellow-500/30 bg-yellow-500/8",
+  CRISIS:        "text-red-400 border-red-500/30 bg-red-500/8",
+};
+
+function Phase13RegimeStrip() {
+  const { data } = useQuery({
+    queryKey: ["/api/phase13/regime"],
+    queryFn: () => apiJson<any>("/phase13/regime"),
+    staleTime: 120_000,
+  });
+  if (!data?.regime) return null;
+  const style = P13_REGIME_STYLE[data.regime] ?? P13_REGIME_STYLE.RANGE_BOUND;
+  const strats = data.eligible_strategies?.join(", ") || "none";
+  return (
+    <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 rounded border px-3 py-2 text-[11px] font-mono ${style}`}>
+      <span className="font-bold">P13 Regime: {data.regime.replace("_", " ")}</span>
+      <span className="text-muted-foreground">confidence={data.confidence?.toFixed(0)}</span>
+      <span className="text-muted-foreground">bars in regime: {data.regime_duration_bars}</span>
+      <span>Score mult: {data.score_multiplier}×</span>
+      <span>Eligible strategies: <span className="text-foreground">{strats}</span></span>
+      {data.regime_changed && <span className="text-yellow-400 font-semibold">⚡ Regime change from {data.prev_regime}</span>}
+      <a href="/phase13" className="ml-auto underline text-muted-foreground hover:text-foreground">Phase 13 Intel →</a>
+    </div>
+  );
+}
 
 const FILTERS = ["All", "STRONG_BUY", "BUY", "EXIT", "WATCH", "AVOID"];
 
@@ -781,6 +815,8 @@ export default function TradeDecisions() {
           </table>
         </CardContent>
       </Card>
+
+      <Phase13RegimeStrip />
 
       <p className="text-xs text-muted-foreground font-mono">
         {data?.warning ?? "Paper trading only — research tool, not investment advice."}

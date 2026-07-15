@@ -6,3 +6,4 @@
 - [Phase 9 copilot design](phase9-copilot.md) — read-only engine over cached scan snapshots; alerts dedup by type+symbol+scan_id; confidence snapshots idempotent per scan_id.
 - [Analytics data integrity](analytics-data-integrity.md) — historical trade analytics must FIFO-match BUY lots and read immutable trade-time metadata, never mutable scan caches.
 - [Headless screenshot capture](headless-screenshot-capture.md) — dashboard pages poll forever; use domcontentloaded + delay, not networkidle2; nix chromium + puppeteer-core.
+- [Phase 13 architecture](phase13-architecture.md) — 14-factor fusion, evidence labels, regime-gated strategy evolution; apiJson already prepends /api so all paths in queryFn/mutationFn must omit the /api prefix.

@@ -93,6 +93,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         { href: "/research-intelligence", label: "Research Intelligence", icon: Brain },
         { href: "/strategy-evolution", label: "Strategy Evolution", icon: Dna },
         { href: "/phase12", label: "Phase 12 Intelligence", icon: Microscope },
+        { href: "/phase13", label: "Phase 13 · Inst. AI", icon: Microscope },
       ],
     },
     {

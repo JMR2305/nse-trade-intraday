@@ -1,0 +1,275 @@
+{
+  "bundle_version": 1,
+  "phase": 13,
+  "generated_at": "2026-07-15T11:36:11Z",
+  "engine_version": "Research Engine v1.0 \u00b7 Phase 13",
+  "mode": "PAPER_TRADING_RESEARCH_ONLY",
+  "label": "PAPER / RESEARCH ONLY",
+  "market_status": {
+    "state": "CLOSED",
+    "is_open": false,
+    "now_ist": "2026-07-15T17:06:10.998232+05:30",
+    "timezone": "Asia/Kolkata",
+    "session": {
+      "pre_open": "09:00",
+      "open": "09:15",
+      "close": "15:30",
+      "post_close": "16:00"
+    },
+    "holiday_today": null,
+    "next_transition": {
+      "event": "market_open",
+      "at_ist": "2026-07-16T09:15:00+05:30",
+      "seconds_until": 58129
+    },
+    "upcoming_holidays": [
+      {
+        "date": "2026-08-15",
+        "name": "Independence Day"
+      },
+      {
+        "date": "2026-09-14",
+        "name": "Ganesh Chaturthi"
+      },
+      {
+        "date": "2026-10-02",
+        "name": "Gandhi Jayanti"
+      }
+    ],
+    "label": "PAPER / RESEARCH ONLY"
+  },
+  "quote_provider": {
+    "provider": "Yahoo Finance (yfinance)",
+    "provider_id": "yfinance",
+    "circuit_breaker": "CLOSED",
+    "consecutive_failures": 0,
+    "last_success_ts": "2026-07-15T11:33:59Z",
+    "total_fetches": 15,
+    "total_errors": 0,
+    "cached_symbols": 3,
+    "quote_ttl_s": 20.0,
+    "quote_ttl_closed_s": 300.0
+  },
+  "regime": {
+    "regime": "RANGE_BOUND",
+    "confidence": 100.0,
+    "all_scores": {
+      "TRENDING_UP": 15.0,
+      "TRENDING_DOWN": 15.0,
+      "VOLATILE": 20.0,
+      "RANGE_BOUND": 100.0,
+      "CRISIS": 0.0
+    },
+    "prev_regime": "RANGE_BOUND",
+    "regime_duration_bars": 2,
+    "regime_changed": false,
+    "score_multiplier": 0.95,
+    "eligible_strategies": [
+      "mean_reversion"
+    ],
+    "inputs": {
+      "vix": 18.0,
+      "nifty_trend": "SIDEWAYS",
+      "market_score": 50.0,
+      "breadth": 50.0
+    },
+    "reasoning": "VIX=18.0, trend=SIDEWAYS, mkt_score=50, breadth=50"
+  },
+  "sector_rotation_top3": [
+    {
+      "sector": "BANKING",
+      "avg_score": 35.7,
+      "stock_count": 6,
+      "vs_median": 12.1,
+      "momentum": "STRONG",
+      "rank": 1
+    },
+    {
+      "sector": "FINANCE",
+      "avg_score": 29.4,
+      "stock_count": 5,
+      "vs_median": 5.8,
+      "momentum": "OUTPERFORMING",
+      "rank": 2
+    },
+    {
+      "sector": "ENERGY",
+      "avg_score": 28.8,
+      "stock_count": 5,
+      "vs_median": 5.2,
+      "momentum": "OUTPERFORMING",
+      "rank": 3
+    }
+  ],
+  "factor_weights": {
+    "trend": 0.15,
+    "momentum": 0.12,
+    "volatility": 0.06,
+    "volume": 0.07,
+    "relative_strength": 0.12,
+    "market_regime": 0.1,
+    "sector_strength": 0.07,
+    "liquidity": 0.05,
+    "hist_expectancy": 0.08,
+    "calibration_quality": 0.02,
+    "data_freshness": 0.02,
+    "historical_similarity": 0.06,
+    "risk_reward": 0.05,
+    "portfolio_context": 0.03
+  },
+  "top_opportunities": [],
+  "relative_strength_leaders": [],
+  "relative_strength_laggards": [],
+  "evidence_distribution": {
+    "insufficient": 50
+  },
+  "action_summary": {
+    "AVOID": 48,
+    "WATCH": 2
+  },
+  "contradiction_summary": {
+    "NONE": 34,
+    "LOW": 15,
+    "MEDIUM": 1,
+    "HIGH": 0
+  },
+  "scan_staleness": {
+    "stale": false,
+    "age_minutes": 51.0
+  },
+  "audit_summary": {
+    "trade_count": 3,
+    "interpretation": "Insufficient evidence (3 trades). Minimum 20 OOS trades needed for reliable comparison.",
+    "p13_expectancy": 146.59,
+    "p12_expectancy": 146.59
+  },
+  "strategy_evolution": {
+    "pending_proposals": 0,
+    "note": "All proposals require human approval. No auto-promotion."
+  },
+  "sample_counts": {
+    "symbols_analyzed": 50,
+    "completed_trades": 3
+  },
+  "self_tests": {
+    "results": [
+      {
+        "test": "factor_weights_sum_1",
+        "pass": true,
+        "detail": "sum=1.0"
+      },
+      {
+        "test": "14_factors_defined",
+        "pass": true,
+        "detail": "count=14"
+      },
+      {
+        "test": "no_lookahead_sell_only",
+        "pass": true,
+        "detail": "n=3"
+      },
+      {
+        "test": "no_lookahead_timestamps",
+        "pass": true,
+        "detail": "all_ts=True"
+      },
+      {
+        "test": "stale_gate",
+        "pass": true,
+        "detail": "action=WATCH"
+      },
+      {
+        "test": "scores_0_100",
+        "pass": true,
+        "detail": "t=85.0 m=50.0 rr=90.0"
+      },
+      {
+        "test": "evidence_label_insufficient",
+        "pass": true,
+        "detail": ""
+      },
+      {
+        "test": "evidence_label_validated",
+        "pass": true,
+        "detail": ""
+      },
+      {
+        "test": "strategy_eligibility_trending_up",
+        "pass": true,
+        "detail": "strats=['trend_rider', 'breakout_hunter', 'ema_cross', 'macd_cross', 'supertrend_follow']"
+      },
+      {
+        "test": "no_strategies_in_crisis",
+        "pass": true,
+        "detail": "strats=[]"
+      },
+      {
+        "test": "position_size_cap_20pct",
+        "pass": true,
+        "detail": "util=0.0"
+      },
+      {
+        "test": "no_real_broker_order",
+        "pass": true,
+        "detail": ""
+      },
+      {
+        "test": "proposals_require_approval",
+        "pass": true,
+        "detail": "auto_promoted always False"
+      }
+    ],
+    "passed": 13,
+    "failed": 0
+  },
+  "files": [
+    {
+      "file": "phase13_cache.json",
+      "exists": true,
+      "size_bytes": 147521,
+      "modified": "2026-07-15T11:36:11Z"
+    },
+    {
+      "file": "phase13_proposals.json",
+      "exists": true,
+      "size_bytes": 144,
+      "modified": "2026-07-15T11:33:37Z"
+    },
+    {
+      "file": "phase13_audit_report.json",
+      "exists": true,
+      "size_bytes": 3146,
+      "modified": "2026-07-15T11:36:11Z"
+    },
+    {
+      "file": "phase13_diagnostic_bundle.json",
+      "exists": true,
+      "size_bytes": 6411,
+      "modified": "2026-07-15T11:33:01Z"
+    },
+    {
+      "file": "phase13_summary.csv",
+      "exists": true,
+      "size_bytes": 2284,
+      "modified": "2026-07-15T11:33:01Z"
+    },
+    {
+      "file": "phase7_scan_cache.json",
+      "exists": true,
+      "size_bytes": 65576,
+      "modified": "2026-07-15T10:42:36Z"
+    },
+    {
+      "file": "market_context_cache.json",
+      "exists": true,
+      "size_bytes": 566,
+      "modified": "2026-07-15T04:54:16Z"
+    }
+  ],
+  "errors": {},
+  "notes": [
+    "PAPER TRADING / RESEARCH ONLY \u2014 no live broker orders placed.",
+    "Evidence labels suppress precision when sample count is small.",
+    "Stale-scan protection: rankings blocked if scan > 90 min old during market hours."
+  ]
+}
