@@ -13,3 +13,4 @@
 - [Phase 16 validation dashboard](phase16-validation.md) — ai_decisions_cache uses `decision` field; aggregate *_all CLI command beats 14 parallel python spawns; match verdict enums UI↔backend.
 - [Phase 17 QA engine](phase17-qa.md) — suite-output parsing must handle both "N passed, N failed" and legacy "[PASS]…ALL TESTS PASSED" formats; release gating never treats warnings as pass (PASS/WARN/FAIL + strict production_ready).
 - [Phase 18 notebook concurrency](phase18-notebook.md) — spawned-per-request Python means shared JSON needs flock around read-modify-write; guard divides by user-configurable targets.
+- [Python env & publish builds](python-env-deploy.md) — missing .pythonlibs/pyvenv.cfg + stale uv cache → nix-store Permission denied; uv sync prunes deps not in pyproject.toml
