@@ -1,0 +1,31 @@
+kind = "video"
+previewPath = "/project-video/"
+title = "NSE Trading Platform Video"
+version = "1.0.0"
+id = "artifacts/project-video"
+router = "path"
+
+[[integratedSkills]]
+name = "video-js"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/project-video/" ]
+localPort = 22312
+
+[services.development]
+run = "pnpm --filter @workspace/project-video run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/project-video", "run", "build" ]
+publicDir = "artifacts/project-video/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22312"
+BASE_PATH = "/project-video/"
