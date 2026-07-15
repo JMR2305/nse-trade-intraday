@@ -500,6 +500,15 @@ def run_live_scan(
 
     overall_paper_eligible = health.paper_execution_eligible and paper_elig > 0
 
+    # ── Phase 19: Kite provider label (read-only overlay metadata) ────────────
+    try:
+        from kite_quote_provider import kite_available, provider_label as _pl
+        _kite_live = kite_available()
+        _provider_label = _pl()
+    except Exception:
+        _kite_live = False
+        _provider_label = "Yahoo Finance (History)"
+
     safety = {
         "research_only": True,
         "paper_trading_only": True,
@@ -507,6 +516,10 @@ def run_live_scan(
         "no_real_orders": True,
         "no_auto_strategy_promotion": True,
         "meta_learning_affects_decisions": False,
+        "kite_connected": _kite_live,
+        "data_provider": _provider_label,
+        "ohlcv_source": "yfinance (historical)",
+        "live_quote_source": "Zerodha Kite Connect (LTP overlay)" if _kite_live else "Not configured",
         "note": "Phase 7 is paper trading and research only. No real broker API "
                 "is called. No real money is at risk. Meta-Learning and Strategy "
                 "Evolution findings do not affect live decisions unless a future "

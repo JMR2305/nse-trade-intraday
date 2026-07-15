@@ -1587,6 +1587,101 @@ def main():
         elif command == "phase18_archive":
             from phase18_exports import build_archive
             result = build_archive()
+
+        # ── Phase 19: Zerodha Kite Connect live-data integration ─────────────
+        elif command == "kite_status":
+            from kite_session_manager import get_status
+            force = "--force" in sys.argv
+            result = get_status(force_probe=force)
+        elif command == "kite_invalidate":
+            from kite_session_manager import invalidate_cache
+            from kite_quote_provider import invalidate_cache as inv_q
+            invalidate_cache()
+            inv_q()
+            result = {"success": True, "message": "Kite probe and quote caches cleared"}
+        elif command == "kite_quote":
+            from kite_quote_provider import get_quotes, provider_label
+            symbols = [s.strip() for s in (sys.argv[2] if len(sys.argv) > 2 else "").split(",") if s.strip()]
+            if not symbols:
+                result = {"success": False, "error": "No symbols provided"}
+            else:
+                quotes = get_quotes(symbols)
+                result = {"success": True, "quotes": quotes,
+                          "count": len(quotes), "provider": provider_label()}
+        elif command == "kite_ltp":
+            from kite_quote_provider import get_ltp, provider_label
+            symbols = [s.strip() for s in (sys.argv[2] if len(sys.argv) > 2 else "").split(",") if s.strip()]
+            ltp = get_ltp(symbols)
+            result = {"success": True, "ltp": ltp, "provider": provider_label()}
+        elif command == "kite_holdings":
+            from broker_client import get_broker_client
+            from dataclasses import asdict
+            client = get_broker_client()
+            holdings = client.get_holdings()
+            result = {"success": True, "holdings": [asdict(h) for h in holdings],
+                      "count": len(holdings), "is_mock": client.is_mock,
+                      "note": "Read-only. Paper trading mode active."}
+        elif command == "kite_positions":
+            from broker_client import get_broker_client
+            from dataclasses import asdict
+            client = get_broker_client()
+            positions = client.get_positions()
+            result = {"success": True, "positions": [asdict(p) for p in positions],
+                      "count": len(positions), "is_mock": client.is_mock,
+                      "note": "Read-only. Paper trading mode active."}
+        elif command == "kite_margins":
+            from broker_client import get_broker_client
+            from dataclasses import asdict
+            client = get_broker_client()
+            margins = client.get_margins()
+            result = {"success": True, "margins": asdict(margins),
+                      "is_mock": client.is_mock,
+                      "note": "Read-only. Paper trading mode active."}
+        elif command == "kite_orders":
+            from broker_client import get_broker_client
+            from dataclasses import asdict
+            limit = int(sys.argv[2]) if len(sys.argv) > 2 else 50
+            client = get_broker_client()
+            orders = client.get_orders(limit=limit)
+            result = {"success": True, "orders": [asdict(o) for o in orders],
+                      "count": len(orders), "is_mock": client.is_mock,
+                      "note": "Read-only sync. Paper trading mode active. No real orders placed here."}
+        elif command == "kite_instrument_search":
+            from kite_instrument_cache import search, cache_status
+            q = sys.argv[2] if len(sys.argv) > 2 else ""
+            limit = int(sys.argv[3]) if len(sys.argv) > 3 else 20
+            hits = search(q, limit=limit)
+            cs = cache_status()
+            result = {"success": True, "results": hits, "count": len(hits),
+                      "query": q, "cache_date": cs.get("date"),
+                      "cache_count": cs.get("count")}
+        elif command == "kite_instrument_refresh":
+            from kite_instrument_cache import refresh
+            force = "--force" in sys.argv
+            result = refresh(force=force)
+        elif command == "kite_instrument_cache_status":
+            from kite_instrument_cache import cache_status
+            result = {"success": True, **cache_status()}
+        elif command == "kite_diagnostics":
+            from kite_session_manager import get_status
+            from kite_quote_provider import kite_available, provider_label
+            from kite_instrument_cache import cache_status
+            from broker_client import get_broker_client, creds_present
+            from dataclasses import asdict
+            sess = get_status()
+            client = get_broker_client()
+            conn = client.test_connection()
+            result = {
+                "success": True,
+                "session": sess,
+                "connection": asdict(conn),
+                "kite_available": kite_available(),
+                "provider_label": provider_label(),
+                "instrument_cache": cache_status(),
+                "paper_trading_active": True,
+                "live_order_placement_enabled": False,
+                "note": "Phase 19: Read-only live data integration. Paper trading remains default.",
+            }
         else:
             error_msg = f"Unknown command: {command}"
 

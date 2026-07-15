@@ -177,6 +177,14 @@ class BrokerClient(ABC):
     def get_orders(self, limit: int = 50) -> List[BrokerOrder]: ...
 
     @abstractmethod
+    def get_ltp(self, symbols: List[str]) -> Dict[str, Optional[float]]:
+        """
+        Return last traded price for each symbol. Read-only. Never raises.
+        Returns {symbol: float} or {symbol: None} on failure.
+        """
+        ...
+
+    @abstractmethod
     def place_order_live(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
         Submit a real order. Only callable from ExecutionEngine after ALL
@@ -262,6 +270,16 @@ class MockBrokerClient(BrokerClient):
 
     def get_orders(self, limit: int = 50) -> List[BrokerOrder]:
         return []
+
+    def get_ltp(self, symbols: List[str]) -> Dict[str, Optional[float]]:
+        """Return mock LTPs — never touches real API."""
+        mock_prices: Dict[str, float] = {
+            "RELIANCE": 2850.45, "TCS": 3920.10, "INFY": 1750.30,
+            "HDFC": 1650.80, "ICICIBANK": 1120.55, "SBIN": 825.40,
+            "WIPRO": 449.10, "AXISBANK": 1175.25, "KOTAKBANK": 1890.60,
+            "BAJFINANCE": 7250.90, "LT": 3680.15, "HCLTECH": 1580.45,
+        }
+        return {s.upper(): mock_prices.get(s.upper()) for s in symbols}
 
     def place_order_live(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Mock order placement — never touches real API."""
@@ -387,6 +405,20 @@ class ZerodhaClient(BrokerClient):
                 realised=float(p.get("realised", 0.0)),
             ))
         return out
+
+    def get_ltp(self, symbols: List[str]) -> Dict[str, Optional[float]]:
+        """Fetch live LTP via kite.ltp(). Read-only. Never raises."""
+        try:
+            kite_syms = [f"NSE:{s.upper().strip()}" for s in symbols]
+            raw = self._kite.ltp(kite_syms)
+            result: Dict[str, Optional[float]] = {}
+            for sym, ks in zip(symbols, kite_syms):
+                entry = raw.get(ks) or {}
+                result[sym.upper()] = entry.get("last_price")
+            return result
+        except Exception as exc:
+            logger.warning("kite.ltp() failed: %s", exc)
+            return {s.upper(): None for s in symbols}
 
     def get_orders(self, limit: int = 50) -> List[BrokerOrder]:
         raw = self._kite.orders()[-limit:]

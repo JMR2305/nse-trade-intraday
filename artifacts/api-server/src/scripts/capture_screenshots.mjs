@@ -66,6 +66,7 @@ const PAGES = [
   ["38_PaperTradingValidation", "/validation"],
   ["39_SystemValidation", "/system-validation"],
   ["40_ResearchNotebook", "/research-notebook"],
+  ["41_KiteConnect", "/kite-connect"],
 ];
 
 function chromiumPath() {

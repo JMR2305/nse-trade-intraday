@@ -1,0 +1,15 @@
+{
+  "date": "2026-07-15",
+  "fetched_at": "2026-07-15T19:35:59Z",
+  "count": 1,
+  "instruments": [
+    {
+      "tradingsymbol": "RELIANCE",
+      "exchange": "NSE",
+      "instrument_token": 738561,
+      "instrument_type": "EQ",
+      "name": "RELIANCE INDUSTRIES",
+      "lot_size": 1
+    }
+  ]
+}

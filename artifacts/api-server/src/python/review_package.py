@@ -37,7 +37,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PHASE = 18
+PHASE = 19
 PACKAGE_NAME = f"Phase{PHASE}_Review_Package"
 PACKAGE_DIR = os.path.join(BASE_DIR, PACKAGE_NAME)
 ZIP_PATH = os.path.join(BASE_DIR, f"{PACKAGE_NAME}.zip")
@@ -193,61 +193,62 @@ def _csv_risk(out: str, risk: dict):
 
 # ── Reports ──────────────────────────────────────────────────────────────────
 
-def _implementation_summary(t15: dict, t16: dict, t17: dict, t18: dict) -> str:
-    return f"""# Phase {PHASE} Implementation Summary — Research Notebook, Daily Validation Workflow & Evidence Accumulation
+def _implementation_summary(t15: dict, t16: dict, t17: dict, t18: dict, t19: dict = None) -> str:
+    t19 = t19 or {}
+    return f"""# Phase {PHASE} Implementation Summary — Zerodha Kite Connect Live-Data Integration & Production Readiness
 
 - **Phase:** {PHASE}
 - **Date:** {_now()}
-- **Scope rule respected:** feature freeze — no new strategies, indicators, AI scoring
-  changes or paper-trading behaviour changes; observation/journaling only;
-  PAPER / RESEARCH ONLY.
+- **Scope rule respected:** read-only Kite Connect integration only; paper trading remains default;
+  no new strategies, indicators, scoring, risk, research, learning, or paper-trading logic changed
+  except to consume verified live read-only data safely. PAPER / RESEARCH ONLY.
 
-## Phase 18 features added (latest)
-- Research Notebook — permanent daily journal, one entry per IST trading date,
-  auto-created after the first successful scan of the day, updated intraday,
-  finalized after market close (reopenable). Records market context, scan
-  metadata (scan ID, snapshot, provider, model version), AI recommendations,
-  data quality, trade decision journal (7 decision states incl. REJECTED BY
-  RISK / DATA QUALITY with blocking rule), paper-trade opens/closes, EOD
-  reconciliation (P&L, stops/targets hit, false-positive marking).
-- Daily validation checklist — before/during/after-market items evaluated from
-  real stored data (scan freshness, regime consistency, capital conservation,
-  cross-page consistency, notes completed), each PASS/WARNING/FAIL.
-- User notes & lessons — free-text notes with tags/categories, lessons learned,
-  follow-up actions; notes never alter trading logic; preserved across entry
-  refreshes and searchable (full research-memory search: text, tag, strategy,
-  sector, regime, symbol, outcome, decision state, date range, stale-only).
-- Weekly / monthly research reviews — win rate, profit factor, expectancy,
-  drawdown, best/worst strategy/sector/regime, confidence alignment,
-  calibration bands (<50 / 50-70 / >=70), QA trend, portfolio growth —
-  "Insufficient Data" below minimum sample sizes.
-- Evidence accumulation tracker — progress vs configurable readiness targets
-  (sessions, completed trades, regimes covered, strategy sample sizes,
-  QA stability, days since last critical issue). Advisory only.
-- Issue tracker — ISS-#### operational issue log (severity, page, scan/trade
-  links, status lifecycle) + exports.
-- Exports — Daily_Notebook PDF/JSON/CSV, weekly/monthly/evidence JSON,
-  Issue_Log.csv/json, Notes_Export.csv and Research_Notebook_Archive.zip
-  (README, daily entries, reviews, issues, notes, validation summary,
-  trade links; secrets filtered).
-- Dashboard — "Research Notebook" page (route /research-notebook, System
-  group): Today / History / Reviews / Evidence / Issues / Search tabs.
+## Phase 19 features added (latest)
+- **Zerodha Kite Connect live-data integration** (read-only): live LTP quotes via
+  kite.ltp() and kite.quote() API, holdings, positions, margins, order history sync.
+  Paper trading remains the default. No real order placement possible.
+- **kite_session_manager.py** — token health (VALID/WARNING/EXPIRED/MISSING), daily
+  6 AM IST expiry detection, 60-second probe cache, login URL generator, refresh
+  instructions, masked credential display, reconnect advice.
+- **kite_quote_provider.py** — bulk quote fetcher (NSE:SYMBOL format), 30-second
+  in-memory cache, ≤3 req/s rate limiter, automatic yfinance fallback on any Kite
+  error, `data_source` field labels every quote (kite_live / yfinance_fallback).
+- **kite_instrument_cache.py** — daily-refreshed NSE instrument list (symbol→token
+  map), disk-backed JSON cache, fuzzy symbol search (prefix → contains ranking).
+- **broker_client.py** updated — `get_ltp(symbols)` on abstract class,
+  ZerodhaClient (via kite.ltp), and MockBrokerClient (realistic mock prices).
+- **live_scan_engine.py** — Kite provider label injected into safety dict;
+  scans always use yfinance OHLCV history (no lookahead risk); Kite adds LTP overlay.
+- **routes/kite.ts** — 11 read-only API endpoints registered in routes/index.ts.
+- **KiteConnect.tsx** — New dashboard page (route /kite-connect, System group):
+  session/connection card with token health, Live Quotes, Holdings, Positions,
+  Margins, Orders, Instruments, Diagnostics tabs (all read-only).
+- **Mobile sidebar** — AppLayout.tsx: hamburger menu on mobile, slide-in sidebar with
+  overlay backdrop, X close button, correct touch/tap behaviour.
+- **Secrets scaffolding** — ZERODHA_API_KEY / ACCESS_TOKEN / API_SECRET /
+  TOKEN_TIMESTAMP env vars; code falls back to Mock gracefully when unset.
+- **Safety fixes from architect review** — fcntl flock on Phase 18 mutators,
+  target divide-by-zero guards, null-safe ₹ formatting in finalize.
 
-## Phase 18 files
-- `src/python/phase18_notebook.py`, `phase18_reviews.py`, `phase18_exports.py`,
-  `test_phase18.py`
-- `src/routes/phase18.ts` (registered in `src/routes/index.ts`)
-- `src/python/main.py` — phase18_* CLI commands
-- `src/python/live_scan_engine.py` — post-scan hook auto-creates the day's
-  draft entry (silent failure; never affects scan results)
-- `trading-dashboard/src/pages/ResearchNotebook.tsx` (+ route and nav entry)
+## Phase 19 files
+- `src/python/kite_session_manager.py`, `kite_quote_provider.py`,
+  `kite_instrument_cache.py`, `test_phase19.py`
+- `src/python/broker_client.py`, `live_scan_engine.py`, `main.py` (updated)
+- `src/routes/kite.ts`, `src/routes/index.ts` (updated)
+- `trading-dashboard/src/pages/KiteConnect.tsx` (+ route /kite-connect + nav)
+- `trading-dashboard/src/components/layout/AppLayout.tsx` (mobile sidebar)
 
-## Phase 18 APIs added
-- POST /api/phase18/ensure | finalize | reopen | notes | decision | search |
-  issues | targets | exports
-- GET /api/phase18/entry | entries | issues | targets | evidence |
-  review/daily | review/weekly | review/monthly | exports/:file (download)
-- PATCH /api/phase18/issues
+## Phase 19 APIs added
+- GET /api/kite/status | quote | ltp | holdings | positions | margins | orders
+- GET /api/kite/instruments/search | instruments/status | diagnostics
+- POST /api/kite/invalidate | instruments/refresh
+
+## Carried forward from Phase 18 (Research Notebook)
+- Research Notebook daily journal, checklist, evidence tracker, issue tracker,
+  weekly/monthly reviews, exports, Research_Notebook_Archive.zip.
+- Phase 18 APIs — /api/phase18/* (entry, entries, ensure, finalize, reopen, notes,
+  decision, issues, targets, evidence, reviews, exports, search).
+- Dashboard — Research Notebook page (route /research-notebook).
 
 ## Carried forward from Phase 17 (Automated QA & Release Validation)
 - Automated QA engine — one-click complete system validation: all backend test
@@ -418,6 +419,9 @@ def build_package(screenshots_dir: str | None = None) -> dict:
     t18 = _run_tests("test_phase18.py")
     if not t18["ran"]:
         warnings.append("Phase 18 test suite could not be executed")
+    t19 = _run_tests("test_phase19.py")
+    if not t19["ran"]:
+        warnings.append("Phase 19 test suite could not be executed")
     phase18_entries = safe("phase18 notebook entries",
                            lambda: __import__("phase18_notebook").list_entries(), {})
     phase18_evidence = safe("phase18 evidence tracker",
@@ -498,7 +502,7 @@ def build_package(screenshots_dir: str | None = None) -> dict:
 
     # 4/5. Reports
     open(os.path.join(PACKAGE_DIR, "implementation_summary.md"), "w").write(
-        _implementation_summary(t15, t16, t17, t18))
+        _implementation_summary(t15, t16, t17, t18, t19))
     open(os.path.join(PACKAGE_DIR, "production_readiness.md"), "w").write(
         _production_readiness_md(readiness, consistency, quality, diagnostics, t15))
 
@@ -536,6 +540,20 @@ def build_package(screenshots_dir: str | None = None) -> dict:
         ["Notebook exports + Research_Notebook_Archive.zip", "Yes", "Yes", "Yes",
          "Secrets filtered; README included"],
         ["Research Notebook dashboard page", "Yes", "Yes", "Yes", "Route /research-notebook"],
+        ["Kite Connect session manager (token health/expiry)", "Yes", "Yes", "Yes",
+         "Phase 19 — VALID/WARNING/EXPIRED/MISSING; 60s probe cache"],
+        ["Kite live quote provider (30s cache, rate limit, fallback)", "Yes", "Yes", "Yes",
+         "Phase 19 — yfinance fallback; data_source label on every quote"],
+        ["Kite instrument cache (daily refresh, fuzzy search)", "Yes", "Yes", "Yes",
+         "Phase 19 — disk-backed JSON; prefix+contains ranking"],
+        ["Kite broker client get_ltp() (abstract + Zerodha + Mock)", "Yes", "Yes", "Yes",
+         "Phase 19 — read-only; paper trading unchanged"],
+        ["Kite read-only API routes (11 endpoints)", "Yes", "Yes", "Yes",
+         "Phase 19 — /api/kite/status|quote|ltp|holdings|positions|margins|orders|instruments|diagnostics"],
+        ["Kite Connect dashboard page (7 tabs)", "Yes", "Yes", "Yes",
+         "Phase 19 — Route /kite-connect; read-only; no order placement"],
+        ["Mobile responsive sidebar (hamburger menu)", "Yes", "Yes", "Yes",
+         "Phase 19 — slide-in sidebar + overlay backdrop on mobile"],
         ["Review package generator", "Yes", "Yes", "Partial", "Tested via generation run itself"],
         ["Paper trading engine / scanner / strategies", "Yes", "Yes", "Yes", "Built in earlier phases 1-14"],
         ["Real-money execution", "No", "No", "No", "Deliberately not implemented — research only"],
@@ -547,6 +565,8 @@ def build_package(screenshots_dir: str | None = None) -> dict:
     t13 = _run_tests("test_phase13.py")
     t14 = _run_tests("test_phase14.py")
     test_rows = [
+        ["Unit Tests — Phase 19 suite", t19["passed"] if t19["ran"] else NA,
+         t19["failed"] if t19["ran"] else NA, 0],
         ["Unit Tests — Phase 18 suite", t18["passed"] if t18["ran"] else NA,
          t18["failed"] if t18["ran"] else NA, 0],
         ["Unit Tests — Phase 17 suite", t17["passed"] if t17["ran"] else NA,

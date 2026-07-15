@@ -41,6 +41,7 @@ import RiskManagement from "@/pages/RiskManagement";
 import PaperTradingValidation from "@/pages/PaperTradingValidation";
 import SystemValidation from "@/pages/SystemValidation";
 import ResearchNotebook from "@/pages/ResearchNotebook";
+import KiteConnect from "@/pages/KiteConnect";
 import PortfolioRiskAnalytics from "@/pages/PortfolioRiskAnalytics";
 import Phase12Intelligence from "@/pages/Phase12Intelligence";
 import Phase13Intelligence from "@/pages/Phase13Intelligence";
@@ -92,6 +93,7 @@ function Router() {
         <Route path="/validation" component={PaperTradingValidation} />
         <Route path="/system-validation" component={SystemValidation} />
         <Route path="/research-notebook" component={ResearchNotebook} />
+        <Route path="/kite-connect" component={KiteConnect} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>
