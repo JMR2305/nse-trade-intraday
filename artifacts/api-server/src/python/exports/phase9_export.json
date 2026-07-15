@@ -1,10 +1,10 @@
 {
- "exported_at": "2026-07-14T19:46:50Z",
+ "exported_at": "2026-07-15T12:42:36Z",
  "label": "PAPER / LIVE DATA VALIDATION",
  "alerts": [
   {
-   "alert_id": "4d451577a9",
-   "ts": "2026-07-14T19:46:50Z",
+   "alert_id": "7684fc1fe6",
+   "ts": "2026-07-14T19:38:55Z",
    "date": "2026-07-14",
    "type": "MOMENTUM_INCREASING",
    "severity": "INFO",
@@ -17,8 +17,8 @@
    "read": true
   },
   {
-   "alert_id": "8a02c23a0f",
-   "ts": "2026-07-14T19:46:50Z",
+   "alert_id": "7b6aef5dec",
+   "ts": "2026-07-14T19:38:55Z",
    "date": "2026-07-14",
    "type": "MOMENTUM_INCREASING",
    "severity": "INFO",
@@ -31,8 +31,8 @@
    "read": true
   },
   {
-   "alert_id": "aeaa5cde11",
-   "ts": "2026-07-14T19:46:50Z",
+   "alert_id": "d53f6753fd",
+   "ts": "2026-07-14T19:38:55Z",
    "date": "2026-07-14",
    "type": "MOMENTUM_INCREASING",
    "severity": "INFO",
@@ -45,8 +45,8 @@
    "read": true
   },
   {
-   "alert_id": "502a5e2acb",
-   "ts": "2026-07-14T19:46:50Z",
+   "alert_id": "51daa421f3",
+   "ts": "2026-07-14T19:38:55Z",
    "date": "2026-07-14",
    "type": "MOMENTUM_INCREASING",
    "severity": "INFO",
@@ -59,8 +59,8 @@
    "read": true
   },
   {
-   "alert_id": "da890b8122",
-   "ts": "2026-07-14T19:46:50Z",
+   "alert_id": "d96ec65fb5",
+   "ts": "2026-07-14T19:38:55Z",
    "date": "2026-07-14",
    "type": "HIGH_VOLUME_BREAKOUT",
    "severity": "INFO",
@@ -73,8 +73,8 @@
    "read": true
   },
   {
-   "alert_id": "bd15712c55",
-   "ts": "2026-07-14T19:46:50Z",
+   "alert_id": "a47673459d",
+   "ts": "2026-07-14T19:38:55Z",
    "date": "2026-07-14",
    "type": "MOMENTUM_INCREASING",
    "severity": "INFO",
@@ -87,8 +87,8 @@
    "read": true
   },
   {
-   "alert_id": "f0ac54714c",
-   "ts": "2026-07-14T19:46:50Z",
+   "alert_id": "c8df8db001",
+   "ts": "2026-07-14T19:38:55Z",
    "date": "2026-07-14",
    "type": "MOMENTUM_INCREASING",
    "severity": "INFO",
@@ -101,8 +101,8 @@
    "read": true
   },
   {
-   "alert_id": "1f7de0e4b2",
-   "ts": "2026-07-14T19:46:50Z",
+   "alert_id": "c53ef0af75",
+   "ts": "2026-07-14T19:38:55Z",
    "date": "2026-07-14",
    "type": "HIGH_VOLUME_BREAKOUT",
    "severity": "INFO",
@@ -113,60 +113,18 @@
    "action_recommendation": "Watch TCS for continuation",
    "scan_id": "583a080f9987",
    "read": true
-  },
-  {
-   "alert_id": "12a6647d35",
-   "ts": "2026-07-14T19:46:50Z",
-   "date": "2026-07-14",
-   "type": "CONFIDENCE_INCREASED",
-   "severity": "INFO",
-   "category": "ai",
-   "symbol": "BAJFINANCE",
-   "reason": "Confidence rose 15 pts (22.299999999999997 \u2192 37.3)",
-   "confidence": 37.3,
-   "action_recommendation": "Re-check BAJFINANCE setup",
-   "scan_id": "583a080f9987",
-   "read": true
-  },
-  {
-   "alert_id": "d193acc0b3",
-   "ts": "2026-07-14T19:46:50Z",
-   "date": "2026-07-14",
-   "type": "CONFIDENCE_INCREASED",
-   "severity": "INFO",
-   "category": "ai",
-   "symbol": "HDFCBANK",
-   "reason": "Confidence rose 15 pts (22.200000000000003 \u2192 37.2)",
-   "confidence": 37.2,
-   "action_recommendation": "Re-check HDFCBANK setup",
-   "scan_id": "583a080f9987",
-   "read": true
-  },
-  {
-   "alert_id": "2d97d00a12",
-   "ts": "2026-07-14T19:46:50Z",
-   "date": "2026-07-14",
-   "type": "CONFIDENCE_INCREASED",
-   "severity": "INFO",
-   "category": "ai",
-   "symbol": "INDUSINDBK",
-   "reason": "Confidence rose 15 pts (19.0 \u2192 34.0)",
-   "confidence": 34.0,
-   "action_recommendation": "Re-check INDUSINDBK setup",
-   "scan_id": "583a080f9987",
-   "read": true
   }
  ],
  "copilot_summary": {
   "success": true,
-  "generated_at": "2026-07-14T19:46:50Z",
-  "scan_id": "583a080f9987",
-  "snapshot_ts": "2026-07-14T18:53:01Z",
+  "generated_at": "2026-07-15T12:42:36Z",
+  "scan_id": "439cb6e03afb",
+  "snapshot_ts": "2026-07-15T10:42:03Z",
   "market": {
    "regime": "SIDEWAYS",
    "sentiment": "BEARISH",
    "nifty_trend": "SIDEWAYS",
-   "nifty_change_pct": -0.9,
+   "nifty_change_pct": -1.31,
    "vix": 18.0,
    "vix_category": "NORMAL",
    "breadth": "VERY_WEAK"
@@ -195,10 +153,10 @@
    "Open position: WIPRO (5 shares) \u2014 monitor stop loss"
   ],
   "best_opportunity": {
-   "symbol": "BAJFINANCE",
+   "symbol": "INDUSINDBK",
    "action": "WATCH",
-   "confidence": 37.3,
-   "opportunity_score": 48.5,
+   "confidence": 33.9,
+   "opportunity_score": 43.9,
    "strategy": "Trend Rider",
    "note": "Highest opportunity score in latest scan"
   },
@@ -217,7 +175,7 @@
    {
     "symbol": "ADANIPORTS",
     "opportunity_score": 11.5,
-    "reason": "below EMA20, low volume, weak trend (ADX)"
+    "reason": "low volume, weak trend (ADX)"
    },
    {
     "symbol": "APOLLOHOSP",
@@ -227,23 +185,23 @@
   ],
   "scan_summary": {
    "buy_count": 0,
-   "watch_count": 5,
-   "ignore_count": 43,
-   "avg_opportunity_score": 24.3
+   "watch_count": 4,
+   "ignore_count": 44,
+   "avg_opportunity_score": 23.6
   },
-  "voice_text": "Market is sideways with bearish sentiment. Best opportunity is BAJFINANCE with confidence 37. Avoid ADANIENT due to low volume. Portfolio risk is low. Cash available: 4600 rupees. Open positions: 1.",
+  "voice_text": "Market is sideways with bearish sentiment. Best opportunity is INDUSINDBK with confidence 34. Avoid ADANIENT due to low volume. Portfolio risk is low. Cash available: 4600 rupees. Open positions: 1.",
   "label": "PAPER / LIVE DATA VALIDATION"
  },
  "daily_briefing": {
   "success": true,
-  "generated_at": "2026-07-14T19:46:50Z",
-  "date": "2026-07-14",
-  "greeting": "Good Morning",
+  "generated_at": "2026-07-15T12:42:36Z",
+  "date": "2026-07-15",
+  "greeting": "Good Evening",
   "market_summary": {
    "regime": "SIDEWAYS",
    "sentiment": "BEARISH",
    "nifty_trend": "SIDEWAYS",
-   "nifty_change_pct": -0.9,
+   "nifty_change_pct": -1.31,
    "breadth": "VERY_WEAK"
   },
   "top_sectors": [
@@ -276,28 +234,21 @@
   ],
   "opportunities": [
    {
-    "symbol": "BAJFINANCE",
-    "action": "WATCH",
-    "confidence": 37.3,
-    "opportunity_score": 48.5,
-    "strategy": "Trend Rider"
-   },
-   {
-    "symbol": "HDFCBANK",
-    "action": "WATCH",
-    "confidence": 37.2,
-    "opportunity_score": 48.4,
-    "strategy": "Trend Rider"
-   },
-   {
     "symbol": "INDUSINDBK",
     "action": "WATCH",
-    "confidence": 34.0,
-    "opportunity_score": 44.0,
+    "confidence": 33.9,
+    "opportunity_score": 43.9,
     "strategy": "Trend Rider"
    },
    {
     "symbol": "HCLTECH",
+    "action": "WATCH",
+    "confidence": 39.9,
+    "opportunity_score": 42.5,
+    "strategy": "Mean Reversion"
+   },
+   {
+    "symbol": "HDFCBANK",
     "action": "WATCH",
     "confidence": 39.9,
     "opportunity_score": 42.5,
@@ -309,6 +260,13 @@
     "confidence": 39.7,
     "opportunity_score": 42.4,
     "strategy": "Mean Reversion"
+   },
+   {
+    "symbol": "BAJFINANCE",
+    "action": "IGNORE",
+    "confidence": 29.3,
+    "opportunity_score": 40.1,
+    "strategy": "Trend Rider"
    }
   ],
   "avoid": [
@@ -348,16 +306,16 @@
    }
   ],
   "briefing_lines": [
-   "Good Morning.",
+   "Good Evening.",
    "Market regime is Sideways with bearish sentiment.",
    "ENERGY sector is strongest.",
    "AUTO sector is weakest \u2014 approach with caution.",
-   "Watch BAJFINANCE \u2014 top opportunity today (score 48.5).",
+   "Watch INDUSINDBK \u2014 top opportunity today (score 43.9).",
    "Avoid ADANIENT, ADANIPORTS today.",
    "Portfolio risk remains low with 1 open position(s) and \u20b94600 cash.",
    "Expected volatility: normal (VIX 18.0)."
   ],
-  "voice_text": "Good Morning. Market regime is Sideways with bearish sentiment. ENERGY sector is strongest. AUTO sector is weakest \u2014 approach with caution. Watch BAJFINANCE \u2014 top opportunity today (score 48.5). Avoid ADANIENT, ADANIPORTS today. Portfolio risk remains low with 1 open position(s) and \u20b94600 cash. Expected volatility: normal (VIX 18.0).",
+  "voice_text": "Good Evening. Market regime is Sideways with bearish sentiment. ENERGY sector is strongest. AUTO sector is weakest \u2014 approach with caution. Watch INDUSINDBK \u2014 top opportunity today (score 43.9). Avoid ADANIENT, ADANIPORTS today. Portfolio risk remains low with 1 open position(s) and \u20b94600 cash. Expected volatility: normal (VIX 18.0).",
   "label": "PAPER / LIVE DATA VALIDATION"
  }
 }

@@ -20,7 +20,7 @@
     "regime": "SIDEWAYS",
     "timeframe_alignment": 2,
     "pass_all_rules": true,
-    "time": "2026-07-15T12:12:15.623030"
+    "time": "2026-07-15T12:41:47.382968"
   },
   {
     "stock": "TCS",
@@ -43,7 +43,7 @@
     "regime": "SIDEWAYS",
     "timeframe_alignment": 3,
     "pass_all_rules": true,
-    "time": "2026-07-15T12:12:15.623130"
+    "time": "2026-07-15T12:41:47.383067"
   },
   {
     "stock": "INFY",
@@ -66,7 +66,7 @@
     "regime": "SIDEWAYS",
     "timeframe_alignment": 2,
     "pass_all_rules": true,
-    "time": "2026-07-15T12:12:15.623204"
+    "time": "2026-07-15T12:41:47.383147"
   },
   {
     "stock": "HDFCBANK",
@@ -89,7 +89,7 @@
     "regime": "SIDEWAYS",
     "timeframe_alignment": 4,
     "pass_all_rules": true,
-    "time": "2026-07-15T12:12:15.623325"
+    "time": "2026-07-15T12:41:47.383227"
   },
   {
     "stock": "ICICIBANK",
@@ -112,7 +112,7 @@
     "regime": "SIDEWAYS",
     "timeframe_alignment": 2,
     "pass_all_rules": true,
-    "time": "2026-07-15T12:12:15.623415"
+    "time": "2026-07-15T12:41:47.383322"
   },
   {
     "stock": "SBIN",
@@ -135,7 +135,7 @@
     "regime": "SIDEWAYS",
     "timeframe_alignment": 4,
     "pass_all_rules": true,
-    "time": "2026-07-15T12:12:15.623494"
+    "time": "2026-07-15T12:41:47.383402"
   },
   {
     "stock": "WIPRO",
@@ -158,7 +158,7 @@
     "regime": "SIDEWAYS",
     "timeframe_alignment": 2,
     "pass_all_rules": true,
-    "time": "2026-07-15T12:12:15.623569"
+    "time": "2026-07-15T12:41:47.383482"
   },
   {
     "stock": "LT",
@@ -181,7 +181,7 @@
     "regime": "SIDEWAYS",
     "timeframe_alignment": 3,
     "pass_all_rules": true,
-    "time": "2026-07-15T12:12:15.623649"
+    "time": "2026-07-15T12:41:47.383569"
   },
   {
     "stock": "BAJFINANCE",
@@ -204,7 +204,7 @@
     "regime": "SIDEWAYS",
     "timeframe_alignment": 4,
     "pass_all_rules": true,
-    "time": "2026-07-15T12:12:15.623722"
+    "time": "2026-07-15T12:41:47.383640"
   },
   {
     "stock": "MARUTI",
@@ -229,6 +229,6 @@
     "regime": "SIDEWAYS",
     "timeframe_alignment": 4,
     "pass_all_rules": true,
-    "time": "2026-07-15T12:12:15.623800"
+    "time": "2026-07-15T12:41:47.383713"
   }
 ]

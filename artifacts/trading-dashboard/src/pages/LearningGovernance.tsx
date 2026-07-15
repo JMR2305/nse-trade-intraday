@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiJson } from "@/lib/api";
+import { apiJson, API_BASE } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   GraduationCap, Activity, Scale, SlidersHorizontal, Trophy, Radar,
@@ -474,7 +474,6 @@ const TABS = [
 
 export default function LearningGovernance() {
   const [tab, setTab] = useState("overview");
-  const base = (import.meta as any).env?.BASE_URL ?? "/";
   return (
     <div className="space-y-5 max-w-7xl mx-auto">
       <div className="flex items-start justify-between flex-wrap gap-3">
@@ -488,13 +487,13 @@ export default function LearningGovernance() {
           </p>
         </div>
         <div className="flex gap-2">
-          <a href={`${base}api/phase14/bundle/download?file=json`} className="flex items-center gap-1.5 text-xs font-mono px-3 py-2 rounded border border-border hover:bg-muted/40">
+          <a href={`${API_BASE}/phase14/export/evaluation?format=json`} download className="flex items-center gap-1.5 text-xs font-mono px-3 py-2 rounded border border-border hover:bg-muted/40">
             <Download className="h-3 w-3" /> Phase 14 JSON
           </a>
-          <a href={`${base}api/phase14/bundle/download?file=csv`} className="flex items-center gap-1.5 text-xs font-mono px-3 py-2 rounded border border-border hover:bg-muted/40">
+          <a href={`${API_BASE}/phase14/bundle/download?file=csv`} download className="flex items-center gap-1.5 text-xs font-mono px-3 py-2 rounded border border-border hover:bg-muted/40">
             <Download className="h-3 w-3" /> Phase 14 CSV
           </a>
-          <a href={`${base}api/phase14/bundle/download?file=json`} className="flex items-center gap-1.5 text-xs font-mono px-3 py-2 rounded border border-purple-500/40 text-purple-400 hover:bg-purple-500/10">
+          <a href={`${API_BASE}/phase14/bundle/download?file=json`} download className="flex items-center gap-1.5 text-xs font-mono px-3 py-2 rounded border border-purple-500/40 text-purple-400 hover:bg-purple-500/10">
             <Download className="h-3 w-3" /> Diagnostic Bundle
           </a>
         </div>

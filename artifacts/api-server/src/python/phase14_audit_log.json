@@ -160,5 +160,29 @@
     "phase14_summary.csv"
    ]
   }
+ },
+ {
+  "id": "297a14e6ce",
+  "ts": "2026-07-15T12:48:21.965904+00:00",
+  "event_type": "bundle_exported",
+  "actor": "system",
+  "detail": {
+   "files": [
+    "phase14_diagnostic_bundle.json",
+    "phase14_summary.csv"
+   ]
+  }
+ },
+ {
+  "id": "8e06c64636",
+  "ts": "2026-07-15T12:48:46.600007+00:00",
+  "event_type": "bundle_exported",
+  "actor": "system",
+  "detail": {
+   "files": [
+    "phase14_diagnostic_bundle.json",
+    "phase14_summary.csv"
+   ]
+  }
  }
 ]
