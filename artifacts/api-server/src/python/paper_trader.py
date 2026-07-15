@@ -192,6 +192,7 @@ def execute_buy(
     strategy_name: str = "",
     opportunity_score: float = 0.0,
     trade_quality: float = 0.0,
+    bypass_risk: bool = False,
 ) -> tuple[bool, str]:
     """
     Execute a paper buy order.
@@ -204,6 +205,23 @@ def execute_buy(
     """
     if quantity <= 0:
         return False, "Quantity must be positive"
+
+    # ── Phase 11: pre-trade risk enforcement (paper trading only) ────────
+    risk_note = ""
+    if not bypass_risk:
+        try:
+            from phase11_risk import pre_trade_check
+            allowed, risk_msg = pre_trade_check(
+                symbol, quantity, price,
+                stop_loss_price if stop_loss_price > 0 else None,
+                signal_confidence if signal_confidence > 0 else None,
+            )
+            if not allowed:
+                return False, f"RISK BLOCKED: {risk_msg}"
+            if risk_msg and "Risk note" in risk_msg:
+                risk_note = f" [{risk_msg}]"
+        except ImportError:
+            pass  # risk engine not present — legacy behavior
 
     state = _load_state()
     total_cost = quantity * price
@@ -302,7 +320,7 @@ def execute_buy(
     except Exception:
         pass  # snapshot must never block a buy order
 
-    return True, f"Bought {quantity} × {sym} @ ₹{price:.2f} = ₹{total_cost:.2f}"
+    return True, f"Bought {quantity} × {sym} @ ₹{price:.2f} = ₹{total_cost:.2f}{risk_note}"
 
 
 def execute_sell(

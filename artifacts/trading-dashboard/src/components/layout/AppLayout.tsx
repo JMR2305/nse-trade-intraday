@@ -94,6 +94,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     {
       label: "System",
       items: [
+        { href: "/risk", label: "Risk Management", icon: ShieldCheck },
         { href: "/settings", label: "Settings", icon: Settings2 },
       ],
     },

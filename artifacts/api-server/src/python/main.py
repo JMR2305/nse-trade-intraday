@@ -1041,6 +1041,56 @@ def main():
             from review_package import build_package
             result = build_package(args[1] if len(args) > 1 else None)
 
+        # ── Phase 11 — Institutional Risk Engine ────────────────────────────
+        elif command == "risk_dashboard":
+            from phase11_risk import portfolio_risk
+            result = portfolio_risk()
+        elif command == "risk_assess":
+            from phase11_risk import assess_trade
+            if len(args) < 4:
+                result = {"success": False, "error": "Usage: risk_assess <symbol> <quantity> <price> [stop_loss] [confidence]"}
+            else:
+                def _optf(v):
+                    return None if v is None or str(v).lower() in ("null", "none", "") else float(v)
+                result = assess_trade(
+                    args[1], int(args[2]), float(args[3]),
+                    _optf(args[4]) if len(args) > 4 else None,
+                    _optf(args[5]) if len(args) > 5 else None,
+                )
+        elif command == "risk_position_size":
+            from phase11_risk import position_size
+            if len(args) < 3:
+                result = {"success": False, "error": "Usage: risk_position_size <symbol> <price> [stop_loss] [confidence]"}
+            else:
+                def _optf(v):
+                    return None if v is None or str(v).lower() in ("null", "none", "") else float(v)
+                result = position_size(
+                    args[1], float(args[2]),
+                    _optf(args[3]) if len(args) > 3 else None,
+                    _optf(args[4]) if len(args) > 4 else None,
+                )
+        elif command == "risk_alerts":
+            from phase11_risk import risk_alerts
+            result = risk_alerts()
+        elif command == "risk_kill_switch":
+            from phase11_risk import kill_switch_status, trigger_kill_switch, resume_trading
+            sub = args[1] if len(args) > 1 else "status"
+            if sub == "trigger":
+                result = trigger_kill_switch(args[2] if len(args) > 2 else "Manual trigger", source="manual")
+            elif sub == "resume":
+                result = resume_trading(acknowledge=(len(args) > 2 and args[2].lower() == "acknowledge"))
+            else:
+                result = {"success": True, "kill_switch": kill_switch_status()}
+        elif command == "risk_report":
+            from phase11_risk import risk_report
+            result = risk_report(args[1] if len(args) > 1 else "risk_summary")
+        elif command == "risk_config":
+            from phase11_risk import get_config, update_config
+            if len(args) > 1:
+                result = update_config(json.loads(args[1]))
+            else:
+                result = {"success": True, "config": get_config()}
+
         elif command == "meta_health":
             from meta_learning import cmd_health
             result = cmd_health()

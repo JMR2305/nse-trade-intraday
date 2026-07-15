@@ -76,5 +76,5 @@
   },
   "database_version": "JSON file storage (no SQL database)",
   "api_version": "v1 (unversioned /api/* routes)",
-  "generated_at": "2026-07-14 21:10 UTC"
+  "generated_at": "2026-07-14 21:21 UTC"
 }

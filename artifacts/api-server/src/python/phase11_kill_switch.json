@@ -1,0 +1,20 @@
+{
+  "active": false,
+  "events": [
+    {
+      "event": "TRIGGERED",
+      "reason": "test event",
+      "source": "manual",
+      "ts": "2026-07-15T03:38:28.777335"
+    },
+    {
+      "event": "RESUMED",
+      "acknowledged": true,
+      "ts": "2026-07-15T03:38:34.155799"
+    }
+  ],
+  "reason": null,
+  "triggered_at": "2026-07-15T03:38:28.777367",
+  "triggered_by": "manual",
+  "resumed_at": "2026-07-15T03:38:34.155811"
+}

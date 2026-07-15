@@ -1,0 +1,20 @@
+# Phase 11 risk_summary report,generated 2026-07-15T03:43:12.686163,engine 11.0,PAPER TRADING RESEARCH ONLY
+Metric,Value
+Portfolio Value,5492.15
+Cash,4600.0
+Cash Allocation %,83.76
+Portfolio Heat %,0.0
+Risk Budget Used %,0.0
+Diversification Score,54.42
+Daily Realized Loss %,0.0
+Daily Drawdown %,
+Weekly Drawdown %,1.15
+Monthly Drawdown %,1.15
+Kill Switch Active,False
+Limit: max_risk_per_trade_pct,1.0
+Limit: max_position_pct,20.0
+Limit: max_stock_pct,25.0
+Limit: max_sector_pct,40.0
+Limit: max_portfolio_heat_pct,6.0
+Limit: daily_loss_limit_pct,3.0
+Limit: max_drawdown_alert_pct,8.0

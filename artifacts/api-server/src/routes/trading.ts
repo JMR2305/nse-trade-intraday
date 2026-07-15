@@ -2233,4 +2233,139 @@ router.get("/review-package/download", (_req, res) => {
   fs.createReadStream(zipPath).pipe(res);
 });
 
+// ── Phase 11: Institutional Risk Engine ───────────────────────────────────
+// Paper trading / research only — no real-money execution anywhere.
+
+// GET /api/risk/dashboard — portfolio risk dashboard
+router.get("/risk/dashboard", async (_req, res) => {
+  try {
+    res.json(await runPython(["risk_dashboard"]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/risk/assess — pre-trade risk assessment (8 checks)
+router.post("/risk/assess", async (req, res) => {
+  try {
+    const { symbol, quantity, price, stop_loss, confidence } = req.body ?? {};
+    if (!symbol || !quantity || !price) {
+      res.status(400).json({ error: "symbol, quantity and price are required" });
+      return;
+    }
+    const args = ["risk_assess", String(symbol), String(quantity), String(price)];
+    if (stop_loss != null || confidence != null) {
+      args.push(stop_loss != null ? String(stop_loss) : "null");
+      if (confidence != null) args.push(String(confidence));
+    }
+    res.json(await runPython(args));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/risk/position-size — dynamic position sizing
+router.post("/risk/position-size", async (req, res) => {
+  try {
+    const { symbol, price, stop_loss, confidence } = req.body ?? {};
+    if (!symbol || !price) {
+      res.status(400).json({ error: "symbol and price are required" });
+      return;
+    }
+    const args = ["risk_position_size", String(symbol), String(price)];
+    if (stop_loss != null || confidence != null) {
+      args.push(stop_loss != null ? String(stop_loss) : "null");
+      if (confidence != null) args.push(String(confidence));
+    }
+    res.json(await runPython(args));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/risk/alerts — evaluate + list risk alerts
+router.get("/risk/alerts", async (_req, res) => {
+  try {
+    res.json(await runPython(["risk_alerts"]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/risk/kill-switch — kill switch status
+router.get("/risk/kill-switch", async (_req, res) => {
+  try {
+    res.json(await runPython(["risk_kill_switch", "status"]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/risk/kill-switch/trigger — halt all paper trading (simulated)
+router.post("/risk/kill-switch/trigger", async (req, res) => {
+  try {
+    const reason = String(req.body?.reason || "Manual trigger from dashboard");
+    res.json(await runPython(["risk_kill_switch", "trigger", reason]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/risk/kill-switch/resume — resume; requires explicit acknowledge
+router.post("/risk/kill-switch/resume", async (req, res) => {
+  try {
+    const args = ["risk_kill_switch", "resume"];
+    if (req.body?.acknowledge === true) args.push("acknowledge");
+    res.json(await runPython(args));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/risk/report/:kind — generate + download one of the 5 risk reports
+const RISK_REPORT_KINDS = new Set(["risk_summary", "exposure", "correlation", "position_sizing", "drawdown"]);
+// Supports both /api/risk/report/:kind and /api/risk/report?kind=
+router.get(["/risk/report/:kind", "/risk/report"], async (req, res) => {
+  try {
+    const kind = String(req.params.kind ?? req.query.kind ?? "");
+    if (!RISK_REPORT_KINDS.has(kind)) {
+      res.status(400).json({ error: `Unknown report kind '${kind}'. Valid: ${[...RISK_REPORT_KINDS].join(", ")}` });
+      return;
+    }
+    const result = (await runPython(["risk_report", kind])) as { success?: boolean; file?: string; error?: string };
+    if (!result?.success || !result.file || !fs.existsSync(result.file)) {
+      res.status(500).json({ error: result?.error || "Report generation failed" });
+      return;
+    }
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="${path.basename(result.file)}"`);
+    fs.createReadStream(result.file).pipe(res);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/risk/config — current risk limits
+router.get("/risk/config", async (_req, res) => {
+  try {
+    res.json(await runPython(["risk_config"]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/risk/config — update risk limits (allowlisted keys only, python-side)
+router.post("/risk/config", async (req, res) => {
+  try {
+    const changes = req.body ?? {};
+    if (typeof changes !== "object" || Array.isArray(changes) || Object.keys(changes).length === 0) {
+      res.status(400).json({ error: "Provide a JSON object of config keys to update" });
+      return;
+    }
+    res.json(await runPython(["risk_config", JSON.stringify(changes)]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 export default router;

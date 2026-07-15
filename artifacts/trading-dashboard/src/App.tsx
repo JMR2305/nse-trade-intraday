@@ -37,6 +37,7 @@ import AiCopilot from "@/pages/AiCopilot";
 import Notifications from "@/pages/Notifications";
 import PerformanceAnalytics from "@/pages/PerformanceAnalytics";
 import Settings from "@/pages/Settings";
+import RiskManagement from "@/pages/RiskManagement";
 
 const queryClient = new QueryClient();
 
@@ -76,6 +77,7 @@ function Router() {
         <Route path="/notifications" component={Notifications} />
         <Route path="/performance-analytics" component={PerformanceAnalytics} />
         <Route path="/settings" component={Settings} />
+        <Route path="/risk" component={RiskManagement} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>
