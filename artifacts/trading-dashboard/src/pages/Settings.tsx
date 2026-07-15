@@ -66,7 +66,7 @@ export default function Settings() {
         if (s.status === "error") throw new Error(s.error ?? "Generation failed");
         if (s.status === "done" && s.result) {
           setResult(s.result);
-          await downloadZip(s.result.zip_name ?? "Phase15_Review_Package.zip");
+          await downloadZip(s.result.zip_name ?? "Review_Package.zip");
           toast({
             title: "Review package ready",
             description: `${s.result.file_count} files · ${s.result.total_size_human}`,
@@ -102,14 +102,13 @@ export default function Settings() {
         </CardHeader>
         <CardContent className="px-5 pb-5">
           <p className="mb-4 text-xs text-zinc-500">
-            Builds Phase15_Review_Package.zip: full-page screenshots of every registered page,
+            Builds Phase16_Review_Package.zip: full-page screenshots of every registered page,
             9 CSV exports (opportunities, signals, portfolio, performance, AI performance,
-            notifications, learning, trade history, risk analytics), 7 JSON exports
+            notifications, learning, trade history, risk analytics), 8 JSON exports
             (scan snapshot, AI decisions, dashboard/portfolio/learning summaries, diagnostics,
-            production readiness), implementation &amp; readiness reports, feature matrix and
-            live test results — complete enough for an external technical review without
-            manual screenshots. Takes 2–5 minutes (headless browser captures every page,
-            full-page).
+            production readiness, Phase 16 validation), implementation &amp; readiness reports,
+            feature matrix and live test results — always reflects the latest application
+            changes. Takes 2–5 minutes (headless browser captures every page, full-page).
           </p>
           <Button onClick={generate} disabled={generating} className="gap-2">
             {generating
@@ -148,7 +147,7 @@ export default function Settings() {
                 <span className="text-zinc-400">Total files: <b className="text-zinc-200">{result.file_count}</b></span>
                 <span className="text-zinc-400">ZIP size: <b className="text-zinc-200">{result.total_size_human}</b></span>
                 <Button size="sm" variant="outline" className="gap-1.5 text-xs"
-                  onClick={() => downloadZip(result.zip_name ?? "Phase15_Review_Package.zip")}>
+                  onClick={() => downloadZip(result.zip_name ?? "Review_Package.zip")}>
                   <Download className="h-3.5 w-3.5" />Download again
                 </Button>
               </div>

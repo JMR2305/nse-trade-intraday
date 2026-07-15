@@ -8,3 +8,6 @@ description: Conventions for the Settings "Generate Review Package" feature when
 - Honesty rules are a hard requirement: no placeholder screenshots (write NOT_AVAILABLE.txt instead), mark missing data "Not Available"/"Insufficient Data", never claim test/integration results that were not actually executed during generation.
 - Generation takes ~4-5 min (37 full-page captures + 3 live test suites); trigger via background curl and poll files, per headless-screenshot-capture.md.
 - Generation must be start-then-poll: POST /generate returns 202 immediately and the UI polls GET /status every few seconds; a synchronous response gets killed by the ~2-min browser/proxy request timeout (statusCode null abort at ~120s), so the user never receives the ZIP.
+
+**Rule:** Standing user requirement — every executed change must also be reflected in the review package generator (implementation summary, feature matrix, test suites, data exports). Recorded in replit.md User preferences.
+**How to apply:** When finishing any feature/phase, update review_package.py in the same task; download route auto-picks newest Phase<N>_Review_Package.zip by mtime, so only the generator needs updating.

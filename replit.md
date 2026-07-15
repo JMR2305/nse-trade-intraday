@@ -52,6 +52,7 @@ A paper-trading algorithmic system for Indian NSE stocks with a React web dashbo
 - yfinance for now; Zerodha Kite Connect planned as a future swap
 - Initial capital: ₹5,000
 - Do not add automated real order placement
+- Every change/prompt executed must also be reflected in the review package generator (`review_package.py`: implementation summary, feature matrix, tests, data exports) so "Generate Review Package" always includes the latest changes
 
 ## Gotchas
 

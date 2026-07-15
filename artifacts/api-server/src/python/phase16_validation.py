@@ -745,3 +745,26 @@ def bug_detection() -> dict:
         "checks_performed": checks, "issues": issues, "verdict": verdict,
         "not_checkable": ["broken_charts (client-side rendering — cannot be verified server-side)"],
     })
+
+
+# ── combined runner ──────────────────────────────────────────────────────────
+
+def run_all() -> dict:
+    """All 14 validation sections in one call (used by phase16_all CLI and the review package)."""
+    return {
+        "success": True,
+        "overview": validation_overview(),
+        "scorecard": strategy_scorecard(),
+        "confidence": confidence_validation(),
+        "regimes": regime_validation(),
+        "sectors": sector_validation(),
+        "ai": ai_decision_validation(),
+        "trades": trade_review(),
+        "weekly": {"success": True, **weekly_report()},
+        "monthly": {"success": True, **monthly_report()},
+        "recommendations": improvement_recommendations(),
+        "failures": failure_analysis(),
+        "successes": success_analysis(),
+        "timeline": validation_timeline(),
+        "bugs": bug_detection(),
+    }

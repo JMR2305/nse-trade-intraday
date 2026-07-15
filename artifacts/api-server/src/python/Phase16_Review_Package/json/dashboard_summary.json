@@ -1,0 +1,46 @@
+{
+  "generated_at": "2026-07-15 15:34 UTC",
+  "portfolio_value": 5465.0,
+  "cash": 4600.0,
+  "open_positions": 1,
+  "scan_id": "ec7503842451",
+  "snapshot_ts": "2026-07-15T14:48:38Z",
+  "scan_summary": {
+    "scan_id": "ec7503842451",
+    "snapshot_ts": "2026-07-15T14:48:38Z",
+    "universe_size": 50,
+    "symbols_analysed": 50,
+    "symbols_with_errors": 2,
+    "strong_buy_count": 0,
+    "buy_count": 0,
+    "watch_count": 4,
+    "ignore_count": 44,
+    "paper_eligible_count": 0,
+    "all_gates_passed_count": 48,
+    "avg_opportunity_score": 23.6,
+    "best_stock": "INDUSINDBK",
+    "best_stock_score": 43.9,
+    "data_quality_breakdown": {
+      "LIVE": 48,
+      "UNAVAILABLE": 2
+    },
+    "duration_s": 38.83,
+    "label": "PAPER / LIVE DATA VALIDATION"
+  },
+  "performance_summary": {
+    "total_return_pct": 9.46,
+    "total_return_amount": 473.25,
+    "portfolio_value": 5473.25,
+    "today_return": 0.0,
+    "weekly_return": 0.0,
+    "monthly_return": 465.0,
+    "total_trades": 3,
+    "win_rate_pct": 66.67,
+    "profit_factor": 8.75,
+    "avg_winner": 262.5,
+    "avg_loser": 60.0,
+    "expectancy": 155.0,
+    "wins": 2,
+    "losses": 1
+  }
+}

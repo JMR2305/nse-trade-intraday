@@ -1495,24 +1495,8 @@ def main():
             from phase16_validation import bug_detection
             result = bug_detection()
         elif command == "phase16_all":
-            import phase16_validation as p16
-            result = {
-                "success": True,
-                "overview": p16.validation_overview(),
-                "scorecard": p16.strategy_scorecard(),
-                "confidence": p16.confidence_validation(),
-                "regimes": p16.regime_validation(),
-                "sectors": p16.sector_validation(),
-                "ai": p16.ai_decision_validation(),
-                "trades": p16.trade_review(),
-                "weekly": {"success": True, **p16.weekly_report()},
-                "monthly": {"success": True, **p16.monthly_report()},
-                "recommendations": p16.improvement_recommendations(),
-                "failures": p16.failure_analysis(),
-                "successes": p16.success_analysis(),
-                "timeline": p16.validation_timeline(),
-                "bugs": p16.bug_detection(),
-            }
+            from phase16_validation import run_all
+            result = run_all()
         elif command == "phase16_export":
             from phase16_exports import build_exports
             result = build_exports()

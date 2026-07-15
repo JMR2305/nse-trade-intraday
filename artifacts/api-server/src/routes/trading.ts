@@ -2339,8 +2339,14 @@ router.get("/review-package/status", (_req, res) => {
 
 // GET /api/review-package/download — stream the most recently generated ZIP
 router.get("/review-package/download", (_req, res) => {
-  const zipPath = path.join(PYTHON_DIR, "Phase15_Review_Package.zip");
-  if (!fs.existsSync(zipPath)) {
+  // Find the newest Phase<N>_Review_Package.zip so this never goes stale
+  // when the current phase number advances.
+  const candidates = fs.readdirSync(PYTHON_DIR)
+    .filter((f) => /^Phase\d+_Review_Package\.zip$/.test(f))
+    .map((f) => ({ f, mtime: fs.statSync(path.join(PYTHON_DIR, f)).mtimeMs }))
+    .sort((a, b) => b.mtime - a.mtime);
+  const zipPath = candidates.length > 0 ? path.join(PYTHON_DIR, candidates[0].f) : "";
+  if (!zipPath || !fs.existsSync(zipPath)) {
     res.status(404).json({ error: "No review package has been generated yet." });
     return;
   }

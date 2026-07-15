@@ -1,7 +1,11 @@
 """
-review_package.py — Phase Review Package generator (current phase: 15).
+review_package.py — Phase Review Package generator (current phase: 16).
 
-Assembles Phase15_Review_Package/ and zips it to Phase15_Review_Package.zip
+STANDING RULE: every change made to the application must also be reflected in
+this review package (implementation summary, feature matrix, tests, data
+exports) so an external reviewer always sees the latest state.
+
+Assembles Phase16_Review_Package/ and zips it to Phase16_Review_Package.zip
 so an external reviewer (e.g. ChatGPT) can audit the whole application
 without manual screenshots:
 
@@ -33,7 +37,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PHASE = 15
+PHASE = 16
 PACKAGE_NAME = f"Phase{PHASE}_Review_Package"
 PACKAGE_DIR = os.path.join(BASE_DIR, PACKAGE_NAME)
 ZIP_PATH = os.path.join(BASE_DIR, f"{PACKAGE_NAME}.zip")
@@ -189,66 +193,64 @@ def _csv_risk(out: str, risk: dict):
 
 # ── Reports ──────────────────────────────────────────────────────────────────
 
-def _implementation_summary(t15: dict) -> str:
-    return f"""# Phase {PHASE} Implementation Summary — Production Hardening & Stabilization
+def _implementation_summary(t15: dict, t16: dict) -> str:
+    return f"""# Phase {PHASE} Implementation Summary — Paper Trading Validation & Strategy Proving
 
 - **Phase:** {PHASE}
 - **Date:** {_now()}
-- **Scope rule respected:** no new strategies, indicators or trading modules were added.
+- **Scope rule respected:** feature freeze — no new strategies, indicators or trading
+  modules were added; recommendations are advisory only; PAPER / RESEARCH ONLY.
 
-## Features added
-- Unified Scan Context — every page reads the same canonical Phase 7 scan snapshot
-  (scan_id, snapshot_ts, regime, per-symbol values). Regime derives from the snapshot itself.
-- Staleness detection — scan older than 90 minutes disables BUY (effective action WATCH),
-  with a global banner across the app.
-- Data Quality Scores per symbol (0-100 with bands; DO NOT TRADE below 80).
-- Cross-Page Consistency validation — derived caches compared against the canonical scan;
-  severities ERROR/CRITICAL, STALE_SOURCE, MISSING_SOURCE; PASS/WARN/FAIL verdict.
-- AI Explainability — 12-factor structured explanation for every recommendation.
-- Risk Gate hardening — 10 explicit pre-trade checks incl. intended-quantity sizing and
-  post-trade exposure/sector modeling; failures BLOCK with reasons.
-- Extended trade records — broker charge & slippage estimates, risk/reward percentages,
-  scan metadata on BUY/SELL; trade replay shows holding period and total friction.
-- Scan audit logging (capped log), system diagnostics and production readiness report.
-- Phase Review Package generator (this package).
+## Phase 16 features added (latest)
+- Validation engine — 14 analysis sections: validation overview, strategy scorecard
+  (advisory statuses only, nothing auto-disabled), confidence-band validation,
+  market-regime validation, sector validation, AI decision validation, trade review
+  with lessons, weekly and monthly reports, AI improvement recommendations
+  (advisory only, never auto-applied), failure analysis, success analysis,
+  validation timeline, and automated bug detection.
+- Honesty guarantees — every statistic derives from real completed paper trades;
+  groups below minimum sample size show "Insufficient Data" instead of fabricated
+  numbers; untracked outcomes (HOLD correctness, false negatives) are explicitly
+  marked unavailable.
+- Exports — Validation Report as PDF / XLSX / CSV, strategy scorecard CSV,
+  trade review CSV, AI recommendations CSV, plus Phase16_Validation_Report.md.
+- Dashboard — "Paper Trading Validation" page (route /validation, System group)
+  rendering all 14 sections from one combined API call for fast loads.
 
-## Files created
-- `src/python/phase15_scan_context.py`, `phase15_quality.py`, `phase15_consistency.py`,
-  `phase15_explain.py`, `phase15_risk_gate.py`, `phase15_audit.py`, `phase15_diagnostics.py`
-- `src/python/test_phase15.py`
-- `src/routes/phase15.ts`
-- `trading-dashboard/src/components/Phase15SystemHealth.tsx`
+## Phase 16 files
+- `src/python/phase16_validation.py`, `phase16_exports.py`, `test_phase16.py`
+- `src/routes/phase16.ts` (registered in `src/routes/index.ts`)
+- `src/python/main.py` — phase16_* CLI commands incl. combined `phase16_all`
+- `trading-dashboard/src/pages/PaperTradingValidation.tsx` (+ route and nav entry)
 
-## Files modified
-- `src/python/paper_trader.py` — charge/slippage estimates, extended trade metadata, replay friction
-- `src/python/main.py` — 12 phase15_* CLI commands
-- `src/routes/index.ts` — phase15 route registration
-- `trading-dashboard`: AppLayout (stale banner), LiveDataHealth (system health panel),
-  AiDecision (explanation panel), Settings (review package UI)
+## Phase 16 APIs added
+- GET /api/phase16/<section> (14 sections), GET /api/phase16/all (combined),
+  POST /api/phase16/export, GET /api/phase16/export/:file (download).
 
-## APIs added
-- GET /api/phase15/context, /context/:symbol, /quality, /staleness, /consistency,
-  /consistency/last, /explain/:symbol, /explain-all, /risk-gate/:symbol,
-  /audit, /diagnostics, /readiness
+## Carried forward from Phase 15 (Production Hardening)
+- Unified Scan Context, staleness detection (90-min BUY disable + banner),
+  data quality scores, cross-page consistency validation, 12-factor AI
+  explainability, 10-check risk gate, extended trade records with friction
+  estimates, scan audit logging, diagnostics and production readiness report,
+  and this review package generator.
 
 ## Database changes
 - None. Persistence remains JSON file storage (no SQL database).
 
-## Components added
-- StaleScanBanner (global), Phase15SystemHealthPanel (Live Data Health),
-  Phase15Explanation (AI Decision), Review Package generator UI (Settings).
-
 ## Tests
+- Phase 16 suite: {t16['passed']} passed, {t16['failed']} failed{'' if t16['ran'] else f' ({NA} — suite did not run)'}
 - Phase 15 suite: {t15['passed']} passed, {t15['failed']} failed{'' if t15['ran'] else f' ({NA} — suite did not run)'}
-- Phase 13/14 regression suites pass (see test_results.csv).
+- Phase 13/14 regression suites: see test_results.csv.
 
 ## Known issues
-- Derived caches (AI decisions, opportunity scan) written before the latest scan are
-  flagged STALE_SOURCE by the consistency checker until a fresh pipeline run resynchronises them.
-- Risk ratios remain statistically weak until more closed trades accumulate (flagged `estimated`).
+- Only a small number of completed trades exist, so most validation cells honestly
+  read "Insufficient Data" until more evidence accumulates (minimums enforced).
+- Derived caches written before the latest scan are flagged STALE_SOURCE by the
+  consistency checker until a fresh pipeline run resynchronises them.
 
 ## Pending work
-- Period-aligned benchmark series; optional PDF report rendering.
+- Accumulate trades toward validation milestones (100 trading days / 500 trades);
+  period-aligned benchmark series.
 """
 
 
@@ -340,9 +342,15 @@ def build_package(screenshots_dir: str | None = None) -> dict:
     quality = safe("quality report",
                    lambda: __import__("phase15_quality").quality_report(), {})
 
+    validation = safe("phase16 validation",
+                      lambda: __import__("phase16_validation").run_all(), {})
+
     t15 = _run_tests("test_phase15.py")
     if not t15["ran"]:
         warnings.append("Phase 15 test suite could not be executed")
+    t16 = _run_tests("test_phase16.py")
+    if not t16["ran"]:
+        warnings.append("Phase 16 test suite could not be executed")
 
     # 1. Screenshots
     shots_out = os.path.join(PACKAGE_DIR, "screenshots")
@@ -396,10 +404,12 @@ def build_package(screenshots_dir: str | None = None) -> dict:
                 diagnostics or {"available": False, "reason": INSUFFICIENT})
     _write_json(os.path.join(json_dir, "production_readiness.json"),
                 readiness or {"available": False, "reason": INSUFFICIENT})
+    _write_json(os.path.join(json_dir, "phase16_validation.json"),
+                validation or {"available": False, "reason": INSUFFICIENT})
 
     # 4/5. Reports
     open(os.path.join(PACKAGE_DIR, "implementation_summary.md"), "w").write(
-        _implementation_summary(t15))
+        _implementation_summary(t15, t16))
     open(os.path.join(PACKAGE_DIR, "production_readiness.md"), "w").write(
         _production_readiness_md(readiness, consistency, quality, diagnostics, t15))
 
@@ -414,6 +424,10 @@ def build_package(screenshots_dir: str | None = None) -> dict:
         ["Extended trade records (charges, slippage)", "Yes", "Yes", "Yes", "Estimates only — paper trading"],
         ["Scan audit logging", "Yes", "Yes", "Yes", "Capped log"],
         ["System diagnostics + readiness report", "Yes", "Yes", "Yes", ""],
+        ["Paper trading validation (14 sections)", "Yes", "Yes", "Yes",
+         "Advisory only; Insufficient Data below minimum samples"],
+        ["Validation exports (PDF/XLSX/CSV + report)", "Yes", "Yes", "Yes", ""],
+        ["Paper Trading Validation dashboard page", "Yes", "Yes", "Yes", "Route /validation"],
         ["Review package generator", "Yes", "Yes", "Partial", "Tested via generation run itself"],
         ["Paper trading engine / scanner / strategies", "Yes", "Yes", "Yes", "Built in earlier phases 1-14"],
         ["Real-money execution", "No", "No", "No", "Deliberately not implemented — research only"],
@@ -425,6 +439,8 @@ def build_package(screenshots_dir: str | None = None) -> dict:
     t13 = _run_tests("test_phase13.py")
     t14 = _run_tests("test_phase14.py")
     test_rows = [
+        ["Unit Tests — Phase 16 suite", t16["passed"] if t16["ran"] else NA,
+         t16["failed"] if t16["ran"] else NA, 0],
         ["Unit Tests — Phase 15 suite", t15["passed"] if t15["ran"] else NA,
          t15["failed"] if t15["ran"] else NA, 0],
         ["Unit Tests — Phase 13 regression", t13["passed"] if t13["ran"] else NA,
@@ -465,7 +481,7 @@ This package allows a complete external technical review without manual screensh
 |---|---|
 | screenshots/ | Full-page 1920px PNG captures of every registered page (no placeholders) |
 | csv/ | Opportunities, signals, portfolio, performance, AI performance, notifications, learning, trade history, risk analytics |
-| json/ | Scan snapshot, AI decisions, dashboard/portfolio/learning summaries, diagnostics, production readiness |
+| json/ | Scan snapshot, AI decisions, dashboard/portfolio/learning summaries, diagnostics, production readiness, Phase 16 validation (all 14 sections) |
 | implementation_summary.md | What Phase {PHASE} added: features, files, APIs, components, known issues, pending work |
 | production_readiness.md | Runtime, build, consistency, data quality, learning/AI/risk/broker status, overall readiness |
 | feature_matrix.csv | Feature / Implemented / Working / Tested / Comments |
@@ -501,7 +517,7 @@ anything missing is marked "{NA}" or "{INSUFFICIENT}" — nothing is fabricated.
         "file_count": n_files,
         "screenshot_count": n_shots,
         "csv_count": 9,
-        "json_count": 7,
+        "json_count": 8,
         "reports": ["implementation_summary.md", "production_readiness.md", "README.md"],
         "generation_seconds": round(time.time() - t0, 1),
         "warnings": warnings,
