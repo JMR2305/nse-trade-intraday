@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { spawn } from "child_process";
 import path from "path";
 import fs from "fs";
+import { eventBus } from "../lib/events";
 
 const router: IRouter = Router();
 
@@ -823,10 +824,86 @@ router.get("/live-data/scan", async (req, res) => {
 });
 
 // POST /api/live-data/scan/run — trigger fresh scan explicitly
+// Phase 11: idempotent under concurrency (single in-flight scan lock via
+// p7InFlight), rate-limited, and publishes scan.* events with notifications.
+let lastScanRunTs = 0;
+const SCAN_RUN_MIN_GAP_MS = 30_000;
+
 router.post("/live-data/scan/run", async (_req, res) => {
   try {
+    const now = Date.now();
+    if (p7InFlight) {
+      // Idempotent: join the in-flight scan rather than spawning another.
+      res.json(await p7InFlight);
+      return;
+    }
+    if (now - lastScanRunTs < SCAN_RUN_MIN_GAP_MS) {
+      res.status(429).json({
+        success: false,
+        error: `Scan rate limit — wait ${Math.ceil((SCAN_RUN_MIN_GAP_MS - (now - lastScanRunTs)) / 1000)}s before running another fresh scan.`,
+      });
+      return;
+    }
+    lastScanRunTs = now;
     p7Cache = null;  // invalidate Phase 7 cache; other caches expire naturally
-    res.json(await getP7Scan(true));
+    eventBus.publish("scan.started", { ts: new Date().toISOString() });
+    void runPython(["system_event", "SCAN_STARTED", JSON.stringify({ reason: "Fresh live scan started." })]).catch(() => undefined);
+    try {
+      const result = await getP7Scan(true) as Record<string, unknown>;
+      eventBus.publish("scan.completed", {
+        scan_id: result?.["scan_id"],
+        snapshot_ts: result?.["snapshot_ts"],
+        summary: result?.["summary"],
+      });
+      void runPython(["system_event", "SCAN_COMPLETED", JSON.stringify({
+        reason: `Live scan completed (scan ${String(result?.["scan_id"] ?? "unknown")}).`,
+      })]).catch(() => undefined);
+      res.json(result);
+    } catch (scanErr) {
+      const msg = scanErr instanceof Error ? scanErr.message : String(scanErr);
+      eventBus.publish("scan.failed", { error: msg });
+      void runPython(["system_event", "SCAN_FAILED", JSON.stringify({ reason: `Live scan failed: ${msg.slice(0, 200)}` })]).catch(() => undefined);
+      throw scanErr;
+    }
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ── Phase 11 — Live health v2 + diagnostic bundle ────────────────────────────
+
+// GET /api/live-data/health-v2 — market state + quote provider + scan health
+router.get("/live-data/health-v2", async (_req, res) => {
+  try { res.json(await runPython(["live_health_v2"])); }
+  catch (err: unknown) { res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) }); }
+});
+
+// POST /api/live-data/diagnostic-bundle — generate bundle, return JSON
+router.post("/live-data/diagnostic-bundle", async (_req, res) => {
+  try { res.json(await runPython(["diagnostic_bundle"])); }
+  catch (err: unknown) { res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) }); }
+});
+
+// GET /api/live-data/diagnostic-bundle/download?file=json|csv
+router.get("/live-data/diagnostic-bundle/download", async (req, res) => {
+  try {
+    const kind = String(req.query.file ?? "json");
+    if (!["json", "csv"].includes(kind)) {
+      res.status(400).json({ success: false, error: "file must be json or csv" });
+      return;
+    }
+    const fname = kind === "json" ? "phase11_diagnostic_bundle.json" : "phase11_summary.csv";
+    const filePath = path.join(PYTHON_DIR, fname);
+    // Always regenerate so downloads are honest point-in-time snapshots,
+    // never stale files left over from a previous run.
+    await runPython(["diagnostic_bundle"]);
+    if (!fs.existsSync(filePath)) {
+      res.status(500).json({ success: false, error: "Diagnostic bundle file missing" });
+      return;
+    }
+    res.setHeader("Content-Type", kind === "json" ? "application/json; charset=utf-8" : "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${fname}"`);
+    fs.createReadStream(filePath).pipe(res);
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
   }

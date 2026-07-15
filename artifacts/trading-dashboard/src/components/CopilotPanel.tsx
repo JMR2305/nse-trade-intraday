@@ -29,7 +29,14 @@ const RISK_COLOR: Record<string, string> = {
 };
 
 export default function CopilotPanel() {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState<boolean>(() => {
+    try { return localStorage.getItem("copilot_panel_open") === "1"; }
+    catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("copilot_panel_open", open ? "1" : "0"); }
+    catch { /* ignore */ }
+  }, [open]);
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -17,6 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 import { API_BASE } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { useLiveStream } from "@/hooks/useLiveStream";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -81,10 +82,13 @@ export default function LiveDataHealth() {
   const { toast } = useToast();
   const [health, setHealth] = useState<any>(null);
   const [scan, setScan] = useState<any>(null);
+  const [healthV2, setHealthV2] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  const stream = useLiveStream();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -93,9 +97,41 @@ export default function LiveDataHealth() {
     catch (e) { errs.push(`Health: ${e instanceof Error ? e.message : String(e)}`); }
     try { setScan(await safeJson("/live-data/scan")); }
     catch (e) { errs.push(`Scan: ${e instanceof Error ? e.message : String(e)}`); }
+    try { setHealthV2(await safeJson("/live-data/health-v2")); }
+    catch (e) { errs.push(`Live health: ${e instanceof Error ? e.message : String(e)}`); }
     setErrors(errs);
     setLoading(false);
   }, []);
+
+  async function forceReconnect() {
+    setReconnecting(true);
+    try {
+      const r = await safeJson("/stream/reconnect", { method: "POST" });
+      toast({ title: "Live data refreshed", description: r?.last_error ? `Last error: ${r.last_error}` : `Last refresh: ${r?.last_refresh ?? "N/A"}` });
+      void load();
+    } catch (e) {
+      toast({ title: "Reconnect failed", description: String(e instanceof Error ? e.message : e), variant: "destructive" });
+    } finally { setReconnecting(false); }
+  }
+
+  async function downloadBundle(kind: "json" | "csv") {
+    setExporting(true);
+    try {
+      const resp = await fetch(`${API_BASE}/live-data/diagnostic-bundle/download?file=${kind}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const blob = await resp.blob();
+      if (blob.size === 0) throw new Error("Empty bundle file");
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = kind === "json" ? "phase11_diagnostic_bundle.json" : "phase11_summary.csv";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({ title: `Diagnostic ${kind.toUpperCase()} downloaded` });
+    } catch (e) {
+      toast({ title: "Bundle download failed", description: String(e instanceof Error ? e.message : e), variant: "destructive" });
+    } finally { setExporting(false); }
+  }
 
   useEffect(() => { void load(); }, [load]);
 
@@ -171,6 +207,15 @@ export default function LiveDataHealth() {
           <Button size="sm" variant="outline" className="h-6 px-2 font-mono text-[10px] text-violet-300 border-violet-700" disabled={exporting} onClick={() => void downloadReport("html")}>
             <FileText className="h-3 w-3 mr-1" />Phase 7 Report
           </Button>
+          <Button size="sm" variant="outline" className="h-6 px-2 font-mono text-[10px] text-emerald-300 border-emerald-700" disabled={reconnecting} onClick={() => void forceReconnect()} data-testid="button-force-reconnect">
+            {reconnecting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Wifi className="h-3 w-3 mr-1" />}
+            Force Reconnect
+          </Button>
+          {(["json", "csv"] as const).map(k => (
+            <Button key={`bundle-${k}`} size="sm" variant="outline" className="h-6 px-2 font-mono text-[10px] text-amber-300 border-amber-700" disabled={exporting} onClick={() => void downloadBundle(k)} data-testid={`button-bundle-${k}`}>
+              <Download className="h-3 w-3 mr-1" />Diagnostics {k.toUpperCase()}
+            </Button>
+          ))}
         </div>
       </div>
 
@@ -183,6 +228,96 @@ export default function LiveDataHealth() {
       {errors.map(e => (
         <p key={e} className="text-[10px] font-mono text-red-400 bg-red-500/10 border border-red-500/30 rounded px-2 py-1.5">{e}</p>
       ))}
+
+      {/* Phase 11 — Live Stream & Market Hours */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <Card className="bg-zinc-900 border-zinc-700" data-testid="card-live-stream">
+          <CardHeader className="py-2 px-3">
+            <CardTitle className="text-[11px] font-mono text-zinc-200 flex items-center gap-1.5">
+              {stream.connection === "connected"
+                ? <Wifi className="h-3.5 w-3.5 text-emerald-400" />
+                : <WifiOff className="h-3.5 w-3.5 text-red-400" />}
+              Live Stream (SSE)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-3 pb-3 space-y-1.5 font-mono text-[10px]">
+            <div className="flex justify-between">
+              <span className="text-zinc-500">Connection</span>
+              <span className={stream.connection === "connected" ? "text-emerald-400"
+                : stream.connection === "reconnecting" ? "text-amber-400" : "text-red-400"}>
+                {stream.connection.toUpperCase()}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-zinc-500">Last event</span>
+              <span className="text-zinc-300">{na(stream.lastEventTs)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-zinc-500">Stream error</span>
+              <span className={stream.lastError ? "text-red-400" : "text-zinc-400"}>{stream.lastError ?? "None"}</span>
+            </div>
+            {Object.entries(stream.quotes).map(([sym, q]: [string, any]) => (
+              <div key={sym} className="flex justify-between">
+                <span className="text-zinc-500">{sym}</span>
+                <span className="text-zinc-200">
+                  {q?.ltp != null
+                    ? `${q.ltp} (${q.change_pct != null ? `${q.change_pct >= 0 ? "+" : ""}${q.change_pct}%` : "N/A"}) · ${q.quality ?? "N/A"}${q.from_cache ? ` · cached ${q.cache_age_s}s` : ""}`
+                    : "Unavailable"}
+                </span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-zinc-900 border-zinc-700" data-testid="card-market-hours">
+          <CardHeader className="py-2 px-3">
+            <CardTitle className="text-[11px] font-mono text-zinc-200 flex items-center gap-1.5">
+              <Clock className="h-3.5 w-3.5 text-sky-400" />Market Hours (Asia/Kolkata)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-3 pb-3 space-y-1.5 font-mono text-[10px]">
+            <div className="flex justify-between items-center">
+              <span className="text-zinc-500">State</span>
+              <Badge variant="outline" className={cn("text-[9px] font-mono px-1",
+                healthV2?.market?.state === "OPEN" ? "text-emerald-400 border-emerald-700"
+                  : healthV2?.market?.state === "PRE_OPEN" ? "text-sky-400 border-sky-700"
+                  : "text-amber-400 border-amber-700")}>
+                {healthV2?.market?.state ?? stream.market?.state ?? "N/A"}
+              </Badge>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-zinc-500">IST now</span>
+              <span className="text-zinc-300">{na(healthV2?.market?.now_ist ?? stream.market?.now_ist)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-zinc-500">Holiday today</span>
+              <span className="text-zinc-300">
+                {(healthV2?.market?.holiday_today ?? stream.market?.holiday_today)?.name ?? "No"}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-zinc-500">Next transition</span>
+              <span className="text-zinc-300">
+                {(() => {
+                  const nt = healthV2?.market?.next_transition ?? stream.market?.next_transition;
+                  return nt ? `${nt.event} · ${nt.at_ist}` : "N/A";
+                })()}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-zinc-500">Quote provider</span>
+              <span className="text-zinc-300">{na(healthV2?.quote_provider?.provider)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-zinc-500">Circuit breaker</span>
+              <span className={healthV2?.quote_provider?.circuit_breaker === "OPEN" ? "text-red-400" : "text-emerald-400"}>
+                {healthV2?.quote_provider?.circuit_breaker === "OPEN" ? "OPEN (cooling down)"
+                  : healthV2?.quote_provider?.circuit_breaker === "CLOSED" ? "Closed (healthy)" : "N/A"}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Provider + Connection */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">

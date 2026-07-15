@@ -738,6 +738,41 @@ def main():
                 "label": "PAPER / LIVE DATA VALIDATION",
                 "note": "Provider health probed with 3 symbols. Run /api/live-data/scan for full NIFTY 50 scan.",
             }
+        # ── Phase 11 — Live Data Foundation ──────────────────────────────────
+        elif command == "market_status":
+            from market_hours import market_status
+            result = {"success": True, **market_status()}
+        elif command == "quotes":
+            from live_quote_service import get_quotes
+            _syms = args[1].split(",") if len(args) > 1 and args[1] else ["NIFTY", "BANKNIFTY", "INDIAVIX"]
+            _force = len(args) > 2 and args[2] == "force"
+            result = {"success": True, **get_quotes(_syms, force=_force)}
+        elif command == "live_health_v2":
+            from market_hours import market_status
+            from live_quote_service import provider_status
+            from live_scan_engine import load_cached_scan
+            _cached = load_cached_scan()
+            result = {
+                "success": True,
+                "market": market_status(),
+                "quote_provider": provider_status(),
+                "scan_provider_health": _cached.get("provider_health") if _cached else None,
+                "scan_id": _cached.get("scan_id") if _cached else None,
+                "snapshot_ts": _cached.get("snapshot_ts") if _cached else None,
+                "label": "PAPER / LIVE DATA VALIDATION",
+            }
+        elif command == "diagnostic_bundle":
+            from phase11_diagnostics import build_diagnostic_bundle
+            result = {"success": True, "bundle": build_diagnostic_bundle()}
+        elif command == "system_event" and len(args) >= 2:
+            from copilot_engine import record_system_event
+            _payload = json.loads(args[2]) if len(args) > 2 else {}
+            result = record_system_event(
+                args[1],
+                symbol=_payload.get("symbol"),
+                reason=_payload.get("reason", ""),
+                severity=_payload.get("severity"),
+            )
         elif command == "phase7_scan":
             from live_scan_engine import get_or_run_scan
             force = len(args) > 1 and args[1] == "force"

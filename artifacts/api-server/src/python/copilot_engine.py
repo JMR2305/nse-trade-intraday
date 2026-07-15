@@ -462,6 +462,49 @@ def list_alerts(limit: int = 100) -> dict:
     }
 
 
+SYSTEM_EVENT_COOLDOWN_S = 600  # per (type, symbol) cooldown for system events
+
+SYSTEM_EVENT_TYPES = {
+    "DATA_DISCONNECTED": "WARNING",
+    "DATA_RESTORED": "INFO",
+    "SYMBOL_STALE": "WARNING",
+    "SYMBOL_RECOVERED": "INFO",
+    "SCAN_STARTED": "INFO",
+    "SCAN_COMPLETED": "INFO",
+    "SCAN_FAILED": "CRITICAL",
+    "EXIT_WARNING": "WARNING",
+}
+
+
+def record_system_event(event_type: str, symbol: str | None = None,
+                        reason: str = "", severity: str | None = None) -> dict:
+    """Phase 11: persist a live-data system event as a notification with
+    dedup + cooldown. Repeated identical events within the cooldown window
+    are suppressed (honest suppressed=True response, nothing fabricated)."""
+    event_type = event_type.upper().strip()
+    if event_type not in SYSTEM_EVENT_TYPES:
+        return {"success": False, "error": f"Unknown system event type: {event_type}"}
+    sev = severity or SYSTEM_EVENT_TYPES[event_type]
+    alerts = _load_alerts()
+    now_dt = datetime.now(timezone.utc)
+    for a in reversed(alerts):
+        if a.get("type") == event_type and a.get("symbol") == symbol:
+            try:
+                prev = datetime.strptime(a.get("ts", ""), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                if (now_dt - prev).total_seconds() < SYSTEM_EVENT_COOLDOWN_S:
+                    return {"success": True, "suppressed": True,
+                            "cooldown_s": SYSTEM_EVENT_COOLDOWN_S,
+                            "existing_alert_id": a.get("alert_id")}
+            except ValueError:
+                pass
+            break
+    alert = _mk_alert(event_type, sev, symbol, reason or event_type.replace("_", " ").title(),
+                      None, "Review Live Data Health page", None, "risk" if sev != "INFO" else "market")
+    alerts.append(alert)
+    _save_alerts(alerts)
+    return {"success": True, "suppressed": False, "alert": alert}
+
+
 def mark_alerts_read(alert_id: str = "all") -> dict:
     alerts = _load_alerts()
     n = 0

@@ -238,8 +238,8 @@ export default function PerformanceAnalytics() {
       {/* ── Section 2: Risk Analytics ──────────────────────────────────────── */}
       <SectionCard title="Risk Analytics" icon={<GaugeIcon className="h-4 w-4 text-primary" />}
         right={risk.estimated && (
-          <Badge variant="outline" className="text-[9px] text-zinc-500 border-zinc-700">
-            ESTIMATED — {risk.observations} observations
+          <Badge variant="outline" className="text-[9px] text-amber-500/80 border-amber-800" data-testid="badge-risk-estimated">
+            Estimated — limited evidence ({risk.observations ?? 0} observations)
           </Badge>
         )}>
         <div className="grid grid-cols-2 gap-x-8 gap-y-4 md:grid-cols-4">
@@ -255,8 +255,15 @@ export default function PerformanceAnalytics() {
             tooltip="Total return ÷ max drawdown" />
           <GaugeBar label="Volatility (ann.)" value={risk.volatility_pct} max={40} unit="%" tone="text-sky-400"
             tooltip="Annualized standard deviation of returns" />
-          <GaugeBar label="Beta vs NIFTY" value={risk.beta} max={2} tone="text-sky-400"
-            tooltip="Sensitivity to NIFTY moves (estimated from available data)" />
+          {(risk.observations ?? 0) >= 10 ? (
+            <GaugeBar label="Beta vs NIFTY" value={risk.beta} max={2} tone="text-sky-400"
+              tooltip="Sensitivity to NIFTY moves (estimated from available data)" />
+          ) : (
+            <div data-testid="beta-insufficient">
+              <div className="text-[10px] uppercase tracking-wider text-zinc-500">Beta vs NIFTY</div>
+              <div className="mt-1 text-xs text-zinc-600">N/A — insufficient history</div>
+            </div>
+          )}
           <GaugeBar label="Risk Score" value={risk.risk_score} max={100}
             tone={risk.risk_level === "LOW" ? "text-emerald-400" : risk.risk_level === "MEDIUM" ? "text-amber-400" : "text-red-400"}
             tooltip={`Composite 0–100 (drawdown, volatility, VIX, exposure) — ${risk.risk_level}`} />
@@ -410,7 +417,7 @@ export default function PerformanceAnalytics() {
                     <td className="py-1.5 pr-3">{row.trades}</td>
                     <td className="py-1.5 pr-3 text-emerald-400">{row.wins}</td>
                     <td className="py-1.5 pr-3 text-red-400">{row.losses}</td>
-                    <td className="py-1.5 pr-3">{row.trades ? `${row.win_rate_pct}%` : "—"}</td>
+                    <td className="py-1.5 pr-3">{row.trades ? `${row.win_rate_pct}%` : "No trades yet"}</td>
                     <td className={cn("py-1.5 pr-3", pnlColor(row.avg_return_pct))}>{row.trades ? fmtPct(row.avg_return_pct) : "—"}</td>
                     <td className="py-1.5 pr-3">{row.trades ? row.profit_factor : "—"}</td>
                     <td className={cn("py-1.5 pr-3", pnlColor(row.total_profit))}>{row.trades ? fmtINR(row.total_profit) : "—"}</td>
@@ -436,7 +443,7 @@ export default function PerformanceAnalytics() {
                   <tr key={row.sector} className={cn("border-b border-zinc-800/50", row.trades === 0 && "opacity-40")}>
                     <td className="py-1.5 pr-3 font-bold text-zinc-200">{row.sector}</td>
                     <td className="py-1.5 pr-3">{row.trades}</td>
-                    <td className="py-1.5 pr-3">{row.trades ? `${row.win_rate_pct}%` : "—"}</td>
+                    <td className="py-1.5 pr-3">{row.trades ? `${row.win_rate_pct}%` : "No trades yet"}</td>
                     <td className={cn("py-1.5 pr-3", pnlColor(row.avg_return_pct))}>{row.trades ? fmtPct(row.avg_return_pct) : "—"}</td>
                     <td className={cn("py-1.5 pr-3", pnlColor(row.total_profit))}>{row.trades ? fmtINR(row.total_profit) : "—"}</td>
                   </tr>
@@ -496,8 +503,8 @@ export default function PerformanceAnalytics() {
       {/* ── Section 7: AI Performance ──────────────────────────────────────── */}
       <SectionCard title="AI Performance" icon={<Bot className="h-4 w-4 text-primary" />}
         right={ai.estimated && (
-          <Badge variant="outline" className="text-[9px] text-zinc-500 border-zinc-700">
-            ESTIMATED — {ai.closed_trades_used} closed trades
+          <Badge variant="outline" className="text-[9px] text-amber-500/80 border-amber-800" data-testid="badge-ai-estimated">
+            Estimated — limited evidence ({ai.closed_trades_used ?? 0} closed trades)
           </Badge>
         )}>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-5">

@@ -1,0 +1,148 @@
+{
+  "bundle_version": 1,
+  "generated_at": "2026-07-15T10:38:03Z",
+  "engine_version": "Research Engine v1.0",
+  "mode": "PAPER_TRADING_RESEARCH_ONLY",
+  "environment": {
+    "python_version": "3.11.14",
+    "platform": "Linux-6.18.34-x86_64-with-glibc2.40"
+  },
+  "market_status": {
+    "state": "CLOSED",
+    "is_open": false,
+    "now_ist": "2026-07-15T16:08:03.029644+05:30",
+    "timezone": "Asia/Kolkata",
+    "session": {
+      "pre_open": "09:00",
+      "open": "09:15",
+      "close": "15:30",
+      "post_close": "16:00"
+    },
+    "holiday_today": null,
+    "next_transition": {
+      "event": "market_open",
+      "at_ist": "2026-07-16T09:15:00+05:30",
+      "seconds_until": 61616
+    },
+    "upcoming_holidays": [
+      {
+        "date": "2026-08-15",
+        "name": "Independence Day"
+      },
+      {
+        "date": "2026-09-14",
+        "name": "Ganesh Chaturthi"
+      },
+      {
+        "date": "2026-10-02",
+        "name": "Gandhi Jayanti"
+      }
+    ],
+    "label": "PAPER / RESEARCH ONLY"
+  },
+  "quote_provider": {
+    "provider": "Yahoo Finance (yfinance)",
+    "provider_id": "yfinance",
+    "circuit_breaker": "CLOSED",
+    "consecutive_failures": 0,
+    "last_success_ts": "2026-07-15T10:28:36Z",
+    "total_fetches": 3,
+    "total_errors": 0,
+    "cached_symbols": 3,
+    "quote_ttl_s": 20.0,
+    "quote_ttl_closed_s": 300.0
+  },
+  "scan": {
+    "scan_id": "24b65fca8e24",
+    "snapshot_ts": "2026-07-15T04:53:26Z",
+    "recommendation_count": 50,
+    "provider_connection": "DEGRADED",
+    "symbol_coverage_pct": 96.0,
+    "quality_summary": {
+      "LIVE": 48,
+      "NEAR_LIVE": 0,
+      "STALE": 0,
+      "UNAVAILABLE": 2
+    },
+    "paper_execution_eligible": true
+  },
+  "risk": {
+    "kill_switch": {
+      "active": false,
+      "events": [
+        {
+          "event": "TRIGGERED",
+          "reason": "test event",
+          "source": "manual",
+          "ts": "2026-07-15T03:38:28.777335"
+        },
+        {
+          "event": "RESUMED",
+          "acknowledged": true,
+          "ts": "2026-07-15T03:38:34.155799"
+        }
+      ],
+      "reason": null,
+      "triggered_at": "2026-07-15T03:38:28.777367",
+      "triggered_by": "manual",
+      "resumed_at": "2026-07-15T03:38:34.155811"
+    },
+    "risk_alert_count": null
+  },
+  "notifications": {
+    "total_alerts": 8,
+    "unread": 0
+  },
+  "portfolio": {
+    "cash": null,
+    "open_positions": 0
+  },
+  "files": [
+    {
+      "file": "phase7_scan_cache.json",
+      "exists": true,
+      "size_bytes": 65533,
+      "modified": "2026-07-15T10:35:02Z"
+    },
+    {
+      "file": "phase9_alerts.json",
+      "exists": true,
+      "size_bytes": 2946,
+      "modified": "2026-07-14T19:45:47Z"
+    },
+    {
+      "file": "portfolio.json",
+      "exists": false,
+      "size_bytes": null,
+      "modified": null
+    },
+    {
+      "file": "phase11_kill_switch.json",
+      "exists": true,
+      "size_bytes": 425,
+      "modified": "2026-07-15T03:38:34Z"
+    },
+    {
+      "file": "phase11_risk_alerts.json",
+      "exists": true,
+      "size_bytes": 834,
+      "modified": "2026-07-15T04:24:41Z"
+    },
+    {
+      "file": "nse_holidays.json",
+      "exists": true,
+      "size_bytes": 555,
+      "modified": "2026-07-15T10:24:20Z"
+    },
+    {
+      "file": "phase11_quote_state.json",
+      "exists": true,
+      "size_bytes": 1317,
+      "modified": "2026-07-15T10:28:36Z"
+    }
+  ],
+  "notes": [
+    "All values are honest point-in-time observations; missing data is null.",
+    "PAPER TRADING ONLY \u2014 no real broker orders are placed by this system."
+  ]
+}
