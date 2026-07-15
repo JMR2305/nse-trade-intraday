@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiJson } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,6 +40,23 @@ function pct(v: number | null | undefined): string {
   return `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
 }
 
+function StateBadge({ state }: { state: string }) {
+  const map: Record<string, string> = {
+    CONNECTED:      "bg-green-500/15 text-green-400 border-green-500/30",
+    AUTHENTICATING: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+    LOGIN_REQUIRED: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
+    TOKEN_EXPIRED:  "bg-red-500/15 text-red-400 border-red-500/30",
+    AUTH_FAILED:    "bg-red-500/15 text-red-400 border-red-500/30",
+    API_ERROR:      "bg-orange-500/15 text-orange-400 border-orange-500/30",
+    NOT_CONFIGURED: "bg-muted/50 text-muted-foreground border-border",
+  };
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-mono border ${map[state] ?? map["NOT_CONFIGURED"]}`}>
+      {state.replace(/_/g, " ")}
+    </span>
+  );
+}
+
 function TokenBadge({ status }: { status: string }) {
   const map: Record<string, { color: string; icon: React.ReactElement }> = {
     VALID:   { color: "bg-green-500/15 text-green-400 border-green-500/30", icon: <CheckCircle className="h-3 w-3" /> },
@@ -58,9 +75,16 @@ function TokenBadge({ status }: { status: string }) {
 
 // ── sub-components ────────────────────────────────────────────────────────────
 
-function SessionCard({ status, onRefresh, onInvalidate, invalidating }: any) {
+function fmtTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  try { return new Date(iso).toLocaleString(); } catch { return "—"; }
+}
+
+function SessionCard({ status, onRefresh, onInvalidate, invalidating, onDisconnect, disconnecting, authResult }: any) {
   const connected = status?.connected;
   const tokenSt   = status?.token_status ?? "MISSING";
+  const connState = status?.connection_state ?? (connected ? "CONNECTED" : "NOT_CONFIGURED");
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
 
   return (
     <Card className="border-border">
@@ -71,6 +95,7 @@ function SessionCard({ status, onRefresh, onInvalidate, invalidating }: any) {
             Connection Status
           </CardTitle>
           <div className="flex items-center gap-2">
+            <StateBadge state={connState} />
             <TokenBadge status={tokenSt} />
             <Button size="sm" variant="outline" onClick={onRefresh} className="h-7 text-xs gap-1">
               <RefreshCw className="h-3 w-3" /> Refresh
@@ -79,13 +104,55 @@ function SessionCard({ status, onRefresh, onInvalidate, invalidating }: any) {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Login result banner */}
+        {authResult === "success" && (
+          <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-sm text-green-400">
+            <CheckCircle className="h-4 w-4 flex-shrink-0" />
+            Zerodha login successful. Session connected.
+          </div>
+        )}
+        {authResult === "failed" && (
+          <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-sm text-red-300">
+            <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+            Zerodha login failed. Please try again.
+          </div>
+        )}
+
+        {/* Login / Disconnect actions */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button asChild size="sm" className="h-8 gap-1.5">
+            <a href="/api/kite/login">
+              <ExternalLink className="h-3.5 w-3.5" /> Login with Zerodha
+            </a>
+          </Button>
+          {status?.token_stored && !confirmDisconnect && (
+            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setConfirmDisconnect(true)}>
+              Disconnect Session
+            </Button>
+          )}
+          {confirmDisconnect && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-muted-foreground">Remove the stored session token?</span>
+              <Button size="sm" variant="destructive" className="h-7 text-xs" disabled={disconnecting}
+                onClick={() => { onDisconnect(); setConfirmDisconnect(false); }}>
+                Yes, disconnect
+              </Button>
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setConfirmDisconnect(false)}>
+                Cancel
+              </Button>
+            </div>
+          )}
+        </div>
+
         {/* Connection summary */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
             { label: "Provider", value: "Zerodha Kite" },
-            { label: "User", value: status?.user_name || status?.user_id || "—" },
-            { label: "Latency", value: status?.latency_ms != null ? `${status.latency_ms}ms` : "—" },
+            { label: "User (masked)", value: status?.user_id_masked || "—" },
+            { label: "Latency", value: status?.latency_ms != null ? `${status.latency_ms}ms` : (status?.last_latency_ms != null ? `${status.last_latency_ms}ms` : "—") },
             { label: "Token Age", value: status?.token_age_hours != null ? `${status.token_age_hours.toFixed(1)}h` : "—" },
+            { label: "Connected At", value: fmtTime(status?.token_created_at) },
+            { label: "Last Successful Call", value: fmtTime(status?.last_success_at) },
           ].map(({ label, value }) => (
             <div key={label} className="bg-muted/30 rounded-lg p-3">
               <div className="text-xs text-muted-foreground mb-1">{label}</div>
@@ -122,24 +189,11 @@ function SessionCard({ status, onRefresh, onInvalidate, invalidating }: any) {
           <span>{status?.token_expiry_note}</span>
         </div>
 
-        {/* Login URL */}
-        {status?.login_url && (
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground">Daily Token Refresh</p>
-            <a
-              href={status.login_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline break-all"
-            >
-              <ExternalLink className="h-3 w-3 flex-shrink-0" />
-              {status.login_url}
-            </a>
-            <div className="mt-2 p-3 bg-muted/20 rounded text-xs text-muted-foreground whitespace-pre-line leading-relaxed">
-              {status.refresh_instructions}
-            </div>
-          </div>
-        )}
+        {/* Daily refresh note */}
+        <div className="p-3 bg-muted/20 rounded text-xs text-muted-foreground leading-relaxed">
+          Kite sessions expire at 06:00 IST daily. Use the "Login with Zerodha" button above to
+          reconnect — the token exchange happens securely on the backend.
+        </div>
 
         {/* Safety notice */}
         <div className="flex items-center gap-2 p-2 bg-green-500/10 border border-green-500/20 rounded text-xs text-green-400">
@@ -645,6 +699,21 @@ function DiagnosticsPanel() {
 
 export default function KiteConnect() {
   const qc = useQueryClient();
+  const [authResult, setAuthResult] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Read ?auth=success|failed set by the backend callback redirect,
+    // then scrub it from the URL so refreshes don't re-show the banner.
+    const params = new URLSearchParams(window.location.search);
+    const auth = params.get("auth");
+    if (auth) {
+      setAuthResult(auth);
+      params.delete("auth");
+      params.delete("reason");
+      const qs = params.toString();
+      window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
+    }
+  }, []);
 
   const { data: status, isLoading, refetch: refetchStatus } = useQuery({
     queryKey: ["kite-status"],
@@ -656,6 +725,15 @@ export default function KiteConnect() {
   const invalidateMutation = useMutation({
     mutationFn: () => apiJson("/kite/invalidate", { method: "POST" }),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["kite-status"] });
+      qc.invalidateQueries({ queryKey: ["kite-diagnostics"] });
+    },
+  });
+
+  const disconnectMutation = useMutation({
+    mutationFn: () => apiJson("/kite/disconnect", { method: "POST" }),
+    onSuccess: () => {
+      setAuthResult(null);
       qc.invalidateQueries({ queryKey: ["kite-status"] });
       qc.invalidateQueries({ queryKey: ["kite-diagnostics"] });
     },
@@ -695,6 +773,9 @@ export default function KiteConnect() {
           onRefresh={() => { refetchStatus(); }}
           onInvalidate={() => invalidateMutation.mutate()}
           invalidating={invalidateMutation.isPending}
+          onDisconnect={() => disconnectMutation.mutate()}
+          disconnecting={disconnectMutation.isPending}
+          authResult={authResult}
         />
       )}
 

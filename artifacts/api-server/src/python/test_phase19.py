@@ -104,9 +104,12 @@ class TestKiteSessionManager(unittest.TestCase):
         s = self.ksm.get_status()
         self.assertIn("token_expiry_note", s)
 
-    def test_refresh_instructions_in_status(self):
+    def test_refresh_instructions_removed_in_phase19a(self):
+        # Phase 19A: manual copy-paste token instructions replaced by
+        # backend OAuth flow (login_endpoint) — must no longer be exposed.
         s = self.ksm.get_status()
-        self.assertIn("refresh_instructions", s)
+        self.assertNotIn("refresh_instructions", s)
+        self.assertEqual(s.get("login_endpoint"), "/api/kite/login")
 
     def test_invalidate_cache_does_not_raise(self):
         try:

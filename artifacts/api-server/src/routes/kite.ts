@@ -11,10 +11,15 @@ import path from "path";
 const router: IRouter = Router();
 import { PYTHON_DIR, PYTHON_BIN } from "../lib/python-env";
 
-function runPython(args: string[], timeoutMs = 30_000): Promise<unknown> {
+function runPython(
+  args: string[],
+  timeoutMs = 30_000,
+  extraEnv?: Record<string, string>,
+): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const proc = spawn(PYTHON_BIN, [path.join(PYTHON_DIR, "main.py"), ...args], {
       cwd: PYTHON_DIR,
+      env: extraEnv ? { ...process.env, ...extraEnv } : process.env,
     });
     let stdout = "";
     let stderr = "";
@@ -63,6 +68,59 @@ router.get("/kite/status", wrap(async (req, res) => {
   const args = ["kite_status"];
   if (force) args.push("--force");
   res.json(await runPython(args, 15_000));
+}));
+
+// ── Phase 19A: secure login + callback flow ────────────────────────────────
+// The API secret, SHA-256 checksum, request token, and access token are
+// handled backend-only. They are never included in any response, log,
+// export, or frontend state.
+
+const DASHBOARD_KITE_PAGE = "/trading-dashboard/kite-connect";
+
+// GET /api/kite/login — redirect the user to the official Zerodha Kite login
+router.get("/kite/login", (_req, res) => {
+  const apiKey = process.env.ZERODHA_API_KEY || "";
+  if (!apiKey) {
+    return res.redirect(`${DASHBOARD_KITE_PAGE}?auth=failed&reason=not_configured`);
+  }
+  const loginUrl = `https://kite.zerodha.com/connect/login?api_key=${encodeURIComponent(apiKey)}&v=3`;
+  res.redirect(loginUrl);
+});
+
+// GET /api/kite/callback — Zerodha redirects here with request_token & status
+router.get("/kite/callback", async (req, res) => {
+  const status = String(req.query.status ?? "");
+  const requestToken = typeof req.query.request_token === "string"
+    ? req.query.request_token.trim()
+    : "";
+
+  // Reject failed, missing, or malformed login responses outright.
+  if (status !== "success") {
+    return res.redirect(`${DASHBOARD_KITE_PAGE}?auth=failed&reason=login_failed`);
+  }
+  if (!requestToken || !/^[A-Za-z0-9]{8,64}$/.test(requestToken)) {
+    return res.redirect(`${DASHBOARD_KITE_PAGE}?auth=failed&reason=missing_token`);
+  }
+
+  try {
+    // Token exchange happens entirely in the Python backend; the request
+    // token is passed via env (not argv) and nothing secret is returned.
+    const result = (await runPython(["kite_exchange"], 20_000, {
+      KITE_REQUEST_TOKEN: requestToken,
+    })) as { success?: boolean };
+    if (result && result.success) {
+      return res.redirect(`${DASHBOARD_KITE_PAGE}?auth=success`);
+    }
+    return res.redirect(`${DASHBOARD_KITE_PAGE}?auth=failed&reason=exchange_failed`);
+  } catch {
+    // Deliberately do not log or echo error details that could carry tokens.
+    return res.redirect(`${DASHBOARD_KITE_PAGE}?auth=failed&reason=exchange_failed`);
+  }
+});
+
+// POST /api/kite/disconnect — clear the backend-stored access token
+router.post("/kite/disconnect", wrap(async (_req, res) => {
+  res.json(await runPython(["kite_disconnect"], 10_000));
 }));
 
 // POST /api/kite/invalidate  — flush probe cache (forces fresh probe on next status call)

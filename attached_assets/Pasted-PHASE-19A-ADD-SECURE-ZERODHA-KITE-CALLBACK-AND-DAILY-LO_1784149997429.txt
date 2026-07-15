@@ -1,0 +1,81 @@
+PHASE 19A — ADD SECURE ZERODHA KITE CALLBACK AND DAILY LOGIN FLOW
+
+The app is now published at:
+
+https://zerodha-trading-assistant.replit.app
+
+Implement a proper backend-only Zerodha Kite Connect authentication flow.
+
+REQUIRED CALLBACK URL
+Create this exact endpoint:
+
+https://zerodha-trading-assistant.replit.app/api/kite/callback
+
+REQUIREMENTS
+
+1. Add a backend endpoint:
+   GET /api/kite/login
+
+   It must generate and redirect the user to the official Zerodha Kite login URL using ZERODHA_API_KEY.
+
+2. Add a backend callback endpoint:
+   GET /api/kite/callback
+
+   It must:
+   - Read request_token and status from the Zerodha redirect.
+   - Reject missing, invalid, or failed login responses.
+   - Calculate the official SHA-256 checksum on the backend only:
+     api_key + request_token + api_secret
+   - Exchange the request_token for an access_token using the official Kite session-token endpoint.
+   - Never expose the API secret, checksum, request token, or access token in browser responses, logs, exports, or frontend state.
+   - Store the resulting access token securely on the backend.
+   - Record token creation time and connection status.
+   - Redirect the user back to:
+     /trading-dashboard/kite-connect?auth=success
+     or
+     /trading-dashboard/kite-connect?auth=failed
+
+3. Add these connection states:
+   NOT_CONFIGURED
+   LOGIN_REQUIRED
+   AUTHENTICATING
+   CONNECTED
+   TOKEN_EXPIRED
+   AUTH_FAILED
+   API_ERROR
+
+4. Update the Kite Connect page:
+   - Add a “Login with Zerodha” button calling /api/kite/login.
+   - Remove the incorrect manual instruction to copy the token from the browser URL.
+   - Show masked user ID, token age, connection time, API latency, and last successful API call.
+   - Add a safe “Disconnect Session” button with confirmation.
+
+5. Keep all safety controls:
+   - PAPER_TRADING remains the default.
+   - LIVE ORDERS remain disabled.
+   - No order placement, modification, or cancellation.
+   - Read-only profile, margins, holdings, positions, orders, and quotes only.
+   - Do not weaken the kill switch, market-hours checks, stale-data gates, or audit controls.
+
+6. Add tests for:
+   - Missing API key.
+   - Missing API secret.
+   - Missing request_token.
+   - Invalid request_token.
+   - Failed Zerodha login.
+   - Successful token exchange using mocks.
+   - Expired token.
+   - Secrets never appearing in frontend responses or logs.
+   - Live-order endpoints remaining disabled.
+
+7. Run the production build and tests.
+
+At completion, report:
+- Exact callback URL.
+- Files changed.
+- Tests passed.
+- Production build result.
+- Confirmation that the API secret and access token remain backend-only.
+- Confirmation that live orders remain disabled.
+
+Do not claim completion unless all tests and the production build pass.

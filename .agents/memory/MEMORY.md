@@ -14,4 +14,5 @@
 - [Phase 17 QA engine](phase17-qa.md) — suite-output parsing must handle both "N passed, N failed" and legacy "[PASS]…ALL TESTS PASSED" formats; release gating never treats warnings as pass (PASS/WARN/FAIL + strict production_ready).
 - [Phase 18 notebook concurrency](phase18-notebook.md) — spawned-per-request Python means shared JSON needs flock around read-modify-write; guard divides by user-configurable targets.
 - [Python env & publish builds](python-env-deploy.md) — missing .pythonlibs/pyvenv.cfg + stale uv cache → nix-store Permission denied; uv sync prunes deps not in pyproject.toml
-- Prod cwd differs from dev: api-server prod runs from workspace root; never derive paths from process.cwd() without checking both layouts (see python-env resolver).
+- [Prod cwd vs dev](python-env-deploy.md) — api-server prod runs from workspace root; never derive paths from process.cwd() without checking both layouts (see python-env resolver).
+- [Phase 19A Kite OAuth](phase19a-kite-oauth.md) — request token via env not argv; token file chmod 600; strict callback status check; test-module kiteconnect stubs collide, re-stub in setUp.

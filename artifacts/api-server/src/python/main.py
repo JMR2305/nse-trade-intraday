@@ -33,6 +33,14 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# Phase 19A: load the backend-stored Kite access token (if any) into the
+# environment so every env-based reader picks it up transparently.
+try:
+    from kite_token_store import apply_to_env as _kite_apply_to_env
+    _kite_apply_to_env()
+except Exception:
+    pass
+
 from paper_trader import (
     get_portfolio, get_trades, execute_buy, execute_sell, reset_portfolio,
     get_trade_replay, get_strategy_performance, _load_state,
@@ -1593,6 +1601,14 @@ def main():
             from kite_session_manager import get_status
             force = "--force" in sys.argv
             result = get_status(force_probe=force)
+        elif command == "kite_exchange":
+            from kite_session_manager import exchange_request_token
+            # request_token is passed via env (never argv) so it can't leak
+            # through process listings or shell history.
+            result = exchange_request_token(os.environ.get("KITE_REQUEST_TOKEN"))
+        elif command == "kite_disconnect":
+            from kite_session_manager import disconnect_session
+            result = disconnect_session()
         elif command == "kite_invalidate":
             from kite_session_manager import invalidate_cache
             from kite_quote_provider import invalidate_cache as inv_q

@@ -51,3 +51,5 @@ Thumbs.db
 # Trade intelligence local database (runtime state)
 artifacts/api-server/src/python/trade_intelligence.db
 artifacts/api-server/src/python/historical_knowledge_status.json
+.kite_token.json*
+.kite_auth_state.json*

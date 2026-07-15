@@ -56,7 +56,19 @@ def _mask(s: Optional[str]) -> str:
 def _get_creds() -> tuple[Optional[str], Optional[str]]:
     api_key = os.environ.get("ZERODHA_API_KEY") or None
     token   = os.environ.get("ZERODHA_ACCESS_TOKEN") or None
+    if not token:
+        try:
+            import kite_token_store
+            data = kite_token_store.load()
+            if data:
+                token = data.get("access_token") or None
+        except Exception:
+            pass
     return api_key, token
+
+
+def _get_secret() -> Optional[str]:
+    return os.environ.get("ZERODHA_API_SECRET") or None
 
 
 def creds_present() -> bool:
@@ -69,6 +81,14 @@ def creds_present() -> bool:
 def _token_age_hours() -> Optional[float]:
     """Return token age in hours using ZERODHA_TOKEN_TIMESTAMP if set."""
     ts_str = os.environ.get("ZERODHA_TOKEN_TIMESTAMP") or ""
+    if not ts_str:
+        try:
+            import kite_token_store
+            data = kite_token_store.load()
+            if data and data.get("created_at"):
+                ts_str = data["created_at"]
+        except Exception:
+            pass
     if ts_str:
         try:
             ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
@@ -128,6 +148,107 @@ def get_login_url() -> str:
     return "https://kite.zerodha.com/connect/login?api_key=YOUR_API_KEY&v=3"
 
 
+# ── Connection states (Phase 19A) ────────────────────────────────────────────
+# NOT_CONFIGURED  — API key or secret missing
+# LOGIN_REQUIRED  — configured, but no access token stored
+# AUTHENTICATING  — transient (callback in flight; set by frontend)
+# CONNECTED       — live probe succeeded
+# TOKEN_EXPIRED   — token stale / rejected by Kite
+# AUTH_FAILED     — login/token exchange failed (transient, via callback)
+# API_ERROR       — token present but Kite API call failed (non-auth error)
+
+def _derive_connection_state(base: Dict[str, Any]) -> str:
+    api_key = os.environ.get("ZERODHA_API_KEY") or None
+    if not api_key or not _get_secret():
+        # Legacy env-token setups without a secret can still be CONNECTED
+        if base.get("connected"):
+            return "CONNECTED"
+        if not api_key:
+            return "NOT_CONFIGURED"
+        if not base.get("credentials_present"):
+            return "NOT_CONFIGURED"
+    def _recent_auth_failure() -> bool:
+        try:
+            import kite_token_store
+            return (not base.get("token_stored")
+                    and kite_token_store.recent_auth_failure())
+        except Exception:
+            return False
+
+    if not base.get("credentials_present"):
+        return "AUTH_FAILED" if _recent_auth_failure() else "LOGIN_REQUIRED"
+    if base.get("connected"):
+        return "CONNECTED"
+    if base.get("token_status") == "EXPIRED":
+        return "TOKEN_EXPIRED"
+    if base.get("error"):
+        return "API_ERROR"
+    if _recent_auth_failure():
+        return "AUTH_FAILED"
+    return "LOGIN_REQUIRED"
+
+
+# ── Token exchange (Phase 19A) ───────────────────────────────────────────────
+
+def exchange_request_token(request_token: Optional[str]) -> Dict[str, Any]:
+    """
+    Exchange a Zerodha request_token for an access token.
+
+    The SHA-256 checksum (api_key + request_token + api_secret) is computed
+    backend-only inside kiteconnect.generate_session(). Neither the secret,
+    the checksum, the request token, nor the access token is ever included
+    in the returned dict or logged.
+    """
+    api_key = os.environ.get("ZERODHA_API_KEY") or None
+    api_secret = _get_secret()
+
+    if not api_key:
+        return {"success": False, "state": "NOT_CONFIGURED",
+                "error": "ZERODHA_API_KEY is not configured"}
+    if not api_secret:
+        return {"success": False, "state": "NOT_CONFIGURED",
+                "error": "ZERODHA_API_SECRET is not configured"}
+    if not request_token or not str(request_token).strip():
+        return {"success": False, "state": "AUTH_FAILED",
+                "error": "Missing request_token"}
+
+    try:
+        from kiteconnect import KiteConnect
+        kite = KiteConnect(api_key=api_key)
+        session = kite.generate_session(str(request_token).strip(), api_secret=api_secret)
+        access_token = session.get("access_token")
+        if not access_token:
+            return {"success": False, "state": "AUTH_FAILED",
+                    "error": "Token exchange returned no access token"}
+        user_id = str(session.get("user_id") or "")
+        import kite_token_store
+        kite_token_store.save_token(access_token, user_id=user_id)
+        kite_token_store.clear_auth_failure()
+        invalidate_cache()
+        logger.info("Kite token exchange succeeded for user %s", _mask(user_id))
+        return {"success": True, "state": "CONNECTED",
+                "user_id_masked": _mask(user_id)}
+    except Exception as exc:
+        # Never include token material in errors; Kite errors don't echo secrets.
+        err = str(exc)[:200]
+        logger.warning("Kite token exchange failed: %s", err)
+        import kite_token_store
+        kite_token_store.record_auth_failure()
+        invalidate_cache()
+        return {"success": False, "state": "AUTH_FAILED",
+                "error": f"Token exchange failed: {err}"}
+
+
+def disconnect_session() -> Dict[str, Any]:
+    """Clear the stored access token (backend-only). Read-only safe."""
+    import kite_token_store
+    removed = kite_token_store.clear()
+    kite_token_store.clear_auth_failure()
+    invalidate_cache()
+    return {"success": True, "removed": removed, "state": "LOGIN_REQUIRED",
+            "message": "Kite session disconnected. Stored token removed."}
+
+
 # ── Live probe ────────────────────────────────────────────────────────────────
 
 def _probe_kite() -> Dict[str, Any]:
@@ -139,6 +260,11 @@ def _probe_kite() -> Dict[str, Any]:
     t0 = time.monotonic()
     profile = kite.profile()
     latency_ms = int((time.monotonic() - t0) * 1000)
+    try:
+        import kite_token_store
+        kite_token_store.record_success(latency_ms)
+    except Exception:
+        pass
     return {
         "user_id": profile.get("user_id"),
         "user_name": profile.get("user_name", ""),
@@ -176,13 +302,8 @@ def get_status(force_probe: bool = False) -> Dict[str, Any]:
             f"~{int(ttl_s / 3600)}h {int((ttl_s % 3600) / 60)}m until next expiry."
         ),
         "login_url": get_login_url(),
-        "refresh_instructions": (
-            "1. Click Login URL above.\n"
-            "2. Log in to Zerodha.\n"
-            "3. Copy the access_token from the redirect URL.\n"
-            "4. Update ZERODHA_ACCESS_TOKEN secret.\n"
-            "5. Set ZERODHA_TOKEN_TIMESTAMP to current UTC ISO timestamp."
-        ),
+        "login_endpoint": "/api/kite/login",
+        "api_secret_configured": bool(_get_secret()),
         "paper_trading_default": True,
         "live_order_placement_enabled": False,
         "checked_at": now_utc,
@@ -197,9 +318,9 @@ def get_status(force_probe: bool = False) -> Dict[str, Any]:
     }
 
     if not creds_present():
-        base["error"] = "Credentials not set. Add ZERODHA_API_KEY and ZERODHA_ACCESS_TOKEN secrets."
+        base["error"] = "Not connected. Use the Login with Zerodha button to connect."
         base["probe_source"] = "no_credentials"
-        return base
+        return _finalize(base)
 
     # Check cache
     cache_age = time.monotonic() - _probe_cache_ts
@@ -207,7 +328,7 @@ def get_status(force_probe: bool = False) -> Dict[str, Any]:
         base.update(_probe_cache)
         base["probe_cached"] = True
         base["probe_source"] = "cache"
-        return base
+        return _finalize(base)
 
     # Live probe
     try:
@@ -238,6 +359,26 @@ def get_status(force_probe: bool = False) -> Dict[str, Any]:
         if "token" in lower or "invalid" in lower or "unauthorised" in lower or "401" in lower:
             base["token_status"] = "EXPIRED"
 
+    return _finalize(base)
+
+
+def _finalize(base: Dict[str, Any]) -> Dict[str, Any]:
+    """Attach token metadata, mask the user id, derive connection_state."""
+    try:
+        import kite_token_store
+        meta = kite_token_store.metadata()
+    except Exception:
+        meta = {"stored": False, "created_at": None,
+                "last_success_at": None, "last_latency_ms": None, "user_id": None}
+    base["token_stored"] = meta["stored"]
+    base["token_created_at"] = meta["created_at"]
+    base["last_success_at"] = meta["last_success_at"]
+    base["last_latency_ms"] = meta["last_latency_ms"]
+    # Mask user id in all outward-facing responses.
+    raw_user = base.get("user_id") or meta.get("user_id")
+    base["user_id_masked"] = _mask(raw_user) if raw_user else None
+    base.pop("user_id", None)
+    base["connection_state"] = _derive_connection_state(base)
     return base
 
 
