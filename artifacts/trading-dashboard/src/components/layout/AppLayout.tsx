@@ -37,6 +37,7 @@ import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
 import CopilotPanel from "@/components/CopilotPanel";
 import LiveMarketTicker from "@/components/LiveMarketTicker";
+import { StaleScanBanner } from "@/components/Phase15SystemHealth";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -168,6 +169,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-background relative">
         <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-background to-background" />
         <LiveMarketTicker />
+        <StaleScanBanner />
         <div className="flex-1 overflow-auto p-6 lg:p-8 z-10 relative">
           {children}
         </div>

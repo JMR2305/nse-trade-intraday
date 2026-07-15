@@ -8,3 +8,4 @@
 - [Headless screenshot capture](headless-screenshot-capture.md) — dashboard pages poll forever; use domcontentloaded + delay, not networkidle2; nix chromium + puppeteer-core.
 - [Phase 13 architecture](phase13-architecture.md) — 14-factor fusion, evidence labels, regime-gated strategy evolution; apiJson already prepends /api so all paths in queryFn/mutationFn must omit the /api prefix.
 - [Phase 14 learning governance](phase14-learning-governance.md) — safety state (freeze/IGNORE-lock) must be enforced at decision time from authoritative state, never from cached adjustment artifacts.
+- [Phase 15 canonical context](phase15-canonical-context.md) — all cross-page values incl. regime derive from the phase7 snapshot only; risk gate models post-trade exposure with intended qty.

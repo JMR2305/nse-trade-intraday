@@ -25,6 +25,29 @@ INITIAL_CAPITAL = 5000.0
 STATE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATE_FILE = os.path.join(STATE_DIR, "state.json")
 
+# ── Phase 15: estimated friction costs (research realism, paper only) ────────
+SLIPPAGE_PCT = 0.05          # assumed 0.05% slippage per side
+
+
+def estimate_broker_charges(turnover: float, side: str) -> float:
+    """
+    Estimate Indian discount-broker delivery charges for one side of a trade.
+    Brokerage ₹0 (delivery), STT 0.1% (both sides), exchange txn 0.00297%,
+    SEBI 0.0001%, stamp duty 0.015% (buy only), GST 18% on txn+SEBI fees.
+    Paper-trading estimate only.
+    """
+    stt = turnover * 0.001
+    exch = turnover * 0.0000297
+    sebi = turnover * 0.000001
+    stamp = turnover * 0.00015 if side.upper() == "BUY" else 0.0
+    gst = (exch + sebi) * 0.18
+    return round(stt + exch + sebi + stamp + gst, 2)
+
+
+def estimate_slippage(turnover: float) -> float:
+    """Estimated slippage cost for one side (paper research assumption)."""
+    return round(turnover * SLIPPAGE_PCT / 100, 2)
+
 
 # ── Type definitions ──────────────────────────────────────────────────────────
 
@@ -270,6 +293,15 @@ def execute_buy(
         "strategy_name": strategy_name or "AI Scan",
         "opportunity_score": round(opportunity_score, 2) if opportunity_score else None,
         "trade_quality": round(trade_quality, 2) if trade_quality else None,
+        # ── Phase 15: extended permanent trade metadata ──────────────────
+        "est_broker_charges": estimate_broker_charges(total_cost, "BUY"),
+        "est_slippage": estimate_slippage(total_cost),
+        "risk_pct": (round((price - stop_loss_price) / price * 100, 2)
+                     if stop_loss_price > 0 and price > 0 else None),
+        "reward_pct": (round((target - price) / price * 100, 2)
+                       if target > 0 and price > 0 else None),
+        "position_size_value": round(total_cost, 2),
+        "trailing_stop": None,  # trailing stops not used in this research phase
     }
 
     # ── Trade Intelligence: freeze the entry snapshot (indicators + regime).
@@ -380,6 +412,9 @@ def execute_sell(
         "pnl": round(realized_pnl, 2),
         "pnl_pct": round(realized_pnl_pct, 2),
         "exit_type": exit_type,
+        # ── Phase 15: extended permanent trade metadata ──────────────────
+        "est_broker_charges": estimate_broker_charges(total_proceeds, "SELL"),
+        "est_slippage": estimate_slippage(total_proceeds),
     }
     state["trades"].append(trade)
 
@@ -463,7 +498,27 @@ def get_trade_replay() -> list[TradeReplayItem]:
                 elif stop_loss > 0 and exit_price <= stop_loss * 1.01:
                     exit_type = "STOP_HIT"
 
-            replay_items.append(TradeReplayItem(
+            # Phase 15: holding period + friction costs
+            holding_days = None
+            try:
+                _entry_dt = datetime.fromisoformat(buy_trade.get("timestamp", ""))
+                _exit_dt = datetime.fromisoformat(trade.get("timestamp", ""))
+                holding_days = round((_exit_dt - _entry_dt).total_seconds() / 86400, 2)
+            except (ValueError, TypeError):
+                pass
+            extra = {
+                "holding_period_days": holding_days,
+                "est_broker_charges": round(
+                    float(buy_trade.get("est_broker_charges") or 0)
+                    + float(trade.get("est_broker_charges") or 0), 2),
+                "est_slippage": round(
+                    float(buy_trade.get("est_slippage") or 0)
+                    + float(trade.get("est_slippage") or 0), 2),
+                "risk_pct": buy_trade.get("risk_pct"),
+                "reward_pct": buy_trade.get("reward_pct"),
+                "opportunity_score": buy_trade.get("opportunity_score"),
+            }
+            replay_items.append({**TradeReplayItem(
                 id=trade.get("id", ""),
                 symbol=sym,
                 entry_time=buy_trade.get("timestamp", ""),
@@ -486,7 +541,7 @@ def get_trade_replay() -> list[TradeReplayItem]:
                 strategy_id=buy_trade.get("strategy_id", "ai_scan"),
                 strategy_name=buy_trade.get("strategy_name", "AI Scan"),
                 outcome_classification=classify_outcome(pnl_pct),
-            ))
+            ), **extra})
 
     return sorted(replay_items, key=lambda x: x["exit_time"], reverse=True)
 

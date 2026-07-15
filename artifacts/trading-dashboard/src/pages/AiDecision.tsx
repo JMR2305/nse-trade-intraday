@@ -274,6 +274,9 @@ function OpportunityDetail({
 
       {/* Phase 14 adaptive learning context */}
       <Phase14LearningContext item={item} />
+
+      {/* Phase 15 structured explanation (canonical scan factors) */}
+      <Phase15Explanation symbol={item.stock} />
     </div>
   );
 }
@@ -318,6 +321,51 @@ function Phase14LearningContext({ item }: { item: OpportunityItem }) {
         <div><span className="text-muted-foreground block">Model</span>{data.model_version}</div>
       </div>
       <p className="text-[10px] text-muted-foreground font-mono leading-relaxed">{data.explanation}</p>
+    </div>
+  );
+}
+
+// ── Phase 15 structured explanation ────────────────────────────────────────────
+
+function Phase15Explanation({ symbol }: { symbol: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["/api/phase15/explain", symbol],
+    queryFn: () => apiJson<any>(`/phase15/explain/${symbol}`),
+    staleTime: 5 * 60_000,
+  });
+  if (isLoading) {
+    return <div className="text-[10px] font-mono text-muted-foreground/60">Loading Phase 15 explanation…</div>;
+  }
+  if (!data?.available) return null;
+  return (
+    <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 p-3 space-y-2" data-testid={`phase15-explain-${symbol}`}>
+      <div className="flex items-center gap-1.5 flex-wrap text-xs font-mono text-sky-300 uppercase tracking-wider">
+        <Brain className="h-3.5 w-3.5" /> Why this decision? (Phase 15 · canonical scan {data.scan_id})
+        {data.stale && (
+          <span className="flex items-center gap-1 text-amber-400 normal-case">
+            <AlertTriangle className="h-3 w-3" /> stale scan — BUY disabled
+          </span>
+        )}
+      </div>
+      <p className="text-xs text-foreground/85 font-mono leading-relaxed">{data.headline}</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
+        {(data.factors ?? []).map((f: any) => (
+          <div key={f.factor} className="flex items-start gap-1.5 text-[11px]">
+            {f.favourable
+              ? <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0 mt-0.5" />
+              : <XCircle className="h-3 w-3 text-red-500 shrink-0 mt-0.5" />}
+            <span className="text-foreground/70">
+              <span className="text-muted-foreground font-mono">{String(f.factor).replace(/_/g, " ")}: </span>
+              {f.assessment}
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="text-[10px] font-mono text-muted-foreground">
+        Decision: {data.final_decision}
+        {data.effective_decision !== data.final_decision && ` → effective ${data.effective_decision}`}
+        {" · "}{data.favourable_count} favourable / {data.unfavourable_count} unfavourable · research only
+      </div>
     </div>
   );
 }

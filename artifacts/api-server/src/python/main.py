@@ -1415,6 +1415,43 @@ def main():
                       "contributions": _adj["contributions"],
                       "learning_frozen": _adj["learning_frozen"],
                       "model_version": list_models().get("champion_version")}
+        # ── Phase 15 — Production Hardening & Stabilization ────────────────
+        elif command == "phase15_context":
+            from phase15_scan_context import build_scan_context
+            result = {"success": True, **build_scan_context()}
+        elif command == "phase15_symbol" and len(args) >= 2:
+            from phase15_scan_context import symbol_context
+            result = {"success": True, **symbol_context(args[1])}
+        elif command == "phase15_quality":
+            from phase15_quality import quality_report
+            result = {"success": True, **quality_report()}
+        elif command == "phase15_staleness":
+            from phase15_quality import staleness_report
+            result = {"success": True, **staleness_report()}
+        elif command == "phase15_consistency":
+            from phase15_consistency import run_consistency_check
+            result = {"success": True, **run_consistency_check()}
+        elif command == "phase15_explain" and len(args) >= 2:
+            from phase15_explain import explain_symbol
+            result = {"success": True, **explain_symbol(args[1])}
+        elif command == "phase15_explain_all":
+            from phase15_explain import explain_all
+            result = {"success": True, **explain_all()}
+        elif command == "phase15_risk_gate" and len(args) >= 2:
+            from phase15_risk_gate import risk_gate
+            result = {"success": True, **risk_gate(args[1])}
+        elif command == "phase15_audit_record":
+            from phase15_audit import record_scan_audit
+            result = record_scan_audit()
+        elif command == "phase15_audit_list":
+            from phase15_audit import list_scan_audits
+            result = list_scan_audits(int(args[1]) if len(args) > 1 else 20)
+        elif command == "phase15_diagnostics":
+            from phase15_diagnostics import system_diagnostics
+            result = system_diagnostics()
+        elif command == "phase15_readiness":
+            from phase15_diagnostics import readiness_report
+            result = readiness_report()
         else:
             error_msg = f"Unknown command: {command}"
 

@@ -1,0 +1,482 @@
+# PHASE 15 – PRODUCTION HARDENING & STABILIZATION
+
+## OBJECTIVE
+
+We have completed the majority of the NSE Trader research platform. This phase is NOT about adding new features or pages. The objective is to transform the existing platform into a stable, production-quality research application that is internally consistent, reliable, explainable, and ready for extended paper trading.
+
+Treat this as a production hardening sprint.
+
+======================================================================
+
+## 1. UNIFIED SCAN ENGINE (HIGHEST PRIORITY)
+
+Create a centralized Scan Context shared across the entire application.
+
+Every module must consume the exact same scan snapshot.
+
+Modules include:
+
+- Dashboard
+- Market Scanner
+- AI Decision
+- AI Copilot
+- Portfolio Manager
+- Portfolio Risk Analytics
+- Performance Analytics
+- Notifications
+- Learning & Governance
+- Trade Replay
+- Watchlist
+
+Every page must use identical values for:
+
+• Scan ID
+• Scan Timestamp
+• Market Regime
+• Confidence
+• Opportunity Score
+• Technical Indicators
+• Sector Rankings
+• Risk Metrics
+• Position Sizing
+• Strategy Recommendation
+
+There must be only ONE source of truth.
+
+Refreshing one scan should automatically synchronize every page.
+
+======================================================================
+
+## 2. CROSS-PAGE CONSISTENCY VALIDATION
+
+Implement automatic validation across the application.
+
+Example:
+
+If Market Scanner shows
+
+INDUSINDBK
+Score = 43.9
+
+then AI Decision, AI Copilot, Notifications, Portfolio and Performance Analytics must all display exactly the same value.
+
+If any inconsistency exists:
+
+• Log the error
+• Highlight it in Diagnostics
+• Prevent conflicting recommendations
+
+======================================================================
+
+## 3. DATA QUALITY ENGINE
+
+Introduce a Data Quality Score for every stock.
+
+Calculate using:
+
+• Price Feed
+• Volume Data
+• Indicator Completeness
+• Historical Data
+• Corporate Actions
+• Missing Candle Detection
+
+Generate:
+
+95-100 = Excellent
+
+90-94 = Good
+
+80-89 = Warning
+
+Below 80 = Do Not Trade
+
+Display this score alongside every recommendation.
+
+======================================================================
+
+## 4. STALE DATA DETECTION
+
+Track:
+
+Current Time
+
+Last Scan Time
+
+Market Feed Time
+
+If data becomes stale:
+
+Display warning
+
+Show elapsed time
+
+Disable BUY recommendations
+
+Allow only Refresh or Watch
+
+======================================================================
+
+## 5. AI EXPLAINABILITY
+
+Replace simple BUY/WATCH/IGNORE outputs.
+
+Each recommendation should explain:
+
+Trend Strength
+
+Momentum
+
+Volume
+
+Sector Strength
+
+Market Regime
+
+Risk
+
+Reward
+
+Risk/Reward Ratio
+
+Confidence
+
+Opportunity Score
+
+Strategy Match
+
+Final Decision
+
+Generate human-readable explanations.
+
+Every recommendation must answer:
+
+Why Buy?
+
+Why Watch?
+
+Why Ignore?
+
+======================================================================
+
+## 6. PAPER TRADING IMPROVEMENTS
+
+Extend stored trade information.
+
+Save:
+
+Entry
+
+Exit
+
+Stop Loss
+
+Target
+
+Trailing Stop
+
+Position Size
+
+Holding Period
+
+Broker Charges (Estimated)
+
+Slippage
+
+Risk %
+
+Reward %
+
+Strategy
+
+Market Regime
+
+Confidence
+
+Opportunity Score
+
+AI Explanation
+
+Exit Reason
+
+Store permanently for analytics.
+
+======================================================================
+
+## 7. RISK ENGINE HARDENING
+
+Before every recommendation validate:
+
+Capital Available
+
+Maximum Daily Loss
+
+Risk Per Trade
+
+Maximum Exposure
+
+Sector Exposure
+
+Correlation
+
+Market Regime
+
+Position Limits
+
+Data Quality
+
+Stale Data
+
+If any rule fails:
+
+Block trade
+
+Explain why
+
+Never silently ignore.
+
+======================================================================
+
+## 8. AI COPILOT IMPROVEMENTS
+
+Support questions like:
+
+Why was this stock ignored?
+
+Why is this Watch instead of Buy?
+
+What changed since previous scan?
+
+Why did confidence decrease?
+
+Which strategy performs best?
+
+Which strategy is deteriorating?
+
+Which sector is strongest?
+
+Explain today's market regime.
+
+Why did this trade exit?
+
+Responses must only use cached platform data.
+
+Never invent information.
+
+======================================================================
+
+## 9. PERFORMANCE ANALYTICS
+
+Improve reliability calculations.
+
+Every metric should display confidence:
+
+High
+
+Medium
+
+Low
+
+Insufficient Sample
+
+Small sample sizes must automatically warn users.
+
+======================================================================
+
+## 10. LEARNING & GOVERNANCE
+
+Adaptive learning must NEVER modify trading logic automatically.
+
+Learning may only:
+
+Suggest improvements
+
+Recommend calibration
+
+Detect drift
+
+Identify regime changes
+
+Highlight deteriorating strategies
+
+Human approval is mandatory before any promotion.
+
+======================================================================
+
+## 11. PRODUCTION DIAGNOSTICS
+
+Expand Diagnostics page.
+
+Include:
+
+System Health
+
+API Status
+
+Latency
+
+Cache Status
+
+Database Health
+
+Market Feed Status
+
+Learning Status
+
+Model Registry
+
+Memory Usage
+
+Scan Duration
+
+Version
+
+Last Successful Scan
+
+Last Failed Scan
+
+======================================================================
+
+## 12. AUDIT LOGGING
+
+Every scan should create a detailed audit record.
+
+Store:
+
+Timestamp
+
+Duration
+
+Stocks Processed
+
+Strategies Executed
+
+Signals Generated
+
+Warnings
+
+Errors
+
+Learning Events
+
+Risk Checks
+
+Decision Summary
+
+======================================================================
+
+## 13. UI POLISH
+
+Review every page.
+
+Improve:
+
+Alignment
+
+Spacing
+
+Typography
+
+Responsive Layout
+
+Loading States
+
+Error Messages
+
+Empty States
+
+Buttons
+
+Cards
+
+Charts
+
+Desktop
+
+Tablet
+
+Mobile
+
+Ensure a professional enterprise appearance.
+
+======================================================================
+
+## 14. CODE REFACTORING
+
+Remove:
+
+Duplicate logic
+
+Unused components
+
+Dead code
+
+Unused API calls
+
+Unused state variables
+
+Repeated calculations
+
+Create reusable services and shared utilities.
+
+======================================================================
+
+## 15. FINAL VALIDATION
+
+Create an automated Production Readiness Report.
+
+Verify:
+
+✓ Unified Scan Context
+
+✓ Cross-page consistency
+
+✓ No stale data
+
+✓ Risk engine working
+
+✓ Paper trading working
+
+✓ Performance analytics working
+
+✓ AI Copilot working
+
+✓ Learning module working
+
+✓ Notifications working
+
+✓ Dashboard synchronization
+
+✓ Mobile responsive
+
+✓ Desktop responsive
+
+✓ Zero runtime errors
+
+✓ Zero console errors
+
+Generate a final Production Readiness Report listing any remaining issues.
+
+======================================================================
+
+IMPORTANT
+
+DO NOT add any new modules.
+
+DO NOT add new strategies.
+
+DO NOT add new indicators.
+
+DO NOT redesign the application.
+
+Focus ONLY on:
+
+• Stability
+• Consistency
+• Reliability
+• Explainability
+• Performance
+• Production readiness
+• Enterprise-grade code quality
+
+The final deliverable should be a robust, professional, production-quality trading research platform that is fully synchronized, internally consistent, thoroughly validated, and ready for extended paper trading before any live broker integration.

@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { API_BASE } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useLiveStream } from "@/hooks/useLiveStream";
+import { Phase15SystemHealthPanel } from "@/components/Phase15SystemHealth";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -228,6 +229,9 @@ export default function LiveDataHealth() {
       {errors.map(e => (
         <p key={e} className="text-[10px] font-mono text-red-400 bg-red-500/10 border border-red-500/30 rounded px-2 py-1.5">{e}</p>
       ))}
+
+      {/* Phase 15 — System Health & Production Readiness */}
+      <Phase15SystemHealthPanel />
 
       {/* Phase 11 — Live Stream & Market Hours */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
