@@ -292,6 +292,79 @@ try:
     r = rk.risk_report("bogus")
     ok("report kind allowlisted", not r["success"] and "Unknown report kind" in r["error"])
 
+    # ── Risk scores / approval cards / analytics ─────────────────────────
+    rk.update_config({"max_sector_pct": 40.0})
+    write_state(cash=5000.0, positions={"INFY": {"quantity": 20, "avg_price": 100.0}},
+                trades=[{"symbol": "INFY", "action": "BUY", "quantity": 20, "price": 100.0,
+                         "stop_loss": 95.0, "timestamp": NOW.isoformat()}])
+    write_market(vix=15.0)
+    good_rec = {"symbol": "RELIANCE", "sector": "ENERGY", "entry_price": 100.0, "stop_loss": 97.0,
+                "target_price": 110.0, "rr_ratio": 3.3, "calibrated_confidence": 68.0,
+                "opportunity_score": 70.0, "volume_ratio": 1.2, "data_age_days": 0.0,
+                "adx": 35.0, "above_ema20": True, "above_ema50": True,
+                "final_action": "BUY", "win_rate": 60.0, "profit_factor": 2.1,
+                "data_quality": "LIVE", "snapshot_ts": NOW.isoformat()}
+    weak_rec = {**good_rec, "symbol": "TCS", "sector": "IT", "adx": 8.0, "above_ema20": False,
+                "above_ema50": False, "volume_ratio": 0.02, "data_age_days": 10.0,
+                "stop_loss": 91.0, "final_action": "WATCH", "calibrated_confidence": 30.0}
+    write_scan([good_rec, weak_rec])
+
+    rs = rk.risk_score(good_rec, ["IT"], rk.get_config())
+    ok("risk score 0-100", rs["overall_score"] is not None and 0 <= rs["overall_score"] <= 100, str(rs))
+    ok("risk score band valid", rs["band"] in ("LOW", "MEDIUM", "HIGH", "EXTREME"))
+    ok("event risk honest", rs["components"]["event_risk"]["score"] is None
+       and "Not Available" in rs["components"]["event_risk"]["basis"])
+    rs_weak = rk.risk_score(weak_rec, ["IT"], rk.get_config())
+    ok("weak stock riskier", rs_weak["overall_score"] > rs["overall_score"],
+       f"{rs_weak['overall_score']} vs {rs['overall_score']}")
+    ok("risk score reproducible",
+       rk.risk_score(good_rec, ["IT"], rk.get_config())["overall_score"] == rs["overall_score"])
+    # weighted aggregation: matches explicit weighted avg renormalized over available components
+    comps = {k: v["score"] for k, v in rs["components"].items() if v["score"] is not None}
+    w = rk.RISK_SCORE_WEIGHTS
+    expected = rk._r(sum(comps[k] * w[k] for k in comps) / sum(w[k] for k in comps))
+    ok("risk score weighted+renormalized", rs["overall_score"] == expected,
+       f"{rs['overall_score']} vs {expected}")
+    # candidate without entry price → honest REJECT card, not dropped
+    write_scan([good_rec, weak_rec, {"symbol": "NOPRICE", "sector": "IT", "entry_price": 0.0,
+                                     "final_action": "AVOID"}])
+    cp_all = rk.approval_cards()
+    ok("all candidates get cards", len(cp_all["cards"]) == 3)
+    np_card = next(c for c in cp_all["cards"] if c["symbol"] == "NOPRICE")
+    ok("no-price candidate rejected honestly", np_card["verdict"] == "REJECT"
+       and "Not Available" in np_card["explanation"] and np_card["risk_band"] == "Not Available")
+    write_scan([good_rec, weak_rec])
+
+    cp = rk.approval_cards()
+    ok("approval cards built", cp["success"] and len(cp["cards"]) == 2)
+    by_sym = {c["symbol"]: c for c in cp["cards"]}
+    ok("approve for strong BUY candidate", by_sym["RELIANCE"]["verdict"] == "APPROVE", str(by_sym["RELIANCE"]["verdict"]))
+    ok("watch/reject for weak candidate", by_sym["TCS"]["verdict"] in ("WATCH", "REJECT"))
+    ok("card has explanation", len(by_sym["RELIANCE"]["explanation"]) > 10)
+    ok("card sizing consistent",
+       by_sym["RELIANCE"]["capital_required"] == rk._r(by_sym["RELIANCE"]["recommended_quantity"] * 100.0))
+    ok("card max risk math", by_sym["RELIANCE"]["max_risk"] ==
+       rk._r(by_sym["RELIANCE"]["recommended_quantity"] * 3.0), str(by_sym["RELIANCE"]["max_risk"]))
+    ok("card reward math", by_sym["RELIANCE"]["expected_reward"] ==
+       rk._r(by_sym["RELIANCE"]["recommended_quantity"] * 10.0))
+
+    an = rk.risk_analytics()
+    ok("analytics success", an["success"])
+    ok("analytics utilization", an["portfolio"]["utilization_pct"] == rk._r(2000 / 7000 * 100))
+    ok("analytics largest position", an["portfolio"]["largest_position"]["symbol"] == "INFY")
+    ok("analytics daily risk", an["portfolio"]["daily_risk"] == 100.0, str(an["portfolio"]["daily_risk"]))
+    ok("analytics max loss = invested", an["portfolio"]["max_possible_loss"] == 2000.0)
+    ok("analytics heatmap colors", all(p["heat"] in ("GREEN", "YELLOW", "ORANGE", "RED") for p in an["positions"]))
+    ok("analytics pie includes cash", any(x["name"] == "CASH" for x in an["charts"]["allocation_pie"]))
+    ok("analytics risk distribution counts", sum(x["count"] for x in an["charts"]["risk_distribution"]) == 2)
+    ok("analytics gauge", an["charts"]["utilization_gauge"]["value"] == an["portfolio"]["utilization_pct"])
+    # no-stop position → daily risk honest, heat RED
+    write_state(cash=5000.0, positions={"WIPRO": {"quantity": 5, "avg_price": 100.0}}, trades=[])
+    an2 = rk.risk_analytics()
+    ok("analytics honest daily risk without stops", "Not Available" in str(an2["portfolio"]["daily_risk"]))
+    ok("no-stop position heat RED", an2["positions"][0]["heat"] == "RED")
+    write_scan([])
+
     # ── Config ───────────────────────────────────────────────────────────
     c = rk.update_config({"max_sector_pct": 50.0})
     ok("config update", c["success"] and rk.get_config()["max_sector_pct"] == 50.0)

@@ -796,3 +796,330 @@ def risk_report(kind: str) -> dict:
 
     return {"success": True, "kind": kind, "file": path,
             "file_name": os.path.basename(path), "generated_at": _now()}
+
+
+# ── Phase 11b: Portfolio Risk Analytics (risk scores, approval cards, charts) ─
+
+RISK_SCORE_WEIGHTS = {
+    "trend_risk": 0.25,
+    "volatility_risk": 0.20,
+    "liquidity_risk": 0.15,
+    "gap_risk": 0.15,
+    "event_risk": 0.10,
+    "correlation_risk": 0.15,
+}
+
+
+def _risk_band(score: float) -> str:
+    if score < 30:
+        return "LOW"
+    if score < 55:
+        return "MEDIUM"
+    if score < 75:
+        return "HIGH"
+    return "EXTREME"
+
+
+def risk_score(rec: dict, holdings_sectors: list[str], cfg: dict) -> dict:
+    """
+    Per-stock risk score 0-100 (higher = riskier) from real scan data.
+    Components that cannot be computed are honestly None and excluded
+    from the weighted average (weights renormalized).
+    """
+    components: dict[str, dict] = {}
+
+    # Trend risk: ADX + EMA alignment (real indicators from scan)
+    adx = rec.get("adx")
+    if adx is not None:
+        t = max(0.0, min(100.0, 100.0 - float(adx) * 2.0))  # ADX 50+ -> ~0 risk
+        if rec.get("above_ema20") is False:
+            t = min(100.0, t + 15)
+        if rec.get("above_ema50") is False:
+            t = min(100.0, t + 15)
+        components["trend_risk"] = {"score": _r(t), "basis": f"ADX {adx}, above EMA20={rec.get('above_ema20')}, EMA50={rec.get('above_ema50')}"}
+    else:
+        components["trend_risk"] = {"score": None, "basis": "Not Available — no ADX in scan data"}
+
+    # Volatility risk: stop distance % as realized-volatility proxy (ATR Not Available)
+    ep, sl = rec.get("entry_price"), rec.get("stop_loss")
+    if ep and sl and float(sl) < float(ep):
+        sd_pct = (float(ep) - float(sl)) / float(ep) * 100.0
+        v = max(0.0, min(100.0, (sd_pct - 1.0) * 12.5))  # 1% -> 0, 9% -> 100
+        components["volatility_risk"] = {"score": _r(v), "basis": f"Stop distance {sd_pct:.2f}% of entry (ATR Not Available; stop distance used as volatility proxy)"}
+    else:
+        components["volatility_risk"] = {"score": None, "basis": "Not Available — no valid stop-loss"}
+
+    # Liquidity risk
+    vr = rec.get("volume_ratio")
+    if vr is not None:
+        l = max(0.0, min(100.0, (1.0 - min(float(vr), 1.0)) * 100.0))
+        components["liquidity_risk"] = {"score": _r(l), "basis": f"Volume ratio (today/20d avg) = {vr}"}
+    else:
+        components["liquidity_risk"] = {"score": None, "basis": "Not Available — no volume ratio in scan data"}
+
+    # Gap risk: data age + VIX
+    g = 0.0
+    notes = []
+    age = rec.get("data_age_days")
+    if age is not None:
+        g += min(50.0, float(age) / cfg["max_data_age_days"] * 50.0)
+        notes.append(f"data age {age}d")
+    mc = _load(MARKET_CACHE_FILE, {})
+    if mc.get("vix") is not None:
+        g += min(50.0, max(0.0, (float(mc["vix"]) - 12.0) / (cfg["vix_spike_threshold"] - 12.0) * 50.0))
+        notes.append(f"India VIX {mc['vix']}")
+    if notes:
+        components["gap_risk"] = {"score": _r(min(100.0, g)), "basis": "; ".join(notes)}
+    else:
+        components["gap_risk"] = {"score": None, "basis": "Not Available — no data age or VIX data"}
+
+    # Event risk: honestly not available (no earnings/news calendar feed)
+    components["event_risk"] = {"score": None, "basis": "Not Available — no earnings/news calendar data source connected"}
+
+    # Correlation risk vs current holdings (sector proxy)
+    if holdings_sectors:
+        sector = rec.get("sector") or _sector_of(rec.get("symbol", ""))
+        same = sum(1 for s in holdings_sectors if s == sector)
+        c = same / len(holdings_sectors) * cfg["same_sector_correlation"] * 100.0 + \
+            (1 - same / len(holdings_sectors)) * cfg["cross_sector_correlation"] * 100.0
+        components["correlation_risk"] = {"score": _r(c), "basis": f"Sector-proxy vs {len(holdings_sectors)} holding(s); {same} in same sector ({sector})"}
+    else:
+        components["correlation_risk"] = {"score": 0.0, "basis": "No open positions"}
+
+    weights = cfg.get("risk_score_weights", RISK_SCORE_WEIGHTS)
+    avail = {k: v["score"] for k, v in components.items() if v["score"] is not None}
+    wsum = sum(weights.get(k, 0.0) for k in avail)
+    overall = (sum(avail[k] * weights.get(k, 0.0) for k in avail) / wsum) if (avail and wsum > 0) else None
+    return {
+        "components": components,
+        "overall_score": _r(overall),
+        "band": _risk_band(overall) if overall is not None else "Not Available",
+        "components_available": len(avail),
+        "components_total": len(components),
+    }
+
+
+def approval_cards() -> dict:
+    """
+    Trade approval card for every scan candidate: risk score, sizing,
+    expected upside/downside, sector weight, correlation impact, verdict
+    (APPROVE / WATCH / REJECT) and a plain-language explanation.
+    """
+    cfg = get_config()
+    state = _state()
+    pv, values = _portfolio_value(state)
+    holdings_sectors = [_sector_of(s) for s in values]
+    cache = _load(SCAN_CACHE_FILE, {})
+    recs = cache.get("recommendations", [])
+    cards = []
+
+    for rec in recs:
+        sym = rec.get("symbol", "")
+        ep = rec.get("entry_price")
+        sl = rec.get("stop_loss")
+        tp = rec.get("target_price")
+        conf = rec.get("calibrated_confidence")
+        if not sym:
+            continue
+        if not ep:
+            cards.append({
+                "symbol": sym,
+                "sector": rec.get("sector") or _sector_of(sym),
+                "final_action_scanner": rec.get("final_action"),
+                "verdict": "REJECT",
+                "explanation": "Entry price Not Available — cannot size or assess this candidate; rejected rather than estimated",
+                "overall_score": rec.get("opportunity_score"),
+                "confidence": rec.get("calibrated_confidence"),
+                "risk_score": None,
+                "risk_band": "Not Available",
+                "risk_components": {},
+                "entry_price": None, "stop_loss": None, "target_price": None,
+                "rr_ratio": rec.get("rr_ratio"),
+                "recommended_quantity": 0, "capital_required": 0.0,
+                "capital_allocation_pct": 0.0, "max_risk": None, "expected_reward": None,
+                "sector_weight_now_pct": None, "sector_weight_after_pct": None,
+                "win_rate": rec.get("win_rate"), "profit_factor": rec.get("profit_factor"),
+                "data_quality": rec.get("data_quality"),
+            })
+            continue
+        rs = risk_score(rec, holdings_sectors, cfg)
+        sizing = position_size(sym, float(ep), float(sl) if sl else None,
+                               float(conf) if conf is not None else None)
+        qty = sizing.get("recommended_quantity", 0)
+        capital = qty * float(ep) if qty else 0.0
+        max_risk = _r(qty * (float(ep) - float(sl))) if (qty and sl and float(sl) < float(ep)) else None
+        reward = _r(qty * (float(tp) - float(ep))) if (qty and tp and float(tp) > float(ep)) else None
+
+        sector = rec.get("sector") or _sector_of(sym)
+        sector_value = sum(v for s, v in values.items() if _sector_of(s) == sector)
+        sector_pct_now = _r(sector_value / pv * 100.0 if pv else 0.0)
+        sector_pct_after = _r((sector_value + capital) / pv * 100.0 if pv else 0.0)
+
+        # Verdict + explanation (AI-copilot style, from real numbers)
+        reasons = []
+        if rs["band"] == "EXTREME":
+            verdict = "REJECT"
+            reasons.append(f"overall risk score {rs['overall_score']} is EXTREME")
+        elif qty <= 0:
+            verdict = "REJECT" if (sector_pct_after or 0) > cfg["max_sector_pct"] or not sizing.get("success") else "WATCH"
+            reasons.append(sizing.get("error") or "no quantity fits current limits "
+                           f"(constraints: {sizing.get('constraints')})")
+        elif rec.get("final_action") == "BUY" and rs["band"] in ("LOW", "MEDIUM") and (conf or 0) >= 45:
+            verdict = "APPROVE"
+            reasons.append(f"scanner action BUY, risk {rs['band']}, confidence {conf}")
+        else:
+            verdict = "WATCH"
+            reasons.append(f"scanner action {rec.get('final_action')}, risk {rs['band']}, confidence {conf}")
+        if qty > 0 and sector_pct_now and sector_pct_now > cfg["max_sector_pct"] * 0.75:
+            reasons.append(f"{sector} exposure already {sector_pct_now}% — allocation constrained "
+                           f"(limit {cfg['max_sector_pct']}%)")
+        if rs["components"]["correlation_risk"]["score"] and rs["components"]["correlation_risk"]["score"] > cfg["max_avg_correlation"] * 100:
+            reasons.append("adding this trade increases sector concentration (correlation proxy above ceiling)")
+
+        cards.append({
+            "symbol": sym,
+            "sector": sector,
+            "final_action_scanner": rec.get("final_action"),
+            "verdict": verdict,
+            "explanation": "; ".join(reasons),
+            "overall_score": rec.get("opportunity_score"),
+            "confidence": conf,
+            "risk_score": rs["overall_score"],
+            "risk_band": rs["band"],
+            "risk_components": rs["components"],
+            "entry_price": ep,
+            "stop_loss": sl,
+            "target_price": tp,
+            "rr_ratio": rec.get("rr_ratio"),
+            "recommended_quantity": qty,
+            "capital_required": _r(capital),
+            "capital_allocation_pct": _r(capital / pv * 100.0 if pv else 0.0),
+            "max_risk": max_risk,
+            "expected_reward": reward,
+            "sector_weight_now_pct": sector_pct_now,
+            "sector_weight_after_pct": sector_pct_after,
+            "win_rate": rec.get("win_rate"),
+            "profit_factor": rec.get("profit_factor"),
+            "data_quality": rec.get("data_quality"),
+        })
+
+    return {
+        "success": True,
+        "cards": cards,
+        "scan_id": cache.get("scan_id") or (recs[0].get("scan_id") if recs else None),
+        "snapshot_ts": recs[0].get("snapshot_ts") if recs else None,
+        "computed_at": _now(),
+    }
+
+
+def risk_analytics() -> dict:
+    """
+    Single payload for the Portfolio Risk Analytics page: portfolio stats,
+    exposure, heatmap, chart series and approval cards. All from real state
+    and scan data; anything else is Not Available.
+    """
+    cfg = get_config()
+    state = _state()
+    pv, values = _portfolio_value(state)
+    dash = portfolio_risk()
+    cards_payload = approval_cards()
+    cards = cards_payload["cards"]
+    invested = sum(values.values())
+
+    # Per-position analytics + heatmap
+    positions = []
+    total_daily_risk = 0.0
+    have_all_stops = True
+    total_reward = 0.0
+    rr_list = []
+    for sym, pos in state.get("positions", {}).items():
+        price = _last_price(sym, state) or pos["avg_price"]
+        stop = _position_stop(sym, state)
+        val = pos["quantity"] * price
+        risk_amt = _r((price - stop) * pos["quantity"]) if (stop and stop < price) else None
+        if risk_amt is None:
+            have_all_stops = False
+        else:
+            total_daily_risk += risk_amt
+        rec = _scan_rec(sym)
+        tp = rec.get("target_price") if rec else None
+        reward = _r((float(tp) - price) * pos["quantity"]) if (tp and float(tp) > price) else None
+        if reward is not None:
+            total_reward += reward
+        if risk_amt and reward:
+            rr_list.append(reward / risk_amt)
+        risk_pct_of_pos = (risk_amt / val * 100.0) if (risk_amt is not None and val > 0) else None
+        heat = ("GREEN" if risk_pct_of_pos < 4 else "YELLOW" if risk_pct_of_pos < 7 else
+                "ORANGE" if risk_pct_of_pos < 10 else "RED") if risk_pct_of_pos is not None else "RED"
+        positions.append({
+            "symbol": sym, "sector": _sector_of(sym), "quantity": pos["quantity"],
+            "avg_price": _r(pos["avg_price"]), "last_price": _r(price), "value": _r(val),
+            "pct_of_portfolio": _r(val / pv * 100.0 if pv else 0.0),
+            "risk_to_stop": risk_amt if risk_amt is not None else "Not Available",
+            "expected_reward": reward if reward is not None else "Not Available",
+            "heat": heat,
+            "heat_basis": (f"risk-to-stop {risk_pct_of_pos:.1f}% of position value" if risk_pct_of_pos is not None
+                           else "no stop-loss recorded — unbounded risk"),
+        })
+
+    largest = max(positions, key=lambda p: p["value"]) if positions else None
+
+    # Chart series
+    alloc_pie = [{"name": p["symbol"], "value": p["value"]} for p in positions]
+    alloc_pie.append({"name": "CASH", "value": _r(state.get("cash", 0.0))})
+    sector_chart = [{"sector": s["sector"], "pct": s["pct_of_portfolio"], "value": s["value"]}
+                    for s in dash["sector_allocation"]]
+    risk_dist: dict[str, int] = {}
+    conf_dist: dict[str, int] = {}
+    for c in cards:
+        risk_dist[c["risk_band"]] = risk_dist.get(c["risk_band"], 0) + 1
+        conf = c.get("confidence")
+        if conf is not None:
+            bucket = f"{int(conf // 10) * 10}-{int(conf // 10) * 10 + 9}"
+            conf_dist[bucket] = conf_dist.get(bucket, 0) + 1
+    exposure_timeline = [
+        {"timestamp": p["timestamp"], "portfolio_value": p["value"]}
+        for p in _equity_series(state)[-100:]
+    ]
+
+    return {
+        "success": True,
+        "portfolio": {
+            "total_capital": _r(pv),
+            "cash_available": _r(state.get("cash", 0.0)),
+            "invested_amount": _r(invested),
+            "utilization_pct": _r(invested / pv * 100.0 if pv else 0.0),
+            "open_positions": len(positions),
+            "largest_position": {"symbol": largest["symbol"], "value": largest["value"],
+                                 "pct": largest["pct_of_portfolio"]} if largest else None,
+            "daily_risk": _r(total_daily_risk) if have_all_stops else
+                          (f"₹{total_daily_risk:.2f}+ (incomplete — some positions have no stop)" if total_daily_risk else "Not Available"),
+            "max_possible_loss": _r(invested),
+            "max_possible_loss_note": "Worst case = full invested amount (equities can gap below any stop)",
+            "expected_portfolio_reward": _r(total_reward) if total_reward else "Not Available",
+            "avg_rr": _r(sum(rr_list) / len(rr_list)) if rr_list else "Not Available",
+        },
+        "positions": positions,
+        "sector_allocation": dash["sector_allocation"],
+        "sector_limit_pct": cfg["max_sector_pct"],
+        "sector_warnings": [s["sector"] for s in dash["sector_allocation"]
+                            if (s["pct_of_portfolio"] or 0) > cfg["max_sector_pct"]],
+        "correlation_matrix": dash["correlation_matrix"],
+        "portfolio_heat_pct": dash["portfolio_heat_pct"],
+        "unbounded_risk_positions": dash["unbounded_risk_positions"],
+        "kill_switch": dash["kill_switch"],
+        "charts": {
+            "allocation_pie": alloc_pie,
+            "sector_allocation": sector_chart,
+            "risk_distribution": [{"band": b, "count": risk_dist.get(b, 0)}
+                                  for b in ("LOW", "MEDIUM", "HIGH", "EXTREME", "Not Available")],
+            "confidence_distribution": [{"bucket": k, "count": v} for k, v in sorted(conf_dist.items())],
+            "exposure_timeline": exposure_timeline,
+            "utilization_gauge": {"value": _r(invested / pv * 100.0 if pv else 0.0), "max": 100},
+        },
+        "approval_cards": cards,
+        "scan_snapshot_ts": cards_payload.get("snapshot_ts"),
+        "engine_version": ENGINE_VERSION,
+        "computed_at": _now(),
+        "note": "Research/paper only. ATR and event risk are Not Available (no data source); correlation is a sector-proxy estimate.",
+    }

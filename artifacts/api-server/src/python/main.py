@@ -1069,6 +1069,12 @@ def main():
                     _optf(args[3]) if len(args) > 3 else None,
                     _optf(args[4]) if len(args) > 4 else None,
                 )
+        elif command == "risk_analytics":
+            from phase11_risk import risk_analytics
+            result = risk_analytics()
+        elif command == "risk_approval_cards":
+            from phase11_risk import approval_cards
+            result = approval_cards()
         elif command == "risk_alerts":
             from phase11_risk import risk_alerts
             result = risk_alerts()

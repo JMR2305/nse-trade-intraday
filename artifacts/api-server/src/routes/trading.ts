@@ -2283,6 +2283,24 @@ router.post("/risk/position-size", async (req, res) => {
   }
 });
 
+// GET /api/risk/analytics — full Portfolio Risk Analytics payload
+router.get("/risk/analytics", async (_req, res) => {
+  try {
+    res.json(await runPython(["risk_analytics"]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/risk/approval-cards — trade approval cards for scan candidates
+router.get("/risk/approval-cards", async (_req, res) => {
+  try {
+    res.json(await runPython(["risk_approval_cards"]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/risk/alerts — evaluate + list risk alerts
 router.get("/risk/alerts", async (_req, res) => {
   try {

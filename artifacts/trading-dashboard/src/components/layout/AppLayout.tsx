@@ -52,6 +52,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         { href: "/portfolio-manager", label: "Portfolio Manager", icon: Briefcase },
         { href: "/dashboard",      label: "Dashboard",      icon: BarChart3 },
         { href: "/performance-analytics", label: "Performance Analytics", icon: BarChart3 },
+        { href: "/portfolio-risk", label: "Portfolio Risk Analytics", icon: ShieldCheck },
         { href: "/market",          label: "Market",          icon: Globe2    },
         { href: "/market-scanner",  label: "Market Scanner",  icon: Radar     },
         { href: "/market-replay",   label: "Market Replay",   icon: Clock     },

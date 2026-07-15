@@ -1,0 +1,261 @@
+PHASE 11 – INSTITUTIONAL RISK ENGINE
+
+Objective:
+Transform the trading system from a stock selector into a professional portfolio risk management platform.
+
+Do NOT remove or modify any existing functionality.
+
+==================================================
+1. Dynamic Position Sizing
+==================================================
+
+For every BUY/WATCH candidate calculate:
+
+• Recommended Quantity
+• Capital Allocation %
+• Position Value
+• Maximum Risk (₹)
+• Expected Reward (₹)
+• Risk/Reward Ratio
+
+Position sizing should consider:
+
+- confidence
+- volatility
+- ATR
+- stop distance
+- account balance
+- max portfolio allocation
+- existing holdings
+
+==================================================
+2. Portfolio Exposure Dashboard
+==================================================
+
+Create a new dashboard showing:
+
+Total Capital
+
+Cash Available
+
+Invested Amount
+
+Portfolio Utilization %
+
+Sector Exposure
+
+Largest Position
+
+Daily Risk
+
+Maximum Possible Loss
+
+Expected Portfolio Reward
+
+Average R:R
+
+Open Positions
+
+Cash Remaining
+
+==================================================
+3. Sector Diversification
+==================================================
+
+Prevent over-allocation.
+
+Example:
+
+Banking
+██████ 32%
+
+IT
+██ 12%
+
+Energy
+████ 22%
+
+Auto
+█ 8%
+
+Consumer
+███ 18%
+
+Warn when sector allocation exceeds configured limits.
+
+==================================================
+4. Risk Score
+==================================================
+
+Every stock receives:
+
+Trend Risk
+
+Volatility Risk
+
+Liquidity Risk
+
+Gap Risk
+
+Event Risk
+
+Correlation Risk
+
+Overall Risk Score (0–100)
+
+Display as:
+
+LOW
+MEDIUM
+HIGH
+EXTREME
+
+==================================================
+5. Portfolio Correlation
+==================================================
+
+Measure similarity between holdings.
+
+Avoid buying highly correlated stocks.
+
+Example:
+
+HDFCBANK vs ICICIBANK
+
+Correlation = 0.91
+
+Warning:
+"Adding this trade increases banking concentration."
+
+==================================================
+6. Smart Capital Allocation
+==================================================
+
+Instead of equal allocation:
+
+Allocate more capital to:
+
+Higher confidence
+
+Lower risk
+
+Better reward/risk
+
+Lower correlation
+
+Better historical performance
+
+==================================================
+7. Trade Approval Card
+==================================================
+
+Each recommendation receives:
+
+Overall Score
+
+Confidence
+
+Risk Score
+
+Expected Upside
+
+Expected Downside
+
+Recommended Quantity
+
+Capital Required
+
+Sector Weight
+
+Correlation Impact
+
+Approval:
+
+APPROVE
+
+WATCH
+
+REJECT
+
+==================================================
+8. Risk Heatmap
+==================================================
+
+Create a portfolio heatmap using colours:
+
+Green = Safe
+
+Yellow = Moderate
+
+Orange = High
+
+Red = Extreme
+
+==================================================
+9. New Page
+==================================================
+
+Create:
+
+Portfolio Risk Analytics
+
+Menu item:
+
+Performance Analytics
+Portfolio Risk Analytics
+
+==================================================
+10. Charts
+==================================================
+
+Add:
+
+Portfolio Allocation Pie Chart
+
+Sector Allocation Chart
+
+Risk Distribution Chart
+
+Confidence Distribution
+
+Portfolio Exposure Timeline
+
+Capital Utilization Gauge
+
+==================================================
+11. AI Copilot Upgrade
+==================================================
+
+AI should explain:
+
+Why this quantity?
+
+Why this risk?
+
+Why allocation was reduced?
+
+Why approval changed?
+
+Example:
+
+"Although confidence is 84%, banking exposure is already 31%, therefore allocation has been reduced from ₹20,000 to ₹8,000."
+
+==================================================
+12. Safety
+==================================================
+
+Maintain research-only mode.
+
+No automatic live execution.
+
+No broker changes.
+
+No execution logic changes.
+
+==================================================
+Expected Result
+==================================================
+
+The application should resemble the risk management dashboard used by professional hedge funds and proprietary trading firms.
+
+Focus on institutional-grade UI, explainability, and portfolio-level decision making rather than adding new trading strategies.
