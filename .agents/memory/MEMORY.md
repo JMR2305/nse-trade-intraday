@@ -1,9 +1,10 @@
 - [Phase 7 live scan design](phase7-live-scan.md) — canonical scan has one scan_id/snapshot_ts; health endpoint probes 3 symbols only (quick); full scan via /live-data/scan/run.
 - [Phase 7 safety gates](phase7-safety-gates.md) — STALE→WATCH, UNAVAILABLE→IGNORE enforced in live_scan_engine._apply_quality_gate(); never in market_scanner.py.
 - [Phase 8 broker safety design](phase8-broker-safety.md) — credential masking, no-auto-execution guarantee, two-step confirm tokens, MockBrokerClient fallback.
-- [Phase 8 test pattern](phase8-tests.md) — 95 tests, all unit (no real broker), 8 mocked scenarios; run python3 test_phase8.py in artifacts/api-server/src/python/.
+- [Phase 8 test pattern](phase8-tests.md) — all broker tests must stay unit-level with mocked clients; never hit a real broker in tests.
 - [Watchlist default fallback](watchlist-default.md) — watchlist.json may not exist; any reader must fall back to config.DEFAULT_WATCHLIST like main.py does, or features silently show empty.
 - [Phase 9 copilot design](phase9-copilot.md) — read-only engine over cached scan snapshots; alerts dedup by type+symbol+scan_id; confidence snapshots idempotent per scan_id.
 - [Analytics data integrity](analytics-data-integrity.md) — historical trade analytics must FIFO-match BUY lots and read immutable trade-time metadata, never mutable scan caches.
 - [Headless screenshot capture](headless-screenshot-capture.md) — dashboard pages poll forever; use domcontentloaded + delay, not networkidle2; nix chromium + puppeteer-core.
 - [Phase 13 architecture](phase13-architecture.md) — 14-factor fusion, evidence labels, regime-gated strategy evolution; apiJson already prepends /api so all paths in queryFn/mutationFn must omit the /api prefix.
+- [Phase 14 learning governance](phase14-learning-governance.md) — safety state (freeze/IGNORE-lock) must be enforced at decision time from authoritative state, never from cached adjustment artifacts.

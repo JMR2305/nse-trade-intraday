@@ -1307,6 +1307,114 @@ def main():
         elif command == "phase13_audit":
             from phase13_audit import build_audit_report
             result = {"success": True, "report": build_audit_report()}
+        elif command == "phase14_dataset":
+            from phase14_learning import build_learning_dataset
+            _ds = build_learning_dataset(force=True)
+            result = {"success": True, **{k: v for k, v in _ds.items() if k != "rows"},
+                      "rows": _ds["rows"][:200]}
+        elif command == "phase14_evaluation":
+            from phase14_learning import run_evaluation
+            result = {"success": True, "report": run_evaluation(force=True)}
+        elif command == "phase14_adjustments":
+            from phase14_adjustments import compute_adjustments
+            result = {"success": True, **compute_adjustments(force=True)}
+        elif command == "phase14_calibration_train":
+            from phase14_calibration import train_calibrator
+            result = {"success": True, "calibrator": train_calibrator(force=True)}
+        elif command == "phase14_calibration_status":
+            from phase14_calibration import calibration_status
+            result = {"success": True, **calibration_status()}
+        elif command == "phase14_registry":
+            from phase14_governance import list_models
+            result = {"success": True, **list_models()}
+        elif command == "phase14_challenger_create":
+            from phase14_governance import create_challenger
+            _desc = args[1] if len(args) > 1 else ""
+            result = {"success": True, "model": create_challenger(_desc)}
+        elif command == "phase14_promotion_checklist" and len(args) >= 2:
+            from phase14_governance import promotion_checklist
+            result = {"success": True, **promotion_checklist(args[1])}
+        elif command == "phase14_model_review" and len(args) >= 3:
+            from phase14_governance import review_model
+            _approver = args[3] if len(args) > 3 else "human"
+            result = review_model(args[1], args[2], _approver)
+        elif command == "phase14_rollback":
+            from phase14_governance import rollback_champion
+            result = rollback_champion()
+        elif command == "phase14_drift":
+            from phase14_governance import compute_drift
+            result = {"success": True, **compute_drift()}
+        elif command == "phase14_alerts":
+            from phase14_governance import get_alerts
+            result = {"success": True, "alerts": get_alerts()}
+        elif command == "phase14_audit_log":
+            from phase14_governance import get_audit_log
+            result = {"success": True, "log": get_audit_log()}
+        elif command == "phase14_verification":
+            from phase14_diagnostics import verification_report
+            result = {"success": True, "verification": verification_report()}
+        elif command == "phase14_bundle":
+            from phase14_diagnostics import build_bundle
+            result = build_bundle()
+        elif command == "phase14_export" and len(args) >= 2:
+            from phase14_diagnostics import export_artifact
+            result = {"success": True, "artifact": args[1], **export_artifact(args[1])}
+        elif command == "phase14_qa" and len(args) >= 2:
+            from phase14_copilot import answer_question
+            result = {"success": True, **answer_question(args[1])}
+        elif command == "phase14_decision_batch" and len(args) >= 2:
+            from phase14_calibration import calibrate_confidence
+            from phase14_adjustments import adaptive_adjustment_for
+            from phase14_governance import list_models
+            import json as _json
+            _items = _json.loads(args[1])
+            _champ = list_models().get("champion_version")
+            _out = []
+            for _ctx in _items[:60]:
+                _raw = float(_ctx.get("raw_confidence") or 0)
+                _cal = calibrate_confidence(_raw)
+                _adj = adaptive_adjustment_for(
+                    strategy=_ctx.get("strategy"), regime=_ctx.get("regime"),
+                    sector=_ctx.get("sector"), raw_confidence=_raw,
+                    opportunity_score=_ctx.get("opportunity_score"),
+                    holding_days=_ctx.get("holding_days"),
+                    trade_quality=_ctx.get("trade_quality"),
+                    recommendation=_ctx.get("recommendation"))
+                _out.append({
+                    "symbol": _ctx.get("symbol"),
+                    "raw_confidence": _raw,
+                    "calibrated_probability": _cal["calibrated_probability"],
+                    "calibrator_version": _cal["calibrator_version"],
+                    "adaptive_adjustment": _adj["adjustment"],
+                    "final_confidence": round(max(0.0, min(100.0, _raw + _adj["adjustment"])), 1),
+                    "explanation": _adj["explanation"],
+                    "model_version": _champ})
+            result = {"success": True, "items": _out}
+        elif command == "phase14_decision_context" and len(args) >= 2:
+            from phase14_calibration import calibrate_confidence
+            from phase14_adjustments import adaptive_adjustment_for
+            from phase14_governance import list_models
+            import json as _json
+            _ctx = _json.loads(args[1])
+            _raw = float(_ctx.get("raw_confidence") or 0)
+            _cal = calibrate_confidence(_raw)
+            _adj = adaptive_adjustment_for(
+                strategy=_ctx.get("strategy"), regime=_ctx.get("regime"),
+                sector=_ctx.get("sector"), raw_confidence=_raw,
+                opportunity_score=_ctx.get("opportunity_score"),
+                holding_days=_ctx.get("holding_days"),
+                trade_quality=_ctx.get("trade_quality"),
+                recommendation=_ctx.get("recommendation"))
+            _final = max(0.0, min(100.0, _raw + _adj["adjustment"]))
+            result = {"success": True, "raw_confidence": _raw,
+                      "calibrated_probability": _cal["calibrated_probability"],
+                      "calibrator_version": _cal["calibrator_version"],
+                      "adaptive_adjustment": _adj["adjustment"],
+                      "final_confidence": round(_final, 1),
+                      "explanation": _adj["explanation"],
+                      "contributions": _adj["contributions"],
+                      "learning_frozen": _adj["learning_frozen"],
+                      "model_version": list_models().get("champion_version")}
         else:
             error_msg = f"Unknown command: {command}"
 

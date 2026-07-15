@@ -1,0 +1,20 @@
+{
+ "generated_at": "2026-07-15T12:37:40.421302+00:00",
+ "sample_size": 8,
+ "indicators": [
+  {
+   "name": "sample_size",
+   "value": 8,
+   "severity": "INFO",
+   "detail": "Only 8 completed trades \u2014 drift monitoring needs \u226520; all indicators INFO."
+  }
+ ],
+ "overall_severity": "INFO",
+ "learning_frozen": {
+  "frozen": false,
+  "reason": "decision-time freeze test done",
+  "updated_at": "2026-07-15T12:37:40.375158+00:00"
+ },
+ "recovery_criteria": "All indicators must fall below CRITICAL thresholds on the next drift computation.",
+ "note": "Drift never disables existing safety controls."
+}

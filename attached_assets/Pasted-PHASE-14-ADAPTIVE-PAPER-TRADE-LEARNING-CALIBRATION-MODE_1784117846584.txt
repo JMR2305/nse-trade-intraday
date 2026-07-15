@@ -1,0 +1,515 @@
+PHASE 14 — ADAPTIVE PAPER-TRADE LEARNING, CALIBRATION & MODEL GOVERNANCE
+
+Implement Phase 14 in the existing NSE Trader application.
+
+OBJECTIVE
+
+Build a safe adaptive-learning layer that learns only from completed historical and paper trades, improves future confidence and strategy ranking, and never changes live or paper-trading behaviour automatically without explicit human approval.
+
+The system must remain:
+
+- Paper trading and research first
+- No automatic real-money execution
+- No look-ahead leakage
+- No self-modification of production rules
+- Fully explainable
+- Reversible and auditable
+- Conservative when evidence is limited
+
+Do not weaken any existing safety gates, broker controls, data-quality checks, market-hours checks, position limits, or Phase 13 logic.
+
+--------------------------------------------------
+1. COMPLETED-TRADE LEARNING DATASET
+--------------------------------------------------
+
+Create a canonical learning dataset using only completed trades.
+
+For every completed trade, store:
+
+- trade_id
+- scan_id
+- snapshot timestamp
+- symbol
+- sector
+- strategy
+- entry timestamp
+- exit timestamp
+- entry price
+- exit price
+- stop-loss
+- target
+- quantity
+- holding period
+- gross P&L
+- transaction costs
+- net P&L
+- return percentage
+- maximum favourable excursion
+- maximum adverse excursion
+- exit reason
+- original raw confidence
+- calibrated confidence
+- opportunity score
+- trade-quality score
+- market regime at entry
+- sector-strength score at entry
+- relative-strength score
+- trend score
+- momentum score
+- volume score
+- volatility score
+- liquidity score
+- risk/reward ratio
+- final recommendation at entry
+- actual outcome: win, loss, breakeven
+- whether stop or target was hit first
+- data-quality status at entry
+- model version
+- feature version
+
+Never use information that became available after the trade entry when constructing entry features.
+
+Add an explicit no-look-ahead audit for every learning row.
+
+--------------------------------------------------
+2. OUTCOME EVALUATION ENGINE
+--------------------------------------------------
+
+Create an evaluation job that processes completed paper trades and calculates:
+
+- win rate
+- expectancy per trade
+- profit factor
+- average win
+- average loss
+- payoff ratio
+- maximum drawdown
+- Sharpe ratio
+- Sortino ratio
+- Brier score
+- calibration error
+- log loss
+- false-positive rate
+- false-negative rate
+- precision of BUY signals
+- precision of EXIT signals
+- performance by confidence band
+- performance by opportunity-score band
+- performance by strategy
+- performance by sector
+- performance by regime
+- performance by holding period
+- performance by trade-quality grade
+- performance by data-quality state
+
+Metrics must show sample size and reliability labels:
+
+- INSUFFICIENT: fewer than 30 completed trades
+- LOW: 30–49
+- MODERATE: 50–99
+- STRONG: 100–249
+- HIGH: 250+
+
+Do not display strong conclusions from low-sample groups.
+
+--------------------------------------------------
+3. ADAPTIVE LEARNING ADJUSTMENTS
+--------------------------------------------------
+
+Create conservative evidence-based adjustments for:
+
+- strategy
+- strategy × regime
+- strategy × sector
+- confidence band
+- opportunity-score band
+- holding-period band
+- trade-quality grade
+
+Each adjustment must include:
+
+- adjustment value
+- sample size
+- expectancy
+- profit factor
+- win rate
+- reliability level
+- last-updated timestamp
+- evidence period
+- reason
+- upper and lower safety bounds
+
+Rules:
+
+- Maximum adjustment per evidence source: ±5 confidence points
+- Maximum total adaptive adjustment: ±10 points
+- Insufficient evidence must contribute 0
+- Negative expectancy with moderate-or-better evidence may reduce confidence
+- Positive expectancy must not increase confidence unless profit factor is above 1 and the sample size is sufficient
+- Never allow adaptive learning to turn an IGNORE directly into BUY
+- Never bypass risk filters
+- Never override stale-data blocks
+- Never override market-regime eligibility
+- Never modify stop-loss, risk caps, or capital limits automatically
+
+The learning layer should influence ranking conservatively, not manufacture trade signals.
+
+--------------------------------------------------
+4. CONFIDENCE CALIBRATION
+--------------------------------------------------
+
+Implement rolling confidence calibration using completed out-of-sample paper trades.
+
+Support:
+
+- isotonic regression when sufficient data exists
+- Platt scaling as a fallback
+- identity calibration when evidence is insufficient
+
+Requirements:
+
+- Fit only on trades completed before the current scan
+- Version every calibrator
+- Preserve historical calibrators
+- Report raw versus calibrated confidence
+- Show Brier score, ECE, and log loss before and after calibration
+- Automatically fall back to the previous stable calibrator when a new calibrator performs worse out-of-sample
+- Never fit and evaluate on the same observations
+
+Display a warning when fewer than 100 completed trades are available.
+
+--------------------------------------------------
+5. CHAMPION–CHALLENGER MODEL GOVERNANCE
+--------------------------------------------------
+
+Add a model registry containing:
+
+- model version
+- status: DRAFT, CHALLENGER, CHAMPION, REJECTED, ARCHIVED
+- creation timestamp
+- feature version
+- calibration version
+- learning-data cutoff
+- evaluation window
+- number of OOS trades
+- expectancy
+- profit factor
+- Sharpe
+- drawdown
+- Brier score
+- ECE
+- failure flags
+- approval status
+- approved by
+- approval timestamp
+- rollback target
+
+A challenger must not replace the champion automatically.
+
+Promotion requires:
+
+- at least 100 completed out-of-sample trades
+- at least 3 independent test windows
+- positive net expectancy after all costs
+- profit factor greater than 1.10
+- Sharpe greater than 0
+- acceptable drawdown
+- no look-ahead violations
+- calibration no worse than champion
+- no safety-regression tests failing
+- explicit human approval
+
+Create one-click rollback to the previous champion for research and paper mode.
+
+No model may be promoted to live-assisted mode automatically.
+
+--------------------------------------------------
+6. DRIFT AND DEGRADATION MONITORING
+--------------------------------------------------
+
+Detect:
+
+- feature-distribution drift
+- confidence drift
+- strategy-performance drift
+- sector-performance drift
+- regime-frequency drift
+- data-provider quality drift
+- calibration degradation
+
+Use configurable thresholds and severity:
+
+- INFO
+- WARNING
+- CRITICAL
+
+Critical drift must:
+
+- freeze positive learning adjustments
+- retain risk-reducing adjustments
+- prevent model promotion
+- create a notification
+- display a banner on AI Decision and Model Governance
+- never disable existing safety controls
+
+--------------------------------------------------
+7. NEW PAGE — LEARNING & GOVERNANCE
+--------------------------------------------------
+
+Add a new sidebar page named:
+
+Learning & Governance
+
+Include tabs:
+
+A. Overview
+- completed learning trades
+- current champion
+- active calibrator
+- learning health
+- latest evaluation
+- drift status
+- no-look-ahead audit status
+
+B. Performance
+- overall metrics
+- strategy performance
+- regime performance
+- sector performance
+- confidence-band performance
+- opportunity-band performance
+- holding-period performance
+
+C. Calibration
+- raw versus calibrated reliability chart
+- Brier score
+- ECE
+- log loss
+- calibrator versions
+- sample size warnings
+
+D. Learning Adjustments
+- each adjustment source
+- value
+- evidence
+- reliability
+- bounds
+- explanation
+- contribution to final confidence
+
+E. Model Registry
+- champion
+- challengers
+- rejected models
+- comparison table
+- promotion checklist
+- manual approve/reject/archive controls
+- rollback control
+
+F. Drift Monitor
+- current drift indicators
+- historical drift
+- alerts
+- frozen-learning state
+- recovery criteria
+
+G. Audit Log
+- calibrator training
+- evaluation runs
+- adjustment changes
+- model-status changes
+- approvals
+- rollbacks
+- export events
+
+--------------------------------------------------
+8. AI DECISION INTEGRATION
+--------------------------------------------------
+
+Update the AI Decision page to show, per stock:
+
+- raw technical confidence
+- Phase 13 fused score
+- calibrated probability
+- adaptive-learning adjustment
+- final confidence
+- learning reliability
+- model version
+- calibrator version
+- compact explanation of the adjustment
+
+Example:
+
+Raw confidence: 48
+Calibrated win probability: 36%
+Adaptive adjustment: -3
+Final confidence: 45
+Evidence: 86 completed Mean Reversion trades in RANGE_BOUND conditions, expectancy -₹2.40, PF 0.91, MODERATE reliability.
+
+When evidence is insufficient, clearly show:
+
+Adaptive adjustment: 0
+Reason: insufficient completed paper-trade evidence.
+
+--------------------------------------------------
+9. AI COPILOT INTEGRATION
+--------------------------------------------------
+
+Allow the AI Copilot to answer:
+
+- Why did confidence change?
+- What has the model learned from completed trades?
+- Which strategy is currently strongest?
+- Which strategy is deteriorating?
+- Is the confidence calibration reliable?
+- Why was a model rejected?
+- What would be required to promote a challenger?
+- Is model drift currently detected?
+- What evidence supports this adjustment?
+
+All answers must state sample size, reliability, and whether the conclusion is research-only.
+
+--------------------------------------------------
+10. PERFORMANCE ANALYTICS INTEGRATION
+--------------------------------------------------
+
+Add sections for:
+
+- prediction quality over time
+- calibrated versus raw performance
+- learning-adjustment contribution
+- champion versus challenger
+- rolling expectancy
+- rolling profit factor
+- rolling Brier score
+- rolling calibration error
+- drift timeline
+
+Mark metrics as ESTIMATED or INSUFFICIENT when appropriate.
+
+Do not show misleading annualized metrics from tiny samples.
+
+--------------------------------------------------
+11. NOTIFICATIONS
+--------------------------------------------------
+
+Generate alerts for:
+
+- new evaluation completed
+- calibrator updated
+- calibrator rejected
+- challenger ready for review
+- challenger rejected
+- drift warning
+- critical drift
+- learning frozen
+- learning resumed
+- model rollback
+- no-look-ahead audit failure
+
+These alerts are informational and must not trigger trades.
+
+--------------------------------------------------
+12. EXPORTS
+--------------------------------------------------
+
+Provide downloadable JSON and CSV exports for:
+
+- completed learning dataset
+- evaluation report
+- calibration report
+- learning adjustments
+- model registry
+- drift report
+- audit log
+- complete Phase 14 diagnostic bundle
+
+The complete bundle should contain a README explaining every file and field.
+
+Mask credentials and exclude secrets.
+
+--------------------------------------------------
+13. TESTING
+--------------------------------------------------
+
+Add automated tests covering:
+
+- strict no-look-ahead feature construction
+- completed trades only
+- adjustment caps
+- insufficient evidence gives zero adjustment
+- risk gates cannot be bypassed
+- stale data cannot be bypassed
+- calibrator train/test separation
+- model cannot self-promote
+- explicit approval required
+- rollback works
+- drift freeze works
+- exports contain no secrets
+- deterministic results from the same snapshot
+- paper-trading behaviour remains safe
+- broker execution remains unchanged and disabled unless manually configured
+
+Run all existing tests plus new Phase 14 tests.
+
+Fix any regressions.
+
+--------------------------------------------------
+14. UI AND SAFETY REQUIREMENTS
+--------------------------------------------------
+
+Display prominently:
+
+RESEARCH / PAPER LEARNING ONLY
+
+Add this message:
+
+“Adaptive learning uses completed historical and paper trades. Findings may be unreliable with limited samples. No model, rule, or strategy is promoted automatically. Human approval is required.”
+
+Do not label the system “self-learning” without also showing its restrictions and sample-size reliability.
+
+Do not claim institutional-grade performance unless supported by validated out-of-sample evidence.
+
+--------------------------------------------------
+15. PHASE 14 VERIFICATION REPORT
+--------------------------------------------------
+
+After implementation, create a visible Phase 14 Verification Summary showing:
+
+- completed learning rows
+- rows passing no-look-ahead audit
+- current champion
+- active calibrator
+- adjustment sources active
+- maximum total adjustment observed
+- calibration metrics before and after
+- drift status
+- challenger count
+- whether any automatic promotion occurred
+- test count and pass count
+- safety regression status
+
+Add buttons:
+
+- Phase 14 JSON Report
+- Phase 14 CSV Report
+- Complete Diagnostic Bundle
+
+FINAL ACCEPTANCE CRITERIA
+
+Phase 14 is complete only when:
+
+1. Learning uses completed trades only.
+2. Every learning row passes a no-look-ahead audit.
+3. Small samples do not produce unsupported adjustments.
+4. Confidence adjustments are capped and explainable.
+5. Calibration is trained without leakage.
+6. Challengers cannot self-promote.
+7. Human approval is mandatory.
+8. Drift can freeze learning safely.
+9. Existing risk and execution controls remain unchanged.
+10. All tests pass.
+11. No real broker order is placed.
+12. A complete diagnostic export is available for external review.
+
+Implement this directly in the existing application. Preserve all existing pages and functionality. Do not replace working Phase 13 logic; extend it safely.

@@ -1,0 +1,9 @@
+trade_id,symbol,sector,strategy,entry_ts,exit_ts,entry_price,exit_price,quantity,holding_period_days,net_pnl,return_pct,exit_reason,raw_confidence,opportunity_score,trade_quality,market_regime_at_entry,risk_reward,outcome,model_version,feature_version
+COALINDIA|ema_cross|2026-06-23|3,COALINDIA,ENERGY,EMA Cross,2026-06-23,2026-07-09T20:21:28.336245,444.35,435.4,10,3,-89.5,-2.01,Time Exit,56.2,54.5,58.2,Bearish,2.0,LOSS,p14_m1,fv1
+POWERGRID|macd_cross|2026-06-23|3,POWERGRID,ENERGY,MACD Cross,2026-06-23,2026-07-09T20:21:28.336245,293.0,283.9,10,3,-91.0,-3.11,Time Exit,50.0,52.4,53.3,Bearish,2.5,LOSS,p14_m1,fv1
+TATASTEEL|macd_cross|2026-06-23|3,TATASTEEL,METALS,MACD Cross,2026-06-23,2026-07-09T20:21:28.336245,192.8,188.71,10,3,-40.9,-2.12,Time Exit,48.4,52.4,54.5,Bearish,2.5,LOSS,p14_m1,fv1
+ONGC|trend_rider|2026-06-23|3,ONGC,ENERGY,Trend Rider,2026-06-23,2026-07-09T20:21:28.336245,244.35,233.1,10,3,-112.5,-4.6,Time Exit,47.4,51.9,49.9,Bearish,3.0,LOSS,p14_m1,fv1
+AXISBANK|trend_rider|2026-06-23|3,AXISBANK,BANKING,Trend Rider,2026-06-23,2026-07-09T20:21:28.336245,1356.0,1377.2,10,3,212.0,1.56,Time Exit,37.4,48.6,35.9,Bearish,3.0,WIN,p14_m1,fv1
+HDFCBANK|ai_scan|2026-07-08|0|2026-07-08T21-50-57.833771,HDFCBANK,BANKING,AI Scan,2026-07-08,2026-07-09T20:29:36.143386,820.0,865.0,5,0,225.0,5.49,Target Hit,72.0,,,Neutral,2.5,WIN,p14_m1,fv1
+ICICIBANK|ai_scan|2026-07-08|0|2026-07-08T21-50-57.838630,ICICIBANK,BANKING,AI Scan,2026-07-08,2026-07-09T20:29:36.187427,1400.0,1380.0,3,0,-60.0,-1.43,Stop Hit,65.0,,,Neutral,2.1,LOSS,p14_m1,fv1
+SBIN|ai_scan|2026-07-08|0|2026-07-08T21-50-57.851094,SBIN,BANKING,AI Scan,2026-07-08,2026-07-09T20:29:36.205327,1020.0,1095.0,4,0,300.0,7.35,Signal Exit,82.0,,,Neutral,3.2,WIN,p14_m1,fv1

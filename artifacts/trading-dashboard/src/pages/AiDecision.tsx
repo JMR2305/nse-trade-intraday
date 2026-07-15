@@ -271,6 +271,53 @@ function OpportunityDetail({
 
       {/* Historical evidence from the Trade Intelligence database */}
       <HistoricalEvidence symbol={item.stock} defaultOpen />
+
+      {/* Phase 14 adaptive learning context */}
+      <Phase14LearningContext item={item} />
+    </div>
+  );
+}
+
+// ── Phase 14 learning context ──────────────────────────────────────────────────
+
+function Phase14LearningContext({ item }: { item: OpportunityItem }) {
+  const anyItem = item as any;
+  const { data, isLoading } = useQuery({
+    queryKey: ["/api/phase14/decision-context", item.stock],
+    queryFn: () =>
+      apiJson<any>("/phase14/decision-context", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          symbol: item.stock,
+          raw_confidence: anyItem.confidence ?? anyItem.ai_confidence ?? item.opportunity_score,
+          opportunity_score: item.opportunity_score,
+          trade_quality: anyItem.trade_quality,
+          strategy: anyItem.strategy ?? "AI Scan",
+          sector: anyItem.sector,
+          recommendation: item.status,
+        }),
+      }),
+    staleTime: 5 * 60_000,
+  });
+  if (isLoading) {
+    return <div className="text-[10px] font-mono text-muted-foreground/60">Loading learning context…</div>;
+  }
+  if (!data?.success) return null;
+  const adj = data.adaptive_adjustment ?? 0;
+  return (
+    <div className="rounded-lg border border-purple-500/20 bg-purple-500/5 p-3 space-y-1.5">
+      <div className="flex items-center gap-1.5 text-xs font-mono text-purple-300 uppercase tracking-wider">
+        <Brain className="h-3.5 w-3.5" /> Learning Context (Phase 14 · research only)
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-[11px] font-mono">
+        <div><span className="text-muted-foreground block">Raw conf</span>{data.raw_confidence?.toFixed(0)}</div>
+        <div><span className="text-muted-foreground block">Calibrated P(win)</span>{(data.calibrated_probability * 100).toFixed(0)}% <span className="text-muted-foreground">({data.calibrator_version})</span></div>
+        <div><span className="text-muted-foreground block">Adaptive adj</span><span className={adj > 0 ? "text-emerald-400" : adj < 0 ? "text-red-400" : ""}>{adj > 0 ? "+" : ""}{adj}</span></div>
+        <div><span className="text-muted-foreground block">Final conf</span>{data.final_confidence?.toFixed(0)}</div>
+        <div><span className="text-muted-foreground block">Model</span>{data.model_version}</div>
+      </div>
+      <p className="text-[10px] text-muted-foreground font-mono leading-relaxed">{data.explanation}</p>
     </div>
   );
 }

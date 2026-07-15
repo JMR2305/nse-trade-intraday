@@ -1,0 +1,1910 @@
+{
+ "generated_at": "2026-07-15T12:37:40.422631+00:00",
+ "readme": "PHASE 14 DIAGNOSTIC BUNDLE \u2014 README\nRESEARCH / PAPER LEARNING ONLY. No real broker orders. No secrets included.\n\nFiles/sections:\n- learning_dataset: canonical completed-trade learning rows. Each row carries\n  a no_look_ahead audit block (passed + issues). Entry features are entry-time\n  snapshots only.\n- evaluation_report: overall and grouped performance metrics with sample sizes\n  and reliability labels (INSUFFICIENT <30, LOW 30-49, MODERATE 50-99,\n  STRONG 100-249, HIGH 250+).\n- calibration_report: calibrator versions, methods, before/after Brier, ECE,\n  and log loss on out-of-sample data.\n- learning_adjustments: per-source bounded adjustments (\u00b15/source, \u00b110 total),\n  each with evidence, reliability, bounds, and reason.\n- model_registry: champion/challenger models, statuses, promotion requirements.\n- drift_report: drift indicators with severity and frozen-learning state.\n- audit_log: calibrator training, evaluations, adjustment changes, model\n  status changes, approvals, rollbacks, exports.\n- verification: Phase 14 verification summary (acceptance criteria evidence).\n\nField conventions: pnl values in INR; confidences 0-100; probabilities 0-1.\n",
+ "verification": {
+  "generated_at": "2026-07-15T12:37:40.429620+00:00",
+  "banner": "RESEARCH / PAPER LEARNING ONLY",
+  "message": "Adaptive learning uses completed historical and paper trades. Findings may be unreliable with limited samples. No model, rule, or strategy is promoted automatically. Human approval is required.",
+  "completed_learning_rows": 8,
+  "rows_passing_no_look_ahead": 8,
+  "no_look_ahead_audit_status": "PASS",
+  "current_champion": "p13_champion_v1",
+  "active_calibrator": "cal_v4",
+  "calibrator_method": "identity",
+  "adjustment_sources_active": 0,
+  "max_adjustment_observed": 0.0,
+  "adjustment_caps": {
+   "per_source": 5.0,
+   "total": 10.0
+  },
+  "calibration_metrics": {
+   "before": {
+    "brier": 0.2437,
+    "ece": 0.4695,
+    "log_loss": 0.6729,
+    "n": 8
+   },
+   "after": {
+    "brier": 0.2437,
+    "ece": 0.4695,
+    "log_loss": 0.6729,
+    "n": 8
+   }
+  },
+  "drift_status": "INFO",
+  "learning_frozen": {
+   "frozen": false,
+   "reason": "decision-time freeze test done",
+   "updated_at": "2026-07-15T12:37:40.375158+00:00"
+  },
+  "challenger_count": 0,
+  "automatic_promotion_occurred": false,
+  "evaluation_reliability": "INSUFFICIENT",
+  "sample_warning": "Sample size below 30 \u2014 all conclusions unreliable; adjustments disabled."
+ },
+ "learning_dataset": {
+  "generated_at": "2026-07-15T12:37:40.412422+00:00",
+  "feature_version": "fv1",
+  "model_version": "p14_m1",
+  "total_rows": 8,
+  "audit_passed_rows": 8,
+  "audit_failed_rows": 0,
+  "reliability": "INSUFFICIENT",
+  "note": "RESEARCH / PAPER LEARNING ONLY \u2014 completed trades only, entry-time features only.",
+  "rows": [
+   {
+    "trade_id": "COALINDIA|ema_cross|2026-06-23|3",
+    "scan_id": null,
+    "snapshot_ts": "2026-06-23",
+    "symbol": "COALINDIA",
+    "sector": "ENERGY",
+    "strategy": "EMA Cross",
+    "entry_ts": "2026-06-23",
+    "exit_ts": "2026-07-09T20:21:28.336245",
+    "entry_price": 444.35,
+    "exit_price": 435.4,
+    "stop_loss": null,
+    "target": null,
+    "quantity": 10,
+    "holding_period_days": 3,
+    "gross_pnl": -89.5,
+    "transaction_costs": 0.0,
+    "net_pnl": -89.5,
+    "return_pct": -2.01,
+    "mfe": null,
+    "mae": null,
+    "exit_reason": "Time Exit",
+    "raw_confidence": 56.2,
+    "calibrated_confidence": null,
+    "opportunity_score": 54.5,
+    "trade_quality": 58.2,
+    "market_regime_at_entry": "Bearish",
+    "sector_strength_at_entry": null,
+    "relative_strength": null,
+    "trend_score": null,
+    "momentum_score": null,
+    "volume_score": 0.17,
+    "volatility_score": null,
+    "liquidity_score": null,
+    "risk_reward": 2.0,
+    "recommendation_at_entry": null,
+    "outcome": "LOSS",
+    "stop_or_target_first": "Time Exit",
+    "data_quality_at_entry": "OK",
+    "model_version": "p14_m1",
+    "feature_version": "fv1",
+    "entry_features": {
+     "ema9": 450.91,
+     "ema20": 455.1,
+     "ema50": 455.4,
+     "ema200": 427.32,
+     "rsi": 39.91,
+     "macd": -3.7146,
+     "macd_signal": -2.186,
+     "vwap": 460.48,
+     "atr": 10.93,
+     "adx": 13.21,
+     "supertrend": 478.68,
+     "volume_ratio": 0.17,
+     "opportunity_score": 54.5,
+     "trade_quality": 58.2,
+     "confidence": 56.2,
+     "risk_reward": 2.0,
+     "market_regime": "Bearish",
+     "sector": "ENERGY",
+     "strategy": "EMA Cross",
+     "volatility": null
+    },
+    "no_look_ahead": {
+     "passed": true,
+     "issues": []
+    }
+   },
+   {
+    "trade_id": "POWERGRID|macd_cross|2026-06-23|3",
+    "scan_id": null,
+    "snapshot_ts": "2026-06-23",
+    "symbol": "POWERGRID",
+    "sector": "ENERGY",
+    "strategy": "MACD Cross",
+    "entry_ts": "2026-06-23",
+    "exit_ts": "2026-07-09T20:21:28.336245",
+    "entry_price": 293.0,
+    "exit_price": 283.9,
+    "stop_loss": null,
+    "target": null,
+    "quantity": 10,
+    "holding_period_days": 3,
+    "gross_pnl": -91.0,
+    "transaction_costs": 0.0,
+    "net_pnl": -91.0,
+    "return_pct": -3.11,
+    "mfe": null,
+    "mae": null,
+    "exit_reason": "Time Exit",
+    "raw_confidence": 50.0,
+    "calibrated_confidence": null,
+    "opportunity_score": 52.4,
+    "trade_quality": 53.3,
+    "market_regime_at_entry": "Bearish",
+    "sector_strength_at_entry": null,
+    "relative_strength": null,
+    "trend_score": null,
+    "momentum_score": null,
+    "volume_score": 0.93,
+    "volatility_score": null,
+    "liquidity_score": null,
+    "risk_reward": 2.5,
+    "recommendation_at_entry": null,
+    "outcome": "LOSS",
+    "stop_or_target_first": "Time Exit",
+    "data_quality_at_entry": "OK",
+    "model_version": "p14_m1",
+    "feature_version": "fv1",
+    "entry_features": {
+     "ema9": 289.1,
+     "ema20": 290.37,
+     "ema50": 294.85,
+     "ema200": 288.46,
+     "rsi": 50.03,
+     "macd": -2.6596,
+     "macd_signal": -3.9971,
+     "vwap": 288.96,
+     "atr": 5.8,
+     "adx": 22.4,
+     "supertrend": 302.84,
+     "volume_ratio": 0.93,
+     "opportunity_score": 52.4,
+     "trade_quality": 53.3,
+     "confidence": 50.0,
+     "risk_reward": 2.5,
+     "market_regime": "Bearish",
+     "sector": "ENERGY",
+     "strategy": "MACD Cross",
+     "volatility": null
+    },
+    "no_look_ahead": {
+     "passed": true,
+     "issues": []
+    }
+   },
+   {
+    "trade_id": "TATASTEEL|macd_cross|2026-06-23|3",
+    "scan_id": null,
+    "snapshot_ts": "2026-06-23",
+    "symbol": "TATASTEEL",
+    "sector": "METALS",
+    "strategy": "MACD Cross",
+    "entry_ts": "2026-06-23",
+    "exit_ts": "2026-07-09T20:21:28.336245",
+    "entry_price": 192.8,
+    "exit_price": 188.71,
+    "stop_loss": null,
+    "target": null,
+    "quantity": 10,
+    "holding_period_days": 3,
+    "gross_pnl": -40.9,
+    "transaction_costs": 0.0,
+    "net_pnl": -40.9,
+    "return_pct": -2.12,
+    "mfe": null,
+    "mae": null,
+    "exit_reason": "Time Exit",
+    "raw_confidence": 48.4,
+    "calibrated_confidence": null,
+    "opportunity_score": 52.4,
+    "trade_quality": 54.5,
+    "market_regime_at_entry": "Bearish",
+    "sector_strength_at_entry": null,
+    "relative_strength": null,
+    "trend_score": null,
+    "momentum_score": null,
+    "volume_score": 1.16,
+    "volatility_score": null,
+    "liquidity_score": null,
+    "risk_reward": 2.5,
+    "recommendation_at_entry": null,
+    "outcome": "LOSS",
+    "stop_or_target_first": "Time Exit",
+    "data_quality_at_entry": "OK",
+    "model_version": "p14_m1",
+    "feature_version": "fv1",
+    "entry_features": {
+     "ema9": 197.93,
+     "ema20": 200.19,
+     "ema50": 201.58,
+     "ema200": 190.0,
+     "rsi": 37.04,
+     "macd": -2.4099,
+     "macd_signal": -2.0943,
+     "vwap": 200.87,
+     "atr": 4.43,
+     "adx": 17.47,
+     "supertrend": 207.44,
+     "volume_ratio": 1.16,
+     "opportunity_score": 52.4,
+     "trade_quality": 54.5,
+     "confidence": 48.4,
+     "risk_reward": 2.5,
+     "market_regime": "Bearish",
+     "sector": "METALS",
+     "strategy": "MACD Cross",
+     "volatility": null
+    },
+    "no_look_ahead": {
+     "passed": true,
+     "issues": []
+    }
+   },
+   {
+    "trade_id": "ONGC|trend_rider|2026-06-23|3",
+    "scan_id": null,
+    "snapshot_ts": "2026-06-23",
+    "symbol": "ONGC",
+    "sector": "ENERGY",
+    "strategy": "Trend Rider",
+    "entry_ts": "2026-06-23",
+    "exit_ts": "2026-07-09T20:21:28.336245",
+    "entry_price": 244.35,
+    "exit_price": 233.1,
+    "stop_loss": null,
+    "target": null,
+    "quantity": 10,
+    "holding_period_days": 3,
+    "gross_pnl": -112.5,
+    "transaction_costs": 0.0,
+    "net_pnl": -112.5,
+    "return_pct": -4.6,
+    "mfe": null,
+    "mae": null,
+    "exit_reason": "Time Exit",
+    "raw_confidence": 47.4,
+    "calibrated_confidence": null,
+    "opportunity_score": 51.9,
+    "trade_quality": 49.9,
+    "market_regime_at_entry": "Bearish",
+    "sector_strength_at_entry": null,
+    "relative_strength": null,
+    "trend_score": null,
+    "momentum_score": null,
+    "volume_score": 0.45,
+    "volatility_score": null,
+    "liquidity_score": null,
+    "risk_reward": 3.0,
+    "recommendation_at_entry": null,
+    "outcome": "LOSS",
+    "stop_or_target_first": "Time Exit",
+    "data_quality_at_entry": "OK",
+    "model_version": "p14_m1",
+    "feature_version": "fv1",
+    "entry_features": {
+     "ema9": 248.19,
+     "ema20": 256.91,
+     "ema50": 268.14,
+     "ema200": 258.12,
+     "rsi": 27.44,
+     "macd": -10.1029,
+     "macd_signal": -9.5705,
+     "vwap": 258.8,
+     "atr": 5.74,
+     "adx": 40.81,
+     "supertrend": 261.0,
+     "volume_ratio": 0.45,
+     "opportunity_score": 51.9,
+     "trade_quality": 49.9,
+     "confidence": 47.4,
+     "risk_reward": 3.0,
+     "market_regime": "Bearish",
+     "sector": "ENERGY",
+     "strategy": "Trend Rider",
+     "volatility": null
+    },
+    "no_look_ahead": {
+     "passed": true,
+     "issues": []
+    }
+   },
+   {
+    "trade_id": "AXISBANK|trend_rider|2026-06-23|3",
+    "scan_id": null,
+    "snapshot_ts": "2026-06-23",
+    "symbol": "AXISBANK",
+    "sector": "BANKING",
+    "strategy": "Trend Rider",
+    "entry_ts": "2026-06-23",
+    "exit_ts": "2026-07-09T20:21:28.336245",
+    "entry_price": 1356.0,
+    "exit_price": 1377.2,
+    "stop_loss": null,
+    "target": null,
+    "quantity": 10,
+    "holding_period_days": 3,
+    "gross_pnl": 212.0,
+    "transaction_costs": 0.0,
+    "net_pnl": 212.0,
+    "return_pct": 1.56,
+    "mfe": null,
+    "mae": null,
+    "exit_reason": "Time Exit",
+    "raw_confidence": 37.4,
+    "calibrated_confidence": null,
+    "opportunity_score": 48.6,
+    "trade_quality": 35.9,
+    "market_regime_at_entry": "Bearish",
+    "sector_strength_at_entry": null,
+    "relative_strength": null,
+    "trend_score": null,
+    "momentum_score": null,
+    "volume_score": 0.81,
+    "volatility_score": null,
+    "liquidity_score": null,
+    "risk_reward": 3.0,
+    "recommendation_at_entry": null,
+    "outcome": "WIN",
+    "stop_or_target_first": "Time Exit",
+    "data_quality_at_entry": "OK",
+    "model_version": "p14_m1",
+    "feature_version": "fv1",
+    "entry_features": {
+     "ema9": 1348.24,
+     "ema20": 1325.36,
+     "ema50": 1304.96,
+     "ema200": 1262.89,
+     "rsi": 65.83,
+     "macd": 22.5292,
+     "macd_signal": 16.4302,
+     "vwap": 1308.04,
+     "atr": 23.84,
+     "adx": 20.27,
+     "supertrend": 1296.59,
+     "volume_ratio": 0.81,
+     "opportunity_score": 48.6,
+     "trade_quality": 35.9,
+     "confidence": 37.4,
+     "risk_reward": 3.0,
+     "market_regime": "Bearish",
+     "sector": "BANKING",
+     "strategy": "Trend Rider",
+     "volatility": null
+    },
+    "no_look_ahead": {
+     "passed": true,
+     "issues": []
+    }
+   },
+   {
+    "trade_id": "HDFCBANK|ai_scan|2026-07-08|0|2026-07-08T21-50-57.833771",
+    "scan_id": null,
+    "snapshot_ts": "2026-07-08",
+    "symbol": "HDFCBANK",
+    "sector": "BANKING",
+    "strategy": "AI Scan",
+    "entry_ts": "2026-07-08",
+    "exit_ts": "2026-07-09T20:29:36.143386",
+    "entry_price": 820.0,
+    "exit_price": 865.0,
+    "stop_loss": null,
+    "target": null,
+    "quantity": 5,
+    "holding_period_days": 0,
+    "gross_pnl": 225.0,
+    "transaction_costs": 0.0,
+    "net_pnl": 225.0,
+    "return_pct": 5.49,
+    "mfe": null,
+    "mae": null,
+    "exit_reason": "Target Hit",
+    "raw_confidence": 72.0,
+    "calibrated_confidence": null,
+    "opportunity_score": null,
+    "trade_quality": null,
+    "market_regime_at_entry": "Neutral",
+    "sector_strength_at_entry": null,
+    "relative_strength": null,
+    "trend_score": null,
+    "momentum_score": null,
+    "volume_score": null,
+    "volatility_score": 13.65,
+    "liquidity_score": null,
+    "risk_reward": 2.5,
+    "recommendation_at_entry": null,
+    "outcome": "WIN",
+    "stop_or_target_first": "Target Hit",
+    "data_quality_at_entry": "OK",
+    "model_version": "p14_m1",
+    "feature_version": "fv1",
+    "entry_features": {
+     "ema9": null,
+     "ema20": null,
+     "ema50": null,
+     "ema200": null,
+     "rsi": null,
+     "macd": null,
+     "macd_signal": null,
+     "vwap": null,
+     "atr": null,
+     "adx": null,
+     "supertrend": null,
+     "volume_ratio": null,
+     "opportunity_score": null,
+     "trade_quality": null,
+     "confidence": 72.0,
+     "risk_reward": 2.5,
+     "market_regime": "Neutral",
+     "sector": "BANKING",
+     "strategy": "AI Scan",
+     "volatility": 13.65
+    },
+    "no_look_ahead": {
+     "passed": true,
+     "issues": []
+    }
+   },
+   {
+    "trade_id": "ICICIBANK|ai_scan|2026-07-08|0|2026-07-08T21-50-57.838630",
+    "scan_id": null,
+    "snapshot_ts": "2026-07-08",
+    "symbol": "ICICIBANK",
+    "sector": "BANKING",
+    "strategy": "AI Scan",
+    "entry_ts": "2026-07-08",
+    "exit_ts": "2026-07-09T20:29:36.187427",
+    "entry_price": 1400.0,
+    "exit_price": 1380.0,
+    "stop_loss": null,
+    "target": null,
+    "quantity": 3,
+    "holding_period_days": 0,
+    "gross_pnl": -60.0,
+    "transaction_costs": 0.0,
+    "net_pnl": -60.0,
+    "return_pct": -1.43,
+    "mfe": null,
+    "mae": null,
+    "exit_reason": "Stop Hit",
+    "raw_confidence": 65.0,
+    "calibrated_confidence": null,
+    "opportunity_score": null,
+    "trade_quality": null,
+    "market_regime_at_entry": "Neutral",
+    "sector_strength_at_entry": null,
+    "relative_strength": null,
+    "trend_score": null,
+    "momentum_score": null,
+    "volume_score": null,
+    "volatility_score": 13.65,
+    "liquidity_score": null,
+    "risk_reward": 2.1,
+    "recommendation_at_entry": null,
+    "outcome": "LOSS",
+    "stop_or_target_first": "Stop Hit",
+    "data_quality_at_entry": "OK",
+    "model_version": "p14_m1",
+    "feature_version": "fv1",
+    "entry_features": {
+     "ema9": null,
+     "ema20": null,
+     "ema50": null,
+     "ema200": null,
+     "rsi": null,
+     "macd": null,
+     "macd_signal": null,
+     "vwap": null,
+     "atr": null,
+     "adx": null,
+     "supertrend": null,
+     "volume_ratio": null,
+     "opportunity_score": null,
+     "trade_quality": null,
+     "confidence": 65.0,
+     "risk_reward": 2.1,
+     "market_regime": "Neutral",
+     "sector": "BANKING",
+     "strategy": "AI Scan",
+     "volatility": 13.65
+    },
+    "no_look_ahead": {
+     "passed": true,
+     "issues": []
+    }
+   },
+   {
+    "trade_id": "SBIN|ai_scan|2026-07-08|0|2026-07-08T21-50-57.851094",
+    "scan_id": null,
+    "snapshot_ts": "2026-07-08",
+    "symbol": "SBIN",
+    "sector": "BANKING",
+    "strategy": "AI Scan",
+    "entry_ts": "2026-07-08",
+    "exit_ts": "2026-07-09T20:29:36.205327",
+    "entry_price": 1020.0,
+    "exit_price": 1095.0,
+    "stop_loss": null,
+    "target": null,
+    "quantity": 4,
+    "holding_period_days": 0,
+    "gross_pnl": 300.0,
+    "transaction_costs": 0.0,
+    "net_pnl": 300.0,
+    "return_pct": 7.35,
+    "mfe": null,
+    "mae": null,
+    "exit_reason": "Signal Exit",
+    "raw_confidence": 82.0,
+    "calibrated_confidence": null,
+    "opportunity_score": null,
+    "trade_quality": null,
+    "market_regime_at_entry": "Neutral",
+    "sector_strength_at_entry": null,
+    "relative_strength": null,
+    "trend_score": null,
+    "momentum_score": null,
+    "volume_score": null,
+    "volatility_score": 13.65,
+    "liquidity_score": null,
+    "risk_reward": 3.2,
+    "recommendation_at_entry": null,
+    "outcome": "WIN",
+    "stop_or_target_first": "Signal Exit",
+    "data_quality_at_entry": "OK",
+    "model_version": "p14_m1",
+    "feature_version": "fv1",
+    "entry_features": {
+     "ema9": null,
+     "ema20": null,
+     "ema50": null,
+     "ema200": null,
+     "rsi": null,
+     "macd": null,
+     "macd_signal": null,
+     "vwap": null,
+     "atr": null,
+     "adx": null,
+     "supertrend": null,
+     "volume_ratio": null,
+     "opportunity_score": null,
+     "trade_quality": null,
+     "confidence": 82.0,
+     "risk_reward": 3.2,
+     "market_regime": "Neutral",
+     "sector": "BANKING",
+     "strategy": "AI Scan",
+     "volatility": 13.65
+    },
+    "no_look_ahead": {
+     "passed": true,
+     "issues": []
+    }
+   }
+  ]
+ },
+ "evaluation_report": {
+  "generated_at": "2026-07-15T12:37:40.414963+00:00",
+  "model_version": "p14_m1",
+  "feature_version": "fv1",
+  "completed_trades": 8,
+  "reliability": "INSUFFICIENT",
+  "overall": {
+   "sample_size": 8,
+   "reliability": "INSUFFICIENT",
+   "win_rate": 0.375,
+   "expectancy": 42.89,
+   "profit_factor": 1.871,
+   "avg_win": 245.67,
+   "avg_loss": -78.78,
+   "payoff_ratio": 3.118,
+   "max_drawdown": -333.9,
+   "sharpe": 0.033,
+   "sortino": 0.049,
+   "brier": 0.2437,
+   "ece": 0.4695,
+   "log_loss": 0.6729,
+   "display_conclusions": false
+  },
+  "signal_quality": {
+   "buy_precision": 0.375,
+   "exit_precision": 1.0,
+   "false_positive_rate": 0.625,
+   "false_negative_rate": null,
+   "fn_note": "False negatives require shadow-signal tracking; not yet observable."
+  },
+  "by_strategy": {
+   "AI Scan": {
+    "sample_size": 3,
+    "reliability": "INSUFFICIENT",
+    "win_rate": 0.6667,
+    "expectancy": 155.0,
+    "profit_factor": 8.75,
+    "avg_win": 262.5,
+    "avg_loss": -60.0,
+    "payoff_ratio": 4.375,
+    "max_drawdown": -60.0,
+    "sharpe": 0.822,
+    "sortino": 2.66,
+    "brier": 0.1778,
+    "ece": 0.37,
+    "log_loss": 0.5256,
+    "display_conclusions": false
+   },
+   "EMA Cross": {
+    "sample_size": 1,
+    "reliability": "INSUFFICIENT",
+    "win_rate": 0.0,
+    "expectancy": -89.5,
+    "profit_factor": 0.0,
+    "avg_win": null,
+    "avg_loss": -89.5,
+    "payoff_ratio": 0.0,
+    "max_drawdown": -89.5,
+    "sharpe": null,
+    "sortino": null,
+    "brier": 0.3158,
+    "ece": 0.562,
+    "log_loss": 0.8255,
+    "display_conclusions": false
+   },
+   "MACD Cross": {
+    "sample_size": 2,
+    "reliability": "INSUFFICIENT",
+    "win_rate": 0.0,
+    "expectancy": -65.95,
+    "profit_factor": 0.0,
+    "avg_win": null,
+    "avg_loss": -65.95,
+    "payoff_ratio": 0.0,
+    "max_drawdown": -131.9,
+    "sharpe": -3.736,
+    "sortino": -0.983,
+    "brier": 0.2421,
+    "ece": 0.492,
+    "log_loss": 0.6774,
+    "display_conclusions": false
+   },
+   "Trend Rider": {
+    "sample_size": 2,
+    "reliability": "INSUFFICIENT",
+    "win_rate": 0.5,
+    "expectancy": 49.75,
+    "profit_factor": 1.884,
+    "avg_win": 212.0,
+    "avg_loss": -112.5,
+    "payoff_ratio": 1.884,
+    "max_drawdown": -112.5,
+    "sharpe": -0.349,
+    "sortino": -0.33,
+    "brier": 0.3083,
+    "ece": 0.55,
+    "log_loss": 0.813,
+    "display_conclusions": false
+   }
+  },
+  "by_sector": {
+   "BANKING": {
+    "sample_size": 4,
+    "reliability": "INSUFFICIENT",
+    "win_rate": 0.75,
+    "expectancy": 169.25,
+    "profit_factor": 12.283,
+    "avg_win": 245.67,
+    "avg_loss": -60.0,
+    "payoff_ratio": 4.094,
+    "max_drawdown": -60.0,
+    "sharpe": 0.823,
+    "sortino": 2.267,
+    "brier": 0.2313,
+    "ece": 0.434,
+    "log_loss": 0.6401,
+    "display_conclusions": false
+   },
+   "ENERGY": {
+    "sample_size": 3,
+    "reliability": "INSUFFICIENT",
+    "win_rate": 0.0,
+    "expectancy": -97.67,
+    "profit_factor": 0.0,
+    "avg_win": null,
+    "avg_loss": -97.67,
+    "payoff_ratio": 0.0,
+    "max_drawdown": -293.0,
+    "sharpe": -2.493,
+    "sortino": -0.95,
+    "brier": 0.2635,
+    "ece": 0.512,
+    "log_loss": 0.7204,
+    "display_conclusions": false
+   },
+   "METALS": {
+    "sample_size": 1,
+    "reliability": "INSUFFICIENT",
+    "win_rate": 0.0,
+    "expectancy": -40.9,
+    "profit_factor": 0.0,
+    "avg_win": null,
+    "avg_loss": -40.9,
+    "payoff_ratio": 0.0,
+    "max_drawdown": -40.9,
+    "sharpe": null,
+    "sortino": null,
+    "brier": 0.2343,
+    "ece": 0.484,
+    "log_loss": 0.6616,
+    "display_conclusions": false
+   }
+  },
+  "by_regime": {
+   "Bearish": {
+    "sample_size": 5,
+    "reliability": "INSUFFICIENT",
+    "win_rate": 0.2,
+    "expectancy": -24.38,
+    "profit_factor": 0.635,
+    "avg_win": 212.0,
+    "avg_loss": -83.47,
+    "payoff_ratio": 2.54,
+    "max_drawdown": -333.9,
+    "sharpe": -0.905,
+    "sortino": -0.655,
+    "brier": 0.2833,
+    "ece": 0.5292,
+    "log_loss": 0.7613,
+    "display_conclusions": false
+   },
+   "Neutral": {
+    "sample_size": 3,
+    "reliability": "INSUFFICIENT",
+    "win_rate": 0.6667,
+    "expectancy": 155.0,
+    "profit_factor": 8.75,
+    "avg_win": 262.5,
+    "avg_loss": -60.0,
+    "payoff_ratio": 4.375,
+    "max_drawdown": -60.0,
+    "sharpe": 0.822,
+    "sortino": 2.66,
+    "brier": 0.1778,
+    "ece": 0.37,
+    "log_loss": 0.5256,
+    "display_conclusions": false
+   }
+  },
+  "by_confidence_band": {
+   "0-39": {
+    "sample_size": 1,
+    "reliability": "INSUFFICIENT",
+    "win_rate": 1.0,
+    "expectancy": 212.0,
+    "profit_factor": null,
+    "avg_win": 212.0,
+    "avg_loss": null,
+    "payoff_ratio": null,
+    "max_drawdown": 0.0,
+    "sharpe": null,
+    "sortino": null,
+    "brier": 0.3919,
+    "ece": 0.626,
+    "log_loss": 0.9835,
+    "display_conclusions": false
+   },
+   "40-59": {
+    "sample_size": 4,
+    "reliability": "INSUFFICIENT",
+    "win_rate": 0.0,
+    "expectancy": -83.47,
+    "profit_factor": 0.0,
+    "avg_win": null,
+    "avg_loss": -83.47,
+    "payoff_ratio": 0.0,
+    "max_drawdown": -333.9,
+    "sharpe": -2.467,
+    "sortino": -0.944,
+    "brier": 0.2562,
+    "ece": 0.505,
+    "log_loss": 0.7057,
+    "display_conclusions": false
+   },
+   "60-79": {
+    "sample_size": 2,
+    "reliability": "INSUFFICIENT",
+    "win_rate": 0.5,
+    "expectancy": 82.5,
+    "profit_factor": 3.75,
+    "avg_win": 225.0,
+    "avg_loss": -60.0,
+    "payoff_ratio": 3.75,
+    "max_drawdown": -60.0,
+    "sharpe": 0.415,
+    "sortino": 1.42,
+    "brier": 0.2505,
+    "ece": 0.465,
+    "log_loss": 0.6892,
+    "display_conclusions": false
+   },
+   "80-100": {
+    "sample_size": 1,
+    "reliability": "INSUFFICIENT",
+    "win_rate": 1.0,
+    "expectancy": 300.0,
+    "profit_factor": null,
+    "avg_win": 300.0,
+    "avg_loss": null,
+    "payoff_ratio": null,
+    "max_drawdown": 0.0,
+    "sharpe": null,
+    "sortino": null,
+    "brier": 0.0324,
+    "ece": 0.18,
+    "log_loss": 0.1985,
+    "display_conclusions": false
+   }
+  },
+  "by_opportunity_band": {
+   "0-49": {
+    "sample_size": 1,
+    "reliability": "INSUFFICIENT",
+    "win_rate": 1.0,
+    "expectancy": 212.0,
+    "profit_factor": null,
+    "avg_win": 212.0,
+    "avg_loss": null,
+    "payoff_ratio": null,
+    "max_drawdown": 0.0,
+    "sharpe": null,
+    "sortino": null,
+    "brier": 0.3919,
+    "ece": 0.626,
+    "log_loss": 0.9835,
+    "display_conclusions": false
+   },
+   "50-74": {
+    "sample_size": 4,
+    "reliability": "INSUFFICIENT",
+    "win_rate": 0.0,
+    "expectancy": -83.47,
+    "profit_factor": 0.0,
+    "avg_win": null,
+    "avg_loss": -83.47,
+    "payoff_ratio": 0.0,
+    "max_drawdown": -333.9,
+    "sharpe": -2.467,
+    "sortino": -0.944,
+    "brier": 0.2562,
+    "ece": 0.505,
+    "log_loss": 0.7057,
+    "display_conclusions": false
+   },
+   "UNKNOWN": {
+    "sample_size": 3,
+    "reliability": "INSUFFICIENT",
+    "win_rate": 0.6667,
+    "expectancy": 155.0,
+    "profit_factor": 8.75,
+    "avg_win": 262.5,
+    "avg_loss": -60.0,
+    "payoff_ratio": 4.375,
+    "max_drawdown": -60.0,
+    "sharpe": 0.822,
+    "sortino": 2.66,
+    "brier": 0.1778,
+    "ece": 0.37,
+    "log_loss": 0.5256,
+    "display_conclusions": false
+   }
+  },
+  "by_holding_band": {
+   "0-1d": {
+    "sample_size": 3,
+    "reliability": "INSUFFICIENT",
+    "win_rate": 0.6667,
+    "expectancy": 155.0,
+    "profit_factor": 8.75,
+    "avg_win": 262.5,
+    "avg_loss": -60.0,
+    "payoff_ratio": 4.375,
+    "max_drawdown": -60.0,
+    "sharpe": 0.822,
+    "sortino": 2.66,
+    "brier": 0.1778,
+    "ece": 0.37,
+    "log_loss": 0.5256,
+    "display_conclusions": false
+   },
+   "2-5d": {
+    "sample_size": 5,
+    "reliability": "INSUFFICIENT",
+    "win_rate": 0.2,
+    "expectancy": -24.38,
+    "profit_factor": 0.635,
+    "avg_win": 212.0,
+    "avg_loss": -83.47,
+    "payoff_ratio": 2.54,
+    "max_drawdown": -333.9,
+    "sharpe": -0.905,
+    "sortino": -0.655,
+    "brier": 0.2833,
+    "ece": 0.5292,
+    "log_loss": 0.7613,
+    "display_conclusions": false
+   }
+  },
+  "by_quality_grade": {
+   "C": {
+    "sample_size": 4,
+    "reliability": "INSUFFICIENT",
+    "win_rate": 0.0,
+    "expectancy": -83.47,
+    "profit_factor": 0.0,
+    "avg_win": null,
+    "avg_loss": -83.47,
+    "payoff_ratio": 0.0,
+    "max_drawdown": -333.9,
+    "sharpe": -2.467,
+    "sortino": -0.944,
+    "brier": 0.2562,
+    "ece": 0.505,
+    "log_loss": 0.7057,
+    "display_conclusions": false
+   },
+   "D": {
+    "sample_size": 1,
+    "reliability": "INSUFFICIENT",
+    "win_rate": 1.0,
+    "expectancy": 212.0,
+    "profit_factor": null,
+    "avg_win": 212.0,
+    "avg_loss": null,
+    "payoff_ratio": null,
+    "max_drawdown": 0.0,
+    "sharpe": null,
+    "sortino": null,
+    "brier": 0.3919,
+    "ece": 0.626,
+    "log_loss": 0.9835,
+    "display_conclusions": false
+   },
+   "UNKNOWN": {
+    "sample_size": 3,
+    "reliability": "INSUFFICIENT",
+    "win_rate": 0.6667,
+    "expectancy": 155.0,
+    "profit_factor": 8.75,
+    "avg_win": 262.5,
+    "avg_loss": -60.0,
+    "payoff_ratio": 4.375,
+    "max_drawdown": -60.0,
+    "sharpe": 0.822,
+    "sortino": 2.66,
+    "brier": 0.1778,
+    "ece": 0.37,
+    "log_loss": 0.5256,
+    "display_conclusions": false
+   }
+  },
+  "by_data_quality": {
+   "OK": {
+    "sample_size": 8,
+    "reliability": "INSUFFICIENT",
+    "win_rate": 0.375,
+    "expectancy": 42.89,
+    "profit_factor": 1.871,
+    "avg_win": 245.67,
+    "avg_loss": -78.78,
+    "payoff_ratio": 3.118,
+    "max_drawdown": -333.9,
+    "sharpe": 0.033,
+    "sortino": 0.049,
+    "brier": 0.2437,
+    "ece": 0.4695,
+    "log_loss": 0.6729,
+    "display_conclusions": false
+   }
+  },
+  "warning": "Sample size below 30 \u2014 all conclusions unreliable; adjustments disabled.",
+  "note": "RESEARCH / PAPER LEARNING ONLY. Low-sample groups must not display strong conclusions."
+ },
+ "calibration_report": {
+  "active_version": "cal_v4",
+  "active_method": "identity",
+  "calibrator_count": 4,
+  "completed_trades": 8,
+  "warning": "Only 8 completed trades \u2014 calibration unreliable below 100.",
+  "history": [
+   {
+    "version": "cal_v1",
+    "created_at": "2026-07-15T12:26:50.833061+00:00",
+    "method": "identity",
+    "status": "ARCHIVED",
+    "train_samples": 0,
+    "test_samples": 8,
+    "metrics_before": {
+     "brier": 0.2437,
+     "ece": 0.4695,
+     "log_loss": 0.6729,
+     "n": 8
+    },
+    "metrics_after": {
+     "brier": 0.2437,
+     "ece": 0.4695,
+     "log_loss": 0.6729,
+     "n": 8
+    },
+    "reject_reason": null,
+    "warning": "Only 8 completed trades \u2014 calibration unreliable below 100."
+   },
+   {
+    "version": "cal_v2",
+    "created_at": "2026-07-15T12:28:23.544990+00:00",
+    "method": "identity",
+    "status": "ARCHIVED",
+    "train_samples": 0,
+    "test_samples": 8,
+    "metrics_before": {
+     "brier": 0.2437,
+     "ece": 0.4695,
+     "log_loss": 0.6729,
+     "n": 8
+    },
+    "metrics_after": {
+     "brier": 0.2437,
+     "ece": 0.4695,
+     "log_loss": 0.6729,
+     "n": 8
+    },
+    "reject_reason": null,
+    "warning": "Only 8 completed trades \u2014 calibration unreliable below 100."
+   },
+   {
+    "version": "cal_v3",
+    "created_at": "2026-07-15T12:36:00.502254+00:00",
+    "method": "identity",
+    "status": "ARCHIVED",
+    "train_samples": 0,
+    "test_samples": 8,
+    "metrics_before": {
+     "brier": 0.2437,
+     "ece": 0.4695,
+     "log_loss": 0.6729,
+     "n": 8
+    },
+    "metrics_after": {
+     "brier": 0.2437,
+     "ece": 0.4695,
+     "log_loss": 0.6729,
+     "n": 8
+    },
+    "reject_reason": null,
+    "warning": "Only 8 completed trades \u2014 calibration unreliable below 100."
+   },
+   {
+    "version": "cal_v4",
+    "created_at": "2026-07-15T12:37:40.260695+00:00",
+    "method": "identity",
+    "status": "ACTIVE",
+    "train_samples": 0,
+    "test_samples": 8,
+    "metrics_before": {
+     "brier": 0.2437,
+     "ece": 0.4695,
+     "log_loss": 0.6729,
+     "n": 8
+    },
+    "metrics_after": {
+     "brier": 0.2437,
+     "ece": 0.4695,
+     "log_loss": 0.6729,
+     "n": 8
+    },
+    "reject_reason": null,
+    "warning": "Only 8 completed trades \u2014 calibration unreliable below 100."
+   }
+  ],
+  "note": "RESEARCH / PAPER LEARNING ONLY."
+ },
+ "learning_adjustments": {
+  "generated_at": "2026-07-15T12:37:40.418621+00:00",
+  "learning_frozen": {
+   "frozen": false,
+   "reason": "decision-time freeze test done",
+   "updated_at": "2026-07-15T12:37:40.375158+00:00"
+  },
+  "caps": {
+   "per_source": 5.0,
+   "total": 10.0
+  },
+  "sources": {
+   "strategy": {
+    "AI Scan": {
+     "adjustment": 0.0,
+     "sample_size": 3,
+     "expectancy": 155.0,
+     "profit_factor": 8.75,
+     "win_rate": 0.6667,
+     "reliability": "INSUFFICIENT",
+     "reason": "insufficient evidence (3 trades, INSUFFICIENT)",
+     "bounds": {
+      "lower": -5.0,
+      "upper": 5.0
+     },
+     "last_updated": "2026-07-15T12:37:40.417626+00:00",
+     "evidence_period": {
+      "from": null,
+      "to": "2026-07-15T12:37:40.414963+00:00"
+     }
+    },
+    "EMA Cross": {
+     "adjustment": 0.0,
+     "sample_size": 1,
+     "expectancy": -89.5,
+     "profit_factor": 0.0,
+     "win_rate": 0.0,
+     "reliability": "INSUFFICIENT",
+     "reason": "insufficient evidence (1 trades, INSUFFICIENT)",
+     "bounds": {
+      "lower": -5.0,
+      "upper": 5.0
+     },
+     "last_updated": "2026-07-15T12:37:40.417638+00:00",
+     "evidence_period": {
+      "from": null,
+      "to": "2026-07-15T12:37:40.414963+00:00"
+     }
+    },
+    "MACD Cross": {
+     "adjustment": 0.0,
+     "sample_size": 2,
+     "expectancy": -65.95,
+     "profit_factor": 0.0,
+     "win_rate": 0.0,
+     "reliability": "INSUFFICIENT",
+     "reason": "insufficient evidence (2 trades, INSUFFICIENT)",
+     "bounds": {
+      "lower": -5.0,
+      "upper": 5.0
+     },
+     "last_updated": "2026-07-15T12:37:40.417641+00:00",
+     "evidence_period": {
+      "from": null,
+      "to": "2026-07-15T12:37:40.414963+00:00"
+     }
+    },
+    "Trend Rider": {
+     "adjustment": 0.0,
+     "sample_size": 2,
+     "expectancy": 49.75,
+     "profit_factor": 1.884,
+     "win_rate": 0.5,
+     "reliability": "INSUFFICIENT",
+     "reason": "insufficient evidence (2 trades, INSUFFICIENT)",
+     "bounds": {
+      "lower": -5.0,
+      "upper": 5.0
+     },
+     "last_updated": "2026-07-15T12:37:40.417643+00:00",
+     "evidence_period": {
+      "from": null,
+      "to": "2026-07-15T12:37:40.414963+00:00"
+     }
+    }
+   },
+   "confidence_band": {
+    "0-39": {
+     "adjustment": 0.0,
+     "sample_size": 1,
+     "expectancy": 212.0,
+     "profit_factor": null,
+     "win_rate": 1.0,
+     "reliability": "INSUFFICIENT",
+     "reason": "insufficient evidence (1 trades, INSUFFICIENT)",
+     "bounds": {
+      "lower": -5.0,
+      "upper": 5.0
+     },
+     "last_updated": "2026-07-15T12:37:40.417645+00:00",
+     "evidence_period": {
+      "from": null,
+      "to": "2026-07-15T12:37:40.414963+00:00"
+     }
+    },
+    "40-59": {
+     "adjustment": 0.0,
+     "sample_size": 4,
+     "expectancy": -83.47,
+     "profit_factor": 0.0,
+     "win_rate": 0.0,
+     "reliability": "INSUFFICIENT",
+     "reason": "insufficient evidence (4 trades, INSUFFICIENT)",
+     "bounds": {
+      "lower": -5.0,
+      "upper": 5.0
+     },
+     "last_updated": "2026-07-15T12:37:40.417647+00:00",
+     "evidence_period": {
+      "from": null,
+      "to": "2026-07-15T12:37:40.414963+00:00"
+     }
+    },
+    "60-79": {
+     "adjustment": 0.0,
+     "sample_size": 2,
+     "expectancy": 82.5,
+     "profit_factor": 3.75,
+     "win_rate": 0.5,
+     "reliability": "INSUFFICIENT",
+     "reason": "insufficient evidence (2 trades, INSUFFICIENT)",
+     "bounds": {
+      "lower": -5.0,
+      "upper": 5.0
+     },
+     "last_updated": "2026-07-15T12:37:40.417649+00:00",
+     "evidence_period": {
+      "from": null,
+      "to": "2026-07-15T12:37:40.414963+00:00"
+     }
+    },
+    "80-100": {
+     "adjustment": 0.0,
+     "sample_size": 1,
+     "expectancy": 300.0,
+     "profit_factor": null,
+     "win_rate": 1.0,
+     "reliability": "INSUFFICIENT",
+     "reason": "insufficient evidence (1 trades, INSUFFICIENT)",
+     "bounds": {
+      "lower": -5.0,
+      "upper": 5.0
+     },
+     "last_updated": "2026-07-15T12:37:40.417651+00:00",
+     "evidence_period": {
+      "from": null,
+      "to": "2026-07-15T12:37:40.414963+00:00"
+     }
+    }
+   },
+   "opportunity_band": {
+    "0-49": {
+     "adjustment": 0.0,
+     "sample_size": 1,
+     "expectancy": 212.0,
+     "profit_factor": null,
+     "win_rate": 1.0,
+     "reliability": "INSUFFICIENT",
+     "reason": "insufficient evidence (1 trades, INSUFFICIENT)",
+     "bounds": {
+      "lower": -5.0,
+      "upper": 5.0
+     },
+     "last_updated": "2026-07-15T12:37:40.417653+00:00",
+     "evidence_period": {
+      "from": null,
+      "to": "2026-07-15T12:37:40.414963+00:00"
+     }
+    },
+    "50-74": {
+     "adjustment": 0.0,
+     "sample_size": 4,
+     "expectancy": -83.47,
+     "profit_factor": 0.0,
+     "win_rate": 0.0,
+     "reliability": "INSUFFICIENT",
+     "reason": "insufficient evidence (4 trades, INSUFFICIENT)",
+     "bounds": {
+      "lower": -5.0,
+      "upper": 5.0
+     },
+     "last_updated": "2026-07-15T12:37:40.417655+00:00",
+     "evidence_period": {
+      "from": null,
+      "to": "2026-07-15T12:37:40.414963+00:00"
+     }
+    },
+    "UNKNOWN": {
+     "adjustment": 0.0,
+     "sample_size": 3,
+     "expectancy": 155.0,
+     "profit_factor": 8.75,
+     "win_rate": 0.6667,
+     "reliability": "INSUFFICIENT",
+     "reason": "insufficient evidence (3 trades, INSUFFICIENT)",
+     "bounds": {
+      "lower": -5.0,
+      "upper": 5.0
+     },
+     "last_updated": "2026-07-15T12:37:40.417657+00:00",
+     "evidence_period": {
+      "from": null,
+      "to": "2026-07-15T12:37:40.414963+00:00"
+     }
+    }
+   },
+   "holding_band": {
+    "0-1d": {
+     "adjustment": 0.0,
+     "sample_size": 3,
+     "expectancy": 155.0,
+     "profit_factor": 8.75,
+     "win_rate": 0.6667,
+     "reliability": "INSUFFICIENT",
+     "reason": "insufficient evidence (3 trades, INSUFFICIENT)",
+     "bounds": {
+      "lower": -5.0,
+      "upper": 5.0
+     },
+     "last_updated": "2026-07-15T12:37:40.417659+00:00",
+     "evidence_period": {
+      "from": null,
+      "to": "2026-07-15T12:37:40.414963+00:00"
+     }
+    },
+    "2-5d": {
+     "adjustment": 0.0,
+     "sample_size": 5,
+     "expectancy": -24.38,
+     "profit_factor": 0.635,
+     "win_rate": 0.2,
+     "reliability": "INSUFFICIENT",
+     "reason": "insufficient evidence (5 trades, INSUFFICIENT)",
+     "bounds": {
+      "lower": -5.0,
+      "upper": 5.0
+     },
+     "last_updated": "2026-07-15T12:37:40.417660+00:00",
+     "evidence_period": {
+      "from": null,
+      "to": "2026-07-15T12:37:40.414963+00:00"
+     }
+    }
+   },
+   "quality_grade": {
+    "C": {
+     "adjustment": 0.0,
+     "sample_size": 4,
+     "expectancy": -83.47,
+     "profit_factor": 0.0,
+     "win_rate": 0.0,
+     "reliability": "INSUFFICIENT",
+     "reason": "insufficient evidence (4 trades, INSUFFICIENT)",
+     "bounds": {
+      "lower": -5.0,
+      "upper": 5.0
+     },
+     "last_updated": "2026-07-15T12:37:40.417663+00:00",
+     "evidence_period": {
+      "from": null,
+      "to": "2026-07-15T12:37:40.414963+00:00"
+     }
+    },
+    "D": {
+     "adjustment": 0.0,
+     "sample_size": 1,
+     "expectancy": 212.0,
+     "profit_factor": null,
+     "win_rate": 1.0,
+     "reliability": "INSUFFICIENT",
+     "reason": "insufficient evidence (1 trades, INSUFFICIENT)",
+     "bounds": {
+      "lower": -5.0,
+      "upper": 5.0
+     },
+     "last_updated": "2026-07-15T12:37:40.417664+00:00",
+     "evidence_period": {
+      "from": null,
+      "to": "2026-07-15T12:37:40.414963+00:00"
+     }
+    },
+    "UNKNOWN": {
+     "adjustment": 0.0,
+     "sample_size": 3,
+     "expectancy": 155.0,
+     "profit_factor": 8.75,
+     "win_rate": 0.6667,
+     "reliability": "INSUFFICIENT",
+     "reason": "insufficient evidence (3 trades, INSUFFICIENT)",
+     "bounds": {
+      "lower": -5.0,
+      "upper": 5.0
+     },
+     "last_updated": "2026-07-15T12:37:40.417666+00:00",
+     "evidence_period": {
+      "from": null,
+      "to": "2026-07-15T12:37:40.414963+00:00"
+     }
+    }
+   },
+   "strategy_x_regime": {
+    "AI Scan|Neutral": {
+     "adjustment": 0.0,
+     "sample_size": 3,
+     "expectancy": 155.0,
+     "profit_factor": 8.75,
+     "win_rate": 0.6667,
+     "reliability": "INSUFFICIENT",
+     "reason": "insufficient evidence (3 trades, INSUFFICIENT)",
+     "bounds": {
+      "lower": -5.0,
+      "upper": 5.0
+     },
+     "last_updated": "2026-07-15T12:37:40.418530+00:00",
+     "evidence_period": {
+      "from": null,
+      "to": "2026-07-15T12:37:40.414963+00:00"
+     }
+    },
+    "EMA Cross|Bearish": {
+     "adjustment": 0.0,
+     "sample_size": 1,
+     "expectancy": -89.5,
+     "profit_factor": 0.0,
+     "win_rate": 0.0,
+     "reliability": "INSUFFICIENT",
+     "reason": "insufficient evidence (1 trades, INSUFFICIENT)",
+     "bounds": {
+      "lower": -5.0,
+      "upper": 5.0
+     },
+     "last_updated": "2026-07-15T12:37:40.418534+00:00",
+     "evidence_period": {
+      "from": null,
+      "to": "2026-07-15T12:37:40.414963+00:00"
+     }
+    },
+    "MACD Cross|Bearish": {
+     "adjustment": 0.0,
+     "sample_size": 2,
+     "expectancy": -65.95,
+     "profit_factor": 0.0,
+     "win_rate": 0.0,
+     "reliability": "INSUFFICIENT",
+     "reason": "insufficient evidence (2 trades, INSUFFICIENT)",
+     "bounds": {
+      "lower": -5.0,
+      "upper": 5.0
+     },
+     "last_updated": "2026-07-15T12:37:40.418536+00:00",
+     "evidence_period": {
+      "from": null,
+      "to": "2026-07-15T12:37:40.414963+00:00"
+     }
+    },
+    "Trend Rider|Bearish": {
+     "adjustment": 0.0,
+     "sample_size": 2,
+     "expectancy": 49.75,
+     "profit_factor": 1.884,
+     "win_rate": 0.5,
+     "reliability": "INSUFFICIENT",
+     "reason": "insufficient evidence (2 trades, INSUFFICIENT)",
+     "bounds": {
+      "lower": -5.0,
+      "upper": 5.0
+     },
+     "last_updated": "2026-07-15T12:37:40.418538+00:00",
+     "evidence_period": {
+      "from": null,
+      "to": "2026-07-15T12:37:40.414963+00:00"
+     }
+    }
+   },
+   "strategy_x_sector": {
+    "AI Scan|BANKING": {
+     "adjustment": 0.0,
+     "sample_size": 3,
+     "expectancy": 155.0,
+     "profit_factor": 8.75,
+     "win_rate": 0.6667,
+     "reliability": "INSUFFICIENT",
+     "reason": "insufficient evidence (3 trades, INSUFFICIENT)",
+     "bounds": {
+      "lower": -5.0,
+      "upper": 5.0
+     },
+     "last_updated": "2026-07-15T12:37:40.418610+00:00",
+     "evidence_period": {
+      "from": null,
+      "to": "2026-07-15T12:37:40.414963+00:00"
+     }
+    },
+    "EMA Cross|ENERGY": {
+     "adjustment": 0.0,
+     "sample_size": 1,
+     "expectancy": -89.5,
+     "profit_factor": 0.0,
+     "win_rate": 0.0,
+     "reliability": "INSUFFICIENT",
+     "reason": "insufficient evidence (1 trades, INSUFFICIENT)",
+     "bounds": {
+      "lower": -5.0,
+      "upper": 5.0
+     },
+     "last_updated": "2026-07-15T12:37:40.418612+00:00",
+     "evidence_period": {
+      "from": null,
+      "to": "2026-07-15T12:37:40.414963+00:00"
+     }
+    },
+    "MACD Cross|ENERGY": {
+     "adjustment": 0.0,
+     "sample_size": 1,
+     "expectancy": -91.0,
+     "profit_factor": 0.0,
+     "win_rate": 0.0,
+     "reliability": "INSUFFICIENT",
+     "reason": "insufficient evidence (1 trades, INSUFFICIENT)",
+     "bounds": {
+      "lower": -5.0,
+      "upper": 5.0
+     },
+     "last_updated": "2026-07-15T12:37:40.418614+00:00",
+     "evidence_period": {
+      "from": null,
+      "to": "2026-07-15T12:37:40.414963+00:00"
+     }
+    },
+    "MACD Cross|METALS": {
+     "adjustment": 0.0,
+     "sample_size": 1,
+     "expectancy": -40.9,
+     "profit_factor": 0.0,
+     "win_rate": 0.0,
+     "reliability": "INSUFFICIENT",
+     "reason": "insufficient evidence (1 trades, INSUFFICIENT)",
+     "bounds": {
+      "lower": -5.0,
+      "upper": 5.0
+     },
+     "last_updated": "2026-07-15T12:37:40.418616+00:00",
+     "evidence_period": {
+      "from": null,
+      "to": "2026-07-15T12:37:40.414963+00:00"
+     }
+    },
+    "Trend Rider|BANKING": {
+     "adjustment": 0.0,
+     "sample_size": 1,
+     "expectancy": 212.0,
+     "profit_factor": null,
+     "win_rate": 1.0,
+     "reliability": "INSUFFICIENT",
+     "reason": "insufficient evidence (1 trades, INSUFFICIENT)",
+     "bounds": {
+      "lower": -5.0,
+      "upper": 5.0
+     },
+     "last_updated": "2026-07-15T12:37:40.418617+00:00",
+     "evidence_period": {
+      "from": null,
+      "to": "2026-07-15T12:37:40.414963+00:00"
+     }
+    },
+    "Trend Rider|ENERGY": {
+     "adjustment": 0.0,
+     "sample_size": 1,
+     "expectancy": -112.5,
+     "profit_factor": 0.0,
+     "win_rate": 0.0,
+     "reliability": "INSUFFICIENT",
+     "reason": "insufficient evidence (1 trades, INSUFFICIENT)",
+     "bounds": {
+      "lower": -5.0,
+      "upper": 5.0
+     },
+     "last_updated": "2026-07-15T12:37:40.418619+00:00",
+     "evidence_period": {
+      "from": null,
+      "to": "2026-07-15T12:37:40.414963+00:00"
+     }
+    }
+   }
+  },
+  "note": "RESEARCH / PAPER LEARNING ONLY \u2014 adjustments re-rank conservatively; they never create trade signals, never turn IGNORE into BUY, and never bypass risk, stale-data, or regime gates."
+ },
+ "model_registry": {
+  "champion_version": "p13_champion_v1",
+  "previous_champion": null,
+  "models": [
+   {
+    "model_version": "p13_champion_v1",
+    "status": "CHAMPION",
+    "created_at": "2026-07-15T12:26:54.753009+00:00",
+    "feature_version": "fv1",
+    "calibration_version": "identity",
+    "learning_data_cutoff": null,
+    "evaluation_window": null,
+    "oos_trades": 0,
+    "expectancy": null,
+    "profit_factor": null,
+    "sharpe": null,
+    "max_drawdown": null,
+    "brier": null,
+    "ece": null,
+    "failure_flags": [],
+    "approval_status": "BASELINE",
+    "approved_by": null,
+    "approved_at": null,
+    "rollback_target": null,
+    "description": "Baseline Phase 13 fused model (seed champion)."
+   }
+  ],
+  "promotion_requirements": {
+   "min_oos_trades": 100,
+   "min_test_windows": 3,
+   "min_profit_factor": 1.1,
+   "min_sharpe": 0.0,
+   "max_drawdown_pct_of_capital": 20.0
+  },
+  "note": "RESEARCH / PAPER LEARNING ONLY \u2014 no automatic promotion; human approval mandatory."
+ },
+ "drift_report": {
+  "generated_at": "2026-07-15T12:37:40.421302+00:00",
+  "sample_size": 8,
+  "indicators": [
+   {
+    "name": "sample_size",
+    "value": 8,
+    "severity": "INFO",
+    "detail": "Only 8 completed trades \u2014 drift monitoring needs \u226520; all indicators INFO."
+   }
+  ],
+  "overall_severity": "INFO",
+  "learning_frozen": {
+   "frozen": false,
+   "reason": "decision-time freeze test done",
+   "updated_at": "2026-07-15T12:37:40.375158+00:00"
+  },
+  "recovery_criteria": "All indicators must fall below CRITICAL thresholds on the next drift computation.",
+  "note": "Drift never disables existing safety controls."
+ },
+ "audit_log": [
+  {
+   "id": "9c82d2cf7c",
+   "ts": "2026-07-15T12:28:23.552494+00:00",
+   "event_type": "challenger_created",
+   "actor": "system",
+   "detail": {
+    "model_version": "p14_challenger_v1"
+   }
+  },
+  {
+   "id": "7a544da137",
+   "ts": "2026-07-15T12:28:23.555561+00:00",
+   "event_type": "promotion_blocked",
+   "actor": "tester",
+   "detail": {
+    "model_version": "p14_challenger_v1",
+    "failed": [
+     "\u2265100 completed OOS trades",
+     "\u22653 independent test windows"
+    ]
+   }
+  },
+  {
+   "id": "3141ee48fc",
+   "ts": "2026-07-15T12:28:23.556411+00:00",
+   "event_type": "model_rejected",
+   "actor": "tester",
+   "detail": {
+    "model_version": "p14_challenger_v1",
+    "notes": ""
+   }
+  },
+  {
+   "id": "0c28d1015a",
+   "ts": "2026-07-15T12:28:23.559214+00:00",
+   "event_type": "model_rollback",
+   "actor": "human",
+   "detail": {
+    "restored": "p13_champion_v1",
+    "demoted": "tmp_champ"
+   }
+  },
+  {
+   "id": "1d84fc8681",
+   "ts": "2026-07-15T12:28:23.596076+00:00",
+   "event_type": "bundle_exported",
+   "actor": "system",
+   "detail": {
+    "files": [
+     "phase14_diagnostic_bundle.json",
+     "phase14_summary.csv"
+    ]
+   }
+  },
+  {
+   "id": "490a1bacf8",
+   "ts": "2026-07-15T12:36:00.511079+00:00",
+   "event_type": "challenger_created",
+   "actor": "system",
+   "detail": {
+    "model_version": "p14_challenger_v1"
+   }
+  },
+  {
+   "id": "3235503678",
+   "ts": "2026-07-15T12:36:00.514049+00:00",
+   "event_type": "promotion_blocked",
+   "actor": "tester",
+   "detail": {
+    "model_version": "p14_challenger_v1",
+    "failed": [
+     "\u2265100 completed OOS trades",
+     "\u22653 independent test windows"
+    ]
+   }
+  },
+  {
+   "id": "8255424e91",
+   "ts": "2026-07-15T12:36:00.514765+00:00",
+   "event_type": "model_rejected",
+   "actor": "tester",
+   "detail": {
+    "model_version": "p14_challenger_v1",
+    "notes": ""
+   }
+  },
+  {
+   "id": "f4cf8a861c",
+   "ts": "2026-07-15T12:36:00.517028+00:00",
+   "event_type": "model_rollback",
+   "actor": "human",
+   "detail": {
+    "restored": "p13_champion_v1",
+    "demoted": "tmp_champ"
+   }
+  },
+  {
+   "id": "281a32a3e5",
+   "ts": "2026-07-15T12:36:00.552220+00:00",
+   "event_type": "bundle_exported",
+   "actor": "system",
+   "detail": {
+    "files": [
+     "phase14_diagnostic_bundle.json",
+     "phase14_summary.csv"
+    ]
+   }
+  },
+  {
+   "id": "4daca6e271",
+   "ts": "2026-07-15T12:37:40.293515+00:00",
+   "event_type": "challenger_created",
+   "actor": "system",
+   "detail": {
+    "model_version": "p14_challenger_v1"
+   }
+  },
+  {
+   "id": "d873b16854",
+   "ts": "2026-07-15T12:37:40.307710+00:00",
+   "event_type": "promotion_blocked",
+   "actor": "tester",
+   "detail": {
+    "model_version": "p14_challenger_v1",
+    "failed": [
+     "\u2265100 completed OOS trades",
+     "\u22653 independent test windows"
+    ]
+   }
+  },
+  {
+   "id": "ff958b023c",
+   "ts": "2026-07-15T12:37:40.311604+00:00",
+   "event_type": "model_rejected",
+   "actor": "tester",
+   "detail": {
+    "model_version": "p14_challenger_v1",
+    "notes": ""
+   }
+  },
+  {
+   "id": "e9b3f8ff2d",
+   "ts": "2026-07-15T12:37:40.326091+00:00",
+   "event_type": "model_rollback",
+   "actor": "human",
+   "detail": {
+    "restored": "p13_champion_v1",
+    "demoted": "tmp_champ"
+   }
+  }
+ ],
+ "alerts": [
+  {
+   "id": "c587fc03d6",
+   "ts": "2026-07-15T12:28:23.552809+00:00",
+   "type": "challenger_ready",
+   "severity": "INFO",
+   "message": "Challenger p14_challenger_v1 created and ready for review.",
+   "informational_only": true,
+   "note": "Alerts never trigger trades."
+  },
+  {
+   "id": "81f506d9ff",
+   "ts": "2026-07-15T12:28:23.556914+00:00",
+   "type": "challenger_rejected",
+   "severity": "INFO",
+   "message": "Model p14_challenger_v1 rejected by tester.",
+   "informational_only": true,
+   "note": "Alerts never trigger trades."
+  },
+  {
+   "id": "f18b571536",
+   "ts": "2026-07-15T12:28:23.559558+00:00",
+   "type": "model_rollback",
+   "severity": "WARNING",
+   "message": "Rolled back champion to p13_champion_v1 (research/paper mode).",
+   "informational_only": true,
+   "note": "Alerts never trigger trades."
+  },
+  {
+   "id": "721c920548",
+   "ts": "2026-07-15T12:36:00.511666+00:00",
+   "type": "challenger_ready",
+   "severity": "INFO",
+   "message": "Challenger p14_challenger_v1 created and ready for review.",
+   "informational_only": true,
+   "note": "Alerts never trigger trades."
+  },
+  {
+   "id": "10cc8c153e",
+   "ts": "2026-07-15T12:36:00.515166+00:00",
+   "type": "challenger_rejected",
+   "severity": "INFO",
+   "message": "Model p14_challenger_v1 rejected by tester.",
+   "informational_only": true,
+   "note": "Alerts never trigger trades."
+  },
+  {
+   "id": "df3891c5f6",
+   "ts": "2026-07-15T12:36:00.518376+00:00",
+   "type": "model_rollback",
+   "severity": "WARNING",
+   "message": "Rolled back champion to p13_champion_v1 (research/paper mode).",
+   "informational_only": true,
+   "note": "Alerts never trigger trades."
+  },
+  {
+   "id": "298ec6d76e",
+   "ts": "2026-07-15T12:37:40.295552+00:00",
+   "type": "challenger_ready",
+   "severity": "INFO",
+   "message": "Challenger p14_challenger_v1 created and ready for review.",
+   "informational_only": true,
+   "note": "Alerts never trigger trades."
+  },
+  {
+   "id": "004021b45e",
+   "ts": "2026-07-15T12:37:40.313752+00:00",
+   "type": "challenger_rejected",
+   "severity": "INFO",
+   "message": "Model p14_challenger_v1 rejected by tester.",
+   "informational_only": true,
+   "note": "Alerts never trigger trades."
+  },
+  {
+   "id": "b71e7d5f89",
+   "ts": "2026-07-15T12:37:40.328352+00:00",
+   "type": "model_rollback",
+   "severity": "WARNING",
+   "message": "Rolled back champion to p13_champion_v1 (research/paper mode).",
+   "informational_only": true,
+   "note": "Alerts never trigger trades."
+  }
+ ]
+}

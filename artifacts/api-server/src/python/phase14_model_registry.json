@@ -1,0 +1,28 @@
+{
+ "models": [
+  {
+   "model_version": "p13_champion_v1",
+   "status": "CHAMPION",
+   "created_at": "2026-07-15T12:26:54.753009+00:00",
+   "feature_version": "fv1",
+   "calibration_version": "identity",
+   "learning_data_cutoff": null,
+   "evaluation_window": null,
+   "oos_trades": 0,
+   "expectancy": null,
+   "profit_factor": null,
+   "sharpe": null,
+   "max_drawdown": null,
+   "brier": null,
+   "ece": null,
+   "failure_flags": [],
+   "approval_status": "BASELINE",
+   "approved_by": null,
+   "approved_at": null,
+   "rollback_target": null,
+   "description": "Baseline Phase 13 fused model (seed champion)."
+  }
+ ],
+ "champion_version": "p13_champion_v1",
+ "previous_champion": null
+}

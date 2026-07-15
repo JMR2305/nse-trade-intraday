@@ -621,9 +621,49 @@ export default function PerformanceAnalytics() {
         </p>
       </SectionCard>
 
+      <Phase14LearningSection />
+
       <div className="text-center text-[10px] text-zinc-600">
         {data.label} · Generated {data.generated_at} · Paper trading research — not investment advice
       </div>
     </div>
+  );
+}
+
+// ── Phase 14 learning impact section ──────────────────────────────────────────
+
+function Phase14LearningSection() {
+  const [ver, setVer] = useState<any>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch(`${API_BASE}/phase14/verification`)
+      .then((r) => r.json())
+      .then((d) => { if (alive) setVer(d?.verification ?? null); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  if (!ver) return null;
+  return (
+    <SectionCard title="Adaptive Learning Impact (Phase 14 · research only)"
+      icon={<Bot className="h-4 w-4 text-primary" />}>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <KpiCard title="Learning Trades" value={String(ver.completed_learning_rows)}
+          sub={ver.evaluation_reliability} tooltip="Completed paper trades used for learning" />
+        <KpiCard title="Calibrator" value={ver.active_calibrator ?? "identity"}
+          sub={ver.calibrator_method} tooltip="Active confidence calibrator version" />
+        <KpiCard title="Active Adjustments" value={String(ver.adjustment_sources_active)}
+          sub={`max ${ver.max_adjustment_observed}`} tooltip="Evidence-based adjustment sources currently non-zero" />
+        <KpiCard title="Champion Model" value={ver.current_champion ?? "—"}
+          sub="model registry" tooltip="Current champion decision model" />
+        <KpiCard title="Drift" value={ver.drift_status}
+          sub={ver.learning_frozen?.frozen ? "learning FROZEN" : "learning active"}
+          tone={ver.drift_status === "CRITICAL" ? "text-red-400" : ver.drift_status === "WARNING" ? "text-yellow-400" : "text-emerald-400"}
+          tooltip="Drift monitor severity" />
+      </div>
+      <p className="mt-3 text-[10px] text-zinc-600">
+        Adaptive learning uses completed historical and paper trades. Findings may be unreliable with limited samples.
+        No model, rule, or strategy is promoted automatically. Human approval is required.
+      </p>
+    </SectionCard>
   );
 }
