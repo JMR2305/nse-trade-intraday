@@ -1,0 +1,524 @@
+# PHASE 17 – AUTOMATED QA, REGRESSION TESTING & RELEASE VALIDATION
+
+OBJECTIVE
+
+The NSE Trader platform is now feature-complete for research and paper trading.
+
+This phase focuses exclusively on quality assurance, automated testing, regression prevention, observability and release validation.
+
+DO NOT add new trading strategies.
+
+DO NOT add new indicators.
+
+DO NOT modify AI scoring logic.
+
+DO NOT change paper trading behaviour.
+
+DO NOT enable live execution.
+
+The objective is to guarantee that every future change can be validated automatically.
+
+======================================================================
+1. SYSTEM VALIDATION CENTER
+======================================================================
+
+Create a new sidebar page:
+
+System Validation
+
+Display:
+
+Overall Health Score
+
+Build Status
+
+Release Version
+
+Validation Timestamp
+
+Environment
+
+Production Readiness
+
+Total Checks
+
+Passed
+
+Failed
+
+Warnings
+
+======================================================================
+2. ONE-CLICK VALIDATION
+======================================================================
+
+Create a button:
+
+Run Complete Validation
+
+When clicked automatically run:
+
+✓ Frontend Tests
+
+✓ Backend Tests
+
+✓ API Tests
+
+✓ Database Tests
+
+✓ Paper Trading Tests
+
+✓ Portfolio Tests
+
+✓ AI Decision Tests
+
+✓ AI Copilot Tests
+
+✓ Scanner Tests
+
+✓ Notification Tests
+
+✓ Learning Tests
+
+✓ Performance Analytics Tests
+
+✓ Export Tests
+
+✓ Diagnostics Tests
+
+✓ Cross-Page Consistency Tests
+
+Generate a complete validation report.
+
+======================================================================
+3. CROSS-PAGE CONSISTENCY TESTS
+======================================================================
+
+Automatically verify that every page uses the same:
+
+Scan ID
+
+Timestamp
+
+Market Regime
+
+Confidence
+
+Opportunity Score
+
+Sector Rankings
+
+Risk Score
+
+Portfolio Value
+
+Cash
+
+Open Positions
+
+Generate detailed mismatch reports.
+
+======================================================================
+4. UI REGRESSION TESTS
+======================================================================
+
+Automatically verify:
+
+All pages load
+
+Buttons work
+
+Dialogs open
+
+Tables render
+
+Charts render
+
+Cards render
+
+Dark theme
+
+Responsive layout
+
+Mobile layout
+
+Tablet layout
+
+No missing icons
+
+No overlapping components
+
+No layout shifts
+
+======================================================================
+5. API VALIDATION
+======================================================================
+
+Test every API.
+
+Verify:
+
+Status Code
+
+Response Time
+
+Schema
+
+Required Fields
+
+Null Handling
+
+Error Handling
+
+Authentication
+
+Rate Limits
+
+======================================================================
+6. DATABASE VALIDATION
+======================================================================
+
+Verify:
+
+Connections
+
+Indexes
+
+Constraints
+
+Foreign Keys
+
+Duplicate Trades
+
+Missing Trades
+
+Corrupted Records
+
+Missing Scan IDs
+
+======================================================================
+7. PAPER TRADING VALIDATION
+======================================================================
+
+Verify:
+
+Trade Creation
+
+Trade Updates
+
+Exit Processing
+
+PnL
+
+Stop Loss
+
+Targets
+
+Risk Calculations
+
+Portfolio Updates
+
+======================================================================
+8. AI VALIDATION
+======================================================================
+
+Verify:
+
+Opportunity Scores
+
+Confidence
+
+Explainability
+
+Recommendations
+
+Learning Adjustments
+
+Calibration
+
+Governance
+
+Model Registry
+
+======================================================================
+9. PERFORMANCE VALIDATION
+======================================================================
+
+Verify:
+
+Sharpe
+
+Sortino
+
+Drawdown
+
+Profit Factor
+
+Win Rate
+
+Expectancy
+
+Alpha
+
+Beta
+
+Benchmark Comparison
+
+Flag metrics with insufficient data instead of failing.
+
+======================================================================
+10. EXPORT VALIDATION
+======================================================================
+
+Automatically test:
+
+CSV
+
+JSON
+
+PDF
+
+Review Package
+
+Diagnostics
+
+Validation Reports
+
+Verify downloads complete successfully.
+
+======================================================================
+11. PERFORMANCE BENCHMARKS
+======================================================================
+
+Measure:
+
+Application Load Time
+
+Dashboard Load Time
+
+Scanner Runtime
+
+AI Decision Runtime
+
+Portfolio Runtime
+
+Memory Usage
+
+CPU Usage
+
+API Latency
+
+Database Latency
+
+Chart Rendering
+
+======================================================================
+12. ERROR DETECTION
+======================================================================
+
+Automatically detect:
+
+Console Errors
+
+Unhandled Exceptions
+
+API Failures
+
+Duplicate Alerts
+
+Duplicate Trades
+
+Broken Charts
+
+Broken Navigation
+
+Broken Links
+
+Broken Buttons
+
+======================================================================
+13. RELEASE CHECKLIST
+======================================================================
+
+Create a release checklist.
+
+Example:
+
+Frontend Pass
+
+Backend Pass
+
+API Pass
+
+Database Pass
+
+Exports Pass
+
+AI Pass
+
+Paper Trading Pass
+
+Learning Pass
+
+Notifications Pass
+
+Performance Pass
+
+Security Pass
+
+Cross-Page Validation Pass
+
+Production Ready
+
+======================================================================
+14. RELEASE DASHBOARD
+======================================================================
+
+Create a Release Dashboard displaying:
+
+Current Version
+
+Build Number
+
+Last Successful Validation
+
+Last Failed Validation
+
+Open Issues
+
+Warnings
+
+Release Score
+
+Production Readiness
+
+======================================================================
+15. VALIDATION HISTORY
+======================================================================
+
+Store every validation run.
+
+Display:
+
+Run ID
+
+Timestamp
+
+Duration
+
+Passed
+
+Failed
+
+Warnings
+
+Version
+
+Engineer Notes
+
+======================================================================
+16. AUTOMATED REPORTS
+======================================================================
+
+Generate:
+
+Validation_Report.pdf
+
+Validation_Report.xlsx
+
+Validation_Report.csv
+
+System_Health.json
+
+Release_Readiness.json
+
+Regression_Report.csv
+
+======================================================================
+17. REVIEW PACKAGE
+======================================================================
+
+Extend the existing Review Package.
+
+Include:
+
+Validation Results
+
+Regression Results
+
+Performance Benchmarks
+
+Release Dashboard
+
+Validation History
+
+Health Reports
+
+======================================================================
+18. FINAL VALIDATION SCORE
+======================================================================
+
+Generate an overall score based on:
+
+Application Stability
+
+Performance
+
+Reliability
+
+Consistency
+
+AI Health
+
+Paper Trading
+
+Diagnostics
+
+Security
+
+Code Quality
+
+Testing Coverage
+
+Production Readiness
+
+======================================================================
+IMPORTANT
+
+DO NOT:
+
+- Add trading features
+- Add AI features
+- Add strategies
+- Add indicators
+- Enable live trading
+
+ONLY improve:
+
+Testing
+
+Validation
+
+Diagnostics
+
+Regression Detection
+
+Release Quality
+
+Maintain the existing research-only and paper-trading architecture.
+
+======================================================================
+FINAL DELIVERABLE
+
+Provide a comprehensive QA framework where every future release can be validated with a single click.
+
+At completion, generate:
+
+- Phase17_Review_Package.zip
+- Validation Dashboard
+- Release Readiness Report
+- Regression Report
+- Test Coverage Report
+- Production Health Report
+
+The objective is to make every future enhancement safe, measurable, and verifiable before deployment.

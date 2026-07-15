@@ -1986,7 +1986,7 @@ router.get("/broker/mode", async (_req, res) => {
 router.post("/broker/mode", async (req, res) => {
   try {
     const { mode } = req.body as { mode: string };
-    if (!mode) return res.status(400).json({ error: "mode required" });
+    if (!mode) { res.status(400).json({ error: "mode required" }); return; }
     const data = await runPython(["phase8_mode_set", mode]);
     res.json(data);
   } catch (err: unknown) {
@@ -2010,8 +2010,10 @@ router.post("/broker/order/preview", async (req, res) => {
     const { symbol, side, quantity, entry_price = 0, stop_loss = 0, target = 0 } =
       req.body as { symbol: string; side: string; quantity: number;
                     entry_price?: number; stop_loss?: number; target?: number };
-    if (!symbol || !side || !quantity)
-      return res.status(400).json({ error: "symbol, side, quantity required" });
+    if (!symbol || !side || !quantity) {
+      res.status(400).json({ error: "symbol, side, quantity required" });
+      return;
+    }
     const data = await runPython([
       "phase8_preview", symbol, side, String(quantity),
       String(entry_price), String(stop_loss), String(target),
@@ -2026,7 +2028,7 @@ router.post("/broker/order/preview", async (req, res) => {
 router.post("/broker/order/confirm1", async (req, res) => {
   try {
     const { preview_id, token } = req.body as { preview_id: string; token: string };
-    if (!preview_id || !token) return res.status(400).json({ error: "preview_id and token required" });
+    if (!preview_id || !token) { res.status(400).json({ error: "preview_id and token required" }); return; }
     const data = await runPython(["phase8_confirm1", preview_id, token]);
     res.json(data);
   } catch (err: unknown) {
@@ -2038,7 +2040,7 @@ router.post("/broker/order/confirm1", async (req, res) => {
 router.post("/broker/order/confirm2", async (req, res) => {
   try {
     const { preview_id, token } = req.body as { preview_id: string; token: string };
-    if (!preview_id || !token) return res.status(400).json({ error: "preview_id and token required" });
+    if (!preview_id || !token) { res.status(400).json({ error: "preview_id and token required" }); return; }
     const data = await runPython(["phase8_confirm2", preview_id, token]);
     res.json(data);
   } catch (err: unknown) {
@@ -2050,7 +2052,7 @@ router.post("/broker/order/confirm2", async (req, res) => {
 router.post("/broker/kill-switch", async (req, res) => {
   try {
     const { activate } = req.body as { activate: boolean };
-    if (typeof activate !== "boolean") return res.status(400).json({ error: "activate (boolean) required" });
+    if (typeof activate !== "boolean") { res.status(400).json({ error: "activate (boolean) required" }); return; }
     const data = await runPython(["phase8_kill_switch", activate ? "on" : "off"]);
     res.json(data);
   } catch (err: unknown) {

@@ -37,7 +37,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PHASE = 16
+PHASE = 17
 PACKAGE_NAME = f"Phase{PHASE}_Review_Package"
 PACKAGE_DIR = os.path.join(BASE_DIR, PACKAGE_NAME)
 ZIP_PATH = os.path.join(BASE_DIR, f"{PACKAGE_NAME}.zip")
@@ -193,15 +193,47 @@ def _csv_risk(out: str, risk: dict):
 
 # ── Reports ──────────────────────────────────────────────────────────────────
 
-def _implementation_summary(t15: dict, t16: dict) -> str:
-    return f"""# Phase {PHASE} Implementation Summary — Paper Trading Validation & Strategy Proving
+def _implementation_summary(t15: dict, t16: dict, t17: dict) -> str:
+    return f"""# Phase {PHASE} Implementation Summary — Automated QA, Regression Testing & Release Validation
 
 - **Phase:** {PHASE}
 - **Date:** {_now()}
-- **Scope rule respected:** feature freeze — no new strategies, indicators or trading
-  modules were added; recommendations are advisory only; PAPER / RESEARCH ONLY.
+- **Scope rule respected:** feature freeze — no new strategies, indicators, AI scoring
+  changes or paper-trading behaviour changes; validation only; PAPER / RESEARCH ONLY.
 
-## Phase 16 features added (latest)
+## Phase 17 features added (latest)
+- Automated QA engine — one-click complete system validation: all backend test
+  suites (Phases 7-16), TypeScript build checks, API validation (status, latency,
+  required fields, 404 handling), data-store integrity, paper-trading integrity
+  (capital conservation, PnL consistency, stops/targets), AI validation
+  (confidence/score ranges, explanations, calibration, model registry),
+  performance-metric validation with Insufficient Data flags, export validation,
+  performance benchmarks with budgets, error detection, and cross-page consistency.
+- Release management — weighted System Health Score, release checklist,
+  release dashboard (version, build, environment, readiness), validation history
+  (last 100 runs), regression comparison vs the previous run.
+- Automated reports — Validation_Report.pdf/.xlsx/.csv, System_Health.json,
+  Release_Readiness.json, Regression_Report.csv (phase17_reports/).
+- Dashboard — "System Validation" page (route /system-validation, System group)
+  with one-click Run Complete Validation (background job + live polling).
+- Honesty guarantees — client-side UI behaviour (clicks, charts, responsive
+  layouts), auth and rate limits are explicitly disclosed as not checkable /
+  not implemented instead of fabricated; legacy trades missing metadata are
+  warnings, not failures.
+
+## Phase 17 files
+- `src/python/phase17_qa.py`, `phase17_reports.py`, `test_phase17.py`
+- `src/routes/phase17.ts` (registered in `src/routes/index.ts`)
+- `src/python/main.py` — phase17_* CLI commands (run, last, history, dashboard,
+  build_info, reports)
+- `trading-dashboard/src/pages/SystemValidation.tsx` (+ route and nav entry)
+
+## Phase 17 APIs added
+- GET /api/phase17/build-info | dashboard | history | last,
+  POST /api/phase17/run (background job) + GET /api/phase17/run/status,
+  POST /api/phase17/reports, GET /api/phase17/reports/:file (download).
+
+## Carried forward from Phase 16 (latest prior)
 - Validation engine — 14 analysis sections: validation overview, strategy scorecard
   (advisory statuses only, nothing auto-disabled), confidence-band validation,
   market-regime validation, sector validation, AI decision validation, trade review
@@ -217,16 +249,6 @@ def _implementation_summary(t15: dict, t16: dict) -> str:
 - Dashboard — "Paper Trading Validation" page (route /validation, System group)
   rendering all 14 sections from one combined API call for fast loads.
 
-## Phase 16 files
-- `src/python/phase16_validation.py`, `phase16_exports.py`, `test_phase16.py`
-- `src/routes/phase16.ts` (registered in `src/routes/index.ts`)
-- `src/python/main.py` — phase16_* CLI commands incl. combined `phase16_all`
-- `trading-dashboard/src/pages/PaperTradingValidation.tsx` (+ route and nav entry)
-
-## Phase 16 APIs added
-- GET /api/phase16/<section> (14 sections), GET /api/phase16/all (combined),
-  POST /api/phase16/export, GET /api/phase16/export/:file (download).
-
 ## Carried forward from Phase 15 (Production Hardening)
 - Unified Scan Context, staleness detection (90-min BUY disable + banner),
   data quality scores, cross-page consistency validation, 12-factor AI
@@ -238,6 +260,7 @@ def _implementation_summary(t15: dict, t16: dict) -> str:
 - None. Persistence remains JSON file storage (no SQL database).
 
 ## Tests
+- Phase 17 suite: {t17['passed']} passed, {t17['failed']} failed{'' if t17['ran'] else f' ({NA} — suite did not run)'}
 - Phase 16 suite: {t16['passed']} passed, {t16['failed']} failed{'' if t16['ran'] else f' ({NA} — suite did not run)'}
 - Phase 15 suite: {t15['passed']} passed, {t15['failed']} failed{'' if t15['ran'] else f' ({NA} — suite did not run)'}
 - Phase 13/14 regression suites: see test_results.csv.
@@ -351,6 +374,13 @@ def build_package(screenshots_dir: str | None = None) -> dict:
     t16 = _run_tests("test_phase16.py")
     if not t16["ran"]:
         warnings.append("Phase 16 test suite could not be executed")
+    t17 = _run_tests("test_phase17.py")
+    if not t17["ran"]:
+        warnings.append("Phase 17 test suite could not be executed")
+    phase17_last = safe("phase17 last validation run",
+                        lambda: __import__("phase17_qa").last_run(), {})
+    phase17_dash = safe("phase17 release dashboard",
+                        lambda: __import__("phase17_qa").release_dashboard(), {})
 
     # 1. Screenshots
     shots_out = os.path.join(PACKAGE_DIR, "screenshots")
@@ -406,10 +436,16 @@ def build_package(screenshots_dir: str | None = None) -> dict:
                 readiness or {"available": False, "reason": INSUFFICIENT})
     _write_json(os.path.join(json_dir, "phase16_validation.json"),
                 validation or {"available": False, "reason": INSUFFICIENT})
+    _write_json(os.path.join(json_dir, "phase17_qa_last_run.json"),
+                phase17_last if phase17_last.get("available") else
+                {"available": False,
+                 "reason": "No Phase 17 complete validation run recorded yet"})
+    _write_json(os.path.join(json_dir, "phase17_release_dashboard.json"),
+                phase17_dash or {"available": False, "reason": INSUFFICIENT})
 
     # 4/5. Reports
     open(os.path.join(PACKAGE_DIR, "implementation_summary.md"), "w").write(
-        _implementation_summary(t15, t16))
+        _implementation_summary(t15, t16, t17))
     open(os.path.join(PACKAGE_DIR, "production_readiness.md"), "w").write(
         _production_readiness_md(readiness, consistency, quality, diagnostics, t15))
 
@@ -428,6 +464,13 @@ def build_package(screenshots_dir: str | None = None) -> dict:
          "Advisory only; Insufficient Data below minimum samples"],
         ["Validation exports (PDF/XLSX/CSV + report)", "Yes", "Yes", "Yes", ""],
         ["Paper Trading Validation dashboard page", "Yes", "Yes", "Yes", "Route /validation"],
+        ["Automated QA engine (one-click complete validation)", "Yes", "Yes", "Yes",
+         "Phase 17 — test suites, API, data, benchmarks, consistency"],
+        ["Release checklist + dashboard + health score", "Yes", "Yes", "Yes",
+         "Weighted score; warnings count half"],
+        ["Validation history + regression comparison", "Yes", "Yes", "Yes", "Last 100 runs"],
+        ["Automated QA reports (PDF/XLSX/CSV/JSON)", "Yes", "Yes", "Yes", "phase17_reports/"],
+        ["System Validation dashboard page", "Yes", "Yes", "Yes", "Route /system-validation"],
         ["Review package generator", "Yes", "Yes", "Partial", "Tested via generation run itself"],
         ["Paper trading engine / scanner / strategies", "Yes", "Yes", "Yes", "Built in earlier phases 1-14"],
         ["Real-money execution", "No", "No", "No", "Deliberately not implemented — research only"],
@@ -439,6 +482,8 @@ def build_package(screenshots_dir: str | None = None) -> dict:
     t13 = _run_tests("test_phase13.py")
     t14 = _run_tests("test_phase14.py")
     test_rows = [
+        ["Unit Tests — Phase 17 suite", t17["passed"] if t17["ran"] else NA,
+         t17["failed"] if t17["ran"] else NA, 0],
         ["Unit Tests — Phase 16 suite", t16["passed"] if t16["ran"] else NA,
          t16["failed"] if t16["ran"] else NA, 0],
         ["Unit Tests — Phase 15 suite", t15["passed"] if t15["ran"] else NA,
@@ -481,7 +526,7 @@ This package allows a complete external technical review without manual screensh
 |---|---|
 | screenshots/ | Full-page 1920px PNG captures of every registered page (no placeholders) |
 | csv/ | Opportunities, signals, portfolio, performance, AI performance, notifications, learning, trade history, risk analytics |
-| json/ | Scan snapshot, AI decisions, dashboard/portfolio/learning summaries, diagnostics, production readiness, Phase 16 validation (all 14 sections) |
+| json/ | Scan snapshot, AI decisions, dashboard/portfolio/learning summaries, diagnostics, production readiness, Phase 16 validation (all 14 sections), Phase 17 QA last run + release dashboard |
 | implementation_summary.md | What Phase {PHASE} added: features, files, APIs, components, known issues, pending work |
 | production_readiness.md | Runtime, build, consistency, data quality, learning/AI/risk/broker status, overall readiness |
 | feature_matrix.csv | Feature / Implemented / Working / Tested / Comments |
@@ -517,7 +562,7 @@ anything missing is marked "{NA}" or "{INSUFFICIENT}" — nothing is fabricated.
         "file_count": n_files,
         "screenshot_count": n_shots,
         "csv_count": 9,
-        "json_count": 8,
+        "json_count": 10,
         "reports": ["implementation_summary.md", "production_readiness.md", "README.md"],
         "generation_seconds": round(time.time() - t0, 1),
         "warnings": warnings,

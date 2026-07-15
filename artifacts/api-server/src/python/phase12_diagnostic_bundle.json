@@ -1,14 +1,14 @@
 {
   "bundle_version": 2,
   "phase": 12,
-  "generated_at": "2026-07-15T12:37:41Z",
+  "generated_at": "2026-07-15T16:09:38Z",
   "engine_version": "Research Engine v1.0 \u00b7 Phase 12",
   "mode": "PAPER_TRADING_RESEARCH_ONLY",
   "label": "PAPER / RESEARCH ONLY",
   "market_status": {
     "state": "CLOSED",
     "is_open": false,
-    "now_ist": "2026-07-15T18:07:41.094972+05:30",
+    "now_ist": "2026-07-15T21:39:38.974259+05:30",
     "timezone": "Asia/Kolkata",
     "session": {
       "pre_open": "09:00",
@@ -20,7 +20,7 @@
     "next_transition": {
       "event": "market_open",
       "at_ist": "2026-07-16T09:15:00+05:30",
-      "seconds_until": 54438
+      "seconds_until": 41721
     },
     "upcoming_holidays": [
       {
@@ -43,8 +43,8 @@
     "provider_id": "yfinance",
     "circuit_breaker": "CLOSED",
     "consecutive_failures": 0,
-    "last_success_ts": "2026-07-15T12:34:19Z",
-    "total_fetches": 27,
+    "last_success_ts": "2026-07-15T16:03:13Z",
+    "total_fetches": 81,
     "total_errors": 0,
     "cached_symbols": 3,
     "quote_ttl_s": 20.0,
@@ -197,37 +197,37 @@
       "file": "phase12_cache.json",
       "exists": true,
       "size_bytes": 208191,
-      "modified": "2026-07-15T12:33:07Z"
+      "modified": "2026-07-15T16:03:16Z"
     },
     {
       "file": "phase7_scan_cache.json",
       "exists": true,
-      "size_bytes": 65576,
-      "modified": "2026-07-15T10:42:36Z"
+      "size_bytes": 65577,
+      "modified": "2026-07-15T16:07:40Z"
     },
     {
       "file": "market_context_cache.json",
       "exists": true,
       "size_bytes": 566,
-      "modified": "2026-07-15T12:12:15Z"
+      "modified": "2026-07-15T14:01:26Z"
     },
     {
       "file": "phase11_quote_state.json",
       "exists": true,
-      "size_bytes": 1315,
-      "modified": "2026-07-15T12:34:19Z"
+      "size_bytes": 1319,
+      "modified": "2026-07-15T16:07:40Z"
     },
     {
       "file": "phase12_diagnostic_bundle.json",
       "exists": true,
       "size_bytes": 5560,
-      "modified": "2026-07-15T12:33:07Z"
+      "modified": "2026-07-15T16:04:56Z"
     },
     {
       "file": "phase12_summary.csv",
       "exists": true,
       "size_bytes": 2671,
-      "modified": "2026-07-15T12:33:07Z"
+      "modified": "2026-07-15T16:04:56Z"
     }
   ],
   "errors": {},

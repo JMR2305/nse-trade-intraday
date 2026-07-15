@@ -1,0 +1,90 @@
+{
+  "success": true,
+  "version": "15.0",
+  "generated_at": "2026-07-15T16:12:54Z",
+  "system_health": "OK",
+  "api_status": "OK",
+  "context_build_latency_ms": 1.7,
+  "memory_usage_mb": 94.5,
+  "cache_status": [
+    {
+      "file": "phase7_scan_cache.json",
+      "exists": true,
+      "size_bytes": 65577,
+      "age_seconds": 314.0,
+      "modified_at": "2026-07-15T16:07:40Z"
+    },
+    {
+      "file": "ai_decisions_cache.json",
+      "exists": true,
+      "size_bytes": 7235,
+      "age_seconds": 7888.0,
+      "modified_at": "2026-07-15T14:01:26Z"
+    },
+    {
+      "file": "opportunity_cache.json",
+      "exists": true,
+      "size_bytes": 10640,
+      "age_seconds": 7888.0,
+      "modified_at": "2026-07-15T14:01:26Z"
+    },
+    {
+      "file": "phase13_cache.json",
+      "exists": true,
+      "size_bytes": 147521,
+      "age_seconds": 56.0,
+      "modified_at": "2026-07-15T16:11:58Z"
+    },
+    {
+      "file": "market_context_cache.json",
+      "exists": true,
+      "size_bytes": 566,
+      "age_seconds": 7888.0,
+      "modified_at": "2026-07-15T14:01:26Z"
+    },
+    {
+      "file": "phase14_adjustments.json",
+      "exists": true,
+      "size_bytes": 12494,
+      "age_seconds": 194.0,
+      "modified_at": "2026-07-15T16:09:39Z"
+    },
+    {
+      "file": "phase15_consistency_report.json",
+      "exists": true,
+      "size_bytes": 17076,
+      "age_seconds": 96.0,
+      "modified_at": "2026-07-15T16:11:17Z"
+    },
+    {
+      "file": "phase15_audit_log.json",
+      "exists": true,
+      "size_bytes": 8108,
+      "age_seconds": 97.0,
+      "modified_at": "2026-07-15T16:11:17Z"
+    }
+  ],
+  "database_health": {
+    "paper_state_file": true,
+    "writable": true
+  },
+  "market_feed_status": "UNKNOWN",
+  "scan": {
+    "last_scan_id": "d467fffac5c0",
+    "last_successful_scan": "2026-07-15T16:07:01Z",
+    "last_failed_scan": "2026-07-15T16:07:01Z",
+    "scan_duration_s": 38.87,
+    "symbols_with_errors": 2,
+    "stale": false
+  },
+  "learning_status": {
+    "status": "ACTIVE",
+    "auto_promotion": false,
+    "human_approval_required": true
+  },
+  "model_registry": {
+    "champion_version": "p13_champion_v1",
+    "model_count": 1
+  },
+  "label": "PAPER / RESEARCH ONLY"
+}

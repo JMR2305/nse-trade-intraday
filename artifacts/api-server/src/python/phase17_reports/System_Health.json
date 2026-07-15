@@ -1,0 +1,25 @@
+{
+  "generated_at": "2026-07-15T16:13:29.212904+00:00",
+  "label": "PAPER / RESEARCH ONLY",
+  "health_score": 92.5,
+  "verdict": "PASS",
+  "section_scores": {
+    "backend": 100.0,
+    "api": 100.0,
+    "paper_trading": 83.3,
+    "datastore": 96.2,
+    "consistency": 50.0,
+    "ai": 100.0,
+    "frontend": 100.0,
+    "exports": 100.0,
+    "benchmarks": 100.0,
+    "errors": 100.0,
+    "performance": 100.0
+  },
+  "totals": {
+    "total": 86,
+    "passed": 82,
+    "failed": 0,
+    "warnings": 4
+  }
+}

@@ -39,6 +39,7 @@ import PerformanceAnalytics from "@/pages/PerformanceAnalytics";
 import Settings from "@/pages/Settings";
 import RiskManagement from "@/pages/RiskManagement";
 import PaperTradingValidation from "@/pages/PaperTradingValidation";
+import SystemValidation from "@/pages/SystemValidation";
 import PortfolioRiskAnalytics from "@/pages/PortfolioRiskAnalytics";
 import Phase12Intelligence from "@/pages/Phase12Intelligence";
 import Phase13Intelligence from "@/pages/Phase13Intelligence";
@@ -88,6 +89,7 @@ function Router() {
         <Route path="/phase13" component={Phase13Intelligence} />
         <Route path="/learning" component={LearningGovernance} />
         <Route path="/validation" component={PaperTradingValidation} />
+        <Route path="/system-validation" component={SystemValidation} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

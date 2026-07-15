@@ -1500,6 +1500,27 @@ def main():
         elif command == "phase16_export":
             from phase16_exports import build_exports
             result = build_exports()
+
+        # ── Phase 17: Automated QA & Release Validation ──────────────────
+        elif command == "phase17_build_info":
+            from phase17_qa import build_info
+            result = build_info()
+        elif command == "phase17_dashboard":
+            from phase17_qa import release_dashboard
+            result = release_dashboard()
+        elif command == "phase17_history":
+            from phase17_qa import validation_history
+            result = validation_history()
+        elif command == "phase17_last":
+            from phase17_qa import last_run
+            result = last_run()
+        elif command == "phase17_run":
+            from phase17_qa import run_complete_validation
+            notes = sys.argv[2] if len(sys.argv) > 2 else ""
+            result = run_complete_validation(notes)
+        elif command == "phase17_reports":
+            from phase17_reports import build_reports
+            result = build_reports()
         else:
             error_msg = f"Unknown command: {command}"
 

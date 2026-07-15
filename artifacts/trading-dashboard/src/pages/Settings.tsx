@@ -102,11 +102,12 @@ export default function Settings() {
         </CardHeader>
         <CardContent className="px-5 pb-5">
           <p className="mb-4 text-xs text-zinc-500">
-            Builds Phase16_Review_Package.zip: full-page screenshots of every registered page,
+            Builds Phase17_Review_Package.zip: full-page screenshots of every registered page,
             9 CSV exports (opportunities, signals, portfolio, performance, AI performance,
-            notifications, learning, trade history, risk analytics), 8 JSON exports
+            notifications, learning, trade history, risk analytics), 10 JSON exports
             (scan snapshot, AI decisions, dashboard/portfolio/learning summaries, diagnostics,
-            production readiness, Phase 16 validation), implementation &amp; readiness reports,
+            production readiness, Phase 16 validation, Phase 17 QA last run and release
+            dashboard), implementation &amp; readiness reports,
             feature matrix and live test results — always reflects the latest application
             changes. Takes 2–5 minutes (headless browser captures every page, full-page).
           </p>

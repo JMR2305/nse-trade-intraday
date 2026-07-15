@@ -3,8 +3,8 @@
   "event": "KILL_SWITCH_TOGGLED",
   "activated": false,
   "mode": "PAPER_TRADING",
-  "ts": "2026-07-14T19:22:08Z",
-  "audit_id": "3cd4f0bc22"
+  "ts": "2026-07-15T16:09:37Z",
+  "audit_id": "eef2ee7665"
  },
  {
   "event": "PREVIEW_CREATED",
@@ -15,13 +15,13 @@
   "mode": "PAPER_TRADING",
   "validation_passed": false,
   "failure_reasons": [
-   "NSE CLOSED \u2014 00:52 IST Wed",
+   "NSE CLOSED \u2014 21:39 IST Wed",
    "Sector Energy: \u20b92500.00 > cap \u20b91750.00 (35%)",
    "Order \u20b92500.00 > limit \u20b91000.00"
   ],
-  "preview_id": "30c357947646",
+  "preview_id": "0632ddad8102",
   "status": "VALIDATION_FAILED",
-  "ts": "2026-07-14T19:22:08Z",
-  "audit_id": "6dbe295ad6"
+  "ts": "2026-07-15T16:09:37Z",
+  "audit_id": "f1714701fe"
  }
 ]

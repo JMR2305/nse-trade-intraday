@@ -1,0 +1,90 @@
+Phase 17 Validation Report,2026-07-15T16:10:05.806589+00:00
+Version,17.0,Build,3,Verdict,PASS,Health Score,92.5
+
+Section,Check,Status,Detail
+Frontend / Build Tests,TypeScript compile — api-server,PASS,3.0s
+Frontend / Build Tests,TypeScript compile — trading-dashboard,PASS,4.8s
+Backend Tests,Scanner / Signals (Phase 7),PASS,"79 passed, 0 failed"
+Backend Tests,Broker & Execution (Phase 8),PASS,"110 passed, 0 failed"
+Backend Tests,AI Copilot & Notifications (Phase 9),PASS,"93 passed, 0 failed"
+Backend Tests,Performance Analytics (Phase 10),PASS,"150 passed, 0 failed"
+Backend Tests,Risk Engine (Phase 11),PASS,"99 passed, 0 failed"
+Backend Tests,Market Intelligence (Phase 12),PASS,"24 passed, 0 failed"
+Backend Tests,Institutional AI (Phase 13),PASS,"27 passed, 0 failed"
+Backend Tests,Learning & Governance (Phase 14),PASS,"41 passed, 0 failed"
+Backend Tests,Production Hardening (Phase 15),PASS,"66 passed, 0 failed"
+Backend Tests,Paper Trading Validation (Phase 16),PASS,"52 passed, 0 failed"
+API Validation,GET /api/healthz,PASS,HTTP 200 · 3 ms
+API Validation,GET /api/portfolio,PASS,HTTP 200 · 1157 ms
+API Validation,GET /api/trades,PASS,HTTP 200 · 633 ms
+API Validation,GET /api/signals,PASS,HTTP 200 · 617 ms
+API Validation,GET /api/watchlist,PASS,HTTP 200 · 635 ms
+API Validation,GET /api/market/status,PASS,HTTP 200 · 596 ms
+API Validation,GET /api/analytics/performance,PASS,HTTP 200 · 745 ms
+API Validation,GET /api/risk/dashboard,PASS,HTTP 200 · 611 ms
+API Validation,GET /api/ai-decisions,PASS,HTTP 200 · 640 ms
+API Validation,GET /api/copilot/summary,PASS,HTTP 200 · 597 ms
+API Validation,GET /api/learning-summary,PASS,HTTP 200 · 561 ms
+API Validation,GET /api/phase14/registry,PASS,HTTP 200 · 618 ms
+API Validation,GET /api/phase15/consistency,PASS,HTTP 200 · 599 ms
+API Validation,GET /api/phase15/diagnostics,PASS,HTTP 200 · 606 ms
+API Validation,GET /api/phase15/readiness,PASS,HTTP 200 · 622 ms
+API Validation,GET /api/phase16/all,PASS,HTTP 200 · 566 ms
+API Validation,GET /api/trade-replay,PASS,HTTP 200 · 571 ms
+API Validation,GET /api/opportunity-scan,PASS,HTTP 200 · 621 ms
+API Validation,Unknown route returns 404,PASS,HTTP 404
+Data Store Validation,state.json parses,PASS,4064 bytes
+Data Store Validation,phase7_scan_cache.json parses,PASS,65577 bytes
+Data Store Validation,ai_decisions_cache.json parses,PASS,7235 bytes
+Data Store Validation,signals_cache.json parses,PASS,14568 bytes
+Data Store Validation,market_context_cache.json parses,PASS,566 bytes
+Data Store Validation,calibration_state.json parses,PASS,664 bytes
+Data Store Validation,phase14_model_registry.json parses,PASS,690 bytes
+Data Store Validation,phase9_alerts.json parses,PASS,2946 bytes
+Data Store Validation,opportunity_cache.json parses,PASS,10640 bytes
+Data Store Validation,No duplicate trades,PASS,0 duplicate group(s)
+Data Store Validation,BUY trades carry scan_id,WARN,"4 BUY trade(s) without scan_id (legacy records made before scan metadata existed — warning, not failure)"
+Data Store Validation,Trade records complete,PASS,0 record(s) missing required fields
+Data Store Validation,SELLs do not exceed BUYs,PASS,4 BUY / 3 SELL
+Paper Trading Validation,State loads,PASS,7 trade(s)
+Paper Trading Validation,Capital conservation (cash + cost basis = initial + realised PnL),PASS,drift ₹0.00
+Paper Trading Validation,Round-trip PnL consistent with prices,PASS,0 inconsistent: []
+Paper Trading Validation,BUY trades carry stop loss,WARN,1 legacy trade(s) without stop (recorded before stop metadata existed): ['WIPRO']
+Paper Trading Validation,BUY trades carry target,WARN,1 legacy trade(s) without target: ['WIPRO']
+Paper Trading Validation,No negative positions,PASS,0 negative
+AI Validation,AI decisions cache present,PASS,10 decision(s)
+AI Validation,Confidence within 0-100,PASS,bad: []
+AI Validation,Every decision has an explanation,PASS,0 without explanation
+AI Validation,Opportunity scores within 0-100,PASS,bad: []
+AI Validation,Calibration state present,PASS,method: Not Available
+AI Validation,Model registry has champion,PASS,p13_champion_v1
+AI Validation,Learning governance state present,PASS,"freeze flags: {""frozen"": false, ""reason"": ""decision-time freeze test done"", ""updated_at"": ""2026-07-15T16:09:39.697"
+Performance Validation,Analytics computes,PASS,
+Performance Validation,sharpe computed,PASS,7.83
+Performance Validation,sortino computed,PASS,45.51
+Performance Validation,max_drawdown_pct computed,PASS,1.15
+Performance Validation,beta computed,PASS,-7.1
+Performance Validation,profit_factor computed,PASS,8.75
+Performance Validation,win_rate_pct computed,PASS,66.67
+Performance Validation,expectancy computed,PASS,155.0
+Export Validation,Phase 16 export build,PASS,6 file(s)
+Export Validation,export AI_Recommendations.csv non-empty,PASS,245 bytes
+Export Validation,export Strategy_Scorecard.csv non-empty,PASS,249 bytes
+Export Validation,export Trade_Review.csv non-empty,PASS,1616 bytes
+Export Validation,export Validation_Report.csv non-empty,PASS,1348 bytes
+Export Validation,export Validation_Report.pdf non-empty,PASS,2556 bytes
+Export Validation,export Validation_Report.xlsx non-empty,PASS,8865 bytes
+Export Validation,Review package Phase17_Review_Package.zip valid,PASS,5934637 bytes
+Export Validation,GET /api/phase16/all,PASS,HTTP 200 · 647 ms
+Export Validation,GET /api/review-package/status,PASS,HTTP 200 · 1 ms
+Performance Benchmarks,Portfolio computation,PASS,0 ms (budget 3000 ms)
+Performance Benchmarks,Scan context build,PASS,1 ms (budget 3000 ms)
+Performance Benchmarks,Performance analytics,PASS,3 ms (budget 8000 ms)
+Performance Benchmarks,Phase 16 combined validation,PASS,6 ms (budget 10000 ms)
+Performance Benchmarks,API GET /api/healthz,PASS,1 ms (budget 500 ms)
+Performance Benchmarks,API GET /api/portfolio,PASS,1169 ms (budget 4000 ms)
+Performance Benchmarks,API GET /api/phase16/all,PASS,572 ms (budget 12000 ms)
+Performance Benchmarks,API GET /api/signals,PASS,621 ms (budget 3000 ms)
+Error Detection,Automated bug detection,PASS,verdict PASS · 0 issue(s)
+Error Detection,No API failures across curated endpoints,PASS,0 failing endpoint(s)
+Cross-Page Consistency,Cross-page consistency,WARN,verdict WARN · 72 checks · 0 hard mismatch(es) · 49 stale source(s)

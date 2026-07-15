@@ -1,0 +1,39 @@
+[
+  {
+    "run_id": "V0001",
+    "generated_at": "2026-07-15T16:03:45.639543+00:00",
+    "duration_seconds": 42.4,
+    "passed": 80,
+    "failed": 0,
+    "warnings": 6,
+    "health_score": 90.6,
+    "verdict": "PASS",
+    "version": "17.0",
+    "notes": "Initial Phase 17 validation run"
+  },
+  {
+    "run_id": "V0002",
+    "generated_at": "2026-07-15T16:05:22.665822+00:00",
+    "duration_seconds": 32.8,
+    "passed": 82,
+    "failed": 0,
+    "warnings": 4,
+    "health_score": 92.5,
+    "verdict": "PASS",
+    "version": "17.0",
+    "notes": "Post-parser-fix validation run"
+  },
+  {
+    "run_id": "V0003",
+    "generated_at": "2026-07-15T16:10:05.806589+00:00",
+    "duration_seconds": 37.4,
+    "passed": 82,
+    "failed": 0,
+    "warnings": 4,
+    "health_score": 92.5,
+    "verdict": "PASS",
+    "version": "17.0",
+    "notes": "Gating policy fix run",
+    "readiness_status": "READY WITH WARNINGS"
+  }
+]

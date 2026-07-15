@@ -1,0 +1,1043 @@
+{
+  "success": true,
+  "generated_at": "2026-07-15T16:10:05.806589+00:00",
+  "label": "PAPER / RESEARCH ONLY",
+  "release_version": "17.0",
+  "build_number": 3,
+  "environment": "development",
+  "health_score": 92.5,
+  "verdict": "PASS",
+  "duration_seconds": 37.4,
+  "total": 86,
+  "passed": 82,
+  "failed": 0,
+  "warnings": 4,
+  "section_scores": {
+    "backend": 100.0,
+    "api": 100.0,
+    "paper_trading": 83.3,
+    "datastore": 96.2,
+    "consistency": 50.0,
+    "ai": 100.0,
+    "frontend": 100.0,
+    "exports": 100.0,
+    "benchmarks": 100.0,
+    "errors": 100.0,
+    "performance": 100.0
+  },
+  "release_checklist": [
+    {
+      "item": "Frontend / Build",
+      "status": "PASS",
+      "detail": "2/2 passed, 0 failed, 0 warning(s)"
+    },
+    {
+      "item": "Backend Tests",
+      "status": "PASS",
+      "detail": "10/10 passed, 0 failed, 0 warning(s)"
+    },
+    {
+      "item": "API",
+      "status": "PASS",
+      "detail": "19/19 passed, 0 failed, 0 warning(s)"
+    },
+    {
+      "item": "Data Store",
+      "status": "WARN",
+      "detail": "12/13 passed, 0 failed, 1 warning(s)"
+    },
+    {
+      "item": "Exports",
+      "status": "PASS",
+      "detail": "10/10 passed, 0 failed, 0 warning(s)"
+    },
+    {
+      "item": "AI",
+      "status": "PASS",
+      "detail": "7/7 passed, 0 failed, 0 warning(s)"
+    },
+    {
+      "item": "Paper Trading",
+      "status": "WARN",
+      "detail": "4/6 passed, 0 failed, 2 warning(s)"
+    },
+    {
+      "item": "Performance Metrics",
+      "status": "PASS",
+      "detail": "8/8 passed, 0 failed, 0 warning(s)"
+    },
+    {
+      "item": "Benchmarks",
+      "status": "PASS",
+      "detail": "8/8 passed, 0 failed, 0 warning(s)"
+    },
+    {
+      "item": "Error Detection",
+      "status": "PASS",
+      "detail": "2/2 passed, 0 failed, 0 warning(s)"
+    },
+    {
+      "item": "Cross-Page Consistency",
+      "status": "WARN",
+      "detail": "0/1 passed, 0 failed, 1 warning(s)"
+    },
+    {
+      "item": "Production Ready",
+      "status": "WARN",
+      "detail": "no failures, but open warnings must be reviewed before release"
+    }
+  ],
+  "production_ready": false,
+  "readiness_status": "READY WITH WARNINGS",
+  "sections": {
+    "frontend": {
+      "success": true,
+      "section": "Frontend / Build Tests",
+      "generated_at": "2026-07-15T16:09:36.201158+00:00",
+      "label": "PAPER / RESEARCH ONLY",
+      "total": 2,
+      "passed": 2,
+      "failed": 0,
+      "warnings": 0,
+      "checks": [
+        {
+          "check": "TypeScript compile \u2014 api-server",
+          "status": "PASS",
+          "detail": "3.0s",
+          "severity": "OK"
+        },
+        {
+          "check": "TypeScript compile \u2014 trading-dashboard",
+          "status": "PASS",
+          "detail": "4.8s",
+          "severity": "OK"
+        }
+      ],
+      "not_checkable": [
+        "button clicks, dialogs, chart rendering, dark theme, responsive/mobile/tablet layouts, layout shifts, missing icons \u2014 require a real browser and are not verifiable server-side (no fabricated results)"
+      ]
+    },
+    "backend": {
+      "success": true,
+      "section": "Backend Tests",
+      "generated_at": "2026-07-15T16:09:40.893195+00:00",
+      "label": "PAPER / RESEARCH ONLY",
+      "total": 10,
+      "passed": 10,
+      "failed": 0,
+      "warnings": 0,
+      "checks": [
+        {
+          "check": "Scanner / Signals (Phase 7)",
+          "status": "PASS",
+          "detail": "79 passed, 0 failed",
+          "severity": "OK"
+        },
+        {
+          "check": "Broker & Execution (Phase 8)",
+          "status": "PASS",
+          "detail": "110 passed, 0 failed",
+          "severity": "OK"
+        },
+        {
+          "check": "AI Copilot & Notifications (Phase 9)",
+          "status": "PASS",
+          "detail": "93 passed, 0 failed",
+          "severity": "OK"
+        },
+        {
+          "check": "Performance Analytics (Phase 10)",
+          "status": "PASS",
+          "detail": "150 passed, 0 failed",
+          "severity": "OK"
+        },
+        {
+          "check": "Risk Engine (Phase 11)",
+          "status": "PASS",
+          "detail": "99 passed, 0 failed",
+          "severity": "OK"
+        },
+        {
+          "check": "Market Intelligence (Phase 12)",
+          "status": "PASS",
+          "detail": "24 passed, 0 failed",
+          "severity": "OK"
+        },
+        {
+          "check": "Institutional AI (Phase 13)",
+          "status": "PASS",
+          "detail": "27 passed, 0 failed",
+          "severity": "OK"
+        },
+        {
+          "check": "Learning & Governance (Phase 14)",
+          "status": "PASS",
+          "detail": "41 passed, 0 failed",
+          "severity": "OK"
+        },
+        {
+          "check": "Production Hardening (Phase 15)",
+          "status": "PASS",
+          "detail": "66 passed, 0 failed",
+          "severity": "OK"
+        },
+        {
+          "check": "Paper Trading Validation (Phase 16)",
+          "status": "PASS",
+          "detail": "52 passed, 0 failed",
+          "severity": "OK"
+        }
+      ],
+      "suites": [
+        {
+          "suite": "Scanner / Signals (Phase 7)",
+          "script": "test_phase7.py",
+          "passed": 79,
+          "failed": 0,
+          "ran": true,
+          "seconds": 0.7
+        },
+        {
+          "suite": "Broker & Execution (Phase 8)",
+          "script": "test_phase8.py",
+          "passed": 110,
+          "failed": 0,
+          "ran": true,
+          "seconds": 0.2
+        },
+        {
+          "suite": "AI Copilot & Notifications (Phase 9)",
+          "script": "test_phase9.py",
+          "passed": 93,
+          "failed": 0,
+          "ran": true,
+          "seconds": 0.1
+        },
+        {
+          "suite": "Performance Analytics (Phase 10)",
+          "script": "test_phase10.py",
+          "passed": 150,
+          "failed": 0,
+          "ran": true,
+          "seconds": 0.1
+        },
+        {
+          "suite": "Risk Engine (Phase 11)",
+          "script": "test_phase11.py",
+          "passed": 99,
+          "failed": 0,
+          "ran": true,
+          "seconds": 1.7
+        },
+        {
+          "suite": "Market Intelligence (Phase 12)",
+          "script": "test_phase12.py",
+          "passed": 24,
+          "failed": 0,
+          "ran": true,
+          "seconds": 0.7
+        },
+        {
+          "suite": "Institutional AI (Phase 13)",
+          "script": "test_phase13.py",
+          "passed": 27,
+          "failed": 0,
+          "ran": true,
+          "seconds": 0.1
+        },
+        {
+          "suite": "Learning & Governance (Phase 14)",
+          "script": "test_phase14.py",
+          "passed": 41,
+          "failed": 0,
+          "ran": true,
+          "seconds": 0.1
+        },
+        {
+          "suite": "Production Hardening (Phase 15)",
+          "script": "test_phase15.py",
+          "passed": 66,
+          "failed": 0,
+          "ran": true,
+          "seconds": 0.7
+        },
+        {
+          "suite": "Paper Trading Validation (Phase 16)",
+          "script": "test_phase16.py",
+          "passed": 52,
+          "failed": 0,
+          "ran": true,
+          "seconds": 0.5
+        }
+      ]
+    },
+    "api": {
+      "success": true,
+      "section": "API Validation",
+      "generated_at": "2026-07-15T16:09:51.895018+00:00",
+      "label": "PAPER / RESEARCH ONLY",
+      "total": 19,
+      "passed": 19,
+      "failed": 0,
+      "warnings": 0,
+      "checks": [
+        {
+          "check": "GET /api/healthz",
+          "status": "PASS",
+          "detail": "HTTP 200 \u00b7 3 ms",
+          "severity": "OK"
+        },
+        {
+          "check": "GET /api/portfolio",
+          "status": "PASS",
+          "detail": "HTTP 200 \u00b7 1157 ms",
+          "severity": "OK"
+        },
+        {
+          "check": "GET /api/trades",
+          "status": "PASS",
+          "detail": "HTTP 200 \u00b7 633 ms",
+          "severity": "OK"
+        },
+        {
+          "check": "GET /api/signals",
+          "status": "PASS",
+          "detail": "HTTP 200 \u00b7 617 ms",
+          "severity": "OK"
+        },
+        {
+          "check": "GET /api/watchlist",
+          "status": "PASS",
+          "detail": "HTTP 200 \u00b7 635 ms",
+          "severity": "OK"
+        },
+        {
+          "check": "GET /api/market/status",
+          "status": "PASS",
+          "detail": "HTTP 200 \u00b7 596 ms",
+          "severity": "OK"
+        },
+        {
+          "check": "GET /api/analytics/performance",
+          "status": "PASS",
+          "detail": "HTTP 200 \u00b7 745 ms",
+          "severity": "OK"
+        },
+        {
+          "check": "GET /api/risk/dashboard",
+          "status": "PASS",
+          "detail": "HTTP 200 \u00b7 611 ms",
+          "severity": "OK"
+        },
+        {
+          "check": "GET /api/ai-decisions",
+          "status": "PASS",
+          "detail": "HTTP 200 \u00b7 640 ms",
+          "severity": "OK"
+        },
+        {
+          "check": "GET /api/copilot/summary",
+          "status": "PASS",
+          "detail": "HTTP 200 \u00b7 597 ms",
+          "severity": "OK"
+        },
+        {
+          "check": "GET /api/learning-summary",
+          "status": "PASS",
+          "detail": "HTTP 200 \u00b7 561 ms",
+          "severity": "OK"
+        },
+        {
+          "check": "GET /api/phase14/registry",
+          "status": "PASS",
+          "detail": "HTTP 200 \u00b7 618 ms",
+          "severity": "OK"
+        },
+        {
+          "check": "GET /api/phase15/consistency",
+          "status": "PASS",
+          "detail": "HTTP 200 \u00b7 599 ms",
+          "severity": "OK"
+        },
+        {
+          "check": "GET /api/phase15/diagnostics",
+          "status": "PASS",
+          "detail": "HTTP 200 \u00b7 606 ms",
+          "severity": "OK"
+        },
+        {
+          "check": "GET /api/phase15/readiness",
+          "status": "PASS",
+          "detail": "HTTP 200 \u00b7 622 ms",
+          "severity": "OK"
+        },
+        {
+          "check": "GET /api/phase16/all",
+          "status": "PASS",
+          "detail": "HTTP 200 \u00b7 566 ms",
+          "severity": "OK"
+        },
+        {
+          "check": "GET /api/trade-replay",
+          "status": "PASS",
+          "detail": "HTTP 200 \u00b7 571 ms",
+          "severity": "OK"
+        },
+        {
+          "check": "GET /api/opportunity-scan",
+          "status": "PASS",
+          "detail": "HTTP 200 \u00b7 621 ms",
+          "severity": "OK"
+        },
+        {
+          "check": "Unknown route returns 404",
+          "status": "PASS",
+          "detail": "HTTP 404",
+          "severity": "OK"
+        }
+      ],
+      "endpoints": [
+        {
+          "path": "/api/healthz",
+          "status_code": 200,
+          "latency_ms": 3,
+          "required_fields_ok": true,
+          "json": true
+        },
+        {
+          "path": "/api/portfolio",
+          "status_code": 200,
+          "latency_ms": 1157,
+          "required_fields_ok": true,
+          "json": true
+        },
+        {
+          "path": "/api/trades",
+          "status_code": 200,
+          "latency_ms": 633,
+          "required_fields_ok": true,
+          "json": true
+        },
+        {
+          "path": "/api/signals",
+          "status_code": 200,
+          "latency_ms": 617,
+          "required_fields_ok": true,
+          "json": true
+        },
+        {
+          "path": "/api/watchlist",
+          "status_code": 200,
+          "latency_ms": 635,
+          "required_fields_ok": true,
+          "json": true
+        },
+        {
+          "path": "/api/market/status",
+          "status_code": 200,
+          "latency_ms": 596,
+          "required_fields_ok": true,
+          "json": true
+        },
+        {
+          "path": "/api/analytics/performance",
+          "status_code": 200,
+          "latency_ms": 745,
+          "required_fields_ok": true,
+          "json": true
+        },
+        {
+          "path": "/api/risk/dashboard",
+          "status_code": 200,
+          "latency_ms": 611,
+          "required_fields_ok": true,
+          "json": true
+        },
+        {
+          "path": "/api/ai-decisions",
+          "status_code": 200,
+          "latency_ms": 640,
+          "required_fields_ok": true,
+          "json": true
+        },
+        {
+          "path": "/api/copilot/summary",
+          "status_code": 200,
+          "latency_ms": 597,
+          "required_fields_ok": true,
+          "json": true
+        },
+        {
+          "path": "/api/learning-summary",
+          "status_code": 200,
+          "latency_ms": 561,
+          "required_fields_ok": true,
+          "json": true
+        },
+        {
+          "path": "/api/phase14/registry",
+          "status_code": 200,
+          "latency_ms": 618,
+          "required_fields_ok": true,
+          "json": true
+        },
+        {
+          "path": "/api/phase15/consistency",
+          "status_code": 200,
+          "latency_ms": 599,
+          "required_fields_ok": true,
+          "json": true
+        },
+        {
+          "path": "/api/phase15/diagnostics",
+          "status_code": 200,
+          "latency_ms": 606,
+          "required_fields_ok": true,
+          "json": true
+        },
+        {
+          "path": "/api/phase15/readiness",
+          "status_code": 200,
+          "latency_ms": 622,
+          "required_fields_ok": true,
+          "json": true
+        },
+        {
+          "path": "/api/phase16/all",
+          "status_code": 200,
+          "latency_ms": 566,
+          "required_fields_ok": true,
+          "json": true
+        },
+        {
+          "path": "/api/trade-replay",
+          "status_code": 200,
+          "latency_ms": 571,
+          "required_fields_ok": true,
+          "json": true
+        },
+        {
+          "path": "/api/opportunity-scan",
+          "status_code": 200,
+          "latency_ms": 621,
+          "required_fields_ok": true,
+          "json": true
+        }
+      ],
+      "not_checkable": [
+        "Authentication \u2014 no auth layer exists (single-user research tool)",
+        "Rate limits \u2014 not implemented by design"
+      ]
+    },
+    "datastore": {
+      "success": true,
+      "section": "Data Store Validation",
+      "generated_at": "2026-07-15T16:09:51.896589+00:00",
+      "label": "PAPER / RESEARCH ONLY",
+      "total": 13,
+      "passed": 12,
+      "failed": 0,
+      "warnings": 1,
+      "checks": [
+        {
+          "check": "state.json parses",
+          "status": "PASS",
+          "detail": "4064 bytes",
+          "severity": "OK"
+        },
+        {
+          "check": "phase7_scan_cache.json parses",
+          "status": "PASS",
+          "detail": "65577 bytes",
+          "severity": "OK"
+        },
+        {
+          "check": "ai_decisions_cache.json parses",
+          "status": "PASS",
+          "detail": "7235 bytes",
+          "severity": "OK"
+        },
+        {
+          "check": "signals_cache.json parses",
+          "status": "PASS",
+          "detail": "14568 bytes",
+          "severity": "OK"
+        },
+        {
+          "check": "market_context_cache.json parses",
+          "status": "PASS",
+          "detail": "566 bytes",
+          "severity": "OK"
+        },
+        {
+          "check": "calibration_state.json parses",
+          "status": "PASS",
+          "detail": "664 bytes",
+          "severity": "OK"
+        },
+        {
+          "check": "phase14_model_registry.json parses",
+          "status": "PASS",
+          "detail": "690 bytes",
+          "severity": "OK"
+        },
+        {
+          "check": "phase9_alerts.json parses",
+          "status": "PASS",
+          "detail": "2946 bytes",
+          "severity": "OK"
+        },
+        {
+          "check": "opportunity_cache.json parses",
+          "status": "PASS",
+          "detail": "10640 bytes",
+          "severity": "OK"
+        },
+        {
+          "check": "No duplicate trades",
+          "status": "PASS",
+          "detail": "0 duplicate group(s)",
+          "severity": "OK"
+        },
+        {
+          "check": "BUY trades carry scan_id",
+          "status": "WARN",
+          "detail": "4 BUY trade(s) without scan_id (legacy records made before scan metadata existed \u2014 warning, not failure)",
+          "severity": "WARN"
+        },
+        {
+          "check": "Trade records complete",
+          "status": "PASS",
+          "detail": "0 record(s) missing required fields",
+          "severity": "OK"
+        },
+        {
+          "check": "SELLs do not exceed BUYs",
+          "status": "PASS",
+          "detail": "4 BUY / 3 SELL",
+          "severity": "OK"
+        }
+      ],
+      "note": "Persistence is JSON file storage \u2014 there is no SQL database, so indexes/constraints/foreign keys do not apply and are not fabricated."
+    },
+    "paper_trading": {
+      "success": true,
+      "section": "Paper Trading Validation",
+      "generated_at": "2026-07-15T16:09:51.896960+00:00",
+      "label": "PAPER / RESEARCH ONLY",
+      "total": 6,
+      "passed": 4,
+      "failed": 0,
+      "warnings": 2,
+      "checks": [
+        {
+          "check": "State loads",
+          "status": "PASS",
+          "detail": "7 trade(s)",
+          "severity": "OK"
+        },
+        {
+          "check": "Capital conservation (cash + cost basis = initial + realised PnL)",
+          "status": "PASS",
+          "detail": "drift \u20b90.00",
+          "severity": "OK"
+        },
+        {
+          "check": "Round-trip PnL consistent with prices",
+          "status": "PASS",
+          "detail": "0 inconsistent: []",
+          "severity": "OK"
+        },
+        {
+          "check": "BUY trades carry stop loss",
+          "status": "WARN",
+          "detail": "1 legacy trade(s) without stop (recorded before stop metadata existed): ['WIPRO']",
+          "severity": "WARN"
+        },
+        {
+          "check": "BUY trades carry target",
+          "status": "WARN",
+          "detail": "1 legacy trade(s) without target: ['WIPRO']",
+          "severity": "WARN"
+        },
+        {
+          "check": "No negative positions",
+          "status": "PASS",
+          "detail": "0 negative",
+          "severity": "OK"
+        }
+      ],
+      "completed_trades": 3,
+      "open_positions": 1
+    },
+    "ai": {
+      "success": true,
+      "section": "AI Validation",
+      "generated_at": "2026-07-15T16:09:51.897906+00:00",
+      "label": "PAPER / RESEARCH ONLY",
+      "total": 7,
+      "passed": 7,
+      "failed": 0,
+      "warnings": 0,
+      "checks": [
+        {
+          "check": "AI decisions cache present",
+          "status": "PASS",
+          "detail": "10 decision(s)",
+          "severity": "OK"
+        },
+        {
+          "check": "Confidence within 0-100",
+          "status": "PASS",
+          "detail": "bad: []",
+          "severity": "OK"
+        },
+        {
+          "check": "Every decision has an explanation",
+          "status": "PASS",
+          "detail": "0 without explanation",
+          "severity": "OK"
+        },
+        {
+          "check": "Opportunity scores within 0-100",
+          "status": "PASS",
+          "detail": "bad: []",
+          "severity": "OK"
+        },
+        {
+          "check": "Calibration state present",
+          "status": "PASS",
+          "detail": "method: Not Available",
+          "severity": "OK"
+        },
+        {
+          "check": "Model registry has champion",
+          "status": "PASS",
+          "detail": "p13_champion_v1",
+          "severity": "OK"
+        },
+        {
+          "check": "Learning governance state present",
+          "status": "PASS",
+          "detail": "freeze flags: {\"frozen\": false, \"reason\": \"decision-time freeze test done\", \"updated_at\": \"2026-07-15T16:09:39.697",
+          "severity": "OK"
+        }
+      ]
+    },
+    "performance": {
+      "success": true,
+      "section": "Performance Validation",
+      "generated_at": "2026-07-15T16:09:51.901458+00:00",
+      "label": "PAPER / RESEARCH ONLY",
+      "total": 8,
+      "passed": 8,
+      "failed": 0,
+      "warnings": 0,
+      "checks": [
+        {
+          "check": "Analytics computes",
+          "status": "PASS",
+          "detail": "",
+          "severity": "OK"
+        },
+        {
+          "check": "sharpe computed",
+          "status": "PASS",
+          "detail": "7.83",
+          "severity": "OK"
+        },
+        {
+          "check": "sortino computed",
+          "status": "PASS",
+          "detail": "45.51",
+          "severity": "OK"
+        },
+        {
+          "check": "max_drawdown_pct computed",
+          "status": "PASS",
+          "detail": "1.15",
+          "severity": "OK"
+        },
+        {
+          "check": "beta computed",
+          "status": "PASS",
+          "detail": "-7.1",
+          "severity": "OK"
+        },
+        {
+          "check": "profit_factor computed",
+          "status": "PASS",
+          "detail": "8.75",
+          "severity": "OK"
+        },
+        {
+          "check": "win_rate_pct computed",
+          "status": "PASS",
+          "detail": "66.67",
+          "severity": "OK"
+        },
+        {
+          "check": "expectancy computed",
+          "status": "PASS",
+          "detail": "155.0",
+          "severity": "OK"
+        }
+      ],
+      "insufficient_data": [
+        "alpha",
+        "benchmark_comparison"
+      ],
+      "note": "2 metric(s) flagged Insufficient Data (sample: 3 trades) \u2014 flagged, not failed, per spec."
+    },
+    "exports": {
+      "success": true,
+      "section": "Export Validation",
+      "generated_at": "2026-07-15T16:09:52.695181+00:00",
+      "label": "PAPER / RESEARCH ONLY",
+      "total": 10,
+      "passed": 10,
+      "failed": 0,
+      "warnings": 0,
+      "checks": [
+        {
+          "check": "Phase 16 export build",
+          "status": "PASS",
+          "detail": "6 file(s)",
+          "severity": "OK"
+        },
+        {
+          "check": "export AI_Recommendations.csv non-empty",
+          "status": "PASS",
+          "detail": "245 bytes",
+          "severity": "OK"
+        },
+        {
+          "check": "export Strategy_Scorecard.csv non-empty",
+          "status": "PASS",
+          "detail": "249 bytes",
+          "severity": "OK"
+        },
+        {
+          "check": "export Trade_Review.csv non-empty",
+          "status": "PASS",
+          "detail": "1616 bytes",
+          "severity": "OK"
+        },
+        {
+          "check": "export Validation_Report.csv non-empty",
+          "status": "PASS",
+          "detail": "1348 bytes",
+          "severity": "OK"
+        },
+        {
+          "check": "export Validation_Report.pdf non-empty",
+          "status": "PASS",
+          "detail": "2556 bytes",
+          "severity": "OK"
+        },
+        {
+          "check": "export Validation_Report.xlsx non-empty",
+          "status": "PASS",
+          "detail": "8865 bytes",
+          "severity": "OK"
+        },
+        {
+          "check": "Review package Phase17_Review_Package.zip valid",
+          "status": "PASS",
+          "detail": "5934637 bytes",
+          "severity": "OK"
+        },
+        {
+          "check": "GET /api/phase16/all",
+          "status": "PASS",
+          "detail": "HTTP 200 \u00b7 647 ms",
+          "severity": "OK"
+        },
+        {
+          "check": "GET /api/review-package/status",
+          "status": "PASS",
+          "detail": "HTTP 200 \u00b7 1 ms",
+          "severity": "OK"
+        }
+      ]
+    },
+    "benchmarks": {
+      "success": true,
+      "section": "Performance Benchmarks",
+      "generated_at": "2026-07-15T16:09:55.069507+00:00",
+      "label": "PAPER / RESEARCH ONLY",
+      "total": 8,
+      "passed": 8,
+      "failed": 0,
+      "warnings": 0,
+      "checks": [
+        {
+          "check": "Portfolio computation",
+          "status": "PASS",
+          "detail": "0 ms (budget 3000 ms)",
+          "severity": "OK"
+        },
+        {
+          "check": "Scan context build",
+          "status": "PASS",
+          "detail": "1 ms (budget 3000 ms)",
+          "severity": "OK"
+        },
+        {
+          "check": "Performance analytics",
+          "status": "PASS",
+          "detail": "3 ms (budget 8000 ms)",
+          "severity": "OK"
+        },
+        {
+          "check": "Phase 16 combined validation",
+          "status": "PASS",
+          "detail": "6 ms (budget 10000 ms)",
+          "severity": "OK"
+        },
+        {
+          "check": "API GET /api/healthz",
+          "status": "PASS",
+          "detail": "1 ms (budget 500 ms)",
+          "severity": "OK"
+        },
+        {
+          "check": "API GET /api/portfolio",
+          "status": "PASS",
+          "detail": "1169 ms (budget 4000 ms)",
+          "severity": "OK"
+        },
+        {
+          "check": "API GET /api/phase16/all",
+          "status": "PASS",
+          "detail": "572 ms (budget 12000 ms)",
+          "severity": "OK"
+        },
+        {
+          "check": "API GET /api/signals",
+          "status": "PASS",
+          "detail": "621 ms (budget 3000 ms)",
+          "severity": "OK"
+        }
+      ],
+      "benchmarks": [
+        {
+          "benchmark": "Portfolio computation",
+          "ms": 0,
+          "budget_ms": 3000,
+          "within_budget": true,
+          "error": ""
+        },
+        {
+          "benchmark": "Scan context build",
+          "ms": 1,
+          "budget_ms": 3000,
+          "within_budget": true,
+          "error": ""
+        },
+        {
+          "benchmark": "Performance analytics",
+          "ms": 3,
+          "budget_ms": 8000,
+          "within_budget": true,
+          "error": ""
+        },
+        {
+          "benchmark": "Phase 16 combined validation",
+          "ms": 6,
+          "budget_ms": 10000,
+          "within_budget": true,
+          "error": ""
+        },
+        {
+          "benchmark": "API GET /api/healthz",
+          "ms": 1,
+          "budget_ms": 500,
+          "within_budget": true,
+          "error": ""
+        },
+        {
+          "benchmark": "API GET /api/portfolio",
+          "ms": 1169,
+          "budget_ms": 4000,
+          "within_budget": true,
+          "error": ""
+        },
+        {
+          "benchmark": "API GET /api/phase16/all",
+          "ms": 572,
+          "budget_ms": 12000,
+          "within_budget": true,
+          "error": ""
+        },
+        {
+          "benchmark": "API GET /api/signals",
+          "ms": 621,
+          "budget_ms": 3000,
+          "within_budget": true,
+          "error": ""
+        }
+      ],
+      "python_process_memory_mb": 105.9,
+      "not_checkable": [
+        "Application/dashboard client load time and chart rendering \u2014 require a real browser; not measurable server-side"
+      ]
+    },
+    "errors": {
+      "success": true,
+      "section": "Error Detection",
+      "generated_at": "2026-07-15T16:10:05.802135+00:00",
+      "label": "PAPER / RESEARCH ONLY",
+      "total": 2,
+      "passed": 2,
+      "failed": 0,
+      "warnings": 0,
+      "checks": [
+        {
+          "check": "Automated bug detection",
+          "status": "PASS",
+          "detail": "verdict PASS \u00b7 0 issue(s)",
+          "severity": "OK"
+        },
+        {
+          "check": "No API failures across curated endpoints",
+          "status": "PASS",
+          "detail": "0 failing endpoint(s)",
+          "severity": "OK"
+        }
+      ],
+      "issues": [],
+      "not_checkable": [
+        "broken_charts (client-side rendering \u2014 cannot be verified server-side)",
+        "console errors, broken navigation/links/buttons \u2014 client-side; require a real browser session"
+      ]
+    },
+    "consistency": {
+      "success": true,
+      "section": "Cross-Page Consistency",
+      "generated_at": "2026-07-15T16:10:05.806026+00:00",
+      "label": "PAPER / RESEARCH ONLY",
+      "total": 1,
+      "passed": 0,
+      "failed": 0,
+      "warnings": 1,
+      "checks": [
+        {
+          "check": "Cross-page consistency",
+          "status": "WARN",
+          "detail": "verdict WARN \u00b7 72 checks \u00b7 0 hard mismatch(es) \u00b7 49 stale source(s)",
+          "severity": "WARN"
+        }
+      ],
+      "report": {
+        "verdict": "WARN",
+        "checks_performed": 72,
+        "hard_mismatch_count": 0,
+        "stale_source_count": 49,
+        "note": "Derived caches predate the canonical scan \u2014 values flagged as STALE_SOURCE; refreshing the scan resynchronises every page."
+      }
+    }
+  },
+  "notes": "Gating policy fix run",
+  "score_note": "Score = weighted pass-rate across sections (warnings count half). Security/code-quality/test-coverage instrumentation does not exist and is therefore not part of the score \u2014 not fabricated."
+}

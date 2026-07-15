@@ -1,0 +1,5 @@
+Metric,Previous Run,Current Run,Delta,Regression?
+passed,82,82,0,no
+failed,0,0,0,no
+warnings,4,4,0,no
+health_score,92.5,92.5,0.0,no
