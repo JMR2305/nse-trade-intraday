@@ -39,6 +39,7 @@ import PerformanceAnalytics from "@/pages/PerformanceAnalytics";
 import Settings from "@/pages/Settings";
 import RiskManagement from "@/pages/RiskManagement";
 import PortfolioRiskAnalytics from "@/pages/PortfolioRiskAnalytics";
+import Phase12Intelligence from "@/pages/Phase12Intelligence";
 
 const queryClient = new QueryClient();
 
@@ -80,6 +81,7 @@ function Router() {
         <Route path="/settings" component={Settings} />
         <Route path="/risk" component={RiskManagement} />
         <Route path="/portfolio-risk" component={PortfolioRiskAnalytics} />
+        <Route path="/phase12" component={Phase12Intelligence} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

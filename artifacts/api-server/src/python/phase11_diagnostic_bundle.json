@@ -1,6 +1,6 @@
 {
   "bundle_version": 1,
-  "generated_at": "2026-07-15T10:38:03Z",
+  "generated_at": "2026-07-15T11:04:45Z",
   "engine_version": "Research Engine v1.0",
   "mode": "PAPER_TRADING_RESEARCH_ONLY",
   "environment": {
@@ -10,7 +10,7 @@
   "market_status": {
     "state": "CLOSED",
     "is_open": false,
-    "now_ist": "2026-07-15T16:08:03.029644+05:30",
+    "now_ist": "2026-07-15T16:34:45.718128+05:30",
     "timezone": "Asia/Kolkata",
     "session": {
       "pre_open": "09:00",
@@ -22,7 +22,7 @@
     "next_transition": {
       "event": "market_open",
       "at_ist": "2026-07-16T09:15:00+05:30",
-      "seconds_until": 61616
+      "seconds_until": 60014
     },
     "upcoming_holidays": [
       {
@@ -43,18 +43,18 @@
   "quote_provider": {
     "provider": "Yahoo Finance (yfinance)",
     "provider_id": "yfinance",
-    "circuit_breaker": "CLOSED",
-    "consecutive_failures": 0,
-    "last_success_ts": "2026-07-15T10:28:36Z",
-    "total_fetches": 3,
+    "circuit_breaker": "OPEN",
+    "consecutive_failures": 3,
+    "last_success_ts": null,
+    "total_fetches": 0,
     "total_errors": 0,
-    "cached_symbols": 3,
+    "cached_symbols": 1,
     "quote_ttl_s": 20.0,
     "quote_ttl_closed_s": 300.0
   },
   "scan": {
-    "scan_id": "24b65fca8e24",
-    "snapshot_ts": "2026-07-15T04:53:26Z",
+    "scan_id": "439cb6e03afb",
+    "snapshot_ts": "2026-07-15T10:42:03Z",
     "recommendation_count": 50,
     "provider_connection": "DEGRADED",
     "symbol_coverage_pct": 96.0,
@@ -101,8 +101,8 @@
     {
       "file": "phase7_scan_cache.json",
       "exists": true,
-      "size_bytes": 65533,
-      "modified": "2026-07-15T10:35:02Z"
+      "size_bytes": 65576,
+      "modified": "2026-07-15T10:42:36Z"
     },
     {
       "file": "phase9_alerts.json",
@@ -138,7 +138,7 @@
       "file": "phase11_quote_state.json",
       "exists": true,
       "size_bytes": 1317,
-      "modified": "2026-07-15T10:28:36Z"
+      "modified": "2026-07-15T10:47:52Z"
     }
   ],
   "notes": [

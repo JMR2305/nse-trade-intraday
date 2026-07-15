@@ -1230,6 +1230,42 @@ def main():
         elif command == "experiment_export_json":
             from experiment_manager import export_experiments_json
             result = export_experiments_json(args[1] if len(args) >= 2 else None)
+
+        # ── Phase 12 — Advanced Institutional Intelligence Layer ──────────────
+        elif command == "phase12_analysis":
+            from phase12_intelligence import run_phase12_analysis
+            from paper_trader import _load_state as _p12_load_state
+            _p12_state = _p12_load_state()
+            _p12_cash = _p12_state.get("cash", 5000.0)
+            _p12_syms = args[1].split(",") if len(args) > 1 and args[1] else None
+            _p12_force = len(args) > 2 and args[2] == "force"
+            result = {"success": True,
+                      **run_phase12_analysis(symbols=_p12_syms, force=_p12_force,
+                                             available_cash=_p12_cash)}
+        elif command == "phase12_regime":
+            from phase12_intelligence import detect_market_regime
+            import os as _os
+            import json as _json
+            _mc_path = _os.path.join(_os.path.dirname(__file__), "market_context_cache.json")
+            try:
+                with open(_mc_path) as _f:
+                    _mc = _json.load(_f)
+            except Exception:
+                _mc = {}
+            result = {"success": True, **detect_market_regime(_mc)}
+        elif command == "phase12_sector_rotation":
+            from phase12_intelligence import run_phase12_analysis
+            from paper_trader import _load_state as _p12_sr_state
+            _p12_sr_cash = _p12_sr_state().get("cash", 5000.0)
+            _p12_data = run_phase12_analysis(available_cash=_p12_sr_cash)
+            result = {"success": True,
+                      "sector_rotation": _p12_data.get("sector_rotation", []),
+                      "regime": _p12_data.get("regime"),
+                      "generated_at": _p12_data.get("generated_at"),
+                      "label": "PAPER / RESEARCH ONLY"}
+        elif command == "phase12_bundle":
+            from phase12_diagnostics import build_phase12_bundle
+            result = {"success": True, "bundle": build_phase12_bundle()}
         else:
             error_msg = f"Unknown command: {command}"
 

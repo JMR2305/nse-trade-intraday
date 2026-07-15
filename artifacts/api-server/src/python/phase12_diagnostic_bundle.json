@@ -1,0 +1,239 @@
+{
+  "bundle_version": 2,
+  "phase": 12,
+  "generated_at": "2026-07-15T11:04:14Z",
+  "engine_version": "Research Engine v1.0 \u00b7 Phase 12",
+  "mode": "PAPER_TRADING_RESEARCH_ONLY",
+  "label": "PAPER / RESEARCH ONLY",
+  "market_status": {
+    "state": "CLOSED",
+    "is_open": false,
+    "now_ist": "2026-07-15T16:34:14.655533+05:30",
+    "timezone": "Asia/Kolkata",
+    "session": {
+      "pre_open": "09:00",
+      "open": "09:15",
+      "close": "15:30",
+      "post_close": "16:00"
+    },
+    "holiday_today": null,
+    "next_transition": {
+      "event": "market_open",
+      "at_ist": "2026-07-16T09:15:00+05:30",
+      "seconds_until": 60045
+    },
+    "upcoming_holidays": [
+      {
+        "date": "2026-08-15",
+        "name": "Independence Day"
+      },
+      {
+        "date": "2026-09-14",
+        "name": "Ganesh Chaturthi"
+      },
+      {
+        "date": "2026-10-02",
+        "name": "Gandhi Jayanti"
+      }
+    ],
+    "label": "PAPER / RESEARCH ONLY"
+  },
+  "quote_provider": {
+    "provider": "Yahoo Finance (yfinance)",
+    "provider_id": "yfinance",
+    "circuit_breaker": "CLOSED",
+    "consecutive_failures": 0,
+    "last_success_ts": "2026-07-15T10:43:57Z",
+    "total_fetches": 9,
+    "total_errors": 0,
+    "cached_symbols": 3,
+    "quote_ttl_s": 20.0,
+    "quote_ttl_closed_s": 300.0
+  },
+  "regime": {
+    "regime": "RANGE_BOUND",
+    "confidence": 100.0,
+    "all_scores": {
+      "TRENDING_UP": 15.0,
+      "TRENDING_DOWN": 15.0,
+      "VOLATILE": 20.0,
+      "RANGE_BOUND": 100.0,
+      "CRISIS": 0.0
+    },
+    "inputs": {
+      "vix": 18.0,
+      "nifty_trend": "SIDEWAYS",
+      "market_score": 50.0,
+      "breadth": 50.0
+    },
+    "reasoning": "VIX=18.0, trend=SIDEWAYS, mkt_score=50, breadth=50",
+    "score_multiplier": 0.95
+  },
+  "sector_rotation_top3": [
+    {
+      "sector": "BANKING",
+      "avg_score": 35.7,
+      "stock_count": 6,
+      "vs_median": 12.1,
+      "momentum": "STRONG",
+      "rank": 1
+    },
+    {
+      "sector": "FINANCE",
+      "avg_score": 29.4,
+      "stock_count": 5,
+      "vs_median": 5.8,
+      "momentum": "OUTPERFORMING",
+      "rank": 2
+    },
+    {
+      "sector": "ENERGY",
+      "avg_score": 28.8,
+      "stock_count": 5,
+      "vs_median": 5.2,
+      "momentum": "OUTPERFORMING",
+      "rank": 3
+    }
+  ],
+  "factor_weights": {
+    "trend": 0.18,
+    "momentum": 0.14,
+    "volatility": 0.08,
+    "volume": 0.08,
+    "relative_strength": 0.14,
+    "market_regime": 0.1,
+    "sector_strength": 0.08,
+    "liquidity": 0.06,
+    "hist_expectancy": 0.1,
+    "calibration_quality": 0.02,
+    "data_freshness": 0.02
+  },
+  "top_opportunities": [],
+  "relative_strength": {
+    "leaders": [],
+    "laggards": []
+  },
+  "calibration": {
+    "avg_calibration_score": 40.0,
+    "method_breakdown": {
+      "identity": 50
+    },
+    "symbols_assessed": 50
+  },
+  "contradictions": {
+    "level_distribution": {
+      "NONE": 34,
+      "LOW": 15,
+      "MEDIUM": 1,
+      "HIGH": 0
+    },
+    "high_contradiction_examples": []
+  },
+  "sizing_summary": {
+    "feasible_positions": 10,
+    "not_feasible_positions": 40,
+    "regime_adjustments_applied": {
+      "standard": 48,
+      "none": 2
+    }
+  },
+  "action_summary": {
+    "WATCH": 22,
+    "AVOID": 28
+  },
+  "sample_counts": {
+    "symbols_analyzed": 50,
+    "completed_trades_used": 3,
+    "expectancy_symbols": 3
+  },
+  "self_tests": {
+    "results": [
+      {
+        "test": "factor_weights_sum_1",
+        "pass": true,
+        "detail": "sum=1.0"
+      },
+      {
+        "test": "no_lookahead_sell_only",
+        "pass": true,
+        "detail": "3 trades, all SELL: True"
+      },
+      {
+        "test": "no_lookahead_timestamps",
+        "pass": true,
+        "detail": "all have close_ts: True"
+      },
+      {
+        "test": "stale_gate_blocks_buy",
+        "pass": true,
+        "detail": "action=WATCH"
+      },
+      {
+        "test": "factor_scores_in_range",
+        "pass": true,
+        "detail": "trend=80.0 mom=50.0 vol=60.0"
+      },
+      {
+        "test": "position_size_cap_20pct",
+        "pass": true,
+        "detail": "util=20.0%"
+      },
+      {
+        "test": "regime_valid_state",
+        "pass": true,
+        "detail": "regime=TRENDING_UP"
+      },
+      {
+        "test": "no_real_broker_order",
+        "pass": true,
+        "detail": "phase12_intelligence.py contains no execute_buy/execute_sell calls \u2014 paper only"
+      }
+    ],
+    "passed": 8,
+    "failed": 0
+  },
+  "files": [
+    {
+      "file": "phase12_cache.json",
+      "exists": true,
+      "size_bytes": 208191,
+      "modified": "2026-07-15T11:03:42Z"
+    },
+    {
+      "file": "phase7_scan_cache.json",
+      "exists": true,
+      "size_bytes": 65576,
+      "modified": "2026-07-15T10:42:36Z"
+    },
+    {
+      "file": "market_context_cache.json",
+      "exists": true,
+      "size_bytes": 566,
+      "modified": "2026-07-15T04:54:16Z"
+    },
+    {
+      "file": "phase11_quote_state.json",
+      "exists": true,
+      "size_bytes": 1317,
+      "modified": "2026-07-15T10:47:52Z"
+    },
+    {
+      "file": "phase12_diagnostic_bundle.json",
+      "exists": true,
+      "size_bytes": 5525,
+      "modified": "2026-07-15T11:03:42Z"
+    },
+    {
+      "file": "phase12_summary.csv",
+      "exists": true,
+      "size_bytes": 2670,
+      "modified": "2026-07-15T11:03:42Z"
+    }
+  ],
+  "errors": {},
+  "notes": [
+    "All values honest point-in-time snapshots \u2014 missing data is null.",
+    "PAPER TRADING ONLY \u2014 no real broker orders placed.",
+    "Learning data: completed paper trades only (no look-ahead)."
+  ]
+}

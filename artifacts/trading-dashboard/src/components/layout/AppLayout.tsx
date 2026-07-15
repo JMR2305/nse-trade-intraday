@@ -31,6 +31,7 @@ import {
   ShieldAlert,
   Bot,
   Bell,
+  Microscope,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
@@ -91,6 +92,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         { href: "/experiments",  label: "Research Factory",        icon: TestTubes },
         { href: "/research-intelligence", label: "Research Intelligence", icon: Brain },
         { href: "/strategy-evolution", label: "Strategy Evolution", icon: Dna },
+        { href: "/phase12", label: "Phase 12 Intelligence", icon: Microscope },
       ],
     },
     {
