@@ -1,0 +1,750 @@
+{
+  "success": true,
+  "overview": {
+    "success": true,
+    "generated_at": "2026-07-15T18:06:30.632828+00:00",
+    "label": "PAPER / RESEARCH ONLY",
+    "overall_validation_score": 0.8,
+    "maturity": "COLLECTING EVIDENCE",
+    "trading_days_completed": 1,
+    "completed_trades": 3,
+    "open_trades": 1,
+    "win_rate_pct": 66.7,
+    "profit_factor": 8.75,
+    "expectancy": 155.0,
+    "max_drawdown_pct": 1.15,
+    "sharpe_ratio": 13.05,
+    "avg_holding_days": 0.0,
+    "avg_risk_reward": 2.6,
+    "capital_start": 5000.0,
+    "capital_now": 5465.0,
+    "capital_growth_pct": 9.3,
+    "sufficient_data": false,
+    "min_trades_for_significance": 20,
+    "note": "Only 3 completed trades \u2014 statistics are not yet significant (minimum 20)."
+  },
+  "scorecard": {
+    "success": true,
+    "generated_at": "2026-07-15T18:06:30.633525+00:00",
+    "label": "PAPER / RESEARCH ONLY",
+    "strategies": [
+      {
+        "trades": 3,
+        "wins": 2,
+        "losses": 1,
+        "win_rate_pct": 66.7,
+        "profit_factor": 8.75,
+        "avg_return_pct": 3.8,
+        "expectancy": 155.0,
+        "total_pnl": 465.0,
+        "sufficient_data": false,
+        "strategy": "AI Scan",
+        "max_drawdown_pct": 1.15,
+        "best_trade": {
+          "symbol": "SBIN",
+          "pnl": 300.0
+        },
+        "worst_trade": {
+          "symbol": "ICICIBANK",
+          "pnl": -60.0
+        },
+        "status": "Watch",
+        "recommendation": "Only 3 trades \u2014 keep collecting evidence (need 5+)."
+      }
+    ],
+    "note": "Statuses are recommendations only \u2014 strategies are never disabled automatically.",
+    "sample_size": 3
+  },
+  "confidence": {
+    "success": true,
+    "generated_at": "2026-07-15T18:06:30.634217+00:00",
+    "label": "PAPER / RESEARCH ONLY",
+    "bands": [
+      {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "win_rate_pct": null,
+        "profit_factor": null,
+        "avg_return_pct": null,
+        "expectancy": null,
+        "total_pnl": 0.0,
+        "sufficient_data": false,
+        "band": "0-20",
+        "avg_holding_days": null
+      },
+      {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "win_rate_pct": null,
+        "profit_factor": null,
+        "avg_return_pct": null,
+        "expectancy": null,
+        "total_pnl": 0.0,
+        "sufficient_data": false,
+        "band": "21-40",
+        "avg_holding_days": null
+      },
+      {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "win_rate_pct": null,
+        "profit_factor": null,
+        "avg_return_pct": null,
+        "expectancy": null,
+        "total_pnl": 0.0,
+        "sufficient_data": false,
+        "band": "41-60",
+        "avg_holding_days": null
+      },
+      {
+        "trades": 2,
+        "wins": 1,
+        "losses": 1,
+        "win_rate_pct": 50.0,
+        "profit_factor": 3.75,
+        "avg_return_pct": 2.03,
+        "expectancy": 82.5,
+        "total_pnl": 165.0,
+        "sufficient_data": false,
+        "band": "61-80",
+        "avg_holding_days": 0.0
+      },
+      {
+        "trades": 1,
+        "wins": 1,
+        "losses": 0,
+        "win_rate_pct": 100.0,
+        "profit_factor": null,
+        "avg_return_pct": 7.35,
+        "expectancy": 300.0,
+        "total_pnl": 300.0,
+        "sufficient_data": false,
+        "band": "81-100",
+        "avg_holding_days": 0.0
+      }
+    ],
+    "verdict": "Insufficient Data \u2014 need 5+ trades in at least 2 bands.",
+    "sample_size": 3,
+    "sufficient_data": false
+  },
+  "regimes": {
+    "success": true,
+    "generated_at": "2026-07-15T18:06:30.634910+00:00",
+    "label": "PAPER / RESEARCH ONLY",
+    "regimes": [
+      {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "win_rate_pct": null,
+        "profit_factor": null,
+        "avg_return_pct": null,
+        "expectancy": null,
+        "total_pnl": 0.0,
+        "sufficient_data": false,
+        "regime": "TRENDING",
+        "risk_max_drawdown_pct": null,
+        "best_strategy": null,
+        "worst_strategy": null
+      },
+      {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "win_rate_pct": null,
+        "profit_factor": null,
+        "avg_return_pct": null,
+        "expectancy": null,
+        "total_pnl": 0.0,
+        "sufficient_data": false,
+        "regime": "SIDEWAYS",
+        "risk_max_drawdown_pct": null,
+        "best_strategy": null,
+        "worst_strategy": null
+      },
+      {
+        "trades": 2,
+        "wins": 1,
+        "losses": 1,
+        "win_rate_pct": 50.0,
+        "profit_factor": 3.75,
+        "avg_return_pct": 2.03,
+        "expectancy": 82.5,
+        "total_pnl": 165.0,
+        "sufficient_data": false,
+        "regime": "VOLATILE",
+        "risk_max_drawdown_pct": 1.15,
+        "best_strategy": "AI Scan",
+        "worst_strategy": null
+      },
+      {
+        "trades": 1,
+        "wins": 1,
+        "losses": 0,
+        "win_rate_pct": 100.0,
+        "profit_factor": null,
+        "avg_return_pct": 7.35,
+        "expectancy": 300.0,
+        "total_pnl": 300.0,
+        "sufficient_data": false,
+        "regime": "BULLISH",
+        "risk_max_drawdown_pct": 0.0,
+        "best_strategy": "AI Scan",
+        "worst_strategy": null
+      },
+      {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "win_rate_pct": null,
+        "profit_factor": null,
+        "avg_return_pct": null,
+        "expectancy": null,
+        "total_pnl": 0.0,
+        "sufficient_data": false,
+        "regime": "BEARISH",
+        "risk_max_drawdown_pct": null,
+        "best_strategy": null,
+        "worst_strategy": null
+      }
+    ],
+    "sample_size": 3
+  },
+  "sectors": {
+    "success": true,
+    "generated_at": "2026-07-15T18:06:30.635878+00:00",
+    "label": "PAPER / RESEARCH ONLY",
+    "sectors": [
+      {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "win_rate_pct": null,
+        "profit_factor": null,
+        "avg_return_pct": null,
+        "expectancy": null,
+        "total_pnl": 0.0,
+        "sufficient_data": false,
+        "sector": "AUTO",
+        "contribution_pct": 0.0
+      },
+      {
+        "trades": 3,
+        "wins": 2,
+        "losses": 1,
+        "win_rate_pct": 66.7,
+        "profit_factor": 8.75,
+        "avg_return_pct": 3.8,
+        "expectancy": 155.0,
+        "total_pnl": 465.0,
+        "sufficient_data": false,
+        "sector": "BANKING",
+        "contribution_pct": 100.0
+      },
+      {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "win_rate_pct": null,
+        "profit_factor": null,
+        "avg_return_pct": null,
+        "expectancy": null,
+        "total_pnl": 0.0,
+        "sufficient_data": false,
+        "sector": "CONSUMER",
+        "contribution_pct": 0.0
+      },
+      {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "win_rate_pct": null,
+        "profit_factor": null,
+        "avg_return_pct": null,
+        "expectancy": null,
+        "total_pnl": 0.0,
+        "sufficient_data": false,
+        "sector": "ENERGY",
+        "contribution_pct": 0.0
+      },
+      {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "win_rate_pct": null,
+        "profit_factor": null,
+        "avg_return_pct": null,
+        "expectancy": null,
+        "total_pnl": 0.0,
+        "sufficient_data": false,
+        "sector": "FINANCE",
+        "contribution_pct": 0.0
+      },
+      {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "win_rate_pct": null,
+        "profit_factor": null,
+        "avg_return_pct": null,
+        "expectancy": null,
+        "total_pnl": 0.0,
+        "sufficient_data": false,
+        "sector": "FMCG",
+        "contribution_pct": 0.0
+      },
+      {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "win_rate_pct": null,
+        "profit_factor": null,
+        "avg_return_pct": null,
+        "expectancy": null,
+        "total_pnl": 0.0,
+        "sufficient_data": false,
+        "sector": "INFRA",
+        "contribution_pct": 0.0
+      },
+      {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "win_rate_pct": null,
+        "profit_factor": null,
+        "avg_return_pct": null,
+        "expectancy": null,
+        "total_pnl": 0.0,
+        "sufficient_data": false,
+        "sector": "IT",
+        "contribution_pct": 0.0
+      },
+      {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "win_rate_pct": null,
+        "profit_factor": null,
+        "avg_return_pct": null,
+        "expectancy": null,
+        "total_pnl": 0.0,
+        "sufficient_data": false,
+        "sector": "METALS",
+        "contribution_pct": 0.0
+      },
+      {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "win_rate_pct": null,
+        "profit_factor": null,
+        "avg_return_pct": null,
+        "expectancy": null,
+        "total_pnl": 0.0,
+        "sufficient_data": false,
+        "sector": "PHARMA",
+        "contribution_pct": 0.0
+      },
+      {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "win_rate_pct": null,
+        "profit_factor": null,
+        "avg_return_pct": null,
+        "expectancy": null,
+        "total_pnl": 0.0,
+        "sufficient_data": false,
+        "sector": "TELECOM",
+        "contribution_pct": 0.0
+      }
+    ],
+    "sample_size": 3
+  },
+  "ai": {
+    "success": true,
+    "generated_at": "2026-07-15T18:06:30.637307+00:00",
+    "label": "PAPER / RESEARCH ONLY",
+    "buy_recommendations": 0,
+    "watch_recommendations": 1,
+    "ignore_recommendations": 9,
+    "executed_recommendations": 3,
+    "ignored_recommendations": 0,
+    "correct_buy_pct": null,
+    "correct_exit_pct": null,
+    "correct_hold_pct": null,
+    "false_positives": null,
+    "false_negatives": null,
+    "sufficient_data": false,
+    "note": "HOLD correctness and false negatives require outcome tracking of non-executed recommendations, which does not exist yet \u2014 shown as Insufficient Data. Executed sample: 3 trades."
+  },
+  "trades": {
+    "success": true,
+    "generated_at": "2026-07-15T18:06:30.637980+00:00",
+    "label": "PAPER / RESEARCH ONLY",
+    "trades": [
+      {
+        "symbol": "SBIN",
+        "entry_time": "2026-07-08T21:50:57.848369",
+        "exit_time": "2026-07-08T21:50:57.851094",
+        "entry_price": 1020.0,
+        "exit_price": 1095.0,
+        "quantity": 4,
+        "pnl": 300.0,
+        "pnl_pct": 7.35,
+        "market_regime": "BULLISH",
+        "confidence": 82.0,
+        "opportunity_score": null,
+        "strategy": "AI Scan",
+        "ai_explanation": "AI engine APPROVES the BUY signal for SBIN. RR 3.2:1 with full 4/4 timeframe agreement and BULLISH regime. Confidence 82/100.",
+        "exit_reason": "Near target \u2014 partial exit",
+        "risk_pct": null,
+        "reward_pct": null,
+        "holding_period_days": 0.0,
+        "lessons_learned": [
+          "Setup conditions repeated here are worth prioritising."
+        ],
+        "winning_factors": [
+          "High entry confidence (82.0)",
+          "Favourable risk/reward (3.2:1)",
+          "Exit discipline: target hit as planned"
+        ],
+        "losing_factors": []
+      },
+      {
+        "symbol": "ICICIBANK",
+        "entry_time": "2026-07-08T21:50:57.836435",
+        "exit_time": "2026-07-08T21:50:57.838630",
+        "entry_price": 1400.0,
+        "exit_price": 1380.0,
+        "quantity": 3,
+        "pnl": -60.0,
+        "pnl_pct": -1.43,
+        "market_regime": "LOW_VOLATILITY",
+        "confidence": 65.0,
+        "opportunity_score": null,
+        "strategy": "AI Scan",
+        "ai_explanation": "AI engine approved ICICIBANK signal. RR 2.1:1, 3/4 timeframes agree. Confidence 65/100.",
+        "exit_reason": "Stop loss triggered",
+        "risk_pct": null,
+        "reward_pct": null,
+        "holding_period_days": 0.0,
+        "lessons_learned": [
+          "Review whether the entry matched the regime and quality gates."
+        ],
+        "winning_factors": [],
+        "losing_factors": [
+          "Stop-loss hit \u2014 entry timing or stop placement to review"
+        ]
+      },
+      {
+        "symbol": "HDFCBANK",
+        "entry_time": "2026-07-08T21:50:57.831728",
+        "exit_time": "2026-07-08T21:50:57.833771",
+        "entry_price": 820.0,
+        "exit_price": 865.0,
+        "quantity": 5,
+        "pnl": 225.0,
+        "pnl_pct": 5.49,
+        "market_regime": "LOW_VOLATILITY",
+        "confidence": 72.0,
+        "opportunity_score": null,
+        "strategy": "AI Scan",
+        "ai_explanation": "AI engine approved HDFCBANK BUY. RR 2.5:1 with 3/4 timeframe agreement. LOW_VOLATILITY regime supports breakout entries. Confidence adjusted to 72/100.",
+        "exit_reason": "Target approached \u2014 taking profit",
+        "risk_pct": null,
+        "reward_pct": null,
+        "holding_period_days": 0.0,
+        "lessons_learned": [
+          "Setup conditions repeated here are worth prioritising."
+        ],
+        "winning_factors": [
+          "High entry confidence (72.0)",
+          "Favourable risk/reward (2.5:1)",
+          "Exit discipline: target hit as planned"
+        ],
+        "losing_factors": []
+      }
+    ],
+    "count": 3
+  },
+  "weekly": {
+    "success": true,
+    "title": "Weekly Paper Trading Report",
+    "period_days": 7,
+    "stats": {
+      "trades": 3,
+      "wins": 2,
+      "losses": 1,
+      "win_rate_pct": 66.7,
+      "profit_factor": 8.75,
+      "avg_return_pct": 3.8,
+      "expectancy": 155.0,
+      "total_pnl": 465.0,
+      "sufficient_data": false
+    },
+    "best_strategy": "AI Scan",
+    "worst_strategy": "Insufficient Data",
+    "best_sector": "BANKING",
+    "worst_sector": "Insufficient Data",
+    "biggest_winner": {
+      "symbol": "SBIN",
+      "pnl": 300.0
+    },
+    "biggest_loser": {
+      "symbol": "ICICIBANK",
+      "pnl": -60.0
+    },
+    "common_mistakes": [
+      "Stop-loss hit \u2014 entry timing or stop placement to review"
+    ],
+    "sufficient_data": false,
+    "ai_recommendations": [
+      {
+        "type": "INFO",
+        "target": "ALL",
+        "detail": "Insufficient Data \u2014 only 3 completed trades; need 5+ per strategy/regime cell before recommendations become meaningful.",
+        "suggestion": "Continue paper trading to accumulate evidence.",
+        "auto_applied": false
+      }
+    ],
+    "portfolio_summary": {
+      "success": true,
+      "generated_at": "2026-07-15T18:06:30.641235+00:00",
+      "label": "PAPER / RESEARCH ONLY",
+      "overall_validation_score": 0.8,
+      "maturity": "COLLECTING EVIDENCE",
+      "trading_days_completed": 1,
+      "completed_trades": 3,
+      "open_trades": 1,
+      "win_rate_pct": 66.7,
+      "profit_factor": 8.75,
+      "expectancy": 155.0,
+      "max_drawdown_pct": 1.15,
+      "sharpe_ratio": 13.05,
+      "avg_holding_days": 0.0,
+      "avg_risk_reward": 2.6,
+      "capital_start": 5000.0,
+      "capital_now": 5465.0,
+      "capital_growth_pct": 9.3,
+      "sufficient_data": false,
+      "min_trades_for_significance": 20,
+      "note": "Only 3 completed trades \u2014 statistics are not yet significant (minimum 20)."
+    },
+    "generated_at": "2026-07-15T18:06:30.641262+00:00",
+    "label": "PAPER / RESEARCH ONLY"
+  },
+  "monthly": {
+    "success": true,
+    "title": "Monthly Validation Report",
+    "period_days": 30,
+    "stats": {
+      "trades": 3,
+      "wins": 2,
+      "losses": 1,
+      "win_rate_pct": 66.7,
+      "profit_factor": 8.75,
+      "avg_return_pct": 3.8,
+      "expectancy": 155.0,
+      "total_pnl": 465.0,
+      "sufficient_data": false
+    },
+    "best_strategy": "AI Scan",
+    "worst_strategy": "Insufficient Data",
+    "best_sector": "BANKING",
+    "worst_sector": "Insufficient Data",
+    "biggest_winner": {
+      "symbol": "SBIN",
+      "pnl": 300.0
+    },
+    "biggest_loser": {
+      "symbol": "ICICIBANK",
+      "pnl": -60.0
+    },
+    "common_mistakes": [
+      "Stop-loss hit \u2014 entry timing or stop placement to review"
+    ],
+    "sufficient_data": false,
+    "generated_at": "2026-07-15T18:06:30.643285+00:00",
+    "label": "PAPER / RESEARCH ONLY",
+    "portfolio_growth_pct": 9.3,
+    "strategy_ranking": [
+      {
+        "strategy": "AI Scan",
+        "total_pnl": 465.0,
+        "status": "Watch"
+      }
+    ],
+    "risk_summary": {
+      "max_drawdown_pct": 1.15,
+      "sharpe": 13.05
+    },
+    "accuracy_trend": "Insufficient Data",
+    "confidence_calibration": "Insufficient Data",
+    "learning_progress": {
+      "strategies_tracked": 7,
+      "total_closed_trades": null
+    }
+  },
+  "recommendations": {
+    "success": true,
+    "generated_at": "2026-07-15T18:06:30.649888+00:00",
+    "label": "PAPER / RESEARCH ONLY",
+    "recommendations": [
+      {
+        "type": "INFO",
+        "target": "ALL",
+        "detail": "Insufficient Data \u2014 only 3 completed trades; need 5+ per strategy/regime cell before recommendations become meaningful.",
+        "suggestion": "Continue paper trading to accumulate evidence.",
+        "auto_applied": false
+      }
+    ],
+    "note": "Recommendations only \u2014 rules are NEVER changed automatically."
+  },
+  "failures": {
+    "success": true,
+    "generated_at": "2026-07-15T18:06:30.650776+00:00",
+    "label": "PAPER / RESEARCH ONLY",
+    "losing_trades": 1,
+    "by_sector": [
+      {
+        "group": "BANKING",
+        "dimension": "sector",
+        "trades": 1,
+        "wins": 0,
+        "losses": 1,
+        "win_rate_pct": 0.0,
+        "profit_factor": 0.0,
+        "avg_return_pct": -1.43,
+        "expectancy": -60.0,
+        "total_pnl": -60.0,
+        "sufficient_data": false
+      }
+    ],
+    "by_strategy": [
+      {
+        "group": "AI Scan",
+        "dimension": "strategy",
+        "trades": 1,
+        "wins": 0,
+        "losses": 1,
+        "win_rate_pct": 0.0,
+        "profit_factor": 0.0,
+        "avg_return_pct": -1.43,
+        "expectancy": -60.0,
+        "total_pnl": -60.0,
+        "sufficient_data": false
+      }
+    ],
+    "by_regime": [
+      {
+        "group": "VOLATILE",
+        "dimension": "regime",
+        "trades": 1,
+        "wins": 0,
+        "losses": 1,
+        "win_rate_pct": 0.0,
+        "profit_factor": 0.0,
+        "avg_return_pct": -1.43,
+        "expectancy": -60.0,
+        "total_pnl": -60.0,
+        "sufficient_data": false
+      }
+    ],
+    "by_confidence": [
+      {
+        "group": "61-80",
+        "dimension": "confidence",
+        "trades": 1,
+        "wins": 0,
+        "losses": 1,
+        "win_rate_pct": 0.0,
+        "profit_factor": 0.0,
+        "avg_return_pct": -1.43,
+        "expectancy": -60.0,
+        "total_pnl": -60.0,
+        "sufficient_data": false
+      }
+    ],
+    "by_holding_time": [
+      {
+        "group": "intraday",
+        "dimension": "holding_time",
+        "trades": 1,
+        "wins": 0,
+        "losses": 1,
+        "win_rate_pct": 0.0,
+        "profit_factor": 0.0,
+        "avg_return_pct": -1.43,
+        "expectancy": -60.0,
+        "total_pnl": -60.0,
+        "sufficient_data": false
+      }
+    ],
+    "by_risk": [
+      {
+        "group": "unknown",
+        "dimension": "risk",
+        "trades": 1,
+        "wins": 0,
+        "losses": 1,
+        "win_rate_pct": 0.0,
+        "profit_factor": 0.0,
+        "avg_return_pct": -1.43,
+        "expectancy": -60.0,
+        "total_pnl": -60.0,
+        "sufficient_data": false
+      }
+    ],
+    "sufficient_data": false,
+    "note": "Insufficient Data \u2014 only 1 losing trades recorded."
+  },
+  "successes": {
+    "success": true,
+    "generated_at": "2026-07-15T18:06:30.652385+00:00",
+    "label": "PAPER / RESEARCH ONLY",
+    "winning_trades": 2,
+    "common_indicators": [
+      "Insufficient Data"
+    ],
+    "common_regimes": [
+      "BULLISH",
+      "VOLATILE"
+    ],
+    "common_risk_levels": [
+      "unknown"
+    ],
+    "avg_holding_days": 0.0,
+    "best_confidence_range": "72-82",
+    "sufficient_data": false,
+    "note": "Insufficient Data \u2014 only 2 winning trades recorded."
+  },
+  "timeline": {
+    "success": true,
+    "generated_at": "2026-07-15T18:06:30.654516+00:00",
+    "label": "PAPER / RESEARCH ONLY",
+    "trading_days": 1,
+    "trading_days_goal": 100,
+    "completed_trades": 3,
+    "completed_trades_goal": 500,
+    "confidence_calibration_pct": null,
+    "strategy_stability_pct": null,
+    "production_readiness_pct": 0.8,
+    "maturity": "COLLECTING EVIDENCE",
+    "note": "Calibration and stability shown as Insufficient Data until enough closed trades exist."
+  },
+  "bugs": {
+    "success": true,
+    "generated_at": "2026-07-15T18:06:30.659855+00:00",
+    "label": "PAPER / RESEARCH ONLY",
+    "checks_performed": 6,
+    "issues": [],
+    "verdict": "PASS",
+    "not_checkable": [
+      "broken_charts (client-side rendering \u2014 cannot be verified server-side)"
+    ]
+  }
+}

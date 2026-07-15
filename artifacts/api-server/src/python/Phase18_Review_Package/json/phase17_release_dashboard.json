@@ -1,0 +1,15 @@
+{
+  "success": true,
+  "generated_at": "2026-07-15T18:06:36.205638+00:00",
+  "label": "PAPER / RESEARCH ONLY",
+  "current_version": "17.0",
+  "build_number": 4,
+  "environment": "development",
+  "last_successful_validation": "2026-07-15T16:10:05.806589+00:00",
+  "last_failed_validation": "Not Available",
+  "open_issues": 0,
+  "warnings": 4,
+  "release_score": 92.5,
+  "production_readiness": "READY WITH WARNINGS",
+  "total_runs": 3
+}

@@ -1,0 +1,28 @@
+Feature,Implemented,Working,Tested,Comments
+Unified scan context (single source of truth),Yes,Yes,Yes,Regime from canonical snapshot
+Stale scan detection + BUY disable,Yes,Yes,Yes,"90-minute limit, global banner"
+Data quality scores + bands,Yes,Yes,Yes,DO NOT TRADE below 80
+Cross-page consistency validation,Yes,Yes,Yes,ERROR/STALE_SOURCE/MISSING_SOURCE severities
+AI explainability (12 factors),Yes,Yes,Yes,
+Risk gate hardening (10 checks),Yes,Yes,Yes,Post-trade exposure modeling
+"Extended trade records (charges, slippage)",Yes,Yes,Yes,Estimates only — paper trading
+Scan audit logging,Yes,Yes,Yes,Capped log
+System diagnostics + readiness report,Yes,Yes,Yes,
+Paper trading validation (14 sections),Yes,Yes,Yes,Advisory only; Insufficient Data below minimum samples
+Validation exports (PDF/XLSX/CSV + report),Yes,Yes,Yes,
+Paper Trading Validation dashboard page,Yes,Yes,Yes,Route /validation
+Automated QA engine (one-click complete validation),Yes,Yes,Yes,"Phase 17 — test suites, API, data, benchmarks, consistency"
+Release checklist + dashboard + health score,Yes,Yes,Yes,Weighted score; warnings count half
+Validation history + regression comparison,Yes,Yes,Yes,Last 100 runs
+Automated QA reports (PDF/XLSX/CSV/JSON),Yes,Yes,Yes,phase17_reports/
+System Validation dashboard page,Yes,Yes,Yes,Route /system-validation
+"Research Notebook (daily journal, auto-created per scan day)",Yes,Yes,Yes,"Phase 18 — decision journal, checklist, notes, finalize/reopen"
+Daily validation checklist (before/during/after market),Yes,Yes,Yes,Evaluated from real stored data
+Weekly/monthly research reviews + calibration bands,Yes,Yes,Yes,Insufficient Data below minimum samples
+Evidence accumulation tracker (configurable targets),Yes,Yes,Yes,Advisory only
+Research memory search + issue tracker (ISS-####),Yes,Yes,Yes,
+Notebook exports + Research_Notebook_Archive.zip,Yes,Yes,Yes,Secrets filtered; README included
+Research Notebook dashboard page,Yes,Yes,Yes,Route /research-notebook
+Review package generator,Yes,Yes,Partial,Tested via generation run itself
+Paper trading engine / scanner / strategies,Yes,Yes,Yes,Built in earlier phases 1-14
+Real-money execution,No,No,No,Deliberately not implemented — research only

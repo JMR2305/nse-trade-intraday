@@ -1,0 +1,210 @@
+{
+  "success": true,
+  "month": "2026-07",
+  "portfolio_value": 5465.0,
+  "portfolio_growth_pct": 9.3,
+  "paper_trades_completed": 3,
+  "win_rate": 66.7,
+  "profit_factor": 8.75,
+  "expectancy": 155.0,
+  "max_drawdown": -60.0,
+  "strategy_ranking": [
+    {
+      "strategy_name": "AI Scan",
+      "trades": 3,
+      "win_rate": 66.7,
+      "profit_factor": 8.75,
+      "expectancy": 155.0,
+      "total_pnl": 465.0,
+      "max_drawdown": -60.0
+    }
+  ],
+  "sector_ranking": [
+    {
+      "sector": "BANKING",
+      "trades": 3,
+      "win_rate": 66.7,
+      "profit_factor": 8.75,
+      "expectancy": 155.0,
+      "total_pnl": 465.0,
+      "max_drawdown": -60.0
+    }
+  ],
+  "regime_performance": [
+    {
+      "regime": "BULLISH",
+      "trades": 1,
+      "win_rate": 100.0,
+      "profit_factor": "All wins",
+      "expectancy": 300.0,
+      "total_pnl": 300.0,
+      "max_drawdown": 0.0
+    },
+    {
+      "regime": "LOW_VOLATILITY",
+      "trades": 2,
+      "win_rate": 50.0,
+      "profit_factor": 3.75,
+      "expectancy": 82.5,
+      "total_pnl": 165.0,
+      "max_drawdown": -60.0
+    }
+  ],
+  "confidence_calibration": {
+    "<50": "Insufficient Data",
+    "50-70": "0/1 wins",
+    ">=70": "2/2 wins"
+  },
+  "opportunity_score_validation": "Requires closed trades with stored opportunity scores \u2014 3 closed this month",
+  "risk_metrics": {
+    "max_drawdown": -60.0,
+    "open_positions": 1
+  },
+  "data_provider_reliability": {
+    "stale_scan_days": 0,
+    "days_with_symbol_errors": 1,
+    "notebook_days": 1
+  },
+  "qa_trend": [
+    {
+      "run_id": "V0001",
+      "health_score": 90.6,
+      "verdict": "PASS"
+    },
+    {
+      "run_id": "V0002",
+      "health_score": 92.5,
+      "verdict": "PASS"
+    },
+    {
+      "run_id": "V0003",
+      "health_score": 92.5,
+      "verdict": "PASS"
+    }
+  ],
+  "validation_trend": {
+    "runs_this_month": 3
+  },
+  "learning_progress": {
+    "notebook_days": 1,
+    "notes_recorded": 5,
+    "lessons_recorded": 0
+  },
+  "open_research_questions": [
+    "Investigate data-quality incidents recorded this week.",
+    "No completed paper trades this week \u2014 is the workflow being exercised daily?",
+    "Which skipped high-confidence signals would have worked? (advisory review only)"
+  ],
+  "human_approved_changes": "Tracked via issue log and notes \u2014 no automatic changes exist.",
+  "issues_this_month": [
+    {
+      "issue_id": "ISS-0005",
+      "date": "2026-07-15",
+      "severity": "LOW",
+      "page": "test",
+      "description": "unit-test issue",
+      "related_scan_id": null,
+      "related_trade_id": null,
+      "reproducible": false,
+      "status": "VERIFIED",
+      "resolution": "test done",
+      "resolved_date": "2026-07-15",
+      "notes": [],
+      "created_at": "2026-07-15T18:06:35.685849+00:00",
+      "updated_at": "2026-07-15T18:06:35.689165+00:00"
+    },
+    {
+      "issue_id": "ISS-0004",
+      "date": "2026-07-15",
+      "severity": "LOW",
+      "page": "test",
+      "description": "unit-test issue",
+      "related_scan_id": null,
+      "related_trade_id": null,
+      "reproducible": false,
+      "status": "VERIFIED",
+      "resolution": "test done",
+      "resolved_date": "2026-07-15",
+      "notes": [],
+      "created_at": "2026-07-15T18:06:16.588839+00:00",
+      "updated_at": "2026-07-15T18:06:16.591269+00:00"
+    },
+    {
+      "issue_id": "ISS-0003",
+      "date": "2026-07-15",
+      "severity": "LOW",
+      "page": "test",
+      "description": "unit-test issue",
+      "related_scan_id": null,
+      "related_trade_id": null,
+      "reproducible": false,
+      "status": "VERIFIED",
+      "resolution": "test done",
+      "resolved_date": "2026-07-15",
+      "notes": [],
+      "created_at": "2026-07-15T18:01:02.311934+00:00",
+      "updated_at": "2026-07-15T18:01:02.313858+00:00"
+    },
+    {
+      "issue_id": "ISS-0002",
+      "date": "2026-07-15",
+      "severity": "LOW",
+      "page": "test",
+      "description": "unit-test issue",
+      "related_scan_id": null,
+      "related_trade_id": null,
+      "reproducible": false,
+      "status": "VERIFIED",
+      "resolution": "test done",
+      "resolved_date": "2026-07-15",
+      "notes": [],
+      "created_at": "2026-07-15T17:51:20.755661+00:00",
+      "updated_at": "2026-07-15T17:51:20.756196+00:00"
+    },
+    {
+      "issue_id": "ISS-0001",
+      "date": "2026-07-15",
+      "severity": "LOW",
+      "page": "test",
+      "description": "test issue",
+      "related_scan_id": null,
+      "related_trade_id": null,
+      "reproducible": false,
+      "status": "FIXED",
+      "resolution": "ok",
+      "resolved_date": "2026-07-15",
+      "notes": [],
+      "created_at": "2026-07-15T17:43:00.067235+00:00",
+      "updated_at": "2026-07-15T17:43:00.069060+00:00"
+    }
+  ],
+  "production_readiness_progress": {
+    "trading_sessions": {
+      "value": 1,
+      "target": 50,
+      "pct": 2.0
+    },
+    "completed_paper_trades": {
+      "value": 3,
+      "target": 100,
+      "pct": 3.0
+    },
+    "market_regimes_covered": {
+      "value": 3,
+      "target": 3,
+      "regimes": [
+        "BULLISH",
+        "LOW_VOLATILITY",
+        "SIDEWAYS"
+      ],
+      "pct": 100.0
+    },
+    "unresolved_critical_issues": {
+      "value": 0,
+      "target": 0,
+      "ok": true
+    }
+  },
+  "note": "Live deployment is never recommended automatically. Advisory only.",
+  "label": "PAPER / RESEARCH ONLY"
+}

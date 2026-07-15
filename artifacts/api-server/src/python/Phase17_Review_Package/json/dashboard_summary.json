@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-07-15 16:13 UTC",
+  "generated_at": "2026-07-15 17:30 UTC",
   "portfolio_value": 5465.0,
   "cash": 4600.0,
   "open_positions": 1,
-  "scan_id": "d467fffac5c0",
-  "snapshot_ts": "2026-07-15T16:07:01Z",
+  "scan_id": "09070889504f",
+  "snapshot_ts": "2026-07-15T17:27:59Z",
   "scan_summary": {
-    "scan_id": "d467fffac5c0",
-    "snapshot_ts": "2026-07-15T16:07:01Z",
+    "scan_id": "09070889504f",
+    "snapshot_ts": "2026-07-15T17:27:59Z",
     "universe_size": 50,
     "symbols_analysed": 50,
     "symbols_with_errors": 2,
@@ -24,7 +24,7 @@
       "LIVE": 48,
       "UNAVAILABLE": 2
     },
-    "duration_s": 38.87,
+    "duration_s": 35.75,
     "label": "PAPER / LIVE DATA VALIDATION"
   },
   "performance_summary": {

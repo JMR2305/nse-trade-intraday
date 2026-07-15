@@ -39,4 +39,4 @@ kill_switch.triggered_by,manual
 kill_switch.resumed_at,2026-07-15T03:38:34.155811
 auto_kill_triggered,
 engine_version,11.0
-computed_at,2026-07-15T16:12:54.032969
+computed_at,2026-07-15T17:29:33.487147

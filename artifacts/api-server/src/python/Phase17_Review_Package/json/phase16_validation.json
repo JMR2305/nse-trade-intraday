@@ -2,7 +2,7 @@
   "success": true,
   "overview": {
     "success": true,
-    "generated_at": "2026-07-15T16:12:54.058192+00:00",
+    "generated_at": "2026-07-15T17:29:33.524170+00:00",
     "label": "PAPER / RESEARCH ONLY",
     "overall_validation_score": 0.8,
     "maturity": "COLLECTING EVIDENCE",
@@ -25,7 +25,7 @@
   },
   "scorecard": {
     "success": true,
-    "generated_at": "2026-07-15T16:12:54.058363+00:00",
+    "generated_at": "2026-07-15T17:29:33.524304+00:00",
     "label": "PAPER / RESEARCH ONLY",
     "strategies": [
       {
@@ -57,7 +57,7 @@
   },
   "confidence": {
     "success": true,
-    "generated_at": "2026-07-15T16:12:54.058482+00:00",
+    "generated_at": "2026-07-15T17:29:33.524426+00:00",
     "label": "PAPER / RESEARCH ONLY",
     "bands": [
       {
@@ -132,7 +132,7 @@
   },
   "regimes": {
     "success": true,
-    "generated_at": "2026-07-15T16:12:54.058633+00:00",
+    "generated_at": "2026-07-15T17:29:33.524582+00:00",
     "label": "PAPER / RESEARCH ONLY",
     "regimes": [
       {
@@ -215,7 +215,7 @@
   },
   "sectors": {
     "success": true,
-    "generated_at": "2026-07-15T16:12:54.058781+00:00",
+    "generated_at": "2026-07-15T17:29:33.524711+00:00",
     "label": "PAPER / RESEARCH ONLY",
     "sectors": [
       {
@@ -366,7 +366,7 @@
   },
   "ai": {
     "success": true,
-    "generated_at": "2026-07-15T16:12:54.058989+00:00",
+    "generated_at": "2026-07-15T17:29:33.524981+00:00",
     "label": "PAPER / RESEARCH ONLY",
     "buy_recommendations": 0,
     "watch_recommendations": 1,
@@ -383,7 +383,7 @@
   },
   "trades": {
     "success": true,
-    "generated_at": "2026-07-15T16:12:54.059106+00:00",
+    "generated_at": "2026-07-15T17:29:33.525100+00:00",
     "label": "PAPER / RESEARCH ONLY",
     "trades": [
       {
@@ -513,7 +513,7 @@
     ],
     "portfolio_summary": {
       "success": true,
-      "generated_at": "2026-07-15T16:12:54.059557+00:00",
+      "generated_at": "2026-07-15T17:29:33.525600+00:00",
       "label": "PAPER / RESEARCH ONLY",
       "overall_validation_score": 0.8,
       "maturity": "COLLECTING EVIDENCE",
@@ -534,7 +534,7 @@
       "min_trades_for_significance": 20,
       "note": "Only 3 completed trades \u2014 statistics are not yet significant (minimum 20)."
     },
-    "generated_at": "2026-07-15T16:12:54.059582+00:00",
+    "generated_at": "2026-07-15T17:29:33.525626+00:00",
     "label": "PAPER / RESEARCH ONLY"
   },
   "monthly": {
@@ -568,7 +568,7 @@
       "Stop-loss hit \u2014 entry timing or stop placement to review"
     ],
     "sufficient_data": false,
-    "generated_at": "2026-07-15T16:12:54.059943+00:00",
+    "generated_at": "2026-07-15T17:29:33.525991+00:00",
     "label": "PAPER / RESEARCH ONLY",
     "portfolio_growth_pct": 9.3,
     "strategy_ranking": [
@@ -591,7 +591,7 @@
   },
   "recommendations": {
     "success": true,
-    "generated_at": "2026-07-15T16:12:54.060583+00:00",
+    "generated_at": "2026-07-15T17:29:33.526622+00:00",
     "label": "PAPER / RESEARCH ONLY",
     "recommendations": [
       {
@@ -606,7 +606,7 @@
   },
   "failures": {
     "success": true,
-    "generated_at": "2026-07-15T16:12:54.060669+00:00",
+    "generated_at": "2026-07-15T17:29:33.526707+00:00",
     "label": "PAPER / RESEARCH ONLY",
     "losing_trades": 1,
     "by_sector": [
@@ -704,7 +704,7 @@
   },
   "successes": {
     "success": true,
-    "generated_at": "2026-07-15T16:12:54.060862+00:00",
+    "generated_at": "2026-07-15T17:29:33.526877+00:00",
     "label": "PAPER / RESEARCH ONLY",
     "winning_trades": 2,
     "common_indicators": [
@@ -724,7 +724,7 @@
   },
   "timeline": {
     "success": true,
-    "generated_at": "2026-07-15T16:12:54.061027+00:00",
+    "generated_at": "2026-07-15T17:29:33.527049+00:00",
     "label": "PAPER / RESEARCH ONLY",
     "trading_days": 1,
     "trading_days_goal": 100,
@@ -738,7 +738,7 @@
   },
   "bugs": {
     "success": true,
-    "generated_at": "2026-07-15T16:12:54.062735+00:00",
+    "generated_at": "2026-07-15T17:29:33.528980+00:00",
     "label": "PAPER / RESEARCH ONLY",
     "checks_performed": 6,
     "issues": [],

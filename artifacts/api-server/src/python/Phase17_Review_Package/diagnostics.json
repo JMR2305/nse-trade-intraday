@@ -1,72 +1,72 @@
 {
-  "scan_id": "d467fffac5c0",
-  "snapshot_ts": "2026-07-15T16:07:01Z",
+  "scan_id": "09070889504f",
+  "snapshot_ts": "2026-07-15T17:27:59Z",
   "provider": "Yahoo Finance (yfinance)",
   "market_status": "Not Available",
   "diagnostics": {
     "success": true,
     "version": "15.0",
-    "generated_at": "2026-07-15T16:12:54Z",
+    "generated_at": "2026-07-15T17:29:33Z",
     "system_health": "OK",
     "api_status": "OK",
-    "context_build_latency_ms": 1.7,
-    "memory_usage_mb": 94.5,
+    "context_build_latency_ms": 1.0,
+    "memory_usage_mb": 94.9,
     "cache_status": [
       {
         "file": "phase7_scan_cache.json",
         "exists": true,
         "size_bytes": 65577,
-        "age_seconds": 314.0,
-        "modified_at": "2026-07-15T16:07:40Z"
+        "age_seconds": 58.0,
+        "modified_at": "2026-07-15T17:28:35Z"
       },
       {
         "file": "ai_decisions_cache.json",
         "exists": true,
         "size_bytes": 7235,
-        "age_seconds": 7888.0,
+        "age_seconds": 12487.0,
         "modified_at": "2026-07-15T14:01:26Z"
       },
       {
         "file": "opportunity_cache.json",
         "exists": true,
         "size_bytes": 10640,
-        "age_seconds": 7888.0,
+        "age_seconds": 12487.0,
         "modified_at": "2026-07-15T14:01:26Z"
       },
       {
         "file": "phase13_cache.json",
         "exists": true,
-        "size_bytes": 147521,
-        "age_seconds": 56.0,
-        "modified_at": "2026-07-15T16:11:58Z"
+        "size_bytes": 147519,
+        "age_seconds": 3.0,
+        "modified_at": "2026-07-15T17:29:30Z"
       },
       {
         "file": "market_context_cache.json",
         "exists": true,
         "size_bytes": 566,
-        "age_seconds": 7888.0,
+        "age_seconds": 12487.0,
         "modified_at": "2026-07-15T14:01:26Z"
       },
       {
         "file": "phase14_adjustments.json",
         "exists": true,
         "size_bytes": 12494,
-        "age_seconds": 194.0,
-        "modified_at": "2026-07-15T16:09:39Z"
+        "age_seconds": 4564.0,
+        "modified_at": "2026-07-15T16:13:29Z"
       },
       {
         "file": "phase15_consistency_report.json",
         "exists": true,
         "size_bytes": 17076,
-        "age_seconds": 96.0,
-        "modified_at": "2026-07-15T16:11:17Z"
+        "age_seconds": 4567.0,
+        "modified_at": "2026-07-15T16:13:26Z"
       },
       {
         "file": "phase15_audit_log.json",
         "exists": true,
         "size_bytes": 8108,
-        "age_seconds": 97.0,
-        "modified_at": "2026-07-15T16:11:17Z"
+        "age_seconds": 4567.0,
+        "modified_at": "2026-07-15T16:13:26Z"
       }
     ],
     "database_health": {
@@ -75,10 +75,10 @@
     },
     "market_feed_status": "UNKNOWN",
     "scan": {
-      "last_scan_id": "d467fffac5c0",
-      "last_successful_scan": "2026-07-15T16:07:01Z",
-      "last_failed_scan": "2026-07-15T16:07:01Z",
-      "scan_duration_s": 38.87,
+      "last_scan_id": "09070889504f",
+      "last_successful_scan": "2026-07-15T17:27:59Z",
+      "last_failed_scan": "2026-07-15T17:27:59Z",
+      "scan_duration_s": 35.75,
       "symbols_with_errors": 2,
       "stale": false
     },
@@ -107,6 +107,6 @@
       "DO_NOT_TRADE": 2
     }
   },
-  "generated_at": "2026-07-15 16:13 UTC",
+  "generated_at": "2026-07-15 17:30 UTC",
   "label": "PAPER / RESEARCH ONLY"
 }

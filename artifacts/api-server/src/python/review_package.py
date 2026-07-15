@@ -1,5 +1,5 @@
 """
-review_package.py — Phase Review Package generator (current phase: 16).
+review_package.py — Phase Review Package generator (current phase: 18).
 
 STANDING RULE: every change made to the application must also be reflected in
 this review package (implementation summary, feature matrix, tests, data
@@ -37,7 +37,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PHASE = 17
+PHASE = 18
 PACKAGE_NAME = f"Phase{PHASE}_Review_Package"
 PACKAGE_DIR = os.path.join(BASE_DIR, PACKAGE_NAME)
 ZIP_PATH = os.path.join(BASE_DIR, f"{PACKAGE_NAME}.zip")
@@ -193,15 +193,63 @@ def _csv_risk(out: str, risk: dict):
 
 # ── Reports ──────────────────────────────────────────────────────────────────
 
-def _implementation_summary(t15: dict, t16: dict, t17: dict) -> str:
-    return f"""# Phase {PHASE} Implementation Summary — Automated QA, Regression Testing & Release Validation
+def _implementation_summary(t15: dict, t16: dict, t17: dict, t18: dict) -> str:
+    return f"""# Phase {PHASE} Implementation Summary — Research Notebook, Daily Validation Workflow & Evidence Accumulation
 
 - **Phase:** {PHASE}
 - **Date:** {_now()}
 - **Scope rule respected:** feature freeze — no new strategies, indicators, AI scoring
-  changes or paper-trading behaviour changes; validation only; PAPER / RESEARCH ONLY.
+  changes or paper-trading behaviour changes; observation/journaling only;
+  PAPER / RESEARCH ONLY.
 
-## Phase 17 features added (latest)
+## Phase 18 features added (latest)
+- Research Notebook — permanent daily journal, one entry per IST trading date,
+  auto-created after the first successful scan of the day, updated intraday,
+  finalized after market close (reopenable). Records market context, scan
+  metadata (scan ID, snapshot, provider, model version), AI recommendations,
+  data quality, trade decision journal (7 decision states incl. REJECTED BY
+  RISK / DATA QUALITY with blocking rule), paper-trade opens/closes, EOD
+  reconciliation (P&L, stops/targets hit, false-positive marking).
+- Daily validation checklist — before/during/after-market items evaluated from
+  real stored data (scan freshness, regime consistency, capital conservation,
+  cross-page consistency, notes completed), each PASS/WARNING/FAIL.
+- User notes & lessons — free-text notes with tags/categories, lessons learned,
+  follow-up actions; notes never alter trading logic; preserved across entry
+  refreshes and searchable (full research-memory search: text, tag, strategy,
+  sector, regime, symbol, outcome, decision state, date range, stale-only).
+- Weekly / monthly research reviews — win rate, profit factor, expectancy,
+  drawdown, best/worst strategy/sector/regime, confidence alignment,
+  calibration bands (<50 / 50-70 / >=70), QA trend, portfolio growth —
+  "Insufficient Data" below minimum sample sizes.
+- Evidence accumulation tracker — progress vs configurable readiness targets
+  (sessions, completed trades, regimes covered, strategy sample sizes,
+  QA stability, days since last critical issue). Advisory only.
+- Issue tracker — ISS-#### operational issue log (severity, page, scan/trade
+  links, status lifecycle) + exports.
+- Exports — Daily_Notebook PDF/JSON/CSV, weekly/monthly/evidence JSON,
+  Issue_Log.csv/json, Notes_Export.csv and Research_Notebook_Archive.zip
+  (README, daily entries, reviews, issues, notes, validation summary,
+  trade links; secrets filtered).
+- Dashboard — "Research Notebook" page (route /research-notebook, System
+  group): Today / History / Reviews / Evidence / Issues / Search tabs.
+
+## Phase 18 files
+- `src/python/phase18_notebook.py`, `phase18_reviews.py`, `phase18_exports.py`,
+  `test_phase18.py`
+- `src/routes/phase18.ts` (registered in `src/routes/index.ts`)
+- `src/python/main.py` — phase18_* CLI commands
+- `src/python/live_scan_engine.py` — post-scan hook auto-creates the day's
+  draft entry (silent failure; never affects scan results)
+- `trading-dashboard/src/pages/ResearchNotebook.tsx` (+ route and nav entry)
+
+## Phase 18 APIs added
+- POST /api/phase18/ensure | finalize | reopen | notes | decision | search |
+  issues | targets | exports
+- GET /api/phase18/entry | entries | issues | targets | evidence |
+  review/daily | review/weekly | review/monthly | exports/:file (download)
+- PATCH /api/phase18/issues
+
+## Carried forward from Phase 17 (Automated QA & Release Validation)
 - Automated QA engine — one-click complete system validation: all backend test
   suites (Phases 7-16), TypeScript build checks, API validation (status, latency,
   required fields, 404 handling), data-store integrity, paper-trading integrity
@@ -221,19 +269,7 @@ def _implementation_summary(t15: dict, t16: dict, t17: dict) -> str:
   not implemented instead of fabricated; legacy trades missing metadata are
   warnings, not failures.
 
-## Phase 17 files
-- `src/python/phase17_qa.py`, `phase17_reports.py`, `test_phase17.py`
-- `src/routes/phase17.ts` (registered in `src/routes/index.ts`)
-- `src/python/main.py` — phase17_* CLI commands (run, last, history, dashboard,
-  build_info, reports)
-- `trading-dashboard/src/pages/SystemValidation.tsx` (+ route and nav entry)
-
-## Phase 17 APIs added
-- GET /api/phase17/build-info | dashboard | history | last,
-  POST /api/phase17/run (background job) + GET /api/phase17/run/status,
-  POST /api/phase17/reports, GET /api/phase17/reports/:file (download).
-
-## Carried forward from Phase 16 (latest prior)
+## Carried forward from Phase 16
 - Validation engine — 14 analysis sections: validation overview, strategy scorecard
   (advisory statuses only, nothing auto-disabled), confidence-band validation,
   market-regime validation, sector validation, AI decision validation, trade review
@@ -260,6 +296,7 @@ def _implementation_summary(t15: dict, t16: dict, t17: dict) -> str:
 - None. Persistence remains JSON file storage (no SQL database).
 
 ## Tests
+- Phase 18 suite: {t18['passed']} passed, {t18['failed']} failed{'' if t18['ran'] else f' ({NA} — suite did not run)'}
 - Phase 17 suite: {t17['passed']} passed, {t17['failed']} failed{'' if t17['ran'] else f' ({NA} — suite did not run)'}
 - Phase 16 suite: {t16['passed']} passed, {t16['failed']} failed{'' if t16['ran'] else f' ({NA} — suite did not run)'}
 - Phase 15 suite: {t15['passed']} passed, {t15['failed']} failed{'' if t15['ran'] else f' ({NA} — suite did not run)'}
@@ -272,7 +309,8 @@ def _implementation_summary(t15: dict, t16: dict, t17: dict) -> str:
   consistency checker until a fresh pipeline run resynchronises them.
 
 ## Pending work
-- Accumulate trades toward validation milestones (100 trading days / 500 trades);
+- Accumulate evidence toward Phase 18 readiness targets (default: 50 sessions,
+  100 completed paper trades, 3 market regimes, 20+ trades per active strategy);
   period-aligned benchmark series.
 """
 
@@ -377,6 +415,15 @@ def build_package(screenshots_dir: str | None = None) -> dict:
     t17 = _run_tests("test_phase17.py")
     if not t17["ran"]:
         warnings.append("Phase 17 test suite could not be executed")
+    t18 = _run_tests("test_phase18.py")
+    if not t18["ran"]:
+        warnings.append("Phase 18 test suite could not be executed")
+    phase18_entries = safe("phase18 notebook entries",
+                           lambda: __import__("phase18_notebook").list_entries(), {})
+    phase18_evidence = safe("phase18 evidence tracker",
+                            lambda: __import__("phase18_reviews").evidence_tracker(), {})
+    phase18_weekly = safe("phase18 weekly review",
+                          lambda: __import__("phase18_reviews").weekly_review(), {})
     phase17_last = safe("phase17 last validation run",
                         lambda: __import__("phase17_qa").last_run(), {})
     phase17_dash = safe("phase17 release dashboard",
@@ -442,10 +489,16 @@ def build_package(screenshots_dir: str | None = None) -> dict:
                  "reason": "No Phase 17 complete validation run recorded yet"})
     _write_json(os.path.join(json_dir, "phase17_release_dashboard.json"),
                 phase17_dash or {"available": False, "reason": INSUFFICIENT})
+    _write_json(os.path.join(json_dir, "phase18_notebook_entries.json"),
+                phase18_entries or {"available": False, "reason": INSUFFICIENT})
+    _write_json(os.path.join(json_dir, "phase18_evidence_tracker.json"),
+                phase18_evidence or {"available": False, "reason": INSUFFICIENT})
+    _write_json(os.path.join(json_dir, "phase18_weekly_review.json"),
+                phase18_weekly or {"available": False, "reason": INSUFFICIENT})
 
     # 4/5. Reports
     open(os.path.join(PACKAGE_DIR, "implementation_summary.md"), "w").write(
-        _implementation_summary(t15, t16, t17))
+        _implementation_summary(t15, t16, t17, t18))
     open(os.path.join(PACKAGE_DIR, "production_readiness.md"), "w").write(
         _production_readiness_md(readiness, consistency, quality, diagnostics, t15))
 
@@ -471,6 +524,18 @@ def build_package(screenshots_dir: str | None = None) -> dict:
         ["Validation history + regression comparison", "Yes", "Yes", "Yes", "Last 100 runs"],
         ["Automated QA reports (PDF/XLSX/CSV/JSON)", "Yes", "Yes", "Yes", "phase17_reports/"],
         ["System Validation dashboard page", "Yes", "Yes", "Yes", "Route /system-validation"],
+        ["Research Notebook (daily journal, auto-created per scan day)", "Yes", "Yes", "Yes",
+         "Phase 18 — decision journal, checklist, notes, finalize/reopen"],
+        ["Daily validation checklist (before/during/after market)", "Yes", "Yes", "Yes",
+         "Evaluated from real stored data"],
+        ["Weekly/monthly research reviews + calibration bands", "Yes", "Yes", "Yes",
+         "Insufficient Data below minimum samples"],
+        ["Evidence accumulation tracker (configurable targets)", "Yes", "Yes", "Yes",
+         "Advisory only"],
+        ["Research memory search + issue tracker (ISS-####)", "Yes", "Yes", "Yes", ""],
+        ["Notebook exports + Research_Notebook_Archive.zip", "Yes", "Yes", "Yes",
+         "Secrets filtered; README included"],
+        ["Research Notebook dashboard page", "Yes", "Yes", "Yes", "Route /research-notebook"],
         ["Review package generator", "Yes", "Yes", "Partial", "Tested via generation run itself"],
         ["Paper trading engine / scanner / strategies", "Yes", "Yes", "Yes", "Built in earlier phases 1-14"],
         ["Real-money execution", "No", "No", "No", "Deliberately not implemented — research only"],
@@ -482,6 +547,8 @@ def build_package(screenshots_dir: str | None = None) -> dict:
     t13 = _run_tests("test_phase13.py")
     t14 = _run_tests("test_phase14.py")
     test_rows = [
+        ["Unit Tests — Phase 18 suite", t18["passed"] if t18["ran"] else NA,
+         t18["failed"] if t18["ran"] else NA, 0],
         ["Unit Tests — Phase 17 suite", t17["passed"] if t17["ran"] else NA,
          t17["failed"] if t17["ran"] else NA, 0],
         ["Unit Tests — Phase 16 suite", t16["passed"] if t16["ran"] else NA,
@@ -526,7 +593,7 @@ This package allows a complete external technical review without manual screensh
 |---|---|
 | screenshots/ | Full-page 1920px PNG captures of every registered page (no placeholders) |
 | csv/ | Opportunities, signals, portfolio, performance, AI performance, notifications, learning, trade history, risk analytics |
-| json/ | Scan snapshot, AI decisions, dashboard/portfolio/learning summaries, diagnostics, production readiness, Phase 16 validation (all 14 sections), Phase 17 QA last run + release dashboard |
+| json/ | Scan snapshot, AI decisions, dashboard/portfolio/learning summaries, diagnostics, production readiness, Phase 16 validation (all 14 sections), Phase 17 QA last run + release dashboard, Phase 18 notebook entries + evidence tracker + weekly review |
 | implementation_summary.md | What Phase {PHASE} added: features, files, APIs, components, known issues, pending work |
 | production_readiness.md | Runtime, build, consistency, data quality, learning/AI/risk/broker status, overall readiness |
 | feature_matrix.csv | Feature / Implemented / Working / Tested / Comments |
@@ -562,7 +629,7 @@ anything missing is marked "{NA}" or "{INSUFFICIENT}" — nothing is fabricated.
         "file_count": n_files,
         "screenshot_count": n_shots,
         "csv_count": 9,
-        "json_count": 10,
+        "json_count": 13,
         "reports": ["implementation_summary.md", "production_readiness.md", "README.md"],
         "generation_seconds": round(time.time() - t0, 1),
         "warnings": warnings,

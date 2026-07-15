@@ -1521,6 +1521,72 @@ def main():
         elif command == "phase17_reports":
             from phase17_reports import build_reports
             result = build_reports()
+
+        # ── Phase 18: Research Notebook & Evidence Accumulation ──────────
+        elif command == "phase18_ensure":
+            from phase18_notebook import ensure_today_entry
+            result = ensure_today_entry()
+        elif command == "phase18_entry":
+            from phase18_notebook import get_entry
+            result = get_entry(sys.argv[2] if len(sys.argv) > 2 else None)
+        elif command == "phase18_list":
+            from phase18_notebook import list_entries
+            result = list_entries()
+        elif command == "phase18_notes":
+            from phase18_notebook import save_notes
+            payload = json.loads(sys.argv[2])
+            result = save_notes(**payload)
+        elif command == "phase18_decision":
+            from phase18_notebook import record_user_decision
+            payload = json.loads(sys.argv[2])
+            result = record_user_decision(**payload)
+        elif command == "phase18_finalize":
+            from phase18_notebook import finalize_day
+            result = finalize_day(sys.argv[2] if len(sys.argv) > 2 else None)
+        elif command == "phase18_reopen":
+            from phase18_notebook import reopen_day
+            result = reopen_day(sys.argv[2])
+        elif command == "phase18_search":
+            from phase18_notebook import search
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = search(**payload)
+        elif command == "phase18_issue_add":
+            from phase18_notebook import add_issue
+            result = add_issue(**json.loads(sys.argv[2]))
+        elif command == "phase18_issue_update":
+            from phase18_notebook import update_issue
+            result = update_issue(**json.loads(sys.argv[2]))
+        elif command == "phase18_issues":
+            from phase18_notebook import list_issues
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = list_issues(**payload)
+        elif command == "phase18_targets":
+            from phase18_notebook import get_targets
+            result = {"success": True, "targets": get_targets()}
+        elif command == "phase18_targets_update":
+            from phase18_notebook import update_targets
+            result = update_targets(json.loads(sys.argv[2]))
+        elif command == "phase18_daily_review":
+            from phase18_reviews import daily_review
+            result = daily_review(sys.argv[2] if len(sys.argv) > 2 else None)
+        elif command == "phase18_weekly_review":
+            from phase18_reviews import weekly_review
+            result = weekly_review(sys.argv[2] if len(sys.argv) > 2 else None)
+        elif command == "phase18_monthly_review":
+            from phase18_reviews import monthly_review
+            result = monthly_review(sys.argv[2] if len(sys.argv) > 2 else None)
+        elif command == "phase18_evidence":
+            from phase18_reviews import evidence_tracker
+            result = evidence_tracker()
+        elif command == "phase18_export_daily":
+            from phase18_exports import export_daily
+            result = export_daily(sys.argv[2] if len(sys.argv) > 2 else None)
+        elif command == "phase18_export_all":
+            from phase18_exports import export_all
+            result = export_all()
+        elif command == "phase18_archive":
+            from phase18_exports import build_archive
+            result = build_archive()
         else:
             error_msg = f"Unknown command: {command}"
 

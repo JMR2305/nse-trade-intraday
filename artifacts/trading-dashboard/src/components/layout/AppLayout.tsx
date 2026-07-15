@@ -101,6 +101,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     {
       label: "System",
       items: [
+        { href: "/research-notebook", label: "Research Notebook", icon: BookOpenText },
         { href: "/validation", label: "Paper Trading Validation", icon: ShieldCheck },
         { href: "/system-validation", label: "System Validation", icon: ShieldCheck },
         { href: "/risk", label: "Risk Management", icon: ShieldCheck },

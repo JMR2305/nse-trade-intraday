@@ -16,7 +16,9 @@ if (!OUT_DIR) {
   console.log(JSON.stringify({ error: "usage: node capture_screenshots.mjs <output_dir>" }));
   process.exit(1);
 }
-fs.rmSync(OUT_DIR, { recursive: true, force: true });
+if (!process.env.RESUME) {
+  fs.rmSync(OUT_DIR, { recursive: true, force: true });
+}
 fs.mkdirSync(OUT_DIR, { recursive: true });
 
 const BASE = "http://localhost:80/trading-dashboard";
@@ -61,6 +63,9 @@ const PAGES = [
   ["35_RiskManagement", "/risk"],
   ["36_Phase12Intelligence", "/phase12"],
   ["37_Phase13InstitutionalAI", "/phase13"],
+  ["38_PaperTradingValidation", "/validation"],
+  ["39_SystemValidation", "/system-validation"],
+  ["40_ResearchNotebook", "/research-notebook"],
 ];
 
 function chromiumPath() {
@@ -89,6 +94,10 @@ const main = async () => {
     await page.setViewport({ width: 1920, height: 1080 });
     for (const [name, route] of PAGES) {
       const url = `${BASE}${route}`;
+      if (process.env.RESUME && fs.existsSync(path.join(OUT_DIR, `${name}.png`))) {
+        captured.push({ page: name, route, file: path.join(OUT_DIR, `${name}.png`), skipped: true });
+        continue;
+      }
       try {
         await page.goto(url, { waitUntil: "domcontentloaded", timeout: 20000 });
         await new Promise((r) => setTimeout(r, 3000)); // let data load & charts animate in

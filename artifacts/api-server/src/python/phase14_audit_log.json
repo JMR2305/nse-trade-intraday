@@ -940,5 +940,167 @@
     "phase14_summary.csv"
    ]
   }
+ },
+ {
+  "id": "5f4c5ecdb1",
+  "ts": "2026-07-15T17:30:05.942002+00:00",
+  "event_type": "challenger_created",
+  "actor": "system",
+  "detail": {
+   "model_version": "p14_challenger_v1"
+  }
+ },
+ {
+  "id": "2f889ab198",
+  "ts": "2026-07-15T17:30:05.946104+00:00",
+  "event_type": "promotion_blocked",
+  "actor": "tester",
+  "detail": {
+   "model_version": "p14_challenger_v1",
+   "failed": [
+    "\u2265100 completed OOS trades",
+    "\u22653 independent test windows"
+   ]
+  }
+ },
+ {
+  "id": "4b94afc487",
+  "ts": "2026-07-15T17:30:05.947383+00:00",
+  "event_type": "model_rejected",
+  "actor": "tester",
+  "detail": {
+   "model_version": "p14_challenger_v1",
+   "notes": ""
+  }
+ },
+ {
+  "id": "6b200ed783",
+  "ts": "2026-07-15T17:30:05.950369+00:00",
+  "event_type": "model_rollback",
+  "actor": "human",
+  "detail": {
+   "restored": "p13_champion_v1",
+   "demoted": "tmp_champ"
+  }
+ },
+ {
+  "id": "2636a67150",
+  "ts": "2026-07-15T17:30:05.986923+00:00",
+  "event_type": "bundle_exported",
+  "actor": "system",
+  "detail": {
+   "files": [
+    "phase14_diagnostic_bundle.json",
+    "phase14_summary.csv"
+   ]
+  }
+ },
+ {
+  "id": "b331d9f4f4",
+  "ts": "2026-07-15T18:01:03.477111+00:00",
+  "event_type": "challenger_created",
+  "actor": "system",
+  "detail": {
+   "model_version": "p14_challenger_v1"
+  }
+ },
+ {
+  "id": "e36ff640d2",
+  "ts": "2026-07-15T18:01:03.489171+00:00",
+  "event_type": "promotion_blocked",
+  "actor": "tester",
+  "detail": {
+   "model_version": "p14_challenger_v1",
+   "failed": [
+    "\u2265100 completed OOS trades",
+    "\u22653 independent test windows"
+   ]
+  }
+ },
+ {
+  "id": "a129331007",
+  "ts": "2026-07-15T18:01:03.493292+00:00",
+  "event_type": "model_rejected",
+  "actor": "tester",
+  "detail": {
+   "model_version": "p14_challenger_v1",
+   "notes": ""
+  }
+ },
+ {
+  "id": "751a1c6f2a",
+  "ts": "2026-07-15T18:01:03.502592+00:00",
+  "event_type": "model_rollback",
+  "actor": "human",
+  "detail": {
+   "restored": "p13_champion_v1",
+   "demoted": "tmp_champ"
+  }
+ },
+ {
+  "id": "1db655a9dc",
+  "ts": "2026-07-15T18:01:03.597206+00:00",
+  "event_type": "bundle_exported",
+  "actor": "system",
+  "detail": {
+   "files": [
+    "phase14_diagnostic_bundle.json",
+    "phase14_summary.csv"
+   ]
+  }
+ },
+ {
+  "id": "a294cb39ca",
+  "ts": "2026-07-15T18:06:36.963501+00:00",
+  "event_type": "challenger_created",
+  "actor": "system",
+  "detail": {
+   "model_version": "p14_challenger_v1"
+  }
+ },
+ {
+  "id": "21ac5ca3d2",
+  "ts": "2026-07-15T18:06:36.977532+00:00",
+  "event_type": "promotion_blocked",
+  "actor": "tester",
+  "detail": {
+   "model_version": "p14_challenger_v1",
+   "failed": [
+    "\u2265100 completed OOS trades",
+    "\u22653 independent test windows"
+   ]
+  }
+ },
+ {
+  "id": "748410b99b",
+  "ts": "2026-07-15T18:06:36.982606+00:00",
+  "event_type": "model_rejected",
+  "actor": "tester",
+  "detail": {
+   "model_version": "p14_challenger_v1",
+   "notes": ""
+  }
+ },
+ {
+  "id": "8c1bab30af",
+  "ts": "2026-07-15T18:06:36.994669+00:00",
+  "event_type": "model_rollback",
+  "actor": "human",
+  "detail": {
+   "restored": "p13_champion_v1",
+   "demoted": "tmp_champ"
+  }
+ },
+ {
+  "id": "55ed067afd",
+  "ts": "2026-07-15T18:06:37.134949+00:00",
+  "event_type": "bundle_exported",
+  "actor": "system",
+  "detail": {
+   "files": [
+    "phase14_diagnostic_bundle.json",
+    "phase14_summary.csv"
+   ]
+  }
  }
 ]

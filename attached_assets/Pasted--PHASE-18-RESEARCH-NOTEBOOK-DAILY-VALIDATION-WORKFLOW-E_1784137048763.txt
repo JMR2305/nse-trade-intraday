@@ -1,0 +1,530 @@
+# PHASE 18 — RESEARCH NOTEBOOK, DAILY VALIDATION WORKFLOW & EVIDENCE ACCUMULATION
+
+## OBJECTIVE
+
+The NSE Trader platform is now engineering-complete for research and paper trading.
+
+This phase must not add new trading strategies, indicators, scoring logic, broker execution, or major dashboards.
+
+The goal is to create a disciplined daily research workflow that records what the platform saw, what it recommended, what the user did, what happened afterward, and what was learned.
+
+This phase is strictly:
+
+- Research only
+- Paper trading only
+- No automatic live orders
+- No automatic model promotion
+- No automatic rule changes
+- Human review required
+
+======================================================================
+
+## 1. CREATE A RESEARCH NOTEBOOK
+
+Add a new sidebar page named:
+
+Research Notebook
+
+The page should act as a permanent daily research journal.
+
+Each trading day should have one notebook entry containing:
+
+- Trading date
+- Market open and close status
+- Market regime
+- NIFTY trend
+- BANK NIFTY trend
+- India VIX
+- Market breadth
+- Strongest sectors
+- Weakest sectors
+- Latest scan ID
+- Scan timestamp
+- Data provider
+- Data-quality summary
+- Best opportunities
+- Stocks to avoid
+- Open paper positions
+- New paper trades
+- Closed paper trades
+- Trades skipped
+- Risk warnings
+- Validation results
+- System-health summary
+- User notes
+- Lessons learned
+- Follow-up actions
+
+Every notebook entry must be linked to the exact canonical scan snapshot used that day.
+
+======================================================================
+
+## 2. AUTOMATIC DAILY ENTRY CREATION
+
+Automatically create one draft notebook entry after the first successful scan of each trading day.
+
+Update the same entry throughout the day instead of creating duplicates.
+
+At market close, finalize the notebook entry with:
+
+- End-of-day portfolio value
+- Daily paper P&L
+- Trades opened
+- Trades closed
+- Stops hit
+- Targets hit
+- Exit recommendations
+- Missed opportunities
+- False-positive signals
+- Data-quality issues
+- Alerts generated
+- Validation warnings
+- QA status
+- Final daily summary
+
+Use Asia/Kolkata timezone.
+
+Do not create duplicate entries for the same trading date.
+
+======================================================================
+
+## 3. TRADE DECISION JOURNAL
+
+For every stock reviewed during the day, record:
+
+- Symbol
+- Raw signal
+- Final action
+- Confidence
+- Opportunity score
+- Strategy
+- Market regime
+- Sector strength
+- Relative strength
+- Risk/reward
+- Data-quality score
+- Blocking rule
+- Explanation
+- Whether the user took the paper trade
+- Whether the user skipped it
+- User reason for taking or skipping
+- Subsequent outcome when available
+
+Possible decision states:
+
+- PAPER TRADE TAKEN
+- SKIPPED
+- WATCHED
+- REJECTED BY RISK
+- REJECTED BY DATA QUALITY
+- NO ACTION
+- POSITION EXITED
+
+======================================================================
+
+## 4. USER NOTES AND MANUAL REVIEW
+
+Allow the user to add notes for:
+
+- Market observations
+- Why a paper trade was taken
+- Why a recommendation was ignored
+- Emotional or behavioural observations
+- Execution issues
+- Data-quality issues
+- Strategy concerns
+- Ideas to test later
+- Bugs noticed
+- Follow-up tasks
+
+Support:
+
+- Save draft
+- Finalize day
+- Edit notes
+- Add tags
+- Search notes
+- Filter by strategy, sector, regime, symbol, outcome, and date
+
+Do not allow notes to alter trading logic automatically.
+
+======================================================================
+
+## 5. DAILY VALIDATION CHECKLIST
+
+Add a daily checklist inside each notebook entry:
+
+Before market:
+
+- Data provider healthy
+- Market calendar valid
+- Latest historical data available
+- Canonical scan context available
+- Paper-trading mode confirmed
+- Live execution disabled
+- Kill switch available
+- No critical QA failures
+
+During market:
+
+- Scan completed successfully
+- No stale-data violations
+- No cross-page mismatches
+- No duplicate paper trades
+- No duplicate alerts
+- Open positions have stop and target
+- Risk limits respected
+
+After market:
+
+- Daily notebook finalized
+- Paper trades reconciled
+- Daily P&L reconciled
+- Validation report generated
+- Errors reviewed
+- Alerts reviewed
+- Lessons recorded
+
+Show PASS, FAIL, WARNING, or NOT APPLICABLE for each item.
+
+======================================================================
+
+## 6. DAILY REVIEW SUMMARY
+
+Generate an evidence-based daily summary containing:
+
+- What the market did
+- What the AI recommended
+- What paper trades were taken
+- What was skipped
+- What worked
+- What failed
+- Which strategies were strongest
+- Which strategies were weakest
+- Which sectors performed best
+- Which sectors performed worst
+- Whether confidence aligned with outcomes
+- Whether any risk or data-quality issues occurred
+- What should be monitored next session
+
+Use only stored platform data.
+
+Do not invent explanations.
+
+======================================================================
+
+## 7. WEEKLY RESEARCH REVIEW
+
+At the end of each trading week, generate a weekly notebook review.
+
+Include:
+
+- Trading days completed
+- Completed paper trades
+- Open paper trades
+- Weekly return
+- Win rate
+- Profit factor
+- Expectancy
+- Maximum drawdown
+- Best strategy
+- Worst strategy
+- Best sector
+- Worst sector
+- Best regime
+- Worst regime
+- Highest-confidence winner
+- Highest-confidence loser
+- Common failure patterns
+- Common success patterns
+- Data-quality incidents
+- QA failures
+- Cross-page consistency issues
+- Recommended research questions for the next week
+
+All recommendations must remain advisory.
+
+======================================================================
+
+## 8. MONTHLY RESEARCH REVIEW
+
+Generate a monthly research review containing:
+
+- Portfolio growth
+- Number of paper trades
+- Strategy ranking
+- Sector ranking
+- Regime performance
+- Confidence calibration
+- Opportunity-score validation
+- Risk metrics
+- Drawdown analysis
+- Data-provider reliability
+- QA trend
+- Validation trend
+- Learning progress
+- Open research questions
+- Human-approved changes made during the month
+- Changes rejected or deferred
+- Production-readiness progress
+
+Do not recommend live deployment automatically.
+
+======================================================================
+
+## 9. EVIDENCE ACCUMULATION TRACKER
+
+Add a progress section showing:
+
+- Trading sessions completed
+- Completed paper trades
+- Minimum target trades
+- Market regimes covered
+- Strategy sample sizes
+- Sector sample sizes
+- Confidence-band sample sizes
+- Number of successful validation runs
+- Number of critical QA failures
+- Number of stale-data incidents
+- Number of cross-page mismatches
+- Days since last critical issue
+
+Suggested readiness targets:
+
+- 50 trading sessions
+- 100 completed paper trades
+- At least 3 market regimes represented
+- No unresolved critical QA issue
+- Stable data-quality performance
+- Stable cross-page consistency
+- All paper positions fully managed
+- Confidence calibration based on sufficient evidence
+
+These targets must remain configurable.
+
+======================================================================
+
+## 10. SEARCHABLE RESEARCH MEMORY
+
+Create a searchable research history.
+
+Allow queries such as:
+
+- Show all Trend Rider losses in sideways markets
+- Show all skipped HDFCBANK opportunities
+- Show all days with stale data
+- Show all high-confidence losing trades
+- Show all Banking-sector wins
+- Show all days where the strongest sector changed
+- Show all notes tagged execution issue
+- Show all unresolved bugs
+- Show all human-approved research changes
+
+Results must link back to:
+
+- Notebook date
+- Scan ID
+- Trade ID
+- Strategy
+- Symbol
+- Report
+- Validation run
+
+======================================================================
+
+## 11. TRADE REPLAY LINKING
+
+Link notebook entries to existing Trade Replay.
+
+For every trade, provide:
+
+- Open Trade Replay
+- View entry snapshot
+- View exit snapshot
+- View AI explanation
+- View risk checks
+- View user notes
+- View post-trade lesson
+
+Do not duplicate Trade Replay logic.
+
+Reuse existing stored trade and scan records.
+
+======================================================================
+
+## 12. BUG AND ISSUE TRACKING
+
+Allow notebook entries to record operational issues.
+
+Fields:
+
+- Issue ID
+- Date
+- Severity
+- Page
+- Description
+- Related scan ID
+- Related trade ID
+- Reproducible
+- Status
+- Resolution
+- Resolved date
+- Notes
+
+Statuses:
+
+- OPEN
+- INVESTIGATING
+- FIXED
+- VERIFIED
+- DEFERRED
+
+Do not create a separate project-management system.
+
+Keep it lightweight and tied to trading-day evidence.
+
+======================================================================
+
+## 13. EXPORTS
+
+Add exports for:
+
+- Daily Notebook PDF
+- Daily Notebook JSON
+- Daily Notebook CSV
+- Weekly Research Review
+- Monthly Research Review
+- Evidence Accumulation Report
+- Issue Log
+- Notes Export
+- Complete Research Notebook Archive
+
+Create a downloadable ZIP:
+
+Research_Notebook_Archive.zip
+
+Include:
+
+- Daily entries
+- Weekly reviews
+- Monthly reviews
+- Trade links
+- Issue log
+- Validation summaries
+- QA summaries
+- README
+
+Exclude credentials, secrets, tokens, and private broker data.
+
+======================================================================
+
+## 14. AUTOMATION SAFETY
+
+The notebook may automatically:
+
+- Create draft entries
+- Attach scans
+- Attach paper trades
+- Attach validation results
+- Generate summaries
+- Generate reports
+
+The notebook must never automatically:
+
+- Place trades
+- Close trades
+- Change position size
+- Change confidence thresholds
+- Promote models
+- Enable strategies
+- Disable strategies
+- Change risk limits
+- Connect live execution
+
+Human approval remains mandatory for all trading or model changes.
+
+======================================================================
+
+## 15. DATA INTEGRITY
+
+Every notebook record must store:
+
+- source scan ID
+- source snapshot timestamp
+- data provider
+- data age
+- model version
+- calibrator version
+- paper-trading mode
+- live execution enabled: false
+- record creation timestamp
+- last updated timestamp
+
+Do not mix information from different scans without clearly labelling it.
+
+If a section uses an older scan, display:
+
+“Historical source — not current scan.”
+
+======================================================================
+
+## 16. TESTING
+
+Add tests for:
+
+- One notebook entry per trading day
+- No duplicate daily entries
+- Correct Asia/Kolkata date handling
+- Correct scan linkage
+- Correct trade linkage
+- No cross-scan mixing
+- Draft and finalized states
+- Search and filters
+- Weekly review generation
+- Monthly review generation
+- Exports
+- Issue tracking
+- No automatic trading action
+- No model changes
+- No secrets in exports
+- Existing Phase 17 validation remains passing
+
+======================================================================
+
+## 17. ACCEPTANCE CRITERIA
+
+Phase 18 is complete only when:
+
+1. A daily notebook entry is created after the first successful scan.
+2. The entry updates throughout the same trading day.
+3. The day can be finalized after market close.
+4. Every entry links to the canonical scan.
+5. Paper trades and outcomes are linked correctly.
+6. User notes can be saved and searched.
+7. Daily, weekly, and monthly reviews are generated.
+8. Evidence accumulation is visible.
+9. Issue tracking works.
+10. Exports work.
+11. No trading logic changes occur.
+12. No real orders can be placed.
+13. All Phase 17 QA checks still pass.
+
+======================================================================
+
+## FINAL DELIVERABLE
+
+Provide a Research Notebook that becomes the permanent audit and learning record for the platform.
+
+At completion, generate:
+
+- Phase18_Review_Package.zip
+- Research_Notebook_Archive.zip
+- Daily notebook sample
+- Weekly review sample
+- Monthly review sample
+- Evidence accumulation report
+- Issue log
+- Test results
+- Confirmation that live execution remains disabled
+
+Do not add new indicators, strategies, scoring logic, or broker execution.

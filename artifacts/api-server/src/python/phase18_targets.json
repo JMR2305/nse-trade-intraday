@@ -1,0 +1,9 @@
+{
+  "trading_sessions": 50,
+  "completed_paper_trades": 100,
+  "market_regimes": 3,
+  "min_strategy_sample": 20,
+  "min_confidence_band_sample": 15,
+  "max_unresolved_critical_issues": 0,
+  "note": "Configurable readiness targets \u2014 advisory only, never auto-promote."
+}

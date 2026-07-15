@@ -1,0 +1,65 @@
+{
+  "success": true,
+  "trading_sessions_completed": 1,
+  "completed_paper_trades": 3,
+  "minimum_target_trades": 100,
+  "market_regimes_covered": [
+    "BULLISH",
+    "LOW_VOLATILITY",
+    "SIDEWAYS"
+  ],
+  "strategy_sample_sizes": {
+    "AI Scan": 3
+  },
+  "sector_sample_sizes": {
+    "BANKING": 3
+  },
+  "confidence_band_sample_sizes": {
+    "<50": 0,
+    "50-70": 1,
+    ">=70": 2
+  },
+  "successful_validation_runs": 3,
+  "critical_qa_failures": 0,
+  "stale_data_incidents": 0,
+  "cross_page_mismatch_days": 1,
+  "days_since_last_critical_issue": "No critical issues recorded",
+  "targets": {
+    "trading_sessions": 50,
+    "completed_paper_trades": 100,
+    "market_regimes": 3,
+    "min_strategy_sample": 20,
+    "min_confidence_band_sample": 15,
+    "max_unresolved_critical_issues": 0,
+    "note": "Configurable readiness targets \u2014 advisory only, never auto-promote."
+  },
+  "progress": {
+    "trading_sessions": {
+      "value": 1,
+      "target": 50,
+      "pct": 2.0
+    },
+    "completed_paper_trades": {
+      "value": 3,
+      "target": 100,
+      "pct": 3.0
+    },
+    "market_regimes_covered": {
+      "value": 3,
+      "target": 3,
+      "regimes": [
+        "BULLISH",
+        "LOW_VOLATILITY",
+        "SIDEWAYS"
+      ],
+      "pct": 100.0
+    },
+    "unresolved_critical_issues": {
+      "value": 0,
+      "target": 0,
+      "ok": true
+    }
+  },
+  "readiness_note": "Evidence targets are advisory and configurable. Meeting them never triggers automatic live deployment.",
+  "label": "PAPER / RESEARCH ONLY"
+}

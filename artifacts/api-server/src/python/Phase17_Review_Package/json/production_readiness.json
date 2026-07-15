@@ -1,12 +1,12 @@
 {
   "success": true,
-  "generated_at": "2026-07-15T16:12:54Z",
+  "generated_at": "2026-07-15T17:29:33Z",
   "version": "15.0",
   "items": [
     {
       "item": "unified_scan_context",
       "status": "PASS",
-      "detail": "Canonical scan d467fffac5c0 \u2014 single scan_id/snapshot_ts: True"
+      "detail": "Canonical scan 09070889504f \u2014 single scan_id/snapshot_ts: True"
     },
     {
       "item": "cross_page_consistency",
@@ -16,7 +16,7 @@
     {
       "item": "no_stale_data",
       "status": "PASS",
-      "detail": "Scan age 5m"
+      "detail": "Scan age 1m"
     },
     {
       "item": "data_quality_engine",
@@ -51,7 +51,7 @@
     {
       "item": "audit_logging",
       "status": "PASS",
-      "detail": "Audit record for scan d467fffac5c0"
+      "detail": "Audit record for scan 09070889504f"
     }
   ],
   "pass_count": 9,

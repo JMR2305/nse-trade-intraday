@@ -1,0 +1,18 @@
+{
+  "success": true,
+  "entries": [
+    {
+      "trading_date": "2026-07-15",
+      "state": "DRAFT",
+      "market_regime": "SIDEWAYS",
+      "scan_id": "9da319f3de18",
+      "trades_opened": 0,
+      "trades_closed": 0,
+      "notes": 5,
+      "tags": [],
+      "daily_pnl": 0
+    }
+  ],
+  "total": 1,
+  "label": "PAPER / RESEARCH ONLY"
+}

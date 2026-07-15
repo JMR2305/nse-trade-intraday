@@ -1,0 +1,65 @@
+{
+  "success": true,
+  "generated_at": "2026-07-15T18:06:30Z",
+  "version": "15.0",
+  "items": [
+    {
+      "item": "unified_scan_context",
+      "status": "PASS",
+      "detail": "Canonical scan 9da319f3de18 \u2014 single scan_id/snapshot_ts: True"
+    },
+    {
+      "item": "cross_page_consistency",
+      "status": "WARN",
+      "detail": "72 checks, 49 mismatches"
+    },
+    {
+      "item": "no_stale_data",
+      "status": "PASS",
+      "detail": "Scan age 8m"
+    },
+    {
+      "item": "data_quality_engine",
+      "status": "PASS",
+      "detail": "Avg score 91.2; DO_NOT_TRADE symbols: 2"
+    },
+    {
+      "item": "risk_engine",
+      "status": "PASS",
+      "detail": "Gate on INDUSINDBK: CLEARED (10/10 checks passed)"
+    },
+    {
+      "item": "paper_trading",
+      "status": "PASS",
+      "detail": "Portfolio value \u20b95465.00, 1 positions, 3 completed round trips"
+    },
+    {
+      "item": "ai_explainability",
+      "status": "PASS",
+      "detail": "12 explanation factors for INDUSINDBK"
+    },
+    {
+      "item": "ai_copilot",
+      "status": "PASS",
+      "detail": "Copilot answered from cached data only"
+    },
+    {
+      "item": "learning_module",
+      "status": "PASS",
+      "detail": "Learning active; no auto-promotion; human approval mandatory"
+    },
+    {
+      "item": "audit_logging",
+      "status": "PASS",
+      "detail": "Audit record for scan 9da319f3de18"
+    }
+  ],
+  "pass_count": 9,
+  "warn_count": 1,
+  "fail_count": 0,
+  "verdict": "READY_WITH_WARNINGS",
+  "remaining_issues": [
+    "cross_page_consistency: 72 checks, 49 mismatches"
+  ],
+  "label": "PAPER / RESEARCH ONLY"
+}

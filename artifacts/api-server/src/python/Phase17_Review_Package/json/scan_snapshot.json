@@ -1,6 +1,6 @@
 {
-  "scan_id": "d467fffac5c0",
-  "snapshot_ts": "2026-07-15T16:07:01Z",
+  "scan_id": "09070889504f",
+  "snapshot_ts": "2026-07-15T17:27:59Z",
   "universe": [
     "ADANIENT",
     "ADANIPORTS",
@@ -54,12 +54,12 @@
     "WIPRO"
   ],
   "universe_size": 50,
-  "duration_s": 38.87,
+  "duration_s": 35.75,
   "provider_health": {
     "provider": "Yahoo Finance (yfinance)",
     "provider_id": "yfinance",
     "connection_status": "DEGRADED",
-    "last_successful_fetch": "2026-07-15T16:07:34Z",
+    "last_successful_fetch": "2026-07-15T17:28:31Z",
     "symbols_requested": 50,
     "symbols_succeeded": 48,
     "symbols_stale": 0,
@@ -80,12 +80,12 @@
         "error": "No data returned for TATAMOTORS.NS"
       }
     ],
-    "avg_latency_ms": 670.0,
-    "max_latency_ms": 10538,
+    "avg_latency_ms": 639.3,
+    "max_latency_ms": 10030,
     "retry_events": 6,
     "rate_limit_events": 0,
-    "snapshot_id": "d467fffac5c0",
-    "snapshot_ts": "2026-07-15T16:07:01Z",
+    "snapshot_id": "09070889504f",
+    "snapshot_ts": "2026-07-15T17:27:59Z",
     "paper_execution_eligible": true,
     "quality_summary": {
       "LIVE": 48,
@@ -101,8 +101,8 @@
   },
   "recommendations": [
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "INDUSINDBK",
       "sector": "BANKING",
       "data_source": "yfinance",
@@ -157,8 +157,8 @@
       "rank": 1
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "HCLTECH",
       "sector": "IT",
       "data_source": "yfinance",
@@ -213,8 +213,8 @@
       "rank": 2
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "HDFCBANK",
       "sector": "BANKING",
       "data_source": "yfinance",
@@ -269,8 +269,8 @@
       "rank": 3
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "TATACONSUM",
       "sector": "FMCG",
       "data_source": "yfinance",
@@ -325,8 +325,8 @@
       "rank": 4
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "BAJFINANCE",
       "sector": "FINANCE",
       "data_source": "yfinance",
@@ -381,8 +381,8 @@
       "rank": 5
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "ICICIBANK",
       "sector": "BANKING",
       "data_source": "yfinance",
@@ -437,8 +437,8 @@
       "rank": 6
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "TATASTEEL",
       "sector": "METALS",
       "data_source": "yfinance",
@@ -493,8 +493,8 @@
       "rank": 7
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "DRREDDY",
       "sector": "PHARMA",
       "data_source": "yfinance",
@@ -549,8 +549,8 @@
       "rank": 8
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "RELIANCE",
       "sector": "ENERGY",
       "data_source": "yfinance",
@@ -605,8 +605,8 @@
       "rank": 9
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "HDFCLIFE",
       "sector": "FINANCE",
       "data_source": "yfinance",
@@ -661,8 +661,8 @@
       "rank": 10
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "SHRIRAMFIN",
       "sector": "FINANCE",
       "data_source": "yfinance",
@@ -717,8 +717,8 @@
       "rank": 11
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "JSWSTEEL",
       "sector": "METALS",
       "data_source": "yfinance",
@@ -773,8 +773,8 @@
       "rank": 12
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "KOTAKBANK",
       "sector": "BANKING",
       "data_source": "yfinance",
@@ -829,8 +829,8 @@
       "rank": 13
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "SBIN",
       "sector": "BANKING",
       "data_source": "yfinance",
@@ -885,8 +885,8 @@
       "rank": 14
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "ONGC",
       "sector": "ENERGY",
       "data_source": "yfinance",
@@ -941,8 +941,8 @@
       "rank": 15
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "WIPRO",
       "sector": "IT",
       "data_source": "yfinance",
@@ -997,8 +997,8 @@
       "rank": 16
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "POWERGRID",
       "sector": "ENERGY",
       "data_source": "yfinance",
@@ -1053,8 +1053,8 @@
       "rank": 17
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "COALINDIA",
       "sector": "ENERGY",
       "data_source": "yfinance",
@@ -1109,8 +1109,8 @@
       "rank": 18
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "NTPC",
       "sector": "ENERGY",
       "data_source": "yfinance",
@@ -1165,8 +1165,8 @@
       "rank": 19
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "ITC",
       "sector": "FMCG",
       "data_source": "yfinance",
@@ -1221,8 +1221,8 @@
       "rank": 20
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "BAJAJ-AUTO",
       "sector": "AUTO",
       "data_source": "yfinance",
@@ -1277,8 +1277,8 @@
       "rank": 21
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "BAJAJFINSV",
       "sector": "FINANCE",
       "data_source": "yfinance",
@@ -1333,8 +1333,8 @@
       "rank": 22
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "BHARTIARTL",
       "sector": "TELECOM",
       "data_source": "yfinance",
@@ -1389,8 +1389,8 @@
       "rank": 23
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "TECHM",
       "sector": "IT",
       "data_source": "yfinance",
@@ -1445,8 +1445,8 @@
       "rank": 24
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "TITAN",
       "sector": "CONSUMER",
       "data_source": "yfinance",
@@ -1501,8 +1501,8 @@
       "rank": 25
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "ULTRACEMCO",
       "sector": "INFRA",
       "data_source": "yfinance",
@@ -1557,8 +1557,8 @@
       "rank": 26
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "AXISBANK",
       "sector": "BANKING",
       "data_source": "yfinance",
@@ -1613,8 +1613,8 @@
       "rank": 27
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "DIVISLAB",
       "sector": "PHARMA",
       "data_source": "yfinance",
@@ -1669,8 +1669,8 @@
       "rank": 28
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "TCS",
       "sector": "IT",
       "data_source": "yfinance",
@@ -1725,8 +1725,8 @@
       "rank": 29
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "LT",
       "sector": "INFRA",
       "data_source": "yfinance",
@@ -1781,8 +1781,8 @@
       "rank": 30
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "HINDALCO",
       "sector": "METALS",
       "data_source": "yfinance",
@@ -1837,8 +1837,8 @@
       "rank": 31
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "ADANIENT",
       "sector": "METALS",
       "data_source": "yfinance",
@@ -1893,8 +1893,8 @@
       "rank": 32
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "ADANIPORTS",
       "sector": "INFRA",
       "data_source": "yfinance",
@@ -1949,8 +1949,8 @@
       "rank": 33
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "APOLLOHOSP",
       "sector": "PHARMA",
       "data_source": "yfinance",
@@ -2005,8 +2005,8 @@
       "rank": 34
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "ASIANPAINT",
       "sector": "CONSUMER",
       "data_source": "yfinance",
@@ -2061,8 +2061,8 @@
       "rank": 35
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "BRITANNIA",
       "sector": "FMCG",
       "data_source": "yfinance",
@@ -2117,8 +2117,8 @@
       "rank": 36
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "CIPLA",
       "sector": "PHARMA",
       "data_source": "yfinance",
@@ -2173,8 +2173,8 @@
       "rank": 37
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "EICHERMOT",
       "sector": "AUTO",
       "data_source": "yfinance",
@@ -2229,8 +2229,8 @@
       "rank": 38
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "GRASIM",
       "sector": "INFRA",
       "data_source": "yfinance",
@@ -2285,8 +2285,8 @@
       "rank": 39
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "HEROMOTOCO",
       "sector": "AUTO",
       "data_source": "yfinance",
@@ -2341,8 +2341,8 @@
       "rank": 40
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "HINDUNILVR",
       "sector": "FMCG",
       "data_source": "yfinance",
@@ -2397,8 +2397,8 @@
       "rank": 41
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "INFY",
       "sector": "IT",
       "data_source": "yfinance",
@@ -2453,8 +2453,8 @@
       "rank": 42
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "M&M",
       "sector": "AUTO",
       "data_source": "yfinance",
@@ -2509,8 +2509,8 @@
       "rank": 43
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "MARUTI",
       "sector": "AUTO",
       "data_source": "yfinance",
@@ -2565,8 +2565,8 @@
       "rank": 44
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "NESTLEIND",
       "sector": "FMCG",
       "data_source": "yfinance",
@@ -2621,8 +2621,8 @@
       "rank": 45
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "SBILIFE",
       "sector": "FINANCE",
       "data_source": "yfinance",
@@ -2677,8 +2677,8 @@
       "rank": 46
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "SUNPHARMA",
       "sector": "PHARMA",
       "data_source": "yfinance",
@@ -2733,8 +2733,8 @@
       "rank": 47
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "TRENT",
       "sector": "CONSUMER",
       "data_source": "yfinance",
@@ -2789,8 +2789,8 @@
       "rank": 48
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "LTIM",
       "sector": "IT",
       "data_source": "yfinance",
@@ -2845,8 +2845,8 @@
       "rank": 49
     },
     {
-      "scan_id": "d467fffac5c0",
-      "snapshot_ts": "2026-07-15T16:07:01Z",
+      "scan_id": "09070889504f",
+      "snapshot_ts": "2026-07-15T17:27:59Z",
       "symbol": "TATAMOTORS",
       "sector": "AUTO",
       "data_source": "yfinance",
@@ -2902,8 +2902,8 @@
     }
   ],
   "summary": {
-    "scan_id": "d467fffac5c0",
-    "snapshot_ts": "2026-07-15T16:07:01Z",
+    "scan_id": "09070889504f",
+    "snapshot_ts": "2026-07-15T17:27:59Z",
     "universe_size": 50,
     "symbols_analysed": 50,
     "symbols_with_errors": 2,
@@ -2920,14 +2920,14 @@
       "LIVE": 48,
       "UNAVAILABLE": 2
     },
-    "duration_s": 38.87,
+    "duration_s": 35.75,
     "label": "PAPER / LIVE DATA VALIDATION"
   },
   "scan_audit": {
-    "scan_id": "d467fffac5c0",
-    "snapshot_ts": "2026-07-15T16:07:01Z",
-    "fetch_completed_ts": "2026-07-15T16:07:34Z",
-    "scan_completed_ts": "2026-07-15T16:07:40Z",
+    "scan_id": "09070889504f",
+    "snapshot_ts": "2026-07-15T17:27:59Z",
+    "fetch_completed_ts": "2026-07-15T17:28:31Z",
+    "scan_completed_ts": "2026-07-15T17:28:35Z",
     "all_items_share_same_snapshot_ts": true,
     "all_items_share_same_scan_id": true,
     "distinct_snapshot_ts_count": 1,

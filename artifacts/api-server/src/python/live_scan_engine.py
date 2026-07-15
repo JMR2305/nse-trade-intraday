@@ -538,6 +538,15 @@ def run_live_scan(
     except Exception:
         pass
 
+    # ── Phase 18: auto-create/refresh today's research-notebook draft ────────
+    # Read-only journaling of what the scan saw. Never affects the scan result
+    # or any trading behaviour; failures are swallowed silently.
+    try:
+        from phase18_notebook import ensure_today_entry
+        ensure_today_entry()
+    except Exception:
+        pass
+
     return result
 
 
