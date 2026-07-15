@@ -21,32 +21,66 @@ import { useToast } from "@/hooks/use-toast";
 export default function Settings() {
   const { toast } = useToast();
   const [generating, setGenerating] = useState(false);
+  const [stage, setStage] = useState<string>("");
+  const [elapsed, setElapsed] = useState<number | null>(null);
   const [result, setResult] = useState<any>(null);
+
+  const downloadZip = async (zipName: string) => {
+    const dl = await fetch(`${API_BASE}/review-package/download`);
+    if (!dl.ok) return;
+    const blob = await dl.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = zipName;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   const generate = async () => {
     setGenerating(true);
     setResult(null);
+    setStage("Starting…");
+    setElapsed(null);
     try {
+      // Start the background job (returns immediately), then poll status.
+      // The job itself takes 2-5 min — far longer than the request timeout.
       const r = await fetch(`${API_BASE}/review-package/generate`, { method: "POST" });
       const d = await r.json();
       if (!r.ok || d.error) throw new Error(d.error ?? `HTTP ${r.status}`);
-      setResult(d);
-      // Auto-download the ZIP
-      const dl = await fetch(`${API_BASE}/review-package/download`);
-      if (dl.ok) {
-        const blob = await dl.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = d.zip_name ?? "Phase10_Review_Package.zip";
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+
+      for (;;) {
+        await new Promise((ok) => setTimeout(ok, 4000));
+        let s: any;
+        try {
+          const sr = await fetch(`${API_BASE}/review-package/status`);
+          s = await sr.json();
+        } catch {
+          continue; // transient network blip — keep polling
+        }
+        if (s.status === "running") {
+          setStage(s.stage ?? "Working…");
+          setElapsed(s.elapsed_seconds ?? null);
+          continue;
+        }
+        if (s.status === "error") throw new Error(s.error ?? "Generation failed");
+        if (s.status === "done" && s.result) {
+          setResult(s.result);
+          await downloadZip(s.result.zip_name ?? "Phase15_Review_Package.zip");
+          toast({
+            title: "Review package ready",
+            description: `${s.result.file_count} files · ${s.result.total_size_human}`,
+          });
+          break;
+        }
+        throw new Error("Generation job is no longer running.");
       }
-      toast({ title: "Review package ready", description: `${d.file_count} files · ${d.total_size_human}` });
     } catch (e: any) {
       toast({ title: "Generation failed", description: e.message, variant: "destructive" });
     } finally {
       setGenerating(false);
+      setStage("");
+      setElapsed(null);
     }
   };
 
@@ -68,39 +102,53 @@ export default function Settings() {
         </CardHeader>
         <CardContent className="px-5 pb-5">
           <p className="mb-4 text-xs text-zinc-500">
-            Builds a ZIP containing the implementation summary, UI &amp; metrics inventories,
-            real 1920×1080 screenshots of every page, export artifacts, API endpoint list,
-            feature matrix, live test results and an honest review summary — complete enough
-            for an external technical review without extra screenshots. Takes 1–3 minutes
-            (headless browser captures ~20 pages).
+            Builds Phase15_Review_Package.zip: full-page screenshots of every registered page,
+            9 CSV exports (opportunities, signals, portfolio, performance, AI performance,
+            notifications, learning, trade history, risk analytics), 7 JSON exports
+            (scan snapshot, AI decisions, dashboard/portfolio/learning summaries, diagnostics,
+            production readiness), implementation &amp; readiness reports, feature matrix and
+            live test results — complete enough for an external technical review without
+            manual screenshots. Takes 2–5 minutes (headless browser captures every page,
+            full-page).
           </p>
           <Button onClick={generate} disabled={generating} className="gap-2">
             {generating
-              ? <><Loader2 className="h-4 w-4 animate-spin" />Generating… (1–3 min)</>
+              ? <><Loader2 className="h-4 w-4 animate-spin" />Generating… (2–5 min)</>
               : <><FileArchive className="h-4 w-4" />Generate Review Package</>}
           </Button>
+          {generating && (
+            <p className="mt-3 text-xs text-zinc-400">
+              {stage}{elapsed != null ? ` — ${elapsed}s elapsed` : ""}
+            </p>
+          )}
 
           {result && (
             <div className="mt-5 space-y-4 rounded-lg border border-zinc-800 bg-zinc-950/50 p-4 text-xs">
-              <div className="flex flex-wrap items-center gap-4">
+              <div className="grid gap-1.5 sm:grid-cols-2">
                 <span className="flex items-center gap-1.5 text-emerald-400">
-                  <CheckCircle2 className="h-4 w-4" />{result.zip_name}
+                  <CheckCircle2 className="h-4 w-4" />
+                  Screenshots Generated ({result.screenshot_count ?? 0} pages)
                 </span>
+                <span className="flex items-center gap-1.5 text-emerald-400">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Reports Generated ({(result.reports ?? []).length} reports)
+                </span>
+                <span className="flex items-center gap-1.5 text-emerald-400">
+                  <CheckCircle2 className="h-4 w-4" />CSV Generated ({result.csv_count ?? 0} files)
+                </span>
+                <span className="flex items-center gap-1.5 text-emerald-400">
+                  <CheckCircle2 className="h-4 w-4" />JSON Generated ({result.json_count ?? 0} files)
+                </span>
+                <span className="flex items-center gap-1.5 text-emerald-400">
+                  <CheckCircle2 className="h-4 w-4" />ZIP Ready for Download — {result.zip_name}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-4 border-t border-zinc-800 pt-3">
                 <span className="text-zinc-400">Generation time: <b className="text-zinc-200">{result.generation_seconds}s</b></span>
-                <span className="text-zinc-400">Total size: <b className="text-zinc-200">{result.total_size_human}</b></span>
-                <span className="text-zinc-400">Screenshots: <b className="text-zinc-200">{result.screenshots}</b></span>
-                <span className="text-zinc-400">Exports: <b className="text-zinc-200">{result.exports}</b></span>
+                <span className="text-zinc-400">Total files: <b className="text-zinc-200">{result.file_count}</b></span>
+                <span className="text-zinc-400">ZIP size: <b className="text-zinc-200">{result.total_size_human}</b></span>
                 <Button size="sm" variant="outline" className="gap-1.5 text-xs"
-                  onClick={async () => {
-                    const dl = await fetch(`${API_BASE}/review-package/download`);
-                    if (!dl.ok) return;
-                    const blob = await dl.blob();
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url; a.download = result.zip_name;
-                    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                  }}>
+                  onClick={() => downloadZip(result.zip_name ?? "Phase15_Review_Package.zip")}>
                   <Download className="h-3.5 w-3.5" />Download again
                 </Button>
               </div>
@@ -116,14 +164,16 @@ export default function Settings() {
                 </div>
               )}
 
-              <details>
-                <summary className="cursor-pointer text-zinc-400 hover:text-zinc-200">
-                  Files included ({result.file_count})
-                </summary>
-                <div className="mt-2 max-h-64 overflow-y-auto rounded bg-zinc-900 p-3 text-[11px] leading-5 text-zinc-400">
-                  {(result.files_included ?? []).map((f: string) => <div key={f}>{f}</div>)}
-                </div>
-              </details>
+              {(result.reports ?? []).length > 0 && (
+                <details>
+                  <summary className="cursor-pointer text-zinc-400 hover:text-zinc-200">
+                    Reports included ({(result.reports ?? []).length})
+                  </summary>
+                  <div className="mt-2 max-h-64 overflow-y-auto rounded bg-zinc-900 p-3 text-[11px] leading-5 text-zinc-400">
+                    {(result.reports ?? []).map((f: string) => <div key={f}>{f}</div>)}
+                  </div>
+                </details>
+              )}
             </div>
           )}
         </CardContent>

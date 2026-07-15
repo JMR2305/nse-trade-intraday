@@ -2264,43 +2264,82 @@ function runNode(scriptPath: string, args: string[]): Promise<unknown> {
   });
 }
 
-let reviewPackageBusy = false;
+// Generation takes ~4-5 minutes — far longer than the browser/proxy request
+// timeout (~2 min). So POST /generate starts a background job and returns
+// immediately; the UI polls GET /status until the job finishes.
+interface ReviewJob {
+  status: "idle" | "running" | "done" | "error";
+  stage: string;
+  startedAt: number | null;
+  result: Record<string, unknown> | null;
+  error: string | null;
+}
+const reviewJob: ReviewJob = { status: "idle", stage: "", startedAt: null, result: null, error: null };
 
-// POST /api/review-package/generate — capture screenshots, then build the ZIP
-router.post("/review-package/generate", async (_req, res) => {
-  if (reviewPackageBusy) {
+async function runReviewPackageJob(): Promise<void> {
+  const shotsDir = path.join(PYTHON_DIR, "review_screenshots");
+  let shots: { captured?: unknown[]; failed?: unknown[]; error?: string } = {};
+  reviewJob.stage = "Capturing full-page screenshots of every page (2-4 min)";
+  try {
+    shots = await runNode(
+      path.join(process.cwd(), "src", "scripts", "capture_screenshots.mjs"),
+      [shotsDir],
+    ) as typeof shots;
+  } catch (e: unknown) {
+    shots = { error: e instanceof Error ? e.message : String(e) };
+  }
+  reviewJob.stage = "Building reports, exports, running test suites and zipping";
+  const result = await runPython(["review_package", shotsDir]) as Record<string, unknown>;
+  const warnings = (result.warnings as string[]) ?? [];
+  if (shots.error) warnings.push(`Screenshot capture failed: ${shots.error}`);
+  if (shots.failed && (shots.failed as unknown[]).length > 0) {
+    warnings.push(`${(shots.failed as unknown[]).length} page(s) failed to capture`);
+  }
+  reviewJob.result = {
+    ...result,
+    generation_seconds: reviewJob.startedAt
+      ? Math.round((Date.now() - reviewJob.startedAt) / 1000)
+      : result.generation_seconds,
+    warnings,
+    screenshot_failures: shots.failed ?? [],
+  };
+}
+
+// POST /api/review-package/generate — start the background job (returns at once)
+router.post("/review-package/generate", (_req, res) => {
+  if (reviewJob.status === "running") {
     res.status(409).json({ error: "A review package is already being generated. Please wait." });
     return;
   }
-  reviewPackageBusy = true;
-  try {
-    const shotsDir = path.join(PYTHON_DIR, "review_screenshots");
-    let shots: { captured?: unknown[]; failed?: unknown[]; error?: string } = {};
-    try {
-      shots = await runNode(
-        path.join(process.cwd(), "src", "scripts", "capture_screenshots.mjs"),
-        [shotsDir],
-      ) as typeof shots;
-    } catch (e: unknown) {
-      shots = { error: e instanceof Error ? e.message : String(e) };
-    }
-    const result = await runPython(["review_package", shotsDir]) as Record<string, unknown>;
-    const warnings = (result.warnings as string[]) ?? [];
-    if (shots.error) warnings.push(`Screenshot capture failed: ${shots.error}`);
-    if (shots.failed && (shots.failed as unknown[]).length > 0) {
-      warnings.push(`${(shots.failed as unknown[]).length} page(s) failed to capture`);
-    }
-    res.json({ ...result, warnings, screenshot_failures: shots.failed ?? [] });
-  } catch (err: unknown) {
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
-  } finally {
-    reviewPackageBusy = false;
-  }
+  reviewJob.status = "running";
+  reviewJob.stage = "Starting";
+  reviewJob.startedAt = Date.now();
+  reviewJob.result = null;
+  reviewJob.error = null;
+  runReviewPackageJob()
+    .then(() => { reviewJob.status = "done"; reviewJob.stage = "Complete"; })
+    .catch((err: unknown) => {
+      reviewJob.status = "error";
+      reviewJob.error = err instanceof Error ? err.message : String(err);
+    });
+  res.status(202).json({ started: true, status: "running" });
+});
+
+// GET /api/review-package/status — poll job progress / final result
+router.get("/review-package/status", (_req, res) => {
+  res.json({
+    status: reviewJob.status,
+    stage: reviewJob.stage,
+    elapsed_seconds: reviewJob.startedAt && reviewJob.status === "running"
+      ? Math.round((Date.now() - reviewJob.startedAt) / 1000) : null,
+    result: reviewJob.status === "done" ? reviewJob.result : null,
+    error: reviewJob.error,
+  });
 });
 
 // GET /api/review-package/download — stream the most recently generated ZIP
 router.get("/review-package/download", (_req, res) => {
-  const zipPath = path.join(PYTHON_DIR, "Phase10_Review_Package.zip");
+  const zipPath = path.join(PYTHON_DIR, "Phase15_Review_Package.zip");
   if (!fs.existsSync(zipPath)) {
     res.status(404).json({ error: "No review package has been generated yet." });
     return;

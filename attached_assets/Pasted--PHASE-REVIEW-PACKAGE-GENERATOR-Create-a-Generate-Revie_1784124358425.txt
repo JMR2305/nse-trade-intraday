@@ -1,0 +1,266 @@
+# PHASE REVIEW PACKAGE GENERATOR
+
+Create a "Generate Review Package" feature under Settings / Diagnostics.
+
+When clicked, automatically generate a folder named:
+
+Phase15_Review_Package
+
+(or automatically use the current phase number.)
+
+The package should contain:
+
+==================================================
+1. SCREENSHOTS
+==================================================
+
+Automatically capture FULL PAGE screenshots (not just the visible viewport) of every major page after the latest completed scan.
+
+Include:
+
+- Dashboard
+- Market
+- Market Scanner
+- Signals
+- AI Decision
+- Portfolio Manager
+- Portfolio Risk Analytics
+- AI Copilot
+- Notification Center
+- Performance Analytics
+- Learning & Governance
+- Live Data Health
+- Broker & Execution
+- Diagnostics
+- Settings
+- Walk Forward Validation
+- Strategy Lab
+- Research Factory
+- Trade Replay
+- Historical Knowledge
+- Meta Learning
+- Strategy Evolution
+- Pattern Quality
+- Feature Importance
+
+Each screenshot should be:
+
+- PNG
+- Full-page
+- High resolution
+- Desktop layout (1920×1080 or larger)
+- Named using the page name
+
+Example:
+
+01_Dashboard.png
+02_Market.png
+03_MarketScanner.png
+
+==================================================
+2. CSV EXPORTS
+==================================================
+
+Automatically export:
+
+- Opportunities
+- Signals
+- Portfolio
+- Performance Analytics
+- AI Performance
+- Notifications
+- Learning
+- Trade History
+- Risk Analytics
+
+==================================================
+3. JSON EXPORTS
+==================================================
+
+Export:
+
+- Scan Snapshot
+- AI Decision
+- Dashboard Summary
+- Portfolio Summary
+- Learning Summary
+- Diagnostics
+- Production Readiness Report
+
+==================================================
+4. IMPLEMENTATION REPORT
+==================================================
+
+Generate:
+
+implementation_summary.md
+
+Include:
+
+- Phase Number
+- Features Added
+- Files Modified
+- APIs Added
+- Database Changes
+- Components Added
+- Known Issues
+- Pending Work
+
+==================================================
+5. PRODUCTION REPORT
+==================================================
+
+Generate:
+
+production_readiness.md
+
+Include:
+
+- Runtime Health
+- Build Status
+- Scan Consistency
+- Cross-Page Validation
+- Data Quality
+- Learning Status
+- AI Status
+- Risk Engine Status
+- Broker Status
+- Overall Readiness Score
+
+==================================================
+6. FEATURE MATRIX
+==================================================
+
+Generate:
+
+feature_matrix.csv
+
+Columns:
+
+Feature
+
+Implemented
+
+Working
+
+Tested
+
+Comments
+
+==================================================
+7. TEST REPORT
+==================================================
+
+Generate:
+
+test_results.csv
+
+Include:
+
+Unit Tests
+
+Integration Tests
+
+UI Tests
+
+Performance Tests
+
+Passed
+
+Failed
+
+Skipped
+
+==================================================
+8. DIAGNOSTIC BUNDLE
+==================================================
+
+Generate:
+
+diagnostics.json
+
+Include:
+
+Scan ID
+
+Snapshot Timestamp
+
+Provider
+
+Market Status
+
+Errors
+
+Warnings
+
+Runtime
+
+Memory
+
+Latency
+
+API Health
+
+Cache Health
+
+Data Quality
+
+==================================================
+9. README
+==================================================
+
+Generate:
+
+README.md
+
+Explain the contents of the package.
+
+==================================================
+10. ZIP
+==================================================
+
+Compress everything into:
+
+Phase15_Review_Package.zip
+
+==================================================
+UI
+==================================================
+
+Add a button:
+
+"Generate Review Package"
+
+When complete display:
+
+✔ Screenshots Generated
+
+✔ Reports Generated
+
+✔ CSV Generated
+
+✔ JSON Generated
+
+✔ ZIP Ready for Download
+
+Display:
+
+Generation Time
+
+Total File Count
+
+ZIP Size
+
+==================================================
+IMPORTANT
+==================================================
+
+Do not generate placeholder screenshots.
+
+Only capture pages that exist.
+
+Capture the current application state after the latest completed scan.
+
+If a page has insufficient data, capture it normally and clearly indicate "Insufficient Data" rather than generating fake values.
+
+The review package should allow ChatGPT to review the entire application without requiring manual screenshots.

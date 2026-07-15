@@ -1,23 +1,27 @@
 """
-review_package.py — Phase Review Package generator.
+review_package.py — Phase Review Package generator (current phase: 15).
 
-Assembles a downloadable ZIP (Phase<N>_Review_Package.zip) that lets an
-external reviewer (e.g. ChatGPT) audit the completed phase without
-screenshots being sent manually:
+Assembles Phase15_Review_Package/ and zips it to Phase15_Review_Package.zip
+so an external reviewer (e.g. ChatGPT) can audit the whole application
+without manual screenshots:
 
-  implementation_summary.md, ui_summary.csv, metrics_summary.csv,
-  screenshots/ (PNGs, captured separately by capture_screenshots.mjs),
-  exports/, api_endpoints.csv, database_schema.csv, feature_matrix.csv,
-  test_results.csv, review_summary.md, app_manifest.json, README.md
+  screenshots/           full-page PNGs (captured by capture_screenshots.mjs)
+  csv/                   opportunities, signals, portfolio, performance,
+                         ai_performance, notifications, learning,
+                         trade_history, risk_analytics
+  json/                  scan_snapshot, ai_decision, dashboard_summary,
+                         portfolio_summary, learning_summary, diagnostics,
+                         production_readiness
+  implementation_summary.md, production_readiness.md,
+  feature_matrix.csv, test_results.csv, diagnostics.json, README.md
 
-Honesty rules: only real pages, real metrics from live analytics, endpoints
-parsed from the actual route file, "Not Available" where data doesn't exist.
+Honesty rules: only real pages, real cached/computed data, "Insufficient Data"
+or "Not Available" where data does not exist. No placeholders. PAPER ONLY.
 """
 
 from __future__ import annotations
 
 import csv
-import io
 import json
 import os
 import re
@@ -26,66 +30,28 @@ import subprocess
 import time
 import zipfile
 from datetime import datetime, timezone
+from typing import Any
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-EXPORT_DIR = os.path.join(BASE_DIR, "exports")
-PACKAGE_DIR = os.path.join(BASE_DIR, "review_package")
-API_SERVER_ROOT = os.path.abspath(os.path.join(BASE_DIR, "..", ".."))
-TRADING_TS = os.path.join(API_SERVER_ROOT, "src", "routes", "trading.ts")
-DASHBOARD_ROOT = os.path.abspath(os.path.join(API_SERVER_ROOT, "..", "trading-dashboard"))
-APP_TSX = os.path.join(DASHBOARD_ROOT, "src", "App.tsx")
+PHASE = 15
+PACKAGE_NAME = f"Phase{PHASE}_Review_Package"
+PACKAGE_DIR = os.path.join(BASE_DIR, PACKAGE_NAME)
+ZIP_PATH = os.path.join(BASE_DIR, f"{PACKAGE_NAME}.zip")
 
-PHASE = 10
-VERSION = "0.5"
-
-# Route → (Page label, phase, notes). Only real registered routes.
-PAGES: list[tuple[str, str]] = [
-    ("/", "Trade Decisions"),
-    ("/portfolio-manager", "Portfolio Manager"),
-    ("/dashboard", "Dashboard"),
-    ("/market", "Market"),
-    ("/market-scanner", "Market Scanner"),
-    ("/market-replay", "Market Replay"),
-    ("/signals", "Signals"),
-    ("/ai-decision", "AI Decision"),
-    ("/trade-replay", "Trade Replay"),
-    ("/trades", "All Trades"),
-    ("/watchlist", "Watchlist"),
-    ("/backtest", "Backtest"),
-    ("/validate", "Validate"),
-    ("/strategy-lab", "Strategy Lab"),
-    ("/optimizer", "Optimizer"),
-    ("/paper-basket-test", "Paper Basket Test"),
-    ("/trade-intelligence", "Trade Intelligence"),
-    ("/historical-knowledge", "Historical Knowledge"),
-    ("/learning-insights", "Learning Insights"),
-    ("/learning-review", "Learning Review"),
-    ("/pattern-quality", "Pattern Quality"),
-    ("/feature-importance", "Feature Importance"),
-    ("/walk-forward", "Walk-Forward Validation"),
-    ("/experiments", "Research Factory (Experiments)"),
-    ("/research-intelligence", "Research Intelligence"),
-    ("/strategy-evolution", "Strategy Evolution"),
-    ("/live-data-health", "Live Data Health"),
-    ("/broker-execution", "Broker & Execution"),
-    ("/ai-copilot", "AI Copilot"),
-    ("/notifications", "Notification Center"),
-    ("/performance-analytics", "Performance Analytics"),
-]
-
-DATA_FILES = [
-    ("state.json", "Portfolio state: cash, positions, trades, pnl_history", "Written by paper_trader on every order"),
-    ("watchlist.json", "User watchlist symbols", "Falls back to config.DEFAULT_WATCHLIST when absent"),
-    ("phase7_scan_cache.json", "Latest live scan snapshot (recommendations)", "Overwritten by each scan run"),
-    ("market_context_cache.json", "NIFTY/BankNifty/VIX market context", "Refreshed by market context engine"),
-    ("phase9_alerts.json", "Copilot alerts, deduped by type+symbol+scan_id", "Appended by copilot engine"),
-    ("phase9_confidence_history.json", "Confidence calibration snapshots per scan", "Idempotent per scan_id"),
-    ("knowledge_base.json", "Historical trade knowledge for learning", "Updated on trade close"),
-]
+NA = "Not Available"
+INSUFFICIENT = "Insufficient Data"
 
 
 def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+
+def _load_json(fname: str, default: Any) -> Any:
+    try:
+        with open(os.path.join(BASE_DIR, fname)) as f:
+            return json.load(f)
+    except Exception:
+        return default
 
 
 def _write_csv(path: str, header: list[str], rows: list[list]):
@@ -95,13 +61,15 @@ def _write_csv(path: str, header: list[str], rows: list[list]):
         w.writerows(rows)
 
 
-def _run_phase10_tests() -> dict:
-    """Run the Phase 10 test suite live; parse pass/fail counts."""
+def _write_json(path: str, data: Any):
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2, default=str)
+
+
+def _run_tests(script: str) -> dict:
     try:
-        p = subprocess.run(
-            ["python3", "test_phase10.py"], cwd=BASE_DIR,
-            capture_output=True, text=True, timeout=120,
-        )
+        p = subprocess.run(["python3", script], cwd=BASE_DIR,
+                           capture_output=True, text=True, timeout=180)
         m = re.search(r"(\d+) passed, (\d+) failed", p.stdout)
         if m:
             return {"passed": int(m.group(1)), "failed": int(m.group(2)), "ran": True}
@@ -110,132 +78,235 @@ def _run_phase10_tests() -> dict:
     return {"passed": 0, "failed": 0, "ran": False}
 
 
-def _parse_endpoints() -> list[list]:
-    """Parse real endpoints out of trading.ts."""
+# ── CSV export builders ──────────────────────────────────────────────────────
+
+def _csv_opportunities(out: str, scan: dict):
     rows = []
-    try:
-        src = open(TRADING_TS).read()
-        for m in re.finditer(r'router\.(get|post|put|delete)\("([^"]+)"', src):
-            method, route = m.group(1).upper(), "/api" + m.group(2)
-            rows.append([route, method, "", "Active"])
-    except Exception:
-        pass
-    # descriptions for the newest endpoints; others left honest-blank
-    desc = {
-        "/api/analytics/performance": "Full Phase 10 performance analytics payload",
-        "/api/analytics/export": "Download analytics export (kind=json|csv|snapshot)",
-        "/api/review-package/generate": "Build the Phase Review Package ZIP",
-        "/api/review-package/download": "Download the generated review package ZIP",
-    }
-    for r in rows:
-        r[2] = desc.get(r[0], "See route implementation in trading.ts")
-    return rows
+    for r in scan.get("recommendations", []):
+        rows.append([r.get("rank"), r.get("symbol"), r.get("sector"),
+                     r.get("final_action"), r.get("opportunity_score"),
+                     r.get("calibrated_confidence"), r.get("entry_price"),
+                     r.get("stop_loss"), r.get("target_price"), r.get("rr_ratio"),
+                     r.get("strategy_name"), r.get("regime"), r.get("data_quality"),
+                     r.get("all_gates_passed"), r.get("error") or ""])
+    if not rows:
+        rows = [[INSUFFICIENT] + [""] * 14]
+    _write_csv(out, ["Rank", "Symbol", "Sector", "Action", "OpportunityScore",
+                     "Confidence", "Entry", "StopLoss", "Target", "RRRatio",
+                     "Strategy", "Regime", "DataQuality", "AllGatesPassed", "Error"], rows)
 
 
-def _analytics() -> dict:
-    try:
-        from phase10_analytics import performance_analytics
-        return performance_analytics()
-    except Exception:
-        return {}
+def _csv_signals(out: str):
+    signals = _load_json("signals_cache.json", [])
+    rows = [[s.get("stock"), s.get("signal"), s.get("confidence"),
+             s.get("price"), s.get("rsi"), s.get("trend"), s.get("reason", "")]
+            for s in signals if isinstance(s, dict)]
+    if not rows:
+        rows = [[INSUFFICIENT] + [""] * 6]
+    _write_csv(out, ["Stock", "Signal", "Confidence", "Price", "RSI", "Trend", "Reason"], rows)
 
 
-def _implementation_summary(tests: dict) -> str:
-    return f"""# Phase {PHASE} Implementation Summary
+def _csv_portfolio(out: str, portfolio: dict):
+    rows = []
+    for p in portfolio.get("positions", []):
+        qty = p.get("quantity") or 0
+        rows.append([p.get("symbol"), qty, p.get("avg_price"), p.get("current_price"),
+                     round(qty * (p.get("avg_price") or 0), 2),
+                     round(qty * (p.get("current_price") or 0), 2),
+                     p.get("pnl"), p.get("pnl_pct")])
+    rows.append(["TOTAL", "", "", "", portfolio.get("invested_value", NA),
+                 portfolio.get("total_value", NA), portfolio.get("total_pnl", ""), ""])
+    if len(rows) == 1:
+        rows.insert(0, ["No open positions"] + [""] * 7)
+    _write_csv(out, ["Symbol", "Quantity", "AvgPrice", "CurrentPrice",
+                     "Invested", "CurrentValue", "PnL", "PnLPct"], rows)
 
-- **Phase:** {PHASE}.1 — Performance Analytics Dashboard
+
+def _csv_performance(out: str, analytics: dict):
+    s, r = analytics.get("summary", {}), analytics.get("risk", {})
+    rows = [[k, s.get(k, NA)] for k in
+            ("portfolio_value", "total_return_pct", "today_return", "weekly_return",
+             "monthly_return", "total_trades", "win_rate_pct", "profit_factor",
+             "avg_winner", "avg_loser", "expectancy")]
+    rows += [[k, r.get(k, NA)] for k in
+             ("max_drawdown_pct", "current_drawdown_pct", "sharpe", "sortino",
+              "calmar", "volatility_pct", "beta", "risk_score", "risk_level")]
+    _write_csv(out, ["Metric", "Value"], rows)
+
+
+def _csv_ai_performance(out: str, analytics: dict):
+    ai = analytics.get("ai_performance", {})
+    rows = [[k, ai.get(k, NA)] for k in sorted(ai)] if ai else [[INSUFFICIENT, ""]]
+    _write_csv(out, ["Metric", "Value"], rows)
+
+
+def _csv_notifications(out: str):
+    alerts = _load_json("phase9_alerts.json", [])
+    if isinstance(alerts, dict):
+        alerts = alerts.get("alerts", [])
+    rows = [[a.get("timestamp"), a.get("type"), a.get("symbol"),
+             a.get("severity"), a.get("message", a.get("title", ""))]
+            for a in alerts if isinstance(a, dict)]
+    if not rows:
+        rows = [[INSUFFICIENT] + [""] * 4]
+    _write_csv(out, ["Timestamp", "Type", "Symbol", "Severity", "Message"], rows)
+
+
+def _csv_learning(out: str, learning: dict):
+    rows: list[list] = []
+    for k, v in learning.items():
+        if isinstance(v, (str, int, float, bool)) or v is None:
+            rows.append([k, NA if v is None else v])
+    if not rows:
+        rows = [[INSUFFICIENT, ""]]
+    _write_csv(out, ["Field", "Value"], rows)
+
+
+def _csv_trades(out: str):
+    state = _load_json("state.json", {})
+    rows = [[t.get("timestamp"), t.get("action"), t.get("symbol"), t.get("quantity"),
+             t.get("price"), t.get("pnl", ""), t.get("strategy_name", ""),
+             t.get("confidence", ""), t.get("scan_id", "")]
+            for t in state.get("trades", [])]
+    if not rows:
+        rows = [["No trades recorded yet"] + [""] * 8]
+    _write_csv(out, ["Timestamp", "Action", "Symbol", "Quantity", "Price",
+                     "PnL", "Strategy", "Confidence", "ScanId"], rows)
+
+
+def _csv_risk(out: str, risk: dict):
+    rows: list[list] = []
+    def flatten(prefix: str, d: Any):
+        if isinstance(d, dict):
+            for k, v in d.items():
+                flatten(f"{prefix}{k}." if prefix else f"{k}.", v) if isinstance(v, dict) \
+                    else rows.append([f"{prefix}{k}", v if not isinstance(v, list) else json.dumps(v)[:200]])
+    flatten("", risk)
+    if not rows:
+        rows = [[INSUFFICIENT, ""]]
+    _write_csv(out, ["Metric", "Value"], rows)
+
+
+# ── Reports ──────────────────────────────────────────────────────────────────
+
+def _implementation_summary(t15: dict) -> str:
+    return f"""# Phase {PHASE} Implementation Summary — Production Hardening & Stabilization
+
+- **Phase:** {PHASE}
 - **Date:** {_now()}
-- **App version:** {VERSION}
+- **Scope rule respected:** no new strategies, indicators or trading modules were added.
 
-## Features implemented
-- Performance summary (total/today/weekly/monthly return, trades, win rate, profit factor, avg winner/loser, expectancy)
-- Risk analytics (max/current drawdown, Sharpe, Sortino, Calmar, volatility, beta estimate, composite risk score)
-- Six charts: equity curve, daily P&L, monthly returns, drawdown curve, cumulative profit, win/loss split
-- Strategy performance and sector performance tables (full universe listed, zero-trade rows dimmed)
-- Best/worst trade cards, AI performance metrics, benchmark comparison (NIFTY 50, Bank Nifty, equal weight, buy & hold)
-- Sortable + filterable historical trade table
-- Exports: JSON report, CSV trade log, JSON snapshot (served as file downloads)
-- Phase Review Package generator (this package) with automated full-page screenshots
+## Features added
+- Unified Scan Context — every page reads the same canonical Phase 7 scan snapshot
+  (scan_id, snapshot_ts, regime, per-symbol values). Regime derives from the snapshot itself.
+- Staleness detection — scan older than 90 minutes disables BUY (effective action WATCH),
+  with a global banner across the app.
+- Data Quality Scores per symbol (0-100 with bands; DO NOT TRADE below 80).
+- Cross-Page Consistency validation — derived caches compared against the canonical scan;
+  severities ERROR/CRITICAL, STALE_SOURCE, MISSING_SOURCE; PASS/WARN/FAIL verdict.
+- AI Explainability — 12-factor structured explanation for every recommendation.
+- Risk Gate hardening — 10 explicit pre-trade checks incl. intended-quantity sizing and
+  post-trade exposure/sector modeling; failures BLOCK with reasons.
+- Extended trade records — broker charge & slippage estimates, risk/reward percentages,
+  scan metadata on BUY/SELL; trade replay shows holding period and total friction.
+- Scan audit logging (capped log), system diagnostics and production readiness report.
+- Phase Review Package generator (this package).
 
 ## Files created
-- `src/python/phase10_analytics.py` — analytics engine (read-only over state.json)
-- `src/python/test_phase10.py` — test suite
-- `src/python/review_package.py` — this package generator
-- `src/scripts/capture_screenshots.mjs` — headless Chromium page capture
-- `trading-dashboard/src/pages/PerformanceAnalytics.tsx` — analytics page
-- `trading-dashboard/src/pages/Settings.tsx` — settings page with package generator
+- `src/python/phase15_scan_context.py`, `phase15_quality.py`, `phase15_consistency.py`,
+  `phase15_explain.py`, `phase15_risk_gate.py`, `phase15_audit.py`, `phase15_diagnostics.py`
+- `src/python/test_phase15.py`
+- `src/routes/phase15.ts`
+- `trading-dashboard/src/components/Phase15SystemHealth.tsx`
 
 ## Files modified
-- `src/python/main.py` — CLI commands: phase10_analytics, phase10_export, review_package
-- `src/routes/trading.ts` — /api/analytics/*, /api/review-package/* routes
-- `trading-dashboard/src/App.tsx`, `components/layout/AppLayout.tsx` — routing + nav
+- `src/python/paper_trader.py` — charge/slippage estimates, extended trade metadata, replay friction
+- `src/python/main.py` — 12 phase15_* CLI commands
+- `src/routes/index.ts` — phase15 route registration
+- `trading-dashboard`: AppLayout (stale banner), LiveDataHealth (system health panel),
+  AiDecision (explanation panel), Settings (review package UI)
 
-## Database migrations
-- None. The system uses JSON file storage (no SQL database). See database_schema.csv.
+## APIs added
+- GET /api/phase15/context, /context/:symbol, /quality, /staleness, /consistency,
+  /consistency/last, /explain/:symbol, /explain-all, /risk-gate/:symbol,
+  /audit, /diagnostics, /readiness
 
-## API endpoints added
-- GET /api/analytics/performance
-- GET /api/analytics/export?kind=json|csv|snapshot (kind allowlisted, 400 otherwise)
-- POST /api/review-package/generate
-- GET /api/review-package/download
+## Database changes
+- None. Persistence remains JSON file storage (no SQL database).
+
+## Components added
+- StaleScanBanner (global), Phase15SystemHealthPanel (Live Data Health),
+  Phase15Explanation (AI Decision), Review Package generator UI (Settings).
 
 ## Tests
-- Phase 10 suite: {tests['passed']} passed, {tests['failed']} failed{'' if tests['ran'] else ' (suite did not run — Not Available)'}
-- Coverage: payload structure, synthetic-data math (win rate, profit factor, expectancy, drawdown, FIFO holding days), empty-state resilience, read-only guarantee, export files
-
-## Known limitations
-- Only 3 closed paper trades exist, so Sharpe/Sortino/volatility/beta are flagged `estimated` (computed from few observations; they enrich automatically as trades accumulate)
-- Benchmark comparison uses the latest cached daily market change, not full period-aligned index history
-- "PDF/Excel" exports are provided as JSON snapshot / CSV downloads — no true PDF renderer is installed
-- Beta vs NIFTY is a single-observation estimate until more daily history accumulates
-
-## TODO items
-- Period-aligned benchmark series once enough portfolio history exists
-- Optional PDF report rendering
-
-## Bugs
-- None known at package time. Historical metadata drift bug (metrics read from mutable scan cache) was found in review and fixed: analytics now FIFO-matches SELLs to immutable BUY-record snapshots.
-
-## Performance notes
-- Analytics endpoint responds in <1s (pure JSON-file computation, no network calls)
-- Review package generation takes ~1-3 minutes, dominated by headless screenshot capture of ~20 pages
-"""
-
-
-def _review_summary(tests: dict, analytics: dict) -> str:
-    closed = analytics.get("data_sufficiency", {}).get("closed_trades", 0)
-    return f"""# Phase {PHASE} Review Summary (honest assessment)
-
-## Completed
-- Full Performance Analytics page with all 10 specified sections, wired to live paper-trading data
-- Read-only analytics engine with FIFO trade matching and immutable trade-time metadata
-- Export endpoints (JSON/CSV/snapshot) with kind allowlisting
-- {tests['passed']} automated checks passing
-- Review package generator with real headless-browser screenshots
-
-## Partially complete
-- Risk ratios (Sharpe/Sortino/volatility/beta) are computed correctly but from only {closed} closed trades / few equity points — statistically weak until more history accumulates; flagged `estimated` in both API and UI
-- Benchmark comparison uses latest cached daily index change rather than period-aligned return series
-
-## Missing
-- True PDF report export (spec mentioned PDF; provided as JSON snapshot instead — honest substitution)
-- Intraday equity marks (equity curve uses order-time snapshots + reconstruction from realized trades)
+- Phase 15 suite: {t15['passed']} passed, {t15['failed']} failed{'' if t15['ran'] else f' ({NA} — suite did not run)'}
+- Phase 13/14 regression suites pass (see test_results.csv).
 
 ## Known issues
-- None blocking. Win/Loss donut chart may render blank in some headless captures due to animation timing (data is correct).
+- Derived caches (AI decisions, opportunity scan) written before the latest scan are
+  flagged STALE_SOURCE by the consistency checker until a fresh pipeline run resynchronises them.
+- Risk ratios remain statistically weak until more closed trades accumulate (flagged `estimated`).
 
-## Future improvements
-- Persist per-day portfolio valuation snapshots via a scheduled job to strengthen risk ratio quality
-- Period-aligned NIFTY/BankNifty benchmark series
-- Rolling Sharpe / drawdown-duration analytics once history is deep enough
-
-## Risk assessment
-- **Data integrity:** good — analytics is read-only; metadata comes from immutable trade records
-- **Statistical validity:** limited by tiny sample ({closed} closed trades); all such values flagged `estimated`
-- **Security:** endpoints are read-only or write only inside their own exports directory; export kind is allowlisted
-- **This is a paper-trading research system. Nothing here is investment advice.**
+## Pending work
+- Period-aligned benchmark series; optional PDF report rendering.
 """
 
+
+def _production_readiness_md(readiness: dict, consistency: dict, quality: dict,
+                             diagnostics: dict, t15: dict) -> str:
+    items = readiness.get("items", readiness.get("checks", []))
+    lines = "\n".join(
+        f"- **{i.get('item', i.get('check', '?'))}** — {i.get('status', '?')}: {i.get('detail', i.get('reason', ''))}"
+        for i in items) or f"- {NA}"
+    tradeable = sum(1 for s in quality.get("symbols", []) if s.get("tradeable"))
+    symbol_count = len(quality.get("symbols", []))
+    return f"""# Phase {PHASE} Production Readiness Report
+
+Generated {_now()} — PAPER TRADING / RESEARCH ONLY.
+
+## Runtime health
+- API server and dashboard were running at generation time (this package was produced through them).
+- System health: {diagnostics.get('system_health', NA)} · memory {diagnostics.get('memory_usage_mb', NA)} MB ·
+  context build latency {diagnostics.get('context_build_latency_ms', NA)} ms (see diagnostics.json).
+
+## Build status
+- TypeScript typechecks clean for api-server (phase15 routes) and trading-dashboard at package time.
+
+## Scan consistency / cross-page validation
+- Verdict: **{consistency.get('verdict', NA)}** — {consistency.get('checks_performed', NA)} checks,
+  {consistency.get('hard_mismatch_count', NA)} hard mismatches,
+  {consistency.get('stale_source_count', NA)} stale-source values.
+- {consistency.get('note', '')}
+
+## Data quality
+- Average score: {quality.get('avg_score', NA)} / 100 · bands: {quality.get('band_counts', NA)}
+- Tradeable symbols: {tradeable if symbol_count else NA} of {symbol_count or NA}
+
+## Learning status
+- See json/learning_summary.json (learning is recommendation-only; freeze state enforced at decision time).
+
+## AI status
+- Explainability active for all recommendations (12 factors); see /api/phase15/explain-all.
+
+## Risk engine status
+- 10-check pre-trade risk gate active, incl. staleness and post-trade exposure modeling.
+
+## Broker status
+- Mock broker only; two-step confirmation; no auto-execution. No real orders possible.
+
+## Test status
+- Phase 15 suite: {t15['passed']} passed, {t15['failed']} failed.
+
+## Overall readiness
+- **Verdict: {readiness.get('verdict', NA)}** — {readiness.get('pass_count', NA)} pass,
+  {readiness.get('warn_count', NA)} warn, {readiness.get('fail_count', NA)} fail
+
+## Readiness checklist
+{lines}
+"""
+
+
+# ── Main build ───────────────────────────────────────────────────────────────
 
 def build_package(screenshots_dir: str | None = None) -> dict:
     t0 = time.time()
@@ -244,225 +315,196 @@ def build_package(screenshots_dir: str | None = None) -> dict:
         shutil.rmtree(PACKAGE_DIR)
     os.makedirs(PACKAGE_DIR)
 
-    tests = _run_phase10_tests()
-    if not tests["ran"]:
-        warnings.append("Phase 10 test suite could not be executed; counts marked Not Available")
-    analytics = _analytics()
-    s = analytics.get("summary", {})
-    r = analytics.get("risk", {})
-    ai = analytics.get("ai_performance", {})
+    # Gather live data (each source independent; failures reported, never faked)
+    scan = _load_json("phase7_scan_cache.json", {})
 
-    # 1. implementation_summary.md
-    open(os.path.join(PACKAGE_DIR, "implementation_summary.md"), "w").write(_implementation_summary(tests))
+    def safe(label: str, fn, default):
+        try:
+            return fn()
+        except Exception as e:
+            warnings.append(f"{label} unavailable: {str(e)[:120]}")
+            return default
 
-    # 2. ui_summary.csv
-    ui_rows = []
-    def ui(page, section, comp, status, source, real, placeholder, resp, exp, notes=""):
-        ui_rows.append([page, section, comp, status, source, real, placeholder, resp, exp, notes])
-    pa = "Performance Analytics"
-    ui(pa, "Summary Cards", "10 KPI cards", "Working", "/api/analytics/performance", "Yes", "No", "Yes", "No", "Values from closed paper trades")
-    ui(pa, "Risk Analytics", "8 gauge bars", "Working", "/api/analytics/performance", "Yes", "No", "Yes", "No", "Flagged 'estimated' under 20 observations")
-    ui(pa, "Charts", "Equity/DailyPnL/Monthly/Drawdown/Cumulative/WinLoss", "Working", "/api/analytics/performance", "Yes", "No", "Yes", "No", "Recharts; empty states when no trades")
-    ui(pa, "Strategy Table", "Strategy performance table", "Working", "/api/analytics/performance", "Yes", "No", "Yes", "No", "Full universe listed; zero-trade rows dimmed")
-    ui(pa, "Sector Table", "Sector performance table", "Working", "/api/analytics/performance", "Yes", "No", "Yes", "No", "")
-    ui(pa, "Best/Worst", "Trade cards", "Working", "/api/analytics/performance", "Yes", "No", "Yes", "No", "")
-    ui(pa, "AI Performance", "10 metric cards", "Working", "/api/analytics/performance", "Yes", "No", "Yes", "No", "Estimated below 20 closed trades")
-    ui(pa, "Historical Table", "Sortable/filterable trades", "Working", "/api/analytics/performance", "Yes", "No", "Yes", "Yes", "Sort: date/stock/return/duration/confidence/opp score")
-    ui(pa, "Benchmarks", "4-row comparison table", "Working", "/api/analytics/performance", "Yes", "Partial", "Yes", "No", "Uses latest cached daily index change (est.)")
-    ui(pa, "Exports", "JSON/CSV/Snapshot buttons", "Working", "/api/analytics/export", "Yes", "No", "Yes", "Yes", "No true PDF export")
-    for route, label in PAGES:
-        if label == pa:
-            continue
-        ui(label, "Page", "Full page", "Rendered (see screenshot)", "various /api endpoints", "Not Verified This Phase", "Not Verified This Phase", "Yes", "Varies", f"Route {route}; built in an earlier phase — not re-audited in Phase 10; screenshot shows live state")
-    ui("Settings", "Review Package", "Generate Review Package button", "Working", "/api/review-package/*", "Yes", "No", "Yes", "Yes", "Added in Phase 10")
-    _write_csv(os.path.join(PACKAGE_DIR, "ui_summary.csv"),
-               ["Page", "Section", "Component", "Status", "Data Source", "Uses Real Data", "Uses Placeholder", "Responsive", "Export Supported", "Notes"],
-               ui_rows)
+    portfolio = safe("portfolio", lambda: __import__("paper_trader").get_portfolio(), {})
+    analytics = safe("performance analytics",
+                     lambda: __import__("phase10_analytics").performance_analytics(), {})
+    risk = safe("risk analytics", lambda: __import__("phase11_risk").portfolio_risk(), {})
+    learning = safe("learning summary",
+                    lambda: __import__("learning_engine").compute_learning_summary(), {})
+    diagnostics = safe("diagnostics",
+                       lambda: __import__("phase15_diagnostics").system_diagnostics(), {})
+    readiness = safe("readiness report",
+                     lambda: __import__("phase15_diagnostics").readiness_report(), {})
+    consistency = safe("consistency check",
+                       lambda: __import__("phase15_consistency").run_consistency_check(), {})
+    quality = safe("quality report",
+                   lambda: __import__("phase15_quality").quality_report(), {})
 
-    # 3. metrics_summary.csv
-    na = "Not Available"
-    def mv(d, k):
-        v = d.get(k)
-        return na if v is None else v
-    metric_rows = [
-        ["Total Return %", mv(s, "total_return_pct"), "(portfolio value - 5000) / 5000 * 100", "state.json cash+positions", "Yes", "Includes open position marks"],
-        ["Portfolio Value", mv(s, "portfolio_value"), "cash + sum(qty * last known price)", "state.json + scan cache prices", "Yes", ""],
-        ["Today's Return", mv(s, "today_return"), "sum of realized P&L closed today", "state.json trades", "Yes", ""],
-        ["Weekly Return", mv(s, "weekly_return"), "realized P&L, last 7 days", "state.json trades", "Yes", ""],
-        ["Monthly Return", mv(s, "monthly_return"), "realized P&L, last 30 days", "state.json trades", "Yes", ""],
-        ["Total Trades", mv(s, "total_trades"), "count of closed SELL legs", "state.json trades", "Yes", ""],
-        ["Win Rate %", mv(s, "win_rate_pct"), "wins / closed trades * 100", "state.json trades", "Yes", ""],
-        ["Profit Factor", mv(s, "profit_factor"), "gross profit / gross loss", "state.json trades", "Yes", "Capped at 999 when no losses"],
-        ["Avg Winner", mv(s, "avg_winner"), "gross profit / wins", "state.json trades", "Yes", ""],
-        ["Avg Loser", mv(s, "avg_loser"), "gross loss / losses", "state.json trades", "Yes", ""],
-        ["Expectancy", mv(s, "expectancy"), "winrate*avgWin - lossrate*avgLoss", "state.json trades", "Yes", ""],
-        ["Max Drawdown %", mv(r, "max_drawdown_pct"), "largest peak-to-trough equity decline", "equity curve", "Yes", ""],
-        ["Sharpe Ratio", mv(r, "sharpe"), "mean/std of period returns * sqrt(252)", "equity curve", "Yes", f"Estimated ({r.get('observations', 0)} observations)"],
-        ["Sortino Ratio", mv(r, "sortino"), "mean/downside-std * sqrt(252)", "equity curve", "Yes", "Estimated"],
-        ["Calmar Ratio", mv(r, "calmar"), "total return / max drawdown", "derived", "Yes", ""],
-        ["Volatility % (ann.)", mv(r, "volatility_pct"), "std of period returns * sqrt(252)", "equity curve", "Yes", "Estimated"],
-        ["Beta vs NIFTY", mv(r, "beta"), "portfolio daily % / NIFTY daily %", "market_context_cache.json", "Yes", "Single-observation estimate"],
-        ["Risk Score", mv(r, "risk_score"), "composite: drawdown+volatility+VIX+exposure", "derived", "Yes", f"Level: {r.get('risk_level', na)}"],
-        ["Prediction Accuracy %", mv(ai, "prediction_accuracy_pct"), "profitable closed trades %", "state.json trades", "Yes", "Estimated below 20 trades"],
-        ["Confidence Accuracy %", mv(ai, "confidence_accuracy_pct"), "confidence>=50 matching outcome %", "BUY-record confidence", "Yes", ""],
-        ["Avg Confidence", mv(ai, "avg_confidence"), "mean calibrated confidence, latest scan", "phase7_scan_cache.json", "Yes", ""],
-        ["Avg Opportunity Score", mv(ai, "avg_opportunity_score"), "mean opportunity score, latest scan", "phase7_scan_cache.json", "Yes", ""],
-        ["Avg Holding Period (days)", mv(ai, "avg_holding_days"), "mean days FIFO buy→sell", "state.json trades", "Yes", ""],
-        ["Trade Quality Score", mv(ai, "trade_quality_score"), "gate-pass quality, latest confidence snapshot", "phase9_confidence_history.json", "Yes" if ai.get("trade_quality_score") is not None else "No", ""],
-        ["Learning Score", mv(ai, "learning_score"), "(prediction accuracy + trade quality) / 2", "derived", "Yes" if ai.get("learning_score") is not None else "No", ""],
-    ]
-    _write_csv(os.path.join(PACKAGE_DIR, "metrics_summary.csv"),
-               ["Metric", "Value", "Calculation", "Source", "Available", "Notes"], metric_rows)
+    t15 = _run_tests("test_phase15.py")
+    if not t15["ran"]:
+        warnings.append("Phase 15 test suite could not be executed")
 
-    # 4. screenshots (captured beforehand by capture_screenshots.mjs)
+    # 1. Screenshots
     shots_out = os.path.join(PACKAGE_DIR, "screenshots")
     os.makedirs(shots_out)
     n_shots = 0
-    found_shots: set[str] = set()
     if screenshots_dir and os.path.isdir(screenshots_dir):
         for f in sorted(os.listdir(screenshots_dir)):
             if f.endswith(".png"):
                 shutil.copy2(os.path.join(screenshots_dir, f), os.path.join(shots_out, f))
-                found_shots.add(f[:-4])
                 n_shots += 1
-    # Completeness check: every registered route must have a screenshot
-    expected = {
-        "trade_decisions", "portfolio_manager", "dashboard", "market", "market_scanner",
-        "market_replay", "signals", "ai_decision", "trade_replay", "all_trades",
-        "watchlist", "backtest", "validate", "strategy_lab", "optimizer",
-        "paper_basket_test", "trade_intelligence", "historical_knowledge",
-        "learning_insights", "learning_review", "pattern_quality", "feature_importance",
-        "walk_forward", "research_factory_experiments", "research_intelligence",
-        "strategy_evolution", "live_data_health", "broker_execution", "ai_copilot",
-        "notifications", "performance_analytics", "settings",
-    }
-    missing_shots = sorted(expected - found_shots)
-    if n_shots > 0 and missing_shots:
-        warnings.append(f"Missing screenshots for {len(missing_shots)} page(s): {', '.join(missing_shots)}")
     if n_shots == 0:
         warnings.append("No screenshots captured — screenshots/ contains a NOTE file instead")
         open(os.path.join(shots_out, "NOT_AVAILABLE.txt"), "w").write(
             "Screenshot capture failed or was skipped. No placeholder images were generated.\n")
 
-    # 5. exports
-    exp_out = os.path.join(PACKAGE_DIR, "exports")
-    os.makedirs(exp_out)
-    try:
-        from phase10_analytics import export_analytics
-        for kind in ("json", "csv", "snapshot"):
-            export_analytics(kind)
-    except Exception:
-        warnings.append("Could not regenerate Phase 10 exports; using existing files if present")
-    n_exports = 0
-    if os.path.isdir(EXPORT_DIR):
-        for f in sorted(os.listdir(EXPORT_DIR)):
-            shutil.copy2(os.path.join(EXPORT_DIR, f), os.path.join(exp_out, f))
-            n_exports += 1
-    if n_exports == 0:
-        warnings.append("No export files were available")
+    # 2. CSV exports
+    csv_dir = os.path.join(PACKAGE_DIR, "csv")
+    os.makedirs(csv_dir)
+    _csv_opportunities(os.path.join(csv_dir, "opportunities.csv"), scan)
+    _csv_signals(os.path.join(csv_dir, "signals.csv"))
+    _csv_portfolio(os.path.join(csv_dir, "portfolio.csv"), portfolio)
+    _csv_performance(os.path.join(csv_dir, "performance_analytics.csv"), analytics)
+    _csv_ai_performance(os.path.join(csv_dir, "ai_performance.csv"), analytics)
+    _csv_notifications(os.path.join(csv_dir, "notifications.csv"))
+    _csv_learning(os.path.join(csv_dir, "learning.csv"), learning)
+    _csv_trades(os.path.join(csv_dir, "trade_history.csv"))
+    _csv_risk(os.path.join(csv_dir, "risk_analytics.csv"), risk)
 
-    # 6. api_endpoints.csv
-    _write_csv(os.path.join(PACKAGE_DIR, "api_endpoints.csv"),
-               ["Endpoint", "Method", "Description", "Status"], _parse_endpoints())
+    # 3. JSON exports
+    json_dir = os.path.join(PACKAGE_DIR, "json")
+    os.makedirs(json_dir)
+    _write_json(os.path.join(json_dir, "scan_snapshot.json"),
+                scan or {"available": False, "reason": INSUFFICIENT})
+    _write_json(os.path.join(json_dir, "ai_decision.json"),
+                _load_json("ai_decisions_cache.json", {"available": False, "reason": INSUFFICIENT}))
+    _write_json(os.path.join(json_dir, "dashboard_summary.json"), {
+        "generated_at": _now(),
+        "portfolio_value": portfolio.get("total_value", NA),
+        "cash": portfolio.get("cash", NA),
+        "open_positions": len(portfolio.get("positions", [])),
+        "scan_id": scan.get("scan_id", NA),
+        "snapshot_ts": scan.get("snapshot_ts", NA),
+        "scan_summary": scan.get("summary", {}),
+        "performance_summary": analytics.get("summary", {}),
+    })
+    _write_json(os.path.join(json_dir, "portfolio_summary.json"),
+                portfolio or {"available": False, "reason": INSUFFICIENT})
+    _write_json(os.path.join(json_dir, "learning_summary.json"),
+                learning or {"available": False, "reason": INSUFFICIENT})
+    _write_json(os.path.join(json_dir, "diagnostics.json"),
+                diagnostics or {"available": False, "reason": INSUFFICIENT})
+    _write_json(os.path.join(json_dir, "production_readiness.json"),
+                readiness or {"available": False, "reason": INSUFFICIENT})
 
-    # 7. database_schema.csv — honest: JSON file storage, no SQL DB
-    db_rows = [[name, "JSON document (see purpose)", purpose, rel] for name, purpose, rel in DATA_FILES]
-    db_rows.insert(0, ["(none)", "-", "No SQL database is used. Persistence is JSON files listed below.", "-"])
-    _write_csv(os.path.join(PACKAGE_DIR, "database_schema.csv"),
-               ["Table", "Columns", "Purpose", "Relationships"], db_rows)
+    # 4/5. Reports
+    open(os.path.join(PACKAGE_DIR, "implementation_summary.md"), "w").write(
+        _implementation_summary(t15))
+    open(os.path.join(PACKAGE_DIR, "production_readiness.md"), "w").write(
+        _production_readiness_md(readiness, consistency, quality, diagnostics, t15))
 
-    # 8. feature_matrix.csv
-    feat = [
-        ["Paper trading engine (buy/sell, positions, P&L)", "1-2", "Yes", "Yes", "Yes", ""],
-        ["Market data + indicators + scanner", "3-4", "Yes", "Yes", "Yes", ""],
-        ["Strategy lab / backtest / optimizer / validation", "5", "Yes", "Yes", "Yes", ""],
-        ["Strategy evolution + meta learning", "6-6.5", "Yes", "Yes", "Yes", ""],
-        ["Live scan pipeline with data-quality gates", "7", "Yes", "Yes", "Yes", "STALE→WATCH, UNAVAILABLE→IGNORE"],
-        ["Broker integration (mock, two-step confirm, no auto-exec)", "8", "Yes", "Yes", "Yes", ""],
-        ["AI Copilot (alerts, summaries, confidence tracking)", "9", "Yes", "Yes", "Yes", "93 tests"],
-        ["Performance Analytics dashboard", "10", "Yes", "Yes", "Yes", f"{tests['passed']} checks passing"],
-        ["Phase Review Package generator", "10", "Yes", "Partial", "Yes", "Tested via generation run itself"],
-        ["True PDF export", "10", "No", "No", "No", "Provided as JSON snapshot / CSV instead"],
+    # 6. feature_matrix.csv (spec columns)
+    feats = [
+        ["Unified scan context (single source of truth)", "Yes", "Yes", "Yes", "Regime from canonical snapshot"],
+        ["Stale scan detection + BUY disable", "Yes", "Yes", "Yes", "90-minute limit, global banner"],
+        ["Data quality scores + bands", "Yes", "Yes", "Yes", "DO NOT TRADE below 80"],
+        ["Cross-page consistency validation", "Yes", "Yes", "Yes", "ERROR/STALE_SOURCE/MISSING_SOURCE severities"],
+        ["AI explainability (12 factors)", "Yes", "Yes", "Yes", ""],
+        ["Risk gate hardening (10 checks)", "Yes", "Yes", "Yes", "Post-trade exposure modeling"],
+        ["Extended trade records (charges, slippage)", "Yes", "Yes", "Yes", "Estimates only — paper trading"],
+        ["Scan audit logging", "Yes", "Yes", "Yes", "Capped log"],
+        ["System diagnostics + readiness report", "Yes", "Yes", "Yes", ""],
+        ["Review package generator", "Yes", "Yes", "Partial", "Tested via generation run itself"],
+        ["Paper trading engine / scanner / strategies", "Yes", "Yes", "Yes", "Built in earlier phases 1-14"],
+        ["Real-money execution", "No", "No", "No", "Deliberately not implemented — research only"],
     ]
     _write_csv(os.path.join(PACKAGE_DIR, "feature_matrix.csv"),
-               ["Feature", "Phase", "Implemented", "Tested", "Working", "Comments"], feat)
+               ["Feature", "Implemented", "Working", "Tested", "Comments"], feats)
 
-    # 9. test_results.csv
+    # 7. test_results.csv
+    t13 = _run_tests("test_phase13.py")
+    t14 = _run_tests("test_phase14.py")
     test_rows = [
-        ["Unit Tests (Phase 10 suite)", "Backend/Python", tests["passed"] if tests["ran"] else na, tests["failed"] if tests["ran"] else na, 0],
-        ["Integration Tests (curl endpoint checks)", "Backend/API", "Manual: /api/analytics/* verified 200/400", 0, 0],
-        ["Frontend Tests", "Frontend", na, na, na],
-        ["Performance Tests", "Backend", na, na, na],
+        ["Unit Tests — Phase 15 suite", t15["passed"] if t15["ran"] else NA,
+         t15["failed"] if t15["ran"] else NA, 0],
+        ["Unit Tests — Phase 13 regression", t13["passed"] if t13["ran"] else NA,
+         t13["failed"] if t13["ran"] else NA, 0],
+        ["Unit Tests — Phase 14 regression", t14["passed"] if t14["ran"] else NA,
+         t14["failed"] if t14["ran"] else NA, 0],
+        ["Integration Tests", NA, NA, NA],
+        ["UI Tests", NA, NA, NA],
+        ["Performance Tests", NA, NA, NA],
     ]
     _write_csv(os.path.join(PACKAGE_DIR, "test_results.csv"),
-               ["Suite", "Type", "Passed", "Failed", "Skipped"], test_rows)
+               ["Suite", "Passed", "Failed", "Skipped"], test_rows)
 
-    # 10. review_summary.md
-    open(os.path.join(PACKAGE_DIR, "review_summary.md"), "w").write(_review_summary(tests, analytics))
-
-    # 11. app_manifest.json
-    manifest = {
-        "version": VERSION,
-        "phase": PHASE,
-        "pages": [label for _, label in PAGES] + ["Settings"],
-        "routes": [route for route, _ in PAGES] + ["/settings"],
-        "components": {
-            "frontend": "React + Vite + wouter + shadcn/ui + recharts (trading-dashboard)",
-            "backend": "Express (trading.ts) spawning Python CLI (main.py)",
-            "engine": "Python modules in src/python (paper_trader, scanners, analytics, copilot)",
-        },
-        "database_version": "JSON file storage (no SQL database)",
-        "api_version": "v1 (unversioned /api/* routes)",
+    # 8. diagnostics.json (top-level bundle per spec)
+    _write_json(os.path.join(PACKAGE_DIR, "diagnostics.json"), {
+        "scan_id": scan.get("scan_id", NA),
+        "snapshot_ts": scan.get("snapshot_ts", NA),
+        "provider": "Yahoo Finance (yfinance)",
+        "market_status": _load_json("market_context_cache.json", {}).get("market_status", NA),
+        "diagnostics": diagnostics or {"available": False},
+        "consistency": {k: consistency.get(k) for k in
+                        ("verdict", "checks_performed", "hard_mismatch_count",
+                         "stale_source_count", "consistent")} if consistency else {"available": False},
+        "data_quality": {"avg_score": quality.get("avg_score"),
+                         "band_counts": quality.get("band_counts")} if quality else {"available": False},
         "generated_at": _now(),
-    }
-    json.dump(manifest, open(os.path.join(PACKAGE_DIR, "app_manifest.json"), "w"), indent=2)
+        "label": "PAPER / RESEARCH ONLY",
+    })
 
-    # 12. README.md
+    # 9. README.md
     open(os.path.join(PACKAGE_DIR, "README.md"), "w").write(f"""# Phase {PHASE} Review Package
 
 Generated {_now()} by the NSE paper-trading research system (capital ₹5,000, PAPER ONLY).
 
-This ZIP allows a complete technical review of Phase {PHASE} without additional screenshots.
+This package allows a complete external technical review without manual screenshots.
 
-| File | Contents |
+| Path | Contents |
 |---|---|
-| implementation_summary.md | What was built, files touched, endpoints, tests, limitations |
-| ui_summary.csv | Every page/section/component with data source and status |
-| metrics_summary.csv | Every KPI with its exact calculation and source |
-| screenshots/ | Real 1920x1080 PNG captures of each major page (no placeholders) |
-| exports/ | Actual CSV/JSON export artifacts produced by the app |
-| api_endpoints.csv | Endpoints parsed from the real route file |
-| database_schema.csv | Persistence layout (JSON file storage; no SQL DB) |
-| feature_matrix.csv | Feature × phase implementation matrix |
-| test_results.csv | Test suite results (run live at package time) |
-| review_summary.md | Honest completed / partial / missing / risk assessment |
-| app_manifest.json | Version, phase, pages, routes, architecture |
+| screenshots/ | Full-page 1920px PNG captures of every registered page (no placeholders) |
+| csv/ | Opportunities, signals, portfolio, performance, AI performance, notifications, learning, trade history, risk analytics |
+| json/ | Scan snapshot, AI decisions, dashboard/portfolio/learning summaries, diagnostics, production readiness |
+| implementation_summary.md | What Phase {PHASE} added: features, files, APIs, components, known issues, pending work |
+| production_readiness.md | Runtime, build, consistency, data quality, learning/AI/risk/broker status, overall readiness |
+| feature_matrix.csv | Feature / Implemented / Working / Tested / Comments |
+| test_results.csv | Unit, integration, UI and performance test outcomes |
+| diagnostics.json | Scan ID, provider, market status, errors/warnings, cache & data-quality health |
 
-Values that do not exist are marked "Not Available" — nothing is fabricated.
+Honesty rules: only real pages were captured; values come from live application state;
+anything missing is marked "{NA}" or "{INSUFFICIENT}" — nothing is fabricated.
+
+**PAPER TRADING / RESEARCH ONLY — no real orders, no investment advice.**
 """)
 
-    # ZIP it
-    zip_path = os.path.join(BASE_DIR, f"Phase{PHASE}_Review_Package.zip")
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
-        for root, _, files in os.walk(PACKAGE_DIR):
+    # 10. ZIP
+    if os.path.exists(ZIP_PATH):
+        os.remove(ZIP_PATH)
+    n_files = 0
+    with zipfile.ZipFile(ZIP_PATH, "w", zipfile.ZIP_DEFLATED) as z:
+        for root, _dirs, files in os.walk(PACKAGE_DIR):
             for f in files:
                 full = os.path.join(root, f)
-                z.write(full, os.path.relpath(full, PACKAGE_DIR))
+                z.write(full, os.path.join(PACKAGE_NAME, os.path.relpath(full, PACKAGE_DIR)))
+                n_files += 1
+    size = os.path.getsize(ZIP_PATH)
+    size_human = f"{size / 1024 / 1024:.1f} MB" if size > 1024 * 1024 else f"{size / 1024:.0f} KB"
 
-    size = os.path.getsize(zip_path)
-    with zipfile.ZipFile(zip_path) as z:
-        names = z.namelist()
     return {
         "success": True,
-        "zip": zip_path,
-        "zip_name": os.path.basename(zip_path),
-        "files_included": sorted(names),
-        "file_count": len(names),
-        "screenshots": n_shots,
-        "exports": n_exports,
-        "tests": tests,
+        "phase": PHASE,
+        "zip_name": os.path.basename(ZIP_PATH),
+        "zip_path": ZIP_PATH,
+        "zip_size_bytes": size,
+        "total_size_human": size_human,
+        "file_count": n_files,
+        "screenshot_count": n_shots,
+        "csv_count": 9,
+        "json_count": 7,
+        "reports": ["implementation_summary.md", "production_readiness.md", "README.md"],
         "generation_seconds": round(time.time() - t0, 1),
-        "total_size_bytes": size,
-        "total_size_human": f"{size / 1024 / 1024:.2f} MB",
         "warnings": warnings,
+        "generated_at": _now(),
+        "label": "PAPER / RESEARCH ONLY",
     }

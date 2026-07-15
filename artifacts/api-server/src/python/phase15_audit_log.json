@@ -44,8 +44,90 @@
     "audit_id": "a15_727b5b1a9b56",
     "scan_id": "727b5b1a9b56",
     "timestamp": "2026-07-15T13:11:05Z",
-    "recorded_at": "2026-07-15T13:16:24Z",
+    "recorded_at": "2026-07-15T14:11:31Z",
     "duration_s": 34.51,
+    "stocks_processed": 50,
+    "stocks_valid": 48,
+    "strategies_executed": [
+      "Breakout Hunter",
+      "EMA Cross",
+      "MACD Cross",
+      "Mean Reversion",
+      "Trend Rider"
+    ],
+    "signals_generated": {
+      "strong_buy": 0,
+      "buy": 0,
+      "watch": 4,
+      "ignore": 44
+    },
+    "warnings": [],
+    "warning_count": 0,
+    "errors": [
+      "LTIM: Data fetch failed: No data returned for LTIM.NS",
+      "TATAMOTORS: Data fetch failed: No data returned for TATAMOTORS.NS"
+    ],
+    "error_count": 2,
+    "learning_events": [
+      "Adaptive learning active (bounded, human-governed)"
+    ],
+    "risk_checks": {
+      "quality_gates_applied": true,
+      "rr_gate_applied": true,
+      "volume_gate_applied": true,
+      "stale_cap_applied": true,
+      "gate_failures": 0
+    },
+    "decision_summary": "0 STRONG BUY, 0 BUY, 4 WATCH, 44 IGNORE across 50 stocks; best INDUSINDBK (43.9); avg score 23.6",
+    "label": "PAPER / RESEARCH ONLY"
+  },
+  {
+    "audit_id": "a15_6c374be5ca81",
+    "scan_id": "6c374be5ca81",
+    "timestamp": "2026-07-15T14:14:10Z",
+    "recorded_at": "2026-07-15T14:15:46Z",
+    "duration_s": 37.98,
+    "stocks_processed": 50,
+    "stocks_valid": 48,
+    "strategies_executed": [
+      "Breakout Hunter",
+      "EMA Cross",
+      "MACD Cross",
+      "Mean Reversion",
+      "Trend Rider"
+    ],
+    "signals_generated": {
+      "strong_buy": 0,
+      "buy": 0,
+      "watch": 4,
+      "ignore": 44
+    },
+    "warnings": [],
+    "warning_count": 0,
+    "errors": [
+      "LTIM: Data fetch failed: No data returned for LTIM.NS",
+      "TATAMOTORS: Data fetch failed: No data returned for TATAMOTORS.NS"
+    ],
+    "error_count": 2,
+    "learning_events": [
+      "Adaptive learning active (bounded, human-governed)"
+    ],
+    "risk_checks": {
+      "quality_gates_applied": true,
+      "rr_gate_applied": true,
+      "volume_gate_applied": true,
+      "stale_cap_applied": true,
+      "gate_failures": 0
+    },
+    "decision_summary": "0 STRONG BUY, 0 BUY, 4 WATCH, 44 IGNORE across 50 stocks; best INDUSINDBK (43.9); avg score 23.6",
+    "label": "PAPER / RESEARCH ONLY"
+  },
+  {
+    "audit_id": "a15_b44bbd5dc575",
+    "scan_id": "b44bbd5dc575",
+    "timestamp": "2026-07-15T14:33:32Z",
+    "recorded_at": "2026-07-15T14:43:50Z",
+    "duration_s": 36.28,
     "stocks_processed": 50,
     "stocks_valid": 48,
     "strategies_executed": [

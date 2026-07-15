@@ -1,0 +1,90 @@
+{
+  "success": true,
+  "version": "15.0",
+  "generated_at": "2026-07-15T14:43:49Z",
+  "system_health": "OK",
+  "api_status": "OK",
+  "context_build_latency_ms": 1.3,
+  "memory_usage_mb": 94.7,
+  "cache_status": [
+    {
+      "file": "phase7_scan_cache.json",
+      "exists": true,
+      "size_bytes": 65577,
+      "age_seconds": 581.0,
+      "modified_at": "2026-07-15T14:34:09Z"
+    },
+    {
+      "file": "ai_decisions_cache.json",
+      "exists": true,
+      "size_bytes": 7235,
+      "age_seconds": 2543.0,
+      "modified_at": "2026-07-15T14:01:26Z"
+    },
+    {
+      "file": "opportunity_cache.json",
+      "exists": true,
+      "size_bytes": 10640,
+      "age_seconds": 2543.0,
+      "modified_at": "2026-07-15T14:01:26Z"
+    },
+    {
+      "file": "phase13_cache.json",
+      "exists": true,
+      "size_bytes": 147520,
+      "age_seconds": 124.0,
+      "modified_at": "2026-07-15T14:41:45Z"
+    },
+    {
+      "file": "market_context_cache.json",
+      "exists": true,
+      "size_bytes": 566,
+      "age_seconds": 2543.0,
+      "modified_at": "2026-07-15T14:01:26Z"
+    },
+    {
+      "file": "phase14_adjustments.json",
+      "exists": true,
+      "size_bytes": 12494,
+      "age_seconds": 331.0,
+      "modified_at": "2026-07-15T14:38:18Z"
+    },
+    {
+      "file": "phase15_consistency_report.json",
+      "exists": true,
+      "size_bytes": 17076,
+      "age_seconds": 332.0,
+      "modified_at": "2026-07-15T14:38:18Z"
+    },
+    {
+      "file": "phase15_audit_log.json",
+      "exists": true,
+      "size_bytes": 4634,
+      "age_seconds": 332.0,
+      "modified_at": "2026-07-15T14:38:18Z"
+    }
+  ],
+  "database_health": {
+    "paper_state_file": true,
+    "writable": true
+  },
+  "market_feed_status": "UNKNOWN",
+  "scan": {
+    "last_scan_id": "b44bbd5dc575",
+    "last_successful_scan": "2026-07-15T14:33:32Z",
+    "last_failed_scan": "2026-07-15T14:33:32Z",
+    "scan_duration_s": 36.28,
+    "symbols_with_errors": 2,
+    "stale": false
+  },
+  "learning_status": {
+    "status": "ACTIVE",
+    "auto_promotion": false,
+    "human_approval_required": true
+  },
+  "model_registry": {
+    "champion_version": "p13_champion_v1",
+    "model_count": 1
+  },
+  "label": "PAPER / RESEARCH ONLY"
+}

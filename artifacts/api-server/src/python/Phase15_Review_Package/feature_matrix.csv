@@ -1,0 +1,13 @@
+Feature,Implemented,Working,Tested,Comments
+Unified scan context (single source of truth),Yes,Yes,Yes,Regime from canonical snapshot
+Stale scan detection + BUY disable,Yes,Yes,Yes,"90-minute limit, global banner"
+Data quality scores + bands,Yes,Yes,Yes,DO NOT TRADE below 80
+Cross-page consistency validation,Yes,Yes,Yes,ERROR/STALE_SOURCE/MISSING_SOURCE severities
+AI explainability (12 factors),Yes,Yes,Yes,
+Risk gate hardening (10 checks),Yes,Yes,Yes,Post-trade exposure modeling
+"Extended trade records (charges, slippage)",Yes,Yes,Yes,Estimates only — paper trading
+Scan audit logging,Yes,Yes,Yes,Capped log
+System diagnostics + readiness report,Yes,Yes,Yes,
+Review package generator,Yes,Yes,Partial,Tested via generation run itself
+Paper trading engine / scanner / strategies,Yes,Yes,Yes,Built in earlier phases 1-14
+Real-money execution,No,No,No,Deliberately not implemented — research only

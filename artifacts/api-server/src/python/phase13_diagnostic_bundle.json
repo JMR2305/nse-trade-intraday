@@ -1,14 +1,14 @@
 {
   "bundle_version": 1,
   "phase": 13,
-  "generated_at": "2026-07-15T13:07:58Z",
+  "generated_at": "2026-07-15T14:43:50Z",
   "engine_version": "Research Engine v1.0 \u00b7 Phase 13",
   "mode": "PAPER_TRADING_RESEARCH_ONLY",
   "label": "PAPER / RESEARCH ONLY",
   "market_status": {
     "state": "CLOSED",
     "is_open": false,
-    "now_ist": "2026-07-15T18:37:58.411950+05:30",
+    "now_ist": "2026-07-15T20:13:50.864982+05:30",
     "timezone": "Asia/Kolkata",
     "session": {
       "pre_open": "09:00",
@@ -20,7 +20,7 @@
     "next_transition": {
       "event": "market_open",
       "at_ist": "2026-07-16T09:15:00+05:30",
-      "seconds_until": 52621
+      "seconds_until": 46869
     },
     "upcoming_holidays": [
       {
@@ -43,8 +43,8 @@
     "provider_id": "yfinance",
     "circuit_breaker": "CLOSED",
     "consecutive_failures": 0,
-    "last_success_ts": "2026-07-15T12:34:19Z",
-    "total_fetches": 27,
+    "last_success_ts": "2026-07-15T14:37:44Z",
+    "total_fetches": 66,
     "total_errors": 0,
     "cached_symbols": 3,
     "quote_ttl_s": 20.0,
@@ -61,7 +61,7 @@
       "CRISIS": 0.0
     },
     "prev_regime": "RANGE_BOUND",
-    "regime_duration_bars": 2,
+    "regime_duration_bars": 5,
     "regime_changed": false,
     "score_multiplier": 0.95,
     "eligible_strategies": [
@@ -135,7 +135,7 @@
   },
   "scan_staleness": {
     "stale": false,
-    "age_minutes": 145.9
+    "age_minutes": 1.6
   },
   "audit_summary": {
     "trade_count": 3,
@@ -226,8 +226,8 @@
     {
       "file": "phase13_cache.json",
       "exists": true,
-      "size_bytes": 147522,
-      "modified": "2026-07-15T13:07:58Z"
+      "size_bytes": 147520,
+      "modified": "2026-07-15T14:43:50Z"
     },
     {
       "file": "phase13_proposals.json",
@@ -239,31 +239,31 @@
       "file": "phase13_audit_report.json",
       "exists": true,
       "size_bytes": 3146,
-      "modified": "2026-07-15T13:07:58Z"
+      "modified": "2026-07-15T14:43:50Z"
     },
     {
       "file": "phase13_diagnostic_bundle.json",
       "exists": true,
-      "size_bytes": 6534,
-      "modified": "2026-07-15T12:37:40Z"
+      "size_bytes": 6532,
+      "modified": "2026-07-15T14:38:18Z"
     },
     {
       "file": "phase13_summary.csv",
       "exists": true,
-      "size_bytes": 2285,
-      "modified": "2026-07-15T12:37:40Z"
+      "size_bytes": 2283,
+      "modified": "2026-07-15T14:38:18Z"
     },
     {
       "file": "phase7_scan_cache.json",
       "exists": true,
-      "size_bytes": 65576,
-      "modified": "2026-07-15T10:42:36Z"
+      "size_bytes": 65577,
+      "modified": "2026-07-15T14:34:09Z"
     },
     {
       "file": "market_context_cache.json",
       "exists": true,
       "size_bytes": 566,
-      "modified": "2026-07-15T12:41:47Z"
+      "modified": "2026-07-15T14:01:26Z"
     }
   ],
   "errors": {},

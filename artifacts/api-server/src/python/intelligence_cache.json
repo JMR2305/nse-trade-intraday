@@ -1,7 +1,7 @@
 [
   {
     "stock": "RELIANCE",
-    "time": "2026-07-15T12:41:40.765087",
+    "time": "2026-07-15T14:01:18.439100",
     "signal": "NO_TRADE",
     "quantity": 0,
     "price": 1295.5,
@@ -74,7 +74,7 @@
       "regime": "SIDEWAYS",
       "timeframe_alignment": 2,
       "pass_all_rules": true,
-      "time": "2026-07-15T12:41:47.382968"
+      "time": "2026-07-15T14:01:26.534768"
     },
     "explainability": {
       "approve_reasons": [
@@ -89,7 +89,7 @@
   },
   {
     "stock": "TCS",
-    "time": "2026-07-15T12:41:41.330702",
+    "time": "2026-07-15T14:01:19.615919",
     "signal": "NO_TRADE",
     "quantity": 0,
     "price": 2189.2,
@@ -162,7 +162,7 @@
       "regime": "SIDEWAYS",
       "timeframe_alignment": 3,
       "pass_all_rules": true,
-      "time": "2026-07-15T12:41:47.383067"
+      "time": "2026-07-15T14:01:26.534838"
     },
     "explainability": {
       "approve_reasons": [
@@ -178,7 +178,7 @@
   },
   {
     "stock": "INFY",
-    "time": "2026-07-15T12:41:42.125564",
+    "time": "2026-07-15T14:01:20.320217",
     "signal": "NO_TRADE",
     "quantity": 0,
     "price": 1076.3,
@@ -251,7 +251,7 @@
       "regime": "SIDEWAYS",
       "timeframe_alignment": 2,
       "pass_all_rules": true,
-      "time": "2026-07-15T12:41:47.383147"
+      "time": "2026-07-15T14:01:26.534900"
     },
     "explainability": {
       "approve_reasons": [
@@ -266,7 +266,7 @@
   },
   {
     "stock": "HDFCBANK",
-    "time": "2026-07-15T12:41:43.211945",
+    "time": "2026-07-15T14:01:21.157246",
     "signal": "NO_TRADE",
     "quantity": 1,
     "price": 815.45,
@@ -341,7 +341,7 @@
       "regime": "SIDEWAYS",
       "timeframe_alignment": 4,
       "pass_all_rules": true,
-      "time": "2026-07-15T12:41:47.383227"
+      "time": "2026-07-15T14:01:26.534958"
     },
     "explainability": {
       "approve_reasons": [
@@ -357,7 +357,7 @@
   },
   {
     "stock": "ICICIBANK",
-    "time": "2026-07-15T12:41:43.858948",
+    "time": "2026-07-15T14:01:21.990475",
     "signal": "NO_TRADE",
     "quantity": 0,
     "price": 1416.2,
@@ -432,7 +432,7 @@
       "regime": "SIDEWAYS",
       "timeframe_alignment": 2,
       "pass_all_rules": true,
-      "time": "2026-07-15T12:41:47.383322"
+      "time": "2026-07-15T14:01:26.535018"
     },
     "explainability": {
       "approve_reasons": [],
@@ -445,7 +445,7 @@
   },
   {
     "stock": "SBIN",
-    "time": "2026-07-15T12:41:44.509840",
+    "time": "2026-07-15T14:01:23.125944",
     "signal": "NO_TRADE",
     "quantity": 0,
     "price": 1030.1,
@@ -518,7 +518,7 @@
       "regime": "SIDEWAYS",
       "timeframe_alignment": 4,
       "pass_all_rules": true,
-      "time": "2026-07-15T12:41:47.383402"
+      "time": "2026-07-15T14:01:26.535077"
     },
     "explainability": {
       "approve_reasons": [
@@ -533,7 +533,7 @@
   },
   {
     "stock": "WIPRO",
-    "time": "2026-07-15T12:41:45.336668",
+    "time": "2026-07-15T14:01:23.935848",
     "signal": "NO_TRADE",
     "quantity": 5,
     "price": 174.65,
@@ -608,7 +608,7 @@
       "regime": "SIDEWAYS",
       "timeframe_alignment": 2,
       "pass_all_rules": true,
-      "time": "2026-07-15T12:41:47.383482"
+      "time": "2026-07-15T14:01:26.535128"
     },
     "explainability": {
       "approve_reasons": [
@@ -623,7 +623,7 @@
   },
   {
     "stock": "LT",
-    "time": "2026-07-15T12:41:45.990899",
+    "time": "2026-07-15T14:01:24.804247",
     "signal": "WATCH",
     "quantity": 0,
     "price": 3783.9,
@@ -699,7 +699,7 @@
       "regime": "SIDEWAYS",
       "timeframe_alignment": 3,
       "pass_all_rules": true,
-      "time": "2026-07-15T12:41:47.383569"
+      "time": "2026-07-15T14:01:26.535195"
     },
     "explainability": {
       "approve_reasons": [
@@ -715,7 +715,7 @@
   },
   {
     "stock": "BAJFINANCE",
-    "time": "2026-07-15T12:41:46.623223",
+    "time": "2026-07-15T14:01:25.775678",
     "signal": "NO_TRADE",
     "quantity": 0,
     "price": 1021.3,
@@ -790,7 +790,7 @@
       "regime": "SIDEWAYS",
       "timeframe_alignment": 4,
       "pass_all_rules": true,
-      "time": "2026-07-15T12:41:47.383640"
+      "time": "2026-07-15T14:01:26.535252"
     },
     "explainability": {
       "approve_reasons": [
@@ -805,7 +805,7 @@
   },
   {
     "stock": "MARUTI",
-    "time": "2026-07-15T12:41:47.380971",
+    "time": "2026-07-15T14:01:26.533634",
     "signal": "NO_TRADE",
     "quantity": 0,
     "price": 13583.0,
@@ -880,7 +880,7 @@
       "regime": "SIDEWAYS",
       "timeframe_alignment": 4,
       "pass_all_rules": true,
-      "time": "2026-07-15T12:41:47.383713"
+      "time": "2026-07-15T14:01:26.535302"
     },
     "explainability": {
       "approve_reasons": [
