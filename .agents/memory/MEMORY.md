@@ -19,3 +19,4 @@
 - [Phase 19B durable scan state](phase19b-scan-state.md) — canonical scan snapshot/lock live in Postgres via scan_state_store; local files are warm caches only; failed scans never overwrite snapshots.
 - [UI audit scripts](ui-audit-scripts.md) — long puppeteer audits must be resumable (per-page rows) + foreground timeout passes; wait for target selector, recover detached frames.
 - [Phase 20 auto paper trading](phase20-auto-paper.md) — auto entries default OFF w/ exact-confirmation; EXIT_PENDING on stale data (never fabricate fills); one OPEN trade per symbol via partial unique index (claim-before-buy); health enum HEALTHY/DEGRADED/DOWN/UNKNOWN/DISABLED end-to-end.
+- [Phase 17 audit conventions](phase17-audit.md) — equity points use key `equity` not `value`; daily session report auto-generates via scheduler kv guard; stale-source warnings after close are environmental.

@@ -63,6 +63,43 @@ def record_manual_scan(snap: Dict[str, Any], duration_s: float = 0.0) -> None:
         pass
 
 
+def _maybe_generate_session_report(mstate: str) -> Any:
+    """After the market closes on a trading day, generate the daily
+    validation report bundle (CSV/XLSX/PDF) exactly once per day.
+
+    Runs only when state is CLOSED (post-session on a trading day, not
+    HOLIDAY/WEEKEND pre-open states) and only if a scan actually ran today.
+    Returns a small summary dict when a report was generated, else None.
+    """
+    if mstate != "CLOSED":
+        return None
+    try:
+        from zoneinfo import ZoneInfo
+        today_ist = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%Y-%m-%d")
+        if store.kv_get("session_report_date") == today_ist:
+            return None
+        sched = store.get_scheduler_health()
+        last_ok = str((sched or {}).get("last_success_at") or "")
+        if not last_ok.startswith(today_ist):
+            # No successful scan yet today — don't stamp, so a later
+            # recovery/manual scan can still trigger today's report.
+            return None
+        # Claim the day up-front so concurrent ticks don't both build.
+        prev = store.kv_get("session_report_date")
+        store.kv_set("session_report_date", today_ist)
+        try:
+            from phase16_exports import build_exports
+            result = build_exports()
+        except Exception:
+            store.kv_set("session_report_date", prev)  # allow retry next tick
+            raise
+        return {"generated": True, "date": today_ist,
+                "files": result.get("files", []),
+                "warnings": result.get("warnings", [])}
+    except Exception as exc:  # report generation must never break the tick
+        return {"generated": False, "error": str(exc)[:200]}
+
+
 def run_tick() -> Dict[str, Any]:
     """One scheduler tick. Returns a JSON-safe result dict."""
     settings = store.get_settings()
@@ -80,13 +117,17 @@ def run_tick() -> Dict[str, Any]:
     mstat = market_status()
     mstate = str(mstat.get("state") or mstat.get("market_state") or "").upper()
     if mstate != "OPEN":
+        report = _maybe_generate_session_report(mstate)
         store.update_scheduler_state(
             last_attempt_at=now_iso, status="IDLE",
             detail=f"Market not open (state={mstate or 'UNKNOWN'})",
         )
-        return {"success": True, "ran_scan": False,
-                "reason": f"Market not open (state={mstate or 'UNKNOWN'})",
-                "market": mstat}
+        out: Dict[str, Any] = {"success": True, "ran_scan": False,
+                               "reason": f"Market not open (state={mstate or 'UNKNOWN'})",
+                               "market": mstat}
+        if report is not None:
+            out["session_report"] = report
+        return out
 
     from phase15_scan_context import scan_age_seconds
     age = scan_age_seconds()

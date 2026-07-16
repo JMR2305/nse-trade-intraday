@@ -23,7 +23,7 @@ import json
 import math
 import os
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATE_FILE = os.path.join(BASE_DIR, "state.json")
@@ -309,6 +309,47 @@ def _risk(closed: list[dict], equity: list[dict], summary: dict) -> dict:
         "risk_level": risk_level,
         "estimated": stats["estimated"],
         "observations": stats["observations"],
+        "monitor": _risk_monitor(closed, equity),
+    }
+
+
+def _risk_monitor(closed: list[dict], equity: list[dict]) -> dict:
+    """Live risk-monitoring block (Phase 17 spec item 10): largest win/loss,
+    consecutive streaks, and daily/weekly/monthly drawdown."""
+    pnls = [t.get("pnl") or 0 for t in closed]
+
+    def _streak(flags: list[bool]) -> int:
+        best = cur = 0
+        for f in flags:
+            cur = cur + 1 if f else 0
+            best = max(best, cur)
+        return best
+
+    def _window_dd(days: int) -> float:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).date().isoformat()
+        pts = [p for p in equity if str(p.get("date", "")) >= cutoff] or equity[-1:]
+        peak, max_dd = 0.0, 0.0
+        for p in pts:
+            v = float(p.get("equity") or 0)
+            peak = max(peak, v)
+            if peak > 0:
+                max_dd = max(max_dd, (peak - v) / peak * 100)
+        return _round(max_dd) or 0.0
+
+    largest_win = max(closed, key=lambda t: t.get("pnl") or 0, default=None)
+    largest_loss = min(closed, key=lambda t: t.get("pnl") or 0, default=None)
+    return {
+        "largest_winning_trade": (
+            {"symbol": largest_win.get("symbol"), "pnl": _round(largest_win.get("pnl"))}
+            if largest_win and (largest_win.get("pnl") or 0) > 0 else None),
+        "largest_losing_trade": (
+            {"symbol": largest_loss.get("symbol"), "pnl": _round(largest_loss.get("pnl"))}
+            if largest_loss and (largest_loss.get("pnl") or 0) < 0 else None),
+        "max_consecutive_wins": _streak([p > 0 for p in pnls]),
+        "max_consecutive_losses": _streak([p < 0 for p in pnls]),
+        "daily_drawdown_pct": _window_dd(1),
+        "weekly_drawdown_pct": _window_dd(7),
+        "monthly_drawdown_pct": _window_dd(30),
     }
 
 

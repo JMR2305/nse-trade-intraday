@@ -276,6 +276,51 @@ export default function PerformanceAnalytics() {
             tone={risk.risk_level === "LOW" ? "text-emerald-400" : risk.risk_level === "MEDIUM" ? "text-amber-400" : "text-red-400"}
             tooltip={`Composite 0–100 (drawdown, volatility, VIX, exposure) — ${risk.risk_level}`} />
         </div>
+        {risk.monitor && (
+          <div className="mt-5 border-t border-zinc-800 pt-4">
+            <div className="mb-3 text-[10px] uppercase tracking-wider text-zinc-500">
+              Risk Monitor — live paper portfolio
+            </div>
+            <div className="grid grid-cols-2 gap-x-8 gap-y-4 md:grid-cols-4" data-testid="risk-monitor">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-zinc-500">Largest Winner</div>
+                <div className="mt-1 font-mono text-sm text-emerald-400">
+                  {risk.monitor.largest_winning_trade
+                    ? `${risk.monitor.largest_winning_trade.symbol} ${fmtINR(risk.monitor.largest_winning_trade.pnl)}`
+                    : "—"}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-zinc-500">Largest Loser</div>
+                <div className="mt-1 font-mono text-sm text-red-400">
+                  {risk.monitor.largest_losing_trade
+                    ? `${risk.monitor.largest_losing_trade.symbol} ${fmtINR(risk.monitor.largest_losing_trade.pnl)}`
+                    : "—"}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-zinc-500">Max Consecutive Wins</div>
+                <div className="mt-1 font-mono text-sm text-emerald-400">{risk.monitor.max_consecutive_wins ?? 0}</div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-zinc-500">Max Consecutive Losses</div>
+                <div className="mt-1 font-mono text-sm text-red-400">{risk.monitor.max_consecutive_losses ?? 0}</div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-zinc-500">Daily Drawdown</div>
+                <div className="mt-1 font-mono text-sm text-amber-400">{fmtPct(risk.monitor.daily_drawdown_pct, false)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-zinc-500">Weekly Drawdown</div>
+                <div className="mt-1 font-mono text-sm text-amber-400">{fmtPct(risk.monitor.weekly_drawdown_pct, false)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-zinc-500">Monthly Drawdown</div>
+                <div className="mt-1 font-mono text-sm text-amber-400">{fmtPct(risk.monitor.monthly_drawdown_pct, false)}</div>
+              </div>
+            </div>
+          </div>
+        )}
       </SectionCard>
 
       {/* ── Section 3: Performance Charts ──────────────────────────────────── */}
