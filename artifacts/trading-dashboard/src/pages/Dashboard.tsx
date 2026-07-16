@@ -7,6 +7,7 @@ import {
   useResetPortfolio
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { PaperAutomationBanner, Phase22DashboardStatus, Phase22DailyReportPanel } from "@/components/Phase22Panels";
 import {
   Card,
   CardContent,
@@ -105,6 +106,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
+      <PaperAutomationBanner />
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Portfolio Overview</h1>
         <div className="flex items-center gap-3">
@@ -276,6 +278,10 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Phase 22: paper automation status + daily close report */}
+      <Phase22DashboardStatus />
+      <Phase22DailyReportPanel />
     </div>
   );
 }

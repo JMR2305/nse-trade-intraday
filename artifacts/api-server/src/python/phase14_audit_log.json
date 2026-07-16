@@ -1540,5 +1540,197 @@
    ],
    "auto_promotion": false
   }
+ },
+ {
+  "id": "fb08ccb026",
+  "ts": "2026-07-16T19:22:54.342438+00:00",
+  "event_type": "phase22_readiness_probe",
+  "actor": "system",
+  "detail": {
+   "ts": "2026-07-16T19:22:54.339946+00:00"
+  }
+ },
+ {
+  "id": "4493dec955",
+  "ts": "2026-07-16T19:24:10.479502+00:00",
+  "event_type": "phase22_readiness_probe",
+  "actor": "system",
+  "detail": {
+   "ts": "2026-07-16T19:24:10.479204+00:00"
+  }
+ },
+ {
+  "id": "0123887ba9",
+  "ts": "2026-07-16T19:28:51.712696+00:00",
+  "event_type": "phase22_readiness_probe",
+  "actor": "system",
+  "detail": {
+   "ts": "2026-07-16T19:28:51.709751+00:00"
+  }
+ },
+ {
+  "id": "05a4b5ce77",
+  "ts": "2026-07-16T19:28:52.088667+00:00",
+  "event_type": "phase22_readiness_probe",
+  "actor": "system",
+  "detail": {
+   "ts": "2026-07-16T19:28:52.087658+00:00"
+  }
+ },
+ {
+  "id": "bf7743efbe",
+  "ts": "2026-07-16T19:29:34.167218+00:00",
+  "event_type": "phase22_readiness_probe",
+  "actor": "system",
+  "detail": {
+   "ts": "2026-07-16T19:29:34.165125+00:00"
+  }
+ },
+ {
+  "id": "df7037ea66",
+  "ts": "2026-07-16T19:29:34.533471+00:00",
+  "event_type": "phase22_readiness_probe",
+  "actor": "system",
+  "detail": {
+   "ts": "2026-07-16T19:29:34.532018+00:00"
+  }
+ },
+ {
+  "id": "ff0bda53cf",
+  "ts": "2026-07-16T19:30:11.653545+00:00",
+  "event_type": "phase22_readiness_probe",
+  "actor": "system",
+  "detail": {
+   "ts": "2026-07-16T19:30:11.651987+00:00"
+  }
+ },
+ {
+  "id": "eadd0b4acc",
+  "ts": "2026-07-16T19:30:11.988514+00:00",
+  "event_type": "phase22_readiness_probe",
+  "actor": "system",
+  "detail": {
+   "ts": "2026-07-16T19:30:11.987309+00:00"
+  }
+ },
+ {
+  "id": "670ab13a62",
+  "ts": "2026-07-16T19:30:14.279225+00:00",
+  "event_type": "phase22_paper_automation_disabled",
+  "actor": "dashboard_user",
+  "detail": {
+   "disabled_at": "2026-07-16T19:30:14.245568+00:00",
+   "by": "dashboard_user",
+   "reason": "test"
+  }
+ },
+ {
+  "id": "05b83baa59",
+  "ts": "2026-07-16T19:31:20.496685+00:00",
+  "event_type": "phase22_readiness_probe",
+  "actor": "system",
+  "detail": {
+   "ts": "2026-07-16T19:31:20.495082+00:00"
+  }
+ },
+ {
+  "id": "acec976b8d",
+  "ts": "2026-07-16T19:31:20.885179+00:00",
+  "event_type": "phase22_readiness_probe",
+  "actor": "system",
+  "detail": {
+   "ts": "2026-07-16T19:31:20.884002+00:00"
+  }
+ },
+ {
+  "id": "4dc7332fc7",
+  "ts": "2026-07-16T19:31:21.941303+00:00",
+  "event_type": "phase22_paper_automation_disabled",
+  "actor": "dashboard_user",
+  "detail": {
+   "disabled_at": "2026-07-16T19:31:21.908221+00:00",
+   "by": "dashboard_user",
+   "reason": "test"
+  }
+ },
+ {
+  "id": "8509b56fbe",
+  "ts": "2026-07-16T19:31:24.819735+00:00",
+  "event_type": "phase21_challengers_created",
+  "actor": "system",
+  "detail": {
+   "challengers": [
+    "chal_calibrated_confidence",
+    "chal_optimized_thresholds",
+    "chal_improved_ranking",
+    "chal_alt_stoptarget"
+   ],
+   "auto_promotion": false
+  }
+ },
+ {
+  "id": "9c289a511d",
+  "ts": "2026-07-16T19:32:01.553322+00:00",
+  "event_type": "phase22_readiness_probe",
+  "actor": "system",
+  "detail": {
+   "ts": "2026-07-16T19:32:01.551998+00:00"
+  }
+ },
+ {
+  "id": "1d76fb7123",
+  "ts": "2026-07-16T19:32:21.943011+00:00",
+  "event_type": "phase22_readiness_probe",
+  "actor": "system",
+  "detail": {
+   "ts": "2026-07-16T19:32:21.942736+00:00"
+  }
+ },
+ {
+  "id": "faa04cd365",
+  "ts": "2026-07-16T19:32:56.578188+00:00",
+  "event_type": "phase22_readiness_probe",
+  "actor": "system",
+  "detail": {
+   "ts": "2026-07-16T19:32:56.573690+00:00"
+  }
+ },
+ {
+  "id": "803c8f022a",
+  "ts": "2026-07-16T19:36:06.868077+00:00",
+  "event_type": "phase22_readiness_probe",
+  "actor": "system",
+  "detail": {
+   "ts": "2026-07-16T19:36:06.865653+00:00"
+  }
+ },
+ {
+  "id": "a71dbde7b0",
+  "ts": "2026-07-16T19:36:07.215328+00:00",
+  "event_type": "phase22_readiness_probe",
+  "actor": "system",
+  "detail": {
+   "ts": "2026-07-16T19:36:07.214645+00:00"
+  }
+ },
+ {
+  "id": "9c0138a4e2",
+  "ts": "2026-07-16T19:36:08.432822+00:00",
+  "event_type": "phase22_paper_automation_disabled",
+  "actor": "dashboard_user",
+  "detail": {
+   "disabled_at": "2026-07-16T19:36:08.398958+00:00",
+   "by": "dashboard_user",
+   "reason": "test"
+  }
+ },
+ {
+  "id": "660e5472b5",
+  "ts": "2026-07-16T19:36:30.010786+00:00",
+  "event_type": "phase22_readiness_probe",
+  "actor": "system",
+  "detail": {
+   "ts": "2026-07-16T19:36:30.010531+00:00"
+  }
  }
 ]

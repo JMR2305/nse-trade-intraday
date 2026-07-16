@@ -10,6 +10,7 @@ import phase16Router from "./phase16";
 import phase17Router from "./phase17";
 import phase18Router from "./phase18";
 import phase21Router from "./phase21";
+import phase22Router from "./phase22";
 import kiteRouter from "./kite";
 
 const router: IRouter = Router();
@@ -24,6 +25,7 @@ router.use(phase16Router);
 router.use(phase17Router);
 router.use(phase18Router);
 router.use(phase21Router);
+router.use(phase22Router);
 router.use(kiteRouter);
 router.use(tradingRouter);
 

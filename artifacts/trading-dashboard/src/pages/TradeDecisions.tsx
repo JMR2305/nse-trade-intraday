@@ -4,6 +4,7 @@ import { apiJson } from "@/lib/api";
 import DataFreshnessBar from "@/components/DataFreshnessBar";
 import { EntryEvaluationPanel } from "@/components/Phase20Lifecycle";
 import { WhyThisTrade } from "@/components/Phase21Panels";
+import { PaperEligibilityPanel } from "@/components/Phase22Panels";
 import {
   useGetTradeDecisions,
   getGetTradeDecisionsQueryKey,
@@ -627,6 +628,7 @@ function DetailRow({ d }: { d: TradeDecision }) {
         <AnalystPanel d={d} />
         <div className="mt-4">
           <WhyThisTrade symbol={d.stock} />
+          <PaperEligibilityPanel symbol={d.stock} />
         </div>
       </td>
     </tr>

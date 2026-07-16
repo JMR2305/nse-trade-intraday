@@ -1663,6 +1663,44 @@ def main():
             from phase21_exports import build_phase21_exports
             result = build_phase21_exports()
 
+        # ── Phase 22: Controlled Auto Paper Trading & Evidence ────────────
+        elif command == "phase22_readiness":
+            from phase22_readiness import run_readiness_checklist
+            result = run_readiness_checklist()
+        elif command == "phase22_activation_status":
+            from phase22_activation import get_activation_status
+            result = get_activation_status()
+        elif command == "phase22_enable":
+            from phase22_activation import enable_paper_automation
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = enable_paper_automation(
+                str(payload.get("confirmation_text") or ""),
+                user=payload.get("user"))
+        elif command == "phase22_disable":
+            from phase22_activation import disable_paper_automation
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = disable_paper_automation(user=payload.get("user"))
+        elif command == "phase22_evidence":
+            from phase22_evidence import list_evidence, evidence_summary
+            limit = int(sys.argv[2]) if len(sys.argv) > 2 else 100
+            result = {"summary": evidence_summary(),
+                      "rows": list_evidence(limit=limit),
+                      "label": "PAPER / RESEARCH ONLY"}
+        elif command == "phase22_evidence_update":
+            from phase22_evidence import update_outcomes
+            result = update_outcomes()
+        elif command == "phase22_progress":
+            from phase22_progress import get_progress
+            result = get_progress()
+        elif command == "phase22_daily_report":
+            from phase22_report import build_daily_report
+            day = sys.argv[2] if len(sys.argv) > 2 else None
+            result = build_daily_report(day)
+        elif command == "phase22_export":
+            from phase22_report import export_daily_report
+            day = sys.argv[2] if len(sys.argv) > 2 else None
+            result = export_daily_report(day)
+
         # ── Phase 17: Automated QA & Release Validation ──────────────────
         elif command == "phase17_build_info":
             from phase17_qa import build_info

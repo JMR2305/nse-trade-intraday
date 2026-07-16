@@ -1,6 +1,6 @@
 {
- "generated_at": "2026-07-16T18:57:07.264804+00:00",
- "evaluation_date": "2026-07-16T18:57:07.264504+00:00",
+ "generated_at": "2026-07-16T19:31:22.225256+00:00",
+ "evaluation_date": "2026-07-16T19:31:22.224177+00:00",
  "no_look_ahead": "Only trades closed before evaluation_date are used.",
  "total_trades": 8,
  "global_win_rate": 0.375,

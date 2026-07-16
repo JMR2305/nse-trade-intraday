@@ -22,3 +22,4 @@
 - [Phase 17 audit conventions](phase17-audit.md) — equity points use key `equity` not `value`; daily session report auto-generates via scheduler kv guard; stale-source warnings after close are environmental.
 - [Cross-page consistency](cross-page-consistency.md) — derived caches must be overlaid from the canonical scan; parity checkers must flag missing required fields, never skip them.
 - [Phase 21 advisory analytics](phase21-advisory-analytics.md) — advisory-only flags mandatory; INSUFFICIENT_EVIDENCE over extrapolation; verify Python response shapes before wiring UI.
+- [Append-only evidence datasets](append-only-evidence.md) — enforce write-once at storage (COALESCE per column + outcome_complete guard), and record evidence from the exact evaluation payload the executor used, never a re-evaluation.

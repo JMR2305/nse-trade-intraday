@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils";
 import { API_BASE } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import DataFreshnessBar from "@/components/DataFreshnessBar";
+import { ExecutionModeCard, PaperAutomationControl } from "@/components/Phase22Panels";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -336,6 +337,10 @@ export default function BrokerExecution() {
       </div>
 
       <DataFreshnessBar variant="scan" />
+
+      {/* ── Phase 22: execution modes + paper automation control ───────────── */}
+      <ExecutionModeCard />
+      <PaperAutomationControl />
 
       {/* ── Section 1: Mode Selector ───────────────────────────────────────── */}
       <Card className="border-zinc-800 bg-zinc-900/60">

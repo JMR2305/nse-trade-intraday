@@ -35,7 +35,7 @@ export default function Trades() {
       <Card className="flex-1 overflow-hidden flex flex-col bg-card/50 backdrop-blur border-border/50">
         <CardHeader className="border-b border-border/50 bg-muted/20">
           <CardTitle className="font-mono text-sm uppercase tracking-wider text-muted-foreground">
-            Executed Orders
+            Executed Orders — Legacy / Demo Trades
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0 flex-1 overflow-auto">
@@ -97,6 +97,9 @@ export default function Trades() {
       </Card>
 
       <div className="flex-shrink-0">
+        <p className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-2">
+          Phase 22 Automated Paper Trades — full lifecycle (entry, exits, status)
+        </p>
         <Phase20LedgerTable limit={200} />
       </div>
     </div>

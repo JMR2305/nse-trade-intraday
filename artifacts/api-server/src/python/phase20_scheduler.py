@@ -93,9 +93,16 @@ def _maybe_generate_session_report(mstate: str) -> Any:
         except Exception:
             store.kv_set("session_report_date", prev)  # allow retry next tick
             raise
-        return {"generated": True, "date": today_ist,
-                "files": result.get("files", []),
-                "warnings": result.get("warnings", [])}
+        out = {"generated": True, "date": today_ist,
+               "files": result.get("files", []),
+               "warnings": result.get("warnings", [])}
+        try:  # Phase 22 daily close report (JSON/CSV/PDF)
+            from phase22_report import export_daily_report
+            p22 = export_daily_report()
+            out["phase22_files"] = p22.get("files", [])
+        except Exception as exc:
+            out["phase22_error"] = str(exc)[:200]
+        return out
     except Exception as exc:  # report generation must never break the tick
         return {"generated": False, "error": str(exc)[:200]}
 
@@ -213,4 +220,29 @@ def _manage_paper(settings: Dict[str, Any], ran_scan: bool) -> Dict[str, Any]:
             out["entries"] = {"skipped": "auto_paper_entries OFF (default)"}
     except Exception as exc:
         out["entries"] = {"error": str(exc)[:200]}
+    # ── Phase 22 evidence accumulation (records ALL candidates, opened AND
+    # blocked, regardless of automation state; time-safe outcome updates).
+    try:
+        entries = out.get("entries") or {}
+        if isinstance(entries, dict) and entries.get("ran"):
+            # Evidence for the EXACT evaluation payload the entry run used —
+            # never a second evaluation pass (avoids decision-set drift).
+            from phase22_evidence import record_candidates
+            evaluation = entries.get("evaluation")
+            if evaluation:
+                out["evidence"] = record_candidates(
+                    evaluation, created=entries.get("created") or [])
+        elif ran_scan:
+            # Automation OFF — still record candidate evidence for the fresh
+            # scan (research only, no trades are created here).
+            from phase20_gates import evaluate_entries
+            from phase22_evidence import record_candidates
+            out["evidence"] = record_candidates(evaluate_entries())
+    except Exception as exc:
+        out["evidence"] = {"error": str(exc)[:200]}
+    try:
+        from phase22_evidence import update_outcomes
+        out["evidence_outcomes"] = update_outcomes()
+    except Exception as exc:
+        out["evidence_outcomes"] = {"error": str(exc)[:200]}
     return out

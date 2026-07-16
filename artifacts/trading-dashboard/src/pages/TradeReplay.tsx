@@ -9,6 +9,7 @@ import {
 import { formatCurrency } from "@/lib/format";
 import DataFreshnessBar from "@/components/DataFreshnessBar";
 import { StopTargetPanel } from "@/components/Phase21Panels";
+import { Phase22EvidenceTable } from "@/components/Phase22Panels";
 import {
   RotateCcw,
   ChevronDown,
@@ -401,6 +402,9 @@ export default function TradeReplayPage() {
 
       {/* Phase 21: stop & target quality (advisory) */}
       <StopTargetPanel />
+
+      {/* Phase 22: append-only evidence dataset (fills, MAE/MFE, horizons) */}
+      <Phase22EvidenceTable />
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border">

@@ -468,7 +468,8 @@ def run_auto_entries(settings: Dict[str, Any]) -> Dict[str, Any]:
             severity="INFO",
             context={"scan_id": evaluation.get("scan_id"), "blocked": blocked})
     return {"ran": True, "scan_id": evaluation.get("scan_id"),
-            "created": created, "blocked": blocked}
+            "created": created, "blocked": blocked,
+            "evaluation": evaluation}
 
 
 # ── Exit recording (called by phase20_exits) ─────────────────────────────────

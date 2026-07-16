@@ -4,6 +4,7 @@ import { apiJson, API_BASE } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import DataFreshnessBar from "@/components/DataFreshnessBar";
 import { Phase21GovernancePanel } from "@/components/Phase21Panels";
+import { EvidenceProgressPanel } from "@/components/Phase22Panels";
 import {
   GraduationCap, Activity, Scale, SlidersHorizontal, Trophy, Radar,
   ScrollText, Download, RefreshCcw, ShieldCheck, AlertTriangle,
@@ -397,6 +398,7 @@ function RegistryTab() {
 
       {/* Phase 21 challenger registry & approvals (advisory) */}
       <Phase21GovernancePanel />
+      <EvidenceProgressPanel />
     </div>
   );
 }

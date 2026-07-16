@@ -1,0 +1,353 @@
+PHASE 22 — CONTROLLED AUTO PAPER TRADING AND EVIDENCE ACCUMULATION
+
+Goal:
+Safely activate automatic simulated paper-trade entries and exits so the platform can accumulate statistically useful evidence for Phase 21 calibration and champion–challenger evaluation.
+
+This phase is PAPER / RESEARCH ONLY.
+
+NON-NEGOTIABLE SAFETY RULES
+
+- Never place, modify, or cancel a real Zerodha order.
+- All live-order write routes must remain disabled.
+- Broker connectivity may be used only for market data and account/session validation.
+- Automatic paper entries must require explicit user confirmation.
+- Kill switch, stale-data rules, risk limits, and audit logging must remain active.
+- Phase 21 challengers remain advisory and cannot change champion decisions.
+
+CURRENT STATE
+
+- Production readiness: READY.
+- Cross-page consistency: PASS.
+- Hard mismatches: 0.
+- Reproducibility: PASS.
+- No-look-ahead: PASS.
+- Ranking stability: DETERMINISTIC.
+- Auto paper entries: OFF.
+- Live orders: DISABLED.
+- Phase 21 readiness: INSUFFICIENT_EVIDENCE.
+- Historical completed trades are currently too few for reliable calibration.
+
+PART 1 — PRE-ACTIVATION CHECKLIST
+
+Create a mandatory Paper Automation Readiness checklist.
+
+All checks must pass before automatic paper entries can be enabled:
+
+- latest scan is FRESH
+- canonical scan_id is consistent
+- quote provider is approved
+- no fallback data for the selected symbol
+- market is open
+- scheduler is healthy
+- durable database is connected
+- paper ledger is writable
+- duplicate-position guard is active
+- cash and risk limits are loaded
+- daily loss limit is active
+- kill switch is OFF
+- auto paper exits are active
+- live-order write paths are disabled
+- audit logger is healthy
+- no critical unresolved validation errors
+
+If any check fails:
+- block activation
+- show the exact failed checks
+- do not weaken any control
+
+PART 2 — EXPLICIT USER ACTIVATION
+
+Keep auto paper entries OFF by default after every deployment.
+
+Add a confirmation dialog:
+
+“I understand this enables automatic simulated paper trades only. No real Zerodha orders will be placed. Paper trades can gain or lose simulated capital.”
+
+Require the user to type:
+
+ENABLE PAPER ONLY
+
+After confirmation:
+
+- set auto paper entries ON
+- record user, timestamp, configuration hash, and audit event
+- show a persistent PAPER AUTOMATION ACTIVE banner
+- provide an immediate Disable button
+
+Do not reuse this confirmation for live trading.
+
+PART 3 — ENTRY ELIGIBILITY
+
+Create a paper entry only when all champion-model gates pass:
+
+- recommendation is BUY or STRONG BUY
+- fresh canonical scan
+- symbol quote is current and available
+- no fallback or stale source
+- Phase 21 champion decision only
+- eligible strategy for current regime
+- minimum confidence passed
+- minimum opportunity score passed
+- minimum trade-quality score passed
+- minimum risk/reward passed
+- valid stop and target
+- position size greater than zero
+- sufficient simulated cash
+- daily trade count available
+- no open position for the same symbol
+- cooldown passed
+- per-stock cap passed
+- sector cap passed
+- deployed-cap passed
+- risk-per-trade passed
+- daily simulated loss limit passed
+- kill switch inactive
+
+Store every passed and failed gate.
+
+PART 4 — PAPER FILL MODEL
+
+Use simulated execution only.
+
+Default fill model:
+SLIPPAGE_ADJUSTED_NEXT_QUOTE
+
+Persist:
+
+- paper_trade_id
+- scan_id
+- snapshot_ts
+- symbol
+- strategy
+- champion model version
+- configuration hash
+- decision timestamp
+- order timestamp
+- fill timestamp
+- signal price
+- fill price
+- quantity
+- slippage
+- estimated charges
+- stop
+- target
+- risk amount
+- confidence
+- opportunity score
+- trade-quality score
+- regime
+- sector
+- full evidence payload
+- all eligibility gates
+
+Never silently backdate a fill.
+
+PART 5 — PAPER POSITION MANAGEMENT
+
+Evaluate open paper positions on each successful scan and reliable quote update.
+
+Support:
+
+- stop-loss exit
+- target exit
+- champion EXIT recommendation
+- trailing stop where configured
+- maximum holding period
+- configured end-of-day square-off
+- portfolio risk reduction
+- daily-loss shutdown
+
+If a reliable quote is unavailable:
+
+- do not fabricate an exit
+- mark the action PENDING_DATA
+- notify the user
+- retry on the next reliable quote
+
+PART 6 — EVIDENCE DATASET
+
+Build a durable Phase 22 evidence table.
+
+For every candidate, including blocked candidates, record:
+
+- scan_id
+- symbol
+- decision
+- raw confidence
+- calibrated confidence
+- opportunity score
+- trade-quality score
+- rank
+- strategy
+- regime
+- sector
+- quote source
+- gate results
+- eligibility result
+- trade opened or blocked
+- blocking reasons
+- subsequent returns at:
+  - 15 minutes
+  - 30 minutes
+  - 60 minutes
+  - end of day
+  - 1 trading day
+  - 3 trading days
+  - 5 trading days
+- MAE
+- MFE
+- final outcome where applicable
+
+This dataset must be time-safe and append-only.
+
+PART 7 — PROGRESS TARGETS
+
+Add an Evidence Progress panel showing:
+
+- completed paper trades
+- open paper trades
+- blocked candidates
+- total evaluated candidates
+- distinct trading days
+- bullish-regime trades
+- bearish-regime trades
+- range-bound trades
+- high-volatility trades
+- low-volatility trades
+- strategy coverage
+- sector coverage
+
+Milestones:
+
+- 10 completed trades: smoke-test evidence
+- 30 completed trades: early review
+- 50 completed trades: initial calibration review
+- 100 completed trades: meaningful challenger evaluation
+- 250 completed trades: intermediate validation
+- 500 completed trades: advanced validation
+
+Do not label the model validated solely because a trade-count threshold is reached.
+
+PART 8 — DAILY CLOSE REPORT
+
+After market close, generate a Phase 22 daily report containing:
+
+- scheduled scans completed
+- failed scans
+- candidates evaluated
+- paper entries opened
+- entries blocked
+- exits completed
+- pending-data actions
+- realized P&L
+- unrealized P&L
+- daily drawdown
+- risk-limit events
+- strategy summary
+- sector summary
+- regime summary
+- data-quality incidents
+- Phase 21 evidence progress
+- live-order-disabled verification
+
+Export JSON, CSV, and PDF.
+
+PART 9 — UI UPDATES
+
+Update existing pages:
+
+Dashboard:
+- Paper Automation status
+- next scheduled scan
+- trades today
+- daily simulated P&L
+- progress toward 30/50/100 trades
+
+Trade Decisions:
+- paper eligibility
+- exact blocked gates
+- linked paper_trade_id
+
+All Trades:
+- separate Legacy/Demo and Phase 22 trades
+- full lifecycle status
+
+Trade Replay:
+- original champion decision
+- exact fill and exit evidence
+- MAE/MFE
+- deterministic replay status
+
+Learning & Governance:
+- new evidence count
+- Phase 21 readiness progression
+- challengers remain advisory
+
+Live Data Health:
+- scheduler health
+- paper engine health
+- evidence-writer health
+- live-order write paths: DISABLED
+
+Broker & Execution:
+- clearly distinguish:
+  - real market-data connection
+  - simulated paper execution
+- do not label simulated execution as a real broker connection
+
+PART 10 — TESTS
+
+Add tests for:
+
+- auto paper entries remain OFF after deployment
+- activation requires exact confirmation text
+- failed readiness check blocks activation
+- only champion decisions can open paper trades
+- stale/fallback/mismatched data blocks entry
+- duplicate positions are blocked
+- cash and risk limits are enforced
+- next-quote fill does not use future data
+- slippage and charges are applied
+- unavailable exit quote creates PENDING_DATA
+- stop and target exits work
+- daily loss limit disables new entries
+- kill switch disables new entries
+- evidence dataset is append-only
+- outcome horizons do not use unavailable future data
+- deterministic replay passes
+- no secrets or tokens appear in UI, logs, reports, or exports
+- all live-order write paths remain disabled
+
+PART 11 — VALIDATION
+
+Run:
+
+- all Phase 22 tests
+- relevant prior-phase regression tests
+- production build
+- production start
+- one blocked-entry scenario
+- one successful simulated-entry scenario
+- one simulated exit scenario
+- one pending-data scenario
+- deterministic replay
+- no-look-ahead audit
+
+At completion report:
+
+1. Files changed
+2. Database tables added or changed
+3. Scheduler status
+4. Paper automation default status
+5. Activation flow
+6. Latest scan_id
+7. Example blocked candidate
+8. Example simulated trade
+9. Evidence rows created
+10. Test results
+11. Production build result
+12. Confirmation that challengers remain advisory
+13. Confirmation that live orders remain disabled
+14. Confirmation that no real Zerodha order API was called
+
+Do not enable automatic paper entries during implementation. Leave them OFF for the user to activate manually after production verification.
