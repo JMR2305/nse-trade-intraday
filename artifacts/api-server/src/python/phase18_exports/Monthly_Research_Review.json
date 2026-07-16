@@ -61,7 +61,7 @@
     "open_positions": 1
   },
   "data_provider_reliability": {
-    "stale_scan_days": 0,
+    "stale_scan_days": 1,
     "days_with_symbol_errors": 2,
     "notebook_days": 2
   },
@@ -87,7 +87,7 @@
   },
   "learning_progress": {
     "notebook_days": 2,
-    "notes_recorded": 8,
+    "notes_recorded": 11,
     "lessons_recorded": 0
   },
   "open_research_questions": [
@@ -97,6 +97,54 @@
   ],
   "human_approved_changes": "Tracked via issue log and notes \u2014 no automatic changes exist.",
   "issues_this_month": [
+    {
+      "issue_id": "ISS-0011",
+      "date": "2026-07-16",
+      "severity": "LOW",
+      "page": "test",
+      "description": "unit-test issue",
+      "related_scan_id": null,
+      "related_trade_id": null,
+      "reproducible": false,
+      "status": "VERIFIED",
+      "resolution": "test done",
+      "resolved_date": "2026-07-16",
+      "notes": [],
+      "created_at": "2026-07-16T16:05:53.566696+00:00",
+      "updated_at": "2026-07-16T16:05:53.569199+00:00"
+    },
+    {
+      "issue_id": "ISS-0010",
+      "date": "2026-07-16",
+      "severity": "LOW",
+      "page": "test",
+      "description": "unit-test issue",
+      "related_scan_id": null,
+      "related_trade_id": null,
+      "reproducible": false,
+      "status": "VERIFIED",
+      "resolution": "test done",
+      "resolved_date": "2026-07-16",
+      "notes": [],
+      "created_at": "2026-07-16T16:05:31.386035+00:00",
+      "updated_at": "2026-07-16T16:05:31.388936+00:00"
+    },
+    {
+      "issue_id": "ISS-0009",
+      "date": "2026-07-16",
+      "severity": "LOW",
+      "page": "test",
+      "description": "unit-test issue",
+      "related_scan_id": null,
+      "related_trade_id": null,
+      "reproducible": false,
+      "status": "VERIFIED",
+      "resolution": "test done",
+      "resolved_date": "2026-07-16",
+      "notes": [],
+      "created_at": "2026-07-16T16:05:10.989319+00:00",
+      "updated_at": "2026-07-16T16:05:10.992854+00:00"
+    },
     {
       "issue_id": "ISS-0008",
       "date": "2026-07-16",

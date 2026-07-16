@@ -18,3 +18,4 @@
 - [Phase 19A Kite OAuth](phase19a-kite-oauth.md) — request token via env not argv; token file chmod 600; strict callback status check; test-module kiteconnect stubs collide, re-stub in setUp.
 - [Phase 19B durable scan state](phase19b-scan-state.md) — canonical scan snapshot/lock live in Postgres via scan_state_store; local files are warm caches only; failed scans never overwrite snapshots.
 - [UI audit scripts](ui-audit-scripts.md) — long puppeteer audits must be resumable (per-page rows) + foreground timeout passes; wait for target selector, recover detached frames.
+- [Phase 20 auto paper trading](phase20-auto-paper.md) — auto entries default OFF w/ exact-confirmation; EXIT_PENDING on stale data (never fabricate fills); one OPEN trade per symbol via partial unique index (claim-before-buy); health enum HEALTHY/DEGRADED/DOWN/UNKNOWN/DISABLED end-to-end.

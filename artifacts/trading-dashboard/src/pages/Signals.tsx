@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatTime } from "@/lib/format";
 import DataFreshnessBar from "@/components/DataFreshnessBar";
+import { EntryEvaluationPanel } from "@/components/Phase20Lifecycle";
 import {
   Play, ChevronDown, ChevronUp, TrendingUp, TrendingDown,
   Clock, Brain, AlertTriangle, Activity,
@@ -246,6 +247,16 @@ export default function Signals() {
       </div>
 
       <DataFreshnessBar variant="scan" />
+
+      {/* Phase 20 auto paper-entry gates (collapsed to keep page light) */}
+      <details className="rounded-lg border border-border/50 bg-card/30 flex-shrink-0">
+        <summary className="cursor-pointer select-none px-4 py-2.5 text-xs font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground">
+          Auto paper-entry gates <span className="normal-case text-muted-foreground/60">— PAPER / RESEARCH ONLY (click to load)</span>
+        </summary>
+        <div className="p-3 pt-0">
+          <EntryEvaluationPanel />
+        </div>
+      </details>
 
       {/* Threshold guide */}
       <div className="flex gap-2 flex-wrap flex-shrink-0 items-center">

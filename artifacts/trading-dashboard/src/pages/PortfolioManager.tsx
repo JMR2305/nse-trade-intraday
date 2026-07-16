@@ -12,6 +12,7 @@ import type {
 } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import DataFreshnessBar from "@/components/DataFreshnessBar";
+import { Phase20OpenPositions } from "@/components/Phase20Lifecycle";
 import {
   Briefcase,
   RefreshCcw,
@@ -627,6 +628,9 @@ export default function PortfolioManager() {
           </div>
         </div>
       )}
+
+      {/* Phase 20 open paper positions */}
+      <Phase20OpenPositions />
 
       <p className="text-xs text-muted-foreground border-t border-border/40 pt-3">
         {data?.warning}

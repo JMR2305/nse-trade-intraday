@@ -105,6 +105,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     {
       label: "System",
       items: [
+        { href: "/automation", label: "Automation Health", icon: Gauge },
         { href: "/research-notebook", label: "Research Notebook", icon: BookOpenText },
         { href: "/kite-connect", label: "Kite Connect", icon: Radio },
         { href: "/validation", label: "Paper Trading Validation", icon: ShieldCheck },

@@ -1398,13 +1398,13 @@
       "scan": {
         "scan_id": "0f4bb84525ef",
         "snapshot_ts": "2026-07-16T12:03:47Z",
-        "stale": false,
+        "stale": true,
         "universe_size": 50,
         "historical_source": false
       },
       "data_quality": {
-        "status": "OK",
-        "scan_stale": false,
+        "status": "STALE",
+        "scan_stale": true,
         "symbols_scanned": 50,
         "symbol_errors": 2,
         "quality_counts": {
@@ -2544,6 +2544,33 @@
             "test-tag"
           ],
           "created_at": "2026-07-16T12:09:17.057525+00:00"
+        },
+        {
+          "id": "37254672",
+          "text": "phase18 test note",
+          "category": "observation",
+          "tags": [
+            "test-tag"
+          ],
+          "created_at": "2026-07-16T16:05:10.765363+00:00"
+        },
+        {
+          "id": "c8cbec29",
+          "text": "phase18 test note",
+          "category": "observation",
+          "tags": [
+            "test-tag"
+          ],
+          "created_at": "2026-07-16T16:05:31.137000+00:00"
+        },
+        {
+          "id": "cb401777",
+          "text": "phase18 test note",
+          "category": "observation",
+          "tags": [
+            "test-tag"
+          ],
+          "created_at": "2026-07-16T16:05:53.384091+00:00"
         }
       ],
       "lessons_learned": "",
@@ -2561,8 +2588,8 @@
         "missed_opportunities": [],
         "false_positive_signals": [],
         "data_quality_issues": {
-          "status": "OK",
-          "scan_stale": false,
+          "status": "STALE",
+          "scan_stale": true,
           "symbols_scanned": 50,
           "symbol_errors": 2,
           "quality_counts": {
@@ -2575,19 +2602,19 @@
         "qa_status": "PASS",
         "final_summary": "0 trade action(s); 0 round-trip(s) closed (\u20b9+0.00); 0 stop(s), 0 target(s) hit; portfolio \u20b95,465.00. QA: PASS."
       },
-      "finalized_at": "2026-07-16T12:09:17.260977+00:00",
+      "finalized_at": "2026-07-16T16:05:53.554536+00:00",
       "integrity": {
         "source_scan_id": "0f4bb84525ef",
         "source_snapshot_ts": "2026-07-16T12:03:47Z",
         "data_provider": "yfinance",
-        "data_age_seconds": 330.0,
+        "data_age_seconds": 14527.0,
         "model_version": "p13_champion_v1",
         "calibrator_version": "active",
         "paper_trading_mode": true,
         "live_execution_enabled": false
       },
       "created_at": "2026-07-16T10:03:12.645670+00:00",
-      "updated_at": "2026-07-16T12:09:17.277101+00:00",
+      "updated_at": "2026-07-16T16:05:53.559484+00:00",
       "label": "PAPER / RESEARCH ONLY",
       "checklist": {
         "before_market": [
@@ -2603,8 +2630,8 @@
           },
           {
             "item": "Latest historical data available",
-            "status": "PASS",
-            "detail": "scan age 330.0s"
+            "status": "WARNING",
+            "detail": "scan age 14527.0s"
           },
           {
             "item": "Canonical scan context available",
@@ -2640,8 +2667,8 @@
           },
           {
             "item": "No stale-data violations",
-            "status": "PASS",
-            "detail": "scan fresh"
+            "status": "WARNING",
+            "detail": "scan stale or missing"
           },
           {
             "item": "No cross-page mismatches",

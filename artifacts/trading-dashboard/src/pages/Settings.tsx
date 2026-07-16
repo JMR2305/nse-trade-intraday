@@ -16,6 +16,7 @@ import {
 import { API_BASE } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import DataFreshnessBar from "@/components/DataFreshnessBar";
+import Phase20Settings from "@/components/Phase20Settings";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -96,6 +97,8 @@ export default function Settings() {
       </div>
 
       <DataFreshnessBar variant="none" />
+
+      <Phase20Settings />
 
       <Card className="border-zinc-800 bg-zinc-900/60">
         <CardHeader className="px-5 pb-2 pt-4">

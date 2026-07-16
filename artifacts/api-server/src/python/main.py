@@ -783,9 +783,18 @@ def main():
             )
         elif command == "phase7_scan":
             from live_scan_engine import get_or_run_scan
+            import time as _time
             force = len(args) > 1 and args[1] == "force"
+            _scan_t0 = _time.time()
             result = get_or_run_scan(max_age_s=600, force=force)
             result["success"] = True
+            # Phase 20: record MANUAL scan runs in the durable history.
+            if not result.get("_from_cache"):
+                try:
+                    from phase20_scheduler import record_manual_scan
+                    record_manual_scan(result, _time.time() - _scan_t0)
+                except Exception:
+                    pass
             # Phase 19B: compact scan-run metadata for the UI/route response.
             try:
                 _audit = result.get("scan_audit") or {}
@@ -812,28 +821,72 @@ def main():
             from scan_state_store import load_latest_meta
             result = {"success": True, "latest_scan": load_latest_meta()}
         elif command == "scheduled_scan_tick":
-            # Phase 19B: market-hours auto-scan tick. Safe under Autoscale —
-            # freshness check + distributed lease prevent duplicate scans.
-            from market_hours import market_status
-            _interval_min = float(args[1]) if len(args) > 1 else 5.0
-            _mstat = market_status()
-            _mstate = str(_mstat.get("state") or _mstat.get("market_state") or "").upper()
-            if _mstate != "OPEN":
-                result = {"success": True, "ran_scan": False,
-                          "reason": f"Market not open (state={_mstate or 'UNKNOWN'})",
-                          "market": _mstat}
-            else:
-                from phase15_scan_context import scan_age_seconds
-                _age = scan_age_seconds()
-                if _age is not None and _age < _interval_min * 60:
-                    result = {"success": True, "ran_scan": False,
-                              "reason": f"Snapshot fresh ({round(_age)}s old, interval {_interval_min}m)"}
-                else:
-                    from live_scan_engine import get_or_run_scan
-                    _scan = get_or_run_scan(max_age_s=_interval_min * 60, force=False)
-                    result = {"success": True, "ran_scan": not _scan.get("_from_cache", False),
-                              "scan_id": _scan.get("scan_id"),
-                              "snapshot_ts": _scan.get("snapshot_ts")}
+            # Phase 20: market-hours auto-scan tick with durable settings,
+            # scheduler health, scan-run history, and paper management.
+            # Safe under Autoscale — freshness check + distributed lease
+            # prevent duplicate scans.
+            from phase20_scheduler import run_tick
+            result = run_tick()
+
+        # ── Phase 20 — settings / scheduler health / history / paper engine ──
+        elif command == "phase20_settings":
+            from phase20_store import get_settings
+            result = {"success": True, "settings": get_settings()}
+        elif command == "phase20_settings_update":
+            from phase20_store import update_settings
+            _payload = json.loads(args[1]) if len(args) > 1 else {}
+            try:
+                _updated = update_settings(
+                    _payload.get("patch") or {},
+                    confirmation_text=_payload.get("confirmation_text"),
+                )
+                result = {"success": True, "settings": _updated}
+            except ValueError as _ve:
+                result = {"success": False, "error": str(_ve)}
+        elif command == "phase20_scheduler_health":
+            from phase20_store import get_scheduler_health
+            result = {"success": True, "scheduler": get_scheduler_health()}
+        elif command == "phase20_scan_history":
+            from phase20_store import list_scan_runs
+            _limit = int(args[1]) if len(args) > 1 else 50
+            result = {"success": True, "runs": list_scan_runs(_limit)}
+        elif command == "phase20_notifications":
+            from phase20_store import list_notifications
+            _limit = int(args[1]) if len(args) > 1 else 100
+            result = {"success": True, "notifications": list_notifications(_limit)}
+        elif command == "phase20_notifications_read":
+            from phase20_store import mark_notifications_read
+            _ids = json.loads(args[1]) if len(args) > 1 else None
+            result = {"success": True, "marked": mark_notifications_read(_ids)}
+        elif command == "phase20_evaluate":
+            from phase20_gates import evaluate_entries
+            result = evaluate_entries()
+            result["success"] = True
+        elif command == "phase20_ledger":
+            from phase20_executor import get_ledger
+            _limit = int(args[1]) if len(args) > 1 else 200
+            result = {"success": True, "ledger": get_ledger(_limit)}
+        elif command == "phase20_positions":
+            from phase20_executor import get_open_positions_view
+            result = {"success": True, "positions": get_open_positions_view()}
+        elif command == "phase20_exit_tick":
+            from phase20_store import get_settings as _p20gs
+            from phase20_exits import manage_open_positions
+            result = manage_open_positions(_p20gs())
+            result["success"] = True
+        elif command == "phase20_entry_tick":
+            from phase20_store import get_settings as _p20gs
+            from phase20_executor import run_auto_entries
+            result = run_auto_entries(_p20gs())
+            result["success"] = True
+        elif command == "phase20_replay":
+            from phase20_executor import replay_trade
+            result = replay_trade(args[1] if len(args) > 1 else "")
+            result["success"] = True
+        elif command == "phase20_validation":
+            from phase20_validation import get_validation_status
+            result = get_validation_status()
+            result["success"] = True
         elif command == "phase7_recommendations":
             from live_scan_engine import get_or_run_scan
             full = get_or_run_scan(max_age_s=600)

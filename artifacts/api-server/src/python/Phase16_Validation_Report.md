@@ -1,6 +1,6 @@
 # Phase 16 Validation Report — Paper Trading Validation & Strategy Proving
 
-Generated 2026-07-16 12:09 UTC — PAPER TRADING / RESEARCH ONLY.
+Generated 2026-07-16 16:05 UTC — PAPER TRADING / RESEARCH ONLY.
 
 ## Features Completed (Phase 16)
 - Paper Trading Validation dashboard (overall score, maturity, core statistics)
@@ -52,8 +52,8 @@ Generated 2026-07-16 12:09 UTC — PAPER TRADING / RESEARCH ONLY.
 - **[INFO] ALL** — Insufficient Data — only 3 completed trades; need 5+ per strategy/regime cell before recommendations become meaningful. _Suggestion: Continue paper trading to accumulate evidence._
 
 ## Known Issues / Health
-- Bug detection verdict: **PASS** (6 checks)
-- No issues detected
+- Bug detection verdict: **WARN** (6 checks)
+- [WARN] stale_data: scan age 242 min (limit 90)
 - Not checkable server-side: broken_charts (client-side rendering — cannot be verified server-side)
 
 ## Production Readiness Score

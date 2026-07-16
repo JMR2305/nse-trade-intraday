@@ -2541,4 +2541,141 @@ router.post("/risk/config", async (req, res) => {
   }
 });
 
+// ── Phase 20 — auto-scan settings, scheduler health, history, paper engine ──
+// Paper trading / research only. No live orders anywhere.
+
+// GET /api/phase20/settings — durable auto-scan + paper-trade settings
+router.get("/phase20/settings", async (_req, res) => {
+  try {
+    res.json(await runPython(["phase20_settings"]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// PUT /api/phase20/settings — update settings; enabling auto paper entries
+// requires the exact confirmation text (enforced python-side).
+router.put("/phase20/settings", async (req, res) => {
+  try {
+    const body = req.body ?? {};
+    const patch = (body as Record<string, unknown>)["patch"];
+    if (typeof patch !== "object" || patch === null || Array.isArray(patch)) {
+      res.status(400).json({ error: "Provide { patch: {...}, confirmation_text? }" });
+      return;
+    }
+    const payload = {
+      patch,
+      confirmation_text: (body as Record<string, unknown>)["confirmation_text"] ?? null,
+    };
+    const result = (await runPython([
+      "phase20_settings_update", JSON.stringify(payload),
+    ])) as Record<string, unknown>;
+    if (result && result["success"] === false) {
+      res.status(400).json(result);
+      return;
+    }
+    res.json(result);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/phase20/scheduler/health — last runs, next due, missed, status
+router.get("/phase20/scheduler/health", async (_req, res) => {
+  try {
+    res.json(await runPython(["phase20_scheduler_health"]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/phase20/scan-history — durable scan-run history
+router.get("/phase20/scan-history", async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query["limit"]) || 50, 200);
+    res.json(await runPython(["phase20_scan_history", String(limit)]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/phase20/notifications — in-app notification feed
+router.get("/phase20/notifications", async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query["limit"]) || 100, 300);
+    res.json(await runPython(["phase20_notifications", String(limit)]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/phase20/notifications/read — mark notifications read
+router.post("/phase20/notifications/read", async (req, res) => {
+  try {
+    const ids = (req.body ?? {})["ids"];
+    res.json(await runPython(
+      Array.isArray(ids)
+        ? ["phase20_notifications_read", JSON.stringify(ids)]
+        : ["phase20_notifications_read"],
+    ));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/phase20/evaluation — run/refresh the entry-gate evaluation
+router.get("/phase20/evaluation", async (_req, res) => {
+  try {
+    res.json(await runPython(["phase20_evaluate"]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/phase20/ledger — durable paper-trade ledger
+router.get("/phase20/ledger", async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query["limit"]) || 200, 500);
+    res.json(await runPython(["phase20_ledger", String(limit)]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/phase20/positions — open Phase 20 paper positions
+router.get("/phase20/positions", async (_req, res) => {
+  try {
+    res.json(await runPython(["phase20_positions"]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/phase20/exits/tick — evaluate exits for open paper positions now
+router.post("/phase20/exits/tick", async (_req, res) => {
+  try {
+    res.json(await runPython(["phase20_exit_tick"]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/phase20/replay/:tradeId — deterministic decision replay
+router.get("/phase20/replay/:tradeId", async (req, res) => {
+  try {
+    res.json(await runPython(["phase20_replay", String(req.params.tradeId)]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/phase20/validation — validation dashboard status
+router.get("/phase20/validation", async (_req, res) => {
+  try {
+    res.json(await runPython(["phase20_validation"]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 export default router;

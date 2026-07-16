@@ -3,20 +3,24 @@ import path from "path";
 import { logger } from "./logger";
 import { PYTHON_DIR, PYTHON_BIN } from "./python-env";
 
-// Phase 19B — market-hours auto-scan scheduler.
+// Phase 20 — market-hours auto-scan scheduler.
 //
-// Every SCAN_INTERVAL_MINUTES (default 5) this instance runs a
-// "scheduled_scan_tick", which on the Python side:
+// This instance ticks every minute; the Python side ("scheduled_scan_tick")
+// decides whether a scan is actually due using DURABLE Phase 20 settings
+// (configurable interval 1/3/5/10/15 min, auto-scan toggle):
 //   1. Skips unless NSE is OPEN (Asia/Kolkata, holidays respected) via the
 //      existing market-hours service.
 //   2. Skips if the durable shared snapshot is already fresher than the
-//      interval (so multiple Autoscale instances don't duplicate work).
+//      configured interval (so multiple Autoscale instances don't
+//      duplicate work).
 //   3. Otherwise runs the canonical scan guarded by the distributed
-//      database lease (scan_lock) with stuck-lock timeout recovery.
+//      database lease (scan_lock) with stuck-lock timeout recovery, then
+//      runs paper position management (exits) and — only when explicitly
+//      enabled AND confirmed in settings — automatic paper entries.
 // A failed scheduled scan never overwrites the last successful snapshot.
 // Paper trading / research only — no live orders anywhere.
 
-const DEFAULT_INTERVAL_MIN = 5;
+const TICK_INTERVAL_MIN = 1;
 
 function runPython(args: string[]): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -50,16 +54,14 @@ export function startScanScheduler(): void {
     logger.info("Scan scheduler disabled via DISABLE_SCAN_SCHEDULER");
     return;
   }
-  const raw = Number(process.env["SCAN_INTERVAL_MINUTES"]);
-  const intervalMin = Number.isFinite(raw) && raw >= 1 ? raw : DEFAULT_INTERVAL_MIN;
-  const intervalMs = intervalMin * 60 * 1000;
+  const intervalMs = TICK_INTERVAL_MIN * 60 * 1000;
 
   const tick = async (): Promise<void> => {
     if (tickInFlight) return; // never stack ticks in this process
     tickInFlight = true;
     try {
       const result = (await runPython([
-        "scheduled_scan_tick", String(intervalMin),
+        "scheduled_scan_tick",
       ])) as Record<string, unknown>;
       if (result?.["ran_scan"]) {
         logger.info(
@@ -78,7 +80,8 @@ export function startScanScheduler(): void {
 
   timer = setInterval(() => { void tick(); }, intervalMs);
   timer.unref();
-  logger.info({ intervalMin }, "Market-hours scan scheduler started");
+  logger.info({ tickIntervalMin: TICK_INTERVAL_MIN },
+    "Market-hours scan scheduler started (interval configured in Settings)");
   // Kick one tick shortly after boot so a cold instance during market hours
   // converges quickly instead of waiting a full interval.
   setTimeout(() => { void tick(); }, 15_000).unref();

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiJson } from "@/lib/api";
 import DataFreshnessBar from "@/components/DataFreshnessBar";
+import { EntryEvaluationPanel } from "@/components/Phase20Lifecycle";
 import {
   useGetTradeDecisions,
   getGetTradeDecisionsQueryKey,
@@ -701,6 +702,16 @@ export default function TradeDecisions() {
       </div>
 
       <DataFreshnessBar variant="scan" />
+
+      {/* Phase 20 auto paper-entry gates (collapsible) */}
+      <details className="rounded-lg border border-border/50 bg-card/30">
+        <summary className="cursor-pointer select-none px-4 py-2.5 text-xs font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground">
+          Auto paper-entry gates <span className="normal-case text-muted-foreground/60">— PAPER / RESEARCH ONLY (click to load)</span>
+        </summary>
+        <div className="p-3 pt-0">
+          <EntryEvaluationPanel />
+        </div>
+      </details>
 
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
         <SummaryCard label="Strong Buy" value={data?.strong_buy_count ?? 0} color="text-emerald-300" />

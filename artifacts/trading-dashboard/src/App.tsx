@@ -46,6 +46,7 @@ import PortfolioRiskAnalytics from "@/pages/PortfolioRiskAnalytics";
 import Phase12Intelligence from "@/pages/Phase12Intelligence";
 import Phase13Intelligence from "@/pages/Phase13Intelligence";
 import LearningGovernance from "@/pages/LearningGovernance";
+import AutomationHealth from "@/pages/AutomationHealth";
 
 const queryClient = new QueryClient();
 
@@ -90,6 +91,7 @@ function Router() {
         <Route path="/phase12" component={Phase12Intelligence} />
         <Route path="/phase13" component={Phase13Intelligence} />
         <Route path="/learning" component={LearningGovernance} />
+        <Route path="/automation" component={AutomationHealth} />
         <Route path="/validation" component={PaperTradingValidation} />
         <Route path="/system-validation" component={SystemValidation} />
         <Route path="/research-notebook" component={ResearchNotebook} />

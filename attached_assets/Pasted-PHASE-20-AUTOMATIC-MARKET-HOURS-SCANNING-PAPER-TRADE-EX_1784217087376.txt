@@ -1,0 +1,345 @@
+PHASE 20 — AUTOMATIC MARKET-HOURS SCANNING, PAPER-TRADE EXECUTION, AND END-TO-END VALIDATION
+
+Goal:
+Turn the currently connected Zerodha-based research platform into a dependable paper-trading system that automatically scans fresh market data, creates simulated trades only when all quality and risk gates pass, manages open paper positions, records outcomes, and proves that every decision is reproducible and auditable.
+
+The system must remain PAPER TRADING / RESEARCH ONLY.
+LIVE ORDER PLACEMENT, MODIFICATION, AND CANCELLATION MUST REMAIN DISABLED.
+
+CURRENT STATE
+
+- Published production app is live.
+- Zerodha Kite Connect is authenticated and valid.
+- Live quotes are available.
+- Global freshness timestamps and scan IDs are visible across pages.
+- Stale, fallback, failed, or mismatched data blocks BUY recommendations.
+- Paper trading is active.
+- Live orders are disabled.
+
+PART 1 — AUTOMATIC SCAN SCHEDULER
+
+Implement a production-safe automatic scanner.
+
+Requirements:
+
+1. Run only during NSE market hours using Asia/Kolkata time.
+2. Default interval: every 5 minutes.
+3. Make interval configurable from Settings:
+   - 1 minute
+   - 3 minutes
+   - 5 minutes
+   - 10 minutes
+   - 15 minutes
+4. Do not run on weekends, NSE holidays, or outside market hours.
+5. Use a distributed lease/lock so Replit Autoscale instances cannot start duplicate scans.
+6. Recover automatically from expired or abandoned locks.
+7. Preserve the last successful snapshot if a scan fails.
+8. Never mark failed data as fresh.
+9. Record:
+   - scan_id
+   - started_at
+   - completed_at
+   - duration
+   - trigger source: SCHEDULED or MANUAL
+   - symbols requested
+   - symbols received
+   - missing symbols
+   - stale symbols
+   - unavailable symbols
+   - data provider
+   - result status
+   - error details
+10. Add scheduler health:
+   - last scheduled attempt
+   - last successful scheduled scan
+   - next scheduled scan
+   - missed-run count
+   - lock owner/lease expiry
+   - scheduler status
+
+PART 2 — PAPER-TRADE ELIGIBILITY GATES
+
+A paper BUY may be created only when all mandatory gates pass:
+
+- scan status is FRESH
+- snapshot consistency is PASS
+- quote provider is Zerodha
+- no fallback data
+- symbol quote is available and current
+- market is open
+- strategy is eligible for the current regime
+- recommendation is BUY or STRONG BUY
+- confidence meets configured threshold
+- opportunity score meets configured threshold
+- trade-quality score meets configured threshold
+- minimum risk/reward is met
+- stop-loss is valid
+- position-size calculation succeeds
+- sufficient simulated cash exists
+- per-stock exposure cap passes
+- sector exposure cap passes
+- portfolio risk cap passes
+- daily trade-count limit passes
+- cooldown and duplicate-position checks pass
+
+If any gate fails:
+- do not create the paper trade
+- record the exact failed gates
+- show the reason in AI Decision, Trade Decisions, Signals, and Notifications
+
+PART 3 — PAPER ENTRY EXECUTION
+
+When all gates pass:
+
+1. Create a simulated order and position.
+2. Use the latest eligible quote as the fill basis.
+3. Support configurable paper fill models:
+   - LAST_TRADED_PRICE
+   - NEXT_QUOTE
+   - SLIPPAGE_ADJUSTED
+4. Default to SLIPPAGE_ADJUSTED.
+5. Add configurable slippage and estimated charges.
+6. Persist:
+   - trade_id
+   - scan_id
+   - symbol
+   - strategy
+   - side
+   - signal timestamp
+   - decision timestamp
+   - simulated order timestamp
+   - fill timestamp
+   - signal price
+   - fill price
+   - quantity
+   - stop
+   - target
+   - risk amount
+   - estimated charges
+   - slippage
+   - confidence
+   - opportunity score
+   - trade-quality score
+   - regime
+   - sector
+   - full decision evidence
+
+Do not create duplicate entries for the same symbol while an open position exists.
+
+PART 4 — PAPER POSITION MANAGEMENT
+
+On each successful scheduled scan, evaluate open paper positions.
+
+Support exits for:
+
+- stop-loss hit
+- target hit
+- bearish/EXIT recommendation
+- trailing stop
+- time-based exit
+- market-close exit when configured
+- maximum holding period
+- portfolio risk reduction
+- sector cap breach
+- stale or unavailable data safety exit recommendation
+
+Important:
+- Stale data must not fabricate an exit fill.
+- If a reliable quote is unavailable, mark the exit as PENDING_DATA and notify the user.
+- Record the rule that triggered each exit.
+
+PART 5 — PAPER-TRADE LIFECYCLE UI
+
+Update these pages:
+
+Dashboard
+- scheduled scanner status
+- next scan time
+- paper trades today
+- open paper positions
+- realized/unrealized P&L
+- pending-data actions
+
+Trade Decisions
+- exact entry eligibility gates
+- paper-trade state
+- linked trade_id and scan_id
+
+Portfolio Manager
+- simulated allocation
+- open paper positions
+- cash
+- exposure
+- risk budget
+
+Signals
+- distinguish signal from executed paper trade
+- show EXECUTED, BLOCKED, OPEN, EXIT_PENDING, CLOSED
+
+All Trades
+- full paper-trade ledger
+- filters and exports
+
+Trade Replay
+- reconstruct each trade from scan to close
+
+Performance Analytics
+- use genuine stored paper trades
+- clearly separate legacy seed/demo trades from Phase 20 trades
+
+Notifications
+- scheduled scan success/failure
+- entry created
+- entry blocked
+- stop/target event
+- exit completed
+- missing data
+- scheduler unhealthy
+
+Live Data Health
+- scheduler health
+- latest scan status
+- scan duration
+- quote coverage
+- lock/lease state
+
+Broker & Execution
+- continue showing PAPER TRADING
+- make LIVE ASSISTED unavailable for this phase
+- retain kill switch and all limits
+
+PART 6 — NO LOOK-AHEAD AND REPRODUCIBILITY
+
+Ensure:
+
+1. Every paper trade is linked to the exact scan_id and snapshot_ts used.
+2. No future candle, quote, result, or revised data is used.
+3. Replaying a trade with the same stored snapshot and configuration produces the same decision.
+4. Store strategy version, model version, rule version, and configuration hash with every trade.
+5. Historical corrections must not silently rewrite past decisions.
+6. Any recomputation must be labelled RECOMPUTED and preserve the original record.
+
+PART 7 — CONFIGURATION AND SAFETY
+
+Add configurable settings with safe defaults:
+
+- auto scan enabled: ON
+- interval: 5 minutes
+- auto paper entries: OFF initially
+- auto paper exits: ON
+- minimum confidence
+- minimum opportunity score
+- minimum trade-quality score
+- minimum R:R
+- maximum trades per day
+- per-stock exposure cap
+- sector exposure cap
+- portfolio deployed-cap
+- risk per trade
+- daily simulated loss limit
+- slippage
+- charges
+- maximum holding period
+- square-off before close
+
+Critical activation rule:
+
+Auto paper entries must remain OFF after deployment.
+
+Add a manual confirmation flow:
+“I understand this will automatically create simulated paper trades only. No real orders will be placed.”
+
+Only after confirmation may the user enable automatic paper entries.
+
+PART 8 — VALIDATION DASHBOARD
+
+Create a Phase 20 validation section showing:
+
+- scheduler healthy
+- scheduled scans completed
+- failed scans
+- duplicate scans prevented
+- fresh-data rate
+- quote coverage
+- entries evaluated
+- entries passed
+- entries blocked
+- paper trades opened
+- exits completed
+- unresolved data events
+- snapshot consistency
+- reproducibility test result
+- no-look-ahead result
+- live-order disabled result
+
+Overall status:
+NOT_READY
+PAPER_READY
+DEGRADED
+
+PAPER_READY requires:
+- scheduler healthy
+- latest scan fresh
+- snapshot consistency pass
+- reproducibility pass
+- no-look-ahead pass
+- paper ledger operational
+- live orders disabled
+- no critical unresolved error
+
+PART 9 — TESTS
+
+Add tests for:
+
+- scheduler runs only during market hours
+- no runs on weekends/holidays
+- distributed lock prevents duplicates
+- expired lock recovery
+- failed scan preserves prior snapshot
+- stale/fallback/mismatched data blocks entries
+- all gates required before paper entry
+- duplicate position prevention
+- cash and exposure limits
+- stop-loss exit
+- target exit
+- recommendation exit
+- unavailable quote creates PENDING_DATA, not fake fill
+- slippage and charges applied correctly
+- scan_id and config hash stored
+- deterministic replay
+- no-look-ahead
+- auto paper entries default OFF
+- live order APIs remain disabled
+- no Zerodha secret or token appears in UI, logs, exports, or test output
+
+PART 10 — PRODUCTION VERIFICATION
+
+Run:
+
+- all Phase 20 tests
+- relevant regression tests from prior phases
+- production build
+- production start
+- one manual scan
+- one scheduled-scan simulation
+- one blocked paper-entry scenario
+- one successful mocked paper-entry scenario
+- one stop or target exit scenario
+- deterministic trade replay
+
+At completion report:
+
+1. Exact root causes fixed or architecture added
+2. Files changed
+3. Scheduler design
+4. Durable storage used
+5. Latest scan_id
+6. Paper-entry default state
+7. Validation status
+8. Test results
+9. Production build result
+10. Confirmation that auto paper entries remain OFF
+11. Confirmation that paper trading is active
+12. Confirmation that every live-order write path remains disabled
+
+Do not claim completion unless the validation dashboard reaches PAPER_READY in a safe test scenario and live orders remain disabled.

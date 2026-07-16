@@ -1,14 +1,14 @@
 {
   "bundle_version": 1,
   "phase": 13,
-  "generated_at": "2026-07-16T12:09:12Z",
+  "generated_at": "2026-07-16T16:05:49Z",
   "engine_version": "Research Engine v1.0 \u00b7 Phase 13",
   "mode": "PAPER_TRADING_RESEARCH_ONLY",
   "label": "PAPER / RESEARCH ONLY",
   "market_status": {
     "state": "CLOSED",
     "is_open": false,
-    "now_ist": "2026-07-16T17:39:12.912025+05:30",
+    "now_ist": "2026-07-16T21:35:49.383049+05:30",
     "timezone": "Asia/Kolkata",
     "session": {
       "pre_open": "09:00",
@@ -20,7 +20,7 @@
     "next_transition": {
       "event": "market_open",
       "at_ist": "2026-07-17T09:15:00+05:30",
-      "seconds_until": 56147
+      "seconds_until": 41950
     },
     "upcoming_holidays": [
       {
@@ -61,7 +61,7 @@
       "CRISIS": 0.0
     },
     "prev_regime": "RANGE_BOUND",
-    "regime_duration_bars": 6,
+    "regime_duration_bars": 2,
     "regime_changed": false,
     "score_multiplier": 0.95,
     "eligible_strategies": [
@@ -135,7 +135,7 @@
   },
   "scan_staleness": {
     "stale": false,
-    "age_minutes": 118.2
+    "age_minutes": 241.3
   },
   "audit_summary": {
     "trade_count": 3,
@@ -226,8 +226,8 @@
     {
       "file": "phase13_cache.json",
       "exists": true,
-      "size_bytes": 147510,
-      "modified": "2026-07-16T12:09:12Z"
+      "size_bytes": 147509,
+      "modified": "2026-07-16T16:05:49Z"
     },
     {
       "file": "phase13_proposals.json",
@@ -239,25 +239,25 @@
       "file": "phase13_audit_report.json",
       "exists": true,
       "size_bytes": 3146,
-      "modified": "2026-07-16T12:09:12Z"
+      "modified": "2026-07-16T16:05:49Z"
     },
     {
       "file": "phase13_diagnostic_bundle.json",
       "exists": true,
       "size_bytes": 6513,
-      "modified": "2026-07-16T12:09:00Z"
+      "modified": "2026-07-16T16:05:27Z"
     },
     {
       "file": "phase13_summary.csv",
       "exists": true,
       "size_bytes": 2285,
-      "modified": "2026-07-16T12:09:00Z"
+      "modified": "2026-07-16T16:05:27Z"
     },
     {
       "file": "phase7_scan_cache.json",
       "exists": true,
       "size_bytes": 65763,
-      "modified": "2026-07-16T12:09:05Z"
+      "modified": "2026-07-16T16:05:36Z"
     },
     {
       "file": "market_context_cache.json",

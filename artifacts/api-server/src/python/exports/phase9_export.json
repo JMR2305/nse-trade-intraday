@@ -1,10 +1,10 @@
 {
- "exported_at": "2026-07-16T12:09:17Z",
+ "exported_at": "2026-07-16T16:05:53Z",
  "label": "PAPER / LIVE DATA VALIDATION",
  "alerts": [
   {
-   "alert_id": "48714c5348",
-   "ts": "2026-07-16T12:09:17Z",
+   "alert_id": "646632608d",
+   "ts": "2026-07-16T16:05:53Z",
    "date": "2026-07-16",
    "type": "MOMENTUM_INCREASING",
    "severity": "INFO",
@@ -17,8 +17,8 @@
    "read": true
   },
   {
-   "alert_id": "111c3b1201",
-   "ts": "2026-07-16T12:09:17Z",
+   "alert_id": "77e496738a",
+   "ts": "2026-07-16T16:05:53Z",
    "date": "2026-07-16",
    "type": "MOMENTUM_INCREASING",
    "severity": "INFO",
@@ -31,8 +31,8 @@
    "read": true
   },
   {
-   "alert_id": "73ae7f2a37",
-   "ts": "2026-07-16T12:09:17Z",
+   "alert_id": "573948e992",
+   "ts": "2026-07-16T16:05:53Z",
    "date": "2026-07-16",
    "type": "MOMENTUM_INCREASING",
    "severity": "INFO",
@@ -45,8 +45,8 @@
    "read": true
   },
   {
-   "alert_id": "081c6144a3",
-   "ts": "2026-07-16T12:09:17Z",
+   "alert_id": "f5f116a843",
+   "ts": "2026-07-16T16:05:53Z",
    "date": "2026-07-16",
    "type": "MOMENTUM_INCREASING",
    "severity": "INFO",
@@ -59,8 +59,8 @@
    "read": true
   },
   {
-   "alert_id": "3a37d81a9d",
-   "ts": "2026-07-16T12:09:17Z",
+   "alert_id": "e2a9b07238",
+   "ts": "2026-07-16T16:05:53Z",
    "date": "2026-07-16",
    "type": "MOMENTUM_INCREASING",
    "severity": "INFO",
@@ -73,8 +73,8 @@
    "read": true
   },
   {
-   "alert_id": "3326669737",
-   "ts": "2026-07-16T12:09:17Z",
+   "alert_id": "658fe1ce26",
+   "ts": "2026-07-16T16:05:53Z",
    "date": "2026-07-16",
    "type": "MOMENTUM_INCREASING",
    "severity": "INFO",
@@ -87,8 +87,8 @@
    "read": true
   },
   {
-   "alert_id": "991f6ae297",
-   "ts": "2026-07-16T12:09:17Z",
+   "alert_id": "11cc9c0c4e",
+   "ts": "2026-07-16T16:05:53Z",
    "date": "2026-07-16",
    "type": "CONFIDENCE_INCREASED",
    "severity": "INFO",
@@ -101,8 +101,8 @@
    "read": true
   },
   {
-   "alert_id": "7e23f6fd88",
-   "ts": "2026-07-16T12:09:17Z",
+   "alert_id": "5e27408590",
+   "ts": "2026-07-16T16:05:53Z",
    "date": "2026-07-16",
    "type": "CONFIDENCE_INCREASED",
    "severity": "INFO",
@@ -115,8 +115,8 @@
    "read": true
   },
   {
-   "alert_id": "bbf855a507",
-   "ts": "2026-07-16T12:09:17Z",
+   "alert_id": "2b52cc3ddd",
+   "ts": "2026-07-16T16:05:53Z",
    "date": "2026-07-16",
    "type": "CONFIDENCE_INCREASED",
    "severity": "INFO",
@@ -131,7 +131,7 @@
  ],
  "copilot_summary": {
   "success": true,
-  "generated_at": "2026-07-16T12:09:17Z",
+  "generated_at": "2026-07-16T16:05:53Z",
   "scan_id": "0f4bb84525ef",
   "snapshot_ts": "2026-07-16T12:03:47Z",
   "market": {
@@ -208,7 +208,7 @@
  },
  "daily_briefing": {
   "success": true,
-  "generated_at": "2026-07-16T12:09:17Z",
+  "generated_at": "2026-07-16T16:05:53Z",
   "date": "2026-07-16",
   "greeting": "Good Evening",
   "market_summary": {

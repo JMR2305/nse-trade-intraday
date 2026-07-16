@@ -12,6 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate } from "@/lib/format";
 import DataFreshnessBar from "@/components/DataFreshnessBar";
+import { Phase20LedgerTable } from "@/components/Phase20Lifecycle";
 
 export default function Trades() {
   const { data: trades, isLoading } = useGetTrades({
@@ -94,6 +95,10 @@ export default function Trades() {
           )}
         </CardContent>
       </Card>
+
+      <div className="flex-shrink-0">
+        <Phase20LedgerTable limit={200} />
+      </div>
     </div>
   );
 }

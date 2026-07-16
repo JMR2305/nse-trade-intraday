@@ -11,6 +11,7 @@ import {
 import { formatCurrency } from "@/lib/format";
 import HistoricalEvidence from "@/components/HistoricalEvidence";
 import DataFreshnessBar from "@/components/DataFreshnessBar";
+import { EntryEvaluationPanel } from "@/components/Phase20Lifecycle";
 import {
   Brain,
   ChevronDown,
@@ -483,6 +484,16 @@ export default function AiDecisionPage() {
       </div>
 
       <DataFreshnessBar variant="scan" />
+
+      {/* Phase 20 auto paper-entry gates (collapsed to keep page light) */}
+      <details className="rounded-lg border border-border/50 bg-card/30">
+        <summary className="cursor-pointer select-none px-4 py-2.5 text-xs font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground">
+          Auto paper-entry gates <span className="normal-case text-muted-foreground/60">— PAPER / RESEARCH ONLY (click to load)</span>
+        </summary>
+        <div className="p-3 pt-0">
+          <EntryEvaluationPanel />
+        </div>
+      </details>
 
       {/* Phase 13 regime banner */}
       <Phase13RegimeBanner />
