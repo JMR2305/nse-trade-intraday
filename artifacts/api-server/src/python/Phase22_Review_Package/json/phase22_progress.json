@@ -1,0 +1,63 @@
+{
+  "completed_paper_trades": 0,
+  "open_paper_trades": 0,
+  "blocked_candidates": 0,
+  "total_evaluated_candidates": 0,
+  "distinct_trading_days": 0,
+  "regime_trade_counts": {
+    "bullish": 0,
+    "bearish": 0,
+    "range_bound": 0,
+    "high_volatility": 0,
+    "low_volatility": 0,
+    "unknown": 0
+  },
+  "strategy_coverage": [],
+  "sector_coverage": [],
+  "milestones": [
+    {
+      "trades": 10,
+      "label": "Smoke-test evidence",
+      "reached": false,
+      "remaining": 10
+    },
+    {
+      "trades": 30,
+      "label": "Early review",
+      "reached": false,
+      "remaining": 30
+    },
+    {
+      "trades": 50,
+      "label": "Initial calibration review",
+      "reached": false,
+      "remaining": 50
+    },
+    {
+      "trades": 100,
+      "label": "Meaningful challenger evaluation",
+      "reached": false,
+      "remaining": 100
+    },
+    {
+      "trades": 250,
+      "label": "Intermediate validation",
+      "reached": false,
+      "remaining": 250
+    },
+    {
+      "trades": 500,
+      "label": "Advanced validation",
+      "reached": false,
+      "remaining": 500
+    }
+  ],
+  "next_milestone": {
+    "trades": 10,
+    "label": "Smoke-test evidence",
+    "reached": false,
+    "remaining": 10
+  },
+  "validation_note": "Reaching a trade-count milestone does NOT by itself mean the model is validated. Statistical review is still required at each milestone.",
+  "label": "PAPER / RESEARCH ONLY"
+}

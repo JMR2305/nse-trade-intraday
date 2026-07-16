@@ -1,0 +1,13 @@
+Metric,Value
+avg_confidence,13.91
+avg_holding_days,0.0
+avg_opportunity_score,23.65
+buy_signal_accuracy_pct,66.67
+closed_trades_used,3
+confidence_accuracy_pct,66.67
+estimated,True
+exit_signal_accuracy_pct,100.0
+learning_score,83.33
+prediction_accuracy_pct,66.67
+sell_signal_accuracy_pct,100.0
+trade_quality_score,100.0

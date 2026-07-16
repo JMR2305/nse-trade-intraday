@@ -1,0 +1,81 @@
+{
+  "report_date": "2026-07-16",
+  "generated_at": "2026-07-16T19:45:03.568959+00:00",
+  "scheduled_scans_completed": 0,
+  "failed_scans": 0,
+  "candidates_evaluated": 0,
+  "paper_entries_opened": 0,
+  "entries_blocked": 0,
+  "exits_completed": 0,
+  "pending_data_actions": 0,
+  "realized_pnl": 0,
+  "unrealized_pnl": 0.0,
+  "daily_drawdown": 0.0,
+  "risk_limit_events": [],
+  "strategy_summary": {},
+  "sector_summary": {},
+  "regime_summary": {},
+  "data_quality_incidents": [],
+  "evidence_progress": {
+    "summary": {
+      "total_rows": 0,
+      "opened": 0,
+      "blocked": 0,
+      "outcome_complete": 0,
+      "distinct_scans": 0,
+      "distinct_days": 0,
+      "append_only": true,
+      "label": "PAPER / RESEARCH ONLY"
+    },
+    "milestones": [
+      {
+        "trades": 10,
+        "label": "Smoke-test evidence",
+        "reached": false,
+        "remaining": 10
+      },
+      {
+        "trades": 30,
+        "label": "Early review",
+        "reached": false,
+        "remaining": 30
+      },
+      {
+        "trades": 50,
+        "label": "Initial calibration review",
+        "reached": false,
+        "remaining": 50
+      },
+      {
+        "trades": 100,
+        "label": "Meaningful challenger evaluation",
+        "reached": false,
+        "remaining": 100
+      },
+      {
+        "trades": 250,
+        "label": "Intermediate validation",
+        "reached": false,
+        "remaining": 250
+      },
+      {
+        "trades": 500,
+        "label": "Advanced validation",
+        "reached": false,
+        "remaining": 500
+      }
+    ],
+    "next_milestone": {
+      "trades": 10,
+      "label": "Smoke-test evidence",
+      "reached": false,
+      "remaining": 10
+    }
+  },
+  "live_order_disabled_verification": {
+    "verified": true,
+    "detail": "ZERODHA_ENABLED=False and PAPER_TRADING_MODE=True confirmed in configuration"
+  },
+  "auto_paper_entries": false,
+  "label": "PAPER / RESEARCH ONLY"
+}

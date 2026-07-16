@@ -1,0 +1,16 @@
+{
+  "paper_automation_active": false,
+  "default_state": "OFF (after every deployment)",
+  "required_confirmation_text": "ENABLE PAPER ONLY",
+  "acknowledgement_statement": "I understand this enables automatic simulated paper trades only. No real Zerodha orders will be placed. Paper trades can gain or lose simulated capital.",
+  "activation_record": null,
+  "last_activation_record": {
+    "disabled_at": "2026-07-16T19:45:03.153369+00:00",
+    "disabled_by": "dashboard_user",
+    "disable_reason": "test"
+  },
+  "auto_paper_exits": true,
+  "live_orders": "DISABLED",
+  "label": "PAPER / RESEARCH ONLY",
+  "note": "Auto paper entries are OFF. Activation requires the readiness checklist to pass and typing the exact confirmation text."
+}

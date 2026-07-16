@@ -5218,5 +5218,701 @@
     "technical_score": 0.0
    }
   ]
+ },
+ {
+  "scan_id": "e56b331721e4",
+  "snapshot_ts": "2026-07-16T18:20:46Z",
+  "recorded_at": "2026-07-16T19:42:06Z",
+  "avg_confidence": 13.0,
+  "avg_opportunity_score": 22.8,
+  "trade_quality_pct": 100.0,
+  "buy_count": 0,
+  "watch_count": 4,
+  "stocks": [
+   {
+    "symbol": "INDUSINDBK",
+    "confidence": 34.1,
+    "opportunity_score": 44.1,
+    "action": "WATCH",
+    "technical_score": 28.1
+   },
+   {
+    "symbol": "HCLTECH",
+    "confidence": 39.9,
+    "opportunity_score": 42.5,
+    "action": "WATCH",
+    "technical_score": 46.5
+   },
+   {
+    "symbol": "HDFCBANK",
+    "confidence": 39.9,
+    "opportunity_score": 42.5,
+    "action": "WATCH",
+    "technical_score": 46.5
+   },
+   {
+    "symbol": "TATACONSUM",
+    "confidence": 39.7,
+    "opportunity_score": 42.4,
+    "action": "WATCH",
+    "technical_score": 46.3
+   },
+   {
+    "symbol": "BAJFINANCE",
+    "confidence": 29.3,
+    "opportunity_score": 40.1,
+    "action": "IGNORE",
+    "technical_score": 35.8
+   },
+   {
+    "symbol": "ICICIBANK",
+    "confidence": 29.3,
+    "opportunity_score": 40.1,
+    "action": "IGNORE",
+    "technical_score": 35.8
+   },
+   {
+    "symbol": "TATASTEEL",
+    "confidence": 29.2,
+    "opportunity_score": 40.0,
+    "action": "IGNORE",
+    "technical_score": 35.6
+   },
+   {
+    "symbol": "DRREDDY",
+    "confidence": 29.4,
+    "opportunity_score": 38.4,
+    "action": "IGNORE",
+    "technical_score": 35.9
+   },
+   {
+    "symbol": "RELIANCE",
+    "confidence": 29.2,
+    "opportunity_score": 38.2,
+    "action": "IGNORE",
+    "technical_score": 35.6
+   },
+   {
+    "symbol": "SBIN",
+    "confidence": 29.3,
+    "opportunity_score": 36.4,
+    "action": "IGNORE",
+    "technical_score": 35.7
+   },
+   {
+    "symbol": "SHRIRAMFIN",
+    "confidence": 29.3,
+    "opportunity_score": 34.5,
+    "action": "IGNORE",
+    "technical_score": 35.8
+   },
+   {
+    "symbol": "JSWSTEEL",
+    "confidence": 29.2,
+    "opportunity_score": 34.4,
+    "action": "IGNORE",
+    "technical_score": 35.6
+   },
+   {
+    "symbol": "KOTAKBANK",
+    "confidence": 29.2,
+    "opportunity_score": 34.4,
+    "action": "IGNORE",
+    "technical_score": 35.6
+   },
+   {
+    "symbol": "HDFCLIFE",
+    "confidence": 23.6,
+    "opportunity_score": 32.8,
+    "action": "IGNORE",
+    "technical_score": 14.1
+   },
+   {
+    "symbol": "ONGC",
+    "confidence": 23.7,
+    "opportunity_score": 31.7,
+    "action": "IGNORE",
+    "technical_score": 24.9
+   },
+   {
+    "symbol": "WIPRO",
+    "confidence": 25.0,
+    "opportunity_score": 29.1,
+    "action": "IGNORE",
+    "technical_score": 26.7
+   },
+   {
+    "symbol": "POWERGRID",
+    "confidence": 24.8,
+    "opportunity_score": 25.9,
+    "action": "IGNORE",
+    "technical_score": 19.7
+   },
+   {
+    "symbol": "COALINDIA",
+    "confidence": 15.6,
+    "opportunity_score": 24.4,
+    "action": "IGNORE",
+    "technical_score": 14.1
+   },
+   {
+    "symbol": "NTPC",
+    "confidence": 19.6,
+    "opportunity_score": 24.0,
+    "action": "IGNORE",
+    "technical_score": 5.5
+   },
+   {
+    "symbol": "BAJAJ-AUTO",
+    "confidence": 8.0,
+    "opportunity_score": 23.6,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "BHARTIARTL",
+    "confidence": 8.0,
+    "opportunity_score": 23.6,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "TECHM",
+    "confidence": 8.0,
+    "opportunity_score": 23.6,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "ULTRACEMCO",
+    "confidence": 8.0,
+    "opportunity_score": 23.6,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "AXISBANK",
+    "confidence": 8.1,
+    "opportunity_score": 21.0,
+    "action": "IGNORE",
+    "technical_score": 7.4
+   },
+   {
+    "symbol": "ITC",
+    "confidence": 8.1,
+    "opportunity_score": 21.0,
+    "action": "IGNORE",
+    "technical_score": 7.4
+   },
+   {
+    "symbol": "DIVISLAB",
+    "confidence": 8.0,
+    "opportunity_score": 19.9,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "LT",
+    "confidence": 8.0,
+    "opportunity_score": 18.0,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "HINDALCO",
+    "confidence": 8.1,
+    "opportunity_score": 15.4,
+    "action": "IGNORE",
+    "technical_score": 7.5
+   },
+   {
+    "symbol": "ADANIENT",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "ADANIPORTS",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "APOLLOHOSP",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "ASIANPAINT",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "BAJAJFINSV",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "BRITANNIA",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "CIPLA",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "EICHERMOT",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "GRASIM",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "HEROMOTOCO",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "HINDUNILVR",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "INFY",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "M&M",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "MARUTI",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "NESTLEIND",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "SBILIFE",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "SUNPHARMA",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "TCS",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "TITAN",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "TRENT",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   }
+  ]
+ },
+ {
+  "scan_id": "aa5b77339d01",
+  "snapshot_ts": "2026-07-16T19:42:23Z",
+  "recorded_at": "2026-07-16T19:44:29Z",
+  "avg_confidence": 13.9,
+  "avg_opportunity_score": 23.7,
+  "trade_quality_pct": 100.0,
+  "buy_count": 0,
+  "watch_count": 4,
+  "stocks": [
+   {
+    "symbol": "INDUSINDBK",
+    "confidence": 33.9,
+    "opportunity_score": 43.9,
+    "action": "WATCH",
+    "technical_score": 27.8
+   },
+   {
+    "symbol": "HCLTECH",
+    "confidence": 39.9,
+    "opportunity_score": 42.5,
+    "action": "WATCH",
+    "technical_score": 46.5
+   },
+   {
+    "symbol": "HDFCBANK",
+    "confidence": 39.9,
+    "opportunity_score": 42.5,
+    "action": "WATCH",
+    "technical_score": 46.5
+   },
+   {
+    "symbol": "TATACONSUM",
+    "confidence": 39.7,
+    "opportunity_score": 42.4,
+    "action": "WATCH",
+    "technical_score": 46.3
+   },
+   {
+    "symbol": "BAJFINANCE",
+    "confidence": 29.3,
+    "opportunity_score": 40.1,
+    "action": "IGNORE",
+    "technical_score": 35.8
+   },
+   {
+    "symbol": "ICICIBANK",
+    "confidence": 29.3,
+    "opportunity_score": 40.1,
+    "action": "IGNORE",
+    "technical_score": 35.8
+   },
+   {
+    "symbol": "TATASTEEL",
+    "confidence": 29.2,
+    "opportunity_score": 40.0,
+    "action": "IGNORE",
+    "technical_score": 35.6
+   },
+   {
+    "symbol": "DRREDDY",
+    "confidence": 29.4,
+    "opportunity_score": 38.4,
+    "action": "IGNORE",
+    "technical_score": 35.9
+   },
+   {
+    "symbol": "RELIANCE",
+    "confidence": 27.5,
+    "opportunity_score": 37.8,
+    "action": "IGNORE",
+    "technical_score": 22.6
+   },
+   {
+    "symbol": "HDFCLIFE",
+    "confidence": 35.5,
+    "opportunity_score": 37.1,
+    "action": "IGNORE",
+    "technical_score": 37.4
+   },
+   {
+    "symbol": "SBIN",
+    "confidence": 29.3,
+    "opportunity_score": 36.4,
+    "action": "IGNORE",
+    "technical_score": 35.7
+   },
+   {
+    "symbol": "SHRIRAMFIN",
+    "confidence": 29.3,
+    "opportunity_score": 34.5,
+    "action": "IGNORE",
+    "technical_score": 35.8
+   },
+   {
+    "symbol": "JSWSTEEL",
+    "confidence": 29.2,
+    "opportunity_score": 34.4,
+    "action": "IGNORE",
+    "technical_score": 35.6
+   },
+   {
+    "symbol": "KOTAKBANK",
+    "confidence": 29.2,
+    "opportunity_score": 34.4,
+    "action": "IGNORE",
+    "technical_score": 35.6
+   },
+   {
+    "symbol": "ONGC",
+    "confidence": 24.0,
+    "opportunity_score": 32.0,
+    "action": "IGNORE",
+    "technical_score": 25.4
+   },
+   {
+    "symbol": "WIPRO",
+    "confidence": 25.0,
+    "opportunity_score": 29.1,
+    "action": "IGNORE",
+    "technical_score": 26.7
+   },
+   {
+    "symbol": "POWERGRID",
+    "confidence": 24.8,
+    "opportunity_score": 25.9,
+    "action": "IGNORE",
+    "technical_score": 19.7
+   },
+   {
+    "symbol": "COALINDIA",
+    "confidence": 15.6,
+    "opportunity_score": 24.4,
+    "action": "IGNORE",
+    "technical_score": 14.1
+   },
+   {
+    "symbol": "NTPC",
+    "confidence": 19.7,
+    "opportunity_score": 24.1,
+    "action": "IGNORE",
+    "technical_score": 5.6
+   },
+   {
+    "symbol": "ITC",
+    "confidence": 19.6,
+    "opportunity_score": 23.9,
+    "action": "IGNORE",
+    "technical_score": 5.4
+   },
+   {
+    "symbol": "BAJAJ-AUTO",
+    "confidence": 8.0,
+    "opportunity_score": 23.6,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "BAJAJFINSV",
+    "confidence": 8.0,
+    "opportunity_score": 23.6,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "BHARTIARTL",
+    "confidence": 8.0,
+    "opportunity_score": 23.6,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "TECHM",
+    "confidence": 8.0,
+    "opportunity_score": 23.6,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "TITAN",
+    "confidence": 8.0,
+    "opportunity_score": 23.6,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "ULTRACEMCO",
+    "confidence": 8.0,
+    "opportunity_score": 23.6,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "AXISBANK",
+    "confidence": 8.1,
+    "opportunity_score": 21.0,
+    "action": "IGNORE",
+    "technical_score": 7.4
+   },
+   {
+    "symbol": "DIVISLAB",
+    "confidence": 8.0,
+    "opportunity_score": 19.9,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "TCS",
+    "confidence": 8.0,
+    "opportunity_score": 19.9,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "LT",
+    "confidence": 8.0,
+    "opportunity_score": 18.0,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "HINDALCO",
+    "confidence": 8.1,
+    "opportunity_score": 15.4,
+    "action": "IGNORE",
+    "technical_score": 7.5
+   },
+   {
+    "symbol": "ADANIENT",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "ADANIPORTS",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "APOLLOHOSP",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "ASIANPAINT",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "BRITANNIA",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "CIPLA",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "EICHERMOT",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "GRASIM",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "HEROMOTOCO",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "HINDUNILVR",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "INFY",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "M&M",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "MARUTI",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "NESTLEIND",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "SBILIFE",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "SUNPHARMA",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   },
+   {
+    "symbol": "TRENT",
+    "confidence": 0.0,
+    "opportunity_score": 11.5,
+    "action": "IGNORE",
+    "technical_score": 0.0
+   }
+  ]
  }
 ]

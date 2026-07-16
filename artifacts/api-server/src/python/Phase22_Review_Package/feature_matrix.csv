@@ -1,0 +1,43 @@
+Feature,Implemented,Working,Tested,Comments
+Unified scan context (single source of truth),Yes,Yes,Yes,Regime from canonical snapshot
+Stale scan detection + BUY disable,Yes,Yes,Yes,"90-minute limit, global banner"
+Data quality scores + bands,Yes,Yes,Yes,DO NOT TRADE below 80
+Cross-page consistency validation,Yes,Yes,Yes,ERROR/STALE_SOURCE/MISSING_SOURCE severities
+AI explainability (12 factors),Yes,Yes,Yes,
+Risk gate hardening (10 checks),Yes,Yes,Yes,Post-trade exposure modeling
+"Extended trade records (charges, slippage)",Yes,Yes,Yes,Estimates only — paper trading
+Scan audit logging,Yes,Yes,Yes,Capped log
+System diagnostics + readiness report,Yes,Yes,Yes,
+Paper trading validation (14 sections),Yes,Yes,Yes,Advisory only; Insufficient Data below minimum samples
+Validation exports (PDF/XLSX/CSV + report),Yes,Yes,Yes,
+Paper Trading Validation dashboard page,Yes,Yes,Yes,Route /validation
+Automated QA engine (one-click complete validation),Yes,Yes,Yes,"Phase 17 — test suites, API, data, benchmarks, consistency"
+Release checklist + dashboard + health score,Yes,Yes,Yes,Weighted score; warnings count half
+Validation history + regression comparison,Yes,Yes,Yes,Last 100 runs
+Automated QA reports (PDF/XLSX/CSV/JSON),Yes,Yes,Yes,phase17_reports/
+System Validation dashboard page,Yes,Yes,Yes,Route /system-validation
+"Research Notebook (daily journal, auto-created per scan day)",Yes,Yes,Yes,"Phase 18 — decision journal, checklist, notes, finalize/reopen"
+Daily validation checklist (before/during/after market),Yes,Yes,Yes,Evaluated from real stored data
+Weekly/monthly research reviews + calibration bands,Yes,Yes,Yes,Insufficient Data below minimum samples
+Evidence accumulation tracker (configurable targets),Yes,Yes,Yes,Advisory only
+Research memory search + issue tracker (ISS-####),Yes,Yes,Yes,
+Notebook exports + Research_Notebook_Archive.zip,Yes,Yes,Yes,Secrets filtered; README included
+Research Notebook dashboard page,Yes,Yes,Yes,Route /research-notebook
+Kite Connect session manager (token health/expiry),Yes,Yes,Yes,Phase 19 — VALID/WARNING/EXPIRED/MISSING; 60s probe cache
+"Kite live quote provider (30s cache, rate limit, fallback)",Yes,Yes,Yes,Phase 19 — yfinance fallback; data_source label on every quote
+"Kite instrument cache (daily refresh, fuzzy search)",Yes,Yes,Yes,Phase 19 — disk-backed JSON; prefix+contains ranking
+Kite broker client get_ltp() (abstract + Zerodha + Mock),Yes,Yes,Yes,Phase 19 — read-only; paper trading unchanged
+Kite read-only API routes (11 endpoints),Yes,Yes,Yes,Phase 19 — /api/kite/status|quote|ltp|holdings|positions|margins|orders|instruments|diagnostics
+Kite Connect dashboard page (7 tabs),Yes,Yes,Yes,Phase 19 — Route /kite-connect; read-only; no order placement
+Mobile responsive sidebar (hamburger menu),Yes,Yes,Yes,Phase 19 — slide-in sidebar + overlay backdrop on mobile
+"Auto paper trading engine (default OFF, exact confirmation)",Yes,Yes,Yes,Phase 20 — EXIT_PENDING on stale data; one OPEN trade per symbol (DB unique index)
+"Advisory analytics (advisory-only flags, no auto changes)",Yes,Yes,Yes,Phase 21 — INSUFFICIENT_EVIDENCE over extrapolation
+Activation readiness checklist (16 checks),Yes,Yes,Yes,Phase 22 — activation blocked until all checks pass
+Typed activation control (ENABLE PAPER ONLY),Yes,Yes,Yes,"Phase 22 — audit trail, config hash, immediate disable"
+Append-only evidence dataset (all candidates incl. blocked),Yes,Yes,Yes,Phase 22 — write-once outcome columns; horizon returns 15m→5d; MAE/MFE
+Evidence progress milestones (10→500),Yes,Yes,Yes,Phase 22
+Daily close report + JSON/CSV/PDF exports,Yes,Yes,Yes,Phase 22 — exports/Phase22_Daily_*
+Phase 22 dashboard panels (7 pages),Yes,Yes,Yes,"Dashboard, Trade Decisions, Trades, Trade Replay, Learning, Live Data Health, Broker & Execution"
+Review package generator,Yes,Yes,Partial,Tested via generation run itself
+Paper trading engine / scanner / strategies,Yes,Yes,Yes,Built in earlier phases 1-14
+Real-money execution,No,No,No,Deliberately not implemented — research only

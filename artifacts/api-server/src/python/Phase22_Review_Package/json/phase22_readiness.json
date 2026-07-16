@@ -1,0 +1,93 @@
+{
+  "checked_at": "2026-07-16T19:45:03.477768+00:00",
+  "all_passed": false,
+  "activation_allowed": false,
+  "failed_checks": [
+    "no_fallback_data",
+    "market_open"
+  ],
+  "checks": [
+    {
+      "check": "latest_scan_fresh",
+      "passed": true,
+      "detail": "scan_id=aa5b77339d01, age=160.0s, stale=False"
+    },
+    {
+      "check": "canonical_scan_id_consistent",
+      "passed": true,
+      "detail": "meta=aa5b77339d01 vs snapshot=aa5b77339d01"
+    },
+    {
+      "check": "quote_provider_approved",
+      "passed": true,
+      "detail": "48/50 symbols with LIVE/NEAR_LIVE quotes (approved provider: yfinance NSE feed)"
+    },
+    {
+      "check": "no_fallback_data",
+      "passed": false,
+      "detail": "2 symbol(s) on fallback/stale data"
+    },
+    {
+      "check": "market_open",
+      "passed": false,
+      "detail": "market_state=CLOSED"
+    },
+    {
+      "check": "scheduler_healthy",
+      "passed": true,
+      "detail": "health=HEALTHY, last_attempt=2026-07-16T19:44:20Z"
+    },
+    {
+      "check": "durable_database_connected",
+      "passed": true,
+      "detail": "PostgreSQL reachable"
+    },
+    {
+      "check": "paper_ledger_writable",
+      "passed": true,
+      "detail": "Ledger readable and KV store writable"
+    },
+    {
+      "check": "duplicate_position_guard_active",
+      "passed": true,
+      "detail": "Partial unique index (one OPEN trade per symbol) + gate check active"
+    },
+    {
+      "check": "cash_and_risk_limits_loaded",
+      "passed": true,
+      "detail": "risk config loaded=True, simulated cash=\u20b94,600"
+    },
+    {
+      "check": "daily_loss_limit_active",
+      "passed": true,
+      "detail": "daily_loss_limit_pct=3.0%"
+    },
+    {
+      "check": "kill_switch_off",
+      "passed": true,
+      "detail": "kill_switch active=False"
+    },
+    {
+      "check": "auto_paper_exits_active",
+      "passed": true,
+      "detail": "auto_paper_exits=True"
+    },
+    {
+      "check": "live_order_writes_disabled",
+      "passed": true,
+      "detail": "ZERODHA_ENABLED=False, PAPER_TRADING_MODE=True verified=True"
+    },
+    {
+      "check": "audit_logger_healthy",
+      "passed": true,
+      "detail": "Audit append succeeded"
+    },
+    {
+      "check": "no_critical_validation_errors",
+      "passed": true,
+      "detail": "None"
+    }
+  ],
+  "label": "PAPER / RESEARCH ONLY",
+  "note": "Activation BLOCKED \u2014 the failed checks above must pass first. No control is weakened."
+}

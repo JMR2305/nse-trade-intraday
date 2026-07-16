@@ -1,0 +1,42 @@
+Metric,Value
+success,True
+portfolio_value,5473.25
+cash,4600.0
+cash_allocation_pct,84.05
+invested_pct,15.95
+portfolio_heat_pct,0.0
+heat_detail,[]
+unbounded_risk_positions,"[{""symbol"": ""WIPRO"", ""position_value"": 873.25, ""basis"": ""no stop-loss recorded \u2014 risk is unbounded (excluded from heat, flagged)""}]"
+risk_budget.max_heat_pct,6.0
+risk_budget.used_pct_of_budget,0.0
+risk_budget.remaining_heat_pct,6.0
+sector_allocation,"[{""sector"": ""IT"", ""value"": 873.25, ""pct_of_portfolio"": 15.95}]"
+correlation_matrix.method,sector-proxy estimate (no OHLC history cached for true return correlation)
+correlation_matrix.symbols,"[""WIPRO""]"
+correlation_matrix.matrix,"[{""symbol"": ""WIPRO"", ""correlations"": {""WIPRO"": 1.0}}]"
+diversification_score,53.64
+diversification_note,100 x normalized (1 - HHI) over position + cash weights
+largest_exposures,"[{""symbol"": ""WIPRO"", ""value"": 873.25, ""pct_of_portfolio"": 15.95, ""sector"": ""IT""}]"
+drawdowns.daily.drawdown_pct,
+drawdowns.daily.note,Not Available — fewer than 2 equity points in window
+drawdowns.weekly.drawdown_pct,
+drawdowns.weekly.note,Not Available — fewer than 2 equity points in window
+drawdowns.monthly.drawdown_pct,1.15
+drawdowns.monthly.points,8
+daily_realized_loss_pct,0.0
+limits.max_risk_per_trade_pct,1.0
+limits.max_position_pct,20.0
+limits.max_stock_pct,25.0
+limits.max_sector_pct,40.0
+limits.max_portfolio_heat_pct,6.0
+limits.daily_loss_limit_pct,3.0
+limits.max_drawdown_alert_pct,8.0
+kill_switch.active,False
+kill_switch.events,"[{""event"": ""TRIGGERED"", ""reason"": ""test event"", ""source"": ""manual"", ""ts"": ""2026-07-15T03:38:28.777335""}, {""event"": ""RESUMED"", ""acknowledged"": true, ""ts"": ""2026-07-15T03:38:34.155799""}]"
+kill_switch.reason,
+kill_switch.triggered_at,2026-07-15T03:38:28.777367
+kill_switch.triggered_by,manual
+kill_switch.resumed_at,2026-07-15T03:38:34.155811
+auto_kill_triggered,
+engine_version,11.0
+computed_at,2026-07-16T19:44:20.081163

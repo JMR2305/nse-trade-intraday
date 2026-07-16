@@ -191,7 +191,55 @@
       "notes": [],
       "created_at": "2026-07-16T18:20:03.028518+00:00",
       "updated_at": "2026-07-16T18:20:03.032066+00:00"
+    },
+    {
+      "issue_id": "ISS-0013",
+      "date": "2026-07-17",
+      "severity": "LOW",
+      "page": "test",
+      "description": "unit-test issue",
+      "related_scan_id": null,
+      "related_trade_id": null,
+      "reproducible": false,
+      "status": "VERIFIED",
+      "resolution": "test done",
+      "resolved_date": "2026-07-17",
+      "notes": [],
+      "created_at": "2026-07-16T19:40:02.420775+00:00",
+      "updated_at": "2026-07-16T19:40:02.423525+00:00"
+    },
+    {
+      "issue_id": "ISS-0014",
+      "date": "2026-07-17",
+      "severity": "LOW",
+      "page": "test",
+      "description": "unit-test issue",
+      "related_scan_id": null,
+      "related_trade_id": null,
+      "reproducible": false,
+      "status": "VERIFIED",
+      "resolution": "test done",
+      "resolved_date": "2026-07-17",
+      "notes": [],
+      "created_at": "2026-07-16T19:40:53.478496+00:00",
+      "updated_at": "2026-07-16T19:40:53.482084+00:00"
+    },
+    {
+      "issue_id": "ISS-0015",
+      "date": "2026-07-17",
+      "severity": "LOW",
+      "page": "test",
+      "description": "unit-test issue",
+      "related_scan_id": null,
+      "related_trade_id": null,
+      "reproducible": false,
+      "status": "VERIFIED",
+      "resolution": "test done",
+      "resolved_date": "2026-07-17",
+      "notes": [],
+      "created_at": "2026-07-16T19:44:57.472806+00:00",
+      "updated_at": "2026-07-16T19:44:57.473530+00:00"
     }
   ],
-  "next_id": 13
+  "next_id": 16
 }

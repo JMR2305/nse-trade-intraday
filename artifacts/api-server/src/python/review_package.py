@@ -37,7 +37,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PHASE = 19
+PHASE = 22
 PACKAGE_NAME = f"Phase{PHASE}_Review_Package"
 PACKAGE_DIR = os.path.join(BASE_DIR, PACKAGE_NAME)
 ZIP_PATH = os.path.join(BASE_DIR, f"{PACKAGE_NAME}.zip")
@@ -74,9 +74,17 @@ def _run_tests(script: str) -> dict:
     try:
         p = subprocess.run(["python3", script], cwd=BASE_DIR,
                            capture_output=True, text=True, timeout=180)
-        m = re.search(r"(\d+) passed, (\d+) failed", p.stdout)
+        out = (p.stdout or "") + (p.stderr or "")
+        m = re.search(r"(\d+) passed, (\d+) failed", out)
         if m:
             return {"passed": int(m.group(1)), "failed": int(m.group(2)), "ran": True}
+        # unittest format: "Ran N tests in Xs" then "OK" or "FAILED (failures=A, errors=B)"
+        m = re.search(r"Ran (\d+) tests? in", out)
+        if m:
+            total = int(m.group(1))
+            fm = re.search(r"FAILED \((?:failures=(\d+))?(?:, )?(?:errors=(\d+))?\)", out)
+            failed = (int(fm.group(1) or 0) + int(fm.group(2) or 0)) if fm else 0
+            return {"passed": total - failed, "failed": failed, "ran": True}
     except Exception:
         pass
     return {"passed": 0, "failed": 0, "ran": False}
@@ -193,17 +201,53 @@ def _csv_risk(out: str, risk: dict):
 
 # ── Reports ──────────────────────────────────────────────────────────────────
 
-def _implementation_summary(t15: dict, t16: dict, t17: dict, t18: dict, t19: dict = None) -> str:
+def _implementation_summary(t15: dict, t16: dict, t17: dict, t18: dict, t19: dict = None,
+                            t20: dict = None, t21: dict = None, t22: dict = None) -> str:
     t19 = t19 or {}
-    return f"""# Phase {PHASE} Implementation Summary — Zerodha Kite Connect Live-Data Integration & Production Readiness
+    t20 = t20 or {}
+    t21 = t21 or {}
+    t22 = t22 or {}
+    return f"""# Phase {PHASE} Implementation Summary — Controlled Auto Paper Trading & Evidence Accumulation
 
 - **Phase:** {PHASE}
 - **Date:** {_now()}
-- **Scope rule respected:** read-only Kite Connect integration only; paper trading remains default;
-  no new strategies, indicators, scoring, risk, research, learning, or paper-trading logic changed
-  except to consume verified live read-only data safely. PAPER / RESEARCH ONLY.
+- **Scope rule respected:** automated PAPER trading only; live-order writes remain disabled;
+  auto paper entries default OFF and require the exact typed confirmation "ENABLE PAPER ONLY".
+  No real Zerodha orders are possible. PAPER / RESEARCH ONLY.
 
-## Phase 19 features added (latest)
+## Phase 22 features added (latest)
+- **phase22_readiness.py** — 16-check activation readiness checklist (data freshness,
+  fallback status, market hours, scheduler health, capital, safety config, etc.);
+  activation is blocked until every check passes.
+- **phase22_activation.py** — explicit activation control: exact typed confirmation
+  "ENABLE PAPER ONLY", audit trail, config hash at activation, immediate disable,
+  auto-deactivation on safety violations.
+- **phase22_evidence.py** — append-only evidence dataset (Postgres with file fallback)
+  recording EVERY evaluated candidate (entered AND blocked, with block reasons),
+  time-safe horizon returns (15m/30m/60m/EOD/1d/3d/5d), MAE/MFE. Write-once outcome
+  columns enforced at storage level (per-column COALESCE + completion guard).
+- **phase22_progress.py** — evidence accumulation milestones (10→500 observations)
+  with per-milestone unlock descriptions.
+- **phase22_report.py** — daily close report + JSON/CSV/PDF exports
+  (exports/Phase22_Daily_YYYY-MM-DD.*).
+- **Scheduler integration** — evidence recorded from the exact evaluation payload the
+  executor consumed (no re-evaluation drift); outcomes updated every tick.
+- **routes/phase22.ts** — 10 API endpoints (readiness, activation status/enable/disable,
+  evidence, progress, daily report, eligibility, health, execution modes).
+- **Phase22Panels.tsx** — panels embedded across Dashboard, Trade Decisions, Trades,
+  Trade Replay, Learning & Governance, Live Data Health, Broker & Execution.
+
+## Carried forward from Phase 21 (Advisory Analytics)
+- Advisory-only analytics with mandatory advisory flags; INSUFFICIENT_EVIDENCE
+  reported instead of extrapolation; no automatic behaviour changes.
+
+## Carried forward from Phase 20 (Auto Paper Trading Engine)
+- Auto paper entry/exit engine: default OFF with exact-confirmation enable, champion-only
+  strategy gating, EXIT_PENDING on stale data (fills never fabricated), one OPEN trade
+  per symbol enforced by a partial unique DB index (claim-before-buy), execution health
+  states HEALTHY/DEGRADED/DOWN/UNKNOWN/DISABLED end-to-end.
+
+## Phase 19 features (Kite Connect live data)
 - **Zerodha Kite Connect live-data integration** (read-only): live LTP quotes via
   kite.ltp() and kite.quote() API, holdings, positions, margins, order history sync.
   Paper trading remains the default. No real order placement possible.
@@ -294,9 +338,16 @@ def _implementation_summary(t15: dict, t16: dict, t17: dict, t18: dict, t19: dic
   and this review package generator.
 
 ## Database changes
-- None. Persistence remains JSON file storage (no SQL database).
+- PostgreSQL used for durable state: canonical scan snapshot/lock (Phase 19B),
+  auto paper trades with a partial unique OPEN-per-symbol index (Phase 20), and the
+  append-only Phase 22 evidence table (write-once outcome columns). JSON files remain
+  as warm caches / fallback.
 
 ## Tests
+- Phase 22 suite: {t22.get('passed', 0)} passed, {t22.get('failed', 0)} failed{'' if t22.get('ran') else f' ({NA} — suite did not run)'}
+- Phase 21 suite: {t21.get('passed', 0)} passed, {t21.get('failed', 0)} failed{'' if t21.get('ran') else f' ({NA} — suite did not run)'}
+- Phase 20 suite: {t20.get('passed', 0)} passed, {t20.get('failed', 0)} failed{'' if t20.get('ran') else f' ({NA} — suite did not run)'}
+- Phase 19 suite: {t19.get('passed', 0)} passed, {t19.get('failed', 0)} failed{'' if t19.get('ran') else f' ({NA} — suite did not run)'}
 - Phase 18 suite: {t18['passed']} passed, {t18['failed']} failed{'' if t18['ran'] else f' ({NA} — suite did not run)'}
 - Phase 17 suite: {t17['passed']} passed, {t17['failed']} failed{'' if t17['ran'] else f' ({NA} — suite did not run)'}
 - Phase 16 suite: {t16['passed']} passed, {t16['failed']} failed{'' if t16['ran'] else f' ({NA} — suite did not run)'}
@@ -310,9 +361,9 @@ def _implementation_summary(t15: dict, t16: dict, t17: dict, t18: dict, t19: dic
   consistency checker until a fresh pipeline run resynchronises them.
 
 ## Pending work
-- Accumulate evidence toward Phase 18 readiness targets (default: 50 sessions,
-  100 completed paper trades, 3 market regimes, 20+ trades per active strategy);
-  period-aligned benchmark series.
+- Accumulate evidence toward Phase 22 milestones (10 → 500 recorded observations);
+  auto paper entries remain OFF until the user activates via "ENABLE PAPER ONLY".
+- Period-aligned benchmark series (carried from Phase 18 targets).
 """
 
 
@@ -422,6 +473,15 @@ def build_package(screenshots_dir: str | None = None) -> dict:
     t19 = _run_tests("test_phase19.py")
     if not t19["ran"]:
         warnings.append("Phase 19 test suite could not be executed")
+    t20 = _run_tests("test_phase20.py")
+    if not t20["ran"]:
+        warnings.append("Phase 20 test suite could not be executed")
+    t21 = _run_tests("test_phase21.py")
+    if not t21["ran"]:
+        warnings.append("Phase 21 test suite could not be executed")
+    t22 = _run_tests("test_phase22.py")
+    if not t22["ran"]:
+        warnings.append("Phase 22 test suite could not be executed")
     phase18_entries = safe("phase18 notebook entries",
                            lambda: __import__("phase18_notebook").list_entries(), {})
     phase18_evidence = safe("phase18 evidence tracker",
@@ -432,6 +492,16 @@ def build_package(screenshots_dir: str | None = None) -> dict:
                         lambda: __import__("phase17_qa").last_run(), {})
     phase17_dash = safe("phase17 release dashboard",
                         lambda: __import__("phase17_qa").release_dashboard(), {})
+    phase22_readiness = safe("phase22 readiness checklist",
+                             lambda: __import__("phase22_readiness").run_readiness_checklist(), {})
+    phase22_activation = safe("phase22 activation status",
+                              lambda: __import__("phase22_activation").get_activation_status(), {})
+    phase22_progress = safe("phase22 evidence progress",
+                            lambda: __import__("phase22_progress").get_progress(), {})
+    phase22_summary = safe("phase22 evidence summary",
+                           lambda: __import__("phase22_evidence").evidence_summary(), {})
+    phase22_daily = safe("phase22 daily report",
+                         lambda: __import__("phase22_report").build_daily_report(), {})
 
     # 1. Screenshots
     shots_out = os.path.join(PACKAGE_DIR, "screenshots")
@@ -499,10 +569,20 @@ def build_package(screenshots_dir: str | None = None) -> dict:
                 phase18_evidence or {"available": False, "reason": INSUFFICIENT})
     _write_json(os.path.join(json_dir, "phase18_weekly_review.json"),
                 phase18_weekly or {"available": False, "reason": INSUFFICIENT})
+    _write_json(os.path.join(json_dir, "phase22_readiness.json"),
+                phase22_readiness or {"available": False, "reason": INSUFFICIENT})
+    _write_json(os.path.join(json_dir, "phase22_activation.json"),
+                phase22_activation or {"available": False, "reason": INSUFFICIENT})
+    _write_json(os.path.join(json_dir, "phase22_progress.json"),
+                phase22_progress or {"available": False, "reason": INSUFFICIENT})
+    _write_json(os.path.join(json_dir, "phase22_evidence_summary.json"),
+                phase22_summary or {"available": False, "reason": INSUFFICIENT})
+    _write_json(os.path.join(json_dir, "phase22_daily_report.json"),
+                phase22_daily or {"available": False, "reason": INSUFFICIENT})
 
     # 4/5. Reports
     open(os.path.join(PACKAGE_DIR, "implementation_summary.md"), "w").write(
-        _implementation_summary(t15, t16, t17, t18, t19))
+        _implementation_summary(t15, t16, t17, t18, t19, t20, t21, t22))
     open(os.path.join(PACKAGE_DIR, "production_readiness.md"), "w").write(
         _production_readiness_md(readiness, consistency, quality, diagnostics, t15))
 
@@ -554,6 +634,21 @@ def build_package(screenshots_dir: str | None = None) -> dict:
          "Phase 19 — Route /kite-connect; read-only; no order placement"],
         ["Mobile responsive sidebar (hamburger menu)", "Yes", "Yes", "Yes",
          "Phase 19 — slide-in sidebar + overlay backdrop on mobile"],
+        ["Auto paper trading engine (default OFF, exact confirmation)", "Yes", "Yes", "Yes",
+         "Phase 20 — EXIT_PENDING on stale data; one OPEN trade per symbol (DB unique index)"],
+        ["Advisory analytics (advisory-only flags, no auto changes)", "Yes", "Yes", "Yes",
+         "Phase 21 — INSUFFICIENT_EVIDENCE over extrapolation"],
+        ["Activation readiness checklist (16 checks)", "Yes", "Yes", "Yes",
+         "Phase 22 — activation blocked until all checks pass"],
+        ["Typed activation control (ENABLE PAPER ONLY)", "Yes", "Yes", "Yes",
+         "Phase 22 — audit trail, config hash, immediate disable"],
+        ["Append-only evidence dataset (all candidates incl. blocked)", "Yes", "Yes", "Yes",
+         "Phase 22 — write-once outcome columns; horizon returns 15m→5d; MAE/MFE"],
+        ["Evidence progress milestones (10→500)", "Yes", "Yes", "Yes", "Phase 22"],
+        ["Daily close report + JSON/CSV/PDF exports", "Yes", "Yes", "Yes",
+         "Phase 22 — exports/Phase22_Daily_*"],
+        ["Phase 22 dashboard panels (7 pages)", "Yes", "Yes", "Yes",
+         "Dashboard, Trade Decisions, Trades, Trade Replay, Learning, Live Data Health, Broker & Execution"],
         ["Review package generator", "Yes", "Yes", "Partial", "Tested via generation run itself"],
         ["Paper trading engine / scanner / strategies", "Yes", "Yes", "Yes", "Built in earlier phases 1-14"],
         ["Real-money execution", "No", "No", "No", "Deliberately not implemented — research only"],
@@ -565,6 +660,12 @@ def build_package(screenshots_dir: str | None = None) -> dict:
     t13 = _run_tests("test_phase13.py")
     t14 = _run_tests("test_phase14.py")
     test_rows = [
+        ["Unit Tests — Phase 22 suite", t22["passed"] if t22["ran"] else NA,
+         t22["failed"] if t22["ran"] else NA, 0],
+        ["Unit Tests — Phase 21 suite", t21["passed"] if t21["ran"] else NA,
+         t21["failed"] if t21["ran"] else NA, 0],
+        ["Unit Tests — Phase 20 suite", t20["passed"] if t20["ran"] else NA,
+         t20["failed"] if t20["ran"] else NA, 0],
         ["Unit Tests — Phase 19 suite", t19["passed"] if t19["ran"] else NA,
          t19["failed"] if t19["ran"] else NA, 0],
         ["Unit Tests — Phase 18 suite", t18["passed"] if t18["ran"] else NA,
@@ -613,7 +714,7 @@ This package allows a complete external technical review without manual screensh
 |---|---|
 | screenshots/ | Full-page 1920px PNG captures of every registered page (no placeholders) |
 | csv/ | Opportunities, signals, portfolio, performance, AI performance, notifications, learning, trade history, risk analytics |
-| json/ | Scan snapshot, AI decisions, dashboard/portfolio/learning summaries, diagnostics, production readiness, Phase 16 validation (all 14 sections), Phase 17 QA last run + release dashboard, Phase 18 notebook entries + evidence tracker + weekly review |
+| json/ | Scan snapshot, AI decisions, dashboard/portfolio/learning summaries, diagnostics, production readiness, Phase 16 validation (all 14 sections), Phase 17 QA last run + release dashboard, Phase 18 notebook entries + evidence tracker + weekly review, Phase 22 readiness + activation + progress + evidence summary + daily report |
 | implementation_summary.md | What Phase {PHASE} added: features, files, APIs, components, known issues, pending work |
 | production_readiness.md | Runtime, build, consistency, data quality, learning/AI/risk/broker status, overall readiness |
 | feature_matrix.csv | Feature / Implemented / Working / Tested / Comments |
@@ -649,7 +750,7 @@ anything missing is marked "{NA}" or "{INSUFFICIENT}" — nothing is fabricated.
         "file_count": n_files,
         "screenshot_count": n_shots,
         "csv_count": 9,
-        "json_count": 13,
+        "json_count": 18,
         "reports": ["implementation_summary.md", "production_readiness.md", "README.md"],
         "generation_seconds": round(time.time() - t0, 1),
         "warnings": warnings,

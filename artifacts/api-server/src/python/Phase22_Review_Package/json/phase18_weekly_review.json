@@ -1,0 +1,41 @@
+{
+  "success": true,
+  "week_start": "2026-07-13",
+  "week_end": "2026-07-19",
+  "trading_days_completed": 2,
+  "finalized_days": 0,
+  "completed_paper_trades": 0,
+  "open_paper_trades": 1,
+  "weekly_pnl": "Insufficient Data",
+  "win_rate": "Insufficient Data",
+  "profit_factor": "Insufficient Data",
+  "expectancy": "Insufficient Data",
+  "max_drawdown": "Insufficient Data",
+  "best_strategy": "Insufficient Data",
+  "worst_strategy": "Insufficient Data",
+  "best_sector": "Insufficient Data",
+  "worst_sector": "Insufficient Data",
+  "best_regime": "Insufficient Data",
+  "worst_regime": "Insufficient Data",
+  "highest_confidence_winner": null,
+  "highest_confidence_loser": null,
+  "common_failure_patterns": [
+    "Insufficient Data"
+  ],
+  "common_success_patterns": [
+    "Insufficient Data"
+  ],
+  "data_quality_incidents": 2,
+  "qa_failures": 0,
+  "cross_page_consistency_issues": 1,
+  "research_questions_next_week": [
+    "Investigate data-quality incidents recorded this week.",
+    "No completed paper trades this week \u2014 is the workflow being exercised daily?",
+    "Which skipped high-confidence signals would have worked? (advisory review only)"
+  ],
+  "strategy_breakdown": [],
+  "sector_breakdown": [],
+  "regime_breakdown": [],
+  "note": "All recommendations are advisory. No automatic changes are made.",
+  "label": "PAPER / RESEARCH ONLY"
+}

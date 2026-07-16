@@ -1,10 +1,10 @@
 key,value
-generated_at,2026-07-16T18:19:58Z
+generated_at,2026-07-16T19:45:03Z
 engine_version,Research Engine v1.0 · Phase 13
 mode,PAPER_TRADING_RESEARCH_ONLY
 market_status.state,CLOSED
 market_status.is_open,False
-market_status.now_ist,2026-07-16T23:49:58.369534+05:30
+market_status.now_ist,2026-07-17T01:15:03.680503+05:30
 market_status.timezone,Asia/Kolkata
 market_status.session.pre_open,09:00
 market_status.session.open,09:15
@@ -13,7 +13,7 @@ market_status.session.post_close,16:00
 market_status.holiday_today,
 market_status.next_transition.event,market_open
 market_status.next_transition.at_ist,2026-07-17T09:15:00+05:30
-market_status.next_transition.seconds_until,33901
+market_status.next_transition.seconds_until,28796
 market_status.upcoming_holidays,[3 items]
 market_status.label,PAPER / RESEARCH ONLY
 regime.regime,RANGE_BOUND
@@ -55,7 +55,7 @@ audit_summary.interpretation,Insufficient evidence (3 trades). Minimum 20 OOS tr
 audit_summary.p13_expectancy,146.59
 audit_summary.p12_expectancy,146.59
 scan_staleness.stale,False
-scan_staleness.age_minutes,376.2
+scan_staleness.age_minutes,79.5
 sample_counts.symbols_analyzed,50
 sample_counts.completed_trades,3
 self_tests.results,[13 items]
