@@ -1206,6 +1206,15 @@
         "test-tag"
       ],
       "created_at": "2026-07-16T16:05:53.384091+00:00"
+    },
+    {
+      "id": "945b6035",
+      "text": "phase18 test note",
+      "category": "observation",
+      "tags": [
+        "test-tag"
+      ],
+      "created_at": "2026-07-16T18:20:02.802302+00:00"
     }
   ],
   "lessons_learned": "",
@@ -1237,19 +1246,19 @@
     "qa_status": "PASS",
     "final_summary": "0 trade action(s); 0 round-trip(s) closed (\u20b9+0.00); 0 stop(s), 0 target(s) hit; portfolio \u20b95,465.00. QA: PASS."
   },
-  "finalized_at": "2026-07-16T16:05:53.554536+00:00",
+  "finalized_at": "2026-07-16T18:20:03.001776+00:00",
   "integrity": {
     "source_scan_id": "0f4bb84525ef",
     "source_snapshot_ts": "2026-07-16T12:03:47Z",
     "data_provider": "yfinance",
-    "data_age_seconds": 14527.0,
+    "data_age_seconds": 22576.0,
     "model_version": "p13_champion_v1",
     "calibrator_version": "active",
     "paper_trading_mode": true,
     "live_execution_enabled": false
   },
   "created_at": "2026-07-16T10:03:12.645670+00:00",
-  "updated_at": "2026-07-16T16:05:53.559484+00:00",
+  "updated_at": "2026-07-16T18:20:03.016797+00:00",
   "label": "PAPER / RESEARCH ONLY",
   "checklist": {
     "before_market": [
@@ -1266,7 +1275,7 @@
       {
         "item": "Latest historical data available",
         "status": "WARNING",
-        "detail": "scan age 14527.0s"
+        "detail": "scan age 22576.0s"
       },
       {
         "item": "Canonical scan context available",
@@ -1307,8 +1316,8 @@
       },
       {
         "item": "No cross-page mismatches",
-        "status": "WARNING",
-        "detail": "70 mismatches"
+        "status": "PASS",
+        "detail": "0 mismatches"
       },
       {
         "item": "No duplicate paper trades",

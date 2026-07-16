@@ -42,6 +42,12 @@ def _num_mismatch(a: Any, b: Any) -> bool:
         return False  # missing values are reported as coverage gaps, not mismatches
 
 
+def _str_mismatch(a: Any, b: Any) -> bool:
+    if a is None or b is None:
+        return False  # missing values are coverage gaps, not mismatches
+    return str(a).strip().upper() != str(b).strip().upper()
+
+
 def run_consistency_check() -> Dict[str, Any]:
     ctx = build_scan_context()
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -83,10 +89,22 @@ def run_consistency_check() -> Dict[str, Any]:
             return False
 
     def compare(source: str, symbol: str, field: str, canonical_value: Any,
-                source_value: Any, outdated: bool = False) -> None:
+                source_value: Any, outdated: bool = False,
+                textual: bool = False, required: bool = False) -> None:
         nonlocal checks
         checks += 1
-        if _num_mismatch(canonical_value, source_value):
+        if required and canonical_value is not None and source_value in (None, ""):
+            mismatches.append({
+                "source": source, "symbol": symbol, "field": field,
+                "canonical_value": canonical_value, "source_value": None,
+                "severity": "ERROR",
+                "note": f"{source} is missing required field '{field}' — cannot "
+                        f"prove parity with canonical scan {ctx['scan_id']}",
+            })
+            return
+        differs = (_str_mismatch(canonical_value, source_value) if textual
+                   else _num_mismatch(canonical_value, source_value))
+        if differs:
             mismatches.append({
                 "source": source, "symbol": symbol, "field": field,
                 "canonical_value": canonical_value, "source_value": source_value,
@@ -111,6 +129,15 @@ def run_consistency_check() -> Dict[str, Any]:
         compare("ai_decision", sym, "stop_loss", c["stop_loss"], d.get("stop_loss"), ai_outdated)
         compare("ai_decision", sym, "target", c["target_price"], d.get("target"), ai_outdated)
         compare("ai_decision", sym, "rr_ratio", c["rr_ratio"], d.get("rr_ratio"), ai_outdated)
+        compare("ai_decision", sym, "confidence", c.get("confidence"),
+                d.get("calibrated_confidence"), ai_outdated)
+        from phase15_sync import ACTION_TO_AI_DECISION
+        compare("ai_decision", sym, "decision",
+                ACTION_TO_AI_DECISION.get(str(c.get("final_action") or "").upper(),
+                                          c.get("final_action")),
+                d.get("decision"), ai_outdated, textual=True, required=True)
+        compare("ai_decision", sym, "scan_id", ctx["scan_id"],
+                d.get("scan_id"), ai_outdated, textual=True, required=True)
 
     # ── Opportunity scan (AI Copilot source) vs canonical ────────────────────
     opp_items = _load_list(OPPORTUNITY_CACHE)
@@ -125,6 +152,12 @@ def run_consistency_check() -> Dict[str, Any]:
                 c["opportunity_score"], o.get("opportunity_score"), opp_outdated)
         compare("opportunity_scan", sym, "entry_price", c["entry_price"], o.get("entry_price"), opp_outdated)
         compare("opportunity_scan", sym, "rr_ratio", c["rr_ratio"], o.get("rr_ratio"), opp_outdated)
+        compare("opportunity_scan", sym, "confidence", c.get("confidence"),
+                o.get("confidence"), opp_outdated)
+        compare("opportunity_scan", sym, "status", c.get("final_action"),
+                o.get("status"), opp_outdated, textual=True, required=True)
+        compare("opportunity_scan", sym, "scan_id", ctx["scan_id"],
+                o.get("scan_id"), opp_outdated, textual=True, required=True)
 
     # ── Internal snapshot integrity ───────────────────────────────────────────
     audit = ctx.get("scan_audit", {})

@@ -556,6 +556,15 @@ def run_live_scan(
         except Exception:
             pass
 
+    # ── Phase 15: sync derived caches to this canonical scan ─────────────────
+    # AI Decision / Opportunity caches are overlaid with canonical values so
+    # every page reads the exact same numbers from the same scan_id.
+    try:
+        from phase15_sync import sync_derived_caches
+        sync_derived_caches()
+    except Exception:
+        pass
+
     # ── Phase 18: auto-create/refresh today's research-notebook draft ────────
     # Read-only journaling of what the scan saw. Never affects the scan result
     # or any trading behaviour; failures are swallowed silently.

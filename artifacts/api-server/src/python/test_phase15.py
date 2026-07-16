@@ -86,6 +86,36 @@ if cr.get("available"):
           cr.get("consistent") == (cr.get("hard_mismatch_count", 0) == 0))
 check("report file written", os.path.exists(REPORT_FILE))
 
+# Regression: missing required fields (scan_id/decision/status) must be flagged,
+# never silently skipped (false-green guard).
+import json as _json
+from phase15_consistency import AI_DECISIONS_CACHE
+
+if cr.get("available") and os.path.exists(AI_DECISIONS_CACHE):
+    with open(AI_DECISIONS_CACHE) as _f:
+        _orig = _f.read()
+    try:
+        _items = _json.loads(_orig)
+        _tampered = False
+        if isinstance(_items, list) and _items:
+            _items[0].pop("scan_id", None)
+            _items[0].pop("decision", None)
+            with open(AI_DECISIONS_CACHE, "w") as _f:
+                _json.dump(_items, _f)
+            _tampered = True
+        if _tampered:
+            cr2 = run_consistency_check()
+            _missing = [m for m in cr2.get("mismatches", [])
+                        if m.get("field") in ("scan_id", "decision")
+                        and m.get("source_value") is None]
+            check("missing scan_id/decision flagged", len(_missing) >= 2)
+            check("missing fields break PASS", cr2.get("verdict") != "PASS"
+                  or cr2.get("hard_mismatch_count", 0) > 0)
+    finally:
+        with open(AI_DECISIONS_CACHE, "w") as _f:
+            _f.write(_orig)
+        run_consistency_check()  # restore clean report
+
 # ── T4: Explainability ───────────────────────────────────────────────────────
 print("== Explainability ==")
 from phase15_explain import explain_symbol, explain_all

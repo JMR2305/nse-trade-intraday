@@ -254,6 +254,14 @@ def run_intelligence_scan(
     _write_cache(MARKET_CTX_CACHE,  market_ctx)
     _write_cache(INTELLIGENCE_CACHE, enriched_signals)
 
+    # Reconcile the freshly written derived caches with the canonical scan so
+    # no page shows independently recalculated stop loss / target / RR values.
+    try:
+        from phase15_sync import sync_derived_caches
+        sync_derived_caches()
+    except Exception:
+        pass
+
     scan_duration = (datetime.now() - t_start).total_seconds()
 
     return IntelligenceScanResult(
