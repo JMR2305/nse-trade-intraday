@@ -1,10 +1,10 @@
 key,value
-generated_at,2026-07-16T10:03:06Z
+generated_at,2026-07-16T10:35:03Z
 engine_version,Research Engine v1.0 · Phase 13
 mode,PAPER_TRADING_RESEARCH_ONLY
-market_status.state,POST_CLOSE
+market_status.state,CLOSED
 market_status.is_open,False
-market_status.now_ist,2026-07-16T15:33:06.240572+05:30
+market_status.now_ist,2026-07-16T16:05:03.088838+05:30
 market_status.timezone,Asia/Kolkata
 market_status.session.pre_open,09:00
 market_status.session.open,09:15
@@ -13,7 +13,7 @@ market_status.session.post_close,16:00
 market_status.holiday_today,
 market_status.next_transition.event,market_open
 market_status.next_transition.at_ist,2026-07-17T09:15:00+05:30
-market_status.next_transition.seconds_until,63713
+market_status.next_transition.seconds_until,61796
 market_status.upcoming_holidays,[3 items]
 market_status.label,PAPER / RESEARCH ONLY
 regime.regime,RANGE_BOUND
@@ -47,13 +47,16 @@ factor_weights.data_freshness,0.02
 factor_weights.historical_similarity,0.06
 factor_weights.risk_reward,0.05
 factor_weights.portfolio_context,0.03
+action_summary.AVOID,48
+action_summary.WATCH,2
+evidence_distribution.insufficient,50
 audit_summary.trade_count,3
 audit_summary.interpretation,Insufficient evidence (3 trades). Minimum 20 OOS trades needed for reliable comparison.
 audit_summary.p13_expectancy,146.59
 audit_summary.p12_expectancy,146.59
 scan_staleness.stale,False
-scan_staleness.age_minutes,3.1
-sample_counts.symbols_analyzed,0
+scan_staleness.age_minutes,30.3
+sample_counts.symbols_analyzed,50
 sample_counts.completed_trades,3
 self_tests.results,[13 items]
 self_tests.passed,13

@@ -27,7 +27,7 @@ All heavy calculations stay in the existing engines; this module only
 combines their outputs.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TypedDict
 
 from config import INITIAL_CAPITAL
@@ -740,7 +740,7 @@ def get_trade_decisions() -> dict:
         counts[d["recommendation"]] = counts.get(d["recommendation"], 0) + 1
 
     return {
-        "generated_at": datetime.now().isoformat(),
+        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "market_regime": regime_now,
         "model_version": model_version,
         "universe_size": len(decisions),

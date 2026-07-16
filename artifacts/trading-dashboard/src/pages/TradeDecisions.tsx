@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiJson } from "@/lib/api";
 import {
   useGetTradeDecisions,
@@ -628,12 +628,29 @@ function DetailRow({ d }: { d: TradeDecision }) {
 }
 
 export default function TradeDecisions() {
-  const { data, isLoading, refetch, isFetching } = useGetTradeDecisions(
+  const { data, isLoading } = useGetTradeDecisions(
     undefined,
     { query: { queryKey: getGetTradeDecisionsQueryKey() } },
   );
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState("All");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  async function handleRefresh() {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      // force=true bypasses the server-side 10-min cache and regenerates
+      // decisions from a fresh pipeline run.
+      const fresh = await apiJson<any>("/trade-decisions?force=true");
+      queryClient.setQueryData(getGetTradeDecisionsQueryKey(), fresh);
+    } catch (e) {
+      console.error("Trade decisions refresh failed:", e);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }
 
   if (isLoading && !data) {
     return (
@@ -672,13 +689,13 @@ export default function TradeDecisions() {
           </p>
         </div>
         <button
-          onClick={() => refetch()}
-          disabled={isFetching}
+          onClick={handleRefresh}
+          disabled={isRefreshing}
           className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-sm font-mono hover:bg-accent disabled:opacity-50"
           data-testid="button-refresh-decisions"
         >
-          <RefreshCcw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-          {isFetching ? "SCANNING..." : "REFRESH"}
+          <RefreshCcw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+          {isRefreshing ? "SCANNING..." : "REFRESH"}
         </button>
       </div>
 

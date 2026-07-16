@@ -1,8 +1,8 @@
 {
   "available": true,
-  "checked_at": "2026-07-16T10:04:02Z",
-  "scan_id": "48f86dfe9691",
-  "snapshot_ts": "2026-07-15T19:08:52Z",
+  "checked_at": "2026-07-16T10:35:33Z",
+  "scan_id": "297c25eaa162",
+  "snapshot_ts": "2026-07-16T10:04:44Z",
   "sources_checked": [
     {
       "source": "ai_decision",
@@ -16,191 +16,254 @@
     }
   ],
   "checks_performed": 72,
-  "mismatch_count": 49,
-  "hard_mismatch_count": 49,
-  "stale_source_count": 0,
-  "consistent": false,
-  "verdict": "FAIL",
+  "mismatch_count": 70,
+  "hard_mismatch_count": 0,
+  "stale_source_count": 70,
+  "consistent": true,
+  "verdict": "WARN",
   "mismatches": [
     {
       "source": "ai_decision",
       "symbol": "RELIANCE",
+      "field": "entry_price",
+      "canonical_value": 1296.6,
+      "source_value": 1293.0,
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1293.0 vs canonical 1296.6; refresh will resynchronise"
+    },
+    {
+      "source": "ai_decision",
+      "symbol": "RELIANCE",
       "field": "stop_loss",
-      "canonical_value": 1258.87,
+      "canonical_value": 1252.47,
       "source_value": 1327.13,
-      "severity": "ERROR",
-      "note": "ai_decision shows 1327.13 but canonical scan 48f86dfe9691 has 1258.87"
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1327.13 vs canonical 1252.47; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
       "symbol": "RELIANCE",
       "field": "target",
-      "canonical_value": 1344.2,
+      "canonical_value": 1406.92,
       "source_value": 1247.49,
-      "severity": "ERROR",
-      "note": "ai_decision shows 1247.49 but canonical scan 48f86dfe9691 has 1344.2"
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1247.49 vs canonical 1406.92; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
       "symbol": "RELIANCE",
-      "field": "rr_ratio",
-      "canonical_value": 1.5,
-      "source_value": 1.33,
-      "severity": "ERROR",
-      "note": "ai_decision shows 1.33 but canonical scan 48f86dfe9691 has 1.5"
-    },
-    {
-      "source": "ai_decision",
-      "symbol": "TCS",
-      "field": "stop_loss",
-      "canonical_value": 1990.66,
-      "source_value": 2091.19,
-      "severity": "ERROR",
-      "note": "ai_decision shows 2091.19 but canonical scan 48f86dfe9691 has 1990.66"
-    },
-    {
-      "source": "ai_decision",
-      "symbol": "TCS",
-      "field": "target",
-      "canonical_value": 2782.42,
-      "source_value": 2318.48,
-      "severity": "ERROR",
-      "note": "ai_decision shows 2318.48 but canonical scan 48f86dfe9691 has 2782.42"
-    },
-    {
-      "source": "ai_decision",
-      "symbol": "TCS",
-      "field": "rr_ratio",
-      "canonical_value": 3.0,
-      "source_value": 0.0,
-      "severity": "ERROR",
-      "note": "ai_decision shows 0.0 but canonical scan 48f86dfe9691 has 3.0"
-    },
-    {
-      "source": "ai_decision",
-      "symbol": "INFY",
-      "field": "stop_loss",
-      "canonical_value": 1025.81,
-      "source_value": 1143.22,
-      "severity": "ERROR",
-      "note": "ai_decision shows 1143.22 but canonical scan 48f86dfe9691 has 1025.81"
-    },
-    {
-      "source": "ai_decision",
-      "symbol": "INFY",
-      "field": "target",
-      "canonical_value": 1227.08,
-      "source_value": 1025.8,
-      "severity": "ERROR",
-      "note": "ai_decision shows 1025.8 but canonical scan 48f86dfe9691 has 1227.08"
-    },
-    {
-      "source": "ai_decision",
-      "symbol": "INFY",
-      "field": "rr_ratio",
-      "canonical_value": 2.0,
-      "source_value": 1.33,
-      "severity": "ERROR",
-      "note": "ai_decision shows 1.33 but canonical scan 48f86dfe9691 has 2.0"
-    },
-    {
-      "source": "ai_decision",
-      "symbol": "HDFCBANK",
-      "field": "stop_loss",
-      "canonical_value": 779.68,
-      "source_value": 787.1,
-      "severity": "ERROR",
-      "note": "ai_decision shows 787.1 but canonical scan 48f86dfe9691 has 779.68"
-    },
-    {
-      "source": "ai_decision",
-      "symbol": "HDFCBANK",
-      "field": "target",
-      "canonical_value": 898.56,
-      "source_value": 839.13,
-      "severity": "ERROR",
-      "note": "ai_decision shows 839.13 but canonical scan 48f86dfe9691 has 898.56"
-    },
-    {
-      "source": "ai_decision",
-      "symbol": "HDFCBANK",
-      "field": "rr_ratio",
-      "canonical_value": 3.0,
-      "source_value": 0.0,
-      "severity": "ERROR",
-      "note": "ai_decision shows 0.0 but canonical scan 48f86dfe9691 has 3.0"
-    },
-    {
-      "source": "ai_decision",
-      "symbol": "ICICIBANK",
-      "field": "stop_loss",
-      "canonical_value": 1357.58,
-      "source_value": 1370.11,
-      "severity": "ERROR",
-      "note": "ai_decision shows 1370.11 but canonical scan 48f86dfe9691 has 1357.58"
-    },
-    {
-      "source": "ai_decision",
-      "symbol": "ICICIBANK",
-      "field": "target",
-      "canonical_value": 1558.06,
-      "source_value": 1457.82,
-      "severity": "ERROR",
-      "note": "ai_decision shows 1457.82 but canonical scan 48f86dfe9691 has 1558.06"
-    },
-    {
-      "source": "ai_decision",
-      "symbol": "ICICIBANK",
-      "field": "rr_ratio",
-      "canonical_value": 3.0,
-      "source_value": 0.0,
-      "severity": "ERROR",
-      "note": "ai_decision shows 0.0 but canonical scan 48f86dfe9691 has 3.0"
-    },
-    {
-      "source": "ai_decision",
-      "symbol": "SBIN",
-      "field": "stop_loss",
-      "canonical_value": 976.57,
-      "source_value": 986.27,
-      "severity": "ERROR",
-      "note": "ai_decision shows 986.27 but canonical scan 48f86dfe9691 has 976.57"
-    },
-    {
-      "source": "ai_decision",
-      "symbol": "SBIN",
-      "field": "target",
-      "canonical_value": 1112.48,
-      "source_value": 1054.24,
-      "severity": "ERROR",
-      "note": "ai_decision shows 1054.24 but canonical scan 48f86dfe9691 has 1112.48"
-    },
-    {
-      "source": "ai_decision",
-      "symbol": "SBIN",
       "field": "rr_ratio",
       "canonical_value": 2.5,
+      "source_value": 1.33,
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1.33 vs canonical 2.5; refresh will resynchronise"
+    },
+    {
+      "source": "ai_decision",
+      "symbol": "TCS",
+      "field": "entry_price",
+      "canonical_value": 2201.0,
+      "source_value": 2188.6,
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 2188.6 vs canonical 2201.0; refresh will resynchronise"
+    },
+    {
+      "source": "ai_decision",
+      "symbol": "TCS",
+      "field": "stop_loss",
+      "canonical_value": 2075.15,
+      "source_value": 2091.19,
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 2091.19 vs canonical 2075.15; refresh will resynchronise"
+    },
+    {
+      "source": "ai_decision",
+      "symbol": "TCS",
+      "field": "target",
+      "canonical_value": 2452.7,
+      "source_value": 2318.48,
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 2318.48 vs canonical 2452.7; refresh will resynchronise"
+    },
+    {
+      "source": "ai_decision",
+      "symbol": "TCS",
+      "field": "rr_ratio",
+      "canonical_value": 2.0,
       "source_value": 0.0,
-      "severity": "ERROR",
-      "note": "ai_decision shows 0.0 but canonical scan 48f86dfe9691 has 2.5"
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 0.0 vs canonical 2.0; refresh will resynchronise"
+    },
+    {
+      "source": "ai_decision",
+      "symbol": "INFY",
+      "field": "entry_price",
+      "canonical_value": 1082.4,
+      "source_value": 1092.9,
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1092.9 vs canonical 1082.4; refresh will resynchronise"
+    },
+    {
+      "source": "ai_decision",
+      "symbol": "INFY",
+      "field": "stop_loss",
+      "canonical_value": 1018.9,
+      "source_value": 1143.22,
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1143.22 vs canonical 1018.9; refresh will resynchronise"
+    },
+    {
+      "source": "ai_decision",
+      "symbol": "INFY",
+      "field": "target",
+      "canonical_value": 1209.4,
+      "source_value": 1025.8,
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1025.8 vs canonical 1209.4; refresh will resynchronise"
+    },
+    {
+      "source": "ai_decision",
+      "symbol": "INFY",
+      "field": "rr_ratio",
+      "canonical_value": 2.0,
+      "source_value": 1.33,
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1.33 vs canonical 2.0; refresh will resynchronise"
+    },
+    {
+      "source": "ai_decision",
+      "symbol": "HDFCBANK",
+      "field": "entry_price",
+      "canonical_value": 808.3,
+      "source_value": 809.4,
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 809.4 vs canonical 808.3; refresh will resynchronise"
+    },
+    {
+      "source": "ai_decision",
+      "symbol": "HDFCBANK",
+      "field": "stop_loss",
+      "canonical_value": 786.82,
+      "source_value": 787.1,
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 787.1 vs canonical 786.82; refresh will resynchronise"
+    },
+    {
+      "source": "ai_decision",
+      "symbol": "HDFCBANK",
+      "field": "target",
+      "canonical_value": 840.52,
+      "source_value": 839.13,
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 839.13 vs canonical 840.52; refresh will resynchronise"
+    },
+    {
+      "source": "ai_decision",
+      "symbol": "HDFCBANK",
+      "field": "rr_ratio",
+      "canonical_value": 1.5,
+      "source_value": 0.0,
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 0.0 vs canonical 1.5; refresh will resynchronise"
+    },
+    {
+      "source": "ai_decision",
+      "symbol": "ICICIBANK",
+      "field": "entry_price",
+      "canonical_value": 1418.2,
+      "source_value": 1407.7,
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1407.7 vs canonical 1418.2; refresh will resynchronise"
+    },
+    {
+      "source": "ai_decision",
+      "symbol": "ICICIBANK",
+      "field": "stop_loss",
+      "canonical_value": 1369.79,
+      "source_value": 1370.11,
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1370.11 vs canonical 1369.79; refresh will resynchronise"
+    },
+    {
+      "source": "ai_decision",
+      "symbol": "ICICIBANK",
+      "field": "target",
+      "canonical_value": 1563.43,
+      "source_value": 1457.82,
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1457.82 vs canonical 1563.43; refresh will resynchronise"
+    },
+    {
+      "source": "ai_decision",
+      "symbol": "ICICIBANK",
+      "field": "rr_ratio",
+      "canonical_value": 3.0,
+      "source_value": 0.0,
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 0.0 vs canonical 3.0; refresh will resynchronise"
+    },
+    {
+      "source": "ai_decision",
+      "symbol": "SBIN",
+      "field": "entry_price",
+      "canonical_value": 1031.2,
+      "source_value": 1015.4,
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1015.4 vs canonical 1031.2; refresh will resynchronise"
+    },
+    {
+      "source": "ai_decision",
+      "symbol": "SBIN",
+      "field": "stop_loss",
+      "canonical_value": 993.51,
+      "source_value": 986.27,
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 986.27 vs canonical 993.51; refresh will resynchronise"
+    },
+    {
+      "source": "ai_decision",
+      "symbol": "SBIN",
+      "field": "target",
+      "canonical_value": 1106.58,
+      "source_value": 1054.24,
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1054.24 vs canonical 1106.58; refresh will resynchronise"
+    },
+    {
+      "source": "ai_decision",
+      "symbol": "SBIN",
+      "field": "rr_ratio",
+      "canonical_value": 2.0,
+      "source_value": 0.0,
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 0.0 vs canonical 2.0; refresh will resynchronise"
+    },
+    {
+      "source": "ai_decision",
+      "symbol": "WIPRO",
+      "field": "entry_price",
+      "canonical_value": 177.74,
+      "source_value": 177.14,
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 177.14 vs canonical 177.74; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
       "symbol": "WIPRO",
       "field": "stop_loss",
-      "canonical_value": 170.96,
+      "canonical_value": 171.79,
       "source_value": 183.32,
-      "severity": "ERROR",
-      "note": "ai_decision shows 183.32 but canonical scan 48f86dfe9691 has 170.96"
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 183.32 vs canonical 171.79; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
       "symbol": "WIPRO",
       "field": "target",
-      "canonical_value": 186.41,
+      "canonical_value": 186.67,
       "source_value": 168.9,
-      "severity": "ERROR",
-      "note": "ai_decision shows 168.9 but canonical scan 48f86dfe9691 has 186.41"
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 168.9 vs canonical 186.67; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -208,26 +271,35 @@
       "field": "rr_ratio",
       "canonical_value": 1.5,
       "source_value": 1.33,
-      "severity": "ERROR",
-      "note": "ai_decision shows 1.33 but canonical scan 48f86dfe9691 has 1.5"
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1.33 vs canonical 1.5; refresh will resynchronise"
+    },
+    {
+      "source": "ai_decision",
+      "symbol": "LT",
+      "field": "entry_price",
+      "canonical_value": 3775.6,
+      "source_value": 3848.7,
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 3848.7 vs canonical 3775.6; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
       "symbol": "LT",
       "field": "stop_loss",
-      "canonical_value": 3735.22,
+      "canonical_value": 3664.59,
       "source_value": 3962.19,
-      "severity": "ERROR",
-      "note": "ai_decision shows 3962.19 but canonical scan 48f86dfe9691 has 3735.22"
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 3962.19 vs canonical 3664.59; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
       "symbol": "LT",
       "field": "target",
-      "canonical_value": 4018.92,
+      "canonical_value": 3942.12,
       "source_value": 3697.37,
-      "severity": "ERROR",
-      "note": "ai_decision shows 3697.37 but canonical scan 48f86dfe9691 has 4018.92"
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 3697.37 vs canonical 3942.12; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -235,44 +307,71 @@
       "field": "rr_ratio",
       "canonical_value": 1.5,
       "source_value": 1.33,
-      "severity": "ERROR",
-      "note": "ai_decision shows 1.33 but canonical scan 48f86dfe9691 has 1.5"
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1.33 vs canonical 1.5; refresh will resynchronise"
+    },
+    {
+      "source": "ai_decision",
+      "symbol": "BAJFINANCE",
+      "field": "entry_price",
+      "canonical_value": 1037.6,
+      "source_value": 1006.6,
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1006.6 vs canonical 1037.6; refresh will resynchronise"
+    },
+    {
+      "source": "ai_decision",
+      "symbol": "BAJFINANCE",
+      "field": "stop_loss",
+      "canonical_value": 989.26,
+      "source_value": 970.73,
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 970.73 vs canonical 989.26; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
       "symbol": "BAJFINANCE",
       "field": "target",
-      "canonical_value": 1060.39,
+      "canonical_value": 1182.62,
       "source_value": 1054.42,
-      "severity": "ERROR",
-      "note": "ai_decision shows 1054.42 but canonical scan 48f86dfe9691 has 1060.39"
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1054.42 vs canonical 1182.62; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
       "symbol": "BAJFINANCE",
       "field": "rr_ratio",
-      "canonical_value": 1.5,
+      "canonical_value": 3.0,
       "source_value": 0.0,
-      "severity": "ERROR",
-      "note": "ai_decision shows 0.0 but canonical scan 48f86dfe9691 has 1.5"
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 0.0 vs canonical 3.0; refresh will resynchronise"
+    },
+    {
+      "source": "ai_decision",
+      "symbol": "MARUTI",
+      "field": "entry_price",
+      "canonical_value": 13783.0,
+      "source_value": 13489.0,
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 13489.0 vs canonical 13783.0; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
       "symbol": "MARUTI",
       "field": "stop_loss",
-      "canonical_value": 12856.02,
+      "canonical_value": 13177.02,
       "source_value": 13014.21,
-      "severity": "ERROR",
-      "note": "ai_decision shows 13014.21 but canonical scan 48f86dfe9691 has 12856.02"
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 13014.21 vs canonical 13177.02; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
       "symbol": "MARUTI",
       "field": "target",
-      "canonical_value": 14754.96,
+      "canonical_value": 14994.96,
       "source_value": 14122.05,
-      "severity": "ERROR",
-      "note": "ai_decision shows 14122.05 but canonical scan 48f86dfe9691 has 14754.96"
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 14122.05 vs canonical 14994.96; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -280,26 +379,35 @@
       "field": "rr_ratio",
       "canonical_value": 2.0,
       "source_value": 0.0,
-      "severity": "ERROR",
-      "note": "ai_decision shows 0.0 but canonical scan 48f86dfe9691 has 2.0"
+      "severity": "STALE_SOURCE",
+      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 0.0 vs canonical 2.0; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
       "symbol": "HDFCBANK",
       "field": "opportunity_score",
-      "canonical_value": 48.4,
+      "canonical_value": 42.5,
       "source_value": 47.7,
-      "severity": "ERROR",
-      "note": "opportunity_scan shows 47.7 but canonical scan 48f86dfe9691 has 48.4"
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 47.7 vs canonical 42.5; refresh will resynchronise"
+    },
+    {
+      "source": "opportunity_scan",
+      "symbol": "HDFCBANK",
+      "field": "entry_price",
+      "canonical_value": 808.3,
+      "source_value": 809.4,
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 809.4 vs canonical 808.3; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
       "symbol": "HDFCBANK",
       "field": "rr_ratio",
-      "canonical_value": 3.0,
+      "canonical_value": 1.5,
       "source_value": 0.0,
-      "severity": "ERROR",
-      "note": "opportunity_scan shows 0.0 but canonical scan 48f86dfe9691 has 3.0"
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 0.0 vs canonical 1.5; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -307,8 +415,17 @@
       "field": "opportunity_score",
       "canonical_value": 40.1,
       "source_value": 20.8,
-      "severity": "ERROR",
-      "note": "opportunity_scan shows 20.8 but canonical scan 48f86dfe9691 has 40.1"
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 20.8 vs canonical 40.1; refresh will resynchronise"
+    },
+    {
+      "source": "opportunity_scan",
+      "symbol": "ICICIBANK",
+      "field": "entry_price",
+      "canonical_value": 1418.2,
+      "source_value": 1407.7,
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 1407.7 vs canonical 1418.2; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -316,62 +433,89 @@
       "field": "rr_ratio",
       "canonical_value": 3.0,
       "source_value": 0.0,
-      "severity": "ERROR",
-      "note": "opportunity_scan shows 0.0 but canonical scan 48f86dfe9691 has 3.0"
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 0.0 vs canonical 3.0; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
       "symbol": "BAJFINANCE",
       "field": "opportunity_score",
-      "canonical_value": 34.5,
+      "canonical_value": 40.1,
       "source_value": 20.5,
-      "severity": "ERROR",
-      "note": "opportunity_scan shows 20.5 but canonical scan 48f86dfe9691 has 34.5"
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 20.5 vs canonical 40.1; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
       "symbol": "BAJFINANCE",
-      "field": "rr_ratio",
-      "canonical_value": 1.5,
-      "source_value": 0.0,
-      "severity": "ERROR",
-      "note": "opportunity_scan shows 0.0 but canonical scan 48f86dfe9691 has 1.5"
+      "field": "entry_price",
+      "canonical_value": 1037.6,
+      "source_value": 1006.6,
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 1006.6 vs canonical 1037.6; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
-      "symbol": "TCS",
-      "field": "opportunity_score",
-      "canonical_value": 23.6,
-      "source_value": 20.1,
-      "severity": "ERROR",
-      "note": "opportunity_scan shows 20.1 but canonical scan 48f86dfe9691 has 23.6"
-    },
-    {
-      "source": "opportunity_scan",
-      "symbol": "TCS",
+      "symbol": "BAJFINANCE",
       "field": "rr_ratio",
       "canonical_value": 3.0,
       "source_value": 0.0,
-      "severity": "ERROR",
-      "note": "opportunity_scan shows 0.0 but canonical scan 48f86dfe9691 has 3.0"
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 0.0 vs canonical 3.0; refresh will resynchronise"
+    },
+    {
+      "source": "opportunity_scan",
+      "symbol": "TCS",
+      "field": "opportunity_score",
+      "canonical_value": 11.5,
+      "source_value": 20.1,
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 20.1 vs canonical 11.5; refresh will resynchronise"
+    },
+    {
+      "source": "opportunity_scan",
+      "symbol": "TCS",
+      "field": "entry_price",
+      "canonical_value": 2201.0,
+      "source_value": 2188.6,
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 2188.6 vs canonical 2201.0; refresh will resynchronise"
+    },
+    {
+      "source": "opportunity_scan",
+      "symbol": "TCS",
+      "field": "rr_ratio",
+      "canonical_value": 2.0,
+      "source_value": 0.0,
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 0.0 vs canonical 2.0; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
       "symbol": "SBIN",
       "field": "opportunity_score",
-      "canonical_value": 32.4,
+      "canonical_value": 36.4,
       "source_value": 19.4,
-      "severity": "ERROR",
-      "note": "opportunity_scan shows 19.4 but canonical scan 48f86dfe9691 has 32.4"
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 19.4 vs canonical 36.4; refresh will resynchronise"
+    },
+    {
+      "source": "opportunity_scan",
+      "symbol": "SBIN",
+      "field": "entry_price",
+      "canonical_value": 1031.2,
+      "source_value": 1015.4,
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 1015.4 vs canonical 1031.2; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
       "symbol": "SBIN",
       "field": "rr_ratio",
-      "canonical_value": 2.5,
+      "canonical_value": 2.0,
       "source_value": 0.0,
-      "severity": "ERROR",
-      "note": "opportunity_scan shows 0.0 but canonical scan 48f86dfe9691 has 2.5"
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 0.0 vs canonical 2.0; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -379,8 +523,17 @@
       "field": "opportunity_score",
       "canonical_value": 18.0,
       "source_value": 16.4,
-      "severity": "ERROR",
-      "note": "opportunity_scan shows 16.4 but canonical scan 48f86dfe9691 has 18.0"
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 16.4 vs canonical 18.0; refresh will resynchronise"
+    },
+    {
+      "source": "opportunity_scan",
+      "symbol": "LT",
+      "field": "entry_price",
+      "canonical_value": 3775.6,
+      "source_value": 3848.7,
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 3848.7 vs canonical 3775.6; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -388,8 +541,8 @@
       "field": "rr_ratio",
       "canonical_value": 1.5,
       "source_value": 1.33,
-      "severity": "ERROR",
-      "note": "opportunity_scan shows 1.33 but canonical scan 48f86dfe9691 has 1.5"
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 1.33 vs canonical 1.5; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -397,8 +550,17 @@
       "field": "opportunity_score",
       "canonical_value": 11.5,
       "source_value": 15.9,
-      "severity": "ERROR",
-      "note": "opportunity_scan shows 15.9 but canonical scan 48f86dfe9691 has 11.5"
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 15.9 vs canonical 11.5; refresh will resynchronise"
+    },
+    {
+      "source": "opportunity_scan",
+      "symbol": "MARUTI",
+      "field": "entry_price",
+      "canonical_value": 13783.0,
+      "source_value": 13489.0,
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 13489.0 vs canonical 13783.0; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -406,8 +568,8 @@
       "field": "rr_ratio",
       "canonical_value": 2.0,
       "source_value": 0.0,
-      "severity": "ERROR",
-      "note": "opportunity_scan shows 0.0 but canonical scan 48f86dfe9691 has 2.0"
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 0.0 vs canonical 2.0; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -415,8 +577,17 @@
       "field": "opportunity_score",
       "canonical_value": 29.1,
       "source_value": 15.8,
-      "severity": "ERROR",
-      "note": "opportunity_scan shows 15.8 but canonical scan 48f86dfe9691 has 29.1"
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 15.8 vs canonical 29.1; refresh will resynchronise"
+    },
+    {
+      "source": "opportunity_scan",
+      "symbol": "WIPRO",
+      "field": "entry_price",
+      "canonical_value": 177.74,
+      "source_value": 177.14,
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 177.14 vs canonical 177.74; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -424,26 +595,35 @@
       "field": "rr_ratio",
       "canonical_value": 1.5,
       "source_value": 1.33,
-      "severity": "ERROR",
-      "note": "opportunity_scan shows 1.33 but canonical scan 48f86dfe9691 has 1.5"
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 1.33 vs canonical 1.5; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
       "symbol": "RELIANCE",
       "field": "opportunity_score",
-      "canonical_value": 15.4,
+      "canonical_value": 38.2,
       "source_value": 15.3,
-      "severity": "ERROR",
-      "note": "opportunity_scan shows 15.3 but canonical scan 48f86dfe9691 has 15.4"
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 15.3 vs canonical 38.2; refresh will resynchronise"
+    },
+    {
+      "source": "opportunity_scan",
+      "symbol": "RELIANCE",
+      "field": "entry_price",
+      "canonical_value": 1296.6,
+      "source_value": 1293.0,
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 1293.0 vs canonical 1296.6; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
       "symbol": "RELIANCE",
       "field": "rr_ratio",
-      "canonical_value": 1.5,
+      "canonical_value": 2.5,
       "source_value": 1.33,
-      "severity": "ERROR",
-      "note": "opportunity_scan shows 1.33 but canonical scan 48f86dfe9691 has 1.5"
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 1.33 vs canonical 2.5; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -451,8 +631,17 @@
       "field": "opportunity_score",
       "canonical_value": 11.5,
       "source_value": 15.2,
-      "severity": "ERROR",
-      "note": "opportunity_scan shows 15.2 but canonical scan 48f86dfe9691 has 11.5"
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 15.2 vs canonical 11.5; refresh will resynchronise"
+    },
+    {
+      "source": "opportunity_scan",
+      "symbol": "INFY",
+      "field": "entry_price",
+      "canonical_value": 1082.4,
+      "source_value": 1092.9,
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 1092.9 vs canonical 1082.4; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -460,11 +649,11 @@
       "field": "rr_ratio",
       "canonical_value": 2.0,
       "source_value": 1.33,
-      "severity": "ERROR",
-      "note": "opportunity_scan shows 1.33 but canonical scan 48f86dfe9691 has 2.0"
+      "severity": "STALE_SOURCE",
+      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 1.33 vs canonical 2.0; refresh will resynchronise"
     }
   ],
-  "conflicting_recommendations_blocked": true,
-  "note": "Hard inconsistencies detected \u2014 modules disagree with the canonical scan from the same snapshot. Conflicting values are flagged.",
+  "conflicting_recommendations_blocked": false,
+  "note": "Derived caches predate the canonical scan \u2014 values flagged as STALE_SOURCE; refreshing the scan resynchronises every page.",
   "label": "PAPER / RESEARCH ONLY"
 }

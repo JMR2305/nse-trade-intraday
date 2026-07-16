@@ -1,14 +1,14 @@
 {
   "bundle_version": 1,
   "phase": 13,
-  "generated_at": "2026-07-16T10:03:06Z",
+  "generated_at": "2026-07-16T10:35:03Z",
   "engine_version": "Research Engine v1.0 \u00b7 Phase 13",
   "mode": "PAPER_TRADING_RESEARCH_ONLY",
   "label": "PAPER / RESEARCH ONLY",
   "market_status": {
-    "state": "POST_CLOSE",
+    "state": "CLOSED",
     "is_open": false,
-    "now_ist": "2026-07-16T15:33:06.240572+05:30",
+    "now_ist": "2026-07-16T16:05:03.088838+05:30",
     "timezone": "Asia/Kolkata",
     "session": {
       "pre_open": "09:00",
@@ -20,7 +20,7 @@
     "next_transition": {
       "event": "market_open",
       "at_ist": "2026-07-17T09:15:00+05:30",
-      "seconds_until": 63713
+      "seconds_until": 61796
     },
     "upcoming_holidays": [
       {
@@ -77,27 +77,27 @@
   },
   "sector_rotation_top3": [
     {
-      "sector": "IT",
-      "avg_score": null,
-      "stock_count": 0,
-      "vs_median": null,
-      "momentum": "NEUTRAL",
+      "sector": "BANKING",
+      "avg_score": 36.4,
+      "stock_count": 6,
+      "vs_median": 12.8,
+      "momentum": "STRONG",
       "rank": 1
     },
     {
-      "sector": "BANKING",
-      "avg_score": null,
-      "stock_count": 0,
-      "vs_median": null,
-      "momentum": "NEUTRAL",
+      "sector": "ENERGY",
+      "avg_score": 28.8,
+      "stock_count": 5,
+      "vs_median": 5.2,
+      "momentum": "OUTPERFORMING",
       "rank": 2
     },
     {
       "sector": "FINANCE",
-      "avg_score": null,
-      "stock_count": 0,
-      "vs_median": null,
-      "momentum": "NEUTRAL",
+      "avg_score": 26.1,
+      "stock_count": 5,
+      "vs_median": 2.5,
+      "momentum": "OUTPERFORMING",
       "rank": 3
     }
   ],
@@ -120,17 +120,22 @@
   "top_opportunities": [],
   "relative_strength_leaders": [],
   "relative_strength_laggards": [],
-  "evidence_distribution": {},
-  "action_summary": {},
+  "evidence_distribution": {
+    "insufficient": 50
+  },
+  "action_summary": {
+    "AVOID": 48,
+    "WATCH": 2
+  },
   "contradiction_summary": {
-    "NONE": 0,
-    "LOW": 0,
-    "MEDIUM": 0,
+    "NONE": 34,
+    "LOW": 15,
+    "MEDIUM": 1,
     "HIGH": 0
   },
   "scan_staleness": {
     "stale": false,
-    "age_minutes": 3.1
+    "age_minutes": 30.3
   },
   "audit_summary": {
     "trade_count": 3,
@@ -143,7 +148,7 @@
     "note": "All proposals require human approval. No auto-promotion."
   },
   "sample_counts": {
-    "symbols_analyzed": 0,
+    "symbols_analyzed": 50,
     "completed_trades": 3
   },
   "self_tests": {
@@ -221,8 +226,8 @@
     {
       "file": "phase13_cache.json",
       "exists": true,
-      "size_bytes": 2917,
-      "modified": "2026-07-16T10:03:06Z"
+      "size_bytes": 147459,
+      "modified": "2026-07-16T10:35:03Z"
     },
     {
       "file": "phase13_proposals.json",
@@ -234,25 +239,25 @@
       "file": "phase13_audit_report.json",
       "exists": true,
       "size_bytes": 3146,
-      "modified": "2026-07-16T10:03:06Z"
+      "modified": "2026-07-16T10:35:03Z"
     },
     {
       "file": "phase13_diagnostic_bundle.json",
       "exists": true,
-      "size_bytes": 6532,
-      "modified": "2026-07-15T18:06:36Z"
+      "size_bytes": 6456,
+      "modified": "2026-07-16T10:03:06Z"
     },
     {
       "file": "phase13_summary.csv",
       "exists": true,
-      "size_bytes": 2283,
-      "modified": "2026-07-15T18:06:36Z"
+      "size_bytes": 2198,
+      "modified": "2026-07-16T10:03:06Z"
     },
     {
       "file": "phase7_scan_cache.json",
       "exists": true,
-      "size_bytes": 440,
-      "modified": "2026-07-16T10:02:20Z"
+      "size_bytes": 65763,
+      "modified": "2026-07-16T10:05:19Z"
     },
     {
       "file": "market_context_cache.json",

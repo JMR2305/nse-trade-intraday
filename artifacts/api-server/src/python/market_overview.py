@@ -13,7 +13,7 @@ Data:
 
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TypedDict
 
 from market_regime import get_regime, RegimeResult
@@ -155,5 +155,5 @@ def get_market_overview(available_cash: float = 5000.0) -> MarketOverview:
         market_score=market_score,
         top_strong=top_strong,
         top_weak=top_weak,
-        scanned_at=datetime.now().isoformat(),
+        scanned_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     )
