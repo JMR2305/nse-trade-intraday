@@ -27,6 +27,7 @@ import {
   BarChart3, Plus, RefreshCw, BookTemplate, Layers, Download,
   TestTubes,
 } from "lucide-react";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -839,6 +840,8 @@ export default function ExperimentManager() {
           </Button>
         </div>
       </div>
+
+      <DataFreshnessBar variant="historical" datasetLabel="Research factory experiments" />
 
       {/* Safety banner */}
       <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] font-mono text-amber-400">

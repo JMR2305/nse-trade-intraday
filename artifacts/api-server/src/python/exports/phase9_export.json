@@ -1,164 +1,108 @@
 {
- "exported_at": "2026-07-16T10:04:03Z",
+ "exported_at": "2026-07-16T12:09:17Z",
  "label": "PAPER / LIVE DATA VALIDATION",
  "alerts": [
   {
-   "alert_id": "7f62c01294",
-   "ts": "2026-07-16T10:04:02Z",
-   "date": "2026-07-16",
-   "type": "MOMENTUM_INCREASING",
-   "severity": "INFO",
-   "category": "market",
-   "symbol": "HDFCBANK",
-   "reason": "ADX 30.4, RSI 57.5, above EMA20",
-   "confidence": 37.2,
-   "action_recommendation": "Monitor HDFCBANK for entry setup",
-   "scan_id": "48f86dfe9691",
-   "read": true
-  },
-  {
-   "alert_id": "cc81740a57",
-   "ts": "2026-07-16T10:04:02Z",
+   "alert_id": "48714c5348",
+   "ts": "2026-07-16T12:09:17Z",
    "date": "2026-07-16",
    "type": "MOMENTUM_INCREASING",
    "severity": "INFO",
    "category": "market",
    "symbol": "INDUSINDBK",
-   "reason": "ADX 31.1, RSI 61.1, above EMA20",
-   "confidence": 33.2,
+   "reason": "ADX 32.2, RSI 64.4, above EMA20",
+   "confidence": 34.1,
    "action_recommendation": "Monitor INDUSINDBK for entry setup",
-   "scan_id": "48f86dfe9691",
+   "scan_id": "0f4bb84525ef",
    "read": true
   },
   {
-   "alert_id": "87257b332a",
-   "ts": "2026-07-16T10:04:02Z",
-   "date": "2026-07-16",
-   "type": "HIGH_VOLUME_BREAKOUT",
-   "severity": "INFO",
-   "category": "market",
-   "symbol": "HCLTECH",
-   "reason": "Volume 2.04x average",
-   "confidence": 39.9,
-   "action_recommendation": "Watch HCLTECH for continuation",
-   "scan_id": "48f86dfe9691",
-   "read": true
-  },
-  {
-   "alert_id": "622199b06a",
-   "ts": "2026-07-16T10:04:02Z",
-   "date": "2026-07-16",
-   "type": "MOMENTUM_INCREASING",
-   "severity": "INFO",
-   "category": "market",
-   "symbol": "ICICIBANK",
-   "reason": "ADX 32.7, RSI 63.3, above EMA20",
-   "confidence": 29.3,
-   "action_recommendation": "Monitor ICICIBANK for entry setup",
-   "scan_id": "48f86dfe9691",
-   "read": true
-  },
-  {
-   "alert_id": "729a87cf52",
-   "ts": "2026-07-16T10:04:02Z",
+   "alert_id": "111c3b1201",
+   "ts": "2026-07-16T12:09:17Z",
    "date": "2026-07-16",
    "type": "MOMENTUM_INCREASING",
    "severity": "INFO",
    "category": "market",
    "symbol": "BAJFINANCE",
-   "reason": "ADX 37.5, RSI 58.1, above EMA20",
+   "reason": "ADX 37.8, RSI 65.3, above EMA20",
    "confidence": 29.3,
    "action_recommendation": "Monitor BAJFINANCE for entry setup",
-   "scan_id": "48f86dfe9691",
+   "scan_id": "0f4bb84525ef",
    "read": true
   },
   {
-   "alert_id": "76ef56b91e",
-   "ts": "2026-07-16T10:04:02Z",
+   "alert_id": "73ae7f2a37",
+   "ts": "2026-07-16T12:09:17Z",
    "date": "2026-07-16",
-   "type": "HIGH_VOLUME_BREAKOUT",
+   "type": "MOMENTUM_INCREASING",
+   "severity": "INFO",
+   "category": "market",
+   "symbol": "ICICIBANK",
+   "reason": "ADX 32.8, RSI 65.6, above EMA20",
+   "confidence": 29.3,
+   "action_recommendation": "Monitor ICICIBANK for entry setup",
+   "scan_id": "0f4bb84525ef",
+   "read": true
+  },
+  {
+   "alert_id": "081c6144a3",
+   "ts": "2026-07-16T12:09:17Z",
+   "date": "2026-07-16",
+   "type": "MOMENTUM_INCREASING",
    "severity": "INFO",
    "category": "market",
    "symbol": "DIVISLAB",
-   "reason": "Volume 2.99x average",
+   "reason": "ADX 31.1, RSI 74.9, above EMA20",
    "confidence": 8.0,
-   "action_recommendation": "Watch DIVISLAB for continuation",
-   "scan_id": "48f86dfe9691",
+   "action_recommendation": "Monitor DIVISLAB for entry setup",
+   "scan_id": "0f4bb84525ef",
    "read": true
   },
   {
-   "alert_id": "64240af0f3",
-   "ts": "2026-07-16T10:04:02Z",
+   "alert_id": "3a37d81a9d",
+   "ts": "2026-07-16T12:09:17Z",
    "date": "2026-07-16",
    "type": "MOMENTUM_INCREASING",
    "severity": "INFO",
    "category": "market",
    "symbol": "APOLLOHOSP",
-   "reason": "ADX 31.2, RSI 67.4, above EMA20",
+   "reason": "ADX 32.3, RSI 64.8, above EMA20",
    "confidence": 0.0,
    "action_recommendation": "Monitor APOLLOHOSP for entry setup",
-   "scan_id": "48f86dfe9691",
+   "scan_id": "0f4bb84525ef",
    "read": true
   },
   {
-   "alert_id": "273909eab4",
-   "ts": "2026-07-16T10:04:02Z",
-   "date": "2026-07-16",
-   "type": "MOMENTUM_INCREASING",
-   "severity": "INFO",
-   "category": "market",
-   "symbol": "CIPLA",
-   "reason": "ADX 31.0, RSI 55.3, above EMA20",
-   "confidence": 0.0,
-   "action_recommendation": "Monitor CIPLA for entry setup",
-   "scan_id": "48f86dfe9691",
-   "read": true
-  },
-  {
-   "alert_id": "f272f337af",
-   "ts": "2026-07-16T10:04:02Z",
+   "alert_id": "3326669737",
+   "ts": "2026-07-16T12:09:17Z",
    "date": "2026-07-16",
    "type": "MOMENTUM_INCREASING",
    "severity": "INFO",
    "category": "market",
    "symbol": "SUNPHARMA",
-   "reason": "ADX 36.5, RSI 69.5, above EMA20",
+   "reason": "ADX 37.7, RSI 70.4, above EMA20",
    "confidence": 0.0,
    "action_recommendation": "Monitor SUNPHARMA for entry setup",
-   "scan_id": "48f86dfe9691",
+   "scan_id": "0f4bb84525ef",
    "read": true
   },
   {
-   "alert_id": "b334fb6775",
-   "ts": "2026-07-16T10:04:02Z",
-   "date": "2026-07-16",
-   "type": "CONFIDENCE_INCREASED",
-   "severity": "INFO",
-   "category": "ai",
-   "symbol": "HDFCBANK",
-   "reason": "Confidence rose 15 pts (22.200000000000003 \u2192 37.2)",
-   "confidence": 37.2,
-   "action_recommendation": "Re-check HDFCBANK setup",
-   "scan_id": "48f86dfe9691",
-   "read": true
-  },
-  {
-   "alert_id": "3215a76a09",
-   "ts": "2026-07-16T10:04:02Z",
+   "alert_id": "991f6ae297",
+   "ts": "2026-07-16T12:09:17Z",
    "date": "2026-07-16",
    "type": "CONFIDENCE_INCREASED",
    "severity": "INFO",
    "category": "ai",
    "symbol": "INDUSINDBK",
-   "reason": "Confidence rose 15 pts (18.200000000000003 \u2192 33.2)",
-   "confidence": 33.2,
+   "reason": "Confidence rose 15 pts (19.1 \u2192 34.1)",
+   "confidence": 34.1,
    "action_recommendation": "Re-check INDUSINDBK setup",
-   "scan_id": "48f86dfe9691",
+   "scan_id": "0f4bb84525ef",
    "read": true
   },
   {
-   "alert_id": "68b85c100c",
-   "ts": "2026-07-16T10:04:02Z",
+   "alert_id": "7e23f6fd88",
+   "ts": "2026-07-16T12:09:17Z",
    "date": "2026-07-16",
    "type": "CONFIDENCE_INCREASED",
    "severity": "INFO",
@@ -167,15 +111,29 @@
    "reason": "Confidence rose 15 pts (24.9 \u2192 39.9)",
    "confidence": 39.9,
    "action_recommendation": "Re-check HCLTECH setup",
-   "scan_id": "48f86dfe9691",
+   "scan_id": "0f4bb84525ef",
+   "read": true
+  },
+  {
+   "alert_id": "bbf855a507",
+   "ts": "2026-07-16T12:09:17Z",
+   "date": "2026-07-16",
+   "type": "CONFIDENCE_INCREASED",
+   "severity": "INFO",
+   "category": "ai",
+   "symbol": "HDFCBANK",
+   "reason": "Confidence rose 15 pts (24.9 \u2192 39.9)",
+   "confidence": 39.9,
+   "action_recommendation": "Re-check HDFCBANK setup",
+   "scan_id": "0f4bb84525ef",
    "read": true
   }
  ],
  "copilot_summary": {
   "success": true,
-  "generated_at": "2026-07-16T10:04:03Z",
-  "scan_id": "48f86dfe9691",
-  "snapshot_ts": "2026-07-15T19:08:52Z",
+  "generated_at": "2026-07-16T12:09:17Z",
+  "scan_id": "0f4bb84525ef",
+  "snapshot_ts": "2026-07-16T12:03:47Z",
   "market": {
    "regime": "SIDEWAYS",
    "sentiment": "BEARISH",
@@ -209,10 +167,10 @@
    "Open position: WIPRO (5 shares) \u2014 monitor stop loss"
   ],
   "best_opportunity": {
-   "symbol": "HDFCBANK",
+   "symbol": "INDUSINDBK",
    "action": "WATCH",
-   "confidence": 37.2,
-   "opportunity_score": 48.4,
+   "confidence": 34.1,
+   "opportunity_score": 44.1,
    "strategy": "Trend Rider",
    "note": "Highest opportunity score in latest scan"
   },
@@ -226,7 +184,7 @@
    {
     "symbol": "ADANIENT",
     "opportunity_score": 11.5,
-    "reason": "low opportunity score"
+    "reason": "low volume"
    },
    {
     "symbol": "ADANIPORTS",
@@ -236,23 +194,23 @@
    {
     "symbol": "APOLLOHOSP",
     "opportunity_score": 11.5,
-    "reason": "low opportunity score"
+    "reason": "low volume"
    }
   ],
   "scan_summary": {
    "buy_count": 0,
    "watch_count": 4,
    "ignore_count": 44,
-   "avg_opportunity_score": 23.7
+   "avg_opportunity_score": 22.8
   },
-  "voice_text": "Market is sideways with bearish sentiment. Best opportunity is HDFCBANK with confidence 37. Avoid ADANIENT due to low opportunity score. Portfolio risk is low. Cash available: 4600 rupees. Open positions: 1.",
+  "voice_text": "Market is sideways with bearish sentiment. Best opportunity is INDUSINDBK with confidence 34. Avoid ADANIENT due to low volume. Portfolio risk is low. Cash available: 4600 rupees. Open positions: 1.",
   "label": "PAPER / LIVE DATA VALIDATION"
  },
  "daily_briefing": {
   "success": true,
-  "generated_at": "2026-07-16T10:04:03Z",
+  "generated_at": "2026-07-16T12:09:17Z",
   "date": "2026-07-16",
-  "greeting": "Good Afternoon",
+  "greeting": "Good Evening",
   "market_summary": {
    "regime": "SIDEWAYS",
    "sentiment": "BEARISH",
@@ -290,21 +248,21 @@
   ],
   "opportunities": [
    {
-    "symbol": "HDFCBANK",
-    "action": "WATCH",
-    "confidence": 37.2,
-    "opportunity_score": 48.4,
-    "strategy": "Trend Rider"
-   },
-   {
     "symbol": "INDUSINDBK",
     "action": "WATCH",
-    "confidence": 33.2,
-    "opportunity_score": 43.3,
+    "confidence": 34.1,
+    "opportunity_score": 44.1,
     "strategy": "Trend Rider"
    },
    {
     "symbol": "HCLTECH",
+    "action": "WATCH",
+    "confidence": 39.9,
+    "opportunity_score": 42.5,
+    "strategy": "Mean Reversion"
+   },
+   {
+    "symbol": "HDFCBANK",
     "action": "WATCH",
     "confidence": 39.9,
     "opportunity_score": 42.5,
@@ -318,7 +276,7 @@
     "strategy": "Mean Reversion"
    },
    {
-    "symbol": "ICICIBANK",
+    "symbol": "BAJFINANCE",
     "action": "IGNORE",
     "confidence": 29.3,
     "opportunity_score": 40.1,
@@ -362,16 +320,16 @@
    }
   ],
   "briefing_lines": [
-   "Good Afternoon.",
+   "Good Evening.",
    "Market regime is Sideways with bearish sentiment.",
    "ENERGY sector is strongest.",
    "AUTO sector is weakest \u2014 approach with caution.",
-   "Watch HDFCBANK \u2014 top opportunity today (score 48.4).",
+   "Watch INDUSINDBK \u2014 top opportunity today (score 44.1).",
    "Avoid ADANIENT, ADANIPORTS today.",
    "Portfolio risk remains low with 1 open position(s) and \u20b94600 cash.",
    "Expected volatility: normal (VIX 18.0)."
   ],
-  "voice_text": "Good Afternoon. Market regime is Sideways with bearish sentiment. ENERGY sector is strongest. AUTO sector is weakest \u2014 approach with caution. Watch HDFCBANK \u2014 top opportunity today (score 48.4). Avoid ADANIENT, ADANIPORTS today. Portfolio risk remains low with 1 open position(s) and \u20b94600 cash. Expected volatility: normal (VIX 18.0).",
+  "voice_text": "Good Evening. Market regime is Sideways with bearish sentiment. ENERGY sector is strongest. AUTO sector is weakest \u2014 approach with caution. Watch INDUSINDBK \u2014 top opportunity today (score 44.1). Avoid ADANIENT, ADANIPORTS today. Portfolio risk remains low with 1 open position(s) and \u20b94600 cash. Expected volatility: normal (VIX 18.0).",
   "label": "PAPER / LIVE DATA VALIDATION"
  }
 }

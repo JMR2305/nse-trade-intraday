@@ -6,6 +6,7 @@ import {
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 import {
   RefreshCcw, Flame, TrendingUp, TrendingDown, Eye, Ban,
   CheckCircle2, XCircle, MinusCircle, Clock3, ListOrdered,
@@ -147,6 +148,8 @@ export default function MarketReplay() {
           </p>
         </div>
       </div>
+
+      <DataFreshnessBar variant="historical" datasetLabel="Market replay dataset" />
 
       {/* Controls */}
       <Card className="bg-card/50 backdrop-blur border-border/50">

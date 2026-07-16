@@ -7,6 +7,7 @@ import {
   Minus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const SYMBOLS = [
@@ -286,6 +287,8 @@ export default function Optimizer() {
           </p>
         </div>
       </div>
+
+      <DataFreshnessBar variant="historical" datasetLabel="Optimization dataset" />
 
       {/* Controls */}
       <div className="rounded border border-border bg-card p-4">

@@ -7,6 +7,7 @@ import {
   type StrategyLearning,
 } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 import {
   RotateCcw,
   ChevronDown,
@@ -390,6 +391,12 @@ export default function TradeReplayPage() {
           Completed round trips · P&L · Exit type · Original signal explanation
         </p>
       </div>
+
+      <DataFreshnessBar
+        variant="historical"
+        datasetLabel="Trade replay history"
+        sampleSize={trades.length ? `${trades.length} trades` : undefined}
+      />
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border">

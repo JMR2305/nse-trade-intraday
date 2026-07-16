@@ -13,6 +13,7 @@ import {
   Layers, Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 
 // ── Shared form constants ──────────────────────────────────────────────────
 const SYMBOLS = [
@@ -290,6 +291,8 @@ export default function Validate() {
           </p>
         </div>
       </div>
+
+      <DataFreshnessBar variant="historical" datasetLabel="Validation dataset" />
 
       {/* Form */}
       <div className="rounded-lg border border-border bg-card/50 p-4">

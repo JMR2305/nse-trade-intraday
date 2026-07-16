@@ -23,6 +23,7 @@ import {
   Undo2, AlertTriangle, ChevronDown, ChevronRight, Scale, History,
   FlaskConical, TrendingDown, TrendingUp, Lightbulb,
 } from "lucide-react";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -346,6 +347,12 @@ export default function LearningReview() {
           </button>
         </div>
       </div>
+
+      <DataFreshnessBar
+        variant="historical"
+        datasetLabel="Learning review dataset"
+        sampleSize={data?.trades_evaluated ? `${data.trades_evaluated} trades` : undefined}
+      />
 
       {actionMsg && (
         <div

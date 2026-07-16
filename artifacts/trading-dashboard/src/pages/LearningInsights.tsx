@@ -8,6 +8,7 @@ import {
   Brain, TrendingUp, TrendingDown, ShieldCheck, ShieldAlert,
   Building2, Activity, Grid3X3, RefreshCcw,
 } from "lucide-react";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -215,6 +216,12 @@ export default function LearningInsights() {
           Refresh
         </button>
       </div>
+
+      <DataFreshnessBar
+        variant="historical"
+        datasetLabel="Learning insights dataset"
+        sampleSize={data?.knowledge_trades ? `${data.knowledge_trades} trades` : undefined}
+      />
 
       {(data?.knowledge_trades ?? 0) === 0 ? (
         <Card className="bg-card/50 backdrop-blur border-border/50">

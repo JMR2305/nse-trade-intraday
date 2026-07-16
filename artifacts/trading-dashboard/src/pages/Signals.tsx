@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatTime } from "@/lib/format";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 import {
   Play, ChevronDown, ChevronUp, TrendingUp, TrendingDown,
   Clock, Brain, AlertTriangle, Activity,
@@ -243,6 +244,8 @@ export default function Signals() {
           {runScan.isPending ? "SCANNING..." : "RUN SCAN"}
         </Button>
       </div>
+
+      <DataFreshnessBar variant="scan" />
 
       {/* Threshold guide */}
       <div className="flex gap-2 flex-wrap flex-shrink-0 items-center">

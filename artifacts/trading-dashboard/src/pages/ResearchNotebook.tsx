@@ -25,6 +25,7 @@ import {
 import { cn } from "@/lib/utils";
 import { API_BASE } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -302,6 +303,8 @@ export default function ResearchNotebook() {
           </a>
         </div>
       </div>
+
+      <DataFreshnessBar variant="scan" />
 
       <div className="flex gap-1 border-b border-zinc-800">
         {TABS.map((t) => (

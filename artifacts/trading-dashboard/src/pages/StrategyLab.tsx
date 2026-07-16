@@ -6,6 +6,7 @@ import {
   Minus, AlertCircle, Loader2, Play,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -243,6 +244,8 @@ export default function StrategyLab() {
           </p>
         </div>
       </div>
+
+      <DataFreshnessBar variant="historical" datasetLabel="Strategy lab dataset" />
 
       {/* ── Controls ── */}
       <div className="rounded border border-border bg-card p-4">

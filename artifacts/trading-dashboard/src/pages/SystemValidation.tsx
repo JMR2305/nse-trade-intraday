@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { API_BASE } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -170,6 +171,8 @@ export default function SystemValidation() {
           </Button>
         </div>
       </div>
+
+      <DataFreshnessBar variant="scan" />
 
       {error && (
         <Card className="border-red-800 bg-red-950/30">

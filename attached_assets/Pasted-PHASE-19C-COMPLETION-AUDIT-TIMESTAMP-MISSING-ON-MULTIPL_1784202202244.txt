@@ -1,0 +1,180 @@
+PHASE 19C COMPLETION AUDIT — TIMESTAMP MISSING ON MULTIPLE PAGES
+
+The published production application still does not display the Data Freshness timestamp/component on all data-driven pages.
+
+Do not assume the previous task was completed. Inspect the actual published production build and identify every page where the component is missing.
+
+PRODUCTION URL
+
+https://zerodha-trading-assistant.replit.app
+
+REQUIRED AUDIT
+
+1. Enumerate every route/page registered in the application.
+2. Open or inspect each page in the production build.
+3. Create a checklist showing:
+   - route
+   - page name
+   - data-driven or static
+   - freshness component present: YES/NO
+   - scan_id present: YES/NO
+   - scan timestamp present: YES/NO
+   - quote timestamp present where applicable: YES/NO
+   - provider/status present: YES/NO
+4. Do not rely only on source-code imports. Confirm the component is actually rendered in the page layout.
+5. Identify pages using a different layout, legacy component, nested route, or early return that bypasses the freshness header.
+
+IMPLEMENTATION REQUIREMENT
+
+Add one reusable component named something equivalent to:
+
+DataFreshnessBar
+
+It must be rendered visibly near the top of every data-driven page, immediately below the page title or global navigation.
+
+Compact display:
+
+Data: FRESH | Scan: 10:41:22 AM IST | Quotes: 10:42:03 AM IST | Age: 18s | ID: a31f80c2
+
+It must use actual backend metadata, not browser time.
+
+MINIMUM REQUIRED PAGES
+
+- Trade Decisions
+- Portfolio Manager
+- Dashboard
+- Performance Analytics
+- Portfolio Risk Analytics
+- Market
+- Market Scanner
+- Market Replay
+- Live Data Health
+- Broker & Execution
+- Signals
+- AI Decision
+- AI Copilot
+- Notifications
+- Trade Replay
+- All Trades
+- Watchlist
+- Backtest
+- Validate
+- Strategy Lab
+- Optimizer
+- Paper Basket Test
+- Trade Intelligence
+- Historical Knowledge
+- Learning Insights
+- Learning Review
+- Pattern Quality
+- Feature Importance
+- Walk-Forward Validation
+- Research Factory
+- Research Intelligence
+- Strategy Evolution
+- Phase 12 Intelligence
+- Phase 13 Institutional AI
+- Learning & Governance
+- Research Notebook
+- Kite Connect
+- Paper Trading Validation
+- System Validation
+- Risk Management
+- Settings, only where it displays live system or review-package data
+
+PAGE-SPECIFIC RULES
+
+1. Scan-derived pages must show:
+   - scan_id
+   - completed scan time
+   - scan age
+   - status
+
+2. Live quote pages must additionally show:
+   - latest quote/exchange timestamp
+   - quote age
+   - provider
+
+3. Historical/performance pages must show:
+   - dataset last updated
+   - latest included trade/date
+   - sample size/reliability when relevant
+
+4. Broker/Kite pages must show:
+   - connection refresh timestamp
+   - last successful API call
+   - token/session status
+   - do not expose secrets
+
+5. Static configuration-only sections may show:
+   “No live dataset used on this page”
+   rather than a fake timestamp.
+
+GLOBAL CONSISTENCY
+
+- Analysis pages claiming to show the latest scan must use the same scan_id.
+- Do not label analysis as LIVE only because the top ticker is live.
+- A browser reload must not fabricate a newer scan timestamp.
+- STALE, FALLBACK, FAILED, UNAVAILABLE, and SNAPSHOT MISMATCH must remain clearly visible.
+- BUY recommendations must remain blocked for stale, fallback, failed, or mismatched data.
+
+VISIBILITY REQUIREMENTS
+
+The component must:
+- be visible without expanding a hidden panel
+- work on desktop, tablet, and mobile
+- not be clipped by horizontal scrolling
+- not be covered by the AI Copilot floating button
+- use readable text
+- show an expandable detail panel when clicked
+
+AUTOMATED VERIFICATION
+
+Add a route-level test that visits every registered page and verifies one of the following is visible:
+
+- DataFreshnessBar
+- HistoricalDatasetFreshness
+- “No live dataset used on this page”
+
+The test must fail when a new data-driven route is added without a freshness indicator.
+
+Also test:
+
+- all scan-derived pages use the same scan_id
+- timestamps come from backend metadata
+- IST formatting is correct
+- page reload does not modify snapshot time
+- no secrets appear
+- stale-data and live-order protections remain enabled
+
+PRODUCTION VERIFICATION PACKAGE
+
+Generate a downloadable JSON/CSV report containing:
+
+page_name
+route
+freshness_component_type
+scan_id
+scan_timestamp
+quote_timestamp
+provider
+status
+consistent
+verified_at
+
+Also generate a browser screenshot/contact sheet covering every page so the presence of the freshness bar can be reviewed visually.
+
+At completion report:
+
+1. Pages audited
+2. Pages previously missing the component
+3. Pages fixed
+4. Pages intentionally marked “No live dataset used”
+5. Latest shared scan_id
+6. Automated test results
+7. Production build result
+8. Exact production pages visually verified
+9. Confirmation that paper trading remains active
+10. Confirmation that live orders remain disabled
+
+Do not claim completion merely because a shared component exists in the source code. Completion requires it to be visibly rendered on every applicable page in the published production build.

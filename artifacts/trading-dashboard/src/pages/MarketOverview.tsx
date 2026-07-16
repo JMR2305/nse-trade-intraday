@@ -6,6 +6,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatTime } from "@/lib/format";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 import {
   TrendingUp, TrendingDown, Minus, Activity, Zap,
   BarChart2, AlertTriangle, RefreshCcw,
@@ -176,6 +177,8 @@ export default function MarketOverview() {
           </button>
         </div>
       </div>
+
+      <DataFreshnessBar variant="quotes" quoteTimestamp={overview?.scanned_at} />
 
       {/* Index + VIX + Score cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

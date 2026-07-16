@@ -18,6 +18,7 @@ import {
   ShieldCheck, Loader2, Play, AlertTriangle, Download, ChevronDown,
   ChevronRight, Scale, Route,
 } from "lucide-react";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import StrategyAuditSection from "@/components/StrategyAuditSection";
@@ -264,6 +265,8 @@ export default function WalkForwardValidation() {
           PAPER TRADING · RESEARCH ONLY
         </Badge>
       </div>
+
+      <DataFreshnessBar variant="historical" datasetLabel="Walk-forward validation dataset" />
 
       {/* Safety */}
       <div className="flex items-center gap-2 text-[11px] font-mono text-amber-400/90 bg-amber-500/10 border border-amber-500/30 rounded-md px-3 py-2">

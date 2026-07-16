@@ -19,6 +19,7 @@ import { apiJson } from "@/lib/api";
 import { ContributionChart } from "@/pages/experiments/ReportCharts";
 import { StatusBadge } from "@/pages/experiments/ResearchReport";
 import MetaLearningTab from "@/pages/MetaLearningTab";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -313,6 +314,9 @@ export default function ResearchIntelligence() {
           {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}Refresh
         </Button>
       </div>
+
+      <DataFreshnessBar variant="scan" />
+
       <p className="text-[9px] font-mono text-amber-400/90 bg-amber-500/5 border border-amber-500/20 rounded px-2 py-1 flex gap-1.5">
         <ShieldAlert className="h-3 w-3 flex-shrink-0 mt-0.5" />{DISCLAIMER}
       </p>

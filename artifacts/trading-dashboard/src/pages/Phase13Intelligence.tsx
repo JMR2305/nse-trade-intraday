@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiJson } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 import {
   Microscope, RefreshCw, Download, Brain, TrendingUp, TrendingDown,
   AlertTriangle, CheckCircle2, XCircle, Eye, ShieldCheck, Dna,
@@ -600,6 +601,8 @@ export default function Phase13Intelligence() {
           </button>
         </div>
       </div>
+
+      <DataFreshnessBar variant="scan" />
 
       {/* Stale warning */}
       {data?.scan_stale && (

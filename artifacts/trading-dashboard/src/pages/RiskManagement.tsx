@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -164,6 +165,8 @@ export default function RiskManagement() {
           {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}Refresh
         </Button>
       </div>
+
+      <DataFreshnessBar variant="scan" />
 
       {/* Kill switch banner */}
       <Card className={`border ${ksActive ? "border-red-700 bg-red-950/30" : "border-zinc-800 bg-zinc-900/60"}`}>

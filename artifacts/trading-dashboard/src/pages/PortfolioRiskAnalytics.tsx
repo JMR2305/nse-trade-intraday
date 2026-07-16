@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -99,6 +100,8 @@ export default function PortfolioRiskAnalytics() {
           {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}Refresh
         </Button>
       </div>
+
+      <DataFreshnessBar variant="scan" />
 
       {/* Exposure stats */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">

@@ -10,6 +10,7 @@ import {
 } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
 import HistoricalEvidence from "@/components/HistoricalEvidence";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 import {
   Brain,
   ChevronDown,
@@ -480,6 +481,8 @@ export default function AiDecisionPage() {
           {runScan.isPending ? "Scanning…" : "Run Scan"}
         </button>
       </div>
+
+      <DataFreshnessBar variant="scan" />
 
       {/* Phase 13 regime banner */}
       <Phase13RegimeBanner />

@@ -22,7 +22,7 @@
   "successful_validation_runs": 3,
   "critical_qa_failures": 0,
   "stale_data_incidents": 0,
-  "cross_page_mismatch_days": 1,
+  "cross_page_mismatch_days": 2,
   "days_since_last_critical_issue": "No critical issues recorded",
   "targets": {
     "trading_sessions": 50,

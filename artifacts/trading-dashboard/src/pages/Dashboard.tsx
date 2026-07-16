@@ -35,6 +35,7 @@ import {
   ReferenceLine
 } from "recharts";
 import { useToast } from "@/hooks/use-toast";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 
 export default function Dashboard() {
   const queryClient = useQueryClient();
@@ -128,6 +129,8 @@ export default function Dashboard() {
           </Button>
         </div>
       </div>
+
+      <DataFreshnessBar variant="scan" />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card className="bg-card/50 backdrop-blur border-border/50">

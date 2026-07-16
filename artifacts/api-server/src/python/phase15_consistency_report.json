@@ -1,8 +1,8 @@
 {
   "available": true,
-  "checked_at": "2026-07-16T10:35:33Z",
-  "scan_id": "297c25eaa162",
-  "snapshot_ts": "2026-07-16T10:04:44Z",
+  "checked_at": "2026-07-16T12:09:16Z",
+  "scan_id": "0f4bb84525ef",
+  "snapshot_ts": "2026-07-16T12:03:47Z",
   "sources_checked": [
     {
       "source": "ai_decision",
@@ -29,7 +29,7 @@
       "canonical_value": 1296.6,
       "source_value": 1293.0,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1293.0 vs canonical 1296.6; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 1293.0 vs canonical 1296.6; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -38,7 +38,7 @@
       "canonical_value": 1252.47,
       "source_value": 1327.13,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1327.13 vs canonical 1252.47; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 1327.13 vs canonical 1252.47; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -47,7 +47,7 @@
       "canonical_value": 1406.92,
       "source_value": 1247.49,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1247.49 vs canonical 1406.92; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 1247.49 vs canonical 1406.92; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -56,7 +56,7 @@
       "canonical_value": 2.5,
       "source_value": 1.33,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1.33 vs canonical 2.5; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 1.33 vs canonical 2.5; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -65,7 +65,7 @@
       "canonical_value": 2201.0,
       "source_value": 2188.6,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 2188.6 vs canonical 2201.0; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 2188.6 vs canonical 2201.0; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -74,7 +74,7 @@
       "canonical_value": 2075.15,
       "source_value": 2091.19,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 2091.19 vs canonical 2075.15; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 2091.19 vs canonical 2075.15; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -83,7 +83,7 @@
       "canonical_value": 2452.7,
       "source_value": 2318.48,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 2318.48 vs canonical 2452.7; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 2318.48 vs canonical 2452.7; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -92,7 +92,7 @@
       "canonical_value": 2.0,
       "source_value": 0.0,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 0.0 vs canonical 2.0; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 0.0 vs canonical 2.0; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -101,7 +101,7 @@
       "canonical_value": 1082.4,
       "source_value": 1092.9,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1092.9 vs canonical 1082.4; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 1092.9 vs canonical 1082.4; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -110,7 +110,7 @@
       "canonical_value": 1018.9,
       "source_value": 1143.22,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1143.22 vs canonical 1018.9; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 1143.22 vs canonical 1018.9; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -119,7 +119,7 @@
       "canonical_value": 1209.4,
       "source_value": 1025.8,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1025.8 vs canonical 1209.4; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 1025.8 vs canonical 1209.4; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -128,7 +128,7 @@
       "canonical_value": 2.0,
       "source_value": 1.33,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1.33 vs canonical 2.0; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 1.33 vs canonical 2.0; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -137,7 +137,7 @@
       "canonical_value": 808.3,
       "source_value": 809.4,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 809.4 vs canonical 808.3; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 809.4 vs canonical 808.3; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -146,7 +146,7 @@
       "canonical_value": 786.82,
       "source_value": 787.1,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 787.1 vs canonical 786.82; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 787.1 vs canonical 786.82; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -155,7 +155,7 @@
       "canonical_value": 840.52,
       "source_value": 839.13,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 839.13 vs canonical 840.52; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 839.13 vs canonical 840.52; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -164,7 +164,7 @@
       "canonical_value": 1.5,
       "source_value": 0.0,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 0.0 vs canonical 1.5; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 0.0 vs canonical 1.5; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -173,7 +173,7 @@
       "canonical_value": 1418.2,
       "source_value": 1407.7,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1407.7 vs canonical 1418.2; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 1407.7 vs canonical 1418.2; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -182,7 +182,7 @@
       "canonical_value": 1369.79,
       "source_value": 1370.11,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1370.11 vs canonical 1369.79; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 1370.11 vs canonical 1369.79; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -191,7 +191,7 @@
       "canonical_value": 1563.43,
       "source_value": 1457.82,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1457.82 vs canonical 1563.43; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 1457.82 vs canonical 1563.43; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -200,7 +200,7 @@
       "canonical_value": 3.0,
       "source_value": 0.0,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 0.0 vs canonical 3.0; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 0.0 vs canonical 3.0; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -209,7 +209,7 @@
       "canonical_value": 1031.2,
       "source_value": 1015.4,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1015.4 vs canonical 1031.2; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 1015.4 vs canonical 1031.2; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -218,7 +218,7 @@
       "canonical_value": 993.51,
       "source_value": 986.27,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 986.27 vs canonical 993.51; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 986.27 vs canonical 993.51; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -227,7 +227,7 @@
       "canonical_value": 1106.58,
       "source_value": 1054.24,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1054.24 vs canonical 1106.58; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 1054.24 vs canonical 1106.58; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -236,7 +236,7 @@
       "canonical_value": 2.0,
       "source_value": 0.0,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 0.0 vs canonical 2.0; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 0.0 vs canonical 2.0; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -245,7 +245,7 @@
       "canonical_value": 177.74,
       "source_value": 177.14,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 177.14 vs canonical 177.74; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 177.14 vs canonical 177.74; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -254,7 +254,7 @@
       "canonical_value": 171.79,
       "source_value": 183.32,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 183.32 vs canonical 171.79; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 183.32 vs canonical 171.79; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -263,7 +263,7 @@
       "canonical_value": 186.67,
       "source_value": 168.9,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 168.9 vs canonical 186.67; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 168.9 vs canonical 186.67; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -272,7 +272,7 @@
       "canonical_value": 1.5,
       "source_value": 1.33,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1.33 vs canonical 1.5; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 1.33 vs canonical 1.5; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -281,7 +281,7 @@
       "canonical_value": 3775.6,
       "source_value": 3848.7,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 3848.7 vs canonical 3775.6; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 3848.7 vs canonical 3775.6; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -290,7 +290,7 @@
       "canonical_value": 3664.59,
       "source_value": 3962.19,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 3962.19 vs canonical 3664.59; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 3962.19 vs canonical 3664.59; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -299,7 +299,7 @@
       "canonical_value": 3942.12,
       "source_value": 3697.37,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 3697.37 vs canonical 3942.12; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 3697.37 vs canonical 3942.12; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -308,7 +308,7 @@
       "canonical_value": 1.5,
       "source_value": 1.33,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1.33 vs canonical 1.5; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 1.33 vs canonical 1.5; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -317,7 +317,7 @@
       "canonical_value": 1037.6,
       "source_value": 1006.6,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1006.6 vs canonical 1037.6; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 1006.6 vs canonical 1037.6; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -326,7 +326,7 @@
       "canonical_value": 989.26,
       "source_value": 970.73,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 970.73 vs canonical 989.26; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 970.73 vs canonical 989.26; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -335,7 +335,7 @@
       "canonical_value": 1182.62,
       "source_value": 1054.42,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 1054.42 vs canonical 1182.62; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 1054.42 vs canonical 1182.62; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -344,7 +344,7 @@
       "canonical_value": 3.0,
       "source_value": 0.0,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 0.0 vs canonical 3.0; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 0.0 vs canonical 3.0; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -353,7 +353,7 @@
       "canonical_value": 13783.0,
       "source_value": 13489.0,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 13489.0 vs canonical 13783.0; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 13489.0 vs canonical 13783.0; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -362,7 +362,7 @@
       "canonical_value": 13177.02,
       "source_value": 13014.21,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 13014.21 vs canonical 13177.02; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 13014.21 vs canonical 13177.02; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -371,7 +371,7 @@
       "canonical_value": 14994.96,
       "source_value": 14122.05,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 14122.05 vs canonical 14994.96; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 14122.05 vs canonical 14994.96; refresh will resynchronise"
     },
     {
       "source": "ai_decision",
@@ -380,7 +380,7 @@
       "canonical_value": 2.0,
       "source_value": 0.0,
       "severity": "STALE_SOURCE",
-      "note": "ai_decision cache predates canonical scan 297c25eaa162 \u2014 shows 0.0 vs canonical 2.0; refresh will resynchronise"
+      "note": "ai_decision cache predates canonical scan 0f4bb84525ef \u2014 shows 0.0 vs canonical 2.0; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -389,7 +389,7 @@
       "canonical_value": 42.5,
       "source_value": 47.7,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 47.7 vs canonical 42.5; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 47.7 vs canonical 42.5; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -398,7 +398,7 @@
       "canonical_value": 808.3,
       "source_value": 809.4,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 809.4 vs canonical 808.3; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 809.4 vs canonical 808.3; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -407,7 +407,7 @@
       "canonical_value": 1.5,
       "source_value": 0.0,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 0.0 vs canonical 1.5; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 0.0 vs canonical 1.5; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -416,7 +416,7 @@
       "canonical_value": 40.1,
       "source_value": 20.8,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 20.8 vs canonical 40.1; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 20.8 vs canonical 40.1; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -425,7 +425,7 @@
       "canonical_value": 1418.2,
       "source_value": 1407.7,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 1407.7 vs canonical 1418.2; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 1407.7 vs canonical 1418.2; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -434,7 +434,7 @@
       "canonical_value": 3.0,
       "source_value": 0.0,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 0.0 vs canonical 3.0; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 0.0 vs canonical 3.0; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -443,7 +443,7 @@
       "canonical_value": 40.1,
       "source_value": 20.5,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 20.5 vs canonical 40.1; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 20.5 vs canonical 40.1; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -452,7 +452,7 @@
       "canonical_value": 1037.6,
       "source_value": 1006.6,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 1006.6 vs canonical 1037.6; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 1006.6 vs canonical 1037.6; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -461,7 +461,7 @@
       "canonical_value": 3.0,
       "source_value": 0.0,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 0.0 vs canonical 3.0; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 0.0 vs canonical 3.0; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -470,7 +470,7 @@
       "canonical_value": 11.5,
       "source_value": 20.1,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 20.1 vs canonical 11.5; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 20.1 vs canonical 11.5; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -479,7 +479,7 @@
       "canonical_value": 2201.0,
       "source_value": 2188.6,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 2188.6 vs canonical 2201.0; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 2188.6 vs canonical 2201.0; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -488,7 +488,7 @@
       "canonical_value": 2.0,
       "source_value": 0.0,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 0.0 vs canonical 2.0; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 0.0 vs canonical 2.0; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -497,7 +497,7 @@
       "canonical_value": 36.4,
       "source_value": 19.4,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 19.4 vs canonical 36.4; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 19.4 vs canonical 36.4; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -506,7 +506,7 @@
       "canonical_value": 1031.2,
       "source_value": 1015.4,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 1015.4 vs canonical 1031.2; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 1015.4 vs canonical 1031.2; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -515,7 +515,7 @@
       "canonical_value": 2.0,
       "source_value": 0.0,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 0.0 vs canonical 2.0; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 0.0 vs canonical 2.0; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -524,7 +524,7 @@
       "canonical_value": 18.0,
       "source_value": 16.4,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 16.4 vs canonical 18.0; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 16.4 vs canonical 18.0; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -533,7 +533,7 @@
       "canonical_value": 3775.6,
       "source_value": 3848.7,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 3848.7 vs canonical 3775.6; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 3848.7 vs canonical 3775.6; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -542,7 +542,7 @@
       "canonical_value": 1.5,
       "source_value": 1.33,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 1.33 vs canonical 1.5; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 1.33 vs canonical 1.5; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -551,7 +551,7 @@
       "canonical_value": 11.5,
       "source_value": 15.9,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 15.9 vs canonical 11.5; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 15.9 vs canonical 11.5; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -560,7 +560,7 @@
       "canonical_value": 13783.0,
       "source_value": 13489.0,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 13489.0 vs canonical 13783.0; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 13489.0 vs canonical 13783.0; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -569,7 +569,7 @@
       "canonical_value": 2.0,
       "source_value": 0.0,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 0.0 vs canonical 2.0; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 0.0 vs canonical 2.0; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -578,7 +578,7 @@
       "canonical_value": 29.1,
       "source_value": 15.8,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 15.8 vs canonical 29.1; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 15.8 vs canonical 29.1; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -587,7 +587,7 @@
       "canonical_value": 177.74,
       "source_value": 177.14,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 177.14 vs canonical 177.74; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 177.14 vs canonical 177.74; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -596,7 +596,7 @@
       "canonical_value": 1.5,
       "source_value": 1.33,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 1.33 vs canonical 1.5; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 1.33 vs canonical 1.5; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -605,7 +605,7 @@
       "canonical_value": 38.2,
       "source_value": 15.3,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 15.3 vs canonical 38.2; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 15.3 vs canonical 38.2; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -614,7 +614,7 @@
       "canonical_value": 1296.6,
       "source_value": 1293.0,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 1293.0 vs canonical 1296.6; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 1293.0 vs canonical 1296.6; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -623,7 +623,7 @@
       "canonical_value": 2.5,
       "source_value": 1.33,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 1.33 vs canonical 2.5; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 1.33 vs canonical 2.5; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -632,7 +632,7 @@
       "canonical_value": 11.5,
       "source_value": 15.2,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 15.2 vs canonical 11.5; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 15.2 vs canonical 11.5; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -641,7 +641,7 @@
       "canonical_value": 1082.4,
       "source_value": 1092.9,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 1092.9 vs canonical 1082.4; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 1092.9 vs canonical 1082.4; refresh will resynchronise"
     },
     {
       "source": "opportunity_scan",
@@ -650,7 +650,7 @@
       "canonical_value": 2.0,
       "source_value": 1.33,
       "severity": "STALE_SOURCE",
-      "note": "opportunity_scan cache predates canonical scan 297c25eaa162 \u2014 shows 1.33 vs canonical 2.0; refresh will resynchronise"
+      "note": "opportunity_scan cache predates canonical scan 0f4bb84525ef \u2014 shows 1.33 vs canonical 2.0; refresh will resynchronise"
     }
   ],
   "conflicting_recommendations_blocked": false,

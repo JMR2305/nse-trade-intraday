@@ -31,5 +31,5 @@ Timeline,confidence_calibration_pct,Insufficient Data
 Timeline,strategy_stability_pct,Insufficient Data
 Timeline,production_readiness_pct,0.8
 Timeline,maturity,COLLECTING EVIDENCE
-Health,bug_check_verdict,FAIL
+Health,bug_check_verdict,PASS
 Meta,label,PAPER / RESEARCH ONLY

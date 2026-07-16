@@ -16,6 +16,7 @@ import {
   Database, Layers, Target,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 
 const STRATEGY_LABELS: Record<string, string> = {
   ema_cross: "EMA Cross",
@@ -149,6 +150,12 @@ export default function HistoricalKnowledge() {
           </Button>
         </div>
       </div>
+
+      <DataFreshnessBar
+        variant="historical"
+        datasetLabel="Historical knowledge base"
+        sampleSize={hasData ? `${summary!.total_trades} trades` : undefined}
+      />
 
       {/* Research warning */}
       <div className="flex items-center gap-2 text-xs font-mono text-orange-400 bg-orange-400/10 border border-orange-400/20 rounded-md px-3 py-2">

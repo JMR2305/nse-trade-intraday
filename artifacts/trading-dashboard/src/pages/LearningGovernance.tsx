@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiJson, API_BASE } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 import {
   GraduationCap, Activity, Scale, SlidersHorizontal, Trophy, Radar,
   ScrollText, Download, RefreshCcw, ShieldCheck, AlertTriangle,
@@ -498,6 +499,8 @@ export default function LearningGovernance() {
           </a>
         </div>
       </div>
+
+      <DataFreshnessBar variant="scan" />
 
       <div className="flex items-center gap-2 rounded border border-border/40 bg-card/30 px-3 py-2 text-[11px] font-mono text-muted-foreground">
         <ShieldCheck className="h-3.5 w-3.5 text-emerald-400 shrink-0" />

@@ -5,6 +5,7 @@ import {
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Gauge, RefreshCcw, ListOrdered } from "lucide-react";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 
 const RATING_COLOR: Record<string, string> = {
   Excellent: "text-emerald-400 bg-emerald-500/10 border-emerald-500/30",
@@ -89,6 +90,12 @@ export default function PatternQuality() {
           Refresh
         </button>
       </div>
+
+      <DataFreshnessBar
+        variant="historical"
+        datasetLabel="Pattern quality dataset"
+        sampleSize={data?.knowledge_trades ? `${data.knowledge_trades} trades` : undefined}
+      />
 
       {patterns.length === 0 ? (
         <Card className="bg-card/50 backdrop-blur border-border/50">

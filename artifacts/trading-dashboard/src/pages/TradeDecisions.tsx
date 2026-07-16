@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiJson } from "@/lib/api";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 import {
   useGetTradeDecisions,
   getGetTradeDecisionsQueryKey,
@@ -698,6 +699,8 @@ export default function TradeDecisions() {
           {isRefreshing ? "SCANNING..." : "REFRESH"}
         </button>
       </div>
+
+      <DataFreshnessBar variant="scan" />
 
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
         <SummaryCard label="Strong Buy" value={data?.strong_buy_count ?? 0} color="text-emerald-300" />

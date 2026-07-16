@@ -3,6 +3,7 @@ import { useGetStrategies, useRunBacktest } from "@workspace/api-client-react";
 import type { BacktestResult, BacktestTrade } from "@workspace/api-client-react";
 import { FlaskConical, TrendingUp, TrendingDown, AlertTriangle, BarChart2, CheckCircle2, XCircle, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 
 // ── Watchlist symbols for quick selection ──────────────────────────────────
 const SYMBOLS = [
@@ -178,6 +179,8 @@ export default function Backtest() {
           </p>
         </div>
       </div>
+
+      <DataFreshnessBar variant="historical" datasetLabel="Backtest dataset" />
 
       {/* ── Config form ─────────────────────────────────────────────────── */}
       <div className="bg-card border border-border rounded-lg p-5">

@@ -10,6 +10,7 @@ import {
   Clock, Percent, Trophy, ThumbsDown, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 
 const fmt = (v: number | null | undefined, d = 2) =>
   v === null || v === undefined ? "—" : v.toFixed(d);
@@ -256,6 +257,8 @@ export default function TradeIntelligence() {
           Import Existing Trades
         </button>
       </div>
+
+      <DataFreshnessBar variant="scan" />
 
       {importMutation.data && (
         <div className="text-xs font-mono text-emerald-400 border border-emerald-400/30 bg-emerald-400/5 rounded px-3 py-2">

@@ -7,6 +7,7 @@ import {
   getGetMarketScanQueryKey,
 } from "@workspace/api-client-react";
 import { EvidenceBody } from "@/components/HistoricalEvidence";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatTime } from "@/lib/format";
@@ -356,6 +357,8 @@ export default function MarketScanner() {
           </button>
         </div>
       </div>
+
+      <DataFreshnessBar variant="quotes" quoteTimestamp={data?.scanned_at} />
 
       {/* Phase 13 sector rotation strip */}
       <Phase13SectorStrip />

@@ -822,6 +822,36 @@ router.get("/live-data/scan", async (req, res) => {
   }
 });
 
+// GET /api/live-data/scan/status — lightweight canonical scan metadata for the
+// DataFreshnessBar (scan_id, snapshot_ts, provider, coverage). Reads the
+// durable scan-state store only — never triggers a scan. Cached briefly to
+// avoid a python spawn per page load.
+const SCAN_STATUS_CACHE_MS = 15_000;
+let scanStatusCache: { data: unknown; ts: number } | null = null;
+let scanStatusInFlight: Promise<unknown> | null = null;
+
+router.get("/live-data/scan/status", async (_req, res) => {
+  try {
+    if (scanStatusCache && Date.now() - scanStatusCache.ts < SCAN_STATUS_CACHE_MS) {
+      res.json(scanStatusCache.data);
+      return;
+    }
+    if (!scanStatusInFlight) {
+      scanStatusInFlight = runPython(["scan_status"])
+        .then((data) => {
+          scanStatusCache = { data, ts: Date.now() };
+          return data;
+        })
+        .finally(() => {
+          scanStatusInFlight = null;
+        });
+    }
+    res.json(await scanStatusInFlight);
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // POST /api/live-data/scan/run — trigger fresh scan explicitly
 // Phase 11: idempotent under concurrency (single in-flight scan lock via
 // p7InFlight), rate-limited, and publishes scan.* events with notifications.
@@ -846,6 +876,7 @@ router.post("/live-data/scan/run", async (_req, res) => {
     lastScanRunTs = now;
     p7Cache = null;  // invalidate Phase 7 cache; other caches expire naturally
     marketScanCache = null;  // Phase 19B: Market Scanner view must refresh too
+    scanStatusCache = null;  // Phase 19C: freshness bar must see the new scan
     eventBus.publish("scan.started", { ts: new Date().toISOString() });
     void runPython(["system_event", "SCAN_STARTED", JSON.stringify({ reason: "Fresh live scan started." })]).catch(() => undefined);
     try {

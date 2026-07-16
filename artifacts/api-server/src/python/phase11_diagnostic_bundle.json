@@ -1,6 +1,6 @@
 {
   "bundle_version": 1,
-  "generated_at": "2026-07-16T10:02:58Z",
+  "generated_at": "2026-07-16T12:09:09Z",
   "engine_version": "Research Engine v1.0",
   "mode": "PAPER_TRADING_RESEARCH_ONLY",
   "environment": {
@@ -8,9 +8,9 @@
     "platform": "Linux-6.18.34-x86_64-with-glibc2.40"
   },
   "market_status": {
-    "state": "POST_CLOSE",
+    "state": "CLOSED",
     "is_open": false,
-    "now_ist": "2026-07-16T15:32:58.212370+05:30",
+    "now_ist": "2026-07-16T17:39:09.289131+05:30",
     "timezone": "Asia/Kolkata",
     "session": {
       "pre_open": "09:00",
@@ -22,7 +22,7 @@
     "next_transition": {
       "event": "market_open",
       "at_ist": "2026-07-17T09:15:00+05:30",
-      "seconds_until": 63721
+      "seconds_until": 56150
     },
     "upcoming_holidays": [
       {
@@ -53,13 +53,18 @@
     "quote_ttl_closed_s": 300.0
   },
   "scan": {
-    "scan_id": "dbtest123",
-    "snapshot_ts": "2026-07-16T10:00:00Z",
-    "recommendation_count": 0,
-    "provider_connection": null,
-    "symbol_coverage_pct": null,
-    "quality_summary": null,
-    "paper_execution_eligible": null
+    "scan_id": "0f4bb84525ef",
+    "snapshot_ts": "2026-07-16T12:03:47Z",
+    "recommendation_count": 50,
+    "provider_connection": "DEGRADED",
+    "symbol_coverage_pct": 96.0,
+    "quality_summary": {
+      "LIVE": 48,
+      "STALE": 0,
+      "NEAR_LIVE": 0,
+      "UNAVAILABLE": 2
+    },
+    "paper_execution_eligible": true
   },
   "risk": {
     "kill_switch": {
@@ -85,8 +90,8 @@
     "risk_alert_count": null
   },
   "notifications": {
-    "total_alerts": 8,
-    "unread": 0
+    "total_alerts": 10,
+    "unread": 2
   },
   "portfolio": {
     "cash": null,
@@ -96,14 +101,14 @@
     {
       "file": "phase7_scan_cache.json",
       "exists": true,
-      "size_bytes": 440,
-      "modified": "2026-07-16T10:02:20Z"
+      "size_bytes": 65763,
+      "modified": "2026-07-16T12:09:05Z"
     },
     {
       "file": "phase9_alerts.json",
       "exists": true,
-      "size_bytes": 2946,
-      "modified": "2026-07-14T19:45:47Z"
+      "size_bytes": 3638,
+      "modified": "2026-07-16T10:05:20Z"
     },
     {
       "file": "portfolio.json",
@@ -120,8 +125,8 @@
     {
       "file": "phase11_risk_alerts.json",
       "exists": true,
-      "size_bytes": 834,
-      "modified": "2026-07-15T04:24:41Z"
+      "size_bytes": 1393,
+      "modified": "2026-07-16T12:05:48Z"
     },
     {
       "file": "nse_holidays.json",
@@ -132,8 +137,8 @@
     {
       "file": "phase11_quote_state.json",
       "exists": true,
-      "size_bytes": 1315,
-      "modified": "2026-07-15T21:23:13Z"
+      "size_bytes": 1319,
+      "modified": "2026-07-16T12:06:17Z"
     }
   ],
   "notes": [

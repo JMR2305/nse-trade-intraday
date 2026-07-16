@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Trash2, Plus, TrendingUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 
 export default function Watchlist() {
   const [newSymbol, setNewSymbol] = useState("");
@@ -75,6 +76,8 @@ export default function Watchlist() {
         <h1 className="text-2xl font-bold tracking-tight">Market Watchlist</h1>
         <p className="text-muted-foreground text-sm mt-1">Manage the NSE symbols your algorithm actively scans.</p>
       </div>
+
+      <DataFreshnessBar variant="scan" />
 
       <Card className="bg-card/50 backdrop-blur border-border/50">
         <CardHeader>

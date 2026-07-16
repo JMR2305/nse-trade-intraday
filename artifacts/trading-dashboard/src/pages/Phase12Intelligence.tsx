@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiJson, API_BASE } from "@/lib/api";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 
 // ── Regime helpers ─────────────────────────────────────────────────────────────
 const REGIME_META: Record<string, { color: string; bg: string; icon: React.ReactNode }> = {
@@ -242,6 +243,8 @@ export default function Phase12Intelligence() {
           </Button>
         </div>
       </div>
+
+      <DataFreshnessBar variant="scan" />
 
       {error && (
         <div className="rounded border border-red-800/40 bg-red-900/20 p-3 text-sm text-red-300">

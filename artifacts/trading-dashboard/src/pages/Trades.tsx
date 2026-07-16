@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate } from "@/lib/format";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 
 export default function Trades() {
   const { data: trades, isLoading } = useGetTrades({
@@ -23,6 +24,12 @@ export default function Trades() {
         <h1 className="text-2xl font-bold tracking-tight">Trade History</h1>
         <p className="text-muted-foreground text-sm mt-1">Complete log of all algorithmic paper trades.</p>
       </div>
+
+      <DataFreshnessBar
+        variant="historical"
+        datasetLabel="Paper trade history"
+        sampleSize={trades ? `${trades.length} trades` : undefined}
+      />
 
       <Card className="flex-1 overflow-hidden flex flex-col bg-card/50 backdrop-blur border-border/50">
         <CardHeader className="border-b border-border/50 bg-muted/20">

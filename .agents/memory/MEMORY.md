@@ -17,3 +17,4 @@
 - [Prod cwd vs dev](python-env-deploy.md) — api-server prod runs from workspace root; never derive paths from process.cwd() without checking both layouts (see python-env resolver).
 - [Phase 19A Kite OAuth](phase19a-kite-oauth.md) — request token via env not argv; token file chmod 600; strict callback status check; test-module kiteconnect stubs collide, re-stub in setUp.
 - [Phase 19B durable scan state](phase19b-scan-state.md) — canonical scan snapshot/lock live in Postgres via scan_state_store; local files are warm caches only; failed scans never overwrite snapshots.
+- [UI audit scripts](ui-audit-scripts.md) — long puppeteer audits must be resumable (per-page rows) + foreground timeout passes; wait for target selector, recover detached frames.

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 import {
   Radio,
   RefreshCw,
@@ -761,6 +762,8 @@ export default function KiteConnect() {
           </Badge>
         </div>
       </div>
+
+      <DataFreshnessBar variant="none" />
 
       {/* Session / connection card always at top */}
       {isLoading ? (

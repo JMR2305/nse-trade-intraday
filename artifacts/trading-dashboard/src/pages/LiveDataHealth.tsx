@@ -19,6 +19,7 @@ import { API_BASE } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useLiveStream } from "@/hooks/useLiveStream";
 import { Phase15SystemHealthPanel } from "@/components/Phase15SystemHealth";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -219,6 +220,8 @@ export default function LiveDataHealth() {
           ))}
         </div>
       </div>
+
+      <DataFreshnessBar variant="quotes" />
 
       <p className="text-[9px] font-mono text-amber-400/90 bg-amber-500/5 border border-amber-500/20 rounded px-2 py-1">
         <ShieldCheck className="h-3 w-3 inline mr-1" />

@@ -11,6 +11,7 @@ import type {
   PortfolioSkipped,
 } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 import {
   Briefcase,
   RefreshCcw,
@@ -245,6 +246,8 @@ export default function PortfolioManager() {
           {busy ? "DECIDING..." : "REFRESH"}
         </button>
       </div>
+
+      <DataFreshnessBar variant="scan" />
 
       {/* Decision summary */}
       <Card className={`border ${STANCE_STYLE[stance] ?? STANCE_STYLE.HOLD_CASH}`}>

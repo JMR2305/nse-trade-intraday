@@ -23,6 +23,22 @@
       "message": "WIPRO volume ratio 0.11 < floor 0.3",
       "ts": "2026-07-15T04:24:41.326388",
       "acknowledged": false
+    },
+    {
+      "key": "POSITION_NO_STOP|2026-07-16|WIPRO",
+      "type": "POSITION_NO_STOP",
+      "severity": "WARNING",
+      "message": "WIPRO has no stop-loss recorded \u2014 risk unbounded (value \u20b9888.7)",
+      "ts": "2026-07-16T12:05:48.054193",
+      "acknowledged": false
+    },
+    {
+      "key": "POSITION_OVERSIZED|2026-07-16|WIPRO",
+      "type": "POSITION_OVERSIZED",
+      "severity": "WARNING",
+      "message": "WIPRO holds 5 vs recommended 2 at current limits",
+      "ts": "2026-07-16T12:05:48.069268",
+      "acknowledged": false
     }
   ]
 }

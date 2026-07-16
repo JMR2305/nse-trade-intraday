@@ -25,9 +25,9 @@
   "common_success_patterns": [
     "Insufficient Data"
   ],
-  "data_quality_incidents": 1,
+  "data_quality_incidents": 2,
   "qa_failures": 0,
-  "cross_page_consistency_issues": 1,
+  "cross_page_consistency_issues": 2,
   "research_questions_next_week": [
     "Investigate data-quality incidents recorded this week.",
     "No completed paper trades this week \u2014 is the workflow being exercised daily?",

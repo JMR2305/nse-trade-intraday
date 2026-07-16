@@ -1367,7 +1367,7 @@
       "trading_date": "2026-07-16",
       "state": "DRAFT",
       "market_status": {
-        "state": "POST_CLOSE",
+        "state": "CLOSED",
         "is_open": false,
         "holiday_today": null
       },
@@ -1396,8 +1396,8 @@
         "context_computed_at": "2026-07-15T19:07:23.185733"
       },
       "scan": {
-        "scan_id": "297c25eaa162",
-        "snapshot_ts": "2026-07-16T10:04:44Z",
+        "scan_id": "0f4bb84525ef",
+        "snapshot_ts": "2026-07-16T12:03:47Z",
         "stale": false,
         "universe_size": 50,
         "historical_source": false
@@ -1531,10 +1531,10 @@
           "data_quality": "LIVE",
           "blocking_rule": null,
           "explanation": "Scan action WATCH",
-          "user_action": null,
-          "user_reason": null,
+          "user_action": "SKIPPED",
+          "user_reason": "unit test",
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "HCLTECH",
@@ -1554,7 +1554,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "HDFCBANK",
@@ -1574,7 +1574,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "TATACONSUM",
@@ -1594,7 +1594,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "BAJFINANCE",
@@ -1614,7 +1614,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "ICICIBANK",
@@ -1634,7 +1634,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "TATASTEEL",
@@ -1654,7 +1654,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "DRREDDY",
@@ -1674,7 +1674,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "RELIANCE",
@@ -1694,7 +1694,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "SBIN",
@@ -1714,7 +1714,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "SHRIRAMFIN",
@@ -1734,7 +1734,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "JSWSTEEL",
@@ -1754,7 +1754,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "KOTAKBANK",
@@ -1774,7 +1774,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "HDFCLIFE",
@@ -1794,7 +1794,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "ONGC",
@@ -1814,7 +1814,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "WIPRO",
@@ -1834,7 +1834,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "POWERGRID",
@@ -1854,7 +1854,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "COALINDIA",
@@ -1874,7 +1874,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "NTPC",
@@ -1894,7 +1894,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "BAJAJ-AUTO",
@@ -1914,7 +1914,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "BHARTIARTL",
@@ -1934,7 +1934,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "TECHM",
@@ -1954,7 +1954,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "ULTRACEMCO",
@@ -1974,7 +1974,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "AXISBANK",
@@ -1994,7 +1994,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "ITC",
@@ -2014,7 +2014,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "DIVISLAB",
@@ -2034,7 +2034,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "LT",
@@ -2054,7 +2054,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "HINDALCO",
@@ -2074,7 +2074,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "ADANIENT",
@@ -2094,7 +2094,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "ADANIPORTS",
@@ -2114,7 +2114,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "APOLLOHOSP",
@@ -2134,7 +2134,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "ASIANPAINT",
@@ -2154,7 +2154,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "BAJAJFINSV",
@@ -2174,7 +2174,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "BRITANNIA",
@@ -2194,7 +2194,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "CIPLA",
@@ -2214,7 +2214,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "EICHERMOT",
@@ -2234,7 +2234,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "GRASIM",
@@ -2254,7 +2254,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "HEROMOTOCO",
@@ -2274,7 +2274,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "HINDUNILVR",
@@ -2294,7 +2294,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "INFY",
@@ -2314,7 +2314,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "M&M",
@@ -2334,7 +2334,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "MARUTI",
@@ -2354,7 +2354,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "NESTLEIND",
@@ -2374,7 +2374,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "SBILIFE",
@@ -2394,7 +2394,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "SUNPHARMA",
@@ -2414,7 +2414,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "TCS",
@@ -2434,7 +2434,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "TITAN",
@@ -2454,7 +2454,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "TRENT",
@@ -2474,7 +2474,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "LTIM",
@@ -2494,7 +2494,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         },
         {
           "symbol": "TATAMOTORS",
@@ -2514,7 +2514,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "297c25eaa162"
+          "scan_id": "0f4bb84525ef"
         }
       ],
       "user_notes": [
@@ -2526,6 +2526,24 @@
             "test-tag"
           ],
           "created_at": "2026-07-16T10:03:12.750260+00:00"
+        },
+        {
+          "id": "b7f26c9a",
+          "text": "phase18 test note",
+          "category": "observation",
+          "tags": [
+            "test-tag"
+          ],
+          "created_at": "2026-07-16T12:09:05.554494+00:00"
+        },
+        {
+          "id": "f9885057",
+          "text": "phase18 test note",
+          "category": "observation",
+          "tags": [
+            "test-tag"
+          ],
+          "created_at": "2026-07-16T12:09:17.057525+00:00"
         }
       ],
       "lessons_learned": "",
@@ -2545,28 +2563,31 @@
         "data_quality_issues": {
           "status": "OK",
           "scan_stale": false,
-          "symbols_scanned": 0,
-          "symbol_errors": 0,
-          "quality_counts": {}
+          "symbols_scanned": 50,
+          "symbol_errors": 2,
+          "quality_counts": {
+            "LIVE": 48,
+            "UNAVAILABLE": 2
+          }
         },
         "alerts_generated": 0,
         "validation_warnings": 4,
         "qa_status": "PASS",
         "final_summary": "0 trade action(s); 0 round-trip(s) closed (\u20b9+0.00); 0 stop(s), 0 target(s) hit; portfolio \u20b95,465.00. QA: PASS."
       },
-      "finalized_at": "2026-07-16T10:03:12.929259+00:00",
+      "finalized_at": "2026-07-16T12:09:17.260977+00:00",
       "integrity": {
-        "source_scan_id": "297c25eaa162",
-        "source_snapshot_ts": "2026-07-16T10:04:44Z",
+        "source_scan_id": "0f4bb84525ef",
+        "source_snapshot_ts": "2026-07-16T12:03:47Z",
         "data_provider": "yfinance",
-        "data_age_seconds": 35.0,
+        "data_age_seconds": 330.0,
         "model_version": "p13_champion_v1",
         "calibrator_version": "active",
         "paper_trading_mode": true,
         "live_execution_enabled": false
       },
       "created_at": "2026-07-16T10:03:12.645670+00:00",
-      "updated_at": "2026-07-16T10:05:19.429656+00:00",
+      "updated_at": "2026-07-16T12:09:17.277101+00:00",
       "label": "PAPER / RESEARCH ONLY",
       "checklist": {
         "before_market": [
@@ -2578,17 +2599,17 @@
           {
             "item": "Market calendar valid",
             "status": "PASS",
-            "detail": "state=POST_CLOSE"
+            "detail": "state=CLOSED"
           },
           {
             "item": "Latest historical data available",
             "status": "PASS",
-            "detail": "scan age 35.0s"
+            "detail": "scan age 330.0s"
           },
           {
             "item": "Canonical scan context available",
             "status": "PASS",
-            "detail": "297c25eaa162"
+            "detail": "0f4bb84525ef"
           },
           {
             "item": "Paper-trading mode confirmed",
@@ -2615,7 +2636,7 @@
           {
             "item": "Scan completed successfully",
             "status": "PASS",
-            "detail": "scan_id=297c25eaa162"
+            "detail": "scan_id=0f4bb84525ef"
           },
           {
             "item": "No stale-data violations",
@@ -2625,7 +2646,7 @@
           {
             "item": "No cross-page mismatches",
             "status": "WARNING",
-            "detail": "49 mismatches"
+            "detail": "70 mismatches"
           },
           {
             "item": "No duplicate paper trades",
@@ -2651,18 +2672,18 @@
         "after_market": [
           {
             "item": "Daily notebook finalized",
-            "status": "WARNING",
-            "detail": "DRAFT"
+            "status": "PASS",
+            "detail": "FINALIZED"
           },
           {
             "item": "Paper trades reconciled",
-            "status": "NOT APPLICABLE",
-            "detail": "pending finalize"
+            "status": "PASS",
+            "detail": "reconciled at finalize"
           },
           {
             "item": "Daily P&L reconciled",
-            "status": "NOT APPLICABLE",
-            "detail": "pending finalize"
+            "status": "PASS",
+            "detail": "eod snapshot stored"
           },
           {
             "item": "Validation report generated",

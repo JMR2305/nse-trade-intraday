@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   ShieldCheck,
 } from "lucide-react";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 
 function SummaryCard({ label, value, color, sub }: {
   label: string; value: string | number; color?: string; sub?: string;
@@ -98,6 +99,12 @@ export default function FeatureImportance() {
           Refresh
         </button>
       </div>
+
+      <DataFreshnessBar
+        variant="historical"
+        datasetLabel="Feature importance dataset"
+        sampleSize={data?.total_trades ? `${data.total_trades} trades` : undefined}
+      />
 
       {features.length === 0 ? (
         <Card className="bg-card/50 backdrop-blur border-border/50">

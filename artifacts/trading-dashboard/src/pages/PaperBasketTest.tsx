@@ -8,6 +8,7 @@ import {
   Layers, Download, AlertTriangle, AlertCircle, Loader2, Play, Filter, ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 
 const METHODS = [
   { value: "opportunity_score", label: "Opportunity Score" },
@@ -232,6 +233,8 @@ export default function PaperBasketTest() {
           </p>
         </div>
       </div>
+
+      <DataFreshnessBar variant="historical" datasetLabel="Paper basket test history" />
 
       {/* Warning banner (always visible) */}
       <div className="flex items-center gap-2 rounded border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm text-yellow-400 font-mono">

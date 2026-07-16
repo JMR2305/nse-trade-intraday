@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { API_BASE } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -157,6 +158,8 @@ export default function AiCopilot() {
           </Button>
         </div>
       </div>
+
+      <DataFreshnessBar variant="scan" />
 
       {/* ── Daily Briefing ─────────────────────────────────────────────────── */}
       {briefing && (

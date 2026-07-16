@@ -32,6 +32,7 @@ import {
 import { cn } from "@/lib/utils";
 import { API_BASE } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -333,6 +334,8 @@ export default function BrokerExecution() {
           <RefreshCw className="h-3.5 w-3.5" />Refresh All
         </Button>
       </div>
+
+      <DataFreshnessBar variant="scan" />
 
       {/* ── Section 1: Mode Selector ───────────────────────────────────────── */}
       <Card className="border-zinc-800 bg-zinc-900/60">
