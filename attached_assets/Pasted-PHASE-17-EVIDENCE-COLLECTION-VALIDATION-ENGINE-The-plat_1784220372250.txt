@@ -1,0 +1,175 @@
+PHASE 17 – EVIDENCE COLLECTION & VALIDATION ENGINE
+
+The platform is now fully deployed and running in PAPER / RESEARCH ONLY mode with real market data and Zerodha authentication. Do NOT enable automatic live trading.
+
+Your objective is to transform the platform from a feature-complete application into a statistically validated AI trading system.
+
+Build the following:
+
+1. Evidence Collection
+- Store every paper trade permanently.
+- Record:
+  - Entry date/time
+  - Exit date/time
+  - Entry price
+  - Exit price
+  - Quantity
+  - Profit/Loss
+  - Strategy used
+  - AI confidence
+  - Market regime
+  - Sector
+  - Risk/Reward ratio
+  - Holding period
+  - Reason for entry
+  - Reason for exit
+
+2. Performance Dashboard
+Create dashboards showing:
+- Daily P&L
+- Weekly P&L
+- Monthly P&L
+- Total return
+- Equity curve
+- Win rate
+- Loss rate
+- Profit Factor
+- Expectancy
+- Sharpe Ratio
+- Maximum Drawdown
+- Average Risk/Reward
+- Average Holding Time
+- Average Trade Duration
+
+3. Strategy Analytics
+For every strategy display:
+- Trades taken
+- Win rate
+- Profit factor
+- Average return
+- Average holding period
+- Best market regime
+- Worst market regime
+- Best sectors
+- Worst sectors
+- Confidence calibration
+
+Automatically identify:
+- Best performing strategy
+- Worst performing strategy
+- Strategies requiring review
+
+4. Market Regime Analysis
+Separate statistics for:
+- Bull Market
+- Bear Market
+- Sideways Market
+- High Volatility
+- Low Volatility
+
+Show which strategies perform best in each regime.
+
+5. Sector Analytics
+Track performance by sector:
+- Banking
+- IT
+- FMCG
+- Pharma
+- Energy
+- Auto
+- Metal
+- Telecom
+- Realty
+- Financial Services
+- Others
+
+6. Daily Validation Report
+Automatically generate a report after every trading session containing:
+- Trades executed
+- Win/Loss summary
+- Portfolio value
+- Daily return
+- Maximum drawdown
+- Strategy ranking
+- Market summary
+- Validation status
+- Any detected anomalies
+
+Export to:
+- PDF
+- Excel
+- CSV
+
+7. Production Readiness Tracker
+Display a progress tracker showing:
+
+Trading Days:
+Current / 100
+
+Completed Trades:
+Current / 500
+
+Current Win Rate
+
+Current Profit Factor
+
+Current Drawdown
+
+Current Validation Score
+
+Current Readiness Stage:
+- Collecting Evidence
+- Early Validation
+- Intermediate Validation
+- Advanced Validation
+- Production Candidate
+
+8. Strategy Drift Detection
+Detect if:
+- Win rate decreases significantly
+- Profit factor falls below target
+- Drawdown exceeds threshold
+- A strategy stops working in a specific market regime
+
+Generate warnings automatically.
+
+9. AI Learning Preparation
+Do NOT automatically modify trading logic.
+
+Instead:
+- Record which decisions succeeded.
+- Record which decisions failed.
+- Record confidence calibration.
+- Build a learning dataset for future AI optimization.
+
+10. Risk Monitoring
+Continuously monitor:
+- Largest losing trade
+- Largest winning trade
+- Consecutive wins
+- Consecutive losses
+- Daily drawdown
+- Weekly drawdown
+- Monthly drawdown
+
+11. UI Improvements
+Every analytics page must display:
+- Last Updated timestamp
+- Scan timestamp
+- Scan ID
+- Data freshness
+- Portfolio snapshot timestamp
+
+12. Final Validation
+Run all diagnostics and ensure:
+- Cross-page consistency = 100%
+- No stale cache warnings
+- No hard mismatches
+- All dashboards synchronized
+- Reports generated successfully
+
+IMPORTANT:
+- Keep the system in PAPER / RESEARCH ONLY mode.
+- Do NOT enable unattended live trading.
+- Continue requiring human approval for any future live execution.
+- Maintain all existing safety controls and audit logging.
