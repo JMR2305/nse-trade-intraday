@@ -1,0 +1,34 @@
+{
+ "generated_at": "2026-07-16T18:57:23.296781+00:00",
+ "baseline_model_version": "phase21_baseline_v1",
+ "champion_version": "p13_champion_v1",
+ "challenger_count": 4,
+ "total_evaluated_trades": 8,
+ "confidence_calibration_score": 0.4006,
+ "calibration_buckets_ok": 0,
+ "calibration_buckets_insufficient": 6,
+ "strategy_reliability_coverage": 0.0,
+ "threshold_quality": "INSUFFICIENT_EVIDENCE",
+ "threshold_recommended": null,
+ "ranking_stability": "DETERMINISTIC",
+ "stop_target_quality": {
+  "trades_analyzed": 8,
+  "stop_too_tight": 0,
+  "stop_too_loose": 0
+ },
+ "walk_forward_result": null,
+ "overfit_risk": "N/A",
+ "reproducibility_result": "PASS (deterministic recomputation from stored data)",
+ "no_look_ahead_result": "PASS (only prior completed trades used)",
+ "readiness_status": "INSUFFICIENT_EVIDENCE",
+ "readiness_statuses": [
+  "INSUFFICIENT_EVIDENCE",
+  "CALIBRATION_IN_PROGRESS",
+  "CHALLENGER_READY_FOR_REVIEW",
+  "APPROVED_FOR_PAPER_TEST"
+ ],
+ "approved_for_paper_test_is_not_live_approval": true,
+ "auto_paper_entries": "OFF",
+ "live_orders": "DISABLED",
+ "label": "PAPER / RESEARCH ONLY"
+}

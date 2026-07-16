@@ -1,0 +1,2035 @@
+{
+ "available": true,
+ "generated_at": "2026-07-16T18:57:07.588133+00:00",
+ "scan_id": "e56b331721e4",
+ "snapshot_ts": "2026-07-16T18:20:46Z",
+ "ranking_config_version": "rank_v1",
+ "deterministic": true,
+ "items": [
+  {
+   "symbol": "BAJFINANCE",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 40.25,
+   "raw_score": 47.35,
+   "factors": {
+    "confidence": 0.293,
+    "opportunity_score": 0.401,
+    "rr_ratio": 0.75,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0732,
+    "opportunity_score": 0.1003,
+    "rr_ratio": 0.15,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 29.3,
+   "calibrated_confidence_advisory": null,
+   "strategy": "Trend Rider",
+   "regime": "Strong uptrend",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 1
+  },
+  {
+   "symbol": "ICICIBANK",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 40.25,
+   "raw_score": 47.35,
+   "factors": {
+    "confidence": 0.293,
+    "opportunity_score": 0.401,
+    "rr_ratio": 0.75,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0732,
+    "opportunity_score": 0.1003,
+    "rr_ratio": 0.15,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 29.3,
+   "calibrated_confidence_advisory": null,
+   "strategy": "Trend Rider",
+   "regime": "Strong uptrend",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 2
+  },
+  {
+   "symbol": "DRREDDY",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 37.78,
+   "raw_score": 44.45,
+   "factors": {
+    "confidence": 0.294,
+    "opportunity_score": 0.384,
+    "rr_ratio": 0.625,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0735,
+    "opportunity_score": 0.096,
+    "rr_ratio": 0.125,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 29.4,
+   "calibrated_confidence_advisory": null,
+   "strategy": "MACD Cross",
+   "regime": "Trending (momentum)",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 3
+  },
+  {
+   "symbol": "RELIANCE",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 37.7,
+   "raw_score": 44.35,
+   "factors": {
+    "confidence": 0.292,
+    "opportunity_score": 0.382,
+    "rr_ratio": 0.625,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.073,
+    "opportunity_score": 0.0955,
+    "rr_ratio": 0.125,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 29.2,
+   "calibrated_confidence_advisory": null,
+   "strategy": "MACD Cross",
+   "regime": "Trending (momentum)",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 4
+  },
+  {
+   "symbol": "HCLTECH",
+   "final_action": "WATCH",
+   "effective_action": "WATCH",
+   "all_gates_passed": true,
+   "rank_score": 36.63,
+   "raw_score": 43.1,
+   "factors": {
+    "confidence": 0.399,
+    "opportunity_score": 0.425,
+    "rr_ratio": 0.375,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0997,
+    "opportunity_score": 0.1062,
+    "rr_ratio": 0.075,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 39.9,
+   "calibrated_confidence_advisory": null,
+   "strategy": "Mean Reversion",
+   "regime": "Ranging / sideways",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 5
+  },
+  {
+   "symbol": "HDFCBANK",
+   "final_action": "WATCH",
+   "effective_action": "WATCH",
+   "all_gates_passed": true,
+   "rank_score": 36.63,
+   "raw_score": 43.1,
+   "factors": {
+    "confidence": 0.399,
+    "opportunity_score": 0.425,
+    "rr_ratio": 0.375,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0997,
+    "opportunity_score": 0.1062,
+    "rr_ratio": 0.075,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 39.9,
+   "calibrated_confidence_advisory": null,
+   "strategy": "Mean Reversion",
+   "regime": "Ranging / sideways",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 6
+  },
+  {
+   "symbol": "TATACONSUM",
+   "final_action": "WATCH",
+   "effective_action": "WATCH",
+   "all_gates_passed": true,
+   "rank_score": 36.57,
+   "raw_score": 43.03,
+   "factors": {
+    "confidence": 0.397,
+    "opportunity_score": 0.424,
+    "rr_ratio": 0.375,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0993,
+    "opportunity_score": 0.106,
+    "rr_ratio": 0.075,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 39.7,
+   "calibrated_confidence_advisory": null,
+   "strategy": "Mean Reversion",
+   "regime": "Ranging / sideways",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 7
+  },
+  {
+   "symbol": "HDFCLIFE",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 35.36,
+   "raw_score": 41.6,
+   "factors": {
+    "confidence": 0.236,
+    "opportunity_score": 0.328,
+    "rr_ratio": 0.625,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.059,
+    "opportunity_score": 0.082,
+    "rr_ratio": 0.125,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 23.6,
+   "calibrated_confidence_advisory": null,
+   "strategy": "MACD Cross",
+   "regime": "Trending (momentum)",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 8
+  },
+  {
+   "symbol": "SBIN",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 35.21,
+   "raw_score": 41.42,
+   "factors": {
+    "confidence": 0.293,
+    "opportunity_score": 0.364,
+    "rr_ratio": 0.5,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0732,
+    "opportunity_score": 0.091,
+    "rr_ratio": 0.1,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 29.3,
+   "calibrated_confidence_advisory": null,
+   "strategy": "EMA Cross",
+   "regime": "Trending (momentum)",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 9
+  },
+  {
+   "symbol": "INDUSINDBK",
+   "final_action": "WATCH",
+   "effective_action": "WATCH",
+   "all_gates_passed": true,
+   "rank_score": 34.69,
+   "raw_score": 49.55,
+   "factors": {
+    "confidence": 0.341,
+    "opportunity_score": 0.441,
+    "rr_ratio": 0.75,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0853,
+    "opportunity_score": 0.1103,
+    "rr_ratio": 0.15,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15,
+    "poor_liquidity": 0.15
+   },
+   "penalty_total": 0.3,
+   "raw_confidence": 34.1,
+   "calibrated_confidence_advisory": null,
+   "strategy": "Trend Rider",
+   "regime": "Strong uptrend",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 10
+  },
+  {
+   "symbol": "TATASTEEL",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 33.11,
+   "raw_score": 47.3,
+   "factors": {
+    "confidence": 0.292,
+    "opportunity_score": 0.4,
+    "rr_ratio": 0.75,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.073,
+    "opportunity_score": 0.1,
+    "rr_ratio": 0.15,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15,
+    "poor_liquidity": 0.15
+   },
+   "penalty_total": 0.3,
+   "raw_confidence": 29.2,
+   "calibrated_confidence_advisory": null,
+   "strategy": "Trend Rider",
+   "regime": "Strong uptrend",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 11
+  },
+  {
+   "symbol": "SHRIRAMFIN",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 32.68,
+   "raw_score": 38.45,
+   "factors": {
+    "confidence": 0.293,
+    "opportunity_score": 0.345,
+    "rr_ratio": 0.375,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0732,
+    "opportunity_score": 0.0862,
+    "rr_ratio": 0.075,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 29.3,
+   "calibrated_confidence_advisory": null,
+   "strategy": "Mean Reversion",
+   "regime": "Ranging / sideways",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 12
+  },
+  {
+   "symbol": "JSWSTEEL",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 32.64,
+   "raw_score": 38.4,
+   "factors": {
+    "confidence": 0.292,
+    "opportunity_score": 0.344,
+    "rr_ratio": 0.375,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.073,
+    "opportunity_score": 0.086,
+    "rr_ratio": 0.075,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 29.2,
+   "calibrated_confidence_advisory": null,
+   "strategy": "Mean Reversion",
+   "regime": "Ranging / sideways",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 13
+  },
+  {
+   "symbol": "KOTAKBANK",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 32.64,
+   "raw_score": 38.4,
+   "factors": {
+    "confidence": 0.292,
+    "opportunity_score": 0.344,
+    "rr_ratio": 0.375,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.073,
+    "opportunity_score": 0.086,
+    "rr_ratio": 0.075,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 29.2,
+   "calibrated_confidence_advisory": null,
+   "strategy": "Mean Reversion",
+   "regime": "Ranging / sideways",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 14
+  },
+  {
+   "symbol": "BAJAJ-AUTO",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 32.22,
+   "raw_score": 37.9,
+   "factors": {
+    "confidence": 0.08,
+    "opportunity_score": 0.236,
+    "rr_ratio": 0.75,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.02,
+    "opportunity_score": 0.059,
+    "rr_ratio": 0.15,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 8.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "Trend Rider",
+   "regime": "Strong uptrend",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 15
+  },
+  {
+   "symbol": "BHARTIARTL",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 32.22,
+   "raw_score": 37.9,
+   "factors": {
+    "confidence": 0.08,
+    "opportunity_score": 0.236,
+    "rr_ratio": 0.75,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.02,
+    "opportunity_score": 0.059,
+    "rr_ratio": 0.15,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 8.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "Trend Rider",
+   "regime": "Strong uptrend",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 16
+  },
+  {
+   "symbol": "TECHM",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 32.22,
+   "raw_score": 37.9,
+   "factors": {
+    "confidence": 0.08,
+    "opportunity_score": 0.236,
+    "rr_ratio": 0.75,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.02,
+    "opportunity_score": 0.059,
+    "rr_ratio": 0.15,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 8.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "Trend Rider",
+   "regime": "Strong uptrend",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 17
+  },
+  {
+   "symbol": "ULTRACEMCO",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 32.22,
+   "raw_score": 37.9,
+   "factors": {
+    "confidence": 0.08,
+    "opportunity_score": 0.236,
+    "rr_ratio": 0.75,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.02,
+    "opportunity_score": 0.059,
+    "rr_ratio": 0.15,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 8.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "Trend Rider",
+   "regime": "Strong uptrend",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 18
+  },
+  {
+   "symbol": "COALINDIA",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 31.87,
+   "raw_score": 37.5,
+   "factors": {
+    "confidence": 0.156,
+    "opportunity_score": 0.244,
+    "rr_ratio": 0.625,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.039,
+    "opportunity_score": 0.061,
+    "rr_ratio": 0.125,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 15.6,
+   "calibrated_confidence_advisory": null,
+   "strategy": "MACD Cross",
+   "regime": "Trending (momentum)",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 19
+  },
+  {
+   "symbol": "AXISBANK",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 31.68,
+   "raw_score": 37.28,
+   "factors": {
+    "confidence": 0.081,
+    "opportunity_score": 0.21,
+    "rr_ratio": 0.75,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0203,
+    "opportunity_score": 0.0525,
+    "rr_ratio": 0.15,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 8.1,
+   "calibrated_confidence_advisory": null,
+   "strategy": "Trend Rider",
+   "regime": "Strong uptrend",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 20
+  },
+  {
+   "symbol": "ITC",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 31.68,
+   "raw_score": 37.28,
+   "factors": {
+    "confidence": 0.081,
+    "opportunity_score": 0.21,
+    "rr_ratio": 0.75,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0203,
+    "opportunity_score": 0.0525,
+    "rr_ratio": 0.15,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 8.1,
+   "calibrated_confidence_advisory": null,
+   "strategy": "Supertrend",
+   "regime": "Sustained trend",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 21
+  },
+  {
+   "symbol": "WIPRO",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 30.62,
+   "raw_score": 36.02,
+   "factors": {
+    "confidence": 0.25,
+    "opportunity_score": 0.291,
+    "rr_ratio": 0.375,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0625,
+    "opportunity_score": 0.0728,
+    "rr_ratio": 0.075,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 25.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "Mean Reversion",
+   "regime": "Ranging / sideways",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 22
+  },
+  {
+   "symbol": "POWERGRID",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 29.9,
+   "raw_score": 35.17,
+   "factors": {
+    "confidence": 0.248,
+    "opportunity_score": 0.259,
+    "rr_ratio": 0.375,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.062,
+    "opportunity_score": 0.0648,
+    "rr_ratio": 0.075,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 24.8,
+   "calibrated_confidence_advisory": null,
+   "strategy": "Mean Reversion",
+   "regime": "Ranging / sideways",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 23
+  },
+  {
+   "symbol": "ONGC",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 28.95,
+   "raw_score": 41.35,
+   "factors": {
+    "confidence": 0.237,
+    "opportunity_score": 0.317,
+    "rr_ratio": 0.625,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0592,
+    "opportunity_score": 0.0793,
+    "rr_ratio": 0.125,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15,
+    "poor_liquidity": 0.15
+   },
+   "penalty_total": 0.3,
+   "raw_confidence": 23.7,
+   "calibrated_confidence_advisory": null,
+   "strategy": "MACD Cross",
+   "regime": "Trending (momentum)",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 24
+  },
+  {
+   "symbol": "NTPC",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 28.39,
+   "raw_score": 33.4,
+   "factors": {
+    "confidence": 0.196,
+    "opportunity_score": 0.24,
+    "rr_ratio": 0.375,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.049,
+    "opportunity_score": 0.06,
+    "rr_ratio": 0.075,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 19.6,
+   "calibrated_confidence_advisory": null,
+   "strategy": "Mean Reversion",
+   "regime": "Ranging / sideways",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 25
+  },
+  {
+   "symbol": "DIVISLAB",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 27.18,
+   "raw_score": 31.98,
+   "factors": {
+    "confidence": 0.08,
+    "opportunity_score": 0.199,
+    "rr_ratio": 0.5,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.02,
+    "opportunity_score": 0.0497,
+    "rr_ratio": 0.1,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 8.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "Breakout Hunter",
+   "regime": "High volatility breakout",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 26
+  },
+  {
+   "symbol": "LT",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 24.65,
+   "raw_score": 29.0,
+   "factors": {
+    "confidence": 0.08,
+    "opportunity_score": 0.18,
+    "rr_ratio": 0.375,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.02,
+    "opportunity_score": 0.045,
+    "rr_ratio": 0.075,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 8.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "Mean Reversion",
+   "regime": "Ranging / sideways",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 27
+  },
+  {
+   "symbol": "HINDALCO",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 24.12,
+   "raw_score": 28.38,
+   "factors": {
+    "confidence": 0.081,
+    "opportunity_score": 0.154,
+    "rr_ratio": 0.375,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0203,
+    "opportunity_score": 0.0385,
+    "rr_ratio": 0.075,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 8.1,
+   "calibrated_confidence_advisory": null,
+   "strategy": "Mean Reversion",
+   "regime": "Ranging / sideways",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 28
+  },
+  {
+   "symbol": "ADANIENT",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 23.69,
+   "raw_score": 27.88,
+   "factors": {
+    "confidence": 0.0,
+    "opportunity_score": 0.115,
+    "rr_ratio": 0.5,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0,
+    "opportunity_score": 0.0288,
+    "rr_ratio": 0.1,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 0.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "EMA Cross",
+   "regime": "Trending (momentum)",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 29
+  },
+  {
+   "symbol": "ADANIPORTS",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 23.69,
+   "raw_score": 27.88,
+   "factors": {
+    "confidence": 0.0,
+    "opportunity_score": 0.115,
+    "rr_ratio": 0.5,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0,
+    "opportunity_score": 0.0288,
+    "rr_ratio": 0.1,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 0.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "EMA Cross",
+   "regime": "Trending (momentum)",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 30
+  },
+  {
+   "symbol": "APOLLOHOSP",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 23.69,
+   "raw_score": 27.88,
+   "factors": {
+    "confidence": 0.0,
+    "opportunity_score": 0.115,
+    "rr_ratio": 0.5,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0,
+    "opportunity_score": 0.0288,
+    "rr_ratio": 0.1,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 0.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "EMA Cross",
+   "regime": "Trending (momentum)",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 31
+  },
+  {
+   "symbol": "BAJAJFINSV",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 23.69,
+   "raw_score": 27.88,
+   "factors": {
+    "confidence": 0.0,
+    "opportunity_score": 0.115,
+    "rr_ratio": 0.5,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0,
+    "opportunity_score": 0.0288,
+    "rr_ratio": 0.1,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 0.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "EMA Cross",
+   "regime": "Trending (momentum)",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 32
+  },
+  {
+   "symbol": "BRITANNIA",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 23.69,
+   "raw_score": 27.88,
+   "factors": {
+    "confidence": 0.0,
+    "opportunity_score": 0.115,
+    "rr_ratio": 0.5,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0,
+    "opportunity_score": 0.0288,
+    "rr_ratio": 0.1,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 0.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "EMA Cross",
+   "regime": "Trending (momentum)",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 33
+  },
+  {
+   "symbol": "EICHERMOT",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 23.69,
+   "raw_score": 27.88,
+   "factors": {
+    "confidence": 0.0,
+    "opportunity_score": 0.115,
+    "rr_ratio": 0.5,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0,
+    "opportunity_score": 0.0288,
+    "rr_ratio": 0.1,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 0.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "EMA Cross",
+   "regime": "Trending (momentum)",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 34
+  },
+  {
+   "symbol": "GRASIM",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 23.69,
+   "raw_score": 27.88,
+   "factors": {
+    "confidence": 0.0,
+    "opportunity_score": 0.115,
+    "rr_ratio": 0.5,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0,
+    "opportunity_score": 0.0288,
+    "rr_ratio": 0.1,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 0.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "EMA Cross",
+   "regime": "Trending (momentum)",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 35
+  },
+  {
+   "symbol": "HINDUNILVR",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 23.69,
+   "raw_score": 27.88,
+   "factors": {
+    "confidence": 0.0,
+    "opportunity_score": 0.115,
+    "rr_ratio": 0.5,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0,
+    "opportunity_score": 0.0288,
+    "rr_ratio": 0.1,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 0.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "EMA Cross",
+   "regime": "Trending (momentum)",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 36
+  },
+  {
+   "symbol": "INFY",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 23.69,
+   "raw_score": 27.88,
+   "factors": {
+    "confidence": 0.0,
+    "opportunity_score": 0.115,
+    "rr_ratio": 0.5,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0,
+    "opportunity_score": 0.0288,
+    "rr_ratio": 0.1,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 0.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "EMA Cross",
+   "regime": "Trending (momentum)",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 37
+  },
+  {
+   "symbol": "M&M",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 23.69,
+   "raw_score": 27.88,
+   "factors": {
+    "confidence": 0.0,
+    "opportunity_score": 0.115,
+    "rr_ratio": 0.5,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0,
+    "opportunity_score": 0.0288,
+    "rr_ratio": 0.1,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 0.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "EMA Cross",
+   "regime": "Trending (momentum)",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 38
+  },
+  {
+   "symbol": "MARUTI",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 23.69,
+   "raw_score": 27.88,
+   "factors": {
+    "confidence": 0.0,
+    "opportunity_score": 0.115,
+    "rr_ratio": 0.5,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0,
+    "opportunity_score": 0.0288,
+    "rr_ratio": 0.1,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 0.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "EMA Cross",
+   "regime": "Trending (momentum)",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 39
+  },
+  {
+   "symbol": "NESTLEIND",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 23.69,
+   "raw_score": 27.88,
+   "factors": {
+    "confidence": 0.0,
+    "opportunity_score": 0.115,
+    "rr_ratio": 0.5,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0,
+    "opportunity_score": 0.0288,
+    "rr_ratio": 0.1,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 0.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "EMA Cross",
+   "regime": "Trending (momentum)",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 40
+  },
+  {
+   "symbol": "SBILIFE",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 23.69,
+   "raw_score": 27.88,
+   "factors": {
+    "confidence": 0.0,
+    "opportunity_score": 0.115,
+    "rr_ratio": 0.5,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0,
+    "opportunity_score": 0.0288,
+    "rr_ratio": 0.1,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 0.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "EMA Cross",
+   "regime": "Trending (momentum)",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 41
+  },
+  {
+   "symbol": "SUNPHARMA",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 23.69,
+   "raw_score": 27.88,
+   "factors": {
+    "confidence": 0.0,
+    "opportunity_score": 0.115,
+    "rr_ratio": 0.5,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0,
+    "opportunity_score": 0.0288,
+    "rr_ratio": 0.1,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 0.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "EMA Cross",
+   "regime": "Trending (momentum)",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 42
+  },
+  {
+   "symbol": "TCS",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 23.69,
+   "raw_score": 27.88,
+   "factors": {
+    "confidence": 0.0,
+    "opportunity_score": 0.115,
+    "rr_ratio": 0.5,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0,
+    "opportunity_score": 0.0288,
+    "rr_ratio": 0.1,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 0.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "EMA Cross",
+   "regime": "Trending (momentum)",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 43
+  },
+  {
+   "symbol": "TITAN",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 23.69,
+   "raw_score": 27.88,
+   "factors": {
+    "confidence": 0.0,
+    "opportunity_score": 0.115,
+    "rr_ratio": 0.5,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0,
+    "opportunity_score": 0.0288,
+    "rr_ratio": 0.1,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 0.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "EMA Cross",
+   "regime": "Trending (momentum)",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 44
+  },
+  {
+   "symbol": "ASIANPAINT",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 19.51,
+   "raw_score": 27.88,
+   "factors": {
+    "confidence": 0.0,
+    "opportunity_score": 0.115,
+    "rr_ratio": 0.5,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0,
+    "opportunity_score": 0.0288,
+    "rr_ratio": 0.1,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15,
+    "poor_liquidity": 0.15
+   },
+   "penalty_total": 0.3,
+   "raw_confidence": 0.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "EMA Cross",
+   "regime": "Trending (momentum)",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 45
+  },
+  {
+   "symbol": "CIPLA",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 19.51,
+   "raw_score": 27.88,
+   "factors": {
+    "confidence": 0.0,
+    "opportunity_score": 0.115,
+    "rr_ratio": 0.5,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0,
+    "opportunity_score": 0.0288,
+    "rr_ratio": 0.1,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15,
+    "poor_liquidity": 0.15
+   },
+   "penalty_total": 0.3,
+   "raw_confidence": 0.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "EMA Cross",
+   "regime": "Trending (momentum)",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 46
+  },
+  {
+   "symbol": "HEROMOTOCO",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 19.51,
+   "raw_score": 27.88,
+   "factors": {
+    "confidence": 0.0,
+    "opportunity_score": 0.115,
+    "rr_ratio": 0.5,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0,
+    "opportunity_score": 0.0288,
+    "rr_ratio": 0.1,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15,
+    "poor_liquidity": 0.15
+   },
+   "penalty_total": 0.3,
+   "raw_confidence": 0.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "EMA Cross",
+   "regime": "Trending (momentum)",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 47
+  },
+  {
+   "symbol": "TRENT",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 19.51,
+   "raw_score": 27.88,
+   "factors": {
+    "confidence": 0.0,
+    "opportunity_score": 0.115,
+    "rr_ratio": 0.5,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0,
+    "opportunity_score": 0.0288,
+    "rr_ratio": 0.1,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15,
+    "poor_liquidity": 0.15
+   },
+   "penalty_total": 0.3,
+   "raw_confidence": 0.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "EMA Cross",
+   "regime": "Trending (momentum)",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 48
+  }
+ ],
+ "note": "Ranking is deterministic for the same scan snapshot and configuration. BUY remains blocked whenever safety gates fail.",
+ "label": "PAPER / RESEARCH ONLY"
+}

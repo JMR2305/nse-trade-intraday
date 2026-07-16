@@ -1,0 +1,31 @@
+Phase 21 Report — PAPER / RESEARCH ONLY,2026-07-16T18:57:23.295418+00:00
+
+Scorecard
+baseline_model_version,phase21_baseline_v1
+champion_version,p13_champion_v1
+challenger_count,4
+total_evaluated_trades,8
+confidence_calibration_score,0.4006
+threshold_quality,INSUFFICIENT_EVIDENCE
+readiness_status,INSUFFICIENT_EVIDENCE
+auto_paper_entries,OFF
+live_orders,DISABLED
+
+Calibration buckets
+bucket,trades,win_rate,profit_factor,expectancy,calibration_error,status
+0-19,0,,,,,INSUFFICIENT
+20-39,1,1.0,,212.0,0.705,INSUFFICIENT
+40-59,4,0.0,0.0,-83.47,0.495,INSUFFICIENT
+60-74,2,0.5,3.75,82.5,0.17,INSUFFICIENT
+75-89,1,1.0,,300.0,0.18,INSUFFICIENT
+90-100,0,,,,,INSUFFICIENT
+
+Threshold candidates
+buy_threshold,trades,win_rate,profit_factor,expectancy,max_drawdown,overfit_risk,recommended
+
+Strategy x Regime
+strategy,regime,trades,win_rate,profit_factor,expectancy,classification
+AI Scan,RANGE_BOUND,3,0.6667,8.75,155.0,INSUFFICIENT_DATA
+EMA Cross,BEARISH,1,0.0,0.0,-89.5,INSUFFICIENT_DATA
+MACD Cross,BEARISH,2,0.0,0.0,-65.95,INSUFFICIENT_DATA
+Trend Rider,BEARISH,2,0.5,1.884,49.75,INSUFFICIENT_DATA

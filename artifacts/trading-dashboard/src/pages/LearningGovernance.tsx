@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiJson, API_BASE } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import DataFreshnessBar from "@/components/DataFreshnessBar";
+import { Phase21GovernancePanel } from "@/components/Phase21Panels";
 import {
   GraduationCap, Activity, Scale, SlidersHorizontal, Trophy, Radar,
   ScrollText, Download, RefreshCcw, ShieldCheck, AlertTriangle,
@@ -393,6 +394,9 @@ function RegistryTab() {
         </Card>
       )}
       <p className="text-[10px] text-muted-foreground font-mono">{data.note}</p>
+
+      {/* Phase 21 challenger registry & approvals (advisory) */}
+      <Phase21GovernancePanel />
     </div>
   );
 }

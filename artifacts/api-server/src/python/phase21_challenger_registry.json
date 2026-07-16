@@ -1,0 +1,77 @@
+{
+ "champion": {
+  "model_version": "p13_champion_v1",
+  "baseline_version": "phase21_baseline_v1",
+  "status": "CHAMPION"
+ },
+ "challengers": [
+  {
+   "challenger_id": "chal_calibrated_confidence",
+   "instance_id": "a139d40a06",
+   "name": "Calibrated confidence",
+   "description": "Replaces raw confidence with bucket-calibrated (shrunk) confidence.",
+   "created_at": "2026-07-16T18:57:09.663102+00:00",
+   "status": "CHALLENGER",
+   "advisory_only": true,
+   "affects_live_recommendations": false,
+   "comparison": {
+    "evaluable": false,
+    "reason": "need >= 30 completed trades, have 8"
+   },
+   "approval_status": "PENDING_REVIEW",
+   "approved_by": null,
+   "approved_at": null
+  },
+  {
+   "challenger_id": "chal_optimized_thresholds",
+   "instance_id": "5f48aba08e",
+   "name": "Optimized thresholds",
+   "description": "Applies the walk-forward-recommended BUY threshold.",
+   "created_at": "2026-07-16T18:57:09.664424+00:00",
+   "status": "CHALLENGER",
+   "advisory_only": true,
+   "affects_live_recommendations": false,
+   "comparison": {
+    "evaluable": false,
+    "reason": "need >= 30 completed trades, have 8"
+   },
+   "approval_status": "PENDING_REVIEW",
+   "approved_by": null,
+   "approved_at": null
+  },
+  {
+   "challenger_id": "chal_improved_ranking",
+   "instance_id": "ecac933aaf",
+   "name": "Improved ranking",
+   "description": "Deterministic penalty-aware ranking (rank_v1).",
+   "created_at": "2026-07-16T18:57:09.665619+00:00",
+   "status": "CHALLENGER",
+   "advisory_only": true,
+   "affects_live_recommendations": false,
+   "comparison": {
+    "evaluable": false,
+    "reason": "need >= 30 completed trades, have 8"
+   },
+   "approval_status": "PENDING_REVIEW",
+   "approved_by": null,
+   "approved_at": null
+  },
+  {
+   "challenger_id": "chal_alt_stoptarget",
+   "instance_id": "7ee49e9d3f",
+   "name": "Alternative stop/target",
+   "description": "Candidate ATR/structure/hybrid stop-target models (SIMULATED).",
+   "created_at": "2026-07-16T18:57:09.666847+00:00",
+   "status": "CHALLENGER",
+   "advisory_only": true,
+   "affects_live_recommendations": false,
+   "comparison": {
+    "evaluable": false,
+    "reason": "need >= 30 completed trades, have 8"
+   },
+   "approval_status": "PENDING_REVIEW",
+   "approved_by": null,
+   "approved_at": null
+  }
+ ]
+}

@@ -1,0 +1,444 @@
+PHASE 21 — STRATEGY CALIBRATION, SIGNAL QUALITY, AND PAPER-TRADE OPTIMIZATION
+
+Goal:
+Improve the quality, reliability, and explainability of trading recommendations using historical and paper-trading evidence.
+
+The system must remain:
+- PAPER / RESEARCH ONLY
+- Auto paper entries OFF by default
+- Live order placement disabled
+- Human approval required for any future live-assisted order
+
+CURRENT VERIFIED STATE
+
+- Production app is published and healthy.
+- Data freshness is working.
+- Cross-page consistency is PASS.
+- Hard mismatches = 0.
+- Out-of-sync values = 0.
+- All major pages use the same canonical scan_id.
+- Zerodha live data integration is available.
+- Stale, fallback, failed, or mismatched data blocks BUY recommendations.
+- Paper-trading history and performance analytics already exist.
+
+Do not add unnecessary dashboards.
+Focus on decision quality, calibration, reproducibility, and measurable improvement.
+
+PART 1 — BASELINE FREEZE
+
+Before changing any strategy logic:
+
+1. Create a frozen baseline model/version:
+   phase21_baseline_v1
+
+2. Store:
+   - current confidence rules
+   - scoring weights
+   - decision thresholds
+   - stop-loss rules
+   - target rules
+   - position-sizing rules
+   - eligible strategies by market regime
+   - configuration hash
+   - model version
+   - rule version
+
+3. Generate a baseline report showing:
+   - completed trades
+   - win rate
+   - profit factor
+   - expectancy
+   - average return
+   - average winner
+   - average loser
+   - maximum drawdown
+   - average R:R
+   - strategy-wise results
+   - sector-wise results
+   - regime-wise results
+   - confidence-bucket results
+
+Do not overwrite historical decisions.
+
+PART 2 — CONFIDENCE CALIBRATION
+
+Evaluate whether confidence scores match actual outcomes.
+
+Create confidence buckets:
+
+- 0–19
+- 20–39
+- 40–59
+- 60–74
+- 75–89
+- 90–100
+
+For each bucket calculate:
+
+- number of trades
+- win rate
+- average return
+- profit factor
+- expectancy
+- maximum adverse excursion
+- maximum favorable excursion
+- calibration error
+
+Add a calibration curve:
+
+Predicted confidence vs observed success rate
+
+Requirements:
+
+1. Confidence must not be increased simply to make signals look stronger.
+2. If evidence is insufficient, mark the bucket INSUFFICIENT.
+3. Do not recalibrate using future data.
+4. Use only completed historical and paper trades available before the evaluation date.
+5. Preserve the original raw confidence and store calibrated confidence separately.
+6. Use sample-size shrinkage so tiny samples cannot create extreme calibration changes.
+7. Calibration changes must remain advisory until explicitly approved.
+
+PART 3 — THRESHOLD OPTIMIZATION
+
+Evaluate current thresholds for:
+
+- STRONG BUY
+- BUY
+- WATCH
+- AVOID / NO TRADE
+- EXIT
+
+Optimize thresholds using historical and paper-trade evidence.
+
+Objectives:
+
+- improve expectancy
+- reduce false BUY signals
+- reduce low-quality trades
+- preserve enough trade frequency for validation
+- control drawdown
+- avoid overfitting
+
+Constraints:
+
+1. Use walk-forward or time-ordered validation.
+2. Never optimize and test on the same period.
+3. Require minimum sample sizes.
+4. Compare candidate thresholds against the frozen baseline.
+5. Reject any candidate that improves profit only by taking very few trades.
+6. Reject any candidate with materially worse drawdown.
+7. Do not auto-apply threshold changes.
+8. Store candidate recommendations for human approval.
+
+Create a table:
+
+threshold_set
+sample_size
+trades
+win_rate
+profit_factor
+expectancy
+max_drawdown
+avg_return
+trade_frequency
+overfit_risk
+recommended
+
+PART 4 — STRATEGY PERFORMANCE BY REGIME
+
+For every strategy and market regime, calculate:
+
+- trades
+- wins
+- losses
+- win rate
+- profit factor
+- expectancy
+- average return
+- drawdown
+- average holding time
+- average R:R
+- confidence calibration
+- reliability status
+
+Regimes:
+
+- bullish
+- bearish
+- range-bound
+- high volatility
+- low volatility
+- trend continuation
+- reversal environment
+
+Classify each strategy/regime pair as:
+
+- ELIGIBLE
+- CONDITIONAL
+- WATCHLIST
+- DISABLED
+- INSUFFICIENT DATA
+
+Do not disable or enable strategies automatically.
+Create recommendations for review.
+
+PART 5 — STOP-LOSS AND TARGET QUALITY
+
+Evaluate current stop and target logic using:
+
+- ATR
+- volatility
+- support/resistance
+- recent swing structure
+- market regime
+- strategy type
+- sector volatility
+- liquidity
+
+For every completed trade, calculate:
+
+- initial risk
+- maximum adverse excursion
+- maximum favorable excursion
+- whether stop was too tight
+- whether stop was too loose
+- whether target was realistic
+- whether price reached target after an early exit
+- time to stop
+- time to target
+
+Create candidate stop/target models:
+
+- current baseline
+- ATR-based
+- structure-based
+- hybrid ATR + structure
+- regime-adjusted
+
+Compare them using time-ordered validation.
+
+Do not rewrite past trades.
+Store counterfactual results separately and clearly label them SIMULATED.
+
+PART 6 — OPPORTUNITY RANKING
+
+Improve opportunity ranking so the best setups appear first.
+
+The ranking score may consider:
+
+- calibrated confidence
+- opportunity score
+- trade quality
+- expected return
+- expected downside
+- risk/reward
+- strategy reliability
+- regime compatibility
+- sector strength
+- liquidity
+- quote freshness
+- historical setup expectancy
+
+Requirements:
+
+1. Ranking must be deterministic for the same scan snapshot and configuration.
+2. Store the complete score breakdown.
+3. Prevent low-quality signals from ranking highly only because one factor is strong.
+4. Penalize:
+   - low sample reliability
+   - fallback data
+   - stale data
+   - poor liquidity
+   - regime mismatch
+   - weak historical expectancy
+5. Keep BUY blocked when existing safety gates fail.
+
+PART 7 — “WHY THIS TRADE?” SUMMARY
+
+For every recommendation, generate a concise explanation using rule-based evidence.
+
+Display:
+
+- 2–3 strongest supporting reasons
+- 2–3 key risks or blockers
+- regime compatibility
+- confidence reliability
+- stop and target rationale
+- exact failed gates when not eligible
+
+Examples:
+
+BUY candidate:
+“Price is above EMA20 and VWAP, momentum is confirmed on 4/4 timeframes, and this setup has positive historical expectancy in the current regime.”
+
+WATCH candidate:
+“Momentum is improving, but confidence is below the BUY threshold and risk/reward is only 1.4:1.”
+
+AVOID candidate:
+“Historical expectancy is negative, volume confirmation is weak, and the strategy is not reliable in the current range-bound regime.”
+
+Do not use an external LLM to invent explanations.
+Every statement must be traceable to stored factors.
+
+PART 8 — CHAMPION–CHALLENGER FRAMEWORK
+
+Keep the existing production decision model as CHAMPION.
+
+Create advisory challengers for:
+
+- calibrated confidence
+- optimized thresholds
+- improved ranking
+- alternative stop/target rules
+
+Requirements:
+
+1. Challengers never affect live recommendations automatically.
+2. Evaluate challengers on unseen, time-ordered data.
+3. Record:
+   - trade overlap
+   - added trades
+   - removed trades
+   - changed decisions
+   - performance difference
+   - drawdown difference
+   - calibration difference
+4. Promotion requires:
+   - minimum sample size
+   - walk-forward pass
+   - no-look-ahead pass
+   - reproducibility pass
+   - risk limits pass
+   - human approval
+5. No automatic promotion.
+
+PART 9 — PAPER-TRADE QUALITY SCORECARD
+
+Create a Phase 21 scorecard containing:
+
+- baseline model version
+- champion version
+- challenger count
+- total evaluated trades
+- confidence calibration score
+- strategy reliability coverage
+- threshold quality
+- ranking stability
+- stop/target quality
+- walk-forward result
+- overfit risk
+- reproducibility result
+- no-look-ahead result
+- readiness status
+
+Readiness statuses:
+
+- INSUFFICIENT_EVIDENCE
+- CALIBRATION_IN_PROGRESS
+- CHALLENGER_READY_FOR_REVIEW
+- APPROVED_FOR_PAPER_TEST
+
+APPROVED_FOR_PAPER_TEST must not mean live trading approval.
+
+PART 10 — UI UPDATES
+
+Update existing pages only.
+
+AI Decision:
+- raw confidence
+- calibrated confidence
+- reliability
+- ranking breakdown
+- why-this-trade summary
+- challenger comparison
+
+Trade Decisions:
+- concise reasons
+- failed gates
+- strategy/regime compatibility
+- baseline vs challenger decision
+
+Performance Analytics:
+- confidence calibration curve
+- confidence-bucket performance
+- strategy/regime matrix
+- baseline vs challenger comparison
+
+Learning & Governance:
+- champion/challenger registry
+- proposed calibration changes
+- proposed threshold changes
+- approval/rejection workflow
+- audit history
+
+Trade Replay:
+- reproduce original decision
+- show challenger counterfactual separately
+- preserve original values
+
+Live Data Health / Validation:
+- reproducibility
+- no-look-ahead
+- same-snapshot consistency
+- model/config version consistency
+
+PART 11 — TESTS
+
+Add tests for:
+
+- baseline model is immutable
+- original historical decisions are never rewritten
+- raw and calibrated confidence are stored separately
+- calibration uses only prior data
+- minimum sample rules
+- walk-forward separation
+- no-look-ahead
+- deterministic ranking
+- same snapshot produces same recommendation
+- explanations are fully evidence-backed
+- challenger cannot affect champion decisions
+- no automatic promotion
+- stale/fallback/mismatched data still blocks BUY
+- auto paper entries remain OFF
+- live order write APIs remain disabled
+- no API keys, secrets, or access tokens appear in logs, UI, reports, or exports
+
+PART 12 — VALIDATION AND REPORTING
+
+Run:
+
+- Phase 21 unit tests
+- relevant regression tests
+- walk-forward validation
+- deterministic replay
+- no-look-ahead audit
+- production build
+- production start
+
+Generate downloadable:
+
+- JSON report
+- CSV report
+- PDF summary
+
+At completion report:
+
+1. Baseline model version
+2. Champion model version
+3. Challenger models created
+4. Trades evaluated
+5. Confidence calibration findings
+6. Recommended threshold changes
+7. Strategy/regime findings
+8. Stop/target findings
+9. Walk-forward results
+10. Overfit-risk assessment
+11. Test results
+12. Production build result
+13. Confirmation that no challenger was auto-promoted
+14. Confirmation that auto paper entries remain OFF
+15. Confirmation that all live-order write paths remain disabled
+
+Do not claim strategy improvement unless it is demonstrated on unseen, time-ordered validation data.
+
+Do not alter the current champion model without explicit human approval.

@@ -19,6 +19,7 @@ import { API_BASE } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useLiveStream } from "@/hooks/useLiveStream";
 import { Phase15SystemHealthPanel } from "@/components/Phase15SystemHealth";
+import { Phase21ValidationPanel } from "@/components/Phase21Panels";
 import DataFreshnessBar from "@/components/DataFreshnessBar";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -235,6 +236,9 @@ export default function LiveDataHealth() {
 
       {/* Phase 15 — System Health & Production Readiness */}
       <Phase15SystemHealthPanel />
+
+      {/* Phase 21 validation status (advisory) */}
+      <Phase21ValidationPanel />
 
       {/* Phase 11 — Live Stream & Market Hours */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">

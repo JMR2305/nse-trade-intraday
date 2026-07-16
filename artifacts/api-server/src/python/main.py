@@ -1610,6 +1610,59 @@ def main():
             from phase16_exports import build_exports
             result = build_exports()
 
+        # ── Phase 21: Strategy Calibration & Signal Quality ──────────────
+        elif command == "phase21_baseline_freeze":
+            from phase21_baseline import freeze_baseline
+            result = freeze_baseline()
+        elif command == "phase21_baseline":
+            from phase21_baseline import load_baseline, verify_baseline_integrity
+            result = {"baseline": load_baseline(),
+                      "integrity": verify_baseline_integrity()}
+        elif command == "phase21_baseline_report":
+            from phase21_baseline import baseline_report
+            result = baseline_report(force=len(args) > 1 and args[1] == "force")
+        elif command == "phase21_calibration":
+            from phase21_calibration import run_calibration
+            result = run_calibration(force=len(args) > 1 and args[1] == "force")
+        elif command == "phase21_thresholds":
+            from phase21_thresholds import run_threshold_optimization
+            result = run_threshold_optimization(force=len(args) > 1 and args[1] == "force")
+        elif command == "phase21_regime_matrix":
+            from phase21_regime import run_regime_matrix
+            result = run_regime_matrix(force=len(args) > 1 and args[1] == "force")
+        elif command == "phase21_stoptarget":
+            from phase21_stoptarget import run_stoptarget_analysis
+            result = run_stoptarget_analysis(force=len(args) > 1 and args[1] == "force")
+        elif command == "phase21_ranking":
+            from phase21_ranking import run_ranking
+            result = run_ranking()
+        elif command == "phase21_explain":
+            from phase21_explain import explain_trade
+            result = explain_trade(args[1]) if len(args) > 1 else {"error": "symbol required"}
+        elif command == "phase21_explain_all":
+            from phase21_explain import explain_all
+            result = explain_all()
+        elif command == "phase21_challengers_build":
+            from phase21_challenger import build_challengers
+            result = build_challengers(force=True)
+        elif command == "phase21_registry":
+            from phase21_challenger import get_registry
+            result = get_registry()
+        elif command == "phase21_promotion_checklist":
+            from phase21_challenger import promotion_checklist
+            result = promotion_checklist(args[1]) if len(args) > 1 else {"error": "challenger_id required"}
+        elif command == "phase21_review_challenger":
+            from phase21_challenger import review_challenger
+            result = (review_challenger(args[1], args[2],
+                                        args[3] if len(args) > 3 else "human")
+                      if len(args) > 2 else {"error": "challenger_id and action required"})
+        elif command == "phase21_scorecard":
+            from phase21_scorecard import build_scorecard
+            result = build_scorecard()
+        elif command == "phase21_export":
+            from phase21_exports import build_phase21_exports
+            result = build_phase21_exports()
+
         # ── Phase 17: Automated QA & Release Validation ──────────────────
         elif command == "phase17_build_info":
             from phase17_qa import build_info

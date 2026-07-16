@@ -12,6 +12,7 @@ import { formatCurrency } from "@/lib/format";
 import HistoricalEvidence from "@/components/HistoricalEvidence";
 import DataFreshnessBar from "@/components/DataFreshnessBar";
 import { EntryEvaluationPanel } from "@/components/Phase20Lifecycle";
+import { WhyThisTrade, RankingBreakdown } from "@/components/Phase21Panels";
 import {
   Brain,
   ChevronDown,
@@ -279,6 +280,10 @@ function OpportunityDetail({
 
       {/* Phase 15 structured explanation (canonical scan factors) */}
       <Phase15Explanation symbol={item.stock} />
+
+      {/* Phase 21: why this trade + deterministic ranking breakdown (advisory) */}
+      <WhyThisTrade symbol={item.stock} />
+      <RankingBreakdown symbol={item.stock} />
     </div>
   );
 }

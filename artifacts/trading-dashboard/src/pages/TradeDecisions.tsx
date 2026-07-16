@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiJson } from "@/lib/api";
 import DataFreshnessBar from "@/components/DataFreshnessBar";
 import { EntryEvaluationPanel } from "@/components/Phase20Lifecycle";
+import { WhyThisTrade } from "@/components/Phase21Panels";
 import {
   useGetTradeDecisions,
   getGetTradeDecisionsQueryKey,
@@ -624,6 +625,9 @@ function DetailRow({ d }: { d: TradeDecision }) {
         <PatternKnowledgePanel d={d} />
         <FinalSummaryPanel d={d} />
         <AnalystPanel d={d} />
+        <div className="mt-4">
+          <WhyThisTrade symbol={d.stock} />
+        </div>
       </td>
     </tr>
   );

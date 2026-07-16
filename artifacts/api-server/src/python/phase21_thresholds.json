@@ -1,0 +1,14 @@
+{
+ "generated_at": "2026-07-16T18:57:07.267703+00:00",
+ "baseline_buy_threshold": 75.0,
+ "total_completed_trades": 8,
+ "min_train_sample": 30,
+ "min_test_sample": 15,
+ "candidates": [],
+ "recommended": null,
+ "auto_applied": false,
+ "requires_human_approval": true,
+ "label": "PAPER / RESEARCH ONLY",
+ "status": "INSUFFICIENT_EVIDENCE",
+ "note": "Need at least 45 completed trades for walk-forward optimization; have 8."
+}

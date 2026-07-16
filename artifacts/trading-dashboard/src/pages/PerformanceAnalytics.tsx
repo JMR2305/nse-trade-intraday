@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { CalibrationPanel, RegimeMatrixPanel, ChallengerComparisonPanel } from "@/components/Phase21Panels";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -675,6 +676,11 @@ export default function PerformanceAnalytics() {
       </SectionCard>
 
       <Phase14LearningSection />
+
+      {/* ── Phase 21: calibration, regime matrix, champion vs challengers ─── */}
+      <CalibrationPanel />
+      <RegimeMatrixPanel />
+      <ChallengerComparisonPanel />
 
       <div className="text-center text-[10px] text-zinc-600">
         {data.label} · Generated {data.generated_at} · Paper trading research — not investment advice

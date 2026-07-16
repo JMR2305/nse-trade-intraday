@@ -8,6 +8,7 @@ import {
 } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
 import DataFreshnessBar from "@/components/DataFreshnessBar";
+import { StopTargetPanel } from "@/components/Phase21Panels";
 import {
   RotateCcw,
   ChevronDown,
@@ -397,6 +398,9 @@ export default function TradeReplayPage() {
         datasetLabel="Trade replay history"
         sampleSize={trades.length ? `${trades.length} trades` : undefined}
       />
+
+      {/* Phase 21: stop & target quality (advisory) */}
+      <StopTargetPanel />
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border">
