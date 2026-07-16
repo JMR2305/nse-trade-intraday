@@ -31,6 +31,24 @@ def _load(path: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+def _load_scan() -> Optional[Dict[str, Any]]:
+    """
+    Phase 19B: load the canonical scan from the durable shared store
+    (Postgres on Autoscale) so every instance sees the same latest snapshot.
+    Falls back to the local phase7_scan_cache.json file.
+    Reading via the store also refreshes the local file, keeping legacy
+    file-based readers in this process consistent.
+    """
+    try:
+        from scan_state_store import load_latest_snapshot
+        snap = load_latest_snapshot()
+        if snap:
+            return snap
+    except Exception:
+        pass
+    return _load(SCAN_CACHE)
+
+
 def _parse_ts(ts: str) -> Optional[datetime]:
     try:
         return datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
@@ -45,7 +63,7 @@ def canonical_regime() -> str:
     when the scan carries no regime information, since it may come from a
     different snapshot time.
     """
-    scan = _load(SCAN_CACHE) or {}
+    scan = _load_scan() or {}
     regimes: Dict[str, int] = {}
     for r in scan.get("recommendations", []):
         if r.get("regime"):
@@ -70,7 +88,7 @@ def _sector_ranks(recs: List[Dict[str, Any]]) -> Dict[str, int]:
 
 
 def scan_age_seconds(scan: Optional[Dict[str, Any]] = None) -> Optional[float]:
-    scan = scan if scan is not None else (_load(SCAN_CACHE) or {})
+    scan = scan if scan is not None else (_load_scan() or {})
     ts = _parse_ts(scan.get("snapshot_ts") or "")
     if ts is None:
         return None
@@ -79,7 +97,7 @@ def scan_age_seconds(scan: Optional[Dict[str, Any]] = None) -> Optional[float]:
 
 def build_scan_context() -> Dict[str, Any]:
     """The ONE canonical context consumed by all pages."""
-    scan = _load(SCAN_CACHE)
+    scan = _load_scan()
     if not scan:
         return {"available": False, "reason": "No canonical scan cache found",
                 "label": "PAPER / RESEARCH ONLY"}

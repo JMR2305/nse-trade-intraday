@@ -110,5 +110,33 @@
   "action_recommendation": "Watch TCS for continuation",
   "scan_id": "583a080f9987",
   "read": true
+ },
+ {
+  "alert_id": "bd01b7b2b2",
+  "ts": "2026-07-16T10:04:44Z",
+  "date": "2026-07-16",
+  "type": "SCAN_STARTED",
+  "severity": "INFO",
+  "category": "market",
+  "symbol": null,
+  "reason": "Fresh live scan started.",
+  "confidence": null,
+  "action_recommendation": "Review Live Data Health page",
+  "scan_id": null,
+  "read": false
+ },
+ {
+  "alert_id": "a7474c03f3",
+  "ts": "2026-07-16T10:05:20Z",
+  "date": "2026-07-16",
+  "type": "SCAN_COMPLETED",
+  "severity": "INFO",
+  "category": "market",
+  "symbol": null,
+  "reason": "Live scan completed (scan 297c25eaa162).",
+  "confidence": null,
+  "action_recommendation": "Review Live Data Health page",
+  "scan_id": null,
+  "read": false
  }
 ]

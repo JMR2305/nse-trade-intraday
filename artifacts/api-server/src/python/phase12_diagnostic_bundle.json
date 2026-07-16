@@ -1,14 +1,14 @@
 {
   "bundle_version": 2,
   "phase": 12,
-  "generated_at": "2026-07-15T16:09:38Z",
+  "generated_at": "2026-07-16T10:03:04Z",
   "engine_version": "Research Engine v1.0 \u00b7 Phase 12",
   "mode": "PAPER_TRADING_RESEARCH_ONLY",
   "label": "PAPER / RESEARCH ONLY",
   "market_status": {
-    "state": "CLOSED",
+    "state": "POST_CLOSE",
     "is_open": false,
-    "now_ist": "2026-07-15T21:39:38.974259+05:30",
+    "now_ist": "2026-07-16T15:33:04.380099+05:30",
     "timezone": "Asia/Kolkata",
     "session": {
       "pre_open": "09:00",
@@ -19,8 +19,8 @@
     "holiday_today": null,
     "next_transition": {
       "event": "market_open",
-      "at_ist": "2026-07-16T09:15:00+05:30",
-      "seconds_until": 41721
+      "at_ist": "2026-07-17T09:15:00+05:30",
+      "seconds_until": 63715
     },
     "upcoming_holidays": [
       {
@@ -43,8 +43,8 @@
     "provider_id": "yfinance",
     "circuit_breaker": "CLOSED",
     "consecutive_failures": 0,
-    "last_success_ts": "2026-07-15T16:03:13Z",
-    "total_fetches": 81,
+    "last_success_ts": "2026-07-15T21:23:13Z",
+    "total_fetches": 129,
     "total_errors": 0,
     "cached_symbols": 3,
     "quote_ttl_s": 20.0,
@@ -71,27 +71,27 @@
   },
   "sector_rotation_top3": [
     {
-      "sector": "BANKING",
-      "avg_score": 35.7,
-      "stock_count": 6,
-      "vs_median": 12.1,
-      "momentum": "STRONG",
+      "sector": "IT",
+      "avg_score": null,
+      "stock_count": 0,
+      "vs_median": null,
+      "momentum": "NEUTRAL",
       "rank": 1
     },
     {
-      "sector": "FINANCE",
-      "avg_score": 29.4,
-      "stock_count": 5,
-      "vs_median": 5.8,
-      "momentum": "OUTPERFORMING",
+      "sector": "BANKING",
+      "avg_score": null,
+      "stock_count": 0,
+      "vs_median": null,
+      "momentum": "NEUTRAL",
       "rank": 2
     },
     {
-      "sector": "ENERGY",
-      "avg_score": 28.8,
-      "stock_count": 5,
-      "vs_median": 5.2,
-      "momentum": "OUTPERFORMING",
+      "sector": "FINANCE",
+      "avg_score": null,
+      "stock_count": 0,
+      "vs_median": null,
+      "momentum": "NEUTRAL",
       "rank": 3
     }
   ],
@@ -114,35 +114,27 @@
     "laggards": []
   },
   "calibration": {
-    "avg_calibration_score": 40.0,
-    "method_breakdown": {
-      "identity": 50
-    },
-    "symbols_assessed": 50
+    "avg_calibration_score": null,
+    "method_breakdown": {},
+    "symbols_assessed": 0
   },
   "contradictions": {
     "level_distribution": {
-      "NONE": 34,
-      "LOW": 15,
-      "MEDIUM": 1,
+      "NONE": 0,
+      "LOW": 0,
+      "MEDIUM": 0,
       "HIGH": 0
     },
     "high_contradiction_examples": []
   },
   "sizing_summary": {
-    "feasible_positions": 10,
-    "not_feasible_positions": 40,
-    "regime_adjustments_applied": {
-      "standard": 48,
-      "none": 2
-    }
+    "feasible_positions": 0,
+    "not_feasible_positions": 0,
+    "regime_adjustments_applied": {}
   },
-  "action_summary": {
-    "WATCH": 22,
-    "AVOID": 28
-  },
+  "action_summary": {},
   "sample_counts": {
-    "symbols_analyzed": 50,
+    "symbols_analyzed": 0,
     "completed_trades_used": 3,
     "expectancy_symbols": 3
   },
@@ -196,38 +188,38 @@
     {
       "file": "phase12_cache.json",
       "exists": true,
-      "size_bytes": 208191,
-      "modified": "2026-07-15T16:03:16Z"
+      "size_bytes": 2516,
+      "modified": "2026-07-16T10:03:04Z"
     },
     {
       "file": "phase7_scan_cache.json",
       "exists": true,
-      "size_bytes": 65577,
-      "modified": "2026-07-15T16:07:40Z"
+      "size_bytes": 440,
+      "modified": "2026-07-16T10:02:20Z"
     },
     {
       "file": "market_context_cache.json",
       "exists": true,
       "size_bytes": 566,
-      "modified": "2026-07-15T14:01:26Z"
+      "modified": "2026-07-15T19:07:23Z"
     },
     {
       "file": "phase11_quote_state.json",
       "exists": true,
-      "size_bytes": 1319,
-      "modified": "2026-07-15T16:07:40Z"
+      "size_bytes": 1315,
+      "modified": "2026-07-15T21:23:13Z"
     },
     {
       "file": "phase12_diagnostic_bundle.json",
       "exists": true,
       "size_bytes": 5560,
-      "modified": "2026-07-15T16:04:56Z"
+      "modified": "2026-07-15T16:09:38Z"
     },
     {
       "file": "phase12_summary.csv",
       "exists": true,
       "size_bytes": 2671,
-      "modified": "2026-07-15T16:04:56Z"
+      "modified": "2026-07-15T16:09:38Z"
     }
   ],
   "errors": {},

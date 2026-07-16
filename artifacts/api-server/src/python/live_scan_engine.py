@@ -543,13 +543,18 @@ def run_live_scan(
         safety=safety,
     )
 
-    # ── Persist cache ─────────────────────────────────────────────────────────
+    # ── Persist cache (Phase 19B: durable shared store + local warm cache) ───
     try:
         cache_data = asdict(result)
-        with open(SCAN_CACHE_FILE, "w") as f:
-            json.dump(cache_data, f, default=str)
+        from scan_state_store import save_successful_scan
+        save_successful_scan(cache_data)
     except Exception:
-        pass
+        # Last-resort local write so at least this instance keeps the result.
+        try:
+            with open(SCAN_CACHE_FILE, "w") as f:
+                json.dump(asdict(result), f, default=str)
+        except Exception:
+            pass
 
     # ── Phase 18: auto-create/refresh today's research-notebook draft ────────
     # Read-only journaling of what the scan saw. Never affects the scan result
@@ -564,7 +569,18 @@ def run_live_scan(
 
 
 def load_cached_scan() -> Optional[Dict[str, Any]]:
-    """Load the most recent scan result from disk cache."""
+    """
+    Load the most recent scan result. Phase 19B: prefers the durable shared
+    store (Postgres) so every Autoscale instance sees the same latest scan;
+    falls back to the local disk cache.
+    """
+    try:
+        from scan_state_store import load_latest_snapshot
+        snap = load_latest_snapshot()
+        if snap:
+            return snap
+    except Exception:
+        pass
     try:
         with open(SCAN_CACHE_FILE) as f:
             return json.load(f)
@@ -597,7 +613,60 @@ def get_or_run_scan(
             except Exception:
                 pass
 
-    result = run_live_scan(symbols=symbols, capital=capital, force=force)
+    # ── Phase 19B: distributed scan lease (Autoscale-safe) ────────────────
+    # Only one instance runs the scan; others join the result. An expired
+    # lease is reclaimed automatically (stuck-lock recovery).
+    try:
+        from scan_state_store import (
+            acquire_scan_lock, release_scan_lock, record_failed_scan,
+        )
+    except Exception:
+        acquire_scan_lock = None  # type: ignore[assignment]
+
+    if acquire_scan_lock is None:
+        result = run_live_scan(symbols=symbols, capital=capital, force=force)
+        d = asdict(result)
+        d["_from_cache"] = False
+        d["_cache_age_s"] = 0.0
+        return d
+
+    prev = load_cached_scan()
+    prev_scan_id = (prev or {}).get("scan_id")
+
+    acquired, holder = acquire_scan_lock()
+    if not acquired:
+        # Another instance is scanning. Poll for its result instead of
+        # duplicating work; fall back to the previous snapshot on timeout.
+        deadline = time.monotonic() + 120
+        while time.monotonic() < deadline:
+            time.sleep(3)
+            latest = load_cached_scan()
+            if latest and latest.get("scan_id") != prev_scan_id:
+                latest["_from_cache"] = True
+                latest["_joined_inflight_scan"] = True
+                return latest
+        if prev:
+            prev["_from_cache"] = True
+            prev["_scan_lock_busy"] = True
+            return prev
+        raise RuntimeError("Scan lock busy and no previous snapshot available")
+
+    try:
+        result = run_live_scan(symbols=symbols, capital=capital, force=force)
+    except Exception as exc:
+        # Failed scan must NEVER overwrite the last successful snapshot —
+        # run_live_scan only persists on success, so just record the failure.
+        try:
+            record_failed_scan(str(exc))
+        except Exception:
+            pass
+        raise
+    finally:
+        try:
+            release_scan_lock(holder)
+        except Exception:
+            pass
+
     d = asdict(result)
     d["_from_cache"] = False
     d["_cache_age_s"] = 0.0

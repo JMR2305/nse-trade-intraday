@@ -845,6 +845,7 @@ router.post("/live-data/scan/run", async (_req, res) => {
     }
     lastScanRunTs = now;
     p7Cache = null;  // invalidate Phase 7 cache; other caches expire naturally
+    marketScanCache = null;  // Phase 19B: Market Scanner view must refresh too
     eventBus.publish("scan.started", { ts: new Date().toISOString() });
     void runPython(["system_event", "SCAN_STARTED", JSON.stringify({ reason: "Fresh live scan started." })]).catch(() => undefined);
     try {

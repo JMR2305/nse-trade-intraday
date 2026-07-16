@@ -1,0 +1,9 @@
+Research Notebook — Daily Entry,2026-07-16
+State,DRAFT,Scan ID,dbtest123
+Regime,SIDEWAYS,NIFTY,SIDEWAYS,BANKNIFTY,SIDEWAYS,VIX,18.0,Breadth,VERY_WEAK
+
+Decision Journal
+Symbol,Raw Signal,Final Action,Decision State,Confidence,Opportunity,Strategy,Sector,RR,Blocking Rule,User Action,User Reason,Outcome PnL
+
+Notes
+2026-07-16T10:03:12.750260+00:00,observation,test-tag,phase18 test note

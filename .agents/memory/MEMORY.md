@@ -16,3 +16,4 @@
 - [Python env & publish builds](python-env-deploy.md) — missing .pythonlibs/pyvenv.cfg + stale uv cache → nix-store Permission denied; uv sync prunes deps not in pyproject.toml
 - [Prod cwd vs dev](python-env-deploy.md) — api-server prod runs from workspace root; never derive paths from process.cwd() without checking both layouts (see python-env resolver).
 - [Phase 19A Kite OAuth](phase19a-kite-oauth.md) — request token via env not argv; token file chmod 600; strict callback status check; test-module kiteconnect stubs collide, re-stub in setUp.
+- [Phase 19B durable scan state](phase19b-scan-state.md) — canonical scan snapshot/lock live in Postgres via scan_state_store; local files are warm caches only; failed scans never overwrite snapshots.

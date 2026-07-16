@@ -1,0 +1,243 @@
+{
+  "trading_date": "2026-07-16",
+  "state": "DRAFT",
+  "market_status": {
+    "state": "POST_CLOSE",
+    "is_open": false,
+    "holiday_today": null
+  },
+  "market": {
+    "market_regime": "SIDEWAYS",
+    "nifty_price": 24052.05,
+    "nifty_trend": "SIDEWAYS",
+    "nifty_change_pct": -1.42,
+    "banknifty_price": 57462.3,
+    "banknifty_trend": "SIDEWAYS",
+    "banknifty_change_pct": -1.27,
+    "india_vix": 18.0,
+    "vix_category": "NORMAL",
+    "market_breadth": 0.0,
+    "breadth_label": "VERY_WEAK",
+    "strongest_sectors": [
+      "ENERGY",
+      "IT",
+      "BANKING"
+    ],
+    "weakest_sectors": [
+      "AUTO",
+      "FINANCE",
+      "INFRA"
+    ],
+    "context_computed_at": "2026-07-15T19:07:23.185733"
+  },
+  "scan": {
+    "scan_id": "dbtest123",
+    "snapshot_ts": "2026-07-16T10:00:00Z",
+    "stale": false,
+    "universe_size": null,
+    "historical_source": false
+  },
+  "data_quality": {
+    "status": "OK",
+    "scan_stale": false,
+    "symbols_scanned": 0,
+    "symbol_errors": 0,
+    "quality_counts": {}
+  },
+  "best_opportunities": [],
+  "stocks_to_avoid": [],
+  "open_positions": [
+    {
+      "symbol": "WIPRO",
+      "quantity": 5,
+      "avg_price": 173.0,
+      "stop_loss": null,
+      "target": null,
+      "scan_id": null
+    }
+  ],
+  "new_paper_trades": [],
+  "closed_paper_trades": [],
+  "trades_skipped": [],
+  "risk_warnings": [],
+  "validation": {
+    "generated_at": "2026-07-15T16:10:05.806589+00:00",
+    "verdict": "PASS",
+    "health_score": 92.5,
+    "readiness_status": "READY WITH WARNINGS",
+    "passed": 82,
+    "failed": 0,
+    "warnings": 4
+  },
+  "alerts_generated": 0,
+  "decisions": [],
+  "user_notes": [
+    {
+      "id": "6a536468",
+      "text": "phase18 test note",
+      "category": "observation",
+      "tags": [
+        "test-tag"
+      ],
+      "created_at": "2026-07-16T10:03:12.750260+00:00"
+    }
+  ],
+  "lessons_learned": "",
+  "follow_up_actions": [],
+  "tags": [],
+  "eod": {
+    "portfolio_value": 5465.0,
+    "cash": 4600.0,
+    "daily_pnl": 0,
+    "trades_opened": 0,
+    "trades_closed": 0,
+    "stops_hit": 0,
+    "targets_hit": 0,
+    "exit_recommendations": [],
+    "missed_opportunities": [],
+    "false_positive_signals": [],
+    "data_quality_issues": {
+      "status": "OK",
+      "scan_stale": false,
+      "symbols_scanned": 0,
+      "symbol_errors": 0,
+      "quality_counts": {}
+    },
+    "alerts_generated": 0,
+    "validation_warnings": 4,
+    "qa_status": "PASS",
+    "final_summary": "0 trade action(s); 0 round-trip(s) closed (\u20b9+0.00); 0 stop(s), 0 target(s) hit; portfolio \u20b95,465.00. QA: PASS."
+  },
+  "finalized_at": "2026-07-16T10:03:12.929259+00:00",
+  "integrity": {
+    "source_scan_id": "dbtest123",
+    "source_snapshot_ts": "2026-07-16T10:00:00Z",
+    "data_provider": "yfinance",
+    "data_age_seconds": 193.0,
+    "model_version": "p13_champion_v1",
+    "calibrator_version": "active",
+    "paper_trading_mode": true,
+    "live_execution_enabled": false
+  },
+  "created_at": "2026-07-16T10:03:12.645670+00:00",
+  "updated_at": "2026-07-16T10:03:12.950179+00:00",
+  "label": "PAPER / RESEARCH ONLY",
+  "checklist": {
+    "before_market": [
+      {
+        "item": "Data provider healthy",
+        "status": "PASS",
+        "detail": "canonical scan cache present"
+      },
+      {
+        "item": "Market calendar valid",
+        "status": "PASS",
+        "detail": "state=POST_CLOSE"
+      },
+      {
+        "item": "Latest historical data available",
+        "status": "PASS",
+        "detail": "scan age 193.0s"
+      },
+      {
+        "item": "Canonical scan context available",
+        "status": "PASS",
+        "detail": "dbtest123"
+      },
+      {
+        "item": "Paper-trading mode confirmed",
+        "status": "PASS",
+        "detail": "hard-coded paper mode"
+      },
+      {
+        "item": "Live execution disabled",
+        "status": "PASS",
+        "detail": "no live execution path exists"
+      },
+      {
+        "item": "Kill switch available",
+        "status": "PASS",
+        "detail": "phase11 kill-switch state present"
+      },
+      {
+        "item": "No critical QA failures",
+        "status": "PASS",
+        "detail": "last QA verdict=PASS failed=0"
+      }
+    ],
+    "during_market": [
+      {
+        "item": "Scan completed successfully",
+        "status": "PASS",
+        "detail": "scan_id=dbtest123"
+      },
+      {
+        "item": "No stale-data violations",
+        "status": "PASS",
+        "detail": "scan fresh"
+      },
+      {
+        "item": "No cross-page mismatches",
+        "status": "PASS",
+        "detail": "0 mismatches"
+      },
+      {
+        "item": "No duplicate paper trades",
+        "status": "PASS",
+        "detail": "0 trades today"
+      },
+      {
+        "item": "No duplicate alerts",
+        "status": "NOT APPLICABLE",
+        "detail": "alert dedup enforced upstream by scan_id"
+      },
+      {
+        "item": "Open positions have stop and target",
+        "status": "WARNING",
+        "detail": "missing: WIPRO (legacy metadata)"
+      },
+      {
+        "item": "Risk limits respected",
+        "status": "PASS",
+        "detail": "no blocked trades recorded today"
+      }
+    ],
+    "after_market": [
+      {
+        "item": "Daily notebook finalized",
+        "status": "PASS",
+        "detail": "FINALIZED"
+      },
+      {
+        "item": "Paper trades reconciled",
+        "status": "PASS",
+        "detail": "reconciled at finalize"
+      },
+      {
+        "item": "Daily P&L reconciled",
+        "status": "PASS",
+        "detail": "eod snapshot stored"
+      },
+      {
+        "item": "Validation report generated",
+        "status": "PASS",
+        "detail": "phase17 verdict=PASS"
+      },
+      {
+        "item": "Errors reviewed",
+        "status": "NOT APPLICABLE",
+        "detail": "manual review \u2014 record in notes"
+      },
+      {
+        "item": "Alerts reviewed",
+        "status": "NOT APPLICABLE",
+        "detail": "manual review \u2014 record in notes"
+      },
+      {
+        "item": "Lessons recorded",
+        "status": "WARNING",
+        "detail": "no lessons recorded yet"
+      }
+    ]
+  }
+}

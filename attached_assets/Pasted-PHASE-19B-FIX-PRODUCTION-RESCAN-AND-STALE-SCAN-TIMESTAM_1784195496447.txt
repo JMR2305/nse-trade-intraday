@@ -1,0 +1,119 @@
+PHASE 19B — FIX PRODUCTION RESCAN AND STALE SCAN TIMESTAMP
+
+Problem observed on the published production app:
+
+- Zerodha Kite connection is CONNECTED and VALID.
+- Live index prices are updating.
+- Market Scanner shows “Last scan: 09:42:00”.
+- Clicking Rescan does not change the timestamp.
+- The global banner continues to say scan data is approximately 14 hours stale.
+- BUY recommendations remain blocked.
+- This must be fixed without weakening stale-data protection.
+
+Investigate the production scan flow end to end. Do not guess and do not merely hide the warning.
+
+REQUIRED INVESTIGATION
+
+1. Trace the Market Scanner Rescan button from frontend click handler to backend route and scan engine.
+2. Confirm the frontend sends the request successfully.
+3. Inspect the response status, response body, browser/server logs, and any swallowed exceptions.
+4. Confirm the production route actually starts a new scan rather than returning an old cached snapshot.
+5. Verify the scan uses current Zerodha data when the Kite session is connected.
+6. Identify why the displayed “Last scan” time remains unchanged.
+7. Check for:
+   - wrong API route
+   - production-only route mismatch
+   - stale cache key
+   - cached GET response
+   - missing await
+   - background task not running
+   - scan lock never released
+   - timezone conversion error
+   - timestamp being read from an older snapshot
+   - in-memory state not shared across production instances
+   - filesystem persistence assumptions incompatible with Autoscale
+   - failed scan being incorrectly reported as successful
+
+REQUIRED FIX
+
+1. Make Rescan trigger one genuine server-side scan.
+2. Disable the button and display “Scanning…” while the scan is running.
+3. Prevent duplicate concurrent scans using a safe lock with timeout recovery.
+4. Return a unique scan_id, started_at, completed_at, snapshot_ts, data provider, and status.
+5. Update the UI only after the scan finishes successfully.
+6. Ensure “Last scan” displays the new completed scan time in Asia/Kolkata.
+7. Ensure the global stale-data banner reads the same latest successful snapshot.
+8. If the scan fails:
+   - keep the previous snapshot
+   - show a clear error
+   - do not update Last scan
+   - do not enable BUY recommendations
+9. Do not mark a scan fresh merely because live ticker data is updating.
+10. Do not disable, bypass, or increase the stale-data limit as a workaround.
+
+PRODUCTION ARCHITECTURE
+
+Because the deployment uses Replit Autoscale, do not rely only on process memory or a local ephemeral file for the latest scan state. Use the project’s existing durable shared database/storage mechanism for:
+- latest completed scan metadata
+- scan status
+- scan_id
+- snapshot timestamp
+- scan lock/lease when necessary
+
+Ensure every production instance reads the same latest scan state.
+
+ZERODHA DATA VALIDATION
+
+- Use the active backend access token.
+- Record requested, received, missing, stale, and unavailable symbol counts.
+- Clearly report the 2 symbols currently missing instead of silently substituting fallback data.
+- Preserve the rule that no BUY recommendation is issued from fallback or stale data.
+- Keep PAPER TRADING active and LIVE ORDERS disabled.
+
+AUTOMATIC MARKET-HOURS SCANNING
+
+After manual Rescan works, add a safe production scheduler:
+- Run scans only during NSE market hours in Asia/Kolkata.
+- Use a configurable interval, default 5 minutes.
+- Do not create duplicate schedules across Autoscale instances.
+- Use a distributed lease/lock.
+- Skip holidays and closed-market periods using the existing market-hours service.
+- A failed scheduled scan must not overwrite the last successful snapshot.
+- Keep manual Rescan available.
+
+TESTS
+
+Add tests for:
+- manual scan updates scan_id and completed_at
+- displayed timestamp uses Asia/Kolkata correctly
+- stale banner clears only after a successful fresh scan
+- failed scan preserves old timestamp and stale state
+- concurrent clicks produce only one scan
+- expired/stuck lock recovers
+- production instances share the same latest scan metadata
+- missing Zerodha symbols remain explicitly unavailable
+- stale/fallback data cannot create BUY recommendations
+- paper trading remains enabled
+- all live-order write actions remain disabled
+
+VERIFICATION
+
+Run:
+- relevant unit and integration tests
+- production build
+- production start
+- a real or safely mocked production-style Rescan request
+
+At completion report:
+1. Exact root cause
+2. Files changed
+3. API endpoint used by Rescan
+4. Before and after timestamps
+5. New scan_id
+6. Symbol coverage result
+7. Test results
+8. Production build result
+9. Confirmation that stale-data safety remains enforced
+10. Confirmation that live orders remain disabled
+
+Do not claim completion unless clicking Rescan creates a new successful scan and changes the production Last scan timestamp.

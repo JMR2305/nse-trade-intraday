@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { startScanScheduler } from "./lib/scanScheduler";
 
 const rawPort = process.env["PORT"];
 
@@ -22,6 +23,7 @@ const server = app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+  startScanScheduler();
 });
 
 // Graceful shutdown — close server, then exit (force-exit after 5s).

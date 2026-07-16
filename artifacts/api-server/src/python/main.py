@@ -786,6 +786,54 @@ def main():
             force = len(args) > 1 and args[1] == "force"
             result = get_or_run_scan(max_age_s=600, force=force)
             result["success"] = True
+            # Phase 19B: compact scan-run metadata for the UI/route response.
+            try:
+                _audit = result.get("scan_audit") or {}
+                _health = result.get("provider_health") or {}
+                _safety = result.get("safety") or {}
+                result["scan_run"] = {
+                    "scan_id": result.get("scan_id"),
+                    "status": "SUCCESS",
+                    "started_at": result.get("snapshot_ts"),
+                    "completed_at": _audit.get("scan_completed_ts") or result.get("snapshot_ts"),
+                    "snapshot_ts": result.get("snapshot_ts"),
+                    "provider": _safety.get("data_provider") or _health.get("provider"),
+                    "from_cache": bool(result.get("_from_cache")),
+                    "symbols_requested": _health.get("symbols_requested"),
+                    "symbols_received": _health.get("symbols_succeeded"),
+                    "symbols_stale": _health.get("symbols_stale"),
+                    "symbols_unavailable": _health.get("symbols_unavailable"),
+                    "missing_symbols": _health.get("unavailable_symbols") or [],
+                    "stale_symbols": _health.get("stale_symbols") or [],
+                }
+            except Exception:
+                pass
+        elif command == "scan_status":
+            from scan_state_store import load_latest_meta
+            result = {"success": True, "latest_scan": load_latest_meta()}
+        elif command == "scheduled_scan_tick":
+            # Phase 19B: market-hours auto-scan tick. Safe under Autoscale —
+            # freshness check + distributed lease prevent duplicate scans.
+            from market_hours import market_status
+            _interval_min = float(args[1]) if len(args) > 1 else 5.0
+            _mstat = market_status()
+            _mstate = str(_mstat.get("state") or _mstat.get("market_state") or "").upper()
+            if _mstate != "OPEN":
+                result = {"success": True, "ran_scan": False,
+                          "reason": f"Market not open (state={_mstate or 'UNKNOWN'})",
+                          "market": _mstat}
+            else:
+                from phase15_scan_context import scan_age_seconds
+                _age = scan_age_seconds()
+                if _age is not None and _age < _interval_min * 60:
+                    result = {"success": True, "ran_scan": False,
+                              "reason": f"Snapshot fresh ({round(_age)}s old, interval {_interval_min}m)"}
+                else:
+                    from live_scan_engine import get_or_run_scan
+                    _scan = get_or_run_scan(max_age_s=_interval_min * 60, force=False)
+                    result = {"success": True, "ran_scan": not _scan.get("_from_cache", False),
+                              "scan_id": _scan.get("scan_id"),
+                              "snapshot_ts": _scan.get("snapshot_ts")}
         elif command == "phase7_recommendations":
             from live_scan_engine import get_or_run_scan
             full = get_or_run_scan(max_age_s=600)

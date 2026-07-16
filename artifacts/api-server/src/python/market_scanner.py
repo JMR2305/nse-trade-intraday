@@ -18,7 +18,7 @@ historical market data and ranks opportunities for informational purposes.
 """
 
 import math
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TypedDict
 
 from config import SECTOR_MAP, NIFTY_50, INITIAL_CAPITAL
@@ -497,7 +497,7 @@ def run_market_scan(
         best_stock=best_stock,
         best_stock_score=best_stock_score,
         avg_market_score=avg_score,
-        scanned_at=datetime.now().isoformat(),
+        scanned_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     )
 
     result = MarketScanResult(

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiJson } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 import {
   useGetMarketScan,
   getGetMarketScanQueryKey,
@@ -256,12 +257,57 @@ function RankRow({ item, rank }: { item: any; rank: number }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function MarketScanner() {
-  const { data, isLoading, refetch, isFetching } = useGetMarketScan({
+  const { data, isLoading } = useGetMarketScan({
     query: {
       queryKey: getGetMarketScanQueryKey(),
       refetchInterval: 10 * 60 * 1000,
     },
   });
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [isScanning, setIsScanning] = useState(false);
+
+  async function handleRescan() {
+    if (isScanning) return;
+    setIsScanning(true);
+    try {
+      // 1. Trigger ONE genuine server-side canonical scan (durable snapshot).
+      const run = await apiJson<any>("/live-data/scan/run", { method: "POST" });
+      if (run?.success === false || run?.error) {
+        throw new Error(run?.error || "Scan failed");
+      }
+      // 2. Staleness banner reads the same canonical snapshot — refresh it
+      //    immediately, independent of the view refresh below.
+      void queryClient.invalidateQueries({ queryKey: ["/api/phase15/staleness"] });
+      const meta = run?.scan_run ?? run;
+      toast({
+        title: "Scan complete",
+        description: `Scan ID ${meta?.scan_id ?? "unknown"} · snapshot ${meta?.snapshot_ts ?? ""}`,
+      });
+      // 3. Refresh this page's view with a forced fresh market scan.
+      const fresh = await apiJson<any>("/market-scan?refresh=true");
+      queryClient.setQueryData(getGetMarketScanQueryKey(), fresh);
+    } catch (e) {
+      const status = (e as { status?: number })?.status;
+      if (status === 429) {
+        // Rate limit — a scan just ran; not a failure.
+        toast({
+          title: "Scan already ran recently",
+          description: String(e instanceof Error ? e.message : e),
+        });
+        void queryClient.invalidateQueries({ queryKey: ["/api/phase15/staleness"] });
+      } else {
+        // Failed scan: keep the previous snapshot and timestamp untouched.
+        toast({
+          title: "Scan failed — previous data kept",
+          description: String(e instanceof Error ? e.message : e),
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsScanning(false);
+    }
+  }
 
   if (isLoading && !data) {
     return (
@@ -300,12 +346,13 @@ export default function MarketScanner() {
             </span>
           )}
           <button
-            onClick={() => refetch()}
-            disabled={isFetching}
+            onClick={() => void handleRescan()}
+            disabled={isScanning}
+            data-testid="button-rescan"
             className="flex items-center gap-2 text-xs font-mono px-3 py-1.5 rounded border border-border hover:bg-muted/40 transition-colors text-muted-foreground hover:text-foreground disabled:opacity-50"
           >
-            <RefreshCcw className={`h-3 w-3 ${isFetching ? "animate-spin" : ""}`} />
-            Rescan
+            <RefreshCcw className={`h-3 w-3 ${isScanning ? "animate-spin" : ""}`} />
+            {isScanning ? "Scanning…" : "Rescan"}
           </button>
         </div>
       </div>

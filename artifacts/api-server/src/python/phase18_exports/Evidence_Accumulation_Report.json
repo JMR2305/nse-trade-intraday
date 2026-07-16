@@ -1,6 +1,6 @@
 {
   "success": true,
-  "trading_sessions_completed": 1,
+  "trading_sessions_completed": 2,
   "completed_paper_trades": 3,
   "minimum_target_trades": 100,
   "market_regimes_covered": [
@@ -35,9 +35,9 @@
   },
   "progress": {
     "trading_sessions": {
-      "value": 1,
+      "value": 2,
       "target": 50,
-      "pct": 2.0
+      "pct": 4.0
     },
     "completed_paper_trades": {
       "value": 3,
