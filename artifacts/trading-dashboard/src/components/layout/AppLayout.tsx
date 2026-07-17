@@ -71,6 +71,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       label: "Signals",
       items: [
         { href: "/signals",     label: "Signals",     icon: Activity },
+        { href: "/signal-history", label: "Signal History", icon: History },
         { href: "/ai-decision", label: "AI Decision", icon: Brain    },
         { href: "/ai-copilot",   label: "AI Copilot",    icon: Bot  },
         { href: "/notifications", label: "Notifications", icon: Bell },

@@ -481,6 +481,12 @@ def main():
             result = cmd_opportunity_scan()
         elif command == "market_context":
             result = cmd_market_context()
+        elif command == "signal_history":
+            import signals_store as _ss
+            limit = int(args[1]) if len(args) > 1 and args[1] not in ("", "-") else 30
+            start = args[2] if len(args) > 2 and args[2] not in ("", "-") else None
+            end   = args[3] if len(args) > 3 and args[3] not in ("", "-") else None
+            result = _ss.load_signal_snapshots(limit=limit, start=start, end=end)
         elif command == "trades":
             result = cmd_trades()
         elif command == "trades_all":

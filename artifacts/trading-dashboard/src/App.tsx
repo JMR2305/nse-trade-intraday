@@ -8,6 +8,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import Dashboard from "@/pages/Dashboard";
 import MarketOverview from "@/pages/MarketOverview";
 import Signals from "@/pages/Signals";
+import SignalHistory from "@/pages/SignalHistory";
 import Trades from "@/pages/Trades";
 import Watchlist from "@/pages/Watchlist";
 import AiDecision from "@/pages/AiDecision";
@@ -61,6 +62,7 @@ function Router() {
         <Route path="/market-scanner" component={MarketScanner} />
         <Route path="/market-replay" component={MarketReplay} />
         <Route path="/signals" component={Signals} />
+        <Route path="/signal-history" component={SignalHistory} />
         <Route path="/ai-decision" component={AiDecision} />
         <Route path="/trade-replay" component={TradeReplay} />
         <Route path="/trades" component={Trades} />

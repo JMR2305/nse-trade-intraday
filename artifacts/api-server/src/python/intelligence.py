@@ -259,6 +259,16 @@ def run_intelligence_scan(
     # enriched signals (combined intelligence) are file-only (large, derived)
     _write_cache(INTELLIGENCE_CACHE, enriched_signals)
 
+    # 10b. Append an immutable history snapshot (one row per scan, keyed by
+    # the canonical scan_id when available). Non-fatal: history persistence
+    # must never break a live scan.
+    try:
+        _append_history_snapshot(signals, market_ctx, t_start)
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning(
+            "signal history snapshot append failed: %s", exc)
+
     # Reconcile the freshly written derived caches with the canonical scan so
     # no page shows independently recalculated stop loss / target / RR values.
     try:
@@ -277,6 +287,35 @@ def run_intelligence_scan(
         signals          = signals,
         scanned_at       = t_start.isoformat(),
         scan_duration_s  = round(scan_duration, 2),
+    )
+
+
+# ── Signal history snapshot helper ────────────────────────────────────────────
+
+def _append_history_snapshot(signals: list, market_ctx: dict,
+                             t_start: datetime) -> None:
+    """Append one signal_snapshots row for this intelligence run.
+
+    Every run gets its OWN generated scan_id so each scan reliably appends a
+    new history row. The canonical phase7 scan_id (which may be shared by
+    several intelligence runs) is stored separately for correlation only.
+    """
+    import uuid
+    scan_id = f"intel-{t_start.strftime('%Y%m%dT%H%M%S')}-{uuid.uuid4().hex[:8]}"
+
+    canonical_scan_id = None
+    try:
+        from scan_state_store import load_latest_snapshot
+        snap = load_latest_snapshot()
+        if isinstance(snap, dict) and snap.get("scan_id"):
+            canonical_scan_id = str(snap["scan_id"])
+    except Exception:
+        pass
+
+    _sig_store.append_signal_snapshot(
+        scan_id, signals, market_ctx,
+        snapshot_ts=t_start.astimezone().isoformat(),
+        canonical_scan_id=canonical_scan_id,
     )
 
 

@@ -33,6 +33,9 @@ _PATHS = {
     "market_context":   os.path.join(_DIR, "market_context_cache.json"),
 }
 
+_SNAPSHOT_FALLBACK_PATH = os.path.join(_DIR, "signal_snapshots_local.json")
+_SNAPSHOT_FALLBACK_MAX = 200  # cap local-dev history file
+
 _SCHEMA_READY = False
 
 
@@ -59,6 +62,36 @@ def _ensure_schema(conn) -> None:
                 payload    JSONB NOT NULL DEFAULT '[]',
                 updated_at TIMESTAMPTZ DEFAULT NOW()
             )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS signal_snapshots (
+                id               BIGSERIAL PRIMARY KEY,
+                scan_id          TEXT NOT NULL,
+                canonical_scan_id TEXT,
+                snapshot_ts      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                signals          JSONB NOT NULL DEFAULT '[]',
+                market_context   JSONB NOT NULL DEFAULT '{}'
+            )
+            """
+        )
+        cur.execute(
+            """
+            ALTER TABLE signal_snapshots
+            ADD COLUMN IF NOT EXISTS canonical_scan_id TEXT
+            """
+        )
+        cur.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS signal_snapshots_scan_id_uidx
+            ON signal_snapshots (scan_id)
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS signal_snapshots_ts_idx
+            ON signal_snapshots (snapshot_ts DESC)
             """
         )
     conn.commit()
@@ -197,3 +230,147 @@ def save_market_context(context: Any) -> None:
 
 def load_market_context() -> Optional[Any]:
     return _load("market_context")
+
+
+# ── Signal history snapshots (append-only) ───────────────────────────────────
+
+def append_signal_snapshot(scan_id: str, signals: List[Any],
+                           market_context: Any,
+                           snapshot_ts: Optional[str] = None,
+                           canonical_scan_id: Optional[str] = None) -> bool:
+    """
+    Append one timestamped snapshot of the scan's signals + market context.
+
+    `scan_id` must be unique PER INTELLIGENCE RUN (the caller generates it);
+    `canonical_scan_id` optionally correlates the row with the phase7
+    live-data snapshot that was current at scan time (many history rows may
+    share the same canonical id).
+
+    Idempotent per scan_id: re-running with the same id does NOT create a
+    duplicate row (first write wins — history is append-only, never rewritten).
+
+    Returns True if a new row was inserted, False if the scan_id already
+    existed. Raises on DB failure when DATABASE_URL is set.
+    """
+    if not scan_id:
+        raise ValueError("append_signal_snapshot requires a non-empty scan_id")
+
+    if not db_available():
+        history = _read_json(_SNAPSHOT_FALLBACK_PATH) or []
+        if not isinstance(history, list):
+            history = []
+        if any(isinstance(r, dict) and r.get("scan_id") == scan_id for r in history):
+            return False
+        from datetime import datetime, timezone
+        history.append({
+            "scan_id": scan_id,
+            "canonical_scan_id": canonical_scan_id,
+            "snapshot_ts": snapshot_ts or datetime.now(timezone.utc).isoformat(),
+            "signals": signals,
+            "market_context": market_context,
+        })
+        _write_json(_SNAPSHOT_FALLBACK_PATH, history[-_SNAPSHOT_FALLBACK_MAX:])
+        return True
+
+    conn = _connect()
+    try:
+        _ensure_schema(conn)
+        with conn.cursor() as cur:
+            if snapshot_ts:
+                cur.execute(
+                    """
+                    INSERT INTO signal_snapshots
+                        (scan_id, canonical_scan_id, snapshot_ts, signals, market_context)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (scan_id) DO NOTHING
+                    """,
+                    (scan_id, canonical_scan_id, snapshot_ts,
+                     json.dumps(signals, default=str),
+                     json.dumps(market_context, default=str)),
+                )
+            else:
+                cur.execute(
+                    """
+                    INSERT INTO signal_snapshots
+                        (scan_id, canonical_scan_id, signals, market_context)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (scan_id) DO NOTHING
+                    """,
+                    (scan_id, canonical_scan_id,
+                     json.dumps(signals, default=str),
+                     json.dumps(market_context, default=str)),
+                )
+            inserted = cur.rowcount > 0
+        conn.commit()
+        return inserted
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def load_signal_snapshots(limit: int = 30,
+                          start: Optional[str] = None,
+                          end: Optional[str] = None) -> List[dict]:
+    """
+    Load snapshots, newest first.
+
+    limit       : max rows returned (1–200)
+    start / end : optional ISO date/datetime bounds on snapshot_ts (inclusive)
+    """
+    limit = max(1, min(int(limit or 30), 200))
+
+    if db_available():
+        conn = _connect()
+        try:
+            _ensure_schema(conn)
+            clauses, params = [], []
+            if start:
+                clauses.append("snapshot_ts >= %s")
+                params.append(start)
+            if end:
+                clauses.append("snapshot_ts <= %s")
+                params.append(end)
+            where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"""
+                    SELECT scan_id, canonical_scan_id, snapshot_ts, signals, market_context
+                    FROM signal_snapshots
+                    {where}
+                    ORDER BY snapshot_ts DESC, id DESC
+                    LIMIT %s
+                    """,
+                    (*params, limit),
+                )
+                rows = cur.fetchall()
+        finally:
+            conn.close()
+
+        out = []
+        for scan_id, canonical_id, ts, sigs, ctx in rows:
+            if isinstance(sigs, str):
+                sigs = json.loads(sigs)
+            if isinstance(ctx, str):
+                ctx = json.loads(ctx)
+            out.append({
+                "scan_id": scan_id,
+                "canonical_scan_id": canonical_id,
+                "snapshot_ts": ts.isoformat() if hasattr(ts, "isoformat") else str(ts),
+                "signals": sigs,
+                "market_context": ctx,
+            })
+        return out
+
+    # Local-dev fallback
+    history = _read_json(_SNAPSHOT_FALLBACK_PATH) or []
+    if not isinstance(history, list):
+        return []
+    rows = [r for r in history if isinstance(r, dict)]
+    if start:
+        rows = [r for r in rows if str(r.get("snapshot_ts", "")) >= start]
+    if end:
+        rows = [r for r in rows if str(r.get("snapshot_ts", ""))[:len(end)] <= end]
+    rows.sort(key=lambda r: str(r.get("snapshot_ts", "")), reverse=True)
+    return rows[:limit]

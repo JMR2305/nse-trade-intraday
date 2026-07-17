@@ -68,6 +68,25 @@ router.get("/signals", async (_req, res) => {
   }
 });
 
+// GET /api/signal-history
+// ?limit=N (default 30, max 200) — last N snapshots, newest first
+// ?from=YYYY-MM-DD&to=YYYY-MM-DD — optional inclusive date bounds
+router.get("/signal-history", async (req, res) => {
+  try {
+    const limitRaw = parseInt(String(req.query.limit ?? ""), 10);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 200) : 30;
+    const dateRe = /^\d{4}-\d{2}-\d{2}(T[\d:.+Z-]*)?$/;
+    const from = typeof req.query.from === "string" && dateRe.test(req.query.from) ? req.query.from : "-";
+    const toRaw = typeof req.query.to === "string" && dateRe.test(req.query.to) ? req.query.to : "-";
+    // Make a bare "to" date inclusive of the whole day
+    const to = toRaw !== "-" && !toRaw.includes("T") ? `${toRaw}T23:59:59.999+05:30` : toRaw;
+    const data = await runPython(["signal_history", String(limit), from, to]);
+    res.json({ snapshots: data ?? [] });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/trades
 // ?scope=all returns all-time history including trades archived by portfolio
 // resets; default returns current-session trades only.

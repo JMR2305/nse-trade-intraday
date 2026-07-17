@@ -1,4 +1,4 @@
-import { pgTable, integer, doublePrecision, jsonb, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, integer, doublePrecision, jsonb, text, timestamp, bigserial } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -42,6 +42,20 @@ export const signalsCacheTable = pgTable("signals_cache", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
+// ── Signal Snapshots (append-only history) ────────────────────────────────────
+// One row per intelligence scan. Never updated after insert — lets traders
+// review how BUY/SELL recommendations evolved across scans.
+// Managed by signals_store.py in Python (auto-created there).
+
+export const signalSnapshotsTable = pgTable("signal_snapshots", {
+  id:              bigserial("id", { mode: "number" }).primaryKey(),
+  scanId:          text("scan_id").notNull(),
+  canonicalScanId: text("canonical_scan_id"),
+  snapshotTs:      timestamp("snapshot_ts", { withTimezone: true }).notNull().defaultNow(),
+  signals:         jsonb("signals").notNull().$type<unknown[]>(),
+  marketContext:   jsonb("market_context").notNull().$type<Record<string, unknown>>(),
+});
+
 // ── Insert schemas / types ────────────────────────────────────────────────────
 
 export const insertPaperTradeSchema = createInsertSchema(paperTradesTable).omit({ createdAt: true });
@@ -49,3 +63,4 @@ export type InsertPaperTrade = z.infer<typeof insertPaperTradeSchema>;
 export type PaperTrade = typeof paperTradesTable.$inferSelect;
 export type PaperPortfolio = typeof paperPortfolioTable.$inferSelect;
 export type SignalsCache = typeof signalsCacheTable.$inferSelect;
+export type SignalSnapshot = typeof signalSnapshotsTable.$inferSelect;
