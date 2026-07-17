@@ -28,7 +28,9 @@ import smtplib
 import sys
 import urllib.request
 from datetime import datetime, timezone
+from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from html import escape as _esc
 from typing import Any, Dict, Optional
 
 # Notification kinds that trigger an email (critical, user-must-know alerts).
@@ -70,13 +72,17 @@ def _from_address() -> str:
             or _DEFAULT_FROM)
 
 
-def _send_via_resend(to: str, subject: str, text: str) -> Dict[str, Any]:
-    payload = json.dumps({
+def _send_via_resend(to: str, subject: str, text: str,
+                     html: Optional[str] = None) -> Dict[str, Any]:
+    body: Dict[str, Any] = {
         "from": _from_address(),
         "to": [to],
         "subject": subject,
         "text": text,
-    }).encode()
+    }
+    if html:
+        body["html"] = html
+    payload = json.dumps(body).encode()
     req = urllib.request.Request(
         _RESEND_URL, data=payload, method="POST",
         headers={
@@ -91,12 +97,18 @@ def _send_via_resend(to: str, subject: str, text: str) -> Dict[str, Any]:
     return {"sent": True, "provider": "RESEND"}
 
 
-def _send_via_smtp(to: str, subject: str, text: str) -> Dict[str, Any]:
+def _send_via_smtp(to: str, subject: str, text: str,
+                   html: Optional[str] = None) -> Dict[str, Any]:
     host = os.environ["SMTP_HOST"]
     port = int(os.environ.get("SMTP_PORT", "587") or 587)
     user = os.environ.get("SMTP_USER")
     password = os.environ.get("SMTP_PASS")
-    msg = MIMEText(text, "plain", "utf-8")
+    if html:
+        msg: Any = MIMEMultipart("alternative")
+        msg.attach(MIMEText(text, "plain", "utf-8"))
+        msg.attach(MIMEText(html, "html", "utf-8"))
+    else:
+        msg = MIMEText(text, "plain", "utf-8")
     msg["Subject"] = subject
     msg["From"] = _from_address()
     msg["To"] = to
@@ -113,12 +125,15 @@ def _send_via_smtp(to: str, subject: str, text: str) -> Dict[str, Any]:
     return {"sent": True, "provider": "SMTP"}
 
 
-def _deliver(to: str, subject: str, text: str) -> Dict[str, Any]:
-    """Send via the first configured transport. May raise."""
+def _deliver(to: str, subject: str, text: str,
+             html: Optional[str] = None) -> Dict[str, Any]:
+    """Send via the first configured transport (multipart when html given).
+
+    May raise."""
     if os.environ.get("RESEND_API_KEY"):
-        return _send_via_resend(to, subject, text)
+        return _send_via_resend(to, subject, text, html)
     if os.environ.get("SMTP_HOST"):
-        return _send_via_smtp(to, subject, text)
+        return _send_via_smtp(to, subject, text, html)
     return {"sent": False, "reason": "NOT_CONFIGURED", **provider_status()}
 
 
@@ -202,6 +217,7 @@ def _compose_daily_summary(report: Optional[Dict[str, Any]]) -> Dict[str, str]:
                 if exits_today else "n/a (no closed trades today)")
 
     positions_lines = []
+    positions: list = []
     unrealized_total = None
     try:
         from paper_trader import get_portfolio
@@ -223,6 +239,8 @@ def _compose_daily_summary(report: Optional[Dict[str, Any]]) -> Dict[str, str]:
 
     realized = report.get("realized_pnl")
     unrealized = report.get("unrealized_pnl", unrealized_total)
+    positions_rows = positions[:20]
+    positions_overflow = max(0, len(positions) - 20)
     lines = [
         f"Daily performance summary — {day}",
         "",
@@ -246,7 +264,130 @@ def _compose_daily_summary(report: Optional[Dict[str, Any]]) -> Dict[str, str]:
         "Open the dashboard for the full daily report and exports.",
     ]
     subject = f"[NSE Trading] Daily summary — {day}"[:180]
-    return {"subject": subject, "text": "\n".join(lines)}
+    html = _render_daily_summary_html(
+        day=day,
+        entries_opened=report.get("paper_entries_opened", "n/a"),
+        exits_completed=report.get("exits_completed", len(exits_today)),
+        entries_blocked=report.get("entries_blocked", "n/a"),
+        realized=realized,
+        unrealized=unrealized,
+        win_rate=win_rate,
+        positions=positions_rows,
+        positions_overflow=positions_overflow,
+        positions_unavailable=(positions_lines == ["  (unavailable)"]),
+        scans_completed=report.get("scheduled_scans_completed", "n/a"),
+        failed_scans=report.get("failed_scans", "n/a"),
+    )
+    return {"subject": subject, "text": "\n".join(lines), "html": html}
+
+
+_GREEN = "#15803d"
+_RED = "#b91c1c"
+_MUTED = "#64748b"
+
+
+def _pnl_html(value: Any) -> str:
+    """Colored INR amount span (green >= 0, red < 0)."""
+    try:
+        num = float(value or 0)
+    except (TypeError, ValueError):
+        num = 0.0
+    color = _RED if num < 0 else _GREEN
+    return (f'<span style="color:{color};font-weight:600;">'
+            f"{_esc(_fmt_inr(value))}</span>")
+
+
+def _render_daily_summary_html(*, day: str, entries_opened: Any,
+                               exits_completed: Any, entries_blocked: Any,
+                               realized: Any, unrealized: Any, win_rate: str,
+                               positions: list, positions_overflow: int,
+                               positions_unavailable: bool,
+                               scans_completed: Any,
+                               failed_scans: Any) -> str:
+    """Render the daily summary as email-client-safe inline-styled HTML."""
+    cell = 'padding:6px 12px;border-bottom:1px solid #e2e8f0;font-size:13px;'
+    th = (f'{cell}text-align:left;color:{_MUTED};font-weight:600;'
+          'text-transform:uppercase;font-size:11px;letter-spacing:0.04em;')
+    section = ('margin:20px 0 8px;font-size:14px;font-weight:700;'
+               'color:#0f172a;')
+
+    def row(label: str, value_html: str) -> str:
+        return (f'<tr><td style="{cell}color:{_MUTED};">{_esc(label)}</td>'
+                f'<td style="{cell}text-align:right;">{value_html}</td></tr>')
+
+    if positions_unavailable:
+        pos_html = f'<p style="color:{_MUTED};font-size:13px;">(unavailable)</p>'
+    elif not positions:
+        pos_html = f'<p style="color:{_MUTED};font-size:13px;">(none)</p>'
+    else:
+        pos_rows = "".join(
+            f'<tr><td style="{cell}font-weight:600;">'
+            f'{_esc(str(p.get("symbol", "?")))}</td>'
+            f'<td style="{cell}text-align:right;">'
+            f'{_esc(str(p.get("quantity", "?")))}</td>'
+            f'<td style="{cell}text-align:right;">{_pnl_html(p.get("pnl"))}'
+            "</td></tr>"
+            for p in positions)
+        overflow = (
+            f'<tr><td colspan="3" style="{cell}color:{_MUTED};">'
+            f"... and {positions_overflow} more</td></tr>"
+            if positions_overflow else "")
+        pos_html = (
+            '<table style="border-collapse:collapse;width:100%;" '
+            'cellpadding="0" cellspacing="0">'
+            f'<tr><th style="{th}">Symbol</th>'
+            f'<th style="{th}text-align:right;">Qty</th>'
+            f'<th style="{th}text-align:right;">Unrealized P&amp;L</th></tr>'
+            f"{pos_rows}{overflow}</table>")
+
+    def plain(value: Any) -> str:
+        return _esc(str(value))
+
+    realized_html = _pnl_html(realized) if realized is not None else plain("n/a")
+    unrealized_html = (_pnl_html(unrealized) if unrealized is not None
+                       else plain("n/a"))
+
+    return f"""\
+<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f1f5f9;">
+  <div style="max-width:560px;margin:0 auto;padding:24px 16px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">
+    <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+      <div style="background:#0f172a;padding:16px 20px;">
+        <div style="color:#ffffff;font-size:16px;font-weight:700;">Daily performance summary</div>
+        <div style="color:#94a3b8;font-size:12px;margin-top:2px;">{_esc(day)} &middot; NSE Paper Trading</div>
+      </div>
+      <div style="padding:4px 20px 20px;">
+        <div style="{section}">Trades</div>
+        <table style="border-collapse:collapse;width:100%;" cellpadding="0" cellspacing="0">
+          {row("Paper entries opened", plain(entries_opened))}
+          {row("Exits completed", plain(exits_completed))}
+          {row("Entries blocked", plain(entries_blocked))}
+        </table>
+        <div style="{section}">Performance</div>
+        <table style="border-collapse:collapse;width:100%;" cellpadding="0" cellspacing="0">
+          {row("Realized P&L (today)", realized_html)}
+          {row("Unrealized P&L", unrealized_html)}
+          {row("Win rate (today)", plain(win_rate))}
+        </table>
+        <div style="{section}">Open positions</div>
+        {pos_html}
+        <div style="{section}">Scans</div>
+        <table style="border-collapse:collapse;width:100%;" cellpadding="0" cellspacing="0">
+          {row("Scheduled scans completed", plain(scans_completed))}
+          {row("Failed scans", plain(failed_scans))}
+        </table>
+        <div style="margin-top:20px;padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;color:#92400e;font-size:12px;">
+          PAPER TRADING / RESEARCH ONLY &mdash; no real orders are ever placed.
+        </div>
+        <p style="color:{_MUTED};font-size:12px;margin:14px 0 0;">
+          Open the dashboard for the full daily report and exports.
+        </p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>"""
 
 
 def maybe_send_daily_summary_email(report: Optional[Dict[str, Any]] = None,
@@ -268,7 +409,8 @@ def maybe_send_daily_summary_email(report: Optional[Dict[str, Any]] = None,
             _log("skipped daily summary: no valid alert address configured")
             return {"sent": False, "reason": "NO_ADDRESS"}
         parts = _compose_daily_summary(report)
-        result = _deliver(to, parts["subject"], parts["text"])
+        result = _deliver(to, parts["subject"], parts["text"],
+                          parts.get("html"))
         if result.get("sent"):
             _log(f"sent daily summary email via {result.get('provider')}")
         else:

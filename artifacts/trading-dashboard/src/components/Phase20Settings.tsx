@@ -132,7 +132,8 @@ export default function Phase20Settings() {
   // Daily summary preview dialog state
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [preview, setPreview] = useState<{ subject: string; text: string } | null>(null);
+  const [preview, setPreview] = useState<{ subject: string; text: string; html: string } | null>(null);
+  const [previewMode, setPreviewMode] = useState<"html" | "text">("html");
 
   // Auto paper entries confirmation dialog state
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -208,7 +209,12 @@ export default function Phase20Settings() {
       const r = await fetch(`${API_BASE}/phase20/email/preview-daily-summary`);
       const d = await r.json().catch(() => ({}));
       if (!r.ok || d.success === false) throw new Error(d.error ?? `HTTP ${r.status}`);
-      setPreview({ subject: String(d.subject ?? ""), text: String(d.text ?? "") });
+      setPreview({
+        subject: String(d.subject ?? ""),
+        text: String(d.text ?? ""),
+        html: String(d.html ?? ""),
+      });
+      setPreviewMode(d.html ? "html" : "text");
       setPreviewOpen(true);
     } catch (e: any) {
       toast({ title: "Preview failed", description: e.message, variant: "destructive" });
@@ -650,10 +656,41 @@ export default function Phase20Settings() {
               </div>
             </div>
             <div className="grid gap-1.5">
-              <Label className="text-zinc-400">Body</Label>
-              <pre className="max-h-[50vh] overflow-auto whitespace-pre-wrap rounded border border-zinc-800 bg-zinc-950/60 p-3 text-[11px] leading-relaxed text-zinc-200">
-                {preview?.text || "—"}
-              </pre>
+              <div className="flex items-center justify-between">
+                <Label className="text-zinc-400">Body</Label>
+                {preview?.html && (
+                  <div className="flex gap-1">
+                    <Button
+                      size="sm"
+                      variant={previewMode === "html" ? "secondary" : "ghost"}
+                      className="h-6 px-2 text-[10px]"
+                      onClick={() => setPreviewMode("html")}
+                    >
+                      Formatted
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={previewMode === "text" ? "secondary" : "ghost"}
+                      className="h-6 px-2 text-[10px]"
+                      onClick={() => setPreviewMode("text")}
+                    >
+                      Plain text
+                    </Button>
+                  </div>
+                )}
+              </div>
+              {previewMode === "html" && preview?.html ? (
+                <iframe
+                  title="Daily summary email preview"
+                  sandbox=""
+                  srcDoc={preview.html}
+                  className="h-[50vh] w-full rounded border border-zinc-800 bg-white"
+                />
+              ) : (
+                <pre className="max-h-[50vh] overflow-auto whitespace-pre-wrap rounded border border-zinc-800 bg-zinc-950/60 p-3 text-[11px] leading-relaxed text-zinc-200">
+                  {preview?.text || "—"}
+                </pre>
+              )}
             </div>
           </div>
           <DialogFooter>

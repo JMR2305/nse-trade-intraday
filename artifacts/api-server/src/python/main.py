@@ -937,6 +937,7 @@ def main():
             _parts = _compose_daily_summary(_report)
             result = {"success": True, "subject": _parts["subject"],
                       "text": _parts["text"],
+                      "html": _parts.get("html", ""),
                       "report_available": _report is not None}
         elif command == "phase20_email_status":
             from email_alerts import provider_status

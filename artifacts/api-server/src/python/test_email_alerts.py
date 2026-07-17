@@ -110,7 +110,7 @@ class TestDailySummary(unittest.TestCase):
             r = email_alerts.maybe_send_daily_summary_email(
                 report, settings=self.SUMMARY_ON)
         self.assertTrue(r["sent"])
-        to, subject, text = d.call_args[0]
+        to, subject, text, html = d.call_args[0]
         self.assertEqual(to, "trader@example.com")
         self.assertIn("Daily summary", subject)
         self.assertIn("2026-07-17", subject)
@@ -121,6 +121,12 @@ class TestDailySummary(unittest.TestCase):
         self.assertIn("Win rate", text)
         self.assertIn("Open positions", text)
         self.assertIn("PAPER TRADING / RESEARCH ONLY", text)
+        # HTML body is sent alongside the plain-text fallback
+        self.assertIn("<table", html)
+        self.assertIn("Rs 1,250.50", html)
+        self.assertIn("#15803d", html)  # green for positive realized P&L
+        self.assertIn("#b91c1c", html)  # red for negative unrealized P&L
+        self.assertIn("PAPER TRADING / RESEARCH ONLY", html)
 
     def test_handles_missing_report(self):
         with mock.patch.object(email_alerts, "_deliver",
@@ -128,8 +134,9 @@ class TestDailySummary(unittest.TestCase):
             r = email_alerts.maybe_send_daily_summary_email(
                 None, settings=self.SUMMARY_ON)
         self.assertTrue(r["sent"])
-        _, _, text = d.call_args[0]
+        _, _, text, html = d.call_args[0]
         self.assertIn("Paper entries opened: n/a", text)
+        self.assertIn("n/a", html)
 
     def test_delivery_failure_never_raises(self):
         with mock.patch.object(email_alerts, "_deliver",
