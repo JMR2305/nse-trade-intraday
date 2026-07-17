@@ -53,3 +53,20 @@ artifacts/api-server/src/python/trade_intelligence.db
 artifacts/api-server/src/python/historical_knowledge_status.json
 .kite_token.json*
 .kite_auth_state.json*
+
+# Runtime Python cache/state files (ephemeral — stored in Postgres in production)
+artifacts/api-server/src/python/ai_decisions_cache.json
+artifacts/api-server/src/python/intelligence_cache.json
+artifacts/api-server/src/python/market_context_cache.json
+artifacts/api-server/src/python/opportunity_cache.json
+artifacts/api-server/src/python/phase13_cache.json
+artifacts/api-server/src/python/phase14_adjustments.json
+artifacts/api-server/src/python/phase14_evaluation.json
+artifacts/api-server/src/python/phase14_learning_dataset.json
+artifacts/api-server/src/python/phase15_consistency_report.json
+artifacts/api-server/src/python/phase18_notebook.json
+artifacts/api-server/src/python/phase7_scan_cache.json
+artifacts/api-server/src/python/phase9_alerts.json
+artifacts/api-server/src/python/phase9_last_regime.json
+artifacts/api-server/src/python/phase9_last_sector.json
+artifacts/api-server/src/python/signals_cache.json
