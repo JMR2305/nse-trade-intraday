@@ -203,12 +203,13 @@ def _csv_risk(out: str, risk: dict):
 
 def _implementation_summary(t15: dict, t16: dict, t17: dict, t18: dict, t19: dict = None,
                             t20: dict = None, t21: dict = None, t22: dict = None,
-                            t22s: dict = None) -> str:
+                            t22s: dict = None, t22i: dict = None) -> str:
     t19 = t19 or {}
     t20 = t20 or {}
     t21 = t21 or {}
     t22 = t22 or {}
     t22s = t22s or {}
+    t22i = t22i or {}
     return f"""# Phase {PHASE} Implementation Summary — Controlled Auto Paper Trading & Evidence Accumulation
 
 - **Phase:** {PHASE}
@@ -374,6 +375,7 @@ def _implementation_summary(t15: dict, t16: dict, t17: dict, t18: dict, t19: dic
   as warm caches / fallback.
 
 ## Tests
+- Phase 22 integration verification (session sharing, bulk fetch, derived-data sync, atomic publish, scan-lock overlap): {t22i.get('passed', 0)} passed, {t22i.get('failed', 0)} failed{'' if t22i.get('ran') else f' ({NA} — suite did not run)'}
 - Phase 22 session & bulk-fetch suite: {t22s.get('passed', 0)} passed, {t22s.get('failed', 0)} failed{'' if t22s.get('ran') else f' ({NA} — suite did not run)'}
 - Phase 22 suite: {t22.get('passed', 0)} passed, {t22.get('failed', 0)} failed{'' if t22.get('ran') else f' ({NA} — suite did not run)'}
 - Phase 21 suite: {t21.get('passed', 0)} passed, {t21.get('failed', 0)} failed{'' if t21.get('ran') else f' ({NA} — suite did not run)'}
@@ -516,6 +518,9 @@ def build_package(screenshots_dir: str | None = None) -> dict:
     t22s = _run_tests("test_phase22_session.py")
     if not t22s["ran"]:
         warnings.append("Phase 22 session/bulk-fetch test suite could not be executed")
+    t22i = _run_tests("test_phase22_integration.py")
+    if not t22i["ran"]:
+        warnings.append("Phase 22 integration verification suite could not be executed")
     phase18_entries = safe("phase18 notebook entries",
                            lambda: __import__("phase18_notebook").list_entries(), {})
     phase18_evidence = safe("phase18 evidence tracker",
@@ -616,7 +621,7 @@ def build_package(screenshots_dir: str | None = None) -> dict:
 
     # 4/5. Reports
     open(os.path.join(PACKAGE_DIR, "implementation_summary.md"), "w").write(
-        _implementation_summary(t15, t16, t17, t18, t19, t20, t21, t22, t22s))
+        _implementation_summary(t15, t16, t17, t18, t19, t20, t21, t22, t22s, t22i))
     open(os.path.join(PACKAGE_DIR, "production_readiness.md"), "w").write(
         _production_readiness_md(readiness, consistency, quality, diagnostics, t15))
 
@@ -722,7 +727,10 @@ def build_package(screenshots_dir: str | None = None) -> dict:
          t13["failed"] if t13["ran"] else NA, 0],
         ["Unit Tests — Phase 14 regression", t14["passed"] if t14["ran"] else NA,
          t14["failed"] if t14["ran"] else NA, 0],
-        ["Integration Tests", NA, NA, NA],
+        ["Integration Tests — Phase 22 (session sharing, bulk fetch, "
+         "derived-data sync, atomic publish, scan-lock overlap)",
+         t22i["passed"] if t22i["ran"] else NA,
+         t22i["failed"] if t22i["ran"] else NA, 0],
         ["UI Tests", NA, NA, NA],
         ["Performance Tests", NA, NA, NA],
     ]

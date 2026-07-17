@@ -1,0 +1,99 @@
+PHASE 22 FINAL VERIFICATION — REGENERATE REVIEW PACKAGE FROM CURRENT PRODUCTION STATE
+
+The latest Phase22 Review Package contains evidence that predates the recently implemented session-sharing and bulk-fetch fixes.
+
+Current package problems:
+
+- diagnostics still show a 963.3-second scan
+- provider is Yahoo Finance
+- latest scan is stale
+- cross-page consistency is FAIL
+- 20 hard mismatches
+- 89 stale-source values
+- overall readiness is NOT_READY
+- Phase 16 regression suite has 1 failure
+- integration, UI, and performance tests are marked unavailable
+
+Do not change strategy logic.
+Do not enable auto paper entries.
+Do not enable live-order writes.
+
+REQUIRED PRODUCTION VERIFICATION
+
+1. Republish the latest code.
+
+2. Through the published production application, complete the daily Zerodha login.
+
+3. Confirm the shared PostgreSQL session is accessible to the unattended scheduler after:
+   - browser closure
+   - a separate production request
+   - an Autoscale instance restart where safely testable
+
+4. During NSE market hours, wait for at least two unattended scans.
+   Do not use Run Fresh Scan.
+
+5. For both scans record:
+   - trigger = SCHEDULED
+   - scan_id
+   - provider used for current quotes
+   - historical provider
+   - start and completion timestamps
+   - total duration
+   - provider_auth_s
+   - lock_wait_s
+   - fetch_s
+   - analysis_s
+   - derived-data generation time
+   - consistency-validation time
+   - database-write time
+   - symbols requested/received/fallback/failed
+   - skipped-active-scan count
+
+6. Required results:
+   - Zerodha session = CONNECTED and VALID
+   - scheduler can read the shared production token
+   - current quotes use Zerodha where configured
+   - Yahoo use is clearly labelled historical/fallback only
+   - both scans complete without overlap
+   - normal duration under 60 seconds, or provide a justified breakdown
+   - hard mismatches = 0
+   - stale-source/out-of-sync values = 0
+   - cross-page consistency = PASS
+   - latest scan = FRESH
+   - overall readiness = PAPER_READY
+   - live-order writes = DISABLED
+   - auto paper entries = OFF
+
+7. Fix the single failing Phase 16 regression test.
+   Report:
+   - test name
+   - failure cause
+   - files changed
+   - final result
+
+8. Add or run production-style integration verification for:
+   - login callback writes shared session
+   - scheduler reads shared session
+   - bulk fetch path
+   - per-symbol fallback
+   - post-scan derived-data synchronization
+   - atomic publication
+   - no overlapping runs
+
+9. Regenerate the entire Phase22 Review Package only after the above verification.
+
+The new package must include current:
+
+- implementation_summary.md
+- production_readiness.md
+- test_results.csv
+- diagnostics.json
+- Phase 22 readiness/activation/progress JSON
+- Automation Health screenshot
+- Kite Connect screenshot
+- Live Data Health screenshot
+- scan history showing the two new scheduled scans
+- timing breakdowns
+- provider breakdown
+
+Do not claim completion based only on unit tests or implementation notes. The regenerated package must prove the latest production state.
