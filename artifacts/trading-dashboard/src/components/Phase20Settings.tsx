@@ -23,6 +23,7 @@ import {
   Clock, Gauge, Sliders, Cpu, Lock, Mail, Send, Eye,
 } from "lucide-react";
 import { API_BASE } from "@/lib/api";
+import EmailDeliveryHistory from "@/components/EmailDeliveryHistory";
 import { useToast } from "@/hooks/use-toast";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -624,6 +625,7 @@ export default function Phase20Settings() {
             Delivery failures are logged and never interrupt scanning or paper trading. Remember to
             save settings after changing the address or toggle.
           </p>
+          <EmailDeliveryHistory />
         </section>
 
         {/* ── 4. Execution model ── */}

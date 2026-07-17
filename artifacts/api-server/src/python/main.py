@@ -170,16 +170,18 @@ def cmd_symbols() -> dict:
 
 
 def cmd_watchlist_add(symbol: str) -> dict:
-    symbol = symbol.upper().strip()
-    if symbol not in config.NIFTY_50:
-        return {
-            "error": f"Unknown symbol '{symbol}'. Only known NSE symbols "
-                     "(NIFTY 50 universe) can be added to the watchlist.",
-        }
+    # Priority 3 (#26): central symbol validation (normalize, instrument
+    # master check, duplicates, clear rejection reasons, audit tracking).
+    import symbol_validation
     wl = _load_watchlist()
-    if symbol not in wl:
-        wl.append(symbol)
-        _save_watchlist(wl)
+    r = symbol_validation.validate_symbol(symbol, context="watchlist", existing=wl)
+    if not r["valid"]:
+        out = {"error": r["reason"]}
+        if r.get("suggestions"):
+            out["suggestions"] = r["suggestions"]
+        return out
+    wl.append(r["symbol"])
+    _save_watchlist(wl)
     return {"watchlist": wl}
 
 
@@ -201,9 +203,39 @@ def cmd_sell(symbol: str, quantity: int, price: float, reason: str = "") -> dict
     return {"success": success, "message": message}
 
 
-def cmd_reset() -> dict:
+def cmd_reset(reason: str = "Manual portfolio reset") -> dict:
+    # Priority 2 (#21): archive the full session before wiping paper state.
+    # A failed archive blocks the reset — no session may vanish unrecorded.
+    import session_archive
+    archive = session_archive.archive_current_session(reason)
     reset_portfolio()
-    return {"success": True, "message": "Portfolio reset to ₹5,000"}
+    return {"success": True,
+            "message": "Portfolio reset to ₹5,000",
+            "archive_id": archive["id"]}
+
+
+def cmd_session_archives() -> dict:
+    import session_archive
+    return {"archives": session_archive.list_archives()}
+
+
+def cmd_session_archive_get(archive_id: str) -> dict:
+    import session_archive
+    rec = session_archive.get_archive(archive_id)
+    if not rec:
+        return {"success": False, "error": f"Archive {archive_id} not found"}
+    return {"success": True, "archive": rec}
+
+
+def cmd_session_restore_request(archive_id: str, confirmation: str) -> dict:
+    import session_archive
+    return session_archive.request_restore(archive_id, confirmation)
+
+
+def cmd_session_restore_confirm(archive_id: str, confirmation: str,
+                                restore_token: str) -> dict:
+    import session_archive
+    return session_archive.confirm_restore(archive_id, confirmation, restore_token)
 
 
 def cmd_market_data(symbol: str, interval: str = "1d", period: str = "3mo") -> dict:
@@ -536,10 +568,32 @@ def main():
             result = cmd_watchlist()
         elif command == "symbols":
             result = cmd_symbols()
+        elif command == "symbol_search" and len(args) >= 2:
+            import symbol_validation
+            result = symbol_validation.search_symbols(args[1])
         elif command == "watchlist_add" and len(args) >= 2:
             result = cmd_watchlist_add(args[1])
         elif command == "watchlist_remove" and len(args) >= 2:
             result = cmd_watchlist_remove(args[1])
+        elif command == "symbol_validate" and len(args) >= 2:
+            import symbol_validation
+            result = symbol_validation.validate_symbol(args[1], context="cli")
+        elif command == "symbol_validation_log":
+            import symbol_validation
+            result = {"log": symbol_validation.get_validation_log(
+                int(args[1]) if len(args) > 1 else 100)}
+        elif command == "alert_queue_process":
+            import alert_queue
+            result = alert_queue.process_email_queue()
+        elif command == "alert_queue_stats":
+            import alert_queue
+            result = alert_queue.queue_stats()
+        elif command == "alert_deliveries":
+            import alert_queue
+            result = alert_queue.list_deliveries(
+                channel=args[1] if len(args) > 1 and args[1] != "all" else None,
+                status=args[2] if len(args) > 2 and args[2] != "all" else None,
+                limit=int(args[3]) if len(args) > 3 else 100)
         elif command == "buy" and len(args) >= 4:
             result = cmd_buy(args[1], int(args[2]), float(args[3]),
                              args[4] if len(args) > 4 else "")
@@ -547,7 +601,15 @@ def main():
             result = cmd_sell(args[1], int(args[2]), float(args[3]),
                               args[4] if len(args) > 4 else "")
         elif command == "reset":
-            result = cmd_reset()
+            result = cmd_reset(args[1] if len(args) > 1 else "Manual portfolio reset")
+        elif command == "session_archives":
+            result = cmd_session_archives()
+        elif command == "session_archive_get" and len(args) >= 2:
+            result = cmd_session_archive_get(args[1])
+        elif command == "session_restore_request" and len(args) >= 3:
+            result = cmd_session_restore_request(args[1], args[2])
+        elif command == "session_restore_confirm" and len(args) >= 4:
+            result = cmd_session_restore_confirm(args[1], args[2], args[3])
         elif command == "market_data" and len(args) >= 2:
             result = cmd_market_data(
                 args[1],

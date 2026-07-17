@@ -1,6 +1,12 @@
 import { db, pushSubscriptionsTable, signalsCacheTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { logger } from "./logger";
+import {
+  enqueueAlert,
+  processDueDeliveries,
+  truncateDestination,
+  type AttemptSender,
+} from "./alertQueue";
 
 // High-confidence signal push notifications (research alerts only).
 //
@@ -158,37 +164,92 @@ export async function dispatchSignalPushNotifications(): Promise<void> {
       messageTokens.push(sub.token);
     }
 
-    if (messages.length === 0) return;
-
-    for (let i = 0; i < messages.length; i += 100) {
-      const chunk = messages.slice(i, i + 100);
-      const chunkTokens = messageTokens.slice(i, i + 100);
-      try {
-        const tickets = await sendExpoPush(chunk);
-        for (let j = 0; j < tickets.length; j++) {
-          const ticket = tickets[j];
-          if (ticket?.status === "error") {
-            const tokenForTicket = chunkTokens[j];
-            if (ticket.details?.error === "DeviceNotRegistered" && tokenForTicket) {
-              await db
-                .delete(pushSubscriptionsTable)
-                .where(eq(pushSubscriptionsTable.token, tokenForTicket));
-              logger.info({ token: tokenForTicket.slice(0, 24) + "…" },
-                "Removed unregistered push token");
-            } else {
-              logger.warn({ error: ticket.details?.error, message: ticket.message },
-                "Expo push ticket error");
-            }
-          }
-        }
-      } catch (err) {
-        logger.warn({ err: err instanceof Error ? err.message : String(err) },
-          "Expo push send failed (will not retry this snapshot)");
+    if (messages.length > 0) {
+      // Priority 4 (#41): enqueue into the durable alert delivery queue
+      // instead of firing directly — a briefly-down push service no longer
+      // loses alerts. Idempotency key = token + snapshot, so re-dispatch of
+      // the same scan can never double-notify a device.
+      let enqueued = 0;
+      for (let i = 0; i < messages.length; i++) {
+        const token = messageTokens[i]!;
+        const ok = await enqueueAlert({
+          channel: "push",
+          kind: "signal_alert",
+          severity: "INFO",
+          title: String(messages[i]!["title"] ?? "Signal alert"),
+          body: String(messages[i]!["body"] ?? ""),
+          destination: token,
+          payload: messages[i],
+          idempotencyKey: `push:${token}:${snapshotKey}`,
+        });
+        if (ok) enqueued++;
       }
+      logger.info({ enqueued, snapshotKey }, "Signal push notifications queued");
     }
-    logger.info({ sent: messages.length, snapshotKey },
-      "Signal push notifications dispatched");
+
+    // Always drain due deliveries (including retries from earlier snapshots).
+    await processPushDeliveryQueue();
   } finally {
     dispatchInFlight = false;
+  }
+}
+
+// ── Queue processor (Priority 4 / #41) ───────────────────────────────────────
+
+const PERMANENT_TICKET_ERRORS = new Set([
+  "DeviceNotRegistered", "InvalidCredentials", "MessageTooBig",
+]);
+
+const expoSender: AttemptSender = async (row) => {
+  const message = (row.payload && typeof row.payload === "object")
+    ? (row.payload as Record<string, unknown>)
+    : { to: row.destination, title: row.title, body: row.body, sound: "default" };
+  const startedAt = Date.now();
+  const tickets = await sendExpoPush([message]);
+  const latencyMs = Date.now() - startedAt;
+  const ticket = tickets[0];
+  if (!ticket) {
+    return { ok: false, error: "Expo returned no ticket" };
+  }
+  const response: Record<string, unknown> = {
+    status: ticket.status, id: (ticket as Record<string, unknown>)["id"],
+    error: ticket.details?.error, latency_ms: latencyMs,
+  };
+  if (ticket.status === "ok") {
+    // Expo "ok" = accepted handoff to the push gateway (Expo's supported
+    // status model); receipts are not polled here.
+    return {
+      ok: true,
+      providerId: String((ticket as Record<string, unknown>)["id"] ?? ""),
+      providerResponse: response,
+    };
+  }
+  const errCode = ticket.details?.error ?? "unknown";
+  if (errCode === "DeviceNotRegistered") {
+    await db.delete(pushSubscriptionsTable)
+      .where(eq(pushSubscriptionsTable.token, row.destination));
+    logger.info({ token: truncateDestination(row.destination) },
+      "Removed unregistered push token");
+  }
+  return {
+    ok: false,
+    permanent: PERMANENT_TICKET_ERRORS.has(errCode),
+    providerResponse: response,
+    error: `${errCode}: ${ticket.message ?? ""}`.slice(0, 300),
+  };
+};
+
+let queueProcessing = false;
+
+export async function processPushDeliveryQueue(): Promise<void> {
+  if (queueProcessing) return;
+  queueProcessing = true;
+  try {
+    const counters = await processDueDeliveries("push", expoSender, 500);
+    if (counters.delivered || counters.retried || counters.failed || counters.expired) {
+      logger.info(counters, "Push delivery queue processed");
+    }
+  } finally {
+    queueProcessing = false;
   }
 }

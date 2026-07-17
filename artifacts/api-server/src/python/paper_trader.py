@@ -213,6 +213,16 @@ def execute_buy(
     if quantity <= 0:
         return False, "Quantity must be positive"
 
+    # ── Priority 3 (#26): central symbol validation before portfolio ────
+    try:
+        import symbol_validation
+        _v = symbol_validation.validate_symbol(symbol, context="portfolio")
+        if not _v["valid"]:
+            return False, f"Symbol rejected: {_v['reason']}"
+        symbol = _v["symbol"]
+    except ImportError:
+        pass
+
     # ── Phase 11: pre-trade risk enforcement (paper trading only) ────────
     risk_note = ""
     if not bypass_risk:

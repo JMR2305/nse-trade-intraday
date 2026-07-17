@@ -11,12 +11,13 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Bell, BellRing, RefreshCw, Loader2, Download, CheckCheck,
   AlertTriangle, TrendingUp, Bot, Globe2, ShieldAlert, Inbox,
-  Gauge, Info, XCircle, CheckCircle2,
+  Gauge, Info, XCircle, CheckCircle2, Send,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { API_BASE } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import DataFreshnessBar from "@/components/DataFreshnessBar";
+import DeliveryMonitor from "@/components/DeliveryMonitor";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -34,6 +35,7 @@ const TABS = [
   { key: "ai_suggestions",label: "AI Suggestions", icon: Bot },
   { key: "market_alerts", label: "Market Alerts",  icon: Globe2 },
   { key: "automation",    label: "Automation",     icon: Gauge },
+  { key: "delivery",      label: "Delivery",       icon: Send },
 ] as const;
 
 const AUTO_SEVERITY_STYLE: Record<string, string> = {
@@ -223,7 +225,9 @@ export default function Notifications() {
       {/* Tabs */}
       <div className="flex flex-wrap gap-1.5">
         {TABS.map(({ key, label, icon: Icon }) => {
-          const count = key === "automation" ? autoNotifs.length : (sections[key] ?? []).length;
+          const count = key === "automation" ? autoNotifs.length
+            : key === "delivery" ? null
+            : (sections[key] ?? []).length;
           return (
             <button key={key} onClick={() => setTab(key)}
               className={cn(
@@ -233,14 +237,16 @@ export default function Notifications() {
                   : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-500"
               )}>
               <Icon className="h-3.5 w-3.5" />{label}
-              <span className="text-[10px] opacity-60">({count})</span>
+              {count !== null && <span className="text-[10px] opacity-60">({count})</span>}
             </button>
           );
         })}
       </div>
 
-      {/* Automation notifications */}
-      {tab === "automation" ? (
+      {/* Delivery monitoring (Priority 5 / #31) */}
+      {tab === "delivery" ? (
+        <DeliveryMonitor />
+      ) : tab === "automation" ? (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-xs text-zinc-500">

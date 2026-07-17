@@ -1,0 +1,296 @@
+TASK PRIORITIZATION — RELIABILITY, DATA SAFETY, ALERT DELIVERY, AND MOBILE STABILITY
+
+Review the existing suggested-task backlog and implement the items in the priority order below.
+
+Do not start all tasks simultaneously. Complete, test, and checkpoint each task before moving to the next one.
+
+Do not alter trading strategy logic, champion-model rules, confidence thresholds, or live-order safety controls unless explicitly required by a task.
+
+The system must remain:
+- PAPER / RESEARCH ONLY
+- Auto paper entries unchanged unless explicitly approved
+- Live-order write paths DISABLED
+- Existing audit logging and safety gates preserved
+
+PRIORITY 1 — DATABASE SYNC SAFETY (#27)
+
+Fix:
+“Stop database syncs from threatening to wipe scheduler and settings data.”
+
+Requirements:
+
+1. Identify every database migration, schema-sync, push, reset, or maintenance command that may propose deleting or recreating protected production tables.
+2. Protect at minimum:
+   - scheduler configuration
+   - scheduler leases and run history
+   - application settings
+   - Zerodha session metadata
+   - paper portfolio state
+   - paper trade history
+   - signal history
+   - evidence records
+   - watchlists
+   - notification delivery history
+   - audit logs
+   - archived portfolio sessions
+3. Replace destructive automatic schema synchronization with explicit, versioned migrations.
+4. Block any migration that would drop or truncate a protected table unless:
+   - a current verified backup exists
+   - an explicit migration plan exists
+   - an authorized human confirmation is provided
+5. Add migration dry-run output showing:
+   - tables added
+   - columns added
+   - columns changed
+   - tables at risk
+   - data-loss risk
+6. Add backup and rollback verification.
+7. Test against a representative copy of the production schema.
+8. Confirm no existing records are lost.
+9. Do not run a destructive migration in production.
+
+Success criteria:
+- No routine database sync can drop protected tables.
+- Scheduler and settings survive deployment and schema updates.
+- All persistence tests pass.
+
+PRIORITY 2 — ARCHIVED SESSION REVIEW AND RESTORE (#21)
+
+Implement:
+“Review or restore an archived trading session after a reset.”
+
+Requirements:
+
+1. Show a list of archived paper-trading sessions with:
+   - archive ID
+   - created time
+   - reset time
+   - reset reason
+   - previous portfolio value
+   - realized and unrealized P&L
+   - cash
+   - open-position count
+   - pending-order count
+   - configuration hash
+   - latest scan ID
+2. Allow read-only inspection before restoration.
+3. Restoration must require typing exactly:
+
+RESTORE PAPER SESSION
+
+4. Require a second confirmation.
+5. Before restoring, archive the current active session.
+6. Restore only simulated paper state.
+7. Never modify:
+   - Zerodha credentials
+   - API tokens
+   - live-order controls
+   - model registry
+   - historical evidence
+   - immutable audit history
+8. Record a complete audit event.
+9. Failed validation or backup creation must block restoration.
+10. Support safe rollback if restoration fails.
+
+PRIORITY 3 — SYMBOL VALIDATION (#26)
+
+Implement:
+“Prevent junk symbols from silently breaking scans.”
+
+Requirements:
+
+1. Validate symbols before adding them to:
+   - watchlist
+   - scan universe
+   - portfolio
+   - alert rules
+2. Normalize ticker formats safely.
+3. Check against an authoritative instrument master or approved symbol registry.
+4. Reject:
+   - blank symbols
+   - malformed symbols
+   - duplicate symbols
+   - unsupported exchanges
+   - expired instruments
+   - ambiguous company-name matches
+5. Show a clear reason when a symbol is rejected.
+6. Never allow one invalid symbol to fail the full scan.
+7. Track invalid-symbol attempts in diagnostics and audit logs.
+8. Add tests for malformed, duplicate, delisted, unsupported, and valid symbols.
+
+PRIORITY 4 — ALERT QUEUE AND RETRY (#41)
+
+Implement:
+“Don’t lose an alert when the push service is briefly down.”
+
+Requirements:
+
+1. Use durable database-backed alert delivery records.
+2. Alert lifecycle:
+   - QUEUED
+   - SENDING
+   - DELIVERED
+   - RETRY_SCHEDULED
+   - FAILED
+   - EXPIRED
+3. Retry transient failures with bounded exponential backoff.
+4. Do not retry permanent failures indefinitely.
+5. Prevent duplicate delivery using idempotency keys.
+6. Preserve critical alerts until delivered or explicitly expired.
+7. Continue supporting email and push independently.
+8. Record provider response, attempt count, last error, and timestamps.
+9. Never include API secrets or tokens in notification payloads or logs.
+10. Add dead-letter handling for repeatedly failed alerts.
+
+PRIORITY 5 — PUSH DELIVERY MONITORING (#31)
+
+Implement:
+“See at a glance whether push alerts are being delivered.”
+
+Display:
+
+- queued
+- sending
+- delivered
+- failed
+- retry scheduled
+- last delivery time
+- last failure
+- provider latency
+- device-token status
+- recent delivery history
+
+Add filters by:
+- alert type
+- severity
+- status
+- date
+- destination/device
+
+Do not report SENT as DELIVERED unless the provider confirms delivery or accepted handoff according to the provider’s supported status model.
+
+PRIORITY 6 — MOBILE DATA FRESHNESS (#36)
+
+Implement:
+“Show data freshness on Positions, Health and Alerts tabs too.”
+
+Requirements:
+
+1. Add visible “Updated X ago” labels to:
+   - Positions
+   - Health
+   - Alerts
+2. Use actual backend data timestamps, not screen-render time.
+3. Auto-update the displayed age without fabricating a new data timestamp.
+4. Show:
+   - FRESH
+   - AGING
+   - STALE
+   - OFFLINE CACHE
+   - UNAVAILABLE
+5. When using cached data, show the cache age prominently.
+6. Ensure labels work on phone and tablet layouts.
+
+PRIORITY 7 — OFFLINE CACHE COMPATIBILITY (#37)
+
+Implement:
+“Make sure cached offline data can’t silently break after API changes.”
+
+Requirements:
+
+1. Add explicit cache schema versions.
+2. Validate cached payloads before use.
+3. Add safe migrations for compatible older cache versions.
+4. Reject incompatible or corrupted cache records.
+5. Fall back to a clear unavailable/error state rather than displaying incorrect data.
+6. Add tests for:
+   - old compatible cache
+   - incompatible cache
+   - corrupt cache
+   - partial cache
+   - missing fields
+   - API schema changes
+7. Never silently reinterpret incompatible fields.
+
+PRIORITY 8 — EMAIL DELIVERY HISTORY (#49)
+
+Implement:
+“See a short history of recent email deliveries, not just the last one.”
+
+Display recent email attempts with:
+
+- timestamp
+- email type
+- recipient masked
+- status
+- provider message ID
+- attempt count
+- delivery/failure time
+- error summary
+- preview link where safe
+
+Keep enough history for auditing without exposing sensitive content.
+
+PRIORITY 9 — COMPANY-NAME SEARCH (#34)
+
+Implement:
+“Search stocks by company name, not just ticker symbol.”
+
+Requirements:
+
+1. Search by:
+   - ticker
+   - company name
+   - common alias
+2. Return approved instruments only.
+3. Show ticker, company, exchange, and instrument type.
+4. Resolve ambiguous names through user selection.
+5. Do not automatically add the first fuzzy match.
+6. Reuse the symbol-validation service from Priority 3.
+
+DEFERRED — DO NOT IMPLEMENT YET
+
+Do not start these until the above reliability tasks are completed and verified:
+
+- #19 Full NIFTY 50 market scan on mobile
+- #38 Telegram or WhatsApp alerts
+- #35 Expand the stock universe beyond NIFTY 50
+
+Reasons:
+- Mobile stability must be proven before adding a large scan view.
+- Existing push and email delivery should be reliable before adding channels.
+- Current provider, scan-duration, and unavailable-symbol issues must be stable before expanding the universe.
+
+TESTING AND REGRESSION REQUIREMENTS
+
+After each priority task:
+
+1. Run task-specific tests.
+2. Run relevant regression tests.
+3. Run dashboard TypeScript checks.
+4. Run mobile TypeScript checks where applicable.
+5. Run production dashboard build.
+6. Validate database migration safety.
+7. Confirm scheduler remains healthy.
+8. Confirm historical data remains intact.
+9. Confirm paper-trading safety gates remain unchanged.
+10. Confirm live-order write paths remain disabled.
+
+FINAL REPORT
+
+After completing the approved priorities, provide:
+
+1. Tasks completed
+2. Tasks deferred
+3. Files changed per task
+4. Database migrations added
+5. Records preserved
+6. Tests passed and failed
+7. Dashboard build result
+8. Mobile validation result
+9. Remaining known issues
+10. Confirmation that no trading strategy logic was changed
+11. Confirmation that auto paper-entry state was not altered
+12. Confirmation that live-order writes remain disabled
+
+Do not claim completion if any task risks production data loss, silently drops alerts, displays incompatible cached data, or weakens the existing trading safety controls.

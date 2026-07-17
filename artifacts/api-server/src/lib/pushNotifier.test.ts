@@ -1,10 +1,11 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { db, pool, pushSubscriptionsTable, signalsCacheTable } from "@workspace/db";
+import { alertDeliveriesTable, db, pool, pushSubscriptionsTable, signalsCacheTable } from "@workspace/db";
 import { eq, like } from "drizzle-orm";
 import {
   dispatchSignalPushNotifications,
   ensurePushSubscriptionsTable,
 } from "./pushNotifier";
+import { ensureAlertDeliveriesTable } from "./alertQueue";
 
 const TEST_TOKEN_PREFIX = "ExponentPushToken[vitest-push-";
 const TEST_TOKEN_LIKE = "ExponentPushToken[vitest-push-%";
@@ -76,12 +77,17 @@ async function getSub(token: string) {
 }
 
 async function clearTestState(): Promise<void> {
-  // Remove every subscription so tests fully control who gets notified.
+  // Remove every subscription so tests fully control who gets notified,
+  // and clear queued deliveries for test tokens (Priority 4 durable queue).
   await db.delete(pushSubscriptionsTable);
+  await db
+    .delete(alertDeliveriesTable)
+    .where(like(alertDeliveriesTable.destination, TEST_TOKEN_LIKE));
 }
 
 beforeAll(async () => {
   await ensurePushSubscriptionsTable();
+  await ensureAlertDeliveriesTable();
   // Back up real dev data so tests leave the database untouched.
   originalSubs = (await db.select().from(pushSubscriptionsTable)).map((s) => ({
     token: s.token,
@@ -249,7 +255,7 @@ describe("dispatchSignalPushNotifications", () => {
     expect((await getSub(testToken(2)))?.lastNotifiedKey).toBe(snapshotTs.toISOString());
   });
 
-  it("deletes tokens that Expo reports as DeviceNotRegistered", async () => {
+  it("deletes tokens that Expo reports as DeviceNotRegistered and fails the delivery permanently", async () => {
     const snapshotTs = new Date("2026-07-17T04:40:00.000Z");
     await setSignalsSnapshot(
       [{ stock: "RELIANCE", final_action: "BUY", confidence: 95 }],
@@ -276,12 +282,25 @@ describe("dispatchSignalPushNotifications", () => {
 
     await dispatchSignalPushNotifications();
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // Queue processes one delivery per request now.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(await getSub(testToken(1))).toBeUndefined(); // deleted
     expect(await getSub(testToken(2))).toBeDefined(); // kept
+
+    const [failedRow] = await db
+      .select()
+      .from(alertDeliveriesTable)
+      .where(eq(alertDeliveriesTable.destination, testToken(1)));
+    expect(failedRow?.status).toBe("FAILED");
+    expect(failedRow?.deadLetter).toBe(false); // permanent, not dead-lettered
+    const [okRow] = await db
+      .select()
+      .from(alertDeliveriesTable)
+      .where(eq(alertDeliveriesTable.destination, testToken(2)));
+    expect(okRow?.status).toBe("DELIVERED");
   });
 
-  it("chunks sends into batches of at most 100 messages", async () => {
+  it("delivers to every subscriber, one queued delivery per device", async () => {
     const fetchMock = mockFetchOk();
     const snapshotTs = new Date("2026-07-17T04:50:00.000Z");
     await setSignalsSnapshot(
@@ -295,18 +314,15 @@ describe("dispatchSignalPushNotifications", () => {
 
     await dispatchSignalPushNotifications();
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    const firstBatch = JSON.parse(
+    // One send per queued delivery; all drained in a single dispatch.
+    expect(fetchMock).toHaveBeenCalledTimes(total);
+    const firstBody = JSON.parse(
       (fetchMock.mock.calls[0]![1] as { body: string }).body,
     ) as unknown[];
-    const secondBatch = JSON.parse(
-      (fetchMock.mock.calls[1]![1] as { body: string }).body,
-    ) as unknown[];
-    expect(firstBatch).toHaveLength(100);
-    expect(secondBatch).toHaveLength(5);
+    expect(firstBody).toHaveLength(1);
   });
 
-  it("survives an Expo API failure without throwing and never retries the snapshot", async () => {
+  it("schedules a retry (does not lose the alert) when the push service is down", async () => {
     const snapshotTs = new Date("2026-07-17T05:00:00.000Z");
     await setSignalsSnapshot(
       [{ stock: "RELIANCE", final_action: "BUY", confidence: 95 }],
@@ -320,8 +336,36 @@ describe("dispatchSignalPushNotifications", () => {
     await expect(dispatchSignalPushNotifications()).resolves.toBeUndefined();
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    // Snapshot was recorded before the send, so no retry loop.
+    // Priority 4 (#41): the failed delivery is retained with backoff — not
+    // dropped. Its next attempt is in the future, so an immediate
+    // re-dispatch does NOT hammer the provider (and idempotency prevents a
+    // duplicate row for the same snapshot).
+    const [row] = await db
+      .select()
+      .from(alertDeliveriesTable)
+      .where(eq(alertDeliveriesTable.destination, testToken(1)));
+    expect(row?.status).toBe("RETRY_SCHEDULED");
+    expect(row?.attempts).toBe(1);
+    expect(row?.lastError).toBeTruthy();
+    expect(row!.nextAttemptAt!.getTime()).toBeGreaterThan(Date.now());
+
     await dispatchSignalPushNotifications();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // Once due (simulate backoff elapsed), the retry goes out and delivers.
+    await db
+      .update(alertDeliveriesTable)
+      .set({ nextAttemptAt: new Date(Date.now() - 1000) })
+      .where(eq(alertDeliveriesTable.id, row!.id));
+    const okMock = mockFetchOk();
+    await dispatchSignalPushNotifications();
+    expect(okMock).toHaveBeenCalledTimes(1);
+    const [after] = await db
+      .select()
+      .from(alertDeliveriesTable)
+      .where(eq(alertDeliveriesTable.id, row!.id));
+    expect(after?.status).toBe("DELIVERED");
+    expect(after?.attempts).toBe(2);
+    expect(after?.deliveredAt).toBeTruthy();
   });
 });

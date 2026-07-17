@@ -2,7 +2,7 @@ import { spawn } from "child_process";
 import path from "path";
 import { logger } from "./logger";
 import { PYTHON_DIR, PYTHON_BIN } from "./python-env";
-import { dispatchSignalPushNotifications } from "./pushNotifier";
+import { dispatchSignalPushNotifications, processPushDeliveryQueue } from "./pushNotifier";
 
 // Phase 20 — market-hours auto-scan scheduler.
 //
@@ -83,6 +83,18 @@ export function startScanScheduler(): void {
     } finally {
       tickInFlight = false;
     }
+
+    // Priority 4 (#41): drain the durable alert delivery queue every tick
+    // (retries for push + email survive restarts and provider outages).
+    // Runs even when no scan is due; never blocks or fails the tick.
+    processPushDeliveryQueue().catch((err: unknown) => {
+      logger.warn({ err: err instanceof Error ? err.message : String(err) },
+        "Push delivery queue processing failed");
+    });
+    runPython(["alert_queue_process"]).catch((err: unknown) => {
+      logger.warn({ err: err instanceof Error ? err.message : String(err) },
+        "Email alert queue processing failed");
+    });
   };
 
   timer = setInterval(() => { void tick(); }, intervalMs);

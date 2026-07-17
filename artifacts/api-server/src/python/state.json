@@ -1,11 +1,11 @@
 {
   "cash": 5000.0,
   "positions": {},
-  "trades": [],
   "pnl_history": [
     {
-      "timestamp": "2026-07-17T12:19:43.417606",
-      "value": 5000.0
+      "value": 5000.0,
+      "timestamp": "2026-07-17T12:19:43.417606"
     }
-  ]
+  ],
+  "trades": []
 }

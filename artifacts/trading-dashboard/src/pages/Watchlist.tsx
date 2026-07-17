@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   useGetWatchlist,
   getGetWatchlistQueryKey,
@@ -13,6 +13,18 @@ import { Input } from "@/components/ui/input";
 import { Trash2, Plus, TrendingUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import DataFreshnessBar from "@/components/DataFreshnessBar";
+import { API_BASE } from "@/lib/api";
+
+// Priority 9 (#34): server-side search over the approved research universe
+// by ticker, company name or alias. Only approved instruments are returned.
+type SearchResult = {
+  symbol: string;
+  name: string;
+  exchange: string;
+  type: string;
+  sector: string;
+  match: "ticker" | "name" | "alias";
+};
 
 export default function Watchlist() {
   const [newSymbol, setNewSymbol] = useState("");
@@ -21,6 +33,7 @@ export default function Watchlist() {
 
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(0);
+  const [navigated, setNavigated] = useState(false);
   const blurTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data, isLoading } = useGetWatchlist();
@@ -32,19 +45,43 @@ export default function Watchlist() {
   const allSymbols = symbolsData?.symbols ?? [];
   const watchlistSet = useMemo(() => new Set(data?.watchlist ?? []), [data]);
 
+  // Debounced server-side search (ticker / company name / alias). An
+  // AbortController + cleanup guard prevents stale out-of-order responses
+  // from overwriting results for the current query.
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  useEffect(() => {
+    const q = newSymbol.trim();
+    if (!q) { setSearchResults([]); return; }
+    const ctrl = new AbortController();
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetch(`${API_BASE}/symbols/search?q=${encodeURIComponent(q)}`,
+          { signal: ctrl.signal });
+        const d = await r.json();
+        if (!cancelled && r.ok && Array.isArray(d.results)) setSearchResults(d.results);
+        else if (!cancelled) setSearchResults([]);
+      } catch {
+        if (!cancelled) setSearchResults([]);
+      }
+    }, 200);
+    return () => { cancelled = true; ctrl.abort(); clearTimeout(t); };
+  }, [newSymbol]);
+
   const suggestions = useMemo(() => {
     const q = newSymbol.trim().toUpperCase();
-    const pool = allSymbols.filter((s) => !watchlistSet.has(s.symbol));
-    if (!q) return pool.slice(0, 8);
-    return pool
-      .filter((s) => s.symbol.includes(q) || s.sector.includes(q))
-      .sort((a, b) => {
-        const aStarts = a.symbol.startsWith(q) ? 0 : 1;
-        const bStarts = b.symbol.startsWith(q) ? 0 : 1;
-        return aStarts - bStarts || a.symbol.localeCompare(b.symbol);
-      })
-      .slice(0, 8);
-  }, [newSymbol, allSymbols, watchlistSet]);
+    if (!q) {
+      // No query yet: show the approved universe not already tracked.
+      return allSymbols
+        .filter((s) => !watchlistSet.has(s.symbol))
+        .slice(0, 8)
+        .map((s) => ({
+          symbol: s.symbol, name: "", exchange: "NSE", type: "EQ",
+          sector: s.sector, match: "ticker" as const,
+        }));
+    }
+    return searchResults.filter((s) => !watchlistSet.has(s.symbol)).slice(0, 8);
+  }, [newSymbol, allSymbols, watchlistSet, searchResults]);
 
   const submitSymbol = (raw: string) => {
     const symbol = raw.trim().toUpperCase();
@@ -91,20 +128,43 @@ export default function Watchlist() {
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
-    if (showSuggestions && suggestions.length > 0 && highlightIndex >= 0 && highlightIndex < suggestions.length) {
+    // Explicit keyboard selection (arrow keys) counts as picking from the list.
+    if (navigated && showSuggestions && suggestions[highlightIndex]) {
       submitSymbol(suggestions[highlightIndex].symbol);
       return;
     }
-    submitSymbol(newSymbol);
+    const typed = newSymbol.trim().toUpperCase();
+    // Exact ticker typed → add it directly.
+    if (typed && allSymbols.some((s) => s.symbol === typed)) {
+      submitSymbol(typed);
+      return;
+    }
+    // Any search-derived match (company name / alias / partial) requires an
+    // explicit pick — click or arrow-key selection. Never auto-add a fuzzy
+    // match, even when there is only one, since async results can change
+    // between keystrokes.
+    if (suggestions.length >= 1) {
+      setShowSuggestions(true);
+      toast({
+        title: suggestions.length === 1 ? "Confirm selection" : "Multiple matches",
+        description: suggestions.length === 1
+          ? `Did you mean ${suggestions[0].symbol} (${suggestions[0].name || suggestions[0].sector})? Pick it from the list to add.`
+          : `"${typed}" matches ${suggestions.length} instruments — pick one from the list.`,
+      });
+      return;
+    }
+    submitSymbol(typed);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!showSuggestions || suggestions.length === 0) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
+      setNavigated(true);
       setHighlightIndex((i) => (i + 1) % suggestions.length);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
+      setNavigated(true);
       setHighlightIndex((i) => (i - 1 + suggestions.length) % suggestions.length);
     } else if (e.key === "Escape") {
       setShowSuggestions(false);
@@ -145,12 +205,13 @@ export default function Watchlist() {
           <form onSubmit={handleAdd} className="flex gap-3">
             <div className="relative max-w-xs w-full">
               <Input
-                placeholder="Search NSE symbols..."
+                placeholder="Search ticker or company name..."
                 value={newSymbol}
                 onChange={(e) => {
                   setNewSymbol(e.target.value.toUpperCase());
                   setShowSuggestions(true);
                   setHighlightIndex(0);
+                  setNavigated(false);
                 }}
                 onFocus={() => {
                   if (blurTimeout.current) clearTimeout(blurTimeout.current);
@@ -182,8 +243,15 @@ export default function Watchlist() {
                       onClick={() => submitSymbol(s.symbol)}
                       data-testid={`suggestion-${s.symbol}`}
                     >
-                      <span className="font-mono font-semibold">{s.symbol}</span>
-                      <span className="text-xs text-muted-foreground">{s.sector}</span>
+                      <span className="min-w-0">
+                        <span className="font-mono font-semibold">{s.symbol}</span>
+                        {s.name && (
+                          <span className="ml-2 truncate text-xs text-muted-foreground">{s.name}</span>
+                        )}
+                      </span>
+                      <span className="shrink-0 text-[10px] text-muted-foreground">
+                        {s.exchange} · {s.type}{s.sector ? ` · ${s.sector}` : ""}
+                      </span>
                     </button>
                   ))}
                 </div>

@@ -221,13 +221,18 @@ class TestStoreIntegration(unittest.TestCase):
     """add_notification triggers email for critical kinds only, best-effort."""
 
     def test_add_notification_emails_critical_kind(self):
+        # Priority 4 (#41): the email path now goes through the durable
+        # alert queue (enqueue + immediate processing) instead of a direct
+        # maybe_send_alert_email call.
         import phase20_store as store
-        with mock.patch.object(email_alerts, "maybe_send_alert_email",
-                               return_value={"sent": True}) as m:
+        import alert_queue
+        with mock.patch.object(alert_queue, "enqueue_email_alert") as enq, \
+             mock.patch.object(alert_queue, "process_email_queue") as proc:
             with mock.patch.object(store, "_with_db", return_value=True):
                 store.add_notification("PERFORMANCE_ALERT", "t", "b", "WARN")
-        self.assertTrue(m.called)
-        self.assertEqual(m.call_args[0][0], "PERFORMANCE_ALERT")
+        self.assertTrue(enq.called)
+        self.assertTrue(proc.called)
+        self.assertEqual(enq.call_args[0][0], "PERFORMANCE_ALERT")
 
     def test_add_notification_skips_other_kinds(self):
         import phase20_store as store

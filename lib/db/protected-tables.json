@@ -1,0 +1,29 @@
+{
+  "comment": "Tables that no routine schema sync may drop, truncate, or destructively alter. safe-migrate.mjs enforces this. Add new production tables here.",
+  "protected": [
+    "alert_deliveries",
+    "paper_portfolio",
+    "paper_trades",
+    "phase20_kv",
+    "phase20_notifications",
+    "phase20_paper_trades",
+    "phase20_scan_runs",
+    "phase20_scheduler_state",
+    "phase20_settings",
+    "phase22_evidence",
+    "push_subscriptions",
+    "scan_lock",
+    "scan_state",
+    "session_archives",
+    "signal_snapshots",
+    "signals_cache"
+  ],
+  "drizzleManaged": [
+    "alert_deliveries",
+    "paper_portfolio",
+    "paper_trades",
+    "signals_cache",
+    "signal_snapshots",
+    "push_subscriptions"
+  ]
+}

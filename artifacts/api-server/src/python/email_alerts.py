@@ -124,7 +124,15 @@ def _send_via_resend(to: str, subject: str, text: str,
         body = resp.read().decode()[:500]
         if resp.status >= 300:
             raise RuntimeError(f"Resend HTTP {resp.status}: {body}")
-    return {"sent": True, "provider": "RESEND"}
+    message_id = None
+    try:
+        message_id = (json.loads(body) or {}).get("id")
+    except Exception:
+        message_id = None
+    result: Dict[str, Any] = {"sent": True, "provider": "RESEND"}
+    if message_id:
+        result["message_id"] = str(message_id)
+    return result
 
 
 def _send_via_smtp(to: str, subject: str, text: str,

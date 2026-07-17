@@ -71,6 +71,38 @@ export const pushSubscriptionsTable = pgTable("push_subscriptions", {
   updatedAt:       timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
+// ── Alert Delivery Queue (Priority 4 / #41) ──────────────────────────────────
+// Durable delivery records for push + email alerts. Lifecycle:
+// QUEUED → SENDING → DELIVERED | RETRY_SCHEDULED | FAILED | EXPIRED.
+// Idempotency keys prevent duplicate delivery; dead_letter marks rows that
+// exhausted retries. Never stores API secrets — destination is a device
+// push token or a masked email address; payload carries display data only.
+
+export const alertDeliveriesTable = pgTable("alert_deliveries", {
+  id:               bigserial("id", { mode: "number" }).primaryKey(),
+  idempotencyKey:   text("idempotency_key").notNull().unique(),
+  channel:          text("channel").notNull(), // 'push' | 'email'
+  kind:             text("kind").notNull(),
+  severity:         text("severity").notNull().default("INFO"),
+  title:            text("title").notNull(),
+  body:             text("body").notNull().default(""),
+  destination:      text("destination").notNull(),
+  payload:          jsonb("payload").$type<Record<string, unknown>>(),
+  status:           text("status").notNull().default("QUEUED"),
+  attempts:         integer("attempts").notNull().default(0),
+  maxAttempts:      integer("max_attempts").notNull().default(6),
+  critical:         boolean("critical").notNull().default(false),
+  deadLetter:       boolean("dead_letter").notNull().default(false),
+  nextAttemptAt:    timestamp("next_attempt_at", { withTimezone: true }).defaultNow(),
+  expiresAt:        timestamp("expires_at", { withTimezone: true }),
+  lastError:        text("last_error"),
+  providerId:       text("provider_id"),
+  providerResponse: jsonb("provider_response").$type<Record<string, unknown>>(),
+  createdAt:        timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt:        timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  deliveredAt:      timestamp("delivered_at", { withTimezone: true }),
+});
+
 // ── Insert schemas / types ────────────────────────────────────────────────────
 
 export const insertPaperTradeSchema = createInsertSchema(paperTradesTable).omit({ createdAt: true });
@@ -80,3 +112,4 @@ export type PaperPortfolio = typeof paperPortfolioTable.$inferSelect;
 export type SignalsCache = typeof signalsCacheTable.$inferSelect;
 export type SignalSnapshot = typeof signalSnapshotsTable.$inferSelect;
 export type PushSubscription = typeof pushSubscriptionsTable.$inferSelect;
+export type AlertDelivery = typeof alertDeliveriesTable.$inferSelect;

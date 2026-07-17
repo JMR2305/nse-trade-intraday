@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { FreshnessStatusBadge } from "@/components/FreshnessLabel";
 import { SkeletonCard } from "@/components/Skeleton";
 import { StaleBanner } from "@/components/StaleBanner";
 import { useColors } from "@/hooks/useColors";
@@ -128,6 +129,11 @@ export default function PositionsScreen() {
       <Text style={[styles.pageSub, { color: colors.mutedForeground }]}>
         Simulated trades only — no real money at risk
       </Text>
+      <FreshnessStatusBadge
+        ts={posSnapshot.dataTs ?? tradesSnapshot.dataTs}
+        source={posSnapshot.source}
+        style={{ marginBottom: 14 }}
+      />
 
       {isStale && <StaleBanner staleTs={staleTs} onRetry={onRefresh} />}
 

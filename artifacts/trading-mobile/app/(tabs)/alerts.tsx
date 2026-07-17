@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { FreshnessStatusBadge } from "@/components/FreshnessLabel";
 import { SkeletonCard } from "@/components/Skeleton";
 import { StaleBanner } from "@/components/StaleBanner";
 import { useColors } from "@/hooks/useColors";
@@ -191,7 +192,12 @@ export default function AlertsScreen() {
   const { data: liveData, isLoading, isError, refetch, isFetching, dataUpdatedAt } = useNotifications();
   const markRead = useMarkNotificationsRead();
 
-  const { data, isStale, staleTs } = useOfflineSnapshot("notifications", liveData, isError, dataUpdatedAt);
+  const { data, isStale, staleTs, source, dataTs } = useOfflineSnapshot(
+    "notifications",
+    liveData,
+    isError,
+    dataUpdatedAt,
+  );
 
   const list = Array.isArray(data) ? data : [];
   const unreadCount = list.filter((n) => !n.read).length;
@@ -210,6 +216,7 @@ export default function AlertsScreen() {
       <View style={[styles.header, { paddingTop: topPadding + 16, borderBottomColor: colors.border }]}>
         <View>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>Notifications</Text>
+          <FreshnessStatusBadge ts={dataTs} source={source} style={{ marginTop: 4 }} />
           {unreadCount > 0 && (
             <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>
               {unreadCount} unread

@@ -8,8 +8,13 @@
     "./schema": "./src/schema/index.ts"
   },
   "scripts": {
-    "push": "drizzle-kit push --config ./drizzle.config.ts",
-    "push-force": "drizzle-kit push --force --config ./drizzle.config.ts"
+    "push": "node ./scripts/safe-migrate.mjs migrate",
+    "generate": "node ./scripts/safe-migrate.mjs generate",
+    "dry-run": "node ./scripts/safe-migrate.mjs dry-run",
+    "baseline": "node ./scripts/safe-migrate.mjs baseline",
+    "backup": "node ./scripts/safe-migrate.mjs backup",
+    "verify-backup": "node ./scripts/safe-migrate.mjs verify-backup",
+    "test-safe-migrate": "node ./scripts/test-safe-migrate.mjs"
   },
   "dependencies": {
     "drizzle-orm": "catalog:",

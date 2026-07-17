@@ -90,6 +90,28 @@ def _run_tests(script: str) -> dict:
     return {"passed": 0, "failed": 0, "ran": False}
 
 
+def _run_db_safety_tests() -> dict:
+    """Run the DB migration-safety (safe-migrate) node test suite."""
+    try:
+        candidates = [
+            os.path.join(BASE_DIR, "..", "..", "..", "..", "lib", "db"),
+            os.path.join(os.getcwd(), "lib", "db"),
+        ]
+        db_root = next((os.path.abspath(c) for c in candidates
+                        if os.path.exists(os.path.join(c, "scripts", "test-safe-migrate.mjs"))), None)
+        if not db_root:
+            return {"passed": 0, "failed": 0, "ran": False}
+        p = subprocess.run(["node", "./scripts/test-safe-migrate.mjs"],
+                           cwd=db_root, capture_output=True, text=True, timeout=180)
+        out = (p.stdout or "") + (p.stderr or "")
+        m = re.search(r"(\d+) passed, (\d+) failed", out)
+        if m:
+            return {"passed": int(m.group(1)), "failed": int(m.group(2)), "ran": True}
+    except Exception:
+        pass
+    return {"passed": 0, "failed": 0, "ran": False}
+
+
 # ── CSV export builders ──────────────────────────────────────────────────────
 
 def _csv_opportunities(out: str, scan: dict):
@@ -521,6 +543,18 @@ def build_package(screenshots_dir: str | None = None) -> dict:
     t22i = _run_tests("test_phase22_integration.py")
     if not t22i["ran"]:
         warnings.append("Phase 22 integration verification suite could not be executed")
+    tdb = _run_db_safety_tests()
+    if not tdb["ran"]:
+        warnings.append("DB migration-safety (safe-migrate) test suite could not be executed")
+    tsr = _run_tests("test_session_restore.py")
+    if not tsr["ran"]:
+        warnings.append("Session archive/restore test suite could not be executed")
+    tsv = _run_tests("test_symbol_validation.py")
+    if not tsv["ran"]:
+        warnings.append("Symbol validation test suite could not be executed")
+    taq = _run_tests("test_alert_queue.py")
+    if not taq["ran"]:
+        warnings.append("Alert delivery queue test suite could not be executed")
     phase18_entries = safe("phase18 notebook entries",
                            lambda: __import__("phase18_notebook").list_entries(), {})
     phase18_evidence = safe("phase18 evidence tracker",
@@ -694,6 +728,18 @@ def build_package(screenshots_dir: str | None = None) -> dict:
          "Phase 22 final fix — replaced 50 serial fetches (770-990s); explicit via_fallback provenance"],
         ["Extended scan timing breakdown", "Yes", "Yes", "Yes",
          "provider_auth_s, symbols_fallback_fetched, symbols_failed surfaced in Automation Health"],
+        ["Durable alert delivery queue (email + push, retry/backoff/dead-letter)", "Yes", "Yes", "Yes",
+         "Priority 4 / #41 — alert_deliveries table; idempotency keys; QUEUED→SENDING→DELIVERED/RETRY_SCHEDULED/FAILED/EXPIRED"],
+        ["Push/email delivery monitoring UI (filters, latency, token status)", "Yes", "Yes", "Partial",
+         "Priority 5 / #31 — Notifications → Delivery tab; DELIVERED = provider-confirmed or accepted handoff only"],
+        ["Mobile data freshness badges (Positions/Health/Alerts)", "Yes", "Yes", "Partial",
+         "Priority 6 / #36 — FRESH/AGING/STALE/OFFLINE CACHE/UNAVAILABLE from backend data timestamps; 30s tick never fabricates a new timestamp"],
+        ["Versioned offline cache with validation + safe migration", "Yes", "Yes", "Yes",
+         "Priority 7 / #37 — v2 envelope; v1 migrated; incompatible/corrupt/partial rejected (never reinterpreted); 8 vitest tests in trading-mobile"],
+        ["Email delivery history (provider message ID, masked recipient, error trail)", "Yes", "Yes", "Yes",
+         "Priority 8 / #49 — Resend message id stored as provider_id; Settings email section shows recent-email table; Delivery tab has Provider ID column + email filter"],
+        ["Company-name watchlist search (ticker/name/alias, approved universe only)", "Yes", "Yes", "Yes",
+         "Priority 9 / #34 — symbol_validation.search_symbols + /api/symbols/search; ambiguous input requires explicit user selection; never auto-adds first fuzzy match"],
         ["Review package generator", "Yes", "Yes", "Partial", "Tested via generation run itself"],
         ["Paper trading engine / scanner / strategies", "Yes", "Yes", "Yes", "Built in earlier phases 1-14"],
         ["Real-money execution", "No", "No", "No", "Deliberately not implemented — research only"],
@@ -731,6 +777,22 @@ def build_package(screenshots_dir: str | None = None) -> dict:
          "derived-data sync, atomic publish, scan-lock overlap)",
          t22i["passed"] if t22i["ran"] else NA,
          t22i["failed"] if t22i["ran"] else NA, 0],
+        ["Session Archive & Restore — guarded two-step restore, rollback, "
+         "audit events (Priority 2 / #21)",
+         tsr["passed"] if tsr["ran"] else NA,
+         tsr["failed"] if tsr["ran"] else NA, 0],
+        ["Symbol Validation — central validator (normalize, instrument "
+         "master, duplicates, scan resilience; Priority 3 / #26)",
+         tsv["passed"] if tsv["ran"] else NA,
+         tsv["failed"] if tsv["ran"] else NA, 0],
+        ["Alert Delivery Queue — durable email/push queue with retry, "
+         "backoff, dead-letter, idempotency (Priority 4 / #41)",
+         taq["passed"] if taq["ran"] else NA,
+         taq["failed"] if taq["ran"] else NA, 0],
+        ["DB Migration Safety — safe-migrate (protected-table guard, "
+         "classification, backup/verify, scratch apply)",
+         tdb["passed"] if tdb["ran"] else NA,
+         tdb["failed"] if tdb["ran"] else NA, 0],
         ["UI Tests", NA, NA, NA],
         ["Performance Tests", NA, NA, NA],
     ]

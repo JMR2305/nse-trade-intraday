@@ -135,6 +135,23 @@ router.get("/symbols", async (_req, res) => {
   }
 });
 
+// GET /api/symbols/search?q=… — Priority 9 (#34): search the approved
+// research universe by ticker, company name or alias. Only approved
+// instruments are returned; ambiguous input requires explicit user selection.
+router.get("/symbols/search", async (req, res) => {
+  try {
+    const q = String(req.query.q ?? "").trim();
+    if (!q) {
+      res.json({ results: [], query: "" });
+      return;
+    }
+    const data = await runPython(["symbol_search", q]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // POST /api/watchlist
 router.post("/watchlist", async (req, res) => {
   const { symbol } = req.body as { symbol?: string };
@@ -184,7 +201,60 @@ router.post("/portfolio/reset", async (req, res) => {
       });
       return;
     }
-    const data = await runPython(["reset"]);
+    const reason = (req.body?.reason ?? "Manual portfolio reset").toString().slice(0, 300);
+    const data = await runPython(["reset", reason]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ── Priority 2 (#21): Archived session review & guarded restore ─────────────
+// Restore is a two-step flow: step 1 validates the exact confirmation phrase
+// and issues a one-time restore token; step 2 requires the phrase AGAIN plus
+// the token. The Python layer archives the current session before applying
+// and rolls back on failure. Only simulated paper state is ever touched.
+export const SESSION_RESTORE_CONFIRMATION = "RESTORE PAPER SESSION";
+
+// GET /api/session-archives — list archived sessions (read-only)
+router.get("/session-archives", async (_req, res) => {
+  try {
+    const data = await runPython(["session_archives"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/session-archives/:id — inspect one archive (read-only)
+router.get("/session-archives/:id", async (req, res) => {
+  try {
+    const data = await runPython(["session_archive_get", req.params.id]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/session-archives/:id/restore
+// Body: { confirmation } → step 1 (issues restore_token)
+// Body: { confirmation, restore_token } → step 2 (executes restore)
+router.post("/session-archives/:id/restore", async (req, res) => {
+  try {
+    const confirmation = (req.body?.confirmation ?? "").toString();
+    if (confirmation !== SESSION_RESTORE_CONFIRMATION) {
+      res.status(400).json({
+        error: "Confirmation required",
+        detail:
+          `Session restore requires body {"confirmation": "${SESSION_RESTORE_CONFIRMATION}"} ` +
+          "typed exactly. This restores simulated paper state only.",
+      });
+      return;
+    }
+    const token = (req.body?.restore_token ?? "").toString();
+    const data = token
+      ? await runPython(["session_restore_confirm", req.params.id, confirmation, token])
+      : await runPython(["session_restore_request", req.params.id, confirmation]);
     res.json(data);
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });

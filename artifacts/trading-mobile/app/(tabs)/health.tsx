@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { FreshnessStatusBadge } from "@/components/FreshnessLabel";
 import { Skeleton } from "@/components/Skeleton";
 import { StaleBanner } from "@/components/StaleBanner";
 import { useColors } from "@/hooks/useColors";
@@ -25,7 +26,21 @@ import {
   useRiskKillSwitch,
   useSchedulerHealth,
 } from "@/lib/monitorApi";
-import { useOfflineSnapshot } from "@/lib/offlineCache";
+import { SnapshotSource, useOfflineSnapshot } from "@/lib/offlineCache";
+
+// Worst source across sections wins; age shown is the oldest data timestamp.
+const SOURCE_RANK: Record<SnapshotSource, number> = { none: 3, "offline-cache": 2, memory: 1, live: 0 };
+function combineFreshness(
+  snaps: { source: SnapshotSource; dataTs: number | null }[],
+): { source: SnapshotSource; ts: number | null } {
+  let worst: SnapshotSource = "live";
+  let oldest: number | null = null;
+  for (const s of snaps) {
+    if (SOURCE_RANK[s.source] > SOURCE_RANK[worst]) worst = s.source;
+    if (s.dataTs != null && (oldest == null || s.dataTs < oldest)) oldest = s.dataTs;
+  }
+  return { source: worst, ts: oldest };
+}
 
 type Tone = "good" | "bad" | "warn" | "muted";
 
@@ -137,6 +152,8 @@ export default function HealthScreen() {
   const killData = killSnap.data;
   const brokerData = brokerSnap.data;
 
+  const freshness = combineFreshness([liveSnap, schedSnap, settingsSnap, kiteSnap, killSnap, brokerSnap]);
+
   const anyStale =
     liveSnap.isStale || schedSnap.isStale || settingsSnap.isStale || kiteSnap.isStale || killSnap.isStale || brokerSnap.isStale;
   const staleTs =
@@ -203,6 +220,7 @@ export default function HealthScreen() {
       <Text style={[styles.pageSub, { color: colors.mutedForeground }]}>
         Monitoring only — no orders can be placed from this app
       </Text>
+      <FreshnessStatusBadge ts={freshness.ts} source={freshness.source} style={{ marginBottom: 14 }} />
 
       {anyStale && <StaleBanner staleTs={staleTs} onRetry={refetchAll} />}
 

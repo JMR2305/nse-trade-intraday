@@ -408,6 +408,18 @@ def run_market_scan(
     """
     universe = symbols if symbols else list(NIFTY_50)
 
+    # ── Priority 3 (#26): filter junk symbols so one bad entry can never
+    # fail the full scan. Rejections are logged with reasons + audited.
+    try:
+        import symbol_validation
+        _filtered = symbol_validation.validate_universe(universe, context="scan")
+        if _filtered["valid"]:
+            universe = _filtered["valid"]
+        # If everything was rejected (should never happen with defaults),
+        # keep the original universe rather than producing an empty scan.
+    except ImportError:
+        pass
+
     items: list[ScanItem] = []
     for sym in universe:
         items.append(scan_stock(sym, capital=capital))

@@ -659,7 +659,12 @@ def add_notification(kind: str, title: str, body: str = "",
     try:
         import email_alerts
         if kind in email_alerts.EMAIL_KINDS:
-            email_alerts.maybe_send_alert_email(kind, title, body, severity)
+            # Priority 4 (#41): durable queue + immediate processing attempt.
+            # A briefly-down email provider no longer loses the alert — the
+            # scheduler retries queued rows with bounded backoff.
+            import alert_queue
+            alert_queue.enqueue_email_alert(kind, title, body, severity)
+            alert_queue.process_email_queue()
     except Exception:
         pass
 
