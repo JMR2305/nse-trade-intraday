@@ -17,11 +17,16 @@ A failed scan never overwrites the last successful snapshot
 
 from __future__ import annotations
 
+import os
+import socket
 import time
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict
 
 import phase20_store as store
+
+# Stable identity of THIS scheduler process (Autoscale instance visibility).
+_OWNER = f"{socket.gethostname()}:{os.getpid()}"
 
 
 def _iso_now() -> str:
@@ -117,6 +122,7 @@ def run_tick() -> Dict[str, Any]:
         store.update_scheduler_state(
             last_attempt_at=now_iso, status="DISABLED",
             detail="Auto scan disabled in settings",
+            owner=_OWNER, heartbeat_at=now_iso,
         )
         return {"success": True, "ran_scan": False, "reason": "Auto scan disabled"}
 
@@ -128,6 +134,7 @@ def run_tick() -> Dict[str, Any]:
         store.update_scheduler_state(
             last_attempt_at=now_iso, status="IDLE",
             detail=f"Market not open (state={mstate or 'UNKNOWN'})",
+            owner=_OWNER, heartbeat_at=now_iso,
         )
         out: Dict[str, Any] = {"success": True, "ran_scan": False,
                                "reason": f"Market not open (state={mstate or 'UNKNOWN'})",
@@ -143,6 +150,7 @@ def run_tick() -> Dict[str, Any]:
             last_attempt_at=now_iso, status="FRESH",
             next_due_at=_next_due_iso(max(1, int(interval_min - age / 60))),
             detail=f"Snapshot fresh ({round(age)}s old, interval {interval_min}m)",
+            owner=_OWNER, heartbeat_at=now_iso,
         )
         result: Dict[str, Any] = {
             "success": True, "ran_scan": False,
@@ -152,15 +160,25 @@ def run_tick() -> Dict[str, Any]:
         return result
 
     store.update_scheduler_state(last_attempt_at=now_iso, status="SCANNING",
-                                 detail="Scheduled scan starting")
+                                 detail="Scheduled scan starting",
+                                 owner=_OWNER, heartbeat_at=now_iso,
+                                 last_trigger="SCHEDULED")
     t0 = time.time()
     try:
         from live_scan_engine import get_or_run_scan
         snap = get_or_run_scan(max_age_s=interval_min * 60, force=False)
         duration = time.time() - t0
         ran = not snap.get("_from_cache", False)
+        pipeline = None
         if ran:
             store.record_scan_run(_run_meta_from_snapshot(snap, "SCHEDULED", duration))
+            # Phase 22 — regenerate EVERY scan-derived dataset from this exact
+            # scan_id, validate consistency, atomically publish the bundle.
+            try:
+                from scan_pipeline import run_post_scan_pipeline
+                pipeline = run_post_scan_pipeline(snap, trigger="SCHEDULED")
+            except Exception as exc:
+                pipeline = {"status": "FAILED", "error": str(exc)[:300]}
             store.add_notification(
                 "SCAN_SUCCESS", "Scheduled scan completed",
                 f"Scan {snap.get('scan_id')} completed in {round(duration, 1)}s",
@@ -173,11 +191,18 @@ def run_tick() -> Dict[str, Any]:
             last_scan_id=snap.get("scan_id"),
             next_due_at=_next_due_iso(interval_min),
             status="OK", detail="Scheduled scan ok" if ran else "Snapshot reused",
+            owner=_OWNER, heartbeat_at=_iso_now(),
+            last_trigger="SCHEDULED", last_error=None,
         )
         result = {"success": True, "ran_scan": ran,
                   "scan_id": snap.get("scan_id"),
                   "snapshot_ts": snap.get("snapshot_ts"),
                   "duration_s": round(duration, 2)}
+        if pipeline is not None:
+            result["pipeline"] = {
+                "status": pipeline.get("status"),
+                "failed_modules": pipeline.get("failed_modules"),
+            }
         result["paper"] = _manage_paper(settings, ran_scan=ran)
         return result
     except Exception as exc:  # failed scan: prior snapshot preserved by design
@@ -191,6 +216,8 @@ def run_tick() -> Dict[str, Any]:
         store.update_scheduler_state(
             last_attempt_at=now_iso, missed_increment=1,
             status="ERROR", detail=str(exc)[:300],
+            owner=_OWNER, heartbeat_at=_iso_now(),
+            last_trigger="SCHEDULED", last_error=str(exc)[:300],
         )
         store.add_notification(
             "SCAN_FAILED", "Scheduled scan failed",

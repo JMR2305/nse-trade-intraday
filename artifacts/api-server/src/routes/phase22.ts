@@ -104,6 +104,10 @@ router.post("/phase22/evidence/update", wrap(async (_req, res) => {
   res.json(await runPython(["phase22_evidence_update"], 120_000));
 }));
 
+router.get("/phase22/bundle", wrap(async (_req, res) => {
+  res.json(await runPython(["phase22_bundle"], 60_000));
+}));
+
 router.get("/phase22/progress", wrap(async (_req, res) => {
   res.json(await runPython(["phase22_progress"]));
 }));

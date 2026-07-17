@@ -2062,5 +2062,34 @@
     "phase14_summary.csv"
    ]
   }
+ },
+ {
+  "id": "e1107bedc4",
+  "ts": "2026-07-17T04:46:57.701886+00:00",
+  "event_type": "phase22_readiness_probe",
+  "actor": "system",
+  "detail": {
+   "ts": "2026-07-17T04:46:57.665360+00:00"
+  }
+ },
+ {
+  "id": "e28ff29809",
+  "ts": "2026-07-17T04:46:58.036341+00:00",
+  "event_type": "phase22_readiness_probe",
+  "actor": "system",
+  "detail": {
+   "ts": "2026-07-17T04:46:58.035288+00:00"
+  }
+ },
+ {
+  "id": "844ce51fb2",
+  "ts": "2026-07-17T04:46:59.549951+00:00",
+  "event_type": "phase22_paper_automation_disabled",
+  "actor": "dashboard_user",
+  "detail": {
+   "disabled_at": "2026-07-17T04:46:59.520430+00:00",
+   "by": "dashboard_user",
+   "reason": "test"
+  }
  }
 ]

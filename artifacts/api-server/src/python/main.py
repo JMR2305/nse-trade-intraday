@@ -795,6 +795,15 @@ def main():
                     record_manual_scan(result, _time.time() - _scan_t0)
                 except Exception:
                     pass
+                # Phase 22: manual scans get the same post-scan regeneration
+                # pipeline + atomic bundle publish as scheduled scans.
+                try:
+                    from scan_pipeline import run_post_scan_pipeline
+                    result["pipeline"] = run_post_scan_pipeline(
+                        result, trigger="MANUAL")
+                except Exception as _pexc:
+                    result["pipeline"] = {"status": "FAILED",
+                                          "error": str(_pexc)[:300]}
             # Phase 19B: compact scan-run metadata for the UI/route response.
             try:
                 _audit = result.get("scan_audit") or {}
@@ -1686,6 +1695,14 @@ def main():
             result = {"summary": evidence_summary(),
                       "rows": list_evidence(limit=limit),
                       "label": "PAPER / RESEARCH ONLY"}
+        elif command == "phase22_bundle":
+            from scan_pipeline import bundle_status
+            result = bundle_status()
+        elif command == "phase22_run_pipeline":
+            from live_scan_engine import load_cached_scan
+            from scan_pipeline import run_post_scan_pipeline
+            snap = load_cached_scan() or {}
+            result = run_post_scan_pipeline(snap, trigger="MANUAL")
         elif command == "phase22_evidence_update":
             from phase22_evidence import update_outcomes
             result = update_outcomes()

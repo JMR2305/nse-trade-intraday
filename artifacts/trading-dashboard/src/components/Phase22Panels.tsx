@@ -206,7 +206,7 @@ export function Phase22DashboardStatus() {
         <div>
           <p className={label}>Next scheduled scan</p>
           <p className={`${mono} text-zinc-300`}>
-            {fmt(sched?.next_due_at?.replace?.("T", " ")?.slice?.(0, 19))}
+            {fmt(sched?.scheduler?.next_due_at?.replace?.("T", " ")?.slice?.(0, 19))}
           </p>
         </div>
         <div>
@@ -516,15 +516,25 @@ export function Phase22HealthPanel() {
     queryFn: () => apiJson<any>("/phase22/evidence?limit=1"),
     staleTime: 120_000,
   });
+  const { data: bundle } = useQuery({
+    queryKey: ["/api/phase22/bundle"],
+    queryFn: () => apiJson<any>("/phase22/bundle"),
+    refetchInterval: 60_000,
+  });
   const ok = (b: boolean) => (b ? "text-emerald-400" : "text-red-400");
   const evOk = !!ev?.summary?.append_only;
+  const s = sched?.scheduler;
+  const ts = (v: any) =>
+    typeof v === "string" ? v.replace("T", " ").slice(0, 19) : v;
+  const pub = bundle?.published_bundle;
+  const attempt = bundle?.last_attempt;
   return (
     <Section title="Paper Engine Health (Phase 22)">
       <div className="grid gap-3 md:grid-cols-4">
         <div>
           <p className={label}>Scheduler</p>
-          <p className={`${mono} ${ok(["HEALTHY", "DEGRADED"].includes(sched?.health))}`}>
-            {fmt(sched?.health)}
+          <p className={`${mono} ${ok(["HEALTHY", "DEGRADED"].includes(s?.health))}`}>
+            {fmt(s?.health)}
           </p>
         </div>
         <div>
@@ -542,6 +552,99 @@ export function Phase22HealthPanel() {
         <div>
           <p className={label}>Live-order write paths</p>
           <p className={`${mono} text-emerald-400`}>DISABLED</p>
+        </div>
+        <div>
+          <p className={label}>Last trigger</p>
+          <p className={`${mono} text-zinc-300`}>{fmt(s?.last_trigger)}</p>
+        </div>
+        <div>
+          <p className={label}>Scheduler heartbeat</p>
+          <p className={`${mono} text-zinc-300`}>{fmt(ts(s?.heartbeat_at))}</p>
+        </div>
+        <div>
+          <p className={label}>Last scheduled scan</p>
+          <p className={`${mono} text-zinc-300`}>{fmt(ts(s?.last_success_at))}</p>
+        </div>
+        <div>
+          <p className={label}>Next scan due</p>
+          <p className={`${mono} text-zinc-300`}>{fmt(ts(s?.next_due_at))}</p>
+        </div>
+        <div>
+          <p className={label}>Missed scans</p>
+          <p className={`${mono} ${(s?.missed_count ?? 0) > 0 ? "text-amber-400" : "text-zinc-300"}`}>
+            {fmt(s?.missed_count)}
+          </p>
+        </div>
+        <div>
+          <p className={label}>Scheduler owner</p>
+          <p className={`${mono} text-zinc-300`}>{fmt(s?.owner)}</p>
+        </div>
+        <div>
+          <p className={label}>Scan lock</p>
+          <p className={`${mono} text-zinc-300`}>
+            {s?.lock
+              ? `${s.lock.holder ?? "-"} (expires ${ts(s.lock.expires_at) ?? "-"})`
+              : "free"}
+          </p>
+        </div>
+        <div>
+          <p className={label}>Last scheduler error</p>
+          <p className={`${mono} ${s?.last_error ? "text-red-400" : "text-zinc-500"}`}>
+            {s?.last_error ? String(s.last_error).slice(0, 80) : "none"}
+          </p>
+        </div>
+      </div>
+      <div className="mt-3 rounded border border-zinc-800 bg-zinc-950/40 p-3">
+        <p className="text-[11px] font-semibold text-zinc-300 mb-2">
+          Scan bundle (all pages regenerated from one scan)
+        </p>
+        <div className="grid gap-3 md:grid-cols-4">
+          <div>
+            <p className={label}>Published bundle</p>
+            <p className={`${mono} ${pub?.status === "SYNCHRONIZED" ? "text-emerald-400" : "text-amber-400"}`}>
+              {fmt(pub?.status)}
+            </p>
+          </div>
+          <div>
+            <p className={label}>Bundle scan id</p>
+            <p className={`${mono} text-zinc-300`}>{fmt(pub?.scan_id)}</p>
+          </div>
+          <div>
+            <p className={label}>Matches canonical scan</p>
+            <p className={`${mono} ${ok(!!bundle?.bundle_matches_canonical_scan)}`}>
+              {bundle?.bundle_matches_canonical_scan ? "YES" : "NO"}
+            </p>
+          </div>
+          <div>
+            <p className={label}>Hard mismatches</p>
+            <p className={`${mono} ${(pub?.consistency?.hard_mismatch_count ?? 0) === 0 ? "text-emerald-400" : "text-red-400"}`}>
+              {fmt(pub?.consistency?.hard_mismatch_count)}
+            </p>
+          </div>
+          <div>
+            <p className={label}>Out-of-sync values</p>
+            <p className={`${mono} ${(pub?.consistency?.stale_source_count ?? 0) === 0 ? "text-emerald-400" : "text-amber-400"}`}>
+              {fmt(pub?.consistency?.stale_source_count)}
+            </p>
+          </div>
+          <div>
+            <p className={label}>Model / rule version</p>
+            <p className={`${mono} text-zinc-300`}>
+              {fmt(pub?.model_version)} / {fmt(pub?.rule_version)}
+            </p>
+          </div>
+          <div>
+            <p className={label}>Full-scan provider</p>
+            <p className={`${mono} text-zinc-300`}>{fmt(pub?.providers?.full_scan_provider)}</p>
+          </div>
+          <div>
+            <p className={label}>Last attempt</p>
+            <p className={`${mono} ${attempt?.status === "SYNCHRONIZED" ? "text-emerald-400" : "text-amber-400"}`}>
+              {fmt(attempt?.status)}
+              {attempt?.failed_modules?.length
+                ? ` (failed: ${attempt.failed_modules.join(", ")})` : ""}
+            </p>
+          </div>
         </div>
       </div>
     </Section>

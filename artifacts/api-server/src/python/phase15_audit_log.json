@@ -576,5 +576,45 @@
     },
     "decision_summary": "0 STRONG BUY, 0 BUY, 4 WATCH, 44 IGNORE across 50 stocks; best INDUSINDBK (43.9); avg score 23.7",
     "label": "PAPER / RESEARCH ONLY"
+  },
+  {
+    "audit_id": "a15_44fc235b4ec1",
+    "scan_id": "44fc235b4ec1",
+    "timestamp": "2026-07-17T04:50:12Z",
+    "recorded_at": "2026-07-17T04:53:41Z",
+    "duration_s": 36.04,
+    "stocks_processed": 50,
+    "stocks_valid": 48,
+    "strategies_executed": [
+      "EMA Cross",
+      "MACD Cross",
+      "Mean Reversion",
+      "Trend Rider"
+    ],
+    "signals_generated": {
+      "strong_buy": 0,
+      "buy": 0,
+      "watch": 5,
+      "ignore": 43
+    },
+    "warnings": [],
+    "warning_count": 0,
+    "errors": [
+      "LTIM: Data fetch failed: No data returned for LTIM.NS",
+      "TATAMOTORS: Data fetch failed: No data returned for TATAMOTORS.NS"
+    ],
+    "error_count": 2,
+    "learning_events": [
+      "Adaptive learning active (bounded, human-governed)"
+    ],
+    "risk_checks": {
+      "quality_gates_applied": true,
+      "rr_gate_applied": true,
+      "volume_gate_applied": true,
+      "stale_cap_applied": true,
+      "gate_failures": 0
+    },
+    "decision_summary": "0 STRONG BUY, 0 BUY, 5 WATCH, 43 IGNORE across 50 stocks; best BAJFINANCE (48.6); avg score 24.3",
+    "label": "PAPER / RESEARCH ONLY"
   }
 ]
