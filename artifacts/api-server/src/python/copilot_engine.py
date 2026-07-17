@@ -84,7 +84,14 @@ def _state() -> dict:
 
 
 def _watchlist() -> list[str]:
-    wl = _load(WATCHLIST_FILE, None)
+    wl = None
+    try:
+        import signals_store
+        wl = signals_store.load_watchlist()
+    except Exception:
+        pass
+    if wl is None:
+        wl = _load(WATCHLIST_FILE, None)
     if wl is None:
         try:
             from config import DEFAULT_WATCHLIST

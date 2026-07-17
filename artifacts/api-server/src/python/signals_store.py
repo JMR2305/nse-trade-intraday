@@ -31,6 +31,7 @@ _PATHS = {
     "ai_decisions":     os.path.join(_DIR, "ai_decisions_cache.json"),
     "opportunity_scan": os.path.join(_DIR, "opportunity_cache.json"),
     "market_context":   os.path.join(_DIR, "market_context_cache.json"),
+    "watchlist":        os.path.join(_DIR, "watchlist.json"),
 }
 
 _SNAPSHOT_FALLBACK_PATH = os.path.join(_DIR, "signal_snapshots_local.json")
@@ -230,6 +231,29 @@ def save_market_context(context: Any) -> None:
 
 def load_market_context() -> Optional[Any]:
     return _load("market_context")
+
+
+def save_watchlist(watchlist: List[str]) -> None:
+    _save("watchlist", list(watchlist))
+
+
+def load_watchlist() -> Optional[List[str]]:
+    """
+    Load the persisted watchlist (list of symbols) or None if never saved.
+
+    With DATABASE_URL: reads Postgres (authoritative) and refreshes the local
+    watchlist.json warm cache. Without: reads the local file.
+    Returns None when no watchlist has ever been saved — callers should fall
+    back to config.DEFAULT_WATCHLIST.
+    """
+    wl = _load("watchlist")
+    if wl is None:
+        return None
+    if isinstance(wl, dict):
+        wl = wl.get("symbols", [])
+    if not isinstance(wl, list):
+        return None
+    return [str(s) for s in wl]
 
 
 # ── Signal history snapshots (append-only) ───────────────────────────────────

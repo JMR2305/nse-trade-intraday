@@ -52,18 +52,35 @@ WATCHLIST_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "watch
 
 
 def _load_watchlist() -> list[str]:
+    """Load watchlist: Postgres (signals_store) → watchlist.json → defaults.
+
+    An empty list is a valid persisted watchlist and is returned as-is.
+    """
+    try:
+        import signals_store
+        wl = signals_store.load_watchlist()
+        if wl is not None:
+            return wl
+    except Exception:
+        pass  # DB unreachable — fall through to the local file
     if os.path.exists(WATCHLIST_FILE):
         try:
             with open(WATCHLIST_FILE, "r") as f:
-                return json.load(f)
+                data = json.load(f)
+            if isinstance(data, dict):
+                data = data.get("symbols", [])
+            if isinstance(data, list):
+                return [str(s) for s in data]
         except Exception:
             pass
     return list(DEFAULT_WATCHLIST)
 
 
 def _save_watchlist(watchlist: list[str]) -> None:
-    with open(WATCHLIST_FILE, "w") as f:
-        json.dump(watchlist, f, indent=2)
+    """Persist watchlist to Postgres (authoritative); signals_store also
+    refreshes the local watchlist.json warm cache after a successful write."""
+    import signals_store
+    signals_store.save_watchlist(watchlist)
 
 
 def _load_portfolio_with_live_prices() -> dict:

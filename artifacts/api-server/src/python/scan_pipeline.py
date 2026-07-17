@@ -156,13 +156,21 @@ def _run(snap: Dict[str, Any], trigger: str) -> Dict[str, Any]:
     def intelligence():
         from intelligence import run_intelligence_scan
         import config
+        watchlist = None
         try:
-            with open("watchlist.json") as f:
-                wl = json.load(f)
-            watchlist = wl.get("symbols") if isinstance(wl, dict) else wl
+            import signals_store
+            watchlist = signals_store.load_watchlist()
         except Exception:
-            watchlist = None
-        watchlist = watchlist or config.DEFAULT_WATCHLIST
+            pass
+        if watchlist is None:
+            try:
+                with open("watchlist.json") as f:
+                    wl = json.load(f)
+                watchlist = wl.get("symbols") if isinstance(wl, dict) else wl
+            except Exception:
+                watchlist = None
+        if watchlist is None:
+            watchlist = config.DEFAULT_WATCHLIST
         from paper_trader import get_portfolio
         try:
             cash = float(getattr(get_portfolio(), "cash", 5000.0))

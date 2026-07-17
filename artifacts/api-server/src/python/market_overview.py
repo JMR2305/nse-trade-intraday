@@ -53,10 +53,21 @@ DEFAULT_WATCHLIST = [
 
 
 def _load_watchlist() -> list[str]:
+    try:
+        import signals_store
+        wl = signals_store.load_watchlist()
+        if wl is not None:
+            return wl
+    except Exception:
+        pass
     if os.path.exists(WATCHLIST_FILE):
         try:
             with open(WATCHLIST_FILE, "r") as f:
-                return json.load(f)
+                data = json.load(f)
+            if isinstance(data, dict):
+                data = data.get("symbols", [])
+            if isinstance(data, list):
+                return [str(s) for s in data]
         except Exception:
             pass
     return list(DEFAULT_WATCHLIST)
