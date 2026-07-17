@@ -908,6 +908,23 @@ def main():
             from email_alerts import send_test_email, provider_status
             _addr = args[1] if len(args) > 1 and args[1] else None
             result = {**send_test_email(_addr), "status": provider_status()}
+        elif command == "phase20_email_send_daily_summary":
+            # Manual, on-demand send of today's daily summary email.
+            # Bypasses the opt-in toggle (explicit user action) but still
+            # requires a valid configured address and provider.
+            from email_alerts import maybe_send_daily_summary_email, provider_status
+            import phase20_store as _p20store
+            _settings = dict(_p20store.get_settings())
+            _settings["daily_summary_email_enabled"] = True
+            _report = None
+            try:
+                from phase22_report import build_daily_report
+                _report = build_daily_report()
+            except Exception as _exc:  # noqa: BLE001 — send with fallback body
+                _report = None
+            _send = maybe_send_daily_summary_email(_report, settings=_settings)
+            result = {"success": bool(_send.get("sent")), **_send,
+                      "status": provider_status()}
         elif command == "phase20_email_status":
             from email_alerts import provider_status
             result = {"success": True, **provider_status()}

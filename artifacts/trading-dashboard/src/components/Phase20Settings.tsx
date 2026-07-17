@@ -127,6 +127,7 @@ export default function Phase20Settings() {
   // Email alerts: provider status + test-send state
   const [emailStatus, setEmailStatus] = useState<{ configured: boolean; provider: string | null; hint?: string } | null>(null);
   const [sendingTest, setSendingTest] = useState(false);
+  const [sendingSummary, setSendingSummary] = useState(false);
 
   // Auto paper entries confirmation dialog state
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -174,6 +175,25 @@ export default function Phase20Settings() {
       toast({ title: "Test email failed", description: e.message, variant: "destructive" });
     } finally {
       setSendingTest(false);
+    }
+  };
+
+  const sendDailySummaryNow = async () => {
+    setSendingSummary(true);
+    try {
+      const r = await fetch(`${API_BASE}/phase20/email/send-daily-summary`, { method: "POST" });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || d.success === false) {
+        throw new Error(d.error ?? d.reason ?? `HTTP ${r.status}`);
+      }
+      toast({
+        title: "Daily summary sent",
+        description: `Today's summary email was delivered via ${d.provider ?? "configured provider"} — check your inbox.`,
+      });
+    } catch (e: any) {
+      toast({ title: "Daily summary email failed", description: e.message, variant: "destructive" });
+    } finally {
+      setSendingSummary(false);
     }
   };
 
@@ -474,6 +494,12 @@ export default function Phase20Settings() {
               disabled={sendingTest || !(draft.email_alert_address ?? "").trim() || !(emailStatus?.configured)}>
               {sendingTest ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
               Send test email
+            </Button>
+            <Button size="sm" variant="outline" className="gap-2 text-xs"
+              onClick={sendDailySummaryNow}
+              disabled={sendingSummary || !(draft.email_alert_address ?? "").trim() || !(emailStatus?.configured)}>
+              {sendingSummary ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+              Send today's summary now
             </Button>
             {emailStatus && (emailStatus.configured ? (
               <Badge variant="outline" className="text-[10px] text-emerald-400 border-emerald-800">

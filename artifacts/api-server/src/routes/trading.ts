@@ -2661,6 +2661,22 @@ router.post("/phase20/email/test", async (req, res) => {
   }
 });
 
+// POST /api/phase20/email/send-daily-summary — send today's summary email now
+router.post("/phase20/email/send-daily-summary", async (_req, res) => {
+  try {
+    const result = (await runPython([
+      "phase20_email_send_daily_summary",
+    ])) as Record<string, unknown>;
+    if (result && result["success"] === false) {
+      res.status(400).json(result);
+      return;
+    }
+    res.json(result);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/phase20/scheduler/health — last runs, next due, missed, status
 router.get("/phase20/scheduler/health", async (_req, res) => {
   try {
