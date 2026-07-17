@@ -15,7 +15,10 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { SkeletonCard } from "@/components/Skeleton";
+import { StaleBanner } from "@/components/StaleBanner";
 import { useColors } from "@/hooks/useColors";
+import { useOfflineSnapshot } from "@/lib/offlineCache";
 
 type SignalAction = "BUY" | "SELL" | "HOLD" | string;
 
@@ -132,8 +135,20 @@ export default function SignalsScreen() {
   const isWeb = Platform.OS === "web";
   const [scanError, setScanError] = useState(false);
 
-  const { data: signals, isLoading, isError, refetch, isFetching } = useGetSignals();
+  const { data: liveSignals, isLoading, isError, refetch, isFetching, dataUpdatedAt } = useGetSignals();
   const decisions = useGetTradeDecisions();
+
+  const {
+    data: signals,
+    isStale: signalsStale,
+    staleTs,
+  } = useOfflineSnapshot("signals", liveSignals, isError, dataUpdatedAt);
+  const decisionsSnapshot = useOfflineSnapshot(
+    "trade-decisions",
+    decisions.data,
+    decisions.isError,
+    decisions.dataUpdatedAt,
+  );
   const { mutateAsync: runScan, isPending: isScanning } = useRunScan();
 
   const handleScan = useCallback(async () => {
@@ -149,13 +164,13 @@ export default function SignalsScreen() {
 
   const topPadding = isWeb ? 67 : insets.top;
 
-  const rawSignals = signals as unknown as { signals?: Signal[] } | Signal[] | undefined;
+  const rawSignals = signals as { signals?: Signal[] } | Signal[] | undefined;
   const signalList: Signal[] = Array.isArray(rawSignals)
     ? rawSignals
     : Array.isArray(rawSignals?.signals)
     ? rawSignals.signals
     : [];
-  const rawDecisions = decisions.data as { decisions?: TradeDecision[] } | TradeDecision[] | undefined;
+  const rawDecisions = decisionsSnapshot.data as { decisions?: TradeDecision[] } | TradeDecision[] | undefined;
   const decisionList: TradeDecision[] = Array.isArray(rawDecisions)
     ? rawDecisions
     : Array.isArray(rawDecisions?.decisions)
@@ -192,14 +207,19 @@ export default function SignalsScreen() {
         </Text>
       )}
 
-      {isLoading ? (
+      {isLoading && signals === undefined ? (
+        <ScrollView contentContainerStyle={[styles.list, { paddingBottom: 120 }]} showsVerticalScrollIndicator={false}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Latest Signals</Text>
+          {[0, 1, 2, 3].map((i) => (
+            <SkeletonCard key={i} lines={2} />
+          ))}
+        </ScrollView>
+      ) : isError && signals === undefined ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
-      ) : isError ? (
-        <View style={styles.center}>
-          <Ionicons name="alert-circle-outline" size={48} color={colors.destructive} />
-          <Text style={[styles.errorText, { color: colors.mutedForeground }]}>Could not load signals</Text>
+          <Ionicons name="cloud-offline-outline" size={48} color={colors.destructive} />
+          <Text style={[styles.errorText, { color: colors.mutedForeground }]}>
+            Server unreachable and no saved signals yet
+          </Text>
           <Pressable style={[styles.retryBtn, { borderColor: colors.border }]} onPress={() => refetch()}>
             <Text style={[styles.retryText, { color: colors.primary }]}>Try again</Text>
           </Pressable>
@@ -216,6 +236,9 @@ export default function SignalsScreen() {
             />
           }
         >
+          {(signalsStale || decisionsSnapshot.isStale) && (
+            <StaleBanner staleTs={staleTs ?? decisionsSnapshot.staleTs} onRetry={() => refetch()} />
+          )}
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Latest Signals</Text>
           {signalList.length === 0 ? (
             <View style={styles.empty}>
@@ -229,8 +252,11 @@ export default function SignalsScreen() {
           )}
 
           <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 12 }]}>Trade Decisions</Text>
-          {decisions.isLoading ? (
-            <ActivityIndicator style={{ paddingVertical: 24 }} color={colors.primary} />
+          {decisions.isLoading && decisionsSnapshot.data === undefined ? (
+            <>
+              <SkeletonCard lines={1} />
+              <SkeletonCard lines={1} />
+            </>
           ) : decisionList.length === 0 ? (
             <View style={styles.empty}>
               <Ionicons name="git-branch-outline" size={40} color={colors.mutedForeground} />

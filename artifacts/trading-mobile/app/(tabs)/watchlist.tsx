@@ -14,12 +14,15 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { Skeleton } from "@/components/Skeleton";
+import { StaleBanner } from "@/components/StaleBanner";
 import { useColors } from "@/hooks/useColors";
 import {
   useAddWatchlistSymbol,
   useRemoveWatchlistSymbol,
   useWatchlist,
 } from "@/lib/monitorApi";
+import { useOfflineSnapshot } from "@/lib/offlineCache";
 
 export default function WatchlistScreen() {
   const colors = useColors();
@@ -30,7 +33,12 @@ export default function WatchlistScreen() {
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const { data: watchlist, isLoading, isError, refetch, isFetching } = useWatchlist();
+  const { data: liveWatchlist, isLoading, isError, refetch, isFetching, dataUpdatedAt } = useWatchlist();
+  const {
+    data: watchlist,
+    isStale: watchlistStale,
+    staleTs,
+  } = useOfflineSnapshot("watchlist", liveWatchlist, isError, dataUpdatedAt);
   const addSymbol = useAddWatchlistSymbol();
   const removeSymbol = useRemoveWatchlistSymbol();
 
@@ -103,14 +111,29 @@ export default function WatchlistScreen() {
 
       {error ? <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text> : null}
 
-      {isLoading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.primary} />
+      {watchlistStale && <StaleBanner staleTs={staleTs} onRetry={() => refetch()} />}
+
+      {isLoading && watchlist === undefined ? (
+        <View style={[styles.listCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          {[0, 1, 2, 3, 4].map((i) => (
+            <View
+              key={i}
+              style={[
+                styles.row,
+                i < 4 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+              ]}
+            >
+              <Skeleton style={{ width: 120, height: 16 }} />
+              <Skeleton style={{ width: 19, height: 16 }} />
+            </View>
+          ))}
         </View>
-      ) : isError ? (
+      ) : isError && watchlist === undefined ? (
         <View style={styles.center}>
-          <Ionicons name="alert-circle-outline" size={40} color={colors.destructive} />
-          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Could not load watchlist</Text>
+          <Ionicons name="cloud-offline-outline" size={40} color={colors.destructive} />
+          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+            Server unreachable and no saved watchlist yet
+          </Text>
           <Pressable style={[styles.retryBtn, { borderColor: colors.border }]} onPress={() => refetch()}>
             <Text style={{ color: colors.primary, fontFamily: "Inter_600SemiBold" }}>Try again</Text>
           </Pressable>

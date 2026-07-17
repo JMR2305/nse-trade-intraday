@@ -13,7 +13,10 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { Skeleton } from "@/components/Skeleton";
+import { StaleBanner } from "@/components/StaleBanner";
 import { useColors } from "@/hooks/useColors";
+import { useOfflineSnapshot } from "@/lib/offlineCache";
 import {
   useKiteStatus,
   useLiveDataHealth,
@@ -80,7 +83,7 @@ function StatusTile({
       </View>
       <Text style={[styles.tileLabel, { color: colors.mutedForeground }]}>{label}</Text>
       {loading ? (
-        <ActivityIndicator size="small" color={colors.mutedForeground} />
+        <Skeleton style={{ width: 64, height: 16 }} />
       ) : (
         <Text style={[styles.tileValue, { color: c }]} numberOfLines={1}>
           {value}
@@ -97,12 +100,19 @@ export default function DashboardScreen() {
   const topPadding = isWeb ? 67 : insets.top;
 
   const {
-    data: portfolio,
+    data: livePortfolio,
     isLoading,
     isError,
     refetch: refetchPortfolio,
     isFetching,
+    dataUpdatedAt,
   } = useGetPortfolio();
+
+  const {
+    data: portfolio,
+    isStale: portfolioStale,
+    staleTs,
+  } = useOfflineSnapshot("portfolio", livePortfolio, isError, dataUpdatedAt);
 
   const live = useLiveDataHealth();
   const sched = useSchedulerHealth();
@@ -135,11 +145,16 @@ export default function DashboardScreen() {
       p20.refetch(),
     ]);
 
-  if (isError) {
+  if (isError && portfolio === undefined) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background, paddingTop: topPadding }]}>
-        <Ionicons name="alert-circle-outline" size={48} color={colors.destructive} />
-        <Text style={[styles.errorText, { color: colors.mutedForeground }]}>Could not load dashboard</Text>
+        <Ionicons name="cloud-offline-outline" size={48} color={colors.destructive} />
+        <Text style={[styles.errorText, { color: colors.mutedForeground }]}>
+          Server unreachable and no saved data yet.
+        </Text>
+        <Text style={[styles.errorText, { color: colors.mutedForeground }]}>
+          It may be starting up — try again in a moment.
+        </Text>
         <Pressable style={[styles.retryBtn, { borderColor: colors.border }]} onPress={() => refetchPortfolio()}>
           <Text style={[styles.retryText, { color: colors.primary }]}>Try again</Text>
         </Pressable>
@@ -163,6 +178,8 @@ export default function DashboardScreen() {
         <Text style={[styles.pageTitle, { color: colors.foreground }]}>Dashboard</Text>
       </View>
 
+      {portfolioStale && <StaleBanner staleTs={staleTs} onRetry={() => refetchPortfolio()} />}
+
       {killActive && (
         <View style={[styles.banner, { backgroundColor: colors.destructive + "18", borderColor: colors.destructive }]}>
           <Ionicons name="warning" size={16} color={colors.destructive} />
@@ -182,8 +199,8 @@ export default function DashboardScreen() {
 
       <View style={[styles.heroCard, { backgroundColor: colors.primary }]}>
         <Text style={[styles.heroLabel, { color: colors.primaryForeground + "aa" }]}>Paper Portfolio Value</Text>
-        {isLoading ? (
-          <ActivityIndicator size="large" color={colors.primaryForeground} style={{ alignSelf: "flex-start", marginVertical: 8 }} />
+        {isLoading && portfolio === undefined ? (
+          <Skeleton style={{ width: 180, height: 40, marginBottom: 16, backgroundColor: "rgba(255,255,255,0.3)" }} />
         ) : (
           <Text style={[styles.heroValue, { color: colors.primaryForeground }]}>
             {formatInr(p?.total_value ?? 0)}
@@ -214,7 +231,13 @@ export default function DashboardScreen() {
       <View style={styles.statsRow}>
         <StatCard
           label="Invested"
-          value={p?.invested_value != null ? formatInr(p.invested_value) : "—"}
+          value={
+            isLoading && portfolio === undefined
+              ? "…"
+              : p?.invested_value != null
+              ? formatInr(p.invested_value)
+              : "—"
+          }
         />
         <StatCard
           label="Cash"
