@@ -1,7 +1,7 @@
 {
   "report_date": "2026-07-17",
-  "generated_at": "2026-07-17T08:59:21.094914+00:00",
-  "scheduled_scans_completed": 23,
+  "generated_at": "2026-07-17T10:30:20.681364+00:00",
+  "scheduled_scans_completed": 31,
   "failed_scans": 0,
   "candidates_evaluated": 0,
   "paper_entries_opened": 0,
@@ -9,7 +9,7 @@
   "exits_completed": 0,
   "pending_data_actions": 0,
   "realized_pnl": 0,
-  "unrealized_pnl": 0.0,
+  "unrealized_pnl": 0,
   "daily_drawdown": 0.0,
   "risk_limit_events": [],
   "strategy_summary": {},
