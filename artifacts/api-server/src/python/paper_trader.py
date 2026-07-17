@@ -116,6 +116,8 @@ class StrategyPerformance(TypedDict):
     win_rate: float
     avg_profit: float
     avg_loss: float
+    avg_return_pct: float
+    sharpe: float
     profit_factor: float
     total_pnl: float
     best_stock: str
@@ -537,6 +539,7 @@ def get_strategy_performance() -> StrategyPerformance:
         return StrategyPerformance(
             total_trades=0, winning_trades=0, losing_trades=0,
             win_rate=0.0, avg_profit=0.0, avg_loss=0.0,
+            avg_return_pct=0.0, sharpe=0.0,
             profit_factor=0.0, total_pnl=0.0,
             best_stock="—", worst_stock="—", best_regime="—",
             computed_at=datetime.now().isoformat(),
@@ -556,6 +559,21 @@ def get_strategy_performance() -> StrategyPerformance:
     total_profits = sum(t["pnl"] for t in winners)
     total_losses  = abs(sum(t["pnl"] for t in losers))
     profit_factor = (total_profits / total_losses) if total_losses > 0 else 999.0
+
+    # Avg return % per completed trade (using pnl_pct stored on replay items)
+    returns_pct = [t.get("pnl_pct", 0.0) for t in replay]
+    avg_return_pct = sum(returns_pct) / len(returns_pct) if returns_pct else 0.0
+
+    # Sharpe ratio: annualised mean / std of per-trade returns (252-trade year proxy)
+    import math
+    if len(returns_pct) >= 2:
+        mean_r = avg_return_pct
+        variance = sum((r - mean_r) ** 2 for r in returns_pct) / (len(returns_pct) - 1)
+        std_r = math.sqrt(variance) if variance > 0 else 0.0
+        ann_factor = math.sqrt(252)
+        sharpe = round((mean_r / std_r) * ann_factor, 2) if std_r > 0 else 0.0
+    else:
+        sharpe = 0.0
 
     # Per-stock P&L
     stock_pnl: dict[str, float] = {}
@@ -589,6 +607,8 @@ def get_strategy_performance() -> StrategyPerformance:
         win_rate=round(win_rate, 1),
         avg_profit=round(avg_profit, 2),
         avg_loss=round(avg_loss, 2),
+        avg_return_pct=round(avg_return_pct, 2),
+        sharpe=sharpe,
         profit_factor=round(profit_factor, 2),
         total_pnl=round(sum(t["pnl"] for t in replay), 2),
         best_stock=best_stock,

@@ -6,7 +6,7 @@ import {
   getGetSignalsQueryKey,
   useResetPortfolio
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { PaperAutomationBanner, Phase22DashboardStatus, Phase22DailyReportPanel } from "@/components/Phase22Panels";
 import {
   Card,
@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -24,7 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatCurrency, formatPercentage, formatTime } from "@/lib/format";
-import { Play, ArrowUpRight, ArrowDownRight, RefreshCcw } from "lucide-react";
+import { Play, ArrowUpRight, ArrowDownRight, RefreshCcw, TrendingUp, Trophy, BarChart2, Target } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -37,6 +38,23 @@ import {
 } from "recharts";
 import { useToast } from "@/hooks/use-toast";
 import DataFreshnessBar from "@/components/DataFreshnessBar";
+import { API_BASE } from "@/lib/api";
+
+interface StrategyPerf {
+  total_trades: number;
+  winning_trades: number;
+  losing_trades: number;
+  win_rate: number;
+  avg_profit: number;
+  avg_loss: number;
+  avg_return_pct: number;
+  sharpe: number;
+  profit_factor: number;
+  total_pnl: number;
+  best_stock: string;
+  worst_stock: string;
+  best_regime: string;
+}
 
 export default function Dashboard() {
   const queryClient = useQueryClient();
@@ -44,6 +62,17 @@ export default function Dashboard() {
   
   const { data: portfolio, isLoading: isPortfolioLoading } = useGetPortfolio({
     query: { queryKey: getGetPortfolioQueryKey(), refetchInterval: 30000 },
+  });
+
+  const { data: stratPerf, isLoading: isPerfLoading } = useQuery<StrategyPerf>({
+    queryKey: ["strategy-performance"],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/strategy-performance`);
+      if (!res.ok) throw new Error("Failed to load strategy performance");
+      return res.json();
+    },
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 
   const runScan = useRunScan();
@@ -278,6 +307,104 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Strategy Performance — auto-updated after every scheduled scan */}
+      <Card className="bg-card/50 backdrop-blur border-border/50">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="font-mono text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <BarChart2 className="h-4 w-4" />
+              Strategy Performance
+            </CardTitle>
+            {stratPerf && stratPerf.total_trades > 0 && (
+              <Badge variant="outline" className="text-xs font-mono">
+                {stratPerf.total_trades} completed trades
+              </Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isPerfLoading ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="h-16 rounded-md bg-muted/30 animate-pulse" />
+              ))}
+            </div>
+          ) : !stratPerf || stratPerf.total_trades === 0 ? (
+            <div className="py-6 text-center text-muted-foreground font-mono text-sm border border-dashed border-border rounded-md">
+              NO COMPLETED TRADES YET — performance metrics will appear after the algo closes its first position
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                {/* Win Rate */}
+                <div className="rounded-lg border border-border/50 bg-background/40 p-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Trophy className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-xs font-mono uppercase text-muted-foreground">Win Rate</span>
+                  </div>
+                  <div className={`text-2xl font-bold font-mono ${stratPerf.win_rate >= 55 ? "text-green-500" : stratPerf.win_rate >= 45 ? "text-amber-400" : "text-red-500"}`}>
+                    {stratPerf.win_rate.toFixed(1)}%
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {stratPerf.winning_trades}W / {stratPerf.losing_trades}L
+                  </div>
+                </div>
+
+                {/* Avg Return per Trade */}
+                <div className="rounded-lg border border-border/50 bg-background/40 p-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-xs font-mono uppercase text-muted-foreground">Avg Return / Trade</span>
+                  </div>
+                  <div className={`text-2xl font-bold font-mono ${stratPerf.avg_return_pct >= 0 ? "text-green-500" : "text-red-500"}`}>
+                    {stratPerf.avg_return_pct >= 0 ? "+" : ""}{stratPerf.avg_return_pct.toFixed(2)}%
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    per closed trade
+                  </div>
+                </div>
+
+                {/* Sharpe Ratio */}
+                <div className="rounded-lg border border-border/50 bg-background/40 p-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Target className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-xs font-mono uppercase text-muted-foreground">Sharpe Ratio</span>
+                  </div>
+                  <div className={`text-2xl font-bold font-mono ${stratPerf.sharpe >= 1.0 ? "text-green-500" : stratPerf.sharpe >= 0 ? "text-amber-400" : "text-red-500"}`}>
+                    {stratPerf.sharpe.toFixed(2)}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {stratPerf.sharpe >= 1.5 ? "excellent" : stratPerf.sharpe >= 1.0 ? "good" : stratPerf.sharpe >= 0.5 ? "moderate" : "needs improvement"}
+                  </div>
+                </div>
+
+                {/* Profit Factor */}
+                <div className="rounded-lg border border-border/50 bg-background/40 p-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-xs font-mono uppercase text-muted-foreground">Profit Factor</span>
+                  </div>
+                  <div className={`text-2xl font-bold font-mono ${stratPerf.profit_factor >= 1.5 ? "text-green-500" : stratPerf.profit_factor >= 1.0 ? "text-amber-400" : "text-red-500"}`}>
+                    {stratPerf.profit_factor >= 100 ? "—" : stratPerf.profit_factor.toFixed(2)}x
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    gross profit / gross loss
+                  </div>
+                </div>
+              </div>
+
+              {/* Secondary stats row */}
+              <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs font-mono text-muted-foreground">
+                <span>Best stock: <span className="text-foreground">{stratPerf.best_stock}</span></span>
+                <span>Worst stock: <span className="text-foreground">{stratPerf.worst_stock}</span></span>
+                <span>Best regime: <span className="text-foreground">{stratPerf.best_regime}</span></span>
+                <span>Total P&amp;L: <span className={stratPerf.total_pnl >= 0 ? "text-green-500" : "text-red-500"}>{stratPerf.total_pnl >= 0 ? "+" : ""}{formatCurrency(stratPerf.total_pnl)}</span></span>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Phase 22: paper automation status + daily close report */}
       <Phase22DashboardStatus />
