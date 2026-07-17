@@ -56,6 +56,15 @@ def _mask(s: Optional[str]) -> str:
 def _get_creds() -> tuple[Optional[str], Optional[str]]:
     api_key = os.environ.get("ZERODHA_API_KEY") or None
     token   = os.environ.get("ZERODHA_ACCESS_TOKEN") or None
+    if token:
+        # An env token whose recorded timestamp shows it past the daily
+        # 06:00 IST expiry must not count as an active session.
+        try:
+            from kite_quote_provider import _env_token_expired
+            if _env_token_expired():
+                token = None
+        except Exception:
+            pass
     if not token:
         try:
             import kite_token_store
@@ -371,6 +380,9 @@ def _finalize(base: Dict[str, Any]) -> Dict[str, Any]:
         meta = {"stored": False, "created_at": None,
                 "last_success_at": None, "last_latency_ms": None, "user_id": None}
     base["token_stored"] = meta["stored"]
+    base["token_expired"] = bool(meta.get("expired"))
+    base["token_expires_at"] = meta.get("expires_at")
+    base["daily_login_required"] = bool(meta.get("expired")) or not meta["stored"]
     base["token_created_at"] = meta["created_at"]
     base["last_success_at"] = meta["last_success_at"]
     base["last_latency_ms"] = meta["last_latency_ms"]

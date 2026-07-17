@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import os
 import stat
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 _STORE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".kite_token.json")
@@ -30,6 +30,40 @@ _KV_KEY = "kite_token_v1"
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+# Kite Connect access tokens expire at 06:00 IST (00:30 UTC) every day.
+_IST_OFFSET = timedelta(hours=5, minutes=30)
+_EXPIRY_HOUR_IST = 6
+
+
+def token_expiry_utc(created_at_iso: str) -> Optional[datetime]:
+    """Return the UTC datetime when a token created at `created_at_iso`
+    expires (the first 06:00 IST strictly after creation). None if unparseable."""
+    try:
+        created = datetime.fromisoformat(created_at_iso.replace("Z", "+00:00"))
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        created_ist = created + _IST_OFFSET
+        expiry_ist = created_ist.replace(hour=_EXPIRY_HOUR_IST, minute=0,
+                                         second=0, microsecond=0)
+        if created_ist >= expiry_ist:
+            expiry_ist += timedelta(days=1)
+        return expiry_ist - _IST_OFFSET
+    except Exception:
+        return None
+
+
+def is_expired(record: Optional[Dict[str, Any]]) -> bool:
+    """True if the stored token record is past its daily 06:00 IST expiry.
+    Fail-safe: a record without a parseable created_at is treated as expired
+    (a token of unknown age must never be trusted as a live session)."""
+    if not record or not record.get("access_token"):
+        return True
+    expiry = token_expiry_utc(str(record.get("created_at") or ""))
+    if expiry is None:
+        return True
+    return datetime.now(timezone.utc) >= expiry
 
 
 def _write_file(record: Dict[str, Any]) -> None:
@@ -59,28 +93,38 @@ def _db_save(record: Optional[Dict[str, Any]]) -> None:
         pass
 
 
-def load() -> Optional[Dict[str, Any]]:
+def load(include_expired: bool = False) -> Optional[Dict[str, Any]]:
     """Load the stored token record, or None. Never raises.
 
     Order: local warm-cache file first (fast path), then the durable DB
     record (survives redeploys / new Autoscale instances). A DB hit
     re-warms the local file.
+
+    By default an EXPIRED token (past its daily 06:00 IST expiry) is treated
+    as absent — callers see "no active session" and must trigger the daily
+    login flow. Pass include_expired=True only for metadata/status display.
     """
+    record: Optional[Dict[str, Any]] = None
     try:
         with open(_STORE_PATH, "r") as f:
             data = json.load(f)
         if isinstance(data, dict) and data.get("access_token"):
-            return data
+            record = data
     except Exception:
         pass
-    data = _db_load()
-    if data:
-        try:
-            _write_file(data)
-        except Exception:
-            pass
-        return data
-    return None
+    if record is None:
+        data = _db_load()
+        if data:
+            try:
+                _write_file(data)
+            except Exception:
+                pass
+            record = data
+    if record is None:
+        return None
+    if not include_expired and is_expired(record):
+        return None
+    return record
 
 
 def save_token(access_token: str, user_id: str = "") -> None:
@@ -128,6 +172,9 @@ def apply_to_env() -> None:
     Load the stored token into the process environment so all existing
     env-based readers (broker_client, kite_quote_provider, etc.) use it.
     Stored token takes precedence over any static env token.
+
+    An expired token is never exported — a stale env token would make
+    presence checks look "configured" while every real call fails.
     """
     data = load()
     if not data:
@@ -178,14 +225,24 @@ def recent_auth_failure() -> bool:
 
 
 def metadata() -> Dict[str, Any]:
-    """Non-secret metadata about the stored token (no token material)."""
-    data = load()
+    """Non-secret metadata about the stored token (no token material).
+
+    `stored` is True only for a VALID (unexpired) token. An expired record
+    is reported with stored=False + expired=True so the UI can show
+    "Daily Zerodha login required" instead of a silent LOGIN_REQUIRED.
+    """
+    data = load(include_expired=True)
     if not data:
-        return {"stored": False, "created_at": None,
-                "last_success_at": None, "last_latency_ms": None, "user_id": None}
+        return {"stored": False, "expired": False, "created_at": None,
+                "expires_at": None, "last_success_at": None,
+                "last_latency_ms": None, "user_id": None}
+    expired = is_expired(data)
+    expiry = token_expiry_utc(str(data.get("created_at") or ""))
     return {
-        "stored": True,
+        "stored": not expired,
+        "expired": expired,
         "created_at": data.get("created_at"),
+        "expires_at": expiry.strftime("%Y-%m-%dT%H:%M:%SZ") if expiry else None,
         "last_success_at": data.get("last_success_at"),
         "last_latency_ms": data.get("last_latency_ms"),
         "user_id": data.get("user_id") or None,

@@ -50,11 +50,33 @@ def _kite_symbol(symbol: str) -> str:
     return f"NSE:{s}"
 
 
+def _env_token_expired() -> bool:
+    """True if the env token carries a timestamp past the daily 06:00 IST
+    expiry. An env token without a timestamp is trusted (legacy setups).
+    Fail-safe: a timestamp that is present but unparseable counts as expired."""
+    ts = os.environ.get("ZERODHA_TOKEN_TIMESTAMP") or ""
+    if not ts:
+        return False
+    try:
+        import kite_token_store
+        from datetime import datetime, timezone as _tz
+        expiry = kite_token_store.token_expiry_utc(ts)
+        if expiry is None:
+            return True  # unparseable timestamp — do not trust the token
+        return datetime.now(_tz.utc) >= expiry
+    except Exception:
+        return True
+
+
 def _resolve_creds() -> tuple:
-    """Resolve (api_key, access_token). Token: env var first, then the
-    durable token store (Postgres-backed — survives redeploys)."""
+    """Resolve (api_key, access_token). Token: env var first (unless its
+    recorded timestamp shows it expired at 06:00 IST), then the durable
+    token store (Postgres-backed — survives redeploys; expired tokens are
+    filtered out by the store itself)."""
     api_key = os.environ.get("ZERODHA_API_KEY") or ""
     token = os.environ.get("ZERODHA_ACCESS_TOKEN") or ""
+    if token and _env_token_expired():
+        token = ""
     if not token:
         try:
             import kite_token_store

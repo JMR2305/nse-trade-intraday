@@ -442,13 +442,13 @@ def run_live_scan(
     _set_progress("FETCHING", scan_id, {"symbols_total": len(universe),
                                         "symbols_done": 0})
     provider = LiveDataProvider()
-    fetch_results: Dict[str, SymbolFetchResult] = {}
     _last_beat = time.monotonic()
     t_fetch0 = time.monotonic()
-    for i, sym in enumerate(universe, start=1):
-        fetch_results[sym.upper()] = provider.fetch_symbol(sym)
+
+    def _fetch_progress(done: int, total: int) -> None:
         # Heartbeat: renew the distributed scan lease + progress every ~25s
         # so a slow fetch (provider retries) never loses its lock mid-run.
+        nonlocal _last_beat
         if time.monotonic() - _last_beat > 25:
             _last_beat = time.monotonic()
             if heartbeat is not None:
@@ -456,8 +456,14 @@ def run_live_scan(
                     heartbeat()
                 except Exception:
                     pass
-            _set_progress("FETCHING", scan_id, {"symbols_total": len(universe),
-                                                "symbols_done": i})
+            _set_progress("FETCHING", scan_id, {"symbols_total": total,
+                                                "symbols_done": done})
+
+    # Phase 22: bulk multi-ticker download (one call for the whole universe)
+    # with per-symbol retry fallback for stragglers — full coverage, but no
+    # longer 50 serial calls × retries (the 900s production scan root cause).
+    fetch_results: Dict[str, SymbolFetchResult] = provider.fetch_batch(
+        universe, progress_cb=_fetch_progress)
     fetch_s = round(time.monotonic() - t_fetch0, 2)
 
     fetch_done_ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -553,6 +559,7 @@ def run_live_scan(
     overall_paper_eligible = health.paper_execution_eligible and paper_elig > 0
 
     # ── Phase 19: Kite provider label (read-only overlay metadata) ────────────
+    t_auth0 = time.monotonic()
     try:
         from kite_quote_provider import kite_session_verified, provider_label as _pl
         # PROVEN session only — an expired token must never mark the scan as
@@ -562,6 +569,7 @@ def run_live_scan(
     except Exception:
         _kite_live = False
         _provider_label = "Yahoo Finance (History)"
+    auth_s = round(time.monotonic() - t_auth0, 2)
 
     safety = {
         "research_only": True,
@@ -592,9 +600,15 @@ def run_live_scan(
     timings: Dict[str, Any] = {
         "fetch_s": fetch_s,
         "analysis_s": analysis_s,
+        "provider_auth_s": auth_s,
         "total_scan_s": duration_s,
         "symbols": len(universe),
         "retry_events": int(health.retry_events or 0),
+        "symbols_fallback_fetched": sum(
+            1 for r in fetch_results.values()
+            if getattr(r, "via_fallback", False)),
+        "symbols_failed": sum(
+            1 for r in fetch_results.values() if not r.success),
     }
 
     result = Phase7ScanResult(

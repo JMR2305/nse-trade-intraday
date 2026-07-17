@@ -488,10 +488,13 @@ export default function AutomationHealth() {
                                   Timing breakdown:{" "}
                                   {[
                                     r.timings.lock_wait_s != null && `lock wait ${na(r.timings.lock_wait_s)}s`,
+                                    r.timings.provider_auth_s != null && `provider auth ${na(r.timings.provider_auth_s)}s`,
                                     r.timings.fetch_s != null && `data fetch ${na(r.timings.fetch_s)}s`,
                                     r.timings.analysis_s != null && `indicators + decisions ${na(r.timings.analysis_s)}s`,
                                     r.timings.db_write_s != null && `db write ${na(r.timings.db_write_s)}s`,
                                     r.timings.retry_events != null && `${r.timings.retry_events} retry event(s)`,
+                                    r.timings.symbols_fallback_fetched != null && r.timings.symbols_fallback_fetched > 0 && `${r.timings.symbols_fallback_fetched} symbol(s) via fallback fetch`,
+                                    r.timings.symbols_failed != null && r.timings.symbols_failed > 0 && `${r.timings.symbols_failed} symbol(s) failed`,
                                     r.timings.total_scan_s != null && `total ${na(r.timings.total_scan_s)}s`,
                                   ].filter(Boolean).join(" · ")}
                                 </div>

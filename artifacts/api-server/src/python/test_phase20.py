@@ -147,6 +147,14 @@ class TestGates(unittest.TestCase):
              patch("scan_state_store.load_latest_meta",
                    return_value={"scan_id": ctx.get("scan_id"),
                                  "provider": provider}), \
+             patch("scan_state_store.load_latest_snapshot",
+                   return_value={"scan_id": ctx.get("scan_id"),
+                                 "safety": {
+                                     "kite_connected":
+                                         "zerodha" in provider.lower()
+                                         and "fallback" not in provider.lower()
+                                         and "mock" not in provider.lower(),
+                                     "data_provider": provider}}), \
              patch("paper_trader._load_state", return_value=st), \
              patch("paper_trader.get_portfolio", return_value=pf), \
              patch("phase20_executor.get_ledger", return_value=[]):

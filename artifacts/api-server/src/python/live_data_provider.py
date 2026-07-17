@@ -97,6 +97,7 @@ class SymbolFetchResult:
     retries_used: int                        # how many retries were needed
     error: Optional[str]                     # human-readable error message
     bars: int                                # number of OHLCV bars returned
+    via_fallback: bool = False               # fetched via per-symbol fallback path
 
 
 # ── Provider health summary ───────────────────────────────────────────────────
@@ -226,20 +227,117 @@ class LiveDataProvider:
             retries_used=retries, error=last_err or "Unknown error", bars=0,
         )
 
+    def _build_result_from_df(self, symbol: str, df: pd.DataFrame,
+                              fetch_ts: str, latency_ms: int,
+                              retries: int = 0,
+                              source: str = PROVIDER_ID) -> SymbolFetchResult:
+        """Build a SymbolFetchResult from a clean OHLCV frame (honest age)."""
+        latest_dt = df.index[-1]
+        if hasattr(latest_dt, "date"):
+            latest_date = latest_dt.date().isoformat()
+            age_days: Optional[int] = (
+                datetime.now(timezone.utc).date() - latest_dt.date()).days
+        else:
+            latest_date = str(latest_dt)[:10]
+            age_days = None
+        quality = DataQuality.from_age(age_days)
+        return SymbolFetchResult(
+            symbol=symbol.upper(), success=True, df=df,
+            latest_date=latest_date,
+            data_age_days=float(age_days) if age_days is not None else None,
+            data_quality=quality, data_source=source,
+            fetch_ts=fetch_ts, fetch_latency_ms=latency_ms,
+            retries_used=retries, error=None, bars=len(df),
+        )
+
+    def _clean_symbol_frame(self, raw: pd.DataFrame) -> Optional[pd.DataFrame]:
+        """Normalise a per-symbol frame from a bulk download. None if unusable."""
+        try:
+            df = raw.copy()
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.get_level_values(0)
+            df.columns = [str(c).lower() for c in df.columns]
+            for col in ("open", "high", "low", "close", "volume"):
+                if col not in df.columns:
+                    return None
+            df = df[["open", "high", "low", "close", "volume"]].copy()
+            df.index = pd.to_datetime(df.index)
+            df = df.dropna()
+            if df.empty:
+                return None
+            return df
+        except Exception:
+            return None
+
     def fetch_batch(
         self,
         symbols: List[str],
         period: str = SCAN_PERIOD,
         interval: str = SCAN_INTERVAL,
+        progress_cb: Optional[Any] = None,
     ) -> Dict[str, SymbolFetchResult]:
         """
-        Fetch all symbols sequentially (yfinance is not thread-safe for
-        simultaneous downloads of the same period). Returns a dict keyed by
-        upper-cased symbol.
+        Fetch all symbols. Phase 22: ONE bulk multi-ticker download replaces
+        50 serial per-symbol calls — the serial path (0.25s throttle + up to
+        3 retries with 2s/4s back-off per symbol) is what stretched
+        production scans to 900+ seconds under provider throttling.
+
+        Symbols missing or unusable in the bulk response fall back to the
+        original per-symbol retry path, so coverage is never reduced.
+        Data-quality labelling (LIVE/STALE/UNAVAILABLE) is identical.
         """
         results: Dict[str, SymbolFetchResult] = {}
-        for sym in symbols:
-            results[sym.upper()] = self.fetch_symbol(sym, period, interval)
+        remaining = [s for s in symbols]
+
+        fetch_ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        t0 = time.monotonic()
+        try:
+            tickers = [self._nse(s) for s in remaining]
+            self._throttle()
+            bulk = yf.download(tickers, period=period, interval=interval,
+                               progress=False, auto_adjust=True,
+                               group_by="ticker", threads=True)
+            latency = int((time.monotonic() - t0) * 1000)
+            if bulk is not None and not bulk.empty:
+                still: List[str] = []
+                for sym, tick in zip(remaining, tickers):
+                    df_raw = None
+                    try:
+                        if isinstance(bulk.columns, pd.MultiIndex) and \
+                                tick in bulk.columns.get_level_values(0):
+                            df_raw = bulk[tick]
+                        elif len(remaining) == 1:
+                            df_raw = bulk
+                    except Exception:
+                        df_raw = None
+                    df = self._clean_symbol_frame(df_raw) if df_raw is not None else None
+                    if df is not None:
+                        results[sym.upper()] = self._build_result_from_df(
+                            sym, df, fetch_ts, latency)
+                    else:
+                        still.append(sym)
+                remaining = still
+        except Exception as exc:
+            logger.warning("Bulk download failed (%s) — falling back to "
+                           "per-symbol fetch for all %d symbols",
+                           str(exc)[:200], len(remaining))
+
+        if progress_cb is not None:
+            try:
+                progress_cb(len(results), len(symbols))
+            except Exception:
+                pass
+
+        # Per-symbol fallback (original retry/back-off path) for stragglers.
+        for i, sym in enumerate(remaining, start=1):
+            res = self.fetch_symbol(sym, period, interval)
+            res.via_fallback = True
+            results[sym.upper()] = res
+            if progress_cb is not None:
+                try:
+                    progress_cb(len(results), len(symbols))
+                except Exception:
+                    pass
         return results
 
     def build_health_report(

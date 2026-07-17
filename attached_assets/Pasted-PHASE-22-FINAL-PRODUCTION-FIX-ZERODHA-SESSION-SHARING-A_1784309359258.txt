@@ -1,0 +1,215 @@
+PHASE 22 FINAL PRODUCTION FIX — ZERODHA SESSION SHARING AND LONG SCAN DURATIONS
+
+Current production observations:
+
+- Scheduler health is HEALTHY.
+- Missed scans = 0.
+- Failed scans = 0.
+- Market-hours detection works.
+- Scheduled scans are running.
+- Zerodha Kite session shows LOGIN REQUIRED.
+- Scheduled scans fall back to Yahoo Finance history.
+- Auto paper entries remain OFF.
+- Live-order write paths remain DISABLED.
+- Several scheduled scans take approximately 900–990 seconds, which is much longer than the configured 5-minute interval.
+
+Do not enable auto paper entries.
+Do not add live-order functionality.
+Do not weaken stale-data, provider, or safety gates.
+
+1. FIX PRODUCTION ZERODHA SESSION ACCESS
+
+Investigate why the browser-facing Kite Connect page can be authenticated, but the unattended production scheduler reports:
+
+- Kite Connect not configured
+- Zerodha login required
+- no active session
+
+Verify:
+
+- production ZERODHA_API_KEY is present
+- production ZERODHA_API_SECRET is present
+- the latest access token is stored in durable shared storage
+- the scheduler reads the same token/session record
+- token timestamp and expiry are stored correctly
+- development and production secrets are not different
+- Autoscale instances do not rely on process memory
+- a new instance can load the active Kite session after restart
+- logging out or token expiry invalidates the shared session correctly
+
+Use the production database or durable shared secret/session storage as the authoritative source.
+
+Do not store the access token in browser local storage, local JSON files, or process memory only.
+
+2. DAILY LOGIN FLOW
+
+Because Zerodha access tokens expire daily:
+
+- keep user login/manual authorization as required
+- after successful login, persist the new access token securely for the production scheduler
+- show:
+  - connected user
+  - token created time
+  - token age
+  - expiry status
+  - last successful Zerodha API call
+- never display the full token
+- invalidate stale tokens safely
+- notify the user when daily login is required
+
+3. PROVIDER RULES
+
+Clearly record provider separately for:
+
+- live index ticker
+- full NIFTY 50 scan
+- historical candles
+- fallback data
+
+Automatic paper entries may use only approved current data.
+
+Rules:
+
+- Zerodha current quote + all other gates pass: eligible
+- Yahoo historical/fallback: research only
+- stale/unavailable data: blocked
+
+Every scan and symbol must store:
+
+- provider
+- fallback_used
+- quote timestamp
+- received_at
+- data age
+- requested count
+- received count
+- missing count
+
+4. LONG SCAN ROOT CAUSE
+
+Investigate all scans above 120 seconds.
+
+Persist timing breakdown for:
+
+- scheduler queue wait
+- distributed lock wait
+- provider authentication
+- quote fetch
+- historical candle fetch
+- retries
+- indicator calculation
+- strategy evaluation
+- AI decision generation
+- derived-data generation
+- consistency validation
+- database writes
+- total duration
+
+Determine why some scans take 900–990 seconds while others complete in approximately 33 seconds.
+
+Check for:
+
+- serial symbol fetching
+- repeated full-history downloads
+- provider timeouts
+- excessive retries
+- lock waiting included as execution duration
+- duplicate pipeline execution
+- Autoscale cold starts
+- database connection waits
+- overlapping scheduled runs
+- abandoned jobs
+- queue backlog
+
+5. CONCURRENCY RULES
+
+Ensure:
+
+- only one scan executes at a time
+- later triggers while a scan is active are recorded as SKIPPED_ACTIVE_SCAN
+- skipped triggers are not failures
+- the active scan has a heartbeat
+- the lease expires safely if the worker dies
+- a new worker can recover the job
+- a partial scan is never published as latest
+
+6. PERFORMANCE TARGETS
+
+For 50 symbols:
+
+- target: under 60 seconds
+- warning: above 120 seconds
+- degraded: above 300 seconds
+
+Do not reduce the symbol universe or validation coverage merely to improve speed.
+
+Optimize safely by:
+
+- batching quote requests
+- reusing unchanged historical data
+- fetching only incremental bars
+- parallelizing provider calls within safe API-rate limits
+- avoiding repeated calculations
+- deriving all pages from one canonical scan bundle
+
+7. AUTOMATION HEALTH UI
+
+Show:
+
+- Zerodha session status
+- provider used by latest scheduled scan
+- last successful Zerodha call
+- active scan ID
+- current stage
+- elapsed time
+- timing breakdown
+- last scan duration
+- next due time
+- skipped-active-scan count
+- fallback count
+- token expiry warning
+
+8. TESTS
+
+Add tests for:
+
+- scheduler loads the shared production Kite session
+- a restarted instance can reuse the stored active session
+- missing/expired token switches to research fallback mode
+- fallback data cannot create automatic paper entries
+- full token never appears in logs, UI, exports, or reports
+- one scheduled trigger creates one scan
+- overlapping triggers are skipped safely
+- abandoned lease recovers
+- timing breakdown is accurate
+- incremental historical fetching works
+- failed provider call does not publish a partial scan
+- auto paper entries remain OFF
+- live-order write paths remain DISABLED
+
+9. PRODUCTION VERIFICATION
+
+After implementation:
+
+- republish
+- log in to Zerodha once
+- wait for at least two unattended scheduled scans
+- do not press Run Fresh Scan
+
+Report:
+
+1. Why the scheduler could not access the Kite session
+2. Shared session storage used
+3. Latest token age and validity, masked
+4. Provider used by the two scheduled scans
+5. Before and after scan durations
+6. Detailed timing breakdown
+7. Number of overlapping triggers skipped
+8. Latest scan IDs
+9. Consistency result
+10. Tests passed
+11. Production build result
+12. Confirmation that auto paper entries remain OFF
+13. Confirmation that live-order writes remain disabled
+
+Do not claim completion until two unattended scheduled scans use the intended current-data provider and complete without overlap.

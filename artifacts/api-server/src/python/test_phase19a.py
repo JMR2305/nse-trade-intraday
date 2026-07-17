@@ -67,6 +67,10 @@ class Phase19ABase(unittest.TestCase):
         self._auth_path = self.store._AUTH_STATE_PATH + ".test"
         self.store._STORE_PATH = self._store_path
         self.store._AUTH_STATE_PATH = self._auth_path
+        # isolate from the Postgres-durable token store (phase19b) — tests must
+        # never read from or write to the real database
+        self.store._db_load = lambda: None
+        self.store._db_save = lambda record: None
         self.ksm = _reload("kite_session_manager")
         # session manager imports kite_token_store lazily; redirect its paths too
         sys.modules["kite_token_store"]._STORE_PATH = self._store_path

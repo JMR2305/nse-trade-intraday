@@ -119,6 +119,16 @@ function SessionCard({ status, onRefresh, onInvalidate, invalidating, onDisconne
           </div>
         )}
 
+        {/* Daily login required banner */}
+        {status?.daily_login_required && connState !== "CONNECTED" && (
+          <div className="flex items-center gap-2 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-sm text-yellow-300">
+            <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+            {status?.token_expired
+              ? `Daily Zerodha login required — the previous session expired${status?.token_expires_at ? ` at ${fmtTime(status.token_expires_at)}` : ""} (tokens expire at 06:00 IST every day).`
+              : "Daily Zerodha login required — no active session. Use \"Login with Zerodha\" below."}
+          </div>
+        )}
+
         {/* Login / Disconnect actions */}
         <div className="flex items-center gap-2 flex-wrap">
           <Button asChild size="sm" className="h-8 gap-1.5">
