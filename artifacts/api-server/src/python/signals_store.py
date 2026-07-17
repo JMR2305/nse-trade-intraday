@@ -334,6 +334,80 @@ def append_signal_snapshot(scan_id: str, signals: List[Any],
         conn.close()
 
 
+RETENTION_FULL_DAYS = 30  # keep every snapshot this many days back
+
+
+def prune_signal_snapshots(retention_days: int = RETENTION_FULL_DAYS) -> dict:
+    """
+    Retention policy for the append-only signal history:
+
+    - Every snapshot from the last `retention_days` days is kept untouched.
+    - Older than that, history is THINNED to one snapshot per calendar day
+      (IST trading day): the day's latest snapshot survives, the rest are
+      deleted. The long-range timeline stays meaningful (one point per day)
+      while storage stays bounded.
+
+    Returns {"deleted": n, "kept_recent_all": bool}. Never raises for the
+    caller-facing path — DB errors propagate so callers can decide, but the
+    post-scan pipeline wraps this best-effort.
+    """
+    retention_days = max(1, int(retention_days))
+
+    if not db_available():
+        from datetime import datetime, timedelta, timezone
+        history = _read_json(_SNAPSHOT_FALLBACK_PATH) or []
+        if not isinstance(history, list):
+            return {"deleted": 0, "kept_recent_all": True}
+        rows = [r for r in history if isinstance(r, dict)]
+        cutoff = (datetime.now(timezone.utc)
+                  - timedelta(days=retention_days)).isoformat()
+        recent = [r for r in rows if str(r.get("snapshot_ts", "")) >= cutoff]
+        old = [r for r in rows if str(r.get("snapshot_ts", "")) < cutoff]
+        # keep latest per day among old rows (day = first 10 chars of ISO ts)
+        best_per_day: dict = {}
+        for r in old:
+            day = str(r.get("snapshot_ts", ""))[:10]
+            cur = best_per_day.get(day)
+            if cur is None or str(r.get("snapshot_ts", "")) > str(cur.get("snapshot_ts", "")):
+                best_per_day[day] = r
+        kept = list(best_per_day.values()) + recent
+        deleted = len(rows) - len(kept)
+        if deleted > 0:
+            kept.sort(key=lambda r: str(r.get("snapshot_ts", "")))
+            _write_json(_SNAPSHOT_FALLBACK_PATH, kept[-_SNAPSHOT_FALLBACK_MAX:])
+        return {"deleted": max(0, deleted), "kept_recent_all": True}
+
+    conn = _connect()
+    try:
+        _ensure_schema(conn)
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                DELETE FROM signal_snapshots
+                WHERE snapshot_ts < NOW() - (%s || ' days')::interval
+                  AND id NOT IN (
+                    SELECT DISTINCT ON (
+                        date_trunc('day', snapshot_ts AT TIME ZONE 'Asia/Kolkata'))
+                        id
+                    FROM signal_snapshots
+                    WHERE snapshot_ts < NOW() - (%s || ' days')::interval
+                    ORDER BY
+                        date_trunc('day', snapshot_ts AT TIME ZONE 'Asia/Kolkata'),
+                        snapshot_ts DESC, id DESC
+                  )
+                """,
+                (retention_days, retention_days),
+            )
+            deleted = cur.rowcount
+        conn.commit()
+        return {"deleted": deleted, "kept_recent_all": True}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 def load_signal_snapshots(limit: int = 30,
                           start: Optional[str] = None,
                           end: Optional[str] = None) -> List[dict]:

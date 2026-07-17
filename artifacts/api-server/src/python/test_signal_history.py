@@ -86,5 +86,75 @@ class SignalHistoryTests(unittest.TestCase):
         self.assertEqual({r["canonical_scan_id"] for r in rows}, {"phase7-xyz"})
 
 
+class SignalHistoryPruneTests(SignalHistoryTests):
+    """Retention: keep recent fully, thin old history to one row per day."""
+
+    def test_recent_snapshots_untouched(self):
+        from datetime import timedelta, timezone
+        now = datetime.now(timezone.utc)
+        for i in range(4):
+            ss.append_signal_snapshot(
+                f"recent-{i}", self.SIGS, self.CTX,
+                snapshot_ts=(now - timedelta(days=2, hours=i)).isoformat())
+        result = ss.prune_signal_snapshots(retention_days=30)
+        self.assertEqual(result["deleted"], 0)
+        self.assertEqual(len(ss.load_signal_snapshots(limit=50)), 4)
+
+    def test_old_snapshots_thinned_to_one_per_day(self):
+        from datetime import timedelta, timezone
+        now = datetime.now(timezone.utc)
+        # 3 snapshots on each of 2 old days (60 and 61 days ago)
+        for d in (60, 61):
+            day = now - timedelta(days=d)
+            for h in (9, 12, 15):
+                ss.append_signal_snapshot(
+                    f"old-{d}-{h}", self.SIGS, self.CTX,
+                    snapshot_ts=day.replace(hour=h, minute=0,
+                                            second=0).isoformat())
+        # one recent row
+        ss.append_signal_snapshot("recent", self.SIGS, self.CTX,
+                                  snapshot_ts=now.isoformat())
+        result = ss.prune_signal_snapshots(retention_days=30)
+        self.assertEqual(result["deleted"], 4)  # 6 old -> 2 survivors
+        rows = ss.load_signal_snapshots(limit=50)
+        ids = {r["scan_id"] for r in rows}
+        # the LATEST snapshot of each old day survives (hour 15)
+        self.assertEqual(ids, {"recent", "old-60-15", "old-61-15"})
+
+    def test_prune_idempotent(self):
+        from datetime import timedelta, timezone
+        now = datetime.now(timezone.utc)
+        for h in (9, 15):
+            ss.append_signal_snapshot(
+                f"old-{h}", self.SIGS, self.CTX,
+                snapshot_ts=(now - timedelta(days=45)).replace(
+                    hour=h, minute=0, second=0).isoformat())
+        self.assertEqual(ss.prune_signal_snapshots()["deleted"], 1)
+        self.assertEqual(ss.prune_signal_snapshots()["deleted"], 0)
+        self.assertEqual(len(ss.load_signal_snapshots(limit=50)), 1)
+
+    def test_scan_pipeline_append_triggers_prune(self):
+        from datetime import timedelta, timezone
+        now = datetime.now(timezone.utc)
+        for h in (9, 15):
+            ss.append_signal_snapshot(
+                f"old-{h}", self.SIGS, self.CTX,
+                snapshot_ts=(now - timedelta(days=45)).replace(
+                    hour=h, minute=0, second=0).isoformat())
+        intelligence._append_history_snapshot(self.SIGS, self.CTX,
+                                              datetime.now())
+        rows = ss.load_signal_snapshots(limit=50)
+        # 1 new + 1 surviving old-day row (old-9 pruned)
+        self.assertEqual(len(rows), 2)
+        self.assertNotIn("old-9", {r["scan_id"] for r in rows})
+
+    def test_prune_failure_never_breaks_scan_append(self):
+        with mock.patch.object(ss, "prune_signal_snapshots",
+                               side_effect=RuntimeError("db down")):
+            intelligence._append_history_snapshot(self.SIGS, self.CTX,
+                                                  datetime.now())
+        self.assertEqual(len(ss.load_signal_snapshots(limit=10)), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

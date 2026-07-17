@@ -318,6 +318,16 @@ def _append_history_snapshot(signals: list, market_ctx: dict,
         canonical_scan_id=canonical_scan_id,
     )
 
+    # Retention: keep every snapshot for 30 days, thin older history to one
+    # snapshot per day. Best-effort — pruning must never fail the scan.
+    try:
+        result = _sig_store.prune_signal_snapshots()
+        if result.get("deleted"):
+            print(f"[intelligence] signal history pruned: "
+                  f"{result['deleted']} old snapshot(s) removed")
+    except Exception as exc:
+        print(f"[intelligence] signal history prune skipped: {exc}")
+
 
 # ── Cache readers (used by API endpoints) ─────────────────────────────────────
 
