@@ -33,8 +33,17 @@ import phase20_store as store
 STATE_KEY = "entry_circuit_breaker"
 AUDIT_KEY = "circuit_breaker_audit"
 
-CONSECUTIVE_LOSS_LIMIT = 3
+DEFAULT_CONSECUTIVE_LOSS_LIMIT = 3
 EXPECTANCY_WINDOW = 10
+
+
+def _loss_limit(settings: Dict[str, Any]) -> int:
+    try:
+        iv = int(settings.get("circuit_breaker_loss_threshold",
+                              DEFAULT_CONSECUTIVE_LOSS_LIMIT))
+        return iv if 1 <= iv <= 10 else DEFAULT_CONSECUTIVE_LOSS_LIMIT
+    except Exception:
+        return DEFAULT_CONSECUTIVE_LOSS_LIMIT
 
 RESUME_CONFIRMATION_TEXT = (
     "I have manually reviewed the circuit breaker event and approve resuming "
@@ -162,12 +171,13 @@ def compute_metrics(settings: Dict[str, Any]) -> Dict[str, Any]:
                 seen.append(s)
         return seen
 
+    loss_limit = _loss_limit(settings)
     reasons: List[Dict[str, Any]] = []
-    if consecutive >= CONSECUTIVE_LOSS_LIMIT:
+    if consecutive >= loss_limit:
         reasons.append({
             "code": "CONSECUTIVE_LOSSES",
             "detail": f"{consecutive} consecutive losing paper trades "
-                      f"(limit {CONSECUTIVE_LOSS_LIMIT})",
+                      f"(limit {loss_limit})",
             "strategies": _strategies(consec_trades),
         })
     if daily_loss_limit > 0 and daily_pnl <= -daily_loss_limit:
@@ -190,7 +200,7 @@ def compute_metrics(settings: Dict[str, Any]) -> Dict[str, Any]:
         "computed_at": _now_iso(),
         "closed_trades": len(closed),
         "consecutive_losses": consecutive,
-        "consecutive_loss_limit": CONSECUTIVE_LOSS_LIMIT,
+        "consecutive_loss_limit": loss_limit,
         "daily_realized_pnl": round(daily_pnl, 2),
         "daily_loss_limit": round(daily_loss_limit, 2),
         "rolling_expectancy": expectancy,

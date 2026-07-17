@@ -53,6 +53,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "portfolio_deployed_cap_pct": 80.0,
     "risk_per_trade_pct": 1.0,
     "daily_loss_limit_pct": 3.0,
+    "circuit_breaker_loss_threshold": 3,
     "fill_model": "SLIPPAGE_ADJUSTED",
     "slippage_pct": 0.15,
     "charges_pct": 0.12,
@@ -206,6 +207,12 @@ def _validate_patch(patch: Dict[str, Any], current: Dict[str, Any]) -> Dict[str,
             clean[key] = value
         elif isinstance(default, bool):
             clean[key] = bool(value)
+        elif key == "circuit_breaker_loss_threshold":
+            iv = int(float(value))
+            if iv < 1 or iv > 10:
+                raise ValueError(
+                    "circuit_breaker_loss_threshold must be between 1 and 10")
+            clean[key] = iv
         elif isinstance(default, (int, float)) and not isinstance(default, bool):
             num = float(value)
             if num < 0:

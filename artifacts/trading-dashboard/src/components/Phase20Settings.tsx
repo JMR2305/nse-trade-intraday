@@ -43,6 +43,7 @@ interface Phase20SettingsData {
   portfolio_deployed_cap_pct: number;
   risk_per_trade_pct: number;
   daily_loss_limit_pct: number;
+  circuit_breaker_loss_threshold: number;
   fill_model: "LAST_TRADED_PRICE" | "NEXT_QUOTE" | "SLIPPAGE_ADJUSTED";
   slippage_pct: number;
   charges_pct: number;
@@ -88,6 +89,7 @@ const NUMERIC_RISK_CAPS: { key: keyof Phase20SettingsData; label: string; step?:
   { key: "portfolio_deployed_cap_pct", label: "Portfolio deployed cap %", step: "0.1" },
   { key: "risk_per_trade_pct", label: "Risk per trade %", step: "0.1" },
   { key: "daily_loss_limit_pct", label: "Daily loss limit %", step: "0.1" },
+  { key: "circuit_breaker_loss_threshold", label: "Circuit breaker: consecutive-loss limit", step: "1" },
   { key: "max_holding_days", label: "Max holding days", step: "1" },
 ];
 

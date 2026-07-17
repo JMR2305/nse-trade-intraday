@@ -187,6 +187,23 @@ class TestResume(Base):
         self.assertEqual(audit[0]["event"], "CIRCUIT_BREAKER_RESUMED")
         self.assertEqual(audit[0]["reviewed_by"], "tester")
 
+    def test_configurable_loss_threshold(self):
+        # threshold 5: 3 losses must NOT trip; 5 losses must trip.
+        trades3 = [_trade(-5, f"2026-07-0{i}") for i in range(1, 4)]
+        s5 = {"daily_loss_limit_pct": 3.0, "circuit_breaker_loss_threshold": 5}
+        with patch.object(cb, "compute_metrics",
+                          side_effect=lambda s: self._metrics(trades3, 0.0, s)):
+            state = cb.evaluate_and_maybe_trip(s5)
+        self.assertFalse(state["tripped"])
+        trades5 = [_trade(-5, f"2026-07-0{i}") for i in range(1, 6)]
+        with patch.object(cb, "compute_metrics",
+                          side_effect=lambda s: self._metrics(trades5, 0.0, s)):
+            state = cb.evaluate_and_maybe_trip(s5)
+        self.assertTrue(state["tripped"])
+        # invalid values fall back to default 3
+        self.assertEqual(cb._loss_limit({"circuit_breaker_loss_threshold": 99}), 3)
+        self.assertEqual(cb._loss_limit({"circuit_breaker_loss_threshold": "x"}), 3)
+
     def test_resume_when_not_tripped_rejected(self):
         with self.assertRaises(ValueError):
             cb.resume(cb.RESUME_CONFIRMATION_TEXT)
