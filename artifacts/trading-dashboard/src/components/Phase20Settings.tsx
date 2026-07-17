@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Bot, Loader2, RefreshCw, Save, ShieldAlert, ShieldCheck, AlertTriangle,
-  Clock, Gauge, Sliders, Cpu, Lock, Mail, Send,
+  Clock, Gauge, Sliders, Cpu, Lock, Mail, Send, Eye,
 } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -129,6 +129,11 @@ export default function Phase20Settings() {
   const [sendingTest, setSendingTest] = useState(false);
   const [sendingSummary, setSendingSummary] = useState(false);
 
+  // Daily summary preview dialog state
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [preview, setPreview] = useState<{ subject: string; text: string } | null>(null);
+
   // Auto paper entries confirmation dialog state
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [typed, setTyped] = useState("");
@@ -194,6 +199,21 @@ export default function Phase20Settings() {
       toast({ title: "Daily summary email failed", description: e.message, variant: "destructive" });
     } finally {
       setSendingSummary(false);
+    }
+  };
+
+  const previewDailySummary = async () => {
+    setPreviewLoading(true);
+    try {
+      const r = await fetch(`${API_BASE}/phase20/email/preview-daily-summary`);
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || d.success === false) throw new Error(d.error ?? `HTTP ${r.status}`);
+      setPreview({ subject: String(d.subject ?? ""), text: String(d.text ?? "") });
+      setPreviewOpen(true);
+    } catch (e: any) {
+      toast({ title: "Preview failed", description: e.message, variant: "destructive" });
+    } finally {
+      setPreviewLoading(false);
     }
   };
 
@@ -501,6 +521,11 @@ export default function Phase20Settings() {
               {sendingSummary ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
               Send today's summary now
             </Button>
+            <Button size="sm" variant="outline" className="gap-2 text-xs"
+              onClick={previewDailySummary} disabled={previewLoading}>
+              {previewLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
+              Preview
+            </Button>
             {emailStatus && (emailStatus.configured ? (
               <Badge variant="outline" className="text-[10px] text-emerald-400 border-emerald-800">
                 Provider: {emailStatus.provider}
@@ -605,6 +630,39 @@ export default function Phase20Settings() {
           <span className="ml-auto text-[10px] text-zinc-600">config_hash: {server.config_hash || "—"}</span>
         </div>
       </CardContent>
+
+      {/* ── Daily summary email preview dialog ── */}
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-2xl font-mono">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mail className="h-5 w-5 text-primary" />Daily summary email preview
+            </DialogTitle>
+            <DialogDescription className="text-xs text-zinc-400">
+              This is exactly what today's summary email will contain. Nothing has been sent.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-xs">
+            <div className="grid gap-1.5">
+              <Label className="text-zinc-400">Subject</Label>
+              <div className="rounded border border-zinc-800 bg-zinc-950/60 p-2 text-zinc-200">
+                {preview?.subject || "—"}
+              </div>
+            </div>
+            <div className="grid gap-1.5">
+              <Label className="text-zinc-400">Body</Label>
+              <pre className="max-h-[50vh] overflow-auto whitespace-pre-wrap rounded border border-zinc-800 bg-zinc-950/60 p-3 text-[11px] leading-relaxed text-zinc-200">
+                {preview?.text || "—"}
+              </pre>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button size="sm" variant="outline" onClick={() => setPreviewOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Confirmation dialog ── */}
       <Dialog open={confirmOpen} onOpenChange={(o) => { if (!confirming) setConfirmOpen(o); }}>

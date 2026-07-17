@@ -925,6 +925,19 @@ def main():
             _send = maybe_send_daily_summary_email(_report, settings=_settings)
             result = {"success": bool(_send.get("sent")), **_send,
                       "status": provider_status()}
+        elif command == "phase20_email_preview_daily_summary":
+            # Compose today's daily summary email without delivering it.
+            from email_alerts import _compose_daily_summary
+            _report = None
+            try:
+                from phase22_report import build_daily_report
+                _report = build_daily_report()
+            except Exception:  # noqa: BLE001 — preview with fallback body
+                _report = None
+            _parts = _compose_daily_summary(_report)
+            result = {"success": True, "subject": _parts["subject"],
+                      "text": _parts["text"],
+                      "report_available": _report is not None}
         elif command == "phase20_email_status":
             from email_alerts import provider_status
             result = {"success": True, **provider_status()}
