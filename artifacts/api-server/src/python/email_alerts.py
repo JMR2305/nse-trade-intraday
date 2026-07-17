@@ -147,7 +147,9 @@ def _compose(kind: str, title: str, body: str, severity: str) -> Dict[str, str]:
         "Paper trading / research only — no real orders are ever placed.\n"
         "Open the dashboard Notifications page for full details."
     )
-    return {"subject": subject, "text": text}
+    html = _render_alert_html(kind=kind, title=title, body=body,
+                              severity=severity, ts=ts)
+    return {"subject": subject, "text": text, "html": html}
 
 
 def maybe_send_alert_email(kind: str, title: str, body: str = "",
@@ -170,7 +172,8 @@ def maybe_send_alert_email(kind: str, title: str, body: str = "",
             _log(f"skipped {kind}: no valid alert address configured")
             return {"sent": False, "reason": "NO_ADDRESS"}
         parts = _compose(kind, title, body, severity)
-        result = _deliver(to, parts["subject"], parts["text"])
+        result = _deliver(to, parts["subject"], parts["text"],
+                          parts.get("html"))
         if result.get("sent"):
             _log(f"sent {kind} alert email via {result.get('provider')}")
         else:
@@ -295,6 +298,74 @@ def _pnl_html(value: Any) -> str:
     color = _RED if num < 0 else _GREEN
     return (f'<span style="color:{color};font-weight:600;">'
             f"{_esc(_fmt_inr(value))}</span>")
+
+
+_AMBER = "#b45309"
+
+_SEVERITY_COLORS = {
+    "CRITICAL": _RED,
+    "ERROR": _RED,
+    "WARN": _AMBER,
+    "WARNING": _AMBER,
+    "INFO": _GREEN,
+}
+
+
+def _render_alert_html(*, kind: str, title: str, body: str,
+                       severity: str, ts: str) -> str:
+    """Render a critical alert as email-client-safe inline-styled HTML,
+    matching the daily-summary layout (dark header, tables, advisory
+    footer)."""
+    cell = 'padding:6px 12px;border-bottom:1px solid #e2e8f0;font-size:13px;'
+    section = ('margin:20px 0 8px;font-size:14px;font-weight:700;'
+               'color:#0f172a;')
+    sev = severity.upper()
+    sev_color = _SEVERITY_COLORS.get(sev, _MUTED)
+    badge = (f'<span style="display:inline-block;padding:2px 10px;'
+             f'border-radius:9999px;background:{sev_color};color:#ffffff;'
+             f'font-size:11px;font-weight:700;letter-spacing:0.04em;">'
+             f'{_esc(sev)}</span>')
+
+    def row(label: str, value_html: str) -> str:
+        return (f'<tr><td style="{cell}color:{_MUTED};">{_esc(label)}</td>'
+                f'<td style="{cell}text-align:right;">{value_html}</td></tr>')
+
+    body_html = (
+        f'<p style="font-size:13px;line-height:1.6;color:#0f172a;'
+        f'margin:8px 0 0;white-space:pre-line;">{_esc(body)}</p>'
+        if body else "")
+
+    return f"""\
+<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f1f5f9;">
+  <div style="max-width:560px;margin:0 auto;padding:24px 16px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">
+    <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+      <div style="background:#0f172a;padding:16px 20px;">
+        <div style="color:#ffffff;font-size:16px;font-weight:700;">{_esc(title)}</div>
+        <div style="color:#94a3b8;font-size:12px;margin-top:2px;">{_esc(ts)} &middot; NSE Paper Trading</div>
+      </div>
+      <div style="padding:4px 20px 20px;">
+        <div style="{section}">Alert</div>
+        {body_html}
+        <div style="{section}">Details</div>
+        <table style="border-collapse:collapse;width:100%;" cellpadding="0" cellspacing="0">
+          {row("Alert type", _esc(kind))}
+          {row("Severity", badge)}
+          {row("Time", _esc(ts))}
+        </table>
+        <div style="margin-top:20px;padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;color:#92400e;font-size:12px;">
+          PAPER TRADING / RESEARCH ONLY &mdash; no real orders are ever placed.
+        </div>
+        <p style="color:{_MUTED};font-size:12px;margin:14px 0 0;">
+          This is an advisory alert from your NSE paper-trading dashboard.
+          Open the dashboard Notifications page for full details.
+        </p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>"""
 
 
 def _render_daily_summary_html(*, day: str, entries_opened: Any,
@@ -440,7 +511,8 @@ def send_test_email(address: Optional[str] = None) -> Dict[str, Any]:
             "alerts. If you received this, email delivery is working.",
             "INFO",
         )
-        result = _deliver(to, parts["subject"], parts["text"])
+        result = _deliver(to, parts["subject"], parts["text"],
+                          parts.get("html"))
         return {"success": bool(result.get("sent")), **result}
     except Exception as exc:  # noqa: BLE001
         _log(f"test email failed: {str(exc)[:300]}")

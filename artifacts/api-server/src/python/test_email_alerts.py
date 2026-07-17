@@ -52,11 +52,31 @@ class TestMaybeSend(unittest.TestCase):
                 "PERFORMANCE_ALERT", "Losing streak", "3 losses",
                 severity="WARN", settings=SETTINGS_ON)
         self.assertTrue(r["sent"])
-        to, subject, text = d.call_args[0]
+        to, subject, text, html = d.call_args[0]
         self.assertEqual(to, "trader@example.com")
         self.assertIn("WARN", subject)
         self.assertIn("Losing streak", subject)
         self.assertIn("3 losses", text)
+        # HTML body is sent alongside the plain-text fallback
+        self.assertIn("<table", html)
+        self.assertIn("Losing streak", html)
+        self.assertIn("3 losses", html)
+        self.assertIn("#b45309", html)  # amber severity badge for WARN
+        self.assertIn("PAPER TRADING / RESEARCH ONLY", html)
+
+    def test_alert_html_severity_colors(self):
+        parts = email_alerts._compose(
+            "CIRCUIT_BREAKER_TRIPPED", "Tripped", "details", "CRITICAL")
+        self.assertIn("#b91c1c", parts["html"])  # red badge for CRITICAL
+        parts = email_alerts._compose("TEST", "Test", "b", "INFO")
+        self.assertIn("#15803d", parts["html"])  # green badge for INFO
+
+    def test_alert_html_escapes_content(self):
+        parts = email_alerts._compose(
+            "PERFORMANCE_ALERT", "<b>title</b>", "a & b <script>", "WARN")
+        self.assertNotIn("<script>", parts["html"])
+        self.assertIn("&lt;script&gt;", parts["html"])
+        self.assertIn("&lt;b&gt;title&lt;/b&gt;", parts["html"])
 
     def test_sends_for_circuit_breaker(self):
         with mock.patch.object(email_alerts, "_deliver",
