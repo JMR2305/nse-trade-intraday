@@ -12,18 +12,15 @@ stop_loss, target, plain_english) so the Trade Replay page can show full context
 Each SELL record stores realized P&L and exit type.
 """
 
-import json
 import os
 from datetime import datetime
 from typing import TypedDict, Optional
 import uuid
 
 from analytics_engine import classify_outcome
+import portfolio_store as _store
 
 INITIAL_CAPITAL = 5000.0
-
-STATE_DIR = os.path.dirname(os.path.abspath(__file__))
-STATE_FILE = os.path.join(STATE_DIR, "state.json")
 
 # ── Phase 15: estimated friction costs (research realism, paper only) ────────
 SLIPPAGE_PCT = 0.05          # assumed 0.05% slippage per side
@@ -127,32 +124,16 @@ class StrategyPerformance(TypedDict):
     computed_at: str
 
 
-# ── State persistence ────────────────────────────────────────────────────────
-
-def _default_state() -> dict:
-    return {
-        "cash": INITIAL_CAPITAL,
-        "positions": {},        # symbol -> {quantity, avg_price}
-        "trades": [],
-        "pnl_history": [
-            {"timestamp": datetime.now().isoformat(), "value": INITIAL_CAPITAL}
-        ],
-    }
-
+# ── State persistence ─────────────────────────────────────────────────────────
+# Backed by PostgreSQL (via portfolio_store) when DATABASE_URL is set.
+# Falls back to a local state.json file for local / no-DB environments.
 
 def _load_state() -> dict:
-    if os.path.exists(STATE_FILE):
-        try:
-            with open(STATE_FILE, "r") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, IOError):
-            pass
-    return _default_state()
+    return _store.load_state()
 
 
 def _save_state(state: dict) -> None:
-    with open(STATE_FILE, "w") as f:
-        json.dump(state, f, indent=2)
+    _store.save_state(state)
 
 
 # ── Portfolio calculations ────────────────────────────────────────────────────
@@ -642,4 +623,5 @@ def get_portfolio(current_prices: Optional[dict[str, float]] = None) -> Portfoli
 
 def reset_portfolio() -> None:
     """Reset the portfolio to initial state (₹5,000 cash, no positions)."""
-    _save_state(_default_state())
+    _store.delete_all_trades()
+    _save_state(_store._default_state())

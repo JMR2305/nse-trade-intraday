@@ -25,3 +25,4 @@
 - [Append-only evidence datasets](append-only-evidence.md) — enforce write-once at storage (COALESCE per column + outcome_complete guard), and record evidence from the exact evaluation payload the executor used, never a re-evaluation.
 - [Post-scan bundle publish](scan-bundle-publish.md) — regenerate all derived caches from one scan_id post-scan; publish pointer only when synchronized, 0 hard mismatches, and monotonic by snapshot_ts.
 - [Kite session & scan locking](kite-session-and-scan-locking.md) — prove Zerodha sessions with an authenticated probe (presence ≠ validity); DB-durable tokens on Autoscale; skip-not-poll scan locks with heartbeat renewal.
+- [Portfolio Postgres store](portfolio-postgres-store.md) — paper_portfolio + paper_trades + signals_cache tables; drizzle-kit push needs TTY so use executeSql() or rely on Python auto-create.

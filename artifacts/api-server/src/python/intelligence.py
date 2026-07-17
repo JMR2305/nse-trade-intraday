@@ -36,13 +36,17 @@ from explainability import explain_trade, ExplainabilityReport
 from opportunity_scanner import rank_opportunities, OpportunityItem
 from paper_trader import execute_buy, execute_sell, _load_state
 from config import INITIAL_CAPITAL
+import signals_store as _sig_store
 
 STATE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-SIGNALS_CACHE    = os.path.join(STATE_DIR, "signals_cache.json")
-AI_CACHE         = os.path.join(STATE_DIR, "ai_decisions_cache.json")
-OPPORTUNITY_CACHE = os.path.join(STATE_DIR, "opportunity_cache.json")
-MARKET_CTX_CACHE = os.path.join(STATE_DIR, "market_context_cache.json")
+# Local file paths kept for backwards compatibility with modules that read
+# these files directly (e.g. review_package.py, phase17_qa.py).
+# signals_store.py also writes to these as warm-cache files.
+SIGNALS_CACHE      = os.path.join(STATE_DIR, "signals_cache.json")
+AI_CACHE           = os.path.join(STATE_DIR, "ai_decisions_cache.json")
+OPPORTUNITY_CACHE  = os.path.join(STATE_DIR, "opportunity_cache.json")
+MARKET_CTX_CACHE   = os.path.join(STATE_DIR, "market_context_cache.json")
 INTELLIGENCE_CACHE = os.path.join(STATE_DIR, "intelligence_cache.json")
 
 
@@ -247,11 +251,12 @@ def run_intelligence_scan(
         _execute_trades(ai_decisions, enriched_signals, available_cash,
                         opportunity_scan=opportunity_scan)
 
-    # 10. Cache everything
-    _write_cache(SIGNALS_CACHE,     signals)
-    _write_cache(AI_CACHE,          ai_decisions)
-    _write_cache(OPPORTUNITY_CACHE, opportunity_scan)
-    _write_cache(MARKET_CTX_CACHE,  market_ctx)
+    # 10. Cache everything — primary store is Postgres; local files are warm cache
+    _sig_store.save_signals(signals)
+    _sig_store.save_ai_decisions(ai_decisions)
+    _sig_store.save_opportunity_scan(opportunity_scan)
+    _sig_store.save_market_context(market_ctx)
+    # enriched signals (combined intelligence) are file-only (large, derived)
     _write_cache(INTELLIGENCE_CACHE, enriched_signals)
 
     # Reconcile the freshly written derived caches with the canonical scan so
@@ -278,11 +283,11 @@ def run_intelligence_scan(
 # ── Cache readers (used by API endpoints) ─────────────────────────────────────
 
 def get_cached_opportunity_scan() -> list:
-    return _read_cache(OPPORTUNITY_CACHE) or []
+    return _sig_store.load_opportunity_scan() or []
 
 
 def get_cached_market_context() -> dict:
-    return _read_cache(MARKET_CTX_CACHE) or {}
+    return _sig_store.load_market_context() or {}
 
 
 def get_cached_enriched_signals() -> list:

@@ -1,20 +1,51 @@
-// Export your models here. Add one export per file
-// export * from "./posts";
-//
-// Each model/table should ideally be split into different files.
-// Each model/table should define a Drizzle table, insert schema, and types:
-//
-//   import { pgTable, text, serial } from "drizzle-orm/pg-core";
-//   import { createInsertSchema } from "drizzle-zod";
-//   import { z } from "zod/v4";
-//
-//   export const postsTable = pgTable("posts", {
-//     id: serial("id").primaryKey(),
-//     title: text("title").notNull(),
-//   });
-//
-//   export const insertPostSchema = createInsertSchema(postsTable).omit({ id: true });
-//   export type InsertPost = z.infer<typeof insertPostSchema>;
-//   export type Post = typeof postsTable.$inferSelect;
+import { pgTable, integer, doublePrecision, jsonb, text, timestamp } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod/v4";
 
-export {}
+// ── Paper Trading: Portfolio State ────────────────────────────────────────────
+// Single-row table (id always = 1) holding cash balance, open positions,
+// and the P&L history time-series. Managed by portfolio_store.py in Python.
+
+export const paperPortfolioTable = pgTable("paper_portfolio", {
+  id:         integer("id").primaryKey(),
+  cash:       doublePrecision("cash").notNull(),
+  positions:  jsonb("positions").notNull().$type<Record<string, { quantity: number; avg_price: number }>>(),
+  pnlHistory: jsonb("pnl_history").notNull().$type<Array<{ timestamp: string; value: number }>>(),
+  updatedAt:  timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+// ── Paper Trading: Individual Trades ─────────────────────────────────────────
+// One row per BUY or SELL execution. `metadata` carries all extended fields
+// (AI decision context, indicators at entry, friction costs, etc.).
+
+export const paperTradesTable = pgTable("paper_trades", {
+  id:        text("id").primaryKey(),
+  symbol:    text("symbol").notNull(),
+  action:    text("action").notNull(),
+  quantity:  integer("quantity").notNull(),
+  price:     doublePrecision("price").notNull(),
+  total:     doublePrecision("total").notNull(),
+  tradeTs:   timestamp("trade_ts", { withTimezone: true }).notNull(),
+  reason:    text("reason").default(""),
+  metadata:  jsonb("metadata").notNull().$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+// ── Signals Cache ─────────────────────────────────────────────────────────────
+// Stores the latest intelligence scan outputs (signals, AI decisions,
+// opportunity scan, market context) keyed by a short string label.
+// Managed by signals_store.py in Python.
+
+export const signalsCacheTable = pgTable("signals_cache", {
+  key:       text("key").primaryKey(),
+  payload:   jsonb("payload").notNull().$type<unknown>(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+// ── Insert schemas / types ────────────────────────────────────────────────────
+
+export const insertPaperTradeSchema = createInsertSchema(paperTradesTable).omit({ createdAt: true });
+export type InsertPaperTrade = z.infer<typeof insertPaperTradeSchema>;
+export type PaperTrade = typeof paperTradesTable.$inferSelect;
+export type PaperPortfolio = typeof paperPortfolioTable.$inferSelect;
+export type SignalsCache = typeof signalsCacheTable.$inferSelect;

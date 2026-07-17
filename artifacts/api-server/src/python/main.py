@@ -82,11 +82,15 @@ def cmd_portfolio() -> dict:
 def cmd_signals() -> list:
     from intelligence import get_cached_enriched_signals
     data = get_cached_enriched_signals()
-    return data if data else _read_json_cache("signals_cache.json")
+    if data:
+        return data
+    import signals_store as _sig_store
+    return _sig_store.load_signals() or []
 
 
 def cmd_ai_decisions() -> list:
-    return _read_json_cache("ai_decisions_cache.json")
+    import signals_store as _sig_store
+    return _sig_store.load_ai_decisions() or _read_json_cache("ai_decisions_cache.json")
 
 
 def cmd_opportunity_scan() -> list:
