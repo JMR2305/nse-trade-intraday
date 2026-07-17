@@ -70,20 +70,39 @@ def evaluate_entries(candidate_symbols: Optional[List[str]] = None) -> Dict[str,
         "snapshot_consistency", consistency_pass,
         f"Durable meta scan_id={meta.get('scan_id')} vs snapshot "
         f"scan_id={ctx.get('scan_id')}"))
-    provider_is_zerodha = (
-        any(p in provider for p in ZERODHA_PROVIDERS)
-        and "not configured" not in provider
-        and "yahoo" not in provider
-        and "fallback" not in provider
-        and "mock" not in provider
+    # Structured provider flags from the canonical snapshot (authoritative),
+    # with the string label as a defensive second check. Auto paper entries
+    # may run ONLY on the intended Zerodha-connected provider — a Yahoo-only
+    # fallback scan must never create entries.
+    kite_connected = False
+    snap_label = ""
+    try:
+        from scan_state_store import load_latest_snapshot
+        _snap = load_latest_snapshot() or {}
+        _safety = _snap.get("safety") or {}
+        # Structured flag only counts for the SAME scan the meta points at.
+        if _snap.get("scan_id") == meta.get("scan_id"):
+            kite_connected = bool(_safety.get("kite_connected"))
+            snap_label = str(_safety.get("data_provider") or "").lower()
+    except Exception:
+        pass
+    label = snap_label or provider
+    label_is_zerodha = (
+        any(p in label for p in ZERODHA_PROVIDERS)
+        and "not configured" not in label
+        and "login required" not in label
+        and "fallback" not in label
+        and "mock" not in label
     )
+    provider_is_zerodha = kite_connected and label_is_zerodha
     global_gates.append(_gate(
         "provider_zerodha", provider_is_zerodha,
-        f"Data provider is '{meta.get('provider')}'"))
+        f"kite_connected={kite_connected}, provider='{meta.get('provider')}'"))
     global_gates.append(_gate(
         "no_fallback_data",
-        provider != "" and "mock" not in provider and "fallback" not in provider,
-        f"Provider '{meta.get('provider')}' must not be fallback/mock"))
+        label != "" and "mock" not in label and "fallback" not in label
+        and "login required" not in label and "not configured" not in label,
+        f"Provider '{meta.get('provider')}' must not be fallback/mock/degraded"))
     global_gates.append(_gate(
         "market_open", mstate == "OPEN", f"Market state is {mstate or 'UNKNOWN'}"))
 

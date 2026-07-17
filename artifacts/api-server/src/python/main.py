@@ -853,8 +853,27 @@ def main():
             except ValueError as _ve:
                 result = {"success": False, "error": str(_ve)}
         elif command == "phase20_scheduler_health":
-            from phase20_store import get_scheduler_health
-            result = {"success": True, "scheduler": get_scheduler_health()}
+            from phase20_store import get_scheduler_health, kv_get
+            _activity = {
+                "scan_progress": kv_get("scan_progress"),
+                "skipped_active_count": int(kv_get("scan_skipped_active_count") or 0),
+            }
+            try:
+                from kite_quote_provider import (
+                    kite_available, kite_configured, provider_label,
+                )
+                import kite_token_store as _kts
+                _activity["kite"] = {
+                    # Honest, cheap status: creds present AND no recent auth
+                    # failure recorded by the verified session probe.
+                    "session_active": kite_available() and not _kts.recent_auth_failure(),
+                    "configured": kite_configured(),
+                    "provider_label": provider_label(),
+                }
+            except Exception:
+                _activity["kite"] = None
+            result = {"success": True, "scheduler": get_scheduler_health(),
+                      "activity": _activity}
         elif command == "phase20_scan_history":
             from phase20_store import list_scan_runs
             _limit = int(args[1]) if len(args) > 1 else 50

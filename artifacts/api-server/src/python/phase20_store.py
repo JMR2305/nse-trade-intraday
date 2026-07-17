@@ -147,6 +147,11 @@ def _ensure_schema(conn) -> None:
             cur.execute(
                 f"ALTER TABLE phase20_scheduler_state ADD COLUMN IF NOT EXISTS {col} {typ}"
             )
+        # Phase 22 scan-run timing/perf columns (idempotent).
+        for col, typ in (("timings", "JSONB"), ("perf", "TEXT")):
+            cur.execute(
+                f"ALTER TABLE phase20_scan_runs ADD COLUMN IF NOT EXISTS {col} {typ}"
+            )
         cur.execute(
             """
             CREATE TABLE IF NOT EXISTS phase20_notifications (
@@ -308,6 +313,8 @@ def record_scan_run(run: Dict[str, Any]) -> None:
         "provider": run.get("provider"),
         "status": run.get("status") or "UNKNOWN",
         "error": (str(run.get("error"))[:500] if run.get("error") else None),
+        "timings": run.get("timings") or None,
+        "perf": run.get("perf") or None,
         "created_at": _iso(_now()),
     }
 
@@ -318,8 +325,9 @@ def record_scan_run(run: Dict[str, Any]) -> None:
                 INSERT INTO phase20_scan_runs (
                     scan_id, trigger_source, started_at, completed_at, duration_s,
                     symbols_requested, symbols_received, missing_symbols,
-                    stale_symbols, unavailable_symbols, provider, status, error
-                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    stale_symbols, unavailable_symbols, provider, status, error,
+                    timings, perf
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 """,
                 (
                     row["scan_id"], row["trigger_source"], row["started_at"],
@@ -329,6 +337,8 @@ def record_scan_run(run: Dict[str, Any]) -> None:
                     json.dumps(row["stale_symbols"]),
                     json.dumps(row["unavailable_symbols"]),
                     row["provider"], row["status"], row["error"],
+                    json.dumps(row["timings"]) if row["timings"] else None,
+                    row["perf"],
                 ),
             )
         conn.commit()
@@ -350,7 +360,7 @@ def list_scan_runs(limit: int = 50) -> List[Dict[str, Any]]:
                 SELECT scan_id, trigger_source, started_at, completed_at,
                        duration_s, symbols_requested, symbols_received,
                        missing_symbols, stale_symbols, unavailable_symbols,
-                       provider, status, error, created_at
+                       provider, status, error, created_at, timings, perf
                 FROM phase20_scan_runs ORDER BY id DESC LIMIT %s
                 """,
                 (int(limit),),
@@ -368,6 +378,7 @@ def list_scan_runs(limit: int = 50) -> List[Dict[str, Any]]:
                 "unavailable_symbols": r[9] or [],
                 "provider": r[10], "status": r[11], "error": r[12],
                 "created_at": _iso(r[13]) if isinstance(r[13], datetime) else r[13],
+                "timings": r[14], "perf": r[15],
             })
         return out
 

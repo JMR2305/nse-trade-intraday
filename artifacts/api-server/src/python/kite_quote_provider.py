@@ -50,13 +50,28 @@ def _kite_symbol(symbol: str) -> str:
     return f"NSE:{s}"
 
 
-def _get_kite_client():
-    """Instantiate a KiteConnect client from env vars. Raises if unavailable."""
-    from kiteconnect import KiteConnect
+def _resolve_creds() -> tuple:
+    """Resolve (api_key, access_token). Token: env var first, then the
+    durable token store (Postgres-backed — survives redeploys)."""
     api_key = os.environ.get("ZERODHA_API_KEY") or ""
-    token   = os.environ.get("ZERODHA_ACCESS_TOKEN") or ""
+    token = os.environ.get("ZERODHA_ACCESS_TOKEN") or ""
+    if not token:
+        try:
+            import kite_token_store
+            data = kite_token_store.load()
+            if data:
+                token = data.get("access_token") or ""
+        except Exception:
+            pass
+    return api_key, token
+
+
+def _get_kite_client():
+    """Instantiate a KiteConnect client. Raises if credentials unavailable."""
+    from kiteconnect import KiteConnect
+    api_key, token = _resolve_creds()
     if not api_key or not token:
-        raise ValueError("ZERODHA_API_KEY and ZERODHA_ACCESS_TOKEN env vars required")
+        raise ValueError("ZERODHA_API_KEY and an access token (env or stored session) required")
     kite = KiteConnect(api_key=api_key)
     kite.set_access_token(token)
     return kite
@@ -200,17 +215,77 @@ def get_ltp(symbols: List[str]) -> Dict[str, Optional[float]]:
 
 
 def kite_available() -> bool:
-    """True if Kite credentials are present in the environment."""
-    return bool(
-        os.environ.get("ZERODHA_API_KEY") and
-        os.environ.get("ZERODHA_ACCESS_TOKEN")
-    )
+    """True if Kite api key AND an access token (env or durable stored
+    session) are available to this process. Credential PRESENCE only —
+    use kite_session_verified() to prove the session actually works."""
+    api_key, token = _resolve_creds()
+    return bool(api_key and token)
+
+
+_verify_cache: Dict[str, Any] = {"ts": 0.0, "ok": False}
+VERIFY_TTL_S = 300.0          # re-probe at most every 5 minutes
+VERIFY_FAIL_TTL_S = 60.0      # re-probe failures sooner (login may happen)
+
+
+def kite_session_verified(force: bool = False) -> bool:
+    """
+    True only if the stored Zerodha session has been PROVEN to work by a
+    lightweight authenticated API probe (kite.profile()) within the TTL.
+
+    Credential presence is NOT enough — an expired/invalid token must
+    never let fallback data pass the provider gate for paper entries.
+    Never raises.
+    """
+    if not kite_available():
+        return False
+    now = time.monotonic()
+    age = now - _verify_cache["ts"]
+    ttl = VERIFY_TTL_S if _verify_cache["ok"] else VERIFY_FAIL_TTL_S
+    if not force and _verify_cache["ts"] > 0 and age < ttl:
+        return bool(_verify_cache["ok"])
+    ok = False
+    try:
+        kite = _get_kite_client()
+        _throttle()
+        prof = kite.profile()          # cheap authenticated call
+        ok = bool(prof and prof.get("user_id"))
+        try:
+            import kite_token_store
+            if ok:
+                kite_token_store.record_success()
+            else:
+                kite_token_store.record_auth_failure()
+        except Exception:
+            pass
+    except Exception as exc:
+        logger.warning("Kite session probe failed: %s", str(exc)[:200])
+        try:
+            import kite_token_store
+            kite_token_store.record_auth_failure()
+        except Exception:
+            pass
+    _verify_cache["ts"] = time.monotonic()
+    _verify_cache["ok"] = ok
+    return ok
+
+
+def kite_configured() -> bool:
+    """True if the Kite API key is set (regardless of a live session)."""
+    return bool(os.environ.get("ZERODHA_API_KEY"))
 
 
 def provider_label() -> str:
-    """Human-readable provider label for UI display."""
+    """Human-readable provider label for UI display.
+
+    Distinguishes three honest states — never labels Yahoo data as Zerodha:
+      * key + token       → Zerodha live quotes overlay Yahoo history
+      * key, no token     → daily Zerodha login required
+      * no key            → Kite Connect not configured
+    """
     if kite_available():
         return "Zerodha Kite Connect (Live) + Yahoo Finance (History)"
+    if kite_configured():
+        return "Yahoo Finance (History) — Zerodha login required (no active session)"
     return "Yahoo Finance (History) — Kite Connect not configured"
 
 

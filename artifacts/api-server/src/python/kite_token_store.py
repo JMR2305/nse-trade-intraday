@@ -22,25 +22,69 @@ from typing import Any, Dict, Optional
 
 _STORE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".kite_token.json")
 
+# Durable storage key (Postgres phase20_kv). The local file is only a warm
+# cache — Autoscale instances have ephemeral disks and each deploy starts
+# with a fresh filesystem, so the DB copy is authoritative.
+_KV_KEY = "kite_token_v1"
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _write_file(record: Dict[str, Any]) -> None:
+    tmp = _STORE_PATH + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(record, f)
+    os.chmod(tmp, stat.S_IRUSR | stat.S_IWUSR)  # 0600
+    os.replace(tmp, _STORE_PATH)
+
+
+def _db_load() -> Optional[Dict[str, Any]]:
+    try:
+        import phase20_store
+        data = phase20_store.kv_get(_KV_KEY)
+        if isinstance(data, dict) and data.get("access_token"):
+            return data
+    except Exception:
+        pass
+    return None
+
+
+def _db_save(record: Optional[Dict[str, Any]]) -> None:
+    try:
+        import phase20_store
+        phase20_store.kv_set(_KV_KEY, record)
+    except Exception:
+        pass
+
+
 def load() -> Optional[Dict[str, Any]]:
-    """Load the stored token record, or None. Never raises."""
+    """Load the stored token record, or None. Never raises.
+
+    Order: local warm-cache file first (fast path), then the durable DB
+    record (survives redeploys / new Autoscale instances). A DB hit
+    re-warms the local file.
+    """
     try:
         with open(_STORE_PATH, "r") as f:
             data = json.load(f)
-        if not isinstance(data, dict) or not data.get("access_token"):
-            return None
-        return data
+        if isinstance(data, dict) and data.get("access_token"):
+            return data
     except Exception:
-        return None
+        pass
+    data = _db_load()
+    if data:
+        try:
+            _write_file(data)
+        except Exception:
+            pass
+        return data
+    return None
 
 
 def save_token(access_token: str, user_id: str = "") -> None:
-    """Persist the access token (backend-only, chmod 600)."""
+    """Persist the access token durably (DB) + local warm cache (chmod 600)."""
     if not access_token:
         raise ValueError("access_token required")
     record = {
@@ -50,11 +94,8 @@ def save_token(access_token: str, user_id: str = "") -> None:
         "last_success_at": None,
         "last_latency_ms": None,
     }
-    tmp = _STORE_PATH + ".tmp"
-    with open(tmp, "w") as f:
-        json.dump(record, f)
-    os.chmod(tmp, stat.S_IRUSR | stat.S_IWUSR)  # 0600
-    os.replace(tmp, _STORE_PATH)
+    _write_file(record)
+    _db_save(record)
 
 
 def record_success(latency_ms: Optional[int] = None) -> None:
@@ -66,17 +107,15 @@ def record_success(latency_ms: Optional[int] = None) -> None:
         data["last_success_at"] = _now_iso()
         if latency_ms is not None:
             data["last_latency_ms"] = latency_ms
-        tmp = _STORE_PATH + ".tmp"
-        with open(tmp, "w") as f:
-            json.dump(data, f)
-        os.chmod(tmp, stat.S_IRUSR | stat.S_IWUSR)
-        os.replace(tmp, _STORE_PATH)
+        _write_file(data)
+        _db_save(data)
     except Exception:
         pass
 
 
 def clear() -> bool:
-    """Delete the stored token. Returns True if a file was removed."""
+    """Delete the stored token (file + durable DB copy)."""
+    _db_save(None)
     try:
         os.remove(_STORE_PATH)
         return True

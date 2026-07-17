@@ -2091,5 +2091,34 @@
    "by": "dashboard_user",
    "reason": "test"
   }
+ },
+ {
+  "id": "4d697f678c",
+  "ts": "2026-07-17T08:59:20.145643+00:00",
+  "event_type": "phase22_readiness_probe",
+  "actor": "system",
+  "detail": {
+   "ts": "2026-07-17T08:59:20.143328+00:00"
+  }
+ },
+ {
+  "id": "3a42a03a57",
+  "ts": "2026-07-17T08:59:20.514027+00:00",
+  "event_type": "phase22_readiness_probe",
+  "actor": "system",
+  "detail": {
+   "ts": "2026-07-17T08:59:20.512497+00:00"
+  }
+ },
+ {
+  "id": "c55c224617",
+  "ts": "2026-07-17T08:59:22.498901+00:00",
+  "event_type": "phase22_paper_automation_disabled",
+  "actor": "dashboard_user",
+  "detail": {
+   "disabled_at": "2026-07-17T08:59:22.465496+00:00",
+   "by": "dashboard_user",
+   "reason": "test"
+  }
  }
 ]

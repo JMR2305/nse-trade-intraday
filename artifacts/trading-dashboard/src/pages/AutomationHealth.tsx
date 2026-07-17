@@ -70,6 +70,7 @@ function Field({ label, value, valueCls }: { label: string; value: any; valueCls
 export default function AutomationHealth() {
   const { toast } = useToast();
   const [scheduler, setScheduler] = useState<any>(null);
+  const [activity, setActivity] = useState<any>(null);
   const [validation, setValidation] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,7 +81,11 @@ export default function AutomationHealth() {
   const load = useCallback(async () => {
     setRefreshing(true);
     const errs: string[] = [];
-    try { const d = await safeJson("/phase20/scheduler/health"); setScheduler(d.scheduler ?? null); }
+    try {
+      const d = await safeJson("/phase20/scheduler/health");
+      setScheduler(d.scheduler ?? null);
+      setActivity(d.activity ?? null);
+    }
     catch (e) { errs.push(`Scheduler: ${e instanceof Error ? e.message : String(e)}`); }
     try { const d = await safeJson("/phase20/validation"); setValidation(d ?? null); }
     catch (e) { errs.push(`Validation: ${e instanceof Error ? e.message : String(e)}`); }
@@ -173,6 +178,34 @@ export default function AutomationHealth() {
               <Field label="Last success" value={na(scheduler.last_success_at)} />
               <Field label="Last scan ID" value={shortId(scheduler.last_scan_id)} />
               <Field label="Next due" value={na(scheduler.next_due_at)} />
+              <Field
+                label="Skipped (scan already running)"
+                value={na(activity?.skipped_active_count ?? 0)}
+                valueCls={(activity?.skipped_active_count ?? 0) > 0 ? "text-amber-400" : undefined}
+              />
+              <Field
+                label="Zerodha Kite session"
+                value={activity?.kite
+                  ? (activity.kite.session_active ? "ACTIVE" : (activity.kite.configured ? "LOGIN REQUIRED" : "NOT CONFIGURED"))
+                  : "N/A"}
+                valueCls={activity?.kite?.session_active ? "text-emerald-400" : "text-amber-400"}
+              />
+            </div>
+          )}
+          {activity?.kite?.provider_label && (
+            <p className="mt-2 text-[10px] text-zinc-500 border-t border-zinc-800 pt-1.5">
+              Provider: {activity.kite.provider_label}
+            </p>
+          )}
+          {activity?.scan_progress?.stage && (
+            <div className="mt-2 flex items-center gap-2 text-[10px] text-sky-300 border border-sky-800 bg-sky-950/30 rounded px-2 py-1.5">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Scan in progress — stage {activity.scan_progress.stage}
+              {activity.scan_progress.scan_id ? ` · ${shortId(activity.scan_progress.scan_id)}` : ""}
+              {activity.scan_progress.symbols_total
+                ? ` · ${activity.scan_progress.symbols_done ?? 0}/${activity.scan_progress.symbols_total} symbols`
+                : ""}
+              {activity.scan_progress.started_at ? ` · started ${activity.scan_progress.started_at}` : ""}
             </div>
           )}
           {scheduler?.detail && (
@@ -267,7 +300,7 @@ export default function AutomationHealth() {
                   {history.map((r: any, i: number) => {
                     const key = r.scan_id ?? `run-${i}`;
                     const isOpen = !!expanded[key];
-                    const hasDetail = r.error || (r.missing_symbols?.length) || (r.stale_symbols?.length);
+                    const hasDetail = r.error || (r.missing_symbols?.length) || (r.stale_symbols?.length) || r.timings;
                     return (
                       <Fragment key={key}>
                         <tr
@@ -287,14 +320,24 @@ export default function AutomationHealth() {
                             </Badge>
                           </td>
                           <td className="px-2 py-1.5 text-zinc-400">{shortId(r.scan_id)}</td>
-                          <td className="px-2 py-1.5 text-right text-zinc-300">{r.duration_s != null ? `${na(r.duration_s)}s` : "N/A"}</td>
+                          <td className="px-2 py-1.5 text-right text-zinc-300 whitespace-nowrap">
+                            {r.duration_s != null ? `${na(r.duration_s)}s` : "N/A"}
+                            {r.perf && r.perf !== "NORMAL" && (
+                              <Badge variant="outline" className={cn("ml-1 text-[8px] px-1",
+                                r.perf === "DEGRADED" ? "text-red-400 border-red-700" : "text-amber-400 border-amber-700")}>
+                                {r.perf}
+                              </Badge>
+                            )}
+                          </td>
                           <td className="px-2 py-1.5 text-right text-zinc-300">
                             {na(r.symbols_received)}/{na(r.symbols_requested)}
                           </td>
                           <td className="px-2 py-1.5 text-zinc-400">{na(r.provider)}</td>
                           <td className="px-2 py-1.5">
                             <Badge variant="outline" className={cn("text-[9px] px-1",
-                              r.status === "SUCCESS" ? "text-emerald-400 border-emerald-700" : "text-red-400 border-red-700")}>
+                              r.status === "SUCCESS" ? "text-emerald-400 border-emerald-700"
+                                : r.status === "SKIPPED_ACTIVE_SCAN" ? "text-amber-400 border-amber-700"
+                                : "text-red-400 border-red-700")}>
                               {r.status ?? "N/A"}
                             </Badge>
                           </td>
@@ -316,6 +359,19 @@ export default function AutomationHealth() {
                               {r.stale_symbols?.length > 0 && (
                                 <div className="text-[10px] text-amber-300/80">
                                   Stale ({r.stale_symbols.length}): {r.stale_symbols.join(", ")}
+                                </div>
+                              )}
+                              {r.timings && (
+                                <div className="text-[10px] text-zinc-400">
+                                  Timing breakdown:{" "}
+                                  {[
+                                    r.timings.lock_wait_s != null && `lock wait ${na(r.timings.lock_wait_s)}s`,
+                                    r.timings.fetch_s != null && `data fetch ${na(r.timings.fetch_s)}s`,
+                                    r.timings.analysis_s != null && `indicators + decisions ${na(r.timings.analysis_s)}s`,
+                                    r.timings.db_write_s != null && `db write ${na(r.timings.db_write_s)}s`,
+                                    r.timings.retry_events != null && `${r.timings.retry_events} retry event(s)`,
+                                    r.timings.total_scan_s != null && `total ${na(r.timings.total_scan_s)}s`,
+                                  ].filter(Boolean).join(" · ")}
                                 </div>
                               )}
                             </td>

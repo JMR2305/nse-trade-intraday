@@ -178,6 +178,7 @@ class Phase7ScanResult:
     safety: Dict[str, Any]
     phase: str = "7"
     label: str = "PAPER / LIVE DATA VALIDATION"
+    timings: Dict[str, Any] = field(default_factory=dict)  # stage breakdown (s)
 
 
 def _holding_days(strategy_id: str) -> int:
@@ -389,10 +390,36 @@ def _scan_one(
     )
 
 
+def _set_progress(stage: Optional[str], scan_id: Optional[str] = None,
+                  extra: Optional[Dict[str, Any]] = None) -> None:
+    """Publish live scan progress to the durable KV so the UI can show the
+    active scan (stage + elapsed). stage=None clears it. Never raises."""
+    try:
+        import phase20_store
+        if stage is None:
+            phase20_store.kv_set("scan_progress", None)
+            return
+        rec: Dict[str, Any] = {
+            "stage": stage,
+            "scan_id": scan_id,
+            "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+        if extra:
+            rec.update(extra)
+        prev = phase20_store.kv_get("scan_progress") or {}
+        rec["started_at"] = (prev.get("started_at")
+                             if isinstance(prev, dict) and prev.get("scan_id") == scan_id
+                             else rec["updated_at"])
+        phase20_store.kv_set("scan_progress", rec)
+    except Exception:
+        pass
+
+
 def run_live_scan(
     symbols: Optional[List[str]] = None,
     capital: float = INITIAL_CAPITAL,
     force: bool = False,
+    heartbeat: Optional[Any] = None,
 ) -> Phase7ScanResult:
     """
     Run a full Phase 7 canonical scan.
@@ -412,14 +439,37 @@ def run_live_scan(
     t0 = time.monotonic()
 
     # ── Phase 1: Fetch all data up-front (consistent snapshot) ────────────────
+    _set_progress("FETCHING", scan_id, {"symbols_total": len(universe),
+                                        "symbols_done": 0})
     provider = LiveDataProvider()
     fetch_results: Dict[str, SymbolFetchResult] = {}
-    for sym in universe:
+    _last_beat = time.monotonic()
+    t_fetch0 = time.monotonic()
+    for i, sym in enumerate(universe, start=1):
         fetch_results[sym.upper()] = provider.fetch_symbol(sym)
+        # Heartbeat: renew the distributed scan lease + progress every ~25s
+        # so a slow fetch (provider retries) never loses its lock mid-run.
+        if time.monotonic() - _last_beat > 25:
+            _last_beat = time.monotonic()
+            if heartbeat is not None:
+                try:
+                    heartbeat()
+                except Exception:
+                    pass
+            _set_progress("FETCHING", scan_id, {"symbols_total": len(universe),
+                                                "symbols_done": i})
+    fetch_s = round(time.monotonic() - t_fetch0, 2)
 
     fetch_done_ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     # ── Phase 2: Analyse each symbol ─────────────────────────────────────────
+    _set_progress("ANALYZING", scan_id)
+    if heartbeat is not None:
+        try:
+            heartbeat()
+        except Exception:
+            pass
+    t_analysis0 = time.monotonic()
     recs: List[Phase7Recommendation] = []
     for sym in universe:
         fr = fetch_results.get(sym.upper())
@@ -434,6 +484,8 @@ def run_live_scan(
                                    retries_used=0, error="Symbol missing from fetch batch",
                                    bars=0)
         recs.append(_scan_one(sym, fr, scan_id, snapshot_ts, capital))
+
+    analysis_s = round(time.monotonic() - t_analysis0, 2)
 
     # Sort by opportunity_score desc (errors last)
     recs.sort(key=lambda r: (r.error is None, r.opportunity_score), reverse=True)
@@ -502,8 +554,10 @@ def run_live_scan(
 
     # ── Phase 19: Kite provider label (read-only overlay metadata) ────────────
     try:
-        from kite_quote_provider import kite_available, provider_label as _pl
-        _kite_live = kite_available()
+        from kite_quote_provider import kite_session_verified, provider_label as _pl
+        # PROVEN session only — an expired token must never mark the scan as
+        # Zerodha-connected (would let fallback data pass the entry gate).
+        _kite_live = kite_session_verified()
         _provider_label = _pl()
     except Exception:
         _kite_live = False
@@ -532,6 +586,17 @@ def run_live_scan(
         d["rank"] = i
         rec_dicts.append(d)
 
+    # Stage timing breakdown (seconds). "analysis" covers indicator
+    # computation + decision generation per symbol (they run interleaved in
+    # _scan_one and cannot be split without double-instrumenting strategies).
+    timings: Dict[str, Any] = {
+        "fetch_s": fetch_s,
+        "analysis_s": analysis_s,
+        "total_scan_s": duration_s,
+        "symbols": len(universe),
+        "retry_events": int(health.retry_events or 0),
+    }
+
     result = Phase7ScanResult(
         scan_id=scan_id, snapshot_ts=snapshot_ts,
         universe=universe, universe_size=len(universe),
@@ -541,9 +606,17 @@ def run_live_scan(
         summary=summary, scan_audit=audit,
         paper_eligible=overall_paper_eligible,
         safety=safety,
+        timings=timings,
     )
 
     # ── Persist cache (Phase 19B: durable shared store + local warm cache) ───
+    _set_progress("PERSISTING", scan_id)
+    if heartbeat is not None:
+        try:
+            heartbeat()
+        except Exception:
+            pass
+    t_persist0 = time.monotonic()
     try:
         cache_data = asdict(result)
         from scan_state_store import save_successful_scan
@@ -555,6 +628,7 @@ def run_live_scan(
                 json.dump(asdict(result), f, default=str)
         except Exception:
             pass
+    result.timings["db_write_s"] = round(time.monotonic() - t_persist0, 2)
 
     # ── Phase 15: sync derived caches to this canonical scan ─────────────────
     # AI Decision / Opportunity caches are overlaid with canonical values so
@@ -602,11 +676,17 @@ def get_or_run_scan(
     symbols: Optional[List[str]] = None,
     capital: float = INITIAL_CAPITAL,
     force: bool = False,
+    wait_for_lock: bool = True,
 ) -> Dict[str, Any]:
     """
     Return cached scan if fresh enough, otherwise run a new scan.
     All callers (Trade Decisions, Market Scanner, etc.) call this —
     they all receive the SAME canonical result.
+
+    wait_for_lock=False (used by the scheduler): if another instance holds
+    the scan lease, return the previous snapshot immediately with
+    _scan_lock_busy=True instead of polling — the tick records
+    SKIPPED_ACTIVE_SCAN rather than inflating its own duration.
     """
     if not force:
         cached = load_cached_scan()
@@ -628,6 +708,7 @@ def get_or_run_scan(
     try:
         from scan_state_store import (
             acquire_scan_lock, release_scan_lock, record_failed_scan,
+            renew_scan_lock,
         )
     except Exception:
         acquire_scan_lock = None  # type: ignore[assignment]
@@ -642,8 +723,17 @@ def get_or_run_scan(
     prev = load_cached_scan()
     prev_scan_id = (prev or {}).get("scan_id")
 
+    t_lock0 = time.monotonic()
     acquired, holder = acquire_scan_lock()
     if not acquired:
+        if not wait_for_lock:
+            # Scheduler path: never poll — report busy immediately.
+            if prev:
+                prev["_from_cache"] = True
+                prev["_scan_lock_busy"] = True
+                return prev
+            return {"_scan_lock_busy": True, "_from_cache": True,
+                    "scan_id": None, "snapshot_ts": None}
         # Another instance is scanning. Poll for its result instead of
         # duplicating work; fall back to the previous snapshot on timeout.
         deadline = time.monotonic() + 120
@@ -653,15 +743,25 @@ def get_or_run_scan(
             if latest and latest.get("scan_id") != prev_scan_id:
                 latest["_from_cache"] = True
                 latest["_joined_inflight_scan"] = True
+                latest["_lock_wait_s"] = round(time.monotonic() - t_lock0, 2)
                 return latest
         if prev:
             prev["_from_cache"] = True
             prev["_scan_lock_busy"] = True
+            prev["_lock_wait_s"] = round(time.monotonic() - t_lock0, 2)
             return prev
         raise RuntimeError("Scan lock busy and no previous snapshot available")
+    lock_wait_s = round(time.monotonic() - t_lock0, 2)
+
+    def _beat() -> None:
+        try:
+            renew_scan_lock(holder)
+        except Exception:
+            pass
 
     try:
-        result = run_live_scan(symbols=symbols, capital=capital, force=force)
+        result = run_live_scan(symbols=symbols, capital=capital, force=force,
+                               heartbeat=_beat)
     except Exception as exc:
         # Failed scan must NEVER overwrite the last successful snapshot —
         # run_live_scan only persists on success, so just record the failure.
@@ -675,8 +775,10 @@ def get_or_run_scan(
             release_scan_lock(holder)
         except Exception:
             pass
+        _set_progress(None)
 
     d = asdict(result)
     d["_from_cache"] = False
     d["_cache_age_s"] = 0.0
+    d.setdefault("timings", {})["lock_wait_s"] = lock_wait_s
     return d

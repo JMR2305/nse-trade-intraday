@@ -309,6 +309,43 @@ def acquire_scan_lock(name: str = "phase7_scan",
         conn.close()
 
 
+def renew_scan_lock(holder: str, name: str = "phase7_scan",
+                    timeout_s: float = LOCK_TIMEOUT_S) -> bool:
+    """
+    Heartbeat-renew the lease while a long scan is still running, so a
+    legitimately slow scan (e.g. provider retries) never loses its lock
+    mid-run and no second scan can start. Only the current holder can renew.
+    Returns True if the lease was renewed.
+    """
+    now = _now_utc()
+    if not db_available():
+        lock = _read_json(FALLBACK_LOCK_FILE)
+        if lock and lock.get("holder") == holder:
+            lock["expires_at"] = _iso(datetime.fromtimestamp(
+                now.timestamp() + timeout_s, tz=timezone.utc))
+            _write_json(FALLBACK_LOCK_FILE, lock)
+            return True
+        return False
+    conn = _connect()
+    try:
+        _ensure_schema(conn)
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE scan_lock
+                SET expires_at = NOW() + make_interval(secs => %s)
+                WHERE name = %s AND holder = %s
+                RETURNING holder
+                """,
+                (timeout_s, name, holder),
+            )
+            row = cur.fetchone()
+        conn.commit()
+        return row is not None
+    finally:
+        conn.close()
+
+
 def release_scan_lock(holder: str, name: str = "phase7_scan") -> None:
     if not db_available():
         lock = _read_json(FALLBACK_LOCK_FILE)

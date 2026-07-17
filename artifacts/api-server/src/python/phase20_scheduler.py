@@ -38,12 +38,23 @@ def _next_due_iso(interval_min: int) -> str:
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _perf_class(duration_s: float) -> str:
+    """Classify scheduled-scan performance for monitoring/UI."""
+    if duration_s > 300:
+        return "DEGRADED"
+    if duration_s > 120:
+        return "WARNING"
+    return "NORMAL"
+
+
 def _run_meta_from_snapshot(snap: Dict[str, Any], trigger: str,
                             duration_s: float) -> Dict[str, Any]:
     health = snap.get("provider_health") or {}
     safety = snap.get("safety") or {}
     audit = snap.get("scan_audit") or {}
     return {
+        "timings": snap.get("timings") or None,
+        "perf": _perf_class(duration_s),
         "scan_id": snap.get("scan_id"),
         "trigger_source": trigger,
         "started_at": snap.get("snapshot_ts"),
@@ -166,8 +177,34 @@ def run_tick() -> Dict[str, Any]:
     t0 = time.time()
     try:
         from live_scan_engine import get_or_run_scan
-        snap = get_or_run_scan(max_age_s=interval_min * 60, force=False)
+        snap = get_or_run_scan(max_age_s=interval_min * 60, force=False,
+                               wait_for_lock=False)
         duration = time.time() - t0
+
+        if snap.get("_scan_lock_busy"):
+            # Another instance is mid-scan. Record the skip (concurrency
+            # safety evidence) and return immediately — never poll, never
+            # start a second scan.
+            store.record_scan_run({
+                "scan_id": None, "trigger_source": "SCHEDULED",
+                "started_at": now_iso, "completed_at": _iso_now(),
+                "duration_s": round(duration, 2),
+                "status": "SKIPPED_ACTIVE_SCAN", "error": None,
+            })
+            try:
+                store.kv_set("scan_skipped_active_count",
+                             int(store.kv_get("scan_skipped_active_count") or 0) + 1)
+            except Exception:
+                pass
+            store.update_scheduler_state(
+                last_attempt_at=now_iso, status="BUSY",
+                detail="Skipped — another scan is already running",
+                owner=_OWNER, heartbeat_at=_iso_now(),
+                last_trigger="SCHEDULED",
+            )
+            return {"success": True, "ran_scan": False,
+                    "reason": "SKIPPED_ACTIVE_SCAN — another scan in progress"}
+
         ran = not snap.get("_from_cache", False)
         pipeline = None
         if ran:

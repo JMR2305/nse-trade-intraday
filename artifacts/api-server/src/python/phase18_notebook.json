@@ -2754,12 +2754,12 @@
       },
       "market": {
         "market_regime": "SIDEWAYS",
-        "nifty_price": 24251.9,
+        "nifty_price": 24295.95,
         "nifty_trend": "SIDEWAYS",
-        "nifty_change_pct": 0.19,
-        "banknifty_price": 58006.95,
-        "banknifty_trend": "SIDEWAYS",
-        "banknifty_change_pct": -0.07,
+        "nifty_change_pct": 0.37,
+        "banknifty_price": 58408.65,
+        "banknifty_trend": "UP",
+        "banknifty_change_pct": 0.62,
         "india_vix": 18.0,
         "vix_category": "NORMAL",
         "market_breadth": 0.0,
@@ -2774,11 +2774,11 @@
           "FINANCE",
           "INFRA"
         ],
-        "context_computed_at": "2026-07-17T08:15:46.316257"
+        "context_computed_at": "2026-07-17T09:09:22.186364"
       },
       "scan": {
-        "scan_id": "3f9cc2356a5e",
-        "snapshot_ts": "2026-07-17T08:43:45Z",
+        "scan_id": "957a4bbe957d",
+        "snapshot_ts": "2026-07-17T09:14:02Z",
         "stale": false,
         "universe_size": 50,
         "historical_source": false
@@ -2795,21 +2795,11 @@
       },
       "best_opportunities": [
         {
-          "symbol": "BAJFINANCE",
-          "final_action": "WATCH",
-          "effective_action": "WATCH",
-          "opportunity_score": 48.6,
-          "confidence": 37.4,
-          "strategy_name": "Trend Rider",
-          "sector": "FINANCE",
-          "rr_ratio": 3.0
-        },
-        {
           "symbol": "INDUSINDBK",
           "final_action": "WATCH",
           "effective_action": "WATCH",
-          "opportunity_score": 44.6,
-          "confidence": 34.6,
+          "opportunity_score": 44.8,
+          "confidence": 34.8,
           "strategy_name": "Trend Rider",
           "sector": "BANKING",
           "rr_ratio": 3.0
@@ -2843,9 +2833,24 @@
           "strategy_name": "Mean Reversion",
           "sector": "FMCG",
           "rr_ratio": 1.5
+        },
+        {
+          "symbol": "BAJFINANCE",
+          "final_action": "IGNORE",
+          "effective_action": "IGNORE",
+          "opportunity_score": 40.2,
+          "confidence": 29.4,
+          "strategy_name": "Trend Rider",
+          "sector": "FINANCE",
+          "rr_ratio": 3.0
         }
       ],
       "stocks_to_avoid": [
+        {
+          "symbol": "BAJFINANCE",
+          "final_action": "IGNORE",
+          "reason": "action"
+        },
         {
           "symbol": "ICICIBANK",
           "final_action": "IGNORE",
@@ -2863,11 +2868,6 @@
         },
         {
           "symbol": "HDFCLIFE",
-          "final_action": "IGNORE",
-          "reason": "action"
-        },
-        {
-          "symbol": "RELIANCE",
           "final_action": "IGNORE",
           "reason": "action"
         }
@@ -2898,32 +2898,12 @@
       "alerts_generated": 0,
       "decisions": [
         {
-          "symbol": "BAJFINANCE",
-          "raw_signal": "WATCH",
-          "final_action": "WATCH",
-          "decision_state": "WATCHED",
-          "confidence": 37.4,
-          "opportunity_score": 48.6,
-          "strategy": "Trend Rider",
-          "market_regime": "Strong uptrend",
-          "sector": "FINANCE",
-          "sector_rank": 3,
-          "rr_ratio": 3.0,
-          "data_quality": "LIVE",
-          "blocking_rule": null,
-          "explanation": "Scan action WATCH",
-          "user_action": null,
-          "user_reason": null,
-          "outcome": null,
-          "scan_id": "3f9cc2356a5e"
-        },
-        {
           "symbol": "INDUSINDBK",
           "raw_signal": "WATCH",
           "final_action": "WATCH",
           "decision_state": "WATCHED",
-          "confidence": 34.6,
-          "opportunity_score": 44.6,
+          "confidence": 34.8,
+          "opportunity_score": 44.8,
           "strategy": "Trend Rider",
           "market_regime": "Strong uptrend",
           "sector": "BANKING",
@@ -2935,7 +2915,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "HCLTECH",
@@ -2955,7 +2935,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "HDFCBANK",
@@ -2975,7 +2955,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "TATACONSUM",
@@ -2995,7 +2975,27 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
+        },
+        {
+          "symbol": "BAJFINANCE",
+          "raw_signal": "IGNORE",
+          "final_action": "IGNORE",
+          "decision_state": "NO ACTION",
+          "confidence": 29.4,
+          "opportunity_score": 40.2,
+          "strategy": "Trend Rider",
+          "market_regime": "Strong uptrend",
+          "sector": "FINANCE",
+          "sector_rank": 3,
+          "rr_ratio": 3.0,
+          "data_quality": "LIVE",
+          "blocking_rule": null,
+          "explanation": "Scan action IGNORE",
+          "user_action": null,
+          "user_reason": null,
+          "outcome": null,
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "ICICIBANK",
@@ -3015,7 +3015,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "TATASTEEL",
@@ -3035,7 +3035,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "DRREDDY",
@@ -3055,7 +3055,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "HDFCLIFE",
@@ -3075,14 +3075,14 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "RELIANCE",
           "raw_signal": "IGNORE",
           "final_action": "IGNORE",
           "decision_state": "NO ACTION",
-          "confidence": 29.2,
+          "confidence": 29.3,
           "opportunity_score": 38.2,
           "strategy": "MACD Cross",
           "market_regime": "Trending (momentum)",
@@ -3095,7 +3095,27 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
+        },
+        {
+          "symbol": "COALINDIA",
+          "raw_signal": "IGNORE",
+          "final_action": "IGNORE",
+          "decision_state": "NO ACTION",
+          "confidence": 30.4,
+          "opportunity_score": 37.5,
+          "strategy": "MACD Cross",
+          "market_regime": "Trending (momentum)",
+          "sector": "ENERGY",
+          "sector_rank": 2,
+          "rr_ratio": 2.5,
+          "data_quality": "LIVE",
+          "blocking_rule": null,
+          "explanation": "Scan action IGNORE",
+          "user_action": null,
+          "user_reason": null,
+          "outcome": null,
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "SBIN",
@@ -3115,7 +3135,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "KOTAKBANK",
@@ -3135,7 +3155,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "SHRIRAMFIN",
@@ -3155,7 +3175,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "JSWSTEEL",
@@ -3175,7 +3195,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "POWERGRID",
@@ -3195,7 +3215,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "ONGC",
@@ -3215,7 +3235,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "WIPRO",
@@ -3235,27 +3255,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
-        },
-        {
-          "symbol": "COALINDIA",
-          "raw_signal": "IGNORE",
-          "final_action": "IGNORE",
-          "decision_state": "NO ACTION",
-          "confidence": 15.6,
-          "opportunity_score": 24.4,
-          "strategy": "MACD Cross",
-          "market_regime": "Trending (momentum)",
-          "sector": "ENERGY",
-          "sector_rank": 2,
-          "rr_ratio": 2.5,
-          "data_quality": "LIVE",
-          "blocking_rule": null,
-          "explanation": "Scan action IGNORE",
-          "user_action": null,
-          "user_reason": null,
-          "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "NTPC",
@@ -3275,7 +3275,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "BAJAJ-AUTO",
@@ -3295,7 +3295,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "BHARTIARTL",
@@ -3315,7 +3315,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "DIVISLAB",
@@ -3335,7 +3335,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "SUNPHARMA",
@@ -3355,7 +3355,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "ULTRACEMCO",
@@ -3375,7 +3375,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "M&M",
@@ -3395,7 +3395,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "AXISBANK",
@@ -3415,7 +3415,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "ITC",
@@ -3435,7 +3435,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "EICHERMOT",
@@ -3455,7 +3455,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "INFY",
@@ -3475,7 +3475,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "HINDALCO",
@@ -3495,7 +3495,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "ADANIENT",
@@ -3515,7 +3515,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "ADANIPORTS",
@@ -3535,7 +3535,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "APOLLOHOSP",
@@ -3555,7 +3555,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "ASIANPAINT",
@@ -3575,7 +3575,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "BAJAJFINSV",
@@ -3595,7 +3595,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "BRITANNIA",
@@ -3615,7 +3615,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "CIPLA",
@@ -3635,7 +3635,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "GRASIM",
@@ -3655,7 +3655,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "HEROMOTOCO",
@@ -3675,7 +3675,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "HINDUNILVR",
@@ -3695,7 +3695,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "LT",
@@ -3715,7 +3715,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "MARUTI",
@@ -3735,7 +3735,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "NESTLEIND",
@@ -3755,7 +3755,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "SBILIFE",
@@ -3775,7 +3775,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "TCS",
@@ -3795,7 +3795,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "TECHM",
@@ -3815,7 +3815,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "TITAN",
@@ -3835,7 +3835,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "TRENT",
@@ -3855,7 +3855,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "LTIM",
@@ -3875,7 +3875,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         },
         {
           "symbol": "TATAMOTORS",
@@ -3895,7 +3895,7 @@
           "user_action": null,
           "user_reason": null,
           "outcome": null,
-          "scan_id": "3f9cc2356a5e"
+          "scan_id": "957a4bbe957d"
         }
       ],
       "user_notes": [],
@@ -3905,8 +3905,8 @@
       "eod": null,
       "finalized_at": null,
       "integrity": {
-        "source_scan_id": "3f9cc2356a5e",
-        "source_snapshot_ts": "2026-07-17T08:43:45Z",
+        "source_scan_id": "957a4bbe957d",
+        "source_snapshot_ts": "2026-07-17T09:14:02Z",
         "data_provider": "yfinance",
         "data_age_seconds": 35.0,
         "model_version": "p13_champion_v1",
@@ -3915,7 +3915,7 @@
         "live_execution_enabled": false
       },
       "created_at": "2026-07-17T03:57:14.181829+00:00",
-      "updated_at": "2026-07-17T08:44:20.206175+00:00",
+      "updated_at": "2026-07-17T09:14:36.756248+00:00",
       "label": "PAPER / RESEARCH ONLY",
       "checklist": {
         "before_market": [
@@ -3937,7 +3937,7 @@
           {
             "item": "Canonical scan context available",
             "status": "PASS",
-            "detail": "3f9cc2356a5e"
+            "detail": "957a4bbe957d"
           },
           {
             "item": "Paper-trading mode confirmed",
@@ -3964,7 +3964,7 @@
           {
             "item": "Scan completed successfully",
             "status": "PASS",
-            "detail": "scan_id=3f9cc2356a5e"
+            "detail": "scan_id=957a4bbe957d"
           },
           {
             "item": "No stale-data violations",
