@@ -75,6 +75,12 @@ onlyBuiltDependencies:
   - unrs-resolver
 
 overrides:
+  # single @types/react copy workspace-wide; duplicates cause nominal "two different
+  # types with this name" conflicts. Expo SDK 54 prints an advisory warning expecting
+  # ~19.1.x — accepted risk: types-only divergence, runtime React stays 19.1.0.
+  # Do NOT "fix" the warning by re-pinning older types (reintroduces the duplication).
+  "@types/react": ^19.2.0
+  "@types/react-dom": ^19.2.0
   # replit uses linux-x64 only, we can exclude all other platforms
   "esbuild>@esbuild/darwin-arm64": "-"
   "esbuild>@esbuild/darwin-x64": "-"
