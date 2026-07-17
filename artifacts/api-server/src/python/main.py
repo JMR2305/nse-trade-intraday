@@ -904,6 +904,13 @@ def main():
                 result = {"success": True, "settings": _updated}
             except ValueError as _ve:
                 result = {"success": False, "error": str(_ve)}
+        elif command == "phase20_email_test":
+            from email_alerts import send_test_email, provider_status
+            _addr = args[1] if len(args) > 1 and args[1] else None
+            result = {**send_test_email(_addr), "status": provider_status()}
+        elif command == "phase20_email_status":
+            from email_alerts import provider_status
+            result = {"success": True, **provider_status()}
         elif command == "phase20_scheduler_health":
             from phase20_store import get_scheduler_health, kv_get
             _activity = {

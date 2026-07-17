@@ -2635,6 +2635,32 @@ router.put("/phase20/settings", async (req, res) => {
   }
 });
 
+// GET /api/phase20/email/status — is an email provider configured? (no secrets)
+router.get("/phase20/email/status", async (_req, res) => {
+  try {
+    res.json(await runPython(["phase20_email_status"]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/phase20/email/test — send a test alert email (body: { address? })
+router.post("/phase20/email/test", async (req, res) => {
+  try {
+    const address = (req.body ?? {})["address"];
+    const args = ["phase20_email_test"];
+    if (typeof address === "string" && address.trim()) args.push(address.trim());
+    const result = (await runPython(args)) as Record<string, unknown>;
+    if (result && result["success"] === false) {
+      res.status(400).json(result);
+      return;
+    }
+    res.json(result);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/phase20/scheduler/health — last runs, next due, missed, status
 router.get("/phase20/scheduler/health", async (_req, res) => {
   try {

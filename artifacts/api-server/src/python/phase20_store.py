@@ -64,10 +64,15 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "max_holding_days": 10,
     "square_off_before_close": False,
     "cooldown_minutes": 30,
+    # Email alerts (opt-in): also email PERFORMANCE_ALERT and
+    # CIRCUIT_BREAKER_TRIPPED notifications to this address.
+    "email_alerts_enabled": False,
+    "email_alert_address": "",
 }
 
 # Keys excluded from the reproducibility config hash (meta, not behaviour).
-_HASH_EXCLUDE = {"auto_paper_entries_confirmed_at"}
+_HASH_EXCLUDE = {"auto_paper_entries_confirmed_at",
+                 "email_alerts_enabled", "email_alert_address"}
 
 
 def _now() -> datetime:
@@ -229,6 +234,14 @@ def _validate_patch(patch: Dict[str, Any], current: Dict[str, Any]) -> Dict[str,
                 raise ValueError(
                     "perf_alert_min_win_rate_pct must be between 0 and 100")
             clean[key] = num
+        elif key == "email_alert_address":
+            addr = str(value or "").strip()
+            if addr:
+                from email_alerts import valid_address
+                if not valid_address(addr):
+                    raise ValueError(
+                        "email_alert_address must be a valid email address")
+            clean[key] = addr
         elif key == "perf_alert_window_trades":
             iv = int(float(value))
             if iv < 3 or iv > 100:
@@ -635,6 +648,17 @@ def add_notification(kind: str, title: str, body: str = "",
         _write_json(_NOTIF_FILE, items[-300:])
 
     _with_db(to_db, to_file)
+
+    # Best-effort email delivery for critical alert kinds (opt-in via
+    # settings). Failures are logged inside email_alerts and NEVER raise —
+    # a broken email provider must not break notification storage or the
+    # scheduler tick.
+    try:
+        import email_alerts
+        if kind in email_alerts.EMAIL_KINDS:
+            email_alerts.maybe_send_alert_email(kind, title, body, severity)
+    except Exception:
+        pass
 
 
 def list_notifications(limit: int = 100) -> List[Dict[str, Any]]:

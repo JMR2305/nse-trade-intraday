@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Bot, Loader2, RefreshCw, Save, ShieldAlert, ShieldCheck, AlertTriangle,
-  Clock, Gauge, Sliders, Cpu, Lock,
+  Clock, Gauge, Sliders, Cpu, Lock, Mail, Send,
 } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -54,6 +54,8 @@ interface Phase20SettingsData {
   max_holding_days: number;
   square_off_before_close: boolean;
   cooldown_minutes: number;
+  email_alerts_enabled: boolean;
+  email_alert_address: string;
   config_hash: string;
   confirmation_text: string;
 }
@@ -121,6 +123,10 @@ export default function Phase20Settings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // Email alerts: provider status + test-send state
+  const [emailStatus, setEmailStatus] = useState<{ configured: boolean; provider: string | null; hint?: string } | null>(null);
+  const [sendingTest, setSendingTest] = useState(false);
+
   // Auto paper entries confirmation dialog state
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [typed, setTyped] = useState("");
@@ -144,6 +150,31 @@ export default function Phase20Settings() {
   }, [toast]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/phase20/email/status`)
+      .then((r) => r.json())
+      .then((d) => setEmailStatus({ configured: !!d.configured, provider: d.provider ?? null, hint: d.hint }))
+      .catch(() => setEmailStatus(null));
+  }, []);
+
+  const sendTestEmail = async () => {
+    setSendingTest(true);
+    try {
+      const r = await fetch(`${API_BASE}/phase20/email/test`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address: draft?.email_alert_address ?? "" }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || d.success === false) throw new Error(d.error ?? `HTTP ${r.status}`);
+      toast({ title: "Test email sent", description: `Delivered via ${d.provider ?? "configured provider"} — check your inbox.` });
+    } catch (e: any) {
+      toast({ title: "Test email failed", description: e.message, variant: "destructive" });
+    } finally {
+      setSendingTest(false);
+    }
+  };
 
   const setField = <K extends keyof Phase20SettingsData>(key: K, value: Phase20SettingsData[K]) => {
     setDraft((prev) => (prev ? { ...prev, [key]: value } : prev));
@@ -395,6 +426,54 @@ export default function Phase20Settings() {
           <p className="text-[11px] text-zinc-500">
             The win-rate rule only evaluates once at least the configured number of closed trades
             exists — small samples never trigger an alert.
+          </p>
+        </section>
+
+        {/* ── 3c. Email alerts ── */}
+        <section className="space-y-3 border-t border-zinc-800 pt-4">
+          <h3 className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-zinc-400">
+            <Mail className="h-3.5 w-3.5 text-primary" />Email alerts
+          </h3>
+          <div className="flex items-center justify-between rounded border border-zinc-800 px-3 py-2">
+            <div>
+              <Label htmlFor="email_alerts_enabled" className="text-zinc-300">
+                Email critical alerts
+              </Label>
+              <p className="text-[11px] text-zinc-500">
+                Also send losing-streak / low-win-rate and circuit-breaker alerts to your email,
+                so you're reached even when the dashboard isn't open. Opt-in.
+              </p>
+            </div>
+            <Switch id="email_alerts_enabled" checked={draft.email_alerts_enabled}
+              onCheckedChange={(v) => setField("email_alerts_enabled", v)} />
+          </div>
+          <div className="grid gap-1.5 sm:max-w-sm">
+            <Label className="text-zinc-400">Alert email address</Label>
+            <Input type="email" placeholder="you@example.com" className="text-xs"
+              disabled={!draft.email_alerts_enabled}
+              value={draft.email_alert_address ?? ""}
+              onChange={(e) => setField("email_alert_address", e.target.value)} />
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button size="sm" variant="outline" className="gap-2 text-xs"
+              onClick={sendTestEmail}
+              disabled={sendingTest || !(draft.email_alert_address ?? "").trim() || !(emailStatus?.configured)}>
+              {sendingTest ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+              Send test email
+            </Button>
+            {emailStatus && (emailStatus.configured ? (
+              <Badge variant="outline" className="text-[10px] text-emerald-400 border-emerald-800">
+                Provider: {emailStatus.provider}
+              </Badge>
+            ) : (
+              <span className="text-[11px] text-amber-400">
+                No email provider configured yet — {emailStatus.hint ?? "add a RESEND_API_KEY secret to enable delivery."}
+              </span>
+            ))}
+          </div>
+          <p className="text-[11px] text-zinc-500">
+            Delivery failures are logged and never interrupt scanning or paper trading. Remember to
+            save settings after changing the address or toggle.
           </p>
         </section>
 
