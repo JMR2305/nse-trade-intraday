@@ -1,11 +1,20 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   useGetPortfolio,
   getGetPortfolioQueryKey,
   useRunScan,
-  getGetSignalsQueryKey,
-  useResetPortfolio
+  getGetSignalsQueryKey
 } from "@workspace/api-client-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { PaperAutomationBanner, Phase22DashboardStatus, Phase22DailyReportPanel } from "@/components/Phase22Panels";
 import {
@@ -87,7 +96,6 @@ export default function Dashboard() {
   });
 
   const runScan = useRunScan();
-  const resetPortfolio = useResetPortfolio();
 
   const handleRunScan = () => {
     runScan.mutate(undefined, {
@@ -109,18 +117,36 @@ export default function Dashboard() {
     });
   };
 
-  const handleReset = () => {
-    if (!confirm("Are you sure you want to reset your paper portfolio back to ₹5,000? All positions will be closed.")) return;
-    
-    resetPortfolio.mutate(undefined, {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getGetPortfolioQueryKey() });
-        toast({
-          title: "Portfolio Reset",
-          description: "Portfolio successfully reset to initial capital.",
-        });
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+
+  const handleConfirmedReset = async () => {
+    setIsResetting(true);
+    try {
+      const res = await fetch(`${API_BASE}/portfolio/reset`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmation: "RESET PORTFOLIO" }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || `Reset failed (${res.status})`);
       }
-    });
+      queryClient.invalidateQueries({ queryKey: getGetPortfolioQueryKey() });
+      toast({
+        title: "Portfolio Reset",
+        description: "Cash restored to ₹5,000. Past trades were archived, not deleted.",
+      });
+      setResetDialogOpen(false);
+    } catch (err) {
+      toast({
+        title: "Reset Failed",
+        description: err instanceof Error ? err.message : "Could not reset the portfolio.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsResetting(false);
+    }
   };
 
   const isPositivePnl = (portfolio?.total_pnl ?? 0) >= 0;
@@ -153,13 +179,46 @@ export default function Dashboard() {
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={handleReset}
-            disabled={resetPortfolio.isPending}
+            onClick={() => setResetDialogOpen(true)}
+            disabled={isResetting}
+            data-testid="button-reset-portfolio"
             className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
           >
             <RefreshCcw className="h-4 w-4 mr-2" />
             Reset
           </Button>
+          <AlertDialog open={resetDialogOpen} onOpenChange={(open) => { if (!isResetting) setResetDialogOpen(open); }}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Reset paper portfolio?</AlertDialogTitle>
+                <AlertDialogDescription asChild>
+                  <div className="space-y-2 text-sm">
+                    <p>This will:</p>
+                    <ul className="list-disc pl-5 space-y-1">
+                      <li>Restore cash to the initial <span className="font-mono">₹5,000</span></li>
+                      <li>Close and clear all open paper positions</li>
+                      <li>Archive (not delete) all completed trades — they remain in all-time history</li>
+                    </ul>
+                    <p className="text-muted-foreground">
+                      Performance metrics and charts for the current session will start over.
+                      This cannot be undone from the dashboard.
+                    </p>
+                  </div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isResetting}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(e) => { e.preventDefault(); handleConfirmedReset(); }}
+                  disabled={isResetting}
+                  data-testid="button-confirm-reset"
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {isResetting ? "Resetting..." : "Yes, reset portfolio"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           <Button 
             onClick={handleRunScan} 
             disabled={runScan.isPending}

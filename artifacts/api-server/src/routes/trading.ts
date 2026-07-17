@@ -151,8 +151,24 @@ router.delete("/watchlist/:symbol", async (req, res) => {
 });
 
 // POST /api/portfolio/reset
-router.post("/portfolio/reset", async (_req, res) => {
+// Destructive-adjacent action (cash back to initial capital, positions
+// cleared; trades are archived, never deleted). Requires an explicit
+// confirmation in the request body so a stray API call or single click
+// can never reset the portfolio.
+export const PORTFOLIO_RESET_CONFIRMATION = "RESET PORTFOLIO";
+
+router.post("/portfolio/reset", async (req, res) => {
   try {
+    const confirmation = (req.body?.confirmation ?? "").toString();
+    if (confirmation !== PORTFOLIO_RESET_CONFIRMATION) {
+      res.status(400).json({
+        error: "Confirmation required",
+        detail:
+          `Portfolio reset requires body {"confirmation": "${PORTFOLIO_RESET_CONFIRMATION}"}. ` +
+          "Reset clears positions and restores initial cash; trade history is archived, not deleted.",
+      });
+      return;
+    }
     const data = await runPython(["reset"]);
     res.json(data);
   } catch (err: unknown) {
