@@ -125,7 +125,14 @@ export default function Phase20Settings() {
   const [saving, setSaving] = useState(false);
 
   // Email alerts: provider status + test-send state
-  const [emailStatus, setEmailStatus] = useState<{ configured: boolean; provider: string | null; hint?: string } | null>(null);
+  type EmailLastSend = {
+    ts?: string; kind?: string; sent?: boolean;
+    provider?: string | null; reason?: string | null; error?: string | null;
+  };
+  const [emailStatus, setEmailStatus] = useState<{
+    configured: boolean; provider: string | null; hint?: string;
+    last_send?: EmailLastSend | null;
+  } | null>(null);
   const [sendingTest, setSendingTest] = useState(false);
   const [sendingSummary, setSendingSummary] = useState(false);
 
@@ -161,12 +168,19 @@ export default function Phase20Settings() {
 
   useEffect(() => { load(); }, [load]);
 
-  useEffect(() => {
+  const refreshEmailStatus = useCallback(() => {
     fetch(`${API_BASE}/phase20/email/status`)
       .then((r) => r.json())
-      .then((d) => setEmailStatus({ configured: !!d.configured, provider: d.provider ?? null, hint: d.hint }))
+      .then((d) => setEmailStatus({
+        configured: !!d.configured,
+        provider: d.provider ?? null,
+        hint: d.hint,
+        last_send: d.last_send ?? null,
+      }))
       .catch(() => setEmailStatus(null));
   }, []);
+
+  useEffect(() => { refreshEmailStatus(); }, [refreshEmailStatus]);
 
   const sendTestEmail = async () => {
     setSendingTest(true);
@@ -183,6 +197,7 @@ export default function Phase20Settings() {
       toast({ title: "Test email failed", description: e.message, variant: "destructive" });
     } finally {
       setSendingTest(false);
+      refreshEmailStatus();
     }
   };
 
@@ -202,6 +217,7 @@ export default function Phase20Settings() {
       toast({ title: "Daily summary email failed", description: e.message, variant: "destructive" });
     } finally {
       setSendingSummary(false);
+      refreshEmailStatus();
     }
   };
 
@@ -571,6 +587,34 @@ export default function Phase20Settings() {
               </span>
             ))}
           </div>
+          {emailStatus?.last_send && (
+            <div className={`rounded border px-3 py-2 text-[11px] ${
+              emailStatus.last_send.sent
+                ? "border-emerald-900 bg-emerald-950/30 text-emerald-300"
+                : "border-red-900 bg-red-950/30 text-red-300"
+            }`}>
+              <span className="font-semibold">
+                Last email {emailStatus.last_send.sent ? "delivered" : "failed"}:
+              </span>{" "}
+              {({ alert: "critical alert", daily_summary: "daily summary", test: "test email" } as Record<string, string>)[
+                emailStatus.last_send.kind ?? ""
+              ] ?? emailStatus.last_send.kind ?? "email"}
+              {emailStatus.last_send.ts && (
+                <> · {new Date(emailStatus.last_send.ts).toLocaleString()}</>
+              )}
+              {emailStatus.last_send.sent && emailStatus.last_send.provider && (
+                <> · via {emailStatus.last_send.provider}</>
+              )}
+              {!emailStatus.last_send.sent && (
+                <> · {emailStatus.last_send.error ?? emailStatus.last_send.reason ?? "unknown error"}</>
+              )}
+            </div>
+          )}
+          {emailStatus && !emailStatus.last_send && (
+            <p className="text-[11px] text-zinc-500">
+              No email has been sent yet — delivery attempts will be reported here.
+            </p>
+          )}
           <p className="text-[11px] text-zinc-500">
             "Send test email" delivers a sample alert in the new formatted HTML style — the same
             layout used by performance and circuit-breaker alerts — so you can check how it renders

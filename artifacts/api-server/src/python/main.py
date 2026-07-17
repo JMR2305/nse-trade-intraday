@@ -954,8 +954,9 @@ def main():
                       "text": _parts["text"],
                       "html": _parts.get("html", "")}
         elif command == "phase20_email_status":
-            from email_alerts import provider_status
-            result = {"success": True, **provider_status()}
+            from email_alerts import provider_status, get_last_send
+            result = {"success": True, **provider_status(),
+                      "last_send": get_last_send()}
         elif command == "phase20_scheduler_health":
             from phase20_store import get_scheduler_health, kv_get
             _activity = {

@@ -66,6 +66,36 @@ def provider_status() -> Dict[str, Any]:
     }
 
 
+def _record_last_send(kind: str, result: Dict[str, Any]) -> None:
+    """Persist the outcome of the most recent real delivery attempt so the
+    dashboard can show whether the last email actually went out.
+
+    Only called after an actual attempt (config/enable checks passed).
+    Best-effort — never raises."""
+    try:
+        import phase20_store as store
+        store.kv_set("email_last_send", {
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "kind": kind,
+            "sent": bool(result.get("sent")),
+            "provider": result.get("provider"),
+            "reason": result.get("reason"),
+            "error": result.get("error"),
+        })
+    except Exception as exc:  # noqa: BLE001
+        _log(f"failed to record last send result: {str(exc)[:200]}")
+
+
+def get_last_send() -> Optional[Dict[str, Any]]:
+    """The most recent recorded delivery attempt, or None."""
+    try:
+        import phase20_store as store
+        val = store.kv_get("email_last_send")
+        return val if isinstance(val, dict) else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _from_address() -> str:
     return (os.environ.get("ALERT_EMAIL_FROM")
             or os.environ.get("SMTP_FROM")
@@ -178,10 +208,13 @@ def maybe_send_alert_email(kind: str, title: str, body: str = "",
             _log(f"sent {kind} alert email via {result.get('provider')}")
         else:
             _log(f"skipped {kind}: {result.get('reason')}")
+        _record_last_send("alert", result)
         return result
     except Exception as exc:  # noqa: BLE001 — must never break the caller
         _log(f"delivery failed for {kind}: {str(exc)[:300]}")
-        return {"sent": False, "reason": "ERROR", "error": str(exc)[:300]}
+        result = {"sent": False, "reason": "ERROR", "error": str(exc)[:300]}
+        _record_last_send("alert", result)
+        return result
 
 
 def _fmt_inr(value: Any) -> str:
@@ -486,10 +519,13 @@ def maybe_send_daily_summary_email(report: Optional[Dict[str, Any]] = None,
             _log(f"sent daily summary email via {result.get('provider')}")
         else:
             _log(f"skipped daily summary: {result.get('reason')}")
+        _record_last_send("daily_summary", result)
         return result
     except Exception as exc:  # noqa: BLE001 — must never break the caller
         _log(f"daily summary delivery failed: {str(exc)[:300]}")
-        return {"sent": False, "reason": "ERROR", "error": str(exc)[:300]}
+        result = {"sent": False, "reason": "ERROR", "error": str(exc)[:300]}
+        _record_last_send("daily_summary", result)
+        return result
 
 
 def send_test_email(address: Optional[str] = None) -> Dict[str, Any]:
@@ -511,9 +547,17 @@ def send_test_email(address: Optional[str] = None) -> Dict[str, Any]:
             "alerts. If you received this, email delivery is working.",
             "INFO",
         )
-        result = _deliver(to, parts["subject"], parts["text"],
-                          parts.get("html"))
-        return {"success": bool(result.get("sent")), **result}
+        try:
+            result = _deliver(to, parts["subject"], parts["text"],
+                              parts.get("html"))
+        except Exception as exc:  # noqa: BLE001
+            result = {"sent": False, "reason": "ERROR",
+                      "error": str(exc)[:300]}
+        _record_last_send("test", result)
+        if not result.get("sent"):
+            return {"success": False, **result,
+                    "error": result.get("error") or result.get("reason")}
+        return {"success": True, **result}
     except Exception as exc:  # noqa: BLE001
         _log(f"test email failed: {str(exc)[:300]}")
         return {"success": False, "sent": False, "error": str(exc)[:300]}
