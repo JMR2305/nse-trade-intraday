@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   useGetWatchlist,
   getGetWatchlistQueryKey,
   useAddToWatchlist,
   useRemoveFromWatchlist,
+  useGetSymbols,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -18,14 +19,35 @@ export default function Watchlist() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [highlightIndex, setHighlightIndex] = useState(0);
+  const blurTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const { data, isLoading } = useGetWatchlist();
-  
+  const { data: symbolsData } = useGetSymbols();
+
   const addMutation = useAddToWatchlist();
   const removeMutation = useRemoveFromWatchlist();
 
-  const handleAdd = (e: React.FormEvent) => {
-    e.preventDefault();
-    const symbol = newSymbol.trim().toUpperCase();
+  const allSymbols = symbolsData?.symbols ?? [];
+  const watchlistSet = useMemo(() => new Set(data?.watchlist ?? []), [data]);
+
+  const suggestions = useMemo(() => {
+    const q = newSymbol.trim().toUpperCase();
+    const pool = allSymbols.filter((s) => !watchlistSet.has(s.symbol));
+    if (!q) return pool.slice(0, 8);
+    return pool
+      .filter((s) => s.symbol.includes(q) || s.sector.includes(q))
+      .sort((a, b) => {
+        const aStarts = a.symbol.startsWith(q) ? 0 : 1;
+        const bStarts = b.symbol.startsWith(q) ? 0 : 1;
+        return aStarts - bStarts || a.symbol.localeCompare(b.symbol);
+      })
+      .slice(0, 8);
+  }, [newSymbol, allSymbols, watchlistSet]);
+
+  const submitSymbol = (raw: string) => {
+    const symbol = raw.trim().toUpperCase();
     if (!symbol) return;
 
     if (data?.watchlist.includes(symbol)) {
@@ -37,6 +59,16 @@ export default function Watchlist() {
       return;
     }
 
+    if (allSymbols.length > 0 && !allSymbols.some((s) => s.symbol === symbol)) {
+      toast({
+        title: "Unknown symbol",
+        description: `${symbol} is not a known NSE symbol. Pick one from the suggestions.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setShowSuggestions(false);
     addMutation.mutate({ data: { symbol } }, {
       onSuccess: () => {
         setNewSymbol("");
@@ -46,14 +78,37 @@ export default function Watchlist() {
           description: `${symbol} is now being tracked.`,
         });
       },
-      onError: () => {
+      onError: (err: unknown) => {
+        const apiError = (err as { error?: string } | null)?.error;
         toast({
           title: "Failed to add",
-          description: `Could not add ${symbol} to watchlist.`,
+          description: apiError || `Could not add ${symbol} to watchlist.`,
           variant: "destructive",
         });
       }
     });
+  };
+
+  const handleAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (showSuggestions && suggestions.length > 0 && highlightIndex >= 0 && highlightIndex < suggestions.length) {
+      submitSymbol(suggestions[highlightIndex].symbol);
+      return;
+    }
+    submitSymbol(newSymbol);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showSuggestions || suggestions.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightIndex((i) => (i + 1) % suggestions.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightIndex((i) => (i - 1 + suggestions.length) % suggestions.length);
+    } else if (e.key === "Escape") {
+      setShowSuggestions(false);
+    }
   };
 
   const handleRemove = (symbol: string) => {
@@ -88,14 +143,58 @@ export default function Watchlist() {
         </CardHeader>
         <CardContent className="space-y-6">
           <form onSubmit={handleAdd} className="flex gap-3">
-            <Input
-              placeholder="Enter NSE Symbol..."
-              value={newSymbol}
-              onChange={(e) => setNewSymbol(e.target.value.toUpperCase())}
-              className="font-mono max-w-xs uppercase bg-background"
-              disabled={addMutation.isPending}
-            />
-            <Button type="submit" disabled={!newSymbol.trim() || addMutation.isPending}>
+            <div className="relative max-w-xs w-full">
+              <Input
+                placeholder="Search NSE symbols..."
+                value={newSymbol}
+                onChange={(e) => {
+                  setNewSymbol(e.target.value.toUpperCase());
+                  setShowSuggestions(true);
+                  setHighlightIndex(0);
+                }}
+                onFocus={() => {
+                  if (blurTimeout.current) clearTimeout(blurTimeout.current);
+                  setShowSuggestions(true);
+                }}
+                onBlur={() => {
+                  blurTimeout.current = setTimeout(() => setShowSuggestions(false), 150);
+                }}
+                onKeyDown={handleKeyDown}
+                className="font-mono uppercase bg-background"
+                disabled={addMutation.isPending}
+                autoComplete="off"
+                data-testid="input-symbol-search"
+              />
+              {showSuggestions && suggestions.length > 0 && (
+                <div
+                  className="absolute z-20 mt-1 w-full rounded-md border border-border bg-popover shadow-lg overflow-hidden"
+                  data-testid="symbol-suggestions"
+                >
+                  {suggestions.map((s, i) => (
+                    <button
+                      key={s.symbol}
+                      type="button"
+                      className={`w-full flex items-center justify-between px-3 py-2 text-sm text-left transition-colors ${
+                        i === highlightIndex ? "bg-muted" : "hover:bg-muted/60"
+                      }`}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onMouseEnter={() => setHighlightIndex(i)}
+                      onClick={() => submitSymbol(s.symbol)}
+                      data-testid={`suggestion-${s.symbol}`}
+                    >
+                      <span className="font-mono font-semibold">{s.symbol}</span>
+                      <span className="text-xs text-muted-foreground">{s.sector}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {showSuggestions && newSymbol.trim() && suggestions.length === 0 && allSymbols.length > 0 && (
+                <div className="absolute z-20 mt-1 w-full rounded-md border border-border bg-popover shadow-lg px-3 py-2 text-sm text-muted-foreground">
+                  No matching NSE symbols
+                </div>
+              )}
+            </div>
+            <Button type="submit" disabled={!newSymbol.trim() || addMutation.isPending} data-testid="button-add-symbol">
               <Plus className="h-4 w-4 mr-2" />
               Add Symbol
             </Button>

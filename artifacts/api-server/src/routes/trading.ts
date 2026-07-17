@@ -125,6 +125,16 @@ router.get("/watchlist", async (_req, res) => {
   }
 });
 
+// GET /api/symbols — known NSE symbol universe (for watchlist autocomplete)
+router.get("/symbols", async (_req, res) => {
+  try {
+    const data = await runPython(["symbols"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // POST /api/watchlist
 router.post("/watchlist", async (req, res) => {
   const { symbol } = req.body as { symbol?: string };
@@ -133,7 +143,11 @@ router.post("/watchlist", async (req, res) => {
     return;
   }
   try {
-    const data = await runPython(["watchlist_add", symbol]);
+    const data = await runPython(["watchlist_add", symbol]) as Record<string, unknown>;
+    if (data && typeof data.error === "string") {
+      res.status(400).json({ error: data.error });
+      return;
+    }
     res.json(data);
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });

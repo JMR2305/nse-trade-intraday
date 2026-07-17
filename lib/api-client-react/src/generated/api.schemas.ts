@@ -591,6 +591,15 @@ export interface WatchlistResponse {
   watchlist: string[];
 }
 
+export interface SymbolInfo {
+  symbol: string;
+  sector: string;
+}
+
+export interface SymbolsResponse {
+  symbols: SymbolInfo[];
+}
+
 export interface WatchlistAddRequest {
   symbol: string;
 }
@@ -1427,6 +1436,114 @@ export type WalkForwardResultMacdOptimization = {
 
 export type WalkForwardResultBenchmarks = { [key: string]: unknown };
 
+export type WalkForwardResultAlphaGenerationBaseline = { [key: string]: unknown };
+
+export type WalkForwardResultAlphaGenerationCandidatesItemMetrics = { [key: string]: unknown };
+
+export type WalkForwardResultAlphaGenerationCandidatesItemWindowConsistency = { [key: string]: unknown };
+
+export type WalkForwardResultAlphaGenerationCandidatesItemRegimeBreakdownItem = { [key: string]: unknown };
+
+export type WalkForwardResultAlphaGenerationCandidatesItemSectorBreakdownItem = { [key: string]: unknown };
+
+export type WalkForwardResultAlphaGenerationCandidatesItemConcentration = { [key: string]: unknown };
+
+export type WalkForwardResultAlphaGenerationCandidatesItemVerdictChecksItem = { [key: string]: unknown };
+
+export type WalkForwardResultAlphaGenerationCandidatesItem = {
+  id?: string;
+  name?: string;
+  description?: string;
+  components?: string[];
+  filters?: string[];
+  trades?: number;
+  pct_of_baseline?: number;
+  metrics?: WalkForwardResultAlphaGenerationCandidatesItemMetrics;
+  window_consistency?: WalkForwardResultAlphaGenerationCandidatesItemWindowConsistency;
+  regime_breakdown?: WalkForwardResultAlphaGenerationCandidatesItemRegimeBreakdownItem[];
+  sector_breakdown?: WalkForwardResultAlphaGenerationCandidatesItemSectorBreakdownItem[];
+  concentration?: WalkForwardResultAlphaGenerationCandidatesItemConcentration;
+  verdict?: string;
+  verdict_rationale?: string;
+  verdict_checks?: WalkForwardResultAlphaGenerationCandidatesItemVerdictChecksItem[];
+  verdict_passed?: number;
+  verdict_failed?: number;
+  verdict_failed_checks?: string[];
+  [key: string]: unknown;
+ };
+
+export type WalkForwardResultAlphaGenerationComparisonTableItem = { [key: string]: unknown };
+
+export type WalkForwardResultAlphaGenerationRecommendationSummaryItem = { [key: string]: unknown };
+
+/**
+ * Phase 5 Alpha Generation Engine (ANALYSIS ONLY — never changes live decisions). Evaluates 10 new strategy candidates formed by layering additional entry filters onto MACD Cross OOS trades. Filters include multi-timeframe trend (ADX), relative strength vs NIFTY 50, VWAP/volume participation, ATR volatility, market-regime selection, sector focus, holding-period limits, and multi-signal intersections. Each candidate receives a KEEP_FOR_FURTHER_TESTING / INCONCLUSIVE / REJECT verdict based on 6 quality gates: positive expectancy, PF ≥ 1.10, ≥ 30 trades, ≥ 50% windows positive, max drawdown < 60%, top-5 trade share ≤ 70% of gross profit.
+ */
+export type WalkForwardResultAlphaGeneration = {
+  error?: string;
+  safety?: string;
+  total_oos_trades?: number;
+  windows_evaluated?: number;
+  window_labels?: string[];
+  baseline?: WalkForwardResultAlphaGenerationBaseline;
+  candidates?: WalkForwardResultAlphaGenerationCandidatesItem[];
+  comparison_table?: WalkForwardResultAlphaGenerationComparisonTableItem[];
+  recommendation_summary?: WalkForwardResultAlphaGenerationRecommendationSummaryItem[];
+  [key: string]: unknown;
+ } | null;
+
+export type WalkForwardResultBalancedDecisionConfig = { [key: string]: unknown };
+
+export type WalkForwardResultBalancedDecisionModelComparisonItem = { [key: string]: unknown };
+
+export type WalkForwardResultBalancedDecisionOverallMetrics = { [key: string]: unknown };
+
+export type WalkForwardResultBalancedDecisionWindowsItem = { [key: string]: unknown };
+
+export type WalkForwardResultBalancedDecisionRecommendationDistribution = { [key: string]: unknown };
+
+export type WalkForwardResultBalancedDecisionTransitionMatrix = { [key: string]: unknown };
+
+export type WalkForwardResultBalancedDecisionChangedDecisionExamplesItem = { [key: string]: unknown };
+
+export type WalkForwardResultBalancedDecisionCalibrationComparison = { [key: string]: unknown };
+
+export type WalkForwardResultBalancedDecisionFalsePositiveAnalysis = { [key: string]: unknown };
+
+export type WalkForwardResultBalancedDecisionGateFailureCounts = { [key: string]: unknown };
+
+export type WalkForwardResultBalancedDecisionConcentration = { [key: string]: unknown };
+
+export type WalkForwardResultBalancedDecisionSafetyAudit = { [key: string]: unknown };
+
+export type WalkForwardResultBalancedDecisionFinalRecommendation = { [key: string]: unknown };
+
+/**
+ * Phase 3A Balanced Decision Model (ANALYSIS ONLY — never changes live decisions). A shadow scoring model "G" replayed over the identical walk-forward windows: hard eligibility gates separated from a 0-100 weighted ranking score (technical 30 / opportunity 20 / historical evidence 15 / adaptive learning 10 / regime 10 / risk-reward 10 / volume 5), Bayesian-shrunk learning adjustments capped at ±10/±10 (combined ±15), per-window confidence calibration, shadow labels (STRONG BUY/BUY/WATCH/AVOID/ NO TRADE), A-G model comparison, decision transition matrix, lookahead audit and an evidence-based REJECT / CONTINUE ANALYSIS / ELIGIBLE FOR LIMITED SHADOW PAPER TEST verdict that never auto-activates anything.
+ */
+export type WalkForwardResultBalancedDecision = {
+  error?: string;
+  safety?: string;
+  phase?: string;
+  title?: string;
+  model_mapping_note?: string;
+  cash_time_pct?: number;
+  config?: WalkForwardResultBalancedDecisionConfig;
+  model_comparison?: WalkForwardResultBalancedDecisionModelComparisonItem[];
+  overall_metrics?: WalkForwardResultBalancedDecisionOverallMetrics;
+  windows?: WalkForwardResultBalancedDecisionWindowsItem[];
+  recommendation_distribution?: WalkForwardResultBalancedDecisionRecommendationDistribution;
+  transition_matrix?: WalkForwardResultBalancedDecisionTransitionMatrix;
+  changed_decision_examples?: WalkForwardResultBalancedDecisionChangedDecisionExamplesItem[];
+  calibration_comparison?: WalkForwardResultBalancedDecisionCalibrationComparison;
+  false_positive_analysis?: WalkForwardResultBalancedDecisionFalsePositiveAnalysis;
+  gate_failure_counts?: WalkForwardResultBalancedDecisionGateFailureCounts;
+  concentration?: WalkForwardResultBalancedDecisionConcentration;
+  safety_audit?: WalkForwardResultBalancedDecisionSafetyAudit;
+  final_recommendation?: WalkForwardResultBalancedDecisionFinalRecommendation;
+  [key: string]: unknown;
+ } | null;
+
 export type WalkForwardResultMacdRobustnessBaseline = { [key: string]: unknown };
 
 export type WalkForwardResultMacdRobustnessWindowPerformanceItem = { [key: string]: unknown };
@@ -1618,6 +1735,10 @@ export interface WalkForwardResult {
   /** Phase 3 MACD optimization report (ANALYSIS ONLY — the live pipeline is unchanged). Entry filters, exit variations and portfolio risk rules for MACD Cross, each tested independently with parameters selected on training windows and evaluated only on unseen test windows. Includes baseline metrics (trade-level and portfolio), a full comparison table with per-variation verdicts and reasons, the combined configuration's out-of-sample results and the final recommended configuration. If the step failed, the object contains only an "error" string instead. */
   macd_optimization?: WalkForwardResultMacdOptimization;
   benchmarks?: WalkForwardResultBenchmarks;
+  /** Phase 5 Alpha Generation Engine (ANALYSIS ONLY — never changes live decisions). Evaluates 10 new strategy candidates formed by layering additional entry filters onto MACD Cross OOS trades. Filters include multi-timeframe trend (ADX), relative strength vs NIFTY 50, VWAP/volume participation, ATR volatility, market-regime selection, sector focus, holding-period limits, and multi-signal intersections. Each candidate receives a KEEP_FOR_FURTHER_TESTING / INCONCLUSIVE / REJECT verdict based on 6 quality gates: positive expectancy, PF ≥ 1.10, ≥ 30 trades, ≥ 50% windows positive, max drawdown < 60%, top-5 trade share ≤ 70% of gross profit. */
+  alpha_generation?: WalkForwardResultAlphaGeneration;
+  /** Phase 3A Balanced Decision Model (ANALYSIS ONLY — never changes live decisions). A shadow scoring model "G" replayed over the identical walk-forward windows: hard eligibility gates separated from a 0-100 weighted ranking score (technical 30 / opportunity 20 / historical evidence 15 / adaptive learning 10 / regime 10 / risk-reward 10 / volume 5), Bayesian-shrunk learning adjustments capped at ±10/±10 (combined ±15), per-window confidence calibration, shadow labels (STRONG BUY/BUY/WATCH/AVOID/ NO TRADE), A-G model comparison, decision transition matrix, lookahead audit and an evidence-based REJECT / CONTINUE ANALYSIS / ELIGIBLE FOR LIMITED SHADOW PAPER TEST verdict that never auto-activates anything. */
+  balanced_decision?: WalkForwardResultBalancedDecision;
   /** Phase 4 MACD Robustness Analysis (ANALYSIS ONLY — never changes live decisions). Measures structural soundness via 8 breakdowns (by stock, sector, month, regime, holding period, volatility, ADX, entry subtype), 5 stress tests (leave-one-stock/sector/month out, top-5-trades removed, winsorized returns), and issues a conservative KEEP / RESTRICT / REJECT stability verdict with explicit pass/fail checks, regime-specific enable/disable recommendations and a prioritised improvement roadmap. */
   macd_robustness?: WalkForwardResultMacdRobustness;
   calibration?: WalkForwardResultCalibrationItem[];

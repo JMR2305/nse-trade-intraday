@@ -138,6 +138,18 @@ export const RunScanResponse = zod.object({
 
 
 /**
+ * Returns the known NSE symbols (NIFTY 50 universe) with sector labels, for watchlist autocomplete
+ * @summary Get known NSE symbol universe
+ */
+export const GetSymbolsResponse = zod.object({
+  "symbols": zod.array(zod.object({
+  "symbol": zod.string(),
+  "sector": zod.string()
+}))
+})
+
+
+/**
  * Returns current NSE symbol watchlist
  * @summary Get watchlist
  */
@@ -1300,6 +1312,57 @@ export const GetWalkForwardResultResponse = zod.object({
   "report": zod.record(zod.string(), zod.unknown()).nullish()
 }).nullish().describe('Phase 3 MACD optimization report (ANALYSIS ONLY — the live pipeline is unchanged). Entry filters, exit variations and portfolio risk rules for MACD Cross, each tested independently with parameters selected on training windows and evaluated only on unseen test windows. Includes baseline metrics (trade-level and portfolio), a full comparison table with per-variation verdicts and reasons, the combined configuration\'s out-of-sample results and the final recommended configuration. If the step failed, the object contains only an \"error\" string instead.\n'),
   "benchmarks": zod.record(zod.string(), zod.unknown()).optional(),
+  "alpha_generation": zod.object({
+  "error": zod.string().optional(),
+  "safety": zod.string().optional(),
+  "total_oos_trades": zod.number().optional(),
+  "windows_evaluated": zod.number().optional(),
+  "window_labels": zod.array(zod.string()).optional(),
+  "baseline": zod.record(zod.string(), zod.unknown()).optional(),
+  "candidates": zod.array(zod.object({
+  "id": zod.string().optional(),
+  "name": zod.string().optional(),
+  "description": zod.string().optional(),
+  "components": zod.array(zod.string()).optional(),
+  "filters": zod.array(zod.string()).optional(),
+  "trades": zod.number().optional(),
+  "pct_of_baseline": zod.number().optional(),
+  "metrics": zod.record(zod.string(), zod.unknown()).optional(),
+  "window_consistency": zod.record(zod.string(), zod.unknown()).optional(),
+  "regime_breakdown": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "sector_breakdown": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "concentration": zod.record(zod.string(), zod.unknown()).optional(),
+  "verdict": zod.string().optional(),
+  "verdict_rationale": zod.string().optional(),
+  "verdict_checks": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "verdict_passed": zod.number().optional(),
+  "verdict_failed": zod.number().optional(),
+  "verdict_failed_checks": zod.array(zod.string()).optional()
+})).optional(),
+  "comparison_table": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "recommendation_summary": zod.array(zod.record(zod.string(), zod.unknown())).optional()
+}).nullish().describe('Phase 5 Alpha Generation Engine (ANALYSIS ONLY — never changes live decisions). Evaluates 10 new strategy candidates formed by layering additional entry filters onto MACD Cross OOS trades. Filters include multi-timeframe trend (ADX), relative strength vs NIFTY 50, VWAP\/volume participation, ATR volatility, market-regime selection, sector focus, holding-period limits, and multi-signal intersections. Each candidate receives a KEEP_FOR_FURTHER_TESTING \/ INCONCLUSIVE \/ REJECT verdict based on 6 quality gates: positive expectancy, PF ≥ 1.10, ≥ 30 trades, ≥ 50% windows positive, max drawdown < 60%, top-5 trade share ≤ 70% of gross profit.\n'),
+  "balanced_decision": zod.object({
+  "error": zod.string().optional(),
+  "safety": zod.string().optional(),
+  "phase": zod.string().optional(),
+  "title": zod.string().optional(),
+  "model_mapping_note": zod.string().optional(),
+  "cash_time_pct": zod.number().optional(),
+  "config": zod.record(zod.string(), zod.unknown()).optional(),
+  "model_comparison": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "overall_metrics": zod.record(zod.string(), zod.unknown()).optional(),
+  "windows": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "recommendation_distribution": zod.record(zod.string(), zod.unknown()).optional(),
+  "transition_matrix": zod.record(zod.string(), zod.unknown()).optional(),
+  "changed_decision_examples": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "calibration_comparison": zod.record(zod.string(), zod.unknown()).optional(),
+  "false_positive_analysis": zod.record(zod.string(), zod.unknown()).optional(),
+  "gate_failure_counts": zod.record(zod.string(), zod.unknown()).optional(),
+  "concentration": zod.record(zod.string(), zod.unknown()).optional(),
+  "safety_audit": zod.record(zod.string(), zod.unknown()).optional(),
+  "final_recommendation": zod.record(zod.string(), zod.unknown()).optional()
+}).nullish().describe('Phase 3A Balanced Decision Model (ANALYSIS ONLY — never changes live decisions). A shadow scoring model \"G\" replayed over the identical walk-forward windows: hard eligibility gates separated from a 0-100 weighted ranking score (technical 30 \/ opportunity 20 \/ historical evidence 15 \/ adaptive learning 10 \/ regime 10 \/ risk-reward 10 \/ volume 5), Bayesian-shrunk learning adjustments capped at ±10\/±10 (combined ±15), per-window confidence calibration, shadow labels (STRONG BUY\/BUY\/WATCH\/AVOID\/ NO TRADE), A-G model comparison, decision transition matrix, lookahead audit and an evidence-based REJECT \/ CONTINUE ANALYSIS \/ ELIGIBLE FOR LIMITED SHADOW PAPER TEST verdict that never auto-activates anything.\n'),
   "macd_robustness": zod.object({
   "error": zod.string().optional(),
   "safety": zod.string().optional(),

@@ -111,6 +111,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /symbols:
+    get:
+      operationId: getSymbols
+      tags: [trading]
+      summary: Get known NSE symbol universe
+      description: Returns the known NSE symbols (NIFTY 50 universe) with sector labels, for watchlist autocomplete
+      responses:
+        "200":
+          description: Symbol universe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SymbolsResponse"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /watchlist:
     get:
       operationId: getWatchlist
@@ -148,6 +168,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WatchlistResponse"
+        "400":
+          description: Invalid or unknown symbol
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Engine error
           content:
@@ -2207,6 +2233,27 @@ components:
             type: string
       required:
         - watchlist
+
+    SymbolInfo:
+      type: object
+      properties:
+        symbol:
+          type: string
+        sector:
+          type: string
+      required:
+        - symbol
+        - sector
+
+    SymbolsResponse:
+      type: object
+      properties:
+        symbols:
+          type: array
+          items:
+            $ref: "#/components/schemas/SymbolInfo"
+      required:
+        - symbols
 
     WatchlistAddRequest:
       type: object

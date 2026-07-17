@@ -46,6 +46,7 @@ from paper_trader import (
     get_trade_replay, get_strategy_performance, _load_state,
 )
 from market_data import get_multiple_ltp
+import config
 from config import DEFAULT_WATCHLIST
 
 WATCHLIST_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "watchlist.json")
@@ -158,8 +159,23 @@ def cmd_watchlist() -> list:
     return _load_watchlist()
 
 
+def cmd_symbols() -> dict:
+    """Return the known NSE symbol universe (NIFTY 50) with sector labels."""
+    symbols = []
+    for sector, syms in config.SECTOR_MAP.items():
+        for sym in syms:
+            symbols.append({"symbol": sym, "sector": sector})
+    symbols.sort(key=lambda s: s["symbol"])
+    return {"symbols": symbols}
+
+
 def cmd_watchlist_add(symbol: str) -> dict:
     symbol = symbol.upper().strip()
+    if symbol not in config.NIFTY_50:
+        return {
+            "error": f"Unknown symbol '{symbol}'. Only known NSE symbols "
+                     "(NIFTY 50 universe) can be added to the watchlist.",
+        }
     wl = _load_watchlist()
     if symbol not in wl:
         wl.append(symbol)
@@ -518,6 +534,8 @@ def main():
             result = cmd_market_overview()
         elif command == "watchlist":
             result = cmd_watchlist()
+        elif command == "symbols":
+            result = cmd_symbols()
         elif command == "watchlist_add" and len(args) >= 2:
             result = cmd_watchlist_add(args[1])
         elif command == "watchlist_remove" and len(args) >= 2:

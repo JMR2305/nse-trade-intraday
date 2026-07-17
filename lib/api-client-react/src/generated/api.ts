@@ -70,6 +70,7 @@ import type {
   StrategyLabEntry,
   StrategyLabRequest,
   StrategyPerformance,
+  SymbolsResponse,
   Trade,
   TradeDecisionsResponse,
   TradeEvaluation,
@@ -493,6 +494,84 @@ export const useRunScan = <TError = ErrorType<ErrorResponse>,
       > => {
       return useMutation(getRunScanMutationOptions(options));
     }
+
+export const getGetSymbolsUrl = () => {
+
+
+
+
+  return `/api/symbols`
+}
+
+/**
+ * Returns the known NSE symbols (NIFTY 50 universe) with sector labels, for watchlist autocomplete
+ * @summary Get known NSE symbol universe
+ */
+export const getSymbols = async ( options?: RequestInit): Promise<SymbolsResponse> => {
+
+  return customFetch<SymbolsResponse>(getGetSymbolsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSymbolsQueryKey = () => {
+    return [
+    `/api/symbols`
+    ] as const;
+    }
+
+
+export const getGetSymbolsQueryOptions = <TData = Awaited<ReturnType<typeof getSymbols>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSymbols>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSymbolsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSymbols>>> = ({ signal }) => getSymbols({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSymbols>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSymbolsQueryResult = NonNullable<Awaited<ReturnType<typeof getSymbols>>>
+export type GetSymbolsQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get known NSE symbol universe
+ */
+
+export function useGetSymbols<TData = Awaited<ReturnType<typeof getSymbols>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSymbols>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSymbolsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetWatchlistUrl = () => {
 

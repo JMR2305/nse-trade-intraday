@@ -5,6 +5,8 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { WalkForwardResultAlphaGeneration } from './walkForwardResultAlphaGeneration';
+import type { WalkForwardResultBalancedDecision } from './walkForwardResultBalancedDecision';
 import type { WalkForwardResultBenchmarks } from './walkForwardResultBenchmarks';
 import type { WalkForwardResultCalibrationItem } from './walkForwardResultCalibrationItem';
 import type { WalkForwardResultCalibrationReport } from './walkForwardResultCalibrationReport';
@@ -49,6 +51,10 @@ export interface WalkForwardResult {
   /** Phase 3 MACD optimization report (ANALYSIS ONLY — the live pipeline is unchanged). Entry filters, exit variations and portfolio risk rules for MACD Cross, each tested independently with parameters selected on training windows and evaluated only on unseen test windows. Includes baseline metrics (trade-level and portfolio), a full comparison table with per-variation verdicts and reasons, the combined configuration's out-of-sample results and the final recommended configuration. If the step failed, the object contains only an "error" string instead. */
   macd_optimization?: WalkForwardResultMacdOptimization;
   benchmarks?: WalkForwardResultBenchmarks;
+  /** Phase 5 Alpha Generation Engine (ANALYSIS ONLY — never changes live decisions). Evaluates 10 new strategy candidates formed by layering additional entry filters onto MACD Cross OOS trades. Filters include multi-timeframe trend (ADX), relative strength vs NIFTY 50, VWAP/volume participation, ATR volatility, market-regime selection, sector focus, holding-period limits, and multi-signal intersections. Each candidate receives a KEEP_FOR_FURTHER_TESTING / INCONCLUSIVE / REJECT verdict based on 6 quality gates: positive expectancy, PF ≥ 1.10, ≥ 30 trades, ≥ 50% windows positive, max drawdown < 60%, top-5 trade share ≤ 70% of gross profit. */
+  alpha_generation?: WalkForwardResultAlphaGeneration;
+  /** Phase 3A Balanced Decision Model (ANALYSIS ONLY — never changes live decisions). A shadow scoring model "G" replayed over the identical walk-forward windows: hard eligibility gates separated from a 0-100 weighted ranking score (technical 30 / opportunity 20 / historical evidence 15 / adaptive learning 10 / regime 10 / risk-reward 10 / volume 5), Bayesian-shrunk learning adjustments capped at ±10/±10 (combined ±15), per-window confidence calibration, shadow labels (STRONG BUY/BUY/WATCH/AVOID/ NO TRADE), A-G model comparison, decision transition matrix, lookahead audit and an evidence-based REJECT / CONTINUE ANALYSIS / ELIGIBLE FOR LIMITED SHADOW PAPER TEST verdict that never auto-activates anything. */
+  balanced_decision?: WalkForwardResultBalancedDecision;
   /** Phase 4 MACD Robustness Analysis (ANALYSIS ONLY — never changes live decisions). Measures structural soundness via 8 breakdowns (by stock, sector, month, regime, holding period, volatility, ADX, entry subtype), 5 stress tests (leave-one-stock/sector/month out, top-5-trades removed, winsorized returns), and issues a conservative KEEP / RESTRICT / REJECT stability verdict with explicit pass/fail checks, regime-specific enable/disable recommendations and a prioritised improvement roadmap. */
   macd_robustness?: WalkForwardResultMacdRobustness;
   calibration?: WalkForwardResultCalibrationItem[];
