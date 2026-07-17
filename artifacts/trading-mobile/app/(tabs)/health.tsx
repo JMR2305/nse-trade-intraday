@@ -13,6 +13,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { Skeleton } from "@/components/Skeleton";
+import { StaleBanner } from "@/components/StaleBanner";
 import { useColors } from "@/hooks/useColors";
 import {
   useBrokerStatus,
@@ -23,6 +25,7 @@ import {
   useRiskKillSwitch,
   useSchedulerHealth,
 } from "@/lib/monitorApi";
+import { useOfflineSnapshot } from "@/lib/offlineCache";
 
 type Tone = "good" | "bad" | "warn" | "muted";
 
@@ -79,6 +82,16 @@ function Section({
   );
 }
 
+function RowsSkeleton({ rows = 4 }: { rows?: number }) {
+  return (
+    <View style={{ paddingVertical: 12, gap: 14 }}>
+      {Array.from({ length: rows }).map((_, i) => (
+        <Skeleton key={i} style={{ width: i % 2 === 0 ? "100%" : "70%", height: 13 }} />
+      ))}
+    </View>
+  );
+}
+
 function fmtTs(ts?: string | null) {
   if (!ts) return "—";
   const d = new Date(ts);
@@ -100,6 +113,35 @@ export default function HealthScreen() {
   const broker = useBrokerStatus();
   const disableAuto = useDisableAutoPaperEntries();
 
+  const liveSnap = useOfflineSnapshot("health-live", live.data, live.isError, live.dataUpdatedAt);
+  const schedSnap = useOfflineSnapshot("health-sched", sched.data, sched.isError, sched.dataUpdatedAt);
+  const settingsSnap = useOfflineSnapshot(
+    "health-settings",
+    settings.data,
+    settings.isError,
+    settings.dataUpdatedAt,
+  );
+  const kiteSnap = useOfflineSnapshot("health-kite", kite.data, kite.isError, kite.dataUpdatedAt);
+  const killSnap = useOfflineSnapshot("health-kill", kill.data, kill.isError, kill.dataUpdatedAt);
+  const brokerSnap = useOfflineSnapshot(
+    "health-broker",
+    broker.data,
+    broker.isError,
+    broker.dataUpdatedAt,
+  );
+
+  const liveData = liveSnap.data;
+  const schedData = schedSnap.data;
+  const settingsData = settingsSnap.data;
+  const kiteData = kiteSnap.data;
+  const killData = killSnap.data;
+  const brokerData = brokerSnap.data;
+
+  const anyStale =
+    liveSnap.isStale || schedSnap.isStale || settingsSnap.isStale || kiteSnap.isStale || killSnap.isStale || brokerSnap.isStale;
+  const staleTs =
+    liveSnap.staleTs ?? schedSnap.staleTs ?? settingsSnap.staleTs ?? kiteSnap.staleTs ?? killSnap.staleTs ?? brokerSnap.staleTs;
+
   const [confirmDisable, setConfirmDisable] = useState(false);
   useEffect(() => {
     if (!confirmDisable) return;
@@ -120,12 +162,12 @@ export default function HealthScreen() {
   const isFetching =
     live.isFetching || sched.isFetching || settings.isFetching || kite.isFetching;
 
-  const cbOpen = (live.data?.circuitBreaker ?? "").toUpperCase() === "OPEN";
-  const marketState = live.data?.marketState ?? "UNKNOWN";
-  const autoEntries = settings.data?.auto_paper_entries === true;
-  const killActive = kill.data?.active === true;
-  const kiteOk = (kite.data?.token_status ?? "").toUpperCase() === "VALID";
-  const quality = live.data?.qualitySummary;
+  const cbOpen = (liveData?.circuitBreaker ?? "").toUpperCase() === "OPEN";
+  const marketState = liveData?.marketState ?? "UNKNOWN";
+  const autoEntries = settingsData?.auto_paper_entries === true;
+  const killActive = killData?.active === true;
+  const kiteOk = (kiteData?.token_status ?? "").toUpperCase() === "VALID";
+  const quality = liveData?.qualitySummary;
   const qualityText = quality
     ? Object.entries(quality)
         .filter(([, v]) => (v ?? 0) > 0)
@@ -162,10 +204,12 @@ export default function HealthScreen() {
         Monitoring only — no orders can be placed from this app
       </Text>
 
+      {anyStale && <StaleBanner staleTs={staleTs} onRetry={refetchAll} />}
+
       <Section
         title="Live Data"
         pill={
-          live.isLoading ? undefined : (
+          live.isLoading && liveData === undefined ? undefined : (
             <StatusPill
               label={marketState.replace(/_/g, " ")}
               tone={marketState === "OPEN" ? "good" : "muted"}
@@ -173,28 +217,28 @@ export default function HealthScreen() {
           )
         }
       >
-        {live.isLoading ? (
-          <ActivityIndicator style={styles.loader} color={colors.primary} />
-        ) : live.isError ? (
+        {live.isLoading && liveData === undefined ? (
+          <RowsSkeleton rows={5} />
+        ) : live.isError && liveData === undefined ? (
           <Text style={[styles.errorText, { color: colors.destructive }]}>Could not load live data health</Text>
         ) : (
           <>
-            <Row label="Provider" value={live.data?.provider ?? "—"} />
+            <Row label="Provider" value={liveData?.provider ?? "—"} />
             <Row
               label="Circuit breaker"
               value={cbOpen ? "OPEN — data paused" : "CLOSED — normal"}
               valueColor={cbOpen ? colors.destructive : colors.success}
             />
-            <Row label="Consecutive failures" value={String(live.data?.consecutiveFailures ?? 0)} />
-            <Row label="Last successful fetch" value={fmtTs(live.data?.lastSuccessTs)} />
-            <Row label="Last scan" value={fmtTs(live.data?.lastScanTs)} />
+            <Row label="Consecutive failures" value={String(liveData?.consecutiveFailures ?? 0)} />
+            <Row label="Last successful fetch" value={fmtTs(liveData?.lastSuccessTs)} />
+            <Row label="Last scan" value={fmtTs(liveData?.lastScanTs)} />
             <Row
               label="Scan connection"
-              value={live.data?.connectionStatus ?? "—"}
+              value={liveData?.connectionStatus ?? "—"}
               valueColor={
-                live.data?.connectionStatus === "HEALTHY"
+                liveData?.connectionStatus === "HEALTHY"
                   ? colors.success
-                  : live.data?.connectionStatus === "DEGRADED"
+                  : liveData?.connectionStatus === "DEGRADED"
                   ? "#d97706"
                   : undefined
               }
@@ -207,34 +251,34 @@ export default function HealthScreen() {
       <Section
         title="Automation"
         pill={
-          sched.isLoading ? undefined : (
+          sched.isLoading && schedData === undefined ? undefined : (
             <StatusPill
-              label={(sched.data?.status ?? "unknown").toUpperCase()}
-              tone={sched.data?.status === "active" ? "good" : "muted"}
+              label={(schedData?.status ?? "unknown").toUpperCase()}
+              tone={schedData?.status === "active" ? "good" : "muted"}
             />
           )
         }
       >
-        {sched.isLoading || settings.isLoading ? (
-          <ActivityIndicator style={styles.loader} color={colors.primary} />
-        ) : sched.isError && settings.isError ? (
+        {(sched.isLoading || settings.isLoading) && schedData === undefined && settingsData === undefined ? (
+          <RowsSkeleton rows={5} />
+        ) : sched.isError && settings.isError && schedData === undefined && settingsData === undefined ? (
           <Text style={[styles.errorText, { color: colors.destructive }]}>Could not load automation health</Text>
         ) : (
           <>
-            <Row label="Last success" value={fmtTs(sched.data?.last_success_at)} />
-            <Row label="Last attempt" value={fmtTs(sched.data?.last_attempt_at)} />
-            <Row label="Next due" value={fmtTs(sched.data?.next_due_at)} />
+            <Row label="Last success" value={fmtTs(schedData?.last_success_at)} />
+            <Row label="Last attempt" value={fmtTs(schedData?.last_attempt_at)} />
+            <Row label="Next due" value={fmtTs(schedData?.next_due_at)} />
             <Row
               label="Missed runs"
-              value={String(sched.data?.missed_count ?? 0)}
-              valueColor={(sched.data?.missed_count ?? 0) > 0 ? colors.destructive : undefined}
+              value={String(schedData?.missed_count ?? 0)}
+              valueColor={(schedData?.missed_count ?? 0) > 0 ? colors.destructive : undefined}
             />
-            {sched.data?.detail ? <Row label="Status detail" value={sched.data.detail} /> : null}
+            {schedData?.detail ? <Row label="Status detail" value={schedData.detail} /> : null}
             <Row
               label="Auto scans"
               value={
-                settings.data?.auto_scan_enabled
-                  ? `Every ${settings.data?.scan_interval_minutes ?? "—"} min`
+                settingsData?.auto_scan_enabled
+                  ? `Every ${settingsData?.scan_interval_minutes ?? "—"} min`
                   : "Disabled"
               }
             />
@@ -246,8 +290,8 @@ export default function HealthScreen() {
             <Row
               label="Entry gate"
               value={
-                settings.data?.min_confidence != null
-                  ? `≥${settings.data.min_confidence}% conf, max ${settings.data?.max_trades_per_day ?? "—"}/day`
+                settingsData?.min_confidence != null
+                  ? `≥${settingsData.min_confidence}% conf, max ${settingsData?.max_trades_per_day ?? "—"}/day`
                   : "—"
               }
             />
@@ -298,13 +342,15 @@ export default function HealthScreen() {
       <Section
         title="Safety"
         pill={
-          kill.isLoading ? undefined : (
+          kill.isLoading && killData === undefined ? undefined : (
             <StatusPill label={killActive ? "KILL SWITCH ON" : "NORMAL"} tone={killActive ? "bad" : "good"} />
           )
         }
       >
-        {kill.isLoading || broker.isLoading ? (
-          <ActivityIndicator style={styles.loader} color={colors.primary} />
+        {(kill.isLoading || broker.isLoading) && killData === undefined && brokerData === undefined ? (
+          <RowsSkeleton rows={3} />
+        ) : kill.isError && broker.isError && killData === undefined && brokerData === undefined ? (
+          <Text style={[styles.errorText, { color: colors.destructive }]}>Could not load safety status</Text>
         ) : (
           <>
             <Row
@@ -312,18 +358,18 @@ export default function HealthScreen() {
               value={killActive ? "ACTIVE" : "Inactive"}
               valueColor={killActive ? colors.destructive : colors.success}
             />
-            {killActive && kill.data?.reason ? <Row label="Reason" value={kill.data.reason} /> : null}
-            {killActive && kill.data?.triggered_at ? (
-              <Row label="Triggered" value={fmtTs(kill.data.triggered_at)} />
+            {killActive && killData?.reason ? <Row label="Reason" value={killData.reason} /> : null}
+            {killActive && killData?.triggered_at ? (
+              <Row label="Triggered" value={fmtTs(killData.triggered_at)} />
             ) : null}
-            <Row label="Execution mode" value={(broker.data?.execution_mode ?? "—").replace(/_/g, " ")} />
+            <Row label="Execution mode" value={(brokerData?.execution_mode ?? "—").replace(/_/g, " ")} />
             <Row
               label="Broker kill switch"
-              value={broker.data?.safety_controls?.kill_switch ? "ACTIVE" : "Inactive"}
-              valueColor={broker.data?.safety_controls?.kill_switch ? colors.destructive : colors.success}
+              value={brokerData?.safety_controls?.kill_switch ? "ACTIVE" : "Inactive"}
+              valueColor={brokerData?.safety_controls?.kill_switch ? colors.destructive : colors.success}
             />
-            {broker.data?.broker?.is_mock ? (
-              <Row label="Broker" value={`${broker.data?.broker?.broker ?? "Mock"} — no real orders`} />
+            {brokerData?.broker?.is_mock ? (
+              <Row label="Broker" value={`${brokerData?.broker?.broker ?? "Mock"} — no real orders`} />
             ) : null}
           </>
         )}
@@ -332,31 +378,31 @@ export default function HealthScreen() {
       <Section
         title="Zerodha Connection"
         pill={
-          kite.isLoading ? undefined : (
+          kite.isLoading && kiteData === undefined ? undefined : (
             <StatusPill label={kiteOk ? "CONNECTED" : "NOT CONNECTED"} tone={kiteOk ? "good" : "muted"} />
           )
         }
       >
-        {kite.isLoading ? (
-          <ActivityIndicator style={styles.loader} color={colors.primary} />
-        ) : kite.isError ? (
+        {kite.isLoading && kiteData === undefined ? (
+          <RowsSkeleton rows={3} />
+        ) : kite.isError && kiteData === undefined ? (
           <Text style={[styles.errorText, { color: colors.destructive }]}>Could not load Zerodha status</Text>
         ) : (
           <>
             <Row
               label="Session token"
-              value={(kite.data?.token_status ?? "UNKNOWN").toUpperCase()}
+              value={(kiteData?.token_status ?? "UNKNOWN").toUpperCase()}
               valueColor={kiteOk ? colors.success : colors.mutedForeground}
             />
             <Row
               label="Credentials"
-              value={kite.data?.credentials_present ? "Configured" : "Not configured"}
+              value={kiteData?.credentials_present ? "Configured" : "Not configured"}
             />
-            {kite.data?.token_age_hours != null ? (
-              <Row label="Token age" value={`${kite.data.token_age_hours.toFixed(1)} h`} />
+            {kiteData?.token_age_hours != null ? (
+              <Row label="Token age" value={`${kiteData.token_age_hours.toFixed(1)} h`} />
             ) : null}
-            {kite.data?.token_expiry_note ? (
-              <Row label="Expiry" value={kite.data.token_expiry_note} />
+            {kiteData?.token_expiry_note ? (
+              <Row label="Expiry" value={kiteData.token_expiry_note} />
             ) : null}
             <Text style={[styles.readonlyNote, { color: colors.mutedForeground }]}>
               Read-only. Connect or disconnect from the desktop dashboard.

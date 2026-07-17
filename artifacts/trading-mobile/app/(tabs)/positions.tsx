@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useGetTrades } from "@workspace/api-client-react";
 import React from "react";
 import {
-  ActivityIndicator,
   Platform,
   RefreshControl,
   ScrollView,
@@ -12,8 +11,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { SkeletonCard } from "@/components/Skeleton";
+import { StaleBanner } from "@/components/StaleBanner";
 import { useColors } from "@/hooks/useColors";
 import { Phase20Position, usePhase20Positions } from "@/lib/monitorApi";
+import { useOfflineSnapshot } from "@/lib/offlineCache";
 
 interface Trade {
   symbol?: string;
@@ -82,12 +84,30 @@ export default function PositionsScreen() {
   const topPadding = isWeb ? 67 : insets.top;
 
   const positions = usePhase20Positions();
-  const { data: trades, refetch: refetchTrades, isFetching: fetchingTrades } = useGetTrades();
+  const {
+    data: liveTrades,
+    isError: tradesError,
+    refetch: refetchTrades,
+    isFetching: fetchingTrades,
+    dataUpdatedAt: tradesUpdatedAt,
+  } = useGetTrades();
 
-  const posList = positions.data?.positions ?? [];
-  const summary = positions.data?.summary;
+  const posSnapshot = useOfflineSnapshot(
+    "phase20-positions",
+    positions.data,
+    positions.isError,
+    positions.dataUpdatedAt,
+  );
+  const tradesSnapshot = useOfflineSnapshot("trades", liveTrades, tradesError, tradesUpdatedAt);
+
+  const posData = posSnapshot.data;
+  const posList = posData?.positions ?? [];
+  const summary = posData?.summary;
   const totalPnl = summary?.total_pnl ?? 0;
+  const trades = tradesSnapshot.data;
   const tradeList: Trade[] = Array.isArray(trades) ? trades.slice(0, 15) : [];
+  const isStale = posSnapshot.isStale || tradesSnapshot.isStale;
+  const staleTs = posSnapshot.staleTs ?? tradesSnapshot.staleTs;
 
   const onRefresh = () => Promise.all([positions.refetch(), refetchTrades()]);
 
@@ -109,6 +129,8 @@ export default function PositionsScreen() {
         Simulated trades only — no real money at risk
       </Text>
 
+      {isStale && <StaleBanner staleTs={staleTs} onRetry={onRefresh} />}
+
       <View style={[styles.summaryCard, { backgroundColor: colors.primary }]}>
         <View>
           <Text style={[styles.summaryLabel, { color: colors.primaryForeground + "aa" }]}>Open P&L</Text>
@@ -125,12 +147,17 @@ export default function PositionsScreen() {
         </View>
       </View>
 
-      {positions.isLoading ? (
-        <ActivityIndicator style={{ paddingVertical: 40 }} size="large" color={colors.primary} />
-      ) : positions.isError ? (
+      {positions.isLoading && posData === undefined ? (
+        <View style={styles.section}>
+          <SkeletonCard lines={2} />
+          <SkeletonCard lines={2} />
+        </View>
+      ) : positions.isError && posData === undefined ? (
         <View style={styles.empty}>
-          <Ionicons name="alert-circle-outline" size={40} color={colors.destructive} />
-          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Could not load positions</Text>
+          <Ionicons name="cloud-offline-outline" size={40} color={colors.destructive} />
+          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+            Server unreachable and no saved positions yet
+          </Text>
         </View>
       ) : posList.length === 0 ? (
         <View style={styles.empty}>

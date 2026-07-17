@@ -15,12 +15,15 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { SkeletonCard } from "@/components/Skeleton";
+import { StaleBanner } from "@/components/StaleBanner";
 import { useColors } from "@/hooks/useColors";
 import {
   MonitorNotification,
   useMarkNotificationsRead,
   useNotifications,
 } from "@/lib/monitorApi";
+import { useOfflineSnapshot } from "@/lib/offlineCache";
 import {
   DEFAULT_MIN_CONFIDENCE,
   disablePushAlerts,
@@ -185,8 +188,10 @@ export default function AlertsScreen() {
   const isWeb = Platform.OS === "web";
   const topPadding = isWeb ? 67 : insets.top;
 
-  const { data, isLoading, isError, refetch, isFetching } = useNotifications();
+  const { data: liveData, isLoading, isError, refetch, isFetching, dataUpdatedAt } = useNotifications();
   const markRead = useMarkNotificationsRead();
+
+  const { data, isStale, staleTs } = useOfflineSnapshot("notifications", liveData, isError, dataUpdatedAt);
 
   const list = Array.isArray(data) ? data : [];
   const unreadCount = list.filter((n) => !n.read).length;
@@ -233,14 +238,19 @@ export default function AlertsScreen() {
         </Text>
       )}
 
-      {isLoading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.primary} />
+      {isLoading && data === undefined ? (
+        <View style={[styles.list, { paddingTop: 16 }]}>
+          <PushAlertsCard />
+          {[0, 1, 2, 3].map((i) => (
+            <SkeletonCard key={i} lines={2} />
+          ))}
         </View>
-      ) : isError ? (
+      ) : isError && data === undefined ? (
         <View style={styles.center}>
-          <Ionicons name="alert-circle-outline" size={48} color={colors.destructive} />
-          <Text style={[styles.errorText, { color: colors.mutedForeground }]}>Could not load notifications</Text>
+          <Ionicons name="cloud-offline-outline" size={48} color={colors.destructive} />
+          <Text style={[styles.errorText, { color: colors.mutedForeground }]}>
+            Server unreachable and no saved notifications yet
+          </Text>
           <Pressable style={[styles.retryBtn, { borderColor: colors.border }]} onPress={() => refetch()}>
             <Text style={[styles.retryText, { color: colors.primary }]}>Try again</Text>
           </Pressable>
@@ -251,7 +261,12 @@ export default function AlertsScreen() {
           keyExtractor={(item, i) => item.id ?? `n-${i}`}
           renderItem={({ item }) => <NotificationRow item={item} />}
           contentContainerStyle={[styles.list, { paddingBottom: 120 }]}
-          ListHeaderComponent={<PushAlertsCard />}
+          ListHeaderComponent={
+            <>
+              {isStale && <StaleBanner staleTs={staleTs} onRetry={() => refetch()} />}
+              <PushAlertsCard />
+            </>
+          }
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="notifications-off-outline" size={48} color={colors.mutedForeground} />
