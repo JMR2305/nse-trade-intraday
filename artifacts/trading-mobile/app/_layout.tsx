@@ -15,7 +15,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { configureNotificationHandler, silentReRegister } from "@/lib/pushNotifications";
+import { configureNotificationHandler, registerOnLaunch } from "@/lib/pushNotifications";
 
 if (process.env.EXPO_PUBLIC_DOMAIN) {
   setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
@@ -57,9 +57,10 @@ export default function RootLayout() {
   }, [fontsLoaded, fontError]);
 
   useEffect(() => {
-    // Silent, never prompts: only refreshes the push token if the user
-    // already enabled alerts and permission is still granted.
-    void silentReRegister();
+    // Registers this device for signal push alerts on launch. Never prompts:
+    // it only proceeds when OS notification permission is already granted
+    // and the user hasn't explicitly turned push alerts off.
+    void registerOnLaunch();
   }, []);
 
   if (!fontsLoaded && !fontError) return null;

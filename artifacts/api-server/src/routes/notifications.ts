@@ -80,6 +80,7 @@ router.post("/notifications/push/preferences", async (req: Request, res: Respons
       res.status(400).json({ error: "enabled must be a boolean" });
       return;
     }
+    await ensurePushSubscriptionsTable();
     const updates: Record<string, unknown> = { updatedAt: new Date() };
     if (min !== null) updates["minConfidence"] = min;
     if (typeof enabled === "boolean") updates["enabled"] = enabled;
@@ -109,6 +110,7 @@ router.get("/notifications/push/status", async (req: Request, res: Response) => 
       res.status(400).json({ error: "A valid Expo push token is required" });
       return;
     }
+    await ensurePushSubscriptionsTable();
     const [row] = await db
       .select()
       .from(pushSubscriptionsTable)

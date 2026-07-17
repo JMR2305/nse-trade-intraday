@@ -125,22 +125,27 @@ export async function updateMinConfidence(minConfidence: number): Promise<void> 
   }
 }
 
-// Silent re-registration on app launch. Never prompts; only refreshes the
-// token server-side when the user already enabled alerts and permission is
-// still granted. All failures are swallowed (e.g. Expo Go on Android).
-export async function silentReRegister(): Promise<void> {
+// Launch-time registration. Never prompts for permission on launch; it
+// registers (or refreshes) the device token whenever OS notification
+// permission is already granted and the user has not explicitly turned
+// push alerts off. All failures are swallowed (e.g. Expo Go on Android).
+export async function registerOnLaunch(): Promise<void> {
   try {
-    if (Platform.OS === "web") return;
-    const { enabled, minConfidence } = await getStoredPushPrefs();
-    if (!enabled) return;
+    if (Platform.OS === "web" || !Device.isDevice) return;
+    const explicitlyDisabled = (await AsyncStorage.getItem(ENABLED_KEY)) === "false";
+    if (explicitlyDisabled) return;
     const perms = await Notifications.getPermissionsAsync();
     if (perms.status !== "granted") return;
+    const { minConfidence } = await getStoredPushPrefs();
     const token = await fetchExpoPushToken();
     await apiJson("/notifications/push/register", {
       method: "POST",
       body: JSON.stringify({ token, minConfidence }),
     });
-    await AsyncStorage.setItem(TOKEN_KEY, token);
+    await Promise.all([
+      AsyncStorage.setItem(ENABLED_KEY, "true"),
+      AsyncStorage.setItem(TOKEN_KEY, token),
+    ]);
   } catch {
     // Best-effort only.
   }
