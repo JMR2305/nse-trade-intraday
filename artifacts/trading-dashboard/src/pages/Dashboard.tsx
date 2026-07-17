@@ -40,6 +40,16 @@ import { useToast } from "@/hooks/use-toast";
 import DataFreshnessBar from "@/components/DataFreshnessBar";
 import { API_BASE } from "@/lib/api";
 
+interface RollingPerfPoint {
+  trade_no: number;
+  symbol: string;
+  exit_time: string;
+  rolling_win_rate: number;
+  rolling_avg_return_pct: number;
+  window_trades: number;
+  window_full: boolean;
+}
+
 interface StrategyPerf {
   total_trades: number;
   winning_trades: number;
@@ -54,6 +64,7 @@ interface StrategyPerf {
   best_stock: string;
   worst_stock: string;
   best_regime: string;
+  rolling_performance?: RollingPerfPoint[];
 }
 
 export default function Dashboard() {
@@ -393,6 +404,103 @@ export default function Dashboard() {
                   </div>
                 </div>
               </div>
+
+              {/* Rolling performance trend (10-trade window) */}
+              {(stratPerf.rolling_performance?.length ?? 0) >= 2 && (
+                <div className="mt-4 rounded-lg border border-border/50 bg-background/40 p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-mono uppercase text-muted-foreground">
+                      Rolling Trend — last 10 trades window
+                    </span>
+                    <span className="text-[10px] font-mono text-muted-foreground">
+                      per closed trade, chronological
+                    </span>
+                  </div>
+                  <div className="h-56">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart
+                        data={stratPerf.rolling_performance}
+                        margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                        <XAxis
+                          dataKey="trade_no"
+                          tick={{ fontSize: 10, fontFamily: "monospace" }}
+                          stroke="hsl(var(--muted-foreground))"
+                          label={{ value: "Closed trade #", position: "insideBottom", offset: -2, fontSize: 10 }}
+                        />
+                        <YAxis
+                          yAxisId="wr"
+                          domain={[0, 100]}
+                          tick={{ fontSize: 10, fontFamily: "monospace" }}
+                          stroke="hsl(var(--muted-foreground))"
+                          tickFormatter={(v) => `${v}%`}
+                          width={42}
+                        />
+                        <YAxis
+                          yAxisId="ret"
+                          orientation="right"
+                          tick={{ fontSize: 10, fontFamily: "monospace" }}
+                          stroke="hsl(var(--muted-foreground))"
+                          tickFormatter={(v) => `${v}%`}
+                          width={42}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: 6,
+                            fontSize: 11,
+                            fontFamily: "monospace",
+                          }}
+                          formatter={(value: number, name: string) =>
+                            name === "Win rate"
+                              ? [`${value.toFixed(1)}%`, "Win rate"]
+                              : [`${value >= 0 ? "+" : ""}${value.toFixed(2)}%`, "Avg return"]
+                          }
+                          labelFormatter={(label: number) => {
+                            const p = stratPerf.rolling_performance?.[Number(label) - 1];
+                            return p
+                              ? `Trade #${label} · ${p.symbol}${p.window_full ? "" : ` (only ${p.window_trades} trades in window)`}`
+                              : `Trade #${label}`;
+                          }}
+                        />
+                        <ReferenceLine yAxisId="wr" y={50} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" opacity={0.5} />
+                        <ReferenceLine yAxisId="ret" y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="2 2" opacity={0.35} />
+                        <Line
+                          yAxisId="wr"
+                          type="monotone"
+                          dataKey="rolling_win_rate"
+                          name="Win rate"
+                          stroke="#22c55e"
+                          strokeWidth={2}
+                          dot={false}
+                          activeDot={{ r: 3 }}
+                        />
+                        <Line
+                          yAxisId="ret"
+                          type="monotone"
+                          dataKey="rolling_avg_return_pct"
+                          name="Avg return"
+                          stroke="#38bdf8"
+                          strokeWidth={2}
+                          strokeDasharray="6 3"
+                          dot={false}
+                          activeDot={{ r: 3 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="mt-2 flex gap-4 text-[10px] font-mono text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <span className="inline-block h-0.5 w-4 bg-green-500" /> Rolling win rate % (left axis)
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="inline-block h-0.5 w-4 bg-sky-400" style={{ borderTop: "2px dashed #38bdf8", background: "transparent" }} /> Rolling avg return % (right axis)
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* Secondary stats row */}
               <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs font-mono text-muted-foreground">

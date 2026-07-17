@@ -123,6 +123,7 @@ class StrategyPerformance(TypedDict):
     best_stock: str
     worst_stock: str
     best_regime: str
+    rolling_performance: list[dict]
     computed_at: str
 
 
@@ -529,6 +530,38 @@ def get_trade_replay() -> list[TradeReplayItem]:
     return sorted(replay_items, key=lambda x: x["exit_time"], reverse=True)
 
 
+ROLLING_WINDOW = 10
+
+
+def compute_rolling_performance(replay: list[dict],
+                                window: int = ROLLING_WINDOW) -> list[dict]:
+    """
+    Rolling win-rate % and avg return % over the trailing `window` closed
+    trades, one point per closed trade in chronological (exit_time) order.
+    For the first trades (fewer than `window` closed so far) the window is
+    whatever history exists, flagged via `window_full`.
+    """
+    if not replay:
+        return []
+    chrono = sorted(replay, key=lambda t: t.get("exit_time") or "")
+    points: list[dict] = []
+    for i in range(len(chrono)):
+        win_slice = chrono[max(0, i - window + 1): i + 1]
+        n = len(win_slice)
+        wins = sum(1 for t in win_slice if t.get("pnl", 0) > 0)
+        returns = [float(t.get("pnl_pct", 0.0) or 0.0) for t in win_slice]
+        points.append({
+            "trade_no": i + 1,
+            "symbol": chrono[i].get("symbol", ""),
+            "exit_time": chrono[i].get("exit_time", ""),
+            "rolling_win_rate": round(wins / n * 100, 1),
+            "rolling_avg_return_pct": round(sum(returns) / n, 2),
+            "window_trades": n,
+            "window_full": n >= window,
+        })
+    return points
+
+
 def get_strategy_performance() -> StrategyPerformance:
     """
     Compute strategy performance metrics from all completed trade pairs.
@@ -542,6 +575,7 @@ def get_strategy_performance() -> StrategyPerformance:
             avg_return_pct=0.0, sharpe=0.0,
             profit_factor=0.0, total_pnl=0.0,
             best_stock="—", worst_stock="—", best_regime="—",
+            rolling_performance=[],
             computed_at=datetime.now().isoformat(),
         )
 
@@ -614,6 +648,7 @@ def get_strategy_performance() -> StrategyPerformance:
         best_stock=best_stock,
         worst_stock=worst_stock,
         best_regime=best_regime,
+        rolling_performance=compute_rolling_performance(replay),
         computed_at=datetime.now().isoformat(),
     )
 
