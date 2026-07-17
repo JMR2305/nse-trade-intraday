@@ -54,5 +54,9 @@
     "typescript": "~5.9.2",
     "zod": "catalog:",
     "zod-validation-error": "^3.4.0"
+  },
+  "dependencies": {
+    "expo-device": "^8.0.10",
+    "expo-notifications": "~0.32.17"
   }
 }

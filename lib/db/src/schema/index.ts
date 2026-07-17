@@ -1,4 +1,4 @@
-import { pgTable, integer, doublePrecision, jsonb, text, timestamp, bigserial } from "drizzle-orm/pg-core";
+import { pgTable, integer, doublePrecision, jsonb, text, timestamp, bigserial, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -56,6 +56,21 @@ export const signalSnapshotsTable = pgTable("signal_snapshots", {
   marketContext:   jsonb("market_context").notNull().$type<Record<string, unknown>>(),
 });
 
+// ── Push Notification Subscriptions ──────────────────────────────────────────
+// One row per mobile device (Expo push token). The scan scheduler dispatches
+// a push when a fresh scan produces BUY/SELL signals whose confidence meets
+// the subscriber's own threshold. last_notified_key stores the signals-cache
+// updated_at that was last evaluated, so each scan is only considered once.
+
+export const pushSubscriptionsTable = pgTable("push_subscriptions", {
+  token:           text("token").primaryKey(),
+  minConfidence:   doublePrecision("min_confidence").notNull().default(70),
+  enabled:         boolean("enabled").notNull().default(true),
+  lastNotifiedKey: text("last_notified_key"),
+  createdAt:       timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt:       timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
 // ── Insert schemas / types ────────────────────────────────────────────────────
 
 export const insertPaperTradeSchema = createInsertSchema(paperTradesTable).omit({ createdAt: true });
@@ -64,3 +79,4 @@ export type PaperTrade = typeof paperTradesTable.$inferSelect;
 export type PaperPortfolio = typeof paperPortfolioTable.$inferSelect;
 export type SignalsCache = typeof signalsCacheTable.$inferSelect;
 export type SignalSnapshot = typeof signalSnapshotsTable.$inferSelect;
+export type PushSubscription = typeof pushSubscriptionsTable.$inferSelect;

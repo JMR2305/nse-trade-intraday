@@ -3,11 +3,13 @@ import * as Haptics from "expo-haptics";
 import React from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from "react-native";
@@ -19,6 +21,13 @@ import {
   useMarkNotificationsRead,
   useNotifications,
 } from "@/lib/monitorApi";
+import {
+  DEFAULT_MIN_CONFIDENCE,
+  disablePushAlerts,
+  enablePushAlerts,
+  getStoredPushPrefs,
+  updateMinConfidence,
+} from "@/lib/pushNotifications";
 
 function iconForType(type?: string): { name: keyof typeof Ionicons.glyphMap; tone: "good" | "bad" | "info" } {
   const t = (type ?? "").toUpperCase();
@@ -63,6 +72,109 @@ function NotificationRow({ item }: { item: MonitorNotification }) {
             : ""}
         </Text>
       </View>
+    </View>
+  );
+}
+
+const CONFIDENCE_OPTIONS = [60, 70, 80, 90];
+
+function PushAlertsCard() {
+  const colors = useColors();
+  const isWeb = Platform.OS === "web";
+  const [loaded, setLoaded] = React.useState(false);
+  const [enabled, setEnabled] = React.useState(false);
+  const [minConfidence, setMinConfidence] = React.useState(DEFAULT_MIN_CONFIDENCE);
+  const [busy, setBusy] = React.useState(false);
+
+  React.useEffect(() => {
+    getStoredPushPrefs()
+      .then((prefs) => {
+        setEnabled(prefs.enabled);
+        setMinConfidence(prefs.minConfidence);
+      })
+      .finally(() => setLoaded(true));
+  }, []);
+
+  const handleToggle = async (next: boolean) => {
+    if (busy) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setBusy(true);
+    try {
+      if (next) {
+        await enablePushAlerts(minConfidence);
+        setEnabled(true);
+      } else {
+        await disablePushAlerts();
+        setEnabled(false);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Could not update push alerts.";
+      Alert.alert("Push alerts", msg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleConfidence = async (value: number) => {
+    if (busy || value === minConfidence) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setMinConfidence(value);
+    try {
+      await updateMinConfidence(value);
+    } catch {
+      Alert.alert("Push alerts", "Could not save the confidence threshold on the server. It will be applied next time you re-enable alerts.");
+    }
+  };
+
+  if (isWeb || !loaded) return null;
+
+  return (
+    <View style={[styles.pushCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={styles.pushHeader}>
+        <View style={styles.pushTitleRow}>
+          <Ionicons name="phone-portrait-outline" size={16} color={colors.primary} />
+          <Text style={[styles.pushTitle, { color: colors.foreground }]}>Push alerts</Text>
+        </View>
+        {busy ? (
+          <ActivityIndicator size="small" color={colors.primary} />
+        ) : (
+          <Switch
+            value={enabled}
+            onValueChange={handleToggle}
+            trackColor={{ true: colors.primary }}
+            testID="push-alerts-toggle"
+          />
+        )}
+      </View>
+      <Text style={[styles.pushSub, { color: colors.mutedForeground }]}>
+        Get notified on this phone when a scan finds a high-confidence signal. Research alerts only — nothing is traded automatically.
+      </Text>
+      {enabled && (
+        <View style={styles.confRow}>
+          <Text style={[styles.confLabel, { color: colors.mutedForeground }]}>Minimum confidence</Text>
+          <View style={styles.confChips}>
+            {CONFIDENCE_OPTIONS.map((opt) => {
+              const active = opt === minConfidence;
+              return (
+                <Pressable
+                  key={opt}
+                  onPress={() => handleConfidence(opt)}
+                  style={[
+                    styles.confChip,
+                    { borderColor: active ? colors.primary : colors.border },
+                    active && { backgroundColor: colors.primary + "18" },
+                  ]}
+                  testID={`push-conf-${opt}`}
+                >
+                  <Text style={[styles.confChipText, { color: active ? colors.primary : colors.mutedForeground }]}>
+                    {opt}%
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -139,6 +251,7 @@ export default function AlertsScreen() {
           keyExtractor={(item, i) => item.id ?? `n-${i}`}
           renderItem={({ item }) => <NotificationRow item={item} />}
           contentContainerStyle={[styles.list, { paddingBottom: 120 }]}
+          ListHeaderComponent={<PushAlertsCard />}
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="notifications-off-outline" size={48} color={colors.mutedForeground} />
@@ -148,7 +261,7 @@ export default function AlertsScreen() {
               </Text>
             </View>
           }
-          scrollEnabled={!!list.length}
+          scrollEnabled
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} tintColor={colors.primary} />
@@ -194,4 +307,20 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 14, fontFamily: "Inter_400Regular" },
   retryBtn: { marginTop: 8, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, borderWidth: 1 },
   retryText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  pushCard: {
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 14,
+    gap: 8,
+    marginBottom: 6,
+  },
+  pushHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  pushTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  pushTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  pushSub: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
+  confRow: { gap: 8, marginTop: 4 },
+  confLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  confChips: { flexDirection: "row", gap: 8 },
+  confChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16, borderWidth: 1 },
+  confChipText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
 });

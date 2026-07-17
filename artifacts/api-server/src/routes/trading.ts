@@ -7,6 +7,7 @@ import { eventBus } from "../lib/events";
 const router: IRouter = Router();
 
 import { PYTHON_DIR, PYTHON_BIN } from "../lib/python-env";
+import { dispatchSignalPushNotifications } from "../lib/pushNotifier";
 
 function runPython(args: string[]): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -927,6 +928,8 @@ router.post("/live-data/scan/run", async (_req, res) => {
       void runPython(["system_event", "SCAN_COMPLETED", JSON.stringify({
         reason: `Live scan completed (scan ${String(result?.["scan_id"] ?? "unknown")}).`,
       })]).catch(() => undefined);
+      // Advisory push alerts for high-confidence signals (never blocks response).
+      void dispatchSignalPushNotifications().catch(() => undefined);
       res.json(result);
     } catch (scanErr) {
       const msg = scanErr instanceof Error ? scanErr.message : String(scanErr);

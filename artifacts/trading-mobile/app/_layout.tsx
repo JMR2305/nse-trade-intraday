@@ -15,10 +15,13 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { configureNotificationHandler, silentReRegister } from "@/lib/pushNotifications";
 
 if (process.env.EXPO_PUBLIC_DOMAIN) {
   setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
 }
+
+configureNotificationHandler();
 
 SplashScreen.preventAutoHideAsync();
 
@@ -52,6 +55,12 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded, fontError]);
+
+  useEffect(() => {
+    // Silent, never prompts: only refreshes the push token if the user
+    // already enabled alerts and permission is still granted.
+    void silentReRegister();
+  }, []);
 
   if (!fontsLoaded && !fontError) return null;
 

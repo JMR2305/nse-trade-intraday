@@ -2,6 +2,7 @@ import { spawn } from "child_process";
 import path from "path";
 import { logger } from "./logger";
 import { PYTHON_DIR, PYTHON_BIN } from "./python-env";
+import { dispatchSignalPushNotifications } from "./pushNotifier";
 
 // Phase 20 — market-hours auto-scan scheduler.
 //
@@ -68,6 +69,12 @@ export function startScanScheduler(): void {
           { scan_id: result["scan_id"], snapshot_ts: result["snapshot_ts"] },
           "Scheduled market scan completed",
         );
+        // Advisory push alerts for high-confidence signals; never blocks
+        // or influences the scan/trading pipeline.
+        dispatchSignalPushNotifications().catch((err: unknown) => {
+          logger.warn({ err: err instanceof Error ? err.message : String(err) },
+            "Signal push dispatch failed");
+        });
       }
     } catch (err) {
       // Failed scheduled scan: last successful snapshot is preserved by design.

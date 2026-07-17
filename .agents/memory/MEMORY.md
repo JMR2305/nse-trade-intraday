@@ -27,4 +27,5 @@
 - [Kite session & scan locking](kite-session-and-scan-locking.md) — prove Zerodha sessions with an authenticated probe (presence ≠ validity); DB-durable tokens on Autoscale; skip-not-poll scan locks with heartbeat renewal.
 - [Circuit breaker fail-safe](circuit-breaker-failsafe.md) — corrupted/unreadable safety state must block entries (tripped+unreadable), never normalize to clear; only manual-review resume clears it.
 - [Unified @types/react](types-react-dedupe.md) — one copy via pnpm overrides + catalog; Expo "expected ~19.1.x" warning is accepted, never re-pin.
+- [Push notification alerts](push-notifications.md) — advisory-only Expo push after scans; dedupe by signals_cache updated_at per token; lazy CREATE TABLE bootstrap; registration always user-initiated.
 - [Portfolio Postgres store](portfolio-postgres-store.md) — paper_portfolio + paper_trades + signals_cache tables; drizzle-kit push needs TTY so use executeSql() or rely on Python auto-create.
