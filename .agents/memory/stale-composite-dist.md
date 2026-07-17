@@ -7,3 +7,5 @@ Rule: when `tsc --noEmit` in an artifact reports a missing export from `@workspa
 **Why:** artifact tsconfigs use TypeScript project references, so types resolve from `lib/*/dist/*.d.ts` (gitignored, per-environment), not from `src`. After the OpenAPI client is regenerated, a stale dist silently drops new hooks like `useGetSymbols`, and the `any`-typed data cascades into implicit-any errors in the page.
 
 **How to apply:** any time the api-spec/openapi client is regenerated, also run `tsc -b` on the affected lib package (or run typechecks via `tsc -b`) before trusting red typecheck output.
+
+Note: lib tsconfigs pin `tsBuildInfoFile` inside `dist/` so deleting/regenerating dist also invalidates the build info — if tsbuildinfo lives outside dist, `tsc -b` will report "up to date" against a missing dist. A registered `typecheck` validation rebuilds all libs then typechecks trading-dashboard, api-server, and trading-mobile.
