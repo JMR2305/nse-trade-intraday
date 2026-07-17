@@ -77,6 +77,10 @@ export default function AutomationHealth() {
   const [refreshing, setRefreshing] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [breaker, setBreaker] = useState<any>(null);
+  const [breakerAudit, setBreakerAudit] = useState<any[]>([]);
+  const [resumeText, setResumeText] = useState("");
+  const [resuming, setResuming] = useState(false);
 
   const load = useCallback(async () => {
     setRefreshing(true);
@@ -91,10 +95,39 @@ export default function AutomationHealth() {
     catch (e) { errs.push(`Validation: ${e instanceof Error ? e.message : String(e)}`); }
     try { const d = await safeJson("/phase20/scan-history?limit=50"); setHistory(d.runs ?? []); }
     catch (e) { errs.push(`Scan history: ${e instanceof Error ? e.message : String(e)}`); }
+    try {
+      const d = await safeJson("/phase20/circuit-breaker");
+      setBreaker(d ?? null);
+      setBreakerAudit(d?.audit ?? []);
+    }
+    catch (e) { errs.push(`Circuit breaker: ${e instanceof Error ? e.message : String(e)}`); }
     setErrors(errs);
     setLoading(false);
     setRefreshing(false);
   }, []);
+
+  const resumeEntries = async () => {
+    setResuming(true);
+    try {
+      const d = await safeJson("/phase20/circuit-breaker/resume", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmation_text: resumeText, reviewed_by: "dashboard user" }),
+      });
+      if (d?.success === false) throw new Error(String(d?.error ?? "Resume rejected"));
+      toast({ title: "Paper entries resumed", description: "Circuit breaker cleared after manual review." });
+      setResumeText("");
+      await load();
+    } catch (e) {
+      toast({
+        title: "Resume rejected",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+    } finally {
+      setResuming(false);
+    }
+  };
 
   useEffect(() => { void load(); }, [load]);
 
@@ -210,6 +243,95 @@ export default function AutomationHealth() {
           )}
           {scheduler?.detail && (
             <p className="mt-2 text-[10px] text-zinc-500 border-t border-zinc-800 pt-1.5">{scheduler.detail}</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Entry circuit breaker */}
+      <Card className={cn("bg-zinc-900 border-zinc-700",
+        breaker?.circuit_breaker?.tripped && "border-red-700")}>
+        <CardHeader className="py-2 px-3">
+          <CardTitle className="text-[11px] font-mono text-zinc-200 flex items-center gap-1.5">
+            <AlertTriangle className={cn("h-3.5 w-3.5", breaker?.circuit_breaker?.tripped ? "text-red-400" : "text-emerald-400")} />
+            Paper-Entry Circuit Breaker
+            <Badge variant="outline" className={cn("ml-auto text-[10px] px-2",
+              breaker?.circuit_breaker?.tripped
+                ? "text-red-400 border-red-700 bg-red-950/30"
+                : "text-emerald-400 border-emerald-700 bg-emerald-950/30")}>
+              {breaker?.circuit_breaker?.tripped ? "TRIPPED — ENTRIES PAUSED" : "CLEAR"}
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-3 pb-3 space-y-2">
+          <p className="text-[10px] text-zinc-500">
+            Pauses NEW paper entries on 3 consecutive losses, breach of the daily paper-loss limit,
+            or negative rolling 10-trade expectancy. Open-position monitoring, auto exits, the
+            scheduler, and evidence collection stay active. Live-order writes remain disabled.
+          </p>
+          {breaker?.circuit_breaker?.last_evaluation && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-1.5 text-[11px]">
+              <Field label="Consecutive losses" value={`${na(breaker.circuit_breaker.last_evaluation.consecutive_losses)} / ${na(breaker.circuit_breaker.last_evaluation.consecutive_loss_limit)}`} />
+              <Field label="Realised P&L today" value={`₹${na(breaker.circuit_breaker.last_evaluation.daily_realized_pnl)} (limit -₹${na(breaker.circuit_breaker.last_evaluation.daily_loss_limit)})`} />
+              <Field
+                label="Rolling 10-trade expectancy"
+                value={breaker.circuit_breaker.last_evaluation.rolling_expectancy == null
+                  ? `N/A (${na(breaker.circuit_breaker.last_evaluation.closed_trades)} closed trades)`
+                  : `₹${na(breaker.circuit_breaker.last_evaluation.rolling_expectancy)}/trade`}
+                valueCls={(breaker.circuit_breaker.last_evaluation.rolling_expectancy ?? 0) < 0 ? "text-red-400" : undefined}
+              />
+            </div>
+          )}
+          {breaker?.circuit_breaker?.tripped && (
+            <div className="space-y-2 border border-red-800 bg-red-950/20 rounded px-2 py-2">
+              <p className="text-[10px] text-red-300">
+                Paused at {na(breaker.circuit_breaker.tripped_at)}
+                {(breaker.circuit_breaker.affected_strategies ?? []).length > 0 &&
+                  ` · affected strategies: ${breaker.circuit_breaker.affected_strategies.join(", ")}`}
+              </p>
+              {(breaker.circuit_breaker.reasons ?? []).map((r: any, i: number) => (
+                <p key={r.code ?? i} className="text-[10px] text-red-200">
+                  <XCircle className="mr-1 inline h-3 w-3" />{r.code}: {r.detail}
+                </p>
+              ))}
+              <div className="pt-1 border-t border-red-900 space-y-1.5">
+                <p className="text-[10px] text-zinc-400">
+                  Manual review required. Type the exact statement to resume paper entries:
+                </p>
+                <p className="text-[10px] text-zinc-300 italic select-all">
+                  {breaker.resume_confirmation_text}
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    value={resumeText}
+                    onChange={(e) => setResumeText(e.target.value)}
+                    placeholder="Type the confirmation statement…"
+                    className="flex-1 rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-[10px] text-zinc-200"
+                  />
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="text-[10px]"
+                    disabled={resuming || resumeText.trim() !== String(breaker.resume_confirmation_text ?? "")}
+                    onClick={() => void resumeEntries()}
+                  >
+                    {resuming ? <Loader2 className="h-3 w-3 animate-spin" /> : "Resume entries"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+          {breakerAudit.length > 0 && (
+            <div className="border-t border-zinc-800 pt-1.5 space-y-1">
+              <p className="text-[9px] text-zinc-600 uppercase">Audit trail</p>
+              {breakerAudit.slice(0, 6).map((a: any, i: number) => (
+                <p key={i} className="text-[10px] text-zinc-400">
+                  {na(a.at)} — {a.event}
+                  {a.event === "CIRCUIT_BREAKER_TRIPPED" && (a.reasons ?? []).length > 0 &&
+                    `: ${(a.reasons as any[]).map((r) => r.code).join(", ")}`}
+                  {a.event === "CIRCUIT_BREAKER_RESUMED" && a.reviewed_by ? ` by ${a.reviewed_by}` : ""}
+                </p>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>

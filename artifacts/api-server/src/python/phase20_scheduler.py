@@ -276,6 +276,17 @@ def _manage_paper(settings: Dict[str, Any], ran_scan: bool) -> Dict[str, Any]:
             out["exits"] = manage_open_positions(settings)
     except Exception as exc:
         out["exits"] = {"error": str(exc)[:200]}
+    # Circuit breaker: evaluate after exits so a loss that just closed can
+    # pause new entries on this very tick. Never auto-resumes. Exits,
+    # monitoring, scheduling, and evidence collection stay active regardless.
+    try:
+        from phase20_circuit_breaker import evaluate_and_maybe_trip
+        cb = evaluate_and_maybe_trip(settings)
+        out["circuit_breaker"] = {"tripped": bool(cb.get("tripped")),
+                                  "tripped_at": cb.get("tripped_at"),
+                                  "reasons": cb.get("reasons") or []}
+    except Exception as exc:
+        out["circuit_breaker"] = {"error": str(exc)[:200]}
     try:
         if settings.get("auto_paper_entries") and settings.get("auto_paper_entries_confirmed_at"):
             from phase20_executor import run_auto_entries

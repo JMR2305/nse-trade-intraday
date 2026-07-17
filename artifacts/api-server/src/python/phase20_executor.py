@@ -442,6 +442,17 @@ def run_auto_entries(settings: Dict[str, Any]) -> Dict[str, Any]:
             and settings.get("auto_paper_entries_confirmed_at")):
         return {"ran": False, "reason": "auto_paper_entries OFF (default)"}
 
+    # Circuit breaker: evaluate trip conditions FIRST (defence in depth — the
+    # entry gates also carry an entry_circuit_breaker gate). While tripped,
+    # no new paper entries may be created until manual review.
+    from phase20_circuit_breaker import evaluate_and_maybe_trip
+    cb_state = evaluate_and_maybe_trip(settings)
+    if cb_state.get("tripped"):
+        return {"ran": False,
+                "reason": "Circuit breaker tripped — paper entries paused "
+                          "pending manual review",
+                "circuit_breaker": cb_state}
+
     from phase20_gates import evaluate_entries
     evaluation = evaluate_entries()
     created: List[Dict[str, Any]] = []

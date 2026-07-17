@@ -105,6 +105,21 @@ def evaluate_entries(candidate_symbols: Optional[List[str]] = None) -> Dict[str,
         f"Provider '{meta.get('provider')}' must not be fallback/mock/degraded"))
     global_gates.append(_gate(
         "market_open", mstate == "OPEN", f"Market state is {mstate or 'UNKNOWN'}"))
+    # Circuit breaker: entries pause on losing streaks / daily loss / negative
+    # rolling expectancy until MANUAL review. Exits/monitoring are unaffected.
+    try:
+        from phase20_circuit_breaker import get_state as _cb_state
+        _cb = _cb_state()
+        _cb_reason = ("; ".join(r.get("detail", r.get("code", "?"))
+                                for r in (_cb.get("reasons") or []))
+                      if _cb.get("tripped") else "Not tripped")
+        global_gates.append(_gate(
+            "entry_circuit_breaker", not _cb.get("tripped"),
+            f"Circuit breaker {'TRIPPED — manual review required' if _cb.get('tripped') else 'clear'}: {_cb_reason}"))
+    except Exception:
+        global_gates.append(_gate(
+            "entry_circuit_breaker", False,
+            "Circuit breaker state unavailable — entries blocked (fail-safe)"))
 
     global_pass = all(g["passed"] for g in global_gates)
 

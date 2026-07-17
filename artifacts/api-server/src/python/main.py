@@ -915,6 +915,25 @@ def main():
             from phase20_executor import replay_trade
             result = replay_trade(args[1] if len(args) > 1 else "")
             result["success"] = True
+        elif command == "phase20_circuit_breaker":
+            from phase20_store import get_settings as _p20gs
+            from phase20_circuit_breaker import (
+                evaluate_and_maybe_trip, get_audit_log, RESUME_CONFIRMATION_TEXT,
+            )
+            _state = evaluate_and_maybe_trip(_p20gs())
+            result = {"success": True, "circuit_breaker": _state,
+                      "audit": get_audit_log(20),
+                      "resume_confirmation_text": RESUME_CONFIRMATION_TEXT}
+        elif command == "phase20_circuit_breaker_resume":
+            from phase20_circuit_breaker import resume as _cb_resume
+            _payload = json.loads(args[1]) if len(args) > 1 else {}
+            try:
+                _state = _cb_resume(
+                    _payload.get("confirmation_text") or "",
+                    reviewed_by=str(_payload.get("reviewed_by") or "user"))
+                result = {"success": True, "circuit_breaker": _state}
+            except ValueError as _ve:
+                result = {"success": False, "error": str(_ve)}
         elif command == "phase20_validation":
             from phase20_validation import get_validation_status
             result = get_validation_status()

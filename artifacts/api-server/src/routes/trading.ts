@@ -2669,6 +2669,29 @@ router.get("/phase20/replay/:tradeId", async (req, res) => {
   }
 });
 
+// GET /api/phase20/circuit-breaker — entry circuit-breaker state + audit log
+router.get("/phase20/circuit-breaker", async (_req, res) => {
+  try {
+    res.json(await runPython(["phase20_circuit_breaker"]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/phase20/circuit-breaker/resume — manual-review resume (requires
+// the exact confirmation statement; paper entries only, never live orders)
+router.post("/phase20/circuit-breaker/resume", async (req, res) => {
+  try {
+    const payload = {
+      confirmation_text: String(req.body?.confirmation_text ?? ""),
+      reviewed_by: String(req.body?.reviewed_by ?? "user"),
+    };
+    res.json(await runPython(["phase20_circuit_breaker_resume", JSON.stringify(payload)]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/phase20/validation — validation dashboard status
 router.get("/phase20/validation", async (_req, res) => {
   try {
