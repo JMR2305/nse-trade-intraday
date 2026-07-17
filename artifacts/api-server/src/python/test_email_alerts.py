@@ -75,6 +75,92 @@ class TestMaybeSend(unittest.TestCase):
         self.assertIn("provider down", r["error"])
 
 
+class TestDailySummary(unittest.TestCase):
+    SUMMARY_ON = {"daily_summary_email_enabled": True,
+                  "email_alert_address": "trader@example.com"}
+
+    def test_disabled_skipped(self):
+        r = email_alerts.maybe_send_daily_summary_email(
+            {}, settings={"daily_summary_email_enabled": False,
+                          "email_alert_address": "trader@example.com"})
+        self.assertEqual(r["reason"], "DISABLED")
+
+    def test_no_address_skipped(self):
+        r = email_alerts.maybe_send_daily_summary_email(
+            {}, settings={"daily_summary_email_enabled": True,
+                          "email_alert_address": ""})
+        self.assertEqual(r["reason"], "NO_ADDRESS")
+
+    def test_independent_of_critical_alert_toggle(self):
+        """Daily summary works even when email_alerts_enabled is False."""
+        with mock.patch.object(email_alerts, "_deliver",
+                               return_value={"sent": True, "provider": "RESEND"}):
+            r = email_alerts.maybe_send_daily_summary_email(
+                {"report_date": "2026-07-17"},
+                settings={"email_alerts_enabled": False, **self.SUMMARY_ON})
+        self.assertTrue(r["sent"])
+
+    def test_sends_summary_with_report_fields(self):
+        report = {"report_date": "2026-07-17", "paper_entries_opened": 2,
+                  "exits_completed": 3, "entries_blocked": 1,
+                  "realized_pnl": 1250.5, "unrealized_pnl": -300.25,
+                  "scheduled_scans_completed": 60, "failed_scans": 0}
+        with mock.patch.object(email_alerts, "_deliver",
+                               return_value={"sent": True, "provider": "SMTP"}) as d:
+            r = email_alerts.maybe_send_daily_summary_email(
+                report, settings=self.SUMMARY_ON)
+        self.assertTrue(r["sent"])
+        to, subject, text = d.call_args[0]
+        self.assertEqual(to, "trader@example.com")
+        self.assertIn("Daily summary", subject)
+        self.assertIn("2026-07-17", subject)
+        self.assertIn("Paper entries opened: 2", text)
+        self.assertIn("Exits completed:      3", text)
+        self.assertIn("Rs 1,250.50", text)
+        self.assertIn("-Rs 300.25", text)
+        self.assertIn("Win rate", text)
+        self.assertIn("Open positions", text)
+        self.assertIn("PAPER TRADING / RESEARCH ONLY", text)
+
+    def test_handles_missing_report(self):
+        with mock.patch.object(email_alerts, "_deliver",
+                               return_value={"sent": True, "provider": "SMTP"}) as d:
+            r = email_alerts.maybe_send_daily_summary_email(
+                None, settings=self.SUMMARY_ON)
+        self.assertTrue(r["sent"])
+        _, _, text = d.call_args[0]
+        self.assertIn("Paper entries opened: n/a", text)
+
+    def test_delivery_failure_never_raises(self):
+        with mock.patch.object(email_alerts, "_deliver",
+                               side_effect=RuntimeError("provider down")):
+            r = email_alerts.maybe_send_daily_summary_email(
+                {}, settings=self.SUMMARY_ON)
+        self.assertFalse(r["sent"])
+        self.assertEqual(r["reason"], "ERROR")
+
+    def test_compose_survives_broken_sources(self):
+        """Ledger/portfolio import failures degrade gracefully."""
+        import builtins
+        real_import = builtins.__import__
+
+        def broken(name, *a, **k):
+            if name in ("phase20_executor", "paper_trader"):
+                raise RuntimeError("db down")
+            return real_import(name, *a, **k)
+
+        with mock.patch.object(builtins, "__import__", side_effect=broken):
+            parts = email_alerts._compose_daily_summary({"report_date": "2026-07-17"})
+        self.assertIn("(unavailable)", parts["text"])
+
+    def test_settings_validation_accepts_toggle(self):
+        import phase20_store as store
+        clean = store._validate_patch(
+            {"daily_summary_email_enabled": True},
+            dict(store.DEFAULT_SETTINGS))
+        self.assertTrue(clean["daily_summary_email_enabled"])
+
+
 class TestTransportSelection(unittest.TestCase):
     def test_not_configured(self):
         with mock.patch.dict(os.environ, {}, clear=True):

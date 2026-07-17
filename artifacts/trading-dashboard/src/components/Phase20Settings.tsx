@@ -56,6 +56,7 @@ interface Phase20SettingsData {
   cooldown_minutes: number;
   email_alerts_enabled: boolean;
   email_alert_address: string;
+  daily_summary_email_enabled: boolean;
   config_hash: string;
   confirmation_text: string;
 }
@@ -447,10 +448,23 @@ export default function Phase20Settings() {
             <Switch id="email_alerts_enabled" checked={draft.email_alerts_enabled}
               onCheckedChange={(v) => setField("email_alerts_enabled", v)} />
           </div>
+          <div className="flex items-center justify-between rounded border border-zinc-800 px-3 py-2">
+            <div>
+              <Label htmlFor="daily_summary_email_enabled" className="text-zinc-300">
+                Daily summary email at market close
+              </Label>
+              <p className="text-[11px] text-zinc-500">
+                After the market closes, email a daily digest — trades, P&amp;L, win rate and open
+                positions — to the alert address below. Opt-in, sent once per trading day.
+              </p>
+            </div>
+            <Switch id="daily_summary_email_enabled" checked={draft.daily_summary_email_enabled}
+              onCheckedChange={(v) => setField("daily_summary_email_enabled", v)} />
+          </div>
           <div className="grid gap-1.5 sm:max-w-sm">
             <Label className="text-zinc-400">Alert email address</Label>
             <Input type="email" placeholder="you@example.com" className="text-xs"
-              disabled={!draft.email_alerts_enabled}
+              disabled={!draft.email_alerts_enabled && !draft.daily_summary_email_enabled}
               value={draft.email_alert_address ?? ""}
               onChange={(e) => setField("email_alert_address", e.target.value)} />
           </div>

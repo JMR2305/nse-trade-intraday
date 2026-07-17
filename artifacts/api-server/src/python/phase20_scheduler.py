@@ -112,12 +112,26 @@ def _maybe_generate_session_report(mstate: str) -> Any:
         out = {"generated": True, "date": today_ist,
                "files": result.get("files", []),
                "warnings": result.get("warnings", [])}
+        p22_report = None
         try:  # Phase 22 daily close report (JSON/CSV/PDF)
             from phase22_report import export_daily_report
             p22 = export_daily_report()
             out["phase22_files"] = p22.get("files", [])
+            p22_report = p22.get("report")
         except Exception as exc:
             out["phase22_error"] = str(exc)[:200]
+        try:  # Opt-in daily performance summary email (never breaks the tick)
+            from email_alerts import maybe_send_daily_summary_email
+            if p22_report is None:
+                try:
+                    from phase22_report import build_daily_report
+                    p22_report = build_daily_report()
+                except Exception:
+                    p22_report = None
+            out["summary_email"] = maybe_send_daily_summary_email(p22_report)
+        except Exception as exc:
+            out["summary_email"] = {"sent": False, "reason": "ERROR",
+                                    "error": str(exc)[:200]}
         return out
     except Exception as exc:  # report generation must never break the tick
         return {"generated": False, "error": str(exc)[:200]}

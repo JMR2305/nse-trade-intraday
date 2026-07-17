@@ -68,11 +68,14 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     # CIRCUIT_BREAKER_TRIPPED notifications to this address.
     "email_alerts_enabled": False,
     "email_alert_address": "",
+    # Daily performance summary email at market close (opt-in, same address).
+    "daily_summary_email_enabled": False,
 }
 
 # Keys excluded from the reproducibility config hash (meta, not behaviour).
 _HASH_EXCLUDE = {"auto_paper_entries_confirmed_at",
-                 "email_alerts_enabled", "email_alert_address"}
+                 "email_alerts_enabled", "email_alert_address",
+                 "daily_summary_email_enabled"}
 
 
 def _now() -> datetime:

@@ -166,6 +166,119 @@ def maybe_send_alert_email(kind: str, title: str, body: str = "",
         return {"sent": False, "reason": "ERROR", "error": str(exc)[:300]}
 
 
+def _fmt_inr(value: Any) -> str:
+    try:
+        num = float(value or 0)
+    except (TypeError, ValueError):
+        num = 0.0
+    sign = "-" if num < 0 else ""
+    return f"{sign}Rs {abs(num):,.2f}"
+
+
+def _compose_daily_summary(report: Optional[Dict[str, Any]]) -> Dict[str, str]:
+    """Compose the daily performance summary email body.
+
+    Uses the Phase 22 daily report when available; win rate and open
+    positions are derived from the paper-trade ledger / portfolio directly.
+    Any sub-source failure degrades to 'unavailable' — never raises.
+    """
+    report = report or {}
+    day = str(report.get("report_date") or
+              datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+
+    exits_today = []
+    try:
+        from phase20_executor import get_ledger
+        ledger = get_ledger(500)
+        exits_today = [t for t in ledger if t.get("status") == "CLOSED"
+                       and str(t.get("exit_ts") or "").startswith(day)]
+    except Exception as exc:  # noqa: BLE001
+        _log(f"daily summary: ledger unavailable: {str(exc)[:200]}")
+
+    wins = sum(1 for t in exits_today
+               if float(t.get("realized_pnl") or 0) > 0)
+    win_rate = (f"{wins}/{len(exits_today)} "
+                f"({100.0 * wins / len(exits_today):.0f}%)"
+                if exits_today else "n/a (no closed trades today)")
+
+    positions_lines = []
+    unrealized_total = None
+    try:
+        from paper_trader import get_portfolio
+        pf = get_portfolio()
+        positions = pf.get("positions", []) or []
+        unrealized_total = round(sum(float(p.get("pnl") or 0)
+                                     for p in positions), 2)
+        for p in positions[:20]:
+            positions_lines.append(
+                f"  - {p.get('symbol', '?')}: qty {p.get('quantity', '?')}, "
+                f"unrealized P&L {_fmt_inr(p.get('pnl'))}")
+        if len(positions) > 20:
+            positions_lines.append(f"  ... and {len(positions) - 20} more")
+        if not positions:
+            positions_lines.append("  (none)")
+    except Exception as exc:  # noqa: BLE001
+        _log(f"daily summary: portfolio unavailable: {str(exc)[:200]}")
+        positions_lines.append("  (unavailable)")
+
+    realized = report.get("realized_pnl")
+    unrealized = report.get("unrealized_pnl", unrealized_total)
+    lines = [
+        f"Daily performance summary — {day}",
+        "",
+        "Trades",
+        f"  Paper entries opened: {report.get('paper_entries_opened', 'n/a')}",
+        f"  Exits completed:      {report.get('exits_completed', len(exits_today))}",
+        f"  Entries blocked:      {report.get('entries_blocked', 'n/a')}",
+        "",
+        "Performance",
+        f"  Realized P&L (today): {_fmt_inr(realized) if realized is not None else 'n/a'}",
+        f"  Unrealized P&L:       {_fmt_inr(unrealized) if unrealized is not None else 'n/a'}",
+        f"  Win rate (today):     {win_rate}",
+        "",
+        "Open positions",
+        *positions_lines,
+        "",
+        f"Scheduled scans completed: {report.get('scheduled_scans_completed', 'n/a')}",
+        f"Failed scans: {report.get('failed_scans', 'n/a')}",
+        "",
+        "PAPER TRADING / RESEARCH ONLY — no real orders are ever placed.",
+        "Open the dashboard for the full daily report and exports.",
+    ]
+    subject = f"[NSE Trading] Daily summary — {day}"[:180]
+    return {"subject": subject, "text": "\n".join(lines)}
+
+
+def maybe_send_daily_summary_email(report: Optional[Dict[str, Any]] = None,
+                                   settings: Optional[Dict[str, Any]] = None
+                                   ) -> Dict[str, Any]:
+    """
+    Send the market-close daily performance summary email if the feature is
+    enabled and configured. Opt-in via daily_summary_email_enabled and the
+    shared email_alert_address. Never raises.
+    """
+    try:
+        if settings is None:
+            import phase20_store as store
+            settings = store.get_settings()
+        if not settings.get("daily_summary_email_enabled"):
+            return {"sent": False, "reason": "DISABLED"}
+        to = str(settings.get("email_alert_address") or "").strip()
+        if not valid_address(to):
+            _log("skipped daily summary: no valid alert address configured")
+            return {"sent": False, "reason": "NO_ADDRESS"}
+        parts = _compose_daily_summary(report)
+        result = _deliver(to, parts["subject"], parts["text"])
+        if result.get("sent"):
+            _log(f"sent daily summary email via {result.get('provider')}")
+        else:
+            _log(f"skipped daily summary: {result.get('reason')}")
+        return result
+    except Exception as exc:  # noqa: BLE001 — must never break the caller
+        _log(f"daily summary delivery failed: {str(exc)[:300]}")
+        return {"sent": False, "reason": "ERROR", "error": str(exc)[:300]}
+
+
 def send_test_email(address: Optional[str] = None) -> Dict[str, Any]:
     """Send a test email to verify configuration. Never raises."""
     try:
