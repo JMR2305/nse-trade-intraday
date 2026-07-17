@@ -287,6 +287,13 @@ def _manage_paper(settings: Dict[str, Any], ran_scan: bool) -> Dict[str, Any]:
                                   "reasons": cb.get("reasons") or []}
     except Exception as exc:
         out["circuit_breaker"] = {"error": str(exc)[:200]}
+    # Performance-degradation alerts (advisory only — losing streak / low
+    # win rate). Notifies via the notification system; never blocks entries.
+    try:
+        from performance_alerts import evaluate_and_notify
+        out["performance_alerts"] = evaluate_and_notify(settings)
+    except Exception as exc:
+        out["performance_alerts"] = {"error": str(exc)[:200]}
     try:
         if settings.get("auto_paper_entries") and settings.get("auto_paper_entries_confirmed_at"):
             from phase20_executor import run_auto_entries

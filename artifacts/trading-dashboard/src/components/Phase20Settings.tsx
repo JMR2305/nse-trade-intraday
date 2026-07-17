@@ -44,6 +44,10 @@ interface Phase20SettingsData {
   risk_per_trade_pct: number;
   daily_loss_limit_pct: number;
   circuit_breaker_loss_threshold: number;
+  perf_alert_enabled: boolean;
+  perf_alert_consecutive_losses: number;
+  perf_alert_min_win_rate_pct: number;
+  perf_alert_window_trades: number;
   fill_model: "LAST_TRADED_PRICE" | "NEXT_QUOTE" | "SLIPPAGE_ADJUSTED";
   slippage_pct: number;
   charges_pct: number;
@@ -81,6 +85,12 @@ const NUMERIC_ENTRY_GATES: { key: keyof Phase20SettingsData; label: string; step
   { key: "min_risk_reward", label: "Min risk / reward", step: "0.1" },
   { key: "max_trades_per_day", label: "Max trades per day", step: "1" },
   { key: "cooldown_minutes", label: "Cooldown (minutes)", step: "1" },
+];
+
+const NUMERIC_PERF_ALERTS: { key: keyof Phase20SettingsData; label: string; step?: string }[] = [
+  { key: "perf_alert_consecutive_losses", label: "Alert after consecutive losses", step: "1" },
+  { key: "perf_alert_min_win_rate_pct", label: "Alert if win rate below %", step: "1" },
+  { key: "perf_alert_window_trades", label: "Win-rate window (last N trades)", step: "1" },
 ];
 
 const NUMERIC_RISK_CAPS: { key: keyof Phase20SettingsData; label: string; step?: string }[] = [
@@ -353,6 +363,39 @@ export default function Phase20Settings() {
             <Switch id="square_off_before_close" checked={draft.square_off_before_close}
               onCheckedChange={(v) => setField("square_off_before_close", v)} />
           </div>
+        </section>
+
+        {/* ── 3b. Performance alerts ── */}
+        <section className="space-y-3 border-t border-zinc-800 pt-4">
+          <h3 className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-zinc-400">
+            <AlertTriangle className="h-3.5 w-3.5 text-primary" />Performance alerts
+          </h3>
+          <div className="flex items-center justify-between rounded border border-zinc-800 px-3 py-2">
+            <div>
+              <Label htmlFor="perf_alert_enabled" className="text-zinc-300">Performance degradation alerts</Label>
+              <p className="text-[11px] text-zinc-500">
+                Adds a notification when the strategy hits a losing streak or the win rate drops,
+                so you can intervene early. Advisory only — never blocks trading.
+              </p>
+            </div>
+            <Switch id="perf_alert_enabled" checked={draft.perf_alert_enabled}
+              onCheckedChange={(v) => setField("perf_alert_enabled", v)} />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {NUMERIC_PERF_ALERTS.map((f) => (
+              <div key={f.key} className="grid gap-1.5">
+                <Label className="text-zinc-400">{f.label}</Label>
+                <Input type="number" step={f.step} className="text-xs"
+                  disabled={!draft.perf_alert_enabled}
+                  value={String(draft[f.key] ?? "")}
+                  onChange={(e) => setNumberField(f.key, e.target.value)} />
+              </div>
+            ))}
+          </div>
+          <p className="text-[11px] text-zinc-500">
+            The win-rate rule only evaluates once at least the configured number of closed trades
+            exists — small samples never trigger an alert.
+          </p>
         </section>
 
         {/* ── 4. Execution model ── */}

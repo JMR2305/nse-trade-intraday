@@ -54,6 +54,10 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "risk_per_trade_pct": 1.0,
     "daily_loss_limit_pct": 3.0,
     "circuit_breaker_loss_threshold": 3,
+    "perf_alert_enabled": True,
+    "perf_alert_consecutive_losses": 3,
+    "perf_alert_min_win_rate_pct": 40.0,
+    "perf_alert_window_trades": 10,
     "fill_model": "SLIPPAGE_ADJUSTED",
     "slippage_pct": 0.15,
     "charges_pct": 0.12,
@@ -212,6 +216,24 @@ def _validate_patch(patch: Dict[str, Any], current: Dict[str, Any]) -> Dict[str,
             if iv < 1 or iv > 10:
                 raise ValueError(
                     "circuit_breaker_loss_threshold must be between 1 and 10")
+            clean[key] = iv
+        elif key == "perf_alert_consecutive_losses":
+            iv = int(float(value))
+            if iv < 1 or iv > 20:
+                raise ValueError(
+                    "perf_alert_consecutive_losses must be between 1 and 20")
+            clean[key] = iv
+        elif key == "perf_alert_min_win_rate_pct":
+            num = float(value)
+            if num < 0 or num > 100:
+                raise ValueError(
+                    "perf_alert_min_win_rate_pct must be between 0 and 100")
+            clean[key] = num
+        elif key == "perf_alert_window_trades":
+            iv = int(float(value))
+            if iv < 3 or iv > 100:
+                raise ValueError(
+                    "perf_alert_window_trades must be between 3 and 100")
             clean[key] = iv
         elif isinstance(default, (int, float)) and not isinstance(default, bool):
             num = float(value)
