@@ -1,0 +1,151 @@
+PHASE 22 PRODUCTION FINALIZATION — ZERODHA PROVIDER AND SCAN-DURATION AUDIT
+
+Current production status:
+
+- Scheduler HEALTHY
+- PAPER_READY
+- 23 scheduled scans completed
+- 0 failed scans
+- 0 missed scans
+- Fresh-data rate 100%
+- Auto paper entries OFF
+- Live-order writes DISABLED
+
+However, production Scan History shows:
+
+“Yahoo Finance (History) — Kite Connect not configured”
+
+Several scheduled scans also took between approximately 400 and 980 seconds even though the configured interval is 5 minutes.
+
+Do not enable auto paper entries.
+
+1. PROVIDER INVESTIGATION
+
+Determine why the production scheduler reports “Kite Connect not configured” even though Kite credentials and login were previously configured.
+
+Verify separately:
+
+- ZERODHA_API_KEY available in production
+- ZERODHA_API_SECRET available in production
+- current access token/session available in production
+- token validity
+- scheduler process can access the same secure session
+- production and development secrets/configurations are not different
+- scheduler is not running in a separate deployment without the required secrets
+
+Clearly distinguish:
+
+- Zerodha live quote provider
+- Yahoo historical provider
+- fallback provider
+- index ticker provider
+
+Do not label Yahoo data as live Zerodha data.
+
+2. PAPER-ENTRY PROVIDER RULE
+
+Automatic paper entries must require an explicitly approved provider.
+
+Safe rule:
+
+- Zerodha current quote: eligible when every other gate passes
+- Yahoo historical/current fallback: research scan only, no automatic paper entry
+- stale or unavailable data: blocked
+
+Record provider and fallback status for every symbol and paper candidate.
+
+3. SCAN-DURATION ROOT CAUSE
+
+Investigate why some scans take 400–980 seconds while recent scans complete in approximately 33 seconds.
+
+Check:
+
+- overlapping scheduler runs
+- lock waiting time included in duration
+- provider timeouts and retries
+- serial symbol fetching
+- repeated historical downloads
+- duplicate phase execution
+- network retry loops
+- stale or abandoned locks
+- queue backlog
+- Autoscale cold starts
+
+Persist separate timings for:
+
+- queue wait
+- lock wait
+- data fetch
+- indicator calculation
+- decision generation
+- derived-cache generation
+- consistency validation
+- database write
+- total duration
+
+4. CONCURRENCY SAFETY
+
+Ensure:
+
+- only one scan executes at a time
+- a new five-minute trigger does not start another scan while one is active
+- skipped triggers are recorded as SKIPPED_ACTIVE_SCAN, not failures
+- locks have safe expiry and heartbeat renewal
+- an abandoned scan can recover safely
+- no partially completed snapshot becomes latest
+
+5. PERFORMANCE TARGET
+
+For a 50-symbol scan:
+
+- normal target under 60 seconds
+- warning above 120 seconds
+- degraded above 300 seconds
+
+Do not weaken validation or reduce the symbol universe merely to meet the target.
+
+6. AUTOMATION HEALTH UI
+
+Display:
+
+- current provider
+- Kite session status
+- last successful Zerodha request
+- scan currently running
+- active scan ID
+- scan stage
+- elapsed time
+- previous scan duration
+- next eligible run
+- triggers skipped because a scan was already active
+- provider fallback count
+
+7. TESTS
+
+Add tests for:
+
+- scheduler can access production Kite configuration
+- expired/missing token switches to fallback research mode
+- fallback provider cannot create automatic paper entries
+- concurrent scheduled triggers create only one scan
+- long scan causes later triggers to be safely skipped
+- abandoned lock recovery
+- timing breakdown accuracy
+- no real Zerodha order endpoint is called
+- live-order write paths remain disabled
+- auto paper entries remain OFF
+
+At completion report:
+
+1. Why Kite was reported as not configured
+2. Whether scheduled scans now use Zerodha
+3. Provider breakdown
+4. Long-scan root cause
+5. Before/after scan durations
+6. Overlap prevention result
+7. Tests passed
+8. Production build result
+9. Confirmation that auto paper entries remain OFF
+10. Confirmation that live-order writes remain disabled
+
+Do not claim completion until at least two unattended scheduled scans complete using the intended provider, without overlap, and with documented timing breakdowns.

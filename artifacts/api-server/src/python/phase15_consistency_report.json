@@ -1,8 +1,8 @@
 {
   "available": true,
-  "checked_at": "2026-07-17T07:55:09Z",
-  "scan_id": "624e1c690796",
-  "snapshot_ts": "2026-07-17T07:54:25Z",
+  "checked_at": "2026-07-17T08:44:30Z",
+  "scan_id": "3f9cc2356a5e",
+  "snapshot_ts": "2026-07-17T08:43:45Z",
   "sources_checked": [
     {
       "source": "ai_decision",

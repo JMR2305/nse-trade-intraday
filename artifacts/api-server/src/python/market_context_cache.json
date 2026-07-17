@@ -2,12 +2,12 @@
   "score": 30.0,
   "bias": "BEARISH",
   "confidence_modifier": -15.0,
-  "nifty_price": 24267.9,
+  "nifty_price": 24278.5,
   "nifty_trend": "SIDEWAYS",
-  "nifty_change_pct": 0.25,
-  "banknifty_price": 58038.85,
+  "nifty_change_pct": 0.3,
+  "banknifty_price": 58211.35,
   "banknifty_trend": "SIDEWAYS",
-  "banknifty_change_pct": -0.01,
+  "banknifty_change_pct": 0.29,
   "vix": 18.0,
   "vix_category": "NORMAL",
   "market_breadth": 0.0,
@@ -21,5 +21,5 @@
     "AUTO": 50.0
   },
   "regime": "SIDEWAYS",
-  "computed_at": "2026-07-17T07:55:09.104552"
+  "computed_at": "2026-07-17T08:44:29.822617"
 }
