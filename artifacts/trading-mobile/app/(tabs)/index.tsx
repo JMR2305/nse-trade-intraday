@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Skeleton } from "@/components/Skeleton";
+import { FreshnessLabel } from "@/components/FreshnessLabel";
 import { StaleBanner } from "@/components/StaleBanner";
 import { useColors } from "@/hooks/useColors";
 import { useOfflineSnapshot } from "@/lib/offlineCache";
@@ -226,6 +227,9 @@ export default function DashboardScreen() {
             </Text>
           </View>
         </View>
+        {!portfolioStale && (
+          <FreshnessLabel ts={dataUpdatedAt} color={colors.primaryForeground + "aa"} style={{ marginTop: 12 }} />
+        )}
       </View>
 
       <View style={styles.statsRow}>

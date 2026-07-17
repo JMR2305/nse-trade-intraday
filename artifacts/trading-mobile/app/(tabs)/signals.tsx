@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SkeletonCard } from "@/components/Skeleton";
+import { FreshnessLabel } from "@/components/FreshnessLabel";
 import { StaleBanner } from "@/components/StaleBanner";
 import { useColors } from "@/hooks/useColors";
 import { useOfflineSnapshot } from "@/lib/offlineCache";
@@ -185,7 +186,10 @@ export default function SignalsScreen() {
           { paddingTop: topPadding + 16, backgroundColor: colors.background, borderBottomColor: colors.border },
         ]}
       >
-        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Signals</Text>
+        <View>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>Signals</Text>
+          {!signalsStale && !decisionsSnapshot.isStale && <FreshnessLabel ts={dataUpdatedAt} />}
+        </View>
         <Pressable
           style={[styles.scanBtn, { backgroundColor: colors.primary }, (isScanning || isFetching) && { opacity: 0.6 }]}
           onPress={handleScan}
