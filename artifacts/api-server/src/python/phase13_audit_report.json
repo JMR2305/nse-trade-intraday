@@ -1,110 +1,31 @@
 {
   "phase": 13,
   "engine_version": "Research Engine v1.0 \u00b7 Phase 13",
-  "generated_at": "2026-07-16T19:45:03Z",
+  "generated_at": "2026-07-17T18:19:12Z",
   "label": "PAPER / RESEARCH ONLY",
   "mode": "out_of_sample_paper_trade_comparison",
   "note": "No engine-tagged trades yet \u2014 both columns show the same completed paper trades. Engine attribution will differentiate as trades accumulate.",
   "phase13": {
     "engine": "Phase 13 (current)",
-    "trade_count": 3,
-    "win_rate": 0.6667,
-    "expectancy_after_costs": 146.59,
-    "profit_factor": 7.44,
-    "avg_win": 254.06,
-    "avg_loss": 68.34,
-    "gross_profit": 508.12,
-    "gross_loss": 68.34,
-    "total_net_pnl": 439.77,
-    "total_gross_pnl": 465.0,
-    "total_brokerage": 25.23,
-    "max_drawdown_pct": 23.44,
-    "sharpe_approx": 7.08,
-    "turnover": 12380.0,
-    "sector_concentration": {
-      "top_sector": null,
-      "top_sector_share_pct": 0.0,
-      "sector_breakdown": {}
-    },
-    "regime_stability": {
-      "dominant_regime": null,
-      "dominant_regime_share_pct": 0.0,
-      "regime_breakdown": {}
-    },
-    "benchmark": {
-      "name": "NIFTY 50 (approx)",
-      "annual_return_pct": 14.0,
-      "strategy_total_pnl_pct": 8.8,
-      "benchmark_pnl_pct": 0.58,
-      "alpha_pct": 8.22
-    },
-    "insufficient_data": false
+    "trade_count": 0,
+    "insufficient_data": true,
+    "note": "No completed paper trades available for analysis."
   },
   "phase12": {
     "engine": "Phase 12 (baseline)",
-    "trade_count": 3,
-    "win_rate": 0.6667,
-    "expectancy_after_costs": 146.59,
-    "profit_factor": 7.44,
-    "avg_win": 254.06,
-    "avg_loss": 68.34,
-    "gross_profit": 508.12,
-    "gross_loss": 68.34,
-    "total_net_pnl": 439.77,
-    "total_gross_pnl": 465.0,
-    "total_brokerage": 25.23,
-    "max_drawdown_pct": 23.44,
-    "sharpe_approx": 7.08,
-    "turnover": 12380.0,
-    "sector_concentration": {
-      "top_sector": null,
-      "top_sector_share_pct": 0.0,
-      "sector_breakdown": {}
-    },
-    "regime_stability": {
-      "dominant_regime": null,
-      "dominant_regime_share_pct": 0.0,
-      "regime_breakdown": {}
-    },
-    "benchmark": {
-      "name": "NIFTY 50 (approx)",
-      "annual_return_pct": 14.0,
-      "strategy_total_pnl_pct": 8.8,
-      "benchmark_pnl_pct": 0.58,
-      "alpha_pct": 8.22
-    },
-    "insufficient_data": false
+    "trade_count": 0,
+    "insufficient_data": true,
+    "note": "No completed paper trades available for analysis."
   },
-  "delta": {
-    "win_rate": {
-      "delta": 0.0,
-      "direction": "same"
-    },
-    "expectancy_after_costs": {
-      "delta": 0.0,
-      "direction": "same"
-    },
-    "profit_factor": {
-      "delta": 0.0,
-      "direction": "same"
-    },
-    "max_drawdown_pct": {
-      "delta": 0.0,
-      "direction": "same"
-    },
-    "sharpe_approx": {
-      "delta": 0.0,
-      "direction": "same"
-    }
-  },
+  "delta": {},
   "calibration_comparison": {
     "phase13_avg_calib_score": 40.0,
     "phase12_avg_calib_score": 40.0
   },
-  "total_completed_trades": 3,
-  "interpretation": "Insufficient evidence (3 trades). Minimum 20 OOS trades needed for reliable comparison.",
+  "total_completed_trades": 0,
+  "interpretation": "Insufficient evidence (0 trades). Minimum 20 OOS trades needed for reliable comparison.",
   "caveats": [
-    "Based on 3 completed paper trades \u2014 live performance may differ.",
+    "Based on 0 completed paper trades \u2014 live performance may differ.",
     "No live broker orders placed. All analysis is research-only.",
     "Small sample sizes reduce statistical reliability.",
     "Regime and sector conditions during backtesting may not repeat."

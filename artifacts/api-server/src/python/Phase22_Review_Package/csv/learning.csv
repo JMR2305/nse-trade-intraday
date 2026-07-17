@@ -1,4 +1,4 @@
 Field,Value
-total_trades,3
-computed_at,2026-07-16T19:44:20.082635
-overall_warning,Only 3 completed trade(s) across all strategies — the learning engine needs at least 10 trades per strategy before recommendations are reliable.
+total_trades,0
+computed_at,2026-07-17T18:18:25.892872
+overall_warning,Only 0 completed trade(s) across all strategies — the learning engine needs at least 10 trades per strategy before recommendations are reliable.

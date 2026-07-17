@@ -1,22 +1,22 @@
 {
   "success": true,
-  "generated_at": "2026-07-16T19:44:20Z",
+  "generated_at": "2026-07-17T18:18:26Z",
   "version": "15.0",
   "items": [
     {
       "item": "unified_scan_context",
       "status": "PASS",
-      "detail": "Canonical scan aa5b77339d01 \u2014 single scan_id/snapshot_ts: True"
+      "detail": "Canonical scan 94b265fb4a47 \u2014 single scan_id/snapshot_ts: True"
     },
     {
       "item": "cross_page_consistency",
-      "status": "PASS",
-      "detail": "132 checks, 0 mismatches"
+      "status": "FAIL",
+      "detail": "132 checks, 90 mismatches"
     },
     {
       "item": "no_stale_data",
       "status": "PASS",
-      "detail": "Scan age 1m"
+      "detail": "Scan age 6m"
     },
     {
       "item": "data_quality_engine",
@@ -26,12 +26,12 @@
     {
       "item": "risk_engine",
       "status": "PASS",
-      "detail": "Gate on INDUSINDBK: CLEARED (10/10 checks passed)"
+      "detail": "Gate on INDUSINDBK: BLOCKED (9/10 checks passed)"
     },
     {
       "item": "paper_trading",
       "status": "PASS",
-      "detail": "Portfolio value \u20b95465.00, 1 positions, 3 completed round trips"
+      "detail": "Portfolio value \u20b95000.00, 0 positions, 0 completed round trips"
     },
     {
       "item": "ai_explainability",
@@ -51,13 +51,15 @@
     {
       "item": "audit_logging",
       "status": "PASS",
-      "detail": "Audit record for scan aa5b77339d01"
+      "detail": "Audit record for scan 94b265fb4a47"
     }
   ],
-  "pass_count": 10,
+  "pass_count": 9,
   "warn_count": 0,
-  "fail_count": 0,
-  "verdict": "READY",
-  "remaining_issues": [],
+  "fail_count": 1,
+  "verdict": "NOT_READY",
+  "remaining_issues": [
+    "cross_page_consistency: 132 checks, 90 mismatches"
+  ],
   "label": "PAPER / RESEARCH ONLY"
 }

@@ -1,69 +1,30 @@
 {
   "success": true,
   "month": "2026-07",
-  "portfolio_value": 5465.0,
-  "portfolio_growth_pct": 9.3,
-  "paper_trades_completed": 3,
-  "win_rate": 66.7,
-  "profit_factor": 8.75,
-  "expectancy": 155.0,
-  "max_drawdown": -60.0,
-  "strategy_ranking": [
-    {
-      "strategy_name": "AI Scan",
-      "trades": 3,
-      "win_rate": 66.7,
-      "profit_factor": 8.75,
-      "expectancy": 155.0,
-      "total_pnl": 465.0,
-      "max_drawdown": -60.0
-    }
-  ],
-  "sector_ranking": [
-    {
-      "sector": "BANKING",
-      "trades": 3,
-      "win_rate": 66.7,
-      "profit_factor": 8.75,
-      "expectancy": 155.0,
-      "total_pnl": 465.0,
-      "max_drawdown": -60.0
-    }
-  ],
-  "regime_performance": [
-    {
-      "regime": "BULLISH",
-      "trades": 1,
-      "win_rate": 100.0,
-      "profit_factor": "All wins",
-      "expectancy": 300.0,
-      "total_pnl": 300.0,
-      "max_drawdown": 0.0
-    },
-    {
-      "regime": "LOW_VOLATILITY",
-      "trades": 2,
-      "win_rate": 50.0,
-      "profit_factor": 3.75,
-      "expectancy": 82.5,
-      "total_pnl": 165.0,
-      "max_drawdown": -60.0
-    }
-  ],
+  "portfolio_value": 5000.0,
+  "portfolio_growth_pct": 0.0,
+  "paper_trades_completed": 0,
+  "win_rate": "Insufficient Data",
+  "profit_factor": "Insufficient Data",
+  "expectancy": "Insufficient Data",
+  "max_drawdown": "Insufficient Data",
+  "strategy_ranking": [],
+  "sector_ranking": [],
+  "regime_performance": [],
   "confidence_calibration": {
     "<50": "Insufficient Data",
-    "50-70": "0/1 wins",
-    ">=70": "2/2 wins"
+    "50-70": "Insufficient Data",
+    ">=70": "Insufficient Data"
   },
-  "opportunity_score_validation": "Requires closed trades with stored opportunity scores \u2014 3 closed this month",
+  "opportunity_score_validation": "Requires closed trades with stored opportunity scores \u2014 Insufficient Data",
   "risk_metrics": {
-    "max_drawdown": -60.0,
-    "open_positions": 1
+    "max_drawdown": "Insufficient Data",
+    "open_positions": 0
   },
   "data_provider_reliability": {
     "stale_scan_days": 0,
-    "days_with_symbol_errors": 2,
-    "notebook_days": 2
+    "days_with_symbol_errors": 3,
+    "notebook_days": 3
   },
   "qa_trend": [
     {
@@ -86,8 +47,8 @@
     "runs_this_month": 3
   },
   "learning_progress": {
-    "notebook_days": 2,
-    "notes_recorded": 12,
+    "notebook_days": 3,
+    "notes_recorded": 14,
     "lessons_recorded": 0
   },
   "open_research_questions": [
@@ -97,6 +58,38 @@
   ],
   "human_approved_changes": "Tracked via issue log and notes \u2014 no automatic changes exist.",
   "issues_this_month": [
+    {
+      "issue_id": "ISS-0017",
+      "date": "2026-07-17",
+      "severity": "LOW",
+      "page": "test",
+      "description": "unit-test issue",
+      "related_scan_id": null,
+      "related_trade_id": null,
+      "reproducible": false,
+      "status": "VERIFIED",
+      "resolution": "test done",
+      "resolved_date": "2026-07-17",
+      "notes": [],
+      "created_at": "2026-07-17T18:19:04.154074+00:00",
+      "updated_at": "2026-07-17T18:19:04.154654+00:00"
+    },
+    {
+      "issue_id": "ISS-0016",
+      "date": "2026-07-17",
+      "severity": "LOW",
+      "page": "test",
+      "description": "unit-test issue",
+      "related_scan_id": null,
+      "related_trade_id": null,
+      "reproducible": false,
+      "status": "VERIFIED",
+      "resolution": "test done",
+      "resolved_date": "2026-07-17",
+      "notes": [],
+      "created_at": "2026-07-17T18:14:42.039103+00:00",
+      "updated_at": "2026-07-17T18:14:42.040144+00:00"
+    },
     {
       "issue_id": "ISS-0015",
       "date": "2026-07-17",
@@ -340,24 +333,22 @@
   ],
   "production_readiness_progress": {
     "trading_sessions": {
-      "value": 2,
+      "value": 3,
       "target": 50,
-      "pct": 4.0
+      "pct": 6.0
     },
     "completed_paper_trades": {
-      "value": 3,
+      "value": 0,
       "target": 100,
-      "pct": 3.0
+      "pct": 0.0
     },
     "market_regimes_covered": {
-      "value": 3,
+      "value": 1,
       "target": 3,
       "regimes": [
-        "BULLISH",
-        "LOW_VOLATILITY",
         "SIDEWAYS"
       ],
-      "pct": 100.0
+      "pct": 33.3
     },
     "unresolved_critical_issues": {
       "value": 0,

@@ -2,10 +2,10 @@
   "success": true,
   "week_start": "2026-07-13",
   "week_end": "2026-07-19",
-  "trading_days_completed": 2,
+  "trading_days_completed": 3,
   "finalized_days": 0,
   "completed_paper_trades": 0,
-  "open_paper_trades": 1,
+  "open_paper_trades": 0,
   "weekly_pnl": "Insufficient Data",
   "win_rate": "Insufficient Data",
   "profit_factor": "Insufficient Data",
@@ -25,9 +25,9 @@
   "common_success_patterns": [
     "Insufficient Data"
   ],
-  "data_quality_incidents": 2,
+  "data_quality_incidents": 3,
   "qa_failures": 0,
-  "cross_page_consistency_issues": 1,
+  "cross_page_consistency_issues": 2,
   "research_questions_next_week": [
     "Investigate data-quality incidents recorded this week.",
     "No completed paper trades this week \u2014 is the workflow being exercised daily?",

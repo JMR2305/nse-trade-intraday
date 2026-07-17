@@ -1,12 +1,40 @@
 # Phase 22 Implementation Summary — Controlled Auto Paper Trading & Evidence Accumulation
 
 - **Phase:** 22
-- **Date:** 2026-07-16 19:45 UTC
+- **Date:** 2026-07-17 18:19 UTC
 - **Scope rule respected:** automated PAPER trading only; live-order writes remain disabled;
   auto paper entries default OFF and require the exact typed confirmation "ENABLE PAPER ONLY".
   No real Zerodha orders are possible. PAPER / RESEARCH ONLY.
 
-## Phase 22 features added (latest)
+## Phase 22 final production fix (latest — session sharing & scan performance)
+- **Daily Zerodha session model** — Kite tokens expire at the next 06:00 IST after
+  creation. Expiry checks are fail-safe: a missing or unparseable token timestamp is
+  treated as EXPIRED, never trusted (kite_token_store.token_expiry_utc / is_expired;
+  kite_quote_provider._env_token_expired). Expired tokens are filtered out of
+  kite_token_store.load() by default.
+- **Production session sharing** — the token store is Postgres-durable, so one login
+  through the published app's "Login with Zerodha" button lasts the whole trading day
+  across all server instances. Dev and production databases are separate: production
+  requires its own daily login via the published app.
+- **Session status API** — /api/kite/status now returns token_expired,
+  token_expires_at and daily_login_required alongside connection_state.
+- **Daily-login UI** — KiteConnect page shows a daily-login-required banner when no
+  active session exists or the previous token expired at 06:00 IST.
+- **Long-scan root cause fixed** — production scans of 770-990s were caused by 50
+  serial yfinance calls (0.25s throttle + up to 3 retries with 2s/4s back-off each).
+  LiveDataProvider.fetch_batch() now performs ONE bulk multi-ticker download with a
+  per-symbol retry fallback only for stragglers; full 50-symbol scans verified at
+  ~28-36s. Fallback provenance is an explicit via_fallback flag per symbol.
+- **Extended timing breakdown** — scan timings now include provider_auth_s,
+  symbols_fallback_fetched and symbols_failed (in addition to lock_wait_s, fetch_s,
+  analysis_s, db_write_s, retry_events, total_scan_s), persisted per scan run and
+  displayed in the Automation Health scan-history detail rows.
+- **test_phase22_session.py** — 16 unit tests (token expiry boundaries at 06:00 IST,
+  fail-safe malformed-timestamp handling, expired-token filtering, env-token guard,
+  bulk fetch single-call path, per-symbol fallback, bulk-failure fallback) — all
+  mocked, no network or broker calls.
+
+## Phase 22 features added
 - **phase22_readiness.py** — 16-check activation readiness checklist (data freshness,
   fallback status, market hours, scheduler health, capital, safety config, etc.);
   activation is blocked until every check passes.
@@ -135,13 +163,14 @@
   as warm caches / fallback.
 
 ## Tests
+- Phase 22 session & bulk-fetch suite: 16 passed, 0 failed
 - Phase 22 suite: 65 passed, 0 failed
 - Phase 21 suite: 100 passed, 0 failed
 - Phase 20 suite: 38 passed, 0 failed
 - Phase 19 suite: 46 passed, 0 failed
-- Phase 18 suite: 26 passed, 0 failed
+- Phase 18 suite: 38 passed, 0 failed
 - Phase 17 suite: 63 passed, 0 failed
-- Phase 16 suite: 52 passed, 0 failed
+- Phase 16 suite: 44 passed, 0 failed
 - Phase 15 suite: 68 passed, 0 failed
 - Phase 13/14 regression suites: see test_results.csv.
 

@@ -202,11 +202,13 @@ def _csv_risk(out: str, risk: dict):
 # ── Reports ──────────────────────────────────────────────────────────────────
 
 def _implementation_summary(t15: dict, t16: dict, t17: dict, t18: dict, t19: dict = None,
-                            t20: dict = None, t21: dict = None, t22: dict = None) -> str:
+                            t20: dict = None, t21: dict = None, t22: dict = None,
+                            t22s: dict = None) -> str:
     t19 = t19 or {}
     t20 = t20 or {}
     t21 = t21 or {}
     t22 = t22 or {}
+    t22s = t22s or {}
     return f"""# Phase {PHASE} Implementation Summary — Controlled Auto Paper Trading & Evidence Accumulation
 
 - **Phase:** {PHASE}
@@ -215,7 +217,35 @@ def _implementation_summary(t15: dict, t16: dict, t17: dict, t18: dict, t19: dic
   auto paper entries default OFF and require the exact typed confirmation "ENABLE PAPER ONLY".
   No real Zerodha orders are possible. PAPER / RESEARCH ONLY.
 
-## Phase 22 features added (latest)
+## Phase 22 final production fix (latest — session sharing & scan performance)
+- **Daily Zerodha session model** — Kite tokens expire at the next 06:00 IST after
+  creation. Expiry checks are fail-safe: a missing or unparseable token timestamp is
+  treated as EXPIRED, never trusted (kite_token_store.token_expiry_utc / is_expired;
+  kite_quote_provider._env_token_expired). Expired tokens are filtered out of
+  kite_token_store.load() by default.
+- **Production session sharing** — the token store is Postgres-durable, so one login
+  through the published app's "Login with Zerodha" button lasts the whole trading day
+  across all server instances. Dev and production databases are separate: production
+  requires its own daily login via the published app.
+- **Session status API** — /api/kite/status now returns token_expired,
+  token_expires_at and daily_login_required alongside connection_state.
+- **Daily-login UI** — KiteConnect page shows a daily-login-required banner when no
+  active session exists or the previous token expired at 06:00 IST.
+- **Long-scan root cause fixed** — production scans of 770-990s were caused by 50
+  serial yfinance calls (0.25s throttle + up to 3 retries with 2s/4s back-off each).
+  LiveDataProvider.fetch_batch() now performs ONE bulk multi-ticker download with a
+  per-symbol retry fallback only for stragglers; full 50-symbol scans verified at
+  ~28-36s. Fallback provenance is an explicit via_fallback flag per symbol.
+- **Extended timing breakdown** — scan timings now include provider_auth_s,
+  symbols_fallback_fetched and symbols_failed (in addition to lock_wait_s, fetch_s,
+  analysis_s, db_write_s, retry_events, total_scan_s), persisted per scan run and
+  displayed in the Automation Health scan-history detail rows.
+- **test_phase22_session.py** — 16 unit tests (token expiry boundaries at 06:00 IST,
+  fail-safe malformed-timestamp handling, expired-token filtering, env-token guard,
+  bulk fetch single-call path, per-symbol fallback, bulk-failure fallback) — all
+  mocked, no network or broker calls.
+
+## Phase 22 features added
 - **phase22_readiness.py** — 16-check activation readiness checklist (data freshness,
   fallback status, market hours, scheduler health, capital, safety config, etc.);
   activation is blocked until every check passes.
@@ -344,6 +374,7 @@ def _implementation_summary(t15: dict, t16: dict, t17: dict, t18: dict, t19: dic
   as warm caches / fallback.
 
 ## Tests
+- Phase 22 session & bulk-fetch suite: {t22s.get('passed', 0)} passed, {t22s.get('failed', 0)} failed{'' if t22s.get('ran') else f' ({NA} — suite did not run)'}
 - Phase 22 suite: {t22.get('passed', 0)} passed, {t22.get('failed', 0)} failed{'' if t22.get('ran') else f' ({NA} — suite did not run)'}
 - Phase 21 suite: {t21.get('passed', 0)} passed, {t21.get('failed', 0)} failed{'' if t21.get('ran') else f' ({NA} — suite did not run)'}
 - Phase 20 suite: {t20.get('passed', 0)} passed, {t20.get('failed', 0)} failed{'' if t20.get('ran') else f' ({NA} — suite did not run)'}
@@ -482,6 +513,9 @@ def build_package(screenshots_dir: str | None = None) -> dict:
     t22 = _run_tests("test_phase22.py")
     if not t22["ran"]:
         warnings.append("Phase 22 test suite could not be executed")
+    t22s = _run_tests("test_phase22_session.py")
+    if not t22s["ran"]:
+        warnings.append("Phase 22 session/bulk-fetch test suite could not be executed")
     phase18_entries = safe("phase18 notebook entries",
                            lambda: __import__("phase18_notebook").list_entries(), {})
     phase18_evidence = safe("phase18 evidence tracker",
@@ -582,7 +616,7 @@ def build_package(screenshots_dir: str | None = None) -> dict:
 
     # 4/5. Reports
     open(os.path.join(PACKAGE_DIR, "implementation_summary.md"), "w").write(
-        _implementation_summary(t15, t16, t17, t18, t19, t20, t21, t22))
+        _implementation_summary(t15, t16, t17, t18, t19, t20, t21, t22, t22s))
     open(os.path.join(PACKAGE_DIR, "production_readiness.md"), "w").write(
         _production_readiness_md(readiness, consistency, quality, diagnostics, t15))
 
@@ -649,6 +683,12 @@ def build_package(screenshots_dir: str | None = None) -> dict:
          "Phase 22 — exports/Phase22_Daily_*"],
         ["Phase 22 dashboard panels (7 pages)", "Yes", "Yes", "Yes",
          "Dashboard, Trade Decisions, Trades, Trade Replay, Learning, Live Data Health, Broker & Execution"],
+        ["Daily Zerodha session (fail-safe 06:00 IST expiry)", "Yes", "Yes", "Yes",
+         "Phase 22 final fix — expired/malformed tokens never trusted; daily-login banner + API flags"],
+        ["Bulk multi-ticker scan fetch (~30s for 50 symbols)", "Yes", "Yes", "Yes",
+         "Phase 22 final fix — replaced 50 serial fetches (770-990s); explicit via_fallback provenance"],
+        ["Extended scan timing breakdown", "Yes", "Yes", "Yes",
+         "provider_auth_s, symbols_fallback_fetched, symbols_failed surfaced in Automation Health"],
         ["Review package generator", "Yes", "Yes", "Partial", "Tested via generation run itself"],
         ["Paper trading engine / scanner / strategies", "Yes", "Yes", "Yes", "Built in earlier phases 1-14"],
         ["Real-money execution", "No", "No", "No", "Deliberately not implemented — research only"],
@@ -660,6 +700,8 @@ def build_package(screenshots_dir: str | None = None) -> dict:
     t13 = _run_tests("test_phase13.py")
     t14 = _run_tests("test_phase14.py")
     test_rows = [
+        ["Unit Tests — Phase 22 session & bulk-fetch suite", t22s["passed"] if t22s["ran"] else NA,
+         t22s["failed"] if t22s["ran"] else NA, 0],
         ["Unit Tests — Phase 22 suite", t22["passed"] if t22["ran"] else NA,
          t22["failed"] if t22["ran"] else NA, 0],
         ["Unit Tests — Phase 21 suite", t21["passed"] if t21["ran"] else NA,

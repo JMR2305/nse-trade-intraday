@@ -1,20 +1,6 @@
 {
   "strategies": [
     {
-      "strategy_id": "ai_scan",
-      "strategy_name": "AI Scan",
-      "total_trades": 3,
-      "win_rate": 66.7,
-      "profit_factor": 8.75,
-      "expectancy": 155.0,
-      "net_pnl": 465.0,
-      "current_weight": 1.0,
-      "recommended_weight": 1.0,
-      "direction": "hold",
-      "reason": "Not enough data yet to adjust weight.",
-      "reliability_warning": "Only 3 completed trade(s) \u2014 sample size below the 10-trade threshold for reliable statistics. Recommendation held at current weight."
-    },
-    {
       "strategy_id": "ema_cross",
       "strategy_name": "EMA Cross",
       "total_trades": 0,
@@ -99,7 +85,7 @@
       "reliability_warning": "No data \u2014 weight unchanged."
     }
   ],
-  "total_trades": 3,
-  "computed_at": "2026-07-16T19:44:20.082635",
-  "overall_warning": "Only 3 completed trade(s) across all strategies \u2014 the learning engine needs at least 10 trades per strategy before recommendations are reliable."
+  "total_trades": 0,
+  "computed_at": "2026-07-17T18:18:25.892872",
+  "overall_warning": "Only 0 completed trade(s) across all strategies \u2014 the learning engine needs at least 10 trades per strategy before recommendations are reliable."
 }

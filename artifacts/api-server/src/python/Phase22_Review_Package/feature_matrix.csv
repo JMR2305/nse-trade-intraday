@@ -38,6 +38,9 @@ Append-only evidence dataset (all candidates incl. blocked),Yes,Yes,Yes,Phase 22
 Evidence progress milestones (10→500),Yes,Yes,Yes,Phase 22
 Daily close report + JSON/CSV/PDF exports,Yes,Yes,Yes,Phase 22 — exports/Phase22_Daily_*
 Phase 22 dashboard panels (7 pages),Yes,Yes,Yes,"Dashboard, Trade Decisions, Trades, Trade Replay, Learning, Live Data Health, Broker & Execution"
+Daily Zerodha session (fail-safe 06:00 IST expiry),Yes,Yes,Yes,Phase 22 final fix — expired/malformed tokens never trusted; daily-login banner + API flags
+Bulk multi-ticker scan fetch (~30s for 50 symbols),Yes,Yes,Yes,Phase 22 final fix — replaced 50 serial fetches (770-990s); explicit via_fallback provenance
+Extended scan timing breakdown,Yes,Yes,Yes,"provider_auth_s, symbols_fallback_fetched, symbols_failed surfaced in Automation Health"
 Review package generator,Yes,Yes,Partial,Tested via generation run itself
 Paper trading engine / scanner / strategies,Yes,Yes,Yes,Built in earlier phases 1-14
 Real-money execution,No,No,No,Deliberately not implemented — research only

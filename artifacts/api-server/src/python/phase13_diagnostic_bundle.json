@@ -1,14 +1,14 @@
 {
   "bundle_version": 1,
   "phase": 13,
-  "generated_at": "2026-07-16T19:45:03Z",
+  "generated_at": "2026-07-17T18:19:12Z",
   "engine_version": "Research Engine v1.0 \u00b7 Phase 13",
   "mode": "PAPER_TRADING_RESEARCH_ONLY",
   "label": "PAPER / RESEARCH ONLY",
   "market_status": {
     "state": "CLOSED",
     "is_open": false,
-    "now_ist": "2026-07-17T01:15:03.680503+05:30",
+    "now_ist": "2026-07-17T23:49:12.254856+05:30",
     "timezone": "Asia/Kolkata",
     "session": {
       "pre_open": "09:00",
@@ -19,8 +19,8 @@
     "holiday_today": null,
     "next_transition": {
       "event": "market_open",
-      "at_ist": "2026-07-17T09:15:00+05:30",
-      "seconds_until": 28796
+      "at_ist": "2026-07-20T09:15:00+05:30",
+      "seconds_until": 206747
     },
     "upcoming_holidays": [
       {
@@ -43,8 +43,8 @@
     "provider_id": "yfinance",
     "circuit_breaker": "CLOSED",
     "consecutive_failures": 0,
-    "last_success_ts": "2026-07-16T19:41:37Z",
-    "total_fetches": 165,
+    "last_success_ts": "2026-07-17T18:17:24Z",
+    "total_fetches": 228,
     "total_errors": 0,
     "cached_symbols": 3,
     "quote_ttl_s": 20.0,
@@ -61,7 +61,7 @@
       "CRISIS": 0.0
     },
     "prev_regime": "RANGE_BOUND",
-    "regime_duration_bars": 2,
+    "regime_duration_bars": 6,
     "regime_changed": false,
     "score_multiplier": 0.95,
     "eligible_strategies": [
@@ -78,25 +78,25 @@
   "sector_rotation_top3": [
     {
       "sector": "BANKING",
-      "avg_score": 36.4,
+      "avg_score": 36.6,
       "stock_count": 6,
-      "vs_median": 12.8,
+      "vs_median": 13.7,
       "momentum": "STRONG",
       "rank": 1
     },
     {
       "sector": "ENERGY",
-      "avg_score": 28.8,
+      "avg_score": 32.9,
       "stock_count": 5,
-      "vs_median": 5.2,
-      "momentum": "OUTPERFORMING",
+      "vs_median": 10.0,
+      "momentum": "STRONG",
       "rank": 2
     },
     {
       "sector": "FINANCE",
-      "avg_score": 26.1,
+      "avg_score": 27.2,
       "stock_count": 5,
-      "vs_median": 2.5,
+      "vs_median": 4.3,
       "momentum": "OUTPERFORMING",
       "rank": 3
     }
@@ -135,13 +135,13 @@
   },
   "scan_staleness": {
     "stale": false,
-    "age_minutes": 79.5
+    "age_minutes": 0.7
   },
   "audit_summary": {
-    "trade_count": 3,
-    "interpretation": "Insufficient evidence (3 trades). Minimum 20 OOS trades needed for reliable comparison.",
-    "p13_expectancy": 146.59,
-    "p12_expectancy": 146.59
+    "trade_count": 0,
+    "interpretation": "Insufficient evidence (0 trades). Minimum 20 OOS trades needed for reliable comparison.",
+    "p13_expectancy": null,
+    "p12_expectancy": null
   },
   "strategy_evolution": {
     "pending_proposals": 0,
@@ -149,7 +149,7 @@
   },
   "sample_counts": {
     "symbols_analyzed": 50,
-    "completed_trades": 3
+    "completed_trades": 0
   },
   "self_tests": {
     "results": [
@@ -166,7 +166,7 @@
       {
         "test": "no_lookahead_sell_only",
         "pass": true,
-        "detail": "n=3"
+        "detail": "n=0"
       },
       {
         "test": "no_lookahead_timestamps",
@@ -226,8 +226,8 @@
     {
       "file": "phase13_cache.json",
       "exists": true,
-      "size_bytes": 147509,
-      "modified": "2026-07-16T19:45:03Z"
+      "size_bytes": 148266,
+      "modified": "2026-07-17T18:19:12Z"
     },
     {
       "file": "phase13_proposals.json",
@@ -238,32 +238,32 @@
     {
       "file": "phase13_audit_report.json",
       "exists": true,
-      "size_bytes": 3146,
-      "modified": "2026-07-16T19:45:03Z"
+      "size_bytes": 1269,
+      "modified": "2026-07-17T18:19:12Z"
     },
     {
       "file": "phase13_diagnostic_bundle.json",
       "exists": true,
-      "size_bytes": 6534,
-      "modified": "2026-07-16T19:41:06Z"
+      "size_bytes": 6524,
+      "modified": "2026-07-17T18:14:50Z"
     },
     {
       "file": "phase13_summary.csv",
       "exists": true,
-      "size_bytes": 2284,
-      "modified": "2026-07-16T19:41:06Z"
+      "size_bytes": 2272,
+      "modified": "2026-07-17T18:14:50Z"
     },
     {
       "file": "phase7_scan_cache.json",
       "exists": true,
-      "size_bytes": 65772,
-      "modified": "2026-07-16T19:45:03Z"
+      "size_bytes": 65943,
+      "modified": "2026-07-17T18:19:11Z"
     },
     {
       "file": "market_context_cache.json",
       "exists": true,
-      "size_bytes": 566,
-      "modified": "2026-07-15T19:07:23Z"
+      "size_bytes": 557,
+      "modified": "2026-07-17T18:12:48Z"
     }
   ],
   "errors": {},

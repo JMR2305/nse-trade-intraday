@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-07-16T19:45:03.477768+00:00",
+  "checked_at": "2026-07-17T18:19:12.004825+00:00",
   "all_passed": false,
   "activation_allowed": false,
   "failed_checks": [
@@ -10,12 +10,12 @@
     {
       "check": "latest_scan_fresh",
       "passed": true,
-      "detail": "scan_id=aa5b77339d01, age=160.0s, stale=False"
+      "detail": "scan_id=94b265fb4a47, age=426.0s, stale=False"
     },
     {
       "check": "canonical_scan_id_consistent",
       "passed": true,
-      "detail": "meta=aa5b77339d01 vs snapshot=aa5b77339d01"
+      "detail": "meta=94b265fb4a47 vs snapshot=94b265fb4a47"
     },
     {
       "check": "quote_provider_approved",
@@ -35,7 +35,7 @@
     {
       "check": "scheduler_healthy",
       "passed": true,
-      "detail": "health=HEALTHY, last_attempt=2026-07-16T19:44:20Z"
+      "detail": "health=HEALTHY, last_attempt=2026-07-17T18:18:23Z"
     },
     {
       "check": "durable_database_connected",
@@ -55,7 +55,7 @@
     {
       "check": "cash_and_risk_limits_loaded",
       "passed": true,
-      "detail": "risk config loaded=True, simulated cash=\u20b94,600"
+      "detail": "risk config loaded=True, simulated cash=\u20b95,000"
     },
     {
       "check": "daily_loss_limit_active",
