@@ -1,0 +1,329 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+const BASE = process.env.EXPO_PUBLIC_DOMAIN
+  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
+  : "/api";
+
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+  });
+  const text = await res.text();
+  let data: unknown = {};
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new ApiError(`Non-JSON response (${res.status})`, res.status);
+    }
+  }
+  if (!res.ok) {
+    const msg =
+      typeof data === "object" && data !== null && "error" in data
+        ? String((data as { error: unknown }).error)
+        : `Request failed (${res.status})`;
+    throw new ApiError(msg, res.status);
+  }
+  return data as T;
+}
+
+// ---------- Types (normalized) ----------
+
+export interface LiveDataHealth {
+  marketState: string;
+  marketLabel?: string;
+  provider?: string;
+  circuitBreaker: string;
+  consecutiveFailures: number;
+  lastSuccessTs?: string | null;
+  totalFetches?: number;
+  totalErrors?: number;
+  lastScanTs?: string | null;
+  connectionStatus?: string;
+  qualitySummary?: Record<string, number>;
+  avgLatencyMs?: number;
+}
+
+export interface Phase20Settings {
+  auto_scan_enabled?: boolean;
+  scan_interval_minutes?: number;
+  auto_paper_entries?: boolean;
+  auto_paper_exits?: boolean;
+  min_confidence?: number;
+  max_trades_per_day?: number;
+  [key: string]: unknown;
+}
+
+export interface SchedulerHealth {
+  status?: string;
+  detail?: string;
+  last_attempt_at?: string | null;
+  last_success_at?: string | null;
+  next_due_at?: string | null;
+  missed_count?: number;
+  [key: string]: unknown;
+}
+
+export interface MonitorNotification {
+  id: string;
+  ts?: string;
+  type?: string;
+  severity?: string;
+  title?: string;
+  message?: string;
+  read?: boolean;
+}
+
+export interface Phase20Position {
+  symbol?: string;
+  entry_ts?: string;
+  qty?: number;
+  quantity?: number;
+  entry_price?: number;
+  current_price?: number;
+  pnl?: number;
+  pnl_pct?: number;
+  status?: string;
+  stop_loss?: number;
+  target?: number;
+  [key: string]: unknown;
+}
+
+export interface Phase20Positions {
+  positions: Phase20Position[];
+  summary: { total_pnl: number; open_count: number };
+}
+
+export interface KiteStatus {
+  provider?: string;
+  credentials_present?: boolean;
+  token_status?: string;
+  token_age_hours?: number | null;
+  token_expiry_note?: string;
+  [key: string]: unknown;
+}
+
+export interface RiskKillSwitch {
+  active?: boolean;
+  triggered_at?: string | null;
+  reason?: string | null;
+}
+
+export interface BrokerStatus {
+  execution_mode?: string;
+  broker?: {
+    connected?: boolean;
+    broker?: string;
+    user_id?: string;
+    token_status?: string;
+    is_mock?: boolean;
+    note?: string;
+  };
+  safety_controls?: { kill_switch?: boolean; [key: string]: unknown };
+}
+
+// ---------- Hooks ----------
+
+export function useLiveDataHealth() {
+  return useQuery({
+    queryKey: ["monitor", "live-data-health-v2"],
+    queryFn: async (): Promise<LiveDataHealth> => {
+      const raw = await apiJson<{
+        market?: { state?: string; label?: string };
+        quote_provider?: {
+          provider?: string;
+          circuit_breaker?: string;
+          consecutive_failures?: number;
+          last_success_ts?: string | null;
+          total_fetches?: number;
+          total_errors?: number;
+        };
+        scan_provider_health?: {
+          snapshot_ts?: string | null;
+          connection_status?: string;
+          quality_summary?: Record<string, number>;
+          avg_latency_ms?: number;
+        };
+      }>("/live-data/health-v2");
+      const qp = raw.quote_provider;
+      const sp = raw.scan_provider_health;
+      return {
+        marketState: raw.market?.state ?? "UNKNOWN",
+        marketLabel: raw.market?.label,
+        provider: qp?.provider,
+        circuitBreaker: qp?.circuit_breaker ?? "UNKNOWN",
+        consecutiveFailures: qp?.consecutive_failures ?? 0,
+        lastSuccessTs: qp?.last_success_ts,
+        totalFetches: qp?.total_fetches,
+        totalErrors: qp?.total_errors,
+        lastScanTs: sp?.snapshot_ts,
+        connectionStatus: sp?.connection_status,
+        qualitySummary: sp?.quality_summary,
+        avgLatencyMs: sp?.avg_latency_ms,
+      };
+    },
+    refetchInterval: 60_000,
+  });
+}
+
+export function usePhase20Settings() {
+  return useQuery({
+    queryKey: ["monitor", "phase20-settings"],
+    queryFn: async (): Promise<Phase20Settings> => {
+      const raw = await apiJson<{ settings?: Phase20Settings }>("/phase20/settings");
+      return raw.settings ?? {};
+    },
+  });
+}
+
+export function useDisableAutoPaperEntries() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiJson("/phase20/settings", {
+        method: "PUT",
+        body: JSON.stringify({ patch: { auto_paper_entries: false } }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["monitor", "phase20-settings"] });
+    },
+  });
+}
+
+export function useSchedulerHealth() {
+  return useQuery({
+    queryKey: ["monitor", "scheduler-health"],
+    queryFn: async (): Promise<SchedulerHealth> => {
+      const raw = await apiJson<{ scheduler?: SchedulerHealth }>("/phase20/scheduler/health");
+      return raw.scheduler ?? {};
+    },
+    refetchInterval: 60_000,
+  });
+}
+
+export function useNotifications() {
+  return useQuery({
+    queryKey: ["monitor", "notifications"],
+    queryFn: async (): Promise<MonitorNotification[]> => {
+      const raw = await apiJson<{
+        notifications?: {
+          id?: number | string;
+          kind?: string;
+          severity?: string;
+          title?: string;
+          body?: string;
+          created_at?: string;
+          read?: boolean;
+        }[];
+      }>("/phase20/notifications?limit=100");
+      return (raw.notifications ?? []).map((n) => ({
+        id: String(n.id ?? ""),
+        ts: n.created_at,
+        type: n.kind,
+        severity: n.severity,
+        title: n.title,
+        message: n.body,
+        read: n.read,
+      }));
+    },
+    refetchInterval: 60_000,
+  });
+}
+
+export function useMarkNotificationsRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: string[] | null) =>
+      apiJson("/phase20/notifications/read", {
+        method: "POST",
+        body: JSON.stringify({ ids: ids ? ids.map((i) => Number(i)) : null }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["monitor", "notifications"] });
+    },
+  });
+}
+
+export function usePhase20Positions() {
+  return useQuery({
+    queryKey: ["monitor", "phase20-positions"],
+    queryFn: async (): Promise<Phase20Positions> => {
+      const raw = await apiJson<{ positions?: Phase20Position[] }>("/phase20/positions");
+      const positions = Array.isArray(raw.positions) ? raw.positions : [];
+      const total_pnl = positions.reduce((sum, p) => sum + (typeof p.pnl === "number" ? p.pnl : 0), 0);
+      return { positions, summary: { total_pnl, open_count: positions.length } };
+    },
+    refetchInterval: 60_000,
+  });
+}
+
+export function useKiteStatus() {
+  return useQuery({
+    queryKey: ["monitor", "kite-status"],
+    queryFn: () => apiJson<KiteStatus>("/kite/status"),
+    refetchInterval: 120_000,
+  });
+}
+
+export function useRiskKillSwitch() {
+  return useQuery({
+    queryKey: ["monitor", "risk-kill-switch"],
+    queryFn: async (): Promise<RiskKillSwitch> => {
+      const raw = await apiJson<{ kill_switch?: RiskKillSwitch }>("/risk/kill-switch");
+      return raw.kill_switch ?? {};
+    },
+    refetchInterval: 60_000,
+  });
+}
+
+export function useWatchlist() {
+  return useQuery({
+    queryKey: ["monitor", "watchlist"],
+    queryFn: async (): Promise<string[]> => {
+      const raw = await apiJson<{ watchlist?: string[] }>("/watchlist");
+      return Array.isArray(raw.watchlist) ? raw.watchlist : [];
+    },
+  });
+}
+
+export function useAddWatchlistSymbol() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (symbol: string) =>
+      apiJson("/watchlist", {
+        method: "POST",
+        body: JSON.stringify({ symbol: symbol.trim().toUpperCase() }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["monitor", "watchlist"] });
+    },
+  });
+}
+
+export function useRemoveWatchlistSymbol() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (symbol: string) =>
+      apiJson(`/watchlist/${encodeURIComponent(symbol)}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["monitor", "watchlist"] });
+    },
+  });
+}
+
+export function useBrokerStatus() {
+  return useQuery({
+    queryKey: ["monitor", "broker-status"],
+    queryFn: () => apiJson<BrokerStatus>("/broker/status"),
+    refetchInterval: 120_000,
+  });
+}

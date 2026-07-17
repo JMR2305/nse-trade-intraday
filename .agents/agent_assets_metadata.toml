@@ -1,5 +1,10 @@
 uploads = []
-generated = []
+
+[[generated]]
+id = "AaP4q6muFo7WN68lXp1m9"
+uri = "file://artifacts/trading-mobile/assets/images/icon.png"
+type = "image"
+title = "generated_image"
 
 [[outputs]]
 id = "9ZRZOqPgYv1etZQeNnU91"
