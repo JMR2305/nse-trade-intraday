@@ -2678,6 +2678,23 @@ router.get("/phase20/email/preview-daily-summary", async (_req, res) => {
   }
 });
 
+// GET /api/phase20/email/preview-alert — compose a sample critical-alert email
+// (new formatted HTML style) without sending it, for an in-app preview
+router.get("/phase20/email/preview-alert", async (_req, res) => {
+  try {
+    const result = (await runPython([
+      "phase20_email_preview_alert",
+    ])) as Record<string, unknown>;
+    if (result && result["success"] === false) {
+      res.status(400).json(result);
+      return;
+    }
+    res.json(result);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // POST /api/phase20/email/send-daily-summary — send today's summary email now
 router.post("/phase20/email/send-daily-summary", async (_req, res) => {
   try {

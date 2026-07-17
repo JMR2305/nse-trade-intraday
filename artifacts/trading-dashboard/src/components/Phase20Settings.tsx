@@ -134,6 +134,8 @@ export default function Phase20Settings() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [preview, setPreview] = useState<{ subject: string; text: string; html: string } | null>(null);
   const [previewMode, setPreviewMode] = useState<"html" | "text">("html");
+  const [previewKind, setPreviewKind] = useState<"summary" | "alert">("summary");
+  const [previewAlertLoading, setPreviewAlertLoading] = useState(false);
 
   // Auto paper entries confirmation dialog state
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -215,11 +217,33 @@ export default function Phase20Settings() {
         html: String(d.html ?? ""),
       });
       setPreviewMode(d.html ? "html" : "text");
+      setPreviewKind("summary");
       setPreviewOpen(true);
     } catch (e: any) {
       toast({ title: "Preview failed", description: e.message, variant: "destructive" });
     } finally {
       setPreviewLoading(false);
+    }
+  };
+
+  const previewAlertEmail = async () => {
+    setPreviewAlertLoading(true);
+    try {
+      const r = await fetch(`${API_BASE}/phase20/email/preview-alert`);
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || d.success === false) throw new Error(d.error ?? `HTTP ${r.status}`);
+      setPreview({
+        subject: String(d.subject ?? ""),
+        text: String(d.text ?? ""),
+        html: String(d.html ?? ""),
+      });
+      setPreviewMode(d.html ? "html" : "text");
+      setPreviewKind("alert");
+      setPreviewOpen(true);
+    } catch (e: any) {
+      toast({ title: "Preview failed", description: e.message, variant: "destructive" });
+    } finally {
+      setPreviewAlertLoading(false);
     }
   };
 
@@ -522,6 +546,11 @@ export default function Phase20Settings() {
               Send test email
             </Button>
             <Button size="sm" variant="outline" className="gap-2 text-xs"
+              onClick={previewAlertEmail} disabled={previewAlertLoading}>
+              {previewAlertLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
+              Preview alert email
+            </Button>
+            <Button size="sm" variant="outline" className="gap-2 text-xs"
               onClick={sendDailySummaryNow}
               disabled={sendingSummary || !(draft.email_alert_address ?? "").trim() || !(emailStatus?.configured)}>
               {sendingSummary ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
@@ -542,6 +571,11 @@ export default function Phase20Settings() {
               </span>
             ))}
           </div>
+          <p className="text-[11px] text-zinc-500">
+            "Send test email" delivers a sample alert in the new formatted HTML style — the same
+            layout used by performance and circuit-breaker alerts — so you can check how it renders
+            in your email client. "Preview alert email" shows the same design here without sending.
+          </p>
           <p className="text-[11px] text-zinc-500">
             Delivery failures are logged and never interrupt scanning or paper trading. Remember to
             save settings after changing the address or toggle.
@@ -642,10 +676,13 @@ export default function Phase20Settings() {
         <DialogContent className="max-w-2xl font-mono">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Mail className="h-5 w-5 text-primary" />Daily summary email preview
+              <Mail className="h-5 w-5 text-primary" />
+              {previewKind === "alert" ? "Alert email preview" : "Daily summary email preview"}
             </DialogTitle>
             <DialogDescription className="text-xs text-zinc-400">
-              This is exactly what today's summary email will contain. Nothing has been sent.
+              {previewKind === "alert"
+                ? "This is the new formatted style used by critical alerts (performance and circuit-breaker). Nothing has been sent."
+                : "This is exactly what today's summary email will contain. Nothing has been sent."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 text-xs">
@@ -681,7 +718,7 @@ export default function Phase20Settings() {
               </div>
               {previewMode === "html" && preview?.html ? (
                 <iframe
-                  title="Daily summary email preview"
+                  title={previewKind === "alert" ? "Alert email preview" : "Daily summary email preview"}
                   sandbox=""
                   srcDoc={preview.html}
                   className="h-[50vh] w-full rounded border border-zinc-800 bg-white"
