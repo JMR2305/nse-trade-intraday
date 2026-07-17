@@ -78,6 +78,9 @@ def _ensure_schema(conn) -> None:
             """
         )
         cur.execute(
+            "ALTER TABLE paper_trades ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ"
+        )
+        cur.execute(
             "CREATE INDEX IF NOT EXISTS paper_trades_symbol_idx ON paper_trades (symbol)"
         )
         cur.execute(
@@ -146,27 +149,78 @@ def save_state(state: Dict[str, Any]) -> None:
     _write_json_fallback(state)
 
 
-# ── Delete all trades (portfolio reset) ──────────────────────────────────────
+# ── Archive all trades (portfolio reset — soft reset, never deletes) ─────────
 
-def delete_all_trades() -> None:
+ARCHIVE_FALLBACK_FILE = os.path.join(_DIR, "trades_archive.json")
+
+
+def archive_all_trades() -> None:
     """
-    Remove all trade records — called by portfolio reset.
+    Mark all current-session trades as archived — called by portfolio reset.
+    Trade rows are NEVER deleted; they are stamped with archived_at so the
+    active session starts clean while history remains queryable.
     Raises on DB failure when DATABASE_URL is set.
     """
     if not db_available():
+        # Local-dev fallback: move current trades into trades_archive.json
+        state = _read_json_fallback()
+        trades = state.get("trades", [])
+        if not trades:
+            return
+        archived_at = datetime.now(timezone.utc).isoformat()
+        existing: List[Dict[str, Any]] = []
+        if os.path.exists(ARCHIVE_FALLBACK_FILE):
+            try:
+                with open(ARCHIVE_FALLBACK_FILE, "r") as f:
+                    existing = json.load(f)
+            except (json.JSONDecodeError, IOError):
+                existing = []
+        for t in trades:
+            t = dict(t)
+            t["archived_at"] = archived_at
+            existing.append(t)
+        with open(ARCHIVE_FALLBACK_FILE, "w") as f:
+            json.dump(existing, f, indent=2, default=str)
         return
 
     conn = _connect()
     try:
         _ensure_schema(conn)
         with conn.cursor() as cur:
-            cur.execute("DELETE FROM paper_trades")
+            cur.execute(
+                "UPDATE paper_trades SET archived_at = NOW() WHERE archived_at IS NULL"
+            )
         conn.commit()
     except Exception:
         conn.rollback()
         raise
     finally:
         conn.close()
+
+
+def load_all_trades_any() -> List[Dict[str, Any]]:
+    """
+    Return ALL trades — current session AND archived (all-time history),
+    oldest first. Archived trades carry an `archived_at` field.
+    """
+    if db_available():
+        conn = _connect()
+        try:
+            _ensure_schema(conn)
+            return _load_all_trades(conn, include_archived=True)
+        finally:
+            conn.close()
+
+    # Local-dev fallback: archive file + current state trades
+    archived: List[Dict[str, Any]] = []
+    if os.path.exists(ARCHIVE_FALLBACK_FILE):
+        try:
+            with open(ARCHIVE_FALLBACK_FILE, "r") as f:
+                archived = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            archived = []
+    current = _read_json_fallback().get("trades", [])
+    return archived + list(current)
 
 
 # ── Internal DB helpers ───────────────────────────────────────────────────────
@@ -191,13 +245,15 @@ def _load_portfolio_row(conn) -> Optional[Dict[str, Any]]:
     }
 
 
-def _load_all_trades(conn) -> List[Dict[str, Any]]:
+def _load_all_trades(conn, include_archived: bool = False) -> List[Dict[str, Any]]:
+    where = "" if include_archived else "WHERE archived_at IS NULL"
     with conn.cursor() as cur:
         cur.execute(
-            """
+            f"""
             SELECT id, symbol, action, quantity, price, total,
-                   trade_ts, reason, metadata
+                   trade_ts, reason, metadata, archived_at
             FROM paper_trades
+            {where}
             ORDER BY trade_ts ASC, created_at ASC
             """
         )
@@ -205,7 +261,7 @@ def _load_all_trades(conn) -> List[Dict[str, Any]]:
 
     trades = []
     for (tid, symbol, action, quantity, price, total,
-         trade_ts, reason, metadata) in rows:
+         trade_ts, reason, metadata, archived_at) in rows:
         if isinstance(metadata, str):
             metadata = json.loads(metadata)
         meta = metadata or {}
@@ -220,6 +276,10 @@ def _load_all_trades(conn) -> List[Dict[str, Any]]:
                           if hasattr(trade_ts, "isoformat") else str(trade_ts)),
             "reason":    reason or "",
         }
+        if archived_at is not None:
+            trade["archived_at"] = (archived_at.isoformat()
+                                    if hasattr(archived_at, "isoformat")
+                                    else str(archived_at))
         trade.update(meta)
         trades.append(trade)
     return trades

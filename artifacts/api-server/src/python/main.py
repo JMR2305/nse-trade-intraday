@@ -107,6 +107,11 @@ def cmd_trades() -> list:
     return list(get_trades())
 
 
+def cmd_trades_all() -> list:
+    from paper_trader import get_all_trades
+    return list(get_all_trades())
+
+
 def cmd_trade_replay() -> list:
     return list(get_trade_replay())
 
@@ -478,6 +483,8 @@ def main():
             result = cmd_market_context()
         elif command == "trades":
             result = cmd_trades()
+        elif command == "trades_all":
+            result = cmd_trades_all()
         elif command == "trade_replay":
             result = cmd_trade_replay()
         elif command == "strategy_performance":

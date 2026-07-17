@@ -641,7 +641,16 @@ def get_portfolio(current_prices: Optional[dict[str, float]] = None) -> Portfoli
     return _compute_portfolio(state, prices)
 
 
+def get_all_trades() -> list[dict]:
+    """Return ALL trades — current session and archived — newest first."""
+    return list(reversed(_store.load_all_trades_any()))
+
+
 def reset_portfolio() -> None:
-    """Reset the portfolio to initial state (₹5,000 cash, no positions)."""
-    _store.delete_all_trades()
+    """
+    Soft-reset the portfolio to initial state (₹5,000 cash, no positions).
+    Trade history is NEVER deleted — existing trades are archived
+    (stamped with archived_at) and remain available as all-time history.
+    """
+    _store.archive_all_trades()
     _save_state(_store._default_state())

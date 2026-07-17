@@ -1,5 +1,7 @@
 import React from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useGetTrades, getGetTradesQueryKey } from "@workspace/api-client-react";
+import { apiJson } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -14,16 +16,70 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import DataFreshnessBar from "@/components/DataFreshnessBar";
 import { Phase20LedgerTable } from "@/components/Phase20Lifecycle";
 
+interface HistTrade {
+  id: string;
+  symbol: string;
+  action: string;
+  quantity: number;
+  price: number;
+  total: number;
+  timestamp: string;
+  reason?: string;
+  archived_at?: string;
+}
+
 export default function Trades() {
-  const { data: trades, isLoading } = useGetTrades({
-    query: { queryKey: getGetTradesQueryKey(), refetchInterval: 30000 },
+  const [scope, setScope] = React.useState<"session" | "all">("session");
+
+  const sessionQuery = useGetTrades({
+    query: {
+      queryKey: getGetTradesQueryKey(),
+      refetchInterval: 30000,
+      enabled: scope === "session",
+    },
   });
+
+  const allQuery = useQuery<HistTrade[]>({
+    queryKey: ["trades", "all"],
+    queryFn: () => apiJson<HistTrade[]>("/trades?scope=all"),
+    refetchInterval: 30000,
+    enabled: scope === "all",
+  });
+
+  const trades = (scope === "session" ? sessionQuery.data : allQuery.data) as
+    | HistTrade[]
+    | undefined;
+  const isLoading = scope === "session" ? sessionQuery.isLoading : allQuery.isLoading;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto h-full flex flex-col">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Trade History</h1>
-        <p className="text-muted-foreground text-sm mt-1">Complete log of all algorithmic paper trades.</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Trade History</h1>
+          <p className="text-muted-foreground text-sm mt-1">Complete log of all algorithmic paper trades.</p>
+        </div>
+        <div className="flex rounded-md border border-border/50 overflow-hidden text-xs font-mono">
+          <button
+            onClick={() => setScope("session")}
+            className={`px-3 py-1.5 uppercase tracking-wider transition-colors ${
+              scope === "session"
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted/30 text-muted-foreground hover:bg-muted/60"
+            }`}
+          >
+            Current Session
+          </button>
+          <button
+            onClick={() => setScope("all")}
+            className={`px-3 py-1.5 uppercase tracking-wider transition-colors ${
+              scope === "all"
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted/30 text-muted-foreground hover:bg-muted/60"
+            }`}
+          >
+            All Time
+          </button>
+        </div>
       </div>
 
       <DataFreshnessBar
@@ -62,7 +118,17 @@ export default function Trades() {
                       <TableCell className="text-muted-foreground font-mono whitespace-nowrap text-sm">
                         {formatDate(trade.timestamp)}
                       </TableCell>
-                      <TableCell className="font-bold">{trade.symbol}</TableCell>
+                      <TableCell className="font-bold">
+                        {trade.symbol}
+                        {scope === "all" && trade.archived_at && (
+                          <Badge
+                            variant="outline"
+                            className="ml-2 text-[10px] border-border/60 text-muted-foreground"
+                          >
+                            ARCHIVED
+                          </Badge>
+                        )}
+                      </TableCell>
                       <TableCell>
                          <Badge 
                            variant="outline" 

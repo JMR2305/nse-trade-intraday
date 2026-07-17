@@ -24,3 +24,5 @@ Portfolio state (cash, positions, pnl_history) and individual trade records live
 
 ## TypeScript / Drizzle
 The same three tables are declared in `lib/db/src/schema/index.ts` as Drizzle tables for type-safe TS access. `drizzle-kit push` cannot run non-interactively in Replit's shell — use `executeSql()` in `code_execution` or rely on Python's auto-create.
+
+- Portfolio reset is a SOFT reset: it archives paper_trades (archived_at stamp) via archive_all_trades(); never reintroduce DELETE. Default trade loads filter archived_at IS NULL; all-time via load_all_trades_any() / GET /api/trades?scope=all.

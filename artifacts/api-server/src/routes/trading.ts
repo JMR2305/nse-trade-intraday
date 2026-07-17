@@ -69,9 +69,12 @@ router.get("/signals", async (_req, res) => {
 });
 
 // GET /api/trades
-router.get("/trades", async (_req, res) => {
+// ?scope=all returns all-time history including trades archived by portfolio
+// resets; default returns current-session trades only.
+router.get("/trades", async (req, res) => {
   try {
-    const data = await runPython(["trades"]);
+    const scope = req.query.scope === "all" ? "trades_all" : "trades";
+    const data = await runPython([scope]);
     res.json(data);
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
