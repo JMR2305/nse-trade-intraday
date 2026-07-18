@@ -1,0 +1,37 @@
+uploads = []
+
+[[generated]]
+id = "AaP4q6muFo7WN68lXp1m9"
+uri = "file://artifacts/trading-mobile/assets/images/icon.png"
+type = "image"
+title = "generated_image"
+
+[[outputs]]
+id = "9ZRZOqPgYv1etZQeNnU91"
+uri = "file://attached_assets/screenshots/36830e86-38f2-47db-b0ee-cd777f704977-00-2o9sd95d297k5_sisko_replit_dev.png"
+type = "image"
+title = "Live site — Paper Basket Test visible in sidebar"
+
+[[outputs]]
+id = "onLuA6bYYdsNYzt63as5b"
+uri = "file://exports/paper_basket_outcomes_jul1-6.csv"
+type = "table"
+title = "Paper Basket Outcomes — Jul 1–6, 2026"
+
+[[outputs]]
+id = "iMckoQoZkJaEVykSnw9r4"
+uri = "file://exports/paper_basket_winrate_jun20-jul6.csv"
+type = "table"
+title = "Paper Basket Win Rate & P&L — Jun 20 to Jul 6, 2026"
+
+[[outputs]]
+id = "giV_Gi4PBA1D4NDd2YiD_"
+uri = "file://docs/INTRADAY_KEY_FINDINGS.html"
+type = "unspecified"
+title = "NSE Trader – Intraday Architecture: Key Findings"
+
+[[outputs]]
+id = "Hhs5P9PCi8HIcnxqIYp_1"
+uri = "file://exports/project.zip"
+type = "unspecified"
+title = "Project – Full Source"
