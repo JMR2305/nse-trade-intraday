@@ -1,0 +1,162 @@
+# NSE Trader - Intraday Architecture Review
+
+## Project Objective
+
+I am creating a dedicated AI-powered Intraday Trading Platform by using my existing Swing Trading platform as the foundation.
+
+This is a completely separate project. The Swing Trading project must remain untouched.
+
+IMPORTANT:
+- Do NOT modify any code.
+- Do NOT delete or rename files.
+- Do NOT refactor anything.
+- Do NOT implement new features.
+- Perform analysis only.
+
+------------------------------------------------------------
+
+## Task 1 – Complete Architecture Review
+
+Review the entire project and explain the current architecture.
+
+For EVERY module classify it into one of these categories:
+
+✅ Reuse as-is
+
+🔄 Reuse with modifications
+
+❌ Swing-only (Do not reuse)
+
+🆕 Needs a completely new implementation for Intraday
+
+Review every part of the project including:
+
+• Frontend
+• Backend
+• Authentication
+• Database
+• API Integrations
+• Market Data Pipeline
+• Technical Indicators
+• Feature Engineering
+• AI / Machine Learning
+• Model Training
+• Walk Forward Validation
+• Confidence Scoring
+• Stock Scanner
+• Ranking Engine
+• Trade Signal Generation
+• Risk Management
+• Position Sizing
+• Paper Trading
+• Backtesting
+• Trade Journal
+• Reporting & Analytics
+• Scheduler / Background Jobs
+• Notifications
+• Deployment
+• Environment Variables
+• Secrets Management
+
+------------------------------------------------------------
+
+## Task 2 – Current System
+
+Explain:
+
+1. Current project architecture
+2. Data flow
+3. AI workflow
+4. Training workflow
+5. Signal generation workflow
+6. Database design
+7. Existing strengths
+8. Existing weaknesses
+
+------------------------------------------------------------
+
+## Task 3 – Intraday Migration Plan
+
+Recommend how this Swing Trading platform should evolve into an Intraday Trading platform.
+
+Identify:
+
+• Modules that can be shared
+• Modules that should be separated
+• Modules that should be rewritten
+• Modules that should remain identical
+
+------------------------------------------------------------
+
+## Task 4 – Missing Components
+
+Identify everything missing for a professional Intraday Trading platform including:
+
+• Intraday data pipeline
+• Session-aware indicators
+• VWAP reset
+• Time-of-day features
+• Opening Range Breakout
+• Gap analysis
+• Relative Volume
+• Liquidity filters
+• Intraday Risk Engine
+• Position sizing
+• Cost engine
+• Brokerage calculations
+• Slippage model
+• Square-off rules
+• Paper trading engine
+• Model monitoring
+• Performance analytics
+
+------------------------------------------------------------
+
+## Task 5 – Technical Debt
+
+Identify:
+
+• Duplicate logic
+• Performance bottlenecks
+• Poor architecture
+• Code smells
+• Technical debt
+• Security concerns
+
+------------------------------------------------------------
+
+## Task 6 – Final Deliverables
+
+Produce:
+
+1. High-level architecture diagram (text is fine)
+
+2. Recommended Intraday architecture
+
+3. List of reusable modules
+
+4. List of modules requiring redesign
+
+5. List of completely new modules
+
+6. Risks involved
+
+7. Technical recommendations
+
+8. Phased migration roadmap
+
+------------------------------------------------------------
+
+IMPORTANT
+
+Do NOT modify the project.
+
+Do NOT write code.
+
+Do NOT create files.
+
+Do NOT implement features.
+
+Only perform a detailed architectural review and planning exercise.
+
+At the end, provide your confidence level (High / Medium / Low) for each recommendation and clearly distinguish between facts observed in the code and suggestions based on best practices.
