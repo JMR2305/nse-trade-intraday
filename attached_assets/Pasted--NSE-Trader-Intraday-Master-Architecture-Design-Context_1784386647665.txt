@@ -1,0 +1,558 @@
+# NSE Trader Intraday - Master Architecture Design
+
+## Context
+
+This project is a separate Intraday Trading platform created from the existing Swing Trading platform.
+
+The Swing project must remain completely untouched.
+
+A project strategy and phased architecture plan has already been approved. We will now begin with architecture documentation and Phase 0 planning only.
+
+IMPORTANT:
+- Do not implement any features.
+- Do not modify application code.
+- Do not delete, rename or refactor existing files.
+- Do not change the database.
+- Do not create scheduled jobs.
+- Do not activate real order placement.
+- Analysis and documentation only.
+
+------------------------------------------------------------
+
+## Objective
+
+Create a detailed master architecture document for the Intraday Trading project.
+
+Save the complete document as:
+
+docs/MASTER_ARCHITECTURE.md
+
+Also provide a short summary in the Replit chat.
+
+------------------------------------------------------------
+
+## 1. Project Isolation Architecture
+
+Document how the Intraday project will remain fully independent from the Swing project.
+
+Review and define separation for:
+
+- Replit project and deployment
+- Git repository and branches
+- Environment variables and secrets
+- PostgreSQL database
+- Database tables and migrations
+- Scheduled jobs
+- Background workers
+- Model artifacts
+- Calibration models
+- Trade records
+- Portfolio records
+- Alerts and notifications
+- Zerodha tokens
+- Paper-trading state
+- Cache and JSON state
+- Logging
+- Analytics
+- Frontend routes
+- API endpoints
+
+Identify any existing coupling that could allow the Intraday project to write to or trigger the Swing project.
+
+------------------------------------------------------------
+
+## 2. Target System Architecture
+
+Design the target architecture using the following major layers:
+
+1. Broker and Market Data Adapter
+2. Kite WebSocket Ingestion Service
+3. Tick Normalizer
+4. Session-Aware One-Minute Bar Builder
+5. Intraday Session Store
+6. Data Quality and Freshness Gates
+7. Intraday Feature Store
+8. Heuristic Market Regime Tagger
+9. Strategy Selection Engine
+10. Intraday Strategy Modules
+11. Signal Engine
+12. Expected-Value Ranking Engine
+13. Confidence Aggregator
+14. Intraday Calibration Service
+15. Portfolio Allocation Engine
+16. Intraday Risk Engine
+17. Paper Execution Simulator
+18. NSE Cost and Slippage Engine
+19. Continuous Position Monitor
+20. Independent System Watchdog
+21. Incident and Alert Manager
+22. Trade Journal and Audit Trail
+23. Learning and Model Governance Pipeline
+24. Intraday Dashboard
+25. Session Replay and Reporting
+
+For each layer provide:
+
+- Purpose
+- Inputs
+- Outputs
+- Dependencies
+- Storage requirements
+- Failure behavior
+- Recovery behavior
+- Whether it is reusable, modified or newly implemented
+- Recommended language/process: Node.js, Python or PostgreSQL
+
+------------------------------------------------------------
+
+## 3. Runtime and Service Boundaries
+
+Recommend the runtime design.
+
+The current platform starts Python as a child process for individual requests. Intraday needs a persistent service.
+
+Compare:
+
+- Long-running FastAPI service
+- gRPC Python service
+
+Recommend one for version 1 and explain why.
+
+Define:
+
+- Node.js API responsibilities
+- Python trading engine responsibilities
+- WebSocket data-service responsibilities
+- Watchdog responsibilities
+- PostgreSQL responsibilities
+- Frontend real-time communication
+- Health-check endpoints
+- Startup and shutdown sequence
+
+------------------------------------------------------------
+
+## 4. Mid-Session Recovery Architecture
+
+Design recovery behavior for a crash or deployment restart during market hours.
+
+The system must restore:
+
+- Current intraday session
+- Open paper positions
+- Pending orders
+- Stops and targets
+- Entry-time features
+- Maximum holding timers
+- Square-off timers
+- Latest completed bars
+- Market-data subscription state
+- Risk usage
+- Session realized and unrealized P&L
+
+Define the restart flow:
+
+Process starts
+→ Load current session
+→ Restore internal state
+→ Reconnect market data
+→ Reconcile positions and orders
+→ Restore monitoring
+→ Resume or enter safe mode
+
+PostgreSQL must be the recovery source of truth.
+
+------------------------------------------------------------
+
+## 5. Continuous Trade Monitoring
+
+Design a first-class Position Monitoring Service.
+
+Every open position must be checked for:
+
+### Tick-level checks
+- Stop-loss
+- Profit targets
+- Abnormal spread
+- Tradability and liquidity
+- NSE upper/lower circuit conditions
+
+### Completed-bar checks
+- Maximum holding time
+- Strategy thesis invalidation
+- VWAP failure
+- ORB failure
+- Momentum deterioration
+- Market-regime deterioration
+- Time-of-day exit rules
+
+### Portfolio checks
+- Daily loss cap
+- Maximum open positions
+- Sector exposure
+- Correlation exposure
+- Total capital at risk
+- Mandatory square-off boundary
+
+The position-monitoring service must be independent from the strategy that created the entry.
+
+------------------------------------------------------------
+
+## 6. Independent Watchdog
+
+Design a watchdog that is independent of trading strategy logic.
+
+It must monitor:
+
+- Trading-engine heartbeat
+- Market-data service heartbeat
+- WebSocket state
+- Last tick age per active symbol
+- Last completed-bar age
+- FastAPI liveness
+- Node API liveness
+- PostgreSQL health
+- Memory and resource usage
+- Position and order reconciliation
+- Square-off completion
+- Watchdog's own health
+
+Define heartbeat frequency, stale thresholds and escalation behavior.
+
+------------------------------------------------------------
+
+## 7. Kill-Switch Policy
+
+Design three separate controls:
+
+### Pause New Entries
+Blocks all new entries while existing trades continue to be monitored.
+
+### Cancel Pending Orders
+Cancels all unfilled entry orders without disabling protection for open positions.
+
+### Flatten All
+Cancels pending entries and closes every open position using the emergency execution policy.
+
+Define:
+
+- Automatic triggers
+- Manual authority
+- Authentication
+- Confirmation behavior
+- Idempotency
+- Audit trail
+- Whether each action can be reversed
+- Dashboard presentation
+
+------------------------------------------------------------
+
+## 8. Square-Off Escalation
+
+Design mandatory session square-off behavior:
+
+1. 15:15:00 IST
+   Attempt exit using the configured executable limit price.
+
+2. 15:15:30 IST
+   Cancel unfilled orders and resubmit according to the emergency market-order policy.
+
+3. 15:16:00 IST
+   Retry and trigger a Critical alert.
+
+4. 15:20:00 IST
+   If any position remains open, create an Incident and disable all new trading until resolved.
+
+Account for:
+
+- Exchange outage
+- Broker outage
+- Stock price bands
+- No liquidity
+- Rejected orders
+- Partial fills
+- Network failure
+- Process restart
+
+------------------------------------------------------------
+
+## 9. Data Architecture
+
+Propose the database design for:
+
+- intraday_sessions
+- minute_ohlcv_cache
+- ticks or compressed tick storage
+- feature_snapshots
+- signals
+- strategy_decisions
+- paper_orders
+- paper_fills
+- intraday_positions
+- position_monitor_events
+- risk_snapshots
+- model_predictions
+- calibration_predictions
+- system_heartbeats
+- reconciliation_events
+- incidents
+- alerts
+- audit_logs
+
+For each table identify:
+
+- Primary key
+- Important fields
+- Foreign keys
+- Indexes
+- Retention policy
+- Recovery importance
+
+Do not create migrations yet.
+
+------------------------------------------------------------
+
+## 10. Feature and Strategy Architecture
+
+Version 1 should use a transparent heuristic market-regime tagger rather than a learned classifier.
+
+Initial features should include:
+
+- Session-reset VWAP
+- VWAP standard-deviation bands
+- Relative volume by time slot
+- Opening range
+- Gap percentage and gap type
+- Time-of-day encoding
+- ATR and volatility percentile
+- ADX and directional movement
+- Bid-ask spread
+- Liquidity
+- NIFTY trend and volatility
+- Sector-relative strength
+
+Initial research strategies:
+
+- Opening Range Breakout
+- Momentum Burst
+- Trend Pullback
+- VWAP Reversion
+- Gap-and-Go
+- Gap-Fill
+
+Define a common strategy interface.
+
+------------------------------------------------------------
+
+## 11. Expected Value and Probability Definition
+
+For version 1 define:
+
+Loss Probability = 1 - Win Probability
+
+unless a separately validated multi-outcome model is introduced.
+
+Use expected net value as the main ranking measure:
+
+Expected Value =
+(Calibrated Win Probability × Expected Reward)
+-
+(Loss Probability × Expected Loss)
+-
+Brokerage
+-
+Taxes and exchange charges
+-
+Spread
+-
+Slippage
+-
+Any supported event-risk penalty
+
+Do not include an event-risk penalty unless a real event-data source exists.
+
+------------------------------------------------------------
+
+## 12. Calibration Separation
+
+Define strict separation between:
+
+- Swing calibration model
+- Intraday calibration model
+
+Requirements:
+
+- Separate model artifacts
+- Separate versioning
+- Separate training queries
+- product_type required at database level
+- No fallback to the swing calibration model
+- Uncalibrated output clearly labelled during cold start
+- Every prediction records model version
+- Retraining controlled by governance and drift checks
+
+Also design a single Confidence Aggregator so multiple modules do not independently modify confidence.
+
+------------------------------------------------------------
+
+## 13. Broker Adapter
+
+Create a thin broker interface for version 1.
+
+Implement Zerodha only, but avoid spreading Zerodha-specific logic throughout the application.
+
+Expected interface:
+
+- connect_market_data
+- subscribe_symbols
+- get_quotes
+- submit_order
+- modify_order
+- cancel_order
+- get_orders
+- get_positions
+- get_instruments
+- get_price_bands
+- disconnect
+
+Do not build a large multi-broker plugin framework yet.
+
+------------------------------------------------------------
+
+## 14. Latency Budgets
+
+Use these initial engineering targets:
+
+- Tick received to market-state update: under 250 ms
+- Completed bar to feature update: under 500 ms
+- Feature update to signal and risk decision: under 750 ms
+- Approved decision to paper-order submission: under 500 ms
+- Total completed-bar to paper-order submission: under 2 seconds
+
+Define how each stage will be measured and logged.
+
+------------------------------------------------------------
+
+## 15. Alert and Incident Levels
+
+Define:
+
+### Informational
+Normal session, entry and exit events.
+
+### Warning
+Single reconnect, elevated spread or approaching data-staleness threshold.
+
+### Critical
+Heartbeat loss, position mismatch, risk breach or square-off retry.
+
+### Incident
+Position still open after 15:20, repeated reconciliation failure or watchdog failure.
+
+Critical and Incident conditions must trigger automatic mitigation where possible, not only notifications.
+
+------------------------------------------------------------
+
+## 16. Dashboard Architecture
+
+Design the future dashboard sections:
+
+- Session status
+- System health
+- WebSocket state
+- Data quality per active symbol
+- Current market regime
+- Session P&L
+- Open positions
+- Stop and target status
+- Maximum-hold countdown
+- Square-off countdown
+- Risk utilization
+- Pending orders
+- Alerts and incidents
+- Manual Pause Entries
+- Manual Cancel Pending Orders
+- Manual Flatten All
+- Session replay
+
+No frontend implementation yet.
+
+------------------------------------------------------------
+
+## 17. Phase 0 Checklist
+
+Produce a checkable Phase 0 isolation checklist.
+
+Include:
+
+- Separate Replit project confirmed
+- Separate repository/branch confirmed
+- Separate database confirmed
+- Separate environment variables confirmed
+- Separate model directory confirmed
+- Separate scheduler confirmed
+- No real-order route reachable
+- Swing API cannot be triggered
+- Swing database cannot be written
+- Swing alerts cannot be triggered
+- Baseline Git commit/tag created
+- Existing tests and health status recorded
+
+Clearly identify anything that cannot yet be verified.
+
+------------------------------------------------------------
+
+## 18. Phase A Technical Design
+
+Produce the proposed Phase A scope covering:
+
+- Database design
+- Persistent Python service
+- Kite WebSocket ingestion
+- One-minute bar construction
+- Immediate persistence
+- Node WebSocket server
+- Health checks
+- Recovery manager
+- Watchdog foundation
+- Reconciliation framework
+- Removal of intraday hot-path JSON state
+
+For every task include:
+
+- Dependencies
+- Acceptance tests
+- Failure tests
+- Completion gate
+- Estimated effort
+
+------------------------------------------------------------
+
+## Required Deliverables
+
+Create:
+
+1. docs/MASTER_ARCHITECTURE.md
+2. docs/PHASE_0_ISOLATION_CHECKLIST.md
+3. docs/PHASE_A_TECHNICAL_DESIGN.md
+
+Also provide:
+
+- A text architecture diagram
+- A dependency map
+- A risk register
+- A list of unresolved decisions
+- A recommended implementation sequence
+- Confidence level for each recommendation
+- Clear distinction between code-observed facts and proposed design
+
+IMPORTANT:
+
+Do not modify application code.
+
+Do not implement services.
+
+Do not create database migrations.
+
+Do not activate or test real orders.
+
+Documentation and analysis only.
