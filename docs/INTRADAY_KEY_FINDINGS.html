@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>NSE Trader – Intraday Architecture: Key Findings</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #0d1117;
+    color: #e6edf3;
+    line-height: 1.65;
+    padding: 40px 24px 80px;
+  }
+  .container { max-width: 960px; margin: 0 auto; }
+
+  /* Header */
+  .header {
+    border-left: 5px solid #00b8d4;
+    padding: 18px 24px;
+    background: #161b22;
+    border-radius: 0 8px 8px 0;
+    margin-bottom: 36px;
+  }
+  .header h1 { font-size: 24px; color: #00e5ff; letter-spacing: .5px; }
+  .header p { color: #8b949e; font-size: 13px; margin-top: 6px; }
+
+  /* Sections */
+  h2 {
+    font-size: 17px;
+    color: #58a6ff;
+    border-bottom: 1px solid #30363d;
+    padding-bottom: 6px;
+    margin: 36px 0 16px;
+    text-transform: uppercase;
+    letter-spacing: .8px;
+  }
+  h3 { font-size: 14px; color: #79c0ff; margin: 20px 0 10px; }
+
+  p { font-size: 14px; color: #c9d1d9; margin-bottom: 10px; }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+  thead tr { background: #161b22; }
+  th {
+    text-align: left;
+    padding: 9px 12px;
+    color: #8b949e;
+    font-weight: 600;
+    border-bottom: 2px solid #30363d;
+  }
+  td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #21262d;
+    vertical-align: top;
+  }
+  tr:nth-child(even) { background: #0d1117; }
+  tr:nth-child(odd)  { background: #161b22; }
+
+  /* Badges */
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .high   { background:#1a3b2e; color:#3fb950; border:1px solid #3fb950; }
+  .medium { background:#3b2d1a; color:#d29922; border:1px solid #d29922; }
+  .low    { background:#3b1a1a; color:#f85149; border:1px solid #f85149; }
+
+  /* Module category pills */
+  .reuse   { background:#0d2518; color:#3fb950; border:1px solid #3fb950; }
+  .modify  { background:#1b2a3b; color:#58a6ff; border:1px solid #58a6ff; }
+  .swing   { background:#3b1a1a; color:#f85149; border:1px solid #f85149; }
+  .new-mod { background:#2d1b3b; color:#bc8cff; border:1px solid #bc8cff; }
+
+  /* Callout boxes */
+  .callout {
+    border-left: 4px solid;
+    padding: 14px 18px;
+    border-radius: 0 6px 6px 0;
+    margin: 14px 0;
+    font-size: 13px;
+  }
+  .callout-danger  { border-color:#f85149; background:#1f0a0a; }
+  .callout-info    { border-color:#58a6ff; background:#0a1220; }
+  .callout-success { border-color:#3fb950; background:#0a1a10; }
+  .callout-warn    { border-color:#d29922; background:#1a1200; }
+  .callout strong  { display: block; margin-bottom: 4px; }
+
+  /* Phase roadmap */
+  .phase-row { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 16px; }
+  .phase-num {
+    flex-shrink: 0;
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: #00b8d4;
+    color: #000;
+    font-weight: 700;
+    font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .phase-body { flex: 1; }
+  .phase-body h4 { font-size: 13px; color: #e6edf3; margin-bottom: 4px; }
+  .phase-body p  { font-size: 12px; color: #8b949e; margin: 0; }
+
+  /* Bullet lists */
+  ul { padding-left: 20px; margin-bottom: 12px; }
+  li { font-size: 13px; color: #c9d1d9; margin-bottom: 5px; }
+
+  /* Footer */
+  .footer {
+    margin-top: 60px;
+    padding-top: 16px;
+    border-top: 1px solid #30363d;
+    font-size: 11px;
+    color: #484f58;
+    text-align: center;
+  }
+
+  @media print {
+    body { background:#fff; color:#111; }
+    .header { background:#f0f6ff; border-left-color:#0055cc; }
+    .header h1 { color:#0055cc; }
+    h2 { color:#0055cc; border-color:#ccc; }
+    h3 { color:#0033aa; }
+    tr:nth-child(even) { background:#f8f8f8; }
+    tr:nth-child(odd)  { background:#fff; }
+    thead tr { background:#eee; }
+    .callout-danger  { background:#fff0f0; border-color:#c00; }
+    .callout-info    { background:#f0f6ff; border-color:#0055cc; }
+    .callout-success { background:#f0fff4; border-color:#060; }
+    .callout-warn    { background:#fffbe6; border-color:#996600; }
+    .phase-num { background:#0055cc; color:#fff; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <h1>NSE Trader — Intraday Architecture: Key Findings</h1>
+    <p>Read-only analysis &nbsp;·&nbsp; July 18, 2026 &nbsp;·&nbsp; No code was modified</p>
+  </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <h2>1. Current Architecture Snapshot</h2>
+
+  <p>The existing platform is a <strong>pnpm monorepo</strong> built for <em>swing trading</em> (multi-day holds on NSE equities). It consists of:</p>
+  <ul>
+    <li><strong>React/Vite Web Dashboard</strong> — 43 pages, TanStack Query, Recharts, Tailwind/Radix UI</li>
+    <li><strong>Expo Mobile App</strong> — 6 tab screens, mirrors core dashboard data</li>
+    <li><strong>Node.js/Express API Server</strong> — TypeScript, Pino logging, PostgreSQL via Drizzle ORM</li>
+    <li><strong>Python Trading Engine</strong> — Spawned as a child process per API request (main.py CLI dispatcher)</li>
+    <li><strong>Market Data</strong> — yfinance (daily OHLCV, primary) + Zerodha Kite REST quotes (30 s TTL)</li>
+    <li><strong>Persistence</strong> — PostgreSQL + JSON flat-files for portfolio/scan state</li>
+  </ul>
+
+  <!-- ═══════════════════════════════════════ -->
+  <h2>2. Module Classification Summary</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Category</th>
+        <th>Count</th>
+        <th>Key Examples</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="badge reuse">✅ Reuse as-is</span></td>
+        <td>~25</td>
+        <td>alertQueue, pushNotifier, market_hours, circuit_breaker, trade_intelligence, analytics_engine, phase14 governance, phase17 QA, Express infra</td>
+      </tr>
+      <tr>
+        <td><span class="badge modify">🔄 Reuse with modifications</span></td>
+        <td>~35</td>
+        <td>paper_trader, position_sizer, backtesting_engine, walk_forward_validator, live_data_provider, phase20 executor/scheduler/gates, adaptive_learning, indicator_engine, DB schema</td>
+      </tr>
+      <tr>
+        <td><span class="badge swing">❌ Swing-only — do not reuse</span></td>
+        <td>5</td>
+        <td>signal_engine.py, strategies.py, market_scanner.py, portfolio_manager.py, opportunity_scanner.py</td>
+      </tr>
+      <tr>
+        <td><span class="badge new-mod">🆕 Needs new implementation</span></td>
+        <td>15</td>
+        <td>intraday_signal_engine, vwap_engine, orb_detector, rvol_calculator, intraday_risk_engine, cost_engine, gap_analyser, Kite WebSocket integration, IntradayDashboard page</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ═══════════════════════════════════════ -->
+  <h2>3. Top 5 Obstacles to Intraday</h2>
+
+  <div class="callout callout-danger">
+    <strong>🚧 1 — Daily-bar assumption is pervasive</strong>
+    <code>signal_engine.py</code>, <code>strategies.py</code>, and <code>market_scanner.py</code> are hardcoded for daily OHLCV with no interval abstraction. These must be <em>rewritten</em>, not modified. Touching them risks breaking the swing platform.
+  </div>
+
+  <div class="callout callout-danger">
+    <strong>🚧 2 — Python spawned per request cannot handle 1-min ticks</strong>
+    Cold-start cost is 400–800 ms per request. For intraday at 50–100 API calls/minute, this is a hard throughput ceiling. The hot path needs a long-running FastAPI or gRPC process.
+  </div>
+
+  <div class="callout callout-danger">
+    <strong>🚧 3 — No VWAP, RVOL, ORB, or gap analysis exists anywhere</strong>
+    These four indicators are absent from the entire codebase. They are prerequisites for every intraday strategy and must be built from scratch.
+  </div>
+
+  <div class="callout callout-danger">
+    <strong>🚧 4 — No Kite WebSocket integration</strong>
+    The current 30-second REST polling via <code>kite_quote_provider.py</code> is too stale for intraday. A 30-second-old quote can result in 0.3–0.5% adverse fills. Kite's <code>KiteTicker</code> WebSocket is required.
+  </div>
+
+  <div class="callout callout-danger">
+    <strong>🚧 5 — Confidence calibration is trained on swing (daily) data</strong>
+    The Isotonic regression model in <code>confidence_calibration.py</code> is calibrated on multi-day hold outcomes. Applying it to intraday trades will produce systematically miscalibrated win probabilities. A separate model must be trained on ≥ 200 intraday paper trades.
+  </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <h2>4. Existing Strengths to Preserve</h2>
+
+  <div class="callout callout-success">
+    <strong>✅ Production-grade safety architecture</strong>
+    phase20_gates + circuit_breaker + phase22 readiness checklist provide institutional-quality safeguards. Reuse entirely.
+  </div>
+  <div class="callout callout-success">
+    <strong>✅ Durable scan state (PostgreSQL-backed leases)</strong>
+    scan_state_store.py prevents duplicate scans and race conditions on Autoscale. Works identically for intraday.
+  </div>
+  <div class="callout callout-success">
+    <strong>✅ Audit trail discipline</strong>
+    Every trade records frozen-at-entry indicator values via trade_intelligence.py. Deduplication by deterministic ID. Critical for intraday learning.
+  </div>
+  <div class="callout callout-success">
+    <strong>✅ Layered model governance</strong>
+    phase14_governance (drift detection + human approval gate) is protocol-agnostic. Transfer to intraday unchanged.
+  </div>
+  <div class="callout callout-success">
+    <strong>✅ Comprehensive alert infrastructure</strong>
+    PostgreSQL-backed alert queue with exponential backoff, idempotency keys, dead-letter handling, and Expo push delivery. Fully reusable.
+  </div>
+  <div class="callout callout-success">
+    <strong>✅ Data quality taxonomy</strong>
+    live_data_provider.py classifies data as LIVE / RECENT / STALE / DEGRADED / UNAVAILABLE. Framework is correct; freshness TTLs must shrink for intraday (from 15 min → 2 min).
+  </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <h2>5. Missing Intraday Components</h2>
+
+  <table>
+    <thead>
+      <tr><th>Missing Component</th><th>Priority</th><th>Notes</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Kite WebSocket tick stream</td><td><span class="badge low">Critical</span></td><td>KiteTicker Python SDK; single persistent connection per session</td></tr>
+      <tr><td>1-minute bar builder + session isolation</td><td><span class="badge low">Critical</span></td><td>Reset at 09:15 IST; persist to PostgreSQL (yfinance 7-day limit)</td></tr>
+      <tr><td>VWAP (session-reset)</td><td><span class="badge low">Critical</span></td><td>Must recalculate from zero each session; SD bands for reversal signals</td></tr>
+      <tr><td>Opening Range Breakout (ORB)</td><td><span class="badge low">Critical</span></td><td>Capture first-15/30-min high/low; breakout signal with RVOL filter</td></tr>
+      <tr><td>Relative Volume (RVOL)</td><td><span class="badge low">Critical</span></td><td>20-day rolling average for same 5-min slot; liquidity gate ≥ 1.2×</td></tr>
+      <tr><td>Gap analysis</td><td><span class="badge medium">High</span></td><td>Gap %, type (gap-up/down/fill), gap-and-go vs. fade bias</td></tr>
+      <tr><td>Intraday risk engine</td><td><span class="badge low">Critical</span></td><td>Session loss cap, max open positions, no-entry after 14:45 IST</td></tr>
+      <tr><td>Mandatory 15:15 square-off</td><td><span class="badge low">Critical</span></td><td>Highest-priority scheduler hook; must override all other gates</td></tr>
+      <tr><td>NSE MIS cost engine</td><td><span class="badge low">Critical</span></td><td>Brokerage ₹20/order + STT 0.025% + exchange + GST + stamp duty</td></tr>
+      <tr><td>MIS leverage-aware sizer</td><td><span class="badge medium">High</span></td><td>5× MIS margin; per-trade 0.5% capital risk cap</td></tr>
+      <tr><td>Time-of-day features</td><td><span class="badge medium">High</span></td><td>Session quarter encoding; first-30-min high-risk gate</td></tr>
+      <tr><td>Slippage model</td><td><span class="badge medium">High</span></td><td>0.05–0.1% for Nifty50; higher for small caps; partial fill risk</td></tr>
+      <tr><td>Intraday dashboard page</td><td><span class="badge medium">High</span></td><td>Session P&L, live VWAP tracker, ORB status, square-off countdown</td></tr>
+      <tr><td>Session replay page</td><td><span class="badge medium">Medium</span></td><td>Bar-by-bar 1-min chart with signal overlay</td></tr>
+      <tr><td>Intraday calibration model</td><td><span class="badge medium">High</span></td><td>Separate Isotonic model; do not share swing calibration</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ═══════════════════════════════════════ -->
+  <h2>6. Key Technical Debt</h2>
+
+  <table>
+    <thead>
+      <tr><th>Issue</th><th>Severity</th><th>Evidence</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Confidence score adjusted in 4+ separate files with no aggregation point</td>
+        <td><span class="badge low">High</span></td>
+        <td>adaptive_learning, ai_decision, phase13, phase21_calibration all modify confidence independently</td>
+      </tr>
+      <tr>
+        <td>Mock (GBM synthetic) data in production path</td>
+        <td><span class="badge low">High</span></td>
+        <td>market_data_engine.py silently generates synthetic data if yfinance fails — can lead to paper trades on fake prices</td>
+      </tr>
+      <tr>
+        <td>30+ phase-numbered files create an invisible dependency chain</td>
+        <td><span class="badge medium">Medium</span></td>
+        <td>phase20 imports phase14 imports phase13; no dependency graph is documented</td>
+      </tr>
+      <tr>
+        <td>Magic numbers scattered across files</td>
+        <td><span class="badge medium">Medium</span></td>
+        <td>TIME_EXIT_FACTOR=2.0, MIN_RELIABLE_SAMPLE=15, STALE_THRESHOLD_MINUTES=15 — no central config</td>
+      </tr>
+      <tr>
+        <td>JSON file state with no locking in hot path</td>
+        <td><span class="badge low">High</span></td>
+        <td>portfolio, signals, scan snapshots all in JSON; flock only added in Phase 18 for specific files</td>
+      </tr>
+      <tr>
+        <td>No API authentication middleware</td>
+        <td><span class="badge medium">Medium</span></td>
+        <td>Any process on the same network can trigger /api/run-scan or read /api/portfolio</td>
+      </tr>
+      <tr>
+        <td>Kite access token persisted to local file</td>
+        <td><span class="badge medium">Medium</span></td>
+        <td>kite_token_store.py writes tokens to local chmod-600 file; may not survive container restarts</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ═══════════════════════════════════════ -->
+  <h2>7. Intraday NSE Cost Model (Reference)</h2>
+
+  <table>
+    <thead>
+      <tr><th>Cost Component</th><th>Rate (MIS Intraday Equity)</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Brokerage</td><td>₹20 per order (Zerodha flat)</td></tr>
+      <tr><td>STT (Securities Transaction Tax)</td><td>0.025% of sell-side turnover</td></tr>
+      <tr><td>Exchange charges (NSE)</td><td>0.00345% of total turnover</td></tr>
+      <tr><td>SEBI Turnover Fee</td><td>0.0001% of total turnover</td></tr>
+      <tr><td>GST</td><td>18% on (brokerage + exchange charges)</td></tr>
+      <tr><td>Stamp Duty</td><td>0.003% of buy-side turnover</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:12px;color:#8b949e;">Verify against current Zerodha brokerage schedule before implementing the cost engine.</p>
+
+  <!-- ═══════════════════════════════════════ -->
+  <h2>8. Phased Migration Roadmap</h2>
+
+  <div class="phase-row">
+    <div class="phase-num">A</div>
+    <div class="phase-body">
+      <h4>Infrastructure Preparation &nbsp;<span style="font-weight:400;color:#8b949e;font-size:11px;">2–3 weeks</span></h4>
+      <p>Add DB columns (product_type, timeframe, session_id). Create intraday_sessions + minute_ohlcv_cache tables. Implement Kite WebSocket tick ingestion. Migrate Python to long-running process. Add WebSocket server (Node.js) for real-time frontend.</p>
+    </div>
+  </div>
+
+  <div class="phase-row">
+    <div class="phase-num">B</div>
+    <div class="phase-body">
+      <h4>Core Intraday Indicators &nbsp;<span style="font-weight:400;color:#8b949e;font-size:11px;">2–3 weeks</span></h4>
+      <p>Implement vwap_engine.py (session-reset VWAP + SD bands). Implement rvol_calculator.py. Implement gap_analyser.py. Implement orb_detector.py (configurable 15/30 min). Implement session_features.py (TOD encoding).</p>
+    </div>
+  </div>
+
+  <div class="phase-row">
+    <div class="phase-num">C</div>
+    <div class="phase-body">
+      <h4>Intraday Signal Engine &nbsp;<span style="font-weight:400;color:#8b949e;font-size:11px;">2–3 weeks</span></h4>
+      <p>Implement intraday_strategies.py (ORB, VWAP reversion, Momentum burst). Implement intraday_signal_engine.py. Implement intraday_scanner.py (RVOL-filtered universe). Backtest on 3 months of 1-min historical data — must show positive expectancy before enabling automation.</p>
+    </div>
+  </div>
+
+  <div class="phase-row">
+    <div class="phase-num">D</div>
+    <div class="phase-body">
+      <h4>Risk &amp; Execution &nbsp;<span style="font-weight:400;color:#8b949e;font-size:11px;">2 weeks</span></h4>
+      <p>Implement cost_engine.py (full NSE MIS model). Implement intraday_sizer.py (MIS leverage + slippage). Implement intraday_risk_engine.py (session cap + position limit). Extend paper_trader.py with MIS mode. Add mandatory 15:15 square-off hook to phase20_scheduler.py.</p>
+    </div>
+  </div>
+
+  <div class="phase-row">
+    <div class="phase-num">E</div>
+    <div class="phase-body">
+      <h4>AI &amp; Learning &nbsp;<span style="font-weight:400;color:#8b949e;font-size:11px;">3–4 weeks</span></h4>
+      <p>Collect ≥ 200 intraday paper trades with full feature capture. Retrain confidence_calibration.py on intraday outcomes. Extend adaptive_learning.py with VWAP/ORB/TOD feature dimensions. Re-run walk-forward with session-day windows. Validate: win rate &gt; 45%, profit factor &gt; 1.3.</p>
+    </div>
+  </div>
+
+  <div class="phase-row">
+    <div class="phase-num">F</div>
+    <div class="phase-body">
+      <h4>Frontend &amp; Monitoring &nbsp;<span style="font-weight:400;color:#8b949e;font-size:11px;">2 weeks</span></h4>
+      <p>Build IntradayDashboard.tsx (session P&L, live VWAP, ORB status, square-off countdown). Build SessionReplay.tsx (1-min chart). Add TOD performance heatmap and strategy-by-session-type analytics.</p>
+    </div>
+  </div>
+
+  <div class="phase-row">
+    <div class="phase-num">G</div>
+    <div class="phase-body">
+      <h4>Production Readiness &nbsp;<span style="font-weight:400;color:#8b949e;font-size:11px;">2 weeks</span></h4>
+      <p>Run adapted phase22_readiness checklist. Add API auth middleware. Migrate remaining JSON state to PostgreSQL. Security review (no real orders placeable). Write intraday runbook and session start/end procedures.</p>
+    </div>
+  </div>
+
+  <div class="callout callout-info">
+    <strong>⏱ Total estimated timeline: 15–19 weeks</strong>
+    Assumes a single developer. The swing trading platform remains completely untouched throughout all phases.
+  </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <h2>9. Risk Register</h2>
+
+  <table>
+    <thead>
+      <tr><th>Risk</th><th>Severity</th><th>Confidence</th><th>Mitigation</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Kite WebSocket reconnect storms</td>
+        <td><span class="badge low">High</span></td>
+        <td><span class="badge high">High</span></td>
+        <td>Single persistent connection per session; exponential backoff on reconnect</td>
+      </tr>
+      <tr>
+        <td>yfinance 7-day intraday history limit</td>
+        <td><span class="badge low">High</span></td>
+        <td><span class="badge high">High</span></td>
+        <td>Persist all 1-min bars to PostgreSQL immediately — data is lost if not captured</td>
+      </tr>
+      <tr>
+        <td>Swing calibration model applied to intraday trades</td>
+        <td><span class="badge low">High</span></td>
+        <td><span class="badge high">High</span></td>
+        <td>Strict product_type filter; separate calibration instance for intraday</td>
+      </tr>
+      <tr>
+        <td>MIS square-off failure (positions carried overnight)</td>
+        <td><span class="badge low">High</span></td>
+        <td><span class="badge medium">Medium</span></td>
+        <td>15:15 IST trigger must override circuit breaker; add failsafe alert if positions remain open at 15:20</td>
+      </tr>
+      <tr>
+        <td>Slippage underestimation in backtest</td>
+        <td><span class="badge medium">Medium</span></td>
+        <td><span class="badge medium">Medium</span></td>
+        <td>Use Kite Level 2 bid-ask spread for realistic model; start conservative (0.1%)</td>
+      </tr>
+      <tr>
+        <td>No API auth in cloud deployment</td>
+        <td><span class="badge medium">Medium</span></td>
+        <td><span class="badge high">High</span></td>
+        <td>Add bearer token middleware before any cloud exposure</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ═══════════════════════════════════════ -->
+  <h2>10. Confidence in Recommendations</h2>
+
+  <table>
+    <thead>
+      <tr><th>Finding Area</th><th>Confidence</th><th>Basis</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Module classifications</td><td><span class="badge high">High</span></td><td>Direct code inspection</td></tr>
+      <tr><td>Existing weaknesses</td><td><span class="badge high">High</span></td><td>Confirmed by reading implementation</td></tr>
+      <tr><td>Missing intraday components</td><td><span class="badge high">High</span></td><td>Verified absence in codebase + NSE domain requirements</td></tr>
+      <tr><td>Technical debt findings</td><td><span class="badge high">High</span></td><td>Directly observed in code</td></tr>
+      <tr><td>Cost model values</td><td><span class="badge medium">Medium</span></td><td>Standard Zerodha published rates; verify current schedule</td></tr>
+      <tr><td>Timeline estimates</td><td><span class="badge medium">Medium</span></td><td>Best practice; actual effort depends on team size</td></tr>
+      <tr><td>AI retraining data thresholds</td><td><span class="badge medium">Medium</span></td><td>Conservative minimums; more data always better</td></tr>
+    </tbody>
+  </table>
+
+  <div class="footer">
+    NSE Trader · Intraday Architecture Key Findings · July 18 2026 · Read-only analysis · No code was modified
+  </div>
+
+</div>
+</body>
+</html>

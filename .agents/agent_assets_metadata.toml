@@ -23,3 +23,9 @@ id = "iMckoQoZkJaEVykSnw9r4"
 uri = "file://exports/paper_basket_winrate_jun20-jul6.csv"
 type = "table"
 title = "Paper Basket Win Rate & P&L — Jun 20 to Jul 6, 2026"
+
+[[outputs]]
+id = "giV_Gi4PBA1D4NDd2YiD_"
+uri = "file://docs/INTRADAY_KEY_FINDINGS.html"
+type = "unspecified"
+title = "NSE Trader – Intraday Architecture: Key Findings"
