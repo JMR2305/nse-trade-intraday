@@ -2,7 +2,7 @@
 
 from typing import Dict, Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.services.operator_auth_service import operator_auth_service
 from src.core.exceptions import AuthenticationError
