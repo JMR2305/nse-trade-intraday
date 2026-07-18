@@ -13,6 +13,7 @@ import phase21Router from "./phase21";
 import phase22Router from "./phase22";
 import kiteRouter from "./kite";
 import notificationsRouter from "./notifications";
+import downloadRouter from "./download";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(phase22Router);
 router.use(kiteRouter);
 router.use(notificationsRouter);
 router.use(tradingRouter);
+router.use(downloadRouter);
 
 export default router;
