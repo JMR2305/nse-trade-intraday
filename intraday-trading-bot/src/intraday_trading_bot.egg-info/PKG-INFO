@@ -1,0 +1,36 @@
+Metadata-Version: 2.4
+Name: intraday-trading-bot
+Version: 2.0.1
+Summary: Production-grade paper-first intraday trading platform for Indian NSE markets
+Author: Trading Platform Team
+License: MIT
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Framework :: FastAPI
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi==0.111.0
+Requires-Dist: uvicorn[standard]==0.30.0
+Requires-Dist: python-multipart==0.0.9
+Requires-Dist: python-dotenv==1.0.1
+Requires-Dist: python-jose[cryptography]==3.5.0
+Requires-Dist: passlib[bcrypt]==1.7.4
+Requires-Dist: sqlalchemy[asyncio]==2.0.30
+Requires-Dist: alembic==1.13.1
+Requires-Dist: asyncpg==0.29.0
+Requires-Dist: numpy==1.26.4
+Requires-Dist: pandas==2.2.2
+Requires-Dist: python-json-logger==2.0.7
+Requires-Dist: pydantic==2.7.4
+Requires-Dist: pydantic-settings==2.3.4
+Requires-Dist: pyyaml==6.0.1
+Requires-Dist: httpx==0.27.0
+Provides-Extra: dev
+Requires-Dist: pytest==8.2.2; extra == "dev"
+Requires-Dist: pytest-asyncio==0.23.7; extra == "dev"
+Requires-Dist: pytest-cov==5.0.0; extra == "dev"
+Requires-Dist: httpx==0.27.0; extra == "dev"
+Requires-Dist: black==24.4.2; extra == "dev"
+Requires-Dist: flake8==7.0.0; extra == "dev"
+Requires-Dist: mypy==1.10.0; extra == "dev"

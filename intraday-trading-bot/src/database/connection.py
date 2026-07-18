@@ -1,6 +1,13 @@
 """Database connection and session management."""
 
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from typing import Optional
+
+from sqlalchemy.ext.asyncio import (
+    create_async_engine,
+    AsyncSession,
+    async_sessionmaker,
+    AsyncEngine,
+)
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import text
 
@@ -10,29 +17,43 @@ from src.core.logging import logger
 # Base class for all models
 Base = declarative_base()
 
-# Create async engine
-engine = create_async_engine(
-    settings.database_url,
-    echo=settings.debug,
-    future=True,
-    pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
-)
+# Lazy singletons — created on first use, not at import time.
+_engine: Optional[AsyncEngine] = None
+_session_factory: Optional[async_sessionmaker] = None
 
-# Session factory
-AsyncSessionLocal = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autocommit=False,
-    autoflush=False,
-)
+
+def get_engine() -> AsyncEngine:
+    """Return the shared async engine, creating it on first call."""
+    global _engine
+    if _engine is None:
+        _engine = create_async_engine(
+            settings.database_url,
+            echo=settings.debug,
+            future=True,
+            pool_pre_ping=True,
+            pool_size=10,
+            max_overflow=20,
+        )
+    return _engine
+
+
+def get_session_factory() -> async_sessionmaker:
+    """Return the shared session factory, creating it on first call."""
+    global _session_factory
+    if _session_factory is None:
+        _session_factory = async_sessionmaker(
+            get_engine(),
+            class_=AsyncSession,
+            expire_on_commit=False,
+            autocommit=False,
+            autoflush=False,
+        )
+    return _session_factory
 
 
 async def get_db_session() -> AsyncSession:
     """Get a database session for dependency injection."""
-    async with AsyncSessionLocal() as session:
+    async with get_session_factory()() as session:
         try:
             yield session
         except Exception:
@@ -45,7 +66,7 @@ async def get_db_session() -> AsyncSession:
 async def check_database_connection() -> bool:
     """Check if database is reachable."""
     try:
-        async with AsyncSessionLocal() as session:
+        async with get_session_factory()() as session:
             result = await session.execute(text("SELECT 1"))
             return result.scalar() == 1
     except Exception as e:
@@ -55,6 +76,6 @@ async def check_database_connection() -> bool:
 
 async def init_db() -> None:
     """Initialize database tables (for development only). Use Alembic in production."""
-    async with engine.begin() as conn:
+    async with get_engine().begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database tables initialized")

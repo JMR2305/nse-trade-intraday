@@ -106,8 +106,12 @@ class Settings(BaseSettings):
     debug: bool = False
 
     # Database
-    database_url: str = Field(..., description="Async PostgreSQL URL")
-    database_url_sync: str = Field(..., description="Sync PostgreSQL URL for Alembic")
+    # validation_alias reads from INTRADAY_DATABASE_URL / INTRADAY_DATABASE_URL_SYNC,
+    # avoiding collision with the swing platform's DATABASE_URL env var.
+    # Internal attribute names (settings.database_url, settings.database_url_sync)
+    # are unchanged so all callers remain unmodified.
+    database_url: str = Field(..., validation_alias="intraday_database_url", description="Async PostgreSQL URL")
+    database_url_sync: str = Field(..., validation_alias="intraday_database_url_sync", description="Sync PostgreSQL URL for Alembic")
 
     # JWT (Operator Auth)
     jwt_secret_key: str = Field(..., min_length=32)

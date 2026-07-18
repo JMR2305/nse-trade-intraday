@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "intraday-trading-bot"
-version = "2.0.1-acr"
+version = "2.0.1"
 description = "Production-grade paper-first intraday trading platform for Indian NSE markets"
 requires-python = ">=3.12"
 readme = "README.md"
@@ -28,7 +28,7 @@ dependencies = [
     "python-dotenv==1.0.1",
 
     # Authentication
-    "python-jose[cryptography]==3.3.0",
+    "python-jose[cryptography]==3.5.0",
     "passlib[bcrypt]==1.7.4",
 
     # Database
