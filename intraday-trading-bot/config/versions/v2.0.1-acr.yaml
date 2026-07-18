@@ -1,0 +1,100 @@
+# ============================================================
+# Trading Configuration v2.0.1-acr
+# ACR v1.2 Compliant
+# Last updated: 2026-07-18
+# ============================================================
+
+# --------------------------------------------------
+# Trading Mode (structurally enforced PAPER)
+# --------------------------------------------------
+trading:
+  mode: PAPER  # PAPER | REPLAY | SHADOW | SIMULATION | LIVE
+  market_hours:
+    pre_open: "09:00"
+    open: "09:15"
+    close: "15:30"
+    post_close: "15:40"
+  timezone_display: "Asia/Kolkata"
+  timezone_storage: "UTC"
+
+# --------------------------------------------------
+# Broker Configuration
+# --------------------------------------------------
+broker:
+  name: "zerodha"
+  auth_flow: "official_oauth2"
+  api_version: "v3"
+  base_url: "https://api.kite.trade"
+  login_url: "https://kite.zerodha.com/connect/login"
+  cost_schedule_version: "2026-Q3"
+  brokerage_per_order: 20.0
+  use_bracket_orders: false
+
+# --------------------------------------------------
+# Risk Configuration
+# --------------------------------------------------
+risk:
+  max_leverage: 1.0
+  risk_per_trade_pct: 1.0
+  max_drawdown_inr: 50000.0
+  daily_loss_limit_inr: 25000.0
+  portfolio_heat_pct: 15.0
+  sector_exposure_pct: 25.0
+  correlation_threshold: 0.7
+
+  # Kill switch levels
+  kill_switch:
+    level_1_pause:
+      trigger: "daily_loss > 50% of limit OR drawdown > 30% of max"
+      action: "PAUSE new entries"
+    level_2_cancel:
+      trigger: "daily_loss > 75% of limit OR data quality degraded"
+      action: "CANCEL all pending orders"
+    level_3_flatten:
+      trigger: "daily_loss > 100% of limit OR critical system failure"
+      action: "FLATTEN all positions"
+
+# --------------------------------------------------
+# Execution Configuration
+# --------------------------------------------------
+execution:
+  slippage_model: "realistic"  # realistic | optimistic | pessimistic
+  partial_fill_handling: "immediate_retry"
+  price_band_exit: true
+  square_off_state_machine: true
+
+# --------------------------------------------------
+# Strategy Configuration
+# --------------------------------------------------
+strategy:
+  active_strategy: "vwap_rsi_v1"
+  min_signal_quality: "MEDIUM"
+  calibration_enabled: false
+
+# --------------------------------------------------
+# Logging Configuration
+# --------------------------------------------------
+logging:
+  format: "structured_json"
+  level: "INFO"
+  audit_all_sensitive: true
+  include_trace_id: true
+  include_span_id: true
+
+# --------------------------------------------------
+# Idempotency Configuration
+# --------------------------------------------------
+idempotency:
+  required: true
+  key_ttl_seconds: 86400
+
+# --------------------------------------------------
+# API Configuration
+# --------------------------------------------------
+api:
+  allowed_origins:
+    - "https://trading-dashboard.yourdomain.com"
+    - "https://admin.yourdomain.com"
+  jwt_algorithm: "RS256"
+  access_token_ttl_minutes: 30
+  refresh_token_ttl_days: 7
