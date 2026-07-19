@@ -1,14 +1,14 @@
 {
   "bundle_version": 2,
   "phase": 12,
-  "generated_at": "2026-07-16T18:19:56Z",
+  "generated_at": "2026-07-19T10:53:30Z",
   "engine_version": "Research Engine v1.0 \u00b7 Phase 12",
   "mode": "PAPER_TRADING_RESEARCH_ONLY",
   "label": "PAPER / RESEARCH ONLY",
   "market_status": {
-    "state": "CLOSED",
+    "state": "WEEKEND",
     "is_open": false,
-    "now_ist": "2026-07-16T23:49:56.261923+05:30",
+    "now_ist": "2026-07-19T16:23:30.294838+05:30",
     "timezone": "Asia/Kolkata",
     "session": {
       "pre_open": "09:00",
@@ -19,8 +19,8 @@
     "holiday_today": null,
     "next_transition": {
       "event": "market_open",
-      "at_ist": "2026-07-17T09:15:00+05:30",
-      "seconds_until": 33903
+      "at_ist": "2026-07-20T09:15:00+05:30",
+      "seconds_until": 60689
     },
     "upcoming_holidays": [
       {
@@ -41,12 +41,12 @@
   "quote_provider": {
     "provider": "Yahoo Finance (yfinance)",
     "provider_id": "yfinance",
-    "circuit_breaker": "OPEN",
-    "consecutive_failures": 3,
-    "last_success_ts": null,
-    "total_fetches": 0,
+    "circuit_breaker": "CLOSED",
+    "consecutive_failures": 0,
+    "last_success_ts": "2026-07-18T13:27:19Z",
+    "total_fetches": 246,
     "total_errors": 0,
-    "cached_symbols": 1,
+    "cached_symbols": 3,
     "quote_ttl_s": 20.0,
     "quote_ttl_closed_s": 300.0
   },
@@ -72,25 +72,25 @@
   "sector_rotation_top3": [
     {
       "sector": "BANKING",
-      "avg_score": 36.4,
+      "avg_score": 36.6,
       "stock_count": 6,
-      "vs_median": 12.8,
+      "vs_median": 13.7,
       "momentum": "STRONG",
       "rank": 1
     },
     {
       "sector": "ENERGY",
-      "avg_score": 28.8,
+      "avg_score": 32.9,
       "stock_count": 5,
-      "vs_median": 5.2,
-      "momentum": "OUTPERFORMING",
+      "vs_median": 10.0,
+      "momentum": "STRONG",
       "rank": 2
     },
     {
       "sector": "FINANCE",
-      "avg_score": 26.1,
+      "avg_score": 27.2,
       "stock_count": 5,
-      "vs_median": 2.5,
+      "vs_median": 4.3,
       "momentum": "OUTPERFORMING",
       "rank": 3
     }
@@ -130,21 +130,21 @@
     "high_contradiction_examples": []
   },
   "sizing_summary": {
-    "feasible_positions": 10,
-    "not_feasible_positions": 40,
+    "feasible_positions": 11,
+    "not_feasible_positions": 39,
     "regime_adjustments_applied": {
       "standard": 48,
       "none": 2
     }
   },
   "action_summary": {
-    "WATCH": 20,
-    "AVOID": 30
+    "WATCH": 16,
+    "AVOID": 34
   },
   "sample_counts": {
     "symbols_analyzed": 50,
-    "completed_trades_used": 3,
-    "expectancy_symbols": 3
+    "completed_trades_used": 0,
+    "expectancy_symbols": 0
   },
   "self_tests": {
     "results": [
@@ -156,7 +156,7 @@
       {
         "test": "no_lookahead_sell_only",
         "pass": true,
-        "detail": "3 trades, all SELL: True"
+        "detail": "0 trades, all SELL: True"
       },
       {
         "test": "no_lookahead_timestamps",
@@ -196,38 +196,38 @@
     {
       "file": "phase12_cache.json",
       "exists": true,
-      "size_bytes": 208190,
-      "modified": "2026-07-16T18:19:56Z"
+      "size_bytes": 207607,
+      "modified": "2026-07-19T10:53:30Z"
     },
     {
       "file": "phase7_scan_cache.json",
       "exists": true,
-      "size_bytes": 65763,
-      "modified": "2026-07-16T18:19:49Z"
+      "size_bytes": 65943,
+      "modified": "2026-07-18T13:28:24Z"
     },
     {
       "file": "market_context_cache.json",
       "exists": true,
-      "size_bytes": 566,
-      "modified": "2026-07-15T19:07:23Z"
+      "size_bytes": 557,
+      "modified": "2026-07-17T18:12:48Z"
     },
     {
       "file": "phase11_quote_state.json",
       "exists": true,
-      "size_bytes": 1316,
-      "modified": "2026-07-16T17:42:46Z"
+      "size_bytes": 1328,
+      "modified": "2026-07-18T13:27:19Z"
     },
     {
       "file": "phase12_diagnostic_bundle.json",
       "exists": true,
       "size_bytes": 5539,
-      "modified": "2026-07-16T16:05:47Z"
+      "modified": "2026-07-16T18:19:56Z"
     },
     {
       "file": "phase12_summary.csv",
       "exists": true,
       "size_bytes": 2648,
-      "modified": "2026-07-16T16:05:47Z"
+      "modified": "2026-07-16T18:19:56Z"
     }
   ],
   "errors": {},

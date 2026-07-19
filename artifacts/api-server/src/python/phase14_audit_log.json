@@ -2334,5 +2334,20 @@
     "phase14_summary.csv"
    ]
   }
+ },
+ {
+  "id": "9269a15e9d",
+  "ts": "2026-07-19T10:53:52.659564+00:00",
+  "event_type": "phase21_challengers_created",
+  "actor": "system",
+  "detail": {
+   "challengers": [
+    "chal_calibrated_confidence",
+    "chal_optimized_thresholds",
+    "chal_improved_ranking",
+    "chal_alt_stoptarget"
+   ],
+   "auto_promotion": false
+  }
  }
 ]

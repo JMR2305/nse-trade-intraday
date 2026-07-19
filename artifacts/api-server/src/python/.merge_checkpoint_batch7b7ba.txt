@@ -1,0 +1,27 @@
+PRE-MERGE CHECKPOINT — Batch 7B / 7BA Execution Package
+Created: 2026-07-19
+
+State before merge:
+  src/execution/          → does not exist
+  tests/unit/execution/   → does not exist (only market_data tests present)
+
+Existing unit tests (must remain unaffected):
+  tests/unit/conftest.py
+  tests/unit/test_bar_builder.py
+  tests/unit/test_backfill.py
+  tests/unit/test_data_quality.py
+  tests/unit/test_instrument_sync.py
+  tests/unit/test_market_data_contracts.py
+  tests/unit/test_subscription_manager.py
+
+Source packages present:
+  src/brokers/
+  src/database/
+  src/market_data/
+
+Approved package versions:
+  Batch 7B  (batch7b_execution_package_1784452751255.zip)  — base package
+  Batch 7BA (batch7ba_execution_package_1784458001461.zip) — correctness patch (B1, B2, W1, W3, W4, W5 fixes)
+
+Final approved zip: attached_assets/batch7ba_execution_package_1784458001461.zip
+Test result in isolation: 148/148 passed
