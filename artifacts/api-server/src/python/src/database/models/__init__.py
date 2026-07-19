@@ -4,6 +4,7 @@ Batch 7D — Execution Recovery, Persistence & Replay Foundation.
 """
 from __future__ import annotations
 
+from src.database.models.base import Base
 from src.database.models.execution_order import ExecutionOrderModel
 from src.database.models.audit_event import AuditEventModel
 from src.database.models.fill_event import FillEventModel
@@ -11,6 +12,7 @@ from src.database.models.execution_trade import ExecutionTradeModel
 from src.database.models.position_snapshot import PositionSnapshotModel
 
 __all__ = [
+    "Base",
     "ExecutionOrderModel",
     "AuditEventModel",
     "FillEventModel",
