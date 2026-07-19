@@ -1,0 +1,176 @@
+Review the uploaded Batch 7C Position, Portfolio & P&L package.
+
+Do NOT merge.
+Do NOT modify files.
+
+==================================================
+STEP 1 — IDENTIFY CHANGES
+==================================================
+
+Separate the package into:
+
+NEW FILES
+- pnl.py
+- portfolio.py
+- position_engine.py
+- trades.py
+- corresponding new tests
+
+EXISTING FILES INCLUDED AGAIN
+- __init__.py
+- contracts.py
+- engine.py
+- exceptions.py
+- fills.py
+- matching.py
+- policies.py
+- state_machine.py
+- existing execution tests
+
+Compare every repeated file with the currently merged project.
+
+Report every difference.
+
+Do not allow approved 7A/7B behaviour to change without explicit justification.
+
+==================================================
+ARCHITECTURE
+==================================================
+
+Verify:
+
+- Position engine is isolated.
+- No direct dependency on Zerodha.
+- No direct dependency on database persistence.
+- No API coupling.
+- No market-data modification.
+- Portfolio consumes FillEvents only.
+
+==================================================
+POSITION ENGINE
+==================================================
+
+Verify:
+
+- LONG
+- SHORT
+- FLAT
+
+Correct transitions:
+
+FLAT → LONG
+LONG → LONG
+LONG → FLAT
+LONG → SHORT
+FLAT → SHORT
+SHORT → SHORT
+SHORT → FLAT
+SHORT → LONG
+
+Check weighted average price calculations.
+
+Verify Decimal is used everywhere.
+
+==================================================
+P&L
+==================================================
+
+Verify:
+
+- realized P&L
+- unrealized P&L
+- partial exits
+- full exits
+- reversals
+- cash accounting
+
+==================================================
+PORTFOLIO
+==================================================
+
+Verify immutable snapshots.
+
+Check:
+
+- cash
+- equity
+- realized pnl
+- unrealized pnl
+- total pnl
+- market value
+- buying power
+- margin used
+
+==================================================
+IDEMPOTENCY
+==================================================
+
+Duplicate FillEvents must never change:
+
+- positions
+- cash
+- pnl
+- trades
+
+==================================================
+CONCURRENCY
+==================================================
+
+Verify:
+
+- per-position locking
+- atomic updates
+- no race conditions
+- deterministic replay
+
+==================================================
+TESTS
+==================================================
+
+Run:
+
+python -m compileall src/execution
+
+pytest tests/unit/execution --collect-only -q
+
+pytest tests/unit/execution -q
+
+Report:
+
+- collected
+- passed
+- failed
+- skipped
+- errors
+
+==================================================
+QUALITY
+==================================================
+
+Search for:
+
+pass
+TODO
+FIXME
+placeholder logic
+float money calculations
+datetime.now() without timezone
+unused imports
+dead code
+
+==================================================
+REPORT
+==================================================
+
+Return only:
+
+1. Score (/10)
+2. SAFE TO MERGE / SAFE AFTER FIXES / DO NOT MERGE
+3. Blockers
+4. Warnings
+5. Differences in repeated files
+6. Files requiring changes
+7. Recommended merge plan
+
+Do not merge.
+Stop after the report.
