@@ -18,9 +18,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import declarative_base
-
-Base = declarative_base()
+from src.database.models.base import Base
 
 
 class ExecutionOrderModel(Base):

@@ -233,11 +233,18 @@ class RecoveryManager:
         and registers orders in the state machine.
         """
         # Restore positions into position engine
+        # PositionEngine has no direct "set position" API; positions are
+        # reconstructed deterministically by replaying fill events that
+        # occurred after the snapshot timestamp.  Snapshot positions are
+        # retained only for post-recovery consistency validation.
         for instrument_token, pos in snapshot.positions.items():
-            # PositionEngine doesn't have a direct "set position" API,
-            # so we rely on fill replay to reconstruct.  The snapshot
-            # positions are used for consistency validation only.
-            pass
+            self._logger.info(
+                "recovery: position for instrument=%s will be reconstructed "
+                "via fill replay (snapshot qty=%s direction=%s)",
+                instrument_token,
+                pos.net_quantity,
+                pos.direction,
+            )
 
         # Register orders in state machine
         for order_id, state in snapshot.order_states.items():

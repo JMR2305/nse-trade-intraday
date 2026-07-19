@@ -175,8 +175,13 @@ class SnapshotManager:
         active_orders = await self._order_repo.list_active(session)
         order_states = {s.order.order_id: s for s in active_orders}
 
-        # Determine snapshot timestamp from most recent position
-        latest_ts = max(
+        # Determine snapshot timestamp from the *oldest* position write time.
+        # Using min() is deliberately conservative: the replay engine will
+        # replay fills from this point forward, and being conservative ensures
+        # we never skip a fill for a position that was persisted earlier than
+        # the others.  The replay engine is idempotent, so replaying already-
+        # applied fills is always safe.
+        latest_ts = min(
             (p.position_timestamp for p in all_positions),
             default=datetime.now(timezone.utc),
         )

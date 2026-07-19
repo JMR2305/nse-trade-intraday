@@ -17,9 +17,7 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.orm import declarative_base
-
-Base = declarative_base()
+from src.database.models.base import Base
 
 
 class FillEventModel(Base):

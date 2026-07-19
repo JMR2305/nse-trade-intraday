@@ -5,6 +5,7 @@ Follows the session-injection pattern established by MinuteBarRepository.
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -56,7 +57,7 @@ class ExecutionOrderRepository:
             existing.filled_quantity = filled_quantity
             existing.average_fill_price = avg_price
             existing.sequence_number = seq
-            existing.updated_at = order.created_at  # caller provides tz-aware
+            existing.updated_at = datetime.now(timezone.utc)
         else:
             record = self._model(
                 id=order.order_id,

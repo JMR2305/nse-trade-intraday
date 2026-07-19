@@ -18,9 +18,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.orm import declarative_base
-
-Base = declarative_base()
+from src.database.models.base import Base
 
 
 class ExecutionTradeModel(Base):

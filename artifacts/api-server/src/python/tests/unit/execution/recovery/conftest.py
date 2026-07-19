@@ -4,7 +4,6 @@ Batch 7D — Execution Recovery, Persistence & Replay Foundation.
 """
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
@@ -42,14 +41,6 @@ from src.execution.recovery.persistence_adapter import (
 # ------------------------------------------------------------------
 # Basic fixtures
 # ------------------------------------------------------------------
-
-@pytest.fixture
-def event_loop():
-    """Create an instance of the default event loop for each test case."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
-
 
 @pytest.fixture
 def sample_order() -> ExecutionOrder:
@@ -152,7 +143,7 @@ def sample_audit_event(sample_order: ExecutionOrder) -> ExecutionAuditEvent:
         sequence_number=1,
         previous_state=ExecutionOrderStatus.CREATED,
         new_state=ExecutionOrderStatus.VALIDATED,
-        action=ExecutionOrderAction.validate,
+        action=ExecutionOrderAction.VALIDATE,
         event_timestamp=datetime.now(timezone.utc),
     )
 
@@ -187,7 +178,9 @@ async def filled_state_machine(
     sample_order: ExecutionOrder,
 ) -> OrderStateMachine:
     """State machine with one order progressed to OPEN state."""
-    await state_machine.submit(sample_order)
+    # register() puts the order in CREATED state without consuming any
+    # idempotency slots; validate/accept/open are then each called once.
+    state_machine.register(sample_order)
     await state_machine.validate(sample_order.order_id)
     await state_machine.accept(sample_order.order_id)
     await state_machine.open_order(sample_order.order_id)
