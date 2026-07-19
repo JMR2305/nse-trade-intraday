@@ -2,6 +2,7 @@
 
 Part 7A: Contracts and Order State Machine
 Part 7B: Paper Matching and Fill Engine
+Part 7C: Position, Portfolio and P&L Engine
 
 This package provides:
   - ExecutionOrder: immutable order contract with validation
@@ -14,6 +15,10 @@ This package provides:
   - FillEvent: rich immutable fill output
   - MarketSnapshot: normalized market data for execution
   - Policies: price selection, slippage, liquidity, latency
+  - PositionEngine: position, portfolio, and P&L engine
+  - PnLCalculator: realized and unrealized P&L computation
+  - TradeLedger: deterministic trade history
+  - PortfolioSnapshot: immutable portfolio-wide snapshot
 
 Integration note:
   Existing project order/trade/position models are NOT imported here.
@@ -64,7 +69,19 @@ try:
         SlippagePolicy,
         ZeroLatencyPolicy,
     )
-
+    # 7C exports
+    from src.execution.trades import ExecutionTrade, TradeLedger
+    from src.execution.portfolio import (
+        CashLedger,
+        PortfolioSnapshot,
+        PositionDirection,
+        PositionSnapshot,
+    )
+    from src.execution.pnl import PnLCalculator
+    from src.execution.position_engine import PositionEngine, PositionEngineResult
+except ImportError:
+    __all__ = []
+else:
     __all__ = [
         # 7A Contracts
         "ExecutionAuditEvent",
@@ -108,6 +125,14 @@ try:
         "PriceSelectionPolicy",
         "SlippagePolicy",
         "ZeroLatencyPolicy",
+        # 7C Portfolio
+        "ExecutionTrade",
+        "TradeLedger",
+        "CashLedger",
+        "PortfolioSnapshot",
+        "PositionDirection",
+        "PositionSnapshot",
+        "PnLCalculator",
+        "PositionEngine",
+        "PositionEngineResult",
     ]
-except ImportError:
-    __all__ = []
