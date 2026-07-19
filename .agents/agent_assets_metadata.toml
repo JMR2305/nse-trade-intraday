@@ -35,3 +35,9 @@ id = "WNE2L-CZZzTOdW-uYS9f4"
 uri = "file://market_data_package.zip"
 type = "unspecified"
 title = "market_data_package.zip"
+
+[[outputs]]
+id = "WDIsFZi5CFdIQWxa96uIf"
+uri = "file://batch7b_review_report.md"
+type = "text"
+title = "Batch 7B Review Report"
