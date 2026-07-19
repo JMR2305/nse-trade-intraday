@@ -59,3 +59,9 @@ id = "m2e_LVGq9pOV8TjEewxGS"
 uri = "file://exports/batch7d_reference_package.zip"
 type = "unspecified"
 title = "batch7d_reference_package.zip"
+
+[[outputs]]
+id = "drBvXRpvoS9DEJOF7G1j7"
+uri = "file://exports/upload_batch7d_console_script.js"
+type = "unspecified"
+title = "upload_batch7d_console_script.js"
