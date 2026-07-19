@@ -1,0 +1,334 @@
+Review the uploaded Batch 7B Execution Package against the CURRENT project.
+
+IMPORTANT:
+
+- Do NOT merge any files.
+- Do NOT modify the current project.
+- Do NOT auto-fix tests.
+- Review and test the package in isolation first.
+- Treat the current merged Batch 7A files as the source of truth.
+
+==================================================
+1. PACKAGE SCOPE
+==================================================
+
+The uploaded ZIP contains both Batch 7A and Batch 7B files.
+
+Identify:
+
+A. Truly new Batch 7B files:
+- src/execution/policies.py
+- src/execution/fills.py
+- src/execution/matching.py
+- src/execution/engine.py
+- tests/unit/execution/test_policies.py
+- tests/unit/execution/test_matching.py
+- tests/unit/execution/test_engine.py
+
+B. Existing Batch 7A files included again:
+- src/execution/__init__.py
+- src/execution/contracts.py
+- src/execution/exceptions.py
+- src/execution/state_machine.py
+- tests/unit/execution/conftest.py
+- tests/unit/execution/test_contracts.py
+- tests/unit/execution/test_state_machine.py
+
+Compare every repeated Batch 7A file with the currently merged version.
+
+Report every difference.
+
+Do not allow Batch 7B to overwrite approved Batch 7A behavior unless the change is strictly required and explicitly justified.
+
+==================================================
+2. EXECUTION SEMANTICS
+==================================================
+
+Verify support for:
+
+- MARKET
+- LIMIT
+- STOP_MARKET
+- STOP_LIMIT
+- BUY
+- SELL
+
+Verify:
+
+- market BUY prefers ask, then last traded price
+- market SELL prefers bid, then last traded price
+- limit BUY never fills above its limit
+- limit SELL never fills below its limit
+- stop BUY triggers at market price >= trigger
+- stop SELL triggers at market price <= trigger
+- stop activation remains sticky
+- STOP_LIMIT may trigger without immediately filling
+
+==================================================
+3. POLICIES
+==================================================
+
+Review:
+
+- price-selection policy
+- slippage policy
+- liquidity policy
+- latency policy
+
+Verify:
+
+- deterministic defaults
+- Decimal is used for prices and monetary values
+- no binary float price calculations
+- BUY slippage worsens upward
+- SELL slippage worsens downward
+- tick-size rounding is correct
+- slippage cannot violate limit-price protection
+- no random liquidity
+- no wall-clock sleeps
+- latency uses event timestamps
+
+==================================================
+4. FILL CONTRACT
+==================================================
+
+Verify FillEvent or equivalent is immutable and contains:
+
+- fill_id
+- event_id
+- order_id
+- client_order_id
+- instrument_token
+- side
+- quantity
+- price
+- gross_value
+- market_event_id
+- market_timestamp
+- fill_timestamp
+- cumulative_filled_quantity
+- remaining_quantity
+- liquidity source
+- slippage
+- metadata
+
+Verify deterministic identity generation.
+
+The same order and market event must produce the same fill identity.
+
+==================================================
+5. STATE-MACHINE INTEGRATION
+==================================================
+
+Verify MatchingEngine uses the existing Batch 7A OrderStateMachine.
+
+It must not directly mutate order state, filled quantity, remaining quantity,
+average fill price, sequence number, or transition history.
+
+Confirm valid transitions:
+
+- ACCEPTED -> OPEN
+- OPEN -> PARTIALLY_FILLED
+- PARTIALLY_FILLED -> PARTIALLY_FILLED
+- OPEN -> FILLED
+- PARTIALLY_FILLED -> FILLED
+
+Confirm these states cannot be matched:
+
+- CREATED
+- VALIDATED
+- REJECTED
+- FILLED
+- CANCEL_PENDING
+- CANCELLED
+- EXPIRED
+- FAILED
+
+Check whether engine locking conflicts with the state machine's per-order lock.
+
+Detect deadlock risk, double locking, or unsafe mutation outside the lock.
+
+==================================================
+6. PARTIAL FILLS
+==================================================
+
+Verify:
+
+- full fills
+- partial fills
+- multiple fills across market events
+- cumulative filled quantity
+- remaining quantity
+- no negative remaining quantity
+- no overfill
+- average fill price remains correct
+- liquidity is not consumed more than once for the same order event
+
+==================================================
+7. IDEMPOTENCY
+==================================================
+
+Verify:
+
+- duplicate market events do not create duplicate fills
+- duplicate evaluation does not apply quantity twice
+- deterministic fill IDs
+- failed state transition leaves engine state unchanged
+- processed-event tracking is per order where necessary
+- one order processing an event does not block another valid order from using
+  the same market event
+- partial failure does not mark an event processed prematurely
+
+Check whether idempotency is based only on market_event_id.
+
+If so, verify that multiple legitimate partial fills across distinct evaluations
+are not incorrectly suppressed.
+
+==================================================
+8. CONCURRENCY
+==================================================
+
+Verify:
+
+- concurrent events for one order cannot overfill it
+- different orders can execute concurrently
+- no unnecessary global lock
+- no race between fill calculation and state-machine application
+- results do not depend on asyncio scheduling order
+- cancellation racing with fill is handled safely
+- terminal-state recheck occurs inside the protected mutation boundary
+
+==================================================
+9. MARKET-DATA COMPATIBILITY
+==================================================
+
+Compare the market snapshot contract with the actual Batch 6 contracts.
+
+Check:
+
+- field names
+- instrument token type
+- timestamps
+- bid/ask representation
+- quantities
+- event identifiers
+- sequence fields
+
+Identify whether an adapter is required.
+
+Batch 7B must not silently assume a market-data shape incompatible with Batch 6.
+
+==================================================
+10. TEST VALIDATION
+==================================================
+
+Run the uploaded execution tests without modifying them.
+
+Run:
+
+1. python -m compileall src/execution
+2. pytest tests/unit/execution -q
+3. pytest tests/unit/execution --collect-only -q
+
+Report:
+
+- total collected
+- passed
+- failed
+- skipped
+- errors
+
+Kimi stated:
+
+“153 tests, 130 passing, 10 test-helper fixes needed”
+
+Investigate this discrepancy.
+
+Do not count test-helper defects as successful implementation.
+
+For every failure, report:
+
+- test name
+- file and line
+- stack trace summary
+- root cause
+- whether the implementation or the test is wrong
+
+Do not modify tests merely to make them pass.
+
+==================================================
+11. PROJECT REGRESSION
+==================================================
+
+In a temporary review environment, assess whether replacing the repeated files
+would break the current project.
+
+Check:
+
+- removed exports
+- changed signatures
+- enum changes
+- contract changes
+- changed Batch 7A behavior
+- circular imports
+- import failures
+- duplicate definitions
+
+Do not apply the package to the main project.
+
+==================================================
+12. CODE QUALITY
+==================================================
+
+Search for:
+
+- pass
+- TODO
+- FIXME
+- NotImplementedError
+- placeholder logic
+- random execution behavior
+- datetime.now() without timezone
+- float-based price calculations
+- asyncio.sleep() in matching logic
+- direct order mutation
+- live broker calls
+- Zerodha order API usage
+
+==================================================
+REPORT FORMAT
+==================================================
+
+Return:
+
+1. Overall score out of 10
+
+2. Verdict:
+- SAFE TO MERGE
+- SAFE AFTER MINOR FIXES
+- DO NOT MERGE
+
+3. Test results
+
+4. Blockers
+
+5. Warnings
+
+6. Differences found in repeated Batch 7A files
+
+7. Market-data compatibility findings
+
+8. Concurrency and idempotency findings
+
+9. Exact files requiring changes
+
+10. Minimum recommended fixes
+
+11. Safe merge plan:
+- files to add
+- files to preserve
+- files that may be replaced only after approval
+
+Do not merge.
+Do not fix.
+Stop after the report.
