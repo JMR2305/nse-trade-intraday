@@ -1,0 +1,399 @@
+Prepare a complete Batch 7D reference package for Kimi.
+
+PURPOSE
+
+Kimi will use this package to design and implement:
+
+BATCH 7D — Execution Recovery, Persistence and Deterministic Replay
+
+The package must contain the CURRENT merged and tested project files after all
+Batch 7A, 7B, 7BA, 7C and 7CA changes.
+
+Do not use old batch ZIP contents as the source.
+
+Do not modify the project.
+
+==================================================
+OUTPUT FILES
+==================================================
+
+Create:
+
+1. batch7d_reference_package.zip
+2. BATCH_7D_KIMI_CONTEXT.md
+
+The Markdown file must be included inside the ZIP and also provided separately.
+
+==================================================
+FILES TO INCLUDE
+==================================================
+
+1. COMPLETE CURRENT EXECUTION PACKAGE
+
+Include every current file under:
+
+src/execution/
+
+This must include, where present:
+
+- __init__.py
+- contracts.py
+- exceptions.py
+- state_machine.py
+- fills.py
+- policies.py
+- matching.py
+- engine.py
+- pnl.py
+- trades.py
+- position_engine.py
+- portfolio.py
+
+Also include any other current execution files not listed above.
+
+Do not omit files from src/execution/.
+
+--------------------------------------------------
+2. COMPLETE EXECUTION TEST PACKAGE
+
+Include every current file under:
+
+tests/unit/execution/
+
+These tests define the approved behaviour of Batches 7A–7C.
+
+--------------------------------------------------
+3. EXECUTION-RELATED ORM MODELS
+
+Inspect the project and include only current ORM/model files containing or
+directly supporting:
+
+- orders
+- order transitions
+- fills or executions
+- trades
+- positions
+- accounts
+- portfolios
+- cash ledger
+- audit events
+- journal entries
+- snapshots
+- idempotency records
+
+If models are stored in a shared models.py file, include that complete file.
+
+Do not create new models.
+
+--------------------------------------------------
+4. EXECUTION-RELATED REPOSITORIES
+
+Inspect the current project and include existing repositories for:
+
+- orders
+- trades
+- positions
+- fills or executions
+- accounts or portfolios
+- audits
+- journal or event storage
+- snapshots
+- idempotency
+
+Also include:
+
+- repository base class
+- repository package __init__.py
+- unit-of-work implementation, if present
+
+Do not include unrelated repositories unless required by one of the selected
+repositories.
+
+--------------------------------------------------
+5. DATABASE INFRASTRUCTURE REFERENCES
+
+Include current files that define:
+
+- SQLAlchemy declarative base
+- async engine and session factory
+- session dependency
+- transaction conventions
+- unit-of-work conventions
+
+Use the actual filenames and paths from the project.
+
+--------------------------------------------------
+6. RECOVERY, AUDIT AND OPERATIONAL REFERENCES
+
+Include current files, where present, related to:
+
+- application recovery
+- startup reconciliation
+- broker reconciliation
+- watchdog
+- audit logging
+- domain events
+- structured logging
+- core/domain exceptions
+
+Do not invent missing files.
+
+--------------------------------------------------
+7. PROJECT METADATA
+
+Include:
+
+- pyproject.toml
+- alembic.ini
+- relevant existing Alembic migration files for execution-related tables
+- .env.example only if it contains no secrets
+
+Never include the real .env file.
+
+==================================================
+BATCH_7D_KIMI_CONTEXT.md
+==================================================
+
+Generate this document after inspecting the actual current project.
+
+It must contain:
+
+# 1. Project Status
+
+State that the following are merged and tested:
+
+- Batch 6 — Market Data Foundation
+- Batch 7A — Execution Contracts and Order State Machine
+- Batch 7B/7BA — Paper Matching and Fill Engine
+- Batch 7C/7CA — Position, Portfolio and P&L Engine
+
+Include the latest verified test counts available in the project or review
+history.
+
+Do not invent counts that cannot be verified.
+
+# 2. Exact Included File Manifest
+
+List every file included in the ZIP using its project-relative path.
+
+Group them by:
+
+- execution source
+- execution tests
+- ORM models
+- repositories
+- database infrastructure
+- recovery/audit/operational references
+- migrations
+- metadata
+
+# 3. Execution Architecture Summary
+
+Describe the actual current flow:
+
+market snapshot
+→ matching engine
+→ FillEvent
+→ OrderStateMachine
+→ position engine
+→ trade history
+→ portfolio/P&L
+
+Use actual class and method names found in the code.
+
+# 4. Key Public Contracts
+
+Document the exact current public types and signatures relevant to 7D,
+including where present:
+
+- ExecutionOrder
+- OrderStateMachine
+- StateTransition or audit event
+- FillEvent
+- MatchingEngine
+- PositionEngine
+- Position
+- TradeRecord/TradeHistory
+- Portfolio
+- PortfolioSnapshot
+- P&L calculation types
+
+For each item include:
+
+- source file
+- public constructor or method signatures
+- identity fields
+- idempotency fields
+- sequence fields
+- timestamp conventions
+- immutable/mutable status
+
+Do not infer signatures. Read them from current code.
+
+# 5. Current Persistence Capabilities
+
+Describe what is already persisted and what is currently in-memory.
+
+For each relevant entity state:
+
+- ORM model present: yes/no
+- repository present: yes/no
+- persistence implemented: yes/no
+- recovery support present: yes/no
+
+Entities:
+
+- orders
+- transitions
+- fills
+- positions
+- trades
+- portfolio/cash
+- processed-event/idempotency markers
+- journals
+- snapshots
+
+# 6. Repository and Transaction Conventions
+
+Document actual current conventions:
+
+- async session usage
+- commit/flush responsibility
+- repository method naming
+- transaction boundaries
+- unit-of-work use
+- rollback behaviour
+- upsert or duplicate-handling patterns
+
+# 7. Existing Recovery and Audit Behaviour
+
+Describe any current:
+
+- restart recovery
+- reconciliation
+- event journaling
+- audit logging
+- snapshot support
+- watchdog/startup gates
+
+Clearly state when a capability is absent.
+
+# 8. Known Constraints and Deferred Items
+
+Include known current constraints such as:
+
+- paper-only execution
+- no live Zerodha order placement
+- no modification of Batch 6 market data
+- no risk engine integration yet
+- no strategy integration yet
+- any accounting limitation explicitly documented in Batch 7C
+- any deferred uniqueness/migration issue relevant to execution recovery
+
+Use only verified project facts.
+
+# 9. Batch 7D Design Boundaries
+
+State that Batch 7D may propose:
+
+- execution journal contracts
+- snapshot contracts
+- repository interfaces
+- recovery manager
+- replay engine
+- consistency validator
+- recovery coordinator/startup gate
+- tests
+- ORM and migration additions only after architecture approval
+
+State that Batch 7D must not:
+
+- modify matching semantics
+- modify order transition rules
+- modify P&L formulas
+- modify market data
+- implement live broker order placement
+- integrate with main.py in the first implementation
+- bypass repositories
+- bypass idempotency protections
+
+# 10. Questions or Missing Dependencies
+
+List any missing files, missing repositories, ambiguous interfaces or
+persistence gaps that Kimi must address during its review.
+
+==================================================
+VALIDATION
+==================================================
+
+Before creating the ZIP:
+
+1. Verify every selected file exists.
+2. Report missing requested files separately.
+3. Confirm no secrets are included.
+4. Confirm files are current working-tree versions.
+5. Confirm no old ZIP file is used as the source.
+6. Confirm there are no:
+   - .env files
+   - credentials
+   - access tokens
+   - API secrets
+   - database dumps
+   - logs
+   - caches
+   - virtual environments
+
+After creating the ZIP:
+
+1. List the archive contents.
+2. Report the number of files.
+3. Report ZIP size.
+4. Run an archive integrity check.
+5. Provide a SHA-256 checksum.
+6. Do not change any project file.
+
+==================================================
+EXCLUSIONS
+==================================================
+
+Exclude:
+
+- .git
+- .env
+- secrets
+- credentials
+- tokens
+- node_modules
+- __pycache__
+- .pytest_cache
+- .mypy_cache
+- .ruff_cache
+- .pythonlibs
+- virtual environments
+- dist
+- build
+- egg-info
+- logs
+- database files and dumps
+- screenshots
+- frontend assets
+- mobile assets
+- generated reports unrelated to Batch 7D
+- previous ZIP archives
+- temporary files
+
+==================================================
+FINAL RESPONSE
+==================================================
+
+Return:
+
+1. Preparation verdict
+2. Exact output paths
+3. File count
+4. ZIP size
+5. SHA-256
+6. Integrity-check result
+7. Missing requested files
+8. Secret-scan result
+9. Confirmation that no project files were modified

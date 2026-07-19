@@ -41,3 +41,15 @@ id = "WDIsFZi5CFdIQWxa96uIf"
 uri = "file://batch7b_review_report.md"
 type = "text"
 title = "Batch 7B Review Report"
+
+[[outputs]]
+id = "aKlgXNmg5yaHg3fUDjJrm"
+uri = "file://attached_assets/batch7d_reference_package.zip"
+type = "unspecified"
+title = "batch7d_reference_package.zip"
+
+[[outputs]]
+id = "EAmMKIdZhKasytB_kLCff"
+uri = "file://artifacts/api-server/src/python/BATCH_7D_KIMI_CONTEXT.md"
+type = "text"
+title = "BATCH_7D_KIMI_CONTEXT.md"
