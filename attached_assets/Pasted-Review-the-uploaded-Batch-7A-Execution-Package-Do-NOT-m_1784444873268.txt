@@ -1,0 +1,134 @@
+Review the uploaded Batch 7A Execution Package.
+
+Do NOT merge or modify any files.
+
+Review only.
+
+==================================================
+ARCHITECTURE
+==================================================
+
+Verify:
+
+- Package is isolated under src/execution.
+- No unwanted dependencies on market_data.
+- No circular imports.
+- No runtime imports from main.py.
+- No hidden broker coupling.
+- No database coupling.
+- No API/router coupling.
+
+==================================================
+COMPATIBILITY
+==================================================
+
+Check compatibility with:
+
+- Python 3.12
+- SQLAlchemy 2 Async
+- Pydantic v2
+- Existing repository pattern
+- Existing order models
+- Existing PaperBroker interfaces
+- Existing enums
+- Existing domain exceptions
+
+Detect duplicate types or duplicate enums.
+
+==================================================
+STATE MACHINE
+==================================================
+
+Verify:
+
+- deterministic transitions
+- terminal states cannot transition
+- invalid transitions raise typed exceptions
+- idempotent duplicate events
+- monotonic sequence numbers
+- concurrency safety
+- immutable transition history
+
+==================================================
+CONTRACTS
+==================================================
+
+Verify:
+
+- MARKET
+- LIMIT
+- STOP_MARKET
+- STOP_LIMIT
+
+Validation rules
+
+BUY/SELL
+
+Price validation
+
+Quantity validation
+
+Timezone-aware timestamps
+
+No missing validation
+
+==================================================
+TESTS
+==================================================
+
+Review all unit tests.
+
+Check:
+
+coverage
+
+missing scenarios
+
+flaky tests
+
+race-condition tests
+
+terminal state tests
+
+partial fill tests
+
+overfill rejection
+
+duplicate event handling
+
+==================================================
+QUALITY
+==================================================
+
+Search for:
+
+pass
+
+TODO
+
+FIXME
+
+placeholder implementations
+
+unused imports
+
+dead code
+
+duplicate code
+
+==================================================
+REPORT
+==================================================
+
+Return ONLY:
+
+1. Overall score (/10)
+2. SAFE TO MERGE / SAFE AFTER FIXES / DO NOT MERGE
+3. Blockers
+4. Warnings
+5. Suggested improvements
+6. Files requiring changes
+
+Do not merge.
+
+Stop after the report.
