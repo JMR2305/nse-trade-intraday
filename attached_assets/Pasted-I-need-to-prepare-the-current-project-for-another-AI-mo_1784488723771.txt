@@ -1,0 +1,227 @@
+I need to prepare the current project for another AI model (Kimi), which cannot inspect ZIP archives or large codebases.
+
+Generate a single Markdown document named:
+
+BATCH_7D_PUBLIC_API.md
+
+The document must describe the CURRENT MERGED PROJECT after Batch 7C/7CA.
+
+DO NOT generate implementation code.
+
+DO NOT summarize vaguely.
+
+Read the current project and produce a precise API reference.
+
+==================================================
+SECTION 1 — PROJECT STRUCTURE
+==================================================
+
+Show the current directory tree for:
+
+src/execution/
+src/database/
+tests/unit/execution/
+
+==================================================
+SECTION 2 — PUBLIC CLASSES
+==================================================
+
+For every public class under src/execution, include:
+
+- File name
+- Class name
+- Purpose
+- Public constructor
+- Public methods
+- Return types
+- Exceptions raised
+- Thread safety assumptions
+- Mutable/Immutable status
+
+Do NOT include method implementations.
+
+==================================================
+SECTION 3 — DATA CLASSES
+==================================================
+
+Document every dataclass including:
+
+ExecutionOrder
+FillEvent
+ExecutionTrade
+PortfolioSnapshot
+PositionSnapshot
+CashLedger
+EngineResult
+MatchResult
+PositionEngineResult
+ExecutionAuditEvent
+FillRecord
+
+For every class list:
+
+- every field
+- type
+- default
+- description
+- identity field
+- idempotency field
+- sequence field
+- timestamp fields
+
+==================================================
+SECTION 4 — ENUMS
+==================================================
+
+Document every enum.
+
+Include every value.
+
+==================================================
+SECTION 5 — STATE MACHINE
+==================================================
+
+Describe:
+
+Order lifecycle
+
+Transition graph
+
+Allowed transitions
+
+Rejected transitions
+
+TransitionResult
+
+Sequence numbering
+
+==================================================
+SECTION 6 — MATCHING ENGINE
+==================================================
+
+Document:
+
+OrderMatcher
+
+MatchingEngine
+
+MarketSnapshot
+
+Policies
+
+Execution flow
+
+without implementation.
+
+==================================================
+SECTION 7 — POSITION ENGINE
+==================================================
+
+Describe:
+
+Position lifecycle
+
+Supported transitions
+
+PnL accumulation rules
+
+Portfolio updates
+
+Trade ledger interaction
+
+==================================================
+SECTION 8 — REPOSITORY INTERFACES
+==================================================
+
+Document every repository.
+
+Show method signatures only.
+
+No implementations.
+
+==================================================
+SECTION 9 — ORM MODELS
+==================================================
+
+Document current ORM models.
+
+Fields
+
+Relationships
+
+Indexes
+
+Primary keys
+
+Unique constraints
+
+==================================================
+SECTION 10 — DATABASE CONVENTIONS
+==================================================
+
+Explain:
+
+Session management
+
+Transactions
+
+Commit ownership
+
+Repository pattern
+
+Unit-of-work pattern
+
+==================================================
+SECTION 11 — TEST COVERAGE
+==================================================
+
+List execution test files.
+
+Describe what each validates.
+
+==================================================
+SECTION 12 — DESIGN CONSTRAINTS
+==================================================
+
+List architectural rules including:
+
+- Decimal only
+- Idempotent processing
+- Deterministic replay
+- Immutable FillEvents
+- Repository-only persistence
+- No direct DB access
+- Async patterns
+- No live broker integration
+
+==================================================
+SECTION 13 — KNOWN LIMITATIONS
+==================================================
+
+List current technical debt and deferred items exactly as they exist.
+
+==================================================
+SECTION 14 — BATCH 7D INTEGRATION POINTS
+==================================================
+
+Describe exactly where Batch 7D should integrate.
+
+Show which classes will be extended.
+
+Show which new repositories will be needed.
+
+Show which new ORM models are expected.
+
+Show which existing classes must remain unchanged.
+
+==================================================
+
+Requirements:
+
+- Use Markdown.
+- Maximum 25–35 pages.
+- No implementation code.
+- No pseudocode.
+- No ZIP.
+- No source dump.
+- Focus on architecture and public interfaces.

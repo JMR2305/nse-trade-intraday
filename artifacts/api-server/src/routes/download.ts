@@ -19,6 +19,14 @@ const FILES = [
     type: "Markdown",
     icon: "📄",
   },
+  {
+    slug: "batch7d-public-api.md",
+    fsPath: "/home/runner/workspace/exports/BATCH_7D_PUBLIC_API.md",
+    label: "Batch 7D — Public API Reference",
+    description: "Full 14-section API reference: directory tree, all public classes & methods, every data class field, enums, state machine, matching engine, position engine, repositories, ORM models, DB conventions, test coverage, design constraints, known limitations, and integration points.",
+    type: "Markdown",
+    icon: "📋",
+  },
 ];
 
 function humanSize(bytes: number): string {
@@ -173,6 +181,17 @@ router.get("/download/batch7d-kimi-context.md", (req, res) => {
     return;
   }
   res.setHeader("Content-Disposition", 'attachment; filename="BATCH_7D_KIMI_CONTEXT.md"');
+  res.setHeader("Content-Type", "text/markdown");
+  res.sendFile(filePath);
+});
+
+router.get("/download/batch7d-public-api.md", (req, res) => {
+  const filePath = "/home/runner/workspace/exports/BATCH_7D_PUBLIC_API.md";
+  if (!fs.existsSync(filePath)) {
+    res.status(404).json({ error: "File not found" });
+    return;
+  }
+  res.setHeader("Content-Disposition", 'attachment; filename="BATCH_7D_PUBLIC_API.md"');
   res.setHeader("Content-Type", "text/markdown");
   res.sendFile(filePath);
 });
