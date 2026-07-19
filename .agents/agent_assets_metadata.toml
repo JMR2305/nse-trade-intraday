@@ -52,4 +52,10 @@ title = "batch7d_reference_package.zip"
 id = "EAmMKIdZhKasytB_kLCff"
 uri = "file://artifacts/api-server/src/python/BATCH_7D_KIMI_CONTEXT.md"
 type = "text"
-title = "BATCH_7D_KIMI_CONTEXT.md"
+title = "BATCH_7D_KIMI_CONTEXT.md (concise)"
+
+[[outputs]]
+id = "m2e_LVGq9pOV8TjEewxGS"
+uri = "file://exports/batch7d_reference_package.zip"
+type = "unspecified"
+title = "batch7d_reference_package.zip"
