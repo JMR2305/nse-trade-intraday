@@ -1,0 +1,30 @@
+Batch 7C + 7CA merge checkpoint
+Timestamp: 2026-07-19
+Packages: src/execution/ (position, portfolio, P&L engine)
+Tests: tests/unit/execution/ (214 tests, 214 passed)
+Full unit suite: tests/unit/ (271 tests, 271 passed)
+
+Files added (7C):
+  src/execution/pnl.py           — PnLCalculator (realized + unrealized)
+  src/execution/portfolio.py     — PositionSnapshot, CashLedger, PortfolioSnapshot
+  src/execution/trades.py        — ExecutionTrade, TradeLedger
+  src/execution/position_engine.py — PositionEngine, PositionEngineResult
+  tests/unit/execution/test_pnl.py
+  tests/unit/execution/test_portfolio.py
+  tests/unit/execution/test_trades.py
+  tests/unit/execution/test_position_engine.py
+
+Files modified (7CA patch + fixes):
+  src/execution/engine.py        — removed 5 unused imports
+  src/execution/state_machine.py — removed ConcurrentTransitionError unused import
+  src/execution/portfolio.py     — removed ExecutionOrderSide unused import
+  src/execution/pnl.py           — REVERSE branches: new position realized_pnl=0
+  src/execution/position_engine.py — B1 fix: cumulative P&L gated on CLOSE/REVERSE;
+                                     trade cumulative formula corrected
+  src/execution/__init__.py      — 7C exports added
+
+Fixes applied beyond 7CA patch:
+  B1a (pnl.py): LONG->SHORT and SHORT->LONG REVERSE branches now set
+       realized_pnl=Decimal("0") on the new reversed position.
+  B1b (position_engine.py): _cumulative_realized_pnl only incremented on
+       CLOSE/REVERSE; trade.cumulative_realized_pnl uses open pos running total.
