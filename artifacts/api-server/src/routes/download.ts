@@ -37,4 +37,26 @@ router.get("/download/market-data-package.zip", (req, res) => {
   res.sendFile(filePath);
 });
 
+router.get("/download/batch7d-reference-package.zip", (req, res) => {
+  const filePath = "/home/runner/workspace/exports/batch7d_reference_package.zip";
+  if (!fs.existsSync(filePath)) {
+    res.status(404).json({ error: "File not found" });
+    return;
+  }
+  res.setHeader("Content-Disposition", 'attachment; filename="batch7d_reference_package.zip"');
+  res.setHeader("Content-Type", "application/zip");
+  res.sendFile(filePath);
+});
+
+router.get("/download/batch7d-kimi-context.md", (req, res) => {
+  const filePath = "/home/runner/workspace/exports/BATCH_7D_KIMI_CONTEXT.md";
+  if (!fs.existsSync(filePath)) {
+    res.status(404).json({ error: "File not found" });
+    return;
+  }
+  res.setHeader("Content-Disposition", 'attachment; filename="BATCH_7D_KIMI_CONTEXT.md"');
+  res.setHeader("Content-Type", "text/markdown");
+  res.sendFile(filePath);
+});
+
 export default router;
