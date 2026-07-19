@@ -29,3 +29,9 @@ id = "giV_Gi4PBA1D4NDd2YiD_"
 uri = "file://docs/INTRADAY_KEY_FINDINGS.html"
 type = "unspecified"
 title = "NSE Trader – Intraday Architecture: Key Findings"
+
+[[outputs]]
+id = "WNE2L-CZZzTOdW-uYS9f4"
+uri = "file://market_data_package.zip"
+type = "unspecified"
+title = "market_data_package.zip"
