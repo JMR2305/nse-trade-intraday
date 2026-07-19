@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Batch 7B Review Report — Paper Matching &amp; Fill Engine</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.65;
+    color: #1a1a2e;
+    background: #f4f6fb;
+  }
+  .page {
+    max-width: 960px;
+    margin: 32px auto;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+    padding: 48px 56px;
+  }
+  /* Header */
+  .report-header {
+    border-left: 6px solid #2563eb;
+    padding-left: 20px;
+    margin-bottom: 36px;
+  }
+  .report-header h1 { font-size: 22px; font-weight: 700; color: #1e3a8a; }
+  .report-header .meta { margin-top: 8px; font-size: 12.5px; color: #64748b; }
+  .report-header .meta span { margin-right: 24px; }
+
+  /* Verdict banner */
+  .verdict-banner {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    background: #f0fdf4;
+    border: 1px solid #86efac;
+    border-radius: 8px;
+    padding: 16px 24px;
+    margin-bottom: 36px;
+  }
+  .verdict-banner .score {
+    font-size: 36px;
+    font-weight: 800;
+    color: #16a34a;
+    white-space: nowrap;
+  }
+  .verdict-banner .label {
+    font-size: 16px;
+    font-weight: 700;
+    color: #15803d;
+  }
+  .verdict-banner .sub {
+    font-size: 12.5px;
+    color: #166534;
+    margin-top: 2px;
+  }
+
+  /* Section headings */
+  h2 {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1e3a8a;
+    border-bottom: 2px solid #e2e8f0;
+    padding-bottom: 6px;
+    margin: 32px 0 14px;
+  }
+  h3 {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #334155;
+    margin: 20px 0 8px;
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+    margin-bottom: 16px;
+  }
+  th {
+    background: #1e3a8a;
+    color: #fff;
+    font-weight: 600;
+    text-align: left;
+    padding: 8px 12px;
+  }
+  td {
+    padding: 7px 12px;
+    border-bottom: 1px solid #e2e8f0;
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: #f8fafc; }
+
+  /* Code blocks */
+  pre {
+    background: #1e293b;
+    color: #e2e8f0;
+    border-radius: 6px;
+    padding: 16px 20px;
+    font-size: 12px;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    overflow-x: auto;
+    margin: 10px 0 16px;
+    line-height: 1.5;
+  }
+  code {
+    background: #f1f5f9;
+    color: #0f172a;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  }
+  pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
+
+  /* Blocker / Warning badges */
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-right: 6px;
+    vertical-align: middle;
+    letter-spacing: 0.04em;
+  }
+  .badge-blocker { background: #fef2f2; color: #b91c1c; border: 1px solid #fca5a5; }
+  .badge-warn    { background: #fffbeb; color: #b45309; border: 1px solid #fcd34d; }
+  .badge-pass    { background: #f0fdf4; color: #15803d; border: 1px solid #86efac; }
+  .badge-info    { background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; }
+
+  /* Tag: identical / additive / replace */
+  .tag-ok    { color: #15803d; font-weight: 600; }
+  .tag-warn  { color: #b45309; font-weight: 600; }
+  .tag-add   { color: #1d4ed8; font-weight: 600; }
+
+  /* Print */
+  @media print {
+    body { background: #fff; }
+    .page { box-shadow: none; margin: 0; padding: 32px 40px; }
+    h2 { break-before: auto; }
+    pre { break-inside: avoid; }
+    .no-print { display: none; }
+  }
+
+  /* Save button */
+  .save-bar {
+    text-align: right;
+    margin-bottom: 24px;
+  }
+  .save-bar button {
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 9px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+  }
+  .save-bar button:hover { background: #1d4ed8; }
+
+  p { margin-bottom: 8px; }
+  ul { padding-left: 20px; margin-bottom: 10px; }
+  li { margin-bottom: 4px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="save-bar no-print">
+    <button onclick="window.print()">⬇ Save as PDF</button>
+  </div>
+
+  <div class="report-header">
+    <h1>Batch 7B Review Report — Paper Matching &amp; Fill Engine</h1>
+    <div class="meta">
+      <span><strong>Package:</strong> batch7b_execution_package</span>
+      <span><strong>Reviewed against:</strong> Batch 7A (original, unmerged)</span>
+      <span><strong>Date:</strong> 2026-07-19</span>
+    </div>
+  </div>
+
+  <!-- Verdict -->
+  <div class="verdict-banner">
+    <div class="score">7 / 10</div>
+    <div>
+      <div class="label">SAFE AFTER MINOR FIXES</div>
+      <div class="sub">All 10 test failures are test bugs, not implementation bugs. Three fixes required before merge.</div>
+    </div>
+  </div>
+
+  <!-- Test Results -->
+  <h2>1. Test Results</h2>
+  <pre>python -m compileall src/execution   →  OK (no errors)
+pytest tests/unit/execution -q       →  140 collected, 130 passed, 10 failed</pre>
+
+  <table>
+    <thead><tr><th>File</th><th>Collected</th><th>Passed</th><th>Failed</th></tr></thead>
+    <tbody>
+      <tr><td>test_policies.py</td><td>17</td><td>17</td><td>0</td></tr>
+      <tr><td>test_contracts.py</td><td>32</td><td>32</td><td>0</td></tr>
+      <tr><td>test_state_machine.py</td><td>51</td><td>51</td><td>0</td></tr>
+      <tr><td>test_matching.py</td><td>25</td><td>17</td><td>8</td></tr>
+      <tr><td>test_engine.py</td><td>15</td><td>13</td><td>2</td></tr>
+    </tbody>
+  </table>
+
+  <p><strong>Note:</strong> Kimi's claim of "153 tests, 130 passing" is wrong on count (actual: 140). Root cause assessment is correct — all 10 failures are test-helper defects, not implementation defects.</p>
+
+  <!-- Failure Breakdown -->
+  <h2>2. Every Failure — Root Cause</h2>
+  <h3>test_matching.py — 8 failures (all test bugs)</h3>
+  <table>
+    <thead><tr><th>#</th><th>Test</th><th>Line</th><th>Error</th><th>Root Cause</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>1–4</td>
+        <td>test_market_buy_uses_ask, test_market_buy_fallback_to_ltp, test_market_sell_uses_bid, test_market_sell_fallback_to_ltp</td>
+        <td>68–92</td>
+        <td><code>AttributeError: module 'src' has no attribute 'ExecutionOrderStatus'</code></td>
+        <td><code>__import__("src.execution.contracts")</code> returns the top-level <code>src</code> module, not the submodule. Must use a standard <code>from src.execution.contracts import ExecutionOrderStatus</code></td>
+      </tr>
+      <tr>
+        <td>5</td>
+        <td>test_limit_price_protection_after_slippage</td>
+        <td>147</td>
+        <td><code>TypeError: _make_snapshot() got unexpected keyword 'tick_size'</code></td>
+        <td><code>_make_snapshot()</code> helper omits the <code>tick_size</code> parameter even though <code>MarketSnapshot</code> supports it</td>
+      </tr>
+      <tr>
+        <td>6–8</td>
+        <td>TestStopMarketOrders.test_triggered_sticky, TestStopLimitOrders.test_triggered_sticky, TestPartialFills.test_multiple_partial_fills</td>
+        <td>207, 279, 311</td>
+        <td><code>TypeError: _make_snapshot() got unexpected keyword 'event_id'</code></td>
+        <td><code>_make_snapshot()</code> helper omits the <code>event_id</code> parameter</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>test_engine.py — 2 failures (both test bugs)</h3>
+  <table>
+    <thead><tr><th>#</th><th>Test</th><th>Line</th><th>Error</th><th>Root Cause</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>9</td>
+        <td>TestIdempotency.test_deterministic_fill_id</td>
+        <td>243</td>
+        <td><code>IndexError: list index out of range</code></td>
+        <td>After <code>engine.reset()</code>, the underlying <code>OrderStateMachine</code> still holds the order in FILLED state. <code>activate_order()</code> is a no-op; second <code>on_market_data</code> finds no executable orders. Test needs a fresh <code>OrderStateMachine</code> + <code>MatchingEngine</code> for replay.</td>
+      </tr>
+      <tr>
+        <td>10</td>
+        <td>TestReplay.test_no_wall_clock_dependency</td>
+        <td>378</td>
+        <td><code>TypeError: _make_snapshot() got unexpected keyword 'timestamp'</code></td>
+        <td><code>_make_snapshot()</code> helper hard-codes the timestamp; the <code>timestamp=</code> kwarg must be added to the helper</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Blockers -->
+  <h2>3. Blockers</h2>
+
+  <h3><span class="badge badge-blocker">B1</span> Idempotency key recorded before transition outcome — carried from 7A, still unresolved</h3>
+  <p><strong>File:</strong> <code>src/execution/state_machine.py</code></p>
+  <p><code>state_machine.py</code> is byte-identical to the 7A original. The B1 bug from the 7A review was not fixed. The dedup key is recorded before the transition graph check; a failed transition permanently marks the action as "seen", causing subsequent retries to raise <code>IdempotencyViolation</code> instead of <code>InvalidStateTransition</code>.</p>
+  <p><strong>Fix:</strong> Move <code>state._seen_transitions.add(dedup_key)</code> to after step 6 (post state-change).</p>
+
+  <h3><span class="badge badge-blocker">B2</span> FillEvent._gross_value_matches validator is inert</h3>
+  <p><strong>File:</strong> <code>src/execution/fills.py</code> lines 57–63</p>
+  <pre>@field_validator("gross_value")
+@classmethod
+def _gross_value_matches(cls, v: Decimal, info) -> Decimal:
+    # gross_value should equal quantity * price
+    # We can't easily access sibling fields in v2 ...
+    return v  # ← does nothing</pre>
+  <p>The comment is incorrect. Pydantic v2 <code>model_validator(mode='after')</code> can access all fields. As written, <code>gross_value</code> is never validated against <code>quantity * price</code>. A caller can construct a <code>FillEvent</code> with <code>gross_value=Decimal("0")</code> and it is silently accepted.</p>
+  <p><strong>Fix:</strong> Replace with a <code>model_validator(mode='after')</code>:</p>
+  <pre>@model_validator(mode="after")
+def _validate_gross_value(self) -> "FillEvent":
+    expected = Decimal(self.quantity) * self.price
+    if self.gross_value != expected:
+        raise ValueError(
+            f"gross_value {self.gross_value} != quantity*price {expected}"
+        )
+    return self</pre>
+
+  <!-- Warnings -->
+  <h2>4. Warnings</h2>
+  <table>
+    <thead><tr><th>ID</th><th>File</th><th>Finding</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><span class="badge badge-warn">W1</span></td>
+        <td><code>fills.py</code> line 104</td>
+        <td><code>import hashlib</code> inside function body <code>FillEventBuilder.build()</code>. Move to top-level.</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-warn">W2</span></td>
+        <td><code>fills.py</code></td>
+        <td><code>FillEvent.fill_id</code> is <code>str</code> (hex string); <code>FillRecord.fill_id</code> from Batch 7A is <code>UUID</code>. Deliberate but divergent — future adapter code must be aware.</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-warn">W3</span></td>
+        <td><code>engine.py</code></td>
+        <td><code>MarketSnapshot.event_id</code> defaults to <code>""</code>. Two distinct events with the same millisecond timestamp and no event_id would be incorrectly deduplicated. Callers must always set <code>event_id</code>.</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-warn">W4</span></td>
+        <td><code>engine.py</code></td>
+        <td>Engine accesses <code>self._state_machine._orders</code> (private attribute) directly in <code>_executable_orders_for_instrument()</code>. Safe under asyncio but breaks encapsulation.</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-warn">W5</span></td>
+        <td><code>policies.py</code></td>
+        <td><code>FixedTicksSlippagePolicy</code> skips explicit tick rounding. <code>BasisPointsSlippagePolicy</code> rounds to tick; this one does not. Fragile when input price is not tick-aligned.</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-warn">W6</span></td>
+        <td><code>test_engine.py</code></td>
+        <td>No engine-level test for STOP_LIMIT "trigger then wait then fill" across two events. Coverage gap (not blocking).</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- 7A File Diffs -->
+  <h2>5. Differences in Repeated Batch 7A Files</h2>
+  <table>
+    <thead><tr><th>File</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td><code>src/execution/contracts.py</code></td><td><span class="tag-ok">Identical</span> to 7A original</td></tr>
+      <tr><td><code>src/execution/exceptions.py</code></td><td><span class="tag-ok">Identical</span> to 7A original</td></tr>
+      <tr><td><code>src/execution/state_machine.py</code></td><td><span class="tag-warn">Identical</span> to 7A original — <strong>B1 not fixed</strong></td></tr>
+      <tr><td><code>src/execution/__init__.py</code></td><td><span class="tag-add">Additive only</span> — all 7A exports preserved; 7B exports appended. No removals or signature changes. Safe to replace.</td></tr>
+      <tr><td><code>tests/unit/execution/conftest.py</code></td><td><span class="tag-ok">Identical</span> to 7A original</td></tr>
+      <tr><td><code>tests/unit/execution/test_contracts.py</code></td><td><span class="tag-ok">Identical</span> to 7A original</td></tr>
+      <tr><td><code>tests/unit/execution/test_state_machine.py</code></td><td><span class="tag-ok">Identical</span> to 7A original</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Market Data Compat -->
+  <h2>6. Market-Data Compatibility Findings</h2>
+  <p><strong>An adapter layer is required.</strong> <code>MarketSnapshot</code> is not wire-compatible with Batch 6 <code>Tick</code>.</p>
+  <table>
+    <thead><tr><th>Field</th><th>Batch 6 Tick</th><th>7B MarketSnapshot</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>Instrument ID</td><td><code>instrument_token: int</code></td><td><code>instrument_token: int</code></td><td>✅ Match</td></tr>
+      <tr><td>Exchange time</td><td><code>exchange_timestamp</code></td><td><code>timestamp</code></td><td>⚠️ Name differs</td></tr>
+      <tr><td>Last price</td><td><code>last_price</code></td><td><code>last_traded_price</code></td><td>⚠️ Name differs</td></tr>
+      <tr><td>Bid side qty</td><td><code>buy_quantity</code> (total market)</td><td><code>bid_quantity</code></td><td>⚠️ Name + semantics differ</td></tr>
+      <tr><td>Ask side qty</td><td><code>sell_quantity</code> (total market)</td><td><code>ask_quantity</code></td><td>⚠️ Name + semantics differ</td></tr>
+      <tr><td>Bid / Ask price</td><td>Inside <code>market_depth[0]</code></td><td><code>bid_price</code> / <code>ask_price</code> (flat fields)</td><td>⚠️ Structure differs</td></tr>
+      <tr><td>Event identifier</td><td><em>(none)</em></td><td><code>event_id: str</code></td><td>⚠️ Missing in Tick</td></tr>
+      <tr><td>Tick size</td><td><em>(none)</em></td><td><code>tick_size: Decimal = 0.05</code></td><td>⚠️ Hardcoded default</td></tr>
+    </tbody>
+  </table>
+  <p><code>MarketSnapshot</code> acknowledges this ("Adapted from Batch 6 Tick/Quote contracts") and the <code>__init__.py</code> states adapters come in a future batch. <strong>Not a blocker</strong> — but Batch 7B cannot be wired to live market data until the adapter batch lands.</p>
+
+  <!-- Concurrency -->
+  <h2>7. Concurrency &amp; Idempotency Findings</h2>
+  <h3>Concurrency — Sound</h3>
+  <ul>
+    <li>Per-order <code>asyncio.Lock</code> in the state machine serialises all mutation.</li>
+    <li><code>asyncio.gather</code> in <code>on_market_data</code> evaluates different orders concurrently; same-order transitions are serialised by the lock.</li>
+    <li>No <code>await</code> between dedup-key check and insert → no TOCTOU race in asyncio.</li>
+    <li>Dict iteration in <code>_executable_orders_for_instrument</code> is safe (no yields inside loop).</li>
+  </ul>
+  <h3>Idempotency — Partly Sound, One Gap</h3>
+  <ul>
+    <li>Dedup is per <code>(order_id, market_event_id)</code> — correct; one order processing an event does not block other orders from using the same event.</li>
+    <li>Dedup key in <code>_evaluate_order</code> is added <strong>before</strong> the state machine transition. If the transition fails and is caught (e.g. <code>OverfillError</code> → returns <code>None</code>), the key is still recorded, permanently suppressing a legitimate retry. Same structural pattern as B1.</li>
+  </ul>
+
+  <!-- Code Quality -->
+  <h2>8. Code Quality Scan</h2>
+  <table>
+    <thead><tr><th>Check</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td><code>pass</code> in production logic</td><td>✅ None</td></tr>
+      <tr><td>TODO / FIXME</td><td>✅ None</td></tr>
+      <tr><td>NotImplementedError</td><td>✅ None</td></tr>
+      <tr><td>Random execution behaviour</td><td>✅ None</td></tr>
+      <tr><td><code>datetime.now()</code> without timezone</td><td>✅ None — all use <code>timezone.utc</code></td></tr>
+      <tr><td>Float-based price calculations</td><td>✅ None — all Decimal</td></tr>
+      <tr><td><code>asyncio.sleep()</code> in matching logic</td><td>✅ None</td></tr>
+      <tr><td>Direct order mutation bypassing state machine</td><td>✅ None</td></tr>
+      <tr><td>Live broker calls</td><td>✅ None</td></tr>
+      <tr><td>Zerodha order API usage</td><td>✅ None</td></tr>
+      <tr><td><code>import hashlib</code> inside function body</td><td>⚠️ W1 — <code>fills.py</code> line 104</td></tr>
+      <tr><td>Inert validator</td><td>⚠️ B2 — <code>fills.py</code> <code>_gross_value_matches</code></td></tr>
+    </tbody>
+  </table>
+
+  <!-- Fixes -->
+  <h2>9. Files Requiring Changes</h2>
+  <table>
+    <thead><tr><th>File</th><th>Change Required</th></tr></thead>
+    <tbody>
+      <tr><td><code>src/execution/state_machine.py</code></td><td>Fix B1: commit dedup key after successful transition only</td></tr>
+      <tr><td><code>src/execution/fills.py</code></td><td>Fix B2: replace inert validator with <code>model_validator(mode='after')</code>; move <code>import hashlib</code> to top</td></tr>
+      <tr><td><code>tests/unit/execution/test_matching.py</code></td><td>Fix 8 failures: replace <code>__import__</code> with proper imports; add <code>event_id</code> and <code>tick_size</code> to <code>_make_snapshot()</code></td></tr>
+      <tr><td><code>tests/unit/execution/test_engine.py</code></td><td>Fix 2 failures: add <code>timestamp</code> to <code>_make_snapshot()</code>; fix <code>test_deterministic_fill_id</code> to use fresh machine for replay</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Merge Plan -->
+  <h2>10. Safe Merge Plan</h2>
+  <table>
+    <thead><tr><th>Action</th><th>Files</th></tr></thead>
+    <tbody>
+      <tr><td><span class="badge badge-info">ADD</span> New source files</td><td><code>fills.py</code>, <code>matching.py</code>, <code>engine.py</code>, <code>policies.py</code></td></tr>
+      <tr><td><span class="badge badge-info">ADD</span> New test files (after fixes)</td><td><code>test_policies.py</code>, <code>test_matching.py</code>, <code>test_engine.py</code></td></tr>
+      <tr><td><span class="badge badge-pass">REPLACE</span> Additive only, safe</td><td><code>src/execution/__init__.py</code> — all 7A exports intact, 7B exports appended</td></tr>
+      <tr><td><span class="badge badge-pass">PRESERVE</span> Identical to 7A</td><td><code>contracts.py</code>, <code>exceptions.py</code></td></tr>
+      <tr><td><span class="badge badge-warn">REPLACE after B1 fix</span></td><td><code>src/execution/state_machine.py</code></td></tr>
+      <tr><td><span class="badge badge-pass">PRESERVE</span> Identical to 7A</td><td><code>conftest.py</code>, <code>test_contracts.py</code>, <code>test_state_machine.py</code></td></tr>
+    </tbody>
+  </table>
+
+  <p style="margin-top:40px; font-size:11px; color:#94a3b8; text-align:center;">
+    NSE Trading Platform — Internal Review Report &nbsp;|&nbsp; Batch 7B Execution Engine &nbsp;|&nbsp; 2026-07-19
+  </p>
+
+</div>
+</body>
+</html>
