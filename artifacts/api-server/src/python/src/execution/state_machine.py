@@ -20,7 +20,6 @@ from src.execution.contracts import (
     TERMINAL_STATES,
 )
 from src.execution.exceptions import (
-    ConcurrentTransitionError,
     IdempotencyViolation,
     InvalidStateTransition,
     OrderValidationError,

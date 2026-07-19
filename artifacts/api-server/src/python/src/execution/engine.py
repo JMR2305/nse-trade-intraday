@@ -8,19 +8,15 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
-from datetime import datetime
-from decimal import Decimal
-from typing import Any
 from uuid import UUID
 
 from src.execution.contracts import (
     ExecutionOrder,
     ExecutionOrderStatus,
-    ExecutionOrderType,
 )
 from src.execution.exceptions import OverfillError
 from src.execution.fills import FillEvent
-from src.execution.matching import MarketSnapshot, OrderMatcher, MatchResult
+from src.execution.matching import MarketSnapshot, OrderMatcher
 from src.execution.policies import (
     LatencyPolicy,
     LiquidityPolicy,
