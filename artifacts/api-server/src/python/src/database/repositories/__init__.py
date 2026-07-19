@@ -1,10 +1,19 @@
-"""Database repositories package."""
-# Preserve existing exports — append new ones only.
-# If OrderRepository, PositionRepository, etc. exist in the main project,
-# they should remain above this line.
+"""Database repositories for Batch 7D execution persistence.
 
-try:
-    from src.database.repositories.minute_bars import MinuteBarRepository
-    __all__ = ["MinuteBarRepository"]
-except ImportError:
-    __all__ = []
+Batch 7D — Execution Recovery, Persistence & Replay Foundation.
+"""
+from __future__ import annotations
+
+from src.database.repositories.execution_order import ExecutionOrderRepository
+from src.database.repositories.audit_event import AuditEventRepository
+from src.database.repositories.fill_event import FillEventRepository
+from src.database.repositories.execution_trade import ExecutionTradeRepository
+from src.database.repositories.position_snapshot import PositionSnapshotRepository
+
+__all__ = [
+    "ExecutionOrderRepository",
+    "AuditEventRepository",
+    "FillEventRepository",
+    "ExecutionTradeRepository",
+    "PositionSnapshotRepository",
+]

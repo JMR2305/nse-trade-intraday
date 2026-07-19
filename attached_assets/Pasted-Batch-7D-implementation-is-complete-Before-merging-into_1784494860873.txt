@@ -1,0 +1,149 @@
+Batch 7D implementation is complete.
+
+Before merging into the main branch, perform a full production readiness review and integration validation.
+
+DO NOT redesign the architecture unless absolutely necessary.
+
+Your task is to validate, fix, and integrate the implementation.
+
+==================================================
+STEP 1 — FIX KNOWN ISSUES
+==================================================
+
+Fix the following import issues:
+
+1. src/database/repositories/audit_event.py
+   - Add missing Decimal import in _hydrate_event()
+
+2. tests/unit/execution/recovery/test_replay_engine.py
+   - Add missing:
+     from uuid import uuid4
+     from datetime import datetime, timezone
+
+3. tests/unit/execution/recovery/test_persistence_adapter.py
+   - Add missing:
+     from decimal import Decimal
+
+4. tests/unit/execution/recovery/test_idempotent_recovery.py
+   - Add missing:
+     from uuid import uuid4
+     from datetime import datetime, timezone
+
+Do not make any additional logic changes unless required for compilation or test execution.
+
+==================================================
+STEP 2 — STATIC VALIDATION
+==================================================
+
+Run:
+
+- Formatter
+- Linter
+- Type checker (if configured)
+
+Fix only genuine issues.
+
+Do not refactor working code.
+
+==================================================
+STEP 3 — TEST VALIDATION
+==================================================
+
+Run the complete recovery test suite.
+
+Then run the complete unit test suite.
+
+Verify:
+
+- Batch 7A tests
+- Batch 7B tests
+- Batch 7C tests
+- Batch 7D tests
+
+All must continue to pass.
+
+==================================================
+STEP 4 — BACKWARD COMPATIBILITY REVIEW
+==================================================
+
+Verify that Batch 7D does NOT change:
+
+- Matching semantics
+- State machine transitions
+- Fill generation
+- PnL calculations
+- Position calculations
+- Portfolio calculations
+- Public APIs used by previous batches
+
+Report any compatibility issue.
+
+==================================================
+STEP 5 — ARCHITECTURE REVIEW
+==================================================
+
+Review the implementation for:
+
+- Repository pattern compliance
+- Async correctness
+- Transaction boundaries
+- Idempotency
+- Replay determinism
+- Snapshot correctness
+- Recovery correctness
+- Consistency validation
+- SQLAlchemy best practices
+- Decimal usage
+- Error handling
+- Logging
+- Thread safety
+- Performance
+- Maintainability
+
+Suggest only improvements that are necessary before production.
+
+==================================================
+STEP 6 — FINAL REPORT
+==================================================
+
+Produce a report containing:
+
+1. Overall score (/10)
+
+2. Architecture assessment
+
+3. Code quality assessment
+
+4. Recovery engine assessment
+
+5. Replay engine assessment
+
+6. Persistence assessment
+
+7. Test summary
+
+8. Any regressions found
+
+9. Any breaking changes found
+
+10. Any recommended improvements
+
+11. Final verdict:
+
+- APPROVED FOR MERGE
+or
+- APPROVED WITH MINOR FIXES
+or
+- CHANGES REQUIRED
+
+==================================================
+IMPORTANT
+==================================================
+
+Do not redesign Batch 7D.
+
+Do not introduce new features.
+
+Do not change existing execution behaviour.
+
+Only fix genuine issues, validate compatibility, and prepare the implementation for production merge.
