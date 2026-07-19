@@ -26,4 +26,15 @@ router.get("/download/batch6-compatibility-report.csv", (req, res) => {
   res.sendFile(filePath);
 });
 
+router.get("/download/market-data-package.zip", (req, res) => {
+  const filePath = "/home/runner/workspace/exports/market_data_package.zip";
+  if (!fs.existsSync(filePath)) {
+    res.status(404).json({ error: "File not found" });
+    return;
+  }
+  res.setHeader("Content-Disposition", 'attachment; filename="market_data_package.zip"');
+  res.setHeader("Content-Type", "application/zip");
+  res.sendFile(filePath);
+});
+
 export default router;
