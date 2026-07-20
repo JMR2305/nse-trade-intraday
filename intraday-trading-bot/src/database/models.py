@@ -9,6 +9,7 @@ from sqlalchemy import (
     Numeric, Text, ForeignKey, CheckConstraint, Index, UniqueConstraint,
     Enum as SQLEnum, JSON,
 )
+from sqlalchemy.dialects.postgresql import UUID as PGUUID, JSONB
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from sqlalchemy.sql import func
 
@@ -431,4 +432,41 @@ class IdempotencyRecord(Base):
     __table_args__ = (
         Index("idx_idempotency_key", "key"),
         Index("idx_idempotency_expires", "expires_at"),
+    )
+
+
+# ===========================================================================
+# RISK ENGINE
+# ===========================================================================
+
+class RiskStateModel(Base):
+    """ORM model for risk_state_snapshots table.
+
+    Stores point-in-time snapshots of RiskState for crash recovery.
+    Each row represents one snapshot for one account.
+    """
+
+    __tablename__ = "risk_state_snapshots"
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=__import__("uuid").uuid4)
+    account_id = Column(String(64), nullable=False, index=True)
+    snapshot_timestamp = Column(DateTime(timezone=True), nullable=False, index=True)
+
+    # Monetary fields — Decimal precision
+    daily_realized_pnl = Column(Numeric(20, 8), nullable=False, default=0)
+    daily_turnover = Column(Numeric(20, 8), nullable=False, default=0)
+    peak_equity = Column(Numeric(20, 8), nullable=False, default=0)
+
+    # Kill switch state
+    kill_switch_active = Column(Boolean, nullable=False, default=False)
+    kill_switch_reason = Column(Text, nullable=True)
+
+    # Message counts stored as JSONB
+    message_counts = Column(JSONB, nullable=False, default=dict)
+
+    # Extra metadata for extensibility
+    extra_data = Column(JSONB, nullable=False, default=dict)
+
+    __table_args__ = (
+        Index("ix_risk_state_account_timestamp", "account_id", "snapshot_timestamp"),
     )
