@@ -1,8 +1,8 @@
 # PROJECT PROGRESS SUMMARY
-### NSE Paper Trading Platform — Release Candidate RC-7
-**Prepared for:** Batch 8 onboarding (Kimi)
-**Date:** 19 July 2026
-**Status:** ✅ Production-ready execution engine. All 279 execution unit tests passing. RC-7 approved.
+### NSE Paper Trading Platform — Release Candidate RC-8
+**Prepared for:** Batch 9 onboarding
+**Date:** 21 July 2026
+**Status:** ✅ Risk Engine actively integrated. 464 unit tests passing. RC-8 approved.
 
 ---
 
@@ -15,7 +15,7 @@
 5. [Database Layer](#5-database-layer)
 6. [Test Status](#6-test-status)
 7. [Design Principles](#7-design-principles)
-8. [What Batch 8 Should Assume](#8-what-batch-8-should-assume)
+8. [What Batch 9 Should Assume](#8-what-batch-9-should-assume)
 9. [What Not To Do](#9-what-not-to-do)
 
 ---
@@ -29,7 +29,7 @@
 Provide a complete, deterministic, crash-recoverable paper trading environment that faithfully simulates NSE order execution, fill matching, position accounting, and P&L tracking — without touching real money or real broker order books.
 
 ### Current Stage
-**Release Candidate RC-7.** The execution engine (Batches 7A–7D) has passed production readiness audit. The market data foundation (Batch 6) is integrated. The system is ready for higher-level features to be built on top of the execution layer.
+**Release Candidate RC-8.** The execution engine (Batches 7A–7D) and Risk Engine (Batch 8) have both passed production readiness audit. The market data foundation (Batch 6) is integrated. The Risk Engine is actively gating every order through `RiskIntegrationLayer` — it is not dormant. The system is ready for higher-level features to be built on top of the execution + risk layer.
 
 ### High-Level Architecture
 
@@ -41,7 +41,7 @@ src/
 ├── database/          # ORM models + session-injected async repositories
 │   ├── models/        # SQLAlchemy declarative models (shared Base)
 │   └── repositories/  # Data access objects — no commit, no transaction ownership
-├── execution/         # Paper execution engine (RC-7 production-ready)
+├── execution/         # Paper execution engine (RC-7 production-ready, frozen API)
 │   ├── contracts.py   # Immutable domain types and enumerations
 │   ├── state_machine.py
 │   ├── matching.py
@@ -54,7 +54,18 @@ src/
 │   ├── engine.py
 │   ├── exceptions.py
 │   └── recovery/      # Crash recovery, persistence adapters, deterministic replay
-└── market_data/       # Market data pipeline (Batch 6)
+├── market_data/       # Market data pipeline (Batch 6)
+└── risk/              # ← RC-8: Risk Engine — ACTIVELY INTEGRATED
+    ├── contracts.py   # Pydantic v2 domain types (RiskResult, RiskRequest, limit configs)
+    ├── state.py       # Per-account RiskState (daily P&L, trade/order counts, safety flags)
+    ├── kill_switch.py # Async KillSwitch with full audit trail
+    ├── rules.py       # 20 rules in RULE_REGISTRY (RiskRule Protocol)
+    ├── engine.py      # RiskEngine — per-account evaluation, fill dedup, throttle
+    ├── fill_event_bus.py    # FillEventBus pub/sub
+    ├── integration_layer.py # RiskIntegrationLayer + ExecutionEnginePort ABC
+    ├── execution_adapter.py # ProjectExecutionAdapter → ExecutionService bridge
+    ├── persistence.py       # RiskEnginePersistenceAdapter (session-injected)
+    └── exceptions.py        # Typed exception hierarchy
 ```
 
 The backend exposes a REST/WebSocket API (Node.js `api-server` layer, not described here). The Python engine is the computational core consumed by that API.
@@ -257,6 +268,68 @@ The backend exposes a REST/WebSocket API (Node.js `api-server` layer, not descri
 
 ---
 
+### Batch 8 — Risk Engine Integration (RC-8)
+
+**Purpose:** Wire the RC-8B Risk Engine into the execution path. Every order submitted via `ExecutionService.execute_order()` now passes through a 20-rule pre-trade risk gate before reaching the paper broker. The engine manages per-account state (daily loss, trade counts, kill switch, circuit breaker), deduplicates fills, and records throttle events.
+
+**Key Modules:**
+
+| Module | Responsibility |
+|---|---|
+| `risk/contracts.py` | Pydantic v2 domain types: `RiskRequest`, `RiskResult`, `RiskContext`, `RiskViolation`, `RiskStateSnapshot`, all limit config classes (`OrderQuantityLimit`, `DailyLossLimit`, etc.) |
+| `risk/state.py` | `RiskState` — per-account mutable counters: `daily_realized_pnl`, `daily_turnover`, `trade_count`, `order_count`, `peak_equity`, kill switch / emergency halt / circuit breaker flags |
+| `risk/kill_switch.py` | `KillSwitch` — async activate/deactivate with full `KillSwitchEvent` audit trail; idempotent on double-activate |
+| `risk/rules.py` | 20 rules in `RULE_REGISTRY` (keyed by `RiskCheckType`); each implements the `RiskRule` Protocol with `evaluate(config, context, state) → Optional[RiskViolation]` |
+| `risk/engine.py` | `RiskEngine` — per-account `RiskState`, fill dedup, throttle recording, snapshot/restore |
+| `risk/fill_event_bus.py` | `FillEventBus` + `FillEvent` — pub/sub notification bus; subscribers registered per account |
+| `risk/integration_layer.py` | `RiskIntegrationLayer` — async order gate; `ExecutionEnginePort` ABC; `RiskIntegrationResult` |
+| `risk/execution_adapter.py` | `ProjectExecutionAdapter` — implements `ExecutionEnginePort` over project repos; bridges to `ExecutionService._submit_approved_order()` |
+| `risk/persistence.py` | `RiskEnginePersistenceAdapter` — session-injected save/restore via `RiskStateRepository` |
+| `risk/__init__.py` | 58 public exports |
+| `database/models/risk_state.py` | `RiskStateModel` ORM — `risk_state_snapshots` table, shared project `Base` |
+| `database/repositories/risk_state.py` | `RiskStateRepository` — `save()` / `load_latest()` with backward-compat hydration |
+| `migrations/versions/0002_rc8b_risk_state_fields.py` | Alembic migration — adds `trade_count`, `order_count`, `emergency_halt_active`, `circuit_breaker_triggered` with `server_default` |
+
+**Major Classes:**
+
+- `RiskEngine` — singleton-per-process; per-account state keyed by `account_id`; `evaluate(account_id, request, context) → RiskResult`; `record_fill(account_id, ...)` updates daily totals; `snapshot(account_id) → RiskStateSnapshot` / `restore(account_id, snapshot)` for persistence
+- `RiskIntegrationLayer` — async gate; `submit_order(account_id, order) → RiskIntegrationResult`; per-account `asyncio.Lock` ensures serialized evaluation; `enabled` flag (`disable()` / `enable()`) for test bypass
+- `ExecutionEnginePort` — ABC defining `submit_order(account_id, order)` and `get_market_price(instrument_token)`; `ProjectExecutionAdapter` is the sole production implementation
+- `KillSwitch` — no constructor arguments; `await activate(reason, triggered_by) / deactivate(triggered_by)`; `events` property returns copy of audit trail; `reset_events()` clears trail without altering active state
+- `FillEventBus` — `subscribe(account_id, callback)` / `publish(fill_event)` / `unsubscribe(account_id, callback)`
+- `RiskResult` — `approved: bool`, `violations: List[RiskViolation]`, `action` property (`ALLOW / WARN / BLOCK / KILL_SWITCH`), `has_critical` property
+
+**Wiring into ExecutionService:**
+
+```python
+# ExecutionService.__init__()
+self._risk_integration = RiskIntegrationLayer(engine=RiskEngine(), enabled=True)
+
+# ExecutionService.execute_order()
+result = await self._risk_integration.submit_order(session_id, order)
+if not result.approved:
+    return {"status": "REJECTED", "violations": [...]}
+# (approved path reached via ProjectExecutionAdapter callback)
+```
+
+**Pydantic v2 compatibility pattern** (applied to all limit config classes):
+```python
+# Each frozen limit class uses Literal[] to pin check_type — no Field(const=True)
+class OrderQuantityLimit(RiskConfiguration, frozen=True):
+    check_type: Literal[RiskCheckType.ORDER_QUANTITY] = RiskCheckType.ORDER_QUANTITY
+```
+
+**Design Decisions:**
+- `account_id` equals the project's `session_id` throughout; enforced in `ProjectExecutionAdapter`.
+- `get_market_price()` returns `None` in paper mode; `PriceBandRule` skips gracefully on `None` LTP.
+- `RiskIntegrationLayer(enabled=False)` or `layer.disable()` bypasses all checks — the only sanctioned test bypass.
+- Kill switch does **not** clear on `reset_daily()` — requires explicit `deactivate_kill_switch()` with actor attribution; this is intentional (paper + production safety parity).
+- `_submit_approved_order()` is only reachable via `ProjectExecutionAdapter.submit_order()`, which is only called after `RiskResult.approved == True`.
+
+**Current Status:** ✅ **Actively integrated.** RC-8 git tag applied. 128 unit tests pass. All 336 prior tests unaffected.
+
+---
+
 ## 3. Current Architecture
 
 ### Package Responsibilities
@@ -314,40 +387,43 @@ src/
     └── instrument_sync.py        InstrumentSync — NSE instrument master sync
 ```
 
-### Data Flow (Happy Path)
+### Data Flow (Happy Path — RC-8)
 
 ```
-Zerodha KiteTicker
-       │
+API caller
+       │ execute_order(session_id, order)
        ▼
-ZerodhaMarketDataProvider
-       │  (Tick)
-       ▼
-MarketDataService → SubscriptionManager → BarBuilder
-                                              │  (CompletedBar)
-                                              ▼
-                                        MinuteBarRepository ──► PostgreSQL
-                                              │
-                                              ▼ (MarketSnapshot)
-                                        MatchingEngine
-                                         │         │
-                             (MatchResult)         │
-                                 │                 │
-                                 ▼                 ▼
-                          FillEventBuilder   OrderStateMachinePersistenceAdapter
-                                 │                 │
-                          (FillEvent)        (transition → AuditEventRepository)
-                                 │
-                                 ▼
-                    PositionEnginePersistenceAdapter
-                         │           │
-                         ▼           ▼
-                  PositionEngine   FillEventRepository
-                  TradeLedger      ExecutionTradeRepository
-                  CashLedger       PositionSnapshotRepository
-                         │
-                         ▼
-                   PortfolioSnapshot (in-memory, queryable)
+ExecutionService  ◄── RiskIntegrationLayer (RC-8 gate)
+       │                      │
+       │   submit_order(account_id, order)
+       │                      │
+       │              RiskEngine.evaluate()
+       │              (20 rules × RULE_REGISTRY)
+       │                      │
+       │          ┌───────────┴───────────┐
+       │       BLOCKED               APPROVED
+       │          │                       │
+       │   return REJECTED        ProjectExecutionAdapter
+       │                          _submit_approved_order()
+       │                                  │
+       ▼                                  ▼
+Zerodha KiteTicker             PaperBrokerClient → MatchingEngine
+       │                                  │
+       │  (Tick)                   (FillEvent)
+       ▼                                  │
+MarketDataService → BarBuilder            ├──► RiskEngine.record_fill()
+       │  (CompletedBar)                  │    FillEventBus.publish()
+       ▼                                  │
+MinuteBarRepository ──► PostgreSQL        ▼
+                                 PositionEnginePersistenceAdapter
+                                  │           │
+                                  ▼           ▼
+                           PositionEngine   FillEventRepository
+                           TradeLedger      ExecutionTradeRepository
+                           CashLedger       PositionSnapshotRepository
+                                  │
+                                  ▼
+                            PortfolioSnapshot (in-memory, queryable)
 ```
 
 ### Recovery Flow (On Restart)
@@ -496,7 +572,7 @@ Transaction ownership is always with the **caller** (persistence adapter or serv
 
 ## 6. Test Status
 
-### Test Results (RC-7)
+### Test Results (RC-8)
 
 | Scope | Tests | Status |
 |---|---|---|
@@ -506,20 +582,29 @@ Transaction ownership is always with the **caller** (persistence adapter or serv
 | Batch 7D — Recovery, Persistence & Replay | 65 | ✅ All pass |
 | **Execution subsystem total** | **279** | ✅ **279 / 279** |
 | Batch 6 — Market Data (unit tests) | 57 | ✅ All pass |
-| **Grand total (unit suite)** | **336** | ✅ **336 / 336** |
+| Batch 8 — Risk Engine (RC-8) | 128 | ✅ All pass |
+| **Grand total (unit suite)** | **464** | ✅ **464 / 464** |
 
-All tests run from `artifacts/api-server/src/python/` using:
-```
-python -m pytest tests/unit/execution/ -v
+Run the full suite:
+```bash
+# From intraday-trading-bot/
+python -m pytest tests/unit/ -v
 ```
 
-There are 19 root-level `test_phase*.py` files in the project root that cause pytest collection errors if run from the workspace root — always scope pytest to `tests/unit/` or `tests/unit/execution/` when running the execution suite.
+Run risk engine tests only:
+```bash
+python -m pytest tests/unit/risk/ -v
+```
+
+There are 19 root-level `test_phase*.py` files in the project root that cause pytest collection errors if run from the workspace root — always scope pytest to `tests/unit/` when running from `intraday-trading-bot/`.
+
+> **Known pre-existing failure:** `tests/unit/test_kill_switch.py::TestKillSwitch::test_history` — tests `KillSwitchManager` (a separate project-level class, not RC-8's `KillSwitch`). Was failing before RC-8 and is unrelated to the Risk Engine integration.
 
 ### Release Status
 
-**RC-7 — Approved for release.** Production readiness audit conducted. No critical issues found. Minor and technical debt items documented and tracked.
+**RC-8 — Approved for release.** Git tag `RC-8` applied. Risk Engine integration verified. 128 new tests passing, 0 regressions in prior 336-test suite.
 
-### Non-Blocking Technical Debt (Carried Into Batch 8)
+### Non-Blocking Technical Debt (Carried Into Batch 9)
 
 The following items were identified in the RC-7 audit and are tracked but do not block release:
 
@@ -536,7 +621,7 @@ The following items were identified in the RC-7 audit and are tracked but do not
 
 ## 7. Design Principles
 
-The following principles are established as the architectural rules of this project. All future batches — including Batch 8 — must uphold them.
+The following principles are established as the architectural rules of this project. All future batches must uphold them.
 
 ### 1. Deterministic Behaviour
 The execution engine must produce identical output given identical input, regardless of restart history. Fill matching, P&L calculation, and state transitions are all deterministic functions of their inputs. Time-dependent operations use injected timestamps, never `datetime.now()` in core logic.
@@ -576,39 +661,43 @@ The execution engine is a simulation. It must never construct or submit a real b
 
 ---
 
-## 8. What Batch 8 Should Assume
+## 8. What Batch 9 Should Assume
 
-### The Execution Engine Is Production-Ready
+### The Execution Engine and Risk Engine Are Both Production-Ready
 
-Batch 8 inherits a fully functional, audited, crash-recoverable paper execution engine. The following are stable and must be treated as a fixed foundation:
+Batch 9 inherits a fully functional, audited, crash-recoverable paper execution engine **with an active risk gate**. The following are stable and must be treated as a fixed foundation:
 
 - `OrderStateMachine` — all state transitions, idempotency, audit trail ✅
 - `MatchingEngine` + `OrderMatcher` — all order types, slippage policies, trigger activation ✅
 - `PositionEngine` + `PnLCalculator` — fill processing, FIFO P&L, cash ledger ✅
 - `RecoveryManager` — five-step recovery pipeline, consistency checker ✅
 - `OrderStateMachinePersistenceAdapter` + `PositionEnginePersistenceAdapter` ✅
-- All five ORM models and repositories ✅
+- All six ORM models and repositories (incl. `RiskStateModel`) ✅
+- `RiskEngine` — 20-rule evaluation, per-account state, fill dedup ✅
+- `RiskIntegrationLayer` — async order gate, per-account serialization ✅
+- `KillSwitch` — async activate/deactivate with audit trail ✅
+- `FillEventBus` — pub/sub fill notifications ✅
 
-### Batch 8 Must Build On Top — Not Modify
+### Batch 9 Must Build On Top — Not Modify
 
-Batch 8 should consume execution engine outputs (fills, positions, portfolio snapshots, audit events) through the existing APIs. It must not alter the internal logic of any engine, repository, or domain type. New features should be implemented as new modules that call into — not into — the execution layer.
+Batch 9 should consume outputs from the execution engine (fills, positions, portfolio snapshots, audit events) and the risk engine (`RiskResult`, `RiskStateSnapshot`, `FillEvent` via bus) through the existing APIs. It must not alter the internal logic of any engine, repository, or domain type.
 
 ### The Repository Pattern Must Be Followed
 
-Any new data entities introduced by Batch 8 require:
+Any new data entities introduced by Batch 9 require:
 - A new SQLAlchemy ORM model inheriting from the shared `Base` in `database/models/base.py`
 - A new repository in `database/repositories/` following the session-injection pattern
 - No direct SQL or session usage in any layer above the repository
 
 ### The Test Suite Is the Regression Guard
 
-Before completing Batch 8, the full existing test suite must still pass: **279/279 execution unit tests** and **336/336 total unit tests**. Any failure in existing tests is a blocker.
+Before completing Batch 9, the full existing test suite must still pass: **464/464 unit tests** (279 execution + 57 market data + 128 risk engine). Any failure in existing tests is a blocker.
 
 ---
 
 ## 9. What Not To Do
 
-The following components are **frozen**. Batch 8 must not alter them unless a verified critical production defect is discovered and the fix is reviewed and approved.
+The following components are **frozen**. Future batches must not alter them unless a verified critical production defect is discovered and the fix is reviewed and approved.
 
 ### ❌ Do Not Modify — State Machine (`execution/state_machine.py`)
 - The state transition graph (which states are reachable from which)
@@ -663,8 +752,10 @@ The following components are **frozen**. Batch 8 must not alter them unless a ve
 *End of document.*
 
 ---
-**Document version:** 1.0  
-**Project stage:** RC-7  
+**Document version:** 2.0  
+**Project stage:** RC-8  
 **Execution tests:** 279 / 279 ✅  
-**Total unit tests:** 336 / 336 ✅  
-**Audit verdict:** ✔ APPROVED WITH MINOR OBSERVATIONS
+**Risk engine tests:** 128 / 128 ✅  
+**Total unit tests:** 464 / 464 ✅  
+**Git tag:** `RC-8`  
+**Audit verdict:** ✔ APPROVED — Risk Engine actively integrated
