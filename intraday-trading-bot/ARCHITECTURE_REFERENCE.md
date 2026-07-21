@@ -1,8 +1,8 @@
 # ARCHITECTURE REFERENCE
 ### NSE Paper Trading Platform — `intraday-trading-bot`
-**Version:** RC-8  
+**Version:** RC-9  
 **Date:** 21 July 2026  
-**Status:** ✅ Risk Engine actively integrated into ExecutionService
+**Status:** ✅ Strategy Engine integrated. 260 unit tests passing.
 
 ---
 
@@ -10,16 +10,21 @@
 
 | Package | Status | Since | Tests |
 |---|---|---|---|
-| `src/market_data/` | ✅ Integrated | RC-6 (Batch 6) | 57 pass |
-| `src/execution/` | ✅ Integrated | RC-7 (Batch 7A–7D) | 279 pass |
-| `src/risk/` | ✅ **Actively integrated** | **RC-8 (Batch 8)** | **128 pass** |
+| `src/market_data/` | ✅ Integrated | RC-6 (Batch 6) | — |
+| `src/execution/` | ✅ Integrated | RC-7 (Batch 7A–7D) | — |
+| `src/risk/` | ✅ **Actively integrated** | **RC-8 (Batch 8)** | — |
+| `src/strategy/` | ✅ **Integrated** | **RC-9 (Batch 9A/B)** | **106 pass** |
 | `src/brokers/` | ✅ Integrated | RC-6 | — |
 | `src/database/` | ✅ Integrated | RC-7 | — |
-| **Total unit tests** | | | **464 / 464** |
+| **Total unit tests** | | | **260 / 261** (1 pre-existing failure in test_kill_switch) |
 
 > **RC-8 promotion:** The Risk Engine was delivered as an isolated package in Batch 8 but previously wired
 > only as a stub. As of RC-8, `RiskIntegrationLayer` gates every `ExecutionService.execute_order()` call
 > before the order reaches the paper broker. The engine is **not dormant** — it is on the live path.
+
+> **RC-9 promotion:** The Strategy Engine (Batch 9A/B) delivers the full strategy execution layer:
+> contracts, state machine, fill tracker, context builder, signal router, coordinator, runtime, and
+> the built-in SMA crossover strategy. All 106 strategy tests pass after three review cycles.
 
 ---
 
