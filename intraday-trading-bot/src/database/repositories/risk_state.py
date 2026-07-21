@@ -39,6 +39,10 @@ class RiskStateRepository:
             existing.kill_switch_active = snapshot.kill_switch_active
             existing.kill_switch_reason = snapshot.kill_switch_reason
             existing.message_counts = dict(snapshot.message_counts)
+            existing.trade_count = snapshot.trade_count
+            existing.order_count = snapshot.order_count
+            existing.emergency_halt_active = snapshot.emergency_halt_active
+            existing.circuit_breaker_triggered = snapshot.circuit_breaker_triggered
             return existing
 
         model = RiskStateModel(
@@ -50,6 +54,10 @@ class RiskStateRepository:
             kill_switch_active=snapshot.kill_switch_active,
             kill_switch_reason=snapshot.kill_switch_reason,
             message_counts=dict(snapshot.message_counts),
+            trade_count=snapshot.trade_count,
+            order_count=snapshot.order_count,
+            emergency_halt_active=snapshot.emergency_halt_active,
+            circuit_breaker_triggered=snapshot.circuit_breaker_triggered,
         )
         session.add(model)
         return model
@@ -93,7 +101,11 @@ class RiskStateRepository:
 
     @staticmethod
     def _hydrate_snapshot(model: RiskStateModel) -> RiskStateSnapshot:
-        """Reconstruct RiskStateSnapshot from ORM model."""
+        """Reconstruct RiskStateSnapshot from ORM model.
+
+        Backward-compatible: RC-8B columns default to 0/False for old rows
+        that were persisted before the 0002 migration.
+        """
         return RiskStateSnapshot(
             account_id=model.account_id,
             snapshot_timestamp=model.snapshot_timestamp,
@@ -103,4 +115,11 @@ class RiskStateRepository:
             message_counts=dict(model.message_counts or {}),
             kill_switch_active=bool(model.kill_switch_active),
             kill_switch_reason=model.kill_switch_reason,
+            # RC-8B fields: use getattr with defaults for old rows
+            trade_count=int(getattr(model, "trade_count", None) or 0),
+            order_count=int(getattr(model, "order_count", None) or 0),
+            emergency_halt_active=bool(getattr(model, "emergency_halt_active", False) or False),
+            circuit_breaker_triggered=bool(
+                getattr(model, "circuit_breaker_triggered", False) or False
+            ),
         )

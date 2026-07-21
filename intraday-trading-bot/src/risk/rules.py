@@ -1,587 +1,1139 @@
 """
-Risk rule protocols and concrete implementations.
+Risk rule implementations.
 
-All risk rules implement the RiskRule Protocol. Rules are stateless evaluators
-that receive a RiskCheckContext and a RiskLimit, and return a RiskViolation
-if the limit is breached, or None if the check passes.
+Each rule implements a pure evaluate() method. Rules are stateless; all
+mutable state is passed via RiskStateSnapshot and RiskContext. This makes
+rules trivially testable and composable.
 
-Rules are deterministic and idempotent — same inputs always produce same outputs.
+Rule registry maps RiskCheckType → RiskRule subclass.
 """
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from decimal import Decimal
-from typing import Protocol, Optional, Dict, Any, List
-from datetime import datetime, timedelta
-import hashlib
-import json
+from typing import Optional, Dict, Type
+import logging
 
 from .contracts import (
-    RiskViolation,
-    RiskCheckContext,
     RiskCheckType,
+    RiskConfiguration,
+    RiskContext,
+    RiskRequest,
+    RiskResult,
     RiskSeverity,
-    RiskLimit,
-    OrderSizeLimit,
-    PriceToleranceLimit,
-    PositionLimit,
+    RiskStateSnapshot,
+    RiskViolation,
+    OrderQuantityLimit,
+    OrderValueLimit,
+    TickSizeLimit,
+    PriceBandLimit,
+    MaxPositionSizeLimit,
+    InstrumentExposureLimit,
+    NetExposureLimit,
+    ConcentrationLimit,
+    CashAvailabilityLimit,
+    BuyingPowerLimit,
     PortfolioExposureLimit,
+    MarginAvailabilityLimit,
     DailyLossLimit,
-    MessageThrottleLimit,
+    DailyProfitTargetLock,
+    MaxTradesPerDayLimit,
+    MaxOrdersPerMinuteLimit,
+    KillSwitchLimit,
+    EmergencyHaltLimit,
+    CircuitBreakerLimit,
     DuplicateOrderLimit,
     SelfTradeLimit,
-    PortfolioHeatLimit,
     DrawdownLimit,
     TurnoverVelocityLimit,
-    RiskStateSnapshot,
 )
 
+logger = logging.getLogger(__name__)
 
-class RiskRule(Protocol):
-    """Protocol for all risk check rules."""
+_ZERO = Decimal("0")
+
+
+def _violation(
+    check_type: RiskCheckType,
+    severity: RiskSeverity,
+    message: str,
+    rule_id: str,
+    limit_value: Optional[Decimal] = None,
+    actual_value: Optional[Decimal] = None,
+) -> RiskViolation:
+    """Build a RiskViolation concisely."""
+    return RiskViolation(
+        check_type=check_type,
+        severity=severity,
+        message=message,
+        rule_id=rule_id,
+        limit_value=limit_value,
+        actual_value=actual_value,
+    )
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Abstract base
+# ────────────────────────────────────────────────────────────────────────────
+
+
+class RiskRule(ABC):
+    """Abstract base for all risk rules.
+
+    Implementations must be stateless; all state is delivered via
+    RiskStateSnapshot and RiskContext.
+    """
+
+    @property
+    @abstractmethod
+    def check_type(self) -> RiskCheckType:
+        """The check type this rule implements."""
+
+    @abstractmethod
+    def evaluate(
+        self,
+        request: RiskRequest,
+        context: RiskContext,
+        config: RiskConfiguration,
+        state: RiskStateSnapshot,
+    ) -> Optional[RiskViolation]:
+        """Evaluate the risk rule.
+
+        Returns:
+            RiskViolation if the rule is breached, None if it passes.
+        """
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Safety rules (highest priority)
+# ────────────────────────────────────────────────────────────────────────────
+
+
+class KillSwitchRule(RiskRule):
+    """Block all orders when the kill switch is active."""
+
+    check_type = RiskCheckType.KILL_SWITCH
 
     def evaluate(
         self,
-        context: RiskCheckContext,
-        limit: RiskLimit,
+        request: RiskRequest,
+        context: RiskContext,
+        config: KillSwitchLimit,
         state: RiskStateSnapshot,
     ) -> Optional[RiskViolation]:
-        ...
-
-
-class OrderSizeRule:
-    """Pre-trade: validates order quantity does not exceed max limit."""
-
-    def evaluate(self, context, limit, state) -> Optional[RiskViolation]:
-        if not isinstance(limit, OrderSizeLimit) or not limit.enabled:
+        if not state.kill_switch_active:
             return None
-        if context.order is None:
-            return None
+        reason = state.kill_switch_reason or "Kill switch engaged"
+        return _violation(
+            check_type=RiskCheckType.KILL_SWITCH,
+            severity=RiskSeverity.FATAL,
+            message=f"Kill switch is active: {reason}",
+            rule_id=config.rule_id,
+        )
 
+
+class EmergencyHaltRule(RiskRule):
+    """Block all orders when emergency halt is active."""
+
+    check_type = RiskCheckType.EMERGENCY_HALT
+
+    def evaluate(
+        self,
+        request: RiskRequest,
+        context: RiskContext,
+        config: EmergencyHaltLimit,
+        state: RiskStateSnapshot,
+    ) -> Optional[RiskViolation]:
+        if not state.emergency_halt_active:
+            return None
+        return _violation(
+            check_type=RiskCheckType.EMERGENCY_HALT,
+            severity=RiskSeverity.FATAL,
+            message="Emergency halt is active — all trading suspended",
+            rule_id=config.rule_id,
+        )
+
+
+class CircuitBreakerRule(RiskRule):
+    """Block all orders when the circuit breaker has triggered."""
+
+    check_type = RiskCheckType.CIRCUIT_BREAKER
+
+    def evaluate(
+        self,
+        request: RiskRequest,
+        context: RiskContext,
+        config: CircuitBreakerLimit,
+        state: RiskStateSnapshot,
+    ) -> Optional[RiskViolation]:
+        if not state.circuit_breaker_triggered:
+            return None
+        return _violation(
+            check_type=RiskCheckType.CIRCUIT_BREAKER,
+            severity=RiskSeverity.FATAL,
+            message="Circuit breaker has triggered — trading halted",
+            rule_id=config.rule_id,
+        )
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Pre-trade rules
+# ────────────────────────────────────────────────────────────────────────────
+
+
+class OrderQuantityRule(RiskRule):
+    """Reject orders exceeding the maximum quantity."""
+
+    check_type = RiskCheckType.ORDER_QUANTITY
+
+    def evaluate(
+        self,
+        request: RiskRequest,
+        context: RiskContext,
+        config: OrderQuantityLimit,
+        state: RiskStateSnapshot,
+    ) -> Optional[RiskViolation]:
         order = context.order
+        if order is None:
+            return None
+
         quantity = self._get_quantity(order)
-        instrument = self._get_instrument(order)
+        if quantity is None:
+            return None
+
+        if config.instrument_token and self._get_token(order) != config.instrument_token:
+            return None
+
+        if quantity > config.max_quantity:
+            return _violation(
+                check_type=RiskCheckType.ORDER_QUANTITY,
+                severity=config.severity,
+                message=(
+                    f"Order quantity {quantity} exceeds max {config.max_quantity}"
+                ),
+                rule_id=config.rule_id,
+                limit_value=config.max_quantity,
+                actual_value=quantity,
+            )
+        return None
+
+    @staticmethod
+    def _get_quantity(order) -> Optional[Decimal]:
+        if isinstance(order, dict):
+            v = order.get("quantity")
+        else:
+            v = getattr(order, "quantity", None)
+        if v is None:
+            return None
+        return Decimal(str(v))
+
+    @staticmethod
+    def _get_token(order) -> Optional[str]:
+        if isinstance(order, dict):
+            return str(order.get("instrument_token", ""))
+        return str(getattr(order, "instrument_token", ""))
+
+
+class OrderValueRule(RiskRule):
+    """Reject orders whose notional value exceeds the limit."""
+
+    check_type = RiskCheckType.ORDER_VALUE
+
+    def evaluate(
+        self,
+        request: RiskRequest,
+        context: RiskContext,
+        config: OrderValueLimit,
+        state: RiskStateSnapshot,
+    ) -> Optional[RiskViolation]:
+        order = context.order
+        if order is None:
+            return None
+
+        quantity = self._get_decimal(order, "quantity")
+        price = self._get_decimal(order, "price")
 
         if quantity is None:
             return None
-        if limit.instrument_token is not None and limit.instrument_token != instrument:
-            return None
-        if quantity > limit.max_quantity:
-            return RiskViolation(
-                check_type=RiskCheckType.ORDER_SIZE,
-                severity=limit.severity,
-                message=f"Order quantity {quantity} exceeds max {limit.max_quantity}",
-                rule_id=limit.rule_id,
-                limit_value=limit.max_quantity,
-                actual_value=quantity,
-                metadata={"instrument_token": instrument},
+
+        # Use market price if order price is None
+        if price is None:
+            token = str(self._get_raw(order, "instrument_token", ""))
+            price = context.market_prices.get(token)
+
+        if price is None:
+            return None  # Cannot evaluate without a price
+
+        notional = quantity * price
+        if notional > config.max_value:
+            return _violation(
+                check_type=RiskCheckType.ORDER_VALUE,
+                severity=config.severity,
+                message=f"Order notional {notional} exceeds max {config.max_value}",
+                rule_id=config.rule_id,
+                limit_value=config.max_value,
+                actual_value=notional,
             )
         return None
 
     @staticmethod
-    def _get_quantity(order: Any) -> Optional[Decimal]:
-        qty = order.get("quantity") if isinstance(order, dict) else getattr(order, "quantity", None)
-        if qty is not None and not isinstance(qty, Decimal):
-            return Decimal(str(qty))
-        return qty
+    def _get_decimal(order, field: str) -> Optional[Decimal]:
+        v = order.get(field) if isinstance(order, dict) else getattr(order, field, None)
+        if v is None:
+            return None
+        try:
+            return Decimal(str(v))
+        except Exception:
+            return None
 
     @staticmethod
-    def _get_instrument(order: Any) -> Optional[str]:
+    def _get_raw(order, field: str, default=None):
         if isinstance(order, dict):
-            return order.get("instrument_token")
-        return getattr(order, "instrument_token", None)
+            return order.get(field, default)
+        return getattr(order, field, default)
 
 
-class PriceToleranceRule:
-    """Pre-trade: validates limit price is within tolerance of LTP."""
+class PriceBandRule(RiskRule):
+    """Reject orders priced outside the allowed deviation from reference price."""
 
-    def evaluate(self, context, limit, state) -> Optional[RiskViolation]:
-        if not isinstance(limit, PriceToleranceLimit) or not limit.enabled:
-            return None
-        if context.order is None:
-            return None
+    check_type = RiskCheckType.PRICE_BAND
 
+    def evaluate(
+        self,
+        request: RiskRequest,
+        context: RiskContext,
+        config: PriceBandLimit,
+        state: RiskStateSnapshot,
+    ) -> Optional[RiskViolation]:
         order = context.order
-        instrument = self._get_instrument(order)
-        price = self._get_price(order)
-        order_type = self._get_order_type(order)
-
-        if price is None or order_type not in ("LIMIT", "SL", "SL_M"):
-            return None
-        if limit.instrument_token is not None and limit.instrument_token != instrument:
-            return None
-
-        ltp = context.market_prices.get(instrument)
-        if ltp is None or ltp == 0:
-            return None
-
-        deviation_percent = (abs(price - ltp) / ltp) * Decimal("100")
-        if deviation_percent > limit.max_deviation_percent:
-            return RiskViolation(
-                check_type=RiskCheckType.PRICE_TOLERANCE,
-                severity=limit.severity,
-                message=(
-                    f"Price {price} deviates {deviation_percent:.2f}% from LTP {ltp}, "
-                    f"max allowed {limit.max_deviation_percent}%"
-                ),
-                rule_id=limit.rule_id,
-                limit_value=limit.max_deviation_percent,
-                actual_value=deviation_percent,
-                metadata={"instrument_token": instrument, "ltp": ltp, "price": price},
-            )
-        return None
-
-    @staticmethod
-    def _get_instrument(order: Any) -> Optional[str]:
-        if isinstance(order, dict):
-            return order.get("instrument_token")
-        return getattr(order, "instrument_token", None)
-
-    @staticmethod
-    def _get_price(order: Any) -> Optional[Decimal]:
-        p = order.get("price") if isinstance(order, dict) else getattr(order, "price", None)
-        if p is not None and not isinstance(p, Decimal):
-            return Decimal(str(p))
-        return p
-
-    @staticmethod
-    def _get_order_type(order: Any) -> Optional[str]:
-        if isinstance(order, dict):
-            return order.get("order_type")
-        ot = getattr(order, "order_type", None)
-        return str(ot) if ot is not None else None
-
-
-class PositionLimitRule:
-    """Pre-trade: validates new order won't exceed position limits."""
-
-    def evaluate(self, context, limit, state) -> Optional[RiskViolation]:
-        if not isinstance(limit, PositionLimit) or not limit.enabled:
-            return None
-        if context.order is None:
-            return None
-
-        order = context.order
-        instrument = self._get_instrument(order)
-        quantity = self._get_quantity(order)
-        side = self._get_side(order)
-
-        if instrument is None or quantity is None or side is None:
-            return None
-        if limit.instrument_token != instrument:
-            return None
-
-        current_pos = context.position_snapshots.get(instrument)
-        current_qty = Decimal("0")
-        if current_pos is not None:
-            raw = current_pos.get("net_quantity", Decimal("0")) if isinstance(current_pos, dict) else getattr(current_pos, "net_quantity", Decimal("0"))
-            current_qty = Decimal(str(raw)) if not isinstance(raw, Decimal) else raw
-
-        side_multiplier = Decimal("1") if side.upper() == "BUY" else Decimal("-1")
-        projected_qty = current_qty + (quantity * side_multiplier)
-
-        if projected_qty > limit.max_long_quantity:
-            return RiskViolation(
-                check_type=RiskCheckType.POSITION_LIMIT,
-                severity=limit.severity,
-                message=f"Projected long position {projected_qty} exceeds limit {limit.max_long_quantity} for {instrument}",
-                rule_id=limit.rule_id,
-                limit_value=limit.max_long_quantity,
-                actual_value=projected_qty,
-                metadata={"instrument_token": instrument, "current_quantity": current_qty, "projected_quantity": projected_qty},
-            )
-        if projected_qty < -limit.max_short_quantity:
-            return RiskViolation(
-                check_type=RiskCheckType.POSITION_LIMIT,
-                severity=limit.severity,
-                message=f"Projected short position {abs(projected_qty)} exceeds limit {limit.max_short_quantity} for {instrument}",
-                rule_id=limit.rule_id,
-                limit_value=limit.max_short_quantity,
-                actual_value=abs(projected_qty),
-                metadata={"instrument_token": instrument, "current_quantity": current_qty, "projected_quantity": projected_qty},
-            )
-        return None
-
-    @staticmethod
-    def _get_instrument(order: Any) -> Optional[str]:
-        if isinstance(order, dict):
-            return order.get("instrument_token")
-        return getattr(order, "instrument_token", None)
-
-    @staticmethod
-    def _get_quantity(order: Any) -> Optional[Decimal]:
-        qty = order.get("quantity") if isinstance(order, dict) else getattr(order, "quantity", None)
-        if qty is not None and not isinstance(qty, Decimal):
-            return Decimal(str(qty))
-        return qty
-
-    @staticmethod
-    def _get_side(order: Any) -> Optional[str]:
-        if isinstance(order, dict):
-            return order.get("side")
-        side = getattr(order, "side", None)
-        return str(side).upper() if side is not None else None
-
-
-class PortfolioExposureRule:
-    """Pre-trade: validates total portfolio exposure doesn't exceed equity %."""
-
-    def evaluate(self, context, limit, state) -> Optional[RiskViolation]:
-        if not isinstance(limit, PortfolioExposureLimit) or not limit.enabled:
-            return None
-        if context.portfolio_snapshot is None:
-            return None
-
-        portfolio = context.portfolio_snapshot
-        equity = portfolio.get("equity", Decimal("0")) if isinstance(portfolio, dict) else getattr(portfolio, "equity", Decimal("0"))
-        total_market_value = portfolio.get("total_market_value", Decimal("0")) if isinstance(portfolio, dict) else getattr(portfolio, "total_market_value", Decimal("0"))
-        if not isinstance(equity, Decimal):
-            equity = Decimal(str(equity))
-        if not isinstance(total_market_value, Decimal):
-            total_market_value = Decimal(str(total_market_value))
-
-        if equity <= 0:
-            return None
-
-        exposure_percent = (total_market_value / equity) * Decimal("100")
-        if exposure_percent > limit.max_exposure_percent:
-            return RiskViolation(
-                check_type=RiskCheckType.PORTFOLIO_EXPOSURE,
-                severity=limit.severity,
-                message=f"Portfolio exposure {exposure_percent:.2f}% exceeds limit {limit.max_exposure_percent}%",
-                rule_id=limit.rule_id,
-                limit_value=limit.max_exposure_percent,
-                actual_value=exposure_percent,
-                metadata={"equity": equity, "market_value": total_market_value},
-            )
-        return None
-
-
-class DailyLossLimitRule:
-    """Pre-trade: blocks new orders if daily loss limit is breached."""
-
-    def evaluate(self, context, limit, state) -> Optional[RiskViolation]:
-        if not isinstance(limit, DailyLossLimit) or not limit.enabled:
-            return None
-
-        daily_pnl = state.daily_realized_pnl
-        if daily_pnl >= 0:
-            return None
-
-        loss_amount = abs(daily_pnl)
-        if loss_amount >= limit.max_daily_loss:
-            return RiskViolation(
-                check_type=RiskCheckType.DAILY_LOSS_LIMIT,
-                severity=RiskSeverity.FATAL,
-                message=f"Daily loss {loss_amount} has reached limit {limit.max_daily_loss}. Trading halted.",
-                rule_id=limit.rule_id,
-                limit_value=limit.max_daily_loss,
-                actual_value=loss_amount,
-                metadata={"daily_pnl": daily_pnl},
-            )
-
-        warning_threshold = limit.max_daily_loss * (limit.warning_threshold_percent / Decimal("100"))
-        if loss_amount >= warning_threshold:
-            return RiskViolation(
-                check_type=RiskCheckType.DAILY_LOSS_LIMIT,
-                severity=RiskSeverity.WARNING,
-                message=f"Daily loss {loss_amount} at {limit.warning_threshold_percent}% of limit {limit.max_daily_loss}",
-                rule_id=limit.rule_id,
-                limit_value=warning_threshold,
-                actual_value=loss_amount,
-                metadata={"daily_pnl": daily_pnl, "threshold": warning_threshold},
-            )
-        return None
-
-
-class MessageThrottleRule:
-    """Pre-trade: throttles message rate per scope."""
-
-    def evaluate(self, context, limit, state) -> Optional[RiskViolation]:
-        if not isinstance(limit, MessageThrottleLimit) or not limit.enabled:
-            return None
-
-        key = self._build_throttle_key(context, limit)
-        if key is None:
-            return None
-
-        count = state.message_counts.get(key, 0)
-        if count >= limit.max_messages:
-            return RiskViolation(
-                check_type=RiskCheckType.MESSAGE_THROTTLE,
-                severity=limit.severity,
-                message=f"Message rate {count} exceeds limit {limit.max_messages} in {limit.window_seconds}s window for {limit.scope}",
-                rule_id=limit.rule_id,
-                limit_value=Decimal(limit.max_messages),
-                actual_value=Decimal(count),
-                metadata={"throttle_key": key, "window_seconds": limit.window_seconds},
-            )
-        return None
-
-    def _build_throttle_key(self, context, limit: MessageThrottleLimit) -> Optional[str]:
-        if limit.scope == "account":
-            return f"account:{context.account_id}"
-        elif limit.scope == "instrument":
-            instrument = self._get_instrument(context.order)
-            if instrument is None:
-                return None
-            if limit.instrument_token and limit.instrument_token != instrument:
-                return None
-            return f"instrument:{instrument}"
-        elif limit.scope == "strategy":
-            strategy_id = "default"
-            if context.order is not None:
-                strategy_id = context.order.get("strategy_id", "default") if isinstance(context.order, dict) else getattr(context.order, "strategy_id", "default")
-            return f"strategy:{strategy_id}"
-        return None
-
-    @staticmethod
-    def _get_instrument(order: Any) -> Optional[str]:
         if order is None:
             return None
-        if isinstance(order, dict):
-            return order.get("instrument_token")
-        return getattr(order, "instrument_token", None)
 
+        order_price = self._get_price(order)
+        if order_price is None:
+            return None  # Market orders, skip
 
-class DuplicateOrderRule:
-    """Pre-trade: prevents duplicate orders within a time window."""
-
-    def __init__(self):
-        # Instance-level dedup store: {account_id: [(hash, timestamp), ...]}
-        self._seen_orders: Dict[str, List[tuple]] = {}
-
-    def evaluate(self, context, limit, state) -> Optional[RiskViolation]:
-        if not isinstance(limit, DuplicateOrderLimit) or not limit.enabled:
-            return None
-        if context.order is None:
+        token = str(self._get_raw(order, "instrument_token", ""))
+        if config.instrument_token and token != config.instrument_token:
             return None
 
-        order_hash = self._hash_order(context.order, limit.compare_fields)
-        account_id = context.account_id
-        now = context.check_timestamp
-        window = timedelta(seconds=limit.window_seconds)
+        ltp = context.market_prices.get(token)
+        if ltp is None:
+            return None  # No reference price; PriceBandRule skips gracefully
 
-        # Clean old entries
-        account_seen = self._seen_orders.get(account_id, [])
-        self._seen_orders[account_id] = [
-            (h, ts) for h, ts in account_seen
-            if now - ts <= window
-        ]
+        if ltp == _ZERO:
+            return None
 
-        # Check for duplicate
-        for h, _ in self._seen_orders[account_id]:
-            if h == order_hash:
-                return RiskViolation(
-                    check_type=RiskCheckType.DUPLICATE_ORDER,
-                    severity=limit.severity,
-                    message=f"Duplicate order detected within {limit.window_seconds}s window",
-                    rule_id=limit.rule_id,
-                    metadata={"window_seconds": limit.window_seconds},
-                )
-
-        # Record this order
-        self._seen_orders[account_id].append((order_hash, now))
+        deviation_pct = abs(order_price - ltp) / ltp * Decimal("100")
+        if deviation_pct > config.max_deviation_percent:
+            return _violation(
+                check_type=RiskCheckType.PRICE_BAND,
+                severity=config.severity,
+                message=(
+                    f"Order price {order_price} deviates {deviation_pct:.2f}% from LTP {ltp}; "
+                    f"max allowed {config.max_deviation_percent}%"
+                ),
+                rule_id=config.rule_id,
+                limit_value=config.max_deviation_percent,
+                actual_value=deviation_pct,
+            )
         return None
 
-    def _hash_order(self, order: Any, fields: List[str]) -> str:
-        if isinstance(order, dict):
-            values = {f: str(order.get(f, "")) for f in fields}
-        else:
-            values = {f: str(getattr(order, f, "")) for f in fields}
-        canonical = json.dumps(values, sort_keys=True)
-        return hashlib.sha256(canonical.encode()).hexdigest()
-
-    def reset(self) -> None:
-        """Clear all dedup state — used for deterministic replay."""
-        self._seen_orders.clear()
-
-
-class SelfTradeRule:
-    """Pre-trade: prevents crossing with own open orders."""
-
-    def evaluate(self, context, limit, state) -> Optional[RiskViolation]:
-        if not isinstance(limit, SelfTradeLimit) or not limit.enabled:
+    @staticmethod
+    def _get_price(order) -> Optional[Decimal]:
+        v = order.get("price") if isinstance(order, dict) else getattr(order, "price", None)
+        if v is None:
             return None
-        if context.order is None or not context.open_orders:
+        try:
+            return Decimal(str(v))
+        except Exception:
+            return None
+
+    @staticmethod
+    def _get_raw(order, field: str, default=None):
+        if isinstance(order, dict):
+            return order.get(field, default)
+        return getattr(order, field, default)
+
+
+class TickSizeRule(RiskRule):
+    """Reject orders whose price is not a multiple of the tick size."""
+
+    check_type = RiskCheckType.TICK_SIZE
+
+    def evaluate(
+        self,
+        request: RiskRequest,
+        context: RiskContext,
+        config: TickSizeLimit,
+        state: RiskStateSnapshot,
+    ) -> Optional[RiskViolation]:
+        order = context.order
+        if order is None:
+            return None
+
+        price = order.get("price") if isinstance(order, dict) else getattr(order, "price", None)
+        if price is None:
+            return None
+
+        price = Decimal(str(price))
+        remainder = price % config.tick_size
+        if remainder != _ZERO:
+            return _violation(
+                check_type=RiskCheckType.TICK_SIZE,
+                severity=config.severity,
+                message=(
+                    f"Order price {price} is not a multiple of tick size {config.tick_size}"
+                ),
+                rule_id=config.rule_id,
+                limit_value=config.tick_size,
+                actual_value=remainder,
+            )
+        return None
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Position rules
+# ────────────────────────────────────────────────────────────────────────────
+
+
+class MaxPositionSizeRule(RiskRule):
+    """Reject orders that would result in exceeding max position size."""
+
+    check_type = RiskCheckType.MAX_POSITION_SIZE
+
+    def evaluate(
+        self,
+        request: RiskRequest,
+        context: RiskContext,
+        config: MaxPositionSizeLimit,
+        state: RiskStateSnapshot,
+    ) -> Optional[RiskViolation]:
+        order = context.order
+        if order is None:
+            return None
+
+        order_qty = self._decimal(order, "quantity")
+        if order_qty is None:
+            return None
+
+        side = self._str(order, "side", "").upper()
+        token = str(self._raw(order, "instrument_token", ""))
+
+        if config.instrument_token and token != config.instrument_token:
+            return None
+
+        position = context.position_snapshots.get(token, {})
+        current_qty = position.get("net_quantity", _ZERO)
+        if not isinstance(current_qty, Decimal):
+            current_qty = Decimal(str(current_qty))
+
+        if side == "BUY":
+            new_qty = current_qty + order_qty
+            if new_qty > config.max_long_quantity:
+                return _violation(
+                    check_type=RiskCheckType.MAX_POSITION_SIZE,
+                    severity=config.severity,
+                    message=(
+                        f"Buy of {order_qty} would create long position {new_qty}; "
+                        f"max long is {config.max_long_quantity}"
+                    ),
+                    rule_id=config.rule_id,
+                    limit_value=config.max_long_quantity,
+                    actual_value=new_qty,
+                )
+        elif side == "SELL":
+            new_qty = current_qty - order_qty
+            if new_qty < -config.max_short_quantity:
+                return _violation(
+                    check_type=RiskCheckType.MAX_POSITION_SIZE,
+                    severity=config.severity,
+                    message=(
+                        f"Sell of {order_qty} would create short position {new_qty}; "
+                        f"max short is {config.max_short_quantity}"
+                    ),
+                    rule_id=config.rule_id,
+                    limit_value=config.max_short_quantity,
+                    actual_value=abs(new_qty),
+                )
+        return None
+
+    @staticmethod
+    def _decimal(order, field: str) -> Optional[Decimal]:
+        v = order.get(field) if isinstance(order, dict) else getattr(order, field, None)
+        if v is None:
+            return None
+        return Decimal(str(v))
+
+    @staticmethod
+    def _str(order, field: str, default: str = "") -> str:
+        v = order.get(field, default) if isinstance(order, dict) else getattr(order, field, default)
+        return str(v)
+
+    @staticmethod
+    def _raw(order, field: str, default=None):
+        if isinstance(order, dict):
+            return order.get(field, default)
+        return getattr(order, field, default)
+
+
+class InstrumentExposureRule(RiskRule):
+    """Reject orders that would exceed the notional exposure limit for an instrument."""
+
+    check_type = RiskCheckType.INSTRUMENT_EXPOSURE
+
+    def evaluate(
+        self,
+        request: RiskRequest,
+        context: RiskContext,
+        config: InstrumentExposureLimit,
+        state: RiskStateSnapshot,
+    ) -> Optional[RiskViolation]:
+        order = context.order
+        if order is None:
+            return None
+
+        token = str(
+            order.get("instrument_token", "") if isinstance(order, dict)
+            else getattr(order, "instrument_token", "")
+        )
+        if config.instrument_token and token != config.instrument_token:
+            return None
+
+        position = context.position_snapshots.get(token, {})
+        current_mv = position.get("market_value", _ZERO)
+        if not isinstance(current_mv, Decimal):
+            current_mv = Decimal(str(current_mv))
+
+        qty = self._decimal(order, "quantity")
+        price = self._decimal(order, "price")
+        if qty is None:
+            return None
+        if price is None:
+            price = context.market_prices.get(token, _ZERO)
+
+        order_mv = qty * price
+        projected = abs(current_mv) + order_mv
+
+        if projected > config.max_exposure:
+            return _violation(
+                check_type=RiskCheckType.INSTRUMENT_EXPOSURE,
+                severity=config.severity,
+                message=(
+                    f"Projected exposure {projected} exceeds max {config.max_exposure}"
+                ),
+                rule_id=config.rule_id,
+                limit_value=config.max_exposure,
+                actual_value=projected,
+            )
+        return None
+
+    @staticmethod
+    def _decimal(order, field: str) -> Optional[Decimal]:
+        v = order.get(field) if isinstance(order, dict) else getattr(order, field, None)
+        if v is None:
+            return None
+        try:
+            return Decimal(str(v))
+        except Exception:
+            return None
+
+
+class NetExposureRule(RiskRule):
+    """Enforce net long/short exposure limits across all instruments."""
+
+    check_type = RiskCheckType.NET_EXPOSURE
+
+    def evaluate(
+        self,
+        request: RiskRequest,
+        context: RiskContext,
+        config: NetExposureLimit,
+        state: RiskStateSnapshot,
+    ) -> Optional[RiskViolation]:
+        long_exposure = _ZERO
+        short_exposure = _ZERO
+
+        for position in context.position_snapshots.values():
+            qty = position.get("net_quantity", _ZERO)
+            if not isinstance(qty, Decimal):
+                qty = Decimal(str(qty))
+            mv = position.get("market_value", _ZERO)
+            if not isinstance(mv, Decimal):
+                mv = Decimal(str(mv))
+
+            if qty > _ZERO:
+                long_exposure += mv
+            elif qty < _ZERO:
+                short_exposure += abs(mv)
+
+        if long_exposure > config.max_net_long:
+            return _violation(
+                check_type=RiskCheckType.NET_EXPOSURE,
+                severity=config.severity,
+                message=(
+                    f"Net long exposure {long_exposure} exceeds max {config.max_net_long}"
+                ),
+                rule_id=config.rule_id,
+                limit_value=config.max_net_long,
+                actual_value=long_exposure,
+            )
+        if short_exposure > config.max_net_short:
+            return _violation(
+                check_type=RiskCheckType.NET_EXPOSURE,
+                severity=config.severity,
+                message=(
+                    f"Net short exposure {short_exposure} exceeds max {config.max_net_short}"
+                ),
+                rule_id=config.rule_id,
+                limit_value=config.max_net_short,
+                actual_value=short_exposure,
+            )
+        return None
+
+
+class ConcentrationRule(RiskRule):
+    """Prevent excessive portfolio concentration in a single instrument."""
+
+    check_type = RiskCheckType.CONCENTRATION_LIMIT
+
+    def evaluate(
+        self,
+        request: RiskRequest,
+        context: RiskContext,
+        config: ConcentrationLimit,
+        state: RiskStateSnapshot,
+    ) -> Optional[RiskViolation]:
+        portfolio = context.portfolio_snapshot
+        if portfolio is None:
+            return None
+
+        total_equity = portfolio.get("equity", _ZERO) if isinstance(portfolio, dict) else getattr(portfolio, "equity", _ZERO)
+        if not isinstance(total_equity, Decimal):
+            total_equity = Decimal(str(total_equity))
+
+        if total_equity <= _ZERO:
             return None
 
         order = context.order
-        instrument = self._get_instrument(order)
-        side = self._get_side(order)
-        price = self._get_price(order)
-
-        if instrument is None or side is None or price is None:
-            return None
-        if limit.instrument_token and limit.instrument_token != instrument:
+        if order is None:
             return None
 
-        opposite_side = "SELL" if side.upper() == "BUY" else "BUY"
-        for open_order in context.open_orders:
-            open_instrument = self._get_instrument(open_order)
-            open_side = self._get_side(open_order)
-            open_price = self._get_price(open_order)
+        token = str(
+            order.get("instrument_token", "") if isinstance(order, dict)
+            else getattr(order, "instrument_token", "")
+        )
 
-            if open_instrument != instrument or open_side != opposite_side:
-                continue
-            if self._would_cross(side, price, open_side, open_price):
-                return RiskViolation(
-                    check_type=RiskCheckType.SELF_TRADE,
-                    severity=limit.severity,
-                    message=f"Self-trade detected: {side} {price} crosses {open_side} {open_price}",
-                    rule_id=limit.rule_id,
-                    metadata={"instrument_token": instrument, "new_order_side": side, "new_order_price": price, "open_order_price": open_price},
-                )
+        position = context.position_snapshots.get(token, {})
+        current_mv = position.get("market_value", _ZERO)
+        if not isinstance(current_mv, Decimal):
+            current_mv = Decimal(str(current_mv))
+
+        qty = self._decimal(order, "quantity")
+        price = self._decimal(order, "price")
+        if qty is None:
+            return None
+        if price is None:
+            price = context.market_prices.get(token, _ZERO)
+
+        projected_mv = abs(current_mv) + qty * price
+        concentration_pct = projected_mv / total_equity * Decimal("100")
+
+        if concentration_pct > config.max_concentration_percent:
+            return _violation(
+                check_type=RiskCheckType.CONCENTRATION_LIMIT,
+                severity=config.severity,
+                message=(
+                    f"Projected concentration {concentration_pct:.2f}% in {token} "
+                    f"exceeds max {config.max_concentration_percent}%"
+                ),
+                rule_id=config.rule_id,
+                limit_value=config.max_concentration_percent,
+                actual_value=concentration_pct,
+            )
         return None
 
     @staticmethod
-    def _would_cross(side1: str, price1: Decimal, side2: str, price2: Decimal) -> bool:
-        if side1.upper() == "BUY" and side2.upper() == "SELL":
-            return price1 >= price2
-        elif side1.upper() == "SELL" and side2.upper() == "BUY":
-            return price1 <= price2
-        return False
-
-    @staticmethod
-    def _get_instrument(order: Any) -> Optional[str]:
-        if isinstance(order, dict):
-            return order.get("instrument_token")
-        return getattr(order, "instrument_token", None)
-
-    @staticmethod
-    def _get_side(order: Any) -> Optional[str]:
-        if isinstance(order, dict):
-            return order.get("side")
-        side = getattr(order, "side", None)
-        return str(side).upper() if side is not None else None
-
-    @staticmethod
-    def _get_price(order: Any) -> Optional[Decimal]:
-        p = order.get("price") if isinstance(order, dict) else getattr(order, "price", None)
-        if p is not None and not isinstance(p, Decimal):
-            return Decimal(str(p))
-        return p
-
-
-class PortfolioHeatRule:
-    """Post-trade: monitors portfolio concentration."""
-
-    def evaluate(self, context, limit, state) -> Optional[RiskViolation]:
-        if not isinstance(limit, PortfolioHeatLimit) or not limit.enabled:
+    def _decimal(order, field: str) -> Optional[Decimal]:
+        v = order.get(field) if isinstance(order, dict) else getattr(order, field, None)
+        if v is None:
             return None
-        if context.portfolio_snapshot is None:
+        try:
+            return Decimal(str(v))
+        except Exception:
+            return None
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Portfolio rules
+# ────────────────────────────────────────────────────────────────────────────
+
+
+class CashAvailabilityRule(RiskRule):
+    """Reject buy orders when insufficient cash is available."""
+
+    check_type = RiskCheckType.CASH_AVAILABILITY
+
+    def evaluate(
+        self,
+        request: RiskRequest,
+        context: RiskContext,
+        config: CashAvailabilityLimit,
+        state: RiskStateSnapshot,
+    ) -> Optional[RiskViolation]:
+        order = context.order
+        if order is None:
+            return None
+
+        side = str(
+            order.get("side", "") if isinstance(order, dict) else getattr(order, "side", "")
+        ).upper()
+        if side != "BUY":
             return None
 
         portfolio = context.portfolio_snapshot
-        equity = portfolio.get("equity", Decimal("0")) if isinstance(portfolio, dict) else getattr(portfolio, "equity", Decimal("0"))
-        if not isinstance(equity, Decimal):
-            equity = Decimal(str(equity))
-        if equity <= 0:
+        if portfolio is None:
             return None
 
-        for instrument, position in context.position_snapshots.items():
-            market_value = position.get("market_value", Decimal("0")) if isinstance(position, dict) else getattr(position, "market_value", Decimal("0"))
-            if not isinstance(market_value, Decimal):
-                market_value = Decimal(str(market_value))
-            concentration = (market_value / equity) * Decimal("100")
-            if concentration > limit.max_concentration_percent:
-                return RiskViolation(
-                    check_type=RiskCheckType.PORTFOLIO_HEAT,
-                    severity=limit.severity,
-                    message=f"Concentration in {instrument} {concentration:.2f}% exceeds limit {limit.max_concentration_percent}%",
-                    rule_id=limit.rule_id,
-                    limit_value=limit.max_concentration_percent,
-                    actual_value=concentration,
-                    metadata={"instrument_token": instrument, "equity": equity},
-                )
+        cash = portfolio.get("cash", _ZERO) if isinstance(portfolio, dict) else getattr(portfolio, "cash", _ZERO)
+        if not isinstance(cash, Decimal):
+            cash = Decimal(str(cash))
+
+        qty = self._decimal(order, "quantity")
+        price = self._decimal(order, "price")
+        if qty is None:
+            return None
+        if price is None:
+            token = str(
+                order.get("instrument_token", "") if isinstance(order, dict)
+                else getattr(order, "instrument_token", "")
+            )
+            price = context.market_prices.get(token, _ZERO)
+
+        required = qty * price
+        if required > cash:
+            return _violation(
+                check_type=RiskCheckType.CASH_AVAILABILITY,
+                severity=config.severity,
+                message=f"Insufficient cash: need {required}, available {cash}",
+                rule_id=config.rule_id,
+                limit_value=cash,
+                actual_value=required,
+            )
         return None
 
-
-class DrawdownRule:
-    """Post-trade: monitors portfolio drawdown from peak equity."""
-
-    def evaluate(self, context, limit, state) -> Optional[RiskViolation]:
-        if not isinstance(limit, DrawdownLimit) or not limit.enabled:
+    @staticmethod
+    def _decimal(order, field: str) -> Optional[Decimal]:
+        v = order.get(field) if isinstance(order, dict) else getattr(order, field, None)
+        if v is None:
             return None
-        if context.portfolio_snapshot is None:
+        try:
+            return Decimal(str(v))
+        except Exception:
+            return None
+
+
+class BuyingPowerRule(RiskRule):
+    """Reject orders that would exceed available buying power."""
+
+    check_type = RiskCheckType.BUYING_POWER
+
+    def evaluate(
+        self,
+        request: RiskRequest,
+        context: RiskContext,
+        config: BuyingPowerLimit,
+        state: RiskStateSnapshot,
+    ) -> Optional[RiskViolation]:
+        order = context.order
+        if order is None:
             return None
 
         portfolio = context.portfolio_snapshot
-        equity = portfolio.get("equity", Decimal("0")) if isinstance(portfolio, dict) else getattr(portfolio, "equity", Decimal("0"))
+        if portfolio is None:
+            return None
+
+        buying_power = portfolio.get("buying_power", _ZERO) if isinstance(portfolio, dict) else getattr(portfolio, "buying_power", _ZERO)
+        if not isinstance(buying_power, Decimal):
+            buying_power = Decimal(str(buying_power))
+
+        qty = self._decimal(order, "quantity")
+        price = self._decimal(order, "price")
+        if qty is None:
+            return None
+        if price is None:
+            token = str(
+                order.get("instrument_token", "") if isinstance(order, dict)
+                else getattr(order, "instrument_token", "")
+            )
+            price = context.market_prices.get(token, _ZERO)
+
+        order_value = qty * price
+        if order_value > buying_power:
+            return _violation(
+                check_type=RiskCheckType.BUYING_POWER,
+                severity=config.severity,
+                message=f"Order value {order_value} exceeds buying power {buying_power}",
+                rule_id=config.rule_id,
+                limit_value=buying_power,
+                actual_value=order_value,
+            )
+        return None
+
+    @staticmethod
+    def _decimal(order, field: str) -> Optional[Decimal]:
+        v = order.get(field) if isinstance(order, dict) else getattr(order, field, None)
+        if v is None:
+            return None
+        try:
+            return Decimal(str(v))
+        except Exception:
+            return None
+
+
+class PortfolioExposureRule(RiskRule):
+    """Reject orders that would cause total exposure to exceed the limit."""
+
+    check_type = RiskCheckType.PORTFOLIO_EXPOSURE
+
+    def evaluate(
+        self,
+        request: RiskRequest,
+        context: RiskContext,
+        config: PortfolioExposureLimit,
+        state: RiskStateSnapshot,
+    ) -> Optional[RiskViolation]:
+        portfolio = context.portfolio_snapshot
+        if portfolio is None:
+            return None
+
+        equity = portfolio.get("equity", _ZERO) if isinstance(portfolio, dict) else getattr(portfolio, "equity", _ZERO)
         if not isinstance(equity, Decimal):
             equity = Decimal(str(equity))
 
-        peak = state.peak_equity
-        if peak <= 0:
+        if equity <= _ZERO:
             return None
 
-        drawdown = ((peak - equity) / peak) * Decimal("100")
-        if drawdown >= limit.max_drawdown_percent:
-            return RiskViolation(
-                check_type=RiskCheckType.DRAWDOWN,
+        order = context.order
+        if order is None:
+            return None
+
+        qty = self._decimal(order, "quantity")
+        price = self._decimal(order, "price")
+        if qty is None:
+            return None
+        if price is None:
+            token = str(
+                order.get("instrument_token", "") if isinstance(order, dict)
+                else getattr(order, "instrument_token", "")
+            )
+            price = context.market_prices.get(token, _ZERO)
+
+        if price is None:
+            return None
+
+        # Calculate current total exposure
+        total_mv = _ZERO
+        for pos in context.position_snapshots.values():
+            mv = pos.get("market_value", _ZERO)
+            if not isinstance(mv, Decimal):
+                mv = Decimal(str(mv))
+            total_mv += abs(mv)
+
+        order_value = qty * price
+        projected_exposure_pct = (total_mv + order_value) / equity * Decimal("100")
+
+        if projected_exposure_pct > config.max_exposure_percent:
+            return _violation(
+                check_type=RiskCheckType.PORTFOLIO_EXPOSURE,
+                severity=config.severity,
+                message=(
+                    f"Projected portfolio exposure {projected_exposure_pct:.2f}% "
+                    f"exceeds max {config.max_exposure_percent}%"
+                ),
+                rule_id=config.rule_id,
+                limit_value=config.max_exposure_percent,
+                actual_value=projected_exposure_pct,
+            )
+        return None
+
+    @staticmethod
+    def _decimal(order, field: str) -> Optional[Decimal]:
+        v = order.get(field) if isinstance(order, dict) else getattr(order, field, None)
+        if v is None:
+            return None
+        try:
+            return Decimal(str(v))
+        except Exception:
+            return None
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Daily control rules
+# ────────────────────────────────────────────────────────────────────────────
+
+
+class DailyLossLimitRule(RiskRule):
+    """Emit WARNING at warning threshold; FATAL when the daily loss limit is breached."""
+
+    check_type = RiskCheckType.DAILY_LOSS_LIMIT
+
+    def evaluate(
+        self,
+        request: RiskRequest,
+        context: RiskContext,
+        config: DailyLossLimit,
+        state: RiskStateSnapshot,
+    ) -> Optional[RiskViolation]:
+        pnl = state.daily_realized_pnl
+        loss = -pnl  # Positive value = loss
+
+        if loss >= config.max_daily_loss:
+            return _violation(
+                check_type=RiskCheckType.DAILY_LOSS_LIMIT,
                 severity=RiskSeverity.FATAL,
-                message=f"Drawdown {drawdown:.2f}% has reached max {limit.max_drawdown_percent}%. Trading halted.",
-                rule_id=limit.rule_id,
-                limit_value=limit.max_drawdown_percent,
-                actual_value=drawdown,
-                metadata={"peak_equity": peak, "current_equity": equity},
+                message=(
+                    f"Daily loss {loss} has reached limit {config.max_daily_loss}; "
+                    f"trading halted"
+                ),
+                rule_id=config.rule_id,
+                limit_value=config.max_daily_loss,
+                actual_value=loss,
             )
 
-        warning_threshold = limit.max_drawdown_percent * (limit.warning_threshold_percent / Decimal("100"))
-        if drawdown >= warning_threshold:
-            return RiskViolation(
-                check_type=RiskCheckType.DRAWDOWN,
+        warning_threshold = config.max_daily_loss * config.warning_threshold_percent / Decimal("100")
+        if loss >= warning_threshold:
+            return _violation(
+                check_type=RiskCheckType.DAILY_LOSS_LIMIT,
                 severity=RiskSeverity.WARNING,
-                message=f"Drawdown {drawdown:.2f}% at {limit.warning_threshold_percent}% of limit {limit.max_drawdown_percent}%",
-                rule_id=limit.rule_id,
-                limit_value=warning_threshold,
-                actual_value=drawdown,
-                metadata={"peak_equity": peak, "current_equity": equity},
+                message=(
+                    f"Daily loss {loss} approaching limit {config.max_daily_loss} "
+                    f"({config.warning_threshold_percent}% threshold)"
+                ),
+                rule_id=config.rule_id,
+                limit_value=config.max_daily_loss,
+                actual_value=loss,
+            )
+
+        return None
+
+
+class DailyProfitTargetRule(RiskRule):
+    """Lock trading once the daily profit target is reached."""
+
+    check_type = RiskCheckType.DAILY_PROFIT_TARGET_LOCK
+
+    def evaluate(
+        self,
+        request: RiskRequest,
+        context: RiskContext,
+        config: DailyProfitTargetLock,
+        state: RiskStateSnapshot,
+    ) -> Optional[RiskViolation]:
+        if state.daily_realized_pnl >= config.profit_target:
+            return _violation(
+                check_type=RiskCheckType.DAILY_PROFIT_TARGET_LOCK,
+                severity=RiskSeverity.CRITICAL,
+                message=(
+                    f"Daily profit target {config.profit_target} reached; trading locked"
+                ),
+                rule_id=config.rule_id,
+                limit_value=config.profit_target,
+                actual_value=state.daily_realized_pnl,
             )
         return None
 
 
-class TurnoverVelocityRule:
-    """Post-trade: monitors turnover velocity relative to equity."""
+class MaxTradesPerDayRule(RiskRule):
+    """Reject orders when the daily trade count has been exhausted."""
 
-    def evaluate(self, context, limit, state) -> Optional[RiskViolation]:
-        if not isinstance(limit, TurnoverVelocityLimit) or not limit.enabled:
-            return None
-        if context.portfolio_snapshot is None:
+    check_type = RiskCheckType.MAX_TRADES_PER_DAY
+
+    def evaluate(
+        self,
+        request: RiskRequest,
+        context: RiskContext,
+        config: MaxTradesPerDayLimit,
+        state: RiskStateSnapshot,
+    ) -> Optional[RiskViolation]:
+        if state.trade_count >= config.max_trades:
+            return _violation(
+                check_type=RiskCheckType.MAX_TRADES_PER_DAY,
+                severity=config.severity,
+                message=(
+                    f"Daily trade count {state.trade_count} has reached limit {config.max_trades}"
+                ),
+                rule_id=config.rule_id,
+                limit_value=Decimal(str(config.max_trades)),
+                actual_value=Decimal(str(state.trade_count)),
+            )
+        return None
+
+
+class MaxOrdersPerMinuteRule(RiskRule):
+    """Reject orders when the orders-per-minute throttle is exceeded."""
+
+    check_type = RiskCheckType.MAX_ORDERS_PER_MINUTE
+
+    def evaluate(
+        self,
+        request: RiskRequest,
+        context: RiskContext,
+        config: MaxOrdersPerMinuteLimit,
+        state: RiskStateSnapshot,
+    ) -> Optional[RiskViolation]:
+        throttle_key = f"orders_per_minute:{request.account_id}"
+        if config.scope == "instrument" and config.instrument_token:
+            throttle_key += f":{config.instrument_token}"
+
+        current_count = state.message_counts.get(throttle_key, 0)
+
+        if current_count >= config.max_orders:
+            return _violation(
+                check_type=RiskCheckType.MAX_ORDERS_PER_MINUTE,
+                severity=config.severity,
+                message=(
+                    f"Order rate {current_count} has reached limit {config.max_orders} "
+                    f"within {config.window_seconds}s window"
+                ),
+                rule_id=config.rule_id,
+                limit_value=Decimal(str(config.max_orders)),
+                actual_value=Decimal(str(current_count)),
+            )
+        return None
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Monitoring rules (non-blocking unless threshold exceeded)
+# ────────────────────────────────────────────────────────────────────────────
+
+
+class DrawdownRule(RiskRule):
+    """Monitor portfolio drawdown from peak equity."""
+
+    check_type = RiskCheckType.DRAWDOWN
+
+    def evaluate(
+        self,
+        request: RiskRequest,
+        context: RiskContext,
+        config: DrawdownLimit,
+        state: RiskStateSnapshot,
+    ) -> Optional[RiskViolation]:
+        if state.peak_equity <= _ZERO:
             return None
 
         portfolio = context.portfolio_snapshot
-        equity = portfolio.get("equity", Decimal("0")) if isinstance(portfolio, dict) else getattr(portfolio, "equity", Decimal("0"))
+        if portfolio is None:
+            return None
+
+        current_equity = portfolio.get("equity", _ZERO) if isinstance(portfolio, dict) else getattr(portfolio, "equity", _ZERO)
+        if not isinstance(current_equity, Decimal):
+            current_equity = Decimal(str(current_equity))
+
+        drawdown_pct = (state.peak_equity - current_equity) / state.peak_equity * Decimal("100")
+
+        if drawdown_pct > config.max_drawdown_percent:
+            return _violation(
+                check_type=RiskCheckType.DRAWDOWN,
+                severity=config.severity,
+                message=(
+                    f"Portfolio drawdown {drawdown_pct:.2f}% exceeds max "
+                    f"{config.max_drawdown_percent}%"
+                ),
+                rule_id=config.rule_id,
+                limit_value=config.max_drawdown_percent,
+                actual_value=drawdown_pct,
+            )
+        return None
+
+
+class TurnoverVelocityRule(RiskRule):
+    """Monitor turnover velocity relative to equity."""
+
+    check_type = RiskCheckType.TURNOVER_VELOCITY
+
+    def evaluate(
+        self,
+        request: RiskRequest,
+        context: RiskContext,
+        config: TurnoverVelocityLimit,
+        state: RiskStateSnapshot,
+    ) -> Optional[RiskViolation]:
+        portfolio = context.portfolio_snapshot
+        if portfolio is None:
+            return None
+
+        equity = portfolio.get("equity", _ZERO) if isinstance(portfolio, dict) else getattr(portfolio, "equity", _ZERO)
         if not isinstance(equity, Decimal):
             equity = Decimal(str(equity))
-        if equity <= 0:
+
+        if equity <= _ZERO:
             return None
 
         velocity = state.daily_turnover / equity
-        if velocity > limit.max_velocity:
-            return RiskViolation(
+
+        if velocity > config.max_velocity:
+            return _violation(
                 check_type=RiskCheckType.TURNOVER_VELOCITY,
-                severity=limit.severity,
-                message=f"Turnover velocity {velocity:.2f} exceeds limit {limit.max_velocity} (turnover {state.daily_turnover} / equity {equity})",
-                rule_id=limit.rule_id,
-                limit_value=limit.max_velocity,
+                severity=config.severity,
+                message=(
+                    f"Turnover velocity {velocity:.2f}x equity exceeds max {config.max_velocity}x"
+                ),
+                rule_id=config.rule_id,
+                limit_value=config.max_velocity,
                 actual_value=velocity,
-                metadata={"daily_turnover": state.daily_turnover, "equity": equity},
             )
         return None
 
 
-# Registry mapping check types to rule implementations
-RULE_REGISTRY: Dict[RiskCheckType, Any] = {
-    RiskCheckType.ORDER_SIZE: OrderSizeRule(),
-    RiskCheckType.PRICE_TOLERANCE: PriceToleranceRule(),
-    RiskCheckType.POSITION_LIMIT: PositionLimitRule(),
-    RiskCheckType.PORTFOLIO_EXPOSURE: PortfolioExposureRule(),
-    RiskCheckType.DAILY_LOSS_LIMIT: DailyLossLimitRule(),
-    RiskCheckType.MESSAGE_THROTTLE: MessageThrottleRule(),
-    RiskCheckType.DUPLICATE_ORDER: DuplicateOrderRule(),
-    RiskCheckType.SELF_TRADE: SelfTradeRule(),
-    RiskCheckType.PORTFOLIO_HEAT: PortfolioHeatRule(),
-    RiskCheckType.DRAWDOWN: DrawdownRule(),
-    RiskCheckType.TURNOVER_VELOCITY: TurnoverVelocityRule(),
+# ────────────────────────────────────────────────────────────────────────────
+# Rule registry
+# ────────────────────────────────────────────────────────────────────────────
+
+RULE_REGISTRY: Dict[RiskCheckType, Type[RiskRule]] = {
+    # Safety
+    RiskCheckType.KILL_SWITCH: KillSwitchRule,
+    RiskCheckType.EMERGENCY_HALT: EmergencyHaltRule,
+    RiskCheckType.CIRCUIT_BREAKER: CircuitBreakerRule,
+
+    # Pre-trade
+    RiskCheckType.ORDER_QUANTITY: OrderQuantityRule,
+    RiskCheckType.ORDER_VALUE: OrderValueRule,
+    RiskCheckType.PRICE_BAND: PriceBandRule,
+    RiskCheckType.TICK_SIZE: TickSizeRule,
+
+    # Position
+    RiskCheckType.MAX_POSITION_SIZE: MaxPositionSizeRule,
+    RiskCheckType.INSTRUMENT_EXPOSURE: InstrumentExposureRule,
+    RiskCheckType.NET_EXPOSURE: NetExposureRule,
+    RiskCheckType.CONCENTRATION_LIMIT: ConcentrationRule,
+
+    # Portfolio
+    RiskCheckType.CASH_AVAILABILITY: CashAvailabilityRule,
+    RiskCheckType.BUYING_POWER: BuyingPowerRule,
+    RiskCheckType.PORTFOLIO_EXPOSURE: PortfolioExposureRule,
+
+    # Daily controls
+    RiskCheckType.DAILY_LOSS_LIMIT: DailyLossLimitRule,
+    RiskCheckType.DAILY_PROFIT_TARGET_LOCK: DailyProfitTargetRule,
+    RiskCheckType.MAX_TRADES_PER_DAY: MaxTradesPerDayRule,
+    RiskCheckType.MAX_ORDERS_PER_MINUTE: MaxOrdersPerMinuteRule,
+
+    # Monitoring
+    RiskCheckType.DRAWDOWN: DrawdownRule,
+    RiskCheckType.TURNOVER_VELOCITY: TurnoverVelocityRule,
 }
+
+
+def get_rule(check_type: RiskCheckType) -> RiskRule:
+    """Look up a rule by its check type.
+
+    Raises:
+        KeyError: If no rule is registered for the given check type.
+    """
+    rule_class = RULE_REGISTRY.get(check_type)
+    if rule_class is None:
+        raise KeyError(f"No risk rule registered for check_type={check_type!r}")
+    return rule_class()

@@ -461,6 +461,12 @@ class RiskStateModel(Base):
     kill_switch_active = Column(Boolean, nullable=False, default=False)
     kill_switch_reason = Column(Text, nullable=True)
 
+    # RC-8B: Extended safety and counter fields
+    trade_count = Column(Integer, nullable=False, default=0)
+    order_count = Column(Integer, nullable=False, default=0)
+    emergency_halt_active = Column(Boolean, nullable=False, default=False)
+    circuit_breaker_triggered = Column(Boolean, nullable=False, default=False)
+
     # Message counts stored as JSONB
     message_counts = Column(JSONB, nullable=False, default=dict)
 

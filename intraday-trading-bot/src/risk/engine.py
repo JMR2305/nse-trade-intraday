@@ -1,352 +1,284 @@
 """
-Risk Engine — main orchestrator for pre-trade and post-trade risk checks.
+Risk Engine — core evaluation engine.
 
-The RiskEngine sits between the Strategy Layer and the Execution Engine.
-It evaluates orders before they reach execution (pre-trade) and monitors
-portfolio state after fills (post-trade).
+Orchestrates risk rule evaluation across all configured limits.
+Manages per-account RiskState in-memory with asyncio locking.
+Records throttle counts and fill events after approved checks.
+
+IMPORTANT: The engine is stateful (holds per-account RiskState).
+Callers that need recovery should use RiskEnginePersistenceAdapter
+from persistence.py.
 """
 
 from __future__ import annotations
 
-from decimal import Decimal
-from typing import Dict, List, Optional, Any
-from datetime import datetime
 import asyncio
+import logging
+from datetime import datetime, timezone
+from decimal import Decimal
+from typing import Dict, List, Optional, Set
 
 from .contracts import (
-    RiskDecision,
-    RiskAction,
-    RiskViolation,
-    RiskCheckContext,
     RiskCheckType,
-    RiskLimit,
+    RiskConfiguration,
+    RiskContext,
+    RiskRequest,
+    RiskResult,
+    RiskSeverity,
     RiskStateSnapshot,
+    RiskViolation,
+    MaxOrdersPerMinuteLimit,
+    KillSwitchLimit,
+    EmergencyHaltLimit,
+    CircuitBreakerLimit,
 )
-from .rules import RULE_REGISTRY, DuplicateOrderRule
+from .exceptions import (
+    KillSwitchActive,
+    EmergencyHaltActive,
+    RiskStateError,
+)
+from .rules import get_rule, RULE_REGISTRY
 from .state import RiskState
-from .kill_switch import KillSwitch
+
+logger = logging.getLogger(__name__)
 
 
 class RiskEngine:
-    """Central risk evaluation engine."""
+    """Core risk evaluation engine.
 
-    PRE_TRADE_CHECKS = {
-        RiskCheckType.ORDER_SIZE,
-        RiskCheckType.PRICE_TOLERANCE,
-        RiskCheckType.POSITION_LIMIT,
-        RiskCheckType.PORTFOLIO_EXPOSURE,
-        RiskCheckType.DAILY_LOSS_LIMIT,
-        RiskCheckType.MESSAGE_THROTTLE,
-        RiskCheckType.DUPLICATE_ORDER,
-        RiskCheckType.SELF_TRADE,
-    }
+    Manages per-account RiskState in-memory. Evaluates all configured
+    risk limits for each incoming order. Records throttle counts after
+    evaluation and fill events after execution.
 
-    POST_TRADE_CHECKS = {
-        RiskCheckType.PORTFOLIO_HEAT,
-        RiskCheckType.DRAWDOWN,
-        RiskCheckType.TURNOVER_VELOCITY,
-    }
+    Thread-safe: per-account asyncio.Lock prevents concurrent evaluation
+    for the same account.
+    """
 
-    def __init__(
-        self,
-        limits: Optional[Dict[str, List[RiskLimit]]] = None,
-        allow_risk_reducing_on_kill: bool = False,
-    ):
+    def __init__(self) -> None:
         self._states: Dict[str, RiskState] = {}
-        self._kill_switches: Dict[str, KillSwitch] = {}
-        self._limits: Dict[str, List[RiskLimit]] = limits or {}
-        self._allow_risk_reducing_on_kill: bool = allow_risk_reducing_on_kill
-        self._lock: asyncio.Lock = asyncio.Lock()
-        # Per-engine rule instances — DuplicateOrderRule is stateful, must not be shared
-        self._rule_instances: Dict[RiskCheckType, Any] = dict(RULE_REGISTRY)
-        self._rule_instances[RiskCheckType.DUPLICATE_ORDER] = DuplicateOrderRule()
+        self._account_locks: Dict[str, asyncio.Lock] = {}
+        self._processed_fills: Dict[str, Set[str]] = {}  # account_id -> set of fill_ids
+        self._global_lock = asyncio.Lock()
 
-    async def register_account(
-        self,
-        account_id: str,
-        initial_equity: Decimal = Decimal("0"),
-        limits: Optional[List[RiskLimit]] = None,
-    ) -> None:
-        async with self._lock:
+    async def _get_state(self, account_id: str) -> RiskState:
+        """Get or create a RiskState for the account (thread-safe)."""
+        async with self._global_lock:
             if account_id not in self._states:
-                self._states[account_id] = RiskState(account_id, initial_equity)
-                self._kill_switches[account_id] = KillSwitch(
-                    account_id,
-                    allow_risk_reducing=self._allow_risk_reducing_on_kill,
-                )
-            if limits is not None:
-                self._limits[account_id] = limits
+                self._states[account_id] = RiskState(account_id)
+                self._account_locks[account_id] = asyncio.Lock()
+                self._processed_fills[account_id] = set()
+        return self._states[account_id]
 
-    async def set_limits(self, account_id: str, limits: List[RiskLimit]) -> None:
-        async with self._lock:
-            self._limits[account_id] = limits
+    async def _get_lock(self, account_id: str) -> asyncio.Lock:
+        """Get the per-account lock."""
+        await self._get_state(account_id)
+        return self._account_locks[account_id]
 
-    async def pre_trade_check(
+    def _get_throttle_key(self, account_id: str, config: MaxOrdersPerMinuteLimit) -> str:
+        """Build the throttle state key for message count tracking."""
+        key = f"orders_per_minute:{account_id}"
+        if config.scope == "instrument" and config.instrument_token:
+            key += f":{config.instrument_token}"
+        return key
+
+    async def evaluate(
         self,
-        account_id: str,
-        order: Any,
-        portfolio_snapshot: Optional[Any] = None,
-        position_snapshots: Optional[Dict[str, Any]] = None,
-        market_prices: Optional[Dict[str, Decimal]] = None,
-        open_orders: Optional[List[Any]] = None,
-        check_timestamp: Optional[datetime] = None,
-    ) -> RiskDecision:
-        if check_timestamp is None:
-            check_timestamp = datetime.utcnow()
+        request: RiskRequest,
+        context: RiskContext,
+        limits: List[RiskConfiguration],
+    ) -> RiskResult:
+        """Evaluate all configured risk limits for an order.
 
-        if account_id not in self._states:
-            await self.register_account(account_id)
+        Safety rules (KILL_SWITCH, EMERGENCY_HALT, CIRCUIT_BREAKER) are
+        evaluated first and short-circuit on the first FATAL violation.
 
-        state = self._states[account_id]
-        kill_switch = self._kill_switches[account_id]
-        limits = self._limits.get(account_id, [])
+        For non-safety rules, all configured limits are evaluated and all
+        violations are collected before returning.
 
-        context = RiskCheckContext(
-            account_id=account_id,
-            order=order,
-            portfolio_snapshot=portfolio_snapshot,
-            position_snapshots=position_snapshots or {},
-            market_prices=market_prices or {},
-            open_orders=open_orders or [],
-            check_timestamp=check_timestamp,
-        )
+        Throttle counts are recorded AFTER evaluation (so the current
+        order counts toward the limit for the NEXT order).
 
-        state_snapshot = await state.to_snapshot_locked(check_timestamp)
+        Args:
+            request: The risk check request.
+            context: Market and portfolio context.
+            limits: List of configured risk limits to evaluate.
+
+        Returns:
+            RiskResult with approved=True or approved=False + violations.
+        """
+        account_id = request.account_id
+        state = await self._get_state(account_id)
+        check_timestamp = request.check_timestamp
+
         violations: List[RiskViolation] = []
 
-        # 1. Check kill switch first
-        order_side = self._get_order_side(order)
-        current_direction = self._get_current_direction(order, position_snapshots)
-        ks_violation = kill_switch.evaluate_order(order_side, current_direction)
-        if ks_violation is not None:
-            violations.append(ks_violation)
-
-        # 2. Record message for throttling (before checking throttle rules)
-        await self._record_message_throttle(state, context, limits, check_timestamp)
-
-        # 3. Evaluate all pre-trade rules
-        for limit in limits:
-            check_type = self._limit_to_check_type(limit)
-            if check_type is None or check_type not in self.PRE_TRADE_CHECKS:
+        # Evaluate all limits in the configured order
+        for config in limits:
+            if not config.enabled:
                 continue
 
-            rule = self._rule_instances.get(check_type)
-            if rule is None:
-                continue
+            check_type = config.check_type
 
-            # Re-fetch state snapshot after throttle recording
+            # Re-snapshot state for each rule (captures any in-flight mutations)
             state_snapshot = state.to_snapshot(check_timestamp)
-            violation = rule.evaluate(context, limit, state_snapshot)
+
+            try:
+                rule = get_rule(check_type)
+            except KeyError:
+                logger.warning(f"No rule registered for check_type={check_type!r}; skipping")
+                continue
+
+            violation = rule.evaluate(request, context, config, state_snapshot)
+
             if violation is not None:
                 violations.append(violation)
 
-        # 4. Determine action
-        action = self._determine_action(violations)
+                # Safety rules short-circuit immediately on FATAL
+                if check_type in (
+                    RiskCheckType.KILL_SWITCH,
+                    RiskCheckType.EMERGENCY_HALT,
+                    RiskCheckType.CIRCUIT_BREAKER,
+                ) and violation.severity == RiskSeverity.FATAL:
+                    return RiskResult(
+                        approved=False,
+                        violations=violations,
+                        check_timestamp=check_timestamp,
+                        account_id=account_id,
+                    )
 
-        # 5. Auto-activate kill switch on FATAL violations
-        if action == RiskAction.KILL_SWITCH and not kill_switch.is_active:
-            fatal_reasons = [v.message for v in violations if v.severity.value == "FATAL"]
-            reason = "; ".join(fatal_reasons) if fatal_reasons else "Risk limit breached"
-            kill_switch.activate(reason, actor="risk_engine", timestamp=check_timestamp)
-            await state.activate_kill_switch(reason)
+        # Determine approval: any FATAL or CRITICAL violation blocks the order
+        is_approved = not any(
+            v.severity in (RiskSeverity.FATAL, RiskSeverity.CRITICAL)
+            for v in violations
+        )
 
-        return RiskDecision(
-            action=action,
+        if is_approved:
+            # Record throttle counts post-evaluation
+            await self._record_message_throttle(state, account_id, limits, check_timestamp)
+
+        return RiskResult(
+            approved=is_approved,
             violations=violations,
             check_timestamp=check_timestamp,
-            order_id=self._get_order_id(order),
             account_id=account_id,
         )
 
-    async def post_trade_check(
+    async def _record_message_throttle(
         self,
+        state: RiskState,
         account_id: str,
-        portfolio_snapshot: Any,
-        position_snapshots: Dict[str, Any],
-        check_timestamp: Optional[datetime] = None,
-    ) -> RiskDecision:
-        if check_timestamp is None:
-            check_timestamp = datetime.utcnow()
-
-        if account_id not in self._states:
-            await self.register_account(account_id)
-
-        state = self._states[account_id]
-        limits = self._limits.get(account_id, [])
-
-        context = RiskCheckContext(
-            account_id=account_id,
-            order=None,
-            portfolio_snapshot=portfolio_snapshot,
-            position_snapshots=position_snapshots,
-            market_prices={},
-            open_orders=[],
-            check_timestamp=check_timestamp,
-        )
-
-        state_snapshot = await state.to_snapshot_locked(check_timestamp)
-        violations: List[RiskViolation] = []
-
-        for limit in limits:
-            check_type = self._limit_to_check_type(limit)
-            if check_type is None or check_type not in self.POST_TRADE_CHECKS:
+        limits: List[RiskConfiguration],
+        now: datetime,
+    ) -> None:
+        """Record throttle counts for MaxOrdersPerMinuteLimit rules."""
+        for config in limits:
+            if not config.enabled:
                 continue
-            rule = self._rule_instances.get(check_type)
-            if rule is None:
+            if config.check_type != RiskCheckType.MAX_ORDERS_PER_MINUTE:
                 continue
-            violation = rule.evaluate(context, limit, state_snapshot)
-            if violation is not None:
-                violations.append(violation)
+            if not isinstance(config, MaxOrdersPerMinuteLimit):
+                continue
 
-        action = self._determine_action(violations, post_trade=True)
-
-        # Post-trade checks never block — the fill already happened.
-        if action in (RiskAction.BLOCK, RiskAction.KILL_SWITCH):
-            action = RiskAction.WARN
-
-        return RiskDecision(
-            action=action,
-            violations=violations,
-            check_timestamp=check_timestamp,
-            order_id=None,
-            account_id=account_id,
-        )
+            throttle_key = self._get_throttle_key(account_id, config)
+            await state.record_message(throttle_key, config.window_seconds, now)
 
     async def record_fill(
         self,
         account_id: str,
+        fill_id: str,
         realized_pnl: Decimal,
         turnover: Decimal,
         current_equity: Decimal,
         fill_timestamp: Optional[datetime] = None,
-    ) -> None:
-        if fill_timestamp is None:
-            fill_timestamp = datetime.utcnow()
-        if account_id not in self._states:
-            await self.register_account(account_id)
-        await self._states[account_id].record_fill(realized_pnl, turnover, current_equity, fill_timestamp)
+    ) -> bool:
+        """Record a fill event into the account's RiskState.
 
-    async def activate_kill_switch(
-        self,
-        account_id: str,
-        reason: str,
-        actor: str = "manual",
-        timestamp: Optional[datetime] = None,
-    ) -> None:
-        if timestamp is None:
-            timestamp = datetime.utcnow()
-        if account_id not in self._kill_switches:
-            await self.register_account(account_id)
-        self._kill_switches[account_id].activate(reason, actor=actor, timestamp=timestamp)
-        await self._states[account_id].activate_kill_switch(reason)
+        Idempotent: duplicate fill_ids are silently ignored.
 
-    async def deactivate_kill_switch(
-        self,
-        account_id: str,
-        reason: str,
-        actor: str = "manual",
-        timestamp: Optional[datetime] = None,
-    ) -> None:
-        if timestamp is None:
-            timestamp = datetime.utcnow()
-        if account_id not in self._kill_switches:
-            return
-        self._kill_switches[account_id].deactivate(reason, actor=actor, timestamp=timestamp)
-        await self._states[account_id].deactivate_kill_switch()
+        Args:
+            account_id: The account.
+            fill_id: Unique fill identifier for idempotency.
+            realized_pnl: Realized P&L from the fill.
+            turnover: Turnover value of the fill.
+            current_equity: Portfolio equity after the fill.
+            fill_timestamp: Timestamp of the fill (defaults to now).
 
-    async def get_state_snapshot(self, account_id: str) -> RiskStateSnapshot:
-        if account_id not in self._states:
-            await self.register_account(account_id)
-        return await self._states[account_id].to_snapshot_locked(datetime.utcnow())
+        Returns:
+            True if the fill was recorded, False if it was a duplicate.
+        """
+        state = await self._get_state(account_id)
 
-    async def reset_account(self, account_id: str, initial_equity: Decimal = Decimal("0")) -> None:
-        if account_id in self._states:
-            await self._states[account_id].reset_daily(initial_equity)
+        async with self._global_lock:
+            if fill_id in self._processed_fills[account_id]:
+                logger.debug(
+                    f"Duplicate fill {fill_id!r} for account {account_id!r}; ignoring"
+                )
+                return False
+            self._processed_fills[account_id].add(fill_id)
 
-    def get_kill_switch_history(self, account_id: str) -> List[Any]:
-        if account_id not in self._kill_switches:
-            return []
-        return self._kill_switches[account_id].get_history()
-
-    def is_kill_switch_active(self, account_id: str) -> bool:
-        if account_id not in self._kill_switches:
-            return False
-        return self._kill_switches[account_id].is_active
-
-    def reset(self) -> None:
-        """Reset all engine state — used for deterministic replay testing."""
-        self._states.clear()
-        self._kill_switches.clear()
-        dup_rule = self._rule_instances.get(RiskCheckType.DUPLICATE_ORDER)
-        if dup_rule is not None:
-            dup_rule.reset()
-
-    # --- Private helpers ---
-
-    async def _record_message_throttle(self, state, context, limits, now) -> None:
-        from .rules import MessageThrottleRule
-        from .contracts import MessageThrottleLimit
-
-        for limit in limits:
-            if isinstance(limit, MessageThrottleLimit) and limit.enabled:
-                rule = MessageThrottleRule()
-                key = rule._build_throttle_key(context, limit)
-                if key is not None:
-                    await state.record_message(key, limit.window_seconds, now)
-
-    def _determine_action(self, violations: List[RiskViolation], post_trade: bool = False) -> RiskAction:
-        if not violations:
-            return RiskAction.ALLOW
-        if not post_trade and any(v.severity.value == "FATAL" for v in violations):
-            return RiskAction.KILL_SWITCH
-        if not post_trade and any(v.severity.value == "CRITICAL" for v in violations):
-            return RiskAction.BLOCK
-        if any(v.severity.value in ("WARNING", "INFO", "CRITICAL", "FATAL") for v in violations):
-            return RiskAction.WARN
-        return RiskAction.ALLOW
-
-    def _limit_to_check_type(self, limit: RiskLimit) -> Optional[RiskCheckType]:
-        from .contracts import (
-            OrderSizeLimit, PriceToleranceLimit, PositionLimit,
-            PortfolioExposureLimit, DailyLossLimit, MessageThrottleLimit,
-            DuplicateOrderLimit, SelfTradeLimit, PortfolioHeatLimit,
-            DrawdownLimit, TurnoverVelocityLimit,
+        ts = fill_timestamp or datetime.now(timezone.utc)
+        await state.record_fill(
+            realized_pnl=realized_pnl,
+            turnover=turnover,
+            current_equity=current_equity,
+            fill_timestamp=ts,
         )
-        mapping = {
-            OrderSizeLimit: RiskCheckType.ORDER_SIZE,
-            PriceToleranceLimit: RiskCheckType.PRICE_TOLERANCE,
-            PositionLimit: RiskCheckType.POSITION_LIMIT,
-            PortfolioExposureLimit: RiskCheckType.PORTFOLIO_EXPOSURE,
-            DailyLossLimit: RiskCheckType.DAILY_LOSS_LIMIT,
-            MessageThrottleLimit: RiskCheckType.MESSAGE_THROTTLE,
-            DuplicateOrderLimit: RiskCheckType.DUPLICATE_ORDER,
-            SelfTradeLimit: RiskCheckType.SELF_TRADE,
-            PortfolioHeatLimit: RiskCheckType.PORTFOLIO_HEAT,
-            DrawdownLimit: RiskCheckType.DRAWDOWN,
-            TurnoverVelocityLimit: RiskCheckType.TURNOVER_VELOCITY,
-        }
-        return mapping.get(type(limit))
+        logger.info(
+            f"Fill recorded for account {account_id!r}: fill_id={fill_id!r}, "
+            f"pnl={realized_pnl}, turnover={turnover}"
+        )
+        return True
 
-    @staticmethod
-    def _get_order_side(order: Any) -> str:
-        if isinstance(order, dict):
-            return (order.get("side") or "BUY").upper()
-        return str(getattr(order, "side", "BUY")).upper()
+    async def activate_kill_switch(self, account_id: str, reason: str) -> None:
+        """Activate the kill switch for an account."""
+        state = await self._get_state(account_id)
+        await state.activate_kill_switch(reason)
 
-    @staticmethod
-    def _get_order_id(order: Any) -> Optional[str]:
-        if isinstance(order, dict):
-            return order.get("order_id") or order.get("client_order_id")
-        return getattr(order, "order_id", None) or getattr(order, "client_order_id", None)
+    async def deactivate_kill_switch(self, account_id: str) -> None:
+        """Deactivate the kill switch for an account."""
+        state = await self._get_state(account_id)
+        await state.deactivate_kill_switch()
 
-    @staticmethod
-    def _get_current_direction(order: Any, positions: Optional[Dict[str, Any]]) -> str:
-        if positions is None:
-            return "FLAT"
-        instrument = order.get("instrument_token") if isinstance(order, dict) else getattr(order, "instrument_token", None)
-        if instrument is None:
-            return "FLAT"
-        pos = positions.get(instrument)
-        if pos is None:
-            return "FLAT"
-        return (pos.get("direction") or "FLAT").upper() if isinstance(pos, dict) else str(getattr(pos, "direction", "FLAT")).upper()
+    async def activate_emergency_halt(self, account_id: str, reason: str) -> None:
+        """Activate emergency halt for an account."""
+        state = await self._get_state(account_id)
+        await state.activate_emergency_halt(reason)
+
+    async def deactivate_emergency_halt(self, account_id: str) -> None:
+        """Deactivate emergency halt for an account."""
+        state = await self._get_state(account_id)
+        await state.deactivate_emergency_halt()
+
+    async def trigger_circuit_breaker(self, account_id: str) -> None:
+        """Trigger the circuit breaker for an account."""
+        state = await self._get_state(account_id)
+        await state.trigger_circuit_breaker()
+
+    async def reset_circuit_breaker(self, account_id: str) -> None:
+        """Reset the circuit breaker for an account."""
+        state = await self._get_state(account_id)
+        await state.reset_circuit_breaker()
+
+    async def get_state_snapshot(
+        self, account_id: str, timestamp: Optional[datetime] = None
+    ) -> RiskStateSnapshot:
+        """Get a snapshot of the current state for an account."""
+        state = await self._get_state(account_id)
+        ts = timestamp or datetime.now(timezone.utc)
+        return await state.to_snapshot_locked(ts)
+
+    async def restore_state(self, snapshot: RiskStateSnapshot) -> None:
+        """Restore engine state from a persisted snapshot."""
+        async with self._global_lock:
+            account_id = snapshot.account_id
+            self._states[account_id] = RiskState.from_snapshot(snapshot)
+            if account_id not in self._account_locks:
+                self._account_locks[account_id] = asyncio.Lock()
+            if account_id not in self._processed_fills:
+                self._processed_fills[account_id] = set()
+        logger.info(f"RiskEngine state restored for account {snapshot.account_id!r}")
+
+    async def reset_daily(self, account_id: str, initial_equity: Decimal = Decimal("0")) -> None:
+        """Reset daily counters for an account (call at market open)."""
+        state = await self._get_state(account_id)
+        await state.reset_daily(initial_equity)

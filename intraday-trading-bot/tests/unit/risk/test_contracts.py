@@ -1,279 +1,359 @@
 """
-Unit tests for risk/contracts.py.
+Unit tests for RC-8B risk contracts.
+
+Tests for all domain types: RiskViolation, RiskResult, RiskRequest,
+RiskContext, limit configurations, and RiskStateSnapshot.
 """
 
 import pytest
 from decimal import Decimal
-from datetime import datetime
-from pydantic import ValidationError
+from datetime import datetime, timezone
 
 from src.risk.contracts import (
     RiskSeverity,
-    RiskAction,
     RiskCheckType,
     RiskViolation,
-    RiskDecision,
-    OrderSizeLimit,
-    PriceToleranceLimit,
-    PositionLimit,
-    PortfolioExposureLimit,
-    DailyLossLimit,
-    MessageThrottleLimit,
+    RiskResult,
+    RiskRequest,
+    RiskContext,
     RiskStateSnapshot,
-    RiskCheckContext,
+    OrderQuantityLimit,
+    OrderValueLimit,
+    PriceBandLimit,
+    MaxPositionSizeLimit,
+    DailyLossLimit,
+    MaxOrdersPerMinuteLimit,
+    KillSwitchLimit,
+    EmergencyHaltLimit,
+    CircuitBreakerLimit,
+    DrawdownLimit,
+    TurnoverVelocityLimit,
+    ConcentrationLimit,
 )
 
 
-class TestRiskSeverity:
-    def test_enum_values(self):
-        assert RiskSeverity.INFO == "INFO"
-        assert RiskSeverity.WARNING == "WARNING"
-        assert RiskSeverity.CRITICAL == "CRITICAL"
-        assert RiskSeverity.FATAL == "FATAL"
+# ── RiskSeverity ──────────────────────────────────────────────────────────
 
 
-class TestRiskAction:
-    def test_enum_values(self):
-        assert RiskAction.ALLOW == "ALLOW"
-        assert RiskAction.WARN == "WARN"
-        assert RiskAction.BLOCK == "BLOCK"
-        assert RiskAction.KILL_SWITCH == "KILL_SWITCH"
+def test_severity_ordering():
+    levels = [
+        RiskSeverity.INFO,
+        RiskSeverity.WARNING,
+        RiskSeverity.CRITICAL,
+        RiskSeverity.FATAL,
+    ]
+    assert len(levels) == 4
+    assert all(isinstance(s, RiskSeverity) for s in levels)
 
 
-class TestRiskViolation:
-    def test_create_basic(self):
-        v = RiskViolation(
-            check_type=RiskCheckType.ORDER_SIZE,
-            severity=RiskSeverity.CRITICAL,
-            message="Quantity too large",
-            rule_id="rule_001",
-            limit_value=Decimal("100"),
-            actual_value=Decimal("150"),
-        )
-        assert v.check_type == RiskCheckType.ORDER_SIZE
-        assert v.severity == RiskSeverity.CRITICAL
-        assert v.limit_value == Decimal("100")
-        assert v.actual_value == Decimal("150")
-
-    def test_decimal_conversion_from_string(self):
-        v = RiskViolation(
-            check_type=RiskCheckType.ORDER_SIZE,
-            severity=RiskSeverity.CRITICAL,
-            message="Test",
-            rule_id="rule_001",
-            limit_value="100.50",
-            actual_value="200.75",
-        )
-        assert isinstance(v.limit_value, Decimal)
-        assert v.limit_value == Decimal("100.50")
-        assert v.actual_value == Decimal("200.75")
-
-    def test_decimal_conversion_from_int(self):
-        v = RiskViolation(
-            check_type=RiskCheckType.ORDER_SIZE,
-            severity=RiskSeverity.CRITICAL,
-            message="Test",
-            rule_id="rule_001",
-            limit_value=100,
-            actual_value=200,
-        )
-        assert isinstance(v.limit_value, Decimal)
-        assert v.limit_value == Decimal("100")
-
-    def test_none_values(self):
-        v = RiskViolation(
-            check_type=RiskCheckType.ORDER_SIZE,
-            severity=RiskSeverity.CRITICAL,
-            message="Test",
-            rule_id="rule_001",
-        )
-        assert v.limit_value is None
-        assert v.actual_value is None
+# ── RiskViolation ─────────────────────────────────────────────────────────
 
 
-class TestRiskDecision:
-    def test_allow_no_violations(self):
-        d = RiskDecision(
-            action=RiskAction.ALLOW,
-            check_timestamp=datetime.utcnow(),
-            account_id="ACC001",
-        )
-        assert d.is_allowed is True
-        assert d.is_blocked is False
-        assert d.has_critical is False
-
-    def test_block_with_critical(self):
-        v = RiskViolation(
-            check_type=RiskCheckType.ORDER_SIZE,
-            severity=RiskSeverity.CRITICAL,
-            message="Too big",
-            rule_id="rule_001",
-        )
-        d = RiskDecision(
-            action=RiskAction.BLOCK,
-            violations=[v],
-            check_timestamp=datetime.utcnow(),
-            account_id="ACC001",
-        )
-        assert d.is_allowed is False
-        assert d.is_blocked is True
-        assert d.has_critical is True
-
-    def test_kill_switch_with_fatal(self):
-        v = RiskViolation(
-            check_type=RiskCheckType.DAILY_LOSS_LIMIT,
-            severity=RiskSeverity.FATAL,
-            message="Loss limit reached",
-            rule_id="rule_002",
-        )
-        d = RiskDecision(
-            action=RiskAction.KILL_SWITCH,
-            violations=[v],
-            check_timestamp=datetime.utcnow(),
-            account_id="ACC001",
-        )
-        assert d.is_allowed is False
-        assert d.is_blocked is True
-        assert d.has_critical is True
-
-    def test_warn_with_warning_only(self):
-        v = RiskViolation(
-            check_type=RiskCheckType.DAILY_LOSS_LIMIT,
-            severity=RiskSeverity.WARNING,
-            message="Near limit",
-            rule_id="rule_003",
-        )
-        d = RiskDecision(
-            action=RiskAction.WARN,
-            violations=[v],
-            check_timestamp=datetime.utcnow(),
-            account_id="ACC001",
-        )
-        assert d.is_allowed is False
-        assert d.is_blocked is False
-        assert d.has_critical is False
+def test_risk_violation_creation():
+    v = RiskViolation(
+        check_type=RiskCheckType.ORDER_QUANTITY,
+        severity=RiskSeverity.CRITICAL,
+        message="Quantity 1000 exceeds max 500",
+        rule_id="oq_001",
+        limit_value=Decimal("500"),
+        actual_value=Decimal("1000"),
+    )
+    assert v.check_type == RiskCheckType.ORDER_QUANTITY
+    assert v.severity == RiskSeverity.CRITICAL
+    assert v.limit_value == Decimal("500")
+    assert v.actual_value == Decimal("1000")
 
 
-class TestOrderSizeLimit:
-    def test_valid(self):
-        limit = OrderSizeLimit(rule_id="max_qty_001", max_quantity=Decimal("500"))
-        assert limit.max_quantity == Decimal("500")
-        assert limit.enabled is True
-
-    def test_string_conversion(self):
-        limit = OrderSizeLimit(rule_id="max_qty_001", max_quantity="500")
-        assert isinstance(limit.max_quantity, Decimal)
-        assert limit.max_quantity == Decimal("500")
-
-    def test_invalid_zero(self):
-        with pytest.raises(ValidationError):
-            OrderSizeLimit(rule_id="max_qty_001", max_quantity=Decimal("0"))
-
-    def test_invalid_negative(self):
-        with pytest.raises(ValidationError):
-            OrderSizeLimit(rule_id="max_qty_001", max_quantity=Decimal("-1"))
+def test_risk_violation_immutable():
+    v = RiskViolation(
+        check_type=RiskCheckType.KILL_SWITCH,
+        severity=RiskSeverity.FATAL,
+        message="Kill switch active",
+        rule_id="ks_001",
+    )
+    with pytest.raises(Exception):
+        v.severity = RiskSeverity.INFO  # type: ignore[misc]
 
 
-class TestPriceToleranceLimit:
-    def test_valid(self):
-        limit = PriceToleranceLimit(rule_id="price_tol_001", max_deviation_percent=Decimal("5.0"))
-        assert limit.max_deviation_percent == Decimal("5.0")
-
-    def test_invalid_zero(self):
-        with pytest.raises(ValidationError):
-            PriceToleranceLimit(rule_id="price_tol_001", max_deviation_percent=Decimal("0"))
-
-
-class TestPositionLimit:
-    def test_valid(self):
-        limit = PositionLimit(
-            rule_id="pos_limit_001",
-            max_long_quantity=Decimal("1000"),
-            max_short_quantity=Decimal("500"),
-            instrument_token="INFY",
-        )
-        assert limit.max_long_quantity == Decimal("1000")
-        assert limit.max_short_quantity == Decimal("500")
-
-    def test_invalid_negative(self):
-        with pytest.raises(ValidationError):
-            PositionLimit(
-                rule_id="pos_limit_001",
-                max_long_quantity=Decimal("-1"),
-                max_short_quantity=Decimal("500"),
-                instrument_token="INFY",
-            )
+def test_risk_violation_decimal_coercion():
+    v = RiskViolation(
+        check_type=RiskCheckType.DAILY_LOSS_LIMIT,
+        severity=RiskSeverity.WARNING,
+        message="Approaching loss limit",
+        rule_id="dll_001",
+        limit_value=10000,   # int → Decimal
+        actual_value=8000.5,  # float → Decimal
+    )
+    assert isinstance(v.limit_value, Decimal)
+    assert isinstance(v.actual_value, Decimal)
+    assert v.limit_value == Decimal("10000")
 
 
-class TestPortfolioExposureLimit:
-    def test_valid(self):
-        limit = PortfolioExposureLimit(rule_id="exp_001", max_exposure_percent=Decimal("80.0"))
-        assert limit.max_exposure_percent == Decimal("80.0")
-
-    def test_invalid_over_100(self):
-        with pytest.raises(ValidationError):
-            PortfolioExposureLimit(rule_id="exp_001", max_exposure_percent=Decimal("101.0"))
-
-
-class TestDailyLossLimit:
-    def test_valid(self):
-        limit = DailyLossLimit(rule_id="loss_001", max_daily_loss=Decimal("10000"))
-        assert limit.max_daily_loss == Decimal("10000")
-        assert limit.warning_threshold_percent == Decimal("80.0")
-
-    def test_custom_warning(self):
-        limit = DailyLossLimit(
-            rule_id="loss_001",
-            max_daily_loss=Decimal("10000"),
-            warning_threshold_percent=Decimal("50.0"),
-        )
-        assert limit.warning_threshold_percent == Decimal("50.0")
+def test_risk_violation_no_limit_values():
+    v = RiskViolation(
+        check_type=RiskCheckType.EMERGENCY_HALT,
+        severity=RiskSeverity.FATAL,
+        message="Emergency halt active",
+        rule_id="eh_001",
+    )
+    assert v.limit_value is None
+    assert v.actual_value is None
 
 
-class TestMessageThrottleLimit:
-    def test_valid(self):
-        limit = MessageThrottleLimit(rule_id="throttle_001", max_messages=10, window_seconds=60)
-        assert limit.max_messages == 10
-        assert limit.window_seconds == 60
+# ── RiskResult ────────────────────────────────────────────────────────────
 
 
-class TestRiskStateSnapshot:
-    def test_create(self):
-        snapshot = RiskStateSnapshot(
-            account_id="ACC001",
-            snapshot_timestamp=datetime.utcnow(),
-            daily_realized_pnl=Decimal("-500"),
-            daily_turnover=Decimal("10000"),
-            peak_equity=Decimal("100000"),
-        )
-        assert snapshot.daily_realized_pnl == Decimal("-500")
-        assert snapshot.kill_switch_active is False
-
-    def test_decimal_conversion(self):
-        snapshot = RiskStateSnapshot(
-            account_id="ACC001",
-            snapshot_timestamp=datetime.utcnow(),
-            daily_realized_pnl="-500",
-            daily_turnover="10000",
-            peak_equity="100000",
-        )
-        assert isinstance(snapshot.daily_realized_pnl, Decimal)
+def test_risk_result_approved():
+    ts = datetime.now(timezone.utc)
+    result = RiskResult(
+        approved=True,
+        violations=[],
+        check_timestamp=ts,
+        account_id="acc_001",
+    )
+    assert result.approved is True
+    assert result.is_allowed is True
+    assert result.is_blocked is False
+    assert result.action == "ALLOW"
+    assert not result.has_critical
 
 
-class TestRiskCheckContext:
-    def test_create(self):
-        ctx = RiskCheckContext(
-            account_id="ACC001",
-            check_timestamp=datetime.utcnow(),
-            market_prices={"INFY": Decimal("1500.50")},
-        )
-        assert ctx.market_prices["INFY"] == Decimal("1500.50")
+def test_risk_result_critical_violation():
+    ts = datetime.now(timezone.utc)
+    v = RiskViolation(
+        check_type=RiskCheckType.ORDER_QUANTITY,
+        severity=RiskSeverity.CRITICAL,
+        message="Quantity exceeded",
+        rule_id="oq_001",
+    )
+    result = RiskResult(
+        approved=False,
+        violations=[v],
+        check_timestamp=ts,
+        account_id="acc_001",
+    )
+    assert result.is_blocked is True
+    assert result.has_critical is True
+    assert result.action == "BLOCK"
 
-    def test_price_decimal_conversion(self):
-        ctx = RiskCheckContext(
-            account_id="ACC001",
-            check_timestamp=datetime.utcnow(),
-            market_prices={"INFY": "1500.50"},
-        )
-        assert isinstance(ctx.market_prices["INFY"], Decimal)
-        assert ctx.market_prices["INFY"] == Decimal("1500.50")
+
+def test_risk_result_fatal_violation():
+    ts = datetime.now(timezone.utc)
+    v = RiskViolation(
+        check_type=RiskCheckType.KILL_SWITCH,
+        severity=RiskSeverity.FATAL,
+        message="Kill switch",
+        rule_id="ks_001",
+    )
+    result = RiskResult(
+        approved=False,
+        violations=[v],
+        check_timestamp=ts,
+        account_id="acc_001",
+    )
+    assert result.action == "KILL_SWITCH"
+    assert result.has_critical is True
+
+
+def test_risk_result_warning_still_approved():
+    ts = datetime.now(timezone.utc)
+    v = RiskViolation(
+        check_type=RiskCheckType.DAILY_LOSS_LIMIT,
+        severity=RiskSeverity.WARNING,
+        message="Approaching loss limit",
+        rule_id="dll_001",
+    )
+    # WARNING does not block — engine still marks as not approved if
+    # the rule also emits CRITICAL. Here we test a standalone WARNING.
+    result = RiskResult(
+        approved=True,
+        violations=[v],
+        check_timestamp=ts,
+        account_id="acc_001",
+    )
+    assert result.approved is True
+    assert result.action == "WARN"
+
+
+def test_risk_result_immutable():
+    ts = datetime.now(timezone.utc)
+    result = RiskResult(
+        approved=True,
+        violations=[],
+        check_timestamp=ts,
+        account_id="acc_001",
+    )
+    with pytest.raises(Exception):
+        result.approved = False  # type: ignore[misc]
+
+
+# ── RiskRequest ───────────────────────────────────────────────────────────
+
+
+def test_risk_request_defaults_timestamp():
+    req = RiskRequest(account_id="acc_001", order={"side": "BUY"})
+    assert req.account_id == "acc_001"
+    assert req.check_timestamp is not None
+
+
+def test_risk_request_immutable():
+    req = RiskRequest(account_id="acc_001", order={})
+    with pytest.raises(Exception):
+        req.account_id = "other"  # type: ignore[misc]
+
+
+# ── RiskContext ───────────────────────────────────────────────────────────
+
+
+def test_risk_context_defaults():
+    ctx = RiskContext(account_id="acc_001")
+    assert ctx.portfolio_snapshot is None
+    assert ctx.position_snapshots == {}
+    assert ctx.market_prices == {}
+    assert ctx.open_orders == []
+    assert ctx.order is None
+
+
+def test_risk_context_decimal_prices():
+    ctx = RiskContext(
+        account_id="acc_001",
+        market_prices={"738561": 1500.50},  # float → Decimal
+    )
+    assert isinstance(ctx.market_prices["738561"], Decimal)
+    assert ctx.market_prices["738561"] == Decimal("1500.5")
+
+
+# ── Limit configurations ──────────────────────────────────────────────────
+
+
+def test_order_quantity_limit():
+    limit = OrderQuantityLimit(rule_id="oq_001", max_quantity=500)
+    assert limit.check_type == RiskCheckType.ORDER_QUANTITY
+    assert limit.max_quantity == Decimal("500")
+    assert limit.enabled is True
+
+
+def test_order_quantity_limit_decimal_coercion():
+    limit = OrderQuantityLimit(rule_id="oq_001", max_quantity=100.5)
+    assert isinstance(limit.max_quantity, Decimal)
+
+
+def test_order_quantity_limit_gt_zero():
+    with pytest.raises(Exception):
+        OrderQuantityLimit(rule_id="oq_001", max_quantity=0)
+
+
+def test_price_band_limit():
+    limit = PriceBandLimit(rule_id="pb_001", max_deviation_percent=Decimal("2.0"))
+    assert limit.check_type == RiskCheckType.PRICE_BAND
+    assert limit.max_deviation_percent == Decimal("2.0")
+
+
+def test_daily_loss_limit_defaults():
+    limit = DailyLossLimit(rule_id="dll_001", max_daily_loss=Decimal("5000"))
+    assert limit.max_daily_loss == Decimal("5000")
+    assert limit.warning_threshold_percent == Decimal("80.0")
+    assert limit.check_type == RiskCheckType.DAILY_LOSS_LIMIT
+
+
+def test_max_orders_per_minute_limit():
+    limit = MaxOrdersPerMinuteLimit(rule_id="mt_001", max_orders=10, window_seconds=60)
+    assert limit.max_orders == 10
+    assert limit.window_seconds == 60
+    assert limit.scope == "account"
+
+
+def test_kill_switch_limit():
+    limit = KillSwitchLimit(rule_id="ks_001")
+    assert limit.check_type == RiskCheckType.KILL_SWITCH
+    assert limit.allow_risk_reducing is False
+
+
+def test_emergency_halt_limit():
+    limit = EmergencyHaltLimit(rule_id="eh_001")
+    assert limit.check_type == RiskCheckType.EMERGENCY_HALT
+
+
+def test_circuit_breaker_limit():
+    limit = CircuitBreakerLimit(rule_id="cb_001", max_decline_percent=Decimal("5.0"))
+    assert limit.check_type == RiskCheckType.CIRCUIT_BREAKER
+    assert limit.max_decline_percent == Decimal("5.0")
+    assert limit.lookback_seconds == 300
+
+
+def test_drawdown_limit():
+    limit = DrawdownLimit(rule_id="dd_001", max_drawdown_percent=Decimal("10.0"))
+    assert limit.check_type == RiskCheckType.DRAWDOWN
+
+
+def test_concentration_limit():
+    limit = ConcentrationLimit(rule_id="cl_001", max_concentration_percent=Decimal("20.0"))
+    assert limit.check_type == RiskCheckType.CONCENTRATION_LIMIT
+
+
+def test_max_position_size_limit():
+    limit = MaxPositionSizeLimit(
+        rule_id="mp_001",
+        max_long_quantity=Decimal("1000"),
+        max_short_quantity=Decimal("500"),
+        instrument_token="738561",
+    )
+    assert limit.check_type == RiskCheckType.MAX_POSITION_SIZE
+    assert limit.max_long_quantity == Decimal("1000")
+
+
+# ── RiskStateSnapshot ─────────────────────────────────────────────────────
+
+
+def test_risk_state_snapshot_defaults():
+    ts = datetime.now(timezone.utc)
+    snap = RiskStateSnapshot(account_id="acc_001", snapshot_timestamp=ts)
+    assert snap.daily_realized_pnl == Decimal("0")
+    assert snap.daily_turnover == Decimal("0")
+    assert snap.trade_count == 0
+    assert snap.order_count == 0
+    assert snap.peak_equity == Decimal("0")
+    assert snap.message_counts == {}
+    assert snap.kill_switch_active is False
+    assert snap.kill_switch_reason is None
+    assert snap.emergency_halt_active is False
+    assert snap.circuit_breaker_triggered is False
+
+
+def test_risk_state_snapshot_with_rc8b_fields():
+    ts = datetime.now(timezone.utc)
+    snap = RiskStateSnapshot(
+        account_id="acc_001",
+        snapshot_timestamp=ts,
+        daily_realized_pnl=Decimal("1500"),
+        daily_turnover=Decimal("250000"),
+        trade_count=5,
+        order_count=7,
+        peak_equity=Decimal("105000"),
+        kill_switch_active=False,
+        emergency_halt_active=True,
+        circuit_breaker_triggered=False,
+    )
+    assert snap.trade_count == 5
+    assert snap.order_count == 7
+    assert snap.emergency_halt_active is True
+    assert snap.circuit_breaker_triggered is False
+
+
+def test_risk_state_snapshot_immutable():
+    ts = datetime.now(timezone.utc)
+    snap = RiskStateSnapshot(account_id="acc_001", snapshot_timestamp=ts)
+    with pytest.raises(Exception):
+        snap.trade_count = 10  # type: ignore[misc]
+
+
+def test_risk_state_snapshot_decimal_coercion():
+    ts = datetime.now(timezone.utc)
+    snap = RiskStateSnapshot(
+        account_id="acc_001",
+        snapshot_timestamp=ts,
+        daily_realized_pnl=1500.0,   # float → Decimal
+        daily_turnover="250000",     # str → Decimal
+    )
+    assert isinstance(snap.daily_realized_pnl, Decimal)
+    assert isinstance(snap.daily_turnover, Decimal)

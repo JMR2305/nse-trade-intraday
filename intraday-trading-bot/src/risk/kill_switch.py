@@ -1,160 +1,133 @@
 """
-Kill Switch mechanism for emergency trading halt.
+Kill Switch — emergency safety mechanism.
 
-The Kill Switch is an independently operable safety mechanism that can be
-activated manually or automatically by risk rules. When active, it prevents
-all new order submissions while optionally allowing risk-reducing orders.
-
-Activation and deactivation are audited. The kill switch is per-account.
+KillSwitch manages the activation and deactivation of an emergency trading halt.
+It maintains an audit trail of all activation/deactivation events.
 """
 
 from __future__ import annotations
 
-from decimal import Decimal
-from typing import Optional, Dict, Any, List
-from datetime import datetime
-from pydantic import BaseModel, Field
+from typing import Optional, List
+from datetime import datetime, timezone
+from dataclasses import dataclass, field
+import asyncio
+import logging
 
-from .contracts import RiskAction, RiskSeverity, RiskViolation, RiskCheckType
-from .exceptions import KillSwitchAlreadyActiveError, KillSwitchNotActiveError
+from .contracts import RiskSeverity
+
+logger = logging.getLogger(__name__)
 
 
-class KillSwitchEvent(BaseModel, frozen=True):
-    """Immutable record of a kill switch activation or deactivation."""
+@dataclass
+class KillSwitchEvent:
+    """Record of a kill switch state change."""
 
-    account_id: str = Field(..., description="Account affected")
-    action: str = Field(..., description="ACTIVATED or DEACTIVATED")
-    reason: str = Field(..., description="Reason for the action")
-    actor: str = Field(default="system", description="Who triggered the action")
-    event_timestamp: datetime = Field(..., description="When the event occurred")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional context")
+    event_type: str          # "ACTIVATED" | "DEACTIVATED"
+    timestamp: datetime
+    reason: Optional[str] = None
+    triggered_by: Optional[str] = None
+
+    def __repr__(self) -> str:
+        return (
+            f"KillSwitchEvent(type={self.event_type!r}, "
+            f"ts={self.timestamp.isoformat()!r}, reason={self.reason!r})"
+        )
 
 
 class KillSwitch:
-    """Emergency trading halt mechanism.
+    """Emergency kill switch that halts all new order submissions.
 
-    When active, the kill switch:
-    - Blocks all new orders (returns BLOCK action)
-    - Optionally allows risk-reducing orders (closing positions)
-    - Maintains an audit trail of all activations/deactivations
+    When active, the RiskEngine rejects all incoming orders with a FATAL violation.
+    The kill switch maintains a full audit trail of all state changes.
 
-    The kill switch is per-account and operates independently of the
-    RiskEngine's normal rule evaluation.
+    Thread-safe via asyncio.Lock.
     """
 
-    def __init__(self, account_id: str, allow_risk_reducing: bool = False):
-        self.account_id: str = account_id
+    def __init__(self) -> None:
         self._active: bool = False
         self._reason: Optional[str] = None
-        self._allow_risk_reducing: bool = allow_risk_reducing
-        self._history: List[KillSwitchEvent] = []
+        self._triggered_by: Optional[str] = None
+        self._events: List[KillSwitchEvent] = []
+        self._lock: asyncio.Lock = asyncio.Lock()
 
     @property
-    def is_active(self) -> bool:
-        """Whether the kill switch is currently active."""
+    def active(self) -> bool:
+        """Whether the kill switch is currently engaged."""
         return self._active
 
     @property
     def reason(self) -> Optional[str]:
-        """Reason for current activation, if active."""
+        """Reason for current kill switch activation, or None if inactive."""
         return self._reason
 
-    def activate(self, reason: str, actor: str = "system", timestamp: Optional[datetime] = None) -> KillSwitchEvent:
-        """Activate the kill switch.
+    @property
+    def triggered_by(self) -> Optional[str]:
+        """Who triggered the kill switch, or None if inactive."""
+        return self._triggered_by
 
-        Raises:
-            KillSwitchAlreadyActiveError: If the kill switch is already active.
+    @property
+    def events(self) -> List[KillSwitchEvent]:
+        """Read-only copy of the audit trail."""
+        return list(self._events)
+
+    async def activate(
+        self,
+        reason: str,
+        triggered_by: Optional[str] = None,
+    ) -> None:
+        """Engage the kill switch.
+
+        Args:
+            reason: Human-readable reason for activation.
+            triggered_by: Who or what triggered the activation.
         """
-        if self._active:
-            raise KillSwitchAlreadyActiveError(
-                f"Kill switch for account {self.account_id} is already active: {self._reason}"
-            )
+        async with self._lock:
+            if not self._active:
+                self._active = True
+                self._reason = reason
+                self._triggered_by = triggered_by
+                event = KillSwitchEvent(
+                    event_type="ACTIVATED",
+                    timestamp=datetime.now(timezone.utc),
+                    reason=reason,
+                    triggered_by=triggered_by,
+                )
+                self._events.append(event)
+                logger.critical(
+                    f"Kill switch ACTIVATED: reason={reason!r}, triggered_by={triggered_by!r}"
+                )
 
-        if timestamp is None:
-            timestamp = datetime.utcnow()
+    async def deactivate(
+        self,
+        triggered_by: Optional[str] = None,
+    ) -> None:
+        """Disengage the kill switch, allowing new orders.
 
-        self._active = True
-        self._reason = reason
-
-        event = KillSwitchEvent(
-            account_id=self.account_id,
-            action="ACTIVATED",
-            reason=reason,
-            actor=actor,
-            event_timestamp=timestamp,
-        )
-        self._history.append(event)
-        return event
-
-    def deactivate(self, reason: str, actor: str = "system", timestamp: Optional[datetime] = None) -> KillSwitchEvent:
-        """Deactivate the kill switch.
-
-        Raises:
-            KillSwitchNotActiveError: If the kill switch is not currently active.
+        Args:
+            triggered_by: Who authorised the deactivation.
         """
-        if not self._active:
-            raise KillSwitchNotActiveError(
-                f"Kill switch for account {self.account_id} is not active"
-            )
+        async with self._lock:
+            if self._active:
+                self._active = False
+                old_reason = self._reason
+                self._reason = None
+                self._triggered_by = None
+                event = KillSwitchEvent(
+                    event_type="DEACTIVATED",
+                    timestamp=datetime.now(timezone.utc),
+                    reason=old_reason,
+                    triggered_by=triggered_by,
+                )
+                self._events.append(event)
+                logger.info(
+                    f"Kill switch DEACTIVATED by {triggered_by!r}; "
+                    f"was active with reason={old_reason!r}"
+                )
 
-        if timestamp is None:
-            timestamp = datetime.utcnow()
+    def is_active(self) -> bool:
+        """Synchronous check — safe for non-critical reads."""
+        return self._active
 
-        self._active = False
-        self._reason = None
-
-        event = KillSwitchEvent(
-            account_id=self.account_id,
-            action="DEACTIVATED",
-            reason=reason,
-            actor=actor,
-            event_timestamp=timestamp,
-        )
-        self._history.append(event)
-        return event
-
-    def evaluate_order(self, order_side: str, current_position_direction: str) -> Optional[RiskViolation]:
-        """Evaluate whether an order is allowed under kill switch.
-
-        Returns:
-            RiskViolation if order is blocked, None if allowed.
-        """
-        if not self._active:
-            return None
-
-        if self._allow_risk_reducing:
-            is_risk_reducing = self._is_risk_reducing(order_side, current_position_direction)
-            if is_risk_reducing:
-                return None
-
-        return RiskViolation(
-            check_type=RiskCheckType.KILL_SWITCH,
-            severity=RiskSeverity.FATAL,
-            message=f"Kill switch active: {self._reason}. All new orders blocked.",
-            rule_id="kill_switch",
-            metadata={"reason": self._reason, "allow_risk_reducing": self._allow_risk_reducing},
-        )
-
-    @staticmethod
-    def _is_risk_reducing(order_side: str, current_position_direction: str) -> bool:
-        """Determine if an order reduces risk (closes or reduces position)."""
-        side = order_side.upper()
-        direction = current_position_direction.upper()
-
-        if direction == "FLAT":
-            return False
-        elif direction == "LONG":
-            return side == "SELL"
-        elif direction == "SHORT":
-            return side == "BUY"
-        return False
-
-    def get_history(self) -> List[KillSwitchEvent]:
-        """Return the full kill switch activation history."""
-        return list(self._history)
-
-    def reset(self) -> None:
-        """Reset kill switch state — used for deterministic replay."""
-        self._active = False
-        self._reason = None
-        self._history.clear()
+    def reset_events(self) -> None:
+        """Clear the audit trail (for testing only)."""
+        self._events.clear()
