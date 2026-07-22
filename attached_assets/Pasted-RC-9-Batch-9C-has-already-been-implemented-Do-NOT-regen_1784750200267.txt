@@ -1,0 +1,113 @@
+RC-9 Batch 9C has already been implemented.
+
+Do NOT regenerate Batch 9C.
+
+Do NOT refactor unrelated code.
+
+Apply ONLY the fixes identified in the latest audit.
+
+=================================================
+FIX 1 (NB1)
+=================================================
+
+Correct the SyntaxError in:
+
+- src/database/repositories/strategy.py
+- src/database/repositories/strategy_signal.py
+- src/database/repositories/strategy_state.py
+
+Move
+
+    session: AsyncSession
+
+before any parameters with default values.
+
+Do not change repository behaviour.
+
+=================================================
+FIX 2 (NB2)
+=================================================
+
+StrategyRecoveryManager currently crashes because
+StrategyRecoveryResult is declared as:
+
+    @dataclass(frozen=True)
+
+but recover() mutates its fields.
+
+Fix this by either:
+
+Preferred:
+- remove frozen=True
+
+OR
+
+- redesign recover() so that values are accumulated locally and the result object is constructed once at the end.
+
+Do not change recovery logic.
+
+=================================================
+FIX 3 (NT1)
+=================================================
+
+Correct the SQLAlchemy metadata tests.
+
+Replace hasattr(Model, "metadata") with inspection of
+Model.__table__.columns.
+
+=================================================
+FIX 4 (NT2)
+=================================================
+
+Correct the repository snapshot test.
+
+Use two different timestamps instead of inserting duplicate timestamps that violate the unique constraint.
+
+=================================================
+FIX 5 (NT3)
+=================================================
+
+Correct the SQLite timezone comparison.
+
+Normalize timestamps (remove tzinfo before comparison) so the test is database-independent.
+
+=================================================
+FIX 6 (Packaging)
+=================================================
+
+Do NOT overwrite the existing
+
+src/database/models.py
+
+Remove the replacement file from the deliverable.
+
+Ship only the additive model patch together with clear integration instructions.
+
+=================================================
+VALIDATION
+=================================================
+
+Run:
+
+- Full unit test suite
+- Import verification
+- Recovery tests
+- Repository tests
+- Migration verification
+
+=================================================
+RETURN
+=================================================
+
+Provide:
+
+1. Files modified
+2. Test results
+3. Any remaining blockers
+4. Final verdict:
+
+READY FOR MERGE
+
+or
+
+CHANGES STILL REQUIRED
