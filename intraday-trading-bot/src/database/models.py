@@ -476,3 +476,121 @@ class RiskStateModel(Base):
     __table_args__ = (
         Index("ix_risk_state_account_timestamp", "account_id", "snapshot_timestamp"),
     )
+
+
+# ===========================================================================
+# STRATEGY PERSISTENCE (Batch 9C)
+# ===========================================================================
+
+class StrategyModel(Base):
+    """ORM model for the strategies table.
+
+    Stores strategy registration, type, configuration, instrument tokens,
+    lifecycle state, and timestamps. strategy_id is the natural key.
+    """
+
+    __tablename__ = "strategies"
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=__import__("uuid").uuid4)
+    strategy_id = Column(String(64), nullable=False, index=True)
+    strategy_type = Column(String(64), nullable=False)
+    name = Column(String(255), nullable=False)
+    account_id = Column(String(64), nullable=True, index=True)
+    configuration = Column(JSON(), nullable=False, default=dict)
+    instrument_tokens = Column(JSON(), nullable=False, default=list)
+    lifecycle_state = Column(String(32), nullable=False, index=True)
+    enabled = Column(Boolean(), nullable=False, default=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    __table_args__ = (
+        UniqueConstraint("strategy_id", name="uq_strategies_strategy_id"),
+        Index("ix_strategies_account_lifecycle", "account_id", "lifecycle_state"),
+        Index("ix_strategies_type_state", "strategy_type", "lifecycle_state"),
+    )
+
+
+class StrategySignalModel(Base):
+    """ORM model for the strategy_signals table.
+
+    Stores every signal emitted by a strategy, including routing status,
+    the client_order_id assigned on successful routing, and any rejection reason.
+    """
+
+    __tablename__ = "strategy_signals"
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=__import__("uuid").uuid4)
+    signal_id = Column(PGUUID(as_uuid=True), nullable=False, index=True)
+    strategy_id = Column(String(64), nullable=False, index=True)
+    account_id = Column(String(64), nullable=True, index=True)
+    instrument_token = Column(String(64), nullable=False, index=True)
+    action = Column(String(16), nullable=False)
+    side = Column(String(8), nullable=False)
+    quantity = Column(Numeric(20, 8), nullable=False)
+    order_type = Column(String(16), nullable=False)
+    limit_price = Column(Numeric(20, 8), nullable=True)
+    trigger_price = Column(Numeric(20, 8), nullable=True)
+    timestamp = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+    routing_status = Column(String(16), nullable=False, default="PENDING")
+    routed_client_order_id = Column(String(64), nullable=True)
+    rejection_reason = Column(Text(), nullable=True)
+    extra_data = Column(JSON(), nullable=False, default=dict)
+
+    __table_args__ = (
+        UniqueConstraint("signal_id", name="uq_strategy_signals_signal_id"),
+        Index("ix_strategy_signals_strategy_status", "strategy_id", "routing_status"),
+        Index("ix_strategy_signals_pending", "routing_status", "timestamp"),
+        Index("ix_strategy_signals_routed_coid", "routed_client_order_id"),
+    )
+
+
+class StrategyStateModel(Base):
+    """ORM model for the strategy_state_snapshots table.
+
+    Stores a point-in-time snapshot of a strategy's runtime counters,
+    pending order IDs, and latest signal timestamp.
+    """
+
+    __tablename__ = "strategy_state_snapshots"
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=__import__("uuid").uuid4)
+    strategy_id = Column(String(64), nullable=False, index=True)
+    lifecycle_state = Column(String(32), nullable=False)
+    pending_order_ids = Column(JSON(), nullable=False, default=list)
+    latest_signal_timestamp = Column(DateTime(timezone=True), nullable=True)
+    emitted_signal_count = Column(Integer(), nullable=False, default=0)
+    routed_signal_count = Column(Integer(), nullable=False, default=0)
+    rejected_signal_count = Column(Integer(), nullable=False, default=0)
+    fill_count = Column(Integer(), nullable=False, default=0)
+    extra_data = Column(JSON(), nullable=False, default=dict)
+    snapshot_timestamp = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "strategy_id",
+            "snapshot_timestamp",
+            name="uq_strategy_state_snapshots_strategy_timestamp",
+        ),
+        Index(
+            "ix_strategy_state_snapshots_strategy_latest",
+            "strategy_id",
+            "snapshot_timestamp",
+        ),
+    )
