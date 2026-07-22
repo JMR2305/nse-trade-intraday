@@ -77,3 +77,9 @@ id = "s9GPdr38zMrVS2rNvzwXc"
 uri = "file://BATCH8_RISK_ENGINE_REVIEW.md"
 type = "text"
 title = "BATCH8_RISK_ENGINE_REVIEW.md"
+
+[[outputs]]
+id = "zMcLDBVRgwyIFwNPJSizQ"
+uri = "file://attached_assets/batch9c_v2_fixed.zip"
+type = "unspecified"
+title = "batch9c_v2_fixed.zip — 4 corrected files"
