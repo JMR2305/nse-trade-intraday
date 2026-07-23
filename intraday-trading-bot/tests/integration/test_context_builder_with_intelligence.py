@@ -7,6 +7,7 @@ from decimal import Decimal
 
 from market_data.contracts import CompletedBar
 from market_intelligence.indicator_engine import IndicatorEngine
+from market_intelligence.multi_timeframe_context import MultiTimeframeContext
 from market_intelligence.regime import MarketRegimeDetector
 from market_intelligence.announcements import AnnouncementIntelligenceService
 from strategy.contracts import StrategyConfig
@@ -46,8 +47,10 @@ class TestContextBuilderWithIntelligence:
         )
         ctx = builder.build(config, {})
         assert "INFY" in ctx.market_snapshots
-        assert "timeframes" in ctx.market_snapshots["INFY"]
-        assert "regime" in ctx.market_snapshots["INFY"]
+        snap = ctx.market_snapshots["INFY"]
+        assert isinstance(snap, MultiTimeframeContext)
+        assert snap.timeframes  # non-empty dict
+        assert snap.regime is not None
 
     def test_skips_unknown_instruments(self) -> None:
         engine = IndicatorEngine()
@@ -87,6 +90,8 @@ class TestContextBuilderWithIntelligence:
         ctx = builder.build(config, {})
         assert "INFY" in ctx.market_snapshots
         assert "TCS" in ctx.market_snapshots
+        assert isinstance(ctx.market_snapshots["INFY"], MultiTimeframeContext)
+        assert isinstance(ctx.market_snapshots["TCS"], MultiTimeframeContext)
 
     def test_regime_confidence_in_range(self) -> None:
         engine = IndicatorEngine(max_bars=50)
@@ -101,5 +106,8 @@ class TestContextBuilderWithIntelligence:
             strategy_id="test", strategy_type="trend", name="Test", instrument_tokens=["INFY"]
         )
         ctx = builder.build(config, {})
-        regime = ctx.market_snapshots["INFY"]["regime"]
+        snap = ctx.market_snapshots["INFY"]
+        assert isinstance(snap, MultiTimeframeContext)
+        regime = snap.regime
+        assert regime is not None
         assert Decimal("0") <= regime.confidence <= Decimal("1")

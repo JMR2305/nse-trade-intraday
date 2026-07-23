@@ -1,0 +1,142 @@
+You are implementing the RC-10A FINAL PATCH based on the independent Replit audit.
+
+This is NOT RC-10B.
+
+Do NOT add new features.
+
+Do NOT expand scope.
+
+Do NOT modify any frozen RC-6, RC-7, RC-8 or RC-9 contracts.
+
+Only implement the required corrections below.
+
+=========================================================
+REQUIRED FIXES
+=========================================================
+
+1. MultiTimeframeContext Injection (HIGH PRIORITY)
+
+Currently:
+
+StrategyContext.market_snapshots[token]
+
+contains raw dictionaries.
+
+Replace these with proper
+MultiTimeframeContext objects exactly as defined in
+market_intelligence/multi_timeframe_context.py.
+
+All downstream code must receive a typed
+MultiTimeframeContext instance.
+
+=========================================================
+
+2. Remove Duplicate Intelligence Injection Logic
+
+The intelligence injection code currently exists in both:
+
+- ContextBuilder.build()
+
+- ContextBuilder.build_context()
+
+Extract the common implementation into a private helper.
+
+Example:
+
+_ContextBuilder._inject_market_intelligence(...)
+
+Both methods must call the helper.
+
+Behaviour must remain identical.
+
+=========================================================
+
+3. Verify Backward Compatibility
+
+Ensure:
+
+• Existing build_context() behaviour remains unchanged.
+
+• Existing constructor compatibility remains unchanged.
+
+• Optional dependency injection remains unchanged.
+
+• Existing RC-9 strategies continue working without Market Intelligence enabled.
+
+=========================================================
+
+DO NOT IMPLEMENT
+
+Do NOT implement:
+
+• RC-10B
+
+• HTTP polling
+
+• Live BSE/NSE API integration
+
+• AI announcement summarisation
+
+• New ranking algorithms
+
+• Additional indicators
+
+• Performance optimisations
+
+• Clock-aligned aggregation
+
+• Volume/spread enhancements
+
+Those belong to later batches.
+
+=========================================================
+
+TESTING
+
+Run:
+
+• Full RC-10A tests
+
+• Full regression tests
+
+• Import validation
+
+Confirm:
+
+• No new failures
+
+• No API changes
+
+• No constructor changes
+
+=========================================================
+
+DELIVERABLE
+
+Create:
+
+reviews/Batch10A_Final_Patch.md
+
+Include:
+
+1. Files Modified
+
+2. Fixes Applied
+
+3. Test Results
+
+4. Regression Results
+
+5. Remaining Deferred Items
+
+=========================================================
+
+FINAL STATUS
+
+End with exactly one of:
+
+✅ RC-10A FINAL PATCH COMPLETE
+
+or
+
+❌ RC-10A FINAL PATCH INCOMPLETE

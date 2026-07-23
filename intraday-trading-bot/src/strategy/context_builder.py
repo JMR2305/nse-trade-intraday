@@ -5,14 +5,20 @@ Uses only documented public APIs from RC-6, RC-7, and RC-8.
 RC-10A additions (all backward-compatible):
   - Optional intelligence injection via keyword-only constructor parameters.
   - New sync `build()` method used by the market intelligence test suite.
-  - The existing async `build_context()` method is UNCHANGED.
+  - The existing async `build_context()` method is UNCHANGED from pre-RC-10A
+    in its signature and external behaviour; it now uses the shared private
+    helper `_inject_market_intelligence()` internally.
+
+RC-10A FINAL PATCH:
+  - `market_snapshots[token]` now contains typed `MultiTimeframeContext`
+    objects (not raw dicts) when intelligence services are injected.
+  - Shared injection logic extracted to `_inject_market_intelligence()`.
 """
 from __future__ import annotations
 
 import logging
 from datetime import datetime
-from decimal import Decimal
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from strategy.contracts import StrategyConfig, StrategyContext, StrategyStateSnapshot
 from execution.portfolio import PortfolioSnapshot, PositionSnapshot
@@ -20,6 +26,11 @@ from market_data.service import MarketDataService
 from market_data.contracts import CompletedBar
 from risk.contracts import RiskStateSnapshot
 from risk.engine import RiskEngine
+from market_intelligence.multi_timeframe_context import (
+    AnnouncementRecord,
+    MarketRegimeSnapshot,
+    MultiTimeframeContext,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +38,7 @@ logger = logging.getLogger(__name__)
 class ContextBuilder:
     """Builds StrategyContext snapshots from live system state.
 
-    Existing five-arg constructor form is preserved:
+    Existing two-arg constructor form is preserved:
         ContextBuilder(market_data_service, risk_engine=None)
 
     RC-10A intelligence injection (all optional keyword args):
@@ -39,6 +50,11 @@ class ContextBuilder:
         )
 
     Mixing both forms is supported.
+
+    When intelligence services are injected, ``market_snapshots[token]``
+    contains a typed ``MultiTimeframeContext`` instance.  When no intelligence
+    is injected the value is whatever ``MarketDataService.get_snapshot()``
+    returns (pre-RC-10A behaviour is fully preserved).
     """
 
     def __init__(
@@ -60,7 +76,77 @@ class ContextBuilder:
         self._watchlist_ranker = watchlist_ranker
 
     # ------------------------------------------------------------------
-    # RC-10A: sync build() used by new market intelligence tests
+    # Private helper — shared intelligence injection logic
+    # ------------------------------------------------------------------
+
+    def _inject_market_intelligence(
+        self,
+        instrument_token: str,
+        snapshot_ts: datetime,
+    ) -> Optional[MultiTimeframeContext]:
+        """Build a typed MultiTimeframeContext for one instrument.
+
+        Queries each injected intelligence service independently; any
+        individual service failure is caught and logged at DEBUG level so
+        that intelligence errors never propagate to strategy callers.
+
+        Returns None when no intelligence data is available for the token
+        (e.g. the IndicatorEngine has not yet received bars for it).
+        """
+        timeframes: Dict[str, Any] = {}
+        regime: Optional[MarketRegimeSnapshot] = None
+        active_announcements: List[AnnouncementRecord] = []
+
+        # --- indicator data ---
+        if self._indicator_engine is not None:
+            try:
+                all_tf = self._indicator_engine.get_all_timeframes(instrument_token)
+                if all_tf:
+                    timeframes = all_tf
+            except Exception as exc:
+                logger.debug("IndicatorEngine failed for %s: %s", instrument_token, exc)
+
+        # --- regime detection (requires indicators) ---
+        if self._regime_detector is not None and timeframes:
+            try:
+                indicators: Dict[str, Any] = {}
+                for tf in ("15m", "1h", "5m", "1m"):
+                    if tf in timeframes:
+                        indicators = timeframes[tf]
+                        break
+                if indicators:
+                    regime = self._regime_detector.detect(instrument_token, indicators)
+            except Exception as exc:
+                logger.debug("Regime detection failed for %s: %s", instrument_token, exc)
+
+        # --- announcement intelligence ---
+        if self._announcement_service is not None:
+            try:
+                active_announcements = (
+                    self._announcement_service.get_active_announcements_sync(
+                        instrument_token
+                    )
+                )
+            except Exception as exc:
+                logger.debug(
+                    "Announcement service failed for %s: %s", instrument_token, exc
+                )
+
+        # Return None when there is nothing to populate; avoids injecting
+        # empty MultiTimeframeContext objects for unknown instruments.
+        if not timeframes and regime is None and not active_announcements:
+            return None
+
+        return MultiTimeframeContext(
+            instrument_token=instrument_token,
+            snapshot_timestamp=snapshot_ts,
+            timeframes=timeframes,
+            regime=regime,
+            active_announcements=active_announcements,
+        )
+
+    # ------------------------------------------------------------------
+    # RC-10A: sync build() used by market intelligence tests
     # ------------------------------------------------------------------
 
     def build(
@@ -73,42 +159,18 @@ class ContextBuilder:
 
         Preserves pre-RC-10A behaviour when no intelligence is injected
         (market_snapshots == {}).
+
+        When intelligence services are injected, each populated token gets
+        a typed MultiTimeframeContext in market_snapshots.
         """
         market_snapshots: Dict[str, Any] = {}
 
         if self._indicator_engine is not None:
+            ts = datetime.utcnow()
             for token in config.instrument_tokens:
-                mtf_data: Dict[str, Any] = {}
-
-                try:
-                    all_tf = self._indicator_engine.get_all_timeframes(token)
-                    if all_tf:
-                        mtf_data["timeframes"] = all_tf
-                except Exception as exc:
-                    logger.debug("IndicatorEngine failed for %s: %s", token, exc)
-
-                if self._regime_detector is not None and "timeframes" in mtf_data:
-                    try:
-                        indicators: Dict[str, Any] = {}
-                        for tf in ("15m", "1h", "5m", "1m"):
-                            if tf in mtf_data["timeframes"]:
-                                indicators = mtf_data["timeframes"][tf]
-                                break
-                        if indicators:
-                            regime = self._regime_detector.detect(token, indicators)
-                            mtf_data["regime"] = regime
-                    except Exception as exc:
-                        logger.debug("Regime detection failed for %s: %s", token, exc)
-
-                if self._announcement_service is not None:
-                    try:
-                        announcements = self._announcement_service.get_active_announcements_sync(token)
-                        mtf_data["active_announcements"] = announcements
-                    except Exception as exc:
-                        logger.debug("Announcement service failed for %s: %s", token, exc)
-
-                if mtf_data:
-                    market_snapshots[token] = mtf_data
+                mtf_ctx = self._inject_market_intelligence(token, ts)
+                if mtf_ctx is not None:
+                    market_snapshots[token] = mtf_ctx
 
         return StrategyContext(
             strategy_id=config.strategy_id,
@@ -117,7 +179,7 @@ class ContextBuilder:
         )
 
     # ------------------------------------------------------------------
-    # Existing async build_context() — UNCHANGED from pre-RC-10A
+    # Existing async build_context() — signature UNCHANGED from pre-RC-10A
     # ------------------------------------------------------------------
 
     async def build_context(
@@ -138,7 +200,7 @@ class ContextBuilder:
         Returns:
             Immutable StrategyContext snapshot.
         """
-        # Gather market snapshots for all watched instruments
+        # Gather market snapshots for all watched instruments (pre-RC-10A path)
         market_snapshots: Dict[str, Any] = {}
         if self._market_data is not None:
             for token in config.instrument_tokens:
@@ -146,32 +208,14 @@ class ContextBuilder:
                 if snapshot is not None:
                     market_snapshots[token] = snapshot
 
-        # RC-10A: overlay intelligence data when injected
+        # RC-10A: when intelligence services are injected, replace the raw
+        # market-data snapshot with a typed MultiTimeframeContext object.
         if self._indicator_engine is not None:
+            ts = datetime.utcnow()
             for token in config.instrument_tokens:
-                mtf_data: Dict[str, Any] = market_snapshots.get(token, {})
-                try:
-                    all_tf = self._indicator_engine.get_all_timeframes(token)
-                    if all_tf:
-                        mtf_data["timeframes"] = all_tf
-                except Exception as exc:
-                    logger.debug("IndicatorEngine failed for %s: %s", token, exc)
-
-                if self._regime_detector is not None and "timeframes" in mtf_data:
-                    try:
-                        indicators: Dict[str, Any] = {}
-                        for tf in ("15m", "1h", "5m", "1m"):
-                            if tf in mtf_data["timeframes"]:
-                                indicators = mtf_data["timeframes"][tf]
-                                break
-                        if indicators:
-                            regime = self._regime_detector.detect(token, indicators)
-                            mtf_data["regime"] = regime
-                    except Exception as exc:
-                        logger.debug("Regime detection failed for %s: %s", token, exc)
-
-                if mtf_data:
-                    market_snapshots[token] = mtf_data
+                mtf_ctx = self._inject_market_intelligence(token, ts)
+                if mtf_ctx is not None:
+                    market_snapshots[token] = mtf_ctx
 
         if portfolio is None:
             portfolio = PortfolioSnapshot()
@@ -181,7 +225,11 @@ class ContextBuilder:
         risk_state: RiskStateSnapshot
         if self._risk_engine is not None:
             snapshot_r = self._risk_engine.snapshot(config.strategy_id)
-            risk_state = snapshot_r if snapshot_r is not None else self._default_risk_state(config.strategy_id)
+            risk_state = (
+                snapshot_r
+                if snapshot_r is not None
+                else self._default_risk_state(config.strategy_id)
+            )
         else:
             risk_state = self._default_risk_state(config.strategy_id)
 
