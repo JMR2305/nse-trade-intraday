@@ -13,7 +13,6 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 class MarketRegime(str, Enum):
     UNKNOWN = "UNKNOWN"
     RANGING = "RANGING"
@@ -38,7 +37,7 @@ class MarketRegimeSnapshot(BaseModel, frozen=True):
 class AnnouncementRecord(BaseModel, frozen=True):
     """Frozen representation of one classified corporate announcement."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, protected_namespaces=())
 
     announcement_id: str
     instrument_token: str

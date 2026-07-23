@@ -1,0 +1,218 @@
+You are performing an INDEPENDENT production audit of RC-10A.
+
+Do NOT assume the implementation is correct because tests pass.
+
+Act as a senior software architect performing a release audit.
+
+=========================================================
+REFERENCE DOCUMENTS
+=========================================================
+
+Use these as the source of truth:
+
+1. RC10_Reference.md
+2. RC10_Master_Implementation_Plan.md
+
+The implementation must satisfy both documents.
+
+=========================================================
+OBJECTIVE
+=========================================================
+
+Audit the completed RC-10A implementation.
+
+Do NOT write new features unless required to fix defects.
+
+Your goal is to determine whether RC-10A is production-ready.
+
+=========================================================
+VERIFY REQUIREMENT COVERAGE
+=========================================================
+
+Check every RC-10A requirement from the implementation plan.
+
+For every requirement classify it as:
+
+✓ Fully Implemented
+
+⚠ Partially Implemented
+
+✗ Missing
+
+Explain any deviation.
+
+=========================================================
+ARCHITECTURE REVIEW
+=========================================================
+
+Verify:
+
+• RC-6 contracts unchanged
+• RC-7 contracts unchanged
+• RC-8 contracts unchanged
+• RC-9 contracts unchanged
+
+Check:
+
+- constructor compatibility
+- public API compatibility
+- dependency injection
+- package structure
+- layering
+- circular imports
+- hidden coupling
+- duplicated logic
+
+=========================================================
+CODE QUALITY REVIEW
+=========================================================
+
+Check for:
+
+- dead code
+- duplicated code
+- unnecessary abstractions
+- mutable global state
+- race conditions
+- async issues
+- blocking I/O
+- exception handling
+- logging quality
+- type hints
+- dataclass / Pydantic correctness
+- Decimal correctness
+- deterministic calculations
+
+=========================================================
+DATABASE REVIEW
+=========================================================
+
+Review:
+
+- ORM models
+- repository implementation
+- SessionContext usage
+- transaction handling
+- migration upgrade
+- migration downgrade
+- indexes
+- constraints
+- idempotency
+
+=========================================================
+PERFORMANCE REVIEW
+=========================================================
+
+Verify:
+
+- bounded memory
+- rolling buffers
+- no memory leaks
+- efficient indicator calculations
+- announcement polling
+- ContextBuilder latency
+- algorithm complexity
+
+Identify any O(N²) or worse operations.
+
+=========================================================
+TEST REVIEW
+=========================================================
+
+Run:
+
+- full unit tests
+- integration tests
+- import validation
+- compile validation
+
+Confirm:
+
+- no existing tests were weakened
+- no tests removed
+- no skipped tests hiding failures
+
+Clearly distinguish:
+
+1. New failures introduced by RC-10A
+
+2. Genuine pre-existing failures
+
+=========================================================
+SECURITY REVIEW
+=========================================================
+
+Check:
+
+- safe HTTP usage
+- input validation
+- SQL safety
+- configuration handling
+- secrets management
+- resource cleanup
+
+=========================================================
+BUG FIXES
+=========================================================
+
+If issues are found:
+
+Fix ONLY issues that belong to RC-10A.
+
+Do NOT introduce RC-10B features.
+
+After every fix rerun the affected tests.
+
+=========================================================
+FINAL REPORT
+=========================================================
+
+Produce:
+
+reviews/Batch10A_Replit_Audit.md
+
+Include:
+
+1. Executive Summary
+
+2. Requirement Coverage Table
+
+3. Architecture Review
+
+4. Code Quality Review
+
+5. Database Review
+
+6. Performance Review
+
+7. Security Review
+
+8. Test Results
+
+9. List of Issues Found
+
+10. Issues Fixed
+
+11. Remaining Observations
+
+12. Merge Recommendation
+
+13. Overall Score (/10)
+
+=========================================================
+FINAL VERDICT
+=========================================================
+
+End the report with exactly one of:
+
+✅ APPROVED FOR MERGE
+
+or
+
+⚠ APPROVED WITH MINOR OBSERVATIONS
+
+or
+
+❌ NOT READY FOR MERGE
+
+If approved, include a confidence rating and confirm whether RC-10A is suitable as the baseline for beginning RC-10B.

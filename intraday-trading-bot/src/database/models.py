@@ -1,6 +1,6 @@
 """SQLAlchemy ORM models for the trading platform."""
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -617,7 +617,7 @@ class Announcement(Base):
     ai_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     model_version: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    effective_date: Mapped[Optional[datetime]] = mapped_column(Date, nullable=True)
+    effective_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     raw_metadata: Mapped[dict] = mapped_column(JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

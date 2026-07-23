@@ -14,8 +14,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Dict, Optional
 
-from strategy.contracts import StrategyConfig, StrategyContext, StrategyStateSnapshot, StrategyLifecycleState
-from strategy.exceptions import StrategyError
+from strategy.contracts import StrategyConfig, StrategyContext, StrategyStateSnapshot
 from execution.portfolio import PortfolioSnapshot, PositionSnapshot
 from market_data.service import MarketDataService
 from market_data.contracts import CompletedBar
