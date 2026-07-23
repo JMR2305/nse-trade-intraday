@@ -83,3 +83,9 @@ id = "zMcLDBVRgwyIFwNPJSizQ"
 uri = "file://attached_assets/batch9c_v2_fixed.zip"
 type = "unspecified"
 title = "batch9c_v2_fixed.zip — 4 corrected files"
+
+[[outputs]]
+id = "X_kD0QaA9jhHnCWQI8md_"
+uri = "file://intraday-trading-bot/docs/Batch9D_Implementation_Plan.md"
+type = "text"
+title = "Batch 9D Implementation Plan"
