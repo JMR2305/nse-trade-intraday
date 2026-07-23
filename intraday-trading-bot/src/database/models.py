@@ -56,6 +56,7 @@ class InstrumentMaster(Base):
     lot_size: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     tick_size: Mapped[Decimal] = mapped_column(Numeric(10, 4), nullable=False, default=Decimal("0.05"))
     is_tradable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    sector: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -593,4 +594,37 @@ class StrategyStateModel(Base):
             "strategy_id",
             "snapshot_timestamp",
         ),
+    )
+
+
+# ===========================================================================
+# ANNOUNCEMENTS (RC-10A)
+# ===========================================================================
+
+class Announcement(Base):
+    """Corporate announcement record (BSE/NSE feed)."""
+
+    __tablename__ = "announcements"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    announcement_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    exchange: Mapped[str] = mapped_column(String(10), nullable=False)
+    instrument_token: Mapped[str] = mapped_column(String(50), nullable=False)
+    tradingsymbol: Mapped[str] = mapped_column(String(50), nullable=False)
+    classification: Mapped[str] = mapped_column(String(30), nullable=False)
+    headline: Mapped[str] = mapped_column(Text, nullable=False)
+    body_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ai_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    model_version: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    effective_date: Mapped[Optional[datetime]] = mapped_column(Date, nullable=True)
+    raw_metadata: Mapped[dict] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("exchange", "announcement_id", name="uq_announcement_exchange_id"),
+        Index("ix_announcements_instrument_published", "instrument_token", "published_at"),
+        Index("ix_announcements_classification_published", "classification", "published_at"),
     )

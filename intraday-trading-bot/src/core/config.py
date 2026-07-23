@@ -86,6 +86,27 @@ class APISettings(BaseSettings):
     refresh_token_ttl_days: int = Field(default=7, gt=0)
 
 
+class MarketIntelligenceSettings(BaseSettings):
+    """Settings for the RC-10A Market Intelligence Layer."""
+
+    model_config = SettingsConfigDict(env_prefix="MI_", extra="ignore")
+
+    enabled: bool = True
+    enabled_timeframes: List[str] = Field(
+        default_factory=lambda: ["1m", "5m", "15m", "1h"]
+    )
+    max_indicator_buffer_bars: int = 150
+    announcement_poll_interval_seconds: int = 60
+    announcement_ttl_hours: int = 24
+    announcement_blackout_window_minutes: int = 30
+    bse_announcement_base_url: str = (
+        "https://api.bseindia.com/BseIndiaAPI/api/AnnSubCategoryGetData/w"
+    )
+    nse_announcement_base_url: str = (
+        "https://www.nseindia.com/api/corporate-announcements"
+    )
+
+
 class PaperSettings(BaseSettings):
     """Paper trading simulation settings."""
     initial_capital: float = Field(default=1_000_000.0, gt=0.0)
@@ -133,6 +154,9 @@ class Settings(BaseSettings):
     idempotency: IdempotencySettings = Field(default_factory=IdempotencySettings)
     api: APISettings = Field(default_factory=APISettings)
     paper: PaperSettings = Field(default_factory=PaperSettings)
+    market_intelligence: MarketIntelligenceSettings = Field(
+        default_factory=MarketIntelligenceSettings
+    )
 
     @property
     def is_paper_mode(self) -> bool:
