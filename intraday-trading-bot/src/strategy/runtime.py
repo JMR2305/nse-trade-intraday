@@ -2,14 +2,33 @@
 
 Manages the lifecycle of one strategy instance: subscribes to market data,
 invokes strategy callbacks, emits signals, and tracks fills.
+
+Batch 9D additions (all optional, backward-compatible):
+- Signal persistence: signals are written to DB before the routing callback
+  fires (write-before-route ordering preserved).
+- State snapshot persistence: a snapshot is pushed after each bar
+  (fire-and-forget — failures are logged, never raised).
+- MetricsCollector integration: per-bar latency, error counts, signal counts.
+- FaultIsolator integration: auto-pause on budget breach.
+
+Backward compatibility guarantee
+---------------------------------
+StrategyRuntime(config, strategy, context_builder, market_data_service,
+                fill_event_bus) — the existing five-positional-argument form —
+continues to work without any changes.  All Batch 9D dependencies are
+keyword-only optional parameters defaulting to None.
 """
 from __future__ import annotations
 
 import asyncio
+import logging
+import time
 import uuid
+from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Optional, Callable, Dict, List
-from datetime import datetime
+from typing import Any, Callable, Dict, List, Optional
+
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from strategy.contracts import (
     Signal,
@@ -28,6 +47,9 @@ from market_data.contracts import CompletedBar, Tick
 from market_data.service import MarketDataService
 from execution.fills import FillEvent
 from risk.fill_event_bus import FillEventBus
+from strategy.session_context import SessionContext
+
+logger = logging.getLogger(__name__)
 
 
 class StrategyRuntime:
@@ -51,6 +73,11 @@ class StrategyRuntime:
         market_data_service: MarketDataService,
         fill_event_bus: FillEventBus,
         signal_callback: Optional[Callable[[Signal], None]] = None,
+        # --- Batch 9D optional dependencies ---
+        persistence: Optional[Any] = None,   # StrategyPersistenceAdapter
+        engine: Optional[AsyncEngine] = None,
+        metrics: Optional[Any] = None,       # MetricsCollector
+        fault_isolator: Optional[Any] = None,  # FaultIsolator
     ):
         self._config = config
         self._strategy = strategy
@@ -58,6 +85,12 @@ class StrategyRuntime:
         self._market_data = market_data_service
         self._fill_bus = fill_event_bus
         self._signal_callback = signal_callback
+
+        # Batch 9D
+        self._persistence = persistence
+        self._engine = engine
+        self._metrics = metrics
+        self._fault_isolator = fault_isolator
 
         self._state_machine = StrategyStateMachine(StrategyLifecycleState.REGISTERED)
         self._fill_tracker = StrategyFillTracker(config, fill_event_bus)
@@ -73,6 +106,10 @@ class StrategyRuntime:
         self._task: Optional[asyncio.Task] = None
         self._shutdown_event = asyncio.Event()
         self._lock = asyncio.Lock()
+
+    # ------------------------------------------------------------------
+    # Properties
+    # ------------------------------------------------------------------
 
     @property
     def strategy_id(self) -> str:
@@ -92,50 +129,37 @@ class StrategyRuntime:
 
     @property
     def can_emit_signals(self) -> bool:
-        """True when the runtime is in a state that allows signal emission."""
         return self._state_machine.can_emit_signals
 
-    async def start(self) -> TransitionResult:
-        """Start the strategy runtime.
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
 
-        Transitions REGISTERED -> STARTING -> ACTIVE.
-        Subscribes to market data and begins processing.
-        """
+    async def start(self) -> TransitionResult:
+        """Start the strategy runtime — REGISTERED → STARTING → ACTIVE."""
         async with self._lock:
-            # Transition to STARTING
             result = await self._state_machine.transition(
                 StrategyLifecycleState.STARTING,
                 reason="runtime.start() called",
             )
-
-            # Start the processing task
             self._task = asyncio.create_task(self._run_loop())
-
-            # Transition to ACTIVE
             result = await self._state_machine.transition(
                 StrategyLifecycleState.ACTIVE,
                 reason="market data subscription confirmed",
             )
-
             self._state = StrategyStateSnapshot(
                 strategy_id=self._config.strategy_id,
                 lifecycle_state=StrategyLifecycleState.ACTIVE,
             )
 
-        # Subscribe to market data and fills OUTSIDE the lock
-        # to prevent deadlock on slow external calls
         for token in self._config.instrument_tokens:
             await self._market_data.subscribe(token, self._on_market_data)
-
         await self._fill_tracker.subscribe(self._on_fill)
 
         return result
 
     async def pause(self) -> TransitionResult:
-        """Pause the strategy.
-
-        Stops signal generation but maintains subscriptions and positions.
-        """
+        """Pause — stops signal generation, maintains subscriptions."""
         async with self._lock:
             result = await self._state_machine.transition(
                 StrategyLifecycleState.PAUSED,
@@ -171,20 +195,14 @@ class StrategyRuntime:
             return result
 
     async def stop(self) -> TransitionResult:
-        """Stop the strategy runtime.
-
-        Transitions to STOPPING, cancels subscriptions, stops the task,
-        then transitions to STOPPED.
-        """
+        """Stop — STOPPING → cancels task → STOPPED."""
         async with self._lock:
             result = await self._state_machine.transition(
                 StrategyLifecycleState.STOPPING,
                 reason="runtime.stop() called",
             )
-
             self._shutdown_event.set()
 
-            # Cancel task if running
             if self._task is not None and not self._task.done():
                 self._task.cancel()
                 try:
@@ -196,42 +214,42 @@ class StrategyRuntime:
                 StrategyLifecycleState.STOPPED,
                 reason="cleanup complete",
             )
-
             self._state = StrategyStateSnapshot(
                 strategy_id=self._config.strategy_id,
                 lifecycle_state=StrategyLifecycleState.STOPPED,
             )
 
-        # Unsubscribe from market data and fills OUTSIDE the lock
         for token in self._config.instrument_tokens:
             await self._market_data.unsubscribe(token, self._on_market_data)
-
         await self._fill_tracker.unsubscribe()
 
         return result
 
+    # ------------------------------------------------------------------
+    # External injection points (tests and recovery)
+    # ------------------------------------------------------------------
+
     async def on_bar(self, bar: CompletedBar) -> None:
-        """External entry point for injecting a bar (used by tests and recovery)."""
         if self._state_machine.can_emit_signals:
             await self._bar_queue.put(bar)
 
     async def on_tick(self, tick: Tick) -> None:
-        """External entry point for injecting a tick (used by tests and recovery)."""
         if self._state_machine.can_emit_signals:
             await self._tick_queue.put(tick)
 
     def get_next_signal(self) -> Optional[Signal]:
-        """Non-blocking check for emitted signals."""
         try:
             return self._signal_queue.get_nowait()
         except asyncio.QueueEmpty:
             return None
 
+    # ------------------------------------------------------------------
+    # Main loop
+    # ------------------------------------------------------------------
+
     async def _run_loop(self) -> None:
-        """Main processing loop."""
         try:
             while not self._shutdown_event.is_set():
-                # Process bars with priority
                 try:
                     bar = await asyncio.wait_for(self._bar_queue.get(), timeout=0.1)
                     await self._process_bar(bar)
@@ -239,7 +257,6 @@ class StrategyRuntime:
                 except asyncio.TimeoutError:
                     pass
 
-                # Process ticks
                 try:
                     tick = await asyncio.wait_for(self._tick_queue.get(), timeout=0.1)
                     await self._process_tick(tick)
@@ -247,7 +264,6 @@ class StrategyRuntime:
                 except asyncio.TimeoutError:
                     pass
 
-                # Yield control
                 await asyncio.sleep(0)
 
         except asyncio.CancelledError:
@@ -257,10 +273,16 @@ class StrategyRuntime:
                 StrategyLifecycleState.ERROR,
                 reason=f"Runtime error: {str(e)}",
             )
-            raise StrategyRuntimeError(f"Strategy {self._config.strategy_id} runtime failed: {e}") from e
+            raise StrategyRuntimeError(
+                f"Strategy {self._config.strategy_id} runtime failed: {e}"
+            ) from e
+
+    # ------------------------------------------------------------------
+    # Bar / tick processing
+    # ------------------------------------------------------------------
 
     async def _process_bar(self, bar: CompletedBar) -> None:
-        """Process a single bar through the strategy."""
+        """Process one bar through the strategy, collect metrics, isolate faults."""
         if not self._state_machine.can_emit_signals:
             return
 
@@ -270,20 +292,34 @@ class StrategyRuntime:
             strategy_positions=self._fill_tracker.positions,
         )
 
+        start_ns = time.perf_counter_ns()
         try:
             signal = self._strategy.on_bar(bar, context)
         except Exception as e:
+            await self._record_error_and_maybe_isolate()
             await self._state_machine.transition(
                 StrategyLifecycleState.ERROR,
                 reason=f"Strategy on_bar error: {str(e)}",
             )
             raise StrategyRuntimeError(f"Strategy on_bar failed: {e}") from e
 
+        latency_ms = (time.perf_counter_ns() - start_ns) / 1_000_000.0
+
+        # Record metrics for this bar
+        if self._metrics is not None:
+            asyncio.create_task(
+                self._metrics.record_bar(self._config.strategy_id, latency_ms)
+            )
+
         if signal is not None:
             await self._emit_signal(signal)
 
+        # Push state snapshot (fire-and-forget — never disrupts bar processing)
+        if self._persistence is not None and self._engine is not None:
+            asyncio.create_task(self._push_state_snapshot_safe())
+
     async def _process_tick(self, tick: Tick) -> None:
-        """Process a single tick through the strategy."""
+        """Process one tick through the strategy."""
         if not self._state_machine.can_emit_signals:
             return
 
@@ -296,35 +332,39 @@ class StrategyRuntime:
         try:
             signal = self._strategy.on_tick(tick, context)
         except Exception as e:
+            await self._record_error_and_maybe_isolate()
             await self._state_machine.transition(
                 StrategyLifecycleState.ERROR,
                 reason=f"Strategy on_tick error: {str(e)}",
             )
             raise StrategyRuntimeError(f"Strategy on_tick failed: {e}") from e
 
+        if self._metrics is not None:
+            asyncio.create_task(
+                self._metrics.record_tick(self._config.strategy_id)
+            )
+
         if signal is not None:
             await self._emit_signal(signal)
 
+    # ------------------------------------------------------------------
+    # Market data and fill callbacks
+    # ------------------------------------------------------------------
+
     def _on_market_data(self, data) -> None:
-        """Callback registered with MarketDataService."""
         if isinstance(data, CompletedBar):
             asyncio.create_task(self.on_bar(data))
         elif isinstance(data, Tick):
             asyncio.create_task(self.on_tick(data))
 
     def _on_fill(self, fill_event: FillEvent) -> None:
-        """Callback for fill events."""
         asyncio.create_task(self._process_fill(fill_event))
 
     async def _process_fill(self, fill_event: FillEvent) -> None:
-        """Process a fill and optionally emit follow-up signal.
-
-        Only processes fills for orders submitted by this runtime.
-        """
+        """Process a fill.  Only handles fills for orders owned by this runtime."""
         if not self._state_machine.can_emit_signals:
             return
 
-        # Ownership check: skip fills for orders not submitted by this strategy
         if fill_event.client_order_id not in self._state.pending_orders:
             return
 
@@ -343,22 +383,43 @@ class StrategyRuntime:
             )
             raise StrategyRuntimeError(f"Strategy on_fill failed: {e}") from e
 
+        if self._metrics is not None:
+            asyncio.create_task(
+                self._metrics.record_fill(self._config.strategy_id)
+            )
+
         if signal is not None:
             await self._emit_signal(signal)
 
+    # ------------------------------------------------------------------
+    # Signal emission (write-before-route)
+    # ------------------------------------------------------------------
+
     async def _emit_signal(self, signal: Signal) -> None:
-        """Emit a signal to the callback and queue."""
-        # Validate signal belongs to this strategy
+        """Emit a signal.
+
+        Ordering guarantee
+        ------------------
+        1. Validate signal ownership.
+        2. Persist signal to DB (PENDING routing_status).  Non-fatal — if
+           persistence fails the signal is still routed; a warning is logged.
+        3. Update in-memory state snapshot.
+        4. Put signal on the internal queue.
+        5. Invoke the sync routing callback (schedules async routing task).
+        """
         if signal.strategy_id != self._config.strategy_id:
             raise StrategyRuntimeError(
-                f"Signal strategy_id {signal.strategy_id} does not match "
-                f"runtime strategy_id {self._config.strategy_id}"
+                f"Signal strategy_id {signal.strategy_id!r} does not match "
+                f"runtime strategy_id {self._config.strategy_id!r}"
             )
 
-        # Update state
+        # Step 2: write-before-route persistence (awaited, non-fatal)
+        if self._persistence is not None and self._engine is not None:
+            await self._persist_signal_safe(signal)
+
+        # Step 3: update in-memory state
         current_signals = list(self._state.current_signals)
         current_signals.append(signal)
-
         self._state = StrategyStateSnapshot(
             strategy_id=self._config.strategy_id,
             lifecycle_state=self._state.lifecycle_state,
@@ -369,9 +430,99 @@ class StrategyRuntime:
             last_signal_timestamp=signal.timestamp,
         )
 
-        # Queue for retrieval
+        # Step 4: queue for retrieval
         await self._signal_queue.put(signal)
 
-        # Notify callback if registered
+        # Step 5: record metric + invoke routing callback
+        if self._metrics is not None:
+            asyncio.create_task(
+                self._metrics.record_signal(self._config.strategy_id)
+            )
+
         if self._signal_callback is not None:
             self._signal_callback(signal)
+
+    # ------------------------------------------------------------------
+    # Persistence helpers (non-fatal wrappers)
+    # ------------------------------------------------------------------
+
+    async def _persist_signal_safe(self, signal: Signal) -> None:
+        """Persist a signal as PENDING.  Never raises."""
+        from src.strategy.persistence import StrategySignalRecord
+        record = StrategySignalRecord(
+            signal_id=signal.signal_id,
+            strategy_id=signal.strategy_id,
+            account_id=None,
+            instrument_token=signal.instrument_token,
+            action=signal.action.value,
+            side=signal.side.value,
+            quantity=signal.quantity,
+            order_type=signal.order_type.value,
+            limit_price=signal.limit_price,
+            trigger_price=signal.trigger_price,
+            timestamp=signal.timestamp,
+            routing_status="PENDING",
+            extra_data=dict(signal.metadata) if signal.metadata else {},
+        )
+        try:
+            async with SessionContext(self._engine) as session:
+                await self._persistence.save_signal(session, record)
+        except Exception:
+            logger.warning(
+                "Failed to persist signal %s (routing continues)",
+                signal.signal_id,
+                exc_info=True,
+            )
+
+    async def _push_state_snapshot_safe(self) -> None:
+        """Capture and persist a state snapshot.  Never raises."""
+        from src.strategy.persistence import StrategyStateSnapshotRecord
+        state = self._state
+        record = StrategyStateSnapshotRecord(
+            strategy_id=self._config.strategy_id,
+            lifecycle_state=state.lifecycle_state.value,
+            pending_order_ids=list(state.pending_orders),
+            latest_signal_timestamp=state.last_signal_timestamp,
+            emitted_signal_count=len(state.current_signals),
+            rejected_signal_count=state.rejected_today,
+            fill_count=self._fill_tracker.fill_count,
+            snapshot_timestamp=datetime.now(timezone.utc),
+        )
+        try:
+            async with SessionContext(self._engine) as session:
+                await self._persistence.save_state_snapshot(session, record)
+        except Exception:
+            logger.debug(
+                "State snapshot push failed for %s (non-fatal)",
+                self._config.strategy_id,
+                exc_info=True,
+            )
+
+    # ------------------------------------------------------------------
+    # Fault isolation helper
+    # ------------------------------------------------------------------
+
+    async def _record_error_and_maybe_isolate(self) -> None:
+        """Record an error in metrics/fault-isolator; pause if budget breached."""
+        if self._metrics is not None:
+            await self._metrics.record_error(self._config.strategy_id)
+
+        if self._fault_isolator is not None:
+            from strategy.fault_isolation import FaultAction  # local to avoid circular at module init
+            action = await self._fault_isolator.record_error(self._config.strategy_id)
+            if action in (FaultAction.PAUSE, FaultAction.STOP):
+                logger.warning(
+                    "FaultIsolator triggered %s for strategy %s — pausing",
+                    action.value, self._config.strategy_id,
+                )
+                try:
+                    await self._state_machine.transition(
+                        StrategyLifecycleState.PAUSED,
+                        reason=f"Fault isolation: {action.value}",
+                    )
+                    self._state = StrategyStateSnapshot(
+                        strategy_id=self._config.strategy_id,
+                        lifecycle_state=StrategyLifecycleState.PAUSED,
+                    )
+                except Exception:
+                    pass  # state machine may reject if already ERROR — that is fine

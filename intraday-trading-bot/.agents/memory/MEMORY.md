@@ -1,0 +1,2 @@
+- [RC-8B merge](rc8b-merge.md) — vocabulary break from RC-8A; Pydantic v2 `Literal` pattern for frozen limit configs; ExecutionService wiring; pre-existing test_kill_switch failure unrelated to RC-8B.
+- [RC-9 strategy engine](rc9-strategy-engine.md) — Batches 9A–9D: SessionContext only commit site; write-before-route in _emit_signal; _PersistenceCapture avoids double list_non_terminal call; persistence/recovery not re-exported from __init__ (circular).
