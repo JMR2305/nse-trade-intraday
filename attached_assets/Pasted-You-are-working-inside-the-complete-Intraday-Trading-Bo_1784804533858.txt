@@ -1,0 +1,152 @@
+You are working inside the complete Intraday Trading Bot workspace.
+
+RC-9 has been completed successfully and is now considered the stable foundation.
+
+Your task is NOT to implement RC-10.
+
+Instead, prepare a comprehensive Project Background & RC-10 Requirements document that will be used as the context for Kimi to implement RC-10.
+
+=========================================================
+PART 1 – PROJECT BACKGROUND
+=========================================================
+
+Describe the existing project in detail.
+
+Include:
+
+1. Overall architecture.
+2. Folder structure.
+3. Major modules.
+4. Data flow.
+5. Runtime lifecycle.
+6. Dependency relationships.
+7. Design principles.
+8. Extension points.
+9. Public APIs.
+10. Coding conventions.
+11. Testing approach.
+12. Error handling.
+13. Logging.
+14. Recovery.
+15. Session management.
+16. Persistence.
+17. Metrics.
+18. Health monitoring.
+19. Fault isolation.
+20. Graceful shutdown.
+21. Current limitations.
+22. Frozen APIs that must not be modified.
+
+For every major component explain:
+
+• Purpose
+• Responsibilities
+• Important classes
+• Important methods
+• Integration points
+• Existing tests
+
+=========================================================
+PART 2 – RC-10 REQUIREMENTS
+=========================================================
+
+Document the goals for RC-10.
+
+RC-10 must build ON TOP OF the existing architecture.
+
+Do NOT redesign RC-7, RC-8 or RC-9.
+
+The proposed RC-10 capabilities include:
+
+1. Market Intelligence Layer
+   - Multi-timeframe analysis
+   - Market regime detection
+   - Watchlist ranking
+   - Strategy scoring
+   - Indicator engine
+   - Corporate announcement intelligence (BSE/NSE)
+
+2. AI Forecast Layer
+   - Kronos adapter
+   - Forecast confidence
+   - Volatility forecasting
+   - Feature generation
+   - Benchmark framework
+
+3. Portfolio Management
+   - Dynamic position sizing
+   - Portfolio allocation
+   - Sector exposure
+   - Correlation limits
+   - Capital allocation
+
+4. Broker Layer
+   - Zerodha Kite integration
+   - Order synchronisation
+   - Position reconciliation
+   - Account management
+
+5. Operations
+   - Dashboard
+   - Analytics
+   - Alerts
+   - Performance reporting
+   - Long-duration soak testing
+
+=========================================================
+PART 3 – EXTERNAL REPOSITORY INSIGHTS
+=========================================================
+
+Incorporate the architectural ideas we selected from earlier reviews.
+
+MarkAnn-Bot
+- Event intelligence
+- Corporate announcement classification
+- AI summarisation (optional service)
+- Notification architecture
+
+Kronos
+- AI forecasting
+- Forecast confidence
+- Volatility prediction
+- Feature generation
+- Research isolation
+- No direct order generation
+
+intraday-trading-ai-india
+- Multi-timeframe analysis
+- Market regime detection
+- Watchlist ranking
+- Strategy scoring
+- Dynamic position sizing
+- Modular indicator architecture
+
+These ideas must be integrated through existing interfaces and must not bypass the Risk Engine or Execution Engine.
+
+=========================================================
+PART 4 – IMPLEMENTATION ROADMAP
+=========================================================
+
+Propose a phased RC-10 implementation roadmap.
+
+For each phase include:
+
+• Objective
+• Files affected
+• New modules
+• Interfaces
+• Test plan
+• Risks
+• Success criteria
+
+=========================================================
+OUTPUT
+=========================================================
+
+Produce a detailed Markdown document suitable for handing directly to Kimi as the permanent RC-10 reference.
+
+Do not implement any code.
+
+Do not modify the workspace.
+
+This task is documentation and architecture only.
