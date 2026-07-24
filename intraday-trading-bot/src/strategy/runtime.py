@@ -17,11 +17,17 @@ RC-10B additions (all optional, keyword-only, backward-compatible):
   "min_forecast_confidence" AND ai_forecast_gate is injected.
 - FeatureGenerator: maintains per-instrument close/volume ring buffers;
   update_bar() called on every bar before strategy.on_bar().
-- Prefetch lifecycle: asyncio.create_task() prefetch fires between
-  build_context() and strategy.on_bar(); awaited with 2 s shield timeout;
-  cancelled if the strategy emits no signal.
+- StrategyContext enrichment: ForecastSnapshot injected into StrategyContext
+  BEFORE strategy.on_bar() so strategies can read forecast direction /
+  confidence / horizon in their own logic.  Injection uses a 300 ms
+  pre-on_bar window; if Kronos is slower the context has no forecast but
+  the gate still runs after on_bar() using the still-running background task.
 - ForecastBenchmarkRepository: fire-and-forget record_forecast() after gate
   approves a forecast.  Never raises to the caller.
+
+Execution flow (RC-10B spec section 1):
+  ContextBuilder → FeatureGenerator → KronosAdapter → ForecastConfidenceGate
+  → StrategyContext → strategy.on_bar() → SignalRouter → RC-8 → RC-7
 
 Backward compatibility guarantee
 ---------------------------------
@@ -43,6 +49,7 @@ from typing import Any, Callable, Dict, List, Optional
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from strategy.contracts import (
+    ForecastSnapshot,
     Signal,
     StrategyConfig,
     StrategyContext,
@@ -305,14 +312,20 @@ class StrategyRuntime:
     async def _process_bar(self, bar: CompletedBar) -> None:
         """Process one bar through the strategy, collect metrics, isolate faults.
 
-        RC-10B forecast injection order:
-          1. build_context()
-          2. [RC-10B] update_bar() — refresh feature generator buffers
-          3. [RC-10B] start prefetch task (if gate configured + strategy opted in)
-          4. strategy.on_bar()
-          5. [RC-10B] await prefetch, apply forecast gate (suppress or enrich)
-          6. _emit_signal() with (possibly enriched) signal
-          7. push state snapshot (fire-and-forget)
+        RC-10B forecast injection flow (spec section 1):
+          1. build_context()                       → base StrategyContext
+          2. [RC-10B] update_bar()                 → refresh feature generator
+          3. [RC-10B] start prefetch task           → KronosAdapter.forecast()
+          4. [RC-10B] await prefetch (300 ms)       → try context injection
+          5. [RC-10B] ForecastConfidenceGate check  → build ForecastSnapshot
+          6. [RC-10B] context.model_copy(forecast_snapshot=...)
+          7. strategy.on_bar(enriched_context)     → Signal | None
+          8. [RC-10B] _apply_forecast_gate()        → enrich signal metadata
+          9. _emit_signal()                         → SignalRouter → RC-8 → RC-7
+         10. push state snapshot (fire-and-forget)
+
+        Fail-safe: any failure before step 7 leaves context.forecast_snapshot=None
+        and on_bar() runs identically to pre-RC-10B baseline.
         """
         if not self._state_machine.can_emit_signals:
             return
@@ -332,16 +345,61 @@ class StrategyRuntime:
             except Exception as _fg_err:
                 logger.debug("FeatureGenerator.update_bar error (non-fatal): %s", _fg_err)
 
-        # RC-10B: start forecast prefetch task if gate is configured and strategy
-        # has opted in via min_forecast_confidence parameter.
-        prefetch_task: Optional[asyncio.Task] = None
+        # RC-10B: determine if forecast is enabled for this strategy
         _forecast_enabled = (
             self._ai_forecast_gate is not None
             and self._feature_generator is not None
             and self._config.parameters.get("min_forecast_confidence") is not None
         )
+
+        # RC-10B: start prefetch and attempt context injection BEFORE on_bar().
+        # A 300 ms window gives Kronos a chance to respond in time for the
+        # strategy to see the forecast in its StrategyContext.
+        # If Kronos is slower, context.forecast_snapshot stays None — on_bar()
+        # still runs normally (fail-open).  The background task is retained and
+        # awaited again in _apply_forecast_gate() to enrich signal metadata.
+        prefetch_task: Optional[asyncio.Task] = None
+        prefetched_forecast: Optional[Any] = None  # ForecastResult | None
         if _forecast_enabled:
             prefetch_task = self._start_forecast_prefetch(bar, context)
+            if prefetch_task is not None:
+                try:
+                    prefetched_forecast = await asyncio.wait_for(
+                        asyncio.shield(prefetch_task), timeout=0.3
+                    )
+                except (asyncio.TimeoutError, asyncio.CancelledError, Exception) as _pre_err:
+                    logger.debug(
+                        "Pre-on_bar forecast window expired (context injection skipped): %s",
+                        _pre_err,
+                    )
+                    # prefetch_task is still running; we'll collect it later
+
+            # Inject into StrategyContext if forecast meets threshold
+            if prefetched_forecast is not None:
+                try:
+                    raw_threshold = self._config.parameters.get("min_forecast_confidence")
+                    min_conf = Decimal(str(raw_threshold))
+                    if prefetched_forecast.confidence >= min_conf:
+                        fs = ForecastSnapshot(
+                            direction=prefetched_forecast.direction,
+                            confidence=prefetched_forecast.confidence,
+                            forecast_horizon=prefetched_forecast.forecast_horizon,
+                            model_version=prefetched_forecast.model_version,
+                            forecast_timestamp=prefetched_forecast.computed_at,
+                            expected_volatility=None,  # deferred to RC-10C
+                        )
+                        context = context.model_copy(update={"forecast_snapshot": fs})
+                        logger.debug(
+                            "ForecastSnapshot injected into StrategyContext: "
+                            "instrument=%s direction=%s confidence=%s",
+                            bar.instrument_token,
+                            prefetched_forecast.direction,
+                            str(prefetched_forecast.confidence),
+                        )
+                except Exception as _inj_err:
+                    logger.debug(
+                        "ForecastSnapshot injection failed (fail-open): %s", _inj_err
+                    )
 
         start_ns = time.perf_counter_ns()
         try:
@@ -366,8 +424,13 @@ class StrategyRuntime:
             )
 
         if signal is not None:
-            # RC-10B: apply forecast gate (may suppress or enrich the signal)
-            signal = await self._apply_forecast_gate(signal, context, prefetch_task)
+            # RC-10B: apply forecast gate — enrich signal metadata.
+            # Pass prefetched_forecast so we avoid a second network call when
+            # the context-injection window already fetched it.
+            signal = await self._apply_forecast_gate(
+                signal, context, prefetch_task,
+                prefetched_result=prefetched_forecast,
+            )
             prefetch_task = None  # ownership transferred / consumed
             if signal is not None:
                 await self._emit_signal(signal)
@@ -454,8 +517,17 @@ class StrategyRuntime:
         signal: Signal,
         context: StrategyContext,
         prefetch_task: Optional[asyncio.Task],
+        prefetched_result: Optional[Any] = None,
     ) -> Optional[Signal]:
         """Apply the AI forecast gate to an emitted signal.
+
+        Args:
+            signal:           The signal emitted by strategy.on_bar().
+            context:          StrategyContext (may already carry forecast_snapshot).
+            prefetch_task:    Background KronosAdapter task (if still running).
+            prefetched_result: Already-resolved ForecastResult from the
+                               pre-on_bar context-injection window (300 ms).
+                               When set, the task is not awaited again.
 
         Returns:
           - Original signal if gate is not configured or strategy has not
@@ -484,9 +556,10 @@ class StrategyRuntime:
             )
             return signal
 
-        # Collect prefetched result (2 s shield timeout)
-        prefetched_forecast = None
-        if prefetch_task is not None:
+        # Use pre-fetched result if available (avoids second network call).
+        # Otherwise collect from the still-running background task (2 s shield).
+        prefetched_forecast = prefetched_result
+        if prefetched_forecast is None and prefetch_task is not None:
             try:
                 prefetched_forecast = await asyncio.wait_for(
                     asyncio.shield(prefetch_task), timeout=2.0

@@ -114,6 +114,15 @@ class StrategyContext(BaseModel, frozen=True):
     This is a snapshot-in-time view constructed by the ContextBuilder
     and passed to strategy callbacks. It is immutable and safe to
     share across coroutines.
+
+    RC-10B addition: forecast_snapshot
+        Populated by StrategyRuntime before calling strategy.on_bar() when
+        all three conditions are met:
+          1. ai_forecast_gate is injected into the runtime.
+          2. StrategyConfig.parameters["min_forecast_confidence"] is set.
+          3. KronosAdapter returns a forecast whose confidence ≥ threshold.
+        None in all other cases (fail-open): on_bar() behaves identically
+        to the pre-RC-10B baseline.
     """
     strategy_id: str
     timestamp: datetime
@@ -126,6 +135,8 @@ class StrategyContext(BaseModel, frozen=True):
     strategy_state: StrategyStateSnapshot = Field(
         default_factory=lambda: StrategyStateSnapshot(strategy_id="", lifecycle_state=StrategyLifecycleState.REGISTERED)
     )
+    # RC-10B: AI forecast advisory context — None when forecast is unavailable
+    forecast_snapshot: Optional["ForecastSnapshot"] = None
 
 
 
@@ -191,3 +202,36 @@ class AiForecastMetadata(BaseModel, frozen=True):
     model_version: str
     forecast_horizon: str = "15m"
     price_target: Optional[Decimal] = None
+
+
+class ForecastSnapshot(BaseModel, frozen=True):
+    """Immutable AI forecast injected into StrategyContext before on_bar().
+
+    Populated when:
+      - The strategy configures min_forecast_confidence, AND
+      - KronosAdapter returns a forecast within the pre-on_bar window, AND
+      - The forecast confidence meets or exceeds min_forecast_confidence.
+
+    None (absent from context) when forecast is unavailable, timed out, or
+    below threshold — these are all fail-open: on_bar() still runs normally.
+
+    The strategy can read this snapshot to align its logic with the AI view,
+    but it MUST NOT use it to directly place or modify orders — all orders
+    must still flow through RC-8 (Risk Engine) and RC-7 (Execution Engine).
+
+    Spec item 2 fields:
+        direction           — UP | DOWN | NEUTRAL
+        confidence          — raw model confidence ∈ [0.0, 1.0]
+        forecast_horizon    — prediction horizon label (e.g. "15m")
+        expected_volatility — ATR-derived volatility estimate (None until
+                              VolatilityForecaster integration in RC-10C)
+        model_version       — Kronos model identifier (e.g. "v2.0")
+        forecast_timestamp  — ISO-8601 UTC timestamp from Kronos
+    """
+
+    direction: str                         # UP | DOWN | NEUTRAL
+    confidence: Decimal                    # raw model confidence
+    forecast_horizon: str                  # e.g. "15m"
+    model_version: str                     # e.g. "v2.0"
+    forecast_timestamp: str                # ISO-8601 UTC
+    expected_volatility: Optional[Decimal] = None   # deferred RC-10C

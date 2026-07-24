@@ -1,0 +1,219 @@
+# RC-10B FINAL PATCH – IMPLEMENTATION
+
+## Objective
+
+Implement the RC-10B Final Patch to make the AI Forecast module fully production-ready. This is the final implementation before freezing RC-10B.
+
+DO NOT start RC-10C, RC-10D, or any future modules.
+
+Maintain complete backward compatibility with:
+
+- RC-6 Market Data
+- RC-7 Execution Engine
+- RC-8 Risk Engine
+- RC-9 Strategy Engine
+- RC-10A Market Intelligence
+
+No behavioral regressions are permitted.
+
+------------------------------------------------------------
+1. Runtime Integration
+------------------------------------------------------------
+
+Complete the runtime wiring so that the forecast pipeline executes automatically.
+
+Required execution flow:
+
+Strategy Runtime
+→ ContextBuilder
+→ FeatureGenerator
+→ KronosAdapter
+→ ForecastConfidenceGate
+→ StrategyContext
+→ SignalRouter
+→ RC-8 Risk Engine
+→ RC-7 Execution Engine
+
+Forecasts must remain ADVISORY ONLY.
+
+Forecasts must NEVER:
+
+- Place trades
+- Bypass RC-8 Risk Engine
+- Bypass RC-7 Execution Engine
+- Modify execution logic
+
+------------------------------------------------------------
+2. StrategyContext Enrichment
+------------------------------------------------------------
+
+Extend StrategyContext with:
+
+- Forecast Direction
+- Confidence Score
+- Prediction Horizon
+- Expected Volatility
+- Model Version
+- Forecast Timestamp
+
+Maintain backward compatibility.
+
+------------------------------------------------------------
+3. Forecast Confidence Gate
+------------------------------------------------------------
+
+Complete the confidence gate implementation.
+
+Support:
+
+- Configurable confidence thresholds
+- Low-confidence rejection
+- Uncertainty handling
+- Graceful fallback
+
+If confidence is below threshold:
+
+- Ignore forecast
+- Continue normal strategy execution
+
+------------------------------------------------------------
+4. Forecast Benchmark Persistence
+------------------------------------------------------------
+
+Replace temporary in-memory benchmark storage.
+
+Persist benchmark data into the database.
+
+Validate:
+
+- ORM models
+- Repositories
+- Database migrations
+- Serialization
+- Historical retrieval
+
+------------------------------------------------------------
+5. Feature Schema Standardization
+------------------------------------------------------------
+
+Create a single authoritative feature schema.
+
+Ensure the following all use the same schema:
+
+- FeatureGenerator
+- KronosAdapter
+- Benchmark
+- Forecast Pipeline
+
+Reject:
+
+- Missing features
+- Duplicate features
+- Unsupported schema versions
+
+------------------------------------------------------------
+6. Concurrency & Reliability
+------------------------------------------------------------
+
+Review and harden:
+
+- Async lifecycle
+- HTTP client reuse
+- Mutable state
+- Benchmark storage
+- Volatility buffers
+
+Eliminate race conditions.
+
+------------------------------------------------------------
+7. Failure Handling
+------------------------------------------------------------
+
+Forecast failures must NEVER interrupt trading.
+
+Handle gracefully:
+
+- API timeout
+- Service unavailable
+- Invalid response
+- Missing model
+- Corrupted payload
+
+If forecasting fails:
+
+Continue using standard strategy logic.
+
+------------------------------------------------------------
+8. Integration Tests
+------------------------------------------------------------
+
+Add production-grade tests covering:
+
+- Runtime forecast execution
+- Forecast metadata propagation
+- Confidence Gate
+- Database benchmark persistence
+- Historical retrieval
+- Failure fallback
+- Concurrency
+- Full regression compatibility
+
+------------------------------------------------------------
+9. Regression Requirements
+------------------------------------------------------------
+
+All existing tests must continue passing.
+
+No regressions are permitted in:
+
+- RC-6
+- RC-7
+- RC-8
+- RC-9
+- RC-10A
+
+------------------------------------------------------------
+10. Deliverables
+------------------------------------------------------------
+
+Provide:
+
+- Updated implementation
+- Database migration (if required)
+- Unit tests
+- Integration tests
+- Regression test summary
+- Production audit summary
+- RC-10B Freeze Readiness Report
+
+------------------------------------------------------------
+Acceptance Criteria
+------------------------------------------------------------
+
+RC-10B will be approved for freeze only if ALL of the following are satisfied:
+
+✓ Forecast pipeline fully integrated into runtime
+
+✓ StrategyContext contains forecast metadata
+
+✓ Confidence Gate fully operational
+
+✓ Benchmark data persisted to database
+
+✓ Unified feature schema implemented
+
+✓ Forecast failures cannot interrupt trading
+
+✓ No concurrency issues remain
+
+✓ All regression tests pass
+
+✓ Independent production audit reports ZERO Critical findings
+
+✓ RC-10B is declared READY FOR FREEZE
+
+This is the FINAL stabilization phase for RC-10B.
+
+Focus ONLY on completing and hardening the AI Forecast module.
+
+Do NOT introduce any new functionality outside the defined scope.
