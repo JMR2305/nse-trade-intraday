@@ -34,3 +34,4 @@
 - [Email alert delivery](email-alerts.md) — critical kinds emailed from the add_notification hook; env-resolved transport (Resend→SMTP→logged skip); opt-in settings excluded from config hash.
 - [RC-8B merge](rc8b-merge.md) — vocabulary break from RC-8A; Pydantic v2 `Literal` pattern for frozen limit configs; ExecutionService wiring; pre-existing test_kill_switch failure unrelated to RC-8B.
 - [RC-9 strategy engine](rc9-strategy-engine.md) — Batch 9A/B: coordinator deregister deadlock, async FillEventBus API, _on_signal must schedule task, error propagation via lifecycle not pytest.raises.
+- [RC-10B Final Patch](rc10b-final-patch.md) — 25-feature schema, stateful FeatureGenerator, async gate, ORM rename, double-import guard, REGISTERED→STARTING→ACTIVE transition, SQLAlchemy result methods are sync.
