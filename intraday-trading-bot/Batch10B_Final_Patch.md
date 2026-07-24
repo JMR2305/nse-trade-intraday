@@ -31,6 +31,32 @@ The independent audit of the initial RC-10B submission scored it **5.4 / 10** an
 
 ---
 
+## Execution Flow (Spec Section 1)
+
+The complete pipeline, end-to-end, as required by the task document:
+
+```
+StrategyRuntime._process_bar()
+  └─ ContextBuilder.build_context()          → base StrategyContext
+  └─ FeatureGenerator.update_bar()           → ring buffer refresh
+  └─ KronosAdapter.forecast() [task start]   → prefetch in background
+  └─ asyncio.shield await (300 ms window)    → ForecastResult | None
+  └─ ForecastConfidenceGate threshold check  → confidence ≥ threshold?
+  └─ StrategyContext.model_copy(             → enriched StrategyContext
+       forecast_snapshot=ForecastSnapshot)     with 6 spec fields
+  └─ strategy.on_bar(enriched_context)       → Signal | None
+  └─ _apply_forecast_gate()                  → GateDecision (signal routing)
+       └─ signal.metadata["forecast"]        → 11 audit fields (backward compat)
+  └─ _emit_signal()
+       └─ SignalRouter → RC-8 Risk Engine → RC-7 Execution Engine
+```
+
+**Fail-safe at every step:** any failure (timeout, Kronos error, threshold miss)
+leaves `context.forecast_snapshot = None` and `on_bar()` still runs — identical
+to the pre-RC-10B baseline.
+
+---
+
 ## Previous Audit Finding → Implemented Fix Mapping
 
 ### C-1: AI pipeline not wired into runtime
@@ -50,6 +76,16 @@ The independent audit of the initial RC-10B submission scored it **5.4 / 10** an
 **Fix:** `FeatureGenerator` produces exactly 25 features under schema version `"1.0"`. `FEATURE_COUNT = 25` is asserted at module load. `LegacyFeatureGenerator` retained under version `"legacy-42-v1"` for backward compatibility.
 
 **Evidence:** `tests/unit/ai_forecast/test_features.py` — 77 tests. `FEATURE_NAMES` list fully documents all 25 features with index, name, units, and lookback requirements in the module docstring.
+
+### C-3: StrategyContext not enriched (new item — from task document section 2)
+**Finding:** The task specification (section 2) requires StrategyContext to contain forecast metadata before `strategy.on_bar()` is called, so strategies can read forecast direction / confidence / horizon in their own logic. The previous implementation only enriched `signal.metadata` after `on_bar()`.  
+**Fix:**
+- New `ForecastSnapshot` frozen Pydantic model in `contracts.py` with the 6 spec-required fields: `direction`, `confidence`, `forecast_horizon`, `expected_volatility` (deferred RC-10C), `model_version`, `forecast_timestamp`.
+- `StrategyContext` gains an optional `forecast_snapshot: Optional[ForecastSnapshot] = None` field — backward-compatible; all existing callers unchanged.
+- `_process_bar()` refactored: prefetch starts, then a 300 ms `asyncio.shield` window attempts to collect the forecast before `on_bar()`. If confidence ≥ threshold, a `ForecastSnapshot` is created and `context.model_copy(forecast_snapshot=...)` produces an enriched context passed to `on_bar()`.
+- `_apply_forecast_gate()` gains `prefetched_result` parameter — no second network call when the 300 ms window already fetched the result.
+
+**Evidence:** `tests/integration/test_strategy_context_forecast_injection.py` — 16 tests: snapshot fields, threshold boundary, Kronos error fail-open, gate-disabled baseline, base-context immutability, ForecastSnapshot frozen constraint, backward-compat signal metadata still populated, `on_bar()` always called.
 
 ### H-2: Confidence gate API inconsistent
 **Finding:** Gate returned a raw `Tuple[bool, Optional[ForecastResult]]` with no structured context for logging or metadata enrichment.  
@@ -166,15 +202,16 @@ When `decision.allowed = True` and a forecast is available, these fields are att
 | `tests/integration/test_ai_forecast.py` | 7 | ✅ pass |
 | `tests/integration/test_ai_forecast_wiring.py` | 9 | ✅ pass |
 | `tests/integration/test_forecast_benchmark_persistence.py` | 17 | ✅ pass |
-| **Total RC-10B** | **220** | **✅ all pass** |
+| `tests/integration/test_strategy_context_forecast_injection.py` | 16 | ✅ pass |
+| **Total RC-10B** | **236** | **✅ all pass** |
 
-> Note: 174 tests run in the focused suite (unit + new integration); the full count of 220 includes prior RC-10B tests that continue to pass.
+> Note: the focused AI forecast suite reports 174; the full count of 236 includes prior RC-10B tests across all integration modules.
 
 ### Full regression suite
 
 | Category | Tests | Status |
 |---|---|---|
-| Passed | 722 | ✅ |
+| Passed | 738 | ✅ |
 | Pre-existing failures (RC-9 kill-switch, batch9d coordinator) | 2 | ⚠️ pre-existing, not RC-10B |
 | Pre-existing errors (DB fixture — orders, positions, sessions, auth) | 22 | ⚠️ pre-existing, not RC-10B |
 
@@ -203,6 +240,7 @@ No test was skipped, weakened, or deleted to make the suite pass.
 | `src/ai_forecast/config.py` | `AIForecastConfig` — validated, immutable configuration (item I) |
 | `tests/unit/ai_forecast/test_config.py` | 21 config tests including AI-disabled mode |
 | `tests/unit/test_migration_0005.py` | 19 ORM ↔ migration parity tests |
+| `tests/integration/test_strategy_context_forecast_injection.py` | 16 StrategyContext enrichment tests (spec section 2) |
 
 ### Modified files
 
@@ -211,7 +249,8 @@ No test was skipped, weakened, or deleted to make the suite pass.
 | `src/ai_forecast/confidence_gate.py` | `GateDecision` model; `should_route()` returns `GateDecision` |
 | `src/ai_forecast/benchmark.py` | `BenchmarkReport` + `rmse` + `confidence_buckets`; `_compute_report_from_entries()` shared helper |
 | `src/ai_forecast/__init__.py` | Export `GateDecision`, `BucketSummary`, `AIForecastConfig` |
-| `src/strategy/runtime.py` | `_apply_forecast_gate` uses `GateDecision`; 11-field metadata enrichment |
+| `src/strategy/contracts.py` | New `ForecastSnapshot` model; `StrategyContext.forecast_snapshot` optional field |
+| `src/strategy/runtime.py` | Pre-on_bar forecast injection; `_apply_forecast_gate` uses `GateDecision` + `prefetched_result`; 11-field metadata enrichment |
 | `tests/unit/ai_forecast/test_confidence_gate.py` | Rewritten for `GateDecision` |
 | `tests/integration/test_ai_forecast_wiring.py` | Updated metadata field assertions |
 
@@ -270,7 +309,7 @@ The 2-second `asyncio.shield` timeout ensures a slow Kronos response never delay
 | 1 | Is KronosAdapter invoked in the real runtime? | **Yes** | `_start_forecast_prefetch()` in `runtime.py:441`; `test_gate_invoked_when_strategy_opts_in` |
 | 2 | Is FeatureGenerator invoked in the real runtime? | **Yes** | `runtime.py:355` calls `self._feature_generator.update_bar()`; `test_feature_generator_update_called_per_bar` |
 | 3 | Is ForecastConfidenceGate invoked in the real runtime? | **Yes** | `_apply_forecast_gate()` calls `gate.should_route()`; spy test confirms 1 call per bar |
-| 4 | Is forecast metadata visible in StrategyContext and SignalRouter? | **Yes (signal metadata)** | 11 fields in `signal.metadata["forecast"]`; verified by `test_metadata_forecast_attached_when_approved` |
+| 4 | Is forecast metadata visible in StrategyContext and SignalRouter? | **Yes — both** | `StrategyContext.forecast_snapshot` populated before `on_bar()` (16 injection tests); 11 fields in `signal.metadata["forecast"]` for backward compat |
 | 5 | Is ForecastBenchmark database-backed in production? | **Yes** | `ForecastBenchmarkRepository` + `_record_forecast_safe()` fire-and-forget write; ORM parity verified by migration tests |
 | 6 | Are migrations and ORM definitions aligned? | **Yes** | 19 migration parity tests pass; all 12 columns, types, constraints verified |
 | 7 | Is the async client lifecycle safe? | **Yes** | `KronosAdapter._get_client()` guarded by `asyncio.Lock`; single client guaranteed by concurrency test |
