@@ -95,3 +95,9 @@ id = "Uz68kqnx2ctjypK1_iFWT"
 uri = "file://intraday-trading-bot/reviews/RC10B_Merge_Summary.md"
 type = "text"
 title = "RC-10B Merge Summary"
+
+[[outputs]]
+id = "_rXe3bDcelwHxmNCY6-F3"
+uri = "file://intraday-trading-bot/reviews/Batch10B_Replit_Audit.md"
+type = "text"
+title = "Batch10B_Replit_Audit.md"
