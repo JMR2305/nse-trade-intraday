@@ -631,34 +631,47 @@ class Announcement(Base):
 
 
 # ===========================================================================
-# FORECAST BENCHMARKS (RC-10B)
+# FORECAST BENCHMARKS (RC-10B) — plan-aligned schema
 # ===========================================================================
 
-class ForecastBenchmark(Base):
-    """Records individual AI forecast outcomes for accuracy tracking."""
+class ForecastBenchmarkRecord(Base):
+    """Persists AI forecast results for directional-accuracy and calibration tracking.
 
-    __tablename__ = "forecast_benchmarks"
+    Renamed from ForecastBenchmark (legacy tablename forecast_benchmarks) to
+    ForecastBenchmarkRecord with tablename forecast_benchmark (singular, per plan).
+    Migration 0005 was corrected in-place before any production DB was applied.
+
+    Idempotency: insert via idempotency_key (UNIQUE); duplicate forecasts are
+    silently ignored (ON CONFLICT DO NOTHING in ForecastBenchmarkRepository).
+    """
+
+    __tablename__ = "forecast_benchmark"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    benchmark_id: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
     instrument_token: Mapped[str] = mapped_column(String(50), nullable=False)
-    forecast_direction: Mapped[str] = mapped_column(String(10), nullable=False)
-    actual_direction: Mapped[str] = mapped_column(String(10), nullable=False)
-    correct: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    confidence: Mapped[Decimal] = mapped_column(Numeric(10, 4), nullable=False)
-    forecast_timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
+    forecast_horizon: Mapped[str] = mapped_column(String(10), nullable=False)
+    direction: Mapped[str] = mapped_column(String(10), nullable=False)
+    confidence: Mapped[Decimal] = mapped_column(Numeric(6, 4), nullable=False)
+    model_version: Mapped[str] = mapped_column(String(20), nullable=False)
+    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # Outcome fields — populated by record_outcome()
+    actual_direction: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    actual_return: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(12, 6), nullable=True
     )
-    actual_timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
+    outcome_recorded_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
-    model_version: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
     __table_args__ = (
-        Index("ix_forecast_benchmarks_instrument", "instrument_token"),
-        Index("ix_forecast_benchmarks_timestamp", "forecast_timestamp"),
-        Index("ix_forecast_benchmarks_correct", "correct"),
+        Index(
+            "uq_forecast_benchmark_natural_key",
+            "instrument_token", "forecast_horizon", "computed_at",
+            unique=True,
+        ),
+        Index("ix_forecast_benchmark_model_version", "model_version", "computed_at"),
     )

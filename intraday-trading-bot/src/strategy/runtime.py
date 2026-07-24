@@ -11,12 +11,24 @@ Batch 9D additions (all optional, backward-compatible):
 - MetricsCollector integration: per-bar latency, error counts, signal counts.
 - FaultIsolator integration: auto-pause on budget breach.
 
+RC-10B additions (all optional, keyword-only, backward-compatible):
+- AI forecast gate: ForecastConfidenceGate applied between strategy.on_bar()
+  and _emit_signal().  Only active when strategy.config.parameters contains
+  "min_forecast_confidence" AND ai_forecast_gate is injected.
+- FeatureGenerator: maintains per-instrument close/volume ring buffers;
+  update_bar() called on every bar before strategy.on_bar().
+- Prefetch lifecycle: asyncio.create_task() prefetch fires between
+  build_context() and strategy.on_bar(); awaited with 2 s shield timeout;
+  cancelled if the strategy emits no signal.
+- ForecastBenchmarkRepository: fire-and-forget record_forecast() after gate
+  approves a forecast.  Never raises to the caller.
+
 Backward compatibility guarantee
 ---------------------------------
 StrategyRuntime(config, strategy, context_builder, market_data_service,
                 fill_event_bus) — the existing five-positional-argument form —
-continues to work without any changes.  All Batch 9D dependencies are
-keyword-only optional parameters defaulting to None.
+continues to work without any changes.  All Batch 9D and RC-10B dependencies
+are keyword-only optional parameters defaulting to None.
 """
 from __future__ import annotations
 
@@ -78,6 +90,10 @@ class StrategyRuntime:
         engine: Optional[AsyncEngine] = None,
         metrics: Optional[Any] = None,       # MetricsCollector
         fault_isolator: Optional[Any] = None,  # FaultIsolator
+        # --- RC-10B optional AI forecast dependencies ---
+        ai_forecast_gate: Optional[Any] = None,    # ForecastConfidenceGate
+        feature_generator: Optional[Any] = None,   # FeatureGenerator
+        benchmark_repo: Optional[Any] = None,      # ForecastBenchmarkRepository
     ):
         self._config = config
         self._strategy = strategy
@@ -91,6 +107,11 @@ class StrategyRuntime:
         self._engine = engine
         self._metrics = metrics
         self._fault_isolator = fault_isolator
+
+        # RC-10B AI forecast (all optional — None means feature disabled)
+        self._ai_forecast_gate = ai_forecast_gate
+        self._feature_generator = feature_generator
+        self._benchmark_repo = benchmark_repo
 
         self._state_machine = StrategyStateMachine(StrategyLifecycleState.REGISTERED)
         self._fill_tracker = StrategyFillTracker(config, fill_event_bus)
@@ -282,7 +303,17 @@ class StrategyRuntime:
     # ------------------------------------------------------------------
 
     async def _process_bar(self, bar: CompletedBar) -> None:
-        """Process one bar through the strategy, collect metrics, isolate faults."""
+        """Process one bar through the strategy, collect metrics, isolate faults.
+
+        RC-10B forecast injection order:
+          1. build_context()
+          2. [RC-10B] update_bar() — refresh feature generator buffers
+          3. [RC-10B] start prefetch task (if gate configured + strategy opted in)
+          4. strategy.on_bar()
+          5. [RC-10B] await prefetch, apply forecast gate (suppress or enrich)
+          6. _emit_signal() with (possibly enriched) signal
+          7. push state snapshot (fire-and-forget)
+        """
         if not self._state_machine.can_emit_signals:
             return
 
@@ -292,10 +323,33 @@ class StrategyRuntime:
             strategy_positions=self._fill_tracker.positions,
         )
 
+        # RC-10B: update feature generator ring buffers with latest bar
+        if self._feature_generator is not None:
+            try:
+                self._feature_generator.update_bar(
+                    bar.instrument_token, bar.close, bar.volume
+                )
+            except Exception as _fg_err:
+                logger.debug("FeatureGenerator.update_bar error (non-fatal): %s", _fg_err)
+
+        # RC-10B: start forecast prefetch task if gate is configured and strategy
+        # has opted in via min_forecast_confidence parameter.
+        prefetch_task: Optional[asyncio.Task] = None
+        _forecast_enabled = (
+            self._ai_forecast_gate is not None
+            and self._feature_generator is not None
+            and self._config.parameters.get("min_forecast_confidence") is not None
+        )
+        if _forecast_enabled:
+            prefetch_task = self._start_forecast_prefetch(bar, context)
+
         start_ns = time.perf_counter_ns()
         try:
             signal = self._strategy.on_bar(bar, context)
         except Exception as e:
+            # Cancel orphaned prefetch to avoid leaking tasks
+            if prefetch_task is not None:
+                prefetch_task.cancel()
             await self._record_error_and_maybe_isolate()
             await self._state_machine.transition(
                 StrategyLifecycleState.ERROR,
@@ -312,7 +366,19 @@ class StrategyRuntime:
             )
 
         if signal is not None:
-            await self._emit_signal(signal)
+            # RC-10B: apply forecast gate (may suppress or enrich the signal)
+            signal = await self._apply_forecast_gate(signal, context, prefetch_task)
+            prefetch_task = None  # ownership transferred / consumed
+            if signal is not None:
+                await self._emit_signal(signal)
+        else:
+            # No signal — cancel orphaned prefetch
+            if prefetch_task is not None:
+                prefetch_task.cancel()
+                try:
+                    await prefetch_task
+                except (asyncio.CancelledError, Exception):
+                    pass
 
         # Push state snapshot (fire-and-forget — never disrupts bar processing)
         if self._persistence is not None and self._engine is not None:
@@ -346,6 +412,137 @@ class StrategyRuntime:
 
         if signal is not None:
             await self._emit_signal(signal)
+
+    # ------------------------------------------------------------------
+    # RC-10B: AI forecast gate helpers
+    # ------------------------------------------------------------------
+
+    def _start_forecast_prefetch(
+        self, bar: CompletedBar, context: StrategyContext
+    ) -> Optional[asyncio.Task]:
+        """Start a background forecast task.
+
+        Returns the Task object (retain to await or cancel later).
+        Returns None if prefetch cannot be started (logged at DEBUG).
+        """
+        from market_intelligence.multi_timeframe_context import MultiTimeframeContext
+
+        try:
+            mtf_context = context.market_snapshots.get(bar.instrument_token)
+            if mtf_context is None or not isinstance(mtf_context, MultiTimeframeContext):
+                return None
+
+            generated_at = datetime.now(timezone.utc).isoformat()
+            features = self._feature_generator.generate(
+                bar.instrument_token, mtf_context, generated_at
+            )
+            horizon = self._config.parameters.get("forecast_horizon", "15m")
+            return asyncio.create_task(
+                self._ai_forecast_gate._adapter.forecast(
+                    bar.instrument_token, features, horizon=str(horizon)
+                )
+            )
+        except Exception as exc:
+            logger.debug(
+                "Forecast prefetch start failed (non-fatal): %s", exc,
+                extra={"instrument_token": bar.instrument_token},
+            )
+            return None
+
+    async def _apply_forecast_gate(
+        self,
+        signal: Signal,
+        context: StrategyContext,
+        prefetch_task: Optional[asyncio.Task],
+    ) -> Optional[Signal]:
+        """Apply the AI forecast gate to an emitted signal.
+
+        Returns:
+          - Original signal if gate is not configured or strategy has not
+            opted in (fail-open).
+          - Enriched signal (metadata["forecast"] attached) if gate approves.
+          - None if gate explicitly suppresses (confidence below threshold).
+
+        Never raises: any gate failure returns the original signal (fail-open).
+        """
+        from ai_forecast.features import FEATURE_SCHEMA_VERSION
+
+        if self._ai_forecast_gate is None:
+            return signal
+
+        raw_threshold = self._config.parameters.get("min_forecast_confidence")
+        if raw_threshold is None:
+            # Strategy has not opted in to forecast gating — pass-through
+            return signal
+
+        try:
+            min_confidence = Decimal(str(raw_threshold))
+        except Exception:
+            logger.warning(
+                "Invalid min_forecast_confidence value %r — skipping gate (fail-open)",
+                raw_threshold,
+            )
+            return signal
+
+        # Collect prefetched result (2 s shield timeout)
+        prefetched_forecast = None
+        if prefetch_task is not None:
+            try:
+                prefetched_forecast = await asyncio.wait_for(
+                    asyncio.shield(prefetch_task), timeout=2.0
+                )
+            except (asyncio.TimeoutError, asyncio.CancelledError, Exception) as exc:
+                logger.debug("Prefetch await failed (will fetch inline): %s", exc)
+                prefetched_forecast = None
+
+        try:
+            should_route, forecast = await self._ai_forecast_gate.should_route(
+                signal, context, min_confidence, prefetched_forecast=prefetched_forecast
+            )
+        except Exception as exc:
+            logger.warning(
+                "ForecastConfidenceGate.should_route error (fail-open): %s", exc
+            )
+            return signal
+
+        if not should_route:
+            # Forecast gate suppressed signal
+            return None
+
+        if forecast is not None:
+            # Enrich signal metadata (frozen Pydantic model — produce a copy)
+            forecast_meta: Dict[str, Any] = {
+                "direction": forecast.direction,
+                "confidence": str(forecast.confidence),
+                "model_version": forecast.model_version,
+                "forecast_horizon": forecast.forecast_horizon,
+                "price_target": (
+                    str(forecast.price_target)
+                    if forecast.price_target is not None
+                    else None
+                ),
+                "computed_at": forecast.computed_at,
+                "feature_schema_version": FEATURE_SCHEMA_VERSION,
+            }
+            signal = signal.model_copy(
+                update={"metadata": {**signal.metadata, "forecast": forecast_meta}}
+            )
+
+            # Record forecast for benchmarking (fire-and-forget, fail-safe)
+            if self._benchmark_repo is not None and self._engine is not None:
+                asyncio.create_task(self._record_forecast_safe(forecast))
+
+        return signal
+
+    async def _record_forecast_safe(self, forecast: Any) -> None:
+        """Persist a forecast record.  Never raises."""
+        try:
+            async with SessionContext(self._engine) as session:
+                await self._benchmark_repo.record_forecast(session, forecast)
+        except Exception as exc:
+            logger.debug(
+                "ForecastBenchmark.record_forecast failed (non-fatal): %s", exc
+            )
 
     # ------------------------------------------------------------------
     # Market data and fill callbacks

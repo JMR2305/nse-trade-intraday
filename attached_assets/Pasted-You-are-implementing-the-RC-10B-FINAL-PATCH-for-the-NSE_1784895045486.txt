@@ -1,0 +1,501 @@
+You are implementing the RC-10B FINAL PATCH for the NSE Intraday Trading Platform.
+
+RC-10A is frozen and read-only.
+
+Use these documents as the source of truth:
+
+1. docs/RC10_Master_Implementation_Plan.md
+2. reviews/RC10B_Merge_Summary.md
+3. reviews/Batch10B_Replit_Audit.md
+
+The independent audit verdict was:
+
+❌ NOT READY FOR FREEZE
+
+Your task is to resolve the remaining RC-10B blockers only.
+
+Do not implement RC-10C, RC-10D, or RC-10E.
+Do not add unrelated features.
+Do not alter frozen RC-6 through RC-10A contracts.
+
+=========================================================
+PRIMARY OBJECTIVE
+=========================================================
+
+Make RC-10B operationally complete and safe to freeze.
+
+The patch must deliver:
+
+1. Live runtime forecast wiring
+2. Per-strategy confidence gating
+3. Signal metadata enrichment
+4. Database-backed forecast benchmarking
+5. A single authoritative feature schema
+6. Concurrency-safe component lifecycle
+7. End-to-end integration tests
+
+=========================================================
+1. AUTHORITATIVE FEATURE SCHEMA
+=========================================================
+
+Resolve the current conflict:
+
+- Master plan: approximately 25 features
+- Existing implementation: 42 features
+- Both currently use schema version "1.0"
+
+For this patch, use the feature schema specified in the master implementation plan.
+
+Implement a fixed, deterministic feature vector containing:
+
+- 1m returns: last 5
+- 5m returns: last 3
+- RSI(14), normalised to [0, 1], for 1m and 5m
+- MACD histogram sign and magnitude for 1m and 5m
+- Bollinger position for 1m:
+  (close - lower) / (upper - lower)
+- ATR/close for 1m and 5m
+- Regime one-hot encoding: 7 values
+- Relative volume ratio for 1m
+
+Define the exact order in code and documentation.
+
+Create constants such as:
+
+FEATURE_SCHEMA_VERSION
+FEATURE_NAMES
+FEATURE_COUNT
+
+FEATURE_COUNT must equal the actual vector length.
+
+The Kronos request must send this schema version.
+
+Missing source values must use explicit, deterministic defaults.
+
+Do not silently preserve the incompatible 42-feature schema under version "1.0".
+
+If backward compatibility is necessary, retain the old schema only under a distinct version such as "legacy-42-v1", but the default production schema must match the master plan.
+
+Add tests validating:
+
+- exact feature count
+- exact feature ordering
+- deterministic output
+- finite Decimal values
+- RSI normalisation
+- regime one-hot encoding
+- schema-version consistency
+
+=========================================================
+2. CONFIDENCE GATE API
+=========================================================
+
+Implement the planned public interface:
+
+async should_route(
+    signal,
+    context,
+    min_confidence,
+    prefetched_forecast=None
+) -> tuple[bool, Optional[ForecastResult]]
+
+Required behaviour:
+
+- no configured threshold:
+  return (True, None) without filtering
+
+- forecast unavailable or adapter error:
+  return (True, None)
+
+- confidence below threshold:
+  return (False, forecast)
+
+- confidence equal to or above threshold:
+  return (True, forecast)
+
+The threshold must come from:
+
+StrategyConfig.parameters["min_forecast_confidence"]
+
+Do not use an active constructor default that silently filters strategies.
+
+Remove or disable default behaviour that blocks:
+
+- confidence below 0.55
+- NEUTRAL direction
+
+unless the strategy explicitly requests such behaviour in its parameters.
+
+Fail-open is mandatory.
+
+The existing synchronous apply() method may remain only as a private or compatibility utility if useful.
+
+=========================================================
+3. RUNTIME FORECAST WIRING
+=========================================================
+
+Wire the AI forecast pipeline into the actual runtime path.
+
+The intended flow is:
+
+StrategyRuntime._process_bar(bar)
+  → build StrategyContext
+  → obtain MultiTimeframeContext for the signal instrument
+  → optionally start Kronos prefetch
+  → strategy.on_bar(...)
+  → when a Signal exists:
+       read min_forecast_confidence from StrategyConfig.parameters
+       invoke ForecastConfidenceGate.should_route()
+       suppress only when explicitly configured and below threshold
+       enrich routed signal metadata when forecast succeeds
+       pass the enriched signal through the existing routing path
+
+Do not bypass or reorder:
+
+- conflict resolution
+- RC-8 Risk
+- RC-7 Execution
+- existing SignalRouter safety checks
+
+The forecast layer must run before the final routing callback, but it must not directly place or submit orders.
+
+=========================================================
+4. SIGNAL METADATA ENRICHMENT
+=========================================================
+
+When a valid forecast is returned, create a new frozen Signal using model_copy.
+
+Preserve all existing metadata.
+
+Add:
+
+metadata["forecast"]
+
+Use a JSON-safe dictionary or the existing AiForecastMetadata model, according to the established Signal metadata contract.
+
+Include at minimum:
+
+- direction
+- confidence
+- model_version
+- forecast_horizon
+- price_target
+- computed_at
+- feature_schema_version
+
+Do not mutate the original frozen Signal.
+
+If the forecast is unavailable, route the original Signal unchanged.
+
+=========================================================
+5. PREFETCH AND TASK LIFECYCLE
+=========================================================
+
+Implement forecast prefetch only when:
+
+- AI forecasting is enabled
+- the required MultiTimeframeContext exists
+- the strategy has explicitly configured forecast usage
+
+Use asyncio.create_task() so inference overlaps strategy computation.
+
+Task requirements:
+
+- retain the task reference
+- await or cancel every task
+- no orphaned fire-and-forget inference tasks
+- catch CancelledError correctly
+- adapter errors remain fail-open
+- never exceed configured timeout
+- do not prefetch when the strategy has no forecast threshold or forecast opt-in setting
+
+If the architecture makes safe prefetch impractical, use an awaited adapter call in the gate and document the deviation. Correctness and task safety take priority over concurrency.
+
+=========================================================
+6. DATABASE-BACKED FORECAST BENCHMARK
+=========================================================
+
+Replace the in-memory production benchmark implementation with async database-backed persistence.
+
+Implement the planned interfaces:
+
+async record_forecast(
+    session: AsyncSession,
+    forecast: ForecastResult
+) -> None
+
+async record_outcome(
+    session: AsyncSession,
+    instrument_token: str,
+    horizon: str,
+    actual_return: Decimal,
+    reference_timestamp: datetime
+) -> None
+
+async get_accuracy_report(
+    session: AsyncSession,
+    instrument_token: Optional[str] = None,
+    last_n: int = 100
+) -> BenchmarkReport
+
+Follow existing SessionContext and repository conventions.
+
+Routing must continue if benchmark persistence fails.
+
+Do not manually commit outside the project's transaction/session convention.
+
+=========================================================
+7. ORM AND MIGRATION ALIGNMENT
+=========================================================
+
+Align the ForecastBenchmark ORM model and migration 0005 with the master plan.
+
+The table must support:
+
+- instrument_token
+- forecast_horizon
+- direction
+- confidence
+- model_version
+- computed_at
+- actual_direction
+- actual_return
+- outcome_recorded_at
+- created_at
+
+Required unique key:
+
+(instrument_token, forecast_horizon, computed_at)
+
+Required indexes:
+
+- unique composite index above
+- model_version + computed_at
+- outcome_recorded_at for completed outcomes
+
+ORM and migration must match exactly.
+
+Upgrade and downgrade must both work.
+
+Because migration 0005 has already been merged but RC-10B is not frozen, correct migration 0005 directly only if it has not been applied to any persistent production database.
+
+If it may already have been applied, create a corrective migration 0006 instead.
+
+Document which approach was used and why.
+
+=========================================================
+8. BENCHMARK CALCULATIONS
+=========================================================
+
+BenchmarkReport must include:
+
+- directional_accuracy
+- calibration_error
+- sample_count
+
+Directional accuracy:
+
+correct directional predictions / completed predictions
+
+Calibration error:
+
+mean absolute error between predicted confidence and binary correctness:
+
+abs(confidence - outcome)
+
+where outcome is:
+
+- 1 for correct
+- 0 for incorrect
+
+Requirements:
+
+- completed outcomes only
+- last_n ordered by computed_at descending
+- optional instrument filter
+- no records:
+  return zero-valued report, do not raise
+- DB failure:
+  return zero-valued report and log warning
+
+record_outcome() must derive actual direction consistently from actual_return:
+
+- actual_return > 0 → UP
+- actual_return < 0 → DOWN
+- actual_return == 0 → NEUTRAL
+
+=========================================================
+9. CONCURRENCY SAFETY
+=========================================================
+
+Fix concurrency risks identified by the audit.
+
+KronosAdapter:
+
+- guard lazy AsyncClient creation with asyncio.Lock
+- close client safely
+- avoid constructing and leaking duplicate clients
+
+VolatilityForecaster:
+
+- protect shared mutable buffers if updates may occur concurrently
+- preserve bounded buffer behaviour
+
+ForecastBenchmark:
+
+- production DB-backed implementation should avoid shared in-memory mutable state
+- any retained cache must be lock-protected and bounded
+
+Do not use blocking threading locks inside async hot paths.
+
+=========================================================
+10. VOLATILITY CONTRACT ALIGNMENT
+=========================================================
+
+Align the public VolatilityForecast contract with the master plan:
+
+- predicted_atr
+- predicted_range_pct
+- confidence
+- forecast_horizon
+- computed_at: datetime
+
+If compatibility fields are retained, clearly deprecate them.
+
+Use timezone-aware datetime.
+
+Confidence should reflect ATR stability where practical rather than fixed arbitrary constants.
+
+Handle insufficient bars safely with low confidence.
+
+No 1% fallback should materially misrepresent volatility. Prefer a small deterministic fallback derived from available bars or return low-confidence zero/near-zero values according to existing contract expectations.
+
+=========================================================
+11. TESTING
+=========================================================
+
+Add end-to-end tests that exercise the actual production runtime path.
+
+Minimum required new coverage:
+
+A. Runtime wiring
+- strategy without forecast configuration routes unchanged
+- high-confidence forecast routes
+- low-confidence forecast suppresses
+- adapter unavailable routes unchanged
+- malformed forecast routes unchanged
+- forecast metadata is attached before routing callback
+- original frozen Signal remains unchanged
+- forecast gate is actually invoked from production routing code
+
+B. Feature schema
+- exact canonical count and order
+- same context produces identical vector
+- schema version matches request payload
+- 42-feature legacy vector is not emitted as version "1.0"
+
+C. Benchmark persistence
+- record forecast creates one DB row
+- duplicate record is idempotent
+- outcome updates the correct row
+- actual_return and actual_direction stored
+- accuracy report correct for known data
+- calibration error correct
+- instrument filtering
+- last_n
+- empty DB fail-safe
+- DB error fail-safe
+
+D. Migration
+- upgrade
+- downgrade
+- ORM/migration parity
+- composite uniqueness
+
+E. Concurrency
+- concurrent client initialisation creates one AsyncClient
+- concurrent forecast calls do not leak clients
+- bounded volatility buffer under concurrent updates, if supported
+
+All tests must use mocks.
+No live Kronos calls.
+
+Do not add meaningless tests merely to reach a count. Prioritize production-path verification.
+
+=========================================================
+12. REGRESSION PROTECTION
+=========================================================
+
+Run:
+
+1. RC-10B unit tests
+2. RC-10B integration tests
+3. RC-10A unit tests
+4. RC-10A ContextBuilder integration tests
+5. full unit suite
+6. relevant strategy-routing integration tests
+7. compile validation
+8. import validation
+9. migration upgrade/downgrade validation
+
+Clearly separate:
+
+- new failures
+- pre-existing kill-switch failure
+- environment/fixture failures
+
+No pre-existing test may be removed, skipped, weakened, or rewritten merely to pass.
+
+=========================================================
+13. FORBIDDEN CHANGES
+=========================================================
+
+Do not:
+
+- modify RC-10A public contracts
+- mutate MultiTimeframeContext
+- allow Kronos to place or submit orders
+- bypass RiskIntegrationLayer
+- bypass Execution Engine
+- activate AI gating without strategy opt-in
+- train or fine-tune a model
+- implement RC-10C, RC-10D, or RC-10E
+- hide failures with broad test exclusions
+- replace existing production files wholesale with truncated versions
+
+=========================================================
+14. DELIVERABLE
+=========================================================
+
+Create:
+
+reviews/Batch10B_Final_Patch.md
+
+Include:
+
+1. Executive Summary
+2. Audit Blockers Addressed
+3. Runtime Data Flow
+4. Feature Schema Definition
+5. Files Created
+6. Files Modified
+7. Database and Migration Changes
+8. Benchmark Implementation
+9. Concurrency Fixes
+10. Tests Added
+11. Full Test Results
+12. Remaining Deferred Observations
+13. Freeze Readiness
+14. Overall Score /10
+
+=========================================================
+FINAL STATUS
+=========================================================
+
+End with exactly one:
+
+✅ RC-10B FINAL PATCH COMPLETE — READY FOR RE-AUDIT
+
+or
+
+❌ RC-10B FINAL PATCH INCOMPLETE — BLOCKERS REMAIN
