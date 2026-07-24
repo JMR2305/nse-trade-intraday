@@ -79,6 +79,21 @@ def record_manual_scan(snap: Dict[str, Any], duration_s: float = 0.0) -> None:
         pass
 
 
+def _maybe_run_eod_reconciliation() -> Any:
+    """Run EOD broker reconciliation once per day after market close.
+
+    Delegated to eod_reconciliation.run_eod_reconciliation() which has its
+    own per-day KV guard and EOD-window check. Never raises — failures are
+    captured and returned as a status dict.
+    """
+    try:
+        from eod_reconciliation import run_eod_reconciliation
+        result = run_eod_reconciliation(trigger="eod")
+        return result
+    except Exception as exc:
+        return {"success": False, "error": str(exc)[:300]}
+
+
 def _maybe_generate_session_report(mstate: str) -> Any:
     """After the market closes on a trading day, generate the daily
     validation report bundle (CSV/XLSX/PDF) exactly once per day.
@@ -156,6 +171,7 @@ def run_tick() -> Dict[str, Any]:
     mstate = str(mstat.get("state") or mstat.get("market_state") or "").upper()
     if mstate != "OPEN":
         report = _maybe_generate_session_report(mstate)
+        eod_recon = _maybe_run_eod_reconciliation() if mstate == "CLOSED" else None
         store.update_scheduler_state(
             last_attempt_at=now_iso, status="IDLE",
             detail=f"Market not open (state={mstate or 'UNKNOWN'})",
@@ -166,6 +182,8 @@ def run_tick() -> Dict[str, Any]:
                                "market": mstat}
         if report is not None:
             out["session_report"] = report
+        if eod_recon is not None:
+            out["eod_reconciliation"] = eod_recon
         return out
 
     from phase15_scan_context import scan_age_seconds

@@ -2112,6 +2112,19 @@ def main():
                 "live_order_placement_enabled": False,
                 "note": "Phase 19: Read-only live data integration. Paper trading remains default.",
             }
+
+        # ── EOD Reconciliation ─────────────────────────────────────────────
+        elif command == "reconcil_status":
+            from eod_reconciliation import get_reconciliation_status
+            result = get_reconciliation_status()
+        elif command == "reconcil_trigger":
+            from eod_reconciliation import run_eod_reconciliation
+            force = "--force" in args
+            result = run_eod_reconciliation(trigger="manual", force=force)
+        elif command == "reconcil_resolve" and len(args) > 1:
+            from eod_reconciliation import resolve_discrepancy
+            result = resolve_discrepancy(int(args[1]))
+
         else:
             error_msg = f"Unknown command: {command}"
 

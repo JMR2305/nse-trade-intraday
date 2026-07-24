@@ -34,6 +34,7 @@ import { API_BASE } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import DataFreshnessBar from "@/components/DataFreshnessBar";
 import { ExecutionModeCard, PaperAutomationControl } from "@/components/Phase22Panels";
+import ReconciliationWidget from "@/components/ReconciliationWidget";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -306,10 +307,13 @@ export default function BrokerExecution() {
   );
 
   if (error) return (
-    <div className="p-6 bg-red-950/30 border border-red-800 rounded-lg font-mono text-red-300 text-sm">
-      <div className="flex items-center gap-2 mb-2"><AlertTriangle className="h-4 w-4" />Error loading broker data</div>
-      <div>{error}</div>
-      <Button size="sm" variant="outline" className="mt-3" onClick={loadAll}>Retry</Button>
+    <div className="space-y-6 font-mono">
+      <div className="p-6 bg-red-950/30 border border-red-800 rounded-lg text-red-300 text-sm">
+        <div className="flex items-center gap-2 mb-2"><AlertTriangle className="h-4 w-4" />Error loading broker data</div>
+        <div>{error}</div>
+        <Button size="sm" variant="outline" className="mt-3" onClick={loadAll}>Retry</Button>
+      </div>
+      <ReconciliationWidget />
     </div>
   );
 
@@ -341,6 +345,9 @@ export default function BrokerExecution() {
       {/* ── Phase 22: execution modes + paper automation control ───────────── */}
       <ExecutionModeCard />
       <PaperAutomationControl />
+
+      {/* ── EOD Reconciliation widget ──────────────────────────────────────── */}
+      <ReconciliationWidget />
 
       {/* ── Section 1: Mode Selector ───────────────────────────────────────── */}
       <Card className="border-zinc-800 bg-zinc-900/60">

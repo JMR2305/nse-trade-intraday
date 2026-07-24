@@ -14,6 +14,7 @@ import phase22Router from "./phase22";
 import kiteRouter from "./kite";
 import notificationsRouter from "./notifications";
 import downloadRouter from "./download";
+import reconciliationRouter from "./reconciliation";
 
 const router: IRouter = Router();
 
@@ -30,6 +31,7 @@ router.use(phase21Router);
 router.use(phase22Router);
 router.use(kiteRouter);
 router.use(notificationsRouter);
+router.use(reconciliationRouter);
 router.use(tradingRouter);
 router.use(downloadRouter);
 
