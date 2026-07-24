@@ -1,0 +1,433 @@
+You are performing an INDEPENDENT production audit of RC-10B:
+AI Forecast Layer.
+
+Do not assume the implementation is correct because its tests pass.
+
+RC-10A is frozen and read-only.
+
+=========================================================
+REFERENCE DOCUMENTS
+=========================================================
+
+Read completely:
+
+1. docs/RC10_Reference.md
+2. docs/RC10_Master_Implementation_Plan.md
+3. reviews/RC10B_Merge_Summary.md
+
+Inspect the actual repository implementation and Git diff.
+
+The master implementation plan is the source of truth for RC-10B
+requirements, unless a documented frozen contract requires a safe
+compatibility adjustment.
+
+=========================================================
+OBJECTIVE
+=========================================================
+
+Determine whether RC-10B is production-ready and can be frozen as the
+official baseline for RC-10C and RC-10D.
+
+This is an audit and targeted defect-fix task.
+
+Do not add new features.
+Do not implement RC-10C, RC-10D, or RC-10E.
+
+=========================================================
+FROZEN CONTRACT PROTECTION
+=========================================================
+
+Verify that RC-10B has not broken or replaced any frozen contract from:
+
+- RC-6 Market Data
+- RC-7 Execution
+- RC-8 Risk
+- RC-9 Strategy
+- RC-10A Market Intelligence
+
+Check especially:
+
+- ContextBuilder.build()
+- ContextBuilder.build_context()
+- ContextBuilder._inject_market_intelligence()
+- typed MultiTimeframeContext injection
+- SignalRouter constructor and routing behaviour
+- Signal and StrategyContext contracts
+- database ORM models and migration chain
+
+No AI component may:
+
+- generate orders
+- submit orders
+- call the broker
+- bypass RC-8 Risk
+- bypass RC-7 Execution
+- mutate MultiTimeframeContext
+- block trading when Kronos is unavailable
+
+=========================================================
+REQUIREMENT COVERAGE
+=========================================================
+
+Audit every RC-10B functional and non-functional requirement.
+
+For each requirement classify it as:
+
+✓ Fully Implemented
+⚠ Partially Implemented
+✗ Missing
+↪ Intentionally Deferred
+
+Provide exact file and method references.
+
+Pay special attention to:
+
+- fixed feature schema and feature count
+- deterministic FeatureGenerator output
+- Kronos timeout and retry behaviour
+- malformed-response handling
+- confidence validation in [0, 1]
+- direction validation
+- fail-open behaviour
+- confidence threshold suppression
+- forecast metadata attachment before routing
+- volatility forecast correctness
+- benchmark idempotency
+- outcome recording
+- accuracy and calibration calculations
+- model_version logging
+- migration upgrade and downgrade
+
+=========================================================
+ARCHITECTURE AUDIT
+=========================================================
+
+Review:
+
+- AI forecast package boundaries
+- dependency direction
+- optional dependency injection
+- circular imports
+- duplicate logic
+- hidden coupling
+- mutable shared state
+- async task lifecycle
+- use of fire-and-forget tasks
+- exception propagation
+- cancellation and cleanup
+- compatibility with frozen RC-10A interfaces
+
+Clarify the actual forecast data flow.
+
+Confirm whether the implementation truly enriches or gates signals in the
+runtime path, rather than merely storing constructor dependencies.
+
+Flag any component that is implemented but not operationally wired.
+
+=========================================================
+SIGNAL ROUTING AUDIT
+=========================================================
+
+Verify precisely:
+
+1. How ForecastConfidenceGate is invoked.
+2. Where MultiTimeframeContext is obtained.
+3. Where FeatureGenerator is called.
+4. Whether successful ForecastResult is attached to:
+   Signal.metadata["forecast"]
+5. Whether low-confidence forecasts suppress signals only when configured.
+6. Whether missing configuration routes signals unchanged.
+7. Whether Kronos failure routes signals unchanged.
+8. Whether the gate runs before the routing callback.
+9. Whether metadata updates preserve frozen Signal semantics.
+
+Do not accept constructor injection alone as proof of runtime integration.
+
+=========================================================
+FEATURE SCHEMA AUDIT
+=========================================================
+
+The implementation plan describes approximately 25 fixed features, while
+the merge summary reports a 42-element FeatureVector.
+
+Investigate this difference carefully.
+
+Determine:
+
+- the exact feature ordering
+- the exact feature count
+- whether all inputs are available from MultiTimeframeContext
+- whether missing features use documented deterministic defaults
+- whether schema version 1.0 accurately identifies the implemented schema
+- whether the Kronos service contract expects the same schema
+- whether changing from the planned feature count was intentional and documented
+
+Treat undocumented schema drift as a release risk because it may invalidate
+model inference.
+
+=========================================================
+KRONOS ADAPTER AUDIT
+=========================================================
+
+Verify:
+
+- async HTTP client usage
+- client/resource cleanup
+- per-request timeout
+- retry count and exponential backoff
+- no retry explosion
+- safe URL handling
+- response status handling
+- malformed JSON handling
+- Pydantic validation
+- Decimal conversion correctness
+- no account, portfolio, order, or personal data sent externally
+- logs do not expose full payloads
+- model_version is present in success logs
+- all failures return None to callers
+
+No live Kronos calls may occur during tests.
+
+=========================================================
+CONFIDENCE GATE AUDIT
+=========================================================
+
+Verify the gate matches the master plan:
+
+- no configured threshold → pass without filtering
+- adapter unavailable → pass
+- confidence below threshold → suppress
+- confidence at or above threshold → pass
+- successful forecast attached to signal metadata
+
+Review any added behaviour not in the master plan, including:
+
+- default min_confidence of 0.55
+- enforce_direction_mandatory
+- blocking NEUTRAL forecasts
+
+Determine whether these defaults could suppress existing strategy signals
+without explicit opt-in.
+
+AI filtering must remain explicitly optional and fail-open.
+
+=========================================================
+VOLATILITY FORECAST AUDIT
+=========================================================
+
+Verify:
+
+- ATR algorithm correctness
+- predicted_atr is positive
+- predicted_range_pct is positive
+- confidence remains in [0, 1]
+- insufficient-data behaviour
+- empty-buffer fallback
+- 50-bar ring-buffer bounds
+- deterministic results
+- no division by zero
+- correct use of Decimal
+- no undocumented minimum that materially distorts NSE instruments
+
+Compare implementation against the RC-10B plan and document deviations such
+as STD fallback or a 1% floor.
+
+=========================================================
+BENCHMARK AUDIT
+=========================================================
+
+Verify:
+
+- database-backed persistence versus in-memory-only tracking
+- idempotency key required by the plan:
+  instrument_token + forecast_horizon + computed_at
+- record_forecast()
+- record_outcome()
+- matching the correct forecast row
+- actual_return and actual_direction persistence
+- directional accuracy
+- calibration error
+- sample count
+- optional instrument filtering
+- last_n ordering and limit
+- DB failure fail-safe behaviour
+- SessionContext transaction conventions
+
+Check whether the ORM model and migration match each other and the master
+plan.
+
+=========================================================
+DATABASE AND MIGRATION AUDIT
+=========================================================
+
+Review migration 0005 and the ForecastBenchmark ORM model.
+
+Verify:
+
+- revision chain 0004 → 0005
+- table name consistency
+- ORM/migration column consistency
+- unique constraints
+- indexes
+- NUMERIC precision
+- timezone-aware timestamps
+- upgrade succeeds
+- downgrade succeeds
+- no damage to existing models
+- no manual commits outside SessionContext
+
+Identify deviations between:
+
+- forecast_benchmark
+- forecast_benchmarks
+- benchmark_id-based idempotency
+- the composite key required by the plan
+
+=========================================================
+PERFORMANCE AND CONCURRENCY
+=========================================================
+
+Measure or validate:
+
+- FeatureGenerator.generate() < 1ms
+- VolatilityForecaster.forecast() < 5ms
+- forecast call timeout is enforced
+- no blocking I/O in the asyncio event loop
+- no unbounded task creation
+- no unbounded buffers
+- no leaked httpx clients
+- no race conditions in mutable benchmark or volatility state
+- prefetch tasks are cancelled or collected correctly
+
+Document actual measured values when practical.
+
+=========================================================
+CODE QUALITY
+=========================================================
+
+Check:
+
+- import conventions
+- public package exports
+- Pydantic v2 correctness
+- frozen model correctness
+- protected namespace warnings
+- datetime timezone handling
+- deprecated datetime.utcnow()
+- type hints
+- dead code
+- unused imports
+- duplicated code
+- unreachable paths
+- inconsistent naming
+- misleading comments
+- test-only logic in production code
+
+=========================================================
+SECURITY REVIEW
+=========================================================
+
+Verify:
+
+- Kronos URL comes only from settings
+- no hardcoded secrets
+- response size is bounded
+- request and response payload validation
+- HTTP timeout enforcement
+- safe logging
+- SSRF exposure from configurable URL is documented
+- no confidential account or order data is sent
+- malformed data cannot crash the routing path
+
+=========================================================
+TEST REVIEW
+=========================================================
+
+Run:
+
+1. RC-10B unit tests
+2. RC-10B integration tests
+3. RC-10A regression tests
+4. full unit suite
+5. relevant integration suite
+6. compile validation
+7. import validation
+8. migration upgrade/downgrade validation
+
+Verify:
+
+- no tests removed
+- no pre-existing tests weakened
+- no skipped or xfailed tests hiding defects
+- no tests making live HTTP calls
+- tests validate real runtime wiring, not only isolated modules
+- known pre-existing kill-switch failure remains unrelated
+
+Clearly distinguish:
+
+A. RC-10B introduced failures
+B. pre-existing failures
+C. environment or fixture failures
+
+=========================================================
+FIX POLICY
+=========================================================
+
+Fix only defects that belong to RC-10B.
+
+Do not introduce new features.
+
+After each correction, rerun affected tests and then the complete RC-10B
+suite.
+
+Do not modify frozen RC-10A code unless required to correct a genuine
+production-critical compatibility defect. Any such change must be separately
+documented and justified.
+
+=========================================================
+DELIVERABLE
+=========================================================
+
+Create:
+
+reviews/Batch10B_Replit_Audit.md
+
+Include:
+
+1. Executive Summary
+2. Requirement Coverage Table
+3. Runtime Wiring Review
+4. Feature Schema Review
+5. Architecture Review
+6. Kronos Adapter Review
+7. Confidence Gate Review
+8. Volatility Review
+9. Benchmark Review
+10. Database and Migration Review
+11. Performance and Concurrency Review
+12. Security Review
+13. Test Results
+14. Issues Found
+15. Issues Fixed
+16. Remaining Observations
+17. Merge/Freeze Recommendation
+18. Overall Score /10
+
+=========================================================
+FINAL VERDICT
+=========================================================
+
+End with exactly one:
+
+✅ APPROVED FOR FREEZE
+
+or
+
+⚠ APPROVED WITH MINOR OBSERVATIONS
+
+or
+
+❌ NOT READY FOR FREEZE
+
+If approved, confirm whether RC-10B is safe to tag as RC-10B-FINAL and use as
+the baseline for RC-10D.

@@ -15,7 +15,6 @@ class ForecastConfidenceGate(BaseModel, frozen=True):
     model_config = ConfigDict(frozen=True)
 
     min_confidence: Decimal = Decimal("0.55")
-    neutral_band: Decimal = Decimal("0.05")
     enforce_direction_mandatory: bool = True
 
     def apply(self, forecast: ForecastResult) -> Optional[ForecastResult]:

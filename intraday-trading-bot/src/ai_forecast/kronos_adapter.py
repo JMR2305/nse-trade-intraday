@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class ForecastResult(BaseModel, frozen=True):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, protected_namespaces=())
 
     instrument_token: str
     forecast_horizon: str
@@ -93,6 +93,9 @@ class KronosAdapter:
                 client = await self._get_client()
                 response = await client.post(url, json=payload)
                 response.raise_for_status()
+                raw = response.text
+                if len(raw) > 65_536:
+                    raise ValueError(f"Kronos response too large: {len(raw)} bytes")
                 data = response.json()
 
                 result = ForecastResult(
@@ -119,7 +122,8 @@ class KronosAdapter:
             except Exception as e:
                 last_error = e
                 if attempt < self._max_retries:
-                    await asyncio.sleep(0.1 * (attempt + 1))
+                    # Exponential back-off: 0.1s, 0.2s, 0.4s, …
+                    await asyncio.sleep(0.1 * (2 ** attempt))
                 continue
 
         # All retries exhausted

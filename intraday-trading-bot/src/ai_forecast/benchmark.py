@@ -55,12 +55,21 @@ class ForecastBenchmark:
         forecast_direction: str,
         confidence: Decimal,
         timestamp: str,
+        forecast_horizon: str = "15m",
     ) -> None:
-        """Record a forecast for later evaluation."""
-        self._pending[instrument_token] = {
+        """Record a forecast for later evaluation.
+
+        Keyed by (instrument_token, forecast_horizon, timestamp) so that
+        multiple horizons or re-runs for the same instrument do not
+        overwrite each other (10B-F07 idempotency requirement).
+        """
+        key = f"{instrument_token}:{forecast_horizon}:{timestamp}"
+        self._pending[key] = {
+            "instrument_token": instrument_token,
             "direction": forecast_direction,
             "confidence": str(confidence),
             "timestamp": timestamp,
+            "forecast_horizon": forecast_horizon,
         }
         logger.debug(
             "Forecast recorded for benchmark",
@@ -76,9 +85,26 @@ class ForecastBenchmark:
         instrument_token: str,
         actual_direction: str,
         timestamp: str,
+        forecast_horizon: str = "15m",
+        forecast_timestamp: Optional[str] = None,
     ) -> None:
-        """Evaluate a pending forecast against actual outcome."""
-        pending = self._pending.pop(instrument_token, None)
+        """Evaluate a pending forecast against actual outcome.
+
+        Matches by composite key (instrument_token, forecast_horizon,
+        forecast_timestamp) when forecast_timestamp is supplied, otherwise
+        falls back to matching any pending forecast for the instrument+horizon.
+        """
+        if forecast_timestamp is not None:
+            key = f"{instrument_token}:{forecast_horizon}:{forecast_timestamp}"
+            pending = self._pending.pop(key, None)
+        else:
+            # Fallback: pop the first matching instrument+horizon key
+            match_prefix = f"{instrument_token}:{forecast_horizon}:"
+            key = next(
+                (k for k in list(self._pending) if k.startswith(match_prefix)), None
+            )
+            pending = self._pending.pop(key, None) if key else None
+
         if pending is None:
             return
 

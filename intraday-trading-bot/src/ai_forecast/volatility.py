@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Dict, List, Optional
 
@@ -90,7 +91,7 @@ class VolatilityForecaster:
             expected_range_pct=expected_range_pct.quantize(Decimal("0.0001")),
             confidence=confidence.quantize(Decimal("0.0001")),
             model_version="vol-1.0",
-            computed_at="",
+            computed_at=datetime.now(timezone.utc).isoformat(),
         )
 
     def update(self, bar: CompletedBar) -> None:
