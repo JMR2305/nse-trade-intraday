@@ -180,3 +180,14 @@ class ConflictResolution(BaseModel, frozen=True):
     conflict_reason: Optional[str] = None
     resolved_signal: Optional[Signal] = None
     rejected_signals: List[Signal] = Field(default_factory=list)
+
+
+# RC-10B: AI Forecast Metadata
+class AiForecastMetadata(BaseModel, frozen=True):
+    """Frozen AI forecast result attached to a signal or context snapshot."""
+
+    direction: str  # UP | DOWN | NEUTRAL
+    confidence: Decimal
+    model_version: str
+    forecast_horizon: str = "15m"
+    price_target: Optional[Decimal] = None

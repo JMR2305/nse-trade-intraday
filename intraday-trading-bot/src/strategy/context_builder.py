@@ -66,6 +66,10 @@ class ContextBuilder:
         regime_detector: Optional[Any] = None,
         announcement_service: Optional[Any] = None,
         watchlist_ranker: Optional[Any] = None,
+        # RC-10B: AI forecast services (all optional, fail-open)
+        ai_forecast_adapter: Optional[Any] = None,
+        confidence_gate: Optional[Any] = None,
+        volatility_forecaster: Optional[Any] = None,
     ) -> None:
         self._market_data = market_data_service
         self._risk_engine = risk_engine
@@ -74,6 +78,10 @@ class ContextBuilder:
         self._regime_detector = regime_detector
         self._announcement_service = announcement_service
         self._watchlist_ranker = watchlist_ranker
+        # RC-10B (stored; enrichment via SignalRouter at signal time)
+        self._ai_forecast_adapter = ai_forecast_adapter
+        self._confidence_gate = confidence_gate
+        self._volatility_forecaster = volatility_forecaster
 
     # ------------------------------------------------------------------
     # Private helper — shared intelligence injection logic

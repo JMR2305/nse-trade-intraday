@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import uuid
 from decimal import Decimal
-from typing import Optional, Dict, List, Callable, Set
+from typing import Any, Optional, Dict, List, Callable, Set
 from datetime import datetime, timedelta
 
 from strategy.contracts import (
@@ -47,8 +47,15 @@ class SignalRouter:
     def __init__(
         self,
         execution_callback: Optional[Callable[[str, ExecutionOrder], None]] = None,
+        *,
+        # RC-10B: optional AI forecast enrichment (all fail-open)
+        ai_forecast_adapter: Optional[Any] = None,
+        confidence_gate: Optional[Any] = None,
     ):
         self._execution_callback = execution_callback
+        # RC-10B: stored for future signal enrichment via feature context
+        self._ai_forecast_adapter = ai_forecast_adapter
+        self._confidence_gate = confidence_gate
         self._lock = asyncio.Lock()
         self._pending_orders: Dict[str, Signal] = {}  # client_order_id -> Signal
         self._strategy_signals: Dict[str, List[datetime]] = {}  # strategy_id -> timestamps

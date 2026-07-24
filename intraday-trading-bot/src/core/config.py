@@ -113,6 +113,20 @@ class PaperSettings(BaseSettings):
     slippage_model: str = Field(default="realistic", pattern=r"^(realistic|optimistic|pessimistic)$")
 
 
+class AiForecastSettings(BaseSettings):
+    """Settings for the RC-10B AI Forecast (Kronos) integration."""
+
+    model_config = SettingsConfigDict(env_prefix="AI_", extra="ignore")
+
+    enabled: bool = True
+    kronos_base_url: str = "http://localhost:8090"
+    kronos_timeout_ms: int = 2000
+    kronos_max_retries: int = 1
+    feature_schema_version: str = "1.0"
+    default_forecast_horizon: str = "15m"
+    benchmark_accuracy_alert_threshold: float = 0.52
+
+
 class Settings(BaseSettings):
     """Root settings loaded from environment variables."""
     model_config = SettingsConfigDict(
@@ -157,6 +171,7 @@ class Settings(BaseSettings):
     market_intelligence: MarketIntelligenceSettings = Field(
         default_factory=MarketIntelligenceSettings
     )
+    ai_forecast: AiForecastSettings = Field(default_factory=AiForecastSettings)
 
     @property
     def is_paper_mode(self) -> bool:
