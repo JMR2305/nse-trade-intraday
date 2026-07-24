@@ -1,0 +1,983 @@
+# RC-10D — BROKER LAYER IMPLEMENTATION PROMPT
+
+## Objective
+
+Implement RC-10D: Broker Integration Layer for the NSE Intraday Trading Platform.
+
+This phase must connect the existing trading platform to Zerodha Kite while preserving all frozen architecture and safety controls.
+
+DO NOT implement RC-10C Portfolio Management in this batch.
+
+DO NOT rewrite RC-7 Execution Engine.
+
+The Broker Layer must operate underneath RC-7 and must never allow broker APIs to bypass:
+
+- RC-8 Risk Engine
+- RC-7 Execution Engine
+- Existing kill switch
+- Existing idempotency controls
+- Existing execution state machine
+- Existing audit and recovery mechanisms
+
+The required production flow is:
+
+Strategy
+→ SignalRouter
+→ RC-8 Risk Engine
+→ RC-7 Execution Engine
+→ RC-10D Broker Abstraction
+→ Zerodha Kite API
+
+Broker updates must flow back through:
+
+Zerodha WebSocket / REST
+→ RC-10D Broker Layer
+→ RC-7 Order State and Recovery
+→ Persistence and Audit Logs
+
+RC-10B AI Forecast remains advisory-only and must not be modified except for essential compatibility fixes.
+
+------------------------------------------------------------
+0. PRE-IMPLEMENTATION SAFETY CHECK
+------------------------------------------------------------
+
+Before implementation:
+
+1. Confirm the current RC-10B branch status.
+2. Confirm that the remaining 2 failures and 22 DB fixture errors are pre-existing and unrelated to RC-10B.
+3. Record the evidence in:
+
+docs/RC10B_Freeze_Verification.md
+
+4. Do not modify RC-10B behavior while implementing RC-10D.
+
+------------------------------------------------------------
+1. BROKER ABSTRACTION
+------------------------------------------------------------
+
+Create a broker-independent abstraction so the platform is not permanently coupled to Zerodha.
+
+Suggested structure:
+
+src/broker/
+    __init__.py
+    contracts.py
+    exceptions.py
+    base.py
+    factory.py
+    zerodha/
+        __init__.py
+        config.py
+        authentication.py
+        client.py
+        mapper.py
+        order_gateway.py
+        market_gateway.py
+        account_gateway.py
+        websocket.py
+        rate_limiter.py
+        reconnect.py
+        health.py
+
+Define a BrokerAdapter protocol or abstract base class.
+
+Required broker capabilities:
+
+- authenticate
+- restore session
+- validate session
+- place order
+- modify order
+- cancel order
+- retrieve order
+- retrieve order book
+- retrieve trades
+- retrieve positions
+- retrieve holdings
+- retrieve margins
+- retrieve funds
+- retrieve instruments
+- subscribe to order updates
+- reconnect
+- close resources
+- perform health check
+
+The rest of the platform must interact with the abstraction and not directly with the Zerodha SDK.
+
+------------------------------------------------------------
+2. BROKER CONTRACTS
+------------------------------------------------------------
+
+Create frozen, broker-neutral domain contracts.
+
+Required contracts should include, where appropriate:
+
+BrokerOrderRequest
+BrokerOrderResponse
+BrokerOrderStatus
+BrokerTrade
+BrokerPosition
+BrokerHolding
+BrokerMargins
+BrokerFunds
+BrokerInstrument
+BrokerOrderUpdate
+BrokerSession
+BrokerHealth
+BrokerError
+BrokerCapabilities
+
+All monetary and quantity-sensitive values must use Decimal where appropriate.
+
+Use timezone-aware timestamps.
+
+Do not expose raw Zerodha response dictionaries beyond the Zerodha adapter.
+
+------------------------------------------------------------
+3. ZERODHA CONFIGURATION
+------------------------------------------------------------
+
+Implement a validated immutable configuration model.
+
+Suggested model:
+
+ZerodhaBrokerConfig
+
+Include:
+
+- api_key
+- api_secret
+- redirect_url
+- request_token
+- access_token
+- user_id
+- environment
+- timeout_seconds
+- maximum_retries
+- retry_backoff_seconds
+- rate_limit configuration
+- WebSocket reconnect limits
+- paper_trading flag
+- enabled flag
+
+Requirements:
+
+- credentials must never appear in logs
+- provide masked and log-safe representations
+- reject incomplete production configuration
+- paper mode must be enabled by default
+- live trading must require an explicit configuration switch
+- configuration must be environment-variable compatible
+
+Update .env.example without adding real credentials.
+
+------------------------------------------------------------
+4. AUTHENTICATION AND SESSION MANAGEMENT
+------------------------------------------------------------
+
+Implement Zerodha authentication and session management.
+
+Support:
+
+- login URL generation
+- request-token exchange
+- access-token validation
+- session restoration
+- token expiry detection
+- explicit session invalidation
+- safe startup without an active session
+- startup health status
+- credentials masking
+
+Do not automate or bypass Zerodha's required interactive authentication process.
+
+Persist only the minimum session information necessary.
+
+Sensitive tokens must be encrypted at rest where the project already supports encryption. Otherwise, clearly isolate token storage behind a repository contract and document the security limitation.
+
+The application must fail closed for broker submission when authentication is invalid.
+
+Normal strategy processing may continue in observe-only mode, but no broker order may be submitted.
+
+------------------------------------------------------------
+5. ORDER GATEWAY
+------------------------------------------------------------
+
+Implement broker order operations through the abstraction.
+
+Required operations:
+
+- place order
+- modify order
+- cancel order
+- fetch single order
+- fetch order book
+- fetch trade book
+
+Support NSE-compatible order attributes:
+
+- exchange
+- trading symbol
+- instrument token
+- transaction type
+- quantity
+- order type
+- product
+- validity
+- price
+- trigger price
+- disclosed quantity
+- tag
+- variety
+
+Support only the order types and products explicitly approved by the existing execution contracts.
+
+Do not silently translate unsupported values.
+
+Reject invalid combinations before calling Zerodha.
+
+------------------------------------------------------------
+6. RC-7 EXECUTION ENGINE INTEGRATION
+------------------------------------------------------------
+
+Integrate RC-10D below the existing RC-7 Execution Engine.
+
+RC-7 must remain the owner of:
+
+- execution intent
+- order lifecycle
+- order state transitions
+- duplicate prevention
+- recovery decisions
+- audit trail
+- kill-switch enforcement
+
+RC-10D must only:
+
+- translate approved RC-7 commands into broker requests
+- submit them to Zerodha
+- normalize broker responses
+- send updates back to RC-7
+
+Do not allow any strategy, UI, scheduler, AI module, or broker callback to call the Zerodha adapter directly.
+
+Add an application wiring or dependency-injection layer that binds:
+
+Execution Engine
+→ BrokerAdapter
+→ ZerodhaBrokerAdapter
+
+------------------------------------------------------------
+7. IDEMPOTENT ORDER SUBMISSION
+------------------------------------------------------------
+
+Order placement must be idempotent.
+
+Before broker submission:
+
+- require an internal execution order ID
+- create a deterministic idempotency key
+- persist the pending submission
+- check whether the same internal order was already submitted
+- prevent accidental duplicate orders after timeout or restart
+
+If the broker response is uncertain:
+
+- do not immediately resubmit
+- reconcile using order book, tag, exchange order ID, timestamp, symbol, quantity, price, and side
+- classify the result as confirmed, rejected, unresolved, or duplicate
+
+Never assume a timeout means the broker did not receive the order.
+
+------------------------------------------------------------
+8. ORDER STATE MAPPING
+------------------------------------------------------------
+
+Create an explicit mapping between Zerodha statuses and the RC-7 domain state machine.
+
+Handle at least:
+
+- pending
+- validation pending
+- open
+- trigger pending
+- partially filled
+- complete
+- cancelled
+- rejected
+- modification pending
+- cancellation pending
+- unknown or unsupported status
+
+Requirements:
+
+- unknown statuses must not crash processing
+- unknown statuses must be persisted and alerted
+- illegal state transitions must be rejected and audited
+- repeated updates must be idempotent
+- out-of-order updates must be handled safely
+
+------------------------------------------------------------
+9. WEBSOCKET ORDER UPDATES
+------------------------------------------------------------
+
+Implement the Zerodha order-update WebSocket integration.
+
+Requirements:
+
+- subscribe to broker order updates
+- normalize incoming events
+- deduplicate repeated updates
+- preserve broker event timestamps
+- detect stale or out-of-order updates
+- forward updates into RC-7
+- reconnect after disconnects
+- restore subscriptions
+- perform reconciliation after reconnect
+- record health status
+
+WebSocket callbacks must never directly mutate execution state without passing through the established RC-7 update and persistence path.
+
+------------------------------------------------------------
+10. REST RECONCILIATION
+------------------------------------------------------------
+
+Implement reconciliation between:
+
+- local execution orders
+- broker order book
+- broker trade book
+- local fills
+- local positions
+- broker positions
+
+Run reconciliation:
+
+- at startup
+- after WebSocket reconnect
+- after uncertain submission
+- after failed cancellation or modification
+- periodically during market hours
+- at end of trading session
+
+Produce a structured reconciliation report.
+
+Classify discrepancies as:
+
+- local-only order
+- broker-only order
+- state mismatch
+- fill mismatch
+- quantity mismatch
+- price mismatch
+- missing exchange order ID
+- duplicate order
+- unresolved broker event
+
+No destructive correction should occur without an explicit reconciliation policy.
+
+------------------------------------------------------------
+11. ACCOUNT, FUNDS, MARGINS, POSITIONS AND HOLDINGS
+------------------------------------------------------------
+
+Implement read-only broker account operations:
+
+- available funds
+- used margin
+- available margin
+- intraday exposure
+- positions
+- holdings
+
+Normalize broker data into broker-neutral contracts.
+
+These APIs must initially remain informational.
+
+Do not implement portfolio allocation or portfolio optimization in RC-10D.
+
+RC-10C will consume these contracts later.
+
+------------------------------------------------------------
+12. INSTRUMENT SYNCHRONIZATION
+------------------------------------------------------------
+
+Implement Zerodha instrument master synchronization.
+
+Requirements:
+
+- download instrument master
+- validate file integrity
+- parse safely
+- normalize instruments
+- support NSE and NFO where existing project scope permits
+- persist instrument metadata
+- perform upserts
+- detect expired instruments
+- detect symbol-token changes
+- timestamp each sync
+- retain audit information
+
+Do not overwrite valid production data with an empty or corrupt instrument file.
+
+Instrument sync must be atomic or rollback-safe.
+
+------------------------------------------------------------
+13. RATE LIMITING
+------------------------------------------------------------
+
+Implement broker-aware rate limiting.
+
+Requirements:
+
+- separate limits where required for order APIs, quote APIs, account APIs, and historical APIs
+- use monotonic time
+- support concurrent callers safely
+- queue or reject requests predictably
+- provide metrics for throttled requests
+- never retry indefinitely
+
+Order cancellation and emergency-risk operations should receive controlled priority without violating broker limits.
+
+------------------------------------------------------------
+14. RETRY POLICY
+------------------------------------------------------------
+
+Implement bounded retries only for retry-safe operations.
+
+Safe candidates may include:
+
+- GET requests
+- session validation
+- funds and margin retrieval
+- order-book retrieval
+- reconciliation queries
+
+Order placement must not be blindly retried.
+
+For uncertain order placement:
+
+- enter reconciliation flow
+- search broker state
+- determine whether the order exists
+- only resubmit when conclusively safe
+
+Use:
+
+- exponential backoff
+- jitter
+- retry classification
+- maximum attempts
+- structured logging
+
+------------------------------------------------------------
+15. ERROR TAXONOMY
+------------------------------------------------------------
+
+Define broker-specific domain exceptions.
+
+Include:
+
+- BrokerAuthenticationError
+- BrokerSessionExpiredError
+- BrokerRateLimitError
+- BrokerTimeoutError
+- BrokerConnectionError
+- BrokerValidationError
+- BrokerOrderRejectedError
+- BrokerOrderNotFoundError
+- BrokerDuplicateOrderError
+- BrokerReconciliationError
+- BrokerUnavailableError
+- BrokerProtocolError
+- BrokerUnknownStatusError
+
+Raw third-party exceptions must not leak into the execution domain.
+
+Map Zerodha errors into these domain exceptions.
+
+------------------------------------------------------------
+16. PAPER TRADING MODE
+------------------------------------------------------------
+
+Paper trading must remain the default mode.
+
+In paper mode:
+
+- do not send live orders to Zerodha
+- allow authentication, market reads, instruments, margins, positions, and account information where appropriate
+- simulate order submission through the existing paper execution path
+- clearly label every response as paper or live
+- prevent accidental mode mixing
+
+Live order submission must require all of the following:
+
+- explicit configuration
+- valid authenticated session
+- application-level live-trading enablement
+- RC-8 approval
+- RC-7 approved command
+- kill switch not active
+- trading session valid
+- broker health acceptable
+
+No single boolean should be sufficient to enable live trading accidentally.
+
+------------------------------------------------------------
+17. KILL SWITCH AND EMERGENCY CONTROLS
+------------------------------------------------------------
+
+Integrate the existing kill switch.
+
+When active:
+
+- block all new order placements
+- allow controlled cancellation of open orders
+- allow reconciliation
+- allow read-only broker queries
+- produce a critical audit event
+
+Do not add a second competing kill-switch implementation.
+
+Use the existing project authority.
+
+------------------------------------------------------------
+18. HEALTH AND READINESS
+------------------------------------------------------------
+
+Implement BrokerHealth and readiness checks.
+
+Track:
+
+- authenticated status
+- session validity
+- REST connectivity
+- WebSocket connectivity
+- last successful request
+- last broker event
+- reconnect count
+- rate-limit state
+- unresolved orders
+- reconciliation status
+- paper/live mode
+
+The broker layer must expose:
+
+- liveness
+- readiness
+- degraded state
+- failure reason
+
+The trading runtime must not submit new broker orders when broker readiness is false.
+
+------------------------------------------------------------
+19. OBSERVABILITY
+------------------------------------------------------------
+
+Add structured logging and metrics.
+
+Log fields should include:
+
+- internal order ID
+- broker order ID
+- exchange order ID
+- instrument
+- side
+- quantity
+- order state
+- operation
+- attempt number
+- latency
+- reconciliation result
+- paper/live mode
+
+Never log:
+
+- API secret
+- access token
+- request token
+- full authentication payload
+
+Suggested metrics:
+
+- broker_requests_total
+- broker_request_latency
+- broker_errors_total
+- broker_rate_limit_events
+- broker_reconnects_total
+- orders_submitted_total
+- orders_rejected_total
+- uncertain_submissions_total
+- reconciliation_mismatches
+- unresolved_orders
+- WebSocket connection status
+
+------------------------------------------------------------
+20. RESOURCE LIFECYCLE
+------------------------------------------------------------
+
+Manage all resources explicitly.
+
+Implement:
+
+- startup
+- shutdown
+- context-manager support where appropriate
+- HTTP client closure
+- WebSocket closure
+- reconnect-task cancellation
+- background-task cancellation
+- repository/session cleanup
+
+No untracked fire-and-forget tasks should remain.
+
+Background tasks must have:
+
+- ownership
+- exception handling
+- cancellation behavior
+- shutdown timeout
+
+------------------------------------------------------------
+21. DATABASE AND PERSISTENCE
+------------------------------------------------------------
+
+Reuse existing RC-7 persistence models and repositories where possible.
+
+Add new schema only where necessary.
+
+Potential new persisted entities:
+
+- broker session metadata
+- broker order correlation
+- broker event inbox
+- reconciliation run
+- reconciliation discrepancy
+- broker health event
+- instrument sync run
+
+Requirements:
+
+- migration and ORM parity tests
+- idempotent inserts
+- unique constraints
+- transaction boundaries
+- session guards
+- timezone-aware timestamps
+- indexes for production queries
+
+Do not duplicate existing order, trade, fill, audit, or position entities unless clearly justified.
+
+------------------------------------------------------------
+22. SECURITY
+------------------------------------------------------------
+
+Security requirements:
+
+- no hard-coded credentials
+- no credentials in logs
+- no credentials committed to Git
+- masked exception messages
+- explicit secret loading
+- least-privilege token handling
+- safe .env.example
+- redact broker responses before persistence where needed
+- reject insecure defaults in live mode
+
+Add tests verifying secret redaction.
+
+------------------------------------------------------------
+23. TESTING REQUIREMENTS
+------------------------------------------------------------
+
+Add comprehensive unit and integration tests.
+
+Required test groups:
+
+A. Broker contracts
+- frozen models
+- Decimal handling
+- timezone validation
+- serialization
+
+B. Zerodha mapping
+- request mapping
+- response normalization
+- status mapping
+- unsupported values
+- unknown status handling
+
+C. Authentication
+- valid session
+- expired session
+- invalid credentials
+- safe logs
+- session restoration
+
+D. Order operations
+- place
+- modify
+- cancel
+- rejected order
+- timeout
+- uncertain response
+- duplicate prevention
+
+E. Idempotency
+- repeated submission
+- restart recovery
+- broker timeout reconciliation
+- duplicate broker update
+
+F. WebSocket
+- valid updates
+- duplicate updates
+- out-of-order updates
+- disconnect
+- reconnect
+- post-reconnect reconciliation
+
+G. Reconciliation
+- exact match
+- local-only order
+- broker-only order
+- status mismatch
+- fill mismatch
+- unresolved submission
+
+H. Rate limiting
+- concurrent requests
+- limit enforcement
+- priority behavior
+- monotonic clock behavior
+
+I. Retry policy
+- retry-safe GET
+- non-retryable validation error
+- no blind order resubmission
+
+J. Paper/live safety
+- paper mode default
+- no live broker submission in paper mode
+- incomplete live enablement rejected
+- kill switch blocks new orders
+
+K. RC-7 integration
+- RC-7 invokes broker abstraction
+- broker callbacks return through RC-7
+- no direct strategy-to-broker path
+- no RC-8 bypass
+- illegal state transition rejected
+
+L. Resource lifecycle
+- clean shutdown
+- task cancellation
+- client closure
+- reconnect task cleanup
+
+M. Regression
+- all RC-6 through RC-10B tests remain unchanged and passing
+
+Use Zerodha mocks/fakes in automated tests.
+
+Do not place real broker orders during testing.
+
+------------------------------------------------------------
+24. REQUIRED INTEGRATION TESTS
+------------------------------------------------------------
+
+At minimum, add end-to-end integration tests for:
+
+1. Approved paper order flow
+
+Strategy signal
+→ RC-8 approval
+→ RC-7 execution
+→ paper BrokerAdapter
+→ order acknowledgement
+→ order state update
+→ fill
+→ persistence
+
+2. Risk-rejected signal
+
+Strategy signal
+→ RC-8 rejection
+→ broker adapter never called
+
+3. Kill-switch flow
+
+Kill switch active
+→ new order blocked
+→ cancellation allowed
+
+4. Live-mode safety
+
+Live requested but one required safeguard missing
+→ submission rejected
+
+5. Broker timeout
+
+Order placement timeout
+→ no blind retry
+→ reconciliation initiated
+→ duplicate order prevented
+
+6. WebSocket disconnect
+
+Disconnect
+→ reconnect
+→ REST reconciliation
+→ state restored
+
+7. Restart recovery
+
+Pending local order exists
+→ application restarts
+→ broker order located
+→ state reconciled
+→ no duplicate submission
+
+------------------------------------------------------------
+25. NON-GOALS
+------------------------------------------------------------
+
+Do NOT implement in RC-10D:
+
+- portfolio allocation
+- portfolio optimization
+- sector exposure management
+- portfolio performance attribution
+- options strategy engine
+- autonomous AI order placement
+- multi-broker failover
+- live trading activation for production
+- historical backtesting redesign
+- UI dashboard redesign
+- RC-10C outcome scheduler unless required only for compatibility
+
+------------------------------------------------------------
+26. DELIVERABLES
+------------------------------------------------------------
+
+Provide:
+
+1. Updated source code.
+2. Database migrations, if required.
+3. Unit tests.
+4. Integration tests.
+5. Full regression results.
+6. Broker architecture document.
+7. Zerodha authentication runbook.
+8. Paper-to-live activation checklist.
+9. Broker recovery and reconciliation runbook.
+10. Security review.
+11. RC-10D production audit report.
+12. RC-10D freeze-readiness report.
+
+Required documentation files:
+
+docs/RC10B_Freeze_Verification.md
+docs/RC10D_Broker_Architecture.md
+docs/RC10D_Zerodha_Authentication.md
+docs/RC10D_Reconciliation_Runbook.md
+docs/RC10D_Paper_to_Live_Checklist.md
+docs/RC10D_Security_Review.md
+docs/RC10D_Production_Audit.md
+docs/RC10D_Freeze_Readiness.md
+
+------------------------------------------------------------
+27. PRODUCTION AUDIT CHECKLIST
+------------------------------------------------------------
+
+The final audit must answer:
+
+1. Can any component call Zerodha without passing RC-8 and RC-7?
+2. Can any timeout cause an accidental duplicate order?
+3. Are broker updates idempotent?
+4. Are out-of-order updates safe?
+5. Can the system recover after restart?
+6. Can the system reconcile after WebSocket disconnect?
+7. Are unknown broker states handled safely?
+8. Are credentials fully redacted?
+9. Is paper mode the default?
+10. Can live trading be enabled accidentally?
+11. Does the kill switch block all new orders?
+12. Can emergency cancellation still operate?
+13. Are rate limits enforced safely?
+14. Are all clients and background tasks closed cleanly?
+15. Are ORM and migrations aligned?
+16. Are all RC-6 through RC-10B regressions green?
+17. Are there any Critical or High unresolved findings?
+
+------------------------------------------------------------
+28. ACCEPTANCE CRITERIA
+------------------------------------------------------------
+
+RC-10D may be approved for freeze only when:
+
+✓ Broker abstraction is complete
+
+✓ Zerodha adapter is implemented
+
+✓ RC-7 owns all broker execution commands
+
+✓ RC-8 remains mandatory
+
+✓ No strategy-to-broker bypass exists
+
+✓ Paper mode is the default
+
+✓ Live mode requires multiple explicit safety gates
+
+✓ Authentication and session expiry are handled safely
+
+✓ Order submission is idempotent
+
+✓ Broker timeouts cannot create duplicate orders
+
+✓ WebSocket updates are deduplicated
+
+✓ Reconnect and reconciliation are implemented
+
+✓ Restart recovery is verified
+
+✓ Kill-switch integration is verified
+
+✓ Rate limiting and bounded retries are implemented
+
+✓ Credentials are never logged
+
+✓ All resources shut down cleanly
+
+✓ All new tests pass
+
+✓ All RC-6 through RC-10B regression tests pass
+
+✓ Independent audit reports ZERO Critical findings
+
+✓ Any High findings are resolved before freeze
+
+------------------------------------------------------------
+FINAL INSTRUCTION
+------------------------------------------------------------
+
+Implement RC-10D as a production-grade broker integration layer.
+
+Do not bypass or weaken the existing execution, risk, persistence, audit, recovery, idempotency, or kill-switch architecture.
+
+Do not enable production live trading during this batch.
+
+Complete and validate paper-mode integration first.
+
+At completion, return:
+
+- exact files created
+- exact files modified
+- migrations added
+- test commands executed
+- exact pass/fail/error counts
+- unresolved risks
+- deferred items
+- architecture explanation
+- production readiness score
+- final verdict: READY FOR AUDIT or NOT READY
