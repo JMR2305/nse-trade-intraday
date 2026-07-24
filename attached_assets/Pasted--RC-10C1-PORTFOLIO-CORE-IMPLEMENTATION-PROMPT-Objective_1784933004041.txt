@@ -1,0 +1,963 @@
+# RC-10C1 — PORTFOLIO CORE IMPLEMENTATION PROMPT
+
+## Objective
+
+Implement RC-10C1: Portfolio Core for the NSE Intraday Trading Platform.
+
+This phase must introduce production-grade portfolio state, capital allocation, position sizing, exposure control, P&L accounting, persistence, and reconciliation.
+
+Do not implement UI dashboards or advanced analytics in this batch.
+
+Do not enable live trading.
+
+Maintain full backward compatibility with:
+
+- RC-6 Market Data
+- RC-7 Execution Engine
+- RC-8 Risk Engine
+- RC-9 Strategy Engine
+- RC-10A Market Intelligence
+- RC-10B AI Forecast
+- RC-10D Broker Layer
+
+Frozen invariants:
+
+- RC-8 remains the final risk authority.
+- RC-7 remains the execution authority.
+- RC-10D remains the only broker integration layer.
+- No portfolio component may call Zerodha directly.
+- No portfolio component may place, modify, or cancel orders directly.
+- RC-10B remains advisory-only.
+- Paper trading remains the default.
+- Live trading remains structurally disabled.
+
+Required flow:
+
+Strategy
+→ SignalRouter
+→ Portfolio Pre-Check
+→ RC-8 Risk Engine
+→ RC-7 Execution Engine
+→ RC-10D Broker Layer
+
+Feedback flow:
+
+RC-10D Broker State
+→ Portfolio Reconciliation
+→ Portfolio State
+→ Exposure / P&L / Buying Power
+→ Strategy and Risk Context
+
+------------------------------------------------------------
+0. PRE-IMPLEMENTATION VERIFICATION
+------------------------------------------------------------
+
+Before implementation:
+
+1. Confirm RC-10D freeze status.
+2. Confirm RC-7, RC-8, RC-10B and RC-10D public contracts.
+3. Record interfaces that RC-10C will consume.
+4. Do not modify frozen interfaces unless required for a critical compatibility fix.
+5. Document any compatibility fix separately.
+
+Create:
+
+docs/RC10C1_Preimplementation_Verification.md
+
+------------------------------------------------------------
+1. MODULE STRUCTURE
+------------------------------------------------------------
+
+Suggested structure:
+
+src/portfolio/
+    __init__.py
+    config.py
+    contracts.py
+    exceptions.py
+    state.py
+    ledger.py
+    position_manager.py
+    capital_allocator.py
+    position_sizer.py
+    exposure.py
+    pnl.py
+    limits.py
+    reconciliation.py
+    service.py
+    health.py
+    repositories/
+        __init__.py
+        portfolio_snapshot.py
+        portfolio_event.py
+        capital_allocation.py
+        exposure_snapshot.py
+        reconciliation.py
+
+Use broker-neutral and strategy-neutral domain models.
+
+Do not import Zerodha SDK classes into this module.
+
+------------------------------------------------------------
+2. PORTFOLIO CONTRACTS
+------------------------------------------------------------
+
+Create frozen, validated domain contracts.
+
+Include, where appropriate:
+
+- PortfolioId
+- PortfolioState
+- PortfolioSnapshot
+- PortfolioPosition
+- PositionSide
+- PositionStatus
+- CashBalance
+- MarginState
+- BuyingPower
+- CapitalAllocation
+- AllocationDecision
+- PositionSizeRequest
+- PositionSizeDecision
+- ExposureSnapshot
+- SectorExposure
+- InstrumentExposure
+- StrategyExposure
+- PortfolioPnL
+- PositionPnL
+- PortfolioLimits
+- PortfolioHealth
+- PortfolioEvent
+- PortfolioReconciliationReport
+- PortfolioDiscrepancy
+
+Requirements:
+
+- Use Decimal for money, prices, quantities where fractional values are possible, ratios, and percentages.
+- Use timezone-aware timestamps.
+- Reject NaN and infinite values.
+- Models must be immutable unless mutation is explicitly required.
+- Clearly distinguish broker-reported values from internally computed values.
+- Include source and as-of timestamp where relevant.
+
+------------------------------------------------------------
+3. PORTFOLIO CONFIGURATION
+------------------------------------------------------------
+
+Implement immutable validated configuration.
+
+Suggested model:
+
+PortfolioConfig
+
+Include:
+
+- enabled
+- base_currency
+- initial_capital
+- cash_reserve_percentage
+- maximum_portfolio_exposure
+- maximum_single-instrument exposure
+- maximum_sector exposure
+- maximum-strategy exposure
+- maximum-open positions
+- maximum-daily loss
+- maximum-drawdown
+- default-risk-per-trade
+- minimum-order value
+- maximum-order value
+- stale-state threshold
+- reconciliation interval
+- snapshot interval
+- paper mode requirement
+
+Requirements:
+
+- Safe defaults.
+- Environment-variable compatibility.
+- Explicit validation of percentage ranges.
+- No live-mode activation logic.
+- Reject inconsistent limits.
+
+------------------------------------------------------------
+4. PORTFOLIO STATE
+------------------------------------------------------------
+
+Implement a single authoritative portfolio state service.
+
+It must track:
+
+- available cash
+- blocked cash
+- used margin
+- available margin
+- buying power
+- open positions
+- closed positions
+- pending orders
+- realised P&L
+- unrealised P&L
+- fees and charges
+- gross exposure
+- net exposure
+- long exposure
+- short exposure
+- sector exposure
+- strategy exposure
+- instrument exposure
+- daily P&L
+- peak equity
+- current drawdown
+- state timestamp
+- source freshness
+
+Requirements:
+
+- Deterministic updates.
+- Idempotent event handling.
+- Recovery from persisted state.
+- No direct broker calls.
+- Updates must enter through defined commands or events.
+- Reject illegal or inconsistent state transitions.
+- Support paper and broker-reconciled states without mixing them accidentally.
+
+------------------------------------------------------------
+5. PORTFOLIO EVENT LEDGER
+------------------------------------------------------------
+
+Implement an append-only portfolio event ledger.
+
+Events should include:
+
+- portfolio_initialized
+- capital_deposited
+- capital_withdrawn
+- order_reserved
+- order_reservation_released
+- fill_received
+- position_opened
+- position_increased
+- position_reduced
+- position_closed
+- fee_recorded
+- dividend_recorded if within current scope
+- margin_updated
+- broker_snapshot_received
+- reconciliation_completed
+- discrepancy_detected
+- limit_breached
+- portfolio_halted
+- portfolio_resumed
+- end_of_day_snapshot
+
+Requirements:
+
+- Unique event ID.
+- Idempotency key.
+- Timezone-aware timestamp.
+- Internal order ID and broker order ID when applicable.
+- Strategy ID.
+- Instrument token.
+- Correlation ID.
+- Event version.
+- Immutable payload.
+- Deterministic replay order.
+
+------------------------------------------------------------
+6. POSITION MANAGEMENT
+------------------------------------------------------------
+
+Implement position lifecycle management.
+
+Support:
+
+- open
+- increase
+- partial reduce
+- full close
+- side reversal only through explicit close-and-open logic
+- average price updates
+- realised P&L on reductions
+- unrealised P&L from latest accepted price
+- fees and charges
+- quantity reconciliation
+- stale price handling
+
+Requirements:
+
+- Handle partial fills.
+- Handle repeated fill events idempotently.
+- Handle out-of-order fill events safely.
+- Do not infer fills from order status alone.
+- Preserve lot-level information if required for correct accounting.
+- Prevent negative quantities unless short positions are explicitly supported by existing contracts.
+
+------------------------------------------------------------
+7. CAPITAL ALLOCATION
+------------------------------------------------------------
+
+Implement portfolio-level capital allocation.
+
+Inputs may include:
+
+- available cash
+- available margin
+- current exposure
+- existing strategy allocations
+- instrument exposure
+- sector exposure
+- strategy priority
+- signal confidence
+- volatility
+- liquidity
+- portfolio drawdown
+- configured reserve
+
+Output:
+
+AllocationDecision
+
+Include:
+
+- requested capital
+- approved capital
+- rejected capital
+- reason codes
+- binding limit
+- portfolio state version
+- expires_at
+- decision timestamp
+
+Requirements:
+
+- Deterministic.
+- No order placement.
+- No broker calls.
+- RC-8 still has final authority.
+- Allocation approval does not guarantee trade approval.
+- Stale decisions must be rejected.
+- Reserve capital must never be allocated.
+
+------------------------------------------------------------
+8. POSITION SIZING
+------------------------------------------------------------
+
+Implement position sizing as a portfolio advisory service.
+
+Inputs:
+
+- entry price
+- stop price
+- available capital
+- risk-per-trade
+- volatility
+- lot size
+- tick size
+- instrument limits
+- portfolio exposure
+- sector exposure
+- strategy exposure
+- minimum and maximum order value
+
+Output:
+
+PositionSizeDecision
+
+Include:
+
+- raw quantity
+- approved quantity
+- estimated order value
+- estimated risk
+- percentage of portfolio
+- applied constraints
+- rejection reason
+- decision timestamp
+- state version
+
+Requirements:
+
+- Use Decimal arithmetic.
+- Round according to lot size and exchange rules.
+- Never round upward beyond an exposure or risk limit.
+- Quantity zero must result in rejection.
+- Position sizing cannot override RC-8.
+- AI confidence may inform sizing only as an advisory input and must be configurable.
+
+------------------------------------------------------------
+9. EXPOSURE ENGINE
+------------------------------------------------------------
+
+Implement portfolio exposure calculations.
+
+Track:
+
+- gross exposure
+- net exposure
+- long exposure
+- short exposure
+- instrument exposure
+- sector exposure
+- strategy exposure
+- correlated exposure where existing metadata permits
+- pending-order exposure
+- reserved capital exposure
+
+Requirements:
+
+- Include pending orders where they can increase risk.
+- Avoid double counting partially filled orders.
+- Use latest accepted prices.
+- Flag stale market values.
+- Produce both absolute values and portfolio percentages.
+- Support a consistent treatment of futures and leveraged products if they are in scope.
+
+------------------------------------------------------------
+10. PORTFOLIO LIMITS
+------------------------------------------------------------
+
+Implement portfolio-level limits.
+
+At minimum:
+
+- maximum gross exposure
+- maximum net exposure
+- maximum instrument exposure
+- maximum sector exposure
+- maximum strategy exposure
+- maximum open positions
+- maximum pending orders
+- maximum daily loss
+- maximum drawdown
+- minimum cash reserve
+- maximum capital allocated per strategy
+
+Return structured decisions with:
+
+- allowed
+- reason
+- current value
+- proposed value
+- configured limit
+- severity
+- state version
+
+Requirements:
+
+- Portfolio limits are additional safeguards.
+- They must not weaken or replace RC-8 rules.
+- Limit breaches must be auditable.
+- Critical limit breaches may request the existing kill switch but must not implement a competing kill switch.
+
+------------------------------------------------------------
+11. P&L ACCOUNTING
+------------------------------------------------------------
+
+Implement deterministic P&L accounting.
+
+Calculate:
+
+- realised P&L
+- unrealised P&L
+- gross P&L
+- net P&L
+- brokerage
+- taxes
+- fees
+- daily P&L
+- strategy P&L
+- instrument P&L
+- position P&L
+- portfolio equity
+- peak equity
+- drawdown
+
+Requirements:
+
+- Separate estimated charges from confirmed charges.
+- Mark estimated values clearly.
+- Recalculate when confirmed broker charges arrive.
+- Preserve audit history for adjustments.
+- Use timezone-aware trading dates for India.
+- Define end-of-day rollover behavior.
+
+------------------------------------------------------------
+12. BROKER-STATE RECONCILIATION
+------------------------------------------------------------
+
+Consume RC-10D broker-neutral contracts.
+
+Compare:
+
+- local positions
+- broker positions
+- local fills
+- broker trades
+- local pending orders
+- broker order book
+- local cash and margin
+- broker funds and margins
+
+Classify discrepancies:
+
+- local-only position
+- broker-only position
+- quantity mismatch
+- average-price mismatch
+- realised-P&L mismatch
+- margin mismatch
+- cash mismatch
+- missing fill
+- duplicate fill
+- stale broker snapshot
+- stale local state
+- unknown instrument
+- unresolved order
+
+Requirements:
+
+- No direct Zerodha access.
+- No blind destructive correction.
+- Use explicit reconciliation policy.
+- Persist reports and discrepancies.
+- Support dry-run reconciliation.
+- Require audit trail for any applied correction.
+- Critical discrepancies must mark portfolio readiness as degraded or unavailable.
+
+------------------------------------------------------------
+13. PERSISTENCE
+------------------------------------------------------------
+
+Add or reuse database entities for:
+
+- portfolio snapshots
+- portfolio events
+- capital allocation decisions
+- position size decisions if audit retention is required
+- exposure snapshots
+- reconciliation runs
+- reconciliation discrepancies
+- portfolio health events
+
+Requirements:
+
+- Reuse existing position, fill, order, and audit entities where possible.
+- Do not duplicate RC-7 or RC-10D records.
+- Add migrations only where necessary.
+- ORM and migration parity tests are mandatory.
+- Unique constraints and idempotency keys.
+- Transaction-safe updates.
+- Session guards.
+- Timezone-aware timestamps.
+- Appropriate production indexes.
+
+------------------------------------------------------------
+14. SNAPSHOT AND RECOVERY
+------------------------------------------------------------
+
+Implement recovery using:
+
+- latest valid portfolio snapshot
+- replay of subsequent portfolio events
+- cross-check against RC-7 execution records
+- cross-check against RC-10D broker snapshot
+
+Requirements:
+
+- Deterministic replay.
+- Snapshot versioning.
+- Checksum or integrity validation.
+- Reject corrupt snapshots.
+- Idempotent replay.
+- Startup readiness remains false until recovery and reconciliation complete.
+- No order approval from stale or unreconciled state.
+
+------------------------------------------------------------
+15. CONCURRENCY
+------------------------------------------------------------
+
+Review all shared state.
+
+Requirements:
+
+- Safe concurrent reads and writes.
+- Clear ownership of mutable state.
+- Avoid awaiting while holding long-lived locks.
+- Prevent duplicate event application.
+- Prevent stale allocation decisions from being committed.
+- Use optimistic version checks or equivalent.
+- Add concurrency tests.
+
+------------------------------------------------------------
+16. HEALTH AND READINESS
+------------------------------------------------------------
+
+Implement PortfolioHealth.
+
+Track:
+
+- initialized
+- recovered
+- reconciled
+- state freshness
+- broker-state freshness
+- market-price freshness
+- event processing health
+- unresolved discrepancies
+- critical limit breaches
+- last successful snapshot
+- last successful reconciliation
+- paper/live mode
+
+Expose:
+
+- liveness
+- readiness
+- degraded status
+- failure reason
+
+No new trade should be approved when portfolio readiness is false.
+
+------------------------------------------------------------
+17. OBSERVABILITY
+------------------------------------------------------------
+
+Add structured logs and metrics.
+
+Suggested metrics:
+
+- portfolio_equity
+- portfolio_cash
+- portfolio_buying_power
+- portfolio_gross_exposure
+- portfolio_net_exposure
+- portfolio_unrealised_pnl
+- portfolio_realised_pnl
+- portfolio_drawdown
+- open_positions
+- pending_orders
+- allocation_requests_total
+- allocation_rejections_total
+- limit_breaches_total
+- reconciliation_discrepancies
+- stale_portfolio_state
+- portfolio_recovery_duration
+
+Never log sensitive broker credentials or raw private account payloads.
+
+------------------------------------------------------------
+18. SERVICE INTEGRATION
+------------------------------------------------------------
+
+Create a PortfolioService or equivalent facade.
+
+It should expose:
+
+- get_state
+- get_snapshot
+- evaluate_allocation
+- calculate_position_size
+- evaluate_exposure
+- evaluate_limits
+- apply_order_reservation
+- release_order_reservation
+- apply_fill
+- update_market_price
+- reconcile
+- recover
+- create_snapshot
+- get_health
+
+Integrate it through dependency injection.
+
+No strategy, AI module, UI, or scheduler may mutate portfolio state directly.
+
+------------------------------------------------------------
+19. RC-8 INTEGRATION
+------------------------------------------------------------
+
+Integrate portfolio context into RC-8 without weakening existing checks.
+
+RC-8 may consume:
+
+- buying power
+- proposed exposure
+- current drawdown
+- daily P&L
+- open-position count
+- sector exposure
+- strategy exposure
+- portfolio readiness
+
+Requirements:
+
+- RC-8 remains final authority.
+- Portfolio approval is necessary but not sufficient.
+- Stale portfolio context must cause fail-closed behavior for new orders.
+- Existing RC-8 contracts should remain backward-compatible.
+
+------------------------------------------------------------
+20. TESTING REQUIREMENTS
+------------------------------------------------------------
+
+Add comprehensive tests.
+
+A. Contracts
+- frozen models
+- Decimal behavior
+- timezone validation
+- invalid percentages
+- serialization
+
+B. State
+- initialization
+- deterministic updates
+- idempotent events
+- illegal transitions
+- state versioning
+
+C. Positions
+- open
+- increase
+- partial close
+- full close
+- partial fills
+- duplicate fills
+- out-of-order fills
+- average price
+- realised and unrealised P&L
+
+D. Capital allocation
+- approved allocation
+- reserve enforcement
+- insufficient cash
+- margin constraint
+- stale decision
+- concurrent requests
+
+E. Position sizing
+- fixed risk
+- lot rounding
+- minimum order value
+- maximum order value
+- zero quantity
+- volatility adjustment
+- exposure constraint
+
+F. Exposure
+- gross and net
+- sector
+- strategy
+- pending-order exposure
+- partial fills
+- stale price
+
+G. Limits
+- every configured limit
+- exact boundary
+- breach severity
+- audit event
+- kill-switch request where applicable
+
+H. P&L
+- realised
+- unrealised
+- charges
+- daily rollover
+- drawdown
+- correction events
+
+I. Reconciliation
+- exact match
+- local-only
+- broker-only
+- quantity mismatch
+- price mismatch
+- missing fill
+- stale snapshot
+- dry run
+- applied correction with audit
+
+J. Recovery
+- snapshot restore
+- event replay
+- corrupt snapshot
+- duplicate replay
+- broker cross-check
+- readiness gating
+
+K. RC-8 integration
+- portfolio context passed
+- stale state rejected
+- insufficient buying power rejected
+- portfolio approval cannot bypass RC-8
+
+L. RC-10D integration
+- broker-neutral contracts only
+- no direct Zerodha import
+- broker reconciliation data consumed correctly
+
+M. Regression
+- all RC-6 through RC-10D tests remain unchanged and passing
+
+------------------------------------------------------------
+21. REQUIRED END-TO-END TESTS
+------------------------------------------------------------
+
+At minimum:
+
+1. Approved paper trade
+
+Strategy signal
+→ portfolio allocation
+→ position sizing
+→ RC-8 approval
+→ RC-7 execution
+→ RC-10D paper broker
+→ fill
+→ portfolio position update
+→ P&L update
+→ persistence
+
+2. Insufficient buying power
+
+Signal
+→ portfolio rejection
+→ RC-8 and broker not called
+
+3. Exposure breach
+
+Proposed order exceeds instrument or sector limit
+→ rejection
+→ audit event
+→ broker not called
+
+4. Partial fill
+
+Order partially filled
+→ position updated correctly
+→ reserved capital adjusted
+→ remaining pending exposure retained
+
+5. Duplicate fill
+
+Same fill received twice
+→ applied once
+
+6. Broker mismatch
+
+Broker position differs from local
+→ reconciliation discrepancy persisted
+→ portfolio readiness degraded
+→ new orders blocked
+
+7. Restart recovery
+
+Snapshot and events restored
+→ broker state reconciled
+→ no duplicate position or P&L event
+→ readiness restored
+
+8. Daily loss breach
+
+Daily loss exceeds configured limit
+→ new allocations blocked
+→ existing cancellation and reconciliation remain available
+
+------------------------------------------------------------
+22. NON-GOALS
+------------------------------------------------------------
+
+Do not implement:
+
+- UI dashboard
+- advanced performance attribution
+- portfolio optimizer
+- mean-variance optimization
+- AI-driven autonomous allocation
+- multi-account aggregation
+- multi-broker portfolio aggregation
+- live trading activation
+- options Greeks engine
+- tax reporting
+- final forecast outcome scheduler unless required for strict compatibility
+
+These belong to RC-10C2 or later.
+
+------------------------------------------------------------
+23. DOCUMENTATION
+------------------------------------------------------------
+
+Create:
+
+docs/RC10C1_Portfolio_Architecture.md
+docs/RC10C1_Position_Accounting.md
+docs/RC10C1_Capital_Allocation.md
+docs/RC10C1_Reconciliation_Runbook.md
+docs/RC10C1_Recovery_Runbook.md
+docs/RC10C1_Production_Audit.md
+docs/RC10C1_Freeze_Readiness.md
+
+------------------------------------------------------------
+24. ACCEPTANCE CRITERIA
+------------------------------------------------------------
+
+RC-10C1 is ready for audit only when:
+
+✓ One authoritative portfolio state exists
+
+✓ Portfolio events are idempotent and replayable
+
+✓ Position lifecycle supports partial fills and recovery
+
+✓ Capital reserve is protected
+
+✓ Position sizing uses Decimal arithmetic
+
+✓ Pending orders are included in exposure
+
+✓ Portfolio limits are enforced
+
+✓ P&L is deterministic and auditable
+
+✓ Broker-state reconciliation is implemented
+
+✓ No direct Zerodha dependency exists
+
+✓ RC-8 remains the final risk authority
+
+✓ RC-7 remains the execution authority
+
+✓ Stale or unreconciled portfolio state blocks new orders
+
+✓ Snapshot and replay recovery are verified
+
+✓ All new tests pass
+
+✓ All RC-6 through RC-10D regression tests pass
+
+✓ Independent audit reports zero Critical findings
+
+✓ All High findings are resolved before freeze
+
+------------------------------------------------------------
+25. FINAL DELIVERABLES
+------------------------------------------------------------
+
+Return:
+
+- exact files created
+- exact files modified
+- migrations added
+- architecture explanation
+- test commands executed
+- exact test pass/fail/error counts
+- regression comparison
+- unresolved risks
+- deferred items
+- production readiness score
+- final verdict: READY FOR AUDIT or NOT READY
+
+Do not freeze RC-10C1 automatically.
+
+Return the implementation and audit evidence for independent review first.
