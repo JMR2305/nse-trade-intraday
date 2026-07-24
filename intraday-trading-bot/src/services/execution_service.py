@@ -1,4 +1,4 @@
-"""Execution service — routes orders through RC-8B risk gate then to PaperBroker."""
+"""Execution service — routes orders through RC-8B risk gate then to the broker adapter."""
 
 from decimal import Decimal
 from datetime import datetime, timezone
@@ -8,7 +8,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.logging import logger
 from src.brokers.paper_broker import PaperBroker
-from src.brokers.interface import OrderRequest
+from src.brokers.interface import BrokerAdapter, OrderRequest
+from src.brokers.contracts import (
+    BrokerExchange,
+    BrokerOrderRequest,
+    BrokerOrderStatus,
+    BrokerOrderType,
+    BrokerProduct,
+    BrokerSide,
+    BrokerValidity,
+    BrokerVariety,
+)
 from src.services.order_service import OrderService
 from src.services.position_service import PositionService
 from src.database.repositories.orders import OrderRepository
@@ -23,18 +33,28 @@ class ExecutionService:
     """Execution service — the ONLY path for order execution.
 
     Every order passes through RiskIntegrationLayer (RC-8B) before reaching
-    PaperBroker. Risk gating is always enabled; call
+    the broker adapter. Risk gating is always enabled; call
     self._risk_integration.disable() in tests to bypass.
+
+    RC-10D: accepts an optional ``broker`` parameter.  When omitted,
+    ``PaperBroker()`` is constructed as the default — preserving full
+    backward compatibility with all existing call sites and tests.
     """
 
-    def __init__(self, db_session: AsyncSession) -> None:
+    def __init__(self, db_session: AsyncSession, broker=None) -> None:
         self._db = db_session
-        self._broker = PaperBroker()
+        self._broker = broker if broker is not None else PaperBroker()
         self._order_service = OrderService(db_session)
         self._position_service = PositionService(db_session)
         self._order_repo = OrderRepository(db_session)
         self._fill_repo = FillRepository(db_session)
         self._ledger_repo = LedgerRepository(db_session)
+
+        # RC-10D: wire DB session into BrokerAdapter for correlation persistence.
+        # This enables the order gateway to persist idempotency records to
+        # broker_order_correlations and recover them on restart.
+        if isinstance(self._broker, BrokerAdapter):
+            self._broker.set_db_session(db_session)
 
         # RC-8B: Risk Integration Layer — always enabled in production.
         # Pass limits via risk_integration.set_limits() or add_limit() after construction.
@@ -129,33 +149,87 @@ class ExecutionService:
             created_by=created_by,
         )
 
-        broker_order = OrderRequest(
-            symbol=symbol,
-            side=side,
-            quantity=quantity,
-            order_type=order_type,
-            price=price,
-            trigger_price=trigger_price,
-            stop_loss=stop_loss,
-            target=target,
-            tag=idempotency_key,
-        )
+        # ── Route to broker: adapter-aware dispatch ───────────────────────────
+        # If the injected broker implements BrokerAdapter (RC-10D), build a
+        # BrokerOrderRequest and call place_broker_order().  Otherwise fall back
+        # to the legacy OrderRequest path (PaperBroker compatibility).
+        response_status: str
+        response_broker_order_id: str
+        response_message: str = ""
+        response_filled_quantity: Decimal = Decimal("0")
+        response_average_price: Optional[Decimal] = None
+        costs: dict = {}
 
-        response = await self._broker.place_order(broker_order)
+        if isinstance(self._broker, BrokerAdapter):
+            _side = BrokerSide.BUY if side.upper() == "BUY" else BrokerSide.SELL
+            _order_type_map = {
+                "MARKET": BrokerOrderType.MARKET,
+                "LIMIT": BrokerOrderType.LIMIT,
+                "SL": BrokerOrderType.SL,
+                "SL-M": BrokerOrderType.SL_M,
+            }
+            broker_request = BrokerOrderRequest(
+                internal_order_id=str(db_order.id),
+                idempotency_key=idempotency_key or str(db_order.id),
+                trading_symbol=symbol,
+                transaction_type=_side,
+                quantity=Decimal(str(quantity)),
+                order_type=_order_type_map.get(order_type.upper(), BrokerOrderType.MARKET),
+                exchange=BrokerExchange.NSE,
+                product=BrokerProduct.MIS,
+                validity=BrokerValidity.DAY,
+                variety=BrokerVariety.REGULAR,
+                price=price,
+                trigger_price=trigger_price,
+                tag=idempotency_key,
+                paper_mode=not self._broker.get_capabilities().supports_live_orders,
+            )
+            broker_resp = await self._broker.place_broker_order(broker_request)
+            # Normalise BrokerOrderResponse → execution_service fields
+            response_status = broker_resp.status.value if hasattr(broker_resp.status, "value") else str(broker_resp.status)
+            response_broker_order_id = broker_resp.broker_order_id or ""
+            response_message = broker_resp.message or ""
+            response_filled_quantity = broker_resp.filled_quantity or Decimal("0")
+            response_average_price = broker_resp.average_price
+        else:
+            # Legacy path — PaperBroker and any BrokerInterface implementor
+            broker_order = OrderRequest(
+                symbol=symbol,
+                side=side,
+                quantity=quantity,
+                order_type=order_type,
+                price=price,
+                trigger_price=trigger_price,
+                stop_loss=stop_loss,
+                target=target,
+                tag=idempotency_key,
+            )
+            legacy_resp = await self._broker.place_order(broker_order)
+            response_status = legacy_resp.status
+            response_broker_order_id = legacy_resp.broker_order_id or ""
+            response_message = legacy_resp.message or ""
+            response_filled_quantity = Decimal(str(legacy_resp.filled_quantity or 0))
+            response_average_price = legacy_resp.average_price
+            # costs from legacy broker (PaperBroker.get_order_costs)
+            if response_status == "COMPLETE":
+                costs = (
+                    getattr(self._broker, "get_order_costs", lambda _: {})(response_broker_order_id)
+                    or {}
+                )
+
         await self._order_service.update_order_status(
             order_id=db_order.id,
-            status=response.status,
-            broker_order_id=response.broker_order_id,
-            message=response.message,
+            status=response_status,
+            broker_order_id=response_broker_order_id,
+            message=response_message,
         )
 
-        if response.status == "COMPLETE":
-            costs = self._broker.get_order_costs(response.broker_order_id) or {}
+        if response_status in ("COMPLETE", BrokerOrderStatus.COMPLETE.value):
             await self._fill_repo.create(
                 order_id=db_order.id,
-                fill_id=response.broker_order_id,
-                quantity=response.filled_quantity,
-                price=response.average_price or Decimal("0"),
+                fill_id=response_broker_order_id,
+                quantity=response_filled_quantity,
+                price=response_average_price or Decimal("0"),
                 brokerage=costs.get("brokerage", Decimal("0")),
                 stt=costs.get("stt", Decimal("0")),
                 exchange_charge=costs.get("exchange_charge", Decimal("0")),
@@ -168,10 +242,10 @@ class ExecutionService:
                 session_id=session_id,
                 instrument_token=instrument_token,
                 side=side,
-                quantity=response.filled_quantity,
-                price=response.average_price or Decimal("0"),
+                quantity=response_filled_quantity,
+                price=response_average_price or Decimal("0"),
             )
-            trade_value = response.filled_quantity * (response.average_price or Decimal("0"))
+            trade_value = response_filled_quantity * (response_average_price or Decimal("0"))
             current_balance = await self._ledger_repo.get_current_balance(session_id)
             total_cost = costs.get("total_cost", Decimal("0"))
             if side == "BUY":
@@ -193,29 +267,43 @@ class ExecutionService:
                 extra={
                     "event_type": "ORDER_EXECUTED",
                     "order_id": db_order.id,
-                    "fill_price": str(response.average_price),
+                    "fill_price": str(response_average_price),
                     "total_cost": str(total_cost),
                 },
             )
 
         return {
             "order_id": db_order.id,
-            "broker_order_id": response.broker_order_id,
-            "status": response.status,
-            "filled_quantity": response.filled_quantity,
-            "average_price": float(response.average_price) if response.average_price else None,
-            "message": response.message,
+            "broker_order_id": response_broker_order_id,
+            "status": response_status,
+            "filled_quantity": response_filled_quantity,
+            "average_price": float(response_average_price) if response_average_price else None,
+            "message": response_message,
             "idempotency_key": idempotency_key,
         }
 
     async def cancel_order(self, order_id: int) -> bool:
-        """Cancel a pending or open order."""
+        """Cancel a pending or open order.
+
+        Routes through BrokerAdapter.cancel_broker_order() when a
+        BrokerAdapter is injected; falls back to legacy cancel_order()
+        for PaperBroker and other BrokerInterface implementors.
+        """
         order = await self._order_repo.get_by_id(order_id)
-        if not order:
+        if not order or not order.order_id:
             return False
-        if order.order_id and order.order_id.startswith("PAPER_"):
-            result = await self._broker.cancel_order(order.order_id)
-            if result:
-                await self._order_service.update_order_status(order_id, "CANCELLED")
-            return result
-        return False
+
+        broker_order_id = order.order_id
+
+        if isinstance(self._broker, BrokerAdapter):
+            result = await self._broker.cancel_broker_order(
+                broker_order_id=broker_order_id,
+                internal_order_id=str(order_id),
+            )
+        else:
+            # Legacy path — PaperBroker and BrokerInterface implementors
+            result = await self._broker.cancel_order(broker_order_id)
+
+        if result:
+            await self._order_service.update_order_status(order_id, "CANCELLED")
+        return result
