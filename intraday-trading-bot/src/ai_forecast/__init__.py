@@ -6,10 +6,12 @@ from __future__ import annotations
 
 from ai_forecast.benchmark import (
     BenchmarkReport,
+    BucketSummary,
     ForecastBenchmarkRepository,
     InMemoryForecastBenchmark,
 )
-from ai_forecast.confidence_gate import ForecastConfidenceGate
+from ai_forecast.config import AIForecastConfig
+from ai_forecast.confidence_gate import ForecastConfidenceGate, GateDecision
 from ai_forecast.features import (
     FEATURE_COUNT,
     FEATURE_NAMES,
@@ -36,11 +38,15 @@ __all__ = [
     "FEATURE_COUNT",
     # Gate
     "ForecastConfidenceGate",
+    "GateDecision",
     # Volatility
     "VolatilityForecast",
     "VolatilityForecaster",
     # Benchmark
     "BenchmarkReport",
+    "BucketSummary",
     "ForecastBenchmarkRepository",
     "InMemoryForecastBenchmark",
+    # Configuration
+    "AIForecastConfig",
 ]

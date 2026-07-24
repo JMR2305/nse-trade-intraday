@@ -203,10 +203,16 @@ class TestRuntimeForecastWiring:
         assert "forecast" in emitted_signal.metadata
         fm = emitted_signal.metadata["forecast"]
         assert fm["direction"] == "UP"
-        assert fm["confidence"] == str(Decimal("0.80"))
+        # RC-10B: both raw_confidence and the backward-compat "confidence" key are populated
+        assert fm["raw_confidence"] == str(Decimal("0.80"))
+        assert fm["confidence"] == str(Decimal("0.80"))  # backward-compat alias
+        assert fm["calibrated_confidence"] == str(Decimal("0.80"))
         assert fm["model_version"] == "v2.0"
         assert fm["forecast_horizon"] == "15m"
         assert fm["feature_schema_version"] == FEATURE_SCHEMA_VERSION
+        assert fm["confidence_gate_result"] == "APPROVED"
+        assert fm["degraded"] is False
+        assert fm["rejection_reason"] is None
 
     @pytest.mark.asyncio
     async def test_original_signal_is_unchanged(self) -> None:

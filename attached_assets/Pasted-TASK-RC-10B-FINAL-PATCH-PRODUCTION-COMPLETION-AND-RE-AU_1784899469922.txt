@@ -1,0 +1,309 @@
+TASK: RC-10B FINAL PATCH — PRODUCTION COMPLETION AND RE-AUDIT
+
+Project: NSE Intraday Trading Platform
+Current release: RC-10B AI Forecast
+Objective: Complete the missing production integration identified in the independent Batch 10B audit.
+
+IMPORTANT ARCHITECTURE RULES
+
+1. AI forecasting is advisory only.
+2. Nothing may bypass:
+   - RC-8 Risk Engine
+   - RC-7 Execution Engine
+3. Preserve all frozen RC-6 through RC-10A APIs unless a production-critical compatibility fix is unavoidable.
+4. Do not implement RC-10C Portfolio Management or RC-10D Broker Layer in this task.
+5. Do not mark RC-10B as frozen until the complete runtime path is verified through integration tests.
+
+KNOWN AUDIT FINDINGS
+
+The independent audit found that the following components exist but are not connected to the production runtime:
+
+- KronosAdapter
+- FeatureGenerator
+- ForecastConfidenceGate
+- ForecastBenchmark
+
+Additional issues:
+
+- ForecastBenchmark is still primarily in-memory despite the database migration.
+- Feature schema differs from the planned schema.
+- Confidence gate API is inconsistent.
+- Benchmark API and persistence are incomplete.
+- ORM model and migration may diverge.
+- Async client initialization may have race conditions.
+- Benchmark state and volatility buffers need concurrency protection.
+- Runtime integration tests are missing.
+
+REQUIRED IMPLEMENTATION
+
+A. AUTHORITATIVE FEATURE SCHEMA
+
+1. Inspect the current FeatureGenerator implementation and all forecast consumers.
+2. Define one authoritative, versioned feature schema.
+3. Resolve the current mismatch between the planned feature count and the implemented feature count.
+4. Do not silently remove features merely to match an old number.
+5. Document:
+   - feature names
+   - order
+   - data types
+   - units
+   - lookback requirements
+   - missing-value behaviour
+   - schema version
+6. Validate model input against this schema before inference.
+7. Fail safely when required data is incomplete.
+
+B. FORECAST RUNTIME WIRING
+
+Implement and verify the complete production flow:
+
+StrategyRuntime
+→ ContextBuilder
+→ FeatureGenerator
+→ KronosAdapter
+→ ForecastConfidenceGate
+→ StrategyContext / signal metadata
+→ SignalRouter
+→ RC-8 Risk Engine
+→ RC-7 Execution Engine
+
+Requirements:
+
+1. Forecast generation must be invoked during the real strategy evaluation path.
+2. Forecast enrichment must be optional and fail-safe.
+3. AI service failure, timeout, invalid response, or low confidence must not crash the strategy runtime.
+4. AI output must never directly create or execute an order.
+5. Attach forecast information to structured metadata, including where available:
+   - forecast direction
+   - predicted return
+   - forecast horizon
+   - raw confidence
+   - calibrated confidence
+   - confidence-gate result
+   - rejection reason
+   - model/version identifier
+   - feature-schema version
+   - computed timestamp
+   - degraded/fallback status
+6. Preserve deterministic behaviour for tests.
+
+C. CONFIDENCE GATE API
+
+Create one canonical asynchronous API, preferably:
+
+async def should_route(...)
+
+The result should be structured and contain at minimum:
+
+- allowed: bool
+- raw_confidence
+- calibrated_confidence
+- threshold
+- reason
+- model_version
+- forecast_horizon
+
+Requirements:
+
+1. Remove or deprecate conflicting confidence-gate interfaces.
+2. Keep backward compatibility only where necessary.
+3. Do not treat low-confidence forecasts as trade rejections by RC-8.
+4. Low confidence should mean the AI enrichment is ignored or marked unusable, not that the underlying strategy is automatically blocked unless an explicitly configured strategy rule requires it.
+
+D. DATABASE-BACKED FORECAST BENCHMARK
+
+Replace the in-memory-only production benchmark path with persistent storage.
+
+Implement:
+
+1. ORM model aligned exactly with migration 0005.
+2. Repository/service layer for:
+   - recording forecasts
+   - recording realised outcomes
+   - updating benchmark records
+   - querying by instrument, horizon, model version and date range
+   - computing calibration and error statistics
+3. Composite uniqueness/idempotency protection.
+4. Safe Decimal and timestamp handling.
+5. Transaction boundaries and session guards.
+6. An in-memory repository may remain only as a test adapter.
+
+Store enough information to calculate:
+
+- directional accuracy
+- MAE
+- RMSE
+- confidence calibration
+- sample count
+- error by confidence bucket
+- error by volatility regime
+- error by market regime
+- model-version comparison
+
+E. FORECAST LIFECYCLE
+
+Implement a clear lifecycle:
+
+1. Generate forecast.
+2. Record forecast benchmark entry.
+3. Attach approved forecast metadata to strategy context.
+4. After the forecast horizon expires, record the realised outcome.
+5. Update calibration statistics.
+6. Ensure duplicate processing is idempotent.
+
+If full realised-outcome scheduling belongs to a future worker, implement the repository and service contract now and clearly document the pending scheduler boundary. Do not falsely mark it complete.
+
+F. CLIENT AND RESOURCE LIFECYCLE
+
+1. Make AsyncClient initialization concurrency-safe.
+2. Avoid creating one client per forecast request.
+3. Implement explicit startup, lazy initialization and shutdown behaviour.
+4. Add request timeout.
+5. Add exponential retry with strict limits.
+6. Apply response-size protection.
+7. Validate response content and schema.
+8. Ensure retries cannot cause duplicate benchmark records.
+
+G. CONCURRENCY SAFETY
+
+Protect mutable shared state in:
+
+- ForecastBenchmark
+- volatility calculations/buffers
+- lazy client initialization
+- calibration caches, if any
+
+Prefer:
+
+- immutable snapshots
+- locks where necessary
+- database atomicity
+- bounded collections
+- dependency-injected state
+
+Avoid module-level mutable production state.
+
+H. VOLATILITY CONTRACT
+
+1. Define the exact volatility input/output contract.
+2. Verify fallback behaviour.
+3. Handle insufficient bars safely.
+4. Prevent NaN, infinity, zero-division and invalid Decimal conversion.
+5. Document whether the output is:
+   - raw standard deviation
+   - annualised volatility
+   - percentage
+   - normalized score
+
+I. CONFIGURATION
+
+Add and validate configuration for:
+
+- AI forecast enabled/disabled
+- endpoint
+- timeout
+- retry limit
+- response-size limit
+- confidence threshold
+- forecast horizon
+- feature-schema version
+- model version
+- benchmark persistence enabled
+- fallback behaviour
+
+Requirements:
+
+1. Safe defaults.
+2. AI disabled must preserve pre-RC-10B behaviour.
+3. Secrets must not be logged.
+4. Invalid production configuration should fail clearly at startup where appropriate.
+
+J. TESTING
+
+Add or update tests covering:
+
+Unit tests:
+- authoritative feature schema
+- missing/invalid feature handling
+- confidence-gate decisions
+- model response validation
+- timeout/retry handling
+- response-size guard
+- volatility edge cases
+- benchmark calculations
+- benchmark idempotency
+- Decimal and timezone handling
+- concurrency-sensitive paths
+
+Integration tests:
+- StrategyRuntime actually invokes forecast enrichment
+- ContextBuilder receives forecast metadata
+- low-confidence forecast is excluded or flagged correctly
+- AI service failure falls back safely
+- SignalRouter receives structured forecast metadata
+- RC-8 still receives every executable candidate
+- RC-7 remains the only execution path
+- forecast benchmark is persisted to the database
+- duplicate runtime processing does not create duplicate benchmark records
+- AI-disabled mode preserves existing behaviour
+
+Migration tests:
+- clean migration from base to head
+- downgrade/upgrade where supported
+- ORM schema matches migration 0005
+- indexes and uniqueness constraints are verified
+
+Regression tests:
+- run all RC-6 through RC-10A tests
+- run all RC-10B tests
+- run the complete integration suite
+- no warnings should be hidden
+- no tests may be deleted, skipped or weakened merely to make the suite pass
+
+K. PRODUCTION RE-AUDIT
+
+After implementation, perform an independent audit and answer:
+
+1. Is KronosAdapter invoked in the real runtime?
+2. Is FeatureGenerator invoked in the real runtime?
+3. Is ForecastConfidenceGate invoked in the real runtime?
+4. Is forecast metadata visible in StrategyContext and SignalRouter?
+5. Is ForecastBenchmark database-backed in production?
+6. Are migrations and ORM definitions aligned?
+7. Is the async client lifecycle safe?
+8. Are mutable buffers concurrency-safe?
+9. Can AI failure ever block or crash normal strategy processing?
+10. Can AI output bypass RC-8 or RC-7?
+11. Are duplicate benchmark records prevented?
+12. Does AI-disabled mode behave exactly like the prior release?
+
+DELIVERABLES
+
+Provide:
+
+1. All implementation changes.
+2. Full test output.
+3. List of files created and modified.
+4. Migration verification.
+5. Architecture/data-flow explanation.
+6. Any deferred items with exact reasons.
+7. Final report named:
+
+Batch10B_Final_Patch.md
+
+The report must include:
+
+- executive summary
+- previous audit finding → implemented fix mapping
+- runtime wiring evidence
+- database persistence evidence
+- tests executed and exact counts
+- regression results
+- unresolved risks
+- production readiness score out of 10
+- verdict:
+  - APPROVED FOR FREEZE
+  - APPROVED WITH CONDITIONS
+  - NOT READY FOR FREEZE
+
+Do not return APPROVED FOR FREEZE unless the real runtime integration and database-backed benchmark have been demonstrated by tests.

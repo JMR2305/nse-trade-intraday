@@ -496,7 +496,8 @@ class StrategyRuntime:
                 prefetched_forecast = None
 
         try:
-            should_route, forecast = await self._ai_forecast_gate.should_route(
+            from ai_forecast.confidence_gate import GateDecision
+            decision: GateDecision = await self._ai_forecast_gate.should_route(
                 signal, context, min_confidence, prefetched_forecast=prefetched_forecast
             )
         except Exception as exc:
@@ -505,31 +506,61 @@ class StrategyRuntime:
             )
             return signal
 
-        if not should_route:
-            # Forecast gate suppressed signal
+        if not decision.allowed:
+            # Gate explicitly suppressed — signal is dropped
+            logger.info(
+                "Signal suppressed by gate: instrument=%s reason=%s "
+                "confidence=%s threshold=%s",
+                signal.instrument_token,
+                decision.reason,
+                str(decision.raw_confidence),
+                str(decision.threshold),
+            )
             return None
 
-        if forecast is not None:
-            # Enrich signal metadata (frozen Pydantic model — produce a copy)
+        # Enrich signal metadata with all RC-10B audit-required fields.
+        # This block runs for both APPROVED and FAIL_OPEN cases so that
+        # downstream consumers can always detect the degraded state.
+        forecast = decision.forecast  # ForecastResult | None
+        if forecast is not None or decision.degraded:
             forecast_meta: Dict[str, Any] = {
-                "direction": forecast.direction,
-                "confidence": str(forecast.confidence),
-                "model_version": forecast.model_version,
-                "forecast_horizon": forecast.forecast_horizon,
+                # ── RC-10B audit-required fields ──────────────────────────────
+                "direction": forecast.direction if forecast else None,
+                "predicted_return": (
+                    str(forecast.price_target) if forecast and forecast.price_target is not None else None
+                ),
+                "forecast_horizon": (
+                    decision.forecast_horizon
+                    or (forecast.forecast_horizon if forecast else None)
+                ),
+                "raw_confidence": (
+                    str(decision.raw_confidence) if decision.raw_confidence is not None else None
+                ),
+                "calibrated_confidence": (
+                    str(decision.calibrated_confidence)
+                    if decision.calibrated_confidence is not None else None
+                ),
+                "confidence_gate_result": decision.reason,
+                "rejection_reason": None,  # signal was approved (allowed=True)
+                "model_version": decision.model_version,
+                "feature_schema_version": FEATURE_SCHEMA_VERSION,
+                "computed_at": forecast.computed_at if forecast else None,
+                "degraded": decision.degraded,
+                # ── backward compatibility ────────────────────────────────────
+                "confidence": (
+                    str(decision.raw_confidence) if decision.raw_confidence is not None else None
+                ),
                 "price_target": (
                     str(forecast.price_target)
-                    if forecast.price_target is not None
-                    else None
+                    if forecast and forecast.price_target is not None else None
                 ),
-                "computed_at": forecast.computed_at,
-                "feature_schema_version": FEATURE_SCHEMA_VERSION,
             }
             signal = signal.model_copy(
                 update={"metadata": {**signal.metadata, "forecast": forecast_meta}}
             )
 
             # Record forecast for benchmarking (fire-and-forget, fail-safe)
-            if self._benchmark_repo is not None and self._engine is not None:
+            if forecast is not None and self._benchmark_repo is not None and self._engine is not None:
                 asyncio.create_task(self._record_forecast_safe(forecast))
 
         return signal

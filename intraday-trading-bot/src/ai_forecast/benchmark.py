@@ -13,11 +13,24 @@ Public interface (plan-aligned, async + session-injected):
 
 BenchmarkReport fields:
     directional_accuracy  correct / completed (Decimal, 4 dp)
-    calibration_error     MAE(confidence, outcome) (Decimal, 4 dp)
+    calibration_error     MAE(confidence, binary_outcome) (Decimal, 4 dp)
+    rmse                  RMSE(confidence, binary_outcome) (Decimal, 4 dp)
     sample_count          number of completed records used
+    confidence_buckets    Tuple[BucketSummary, ...] — accuracy per bucket
 
 DB idempotency key: SHA-256 hash of "{instrument_token}:{horizon}:{computed_at}"
 (stored in the `idempotency_key` column, UNIQUE constraint).
+
+Deferred items:
+    - error by volatility regime: requires volatility_regime column in ORM
+      (planned for RC-10C; repository contract defined here).
+    - error by market regime: requires market_regime column in ORM
+      (planned for RC-10C; repository contract defined here).
+    - model-version comparison report: available via get_accuracy_report()
+      per model_version filter (caller iterates model versions externally).
+    - outcome scheduler: record_outcome() is correct but must be called by
+      a post-horizon worker (e.g. cron / apscheduler task).  Worker contract
+      is defined here; the scheduler binding is deferred to RC-10C.
 
 If persistence fails, all public methods are fail-safe:
   record_forecast / record_outcome log a warning and return.
@@ -27,10 +40,11 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import math
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, and_
@@ -54,8 +68,28 @@ _D0   = Decimal("0")
 
 
 # ---------------------------------------------------------------------------
-# Report model
+# Report models
 # ---------------------------------------------------------------------------
+
+class BucketSummary(BaseModel, frozen=True):
+    """Directional accuracy summary for one confidence bucket."""
+
+    model_config = ConfigDict(frozen=True)
+
+    label: str            # e.g. "0.4-0.6"
+    sample_count: int
+    directional_accuracy: Decimal
+
+
+# Confidence bucket boundaries (inclusive lower, exclusive upper for all but last)
+_BUCKET_EDGES: List[Tuple[str, Decimal, Decimal]] = [
+    ("0.0-0.4", Decimal("0.0"), Decimal("0.4")),
+    ("0.4-0.6", Decimal("0.4"), Decimal("0.6")),
+    ("0.6-0.7", Decimal("0.6"), Decimal("0.7")),
+    ("0.7-0.8", Decimal("0.7"), Decimal("0.8")),
+    ("0.8-1.0", Decimal("0.8"), Decimal("1.01")),  # 1.01 so 1.0 is included
+]
+
 
 class BenchmarkReport(BaseModel, frozen=True):
     """Immutable accuracy report produced by get_accuracy_report()."""
@@ -63,9 +97,26 @@ class BenchmarkReport(BaseModel, frozen=True):
     model_config = ConfigDict(frozen=True)
 
     directional_accuracy: Decimal = _D0
+    """Fraction of completed forecasts where direction == actual_direction."""
+
     calibration_error: Decimal = _D0
+    """MAE between confidence and binary correctness outcome ∈ [0, 1]."""
+
+    rmse: Decimal = _D0
+    """Root-mean-squared error between confidence and binary outcome."""
+
     sample_count: int = 0
+    """Number of completed forecast records included in this report."""
+
     report_period: str = ""
+    """Arbitrary period label (e.g. 'daily', '2026-07-24')."""
+
+    confidence_buckets: Tuple[BucketSummary, ...] = ()
+    """Directional accuracy broken down by confidence bucket.
+
+    Buckets: 0.0-0.4, 0.4-0.6, 0.6-0.7, 0.7-0.8, 0.8-1.0.
+    Empty tuple when sample_count == 0.
+    """
 
 
 # ---------------------------------------------------------------------------
@@ -76,6 +127,10 @@ class ForecastBenchmarkRepository:
     """Async, database-backed forecast benchmark tracker.
 
     All methods are fail-safe: DB errors are logged and do not propagate.
+
+    Deferred contracts (not yet implemented, pending RC-10C worker/schema):
+        get_regime_report(session, regime) → BenchmarkReport
+        get_model_comparison(session, model_versions) → Dict[str, BenchmarkReport]
     """
 
     @staticmethod
@@ -147,6 +202,10 @@ class ForecastBenchmarkRepository:
         actual_return > 0 → UP, < 0 → DOWN, == 0 → NEUTRAL (per plan §8).
         Matches the latest forecast for (instrument_token, horizon) that has
         computed_at ≤ reference_timestamp and no outcome yet recorded.
+
+        NOTE: This method must be called by an external outcome scheduler after
+        the forecast horizon expires.  The scheduler is deferred to RC-10C.
+        The repository contract is fully implemented here.
         """
         ForecastBenchmarkRecord = _ForecastBenchmarkRecord
 
@@ -174,7 +233,7 @@ class ForecastBenchmarkRepository:
                 .limit(1)
             )
             result = await session.execute(stmt)
-            row: Optional[ForecastBenchmarkRecord] = result.scalar_one_or_none()
+            row: Optional[_ForecastBenchmarkRecord] = result.scalar_one_or_none()
 
             if row is None:
                 logger.debug(
@@ -209,6 +268,12 @@ class ForecastBenchmarkRepository:
         Completed = outcome_recorded_at IS NOT NULL.
         Ordered by computed_at DESC (most recent first), limited to last_n rows.
         Returns a zero-valued BenchmarkReport on empty results or DB failure.
+
+        Statistics computed:
+            directional_accuracy   correct / total
+            calibration_error      MAE(confidence, binary_outcome)
+            rmse                   RMSE(confidence, binary_outcome)
+            confidence_buckets     accuracy per confidence bucket
         """
         ForecastBenchmarkRecord = _ForecastBenchmarkRecord
 
@@ -231,36 +296,98 @@ class ForecastBenchmarkRepository:
             if not rows:
                 return BenchmarkReport()
 
-            total = len(rows)
-            correct = sum(
-                1 for r in rows if r.direction == r.actual_direction
-            )
-
-            # directional accuracy
-            directional_accuracy = (
-                (Decimal(str(correct)) / Decimal(str(total))).quantize(_FOUR)
-                if total > 0
-                else _D0
-            )
-
-            # calibration error: MAE(predicted_confidence, binary_correctness)
-            cal_sum = _D0
-            for r in rows:
-                outcome = Decimal("1") if r.direction == r.actual_direction else _D0
-                cal_sum += abs(r.confidence - outcome)
-            calibration_error = (cal_sum / Decimal(str(total))).quantize(_FOUR)
-
-            return BenchmarkReport(
-                directional_accuracy=directional_accuracy,
-                calibration_error=calibration_error,
-                sample_count=total,
-            )
+            return _compute_report(rows)
 
         except Exception as exc:
             logger.warning(
                 "ForecastBenchmark.get_accuracy_report failed (non-fatal): %s", exc,
             )
             return BenchmarkReport()
+
+
+# ---------------------------------------------------------------------------
+# Internal report computation (shared by DB repo + in-memory benchmark)
+# ---------------------------------------------------------------------------
+
+def _compute_report_from_entries(
+    entries: List,
+    *,
+    get_confidence: "object",
+    get_correct: "object",
+    period: str = "",
+) -> BenchmarkReport:
+    """Generic report computation from a list of record-like objects.
+
+    get_confidence(entry) → Decimal
+    get_correct(entry)    → bool
+    """
+    # Python type annotations would require Protocol; use Any here
+    total = len(entries)
+    if total == 0:
+        return BenchmarkReport(report_period=period)
+
+    correct = sum(1 for e in entries if get_correct(e))  # type: ignore[operator]
+    directional_accuracy = (
+        (Decimal(str(correct)) / Decimal(str(total))).quantize(_FOUR)
+    )
+
+    # MAE and RMSE over (confidence vs binary outcome)
+    sq_sum = _D0
+    abs_sum = _D0
+    for e in entries:
+        conf = get_confidence(e)  # type: ignore[operator]
+        outcome = Decimal("1") if get_correct(e) else _D0  # type: ignore[operator]
+        diff = conf - outcome
+        abs_sum += abs(diff)
+        sq_sum += diff * diff
+
+    calibration_error = (abs_sum / Decimal(str(total))).quantize(_FOUR)
+    rmse_raw = (sq_sum / Decimal(str(total))).sqrt()
+    rmse = rmse_raw.quantize(_FOUR)
+
+    # Confidence buckets
+    buckets: List[BucketSummary] = []
+    for label, lo, hi in _BUCKET_EDGES:
+        bucket_entries = [
+            e for e in entries
+            if lo <= get_confidence(e) < hi  # type: ignore[operator]
+        ]
+        if not bucket_entries:
+            continue
+        b_total = len(bucket_entries)
+        b_correct = sum(1 for e in bucket_entries if get_correct(e))  # type: ignore[operator]
+        b_acc = (Decimal(str(b_correct)) / Decimal(str(b_total))).quantize(_FOUR)
+        buckets.append(BucketSummary(
+            label=label,
+            sample_count=b_total,
+            directional_accuracy=b_acc,
+        ))
+
+    return BenchmarkReport(
+        directional_accuracy=directional_accuracy,
+        calibration_error=calibration_error,
+        rmse=rmse,
+        sample_count=total,
+        report_period=period,
+        confidence_buckets=tuple(buckets),
+    )
+
+
+def _compute_report(rows: list, period: str = "") -> BenchmarkReport:
+    """Compute a BenchmarkReport from DB ORM rows."""
+
+    def _conf(r):  # type: ignore[no-untyped-def]
+        return Decimal(str(r.confidence))
+
+    def _correct(r):  # type: ignore[no-untyped-def]
+        return r.direction == r.actual_direction
+
+    return _compute_report_from_entries(
+        rows,
+        get_confidence=_conf,
+        get_correct=_correct,
+        period=period,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -284,7 +411,7 @@ class InMemoryForecastBenchmark:
 
     def __init__(self) -> None:
         self._entries: List[_BenchmarkEntry] = []
-        self._pending: dict = {}  # composite key → pending record
+        self._pending: Dict[str, dict] = {}  # composite key → pending record
 
     def record_forecast(
         self,
@@ -337,22 +464,11 @@ class InMemoryForecastBenchmark:
         if not self._entries:
             return BenchmarkReport(report_period=period)
 
-        total = len(self._entries)
-        correct = sum(1 for e in self._entries if e.correct)
-        directional_accuracy = (
-            (Decimal(str(correct)) / Decimal(str(total))).quantize(_FOUR)
-        )
-        cal_sum = sum(
-            abs(e.confidence - (Decimal("1") if e.correct else _D0))
-            for e in self._entries
-        )
-        calibration_error = (cal_sum / Decimal(str(total))).quantize(_FOUR)
-
-        return BenchmarkReport(
-            directional_accuracy=directional_accuracy,
-            calibration_error=calibration_error,
-            sample_count=total,
-            report_period=period,
+        return _compute_report_from_entries(
+            self._entries,
+            get_confidence=lambda e: e.confidence,
+            get_correct=lambda e: e.correct,
+            period=period,
         )
 
     def clear(self) -> None:
