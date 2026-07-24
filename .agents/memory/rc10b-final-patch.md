@@ -3,6 +3,17 @@ name: RC-10B Final Patch decisions
 description: Canonical decisions, renames, and wiring patterns from the RC-10B AI Forecast Integration patch — required context for RC-10C/10D work.
 ---
 
+## StrategyContext.forecast_snapshot (spec section 2)
+`ForecastSnapshot` (frozen Pydantic, 6 spec fields: direction, confidence, forecast_horizon,
+expected_volatility [None, deferred RC-10C], model_version, forecast_timestamp) is added to
+`StrategyContext`. `_process_bar()` awaits the prefetch with a 300 ms shield timeout BEFORE
+calling `on_bar()`; if confidence ≥ threshold, `context.model_copy(forecast_snapshot=...)` is
+passed to the strategy. Any failure → `forecast_snapshot=None` → fail-open.
+`_apply_forecast_gate()` takes `prefetched_result` to avoid a second network call.
+
+**Why:** Spec section 2 requires forecast in StrategyContext before on_bar(), not just in
+signal metadata after. 16 injection tests in test_strategy_context_forecast_injection.py.
+
 ## 25-feature canonical schema
 `FeatureGenerator` (schema `"1.0"`) generates exactly 25 features. `FEATURE_COUNT = 25` asserted at module load.
 `LegacyFeatureGenerator` (schema `"legacy-42-v1"`) retained for backward compatibility — produces 42 features.
