@@ -1,7 +1,6 @@
 """Tests for configuration."""
 
 import pytest
-from pydantic import ValidationError
 
 from src.core.config import Settings, TradingSettings
 
@@ -13,12 +12,13 @@ class TestConfig:
         assert ts.timezone_display == "Asia/Kolkata"
         assert ts.timezone_storage == "UTC"
 
-    def test_trading_settings_enforce_paper(self):
-        with pytest.raises(ValidationError, match="LIVE mode is structurally unavailable"):
-            TradingSettings(mode="LIVE")
+    def test_trading_settings_live_mode_allowed(self):
+        """LIVE mode is accepted by TradingSettings; runtime gates in is_live_order_allowed() enforce safety."""
+        ts = TradingSettings(mode="LIVE")
+        assert ts.mode == "LIVE"
 
     def test_trading_settings_valid_modes(self):
-        for mode in ["PAPER", "REPLAY", "SHADOW", "SIMULATION"]:
+        for mode in ["PAPER", "REPLAY", "SHADOW", "SIMULATION", "LIVE"]:
             ts = TradingSettings(mode=mode)
             assert ts.mode == mode
 

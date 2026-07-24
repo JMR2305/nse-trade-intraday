@@ -73,3 +73,20 @@
 ## Findings
 
 No critical or high severity findings in RC-10D implementation. All credential handling follows the established patterns from RC-8 and RC-19A (see `phase19a-kite-oauth.md` memory entry).
+
+---
+
+## Sign-off
+
+| Review Item | Result |
+|-------------|--------|
+| Credential storage | ✅ PASS — API key/secret in Replit secrets; token never in DB |
+| Log safety | ✅ PASS — `log_safe()` used on all structured log calls; `_translate()` strips credential words |
+| Order submission security | ✅ PASS — 5-gate `is_live_order_allowed()` + kill switch first check |
+| Network security | ✅ PASS — All calls via official kiteconnect library over HTTPS/WSS |
+| Audit trail | ✅ PASS — Structured logs with no credentials; discrepancies persisted to DB |
+| Structural block removal | ✅ REVIEWED — `enforce_paper_mode()` validator removed; replaced by runtime gates |
+| No new attack surface | ✅ CONFIRMED — removing the startup validator does not expose a new path; `is_live_order_allowed()` provides equivalent protection at order-placement time |
+
+**Reviewed:** 2026-07-24
+**Verdict:** APPROVED — safe to proceed to operator-managed live session setup.

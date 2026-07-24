@@ -13,7 +13,9 @@ ZerodhaAdapter composes all sub-components:
   - BrokerRateLimiter       (rate limits)
 
 Paper mode (default): delegates to PaperBroker.  No Zerodha calls.
-Live mode: requires all safety gates (never active in RC-10D).
+Live mode: active when all 5 gates in is_live_order_allowed() pass.  The startup
+lifespan in main.py validates the session before accepting requests.  The order
+router (_create_broker) injects this adapter when live gates are satisfied.
 """
 from __future__ import annotations
 
@@ -138,6 +140,37 @@ class ZerodhaAdapter(BrokerAdapter):
         session = self._session_manager.exchange_request_token()
         await self._health_tracker.mark_authenticated()
         self._wire_live_client()
+        return session
+
+    async def initialize_live_session(self) -> BrokerSession:
+        """Restore the access token, probe Zerodha, and mark the adapter ready.
+
+        Call once at startup (in the FastAPI lifespan) before registering the
+        adapter for request handling.  After this call:
+          - kite HTTP client is wired into all gateways
+          - health tracker reports authenticated + session_valid + rest_reachable
+          - ``is_ready()`` returns True
+
+        Raises
+        ------
+        BrokerSessionExpiredError
+            If ZERODHA_ACCESS_TOKEN is missing or expired.
+        ConfigurationError
+            If the live probe (validate_session) returns False.
+        """
+        from src.core.exceptions import ConfigurationError
+
+        session = await self.restore_session()  # wires kite, marks authenticated
+        if not await self.validate_session():
+            raise ConfigurationError(
+                "LIVE mode: Zerodha session probe failed after restore — "
+                "access token may be expired. Re-run the OAuth flow."
+            )
+        await self._health_tracker.mark_rest_success()  # REST confirmed reachable
+        logger.info(
+            "LIVE mode: adapter initialised and session validated",
+            extra={"event_type": "LIVE_MODE_ADAPTER_READY", **self._config.log_safe()},
+        )
         return session
 
     async def restore_session(self) -> BrokerSession:

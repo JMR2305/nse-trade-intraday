@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from typing import List, Optional
-from pydantic import Field, field_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,13 +16,12 @@ class TradingSettings(BaseSettings):
     market_close: str = "15:30"
     market_post_close: str = "15:40"
 
-    @field_validator("mode")
-    @classmethod
-    def enforce_paper_mode(cls, v: str) -> str:
-        """Structurally enforce PAPER mode. LIVE is blocked at startup."""
-        if v == "LIVE":
-            raise ValueError("LIVE mode is structurally unavailable in this version. Use PAPER.")
-        return v
+    # NOTE: The structural LIVE block (enforce_paper_mode) was removed in the
+    # paper-to-live validation pass. LIVE mode is now gated entirely by the
+    # runtime checks in ZerodhaBrokerConfig.is_live_order_allowed() (all 5
+    # conditions must be satisfied simultaneously) and the kill switch in
+    # ZerodhaOrderGateway.place_order(). Setting mode=LIVE without satisfying
+    # those runtime gates routes every order to PaperBroker automatically.
 
 
 class BrokerSettings(BaseSettings):

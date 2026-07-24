@@ -11,7 +11,7 @@ Date: 2026-07-24
 **NO.** All structured log calls use `config.log_safe()` which emits only boolean flags. Exception messages are sanitised in `ZerodhaHttpClient._translate()`.
 
 ### 3. Is live order placement possible in this release?
-**NO.** Paper mode is structurally enforced via (a) `TradingSettings.enforce_paper_mode()` which raises on `LIVE`, and (b) `ZerodhaBrokerConfig.is_live_order_allowed()` requiring 5 explicit conditions.
+**YES — when all 5 runtime gates pass.** The startup-time `TradingSettings.enforce_paper_mode()` validator was removed in the paper-to-live validation pass. Live orders are now gated entirely by `ZerodhaBrokerConfig.is_live_order_allowed()` which requires 5 explicit conditions simultaneously (`enabled`, `not paper_trading`, `live_trading_enabled`, `api_key` present, `access_token` present). Any condition not met routes the order to `PaperBroker` automatically. All three enabling env vars (`ZERODHA_ENABLED`, `ZERODHA_PAPER_TRADING=false`, `ZERODHA_LIVE_TRADING_ENABLED`) are operator-set; they are not on by default.
 
 ### 4. Is the kill switch checked before every order?
 **YES.** `ZerodhaOrderGateway.place_order()` checks `kill_switch_manager.state.can_place_orders()` as the first operation, before any mode or idempotency logic.

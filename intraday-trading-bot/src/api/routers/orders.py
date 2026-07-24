@@ -10,7 +10,15 @@ from src.api.dependencies import get_db, get_current_user
 from src.services.execution_service import ExecutionService
 from src.services.order_service import OrderService
 from src.services.session_service import SessionService
-from src.core.exceptions import KillSwitchError, OrderValidationError, IdempotencyError, LiveModeBlockedError
+from src.core.exceptions import KillSwitchError, OrderValidationError, IdempotencyError
+from src.brokers.registry import get_broker, is_live_mode
+from src.brokers.exceptions import (
+    BrokerLiveModeError,
+    BrokerSessionExpiredError,
+    BrokerRateLimitError,
+    BrokerKillSwitchError,
+    BrokerError,
+)
 
 router = APIRouter(prefix="/trading", tags=["trading"])
 
@@ -21,12 +29,18 @@ async def place_order(symbol: str, side: str, quantity: int, order_type: str = "
                       stop_loss: Optional[float] = None, target: Optional[float] = None,
                       x_idempotency_key: str = Header(..., alias="X-Idempotency-Key"),
                       db: AsyncSession = Depends(get_db), user_id: str = Depends(get_current_user)) -> Dict[str, Any]:
-    """Place a paper order. Requires idempotency key. Live execution structurally unavailable."""
+    """Place an order.
+
+    Routes to the live Zerodha gateway when the process started with all 5 safety
+    gates satisfied (see broker registry).  Otherwise routes to PaperBroker.
+    """
     session_service = SessionService(db)
     session = await session_service.get_active_session()
     if not session:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No active session. Start a session first.")
-    execution = ExecutionService(db)
+    broker = get_broker()
+    execution = ExecutionService(db, broker=broker)
+    live = is_live_mode()
     try:
         result = await execution.execute_order(
             session_id=session.session_id, instrument_token=0, symbol=symbol, side=side, quantity=quantity,
@@ -34,22 +48,36 @@ async def place_order(symbol: str, side: str, quantity: int, order_type: str = "
             trigger_price=Decimal(str(trigger_price)) if trigger_price else None,
             stop_loss=Decimal(str(stop_loss)) if stop_loss else None,
             target=Decimal(str(target)) if target else None, idempotency_key=x_idempotency_key, created_by=user_id)
-        return {"status": "success", "mode": "PAPER", **result, "idempotency_key": x_idempotency_key}
+        return {"status": "success", "mode": "LIVE" if live else "PAPER", **result, "idempotency_key": x_idempotency_key}
     except KillSwitchError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except BrokerKillSwitchError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except OrderValidationError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except IdempotencyError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
-    except LiveModeBlockedError as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except BrokerSessionExpiredError as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Broker session expired: {e}")
+    except BrokerRateLimitError as e:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(e))
+    except BrokerLiveModeError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+    except BrokerError as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Broker error: {e}")
 
 
 @router.post("/cancel_order")
 async def cancel_order(order_id: int, db: AsyncSession = Depends(get_db), user_id: str = Depends(get_current_user)) -> Dict[str, str]:
     """Cancel an order."""
-    execution = ExecutionService(db)
-    result = await execution.cancel_order(order_id)
+    broker = get_broker()
+    execution = ExecutionService(db, broker=broker)
+    try:
+        result = await execution.cancel_order(order_id)
+    except BrokerSessionExpiredError as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Broker session expired: {e}")
+    except BrokerError as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Broker error: {e}")
     if result:
         return {"status": "cancelled", "order_id": str(order_id)}
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found or cannot be cancelled")
