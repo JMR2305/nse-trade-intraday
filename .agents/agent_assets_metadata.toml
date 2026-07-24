@@ -89,3 +89,9 @@ id = "X_kD0QaA9jhHnCWQI8md_"
 uri = "file://intraday-trading-bot/docs/Batch9D_Implementation_Plan.md"
 type = "text"
 title = "Batch 9D Implementation Plan"
+
+[[outputs]]
+id = "Uz68kqnx2ctjypK1_iFWT"
+uri = "file://intraday-trading-bot/reviews/RC10B_Merge_Summary.md"
+type = "text"
+title = "RC-10B Merge Summary"
