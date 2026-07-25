@@ -95,6 +95,12 @@ app.use(express.urlencoded({ extended: true, limit: "256kb" }));
 app.use("/api", router);
 
 // Global error handler — honest JSON errors, no stack traces leaked.
+//
+// Recognised error types (set by Express body-parser and CORS middleware):
+//   entity.too.large   — body exceeded the 256 KB limit → 413
+//   entity.parse.failed — body is not valid JSON → 400 with descriptive msg
+//   err.status === 403  — CORS origin rejected by the allowlist → 403
+//   everything else    — opaque 500 (no internals leaked)
 app.use(
   (
     err: Error & { status?: number; type?: string },
@@ -102,12 +108,24 @@ app.use(
     res: express.Response,
     _next: express.NextFunction,
   ) => {
-    const status = err.status ?? (err.type === "entity.too.large" ? 413 : 500);
+    const status =
+      err.type === "entity.too.large"
+        ? 413
+        : err.type === "entity.parse.failed"
+          ? 400
+          : (err.status ?? 500);
+
+    const message =
+      status === 413
+        ? "Request body too large. Maximum allowed size is 256 KB."
+        : status === 400 && err.type === "entity.parse.failed"
+          ? "Request body contains invalid JSON. Verify that Content-Type is application/json and the body is well-formed JSON."
+          : status === 403
+            ? "Request origin is not permitted by the server CORS policy."
+            : "Internal server error";
+
     logger.error({ err: err.message, status }, "Unhandled request error");
-    res.status(status).json({
-      success: false,
-      error: status === 413 ? "Request body too large" : "Internal server error",
-    });
+    res.status(status).json({ success: false, error: message });
   },
 );
 
