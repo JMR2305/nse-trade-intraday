@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
+import { useReconciliationBadge } from "@/hooks/useReconciliationBadge";
 import {
   BarChart3,
   Activity,
@@ -51,6 +52,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [location] = useLocation();
   const { theme, setTheme } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const reconciliationBadgeCount = useReconciliationBadge();
 
   const navGroups = [
     {
@@ -132,6 +134,8 @@ export function AppLayout({ children }: AppLayoutProps) {
                 {group.items.map((item) => {
                   const Icon = item.icon;
                   const isActive = location === item.href;
+                  const isBrokerExecution = item.href === "/broker-execution";
+                  const badgeCount = isBrokerExecution ? reconciliationBadgeCount : 0;
                   return (
                     <Link
                       key={item.href}
@@ -145,7 +149,15 @@ export function AppLayout({ children }: AppLayoutProps) {
                       data-testid={`link-nav-${item.label.toLowerCase().replace(/\s/g, "-")}`}
                     >
                       <Icon className="h-4 w-4 flex-shrink-0" />
-                      <span className="truncate">{item.label}</span>
+                      <span className="truncate flex-1">{item.label}</span>
+                      {badgeCount > 0 && (
+                        <span
+                          className="ml-auto flex-shrink-0 inline-flex items-center justify-center h-4 min-w-[1rem] rounded-full bg-red-500 text-[10px] font-bold text-white leading-none px-1"
+                          data-testid="badge-reconciliation-count"
+                        >
+                          {badgeCount > 99 ? "99+" : badgeCount}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}
