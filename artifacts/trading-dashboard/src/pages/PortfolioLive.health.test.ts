@@ -650,4 +650,64 @@ describe("UNREACHABLE error state — health card shows clear down indicator", (
     expect(isAlert("UNREACHABLE")).toBe(true);
     expect(isAlert("HEALTHY")).toBe(false);
   });
+
+  // ── Recovery: source-analysis ─────────────────────────────────────────────
+  //
+  // The UNREACHABLE ternary is `healthQuery.isError && !health ? "UNREACHABLE" : …`.
+  // The `&&` conjunction means BOTH conditions must be true simultaneously.
+  // When isError flips to false (server comes back online), the left-hand operand
+  // is false and the whole condition short-circuits — UNREACHABLE is never returned
+  // regardless of whether health data is present or not.
+
+  it("source: UNREACHABLE branch uses && so it cannot fire when isError is false", () => {
+    // The ternary must be `healthQuery.isError && !health` — not `||` and not
+    // `healthQuery.isError` alone — so a false isError always falls through to
+    // `health?.status ?? snap?.status ?? "UNKNOWN"`.
+    expect(pageSrc).toMatch(/healthQuery\.isError\s*&&\s*!health\s*\?\s*"UNREACHABLE"/);
+  });
+
+  it("source: overallStatus falls through to health?.status when isError is false", () => {
+    // The else branch of the UNREACHABLE ternary must resolve via health?.status,
+    // so when the server returns a fresh HEALTHY response after an outage the badge
+    // updates without a page reload.
+    expect(pageSrc).toMatch(/healthQuery\.isError\s*&&\s*!health[\s\S]{0,80}health\?\.status/);
+  });
+
+  // ── Recovery: full two-step transition simulation ─────────────────────────
+  //
+  // Simulates the moment React Query resolves a successful retry after an outage:
+  //   Step 1 — healthQuery.isError=true, health=undefined  → badge shows UNREACHABLE
+  //   Step 2 — healthQuery.isError=false, health=HEALTHY   → badge clears to HEALTHY
+  // The two assertions are deliberately sequential to document the state machine.
+
+  it("simulation: full UNREACHABLE → HEALTHY recovery transition without page reload", () => {
+    // Step 1: API is down — health endpoint throws a network error, no cached data.
+    const step1Status = deriveOverallStatusWithError(true, undefined, undefined);
+    expect(step1Status).toBe("UNREACHABLE");
+
+    // Step 2: React Query retries and the server responds with a HEALTHY payload.
+    // isError flips to false; health is now the fresh response object.
+    const step2Status = deriveOverallStatusWithError(false, HEALTHY_RESPONSE, undefined);
+    expect(step2Status).toBe("HEALTHY");
+
+    // Confirm the alert banner disappears too (no manual action required).
+    function isAlert(status: string): boolean {
+      return (
+        status === "DEGRADED" ||
+        status === "HALTED" ||
+        status === "DOWN" ||
+        status === "UNREACHABLE"
+      );
+    }
+    expect(isAlert(step1Status)).toBe(true);
+    expect(isAlert(step2Status)).toBe(false);
+  });
+
+  it("simulation: recovery also clears when snap still shows an old status", () => {
+    // After the API server restarts the snapshot may still be cached at an old
+    // status in the browser.  Since health?.status takes priority over snap?.status,
+    // the fresh HEALTHY response from the health endpoint is enough to clear the badge.
+    const recoveredStatus = deriveOverallStatusWithError(false, HEALTHY_RESPONSE, "DEGRADED");
+    expect(recoveredStatus).toBe("HEALTHY");
+  });
 });
