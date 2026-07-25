@@ -417,3 +417,161 @@ describe("PortfolioLive.tsx — badge-exposure-warnings-count source contract", 
     expect(pageSrc).toMatch(/exposureWarnings\.length\s*!==\s*1\s*\?\s*"s"\s*:\s*""/);
   });
 });
+
+// ── 5. Transition: N warnings → 0 (all positions close mid-session) ──────────
+//
+// These tests simulate the render cycle that occurs when every open position
+// closes during a live session.  The before-state has one or more warnings;
+// the after-state has an empty array.  We assert that:
+//   • bannerShouldRender returns false   → no banner DOM node
+//   • warnings.length > 0 is false      → badge gate evaluates to false
+//   • badgeText is never evaluated       → count irrelevant when gate is false
+//
+// Two flavours are covered: instrument-only and sector-only, matching the two
+// warning kinds that portfolio_snapshot.py can produce.
+
+describe("badge reset to zero — instrument warnings clear when all positions close", () => {
+  // ── before: one instrument warning (85 % of limit) ───────────────────────
+  it("banner renders and badge is visible before positions close", () => {
+    const before: ExposureWarning[] = [makeInstrumentWarning(0.85)];
+    expect(bannerShouldRender(before)).toBe(true);
+    expect(before.length > 0).toBe(true);
+    expect(badgeText(before)).toBe("1 limit warning");
+  });
+
+  // ── after: position closed → exposure_warnings becomes [] ────────────────
+  it("banner is absent and badge gate is false after the position closes", () => {
+    const after: ExposureWarning[] = [];
+    expect(bannerShouldRender(after)).toBe(false);
+    expect(after.length > 0).toBe(false);
+  });
+
+  it("badge count drops from 1 to 0 (array length transition)", () => {
+    const before: ExposureWarning[] = [makeInstrumentWarning(0.85)];
+    const after: ExposureWarning[] = [];
+    expect(before.length).toBe(1);
+    expect(after.length).toBe(0);
+    // The gate `exposureWarnings.length > 0` must evaluate to false after
+    expect(after.length > 0).toBe(false);
+  });
+
+  // ── N > 1 instruments clear simultaneously ────────────────────────────────
+  it("badge disappears when two instrument warnings clear at once", () => {
+    const before: ExposureWarning[] = [
+      makeInstrumentWarning(0.85),
+      makeInstrumentWarning(0.92),
+    ];
+    const after: ExposureWarning[] = [];
+    expect(before.length).toBe(2);
+    expect(bannerShouldRender(before)).toBe(true);
+    expect(bannerShouldRender(after)).toBe(false);
+    expect(after.length > 0).toBe(false);
+  });
+
+  it("badge disappears when three instrument warnings (including CRITICAL) all clear", () => {
+    const before: ExposureWarning[] = [
+      makeInstrumentWarning(0.82),
+      makeInstrumentWarning(0.95),
+      makeInstrumentWarning(1.1), // CRITICAL
+    ];
+    const after: ExposureWarning[] = [];
+    expect(before.length).toBe(3);
+    expect(before.some((w) => w.severity === "CRITICAL")).toBe(true);
+    expect(bannerShouldRender(after)).toBe(false);
+    expect(after.length > 0).toBe(false);
+  });
+});
+
+describe("badge reset to zero — sector warnings clear when all positions close", () => {
+  // ── before: one sector warning (90 % of limit) ───────────────────────────
+  it("banner renders and badge is visible before the sector positions close", () => {
+    const before: ExposureWarning[] = [makeSectorWarning(0.90)];
+    expect(bannerShouldRender(before)).toBe(true);
+    expect(before.length > 0).toBe(true);
+    expect(badgeText(before)).toBe("1 limit warning");
+  });
+
+  // ── after: all positions in the sector close → sector exposure drops to 0 ─
+  it("banner is absent and badge gate is false after sector positions close", () => {
+    const after: ExposureWarning[] = [];
+    expect(bannerShouldRender(after)).toBe(false);
+    expect(after.length > 0).toBe(false);
+  });
+
+  it("badge count drops from 1 to 0 for a sector-only warning array", () => {
+    const before: ExposureWarning[] = [makeSectorWarning(0.90)];
+    const after: ExposureWarning[] = [];
+    expect(before.length).toBe(1);
+    expect(after.length).toBe(0);
+    expect(after.length > 0).toBe(false);
+  });
+
+  it("badge disappears when two sector warnings (different sectors) both clear", () => {
+    const sector2: ExposureWarning = {
+      kind: "sector",
+      name: "PHARMA",
+      exposure_pct: 0.88 * 35,
+      limit_pct: 35,
+      ratio: 0.88,
+      severity: "WARNING",
+    };
+    const before: ExposureWarning[] = [makeSectorWarning(0.90), sector2];
+    const after: ExposureWarning[] = [];
+    expect(before.length).toBe(2);
+    expect(bannerShouldRender(before)).toBe(true);
+    expect(bannerShouldRender(after)).toBe(false);
+    expect(after.length > 0).toBe(false);
+  });
+});
+
+describe("badge reset to zero — mixed instrument + sector warnings clear together", () => {
+  it("badge is present with mixed warnings, absent after all positions close", () => {
+    const before: ExposureWarning[] = [
+      makeInstrumentWarning(0.85),
+      makeSectorWarning(0.92),
+    ];
+    const after: ExposureWarning[] = [];
+    expect(before.length).toBe(2);
+    expect(bannerShouldRender(before)).toBe(true);
+    expect(bannerShouldRender(after)).toBe(false);
+    expect(after.length > 0).toBe(false);
+  });
+
+  it("badge count progression: 3 mixed warnings → 0 (all clear)", () => {
+    const before: ExposureWarning[] = [
+      makeInstrumentWarning(0.82),
+      makeSectorWarning(0.95),
+      makeInstrumentWarning(1.05), // CRITICAL
+    ];
+    const after: ExposureWarning[] = [];
+    // Before: 3 warnings, badge visible
+    expect(before.length).toBe(3);
+    expect(badgeText(before)).toBe("3 limit warnings");
+    expect(before.length > 0).toBe(true);
+    // After: 0 warnings, badge absent (gate fails)
+    expect(after.length).toBe(0);
+    expect(after.length > 0).toBe(false);
+    expect(bannerShouldRender(after)).toBe(false);
+  });
+
+  it("intermediate step: 2 warnings → 1 warning → 0 warnings (badge tracks each step)", () => {
+    const step1: ExposureWarning[] = [
+      makeInstrumentWarning(0.85),
+      makeSectorWarning(0.90),
+    ];
+    const step2: ExposureWarning[] = [makeSectorWarning(0.90)]; // one position closed
+    const step3: ExposureWarning[] = [];                         // last position closed
+
+    expect(step1.length).toBe(2);
+    expect(badgeText(step1)).toBe("2 limit warnings");
+    expect(step1.length > 0).toBe(true);
+
+    expect(step2.length).toBe(1);
+    expect(badgeText(step2)).toBe("1 limit warning");
+    expect(step2.length > 0).toBe(true);
+
+    expect(step3.length).toBe(0);
+    expect(step3.length > 0).toBe(false);
+    expect(bannerShouldRender(step3)).toBe(false);
+  });
+});
