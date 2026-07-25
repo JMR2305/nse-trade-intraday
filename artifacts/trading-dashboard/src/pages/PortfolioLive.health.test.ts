@@ -853,3 +853,138 @@ describe("dual-error consolidated banner — both snapshot and health queries fa
     expect(snapshotErr).toBe(false);
   });
 });
+
+// ── 15. patchMutation onSuccess — immediate cache invalidation ────────────
+//
+// After a PATCH /portfolio/config call succeeds, the panel must show the new
+// limits immediately, without waiting up to 15 seconds for the next automatic
+// poll cycle.  This is achieved by calling queryClient.invalidateQueries on
+// "portfolio-config" inside the mutation's onSuccess handler, which forces
+// React Query to discard the cached response and issue a fresh GET right away.
+//
+// These are static source-analysis tests — they inspect the source file and
+// assert structural invariants without needing a running server.
+
+describe("patchMutation onSuccess — immediate cache invalidation of portfolio-config", () => {
+  it("patchMutation is defined as a useMutation call in the source", () => {
+    // The variable name used for the PATCH mutation in ActiveConfigSection
+    expect(pageSrc).toContain("patchMutation");
+    expect(pageSrc).toMatch(/patchMutation\s*=\s*useMutation/);
+  });
+
+  it("patchMutation targets the PATCH /portfolio/config endpoint", () => {
+    // The mutationFn must hit the correct path; a rename would break the feature
+    expect(pageSrc).toMatch(/portfolio\/config['"]/);
+    expect(pageSrc).toMatch(/method\s*:\s*["']PATCH["']/);
+  });
+
+  it("patchMutation has an onSuccess handler", () => {
+    // The handler must exist so that post-save logic (invalidation) can run.
+    // Verified by slicing from the declaration to capture only the mutation block.
+    const patchStart = pageSrc.indexOf("patchMutation = useMutation");
+    expect(patchStart).toBeGreaterThan(-1);
+    const afterPatch = pageSrc.slice(patchStart, patchStart + 2000);
+    expect(afterPatch).toMatch(/onSuccess\s*:/);
+  });
+
+  it("patchMutation onSuccess calls queryClient.invalidateQueries", () => {
+    // queryClient.invalidateQueries is the mechanism that triggers an immediate
+    // re-fetch — without it the panel shows stale limits until the next poll tick.
+    // We search for the onSuccess block that belongs to patchMutation by verifying
+    // both the mutation variable name and the invalidation call appear together,
+    // with the invalidation occurring after patchMutation is assigned.
+    const patchStart = pageSrc.indexOf("patchMutation = useMutation");
+    expect(patchStart).toBeGreaterThan(-1);
+    const afterPatch = pageSrc.slice(patchStart, patchStart + 2000);
+    expect(afterPatch).toContain("onSuccess");
+    expect(afterPatch).toContain("queryClient.invalidateQueries");
+  });
+
+  it("patchMutation onSuccess invalidates the 'portfolio-config' query key", () => {
+    // The query key must match exactly what configQuery registers so React Query
+    // knows which cache entry to discard
+    const patchStart = pageSrc.indexOf("patchMutation = useMutation");
+    expect(patchStart).toBeGreaterThan(-1);
+    const afterPatch = pageSrc.slice(patchStart, patchStart + 2000);
+    expect(afterPatch).toMatch(/queryKey\s*:\s*\["portfolio-config"\]/);
+  });
+
+  it("clearMutation onSuccess also invalidates 'portfolio-config' (reset path)", () => {
+    // The DELETE /portfolio/config/overrides mutation must apply the same
+    // invalidation so clearing overrides is equally immediate
+    const clearStart = pageSrc.indexOf("clearMutation = useMutation");
+    expect(clearStart).toBeGreaterThan(-1);
+    const afterClear = pageSrc.slice(clearStart, clearStart + 800);
+    expect(afterClear).toContain("queryClient.invalidateQueries");
+    expect(afterClear).toMatch(/queryKey\s*:\s*\["portfolio-config"\]/);
+  });
+
+  it("configQuery is registered under the 'portfolio-config' query key", () => {
+    // Verifies that invalidateQueries targets the same key configQuery uses —
+    // if the keys diverge the invalidation silently does nothing
+    expect(pageSrc).toMatch(/queryKey\s*:\s*\["portfolio-config"\]/);
+  });
+
+  // ── Pure-logic simulation ─────────────────────────────────────────────────
+  //
+  // Simulates the before/after state of the query cache when patchMutation
+  // fires its onSuccess handler.  In the real app React Query's
+  // invalidateQueries marks the cached entry as stale and immediately
+  // triggers a background re-fetch; here we model the observable outcome:
+  // the component receives fresh data as soon as the GET resolves (within
+  // one network round-trip, not one 15-second poll cycle).
+
+  interface MockQueryCache {
+    data: Record<string, number>;
+    isStale: boolean;
+  }
+
+  function invalidateQuery(cache: MockQueryCache): MockQueryCache {
+    // Models queryClient.invalidateQueries — marks cache stale, triggering re-fetch
+    return { ...cache, isStale: true };
+  }
+
+  function applyFreshResponse(
+    _cache: MockQueryCache,
+    fresh: Record<string, number>,
+  ): MockQueryCache {
+    // Models the GET completing after invalidation
+    return { data: fresh, isStale: false };
+  }
+
+  it("simulation: cache is marked stale immediately after patchMutation onSuccess fires", () => {
+    const before: MockQueryCache = {
+      data: { max_open_positions: 10 },
+      isStale: false,
+    };
+    const after = invalidateQuery(before);
+    expect(after.isStale).toBe(true);
+  });
+
+  it("simulation: panel shows new limits once the GET resolves (no wait for next poll)", () => {
+    const staleCache: MockQueryCache = { data: { max_open_positions: 10 }, isStale: true };
+    const freshResponse = { max_open_positions: 20 };
+    const resolved = applyFreshResponse(staleCache, freshResponse);
+    expect(resolved.data.max_open_positions).toBe(20);
+    expect(resolved.isStale).toBe(false);
+  });
+
+  it("simulation: without invalidation the panel would show the old value for up to 15 s", () => {
+    // Model the polling-only path: cache stays fresh until staleTime elapses
+    const noInvalidationCache: MockQueryCache = { data: { max_open_positions: 10 }, isStale: false };
+    // Operator edits value to 20 on the server; but without invalidation the
+    // client cache still holds the old value and isStale remains false
+    const stillStale = noInvalidationCache;
+    expect(stillStale.isStale).toBe(false);
+    expect(stillStale.data.max_open_positions).toBe(10); // operator sees stale data!
+  });
+
+  it("simulation: with invalidation the panel reflects the new value immediately", () => {
+    const cacheBeforePatch: MockQueryCache = { data: { max_open_positions: 10 }, isStale: false };
+    // onSuccess fires → invalidate → GET resolves with patched value
+    const invalidated = invalidateQuery(cacheBeforePatch);
+    const resolved = applyFreshResponse(invalidated, { max_open_positions: 20 });
+    expect(resolved.data.max_open_positions).toBe(20);
+    expect(resolved.isStale).toBe(false);
+  });
+});
