@@ -1,0 +1,270 @@
+PROJECT: APEX GLOBAL — COMPLETE BRAND REPLACEMENT
+
+The official product brand has changed.
+
+Replace all references to:
+
+OmniRoute AI
+
+with:
+
+Apex Global
+
+Official product description:
+
+AI-Powered NSE Trading Platform
+
+Current trading mode:
+
+Paper Trading
+
+Use the uploaded Apex Global logo as the visual reference.
+
+Do not modify the frozen trading backend, strategy engine, RC-8 Risk,
+RC-7 Execution or broker logic.
+
+==================================================
+1. BRAND ASSET PREPARATION
+==================================================
+
+Create clean production-ready brand assets based on the uploaded logo.
+
+Required assets:
+
+- apex-global-logo-horizontal.svg
+- apex-global-logo-horizontal.png
+- apex-global-symbol.svg
+- apex-global-symbol.png
+- apex-global-logo-white.svg
+- apex-global-logo-monochrome.svg
+- favicon.svg
+- favicon.ico
+- apple-touch-icon.png
+- PWA icons at 192x192 and 512x512
+
+Requirements:
+
+- Use a transparent background.
+- Preserve the navy geometric Apex symbol.
+- Preserve the APEX GLOBAL wordmark.
+- Remove the decorative black sparkle elements from production assets.
+- Ensure the symbol remains readable at 16px, 24px and 32px.
+- Do not stretch or distort the logo.
+- Maintain clear space around the logo.
+- Prefer SVG wherever supported.
+
+Suggested primary navy:
+
+#17395F
+
+Cream background:
+
+#F7F4ED
+
+Dark text:
+
+#243142
+
+Accent teal:
+
+#129C8C
+
+==================================================
+2. GLOBAL NAME REPLACEMENT
+==================================================
+
+Replace every user-facing occurrence of:
+
+OmniRoute AI
+
+with:
+
+Apex Global
+
+Search the entire project, including:
+
+- React components
+- page headings
+- navigation
+- mobile headers
+- loading screens
+- empty states
+- error pages
+- authentication screens
+- Settings/About
+- notifications
+- generated reports
+- mock data
+- metadata
+- manifests
+- README documentation
+- tests
+- environment defaults
+
+Do not blindly rename technical backend package names or database identifiers
+unless they are strictly frontend branding fields.
+
+Provide a report of any internal names intentionally left unchanged.
+
+==================================================
+3. BRAND PLACEMENT
+==================================================
+
+Use the Apex Global brand consistently in:
+
+- Desktop sidebar
+- Desktop top bar
+- Mobile top header
+- Mobile navigation drawer
+- Login screen
+- Splash/loading screen
+- Dashboard
+- Offline/server-error screen
+- Settings/About page
+- Help page
+- Notification templates
+- Generated reports
+- Browser title
+- Favicon
+- PWA manifest
+- Mobile home-screen icon
+
+Desktop sidebar:
+
+Show the horizontal logo when expanded.
+Show only the Apex symbol when collapsed.
+
+Mobile header:
+
+Show the compact symbol and “Apex Global”.
+Also show a clearly visible PAPER TRADING badge.
+
+==================================================
+4. PAGE TITLES AND METADATA
+==================================================
+
+Use:
+
+Dashboard | Apex Global
+Trading | Apex Global
+Portfolio | Apex Global
+Risk Center | Apex Global
+AI Insights | Apex Global
+Orders | Apex Global
+Market Watch | Apex Global
+
+Default title:
+
+Apex Global — AI-Powered NSE Trading Platform
+
+Meta description:
+
+Apex Global is an AI-assisted NSE paper-trading and portfolio analytics platform.
+
+Update:
+
+- index.html
+- route metadata
+- PWA manifest
+- Open Graph metadata
+- social preview metadata
+- application name
+- theme colour
+
+==================================================
+5. PRODUCT LANGUAGE
+==================================================
+
+Use the following hierarchy:
+
+Brand:
+Apex Global
+
+Product category:
+AI-Powered NSE Trading Platform
+
+Mode:
+Paper Trading
+
+AI status:
+AI Advisory Active
+
+Never describe the system as executing live trades.
+
+LIVE TRADING must remain disabled and unavailable.
+
+AI must remain advisory only.
+
+==================================================
+6. VISUAL REQUIREMENTS
+==================================================
+
+Preserve the approved warm cream theme.
+
+The logo must work with:
+
+- cream backgrounds
+- white cards
+- dark navy text
+- optional dark mode
+
+Avoid neon, excessive gradients and gaming-style effects.
+
+Use the primary navy for:
+
+- branding
+- major headings
+- navigation active states
+- premium buttons where appropriate
+
+Use teal only as a controlled accent.
+
+==================================================
+7. ERROR AND OFFLINE SCREEN
+==================================================
+
+Update the server-unreachable screen to include:
+
+- Apex Global symbol
+- Apex Global wordmark
+- Paper Trading badge
+- connection status
+- Retry button
+- Continue with demo data option, when supported
+
+Suggested message:
+
+“Apex Global trading services are temporarily unavailable.”
+
+Do not show a completely unbranded error screen.
+
+==================================================
+8. VERIFICATION
+==================================================
+
+Verify:
+
+- No visible “OmniRoute AI” text remains.
+- Logo is visible on every main application shell.
+- Mobile layout does not crop the wordmark.
+- Favicon works.
+- PWA icon works.
+- Browser titles are correct.
+- Images have transparent backgrounds.
+- Light and dark variants remain readable.
+- No frozen backend behaviour was modified.
+
+Run:
+
+npm run typecheck
+npm run lint
+npm run build
+
+Deliver:
+
+1. Brand assets created.
+2. Files changed.
+3. Remaining internal legacy references, with reasons.
+4. Screenshots of desktop, mobile, loading and offline screens.
+5. Build/typecheck/lint results.
+6. Final branding verification.

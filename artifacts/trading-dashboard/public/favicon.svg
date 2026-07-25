@@ -1,3 +1,19 @@
-<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="180" height="180" rx="36" fill="#FF3C00"/>
+<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="none">
+  <!--
+    Apex Global — favicon (32×32 / 48×48 display).
+    Navy mark on cream background rounded square.
+  -->
+  <!-- Background tile -->
+  <rect width="48" height="48" rx="10" fill="#F7F4ED"/>
+  <!-- Mountain mark (shifted down 3px for optical centering) -->
+  <path
+    transform="translate(0,3)"
+    fill="#17395F"
+    fill-rule="evenodd"
+    d="M4,40 L24,4 L44,40 Z
+       M12,40 L14,40 L24,4 Z
+       M19,40 L21,40 L24,4 Z
+       M27,40 L29,40 L24,4 Z
+       M34,40 L36,40 L24,4 Z"
+  />
 </svg>

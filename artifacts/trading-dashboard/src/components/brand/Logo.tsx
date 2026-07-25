@@ -2,64 +2,81 @@ import { cn } from "@/lib/utils";
 
 interface LogoProps {
   className?: string;
+  /** Show the "Apex Global" wordmark beside the symbol. Default: true. */
   showWordmark?: boolean;
+  /** Height (and proportional width) of the mountain symbol in px. Default: 28. */
   size?: number;
-  wordmark?: string;
 }
 
 /**
- * NSE Trader brand mark.
- * Adapts the OmniRoute geometric path mark with the platform's
- * teal / emerald color tokens (uses CSS vars so it respects light/dark).
+ * Apex Global brand mark.
+ *
+ * The geometric mountain symbol is an SVG compound path:
+ * one large mountain triangle with 4 thin triangular gaps radiating
+ * from the apex — creating 5 distinct rising segments.
+ *
+ * Color tokens
+ * ─────────────
+ * Light mode : navy  #17395F  (brand primary)
+ * Dark mode  : cream #F7F4ED  (readable on dark navy canvas)
+ *
+ * Both are applied via `currentColor` on the SVG so the wrapping
+ * `className` can override with any Tailwind color utility.
  */
-export function Logo({
-  className,
-  showWordmark = true,
-  size = 28,
-  wordmark = "NSE TRADER",
-}: LogoProps) {
+export function Logo({ className, showWordmark = true, size = 28 }: LogoProps) {
+  // symbol proportions: viewBox "0 0 48 44" → aspect ≈ 1.09 : 1
+  const symbolWidth = Math.round(size * 1.09);
+
   return (
-    <div className={cn("flex items-center gap-2.5 select-none", className)}>
-      <span
-        className="relative inline-flex shrink-0"
-        style={{ width: size, height: size }}
+    <div
+      className={cn(
+        "inline-flex items-center gap-2 select-none",
+        "text-[#17395F] dark:text-[#F7F4ED]",
+        className,
+      )}
+    >
+      {/* ── Mountain mark ── */}
+      <svg
+        viewBox="0 0 48 44"
+        width={symbolWidth}
+        height={size}
+        aria-hidden
+        focusable="false"
       >
-        <svg
-          viewBox="0 0 32 32"
-          width={size}
-          height={size}
-          className="drop-shadow-[0_1px_2px_rgb(0_0_0/0.12)]"
-          aria-hidden
-        >
-          <defs>
-            <linearGradient id="logo-grad" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="hsl(var(--primary))" />
-              <stop offset="100%" stopColor="hsl(175,100%,45%)" />
-            </linearGradient>
-          </defs>
-          {/* Background tile */}
-          <rect width="32" height="32" rx="8" fill="hsl(var(--background))" />
-          <rect width="32" height="32" rx="8" fill="url(#logo-grad)" opacity="0.12" />
-          {/* Chart-path mark — same geometry as OmniRoute */}
-          <path
-            d="M5 22 L12 12 L17 18 L22 11 L27 22"
-            fill="none"
-            stroke="url(#logo-grad)"
-            strokeWidth="2.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <circle cx="12" cy="12" r="1.8" fill="hsl(var(--primary))" />
-          <circle cx="22" cy="11" r="1.8" fill="hsl(175,80%,40%)" />
-          <circle cx="5"  cy="22" r="1.4" fill="hsl(var(--primary))" opacity="0.6" />
-          <circle cx="27" cy="22" r="1.4" fill="hsl(175,80%,40%)" opacity="0.6" />
-        </svg>
-      </span>
+        {/*
+          Compound path: mountain triangle M2,42 L24,2 L46,42 Z
+          minus 4 thin radial gap triangles (evenodd rule cuts them out).
+          Result: 5 solid navy segments separated by transparent slots.
+        */}
+        <path
+          fill="currentColor"
+          fillRule="evenodd"
+          d="
+            M 2,42 L 24,2 L 46,42 Z
+            M 11,42 L 13,42 L 24,2 Z
+            M 19,42 L 21,42 L 24,2 Z
+            M 27,42 L 29,42 L 24,2 Z
+            M 35,42 L 37,42 L 24,2 Z
+          "
+        />
+      </svg>
+
+      {/* ── Wordmark ── */}
       {showWordmark && (
-        <span className="font-mono font-bold tracking-tight text-[14px] leading-none text-foreground truncate">
-          {wordmark}
+        <span
+          className="font-semibold tracking-[0.06em] leading-none uppercase whitespace-nowrap"
+          style={{ fontSize: Math.max(11, Math.round(size * 0.5)) }}
+        >
+          Apex Global
         </span>
       )}
     </div>
   );
+}
+
+/**
+ * Standalone symbol only — convenience alias for collapsed sidebar / icons.
+ */
+export function ApexSymbol({ size = 28, className }: { size?: number; className?: string }) {
+  return <Logo showWordmark={false} size={size} className={className} />;
 }

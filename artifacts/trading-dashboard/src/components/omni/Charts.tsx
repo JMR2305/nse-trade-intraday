@@ -1,6 +1,6 @@
 /**
  * Lightweight SVG chart primitives — no recharts dependency.
- * Adapted from the OmniRoute design system for use in NSE Trader panels.
+ * SVG chart primitives for Apex Global panels.
  */
 import { useId } from "react";
 import { toneRgb, toneRgbSoft, type Tone } from "@/lib/theme";

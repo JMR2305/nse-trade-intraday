@@ -1,6 +1,6 @@
 /**
  * ProgressGauge — arc gauge for capacity / utilisation display.
- * Adapted from OmniRoute design system.
+ * Arc gauge component for Apex Global dashboards.
  */
 import { cn } from "@/lib/utils";
 import type { Tone } from "@/lib/theme";

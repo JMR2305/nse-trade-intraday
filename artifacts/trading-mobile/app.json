@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "NSE Trader",
+    "name": "Apex Global",
     "slug": "trading-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -11,14 +11,18 @@
     "splash": {
       "image": "./assets/images/icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0e1119"
+      "backgroundColor": "#F7F4ED"
     },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.replit.trading-mobile"
     },
     "android": {
-      "package": "com.replit.tradingmobile"
+      "package": "com.replit.tradingmobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#F7F4ED"
+      }
     },
     "web": {
       "favicon": "./assets/images/icon.png"

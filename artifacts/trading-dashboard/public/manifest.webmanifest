@@ -1,0 +1,29 @@
+{
+  "name": "Apex Global",
+  "short_name": "Apex Global",
+  "description": "Apex Global is an AI-assisted NSE paper-trading and portfolio analytics platform.",
+  "start_url": "/trading-dashboard/",
+  "scope": "/trading-dashboard/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#17395F",
+  "background_color": "#F7F4ED",
+  "lang": "en",
+  "categories": ["finance", "business"],
+  "icons": [
+    {
+      "src": "/trading-dashboard/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/trading-dashboard/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [],
+  "related_applications": []
+}

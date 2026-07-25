@@ -1,0 +1,17 @@
+<svg viewBox="0 0 48 44" xmlns="http://www.w3.org/2000/svg" fill="none">
+  <!--
+    Apex Global — geometric mountain mark.
+    5 segments separated by 4 thin radial gaps converging at the apex.
+    Primary navy: #17395F
+    Transparent background.
+  -->
+  <path
+    fill="#17395F"
+    fill-rule="evenodd"
+    d="M2,42 L24,2 L46,42 Z
+       M11,42 L13,42 L24,2 Z
+       M19,42 L21,42 L24,2 Z
+       M27,42 L29,42 L24,2 Z
+       M35,42 L37,42 L24,2 Z"
+  />
+</svg>

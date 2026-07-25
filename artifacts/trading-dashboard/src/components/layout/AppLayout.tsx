@@ -1,5 +1,5 @@
 /**
- * AppLayout — NSE Trader shell with OmniRoute visual design.
+ * AppLayout — Apex Global platform shell.
  *
  * Preserved from original:
  *  - All navigation items, groups and hrefs (wouter routing)
@@ -265,7 +265,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             className="text-[10px] text-muted-foreground/50 font-mono truncate"
             data-testid="text-engine-version"
           >
-            Research Engine v1.0
+            Apex Global
           </span>
         )}
         <Button
@@ -309,7 +309,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
             <div className="flex shrink-0 items-center justify-between border-t border-border/60 px-4 py-3">
               <span className="text-[10px] text-muted-foreground/50 font-mono" data-testid="text-engine-version">
-                Research Engine v1.0
+                Apex Global
               </span>
               <Button
                 variant="ghost"
@@ -345,7 +345,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 
         {/* Mobile top bar */}
-        <div className="flex md:hidden h-12 shrink-0 items-center gap-3 border-b border-border/60 bg-background/80 backdrop-blur-sm px-4 z-20">
+        <div className="flex md:hidden h-12 shrink-0 items-center gap-2 border-b border-border/60 bg-background/80 backdrop-blur-sm px-4 z-20">
           <button
             onClick={() => setMobileOpen(true)}
             className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground transition"
@@ -354,7 +354,12 @@ export function AppLayout({ children }: AppLayoutProps) {
           </button>
           <Logo showWordmark size={22} />
 
-          <div className="ml-auto flex items-center gap-2">
+          {/* PAPER TRADING badge — always visible on mobile */}
+          <span className="shrink-0 inline-flex items-center rounded-full border border-amber-400/40 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-400">
+            Paper
+          </span>
+
+          <div className="ml-auto flex items-center gap-1">
             <Button
               variant="ghost"
               size="icon"
@@ -391,7 +396,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           {/* AI status */}
           <div className="hidden xl:flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/8 px-2.5 py-1">
             <span className="h-1.5 w-1.5 rounded-full bg-primary animate-[pulse-soft_2.8s_ease-in-out_infinite]" />
-            <span className="text-[11px] font-medium text-primary">AI Active</span>
+            <span className="text-[11px] font-medium text-primary">AI Advisory Active</span>
           </div>
 
           {/* Theme toggle */}

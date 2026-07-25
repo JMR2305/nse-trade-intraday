@@ -1,5 +1,5 @@
 /**
- * MetricCard — compact KPI tile from the OmniRoute design system.
+ * MetricCard — compact KPI tile for Apex Global dashboards.
  * Self-contained; uses only shadcn CSS vars so it works in both light/dark.
  */
 import type { ReactNode } from "react";
