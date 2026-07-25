@@ -20,6 +20,7 @@ import { FreshnessLabel } from "@/components/FreshnessLabel";
 import { StaleBanner } from "@/components/StaleBanner";
 import { useColors } from "@/hooks/useColors";
 import { useOfflineSnapshot } from "@/lib/offlineCache";
+import { AppHeader } from "@/components/AppHeader";
 
 type SignalAction = "BUY" | "SELL" | "HOLD" | string;
 
@@ -180,10 +181,11 @@ export default function SignalsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <AppHeader />
       <View
         style={[
           styles.header,
-          { paddingTop: topPadding + 16, backgroundColor: colors.background, borderBottomColor: colors.border },
+          { paddingTop: 16, backgroundColor: colors.background, borderBottomColor: colors.border },
         ]}
       >
         <View>

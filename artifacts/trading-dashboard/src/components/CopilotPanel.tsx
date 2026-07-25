@@ -19,13 +19,13 @@ import { Link } from "wouter";
 
 const REGIME_COLOR: Record<string, string> = {
   TRENDING_UP: "text-emerald-400", BULLISH: "text-emerald-400",
-  SIDEWAYS: "text-amber-400", NEUTRAL: "text-amber-400",
+  SIDEWAYS: "text-warn", NEUTRAL: "text-warn",
   TRENDING_DOWN: "text-red-400", BEARISH: "text-red-400",
   VOLATILE: "text-orange-400",
 };
 
 const RISK_COLOR: Record<string, string> = {
-  LOW: "text-emerald-400", MEDIUM: "text-amber-400", HIGH: "text-red-400",
+  LOW: "text-emerald-400", MEDIUM: "text-warn", HIGH: "text-red-400",
 };
 
 export default function CopilotPanel() {
@@ -116,7 +116,7 @@ export default function CopilotPanel() {
             <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-primary" />
               <span className="text-sm font-bold text-zinc-200">Today's Summary</span>
-              <Badge variant="outline" className="text-[9px] text-amber-400 border-amber-700">
+              <Badge variant="outline" className="text-[9px] text-warn border-warn">
                 RESEARCH
               </Badge>
             </div>

@@ -45,7 +45,7 @@ function StateBadge({ state }: { state: string }) {
   const map: Record<string, string> = {
     CONNECTED:      "bg-green-500/15 text-green-400 border-green-500/30",
     AUTHENTICATING: "bg-blue-500/15 text-blue-400 border-blue-500/30",
-    LOGIN_REQUIRED: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
+    LOGIN_REQUIRED: "bg-warn-surface text-warn border-warn",
     TOKEN_EXPIRED:  "bg-red-500/15 text-red-400 border-red-500/30",
     AUTH_FAILED:    "bg-red-500/15 text-red-400 border-red-500/30",
     API_ERROR:      "bg-orange-500/15 text-orange-400 border-orange-500/30",
@@ -61,7 +61,7 @@ function StateBadge({ state }: { state: string }) {
 function TokenBadge({ status }: { status: string }) {
   const map: Record<string, { color: string; icon: React.ReactElement }> = {
     VALID:   { color: "bg-green-500/15 text-green-400 border-green-500/30", icon: <CheckCircle className="h-3 w-3" /> },
-    WARNING: { color: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30", icon: <AlertTriangle className="h-3 w-3" /> },
+    WARNING: { color: "bg-warn-surface text-warn border-warn", icon: <AlertTriangle className="h-3 w-3" /> },
     EXPIRED: { color: "bg-red-500/15 text-red-400 border-red-500/30", icon: <AlertTriangle className="h-3 w-3" /> },
     MISSING: { color: "bg-muted/50 text-muted-foreground border-border", icon: <WifiOff className="h-3 w-3" /> },
     ERROR:   { color: "bg-red-500/15 text-red-400 border-red-500/30", icon: <AlertTriangle className="h-3 w-3" /> },
@@ -121,7 +121,7 @@ function SessionCard({ status, onRefresh, onInvalidate, invalidating, onDisconne
 
         {/* Daily login required banner */}
         {status?.daily_login_required && connState !== "CONNECTED" && (
-          <div className="flex items-center gap-2 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-sm text-yellow-300">
+          <div className="flex items-center gap-2 p-3 bg-warn-surface border border-warn rounded-lg text-sm text-warn">
             <AlertTriangle className="h-4 w-4 flex-shrink-0" />
             {status?.token_expired
               ? `Daily Zerodha login required — the previous session expired${status?.token_expires_at ? ` at ${fmtTime(status.token_expires_at)}` : ""} (tokens expire at 06:00 IST every day).`
@@ -682,7 +682,7 @@ function DiagnosticsPanel() {
               ].map(({ label, value, ok }) => (
                 <div key={label} className="bg-muted/30 rounded-lg p-3">
                   <div className="text-xs text-muted-foreground mb-1">{label}</div>
-                  <div className={`text-sm font-mono font-semibold ${ok ? "text-green-400" : "text-yellow-400"}`}>{value}</div>
+                  <div className={`text-sm font-mono font-semibold ${ok ? "text-green-400" : "text-warn"}`}>{value}</div>
                 </div>
               ))}
             </div>

@@ -23,6 +23,7 @@ import {
   useWatchlist,
 } from "@/lib/monitorApi";
 import { useOfflineSnapshot } from "@/lib/offlineCache";
+import { AppHeader } from "@/components/AppHeader";
 
 export default function WatchlistScreen() {
   const colors = useColors();
@@ -68,14 +69,16 @@ export default function WatchlistScreen() {
   const list = watchlist ?? [];
 
   return (
-    <ScrollView
-      style={{ backgroundColor: colors.background }}
-      contentContainerStyle={[styles.scroll, { paddingTop: topPadding + 16, paddingBottom: 120 }]}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl refreshing={isFetching && !isLoading} onRefresh={() => refetch()} tintColor={colors.primary} />
-      }
-    >
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <AppHeader />
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={[styles.scroll, { paddingTop: 16, paddingBottom: 120 }]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={isFetching && !isLoading} onRefresh={() => refetch()} tintColor={colors.primary} />
+        }
+      >
       <Text style={[styles.pageTitle, { color: colors.foreground }]}>Watchlist</Text>
       <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
         Symbols scanned for signals and paper trading
@@ -173,6 +176,7 @@ export default function WatchlistScreen() {
         Changes apply to the next scan. The scanner uses this same list on the desktop dashboard.
       </Text>
     </ScrollView>
+    </View>
   );
 }
 

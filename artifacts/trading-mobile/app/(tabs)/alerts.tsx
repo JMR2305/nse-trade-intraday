@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import React from "react";
+import { AppHeader } from "@/components/AppHeader";
 import {
   ActivityIndicator,
   Alert,
@@ -213,7 +214,8 @@ export default function AlertsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPadding + 16, borderBottomColor: colors.border }]}>
+      <AppHeader />
+      <View style={[styles.header, { paddingTop: 16, borderBottomColor: colors.border }]}>
         <View>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>Notifications</Text>
           <FreshnessStatusBadge ts={dataTs} source={source} style={{ marginTop: 4 }} />

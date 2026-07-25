@@ -182,6 +182,14 @@
   --omni-info:    38 80 178;
   --omni-highlight: 168 134 64;
 
+  /* ── Semantic warning tokens — light mode (AA-contrast on cream bg) ── */
+  /* text: #8A4B00 — 5.6:1 on cream #F7F4ED  ✓ */
+  --warn-text:        138 75 0;
+  --warn-text-strong: 122 62 0;
+  --warn-border:      201 133 24;
+  --warn-surface:     255 244 216;
+  --warn-icon:        168 92 0;
+
   /* Card / elevation shadows */
   --shadow-card:       0 1px 2px 0 rgb(31 41 55 / 0.04), 0 4px 16px -8px  rgb(31 41 55 / 0.10);
   --shadow-card-hover: 0 1px 2px 0 rgb(31 41 55 / 0.06), 0 12px 32px -12px rgb(31 41 55 / 0.16);
@@ -258,6 +266,13 @@
   --omni-danger:  230 108 116;
   --omni-info:    90 180 230;
   --omni-highlight: 200 168 96;
+
+  /* ── Semantic warning tokens — dark mode ── */
+  --warn-text:        246 196 83;
+  --warn-text-strong: 255 209 102;
+  --warn-border:      138 100 24;
+  --warn-surface:     43 34 17;
+  --warn-icon:        246 196 83;
 
   --shadow-card:       0 1px 0 0 rgb(255 255 255 / 0.03) inset, 0 12px 40px -20px rgb(0 0 0 / 0.7);
   --shadow-card-hover: 0 1px 0 0 rgb(255 255 255 / 0.05) inset, 0 24px 60px -24px rgb(0 0 0 / 0.8);
@@ -346,6 +361,13 @@
   .ring-omni-warning { --tw-ring-color: rgb(var(--omni-warning)); }
   .ring-omni-danger  { --tw-ring-color: rgb(var(--omni-danger)); }
   .ring-omni-info    { --tw-ring-color: rgb(var(--omni-info)); }
+
+  /* ── Semantic warning utilities (theme-aware AA-contrast) ── */
+  .text-warn        { color: rgb(var(--warn-text)); }
+  .text-warn-strong { color: rgb(var(--warn-text-strong)); }
+  .bg-warn-surface  { background-color: rgb(var(--warn-surface)); }
+  .border-warn      { border-color: rgb(var(--warn-border)); }
+  .text-warn-icon   { color: rgb(var(--warn-icon)); }
 }
 
 /* ── Extra keyframes (ApexQuant AI additions) ─────────────────────── */

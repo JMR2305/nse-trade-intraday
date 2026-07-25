@@ -47,7 +47,7 @@ export function StaleScanBanner() {
   if (!data?.stale) return null;
   return (
     <div
-      className="flex items-center gap-2 px-4 py-1.5 bg-amber-500/10 border-b border-amber-500/30 text-amber-300 text-[11px] font-mono z-20"
+      className="flex items-center gap-2 px-4 py-1.5 bg-warn-surface border-b border-warn text-warn text-[11px] font-mono z-20"
       data-testid="banner-stale-scan"
     >
       <AlertTriangle className="h-3.5 w-3.5 shrink-0" />

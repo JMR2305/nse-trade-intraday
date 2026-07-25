@@ -29,8 +29,8 @@ const VERDICT_META = {
   },
   "CONTINUE ANALYSIS": {
     icon: ShieldAlert,
-    color: "text-amber-400",
-    bg: "bg-amber-900/30 border-amber-700",
+    color: "text-warn",
+    bg: "bg-warn-surface border-warn",
     short: "CONTINUE ANALYSIS",
   },
   REJECT: {
@@ -51,7 +51,7 @@ function verdictMeta(v: string) {
 const LABEL_COLORS: Record<string, string> = {
   "STRONG BUY": "text-emerald-400",
   BUY: "text-emerald-300",
-  WATCH: "text-amber-300",
+  WATCH: "text-warn",
   AVOID: "text-red-300",
   "NO TRADE": "text-zinc-500",
   EXIT: "text-blue-300",
@@ -416,7 +416,7 @@ export default function BalancedDecisionSection({ balanced }: { balanced: any })
             {(conc.flags ?? []).length > 0 ? (
               <div className="space-y-1">
                 {conc.flags.map((f: string, i: number) => (
-                  <div key={i} className="flex items-start gap-2 text-[11px] font-mono text-amber-300">
+                  <div key={i} className="flex items-start gap-2 text-[11px] font-mono text-warn">
                     <ShieldAlert className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                     {f}
                   </div>

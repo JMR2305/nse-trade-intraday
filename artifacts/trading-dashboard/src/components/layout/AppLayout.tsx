@@ -355,7 +355,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           <Logo showWordmark size={22} />
 
           {/* PAPER TRADING badge — always visible on mobile */}
-          <span className="shrink-0 inline-flex items-center rounded-full border border-amber-400/40 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-400">
+          <span className="shrink-0 inline-flex items-center rounded-full border border-warn px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest bg-warn-surface text-warn">
             Paper
           </span>
 

@@ -208,7 +208,7 @@ export default function DataFreshnessBar({
     : failed
       ? "text-red-400"
       : stale
-        ? "text-yellow-400"
+        ? "text-warn"
         : "text-emerald-400";
   const StatusIcon = failed || stale ? AlertTriangle : CheckCircle2;
 
@@ -223,7 +223,7 @@ export default function DataFreshnessBar({
         failed
           ? "border-red-500/40 bg-red-500/10"
           : stale
-            ? "border-yellow-500/40 bg-yellow-500/10"
+            ? "border-warn bg-warn-surface"
             : "border-border/60 bg-card/40"
       } ${className}`}
     >
@@ -265,10 +265,10 @@ export default function DataFreshnessBar({
             <div>Unavailable: {meta.missing_symbols.join(", ")}</div>
           ) : null}
           {stale && st?.warning ? (
-            <div className="text-yellow-400">{st.warning}</div>
+            <div className="text-warn">{st.warning}</div>
           ) : null}
           {st?.buy_recommendations_disabled ? (
-            <div className="text-yellow-400">BUY recommendations disabled until data is fresh.</div>
+            <div className="text-warn">BUY recommendations disabled until data is fresh.</div>
           ) : null}
           <div className="text-muted-foreground/70">{st?.label ?? "PAPER / RESEARCH ONLY"}</div>
         </div>

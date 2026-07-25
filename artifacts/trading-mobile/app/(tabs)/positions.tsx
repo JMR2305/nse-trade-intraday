@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useGetTrades } from "@workspace/api-client-react";
 import React from "react";
+import { AppHeader } from "@/components/AppHeader";
 import {
   Platform,
   RefreshControl,
@@ -113,18 +114,20 @@ export default function PositionsScreen() {
   const onRefresh = () => Promise.all([positions.refetch(), refetchTrades()]);
 
   return (
-    <ScrollView
-      style={{ backgroundColor: colors.background }}
-      contentContainerStyle={[styles.scroll, { paddingTop: topPadding + 16, paddingBottom: 120 }]}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={(positions.isFetching || fetchingTrades) && !positions.isLoading}
-          onRefresh={onRefresh}
-          tintColor={colors.primary}
-        />
-      }
-    >
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <AppHeader />
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={[styles.scroll, { paddingTop: 16, paddingBottom: 120 }]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={(positions.isFetching || fetchingTrades) && !positions.isLoading}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+          />
+        }
+      >
       <Text style={[styles.pageTitle, { color: colors.foreground }]}>Paper Positions</Text>
       <Text style={[styles.pageSub, { color: colors.mutedForeground }]}>
         Simulated trades only — no real money at risk
@@ -214,6 +217,7 @@ export default function PositionsScreen() {
         </View>
       )}
     </ScrollView>
+    </View>
   );
 }
 

@@ -18,6 +18,7 @@ import { FreshnessLabel } from "@/components/FreshnessLabel";
 import { StaleBanner } from "@/components/StaleBanner";
 import { useColors } from "@/hooks/useColors";
 import { useOfflineSnapshot } from "@/lib/offlineCache";
+import { AppHeader } from "@/components/AppHeader";
 import {
   useKiteStatus,
   useLiveDataHealth,
@@ -148,25 +149,30 @@ export default function DashboardScreen() {
 
   if (isError && portfolio === undefined) {
     return (
-      <View style={[styles.center, { backgroundColor: colors.background, paddingTop: topPadding }]}>
-        <Ionicons name="cloud-offline-outline" size={48} color={colors.destructive} />
-        <Text style={[styles.errorText, { color: colors.mutedForeground }]}>
-          Server unreachable and no saved data yet.
-        </Text>
-        <Text style={[styles.errorText, { color: colors.mutedForeground }]}>
-          It may be starting up — try again in a moment.
-        </Text>
-        <Pressable style={[styles.retryBtn, { borderColor: colors.border }]} onPress={() => refetchPortfolio()}>
-          <Text style={[styles.retryText, { color: colors.primary }]}>Try again</Text>
-        </Pressable>
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <AppHeader />
+        <View style={[styles.center]}>
+          <Ionicons name="cloud-offline-outline" size={48} color={colors.destructive} />
+          <Text style={[styles.errorText, { color: colors.mutedForeground }]}>
+            Server unreachable and no saved data yet.
+          </Text>
+          <Text style={[styles.errorText, { color: colors.mutedForeground }]}>
+            It may be starting up — try again in a moment.
+          </Text>
+          <Pressable style={[styles.retryBtn, { borderColor: colors.border }]} onPress={() => refetchPortfolio()}>
+            <Text style={[styles.retryText, { color: colors.primary }]}>Try again</Text>
+          </Pressable>
+        </View>
       </View>
     );
   }
 
   return (
-    <ScrollView
-      style={{ backgroundColor: colors.background }}
-      contentContainerStyle={[styles.scroll, { paddingTop: topPadding + 16, paddingBottom: 120 }]}
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <AppHeader />
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={[styles.scroll, { paddingTop: 16, paddingBottom: 120 }]}
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl refreshing={isFetching && !isLoading} onRefresh={onRefresh} tintColor={colors.primary} />
@@ -307,6 +313,7 @@ export default function DashboardScreen() {
         </Text>
       </View>
     </ScrollView>
+    </View>
   );
 }
 

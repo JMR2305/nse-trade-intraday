@@ -27,6 +27,7 @@ import {
   useSchedulerHealth,
 } from "@/lib/monitorApi";
 import { SnapshotSource, useOfflineSnapshot } from "@/lib/offlineCache";
+import { AppHeader } from "@/components/AppHeader";
 
 // Worst source across sections wins; age shown is the oldest data timestamp.
 const SOURCE_RANK: Record<SnapshotSource, number> = { none: 3, "offline-cache": 2, memory: 1, live: 0 };
@@ -208,14 +209,16 @@ export default function HealthScreen() {
   };
 
   return (
-    <ScrollView
-      style={{ backgroundColor: colors.background }}
-      contentContainerStyle={[styles.scroll, { paddingTop: topPadding + 16, paddingBottom: 120 }]}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl refreshing={isFetching} onRefresh={refetchAll} tintColor={colors.primary} />
-      }
-    >
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <AppHeader />
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={[styles.scroll, { paddingTop: 16, paddingBottom: 120 }]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={isFetching} onRefresh={refetchAll} tintColor={colors.primary} />
+        }
+      >
       <Text style={[styles.pageTitle, { color: colors.foreground }]}>System Health</Text>
       <Text style={[styles.pageSub, { color: colors.mutedForeground }]}>
         Monitoring only — no orders can be placed from this app
@@ -429,6 +432,7 @@ export default function HealthScreen() {
         )}
       </Section>
     </ScrollView>
+    </View>
   );
 }
 
