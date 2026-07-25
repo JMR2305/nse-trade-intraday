@@ -34,6 +34,15 @@ async function apiFetch(path: string, init?: RequestInit): Promise<any> {
   return data;
 }
 
+/** Resolved discrepancies older than this threshold cannot be reopened. */
+const REOPEN_CUTOFF_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+function isReopenAllowed(resolvedAt: string | null | undefined): boolean {
+  if (!resolvedAt) return false;
+  const age = Date.now() - new Date(resolvedAt).getTime();
+  return age <= REOPEN_CUTOFF_MS;
+}
+
 const DISCREPANCY_COLORS: Record<string, string> = {
   STATE_MISMATCH:   "text-red-400 border-red-800 bg-red-950/20",
   FILL_MISMATCH:    "text-red-400 border-red-800 bg-red-950/20",
@@ -436,11 +445,12 @@ export default function ReconciliationWidget() {
                           )}
                         </div>
 
-                        {/* Reopen action — two-step confirm */}
+                        {/* Reopen action — two-step confirm; hidden after 48 h */}
                         <div className="flex-shrink-0">
                           {isReopening ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-500 mt-0.5" />
-                          ) : isConfirmingReopen ? (
+                          ) : !isReopenAllowed(d.resolved_at) ? null
+                          : isConfirmingReopen ? (
                             <div className="flex flex-col gap-1 items-end">
                               <span className="text-[10px] text-amber-400">Reopen?</span>
                               <div className="flex gap-1">
