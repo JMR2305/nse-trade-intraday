@@ -314,18 +314,28 @@ def _persist_run(conn, run_id: str, trigger: str,
 
 # ── Email alert ───────────────────────────────────────────────────────────────
 
-def _maybe_email_alert(run_id: str, discrepancies: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Fire an email alert if any discrepancy requires manual review."""
+def _maybe_email_alert(
+    run_id: str,
+    discrepancies: List[Dict[str, Any]],
+    run_time: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Fire a durable email alert if any discrepancy requires manual review.
+
+    Uses the RECONCILIATION_DISCREPANCY kind so it is handled by the standard
+    alert queue (enqueue + immediate process attempt) rather than a direct
+    fire-and-forget call.  The queue retries on a transient provider failure.
+    """
     review_needed = [d for d in discrepancies if d.get("requires_manual_review")]
     if not review_needed:
         return {"sent": False, "reason": "NO_REVIEW_NEEDED"}
     try:
-        from email_alerts import maybe_send_alert_email
         types = list({d.get("discrepancy_type", "UNKNOWN") for d in review_needed})
+        run_time_str = run_time or _iso(_now_utc())
+
         body_lines = [
-            f"EOD reconciliation run {run_id} found {len(review_needed)} discrepancy/ies requiring review.",
-            "",
-            f"Types: {', '.join(types)}",
+            f"Run completed at: {run_time_str}",
+            f"Discrepancies requiring review: {len(review_needed)}",
+            f"Types: {', '.join(sorted(types))}",
             "",
         ]
         for d in review_needed[:10]:
@@ -338,13 +348,35 @@ def _maybe_email_alert(run_id: str, discrepancies: List[Dict[str, Any]]) -> Dict
             body_lines.append(line)
         if len(review_needed) > 10:
             body_lines.append(f"  ... and {len(review_needed) - 10} more")
-        body_lines += ["", "Open the Broker Execution dashboard to review."]
-        return maybe_send_alert_email(
-            kind="CIRCUIT_BREAKER_TRIPPED",  # reuse this emailed kind as alert vehicle
-            title=f"EOD Reconciliation: {len(review_needed)} discrepancy/ies need review",
-            body="\n".join(body_lines),
-            severity="ERROR",
+        body_lines += [
+            "",
+            "Open the Broker Execution page on your dashboard to review and",
+            "resolve each discrepancy before the next trading session.",
+        ]
+
+        title = f"EOD Reconciliation: {len(review_needed)} discrepancy/ies need review"
+        body = "\n".join(body_lines)
+
+        # Route through the durable alert queue so a briefly-down provider
+        # does not lose the alert — the scheduler retries with backoff.
+        import alert_queue
+        alert_queue.enqueue_email_alert(
+            "RECONCILIATION_DISCREPANCY", title, body, "ERROR"
         )
+        result = alert_queue.process_email_queue()
+        # process_email_queue returns a summary dict (keys: delivered, failed,
+        # retried, expired, skipped).  Normalise to the shape callers expect.
+        if isinstance(result, dict):
+            delivered = result.get("delivered", 0)
+            failed = result.get("failed", 0)
+            return {
+                "sent": delivered > 0,
+                "queued": True,
+                "delivered": delivered,
+                "failed": failed,
+                "reason": "QUEUED_AND_DELIVERED" if delivered > 0 else "QUEUED",
+            }
+        return {"sent": False, "queued": True, "reason": "QUEUED"}
     except Exception as exc:
         _log(f"Email alert failed: {exc}")
         return {"sent": False, "reason": "ERROR", "error": str(exc)[:200]}
@@ -518,7 +550,8 @@ def run_eod_reconciliation(
     # ── Email alert if discrepancies need review ──────────────────────────────
     email_result: Dict[str, Any] = {"sent": False, "reason": "NO_REVIEW_NEEDED"}
     if review_count > 0:
-        email_result = _maybe_email_alert(run_id, discrepancies)
+        email_result = _maybe_email_alert(run_id, discrepancies,
+                                          run_time=_iso(completed_at))
         severity = "ERROR"
     else:
         severity = "INFO" if clean else "WARN"
