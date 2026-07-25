@@ -752,5 +752,281 @@ class TestCheckReconciliationProbe(unittest.TestCase):
         self.assertEqual(result["status"], "NOT_DUE")
 
 
+# ---------------------------------------------------------------------------
+# Tests for the resolve → reopen → resolve cycle
+# ---------------------------------------------------------------------------
+
+class _FakeRow:
+    """Minimal discrepancy row stored in memory, mimicking the DB columns."""
+
+    def __init__(self, id_: int):
+        self.id = id_
+        self.resolved: bool = False
+        self.resolved_at = None   # datetime | None
+        self.resolved_note = None  # str | None
+
+
+class _FakeCursor:
+    """Thin cursor stub that executes UPDATE … RETURNING against a _FakeRow."""
+
+    def __init__(self, row: _FakeRow):
+        self._row = row
+        self._last_returning = None   # (id, resolved_at) | (id,) | None
+
+    # context manager protocol
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        pass
+
+    def execute(self, sql: str, params: tuple = ()):
+        sql_stripped = " ".join(sql.split()).upper()
+
+        if "SET RESOLVED = TRUE" in sql_stripped:
+            # resolve_discrepancy: UPDATE … SET resolved=TRUE, resolved_at=NOW(), resolved_note=%s
+            note, disc_id = params
+            if disc_id != self._row.id:
+                self._last_returning = None
+                return
+            import datetime as _dt
+            self._row.resolved = True
+            self._row.resolved_at = _dt.datetime.now(_dt.timezone.utc)
+            self._row.resolved_note = note
+            self._last_returning = (self._row.id, self._row.resolved_at)
+
+        elif "SET RESOLVED = FALSE" in sql_stripped:
+            # reopen_discrepancy: UPDATE … SET resolved=FALSE, resolved_at=NULL, resolved_note=NULL
+            (disc_id,) = params
+            if disc_id != self._row.id:
+                self._last_returning = None
+                return
+            self._row.resolved = False
+            self._row.resolved_at = None
+            self._row.resolved_note = None
+            self._last_returning = (self._row.id,)
+
+        else:
+            # _ensure_schema DDL statements — ignore silently
+            self._last_returning = None
+
+    def fetchone(self):
+        return self._last_returning
+
+    @property
+    def description(self):
+        return None
+
+
+class _FakeConn:
+    """Fake DB connection backed by a single in-memory _FakeRow."""
+
+    def __init__(self, row: _FakeRow):
+        self._row = row
+        self._cursor = _FakeCursor(row)
+        self.committed = False
+
+    def cursor(self):
+        return self._cursor
+
+    def commit(self):
+        self.committed = True
+
+    def close(self):
+        pass
+
+
+class TestResolveReopenCycle(unittest.TestCase):
+    """
+    End-to-end unit test for the full resolve → reopen → resolve transition.
+
+    Covers:
+    - Correct DB state (resolved flag, resolved_at, resolved_note) after each step
+    - Successful API-level responses (success=True) at each step
+    - Latest resolution note is preserved, not the first one
+    - No leftover resolved_at / resolved_note after reopen
+    """
+
+    def _make_conn(self, disc_id: int = 99) -> tuple:
+        """Return (row, conn) for a fresh unresolved discrepancy."""
+        row = _FakeRow(disc_id)
+        conn = _FakeConn(row)
+        return row, conn
+
+    def _patch_connect(self, conn: _FakeConn):
+        """Return a context-manager patch that wires _connect() → conn."""
+        import sys
+        sss = sys.modules["scan_state_store"]
+        return patch.object(sss, "_connect", return_value=conn)
+
+    # ── helpers ──────────────────────────────────────────────────────────────
+
+    def _resolve(self, conn: _FakeConn, disc_id: int, note: str | None = None):
+        with self._patch_connect(conn):
+            return recon.resolve_discrepancy(disc_id, note=note)
+
+    def _reopen(self, conn: _FakeConn, disc_id: int):
+        with self._patch_connect(conn):
+            return recon.reopen_discrepancy(disc_id)
+
+    # ── tests ─────────────────────────────────────────────────────────────────
+
+    def test_first_resolve_sets_correct_db_state(self):
+        """After resolve, resolved=True and resolved_note matches the supplied note."""
+        row, conn = self._make_conn(disc_id=1)
+        result = self._resolve(conn, disc_id=1, note="Initial fix")
+
+        self.assertTrue(result.get("success"), f"Expected success=True, got: {result}")
+        self.assertEqual(result.get("resolved_id"), 1)
+        self.assertIn("resolved_at", result)
+
+        # DB state
+        self.assertTrue(row.resolved)
+        self.assertIsNotNone(row.resolved_at)
+        self.assertEqual(row.resolved_note, "Initial fix")
+
+    def test_reopen_clears_resolved_fields(self):
+        """After reopen, resolved=False and resolved_at/resolved_note are both NULL."""
+        row, conn = self._make_conn(disc_id=2)
+
+        # First: resolve it
+        r1 = self._resolve(conn, disc_id=2, note="First note")
+        self.assertTrue(r1.get("success"), r1)
+
+        # Then: reopen
+        r2 = self._reopen(conn, disc_id=2)
+        self.assertTrue(r2.get("success"), f"Expected reopen success=True, got: {r2}")
+        self.assertEqual(r2.get("reopened_id"), 2)
+
+        # DB state must be fully cleared
+        self.assertFalse(row.resolved)
+        self.assertIsNone(row.resolved_at)
+        self.assertIsNone(row.resolved_note)
+
+    def test_second_resolve_after_reopen_succeeds(self):
+        """resolve → reopen → resolve must complete without errors."""
+        row, conn = self._make_conn(disc_id=3)
+
+        r1 = self._resolve(conn, disc_id=3, note="First resolution")
+        self.assertTrue(r1.get("success"), r1)
+
+        r2 = self._reopen(conn, disc_id=3)
+        self.assertTrue(r2.get("success"), r2)
+
+        r3 = self._resolve(conn, disc_id=3, note="Second resolution")
+        self.assertTrue(r3.get("success"), f"Second resolve failed: {r3}")
+
+    def test_second_resolve_stores_latest_note_not_first(self):
+        """After resolve → reopen → resolve, the note reflects the second resolution."""
+        row, conn = self._make_conn(disc_id=4)
+
+        self._resolve(conn, disc_id=4, note="Original operator note")
+        self._reopen(conn, disc_id=4)
+        self._resolve(conn, disc_id=4, note="Updated operator note")
+
+        self.assertTrue(row.resolved)
+        self.assertEqual(
+            row.resolved_note,
+            "Updated operator note",
+            "resolved_note must reflect the latest resolution, not the first",
+        )
+
+    def test_second_resolve_updates_resolved_at(self):
+        """resolved_at from the second resolution must be ≥ the first."""
+        import time
+        row, conn = self._make_conn(disc_id=5)
+
+        self._resolve(conn, disc_id=5, note="first")
+        first_resolved_at = row.resolved_at
+
+        # Small sleep so the two timestamps are distinguishable
+        time.sleep(0.01)
+
+        self._reopen(conn, disc_id=5)
+        self._resolve(conn, disc_id=5, note="second")
+        second_resolved_at = row.resolved_at
+
+        self.assertIsNotNone(second_resolved_at)
+        self.assertGreaterEqual(
+            second_resolved_at,
+            first_resolved_at,
+            "resolved_at must advance on each new resolution",
+        )
+
+    def test_full_cycle_db_state_at_each_step(self):
+        """
+        Comprehensive state assertion after every transition in the cycle.
+
+        Step 1: resolve    → resolved=T, note="note1"
+        Step 2: reopen     → resolved=F, note=None, resolved_at=None
+        Step 3: resolve    → resolved=T, note="note2"
+        """
+        row, conn = self._make_conn(disc_id=6)
+
+        # -- Step 1: resolve --------------------------------------------------
+        r1 = self._resolve(conn, disc_id=6, note="note1")
+        self.assertTrue(r1.get("success"), f"Step 1 failed: {r1}")
+        self.assertTrue(row.resolved, "Step 1: resolved must be True")
+        self.assertIsNotNone(row.resolved_at, "Step 1: resolved_at must be set")
+        self.assertEqual(row.resolved_note, "note1", "Step 1: note must be 'note1'")
+        after_step1_resolved_at = row.resolved_at
+
+        # -- Step 2: reopen ---------------------------------------------------
+        r2 = self._reopen(conn, disc_id=6)
+        self.assertTrue(r2.get("success"), f"Step 2 failed: {r2}")
+        self.assertFalse(row.resolved, "Step 2: resolved must be False after reopen")
+        self.assertIsNone(row.resolved_at, "Step 2: resolved_at must be NULL after reopen")
+        self.assertIsNone(row.resolved_note, "Step 2: resolved_note must be NULL after reopen")
+
+        # -- Step 3: resolve again --------------------------------------------
+        r3 = self._resolve(conn, disc_id=6, note="note2")
+        self.assertTrue(r3.get("success"), f"Step 3 failed: {r3}")
+        self.assertIn("resolved_at", r3, "Step 3: response must include resolved_at")
+        self.assertTrue(row.resolved, "Step 3: resolved must be True again")
+        self.assertIsNotNone(row.resolved_at, "Step 3: resolved_at must be set again")
+        self.assertEqual(row.resolved_note, "note2", "Step 3: note must be 'note2', not 'note1'")
+
+    def test_resolve_without_note_leaves_note_null(self):
+        """Resolving without a note stores NULL, not an empty string."""
+        row, conn = self._make_conn(disc_id=7)
+
+        self._resolve(conn, disc_id=7, note="initial note")
+        self._reopen(conn, disc_id=7)
+        self._resolve(conn, disc_id=7, note=None)  # no note this time
+
+        self.assertTrue(row.resolved)
+        self.assertIsNone(row.resolved_note, "resolved_note must be NULL when no note supplied")
+
+    def test_reopen_of_already_open_discrepancy_returns_success(self):
+        """Reopening a discrepancy that was never resolved should still succeed (idempotent)."""
+        row, conn = self._make_conn(disc_id=8)
+        # row is unresolved from the start
+
+        result = self._reopen(conn, disc_id=8)
+        self.assertTrue(result.get("success"), f"Unexpected failure: {result}")
+        self.assertFalse(row.resolved)
+        self.assertIsNone(row.resolved_at)
+
+    def test_wrong_id_returns_failure(self):
+        """resolve_discrepancy with a non-matching ID returns success=False."""
+        row, conn = self._make_conn(disc_id=10)
+
+        result = self._resolve(conn, disc_id=999, note="wrong")
+        self.assertFalse(
+            result.get("success"),
+            "Resolving a non-existent ID must return success=False",
+        )
+
+    def test_reopen_wrong_id_returns_failure(self):
+        """reopen_discrepancy with a non-matching ID returns success=False."""
+        row, conn = self._make_conn(disc_id=10)
+
+        result = self._reopen(conn, disc_id=888)
+        self.assertFalse(
+            result.get("success"),
+            "Reopening a non-existent ID must return success=False",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
