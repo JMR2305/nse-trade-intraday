@@ -1006,6 +1006,29 @@ export default function PortfolioLive() {
 
   const snap = snapshotQuery.data;
   const health = healthQuery.data;
+
+  // ── Recovery invalidation ──────────────────────────────────────────────────
+  //
+  // When the health endpoint transitions from an outage status (UNREACHABLE,
+  // UNKNOWN, DOWN, HALTED) back to HEALTHY, immediately invalidate both the
+  // snapshot and config queries so operators see fresh data right away instead
+  // of waiting up to 15 s for the next automatic poll cycle.
+  const prevHealthStatusRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const currentStatus = health?.status;
+    const prevStatus = prevHealthStatusRef.current;
+    const wasOutage =
+      prevStatus === "UNREACHABLE" ||
+      prevStatus === "UNKNOWN" ||
+      prevStatus === "DOWN" ||
+      prevStatus === "HALTED";
+    if (wasOutage && currentStatus === "HEALTHY") {
+      queryClient.invalidateQueries({ queryKey: ["portfolio-snapshot"] });
+      queryClient.invalidateQueries({ queryKey: ["portfolio-config"] });
+    }
+    prevHealthStatusRef.current = currentStatus;
+  }, [health?.status, queryClient]);
+
   const isLoading = snapshotQuery.isLoading && !snap;
   const isFetching = snapshotQuery.isFetching || healthQuery.isFetching || configQuery.isFetching;
   const error = snapshotQuery.error as Error | null;

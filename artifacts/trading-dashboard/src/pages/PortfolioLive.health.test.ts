@@ -854,6 +854,127 @@ describe("dual-error consolidated banner — both snapshot and health queries fa
   });
 });
 
+// ── 16. Health recovery — snapshot and config invalidation ───────────────────
+//
+// When the health endpoint transitions from an outage status (UNREACHABLE,
+// UNKNOWN, DOWN, HALTED) back to HEALTHY, the page must immediately invalidate
+// the snapshot and config queries so operators see fresh data without waiting
+// up to 15 seconds for the next automatic poll cycle.
+//
+// Done-looks-like:
+//   - A prevHealthStatusRef (useRef) tracks the previous health status
+//   - A useEffect watches health?.status and fires queryClient.invalidateQueries
+//     for "portfolio-snapshot" and "portfolio-config" on any outage→HEALTHY flip
+//
+// These are static source-analysis tests.
+
+describe("health recovery — snapshot and config queries invalidated on HEALTHY transition", () => {
+  it("prevHealthStatusRef is declared as a useRef tracking the previous health status", () => {
+    expect(pageSrc).toContain("prevHealthStatusRef");
+    expect(pageSrc).toMatch(/prevHealthStatusRef\s*=\s*useRef/);
+  });
+
+  it("useEffect depends on health?.status to detect status changes", () => {
+    // The dependency array must include health?.status so the effect fires on every
+    // health status change, not only on mount.
+    expect(pageSrc).toMatch(/\[health\?\.status[^\]]*\]/);
+  });
+
+  it("recovery useEffect checks for UNREACHABLE outage status", () => {
+    expect(pageSrc).toContain('"UNREACHABLE"');
+    // The wasOutage check must cover UNREACHABLE
+    expect(pageSrc).toMatch(/prevStatus\s*===\s*"UNREACHABLE"/);
+  });
+
+  it("recovery useEffect checks for UNKNOWN outage status", () => {
+    expect(pageSrc).toMatch(/prevStatus\s*===\s*"UNKNOWN"/);
+  });
+
+  it("recovery useEffect checks for DOWN outage status", () => {
+    expect(pageSrc).toMatch(/prevStatus\s*===\s*"DOWN"/);
+  });
+
+  it("recovery useEffect checks for HALTED outage status", () => {
+    expect(pageSrc).toMatch(/prevStatus\s*===\s*"HALTED"/);
+  });
+
+  it("recovery useEffect only invalidates when currentStatus is HEALTHY", () => {
+    expect(pageSrc).toMatch(/currentStatus\s*===\s*"HEALTHY"/);
+  });
+
+  it("recovery useEffect calls queryClient.invalidateQueries for portfolio-snapshot", () => {
+    // Locate the recovery useEffect block and verify it invalidates the snapshot query
+    const effectIdx = pageSrc.indexOf("prevHealthStatusRef.current");
+    expect(effectIdx).toBeGreaterThan(-1);
+    const effectBlock = pageSrc.slice(effectIdx, effectIdx + 1000);
+    expect(effectBlock).toMatch(/queryClient\.invalidateQueries[\s\S]{0,100}portfolio-snapshot/);
+  });
+
+  it("recovery useEffect calls queryClient.invalidateQueries for portfolio-config", () => {
+    const effectIdx = pageSrc.indexOf("prevHealthStatusRef.current");
+    expect(effectIdx).toBeGreaterThan(-1);
+    const effectBlock = pageSrc.slice(effectIdx, effectIdx + 1000);
+    expect(effectBlock).toMatch(/queryClient\.invalidateQueries[\s\S]{0,200}portfolio-config/);
+  });
+
+  it("prevHealthStatusRef.current is updated to the currentStatus after every effect run", () => {
+    // The ref must be updated unconditionally so the next run compares against the
+    // correct previous value, not a stale one from several renders ago.
+    expect(pageSrc).toMatch(/prevHealthStatusRef\.current\s*=\s*currentStatus/);
+  });
+
+  // ── Pure-logic simulation ─────────────────────────────────────────────────
+  //
+  // Simulates two consecutive health-poll results and asserts that invalidation
+  // fires exactly when a recovery is detected, and does not fire on non-recovery
+  // transitions.
+
+  interface RecoveryScenario {
+    prevStatus: string | undefined;
+    currentStatus: string | undefined;
+  }
+
+  const OUTAGE_STATUSES = ["UNREACHABLE", "UNKNOWN", "DOWN", "HALTED"];
+
+  function shouldInvalidate(s: RecoveryScenario): boolean {
+    const wasOutage = s.prevStatus !== undefined && OUTAGE_STATUSES.includes(s.prevStatus);
+    return wasOutage && s.currentStatus === "HEALTHY";
+  }
+
+  it("simulation: invalidates when UNREACHABLE → HEALTHY", () => {
+    expect(shouldInvalidate({ prevStatus: "UNREACHABLE", currentStatus: "HEALTHY" })).toBe(true);
+  });
+
+  it("simulation: invalidates when UNKNOWN → HEALTHY", () => {
+    expect(shouldInvalidate({ prevStatus: "UNKNOWN", currentStatus: "HEALTHY" })).toBe(true);
+  });
+
+  it("simulation: invalidates when DOWN → HEALTHY", () => {
+    expect(shouldInvalidate({ prevStatus: "DOWN", currentStatus: "HEALTHY" })).toBe(true);
+  });
+
+  it("simulation: invalidates when HALTED → HEALTHY", () => {
+    expect(shouldInvalidate({ prevStatus: "HALTED", currentStatus: "HEALTHY" })).toBe(true);
+  });
+
+  it("simulation: does NOT invalidate on HEALTHY → HEALTHY (steady state)", () => {
+    expect(shouldInvalidate({ prevStatus: "HEALTHY", currentStatus: "HEALTHY" })).toBe(false);
+  });
+
+  it("simulation: does NOT invalidate on HEALTHY → DEGRADED (not a recovery)", () => {
+    expect(shouldInvalidate({ prevStatus: "HEALTHY", currentStatus: "DEGRADED" })).toBe(false);
+  });
+
+  it("simulation: does NOT invalidate on undefined → HEALTHY (first render, no previous status)", () => {
+    // On first mount prevStatus is undefined; we must not treat that as an outage
+    expect(shouldInvalidate({ prevStatus: undefined, currentStatus: "HEALTHY" })).toBe(false);
+  });
+
+  it("simulation: does NOT invalidate when current status is not HEALTHY", () => {
+    expect(shouldInvalidate({ prevStatus: "UNREACHABLE", currentStatus: "DEGRADED" })).toBe(false);
+  });
+});
+
 // ── 15. patchMutation onSuccess — immediate cache invalidation ────────────
 //
 // After a PATCH /portfolio/config call succeeds, the panel must show the new
