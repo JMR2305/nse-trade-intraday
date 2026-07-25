@@ -90,6 +90,10 @@ interface PortfolioHealth {
   degraded: boolean;
   failure_reason?: string | null;
   unresolved_discrepancies: number;
+  /** true when PortfolioConfig loaded successfully; false = hardcoded defaults in use */
+  limits_from_config?: boolean;
+  /** human-readable list of active degraded reasons */
+  degraded_reasons?: string[];
   state_freshness_s?: number | null;
   checked_at: string;
 }
@@ -672,12 +676,33 @@ export default function PortfolioLive() {
                   </span>
                 </div>
               ))}
-              {health.unresolved_discrepancies > 0 && (
+              {/* Degraded reason rows — one per entry */}
+              {(health.degraded_reasons ?? []).length > 0 && (
+                <div className="col-span-2 md:col-span-4 space-y-1">
+                  {(health.degraded_reasons!).map((reason, i) => (
+                    <div key={i} className="flex items-start gap-2">
+                      <AlertTriangle className="h-3.5 w-3.5 text-yellow-400 flex-shrink-0 mt-0.5" />
+                      <span className="text-xs text-yellow-400 font-mono">{reason}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* Fallback for old API responses that don't include degraded_reasons */}
+              {(health.degraded_reasons == null) && health.unresolved_discrepancies > 0 && (
                 <div className="flex items-center gap-2 col-span-2 md:col-span-4">
                   <AlertTriangle className="h-3.5 w-3.5 text-yellow-400 flex-shrink-0" />
                   <span className="text-xs text-yellow-400 font-mono">
                     {health.unresolved_discrepancies} unresolved discrepanc
                     {health.unresolved_discrepancies === 1 ? "y" : "ies"}
+                  </span>
+                </div>
+              )}
+              {/* Config-limits indicator (explicit flag for old API responses) */}
+              {(health.degraded_reasons == null) && health.limits_from_config === false && (
+                <div className="flex items-start gap-2 col-span-2 md:col-span-4">
+                  <AlertTriangle className="h-3.5 w-3.5 text-yellow-400 flex-shrink-0 mt-0.5" />
+                  <span className="text-xs text-yellow-400 font-mono">
+                    Exposure limits using hardcoded defaults — check PortfolioConfig import
                   </span>
                 </div>
               )}

@@ -303,13 +303,32 @@ def get_portfolio_health() -> Dict[str, Any]:
     except Exception:
         pass
 
+    # Check whether PortfolioConfig loaded successfully
+    limits_from_config = False
+    try:
+        from src.portfolio.config import PortfolioConfig
+        PortfolioConfig()
+        limits_from_config = True
+    except Exception as exc:
+        logger.debug("PortfolioConfig unavailable in health check: %s", exc)
+
+    # Collect all degraded reasons
+    degraded_reasons: List[str] = []
+    if unresolved > 0:
+        degraded_reasons.append(
+            f"{unresolved} unresolved reconciliation discrepanc"
+            f"{'y' if unresolved == 1 else 'ies'}"
+        )
+    if not limits_from_config:
+        degraded_reasons.append(
+            "Exposure limits using hardcoded defaults — check PortfolioConfig import"
+        )
+
     # Derive overall status
     if not initialized:
         status = "UNKNOWN"
-    elif unresolved > 0:
+    elif degraded_reasons:
         status = "DEGRADED"
-    elif enabled:
-        status = "HEALTHY"
     else:
         status = "HEALTHY"
 
@@ -321,9 +340,11 @@ def get_portfolio_health() -> Dict[str, Any]:
         "activation_check_ok": activation_ok,
         "state_freshness_s": state_fresh,
         "unresolved_discrepancies": unresolved,
+        "limits_from_config": limits_from_config,
+        "degraded_reasons": degraded_reasons,
         "liveness": initialized,
         "readiness": initialized,
-        "degraded": unresolved > 0,
-        "failure_reason": None,
+        "degraded": bool(degraded_reasons),
+        "failure_reason": degraded_reasons[0] if degraded_reasons else None,
         "checked_at": now,
     }
