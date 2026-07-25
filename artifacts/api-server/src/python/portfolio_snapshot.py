@@ -14,6 +14,12 @@ logger = logging.getLogger(__name__)
 
 _INITIAL_CAPITAL = 5_000.0  # default; overridden if paper_trader exposes it
 
+# Default exposure limits (fractions of equity, matching PortfolioConfig defaults).
+# Overridden at runtime if PortfolioConfig is importable.
+_DEFAULT_INSTRUMENT_LIMIT_PCT = 20.0   # 20 % per single stock
+_DEFAULT_SECTOR_LIMIT_PCT = 35.0       # 35 % per sector
+_WARNING_RATIO = 0.80                  # ≥ 80 % of limit → WARNING
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -165,6 +171,68 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
     except Exception:
         pass
 
+    # ── 4. Exposure limits (try to load from PortfolioConfig) ─────────────
+    instrument_limit_pct = _DEFAULT_INSTRUMENT_LIMIT_PCT
+    sector_limit_pct = _DEFAULT_SECTOR_LIMIT_PCT
+    try:
+        from src.portfolio.config import PortfolioConfig
+        _cfg = PortfolioConfig()
+        instrument_limit_pct = float(_cfg.max_instrument_exposure_pct) * 100.0
+        sector_limit_pct = float(_cfg.max_sector_exposure_pct) * 100.0
+    except Exception:
+        pass
+
+    # ── 5. Per-position exposure_pct and sector rollup ─────────────────────
+    equity_safe = equity if equity > 0 else 1.0
+    sector_map: Dict[str, Dict[str, Any]] = {}
+
+    for pos in open_positions:
+        pos["exposure_pct"] = round(pos["market_value"] / equity_safe * 100.0, 2)
+        sector = pos.get("sector") or "UNKNOWN"
+        if sector not in sector_map:
+            sector_map[sector] = {"total_value": 0.0, "position_count": 0}
+        sector_map[sector]["total_value"] += pos["market_value"]
+        sector_map[sector]["position_count"] += 1
+
+    sector_exposures: List[Dict[str, Any]] = []
+    for sector, data in sector_map.items():
+        exp_pct = round(data["total_value"] / equity_safe * 100.0, 2)
+        sector_exposures.append({
+            "sector": sector,
+            "total_value": round(data["total_value"], 2),
+            "exposure_pct": exp_pct,
+            "limit_pct": sector_limit_pct,
+            "ratio": round(exp_pct / sector_limit_pct, 4) if sector_limit_pct > 0 else 0.0,
+            "position_count": data["position_count"],
+        })
+    sector_exposures.sort(key=lambda s: s["exposure_pct"], reverse=True)
+
+    # ── 6. Exposure warnings ───────────────────────────────────────────────
+    exposure_warnings: List[Dict[str, Any]] = []
+
+    for pos in open_positions:
+        ratio = pos["exposure_pct"] / instrument_limit_pct if instrument_limit_pct > 0 else 0.0
+        if ratio >= _WARNING_RATIO:
+            exposure_warnings.append({
+                "kind": "instrument",
+                "name": pos["symbol"],
+                "exposure_pct": pos["exposure_pct"],
+                "limit_pct": instrument_limit_pct,
+                "ratio": round(ratio, 4),
+                "severity": "CRITICAL" if ratio >= 1.0 else "WARNING",
+            })
+
+    for se in sector_exposures:
+        if se["ratio"] >= _WARNING_RATIO:
+            exposure_warnings.append({
+                "kind": "sector",
+                "name": se["sector"],
+                "exposure_pct": se["exposure_pct"],
+                "limit_pct": sector_limit_pct,
+                "ratio": se["ratio"],
+                "severity": "CRITICAL" if se["ratio"] >= 1.0 else "WARNING",
+            })
+
     return {
         "status": status,
         "paper_mode": True,
@@ -183,6 +251,11 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
         "open_positions": open_positions,
         "open_position_count": len(open_positions),
         "closed_positions_today": closed_count_today,
+        # Exposure data
+        "instrument_limit_pct": instrument_limit_pct,
+        "sector_limit_pct": sector_limit_pct,
+        "sector_exposures": sector_exposures,
+        "exposure_warnings": exposure_warnings,
     }
 
 

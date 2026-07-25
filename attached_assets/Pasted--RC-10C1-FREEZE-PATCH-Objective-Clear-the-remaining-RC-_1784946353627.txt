@@ -1,0 +1,136 @@
+# RC-10C1 — FREEZE PATCH
+
+Objective:
+Clear the remaining RC-10C1 freeze blockers identified in the final production audit.
+
+Do not add new features.
+Do not change frozen RC-6 through RC-10D contracts.
+Do not enable live trading.
+Do not start RC-10C2.
+
+Current audit result:
+- 612 tests passing
+- Portfolio coverage: 87%
+- Required coverage: ≥90%
+- Zero Critical findings
+- Zero High findings
+- Open Medium findings: F-01, F-02, F-03
+- Final verdict currently: NOT READY FOR FREEZE
+
+Required work:
+
+1. Coverage
+Increase total src/portfolio coverage to at least 90%.
+
+Prioritize:
+- repositories/capital_allocation.py
+- repositories/portfolio_snapshot.py
+- repositories/portfolio_event.py
+- repositories/reconciliation.py
+- ledger.py
+- service.py
+- health.py
+- exposure.py
+- reconciliation.py
+- position_sizer.py
+- position_manager.py
+
+Add meaningful tests, not artificial line execution.
+
+Required test areas:
+- Repository create/read/idempotency behavior
+- Repository rollback and session-failure behavior
+- Service persistence success and failure paths
+- Ledger database append paths
+- Health degraded and unavailable states
+- Stale price and stale state branches
+- Malformed broker reconciliation fields
+- Defensive sizing and exposure branches
+
+Use async mocks or the project-standard test database approach.
+
+2. Reconciliation exception handling
+In reconciliation.py, replace broad exception handlers used for Decimal parsing with narrow handling such as:
+- ValueError
+- decimal.InvalidOperation
+- TypeError where genuinely required
+
+Malformed broker values must:
+- create an explicit discrepancy or validation result
+- never silently become Decimal("0") in a way that masks risk
+
+Add regression tests for malformed:
+- average price
+- cash
+- used margin
+
+3. Service persistence exception handling
+Review the broad except Exception around event persistence.
+
+Replace it with specific expected repository/session exceptions.
+
+Persistence failure must:
+- be logged clearly
+- emit a health or audit signal where supported
+- preserve the documented state-consistency policy
+
+Do not silently hide unexpected programming defects.
+
+4. Static analysis
+Resolve the following without behavior changes:
+- mypy errors in contracts.py
+- mypy error in exposure.py
+- unused variable in service.py
+- justified broad-exception warnings
+
+Do not bulk-apply stylistic Decimal rewrites unless proven behavior-neutral.
+Do not make large formatting-only changes.
+
+5. Verification
+Run and report exact results for:
+
+- ruff
+- mypy
+- portfolio unit tests
+- full platform regression suite
+- coverage
+- migration/model checks
+- recovery tests
+- reconciliation tests
+- concurrency tests
+
+Required freeze gates:
+- Portfolio coverage ≥90%
+- 0 test failures
+- No new collection errors
+- 0 unresolved Critical findings
+- 0 unresolved High findings
+- F-01 resolved
+- F-02 resolved
+- F-03 resolved
+- No frozen contract changes
+- paper_mode=True remains structurally enforced
+
+6. Final report
+Create:
+docs/RC10C1_Freeze_Patch_Report.md
+
+Return:
+- audited commit hash
+- exact files modified
+- tests added
+- exact test counts
+- coverage by module and total
+- ruff result
+- mypy result
+- regression comparison
+- findings resolved
+- remaining Medium/Low findings
+- production-readiness score
+- one final verdict only:
+  FROZEN
+  or
+  NOT READY FOR FREEZE
+
+Do not return READY FOR AUDIT.
+Do not mark FROZEN unless every freeze gate is supported by executed evidence.

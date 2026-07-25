@@ -13,6 +13,7 @@ import {
   Activity,
   DollarSign,
   PieChart,
+  ShieldAlert,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -29,6 +30,26 @@ interface OpenPosition {
   strategy_id?: string | null;
   sector?: string | null;
   opened_at?: string | null;
+  /** Added by portfolio_snapshot.py: position market_value as % of equity */
+  exposure_pct?: number;
+}
+
+interface SectorExposure {
+  sector: string;
+  total_value: number;
+  exposure_pct: number;
+  limit_pct: number;
+  ratio: number;
+  position_count: number;
+}
+
+interface ExposureWarning {
+  kind: "instrument" | "sector";
+  name: string;
+  exposure_pct: number;
+  limit_pct: number;
+  ratio: number;
+  severity: "WARNING" | "CRITICAL";
 }
 
 interface PortfolioSnapshot {
@@ -49,6 +70,11 @@ interface PortfolioSnapshot {
   open_positions: OpenPosition[];
   open_position_count: number;
   closed_positions_today: number;
+  // Exposure additions
+  instrument_limit_pct?: number;
+  sector_limit_pct?: number;
+  sector_exposures?: SectorExposure[];
+  exposure_warnings?: ExposureWarning[];
 }
 
 interface PortfolioHealth {
@@ -68,6 +94,7 @@ interface PortfolioHealth {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const REFRESH_INTERVAL = 15_000; // 15 s
+const WARNING_RATIO = 0.80;      // match backend _WARNING_RATIO
 
 const rupee = (n: number | undefined | null) =>
   `₹${Number(n ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -85,6 +112,13 @@ const pnlColor = (v: number | undefined | null) => {
   return "text-muted-foreground";
 };
 
+/** Map an exposure ratio (0–1+) to Tailwind colour classes */
+function exposureColor(ratio: number): { bar: string; text: string } {
+  if (ratio >= 1.0) return { bar: "bg-red-500",    text: "text-red-400" };
+  if (ratio >= 0.8) return { bar: "bg-yellow-500", text: "text-yellow-400" };
+  return              { bar: "bg-green-500",        text: "text-green-400" };
+}
+
 const statusConfig: Record<string, { color: string; icon: typeof CheckCircle2; label: string }> = {
   HEALTHY:   { color: "text-green-400 border-green-500/40 bg-green-500/10",   icon: CheckCircle2,  label: "HEALTHY"   },
   READY:     { color: "text-green-400 border-green-500/40 bg-green-500/10",   icon: CheckCircle2,  label: "READY"     },
@@ -94,6 +128,8 @@ const statusConfig: Record<string, { color: string; icon: typeof CheckCircle2; l
   UNKNOWN:   { color: "text-slate-400 border-slate-500/40 bg-slate-500/10",   icon: Activity,      label: "UNKNOWN"   },
   DISABLED:  { color: "text-slate-400 border-slate-500/40 bg-slate-500/10",   icon: Activity,      label: "DISABLED"  },
 };
+
+// ── Components ────────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
   const cfg = statusConfig[status] ?? statusConfig.UNKNOWN;
@@ -154,8 +190,43 @@ function DrawdownBar({ pct: drawdownPct }: { pct: number }) {
   );
 }
 
-function PositionRow({ pos }: { pos: OpenPosition }) {
+/** Compact horizontal bar showing how much of a limit is consumed. */
+function ExposureBar({
+  exposurePct,
+  limitPct,
+  label,
+}: {
+  exposurePct: number;
+  limitPct: number;
+  label?: string;
+}) {
+  const ratio = limitPct > 0 ? exposurePct / limitPct : 0;
+  const fillW = Math.min(100, ratio * 100);
+  const { bar, text } = exposureColor(ratio);
+  return (
+    <div className="flex items-center gap-1.5 min-w-[90px]" title={`${exposurePct.toFixed(1)}% of equity / limit ${limitPct.toFixed(0)}%`}>
+      <div className="flex-1 h-1.5 rounded-full bg-border/60 overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all ${bar}`}
+          style={{ width: `${fillW}%` }}
+        />
+      </div>
+      <span className={`text-xs font-mono tabular-nums ${text}`}>
+        {label ?? `${exposurePct.toFixed(1)}%`}
+      </span>
+    </div>
+  );
+}
+
+function PositionRow({
+  pos,
+  instrumentLimitPct,
+}: {
+  pos: OpenPosition;
+  instrumentLimitPct: number;
+}) {
   const upnl = pos.unrealised_pnl;
+  const expPct = pos.exposure_pct ?? 0;
   return (
     <tr
       className="border-b border-border/40 hover:bg-accent/20 transition-colors"
@@ -175,7 +246,99 @@ function PositionRow({ pos }: { pos: OpenPosition }) {
         {pct(pos.unrealised_pnl_pct)}
       </td>
       <td className="px-3 py-2.5 text-xs text-muted-foreground">{pos.strategy_id ?? "—"}</td>
+      {/* Exposure bar column */}
+      <td className="px-3 py-2.5 min-w-[120px]" data-testid={`exposure-bar-${pos.symbol}`}>
+        <ExposureBar exposurePct={expPct} limitPct={instrumentLimitPct} />
+      </td>
     </tr>
+  );
+}
+
+/** Banner listing all near-limit warnings, shown above the positions table. */
+function ExposureWarningBanner({ warnings }: { warnings: ExposureWarning[] }) {
+  if (warnings.length === 0) return null;
+  const hasCritical = warnings.some((w) => w.severity === "CRITICAL");
+  const borderCls = hasCritical
+    ? "border-red-500/40 bg-red-500/10"
+    : "border-yellow-500/40 bg-yellow-500/10";
+  const textCls = hasCritical ? "text-red-400" : "text-yellow-400";
+  const iconCls = hasCritical ? "text-red-400" : "text-yellow-400";
+
+  return (
+    <div
+      className={`flex items-start gap-3 rounded-md border p-3 ${borderCls}`}
+      data-testid="banner-exposure-warnings"
+    >
+      <ShieldAlert className={`h-4 w-4 flex-shrink-0 mt-0.5 ${iconCls}`} />
+      <div className="space-y-1 min-w-0">
+        <p className={`font-mono font-bold text-xs ${textCls}`}>
+          {hasCritical ? "EXPOSURE LIMIT BREACHED" : "EXPOSURE LIMIT WARNING"}
+          {" "}— {warnings.length} issue{warnings.length !== 1 ? "s" : ""}
+        </p>
+        <ul className="space-y-0.5">
+          {warnings.map((w, i) => {
+            const { text } = exposureColor(w.ratio);
+            return (
+              <li key={i} className={`text-xs font-mono ${text}`}>
+                {w.kind === "instrument" ? "Stock" : "Sector"} <span className="font-bold">{w.name}</span>
+                {" "}— {w.exposure_pct.toFixed(1)}% of equity (limit {w.limit_pct.toFixed(0)}%,{" "}
+                {(w.ratio * 100).toFixed(0)}% consumed)
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+/** Sector exposure summary cards. */
+function SectorExposureSection({
+  sectorExposures,
+  sectorLimitPct,
+}: {
+  sectorExposures: SectorExposure[];
+  sectorLimitPct: number;
+}) {
+  if (sectorExposures.length === 0) return null;
+  return (
+    <Card className="bg-card/50 border-border/50">
+      <CardHeader className="pb-2 pt-4 px-4">
+        <CardTitle className="text-sm font-mono uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+          <BarChart2 className="h-3.5 w-3.5" />
+          Sector Exposure
+          <span className="ml-auto text-xs font-normal text-muted-foreground">
+            Limit: {sectorLimitPct.toFixed(0)}% per sector
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-4 pt-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {sectorExposures.map((se) => {
+          const { text } = exposureColor(se.ratio);
+          return (
+            <div
+              key={se.sector}
+              className="rounded-md border border-border/40 bg-background/40 p-3 space-y-2"
+              data-testid={`sector-exposure-${se.sector}`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-mono font-bold text-foreground truncate">
+                  {se.sector}
+                </span>
+                <span className="text-xs text-muted-foreground font-mono ml-2 flex-shrink-0">
+                  {se.position_count} pos
+                </span>
+              </div>
+              <ExposureBar exposurePct={se.exposure_pct} limitPct={sectorLimitPct} />
+              <div className="flex justify-between text-xs font-mono text-muted-foreground">
+                <span>{rupee(se.total_value)}</span>
+                <span className={text}>{se.exposure_pct.toFixed(1)}% of equity</span>
+              </div>
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -196,9 +359,7 @@ export default function PortfolioLive() {
     staleTime: REFRESH_INTERVAL / 2,
   });
 
-  // Countdown to next refresh
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
@@ -213,6 +374,11 @@ export default function PortfolioLive() {
 
   const overallStatus = health?.status ?? snap?.status ?? "UNKNOWN";
   const isAlert = overallStatus === "DEGRADED" || overallStatus === "HALTED" || overallStatus === "DOWN";
+
+  const instrumentLimitPct = snap?.instrument_limit_pct ?? 20.0;
+  const sectorLimitPct = snap?.sector_limit_pct ?? 35.0;
+  const sectorExposures = snap?.sector_exposures ?? [];
+  const exposureWarnings = snap?.exposure_warnings ?? [];
 
   if (isLoading) {
     return (
@@ -312,14 +478,12 @@ export default function PortfolioLive() {
           value={rupee(snap?.equity)}
           sub={snap ? `started at ${rupee(snap.initial_capital)}` : undefined}
           icon={DollarSign}
-          data-testid="stat-equity"
         />
         <StatCard
           label="Cash / Buying Power"
           value={rupee(snap?.cash)}
           sub={`invested ${rupee(snap?.invested_value)}`}
           icon={Wallet}
-          data-testid="stat-cash"
         />
         <StatCard
           label="Unrealised P&L"
@@ -327,7 +491,6 @@ export default function PortfolioLive() {
           valueClass={pnlColor(snap?.unrealised_pnl)}
           sub={snap ? pct(snap.unrealised_pnl / Math.max(snap.invested_value, 1) * 100) + " of invested" : undefined}
           icon={snap && snap.unrealised_pnl >= 0 ? TrendingUp : TrendingDown}
-          data-testid="stat-unrealised-pnl"
         />
         <StatCard
           label="Realised P&L Today"
@@ -335,7 +498,6 @@ export default function PortfolioLive() {
           valueClass={pnlColor(snap?.realised_pnl_today)}
           sub={snap ? `${snap.closed_positions_today} position${snap.closed_positions_today !== 1 ? "s" : ""} closed` : undefined}
           icon={BarChart2}
-          data-testid="stat-realised-pnl"
         />
         <StatCard
           label="Drawdown"
@@ -349,7 +511,6 @@ export default function PortfolioLive() {
               : "text-green-400"
           }
           icon={TrendingDown}
-          data-testid="stat-drawdown"
         />
       </div>
 
@@ -373,18 +534,35 @@ export default function PortfolioLive() {
         <CardHeader className="pb-2 pt-4 px-4">
           <CardTitle className="text-sm font-mono uppercase tracking-widest text-muted-foreground flex items-center justify-between">
             <span>Open Positions</span>
-            <span className="text-foreground font-bold" data-testid="count-open-positions">
-              {snap?.open_position_count ?? 0}
+            <span className="flex items-center gap-2">
+              {exposureWarnings.length > 0 && (
+                <span
+                  className="inline-flex items-center gap-1 rounded border border-yellow-500/40 bg-yellow-500/10 px-2 py-0.5 text-xs font-mono text-yellow-400"
+                  data-testid="badge-exposure-warnings-count"
+                >
+                  <ShieldAlert className="h-3 w-3" />
+                  {exposureWarnings.length} limit warning{exposureWarnings.length !== 1 ? "s" : ""}
+                </span>
+              )}
+              <span className="text-foreground font-bold" data-testid="count-open-positions">
+                {snap?.open_position_count ?? 0}
+              </span>
             </span>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
+          {/* Exposure warning banner — inside the card, above the table */}
+          {exposureWarnings.length > 0 && (
+            <div className="px-4 pt-3">
+              <ExposureWarningBanner warnings={exposureWarnings} />
+            </div>
+          )}
           {!snap || snap.open_positions.length === 0 ? (
             <div className="px-4 py-8 text-center text-sm text-muted-foreground font-mono">
               NO OPEN POSITIONS
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto mt-3">
               <table className="w-full text-sm" data-testid="table-positions">
                 <thead>
                   <tr className="border-b border-border/60 text-xs font-mono text-muted-foreground uppercase">
@@ -397,11 +575,18 @@ export default function PortfolioLive() {
                     <th className="px-3 py-2 text-right">Unreal. P&L</th>
                     <th className="px-3 py-2 text-right">P&L %</th>
                     <th className="px-3 py-2 text-left">Strategy</th>
+                    <th className="px-3 py-2 text-left" title={`Single-stock limit: ${instrumentLimitPct.toFixed(0)}% of equity`}>
+                      Exposure / Limit
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {snap.open_positions.map((pos) => (
-                    <PositionRow key={pos.symbol} pos={pos} />
+                    <PositionRow
+                      key={pos.symbol}
+                      pos={pos}
+                      instrumentLimitPct={instrumentLimitPct}
+                    />
                   ))}
                 </tbody>
                 <tfoot>
@@ -420,6 +605,7 @@ export default function PortfolioLive() {
                     </td>
                     <td className="px-3 py-2.5 text-right" />
                     <td className="px-3 py-2.5" />
+                    <td className="px-3 py-2.5" />
                   </tr>
                 </tfoot>
               </table>
@@ -427,6 +613,14 @@ export default function PortfolioLive() {
           )}
         </CardContent>
       </Card>
+
+      {/* ── Sector Exposure ─────────────────────────────────────────────── */}
+      {sectorExposures.length > 0 && (
+        <SectorExposureSection
+          sectorExposures={sectorExposures}
+          sectorLimitPct={sectorLimitPct}
+        />
+      )}
 
       {/* ── Health details ──────────────────────────────────────────────── */}
       <Card className="bg-card/50 border-border/50">
