@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/trading-document-hub/"
+title = "Intraday Trade Hub"
+version = "1.0.0"
+id = "artifacts/trading-document-hub"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/trading-document-hub/" ]
+localPort = 22605
+
+[services.development]
+run = "pnpm --filter @workspace/trading-document-hub run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/trading-document-hub", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/trading-document-hub/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22605"
+BASE_PATH = "/trading-document-hub/"

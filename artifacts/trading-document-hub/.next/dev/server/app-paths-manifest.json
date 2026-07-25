@@ -1,0 +1,13 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/admin/audit/page": "app/admin/audit/page.js",
+  "/admin/batches/page": "app/admin/batches/page.js",
+  "/admin/documents/page": "app/admin/documents/page.js",
+  "/admin/page": "app/admin/page.js",
+  "/admin/settings/page": "app/admin/settings/page.js",
+  "/admin/uploads/page": "app/admin/uploads/page.js",
+  "/batches/page": "app/batches/page.js",
+  "/documents/[slug]/page": "app/documents/[slug]/page.js",
+  "/documents/page": "app/documents/page.js",
+  "/page": "app/page.js"
+}

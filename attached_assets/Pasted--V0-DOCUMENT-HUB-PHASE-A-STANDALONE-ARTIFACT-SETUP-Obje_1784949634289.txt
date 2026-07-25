@@ -1,0 +1,251 @@
+# V0 DOCUMENT HUB — PHASE A: STANDALONE ARTIFACT SETUP
+
+## Objective
+
+Set up the imported V0 Document Hub as an independent Next.js application inside the existing Replit monorepo.
+
+This phase is only for:
+
+- artifact registration
+- dependency isolation
+- build verification
+- runtime verification
+- workspace compatibility
+
+Do not connect real backend APIs yet.
+Do not replace mock data yet.
+Do not add authentication yet.
+Do not add file storage yet.
+Do not modify frozen trading modules.
+Do not merge the Document Hub into the existing Vite trading dashboard.
+
+Current reviewed source:
+
+Repository:
+https://github.com/JMR2305/trading-project-document-hub
+
+Branch:
+main
+
+Imported commit:
+82e1d018e9342d4e846a421296ec94372e668158
+
+Current workspace location:
+artifacts/trading-document-hub/
+
+The Document Hub must remain a separate frontend application.
+
+--------------------------------------------------
+1. VERIFY IMPORTED SOURCE
+--------------------------------------------------
+
+Confirm:
+
+- all expected V0 files are present
+- package.json matches the imported GitHub commit
+- app/, components/, lib/, public/ and configuration files are intact
+- no source files were accidentally omitted
+- no existing trading-platform files were overwritten
+
+Report the exact imported file count and source commit.
+
+--------------------------------------------------
+2. REGISTER AS A SEPARATE ARTIFACT
+--------------------------------------------------
+
+Register:
+
+artifacts/trading-document-hub/
+
+as an independent Next.js artifact.
+
+Create or update the required artifact configuration so that:
+
+- it has its own dev command
+- it has its own build command
+- it has its own runtime/preview path
+- it does not interfere with existing artifacts
+- it does not replace the existing trading dashboard
+
+Do not change existing artifact definitions unless required for routing compatibility.
+
+--------------------------------------------------
+3. DEPENDENCY ISOLATION
+--------------------------------------------------
+
+Resolve dependency conflicts without breaking the existing workspace.
+
+Known issues:
+
+- V0 React: 19.2.4
+- Workspace React: 19.1.0
+- V0 lucide-react: ^1.16.0
+- Workspace lucide-react: ^0.545.0
+- V0 Next.js: 16.2.6
+- V0 @vercel/analytics dependency
+
+Preferred approach:
+
+1. Keep the Document Hub dependency resolution isolated as much as pnpm workspace rules allow.
+2. Do not upgrade the entire monorepo to React 19.2.4.
+3. Do not change Expo or mobile dependencies.
+4. First test whether the V0 project works safely with React 19.1.0.
+5. Keep lucide-react isolated to the Document Hub package.
+6. Remove @vercel/analytics only if required for non-Vercel runtime compatibility.
+7. Preserve functional UI behaviour.
+
+Document every package version changed.
+
+--------------------------------------------------
+4. NEXT.JS CONFIGURATION
+--------------------------------------------------
+
+Review and adjust:
+
+- package.json
+- next.config.mjs
+- tsconfig.json
+- postcss.config.mjs
+
+Requirements:
+
+- remove typescript.ignoreBuildErrors=true
+- TypeScript errors must be visible and fixed
+- support the Replit-assigned PORT
+- support Replit preview routing
+- configure basePath only if actually required
+- ensure static assets load correctly
+- ensure direct navigation to nested routes works
+
+Do not introduce a custom server unless strictly necessary.
+
+--------------------------------------------------
+5. BUILD VERIFICATION
+--------------------------------------------------
+
+Run and report exact results for:
+
+- pnpm install
+- TypeScript check
+- lint
+- Next.js production build
+
+Report:
+
+- command used
+- exit code
+- warnings
+- errors
+- build duration
+- generated routes
+- bundle/build output summary
+
+Do not report only “build passed.”
+
+--------------------------------------------------
+6. RUNTIME VERIFICATION
+--------------------------------------------------
+
+Start the Document Hub in Replit and verify these routes:
+
+- /
+- /documents
+- /documents/[valid-slug]
+- /batches
+- /admin
+- /admin/documents
+- /admin/batches
+- /admin/uploads
+- /admin/audit
+- /admin/settings
+
+Confirm:
+
+- page loads
+- navigation works
+- mock data renders
+- no hydration errors
+- no missing CSS
+- no missing icons
+- no asset 404 errors
+- browser refresh works on nested routes
+- existing trading applications still run
+
+Admin routes may remain unauthenticated in this phase, but add a visible development warning in the report.
+
+--------------------------------------------------
+7. MOCK-DATA BOUNDARY
+
+Keep all current mock services intact.
+
+Do not:
+
+- create document database tables
+- create backend REST routes
+- use PostgreSQL
+- add object storage
+- add Kimi integration
+- add real uploads
+- add authentication
+
+The purpose of Phase A is to prove that the standalone application runs safely before backend integration.
+
+--------------------------------------------------
+8. FROZEN MODULE PROTECTION
+--------------------------------------------------
+
+Confirm no changes to:
+
+- src/portfolio/
+- RC-6 modules
+- RC-7 modules
+- RC-8 modules
+- RC-9 modules
+- RC-10A modules
+- RC-10B modules
+- RC-10C1 modules
+- RC-10D modules
+- existing trading dashboard application logic
+- existing mobile application logic
+
+If any frozen file must be changed, stop and report the reason before modifying it.
+
+--------------------------------------------------
+9. REQUIRED DELIVERABLE
+--------------------------------------------------
+
+Create:
+
+docs/V0_Phase_A_Artifact_Setup_Report.md
+
+Include:
+
+1. Source repository and commit
+2. Final workspace location
+3. Artifact configuration
+4. Dependency changes
+5. React version resolution
+6. lucide-react resolution
+7. Next.js configuration changes
+8. TypeScript result
+9. Lint result
+10. Build result
+11. Runtime route checks
+12. Existing artifact regression checks
+13. Exact files modified
+14. Remaining risks
+15. Recommended Phase B prerequisites
+16. Final verdict
+
+Return one verdict only:
+
+READY FOR PHASE B
+
+or
+
+PHASE A NOT COMPLETE
+
+Do not begin Phase B.
+Do not add backend routes.
+Do not replace mocks.
+Do not modify frozen trading modules.

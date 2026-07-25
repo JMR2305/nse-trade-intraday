@@ -1,0 +1,14 @@
+{
+  "/_global-error/page": "/_global-error",
+  "/_not-found/page": "/_not-found",
+  "/admin/audit/page": "/admin/audit",
+  "/admin/batches/page": "/admin/batches",
+  "/admin/documents/page": "/admin/documents",
+  "/admin/page": "/admin",
+  "/admin/settings/page": "/admin/settings",
+  "/admin/uploads/page": "/admin/uploads",
+  "/batches/page": "/batches",
+  "/documents/[slug]/page": "/documents/[slug]",
+  "/documents/page": "/documents",
+  "/page": "/"
+}
