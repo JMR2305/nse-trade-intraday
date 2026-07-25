@@ -609,3 +609,253 @@ class TestGetPortfolioConfig:
         assert result.get("error") is None, (
             f"error must be None on success, got {result.get('error')!r}"
         )
+
+
+# ── Notification dedup tests ─────────────────────────────────────────────────
+
+
+class TestConfigDefaultsNotificationDedup:
+    """
+    get_portfolio_health() must emit a config-defaults alert to the operator
+    inbox exactly once per UTC day, no more, no less.
+
+    All tests use a mocked phase20_store — no real DB is touched.
+    """
+
+    # ── Shared fixtures ──────────────────────────────────────────────────────
+
+    @staticmethod
+    def _base_sys_mocks(mock_cfg_module, mock_store) -> dict:
+        """Return the sys.modules patch dict common to all dedup tests."""
+        paper_trader = MagicMock()
+        paper_trader._load_state.return_value = {
+            "cash": 100_000.0,
+            "initial_capital": 100_000.0,
+            "positions": {},
+            "last_updated": "2024-01-01T00:00:00+00:00",
+        }
+        return {
+            "phase22_activation": MagicMock(
+                get_activation_status=MagicMock(
+                    return_value={"paper_automation_active": False}
+                )
+            ),
+            "paper_trader": paper_trader,
+            "eod_reconciliation": MagicMock(
+                get_reconciliation_status=MagicMock(
+                    return_value={"unresolved_count": 0}
+                )
+            ),
+            "src.portfolio.config": mock_cfg_module,
+            "phase20_store": mock_store,
+        }
+
+    @staticmethod
+    def _make_broken_cfg() -> MagicMock:
+        """A mock cfg module whose PortfolioConfig raises ImportError."""
+        m = MagicMock()
+        m.PortfolioConfig.side_effect = ImportError("simulated missing config")
+        return m
+
+    # ── 1. add_notification called exactly once on first miss ────────────────
+
+    def test_add_notification_called_once_on_first_miss(self):
+        """
+        When PortfolioConfig is missing and no alert has been sent today,
+        add_notification must be called exactly once.
+        """
+        import portfolio_snapshot as _ps
+
+        store = MagicMock()
+        store.kv_get.return_value = None          # never sent today
+        store.kv_set.return_value = None
+        store.add_notification.return_value = None
+
+        mocks = self._base_sys_mocks(self._make_broken_cfg(), store)
+
+        with patch.dict(sys.modules, mocks):
+            _ps.get_portfolio_health()
+
+        store.add_notification.assert_called_once()
+
+    # ── 2. add_notification NOT called on second poll same day ───────────────
+
+    def test_add_notification_not_called_when_already_sent_today(self):
+        """
+        When kv_get returns today's date string (alert already sent today),
+        add_notification must NOT be called on a subsequent poll.
+        """
+        import portfolio_snapshot as _ps
+        from datetime import datetime, timezone
+
+        today_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+        store = MagicMock()
+        store.kv_get.return_value = today_utc     # already sent today
+        store.kv_set.return_value = None
+        store.add_notification.return_value = None
+
+        mocks = self._base_sys_mocks(self._make_broken_cfg(), store)
+
+        with patch.dict(sys.modules, mocks):
+            _ps.get_portfolio_health()
+
+        store.add_notification.assert_not_called()
+
+    # ── 3. add_notification called when kv_get returns yesterday ────────────
+
+    def test_add_notification_called_again_next_day(self):
+        """
+        When kv_get returns yesterday's date (alert was sent yesterday but not
+        yet today), add_notification must fire again for the new UTC day.
+        """
+        import portfolio_snapshot as _ps
+        from datetime import datetime, timezone, timedelta
+
+        yesterday_utc = (
+            datetime.now(timezone.utc) - timedelta(days=1)
+        ).strftime("%Y-%m-%d")
+
+        store = MagicMock()
+        store.kv_get.return_value = yesterday_utc  # sent yesterday, not today
+        store.kv_set.return_value = None
+        store.add_notification.return_value = None
+
+        mocks = self._base_sys_mocks(self._make_broken_cfg(), store)
+
+        with patch.dict(sys.modules, mocks):
+            _ps.get_portfolio_health()
+
+        store.add_notification.assert_called_once()
+
+    # ── 4. kv_set is called with today's date after emitting the alert ───────
+
+    def test_kv_set_records_today_after_alert(self):
+        """
+        After firing the alert, kv_set must be called with the
+        _ALERT_DEDUP_KEY and today's UTC date so the next poll is deduped.
+        """
+        import portfolio_snapshot as _ps
+        from datetime import datetime, timezone
+
+        today_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+        store = MagicMock()
+        store.kv_get.return_value = None          # first time today
+        store.kv_set.return_value = None
+        store.add_notification.return_value = None
+
+        mocks = self._base_sys_mocks(self._make_broken_cfg(), store)
+
+        with patch.dict(sys.modules, mocks):
+            _ps.get_portfolio_health()
+
+        # kv_set must have been called with the dedup key and today's date.
+        store.kv_set.assert_called_once()
+        _call_args = store.kv_set.call_args
+        assert _call_args is not None
+        positional = _call_args.args if hasattr(_call_args, "args") else _call_args[0]
+        assert positional[1] == today_utc, (
+            f"kv_set must record today's date {today_utc!r}; got {positional[1]!r}"
+        )
+
+    # ── 5. No notification when PortfolioConfig loads successfully ────────────
+
+    def test_no_notification_when_config_loads_ok(self):
+        """
+        When PortfolioConfig imports and initialises without error,
+        add_notification must NOT be called at all.
+        """
+        import portfolio_snapshot as _ps
+
+        # Use the real src.portfolio.config (available in this env)
+        store = MagicMock()
+        store.kv_get.return_value = None
+        store.kv_set.return_value = None
+        store.add_notification.return_value = None
+
+        paper_trader = MagicMock()
+        paper_trader._load_state.return_value = {
+            "cash": 100_000.0,
+            "initial_capital": 100_000.0,
+            "positions": {},
+            "last_updated": "2024-01-01T00:00:00+00:00",
+        }
+
+        with patch.dict(sys.modules, {
+            "phase22_activation": MagicMock(
+                get_activation_status=MagicMock(
+                    return_value={"paper_automation_active": False}
+                )
+            ),
+            "paper_trader": paper_trader,
+            "eod_reconciliation": MagicMock(
+                get_reconciliation_status=MagicMock(
+                    return_value={"unresolved_count": 0}
+                )
+            ),
+            # Do NOT patch src.portfolio.config — let the real one load
+            "phase20_store": store,
+        }):
+            _ps.get_portfolio_health()
+
+        store.add_notification.assert_not_called()
+
+    # ── 6. A broken notification store must not crash the health endpoint ─────
+
+    def test_broken_store_does_not_raise(self):
+        """
+        If phase20_store raises on add_notification or kv_get, get_portfolio_health()
+        must still return a valid response (best-effort notification).
+        """
+        import portfolio_snapshot as _ps
+
+        store = MagicMock()
+        store.kv_get.side_effect = RuntimeError("DB is down")
+        store.kv_set.side_effect = RuntimeError("DB is down")
+        store.add_notification.side_effect = RuntimeError("DB is down")
+
+        mocks = self._base_sys_mocks(self._make_broken_cfg(), store)
+
+        with patch.dict(sys.modules, mocks):
+            result = _ps.get_portfolio_health()
+
+        # Must return a valid dict with the expected keys
+        assert isinstance(result, dict)
+        assert "status" in result
+        assert result["status"] == "DEGRADED"
+
+    # ── 7. Two calls within the same day emit only one notification ───────────
+
+    def test_two_calls_same_day_emit_one_notification(self):
+        """
+        Simulate two consecutive health polls within the same UTC day.
+        The first call should emit the alert; the second must be deduped.
+        """
+        import portfolio_snapshot as _ps
+        from datetime import datetime, timezone
+
+        today_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        sent_value: list = [None]   # mutable cell for the stored kv value
+
+        def kv_get_side_effect(key, default=None):
+            return sent_value[0]
+
+        def kv_set_side_effect(key, value):
+            sent_value[0] = value
+
+        store = MagicMock()
+        store.kv_get.side_effect = kv_get_side_effect
+        store.kv_set.side_effect = kv_set_side_effect
+        store.add_notification.return_value = None
+
+        mocks = self._base_sys_mocks(self._make_broken_cfg(), store)
+
+        with patch.dict(sys.modules, mocks):
+            _ps.get_portfolio_health()   # first call → should emit
+            _ps.get_portfolio_health()   # second call → should be deduped
+
+        assert store.add_notification.call_count == 1, (
+            f"Expected add_notification to be called exactly once across two "
+            f"same-day polls, but it was called {store.add_notification.call_count} time(s)"
+        )
