@@ -370,6 +370,39 @@ def get_portfolio_health() -> Dict[str, Any]:
     except Exception as exc:
         logger.debug("PortfolioConfig unavailable in health check: %s", exc)
 
+    # Emit a notification the first time per UTC day that limits fall back to
+    # defaults.  Uses kv_get/kv_set for durable deduplication so the alert
+    # fires at most once per day even when the health endpoint is polled
+    # repeatedly throughout the session.
+    if not limits_from_config:
+        _ALERT_KIND = "PERFORMANCE_ALERT"
+        _ALERT_TITLE = "Portfolio config missing — exposure limits using defaults"
+        _ALERT_BODY = (
+            "Exposure limits using hardcoded defaults — check PortfolioConfig import"
+        )
+        _ALERT_DEDUP_KEY = "portfolio_config_alert_day"
+        try:
+            today_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            import phase20_store as _store
+            last_sent = _store.kv_get(_ALERT_DEDUP_KEY, default=None)
+            if last_sent != today_utc:
+                _store.add_notification(
+                    kind=_ALERT_KIND,
+                    title=_ALERT_TITLE,
+                    body=_ALERT_BODY,
+                    severity="WARNING",
+                )
+                _store.kv_set(_ALERT_DEDUP_KEY, today_utc)
+                logger.info(
+                    "portfolio_snapshot: emitted config-defaults notification "
+                    "(first occurrence today %s)",
+                    today_utc,
+                )
+        except Exception as _alert_exc:
+            # Best-effort — a broken notification store must not break the
+            # health endpoint or any caller.
+            logger.debug("Failed to emit config-defaults notification: %s", _alert_exc)
+
     # Collect all degraded reasons
     degraded_reasons: List[str] = []
     if unresolved > 0:
