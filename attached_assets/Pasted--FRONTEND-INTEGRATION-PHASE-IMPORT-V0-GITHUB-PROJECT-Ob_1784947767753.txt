@@ -1,0 +1,180 @@
+# FRONTEND INTEGRATION PHASE — IMPORT V0 GITHUB PROJECT
+
+## Objective
+
+Import the V0 frontend project from the GitHub repository into the existing trading platform.
+
+This is an integration phase only.
+
+Do NOT implement new trading features.
+Do NOT modify any frozen backend modules.
+Do NOT enable live trading.
+Do NOT change RC-6 through RC-10D contracts.
+
+Current backend status:
+
+✅ RC-6 Market Data — FROZEN
+✅ RC-7 Execution Engine — FROZEN
+✅ RC-8 Risk Engine — FROZEN
+✅ RC-9 Strategy Engine — FROZEN
+✅ RC-10A Market Intelligence — FROZEN
+✅ RC-10B AI Forecast — FROZEN
+✅ RC-10C1 Portfolio Core — FROZEN
+✅ RC-10D Broker Layer — FROZEN
+
+--------------------------------------------------
+
+## Phase 1 — Import
+
+1. Import the V0 GitHub repository into the current Replit workspace.
+
+2. Preserve Git history if possible.
+
+3. Do not overwrite the existing backend.
+
+4. Keep frontend and backend isolated until integration is verified.
+
+--------------------------------------------------
+
+## Phase 2 — Build Verification
+
+Verify:
+
+- Dependencies install successfully
+- Frontend builds successfully
+- No missing packages
+- No broken imports
+- No incompatible framework versions
+
+Fix only build and compatibility issues.
+
+Do not redesign the application.
+
+--------------------------------------------------
+
+## Phase 3 — Architecture Review
+
+Review the imported frontend.
+
+Identify:
+
+- Framework
+- Routing
+- Component hierarchy
+- State management
+- Styling system
+- API layer
+- Authentication flow
+- Mock services
+- Static data
+- Dashboard structure
+
+Prepare an architecture summary.
+
+--------------------------------------------------
+
+## Phase 4 — Integration Mapping
+
+Map every frontend page to the existing backend.
+
+For each page identify:
+
+- Backend API required
+- Existing implementation
+- Missing endpoint
+- Mock data currently used
+- Integration complexity
+- Dependencies
+
+Do NOT replace mocks yet.
+
+--------------------------------------------------
+
+## Phase 5 — Compatibility Review
+
+Verify compatibility with:
+
+- Portfolio Service
+- Strategy Engine
+- Risk Engine
+- Execution Engine
+- Market Data
+- Broker Layer
+- AI Forecast
+
+Ensure the frontend consumes backend services without bypassing architecture.
+
+The frontend must never:
+
+- Place orders directly
+- Perform risk validation
+- Maintain portfolio state
+- Connect to broker APIs
+
+All business logic must remain in the backend.
+
+--------------------------------------------------
+
+## Phase 6 — Integration Plan
+
+Create a phased integration roadmap.
+
+Suggested order:
+
+Phase A
+- Authentication
+- Navigation
+- Layout
+
+Phase B
+- Dashboard
+- Portfolio overview
+- Positions
+- Orders
+
+Phase C
+- Risk dashboard
+- Strategy dashboard
+- Market data
+- AI insights
+
+Phase D
+- Reports
+- Analytics
+- Settings
+- Administration
+
+--------------------------------------------------
+
+## Deliverables
+
+Create:
+
+docs/V0_Integration_Review.md
+
+Include:
+
+1. Imported commit hash
+2. Framework details
+3. Build status
+4. Dependency issues
+5. Folder structure
+6. Component hierarchy
+7. API mapping
+8. Mock data inventory
+9. Integration risks
+10. Recommended integration order
+11. Files requiring modification
+12. Files that must remain untouched
+13. Estimated effort
+14. Final recommendation
+
+Return one final verdict:
+
+READY FOR FRONTEND INTEGRATION
+
+or
+
+REQUIRES PREPARATION BEFORE INTEGRATION
+
+Do not modify the frozen backend during this phase.

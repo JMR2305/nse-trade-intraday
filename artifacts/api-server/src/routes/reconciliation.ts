@@ -80,7 +80,12 @@ router.post("/broker/reconciliation/resolve", wrap(async (req, res) => {
   if (!Number.isFinite(id) || id <= 0) {
     return res.status(400).json({ success: false, error: "Valid discrepancy id required" });
   }
-  res.json(await runPython(["reconcil_resolve", String(id)], 15_000));
+  const args = ["reconcil_resolve", String(id)];
+  const note = req.body?.note;
+  if (note && typeof note === "string" && note.trim()) {
+    args.push(note.trim().slice(0, 500));
+  }
+  res.json(await runPython(args, 15_000));
 }));
 
 export default router;

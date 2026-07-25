@@ -89,6 +89,17 @@ def _ensure_schema(conn) -> None:
             CREATE INDEX IF NOT EXISTS idx_recon_runs_started_at
                 ON broker_reconciliation_runs(started_at DESC)
         """)
+        # Migration: add resolved_at / resolved_note columns if not present
+        # (safe on an already-populated table — no-op when columns exist)
+        cur.execute("""
+            ALTER TABLE broker_reconciliation_discrepancies
+                ADD COLUMN IF NOT EXISTS resolved_at   TIMESTAMPTZ,
+                ADD COLUMN IF NOT EXISTS resolved_note TEXT
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_recon_discrepancies_resolved
+                ON broker_reconciliation_discrepancies(resolved, resolved_at DESC)
+        """)
     conn.commit()
     _SCHEMA_READY = True
 
@@ -607,9 +618,10 @@ def get_last_run() -> Dict[str, Any]:
 
 
 def get_reconciliation_status() -> Dict[str, Any]:
-    """Return last run summary + open discrepancies from DB."""
+    """Return last run summary + open discrepancies (and recently resolved ones) from DB."""
     last = get_last_run()
     open_discrepancies: List[Dict[str, Any]] = []
+    resolved_discrepancies: List[Dict[str, Any]] = []
 
     try:
         from scan_state_store import _connect, db_available
@@ -660,6 +672,31 @@ def get_reconciliation_status() -> Dict[str, Any]:
                                 d[f] = d[f].strftime("%Y-%m-%dT%H:%M:%SZ")
                         open_discrepancies.append(d)
 
+                    # Recently resolved discrepancies (last 7 days, limit 50)
+                    cur.execute("""
+                        SELECT d.id, d.run_id, d.discrepancy_type,
+                               d.internal_order_id, d.broker_order_id,
+                               d.trading_symbol, d.description,
+                               d.local_value, d.broker_value,
+                               d.requires_manual_review,
+                               d.resolved_at, d.resolved_note,
+                               d.created_at
+                        FROM broker_reconciliation_discrepancies d
+                        JOIN broker_reconciliation_runs r ON r.run_id = d.run_id
+                        WHERE d.resolved = TRUE
+                          AND r.started_at >= NOW() - INTERVAL '7 days'
+                        ORDER BY d.resolved_at DESC NULLS LAST
+                        LIMIT 50
+                    """)
+                    res_cols = [desc[0] for desc in cur.description]
+                    resolved_discrepancies: List[Dict[str, Any]] = []
+                    for row in cur.fetchall():
+                        rd = dict(zip(res_cols, row))
+                        for f in ("created_at", "resolved_at"):
+                            if rd.get(f) and hasattr(rd[f], "strftime"):
+                                rd[f] = rd[f].strftime("%Y-%m-%dT%H:%M:%SZ")
+                        resolved_discrepancies.append(rd)
+
                     # Recent runs history (last 10)
                     cur.execute("""
                         SELECT run_id, trigger, started_at, completed_at,
@@ -688,14 +725,18 @@ def get_reconciliation_status() -> Dict[str, Any]:
         "last_run": last,
         "open_discrepancies": open_discrepancies,
         "open_discrepancy_count": len(open_discrepancies),
+        "resolved_discrepancies": resolved_discrepancies,
         "today": _today_ist(),
         "last_ran_today": _kv_get("eod_reconcil_date") == _today_ist(),
         "eod_window_active": _is_eod_window(),
     }
 
 
-def resolve_discrepancy(discrepancy_id: int) -> Dict[str, Any]:
-    """Mark a discrepancy as resolved."""
+def resolve_discrepancy(
+    discrepancy_id: int,
+    note: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Mark a discrepancy as resolved, recording the timestamp and an optional operator note."""
     try:
         from scan_state_store import _connect
         conn = _connect()
@@ -704,14 +745,22 @@ def resolve_discrepancy(discrepancy_id: int) -> Dict[str, Any]:
             with conn.cursor() as cur:
                 cur.execute("""
                     UPDATE broker_reconciliation_discrepancies
-                    SET resolved = TRUE
+                    SET resolved      = TRUE,
+                        resolved_at   = NOW(),
+                        resolved_note = %s
                     WHERE id = %s
-                    RETURNING id
-                """, (discrepancy_id,))
+                    RETURNING id, resolved_at
+                """, (note[:500] if note else None, discrepancy_id))
                 row = cur.fetchone()
             conn.commit()
             if row:
-                return {"success": True, "resolved_id": discrepancy_id}
+                resolved_at = row[1]
+                return {
+                    "success": True,
+                    "resolved_id": discrepancy_id,
+                    "resolved_at": resolved_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+                    if hasattr(resolved_at, "strftime") else str(resolved_at),
+                }
             return {"success": False, "error": f"Discrepancy {discrepancy_id} not found"}
         finally:
             conn.close()

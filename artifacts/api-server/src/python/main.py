@@ -2126,7 +2126,8 @@ def main():
             result = run_eod_reconciliation(trigger="manual", force=force)
         elif command == "reconcil_resolve" and len(args) > 1:
             from eod_reconciliation import resolve_discrepancy
-            result = resolve_discrepancy(int(args[1]))
+            note_arg = args[2] if len(args) > 2 else None
+            result = resolve_discrepancy(int(args[1]), note=note_arg)
 
         elif command == "portfolio_snapshot":
             from portfolio_snapshot import get_portfolio_snapshot
