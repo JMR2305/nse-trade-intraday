@@ -64,20 +64,20 @@
   },
   "suites": [
     {
-      "title": "health-card-degraded.spec.ts",
-      "file": "health-card-degraded.spec.ts",
+      "title": "market-closed-badge.spec.ts",
+      "file": "market-closed-badge.spec.ts",
       "column": 0,
       "line": 0,
       "specs": [],
       "suites": [
         {
-          "title": "Portfolio health card — DEGRADED state",
-          "file": "health-card-degraded.spec.ts",
-          "line": 122,
+          "title": "DataFreshnessBar — MARKET_CLOSED badge (weekend)",
+          "file": "market-closed-badge.spec.ts",
+          "line": 182,
           "column": 6,
           "specs": [
             {
-              "title": "badge-portfolio-status shows DEGRADED",
+              "title": "badge label reads \"MARKET_CLOSED\" when data is stale on a weekend",
               "ok": true,
               "tags": [],
               "tests": [
@@ -91,25 +91,25 @@
                     {
                       "workerIndex": 0,
                       "status": "passed",
-                      "duration": 7709,
+                      "duration": 4822,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-07-25T16:49:43.719Z",
+                      "startTime": "2026-07-25T22:10:36.614Z",
                       "attachments": []
                     }
                   ],
                   "status": "expected"
                 }
               ],
-              "id": "db9905a41c312349bfb1-ca23e49f7adfa144fcc8",
-              "file": "health-card-degraded.spec.ts",
-              "line": 134,
+              "id": "a83af28f7ea9ad1ab7de-ae2f32eb0288249b4387",
+              "file": "market-closed-badge.spec.ts",
+              "line": 194,
               "column": 3
             },
             {
-              "title": "banner-portfolio-alert is visible when status is DEGRADED",
+              "title": "bar container has the slate border/background classes for MARKET_CLOSED",
               "ok": true,
               "tags": [],
               "tests": [
@@ -123,25 +123,25 @@
                     {
                       "workerIndex": 0,
                       "status": "passed",
-                      "duration": 1888,
+                      "duration": 1575,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-07-25T16:49:59.026Z",
+                      "startTime": "2026-07-25T22:10:41.922Z",
                       "attachments": []
                     }
                   ],
                   "status": "expected"
                 }
               ],
-              "id": "db9905a41c312349bfb1-d372642a119ac6eeceea",
-              "file": "health-card-degraded.spec.ts",
-              "line": 142,
+              "id": "a83af28f7ea9ad1ab7de-7076f0e8e55e2a6d06d5",
+              "file": "market-closed-badge.spec.ts",
+              "line": 206,
               "column": 3
             },
             {
-              "title": "health card shows PortfolioConfig warning text",
+              "title": "slate-400 text colour class is applied to the status span",
               "ok": true,
               "tags": [],
               "tests": [
@@ -155,25 +155,25 @@
                     {
                       "workerIndex": 0,
                       "status": "passed",
-                      "duration": 1428,
+                      "duration": 1666,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-07-25T16:50:00.916Z",
+                      "startTime": "2026-07-25T22:10:43.499Z",
                       "attachments": []
                     }
                   ],
                   "status": "expected"
                 }
               ],
-              "id": "db9905a41c312349bfb1-e9831973960935c898d2",
-              "file": "health-card-degraded.spec.ts",
-              "line": 151,
+              "id": "a83af28f7ea9ad1ab7de-233a687d7d290ed61d3f",
+              "file": "market-closed-badge.spec.ts",
+              "line": 223,
               "column": 3
             },
             {
-              "title": "banner contains the DEGRADED status label",
+              "title": "bar does NOT use amber/red classes (not STALE or UNAVAILABLE)",
               "ok": true,
               "tags": [],
               "tests": [
@@ -187,21 +187,53 @@
                     {
                       "workerIndex": 0,
                       "status": "passed",
-                      "duration": 1487,
+                      "duration": 1612,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-07-25T16:50:02.346Z",
+                      "startTime": "2026-07-25T22:10:45.165Z",
                       "attachments": []
                     }
                   ],
                   "status": "expected"
                 }
               ],
-              "id": "db9905a41c312349bfb1-05966c43bc9a1898f300",
-              "file": "health-card-degraded.spec.ts",
-              "line": 164,
+              "id": "a83af28f7ea9ad1ab7de-b2757365f439dea0ad0e",
+              "file": "market-closed-badge.spec.ts",
+              "line": 239,
+              "column": 3
+            },
+            {
+              "title": "detail panel opens and shows stale warning text",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "status": "passed",
+                      "duration": 1631,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-25T22:10:46.779Z",
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "a83af28f7ea9ad1ab7de-7cf385430b787ad70ca0",
+              "file": "market-closed-badge.spec.ts",
+              "line": 255,
               "column": 3
             }
           ]
@@ -211,9 +243,9 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-07-25T16:49:40.396Z",
-    "duration": 23682.667,
-    "expected": 4,
+    "startTime": "2026-07-25T22:10:34.938Z",
+    "duration": 13621.025000000001,
+    "expected": 5,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0
