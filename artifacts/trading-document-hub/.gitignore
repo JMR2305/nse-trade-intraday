@@ -1,0 +1,7 @@
+# Next.js build output and dev-server runtime files
+.next/
+
+# Runtime / OS artifacts
+node_modules/
+.DS_Store
+*.local

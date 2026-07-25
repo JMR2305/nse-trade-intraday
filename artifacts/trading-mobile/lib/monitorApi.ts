@@ -1,17 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-// API base URL chain:
-//   $REPLIT_DEV_DOMAIN (Replit env)
-//   → EXPO_PUBLIC_DOMAIN=$REPLIT_DEV_DOMAIN (set in package.json dev script)
-//   → process.env.EXPO_PUBLIC_DOMAIN (Expo bakes EXPO_PUBLIC_* at bundle time)
-//   → BASE = "https://<domain>/api" (used for every fetch below)
+// API base URL chain (in priority order):
+//   1. EXPO_PUBLIC_API_BASE_URL  — explicit full URL (recommended for production)
+//   2. EXPO_PUBLIC_DOMAIN        — Replit dev domain (auto-set in package.json dev script)
+//   3. /api                      — relative fallback
 //
-// In a production/standalone build where EXPO_PUBLIC_DOMAIN is not set the
-// fallback "/api" is intentionally relative so it reaches whatever origin
-// served the bundle (e.g. a custom deployment domain).
-export const BASE = process.env.EXPO_PUBLIC_DOMAIN
-  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
-  : "/api";
+// A production build whose resolved URL contains localhost throws a
+// ConfigurationError at startup (enforced in lib/apiConfig.ts).
+import { API_BASE_URL } from "./apiConfig";
+/** @deprecated Use API_BASE_URL from lib/apiConfig instead. */
+export const BASE: string = API_BASE_URL;
 
 // Per-request fetch timeout (ms). 15 s is conservative for a trading context;
 // scan endpoints can be slow, but anything beyond this indicates a hung process.

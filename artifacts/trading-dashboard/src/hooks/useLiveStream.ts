@@ -5,7 +5,7 @@
  * Honest values only: nulls are surfaced as-is, never fabricated.
  */
 import { useEffect, useRef, useState } from "react";
-import { API_BASE } from "@/lib/api";
+import { SSE_STREAM_URL } from "@/lib/apiConfig";
 
 export interface LiveQuote {
   symbol: string;
@@ -74,7 +74,7 @@ export function useLiveStream(enabled = true): LiveStreamState {
 
     const connect = () => {
       if (closed) return;
-      es = new EventSource(`${API_BASE}/stream`);
+      es = new EventSource(SSE_STREAM_URL);
 
       es.onopen = () => {
         retryRef.current = 1000;

@@ -25,13 +25,70 @@ app.use(
     },
   }),
 );
-// CORS policy: open to all origins (cors() default).
-// Rationale: the API runs inside Replit's mTLS-secured proxy; all external traffic
-// is already TLS-terminated and origin-validated by the platform. Scoping to the
-// Replit dev domain would block Expo's bundler origin and add operational friction
-// with no meaningful security gain in this paper-trading research environment.
-// Re-evaluate before any live-trading deployment.
-app.use(cors());
+// CORS policy — explicit origin allowlist.
+//
+// Permitted origins (evaluated in order):
+//   1. ALLOWED_ORIGINS env var — comma-separated list of exact origins
+//      e.g. "https://abc.repl.co,https://xyz.replit.dev"
+//   2. Any *.replit.dev or *.repl.co domain — covers Replit preview and
+//      deployed domains without needing to enumerate every subdomain.
+//   3. Requests with no Origin header — React Native / Expo / curl /
+//      server-to-server calls; always allowed (no browser CORS enforcement).
+//
+// Wildcard CORS (Access-Control-Allow-Origin: *) is intentionally NOT used
+// together with credentials. credentials is set to false so the response
+// can safely omit a specific origin on preflight when needed.
+//
+const _allowedOrigins: string[] = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+  : [];
+
+// Returns true for any origin whose hostname ends with a Replit domain suffix.
+// Parses the URL so the match is suffix-based rather than pattern-based,
+// which correctly handles multi-label subdomains (e.g. abc.pike.replit.dev).
+function isReplitOrigin(origin: string): boolean {
+  try {
+    const { hostname } = new URL(origin);
+    return (
+      hostname.endsWith(".replit.dev") ||
+      hostname.endsWith(".repl.co") ||
+      hostname.endsWith(".id.repl.co") ||
+      hostname === "replit.dev" ||
+      hostname === "repl.co"
+    );
+  } catch {
+    return false;
+  }
+}
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      // No-origin requests (mobile app, curl, server-to-server) — always allow.
+      if (!origin) return callback(null, true);
+      // Explicitly configured origins.
+      if (_allowedOrigins.includes(origin)) return callback(null, true);
+      // Any Replit dev or deployed domain (single- or multi-label subdomains).
+      if (isReplitOrigin(origin)) return callback(null, true);
+      // Deny everything else.
+      callback(
+        Object.assign(new Error(`CORS: origin "${origin}" is not permitted`), {
+          status: 403,
+        }),
+      );
+    },
+    credentials: false, // never combine dynamic origin with credentials
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Request-ID",
+      "X-Correlation-ID",
+    ],
+  }),
+);
 app.use(express.json({ limit: "256kb" }));
 app.use(express.urlencoded({ extended: true, limit: "256kb" }));
 

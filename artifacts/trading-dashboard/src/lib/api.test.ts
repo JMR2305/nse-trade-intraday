@@ -93,10 +93,14 @@ describe("apiJson", () => {
     expect(err.endpoint).toBe("/api/experiments");
   });
 
-  it("prefixes paths with API_BASE", async () => {
+  it("prefixes paths with API_BASE and attaches an AbortController signal", async () => {
     mockFetch(JSON.stringify({ ok: true }));
     await apiJson("/experiments/leaderboard");
     const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
-    expect(fetchMock).toHaveBeenCalledWith("/api/experiments/leaderboard", undefined);
+    // The second argument now always contains a signal (AbortController timeout).
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/experiments/leaderboard",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
   });
 });

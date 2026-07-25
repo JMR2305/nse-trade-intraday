@@ -6,6 +6,7 @@ import {
   useFonts,
 } from "@expo-google-fonts/inter";
 import { setBaseUrl } from "@workspace/api-client-react";
+import { API_BASE_URL } from "@/lib/apiConfig";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -17,9 +18,10 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { configureNotificationHandler, registerOnLaunch } from "@/lib/pushNotifications";
 
-if (process.env.EXPO_PUBLIC_DOMAIN) {
-  setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
-}
+// Set the API base URL for the @workspace/api-client-react generated hooks.
+// Strip the trailing "/api" segment — the generated hooks append their own paths.
+const _apiOrigin = API_BASE_URL.replace(/\/api\/?$/, "");
+setBaseUrl(_apiOrigin || null);
 
 configureNotificationHandler();
 
@@ -29,7 +31,13 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30_000,
+      // One automatic retry on transient network failures.
       retry: 1,
+    },
+    mutations: {
+      // Mutations are never retried automatically.
+      // Broker order-confirm calls in particular must never be silently replayed.
+      retry: 0,
     },
   },
 });

@@ -49,8 +49,23 @@ import Phase12Intelligence from "@/pages/Phase12Intelligence";
 import Phase13Intelligence from "@/pages/Phase13Intelligence";
 import LearningGovernance from "@/pages/LearningGovernance";
 import AutomationHealth from "@/pages/AutomationHealth";
+import { ConnectivityPanel } from "@/components/ConnectivityPanel";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // GET queries: one automatic retry on transient network failures.
+      // This matches the mobile React Query config.
+      retry: 1,
+      staleTime: 30_000,
+    },
+    mutations: {
+      // Mutations are never retried automatically.
+      // Order-confirm calls in particular must never be silently replayed.
+      retry: 0,
+    },
+  },
+});
 
 function Router() {
   return (
@@ -115,6 +130,7 @@ function App() {
             <Router />
           </WouterRouter>
           <Toaster />
+          <ConnectivityPanel />
         </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>
