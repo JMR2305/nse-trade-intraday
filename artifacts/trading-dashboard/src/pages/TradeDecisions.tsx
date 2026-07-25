@@ -24,7 +24,7 @@ const REC_STYLE: Record<string, string> = {
   STRONG_BUY: "text-emerald-300 bg-emerald-500/15 border-emerald-500/40",
   BUY:        "text-green-400 bg-green-500/10 border-green-500/30",
   EXIT:       "text-orange-400 bg-orange-500/10 border-orange-500/30",
-  WATCH:      "text-yellow-400 bg-yellow-500/10 border-yellow-500/30",
+  WATCH:      "text-warn bg-warn-surface border-warn",
   AVOID:      "text-red-400 bg-red-500/10 border-red-500/30",
 };
 
@@ -42,7 +42,7 @@ const P13_REGIME_STYLE: Record<string, string> = {
   TRENDING_UP:   "text-emerald-400 border-emerald-500/30 bg-emerald-500/8",
   RANGE_BOUND:   "text-blue-400 border-blue-500/30 bg-blue-500/8",
   TRENDING_DOWN: "text-orange-400 border-orange-500/30 bg-orange-500/8",
-  VOLATILE:      "text-yellow-400 border-yellow-500/30 bg-yellow-500/8",
+  VOLATILE:      "text-warn border-warn bg-warn-surface",
   CRISIS:        "text-red-400 border-red-500/30 bg-red-500/8",
 };
 
@@ -62,7 +62,7 @@ function Phase13RegimeStrip() {
       <span className="text-muted-foreground">bars in regime: {data.regime_duration_bars}</span>
       <span>Score mult: {data.score_multiplier}×</span>
       <span>Eligible strategies: <span className="text-foreground">{strats}</span></span>
-      {data.regime_changed && <span className="text-yellow-400 font-semibold">⚡ Regime change from {data.prev_regime}</span>}
+      {data.regime_changed && <span className="text-warn font-semibold">⚡ Regime change from {data.prev_regime}</span>}
       <a href="/phase13" className="ml-auto underline text-muted-foreground hover:text-foreground">Phase 13 Intel →</a>
     </div>
   );
@@ -157,7 +157,7 @@ function BreakdownPanel({ d }: { d: TradeDecision }) {
 const RELIABILITY_STYLE: Record<string, string> = {
   HIGH:     "text-emerald-300 bg-emerald-500/15 border-emerald-500/40",
   MEDIUM:   "text-sky-300 bg-sky-500/10 border-sky-500/30",
-  LOW:      "text-yellow-400 bg-yellow-500/10 border-yellow-500/30",
+  LOW:      "text-warn bg-warn-surface border-warn",
   VERY_LOW: "text-red-400 bg-red-500/10 border-red-500/30",
 };
 
@@ -226,7 +226,7 @@ function SimilarityEvidencePanel({ d }: { d: TradeDecision }) {
                       <td className="pr-3 py-1 font-bold">
                         {m.symbol}
                         {m.partial_match && (
-                          <span className="ml-1 text-[9px] text-yellow-400/80">(partial)</span>
+                          <span className="ml-1 text-[9px] text-warn">(partial)</span>
                         )}
                       </td>
                       <td className="pr-3 py-1">{m.entry_date}</td>
@@ -315,7 +315,7 @@ function SimilarityEvidencePanel({ d }: { d: TradeDecision }) {
           )}
         </>
       )}
-      <p className="text-[11px] text-yellow-400/80 mt-2 flex items-start gap-1">
+      <p className="text-[11px] text-warn mt-2 flex items-start gap-1">
         <AlertTriangle className="h-3 w-3 mt-0.5 flex-shrink-0" />
         Historical similarity does not guarantee that the current trade will have the
         same outcome. Paper trading and research only.
@@ -385,7 +385,7 @@ function adjClass(v: number): string {
 
 const STATE_STYLE: Record<string, string> = {
   VALID:        "text-green-400 bg-green-500/10 border-green-500/30",
-  WEAKENING:    "text-yellow-400 bg-yellow-500/10 border-yellow-500/30",
+  WEAKENING:    "text-warn bg-warn-surface border-warn",
   INVALIDATED:  "text-red-400 bg-red-500/10 border-red-500/30",
   IMPROVING:    "text-sky-300 bg-sky-500/10 border-sky-500/30",
   EXPIRED:      "text-slate-400 bg-slate-500/10 border-slate-500/30",
@@ -407,7 +407,7 @@ function StateBadge({ state }: { state?: string }) {
 }
 
 const CONFLICT_STYLE: Record<string, string> = {
-  LOW:    "border-yellow-500/30 bg-yellow-500/10 text-yellow-400",
+  LOW:    "border-warn bg-warn-surface text-warn",
   MEDIUM: "border-orange-500/30 bg-orange-500/10 text-orange-400",
   HIGH:   "border-red-500/30 bg-red-500/10 text-red-400",
 };
@@ -723,7 +723,7 @@ export default function TradeDecisions() {
         <SummaryCard label="Strong Buy" value={data?.strong_buy_count ?? 0} color="text-emerald-300" />
         <SummaryCard label="Buy" value={data?.buy_count ?? 0} color="text-green-400" />
         <SummaryCard label="Exit" value={data?.exit_count ?? 0} color="text-orange-400" />
-        <SummaryCard label="Watch" value={data?.watch_count ?? 0} color="text-yellow-400" />
+        <SummaryCard label="Watch" value={data?.watch_count ?? 0} color="text-warn" />
         <SummaryCard label="Avoid" value={data?.avoid_count ?? 0} color="text-red-400" />
         <SummaryCard label="Market Regime" value={data?.market_regime ?? "—"} />
         <SummaryCard label="Model Version" value={`v${data?.model_version ?? 0}`} />
@@ -731,7 +731,7 @@ export default function TradeDecisions() {
       </div>
 
       {(data?.data_unavailable_count ?? 0) > 0 && (
-        <div className="flex items-center gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-400">
+        <div className="flex items-center gap-2 rounded-md border border-warn bg-warn-surface px-3 py-2 text-sm text-warn">
           <AlertTriangle className="h-4 w-4 flex-shrink-0" />
           Live NSE data unavailable for {data?.data_unavailable_count} stock(s) — no
           buy recommendations are issued on fallback data.
@@ -808,7 +808,7 @@ export default function TradeDecisions() {
                         <div className="flex flex-col items-start gap-1">
                           <RecBadge rec={d.recommendation} />
                           {d.low_reliability && (
-                            <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1 py-0.5 text-[9px] font-mono text-amber-400 whitespace-nowrap">
+                            <span className="rounded border border-warn bg-warn-surface px-1 py-0.5 text-[9px] font-mono text-warn whitespace-nowrap">
                               LOW RELIABILITY
                             </span>
                           )}

@@ -29,8 +29,8 @@ const VERDICT_META = {
   },
   INCONCLUSIVE: {
     icon: ShieldAlert,
-    color: "text-amber-400",
-    bg: "bg-amber-900/30 border-amber-700",
+    color: "text-warn",
+    bg: "bg-warn-surface border-warn",
     short: "INCONCLUSIVE",
   },
   REJECT: {
@@ -228,10 +228,10 @@ function CandidateCard({ cand }: { cand: any }) {
             <Stat label="Sharpe" value={fmtNum(m.sharpe_ratio)} />
             <Stat label="Max drawdown" value={`${fmtNum(m.max_drawdown_pct, 1)}%`}
               valueClass={m.max_drawdown_pct > 60 ? "text-red-400"
-                : m.max_drawdown_pct > 40 ? "text-amber-400" : ""} />
+                : m.max_drawdown_pct > 40 ? "text-warn" : ""} />
             <Stat label="Windows +" value={`${cons.pct_positive ?? 0}%`}
               valueClass={
-                (cons.pct_positive ?? 0) >= 50 ? "text-emerald-400" : "text-amber-400"
+                (cons.pct_positive ?? 0) >= 50 ? "text-emerald-400" : "text-warn"
               } />
           </div>
 
@@ -292,12 +292,12 @@ function CandidateCard({ cand }: { cand: any }) {
             <Sub title="Concentration">
               <div className="grid grid-cols-3 gap-2">
                 <Stat label="Top stock" value={`${conc.top_stock ?? "—"} (${fmtNum(conc.top_stock_share_pct, 1)}%)`}
-                  valueClass={conc.top_stock_share_pct > 35 ? "text-amber-400" : ""} />
+                  valueClass={conc.top_stock_share_pct > 35 ? "text-warn" : ""} />
                 <Stat label="Top sector" value={`${conc.top_sector ?? "—"} (${fmtNum(conc.top_sector_share_pct, 1)}%)`}
-                  valueClass={conc.top_sector_share_pct > 35 ? "text-amber-400" : ""} />
+                  valueClass={conc.top_sector_share_pct > 35 ? "text-warn" : ""} />
                 <Stat label="Top-5 trade share" value={`${fmtNum(conc.top5_trade_share_pct, 1)}%`}
                   valueClass={conc.top5_trade_share_pct > 70 ? "text-red-400"
-                    : conc.top5_trade_share_pct > 50 ? "text-amber-400" : ""} />
+                    : conc.top5_trade_share_pct > 50 ? "text-warn" : ""} />
               </div>
             </Sub>
           )}
@@ -338,7 +338,7 @@ export default function AlphaGenerationSection({ alpha }: { alpha: any }) {
             {keepCount > 0 && (
               <span className="text-emerald-400">{keepCount} keep </span>
             )}
-            <span className="text-amber-400">{inconclusiveCount} inconclusive </span>
+            <span className="text-warn">{inconclusiveCount} inconclusive </span>
             <span className="text-red-400">{rejectCount} reject</span>
           </span>
         )}

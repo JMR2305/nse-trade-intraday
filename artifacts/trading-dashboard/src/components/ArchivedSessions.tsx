@@ -121,7 +121,7 @@ export default function ArchivedSessions() {
       <CardHeader className="px-5 pb-2 pt-4">
         <h2 className="flex items-center gap-2 font-mono text-sm font-bold uppercase tracking-widest text-zinc-300">
           <Archive className="h-4 w-4 text-primary" />Archived Sessions
-          <Badge variant="outline" className="text-[10px] text-amber-400 border-amber-700">
+          <Badge variant="outline" className="text-[10px] text-warn border-warn">
             PAPER STATE ONLY
           </Badge>
         </h2>
@@ -165,7 +165,7 @@ export default function ArchivedSessions() {
                       onClick={() => inspect(a.id)} data-testid={`button-inspect-${a.id}`}>
                       <Eye className="h-3.5 w-3.5" />Inspect
                     </Button>
-                    <Button size="sm" variant="outline" className="gap-1 text-xs text-amber-400"
+                    <Button size="sm" variant="outline" className="gap-1 text-xs text-warn"
                       onClick={() => beginRestore(a.id)} data-testid={`button-restore-${a.id}`}>
                       <RotateCcw className="h-3.5 w-3.5" />Restore…
                     </Button>
@@ -183,9 +183,9 @@ export default function ArchivedSessions() {
                 </div>
 
                 {restoreTarget === a.id && (
-                  <div className="mt-3 rounded border border-amber-900/60 bg-amber-950/20 p-3"
+                  <div className="mt-3 rounded border border-warn bg-warn-surface p-3"
                     data-testid={`panel-restore-${a.id}`}>
-                    <div className="mb-2 flex items-center gap-1.5 font-bold text-amber-400">
+                    <div className="mb-2 flex items-center gap-1.5 font-bold text-warn">
                       <ShieldAlert className="h-4 w-4" />Guarded restore
                       <button className="ml-auto text-zinc-500 hover:text-zinc-300"
                         onClick={cancelRestore} data-testid="button-cancel-restore">
@@ -194,7 +194,7 @@ export default function ArchivedSessions() {
                     </div>
                     {!pending ? (
                       <>
-                        <p className="mb-2 text-amber-200/80">
+                        <p className="mb-2 text-warn">
                           Type <b>{PHRASE}</b> exactly to request a restore. Your current
                           session will be archived before anything changes.
                         </p>
@@ -214,7 +214,7 @@ export default function ArchivedSessions() {
                       </>
                     ) : (
                       <>
-                        <p className="mb-2 text-amber-200/80">
+                        <p className="mb-2 text-warn">
                           Second confirmation required. This will replace the current paper
                           portfolio with archive <b>{a.id}</b>. Token expires {when(pending.expires)}.
                         </p>

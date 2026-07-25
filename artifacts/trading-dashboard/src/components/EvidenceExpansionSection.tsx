@@ -116,8 +116,8 @@ const VERDICT_META: Record<string, { label: string; icon: React.ReactNode; cls: 
   INCONCLUSIVE: {
     label: "INCONCLUSIVE",
     icon: <Info className="h-4 w-4" />,
-    cls: "text-amber-300",
-    bg: "bg-amber-500/10 border-amber-500/30",
+    cls: "text-warn",
+    bg: "bg-warn-surface border-warn",
   },
   FAIL: {
     label: "FAIL",
@@ -323,7 +323,7 @@ export default function EvidenceExpansionSection({ data, onDownload }: Props) {
           {(data.regime_coverage?.warnings ?? []).length > 0 && (
             <div className="space-y-1 mb-3">
               {data.regime_coverage.warnings.map((w, i) => (
-                <div key={i} className="flex items-start gap-2 text-[11px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded px-2 py-1.5">
+                <div key={i} className="flex items-start gap-2 text-[11px] font-mono text-warn bg-warn-surface border border-warn rounded px-2 py-1.5">
                   <AlertTriangle className="h-3 w-3 mt-0.5 flex-shrink-0" /> {w}
                 </div>
               ))}
@@ -337,14 +337,14 @@ export default function EvidenceExpansionSection({ data, onDownload }: Props) {
                   <div className="w-28 text-[11px] font-mono text-zinc-300 flex-shrink-0">{r.regime}</div>
                   <div className="flex-1 bg-zinc-800 rounded-full h-2 overflow-hidden">
                     <div
-                      className={cn("h-2 rounded-full transition-all", r.underrepresented ? "bg-amber-500" : "bg-violet-500")}
+                      className={cn("h-2 rounded-full transition-all", r.underrepresented ? "bg-warn-fill" : "bg-violet-500")}
                       style={{ width: `${Math.min(w, 100)}%` }}
                     />
                   </div>
                   <div className="w-12 text-right text-[11px] font-mono text-muted-foreground">{r.trades}</div>
                   <div className="w-10 text-right text-[11px] font-mono text-zinc-400">{r.pct_of_total}%</div>
                   {r.underrepresented && r.trades > 0 && (
-                    <AlertTriangle className="h-3 w-3 text-amber-400 flex-shrink-0" />
+                    <AlertTriangle className="h-3 w-3 text-warn-icon flex-shrink-0" />
                   )}
                   {r.trades === 0 && (
                     <XCircle className="h-3 w-3 text-red-500/50 flex-shrink-0" />
@@ -441,7 +441,7 @@ export default function EvidenceExpansionSection({ data, onDownload }: Props) {
           ) : (
             <>
               {cal.calibration_helps === false && (
-                <div className="mb-2 flex items-center gap-2 text-[11px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded px-2 py-1.5">
+                <div className="mb-2 flex items-center gap-2 text-[11px] font-mono text-warn bg-warn-surface border border-warn rounded px-2 py-1.5">
                   <AlertTriangle className="h-3 w-3 flex-shrink-0" />
                   Calibration does not improve Brier score on this evidence set — consider re-fitting calibrator with more data
                 </div>
@@ -483,7 +483,7 @@ export default function EvidenceExpansionSection({ data, onDownload }: Props) {
           ) : (
             <div className="space-y-1">
               {data.concentration_flags.map((f, i) => (
-                <div key={i} className="flex items-start gap-2 text-[11px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded px-2 py-1.5">
+                <div key={i} className="flex items-start gap-2 text-[11px] font-mono text-warn bg-warn-surface border border-warn rounded px-2 py-1.5">
                   <AlertTriangle className="h-3 w-3 mt-0.5 flex-shrink-0" /> {f}
                 </div>
               ))}

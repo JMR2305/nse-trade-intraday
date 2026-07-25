@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 
 const LEVEL_STYLES: Record<string, string> = {
   HIGH: "text-emerald-400 border-emerald-400/40 bg-emerald-400/10",
-  MEDIUM: "text-yellow-400 border-yellow-400/40 bg-yellow-400/10",
+  MEDIUM: "text-warn border-warn bg-warn-surface",
   LOW: "text-orange-400 border-orange-400/40 bg-orange-400/10",
   INSUFFICIENT: "text-zinc-500 border-zinc-700 bg-zinc-800/40",
 };

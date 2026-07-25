@@ -19,20 +19,20 @@ import { cn } from "@/lib/utils";
 
 const STATUS_CLS: Record<string, string> = {
   PASS: "text-emerald-400 border-emerald-700",
-  WARN: "text-amber-400 border-amber-700",
+  WARN: "text-warn border-warn",
   FAIL: "text-red-400 border-red-700",
 };
 
 const BAND_CLS: Record<string, string> = {
   EXCELLENT: "text-emerald-400 border-emerald-700",
   GOOD: "text-sky-400 border-sky-700",
-  WARNING: "text-amber-400 border-amber-700",
+  WARNING: "text-warn border-warn",
   DO_NOT_TRADE: "text-red-400 border-red-700",
 };
 
 function StatusIcon({ status }: { status: string }) {
   if (status === "PASS") return <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0" />;
-  if (status === "WARN") return <AlertTriangle className="h-3 w-3 text-amber-400 shrink-0" />;
+  if (status === "WARN") return <AlertTriangle className="h-3 w-3 text-warn-icon shrink-0" />;
   return <XCircle className="h-3 w-3 text-red-400 shrink-0" />;
 }
 
@@ -105,7 +105,7 @@ export function Phase15SystemHealthPanel() {
         <h2 className="text-[12px] font-mono font-bold text-zinc-100">
           System Health — Phase 15 Production Readiness
         </h2>
-        <Badge variant="outline" className="text-[9px] font-mono text-amber-400 border-amber-700 px-1.5">
+        <Badge variant="outline" className="text-[9px] font-mono text-warn border-warn px-1.5">
           PAPER / RESEARCH ONLY
         </Badge>
         <Button size="sm" variant="outline" className="h-6 px-2 font-mono text-[10px] ml-auto"
@@ -137,7 +137,7 @@ export function Phase15SystemHealthPanel() {
             {(rr?.items ?? []).map((it: any) => (
               <div key={it.item} className="flex items-start gap-1.5">
                 <span className="mt-0.5"><StatusIcon status={it.status} /></span>
-                <span className={it.status === "FAIL" ? "text-red-300" : it.status === "WARN" ? "text-amber-300" : "text-zinc-300"}>
+                <span className={it.status === "FAIL" ? "text-red-300" : it.status === "WARN" ? "text-warn" : "text-zinc-300"}>
                   {String(it.item).replace(/_/g, " ")}
                 </span>
                 <span className="text-zinc-500 truncate">— {it.detail}</span>
@@ -168,7 +168,7 @@ export function Phase15SystemHealthPanel() {
                   {[
                     { label: "Checks", val: cr.checks_performed, cls: "text-zinc-200" },
                     { label: "Hard mismatches", val: cr.hard_mismatch_count, cls: cr.hard_mismatch_count > 0 ? "text-red-400" : "text-emerald-400" },
-                    { label: "Out-of-sync values", val: cr.stale_source_count, cls: cr.stale_source_count > 0 ? "text-amber-400" : "text-zinc-400" },
+                    { label: "Out-of-sync values", val: cr.stale_source_count, cls: cr.stale_source_count > 0 ? "text-warn" : "text-zinc-400" },
                     { label: "Scan ID", val: cr.scan_id, cls: "text-zinc-400" },
                   ].map(({ label, val, cls }) => (
                     <div key={label} className="border border-zinc-800 rounded px-1.5 py-1">
@@ -181,7 +181,7 @@ export function Phase15SystemHealthPanel() {
                 {(cr.mismatches ?? []).slice(0, 5).map((m: any, i: number) => (
                   <div key={i} className="flex items-start gap-1.5">
                     {m.severity === "STALE_SOURCE"
-                      ? <AlertTriangle className="h-3 w-3 text-amber-400 mt-0.5 shrink-0" />
+                      ? <AlertTriangle className="h-3 w-3 text-warn-icon mt-0.5 shrink-0" />
                       : <XCircle className="h-3 w-3 text-red-400 mt-0.5 shrink-0" />}
                     <span className="text-zinc-400">
                       {m.symbol} · {m.field}: {m.source} {m.source_value} vs canonical {m.canonical_value}

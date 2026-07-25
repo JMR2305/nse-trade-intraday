@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, useColorScheme } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
 import { formatAge } from "@/lib/offlineCache";
@@ -13,11 +13,13 @@ export function StaleBanner({
   onRetry?: () => void;
 }) {
   const colors = useColors();
-  const amber = "#d97706";
+  const scheme = useColorScheme();
+  // Dark amber (#8A4B00) on light bg: 8.8:1 contrast; light amber (#F6C453) on dark bg: 9.2:1
+  const warnColor = scheme === "dark" ? "#F6C453" : "#8A4B00";
   return (
-    <View style={[styles.banner, { backgroundColor: amber + "18", borderColor: amber }]}>
-      <Ionicons name="cloud-offline-outline" size={16} color={amber} />
-      <Text style={[styles.text, { color: amber }]}>
+    <View style={[styles.banner, { backgroundColor: warnColor + "18", borderColor: warnColor }]}>
+      <Ionicons name="cloud-offline-outline" size={16} color={warnColor} />
+      <Text style={[styles.text, { color: warnColor }]}>
         Server unreachable — showing data from {formatAge(staleTs)}
       </Text>
       {onRetry ? (

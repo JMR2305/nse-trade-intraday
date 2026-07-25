@@ -136,7 +136,7 @@ function Select<T extends string | number>({ label, value, options, onChange }: 
 
 const VERDICT_STYLES: Record<string, string> = {
   "PASSED": "bg-emerald-500/15 border-emerald-500/40 text-emerald-400",
-  "PASSED WITH CAUTION": "bg-amber-500/15 border-amber-500/40 text-amber-400",
+  "PASSED WITH CAUTION": "bg-warn-surface border-warn text-warn",
   "FAILED": "bg-red-500/15 border-red-500/40 text-red-400",
   "INSUFFICIENT DATA": "bg-zinc-500/15 border-zinc-500/40 text-zinc-300",
 };
@@ -261,7 +261,7 @@ export default function WalkForwardValidation() {
             execution costs. Training and testing data never overlap.
           </p>
         </div>
-        <Badge variant="outline" className="font-mono text-[10px] border-amber-500/40 text-amber-400">
+        <Badge variant="outline" className="font-mono text-[10px] border-warn text-warn">
           PAPER TRADING · RESEARCH ONLY
         </Badge>
       </div>
@@ -269,7 +269,7 @@ export default function WalkForwardValidation() {
       <DataFreshnessBar variant="historical" datasetLabel="Walk-forward validation dataset" />
 
       {/* Safety */}
-      <div className="flex items-center gap-2 text-[11px] font-mono text-amber-400/90 bg-amber-500/10 border border-amber-500/30 rounded-md px-3 py-2">
+      <div className="flex items-center gap-2 text-[11px] font-mono text-warn bg-warn-surface border border-warn rounded-md px-3 py-2">
         <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
         Out-of-sample historical performance does not guarantee future results. Paper trading and research only.
       </div>
@@ -413,7 +413,7 @@ export default function WalkForwardValidation() {
               <Stat label="Avg hold (days)" value={fmtNum(full?.avg_holding_days, 1)} />
               <Stat label="Exposure" value={`${fmtNum(full?.exposure_pct, 1)}%`} />
               <Stat label="Turnover ×" value={fmtNum(full?.turnover)} />
-              <Stat label="Total costs" value={fmtINR(full?.total_costs)} valueClass="text-amber-400" />
+              <Stat label="Total costs" value={fmtINR(full?.total_costs)} valueClass="text-warn" />
               <Stat label="Avg win / loss" value={`${fmtINR(full?.avg_win)} / ${fmtINR(full?.avg_loss)}`} />
               <Stat label="Max consec. losses" value={String(full?.max_consecutive_losses ?? "—")} />
             </div>
@@ -541,7 +541,7 @@ export default function WalkForwardValidation() {
                 <div className="text-xs font-mono whitespace-normal bg-zinc-800/60 border border-zinc-700 rounded px-3 py-2" data-testid="text-phase2a-recommendation">
                   {r.phase2a.recommendation}
                 </div>
-                <div className="text-[10px] font-mono text-amber-400 whitespace-normal">
+                <div className="text-[10px] font-mono text-warn whitespace-normal">
                   {r.phase2a.deployment_note}
                 </div>
               </div>
@@ -780,7 +780,7 @@ export default function WalkForwardValidation() {
                       (w.ranking ?? []).filter((x: any) => x.enabled).map((x: any) => x.strategy_id).join(", ") || "—",
                       (w.ranking ?? []).filter((x: any) => !x.enabled).map((x: any) => x.strategy_id).join(", ") || "—",
                       w.gated_cash_only
-                        ? <span className="text-amber-400">CASH ONLY</span>
+                        ? <span className="text-warn">CASH ONLY</span>
                         : ((w.gated_ranking ?? []).filter((x: any) => x.eligible).map((x: any) => x.strategy_id).join(", ") || "—"),
                     ])}
                     testId="table-strategy-windows"
@@ -799,7 +799,7 @@ export default function WalkForwardValidation() {
                         s.strategy_id,
                         s.eligible
                           ? <span className="text-emerald-400 text-[10px]">{s.status}</span>
-                          : <span className={`text-[10px] ${s.status === "WATCHLIST" ? "text-amber-400" : "text-red-400"}`}>{s.status}</span>,
+                          : <span className={`text-[10px] ${s.status === "WATCHLIST" ? "text-warn" : "text-red-400"}`}>{s.status}</span>,
                         `${fmtNum(s.raw_profit_factor, 2)} → ${fmtNum(s.adjusted_profit_factor, 2)}`,
                         `${fmtNum(s.raw_expectancy_pct, 2)}% → ${fmtNum(s.adjusted_expectancy_pct, 2)}%`,
                         s.sample ?? 0,
@@ -859,7 +859,7 @@ export default function WalkForwardValidation() {
             />
             <div className="text-xs font-mono mt-2">
               Gross P&amp;L {fmtINR(r.cost_breakdown?.gross_pnl)} → Net {fmtINR(r.cost_breakdown?.net_pnl)}{" "}
-              <span className="text-amber-400">(costs &amp; slippage: {fmtINR(r.cost_breakdown?.cost_drag)})</span>
+              <span className="text-warn">(costs &amp; slippage: {fmtINR(r.cost_breakdown?.cost_drag)})</span>
             </div>
           </Section>
 
@@ -868,7 +868,7 @@ export default function WalkForwardValidation() {
             {(r.stability?.concentration_flags ?? []).length > 0 ? (
               <div className="space-y-1 mb-3">
                 {(r.stability.concentration_flags as string[]).map((f, i) => (
-                  <div key={i} className="flex items-center gap-2 text-xs font-mono text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded px-2 py-1.5">
+                  <div key={i} className="flex items-center gap-2 text-xs font-mono text-warn bg-warn-surface border border-warn rounded px-2 py-1.5">
                     <AlertTriangle className="h-3 w-3 flex-shrink-0" /> {f}
                   </div>
                 ))}

@@ -42,7 +42,7 @@ function formatDate(iso: string): string {
 const EXIT_META: Record<string, { label: string; color: string; icon: typeof Target }> = {
   TARGET_HIT:  { label: "Target Hit",  color: "text-emerald-400 bg-emerald-400/10 border-emerald-500/30", icon: Target },
   STOP_HIT:    { label: "Stop Hit",    color: "text-red-400 bg-red-400/10 border-red-500/30",             icon: ShieldOff },
-  SIGNAL_EXIT: { label: "Signal Exit", color: "text-yellow-400 bg-yellow-400/10 border-yellow-500/30",    icon: TrendingDown },
+  SIGNAL_EXIT: { label: "Signal Exit", color: "text-warn bg-warn-surface border-warn",    icon: TrendingDown },
   MANUAL:      { label: "Manual",      color: "text-zinc-400 bg-zinc-800 border-zinc-700",                icon: Clock },
 };
 
@@ -60,7 +60,7 @@ function ExitBadge({ type }: { type: string }) {
 const OUTCOME_META: Record<string, { color: string }> = {
   Excellent:   { color: "text-emerald-400 bg-emerald-400/10 border-emerald-500/30" },
   Good:        { color: "text-lime-400 bg-lime-400/10 border-lime-500/30" },
-  Weak:        { color: "text-yellow-400 bg-yellow-400/10 border-yellow-500/30" },
+  Weak:        { color: "text-warn bg-warn-surface border-warn" },
   "Small Loss": { color: "text-orange-400 bg-orange-400/10 border-orange-500/30" },
   Failed:      { color: "text-red-400 bg-red-400/10 border-red-500/30" },
 };
@@ -114,8 +114,8 @@ function PerformanceSection() {
   }
 
   const pnlColor = perf.total_pnl >= 0 ? "text-emerald-400" : "text-red-400";
-  const winColor = perf.win_rate >= 60 ? "text-emerald-400" : perf.win_rate >= 40 ? "text-yellow-400" : "text-red-400";
-  const pfColor  = perf.profit_factor >= 1.5 ? "text-emerald-400" : perf.profit_factor >= 1 ? "text-yellow-400" : "text-red-400";
+  const winColor = perf.win_rate >= 60 ? "text-emerald-400" : perf.win_rate >= 40 ? "text-warn" : "text-red-400";
+  const pfColor  = perf.profit_factor >= 1.5 ? "text-emerald-400" : perf.profit_factor >= 1 ? "text-warn" : "text-red-400";
 
   const cards = [
     {
@@ -132,7 +132,7 @@ function PerformanceSection() {
       sub: `${perf.winning_trades} of ${perf.total_trades} trades`,
       icon: Percent,
       color: winColor,
-      bg: perf.win_rate >= 60 ? "bg-emerald-400/10" : "bg-yellow-400/10",
+      bg: perf.win_rate >= 60 ? "bg-emerald-400/10" : "bg-warn-surface",
     },
     {
       label: "Profit Factor",
@@ -244,7 +244,7 @@ function StrategyLearningCard({ s }: { s: StrategyLearning }) {
       <p className="text-xs text-foreground/70 leading-relaxed">{s.reason}</p>
 
       {s.reliability_warning && (
-        <div className="flex gap-1.5 text-xs text-yellow-400/90 bg-yellow-400/5 border border-yellow-500/20 rounded px-2 py-1.5">
+        <div className="flex gap-1.5 text-xs text-warn bg-warn-surface border border-warn rounded px-2 py-1.5">
           <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
           <span>{s.reliability_warning}</span>
         </div>
@@ -279,7 +279,7 @@ function LearningSection() {
       </div>
 
       {learning.overall_warning && (
-        <div className="flex gap-2 text-sm text-yellow-400/90 bg-yellow-400/5 border border-yellow-500/20 rounded-lg p-3">
+        <div className="flex gap-2 text-sm text-warn bg-warn-surface border border-warn rounded-lg p-3">
           <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
           <p className="leading-relaxed">{learning.overall_warning}</p>
         </div>

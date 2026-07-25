@@ -189,6 +189,7 @@
   --warn-border:      201 133 24;
   --warn-surface:     255 244 216;
   --warn-icon:        168 92 0;
+  --warn-fill:        245 158 11;   /* amber-500: visible fill on dark bar tracks */
 
   /* Card / elevation shadows */
   --shadow-card:       0 1px 2px 0 rgb(31 41 55 / 0.04), 0 4px 16px -8px  rgb(31 41 55 / 0.10);
@@ -273,6 +274,7 @@
   --warn-border:      138 100 24;
   --warn-surface:     43 34 17;
   --warn-icon:        246 196 83;
+  --warn-fill:        251 191 36;   /* amber-400: bright fill on dark bar tracks in dark mode */
 
   --shadow-card:       0 1px 0 0 rgb(255 255 255 / 0.03) inset, 0 12px 40px -20px rgb(0 0 0 / 0.7);
   --shadow-card-hover: 0 1px 0 0 rgb(255 255 255 / 0.05) inset, 0 24px 60px -24px rgb(0 0 0 / 0.8);
@@ -368,6 +370,7 @@
   .bg-warn-surface  { background-color: rgb(var(--warn-surface)); }
   .border-warn      { border-color: rgb(var(--warn-border)); }
   .text-warn-icon   { color: rgb(var(--warn-icon)); }
+  .bg-warn-fill     { background-color: rgb(var(--warn-fill)); } /* bright amber for fills on dark tracks */
 }
 
 /* ── Extra keyframes (ApexQuant AI additions) ─────────────────────── */
