@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { apiJson } from "@/lib/api";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiJson, API_BASE } from "@/lib/api";
 import DataFreshnessBar from "@/components/DataFreshnessBar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -18,6 +18,10 @@ import {
   Settings,
   ChevronDown,
   ChevronRight,
+  Pencil,
+  X,
+  Check,
+  RotateCcw,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -144,6 +148,78 @@ interface PortfolioConfigResponse {
   config: Partial<PortfolioConfigValues>;
   error?: string | null;
   fetched_at: string;
+  /** Current session-level overrides (field → numeric value) */
+  overrides?: Partial<Record<string, number>>;
+  /** Fields currently overridden in this session */
+  overridden_fields?: string[];
+}
+
+interface PatchConfigResponse {
+  ok: boolean;
+  overrides: Record<string, number>;
+  overridden_fields: string[];
+  applied: string[];
+}
+
+interface PatchConfigError {
+  error: string;
+  field_errors?: Record<string, string>;
+}
+
+// ── Editable-field type definitions ──────────────────────────────────────────
+
+type FieldKind = "pct" | "int" | "money";
+
+/** Fields the operator may change at runtime (must match MUTABLE_FIELDS in portfolio.ts). */
+const MUTABLE_FIELD_KINDS: Record<string, FieldKind> = {
+  max_open_positions:           "int",
+  max_pending_orders:           "int",
+  max_daily_loss_pct:           "pct",
+  max_drawdown_pct:             "pct",
+  max_capital_per_strategy_pct: "pct",
+  min_order_value:              "money",
+  max_order_value:              "money",
+  max_instrument_exposure_pct:  "pct",
+  max_sector_exposure_pct:      "pct",
+  max_strategy_exposure_pct:    "pct",
+  max_portfolio_exposure_pct:   "pct",
+  cash_reserve_pct:             "pct",
+  default_risk_per_trade_pct:   "pct",
+};
+
+/** For pct fields the API stores fractions (0–1). UI shows / inputs percentages (0–100). */
+function toDisplayValue(fieldKind: FieldKind, raw: number | undefined): string {
+  if (raw === undefined) return "";
+  if (fieldKind === "pct") return (raw * 100).toFixed(2);
+  if (fieldKind === "int") return String(Math.round(raw));
+  return String(raw);
+}
+
+/** Parse UI input back to the fraction / number the API expects. */
+function toApiValue(fieldKind: FieldKind, input: string): number | null {
+  const n = Number(input.trim());
+  if (!Number.isFinite(n)) return null;
+  if (fieldKind === "pct") return n / 100;
+  if (fieldKind === "int") {
+    if (!Number.isInteger(n)) return null;
+    return n;
+  }
+  return n;
+}
+
+/** Client-side validation — mirrors the backend rules for immediate feedback. */
+function validateInput(fieldKind: FieldKind, input: string): string | null {
+  const v = toApiValue(fieldKind, input);
+  if (v === null)
+    return fieldKind === "int" ? "Must be a whole number" : "Must be a number";
+  if (fieldKind === "pct") {
+    const displayPct = Number(input.trim());
+    if (displayPct <= 0 || displayPct > 100)
+      return "Must be between 0.01% and 100%";
+  }
+  if (fieldKind === "int" && v < 1) return "Must be at least 1";
+  if (fieldKind === "money" && v <= 0) return "Must be positive";
+  return null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -407,27 +483,262 @@ function SectorExposureSection({
   );
 }
 
-// ── Active Configuration Section ──────────────────────────────────────────────
+// ── Active Configuration Section (editable) ───────────────────────────────────
 
 /** True only when the API has responded and PortfolioConfig failed to load. */
 function isDefaultsOnly(configResponse: PortfolioConfigResponse | undefined): boolean {
   return configResponse !== undefined && !configResponse.loaded;
 }
 
+/**
+ * Single editable config row.
+ * Mutable fields show a pencil icon on hover and an inline text input when editing.
+ * Non-mutable fields are always read-only.
+ */
+function ConfigRow({
+  label,
+  field,
+  displayValue,
+  rawValue,
+  fieldKind,
+  isOverridden,
+  isEditing,
+  onStartEdit,
+  onSave,
+  onCancel,
+  isSaving,
+  saveError,
+  usingDefaults,
+}: {
+  label: string;
+  field: string | null; // null = not editable
+  displayValue: string;
+  rawValue?: number;
+  fieldKind?: FieldKind;
+  isOverridden: boolean;
+  isEditing: boolean;
+  onStartEdit: () => void;
+  onSave: (apiValue: number) => void;
+  onCancel: () => void;
+  isSaving: boolean;
+  saveError: string | null;
+  usingDefaults: boolean;
+}) {
+  const [inputValue, setInputValue] = useState("");
+  const [localError, setLocalError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const mutable = field !== null && fieldKind !== undefined;
+
+  // Populate input with current value when editing starts
+  useEffect(() => {
+    if (isEditing && fieldKind !== undefined && rawValue !== undefined) {
+      const display = toDisplayValue(fieldKind, rawValue);
+      setInputValue(display);
+      setLocalError(null);
+      // Focus next tick (after DOM renders)
+      setTimeout(() => inputRef.current?.focus(), 10);
+    }
+  }, [isEditing, fieldKind, rawValue]);
+
+  const handleSave = useCallback(() => {
+    if (!fieldKind) return;
+    const validationError = validateInput(fieldKind, inputValue);
+    if (validationError) {
+      setLocalError(validationError);
+      return;
+    }
+    const apiValue = toApiValue(fieldKind, inputValue);
+    if (apiValue === null) {
+      setLocalError("Invalid value");
+      return;
+    }
+    setLocalError(null);
+    onSave(apiValue);
+  }, [fieldKind, inputValue, onSave]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") handleSave();
+    if (e.key === "Escape") {
+      setLocalError(null);
+      onCancel();
+    }
+  };
+
+  const errorToShow = saveError || localError;
+
+  return (
+    <div className="space-y-0.5 group" data-testid={field ? `config-field-${field}` : undefined}>
+      <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+        {label}
+        {isOverridden && (
+          <span
+            className="inline-flex items-center gap-0.5 rounded border border-blue-500/50 bg-blue-500/10 px-1 py-px text-[9px] font-mono uppercase tracking-wide text-blue-400 leading-none"
+            data-testid={`badge-override-${field}`}
+            title="Session override — resets when server restarts"
+          >
+            session
+          </span>
+        )}
+      </div>
+
+      {isEditing ? (
+        <div className="space-y-1">
+          <div className="flex items-center gap-1">
+            <input
+              ref={inputRef}
+              type={fieldKind === "int" ? "number" : "text"}
+              step={fieldKind === "int" ? 1 : undefined}
+              value={inputValue}
+              onChange={(e) => {
+                setInputValue(e.target.value);
+                setLocalError(null);
+              }}
+              onKeyDown={handleKeyDown}
+              disabled={isSaving}
+              className={`w-full rounded border px-2 py-1 text-sm font-mono bg-background focus:outline-none focus:ring-1 focus:ring-primary/50 ${
+                errorToShow
+                  ? "border-red-500/70 focus:ring-red-500/50"
+                  : "border-border/70"
+              } disabled:opacity-50`}
+              data-testid={`input-config-${field}`}
+              aria-label={`Edit ${label}`}
+            />
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="flex-shrink-0 rounded border border-green-500/40 bg-green-500/10 p-1 text-green-400 hover:bg-green-500/20 disabled:opacity-50"
+              title="Save"
+              data-testid={`button-save-${field}`}
+            >
+              {isSaving ? (
+                <RefreshCcw className="h-3 w-3 animate-spin" />
+              ) : (
+                <Check className="h-3 w-3" />
+              )}
+            </button>
+            <button
+              onClick={() => { setLocalError(null); onCancel(); }}
+              disabled={isSaving}
+              className="flex-shrink-0 rounded border border-border/40 bg-card p-1 text-muted-foreground hover:text-foreground disabled:opacity-50"
+              title="Cancel"
+              data-testid={`button-cancel-${field}`}
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+          {errorToShow && (
+            <p className="text-xs text-red-400 font-mono" data-testid={`error-config-${field}`}>
+              {errorToShow}
+            </p>
+          )}
+          {fieldKind === "pct" && (
+            <p className="text-[10px] text-muted-foreground font-mono">Enter a percentage, e.g. 20 for 20%</p>
+          )}
+        </div>
+      ) : (
+        <div className="flex items-center gap-1.5 min-h-[28px]">
+          <span className={`text-sm font-mono font-bold tabular-nums ${isOverridden ? "text-blue-300" : "text-foreground"}`}>
+            {displayValue}
+            {usingDefaults && !isOverridden && (
+              <span className="ml-1 text-yellow-500/70 font-normal text-xs">(dflt)</span>
+            )}
+          </span>
+          {mutable && !isEditing && (
+            <button
+              onClick={onStartEdit}
+              className="opacity-0 group-hover:opacity-100 transition-opacity rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-accent/50"
+              title={`Edit ${label}`}
+              data-testid={`button-edit-${field}`}
+            >
+              <Pencil className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ActiveConfigSection({
   configResponse,
   isLoading,
+  onRefetch,
 }: {
   configResponse: PortfolioConfigResponse | undefined;
-  /** True while the config query has not yet returned its first result. */
   isLoading: boolean;
+  onRefetch: () => void;
 }) {
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [fieldSaveError, setFieldSaveError] = useState<string | null>(null);
 
   const cfg = configResponse?.config ?? {};
-  // Only show the "defaults" warning once we know the API responded with loaded=false.
-  // While still loading (configResponse undefined), show nothing alarming.
+  const overriddenFields = new Set<string>(configResponse?.overridden_fields ?? []);
   const usingDefaults = isDefaultsOnly(configResponse);
+
+  // PATCH mutation — saves a single field override.
+  // Uses raw fetch instead of apiJson so we can capture field_errors from 422 responses.
+  const patchMutation = useMutation<PatchConfigResponse, PatchConfigError, Record<string, number>>({
+    mutationFn: async (body) => {
+      const url = `${API_BASE}/portfolio/config`;
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      let data: any;
+      try {
+        data = await res.json();
+      } catch {
+        throw { error: `HTTP ${res.status}: invalid JSON response` } satisfies PatchConfigError;
+      }
+      if (!res.ok) {
+        throw { error: data?.error ?? `HTTP ${res.status}`, field_errors: data?.field_errors } satisfies PatchConfigError;
+      }
+      return data as PatchConfigResponse;
+    },
+    onSuccess: () => {
+      setEditingField(null);
+      setFieldSaveError(null);
+      // Invalidate so the GET re-fetches with the fresh overrides
+      queryClient.invalidateQueries({ queryKey: ["portfolio-config"] });
+      onRefetch();
+    },
+    onError: (err) => {
+      // Try to pull a helpful message from field_errors first
+      const fieldErr = editingField && err.field_errors?.[editingField];
+      setFieldSaveError(fieldErr || err.error || "Save failed");
+    },
+  });
+
+  // DELETE mutation — clears all overrides
+  const clearMutation = useMutation<{ ok: boolean }, Error>({
+    mutationFn: () =>
+      apiJson("/portfolio/config/overrides", { method: "DELETE" }) as Promise<{ ok: boolean }>,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["portfolio-config"] });
+      onRefetch();
+    },
+  });
+
+  const handleStartEdit = useCallback((field: string) => {
+    setEditingField(field);
+    setFieldSaveError(null);
+    patchMutation.reset();
+  }, [patchMutation]);
+
+  const handleSave = useCallback((field: string, apiValue: number) => {
+    setFieldSaveError(null);
+    patchMutation.mutate({ [field]: apiValue });
+  }, [patchMutation]);
+
+  const handleCancel = useCallback(() => {
+    setEditingField(null);
+    setFieldSaveError(null);
+    patchMutation.reset();
+  }, [patchMutation]);
 
   const pctFmt = (v: number | undefined) =>
     v !== undefined ? `${(v * 100).toFixed(1)}%` : "—";
@@ -442,40 +753,48 @@ function ActiveConfigSection({
   const boolFmt = (v: boolean | undefined) =>
     v === undefined ? "—" : v ? "YES" : "NO";
 
-  type ConfigRow = { label: string; value: string; group: string };
-  const rows: ConfigRow[] = [
+  interface RowDef {
+    label: string;
+    group: string;
+    field: string | null;
+    displayValue: string;
+    rawValue?: number;
+    fieldKind?: FieldKind;
+  }
+
+  const rows: RowDef[] = [
     // Positions & Orders
-    { group: "Positions & Orders", label: "Max Open Positions",    value: numFmt(cfg.max_open_positions) },
-    { group: "Positions & Orders", label: "Max Pending Orders",    value: numFmt(cfg.max_pending_orders) },
+    { group: "Positions & Orders", label: "Max Open Positions",     field: "max_open_positions",           displayValue: numFmt(cfg.max_open_positions),           rawValue: cfg.max_open_positions,           fieldKind: "int"   },
+    { group: "Positions & Orders", label: "Max Pending Orders",     field: "max_pending_orders",           displayValue: numFmt(cfg.max_pending_orders),           rawValue: cfg.max_pending_orders,           fieldKind: "int"   },
     // Loss & Drawdown
-    { group: "Loss & Drawdown",    label: "Daily Loss Cap",        value: pctFmt(cfg.max_daily_loss_pct) },
-    { group: "Loss & Drawdown",    label: "Drawdown Halt",         value: pctFmt(cfg.max_drawdown_pct) },
-    { group: "Loss & Drawdown",    label: "Max Capital / Strategy",value: pctFmt(cfg.max_capital_per_strategy_pct) },
+    { group: "Loss & Drawdown",    label: "Daily Loss Cap",         field: "max_daily_loss_pct",           displayValue: pctFmt(cfg.max_daily_loss_pct),           rawValue: cfg.max_daily_loss_pct,           fieldKind: "pct"   },
+    { group: "Loss & Drawdown",    label: "Drawdown Halt",          field: "max_drawdown_pct",             displayValue: pctFmt(cfg.max_drawdown_pct),             rawValue: cfg.max_drawdown_pct,             fieldKind: "pct"   },
+    { group: "Loss & Drawdown",    label: "Max Capital / Strategy", field: "max_capital_per_strategy_pct", displayValue: pctFmt(cfg.max_capital_per_strategy_pct), rawValue: cfg.max_capital_per_strategy_pct, fieldKind: "pct"   },
     // Order Sizing
-    { group: "Order Sizing",       label: "Min Order Size",        value: moneyFmt(cfg.min_order_value) },
-    { group: "Order Sizing",       label: "Max Order Size",        value: moneyFmt(cfg.max_order_value) },
-    { group: "Order Sizing",       label: "Risk per Trade",        value: pctFmt(cfg.default_risk_per_trade_pct) },
-    { group: "Order Sizing",       label: "AI Confidence Sizing",  value: boolFmt(cfg.use_ai_confidence_sizing) },
-    { group: "Order Sizing",       label: "AI Confidence Min",     value: pctFmt(cfg.ai_confidence_min) },
+    { group: "Order Sizing",       label: "Min Order Size",         field: "min_order_value",              displayValue: moneyFmt(cfg.min_order_value),            rawValue: cfg.min_order_value,              fieldKind: "money" },
+    { group: "Order Sizing",       label: "Max Order Size",         field: "max_order_value",              displayValue: moneyFmt(cfg.max_order_value),            rawValue: cfg.max_order_value,              fieldKind: "money" },
+    { group: "Order Sizing",       label: "Risk per Trade",         field: "default_risk_per_trade_pct",   displayValue: pctFmt(cfg.default_risk_per_trade_pct),   rawValue: cfg.default_risk_per_trade_pct,   fieldKind: "pct"   },
+    { group: "Order Sizing",       label: "AI Confidence Sizing",   field: null,                           displayValue: boolFmt(cfg.use_ai_confidence_sizing) },
+    { group: "Order Sizing",       label: "AI Confidence Min",      field: null,                           displayValue: pctFmt(cfg.ai_confidence_min) },
     // Exposure Limits
-    { group: "Exposure Limits",    label: "Instrument Limit",      value: pctFmt(cfg.max_instrument_exposure_pct) },
-    { group: "Exposure Limits",    label: "Sector Limit",          value: pctFmt(cfg.max_sector_exposure_pct) },
-    { group: "Exposure Limits",    label: "Strategy Limit",        value: pctFmt(cfg.max_strategy_exposure_pct) },
-    { group: "Exposure Limits",    label: "Portfolio Limit",       value: pctFmt(cfg.max_portfolio_exposure_pct) },
-    { group: "Exposure Limits",    label: "Cash Reserve",          value: pctFmt(cfg.cash_reserve_pct) },
-    // Capital
-    { group: "Capital",            label: "Initial Capital",       value: moneyFmt(cfg.initial_capital) },
-    // Staleness & Intervals
-    { group: "Staleness & Intervals", label: "Stale State",        value: secFmt(cfg.stale_state_threshold_s) },
-    { group: "Staleness & Intervals", label: "Stale Broker",       value: secFmt(cfg.stale_broker_threshold_s) },
-    { group: "Staleness & Intervals", label: "Stale Price",        value: secFmt(cfg.stale_price_threshold_s) },
-    { group: "Staleness & Intervals", label: "Reconciliation",     value: secFmt(cfg.reconciliation_interval_s) },
-    { group: "Staleness & Intervals", label: "Snapshot Interval",  value: secFmt(cfg.snapshot_interval_s) },
-    { group: "Staleness & Intervals", label: "Allocation TTL",     value: secFmt(cfg.allocation_ttl_s) },
+    { group: "Exposure Limits",    label: "Instrument Limit",       field: "max_instrument_exposure_pct",  displayValue: pctFmt(cfg.max_instrument_exposure_pct),  rawValue: cfg.max_instrument_exposure_pct,  fieldKind: "pct"   },
+    { group: "Exposure Limits",    label: "Sector Limit",           field: "max_sector_exposure_pct",      displayValue: pctFmt(cfg.max_sector_exposure_pct),      rawValue: cfg.max_sector_exposure_pct,      fieldKind: "pct"   },
+    { group: "Exposure Limits",    label: "Strategy Limit",         field: "max_strategy_exposure_pct",    displayValue: pctFmt(cfg.max_strategy_exposure_pct),    rawValue: cfg.max_strategy_exposure_pct,    fieldKind: "pct"   },
+    { group: "Exposure Limits",    label: "Portfolio Limit",        field: "max_portfolio_exposure_pct",   displayValue: pctFmt(cfg.max_portfolio_exposure_pct),   rawValue: cfg.max_portfolio_exposure_pct,   fieldKind: "pct"   },
+    { group: "Exposure Limits",    label: "Cash Reserve",           field: "cash_reserve_pct",             displayValue: pctFmt(cfg.cash_reserve_pct),             rawValue: cfg.cash_reserve_pct,             fieldKind: "pct"   },
+    // Capital (read-only)
+    { group: "Capital",            label: "Initial Capital",        field: null,                           displayValue: moneyFmt(cfg.initial_capital) },
+    // Staleness & Intervals (read-only)
+    { group: "Staleness & Intervals", label: "Stale State",         field: null,                           displayValue: secFmt(cfg.stale_state_threshold_s) },
+    { group: "Staleness & Intervals", label: "Stale Broker",        field: null,                           displayValue: secFmt(cfg.stale_broker_threshold_s) },
+    { group: "Staleness & Intervals", label: "Stale Price",         field: null,                           displayValue: secFmt(cfg.stale_price_threshold_s) },
+    { group: "Staleness & Intervals", label: "Reconciliation",      field: null,                           displayValue: secFmt(cfg.reconciliation_interval_s) },
+    { group: "Staleness & Intervals", label: "Snapshot Interval",   field: null,                           displayValue: secFmt(cfg.snapshot_interval_s) },
+    { group: "Staleness & Intervals", label: "Allocation TTL",      field: null,                           displayValue: secFmt(cfg.allocation_ttl_s) },
   ];
 
-  // Group rows for sectioned display
   const groups = Array.from(new Set(rows.map((r) => r.group)));
+  const hasOverrides = overriddenFields.size > 0;
 
   return (
     <Card className="bg-card/50 border-border/50" data-testid="section-active-config">
@@ -504,6 +823,12 @@ function ActiveConfigSection({
               </span>
             </>
           )}
+          {!isLoading && hasOverrides && (
+            <span className="ml-auto flex items-center gap-1 text-blue-400 text-xs font-normal normal-case">
+              <Activity className="h-3 w-3" />
+              {overriddenFields.size} session override{overriddenFields.size !== 1 ? "s" : ""}
+            </span>
+          )}
         </CardTitle>
       </CardHeader>
       {open && (
@@ -523,6 +848,45 @@ function ActiveConfigSection({
             </div>
           )}
 
+          {/* Session-override info banner */}
+          {hasOverrides && (
+            <div
+              className="flex items-start gap-2 rounded border border-blue-500/40 bg-blue-500/10 px-3 py-2"
+              data-testid="banner-session-overrides"
+            >
+              <Activity className="h-3.5 w-3.5 text-blue-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-mono text-blue-400">
+                  {overriddenFields.size} field{overriddenFields.size !== 1 ? "s" : ""} overridden
+                  this session — resets when the server restarts.
+                  Values marked <span className="font-bold">session</span> are active in-memory overrides.
+                </p>
+              </div>
+              <button
+                onClick={() => clearMutation.mutate()}
+                disabled={clearMutation.isPending}
+                className="flex-shrink-0 flex items-center gap-1 rounded border border-blue-500/40 bg-blue-500/10 px-2 py-1 text-xs font-mono text-blue-400 hover:bg-blue-500/20 disabled:opacity-50"
+                title="Clear all session overrides"
+                data-testid="button-clear-overrides"
+              >
+                {clearMutation.isPending ? (
+                  <RefreshCcw className="h-3 w-3 animate-spin" />
+                ) : (
+                  <RotateCcw className="h-3 w-3" />
+                )}
+                Reset all
+              </button>
+            </div>
+          )}
+
+          {/* Edit tip — only shown when no field is being edited */}
+          {!editingField && !usingDefaults && (
+            <p className="text-xs text-muted-foreground font-mono">
+              <Pencil className="h-3 w-3 inline mr-1 opacity-60" />
+              Hover a limit row and click the pencil icon to edit it live. Overrides persist until the server restarts.
+            </p>
+          )}
+
           {/* Grouped rows */}
           {groups.map((group) => {
             const groupRows = rows.filter((r) => r.group === group);
@@ -532,19 +896,30 @@ function ActiveConfigSection({
                   {group}
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-3">
-                  {groupRows.map(({ label, value }) => (
-                    <div key={label} className="space-y-0.5">
-                      <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
-                        {label}
-                      </div>
-                      <div className="text-sm font-mono font-bold text-foreground tabular-nums">
-                        {value}
-                        {usingDefaults && (
-                          <span className="ml-1 text-yellow-500/70 font-normal text-xs">(dflt)</span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                  {groupRows.map(({ label, field, displayValue, rawValue, fieldKind }) => {
+                    const isOverridden = field !== null && overriddenFields.has(field);
+                    const isEditing = editingField === field;
+                    const isSaving = patchMutation.isPending && isEditing;
+                    const saveError = isEditing ? fieldSaveError : null;
+                    return (
+                      <ConfigRow
+                        key={label}
+                        label={label}
+                        field={field}
+                        displayValue={displayValue}
+                        rawValue={rawValue}
+                        fieldKind={fieldKind}
+                        isOverridden={isOverridden}
+                        isEditing={isEditing}
+                        onStartEdit={() => field && handleStartEdit(field)}
+                        onSave={(v) => field && handleSave(field, v)}
+                        onCancel={handleCancel}
+                        isSaving={isSaving}
+                        saveError={saveError}
+                        usingDefaults={usingDefaults}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -586,6 +961,8 @@ function ActiveConfigSection({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function PortfolioLive() {
+  const queryClient = useQueryClient();
+
   const snapshotQuery = useQuery<PortfolioSnapshot>({
     queryKey: ["portfolio-snapshot"],
     queryFn: () => apiJson("/portfolio/snapshot"),
@@ -607,6 +984,10 @@ export default function PortfolioLive() {
     refetchInterval: 5 * 60_000,
     staleTime: 4 * 60_000,
   });
+
+  const handleConfigRefetch = useCallback(() => {
+    configQuery.refetch();
+  }, [configQuery]);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
@@ -889,6 +1270,7 @@ export default function PortfolioLive() {
       <ActiveConfigSection
         configResponse={configQuery.data}
         isLoading={configQuery.isLoading && !configQuery.data}
+        onRefetch={handleConfigRefetch}
       />
 
       {/* ── Health details ──────────────────────────────────────────────── */}
