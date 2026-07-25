@@ -7,6 +7,17 @@ combinations (e.g. min_order_value >= max_order_value) are rejected.
 No live-mode activation logic lives here.  paper_mode=True is enforced
 by the model validator and cannot be overridden programmatically in this
 RC batch.
+
+Implementation note — validate_default=True on percentage fields
+----------------------------------------------------------------
+Pydantic v2 does NOT run field_validators on values that come from a
+``default_factory`` unless the Field is marked ``validate_default=True``.
+Because every percentage field reads its value from an env var via a
+``default_factory`` lambda, omitting this flag would let a mis-typed env
+var (e.g. PORTFOLIO_MAX_INSTRUMENT_PCT=20 meaning 2000 % instead of 0.20)
+silently bypass the _pct_range validator.  All percentage and capital
+fields therefore carry ``validate_default=True`` so the range check fires
+whether the value comes from an env var, a default, or a direct kwarg.
 """
 from __future__ import annotations
 
@@ -55,28 +66,34 @@ class PortfolioConfig(BaseModel):
     initial_capital: Decimal = Field(
         default_factory=lambda: _env_decimal("PORTFOLIO_INITIAL_CAPITAL", "100000"),
         description="Starting capital in base_currency",
+        validate_default=True,
     )
     cash_reserve_pct: Decimal = Field(
         default_factory=lambda: _env_decimal("PORTFOLIO_CASH_RESERVE_PCT", "0.05"),
         description="Fraction of capital that must always remain free (0–1)",
+        validate_default=True,
     )
 
     # ── Exposure limits ───────────────────────────────────────────────
     max_portfolio_exposure_pct: Decimal = Field(
         default_factory=lambda: _env_decimal("PORTFOLIO_MAX_EXPOSURE_PCT", "0.90"),
         description="Max gross exposure as fraction of portfolio equity",
+        validate_default=True,
     )
     max_instrument_exposure_pct: Decimal = Field(
         default_factory=lambda: _env_decimal("PORTFOLIO_MAX_INSTRUMENT_PCT", "0.20"),
         description="Max single-instrument exposure as fraction of portfolio equity",
+        validate_default=True,
     )
     max_sector_exposure_pct: Decimal = Field(
         default_factory=lambda: _env_decimal("PORTFOLIO_MAX_SECTOR_PCT", "0.35"),
         description="Max sector exposure as fraction of portfolio equity",
+        validate_default=True,
     )
     max_strategy_exposure_pct: Decimal = Field(
         default_factory=lambda: _env_decimal("PORTFOLIO_MAX_STRATEGY_PCT", "0.40"),
         description="Max strategy exposure as fraction of portfolio equity",
+        validate_default=True,
     )
 
     # ── Position / order counts ───────────────────────────────────────
@@ -93,28 +110,34 @@ class PortfolioConfig(BaseModel):
     max_daily_loss_pct: Decimal = Field(
         default_factory=lambda: _env_decimal("PORTFOLIO_MAX_DAILY_LOSS_PCT", "0.03"),
         description="Max daily loss as fraction of capital; triggers allocation block",
+        validate_default=True,
     )
     max_drawdown_pct: Decimal = Field(
         default_factory=lambda: _env_decimal("PORTFOLIO_MAX_DRAWDOWN_PCT", "0.10"),
         description="Max drawdown from peak equity as fraction; triggers halt",
+        validate_default=True,
     )
     max_capital_per_strategy_pct: Decimal = Field(
         default_factory=lambda: _env_decimal("PORTFOLIO_MAX_CAPITAL_PER_STRATEGY_PCT", "0.40"),
         description="Max capital allocatable to a single strategy",
+        validate_default=True,
     )
 
     # ── Position sizing ───────────────────────────────────────────────
     default_risk_per_trade_pct: Decimal = Field(
         default_factory=lambda: _env_decimal("PORTFOLIO_RISK_PER_TRADE_PCT", "0.01"),
         description="Default risk per trade as fraction of capital",
+        validate_default=True,
     )
     min_order_value: Decimal = Field(
         default_factory=lambda: _env_decimal("PORTFOLIO_MIN_ORDER_VALUE", "5000"),
         description="Minimum acceptable order value in base_currency",
+        validate_default=True,
     )
     max_order_value: Decimal = Field(
         default_factory=lambda: _env_decimal("PORTFOLIO_MAX_ORDER_VALUE", "50000"),
         description="Maximum acceptable order value in base_currency",
+        validate_default=True,
     )
     use_ai_confidence_sizing: bool = Field(
         default_factory=lambda: _env_bool("PORTFOLIO_USE_AI_CONFIDENCE", False),
@@ -123,6 +146,7 @@ class PortfolioConfig(BaseModel):
     ai_confidence_min: Decimal = Field(
         default_factory=lambda: _env_decimal("PORTFOLIO_AI_CONFIDENCE_MIN", "0.5"),
         description="Minimum confidence for AI sizing to have any effect",
+        validate_default=True,
     )
 
     # ── Staleness thresholds ──────────────────────────────────────────

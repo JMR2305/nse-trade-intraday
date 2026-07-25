@@ -828,6 +828,7 @@ class TestConfigDefaultsNotificationDedup:
     # ── 7. Two calls within the same day emit only one notification ───────────
 
     def test_two_calls_same_day_emit_one_notification(self):
+
         """
         Simulate two consecutive health polls within the same UTC day.
         The first call should emit the alert; the second must be deduped.
@@ -859,3 +860,92 @@ class TestConfigDefaultsNotificationDedup:
             f"Expected add_notification to be called exactly once across two "
             f"same-day polls, but it was called {store.add_notification.call_count} time(s)"
         )
+
+
+# ── get_portfolio_config() surfaces ValidationError from bad env vars ─────────
+
+
+class TestGetPortfolioConfigEnvVarValidationError:
+    """get_portfolio_config() must surface the error hint when PortfolioConfig
+    raises a ValidationError due to a mis-typed env var (e.g.
+    PORTFOLIO_MAX_INSTRUMENT_PCT=20 instead of 0.20).
+
+    These tests simulate the ValidationError being raised by the class
+    constructor without relying on process-level env var mutation so they
+    remain fast and do not pollute sibling tests.
+    """
+
+    @staticmethod
+    def _broken_config_module(exc: Exception) -> MagicMock:
+        """Return a mock src.portfolio.config whose PortfolioConfig raises exc."""
+        m = MagicMock()
+        m.PortfolioConfig.side_effect = exc
+        return m
+
+    def test_loaded_false_when_validation_error(self):
+        """loaded must be False when PortfolioConfig raises ValidationError."""
+        from pydantic import ValidationError as PydanticVE
+        # Use an import error to stand in for a real ValidationError in a unit test
+        # because constructing a real ValidationError requires a full Pydantic model.
+        # We use a ValueError which is the actual underlying cause; any exception
+        # from the constructor sets loaded=False.
+        import portfolio_snapshot as _ps
+
+        broken = self._broken_config_module(
+            ValueError("Percentage must be in (0, 1], got 20")
+        )
+        with patch.dict(sys.modules, {"src.portfolio.config": broken}):
+            result = _ps.get_portfolio_config()
+
+        assert result["loaded"] is False
+
+    def test_error_field_contains_message_on_validation_error(self):
+        """error field must be non-None and contain the validator message."""
+        import portfolio_snapshot as _ps
+
+        sentinel_msg = "Percentage must be in (0, 1], got 20"
+        broken = self._broken_config_module(ValueError(sentinel_msg))
+
+        with patch.dict(sys.modules, {"src.portfolio.config": broken}):
+            result = _ps.get_portfolio_config()
+
+        assert result.get("error") is not None, "error must be set on ValidationError"
+        assert sentinel_msg in result["error"], (
+            f"error field should contain validator message; got: {result['error']!r}"
+        )
+
+    def test_config_empty_on_validation_error(self):
+        """config dict must be empty when constructor raises ValidationError."""
+        import portfolio_snapshot as _ps
+
+        broken = self._broken_config_module(
+            ValueError("Percentage must be in (0, 1], got 35")
+        )
+        with patch.dict(sys.modules, {"src.portfolio.config": broken}):
+            result = _ps.get_portfolio_config()
+
+        assert result["config"] == {}, (
+            f"config must be empty on ValidationError, got: {result['config']!r}"
+        )
+
+    def test_limits_from_config_false_on_validation_error(self):
+        """limits_from_config must be False when env-var ValidationError fires."""
+        import portfolio_snapshot as _ps
+
+        broken = self._broken_config_module(
+            ValueError("min_order_value (50000) must be < max_order_value (5000)")
+        )
+        with patch.dict(sys.modules, {"src.portfolio.config": broken}):
+            result = _ps.get_portfolio_config()
+
+        assert result["limits_from_config"] is False
+
+    def test_fetched_at_always_present_on_validation_error(self):
+        """fetched_at must be present even when constructor raises."""
+        import portfolio_snapshot as _ps
+
+        broken = self._broken_config_module(ValueError("bad value"))
+        with patch.dict(sys.modules, {"src.portfolio.config": broken}):
+            result = _ps.get_portfolio_config()
+
+        assert "fetched_at" in result
