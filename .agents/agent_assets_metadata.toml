@@ -101,3 +101,9 @@ id = "_rXe3bDcelwHxmNCY6-F3"
 uri = "file://intraday-trading-bot/reviews/Batch10B_Replit_Audit.md"
 type = "text"
 title = "Batch10B_Replit_Audit.md"
+
+[[outputs]]
+id = "VyTH40d8Gc6Lfw7tYE7NA"
+uri = "file://artifacts/api-server/docs/phase1-connectivity-report.md"
+type = "text"
+title = "Phase 1 — Production Connectivity & Data Readiness Report"
