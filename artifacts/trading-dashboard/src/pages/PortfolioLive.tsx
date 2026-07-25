@@ -74,6 +74,8 @@ interface PortfolioSnapshot {
   // Exposure additions
   instrument_limit_pct?: number;
   sector_limit_pct?: number;
+  /** true when limits came from PortfolioConfig; false means hardcoded defaults were used */
+  limits_from_config?: boolean;
   sector_exposures?: SectorExposure[];
   exposure_warnings?: ExposureWarning[];
 }
@@ -297,9 +299,11 @@ function ExposureWarningBanner({ warnings }: { warnings: ExposureWarning[] }) {
 function SectorExposureSection({
   sectorExposures,
   sectorLimitPct,
+  limitsFromConfig,
 }: {
   sectorExposures: SectorExposure[];
   sectorLimitPct: number;
+  limitsFromConfig: boolean;
 }) {
   if (sectorExposures.length === 0) return null;
   return (
@@ -310,6 +314,14 @@ function SectorExposureSection({
           Sector Exposure
           <span className="ml-auto text-xs font-normal text-muted-foreground">
             Limit: {sectorLimitPct.toFixed(0)}% per sector
+            {!limitsFromConfig && (
+              <span
+                className="ml-1 text-yellow-500/80"
+                title="Falling back to hardcoded defaults — PortfolioConfig could not be loaded"
+              >
+                (default)
+              </span>
+            )}
           </span>
         </CardTitle>
       </CardHeader>
@@ -380,6 +392,8 @@ export default function PortfolioLive() {
   const sectorLimitPct = snap?.sector_limit_pct ?? 35.0;
   const sectorExposures = snap?.sector_exposures ?? [];
   const exposureWarnings = snap?.exposure_warnings ?? [];
+  /** true = limits came from PortfolioConfig; false = hardcoded defaults were used */
+  const limitsFromConfig = snap?.limits_from_config ?? true;
 
   if (isLoading) {
     return (
@@ -577,8 +591,11 @@ export default function PortfolioLive() {
                     <th className="px-3 py-2 text-right">Unreal. P&L</th>
                     <th className="px-3 py-2 text-right">P&L %</th>
                     <th className="px-3 py-2 text-left">Strategy</th>
-                    <th className="px-3 py-2 text-left" title={`Single-stock limit: ${instrumentLimitPct.toFixed(0)}% of equity`}>
+                    <th className="px-3 py-2 text-left" title={`Single-stock limit: ${instrumentLimitPct.toFixed(0)}% of equity${!limitsFromConfig ? " (hardcoded default)" : ""}`}>
                       Exposure / Limit
+                      {!limitsFromConfig && (
+                        <span className="ml-1 text-yellow-500/70 font-normal normal-case">(default)</span>
+                      )}
                     </th>
                   </tr>
                 </thead>
@@ -621,6 +638,7 @@ export default function PortfolioLive() {
         <SectorExposureSection
           sectorExposures={sectorExposures}
           sectorLimitPct={sectorLimitPct}
+          limitsFromConfig={limitsFromConfig}
         />
       )}
 

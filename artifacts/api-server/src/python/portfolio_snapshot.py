@@ -174,13 +174,15 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
     # ── 4. Exposure limits (try to load from PortfolioConfig) ─────────────
     instrument_limit_pct = _DEFAULT_INSTRUMENT_LIMIT_PCT
     sector_limit_pct = _DEFAULT_SECTOR_LIMIT_PCT
+    limits_from_config = False
     try:
         from src.portfolio.config import PortfolioConfig
         _cfg = PortfolioConfig()
         instrument_limit_pct = float(_cfg.max_instrument_exposure_pct) * 100.0
         sector_limit_pct = float(_cfg.max_sector_exposure_pct) * 100.0
-    except Exception:
-        pass
+        limits_from_config = True
+    except Exception as exc:
+        logger.debug("PortfolioConfig unavailable; using hardcoded defaults: %s", exc)
 
     # ── 5. Per-position exposure_pct and sector rollup ─────────────────────
     equity_safe = equity if equity > 0 else 1.0
@@ -254,6 +256,7 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
         # Exposure data
         "instrument_limit_pct": instrument_limit_pct,
         "sector_limit_pct": sector_limit_pct,
+        "limits_from_config": limits_from_config,
         "sector_exposures": sector_exposures,
         "exposure_warnings": exposure_warnings,
     }
