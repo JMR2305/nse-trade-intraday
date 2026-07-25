@@ -498,6 +498,53 @@ describe("HEALTHY → DEGRADED transition — badge updates on next poll", () =>
   });
 });
 
+// ── 13. Config query polling — staleTime within one refresh cycle ─────────
+//
+// The config query must not serve a 4-minute-old cached snapshot after an API
+// restart that changes PortfolioConfig values.  After the fix, staleTime and
+// refetchInterval are aligned with the health/snapshot cadence (REFRESH_INTERVAL).
+//
+// Invariants:
+//   - configQuery.staleTime  === REFRESH_INTERVAL / 2  (data expires before next poll)
+//   - configQuery.refetchInterval === REFRESH_INTERVAL  (same cadence as healthQuery)
+//   - configQuery.staleTime < REFRESH_INTERVAL          (always a real network fetch)
+
+describe("config query polling — staleTime is within one refresh cycle", () => {
+  it("configQuery sets refetchInterval to REFRESH_INTERVAL", () => {
+    // The config block must carry the same refetchInterval as health/snapshot.
+    expect(pageSrc).toMatch(
+      /configQuery\s*=\s*useQuery[^)]*\(\s*\{[^}]*refetchInterval\s*:\s*REFRESH_INTERVAL(?!\s*\/)/s,
+    );
+  });
+
+  it("configQuery sets staleTime to REFRESH_INTERVAL / 2", () => {
+    // staleTime must be strictly less than refetchInterval so React Query always
+    // issues a real network request on each tick.
+    expect(pageSrc).toMatch(
+      /configQuery\s*=\s*useQuery[^)]*\(\s*\{[^}]*staleTime\s*:\s*REFRESH_INTERVAL\s*\/\s*2/s,
+    );
+  });
+
+  it("configQuery staleTime is numerically less than REFRESH_INTERVAL", () => {
+    const refreshMatch = pageSrc.match(/const REFRESH_INTERVAL\s*=\s*([\d_]+)/);
+    expect(refreshMatch).not.toBeNull();
+    const refreshMs = parseInt((refreshMatch![1] as string).replace(/_/g, ""), 10);
+    // staleTime === REFRESH_INTERVAL / 2 per the assertion above
+    const staleMs = refreshMs / 2;
+    expect(staleMs).toBeGreaterThan(0);
+    expect(staleMs).toBeLessThan(refreshMs);
+  });
+
+  it("configQuery staleTime is not the old 4-minute value", () => {
+    // Regression guard: ensure the 4 * 60_000 anti-pattern is gone.
+    expect(pageSrc).not.toMatch(/configQuery[\s\S]{0,300}staleTime\s*:\s*4\s*\*\s*60_000/s);
+  });
+
+  it("configQuery refetchInterval is not the old 5-minute value", () => {
+    expect(pageSrc).not.toMatch(/configQuery[\s\S]{0,300}refetchInterval\s*:\s*5\s*\*\s*60_000/s);
+  });
+});
+
 // ── 13. UNREACHABLE error state ───────────────────────────────────────────
 //
 // When healthQuery.isError is true and no cached health data is available,

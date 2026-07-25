@@ -987,9 +987,10 @@ export default function PortfolioLive() {
   const configQuery = useQuery<PortfolioConfigResponse>({
     queryKey: ["portfolio-config"],
     queryFn: () => apiJson("/portfolio/config"),
-    // Config values rarely change mid-session; refresh every 5 minutes
-    refetchInterval: 5 * 60_000,
-    staleTime: 4 * 60_000,
+    // Align with health/snapshot cadence so limit changes after an API restart
+    // are visible within one REFRESH_INTERVAL cycle, not up to 4 minutes later.
+    refetchInterval: REFRESH_INTERVAL,
+    staleTime: REFRESH_INTERVAL / 2,
   });
 
   const handleConfigRefetch = useCallback(() => {
