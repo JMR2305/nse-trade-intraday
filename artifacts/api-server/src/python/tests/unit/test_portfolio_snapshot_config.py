@@ -351,3 +351,261 @@ class TestPortfolioHealthDegradedOnMissingConfig:
         assert result["status"] == "HEALTHY"
         assert result["limits_from_config"] is True
         assert result.get("degraded_reasons", []) == []
+
+
+# ── get_portfolio_config() ────────────────────────────────────────────────────
+
+
+class TestGetPortfolioConfig:
+    """Tests for get_portfolio_config() — the function backing GET /api/portfolio/config."""
+
+    # ── 1. Happy path: loaded=True with default values ───────────────────────
+
+    def test_loaded_true_when_portfolio_config_available(self):
+        """get_portfolio_config() must return loaded=True when PortfolioConfig imports fine."""
+        import portfolio_snapshot as _ps
+
+        result = _ps.get_portfolio_config()
+
+        assert result["loaded"] is True, (
+            f"Expected loaded=True but got {result['loaded']!r}; error={result.get('error')}"
+        )
+
+    def test_limits_from_config_true_on_success(self):
+        """limits_from_config mirrors loaded when PortfolioConfig is available."""
+        import portfolio_snapshot as _ps
+
+        result = _ps.get_portfolio_config()
+
+        assert result["limits_from_config"] is True
+
+    def test_config_contains_expected_keys(self):
+        """The config dict must contain all limit/capital keys the panel needs."""
+        import portfolio_snapshot as _ps
+
+        result = _ps.get_portfolio_config()
+        cfg = result["config"]
+
+        required_keys = [
+            "portfolio_id",
+            "enabled",
+            "initial_capital",
+            "cash_reserve_pct",
+            "max_portfolio_exposure_pct",
+            "max_instrument_exposure_pct",
+            "max_sector_exposure_pct",
+            "max_strategy_exposure_pct",
+            "max_open_positions",
+            "max_pending_orders",
+            "max_daily_loss_pct",
+            "max_drawdown_pct",
+            "min_order_value",
+            "max_order_value",
+            "default_risk_per_trade_pct",
+        ]
+        missing = [k for k in required_keys if k not in cfg]
+        assert missing == [], f"config dict is missing keys: {missing}"
+
+    def test_default_numeric_values_are_correct(self):
+        """Default limit values must match PortfolioConfig spec without any env overrides."""
+        import os
+        import portfolio_snapshot as _ps
+
+        # Strip any test-environment overrides for these specific keys so we get pure defaults.
+        env_strip = {
+            k: None
+            for k in [
+                "PORTFOLIO_MAX_INSTRUMENT_PCT",
+                "PORTFOLIO_MAX_SECTOR_PCT",
+                "PORTFOLIO_MAX_EXPOSURE_PCT",
+                "PORTFOLIO_INITIAL_CAPITAL",
+                "PORTFOLIO_CASH_RESERVE_PCT",
+                "PORTFOLIO_MAX_DAILY_LOSS_PCT",
+                "PORTFOLIO_MAX_DRAWDOWN_PCT",
+                "PORTFOLIO_MIN_ORDER_VALUE",
+                "PORTFOLIO_MAX_ORDER_VALUE",
+            ]
+        }
+        # patch.dict with values=None removes the keys for the duration of the block
+        with patch.dict(os.environ, {}, clear=False):
+            for key in env_strip:
+                os.environ.pop(key, None)
+            result = _ps.get_portfolio_config()
+
+        cfg = result["config"]
+        assert result["loaded"] is True
+
+        assert cfg["max_instrument_exposure_pct"] == pytest.approx(0.20), (
+            "Default max_instrument_exposure_pct must be 0.20"
+        )
+        assert cfg["max_sector_exposure_pct"] == pytest.approx(0.35), (
+            "Default max_sector_exposure_pct must be 0.35"
+        )
+        assert cfg["max_portfolio_exposure_pct"] == pytest.approx(0.90), (
+            "Default max_portfolio_exposure_pct must be 0.90"
+        )
+        assert cfg["initial_capital"] == pytest.approx(100_000.0), (
+            "Default initial_capital must be 100 000"
+        )
+        assert cfg["max_open_positions"] == 10, (
+            "Default max_open_positions must be 10"
+        )
+
+    # ── 2. Env-var overrides are reflected in the returned values ────────────
+
+    def test_env_var_overrides_instrument_limit(self):
+        """PORTFOLIO_MAX_INSTRUMENT_PCT env var must override the returned value."""
+        import os
+        import importlib
+        import portfolio_snapshot as _ps
+
+        with patch.dict(os.environ, {"PORTFOLIO_MAX_INSTRUMENT_PCT": "0.15"}):
+            # Reload the module so the default_factory lambdas pick up the new env
+            importlib.reload(_ps)
+            result = _ps.get_portfolio_config()
+
+        # Reload back to clean state
+        importlib.reload(_ps)
+
+        cfg = result["config"]
+        assert result["loaded"] is True
+        assert cfg["max_instrument_exposure_pct"] == pytest.approx(0.15), (
+            "PORTFOLIO_MAX_INSTRUMENT_PCT=0.15 must appear in config response"
+        )
+
+    def test_env_var_overrides_sector_limit(self):
+        """PORTFOLIO_MAX_SECTOR_PCT env var must override the returned value."""
+        import os
+        import importlib
+        import portfolio_snapshot as _ps
+
+        with patch.dict(os.environ, {"PORTFOLIO_MAX_SECTOR_PCT": "0.25"}):
+            importlib.reload(_ps)
+            result = _ps.get_portfolio_config()
+
+        importlib.reload(_ps)
+
+        cfg = result["config"]
+        assert result["loaded"] is True
+        assert cfg["max_sector_exposure_pct"] == pytest.approx(0.25), (
+            "PORTFOLIO_MAX_SECTOR_PCT=0.25 must appear in config response"
+        )
+
+    def test_env_var_overrides_initial_capital(self):
+        """PORTFOLIO_INITIAL_CAPITAL env var must override the returned value."""
+        import os
+        import importlib
+        import portfolio_snapshot as _ps
+
+        with patch.dict(os.environ, {"PORTFOLIO_INITIAL_CAPITAL": "250000"}):
+            importlib.reload(_ps)
+            result = _ps.get_portfolio_config()
+
+        importlib.reload(_ps)
+
+        cfg = result["config"]
+        assert result["loaded"] is True
+        assert cfg["initial_capital"] == pytest.approx(250_000.0), (
+            "PORTFOLIO_INITIAL_CAPITAL=250000 must appear in config response"
+        )
+
+    def test_env_var_overrides_max_open_positions(self):
+        """PORTFOLIO_MAX_OPEN_POSITIONS env var must override the returned integer."""
+        import os
+        import importlib
+        import portfolio_snapshot as _ps
+
+        with patch.dict(os.environ, {"PORTFOLIO_MAX_OPEN_POSITIONS": "5"}):
+            importlib.reload(_ps)
+            result = _ps.get_portfolio_config()
+
+        importlib.reload(_ps)
+
+        cfg = result["config"]
+        assert result["loaded"] is True
+        assert cfg["max_open_positions"] == 5, (
+            "PORTFOLIO_MAX_OPEN_POSITIONS=5 must appear in config response"
+        )
+
+    # ── 3. Fallback path: PortfolioConfig import fails ───────────────────────
+
+    def test_loaded_false_when_import_fails(self):
+        """get_portfolio_config() must return loaded=False when PortfolioConfig raises."""
+        import portfolio_snapshot as _ps
+
+        mock_cfg_module = MagicMock()
+        mock_cfg_module.PortfolioConfig.side_effect = ImportError("blocked for test")
+
+        with patch.dict(sys.modules, {"src.portfolio.config": mock_cfg_module}):
+            result = _ps.get_portfolio_config()
+
+        assert result["loaded"] is False, (
+            f"Expected loaded=False on import failure, got {result['loaded']!r}"
+        )
+
+    def test_config_empty_dict_when_import_fails(self):
+        """config must be an empty dict when PortfolioConfig raises."""
+        import portfolio_snapshot as _ps
+
+        mock_cfg_module = MagicMock()
+        mock_cfg_module.PortfolioConfig.side_effect = ImportError("blocked for test")
+
+        with patch.dict(sys.modules, {"src.portfolio.config": mock_cfg_module}):
+            result = _ps.get_portfolio_config()
+
+        assert result["config"] == {}, (
+            f"Expected config={{}} on import failure, got {result['config']!r}"
+        )
+
+    def test_limits_from_config_false_when_import_fails(self):
+        """limits_from_config must be False when PortfolioConfig raises."""
+        import portfolio_snapshot as _ps
+
+        mock_cfg_module = MagicMock()
+        mock_cfg_module.PortfolioConfig.side_effect = ImportError("blocked for test")
+
+        with patch.dict(sys.modules, {"src.portfolio.config": mock_cfg_module}):
+            result = _ps.get_portfolio_config()
+
+        assert result["limits_from_config"] is False
+
+    def test_error_field_populated_when_import_fails(self):
+        """error field must be a non-empty string when PortfolioConfig raises."""
+        import portfolio_snapshot as _ps
+
+        mock_cfg_module = MagicMock()
+        mock_cfg_module.PortfolioConfig.side_effect = ImportError("test-sentinel-error")
+
+        with patch.dict(sys.modules, {"src.portfolio.config": mock_cfg_module}):
+            result = _ps.get_portfolio_config()
+
+        assert result.get("error") is not None, "error must be set on import failure"
+        assert isinstance(result["error"], str) and len(result["error"]) > 0
+
+    # ── 4. Response structure is always present ───────────────────────────────
+
+    def test_response_always_has_fetched_at(self):
+        """fetched_at must always be present regardless of success or failure."""
+        import portfolio_snapshot as _ps
+
+        # Success path
+        result_ok = _ps.get_portfolio_config()
+        assert "fetched_at" in result_ok
+
+        # Failure path
+        mock_cfg_module = MagicMock()
+        mock_cfg_module.PortfolioConfig.side_effect = ImportError("blocked")
+        with patch.dict(sys.modules, {"src.portfolio.config": mock_cfg_module}):
+            result_fail = _ps.get_portfolio_config()
+        assert "fetched_at" in result_fail
+
+    def test_error_is_none_on_success(self):
+        """error field must be None when PortfolioConfig loads without exception."""
+        import portfolio_snapshot as _ps
+
+        result = _ps.get_portfolio_config()
+
+        assert result["loaded"] is True
+        assert result.get("error") is None, (
+            f"error must be None on success, got {result.get('error')!r}"
+        )
