@@ -1,0 +1,235 @@
+PROJECT: OMNIROUTE AI FRONTEND — POST-BOLT PRODUCTION CORRECTION PASS
+
+The attached/imported frontend was generated in Bolt.
+
+The cream/light visual design is approved.
+
+Do not redesign the visual theme.
+Do not replace the cream background.
+Do not change the existing page hierarchy unless technically necessary.
+Preserve the current typography, cards, spacing, sidebar, buttons and overall visual identity.
+
+Your task is to make this frontend technically correct and suitable for integration with our NSE paper-trading platform.
+
+==================================================
+PHASE 1 — AUDIT FIRST
+==================================================
+
+Before modifying code, audit and report:
+
+1. Current project structure.
+2. Build status.
+3. TypeScript status.
+4. ESLint status.
+5. Responsive-layout issues.
+6. Hard-coded demo data.
+7. Fake or unsafe trading states.
+8. Missing routing.
+9. Accessibility issues.
+10. Dependencies and version compatibility with our workspace.
+
+Do not modify the frozen trading backend during this phase.
+
+==================================================
+PHASE 2 — NSE / INDIA LOCALISATION
+==================================================
+
+Replace all US-market demo content.
+
+Replace:
+
+- USD with INR using Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR'
+  })
+- NYSE/NASDAQ with NSE-oriented terminology.
+- NVDA, AAPL, TSLA and similar symbols with realistic examples such as:
+  RELIANCE
+  HDFCBANK
+  INFY
+  TCS
+  ICICIBANK
+  SBIN
+  NIFTY 50
+  BANK NIFTY
+- US market hours with NSE market hours in IST.
+- US routing venues with exchange/product concepts relevant to Zerodha/NSE.
+
+Use realistic demo values, but label all data clearly as demo or simulated.
+
+Do not imply that demo figures are live market data.
+
+Replace “Ava Rivera” with a neutral configurable demo user.
+
+==================================================
+PHASE 3 — TRADING SAFETY CORRECTIONS
+==================================================
+
+The frontend is for PAPER TRADING.
+
+Requirements:
+
+- Show a prominent PAPER TRADING indicator in the sidebar/header and order screen.
+- LIVE TRADING must be disabled and structurally unavailable.
+- Remove any statement that strategies are “live.”
+- Replace it with “running in paper mode” or equivalent.
+- Never hard-code “Risk check: Pass.”
+- Support these frontend risk states:
+  NOT_CHECKED
+  CHECKING
+  PASSED
+  REJECTED
+  UNAVAILABLE
+- Order submission must not display success without a backend response.
+- Add a confirmation dialog before paper-order submission.
+- Add visible execution states:
+  DRAFT
+  VALIDATING
+  RISK_REJECTED
+  SUBMITTED
+  PARTIALLY_FILLED
+  FILLED
+  CANCELLED
+  FAILED
+
+Nothing may bypass RC-8 Risk or RC-7 Execution.
+
+AI Insights must remain advisory only and must not directly submit orders.
+
+==================================================
+PHASE 4 — REAL ROUTING
+==================================================
+
+Replace state-only navigation such as:
+
+const [active, setActive] = useState('dashboard')
+
+with proper React Router routing.
+
+Expected routes:
+
+/dashboard
+/ai-insights
+/portfolio
+/strategies
+/orders
+/market-watch
+/trading
+/risk-center
+/documents
+/settings
+/profile
+
+Requirements:
+
+- Browser Back/Forward must work.
+- Page refresh must preserve the route.
+- Deep links must work.
+- Unknown routes must show a proper 404 or redirect safely.
+- Sidebar active states must derive from the current route.
+
+==================================================
+PHASE 5 — RESPONSIVE UI
+==================================================
+
+Preserve the approved cream design while fixing:
+
+- Crowded tablet header.
+- Truncated “Command Center” heading.
+- Search field overflow.
+- Profile section overflow.
+- Sidebar behaviour on mobile/tablet.
+- Horizontal overflow in tables and charts.
+- Touch-target sizes.
+- Bottom-safe-area spacing on Android devices.
+
+Use a drawer sidebar for small screens.
+
+Do not remove useful information merely to make the page fit.
+
+==================================================
+PHASE 6 — DATA ARCHITECTURE
+==================================================
+
+Move hard-coded data behind typed frontend service interfaces.
+
+Create interfaces/services for:
+
+- Portfolio summary
+- Positions
+- Market watch
+- Strategies
+- Orders
+- Risk overview
+- AI insights
+- Documents
+- System status
+
+Initially, these services may return mock data.
+
+Clearly separate:
+
+src/services/
+src/types/
+src/mocks/
+src/hooks/
+
+No direct backend integration is required yet.
+
+Do not add Supabase unless it is already genuinely required.
+Remove unused dependencies after verification.
+
+==================================================
+PHASE 7 — CHART PREPARATION
+==================================================
+
+Keep current charts temporarily.
+
+Create a chart abstraction layer so selected charts can later be replaced with:
+
+- Bklit UI for dashboard analytics.
+- A dedicated financial chart library for candlestick/OHLC charts.
+
+Do not introduce Bklit UI in this correction pass unless compatibility is confirmed.
+
+==================================================
+PHASE 8 — QUALITY GATES
+==================================================
+
+Run:
+
+npm install
+npm run typecheck
+npm run lint
+npm run build
+
+Resolve all genuine errors.
+
+Also verify:
+
+- No console errors.
+- No broken routes.
+- No layout overflow at common breakpoints.
+- Theme preference persists.
+- Light cream theme is the default.
+- Dark theme remains optional.
+- No fake live-trading claims.
+- No hard-coded risk approval.
+- Frozen backend remains untouched.
+
+==================================================
+DELIVERABLE
+==================================================
+
+Provide:
+
+1. Audit report.
+2. Files changed.
+3. Issues fixed.
+4. Remaining limitations.
+5. Build/typecheck/lint results.
+6. Screenshots or responsive verification notes.
+7. Final verdict:
+   READY FOR BACKEND READ-API INTEGRATION
+   or
+   NOT READY, with blockers.
