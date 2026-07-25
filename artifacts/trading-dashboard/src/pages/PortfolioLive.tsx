@@ -102,6 +102,12 @@ interface PortfolioHealth {
   /** human-readable list of active degraded reasons */
   degraded_reasons?: string[];
   state_freshness_s?: number | null;
+  /**
+   * true when at least one email transport (Resend or SMTP) is configured.
+   * When false and limits_from_config is also false, the config-defaults
+   * PERFORMANCE_ALERT was stored in-app but email delivery was silently skipped.
+   */
+  email_transport_configured?: boolean;
   checked_at: string;
 }
 
@@ -1331,6 +1337,22 @@ export default function PortfolioLive() {
                   <span className="text-xs text-yellow-400 font-mono">
                     Exposure limits using hardcoded defaults — check PortfolioConfig import
                   </span>
+                </div>
+              )}
+              {/* Email transport hint — shown when the config-defaults alert fired
+                  but no email transport is configured, so the operator knows the
+                  alert was only stored in-app and email delivery was silently skipped. */}
+              {health.limits_from_config === false && health.email_transport_configured === false && (
+                <div
+                  className="col-span-2 md:col-span-4 flex items-start gap-2 rounded border border-orange-500/40 bg-orange-500/10 px-3 py-2"
+                  data-testid="banner-email-transport-unconfigured"
+                >
+                  <AlertTriangle className="h-3.5 w-3.5 text-orange-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs font-mono text-orange-400">
+                    <span className="font-bold">Email delivery not configured</span> — the config-defaults alert
+                    was stored in-app but no email transport (RESEND_API_KEY or SMTP_HOST) is set, so no
+                    email was sent. Add a transport secret to enable email alerts.
+                  </p>
                 </div>
               )}
               {health.state_freshness_s != null && (

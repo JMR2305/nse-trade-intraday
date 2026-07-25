@@ -370,6 +370,14 @@ def get_portfolio_health() -> Dict[str, Any]:
     except Exception as exc:
         logger.debug("PortfolioConfig unavailable in health check: %s", exc)
 
+    # Check whether an email transport is configured (no secrets exposed).
+    email_transport_configured = False
+    try:
+        from email_alerts import provider_status
+        email_transport_configured = bool(provider_status().get("configured", False))
+    except Exception as exc:
+        logger.debug("email_alerts provider_status unavailable: %s", exc)
+
     # Emit a notification the first time per UTC day that limits fall back to
     # defaults.  Uses kv_get/kv_set for durable deduplication so the alert
     # fires at most once per day even when the health endpoint is polled
@@ -437,5 +445,10 @@ def get_portfolio_health() -> Dict[str, Any]:
         "readiness": initialized,
         "degraded": bool(degraded_reasons),
         "failure_reason": degraded_reasons[0] if degraded_reasons else None,
+        # True when at least one email transport (Resend or SMTP) is configured.
+        # When False and limits_from_config is also False, the config-defaults
+        # PERFORMANCE_ALERT was stored in-app but email delivery was silently
+        # skipped — surface this to the operator.
+        "email_transport_configured": email_transport_configured,
         "checked_at": now,
     }
