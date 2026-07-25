@@ -172,3 +172,182 @@ class TestPortfolioSnapshotLimitsFromConfig:
         assert snap["limits_from_config"] is False
         assert snap["instrument_limit_pct"] == pytest.approx(20.0)
         assert snap["sector_limit_pct"] == pytest.approx(35.0)
+
+
+# ── get_portfolio_health() ────────────────────────────────────────────────────
+
+
+class TestPortfolioHealthDegradedOnMissingConfig:
+    """get_portfolio_health() must return DEGRADED when PortfolioConfig cannot be imported."""
+
+    # Shared helpers for mocking heavy dependencies --------------------------
+
+    @staticmethod
+    def _make_phase22_activation(active: bool = False) -> MagicMock:
+        m = MagicMock()
+        m.get_activation_status.return_value = {"paper_automation_active": active}
+        return m
+
+    @staticmethod
+    def _make_paper_trader(has_state: bool = True) -> MagicMock:
+        m = MagicMock()
+        if has_state:
+            m._load_state.return_value = {
+                "cash": 100_000.0,
+                "initial_capital": 100_000.0,
+                "positions": {},
+                "last_updated": "2024-01-01T00:00:00+00:00",
+            }
+        else:
+            m._load_state.return_value = {}
+        return m
+
+    @staticmethod
+    def _make_eod_reconciliation(unresolved: int = 0) -> MagicMock:
+        m = MagicMock()
+        m.get_reconciliation_status.return_value = {"unresolved_count": unresolved}
+        return m
+
+    @staticmethod
+    def _make_phase20_store() -> MagicMock:
+        """Stub phase20_store so the notification emit inside health does not raise."""
+        m = MagicMock()
+        m.kv_get.return_value = None  # force alert emit path but swallow it
+        m.kv_set.return_value = None
+        m.add_notification.return_value = None
+        return m
+
+    # ── 1. Status is DEGRADED when PortfolioConfig import fails --------------
+
+    def test_health_status_degraded_when_config_missing(self):
+        """health status must be DEGRADED (not HEALTHY) when PortfolioConfig raises."""
+        import portfolio_snapshot as _ps
+
+        mock_cfg = MagicMock()
+        mock_cfg.PortfolioConfig.side_effect = ImportError("no module src.portfolio.config")
+
+        with patch.dict(sys.modules, {
+            "phase22_activation": self._make_phase22_activation(),
+            "paper_trader": self._make_paper_trader(has_state=True),
+            "eod_reconciliation": self._make_eod_reconciliation(unresolved=0),
+            "src.portfolio.config": mock_cfg,
+            "phase20_store": self._make_phase20_store(),
+        }):
+            result = _ps.get_portfolio_health()
+
+        assert result["status"] == "DEGRADED", (
+            f"Expected DEGRADED but got {result['status']!r}; "
+            f"degraded_reasons={result.get('degraded_reasons')}"
+        )
+
+    # ── 2. limits_from_config is False when PortfolioConfig import fails -----
+
+    def test_limits_from_config_false_when_config_missing(self):
+        """limits_from_config must be False in the health response when import fails."""
+        import portfolio_snapshot as _ps
+
+        mock_cfg = MagicMock()
+        mock_cfg.PortfolioConfig.side_effect = ImportError("blocked")
+
+        with patch.dict(sys.modules, {
+            "phase22_activation": self._make_phase22_activation(),
+            "paper_trader": self._make_paper_trader(has_state=True),
+            "eod_reconciliation": self._make_eod_reconciliation(unresolved=0),
+            "src.portfolio.config": mock_cfg,
+            "phase20_store": self._make_phase20_store(),
+        }):
+            result = _ps.get_portfolio_health()
+
+        assert result["limits_from_config"] is False
+
+    # ── 3. degraded_reasons contains the PortfolioConfig message -------------
+
+    def test_degraded_reasons_contains_config_message(self):
+        """degraded_reasons must include the PortfolioConfig import-failure entry."""
+        import portfolio_snapshot as _ps
+
+        mock_cfg = MagicMock()
+        mock_cfg.PortfolioConfig.side_effect = ImportError("blocked")
+
+        with patch.dict(sys.modules, {
+            "phase22_activation": self._make_phase22_activation(),
+            "paper_trader": self._make_paper_trader(has_state=True),
+            "eod_reconciliation": self._make_eod_reconciliation(unresolved=0),
+            "src.portfolio.config": mock_cfg,
+            "phase20_store": self._make_phase20_store(),
+        }):
+            result = _ps.get_portfolio_health()
+
+        reasons = result.get("degraded_reasons", [])
+        assert len(reasons) >= 1, "degraded_reasons must have at least one entry"
+
+        config_reason = next(
+            (r for r in reasons if "PortfolioConfig" in r or "hardcoded defaults" in r),
+            None,
+        )
+        assert config_reason is not None, (
+            f"No PortfolioConfig-related reason found in degraded_reasons: {reasons!r}"
+        )
+
+    # ── 4. degraded flag is True ─────────────────────────────────────────────
+
+    def test_degraded_flag_is_true_when_config_missing(self):
+        """The boolean 'degraded' field must be True when config cannot be loaded."""
+        import portfolio_snapshot as _ps
+
+        mock_cfg = MagicMock()
+        mock_cfg.PortfolioConfig.side_effect = ImportError("blocked")
+
+        with patch.dict(sys.modules, {
+            "phase22_activation": self._make_phase22_activation(),
+            "paper_trader": self._make_paper_trader(has_state=True),
+            "eod_reconciliation": self._make_eod_reconciliation(unresolved=0),
+            "src.portfolio.config": mock_cfg,
+            "phase20_store": self._make_phase20_store(),
+        }):
+            result = _ps.get_portfolio_health()
+
+        assert result["degraded"] is True
+
+    # ── 5. failure_reason is populated ──────────────────────────────────────
+
+    def test_failure_reason_populated_when_config_missing(self):
+        """failure_reason (first degraded reason) must not be None when config fails."""
+        import portfolio_snapshot as _ps
+
+        mock_cfg = MagicMock()
+        mock_cfg.PortfolioConfig.side_effect = ImportError("blocked")
+
+        with patch.dict(sys.modules, {
+            "phase22_activation": self._make_phase22_activation(),
+            "paper_trader": self._make_paper_trader(has_state=True),
+            "eod_reconciliation": self._make_eod_reconciliation(unresolved=0),
+            "src.portfolio.config": mock_cfg,
+            "phase20_store": self._make_phase20_store(),
+        }):
+            result = _ps.get_portfolio_health()
+
+        assert result.get("failure_reason") is not None, (
+            "failure_reason must be set when health is DEGRADED"
+        )
+
+    # ── 6. Healthy path still works (sanity) ─────────────────────────────────
+
+    def test_health_status_healthy_when_config_available(self):
+        """Control: health is HEALTHY (not DEGRADED) when PortfolioConfig loads fine."""
+        import portfolio_snapshot as _ps
+
+        # Allow the real src.portfolio.config to be used — do NOT block it.
+        with patch.dict(sys.modules, {
+            "phase22_activation": self._make_phase22_activation(),
+            "paper_trader": self._make_paper_trader(has_state=True),
+            "eod_reconciliation": self._make_eod_reconciliation(unresolved=0),
+            "phase20_store": self._make_phase20_store(),
+        }):
+            result = _ps.get_portfolio_health()
+
+        # With real PortfolioConfig and no unresolved discrepancies:
+        # status should be HEALTHY (initialized=True from the paper_trader mock).
+        assert result["status"] == "HEALTHY"
+        assert result["limits_from_config"] is True
+        assert result.get("degraded_reasons", []) == []
