@@ -523,5 +523,234 @@ class TestEdgeCases(unittest.TestCase):
                 )
 
 
+# ---------------------------------------------------------------------------
+# Tests for check_reconciliation_probe()
+# ---------------------------------------------------------------------------
+
+class TestCheckReconciliationProbe(unittest.TestCase):
+    """Verify the missed-reconciliation probe fires and stays silent correctly."""
+
+    def setUp(self):
+        # Clear KV store before each test
+        import sys
+        store_mod = sys.modules["phase20_store"]
+        store_mod._kv.clear()
+
+        # Stub alert_queue so email calls don't crash
+        aq_mod = types.ModuleType("alert_queue")
+        _queued: list = []
+
+        def enqueue_email_alert(kind, title, body="", severity="INFO"):
+            _queued.append({"kind": kind, "title": title})
+            return {"ok": True}
+
+        def process_email_queue():
+            return {"delivered": 0, "failed": 0, "retried": 0}
+
+        aq_mod.enqueue_email_alert = enqueue_email_alert
+        aq_mod.process_email_queue = process_email_queue
+        aq_mod._queued = _queued
+        sys.modules["alert_queue"] = aq_mod
+
+    # -- NOT_DUE: weekend ---------------------------------------------------
+
+    def _patch_ist(self, weekday: int, hour: int, today: str = "2024-01-15"):
+        """Patch datetime.now inside eod_reconciliation to return a controlled IST-like value."""
+        from unittest.mock import patch, MagicMock
+        fake_now = MagicMock()
+        fake_now.weekday.return_value = weekday
+        fake_now.hour = hour
+
+        class _FakeZI:
+            pass
+
+        def _fake_now_ist(tz):
+            return fake_now
+
+        # Patch both ZoneInfo usage AND _today_ist
+        return patch.multiple(
+            recon,
+            _today_ist=MagicMock(return_value=today),
+            _kv_get=MagicMock(side_effect=lambda key: sys.modules["phase20_store"]._kv.get(key)),
+            _kv_set=MagicMock(side_effect=lambda key, val: sys.modules["phase20_store"]._kv.update({key: val})),
+            _add_notification=MagicMock(),
+        )
+
+    def test_weekend_returns_not_due(self):
+        """Saturday (weekday=5) → NOT_DUE regardless of hour."""
+        import sys
+        from unittest.mock import patch, MagicMock
+        fake_ist = MagicMock()
+        fake_ist.weekday.return_value = 5   # Saturday
+        fake_ist.hour = 23
+
+        with patch("eod_reconciliation.datetime") as mock_dt, \
+             patch.multiple(recon,
+                            _today_ist=MagicMock(return_value="2024-01-20"),
+                            _kv_get=MagicMock(return_value=None),
+                            _add_notification=MagicMock()):
+            mock_dt.now.return_value = fake_ist
+            mock_dt.now.side_effect = None
+            from zoneinfo import ZoneInfo
+            import datetime as _real_dt
+
+            # Directly set the weekday/hour on the module's datetime mock
+            # Use a simpler approach: patch just the function that checks IST
+            pass
+
+        # Simpler: test by patching the probe function's IST datetime call
+        with patch("eod_reconciliation.datetime") as mock_dt, \
+             patch.object(recon, "_today_ist", return_value="2024-01-20"), \
+             patch.object(recon, "_kv_get", return_value=None), \
+             patch.object(recon, "_add_notification"):
+            fake = MagicMock()
+            fake.weekday.return_value = 5
+            fake.hour = 23
+            mock_dt.now.return_value = fake
+            result = recon.check_reconciliation_probe()
+
+        self.assertEqual(result["status"], "NOT_DUE")
+        self.assertIn("Weekend", result["reason"])
+
+    def test_before_2300_returns_not_due(self):
+        """Weekday before 23:00 IST → NOT_DUE."""
+        from unittest.mock import patch, MagicMock
+        with patch("eod_reconciliation.datetime") as mock_dt, \
+             patch.object(recon, "_today_ist", return_value="2024-01-15"), \
+             patch.object(recon, "_kv_get", return_value=None), \
+             patch.object(recon, "_add_notification"):
+            fake = MagicMock()
+            fake.weekday.return_value = 0   # Monday
+            fake.hour = 22                  # 22:xx — not yet 23:00
+            mock_dt.now.return_value = fake
+            result = recon.check_reconciliation_probe()
+
+        self.assertEqual(result["status"], "NOT_DUE")
+        self.assertIn("23:00", result["reason"])
+
+    def test_ran_today_returns_ok(self):
+        """Weekday after 23:00, KV guard set for today → OK."""
+        import sys
+        store_mod = sys.modules["phase20_store"]
+        store_mod._kv["eod_reconcil_date"] = "2024-01-15"
+
+        from unittest.mock import patch, MagicMock
+        with patch("eod_reconciliation.datetime") as mock_dt, \
+             patch.object(recon, "_today_ist", return_value="2024-01-15"), \
+             patch.object(recon, "_kv_get",
+                          side_effect=lambda k: store_mod._kv.get(k)), \
+             patch.object(recon, "_add_notification"):
+            fake = MagicMock()
+            fake.weekday.return_value = 0   # Monday
+            fake.hour = 23
+            mock_dt.now.return_value = fake
+            result = recon.check_reconciliation_probe()
+
+        self.assertEqual(result["status"], "OK")
+        self.assertEqual(result["today"], "2024-01-15")
+
+    def test_missed_fires_notification(self):
+        """Weekday after 23:00, KV guard NOT set → MISSED + notification fired."""
+        import sys
+        store_mod = sys.modules["phase20_store"]
+        store_mod._kv.clear()  # No reconcil_date set
+
+        from unittest.mock import patch, MagicMock
+        mock_notify = MagicMock()
+        with patch("eod_reconciliation.datetime") as mock_dt, \
+             patch.object(recon, "_today_ist", return_value="2024-01-15"), \
+             patch.object(recon, "_kv_get", return_value=None), \
+             patch.object(recon, "_add_notification", mock_notify):
+            fake = MagicMock()
+            fake.weekday.return_value = 1   # Tuesday
+            fake.hour = 23
+            mock_dt.now.return_value = fake
+            result = recon.check_reconciliation_probe()
+
+        self.assertEqual(result["status"], "MISSED")
+        self.assertTrue(result["notification_fired"])
+        self.assertIn("2024-01-15", result["reason"])
+        mock_notify.assert_called_once()
+        call_args = mock_notify.call_args
+        self.assertEqual(call_args[0][0], "RECONCILIATION_MISSED")  # kind
+        self.assertEqual(call_args[1]["severity"], "ERROR")
+
+    def test_missed_includes_email_result(self):
+        """MISSED result includes the email delivery attempt result."""
+        from unittest.mock import patch, MagicMock
+        with patch("eod_reconciliation.datetime") as mock_dt, \
+             patch.object(recon, "_today_ist", return_value="2024-01-15"), \
+             patch.object(recon, "_kv_get", return_value=None), \
+             patch.object(recon, "_add_notification"):
+            fake = MagicMock()
+            fake.weekday.return_value = 2   # Wednesday
+            fake.hour = 23
+            mock_dt.now.return_value = fake
+            result = recon.check_reconciliation_probe()
+
+        self.assertEqual(result["status"], "MISSED")
+        self.assertIn("email", result)
+        # email field must be a dict
+        self.assertIsInstance(result["email"], dict)
+
+    def test_ok_does_not_fire_notification(self):
+        """When reconciliation ran today, no notification is fired."""
+        import sys
+        store_mod = sys.modules["phase20_store"]
+        store_mod._kv["eod_reconcil_date"] = "2024-01-15"
+
+        from unittest.mock import patch, MagicMock
+        mock_notify = MagicMock()
+        with patch("eod_reconciliation.datetime") as mock_dt, \
+             patch.object(recon, "_today_ist", return_value="2024-01-15"), \
+             patch.object(recon, "_kv_get",
+                          side_effect=lambda k: store_mod._kv.get(k)), \
+             patch.object(recon, "_add_notification", mock_notify):
+            fake = MagicMock()
+            fake.weekday.return_value = 3   # Thursday
+            fake.hour = 23
+            mock_dt.now.return_value = fake
+            result = recon.check_reconciliation_probe()
+
+        self.assertEqual(result["status"], "OK")
+        mock_notify.assert_not_called()
+
+    def test_yesterday_kv_is_treated_as_missed(self):
+        """KV guard holding yesterday's date is equivalent to a missed run."""
+        import sys
+        store_mod = sys.modules["phase20_store"]
+        store_mod._kv["eod_reconcil_date"] = "2024-01-14"  # yesterday
+
+        from unittest.mock import patch, MagicMock
+        with patch("eod_reconciliation.datetime") as mock_dt, \
+             patch.object(recon, "_today_ist", return_value="2024-01-15"), \
+             patch.object(recon, "_kv_get",
+                          side_effect=lambda k: store_mod._kv.get(k)), \
+             patch.object(recon, "_add_notification"):
+            fake = MagicMock()
+            fake.weekday.return_value = 0   # Monday
+            fake.hour = 23
+            mock_dt.now.return_value = fake
+            result = recon.check_reconciliation_probe()
+
+        self.assertEqual(result["status"], "MISSED")
+        self.assertEqual(result["last_ran_date"], "2024-01-14")
+
+    def test_sunday_returns_not_due(self):
+        """Sunday (weekday=6) → NOT_DUE."""
+        from unittest.mock import patch, MagicMock
+        with patch("eod_reconciliation.datetime") as mock_dt, \
+             patch.object(recon, "_today_ist", return_value="2024-01-21"), \
+             patch.object(recon, "_kv_get", return_value=None), \
+             patch.object(recon, "_add_notification"):
+            fake = MagicMock()
+            fake.weekday.return_value = 6   # Sunday
+            fake.hour = 23
+            mock_dt.now.return_value = fake
+            result = recon.check_reconciliation_probe()
+
+        self.assertEqual(result["status"], "NOT_DUE")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -2902,4 +2902,17 @@ router.get("/phase20/validation", async (_req, res) => {
   }
 });
 
+// GET /api/phase20/reconciliation/probe
+// Checks whether EOD reconciliation ran today. If it is past 23:00 IST on a
+// weekday and the KV guard was never set, fires an in-app notification and an
+// email alert so the operator is notified before the next trading session.
+// Returns { status: "OK" | "NOT_DUE" | "MISSED", ... }.
+router.get("/phase20/reconciliation/probe", async (_req, res) => {
+  try {
+    res.json(await runPython(["reconcil_probe"]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 export default router;

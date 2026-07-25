@@ -4,7 +4,7 @@
  * Shows:
  *  - Last reconciliation run summary (clean/discrepancies, timestamp)
  *  - Open discrepancies requiring manual review (with confirm-before-resolve)
- *  - Resolved discrepancies in a collapsible section (type, symbol, timestamp)
+ *  - Resolved discrepancies in a collapsible section (type, symbol, note, timestamp)
  *  - Manual trigger button (with force option)
  */
 
@@ -411,6 +411,14 @@ export default function ReconciliationWidget() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* All clear when nothing open and nothing recently resolved */}
+        {openDisc.length === 0 && resolvedDisc.length === 0 && isClean && lastRun?.run_id && (
+          <div className="flex items-center gap-2 text-[11px] font-mono text-zinc-600 py-1">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-700" />
+            No open or recently resolved discrepancies
           </div>
         )}
 

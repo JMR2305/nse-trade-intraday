@@ -656,7 +656,7 @@ def get_reconciliation_status() -> Dict[str, Any]:
                                d.trading_symbol, d.description,
                                d.local_value, d.broker_value,
                                d.requires_manual_review, d.resolved,
-                               d.created_at
+                               d.created_at, d.resolved_at
                         FROM broker_reconciliation_discrepancies d
                         JOIN broker_reconciliation_runs r ON r.run_id = d.run_id
                         WHERE d.resolved = FALSE
@@ -667,7 +667,7 @@ def get_reconciliation_status() -> Dict[str, Any]:
                     cols = [desc[0] for desc in cur.description]
                     for row in cur.fetchall():
                         d = dict(zip(cols, row))
-                        for f in ("created_at",):
+                        for f in ("created_at", "resolved_at"):
                             if d.get(f) and hasattr(d[f], "strftime"):
                                 d[f] = d[f].strftime("%Y-%m-%dT%H:%M:%SZ")
                         open_discrepancies.append(d)
@@ -689,7 +689,6 @@ def get_reconciliation_status() -> Dict[str, Any]:
                         LIMIT 50
                     """)
                     res_cols = [desc[0] for desc in cur.description]
-                    resolved_discrepancies: List[Dict[str, Any]] = []
                     for row in cur.fetchall():
                         rd = dict(zip(res_cols, row))
                         for f in ("created_at", "resolved_at"):
@@ -726,9 +725,110 @@ def get_reconciliation_status() -> Dict[str, Any]:
         "open_discrepancies": open_discrepancies,
         "open_discrepancy_count": len(open_discrepancies),
         "resolved_discrepancies": resolved_discrepancies,
+        "resolved_discrepancy_count": len(resolved_discrepancies),
         "today": _today_ist(),
         "last_ran_today": _kv_get("eod_reconcil_date") == _today_ist(),
         "eod_window_active": _is_eod_window(),
+    }
+
+
+def check_reconciliation_probe() -> Dict[str, Any]:
+    """Probe whether EOD reconciliation ran today on a weekday after 23:00 IST.
+
+    Call this from a scheduled probe or health endpoint.  Returns a status dict:
+      - "OK"       : KV guard set for today (ran successfully).
+      - "NOT_DUE"  : Weekend, or not yet 23:00 IST — nothing to check yet.
+      - "MISSED"   : Past 23:00 IST on a weekday and KV guard is NOT set.
+
+    When MISSED, fires an in-app notification and an email alert so the
+    operator is reached even without checking the dashboard.
+
+    Never raises.
+    """
+    try:
+        from zoneinfo import ZoneInfo
+        now_ist = datetime.now(ZoneInfo("Asia/Kolkata"))
+    except Exception:
+        now_ist = datetime.now(timezone.utc)
+
+    today = _today_ist()
+    weekday = now_ist.weekday()  # 0=Monday … 4=Friday, 5=Sat, 6=Sun
+    hour = now_ist.hour
+
+    # Weekend — not a trading day, nothing to check
+    if weekday >= 5:
+        return {
+            "status": "NOT_DUE",
+            "reason": "Weekend — no reconciliation expected",
+            "today": today,
+        }
+
+    # Before 23:00 IST — still within the normal execution window
+    if hour < 23:
+        return {
+            "status": "NOT_DUE",
+            "reason": f"Before 23:00 IST (current hour={hour}) — still within window",
+            "today": today,
+        }
+
+    # Past 23:00 on a weekday — reconciliation must have run by now
+    last_date = _kv_get("eod_reconcil_date")
+    ran_today = last_date == today
+
+    if ran_today:
+        return {
+            "status": "OK",
+            "reason": "EOD reconciliation ran today",
+            "today": today,
+            "last_date": last_date,
+        }
+
+    # MISSED — fire notification + email
+    _log(f"Reconciliation probe: MISSED for {today} (kv={last_date!r})")
+
+    title = "EOD reconciliation did not run today"
+    body = (
+        f"The scheduled EOD reconciliation for {today} was not recorded by 23:00 IST.\n"
+        "Possible causes: cron not fired, process crash, or EOD window missed.\n"
+        "Please trigger a manual reconciliation from the Broker Execution page or "
+        "investigate the scheduler logs."
+    )
+
+    _add_notification(
+        "RECONCILIATION_MISSED",
+        title,
+        body,
+        severity="ERROR",
+        context={"today": today, "last_ran_date": last_date},
+    )
+
+    email_result: Dict[str, Any] = {"sent": False, "reason": "NOT_ATTEMPTED"}
+    try:
+        import alert_queue
+        alert_queue.enqueue_email_alert("RECONCILIATION_DISCREPANCY", title, body, "ERROR")
+        email_result = alert_queue.process_email_queue()
+        if not isinstance(email_result, dict):
+            email_result = {"sent": False, "queued": True, "reason": "QUEUED"}
+        else:
+            email_result = {
+                "sent": email_result.get("delivered", 0) > 0,
+                "queued": True,
+                "delivered": email_result.get("delivered", 0),
+                "failed": email_result.get("failed", 0),
+                "reason": ("QUEUED_AND_DELIVERED"
+                           if email_result.get("delivered", 0) > 0 else "QUEUED"),
+            }
+    except Exception as exc:
+        _log(f"Reconciliation probe email failed: {exc}")
+        email_result = {"sent": False, "reason": "ERROR", "error": str(exc)[:200]}
+
+    return {
+        "status": "MISSED",
+        "reason": f"No reconciliation recorded for {today} by 23:00 IST",
+        "today": today,
+        "last_ran_date": last_date,
+        "notification_fired": True,
+        "email": email_result,
     }
 
 
