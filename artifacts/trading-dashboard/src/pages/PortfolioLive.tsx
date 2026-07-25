@@ -257,13 +257,14 @@ function exposureColor(ratio: number): { bar: string; text: string } {
 }
 
 const statusConfig: Record<string, { color: string; icon: typeof CheckCircle2; label: string }> = {
-  HEALTHY:   { color: "text-green-400 border-green-500/40 bg-green-500/10",   icon: CheckCircle2,  label: "HEALTHY"   },
-  READY:     { color: "text-green-400 border-green-500/40 bg-green-500/10",   icon: CheckCircle2,  label: "READY"     },
-  DEGRADED:  { color: "text-yellow-400 border-yellow-500/40 bg-yellow-500/10", icon: AlertTriangle, label: "DEGRADED"  },
-  HALTED:    { color: "text-red-400 border-red-500/40 bg-red-500/10",         icon: AlertTriangle, label: "HALTED"    },
-  DOWN:      { color: "text-red-400 border-red-500/40 bg-red-500/10",         icon: AlertTriangle, label: "DOWN"      },
-  UNKNOWN:   { color: "text-slate-400 border-slate-500/40 bg-slate-500/10",   icon: Activity,      label: "UNKNOWN"   },
-  DISABLED:  { color: "text-slate-400 border-slate-500/40 bg-slate-500/10",   icon: Activity,      label: "DISABLED"  },
+  HEALTHY:     { color: "text-green-400 border-green-500/40 bg-green-500/10",   icon: CheckCircle2,  label: "HEALTHY"     },
+  READY:       { color: "text-green-400 border-green-500/40 bg-green-500/10",   icon: CheckCircle2,  label: "READY"       },
+  DEGRADED:    { color: "text-yellow-400 border-yellow-500/40 bg-yellow-500/10", icon: AlertTriangle, label: "DEGRADED"    },
+  HALTED:      { color: "text-red-400 border-red-500/40 bg-red-500/10",         icon: AlertTriangle, label: "HALTED"      },
+  DOWN:        { color: "text-red-400 border-red-500/40 bg-red-500/10",         icon: AlertTriangle, label: "DOWN"        },
+  UNREACHABLE: { color: "text-red-400 border-red-500/40 bg-red-500/10",         icon: AlertTriangle, label: "UNREACHABLE" },
+  UNKNOWN:     { color: "text-slate-400 border-slate-500/40 bg-slate-500/10",   icon: Activity,      label: "UNKNOWN"     },
+  DISABLED:    { color: "text-slate-400 border-slate-500/40 bg-slate-500/10",   icon: Activity,      label: "DISABLED"    },
 };
 
 // ── Components ────────────────────────────────────────────────────────────────
@@ -1008,8 +1009,17 @@ export default function PortfolioLive() {
   const isFetching = snapshotQuery.isFetching || healthQuery.isFetching || configQuery.isFetching;
   const error = snapshotQuery.error as Error | null;
 
-  const overallStatus = health?.status ?? snap?.status ?? "UNKNOWN";
-  const isAlert = overallStatus === "DEGRADED" || overallStatus === "HALTED" || overallStatus === "DOWN";
+  // When the health endpoint is completely unreachable (network error / server down),
+  // show UNREACHABLE so operators see a clear signal instead of an endless loading spinner.
+  const overallStatus =
+    healthQuery.isError && !health
+      ? "UNREACHABLE"
+      : health?.status ?? snap?.status ?? "UNKNOWN";
+  const isAlert =
+    overallStatus === "DEGRADED" ||
+    overallStatus === "HALTED" ||
+    overallStatus === "DOWN" ||
+    overallStatus === "UNREACHABLE";
 
   const instrumentLimitPct = snap?.instrument_limit_pct ?? 20.0;
   const sectorLimitPct = snap?.sector_limit_pct ?? 35.0;
@@ -1105,7 +1115,7 @@ export default function PortfolioLive() {
         </div>
       )}
 
-      {/* Error banner */}
+      {/* Error banner — snapshot fetch failed */}
       {error && !snap && (
         <div className="flex items-start gap-3 rounded-md border border-yellow-500/40 bg-yellow-500/10 p-4">
           <AlertTriangle className="h-5 w-5 text-yellow-400 flex-shrink-0" />
@@ -1287,7 +1297,31 @@ export default function PortfolioLive() {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4 pt-0">
-          {!health ? (
+          {healthQuery.isError && !health ? (
+            <div
+              className="flex items-start gap-3 rounded-md border border-red-500/40 bg-red-500/10 p-4"
+              data-testid="banner-health-unreachable"
+            >
+              <AlertTriangle className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-mono font-bold text-red-400 text-sm">
+                  API server unreachable
+                </p>
+                <p className="text-xs text-muted-foreground font-mono mt-1">
+                  {(healthQuery.error as Error)?.message ?? "Could not connect to the portfolio health endpoint."}
+                  {" "}— last checked at{" "}
+                  {new Date().toLocaleTimeString("en-IN", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                  })}
+                </p>
+                <p className="text-xs text-muted-foreground font-mono mt-1">
+                  The dashboard will retry automatically every {REFRESH_INTERVAL / 1000}s.
+                </p>
+              </div>
+            </div>
+          ) : !health ? (
             <p className="text-sm text-muted-foreground font-mono">Loading health…</p>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">

@@ -80,11 +80,13 @@ describe("PortfolioHealth interface — required fields present", () => {
 // health endpoint's DEGRADED verdict even if the snapshot says READY.
 
 describe("overallStatus derivation — health.status takes priority", () => {
-  it("overallStatus is set from health?.status (health response drives badge)", () => {
-    expect(pageSrc).toMatch(/overallStatus\s*=\s*health\?\.status/);
+  it("overallStatus derives UNREACHABLE when healthQuery.isError and no cached health data", () => {
+    // When the server is completely unreachable the ternary short-circuits to UNREACHABLE
+    expect(pageSrc).toMatch(/healthQuery\.isError\s*&&\s*!health/);
+    expect(pageSrc).toContain('"UNREACHABLE"');
   });
 
-  it("falls back to snap?.status when health is unavailable", () => {
+  it("falls back to snap?.status when health is unavailable (non-error loading state)", () => {
     // The null-coalescing chain must include snap?.status as a fallback
     expect(pageSrc).toMatch(/health\?\.status\s*\?\?\s*snap\?\.status/);
   });
@@ -462,11 +464,11 @@ describe("HEALTHY → DEGRADED transition — badge updates on next poll", () =>
   });
 
   it("transition requires no manual page reload (latest poll data always wins)", () => {
-    // The component always reads health?.status directly from the query data.
+    // The component always reads health?.status from the query data (via ternary or direct chain).
     // As soon as React Query resolves the next fetch with the DEGRADED payload,
     // overallStatus updates synchronously.  There is no local state or manual
     // trigger between the poll and the badge render.
-    expect(pageSrc).toMatch(/overallStatus\s*=\s*health\?\.status/);
+    expect(pageSrc).toMatch(/health\?\.status\s*\?\?\s*snap\?\.status/);
     // Confirm there is no stale useState caching of the previous status
     expect(pageSrc).not.toMatch(/\[overallStatus\s*,\s*set[Oo]verallStatus\]/);
   });
@@ -493,5 +495,112 @@ describe("HEALTHY → DEGRADED transition — badge updates on next poll", () =>
     const status = deriveOverallStatus(HEALTHY_RESPONSE, "DEGRADED");
     expect(status).toBe("HEALTHY");
     expect(deriveIsAlert(status)).toBe(false);
+  });
+});
+
+// ── 13. UNREACHABLE error state ───────────────────────────────────────────
+//
+// When healthQuery.isError is true and no cached health data is available,
+// the health card must NOT show an endless "Loading health…" spinner.
+// Instead it must render a distinct error card (banner-health-unreachable)
+// and the status badge must show UNREACHABLE.
+//
+// These are static source-analysis tests — they read the source file and
+// assert structural invariants without needing a running server.
+
+describe("UNREACHABLE error state — health card shows clear down indicator", () => {
+  it("statusConfig has an UNREACHABLE entry", () => {
+    expect(pageSrc).toContain("UNREACHABLE:");
+  });
+
+  it("UNREACHABLE uses red text colour (text-red-400) matching DOWN/HALTED severity", () => {
+    expect(pageSrc).toMatch(/UNREACHABLE\s*:\s*\{[^}]*text-red-400/s);
+  });
+
+  it("UNREACHABLE uses AlertTriangle icon (same as DOWN/HALTED)", () => {
+    expect(pageSrc).toMatch(/UNREACHABLE\s*:\s*\{[^}]*AlertTriangle/s);
+  });
+
+  it("overallStatus ternary checks healthQuery.isError && !health before falling back", () => {
+    // The short-circuit guard must appear in source so that the badge
+    // updates to UNREACHABLE the moment the health request fails.
+    expect(pageSrc).toMatch(/healthQuery\.isError\s*&&\s*!health/);
+  });
+
+  it("overallStatus resolves to the literal string 'UNREACHABLE' on error", () => {
+    expect(pageSrc).toContain('"UNREACHABLE"');
+  });
+
+  it("isAlert is true when overallStatus is UNREACHABLE", () => {
+    expect(pageSrc).toContain('overallStatus === "UNREACHABLE"');
+  });
+
+  it("health card renders banner-health-unreachable when healthQuery.isError and !health", () => {
+    // The element with this data-testid is the visible error card operators see
+    expect(pageSrc).toContain('data-testid="banner-health-unreachable"');
+  });
+
+  it("health card branch checks healthQuery.isError before !health (error takes priority over loading)", () => {
+    // The error branch must appear BEFORE the loading-skeleton branch in source
+    const errorBranchPos = pageSrc.indexOf('banner-health-unreachable');
+    const loadingBranchPos = pageSrc.indexOf('Loading health…');
+    expect(errorBranchPos).toBeGreaterThan(-1);
+    expect(loadingBranchPos).toBeGreaterThan(-1);
+    expect(errorBranchPos).toBeLessThan(loadingBranchPos);
+  });
+
+  it("error card renders 'API server unreachable' heading in plain language", () => {
+    expect(pageSrc).toContain("API server unreachable");
+  });
+
+  it("error card surfaces the error message from healthQuery.error", () => {
+    // The error object is cast to Error and its message is displayed
+    expect(pageSrc).toMatch(/healthQuery\.error[^)]*\)?\?\.message/);
+  });
+
+  it("error card tells operators the dashboard retries automatically", () => {
+    expect(pageSrc).toContain("retry automatically");
+  });
+
+  // Pure-logic simulation: overallStatus returns UNREACHABLE when isError=true, no cached data
+  function deriveOverallStatusWithError(
+    isError: boolean,
+    health: SimHealth | undefined,
+    snapStatus: string | undefined,
+  ): string {
+    if (isError && !health) return "UNREACHABLE";
+    return health?.status ?? snapStatus ?? "UNKNOWN";
+  }
+
+  it("simulation: overallStatus is UNREACHABLE when isError=true and health is undefined", () => {
+    expect(deriveOverallStatusWithError(true, undefined, undefined)).toBe("UNREACHABLE");
+  });
+
+  it("simulation: overallStatus is UNREACHABLE even when snap has a status", () => {
+    // snap.status should not mask a total health-endpoint failure
+    expect(deriveOverallStatusWithError(true, undefined, "HEALTHY")).toBe("UNREACHABLE");
+  });
+
+  it("simulation: overallStatus is NOT UNREACHABLE if cached health data still present (transient error)", () => {
+    // React Query keeps stale data on a refetch error; in that case health is still defined
+    // and the ternary falls through to health?.status, preserving the last known status.
+    expect(deriveOverallStatusWithError(true, HEALTHY_RESPONSE, undefined)).toBe("HEALTHY");
+  });
+
+  it("simulation: overallStatus returns to HEALTHY when server recovers (isError flips to false)", () => {
+    expect(deriveOverallStatusWithError(false, HEALTHY_RESPONSE, undefined)).toBe("HEALTHY");
+  });
+
+  it("simulation: isAlert is true for UNREACHABLE", () => {
+    function isAlert(status: string): boolean {
+      return (
+        status === "DEGRADED" ||
+        status === "HALTED" ||
+        status === "DOWN" ||
+        status === "UNREACHABLE"
+      );
+    }
+    expect(isAlert("UNREACHABLE")).toBe(true);
+    expect(isAlert("HEALTHY")).toBe(false);
   });
 });
