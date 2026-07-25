@@ -1909,5 +1909,222 @@
   "context": "portfolio",
   "accepted": true,
   "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T22:58:45.906083+00:00",
+  "input": "BENCH0",
+  "context": "portfolio",
+  "accepted": false,
+  "reason": "'BENCH0' is outside the approved NIFTY 50 research universe"
+ },
+ {
+  "ts": "2026-07-25T22:58:45.970310+00:00",
+  "input": "BENCH1",
+  "context": "portfolio",
+  "accepted": false,
+  "reason": "'BENCH1' is outside the approved NIFTY 50 research universe"
+ },
+ {
+  "ts": "2026-07-25T22:58:45.985026+00:00",
+  "input": "BENCH2",
+  "context": "portfolio",
+  "accepted": false,
+  "reason": "'BENCH2' is outside the approved NIFTY 50 research universe"
+ },
+ {
+  "ts": "2026-07-25T22:58:45.997863+00:00",
+  "input": "BENCH3",
+  "context": "portfolio",
+  "accepted": false,
+  "reason": "'BENCH3' is outside the approved NIFTY 50 research universe"
+ },
+ {
+  "ts": "2026-07-25T22:58:46.011821+00:00",
+  "input": "BENCH4",
+  "context": "portfolio",
+  "accepted": false,
+  "reason": "'BENCH4' is outside the approved NIFTY 50 research universe"
+ },
+ {
+  "ts": "2026-07-25T22:58:46.025401+00:00",
+  "input": "BENCH5",
+  "context": "portfolio",
+  "accepted": false,
+  "reason": "'BENCH5' is outside the approved NIFTY 50 research universe"
+ },
+ {
+  "ts": "2026-07-25T22:58:46.039306+00:00",
+  "input": "BENCH6",
+  "context": "portfolio",
+  "accepted": false,
+  "reason": "'BENCH6' is outside the approved NIFTY 50 research universe"
+ },
+ {
+  "ts": "2026-07-25T22:58:46.053582+00:00",
+  "input": "BENCH7",
+  "context": "portfolio",
+  "accepted": false,
+  "reason": "'BENCH7' is outside the approved NIFTY 50 research universe"
+ },
+ {
+  "ts": "2026-07-25T22:58:46.066988+00:00",
+  "input": "BENCH8",
+  "context": "portfolio",
+  "accepted": false,
+  "reason": "'BENCH8' is outside the approved NIFTY 50 research universe"
+ },
+ {
+  "ts": "2026-07-25T22:58:46.083361+00:00",
+  "input": "BENCH9",
+  "context": "portfolio",
+  "accepted": false,
+  "reason": "'BENCH9' is outside the approved NIFTY 50 research universe"
+ },
+ {
+  "ts": "2026-07-25T22:59:49.473363+00:00",
+  "input": "RELIANCE",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T22:59:51.422097+00:00",
+  "input": "TCS",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T22:59:51.609896+00:00",
+  "input": "INFY",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T22:59:51.866175+00:00",
+  "input": "SBIN",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T22:59:52.058087+00:00",
+  "input": "WIPRO",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T22:59:52.316468+00:00",
+  "input": "HDFCBANK",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T22:59:52.506943+00:00",
+  "input": "ICICIBANK",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T22:59:52.749497+00:00",
+  "input": "BAJFINANCE",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T22:59:52.919085+00:00",
+  "input": "HDFC",
+  "context": "portfolio",
+  "accepted": false,
+  "reason": "'HDFC' is outside the approved NIFTY 50 research universe"
+ },
+ {
+  "ts": "2026-07-25T22:59:52.948671+00:00",
+  "input": "MARUTI",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T23:03:21.577763+00:00",
+  "input": "RELIANCE",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T23:03:22.700129+00:00",
+  "input": "RELIANCE",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T23:03:22.945705+00:00",
+  "input": "TCS",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T23:03:23.130565+00:00",
+  "input": "INFY",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T23:03:23.367586+00:00",
+  "input": "SBIN",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T23:03:23.576526+00:00",
+  "input": "WIPRO",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T23:03:23.826419+00:00",
+  "input": "HDFCBANK",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T23:03:24.026195+00:00",
+  "input": "ICICIBANK",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T23:03:24.258880+00:00",
+  "input": "BAJFINANCE",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T23:03:24.439198+00:00",
+  "input": "HDFC",
+  "context": "portfolio",
+  "accepted": false,
+  "reason": "'HDFC' is outside the approved NIFTY 50 research universe"
+ },
+ {
+  "ts": "2026-07-25T23:03:24.465309+00:00",
+  "input": "MARUTI",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
  }
 ]

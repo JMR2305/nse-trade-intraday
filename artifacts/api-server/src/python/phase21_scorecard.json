@@ -1,18 +1,18 @@
 {
- "generated_at": "2026-07-19T10:53:52.669070+00:00",
+ "generated_at": "2026-07-25T23:01:21.537838+00:00",
  "baseline_model_version": "phase21_baseline_v1",
  "champion_version": "p13_champion_v1",
  "challenger_count": 4,
- "total_evaluated_trades": 8,
+ "total_evaluated_trades": 19,
  "confidence_calibration_score": 0.4006,
  "calibration_buckets_ok": 0,
  "calibration_buckets_insufficient": 6,
- "strategy_reliability_coverage": 0.0,
+ "strategy_reliability_coverage": 0.25,
  "threshold_quality": "INSUFFICIENT_EVIDENCE",
  "threshold_recommended": null,
  "ranking_stability": "DETERMINISTIC",
  "stop_target_quality": {
-  "trades_analyzed": 8,
+  "trades_analyzed": 19,
   "stop_too_tight": 0,
   "stop_too_loose": 0
  },

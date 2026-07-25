@@ -1,0 +1,173 @@
+{
+  "test_type": "phase2e_perf",
+  "run_at": "2026-07-25T23:03:31.668055+00:00",
+  "api_base": "http://localhost:8080/api",
+  "benchmarks": [
+    {
+      "benchmark": "API Latency",
+      "description": "20 samples per endpoint",
+      "results": {
+        "GET /api/healthz": {
+          "p50": 0.9,
+          "p95": 3.1,
+          "p99": 16.2,
+          "min": 0.8,
+          "max": 19.5,
+          "mean": 1.9,
+          "n": 20,
+          "errors": 0,
+          "flag": "OK"
+        },
+        "GET /api/signals": {
+          "p50": 707.8,
+          "p95": 761.5,
+          "p99": 805.3,
+          "min": 672.5,
+          "max": 816.2,
+          "mean": 716.9,
+          "n": 20,
+          "errors": 0,
+          "flag": "OK"
+        },
+        "GET /api/portfolio/snapshot": {
+          "p50": 186.9,
+          "p95": 207.8,
+          "p99": 208.6,
+          "min": 173.5,
+          "max": 208.8,
+          "mean": 187.8,
+          "n": 20,
+          "errors": 0,
+          "flag": "OK"
+        }
+      }
+    },
+    {
+      "benchmark": "Scanner Latency",
+      "result": {
+        "scan_id": "d49e1ec37b7f",
+        "snapshot_ts": "2026-07-25T19:09:49Z",
+        "started_at": "2026-07-25T19:09:49Z",
+        "completed_at": "2026-07-25T19:10:13Z",
+        "symbols_received": 48,
+        "cycle_seconds": 24.0,
+        "flag": "OK"
+      }
+    },
+    {
+      "benchmark": "Signal Latency",
+      "result": {
+        "scan_id": "d49e1ec37b7f",
+        "signal_endpoint_latency_ms": 696.5,
+        "signals_count": 10,
+        "scan_age_s": 14012.5,
+        "scan_age_human": "3h 53m",
+        "stale": true,
+        "note": "Weekend/stale \u2014 no live scan; using cached signals. Real-time latency measured at market open.",
+        "flag": "OK"
+      }
+    },
+    {
+      "benchmark": "Order Latency",
+      "description": "paper BUY \u2192 position in portfolio state (isolated in-memory, 10 samples)",
+      "stats_ms": {
+        "p50": 232.7,
+        "p95": 249.7,
+        "p99": 249.9,
+        "min": 180.3,
+        "max": 250.0,
+        "mean": 220.9,
+        "n": 9
+      },
+      "errors": [
+        "sample 8 (HDFC): ok=False msg=Symbol rejected: 'HDFC' is outside the approved NIFTY 50 research universe"
+      ],
+      "flag": "OK"
+    },
+    {
+      "benchmark": "Dashboard Refresh",
+      "result": {
+        "react_query_refetch_interval_ms": null,
+        "current_data_age_s": 14015.8,
+        "current_data_age_human": "3h 53m",
+        "data_stale": true,
+        "staleness_endpoint_latency_ms": 119.1,
+        "note": "Weekend/market-closed \u2014 staleness is expected. Dashboard correctly disables buy recs when stale.",
+        "flag": "OK"
+      }
+    },
+    {
+      "benchmark": "Mobile Refresh",
+      "result": {
+        "mobile_api_config_refetch_interval_ms": null,
+        "data_status_interval_ms": null,
+        "note": "Mobile uses same backend API \u2014 staleness same as dashboard.",
+        "flag": "OK"
+      }
+    },
+    {
+      "benchmark": "Memory Usage",
+      "result": {
+        "rss_mb": 116.5,
+        "process_info": {
+          "python_rss_mb": 116.5,
+          "primary_rss_mb": 116.5
+        },
+        "flag": "OK"
+      }
+    },
+    {
+      "benchmark": "CPU Usage",
+      "result": {
+        "cpu_pct": 0.7,
+        "method": "/proc/stat (system-wide)",
+        "flag": "OK"
+      }
+    }
+  ],
+  "bottlenecks": [],
+  "safety_invariants": {
+    "all_ok": true,
+    "invariants": {
+      "paper_label_on_staleness": true,
+      "portfolio_paper_mode": true,
+      "live_orders_absent": true,
+      "kill_switch_reachable": true,
+      "kill_switch_not_tripped": true,
+      "buy_disabled_when_stale": true,
+      "auto_paper_entries_off": true
+    },
+    "failed": []
+  },
+  "overall_verdict": "PASS",
+  "thresholds_used": {
+    "GET /api/signals p95": {
+      "warning": 2000,
+      "critical": 5000
+    },
+    "GET /api/portfolio/snapshot p95": {
+      "warning": 1500,
+      "critical": 3000
+    },
+    "GET /api/healthz p95": {
+      "warning": 500,
+      "critical": 2000
+    },
+    "scanner_cycle_s": {
+      "warning": 120,
+      "critical": 300
+    },
+    "order_latency_ms": {
+      "warning": 500,
+      "critical": 2000
+    },
+    "rss_mb": {
+      "warning": 512,
+      "critical": 1024
+    },
+    "cpu_pct": {
+      "warning": 30,
+      "critical": 70
+    }
+  }
+}

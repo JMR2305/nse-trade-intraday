@@ -1,22 +1,22 @@
 {
  "available": true,
- "generated_at": "2026-07-19T10:53:52.561752+00:00",
- "scan_id": "94b265fb4a47",
- "snapshot_ts": "2026-07-17T18:12:06Z",
+ "generated_at": "2026-07-25T23:01:20.145359+00:00",
+ "scan_id": "d49e1ec37b7f",
+ "snapshot_ts": "2026-07-25T19:09:49Z",
  "ranking_config_version": "rank_v1",
  "deterministic": true,
  "items": [
   {
-   "symbol": "INDUSINDBK",
+   "symbol": "HDFCBANK",
    "final_action": "WATCH",
    "effective_action": "WATCH",
    "all_gates_passed": true,
-   "rank_score": 42.41,
-   "raw_score": 49.9,
+   "rank_score": 40.91,
+   "raw_score": 48.12,
    "factors": {
-    "confidence": 0.348,
-    "opportunity_score": 0.448,
-    "rr_ratio": 0.75,
+    "confidence": 0.506,
+    "opportunity_score": 0.519,
+    "rr_ratio": 0.375,
     "regime_compatibility": 0.5,
     "historical_expectancy": 0.5
    },
@@ -29,9 +29,9 @@
    },
    "factor_cap": 0.35,
    "contributions": {
-    "confidence": 0.087,
-    "opportunity_score": 0.112,
-    "rr_ratio": 0.15,
+    "confidence": 0.1265,
+    "opportunity_score": 0.1298,
+    "rr_ratio": 0.075,
     "regime_compatibility": 0.075,
     "historical_expectancy": 0.075
    },
@@ -39,10 +39,10 @@
     "low_sample_reliability": 0.15
    },
    "penalty_total": 0.15,
-   "raw_confidence": 34.8,
+   "raw_confidence": 50.6,
    "calibrated_confidence_advisory": null,
-   "strategy": "Trend Rider",
-   "regime": "Strong uptrend",
+   "strategy": "Mean Reversion",
+   "regime": "Ranging / sideways",
    "regime_classification": "INSUFFICIENT_DATA",
    "regime_reliability": "INSUFFICIENT",
    "buy_gates_untouched": true,
@@ -53,11 +53,11 @@
    "final_action": "IGNORE",
    "effective_action": "IGNORE",
    "all_gates_passed": true,
-   "rank_score": 40.29,
-   "raw_score": 47.4,
+   "rank_score": 40.25,
+   "raw_score": 47.35,
    "factors": {
-    "confidence": 0.294,
-    "opportunity_score": 0.402,
+    "confidence": 0.293,
+    "opportunity_score": 0.401,
     "rr_ratio": 0.75,
     "regime_compatibility": 0.5,
     "historical_expectancy": 0.5
@@ -71,8 +71,8 @@
    },
    "factor_cap": 0.35,
    "contributions": {
-    "confidence": 0.0735,
-    "opportunity_score": 0.1005,
+    "confidence": 0.0732,
+    "opportunity_score": 0.1003,
     "rr_ratio": 0.15,
     "regime_compatibility": 0.075,
     "historical_expectancy": 0.075
@@ -81,7 +81,7 @@
     "low_sample_reliability": 0.15
    },
    "penalty_total": 0.15,
-   "raw_confidence": 29.4,
+   "raw_confidence": 29.3,
    "calibrated_confidence_advisory": null,
    "strategy": "Trend Rider",
    "regime": "Strong uptrend",
@@ -95,11 +95,11 @@
    "final_action": "IGNORE",
    "effective_action": "IGNORE",
    "all_gates_passed": true,
-   "rank_score": 40.29,
-   "raw_score": 47.4,
+   "rank_score": 40.25,
+   "raw_score": 47.35,
    "factors": {
-    "confidence": 0.294,
-    "opportunity_score": 0.402,
+    "confidence": 0.293,
+    "opportunity_score": 0.401,
     "rr_ratio": 0.75,
     "regime_compatibility": 0.5,
     "historical_expectancy": 0.5
@@ -113,8 +113,8 @@
    },
    "factor_cap": 0.35,
    "contributions": {
-    "confidence": 0.0735,
-    "opportunity_score": 0.1005,
+    "confidence": 0.0732,
+    "opportunity_score": 0.1003,
     "rr_ratio": 0.15,
     "regime_compatibility": 0.075,
     "historical_expectancy": 0.075
@@ -123,7 +123,7 @@
     "low_sample_reliability": 0.15
    },
    "penalty_total": 0.15,
-   "raw_confidence": 29.4,
+   "raw_confidence": 29.3,
    "calibrated_confidence_advisory": null,
    "strategy": "Trend Rider",
    "regime": "Strong uptrend",
@@ -133,15 +133,15 @@
    "rank": 3
   },
   {
-   "symbol": "TATASTEEL",
+   "symbol": "INDUSINDBK",
    "final_action": "IGNORE",
    "effective_action": "IGNORE",
    "all_gates_passed": true,
-   "rank_score": 40.2,
-   "raw_score": 47.3,
+   "rank_score": 39.89,
+   "raw_score": 46.93,
    "factors": {
     "confidence": 0.292,
-    "opportunity_score": 0.4,
+    "opportunity_score": 0.385,
     "rr_ratio": 0.75,
     "regime_compatibility": 0.5,
     "historical_expectancy": 0.5
@@ -156,7 +156,7 @@
    "factor_cap": 0.35,
    "contributions": {
     "confidence": 0.073,
-    "opportunity_score": 0.1,
+    "opportunity_score": 0.0963,
     "rr_ratio": 0.15,
     "regime_compatibility": 0.075,
     "historical_expectancy": 0.075
@@ -173,48 +173,6 @@
    "regime_reliability": "INSUFFICIENT",
    "buy_gates_untouched": true,
    "rank": 4
-  },
-  {
-   "symbol": "COALINDIA",
-   "final_action": "IGNORE",
-   "effective_action": "IGNORE",
-   "all_gates_passed": true,
-   "rank_score": 37.8,
-   "raw_score": 44.48,
-   "factors": {
-    "confidence": 0.304,
-    "opportunity_score": 0.375,
-    "rr_ratio": 0.625,
-    "regime_compatibility": 0.5,
-    "historical_expectancy": 0.5
-   },
-   "weights": {
-    "confidence": 0.25,
-    "opportunity_score": 0.25,
-    "rr_ratio": 0.2,
-    "regime_compatibility": 0.15,
-    "historical_expectancy": 0.15
-   },
-   "factor_cap": 0.35,
-   "contributions": {
-    "confidence": 0.076,
-    "opportunity_score": 0.0938,
-    "rr_ratio": 0.125,
-    "regime_compatibility": 0.075,
-    "historical_expectancy": 0.075
-   },
-   "penalties": {
-    "low_sample_reliability": 0.15
-   },
-   "penalty_total": 0.15,
-   "raw_confidence": 30.4,
-   "calibrated_confidence_advisory": null,
-   "strategy": "MACD Cross",
-   "regime": "Trending (momentum)",
-   "regime_classification": "INSUFFICIENT_DATA",
-   "regime_reliability": "INSUFFICIENT",
-   "buy_gates_untouched": true,
-   "rank": 5
   },
   {
    "symbol": "DRREDDY",
@@ -256,49 +214,7 @@
    "regime_classification": "INSUFFICIENT_DATA",
    "regime_reliability": "INSUFFICIENT",
    "buy_gates_untouched": true,
-   "rank": 6
-  },
-  {
-   "symbol": "RELIANCE",
-   "final_action": "IGNORE",
-   "effective_action": "IGNORE",
-   "all_gates_passed": true,
-   "rank_score": 37.72,
-   "raw_score": 44.38,
-   "factors": {
-    "confidence": 0.293,
-    "opportunity_score": 0.382,
-    "rr_ratio": 0.625,
-    "regime_compatibility": 0.5,
-    "historical_expectancy": 0.5
-   },
-   "weights": {
-    "confidence": 0.25,
-    "opportunity_score": 0.25,
-    "rr_ratio": 0.2,
-    "regime_compatibility": 0.15,
-    "historical_expectancy": 0.15
-   },
-   "factor_cap": 0.35,
-   "contributions": {
-    "confidence": 0.0732,
-    "opportunity_score": 0.0955,
-    "rr_ratio": 0.125,
-    "regime_compatibility": 0.075,
-    "historical_expectancy": 0.075
-   },
-   "penalties": {
-    "low_sample_reliability": 0.15
-   },
-   "penalty_total": 0.15,
-   "raw_confidence": 29.3,
-   "calibrated_confidence_advisory": null,
-   "strategy": "MACD Cross",
-   "regime": "Trending (momentum)",
-   "regime_classification": "INSUFFICIENT_DATA",
-   "regime_reliability": "INSUFFICIENT",
-   "buy_gates_untouched": true,
-   "rank": 7
+   "rank": 5
   },
   {
    "symbol": "HCLTECH",
@@ -340,49 +256,7 @@
    "regime_classification": "INSUFFICIENT_DATA",
    "regime_reliability": "INSUFFICIENT",
    "buy_gates_untouched": true,
-   "rank": 8
-  },
-  {
-   "symbol": "HDFCBANK",
-   "final_action": "WATCH",
-   "effective_action": "WATCH",
-   "all_gates_passed": true,
-   "rank_score": 36.63,
-   "raw_score": 43.1,
-   "factors": {
-    "confidence": 0.399,
-    "opportunity_score": 0.425,
-    "rr_ratio": 0.375,
-    "regime_compatibility": 0.5,
-    "historical_expectancy": 0.5
-   },
-   "weights": {
-    "confidence": 0.25,
-    "opportunity_score": 0.25,
-    "rr_ratio": 0.2,
-    "regime_compatibility": 0.15,
-    "historical_expectancy": 0.15
-   },
-   "factor_cap": 0.35,
-   "contributions": {
-    "confidence": 0.0997,
-    "opportunity_score": 0.1062,
-    "rr_ratio": 0.075,
-    "regime_compatibility": 0.075,
-    "historical_expectancy": 0.075
-   },
-   "penalties": {
-    "low_sample_reliability": 0.15
-   },
-   "penalty_total": 0.15,
-   "raw_confidence": 39.9,
-   "calibrated_confidence_advisory": null,
-   "strategy": "Mean Reversion",
-   "regime": "Ranging / sideways",
-   "regime_classification": "INSUFFICIENT_DATA",
-   "regime_reliability": "INSUFFICIENT",
-   "buy_gates_untouched": true,
-   "rank": 9
+   "rank": 6
   },
   {
    "symbol": "TATACONSUM",
@@ -424,18 +298,18 @@
    "regime_classification": "INSUFFICIENT_DATA",
    "regime_reliability": "INSUFFICIENT",
    "buy_gates_untouched": true,
-   "rank": 10
+   "rank": 7
   },
   {
-   "symbol": "POWERGRID",
+   "symbol": "ONGC",
    "final_action": "IGNORE",
    "effective_action": "IGNORE",
    "all_gates_passed": true,
-   "rank_score": 35.62,
-   "raw_score": 41.9,
+   "rank_score": 35.68,
+   "raw_score": 41.98,
    "factors": {
     "confidence": 0.25,
-    "opportunity_score": 0.326,
+    "opportunity_score": 0.329,
     "rr_ratio": 0.625,
     "regime_compatibility": 0.5,
     "historical_expectancy": 0.5
@@ -450,7 +324,7 @@
    "factor_cap": 0.35,
    "contributions": {
     "confidence": 0.0625,
-    "opportunity_score": 0.0815,
+    "opportunity_score": 0.0822,
     "rr_ratio": 0.125,
     "regime_compatibility": 0.075,
     "historical_expectancy": 0.075
@@ -466,18 +340,18 @@
    "regime_classification": "INSUFFICIENT_DATA",
    "regime_reliability": "INSUFFICIENT",
    "buy_gates_untouched": true,
-   "rank": 11
+   "rank": 8
   },
   {
    "symbol": "SBIN",
    "final_action": "IGNORE",
    "effective_action": "IGNORE",
    "all_gates_passed": true,
-   "rank_score": 35.21,
-   "raw_score": 41.42,
+   "rank_score": 35.17,
+   "raw_score": 41.38,
    "factors": {
-    "confidence": 0.293,
-    "opportunity_score": 0.364,
+    "confidence": 0.292,
+    "opportunity_score": 0.363,
     "rr_ratio": 0.5,
     "regime_compatibility": 0.5,
     "historical_expectancy": 0.5
@@ -491,8 +365,8 @@
    },
    "factor_cap": 0.35,
    "contributions": {
-    "confidence": 0.0732,
-    "opportunity_score": 0.091,
+    "confidence": 0.073,
+    "opportunity_score": 0.0907,
     "rr_ratio": 0.1,
     "regime_compatibility": 0.075,
     "historical_expectancy": 0.075
@@ -501,26 +375,26 @@
     "low_sample_reliability": 0.15
    },
    "penalty_total": 0.15,
-   "raw_confidence": 29.3,
+   "raw_confidence": 29.2,
    "calibrated_confidence_advisory": null,
    "strategy": "EMA Cross",
    "regime": "Trending (momentum)",
    "regime_classification": "INSUFFICIENT_DATA",
    "regime_reliability": "INSUFFICIENT",
    "buy_gates_untouched": true,
-   "rank": 12
+   "rank": 9
   },
   {
-   "symbol": "HDFCLIFE",
+   "symbol": "COALINDIA",
    "final_action": "IGNORE",
    "effective_action": "IGNORE",
    "all_gates_passed": true,
-   "rank_score": 35.11,
-   "raw_score": 41.3,
+   "rank_score": 34.4,
+   "raw_score": 40.48,
    "factors": {
-    "confidence": 0.369,
-    "opportunity_score": 0.383,
-    "rr_ratio": 0.375,
+    "confidence": 0.156,
+    "opportunity_score": 0.263,
+    "rr_ratio": 0.75,
     "regime_compatibility": 0.5,
     "historical_expectancy": 0.5
    },
@@ -533,9 +407,9 @@
    },
    "factor_cap": 0.35,
    "contributions": {
-    "confidence": 0.0922,
-    "opportunity_score": 0.0957,
-    "rr_ratio": 0.075,
+    "confidence": 0.039,
+    "opportunity_score": 0.0658,
+    "rr_ratio": 0.15,
     "regime_compatibility": 0.075,
     "historical_expectancy": 0.075
    },
@@ -543,14 +417,14 @@
     "low_sample_reliability": 0.15
    },
    "penalty_total": 0.15,
-   "raw_confidence": 36.9,
+   "raw_confidence": 15.6,
    "calibrated_confidence_advisory": null,
-   "strategy": "Mean Reversion",
-   "regime": "Ranging / sideways",
+   "strategy": "Trend Rider",
+   "regime": "Strong uptrend",
    "regime_classification": "INSUFFICIENT_DATA",
    "regime_reliability": "INSUFFICIENT",
    "buy_gates_untouched": true,
-   "rank": 13
+   "rank": 10
   },
   {
    "symbol": "KOTAKBANK",
@@ -592,7 +466,7 @@
    "regime_classification": "INSUFFICIENT_DATA",
    "regime_reliability": "INSUFFICIENT",
    "buy_gates_untouched": true,
-   "rank": 14
+   "rank": 11
   },
   {
    "symbol": "SHRIRAMFIN",
@@ -634,7 +508,7 @@
    "regime_classification": "INSUFFICIENT_DATA",
    "regime_reliability": "INSUFFICIENT",
    "buy_gates_untouched": true,
-   "rank": 15
+   "rank": 12
   },
   {
    "symbol": "JSWSTEEL",
@@ -676,10 +550,136 @@
    "regime_classification": "INSUFFICIENT_DATA",
    "regime_reliability": "INSUFFICIENT",
    "buy_gates_untouched": true,
+   "rank": 13
+  },
+  {
+   "symbol": "ITC",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 32.49,
+   "raw_score": 38.23,
+   "factors": {
+    "confidence": 0.179,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.625,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0447,
+    "opportunity_score": 0.0625,
+    "rr_ratio": 0.125,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 17.9,
+   "calibrated_confidence_advisory": null,
+   "strategy": "MACD Cross",
+   "regime": "Trending (momentum)",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 14
+  },
+  {
+   "symbol": "BRITANNIA",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 32.22,
+   "raw_score": 37.9,
+   "factors": {
+    "confidence": 0.08,
+    "opportunity_score": 0.236,
+    "rr_ratio": 0.75,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.02,
+    "opportunity_score": 0.059,
+    "rr_ratio": 0.15,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 8.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "Trend Rider",
+   "regime": "Strong uptrend",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 15
+  },
+  {
+   "symbol": "DIVISLAB",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 32.22,
+   "raw_score": 37.9,
+   "factors": {
+    "confidence": 0.08,
+    "opportunity_score": 0.236,
+    "rr_ratio": 0.75,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.02,
+    "opportunity_score": 0.059,
+    "rr_ratio": 0.15,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 8.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "Trend Rider",
+   "regime": "Strong uptrend",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
    "rank": 16
   },
   {
-   "symbol": "BAJAJ-AUTO",
+   "symbol": "EICHERMOT",
    "final_action": "IGNORE",
    "effective_action": "IGNORE",
    "all_gates_passed": true,
@@ -721,7 +721,7 @@
    "rank": 17
   },
   {
-   "symbol": "BHARTIARTL",
+   "symbol": "M&M",
    "final_action": "IGNORE",
    "effective_action": "IGNORE",
    "all_gates_passed": true,
@@ -763,7 +763,7 @@
    "rank": 18
   },
   {
-   "symbol": "SUNPHARMA",
+   "symbol": "SBILIFE",
    "final_action": "IGNORE",
    "effective_action": "IGNORE",
    "all_gates_passed": true,
@@ -847,15 +847,15 @@
    "rank": 20
   },
   {
-   "symbol": "AXISBANK",
+   "symbol": "NTPC",
    "final_action": "IGNORE",
    "effective_action": "IGNORE",
    "all_gates_passed": true,
-   "rank_score": 31.68,
-   "raw_score": 37.28,
+   "rank_score": 31.71,
+   "raw_score": 37.3,
    "factors": {
     "confidence": 0.081,
-    "opportunity_score": 0.21,
+    "opportunity_score": 0.211,
     "rr_ratio": 0.75,
     "regime_compatibility": 0.5,
     "historical_expectancy": 0.5
@@ -870,7 +870,7 @@
    "factor_cap": 0.35,
    "contributions": {
     "confidence": 0.0203,
-    "opportunity_score": 0.0525,
+    "opportunity_score": 0.0528,
     "rr_ratio": 0.15,
     "regime_compatibility": 0.075,
     "historical_expectancy": 0.075
@@ -887,6 +887,48 @@
    "regime_reliability": "INSUFFICIENT",
    "buy_gates_untouched": true,
    "rank": 21
+  },
+  {
+   "symbol": "POWERGRID",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 31.6,
+   "raw_score": 37.18,
+   "factors": {
+    "confidence": 0.29,
+    "opportunity_score": 0.297,
+    "rr_ratio": 0.375,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0725,
+    "opportunity_score": 0.0742,
+    "rr_ratio": 0.075,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 29.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "Mean Reversion",
+   "regime": "Ranging / sideways",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 22
   },
   {
    "symbol": "WIPRO",
@@ -928,18 +970,18 @@
    "regime_classification": "INSUFFICIENT_DATA",
    "regime_reliability": "INSUFFICIENT",
    "buy_gates_untouched": true,
-   "rank": 22
+   "rank": 23
   },
   {
-   "symbol": "M&M",
+   "symbol": "RELIANCE",
    "final_action": "IGNORE",
    "effective_action": "IGNORE",
    "all_gates_passed": true,
-   "rank_score": 29.71,
-   "raw_score": 34.95,
+   "rank_score": 29.18,
+   "raw_score": 34.33,
    "factors": {
-    "confidence": 0.08,
-    "opportunity_score": 0.218,
+    "confidence": 0.081,
+    "opportunity_score": 0.192,
     "rr_ratio": 0.625,
     "regime_compatibility": 0.5,
     "historical_expectancy": 0.5
@@ -953,8 +995,8 @@
    },
    "factor_cap": 0.35,
    "contributions": {
-    "confidence": 0.02,
-    "opportunity_score": 0.0545,
+    "confidence": 0.0203,
+    "opportunity_score": 0.048,
     "rr_ratio": 0.125,
     "regime_compatibility": 0.075,
     "historical_expectancy": 0.075
@@ -963,50 +1005,7 @@
     "low_sample_reliability": 0.15
    },
    "penalty_total": 0.15,
-   "raw_confidence": 8.0,
-   "calibrated_confidence_advisory": null,
-   "strategy": "MACD Cross",
-   "regime": "Trending (momentum)",
-   "regime_classification": "INSUFFICIENT_DATA",
-   "regime_reliability": "INSUFFICIENT",
-   "buy_gates_untouched": true,
-   "rank": 23
-  },
-  {
-   "symbol": "ONGC",
-   "final_action": "IGNORE",
-   "effective_action": "IGNORE",
-   "all_gates_passed": true,
-   "rank_score": 29.12,
-   "raw_score": 41.6,
-   "factors": {
-    "confidence": 0.242,
-    "opportunity_score": 0.322,
-    "rr_ratio": 0.625,
-    "regime_compatibility": 0.5,
-    "historical_expectancy": 0.5
-   },
-   "weights": {
-    "confidence": 0.25,
-    "opportunity_score": 0.25,
-    "rr_ratio": 0.2,
-    "regime_compatibility": 0.15,
-    "historical_expectancy": 0.15
-   },
-   "factor_cap": 0.35,
-   "contributions": {
-    "confidence": 0.0605,
-    "opportunity_score": 0.0805,
-    "rr_ratio": 0.125,
-    "regime_compatibility": 0.075,
-    "historical_expectancy": 0.075
-   },
-   "penalties": {
-    "low_sample_reliability": 0.15,
-    "poor_liquidity": 0.15
-   },
-   "penalty_total": 0.3,
-   "raw_confidence": 24.2,
+   "raw_confidence": 8.1,
    "calibrated_confidence_advisory": null,
    "strategy": "MACD Cross",
    "regime": "Trending (momentum)",
@@ -1016,15 +1015,15 @@
    "rank": 24
   },
   {
-   "symbol": "NTPC",
+   "symbol": "HDFCLIFE",
    "final_action": "IGNORE",
    "effective_action": "IGNORE",
    "all_gates_passed": true,
-   "rank_score": 28.39,
-   "raw_score": 33.4,
+   "rank_score": 28.91,
+   "raw_score": 41.3,
    "factors": {
-    "confidence": 0.196,
-    "opportunity_score": 0.24,
+    "confidence": 0.369,
+    "opportunity_score": 0.383,
     "rr_ratio": 0.375,
     "regime_compatibility": 0.5,
     "historical_expectancy": 0.5
@@ -1038,17 +1037,18 @@
    },
    "factor_cap": 0.35,
    "contributions": {
-    "confidence": 0.049,
-    "opportunity_score": 0.06,
+    "confidence": 0.0922,
+    "opportunity_score": 0.0957,
     "rr_ratio": 0.075,
     "regime_compatibility": 0.075,
     "historical_expectancy": 0.075
    },
    "penalties": {
-    "low_sample_reliability": 0.15
+    "low_sample_reliability": 0.15,
+    "poor_liquidity": 0.15
    },
-   "penalty_total": 0.15,
-   "raw_confidence": 19.6,
+   "penalty_total": 0.3,
+   "raw_confidence": 36.9,
    "calibrated_confidence_advisory": null,
    "strategy": "Mean Reversion",
    "regime": "Ranging / sideways",
@@ -1058,99 +1058,15 @@
    "rank": 25
   },
   {
-   "symbol": "EICHERMOT",
+   "symbol": "AXISBANK",
    "final_action": "IGNORE",
    "effective_action": "IGNORE",
    "all_gates_passed": true,
-   "rank_score": 27.18,
-   "raw_score": 31.98,
+   "rank_score": 27.6,
+   "raw_score": 32.48,
    "factors": {
-    "confidence": 0.08,
-    "opportunity_score": 0.199,
-    "rr_ratio": 0.5,
-    "regime_compatibility": 0.5,
-    "historical_expectancy": 0.5
-   },
-   "weights": {
-    "confidence": 0.25,
-    "opportunity_score": 0.25,
-    "rr_ratio": 0.2,
-    "regime_compatibility": 0.15,
-    "historical_expectancy": 0.15
-   },
-   "factor_cap": 0.35,
-   "contributions": {
-    "confidence": 0.02,
-    "opportunity_score": 0.0497,
-    "rr_ratio": 0.1,
-    "regime_compatibility": 0.075,
-    "historical_expectancy": 0.075
-   },
-   "penalties": {
-    "low_sample_reliability": 0.15
-   },
-   "penalty_total": 0.15,
-   "raw_confidence": 8.0,
-   "calibrated_confidence_advisory": null,
-   "strategy": "EMA Cross",
-   "regime": "Trending (momentum)",
-   "regime_classification": "INSUFFICIENT_DATA",
-   "regime_reliability": "INSUFFICIENT",
-   "buy_gates_untouched": true,
-   "rank": 26
-  },
-  {
-   "symbol": "INFY",
-   "final_action": "IGNORE",
-   "effective_action": "IGNORE",
-   "all_gates_passed": true,
-   "rank_score": 27.18,
-   "raw_score": 31.98,
-   "factors": {
-    "confidence": 0.08,
-    "opportunity_score": 0.199,
-    "rr_ratio": 0.5,
-    "regime_compatibility": 0.5,
-    "historical_expectancy": 0.5
-   },
-   "weights": {
-    "confidence": 0.25,
-    "opportunity_score": 0.25,
-    "rr_ratio": 0.2,
-    "regime_compatibility": 0.15,
-    "historical_expectancy": 0.15
-   },
-   "factor_cap": 0.35,
-   "contributions": {
-    "confidence": 0.02,
-    "opportunity_score": 0.0497,
-    "rr_ratio": 0.1,
-    "regime_compatibility": 0.075,
-    "historical_expectancy": 0.075
-   },
-   "penalties": {
-    "low_sample_reliability": 0.15
-   },
-   "penalty_total": 0.15,
-   "raw_confidence": 8.0,
-   "calibrated_confidence_advisory": null,
-   "strategy": "EMA Cross",
-   "regime": "Trending (momentum)",
-   "regime_classification": "INSUFFICIENT_DATA",
-   "regime_reliability": "INSUFFICIENT",
-   "buy_gates_untouched": true,
-   "rank": 27
-  },
-  {
-   "symbol": "ITC",
-   "final_action": "IGNORE",
-   "effective_action": "IGNORE",
-   "all_gates_passed": true,
-   "rank_score": 27.03,
-   "raw_score": 31.8,
-   "factors": {
-    "confidence": 0.169,
-    "opportunity_score": 0.203,
+    "confidence": 0.161,
+    "opportunity_score": 0.238,
     "rr_ratio": 0.375,
     "regime_compatibility": 0.5,
     "historical_expectancy": 0.5
@@ -1164,8 +1080,8 @@
    },
    "factor_cap": 0.35,
    "contributions": {
-    "confidence": 0.0422,
-    "opportunity_score": 0.0508,
+    "confidence": 0.0403,
+    "opportunity_score": 0.0595,
     "rr_ratio": 0.075,
     "regime_compatibility": 0.075,
     "historical_expectancy": 0.075
@@ -1174,10 +1090,95 @@
     "low_sample_reliability": 0.15
    },
    "penalty_total": 0.15,
-   "raw_confidence": 16.9,
+   "raw_confidence": 16.1,
    "calibrated_confidence_advisory": null,
    "strategy": "Mean Reversion",
    "regime": "Ranging / sideways",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 26
+  },
+  {
+   "symbol": "TATASTEEL",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 27.5,
+   "raw_score": 32.35,
+   "factors": {
+    "confidence": 0.166,
+    "opportunity_score": 0.228,
+    "rr_ratio": 0.375,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.0415,
+    "opportunity_score": 0.057,
+    "rr_ratio": 0.075,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15
+   },
+   "penalty_total": 0.15,
+   "raw_confidence": 16.6,
+   "calibrated_confidence_advisory": null,
+   "strategy": "Mean Reversion",
+   "regime": "Ranging / sideways",
+   "regime_classification": "INSUFFICIENT_DATA",
+   "regime_reliability": "INSUFFICIENT",
+   "buy_gates_untouched": true,
+   "rank": 27
+  },
+  {
+   "symbol": "TECHM",
+   "final_action": "IGNORE",
+   "effective_action": "IGNORE",
+   "all_gates_passed": true,
+   "rank_score": 26.53,
+   "raw_score": 37.9,
+   "factors": {
+    "confidence": 0.08,
+    "opportunity_score": 0.236,
+    "rr_ratio": 0.75,
+    "regime_compatibility": 0.5,
+    "historical_expectancy": 0.5
+   },
+   "weights": {
+    "confidence": 0.25,
+    "opportunity_score": 0.25,
+    "rr_ratio": 0.2,
+    "regime_compatibility": 0.15,
+    "historical_expectancy": 0.15
+   },
+   "factor_cap": 0.35,
+   "contributions": {
+    "confidence": 0.02,
+    "opportunity_score": 0.059,
+    "rr_ratio": 0.15,
+    "regime_compatibility": 0.075,
+    "historical_expectancy": 0.075
+   },
+   "penalties": {
+    "low_sample_reliability": 0.15,
+    "poor_liquidity": 0.15
+   },
+   "penalty_total": 0.3,
+   "raw_confidence": 8.0,
+   "calibrated_confidence_advisory": null,
+   "strategy": "Trend Rider",
+   "regime": "Strong uptrend",
    "regime_classification": "INSUFFICIENT_DATA",
    "regime_reliability": "INSUFFICIENT",
    "buy_gates_untouched": true,
@@ -1310,7 +1311,7 @@
    "rank": 31
   },
   {
-   "symbol": "BAJAJFINSV",
+   "symbol": "APOLLOHOSP",
    "final_action": "IGNORE",
    "effective_action": "IGNORE",
    "all_gates_passed": true,
@@ -1352,7 +1353,7 @@
    "rank": 32
   },
   {
-   "symbol": "BRITANNIA",
+   "symbol": "ASIANPAINT",
    "final_action": "IGNORE",
    "effective_action": "IGNORE",
    "all_gates_passed": true,
@@ -1394,7 +1395,7 @@
    "rank": 33
   },
   {
-   "symbol": "DIVISLAB",
+   "symbol": "BAJAJ-AUTO",
    "final_action": "IGNORE",
    "effective_action": "IGNORE",
    "all_gates_passed": true,
@@ -1436,7 +1437,7 @@
    "rank": 34
   },
   {
-   "symbol": "GRASIM",
+   "symbol": "BAJAJFINSV",
    "final_action": "IGNORE",
    "effective_action": "IGNORE",
    "all_gates_passed": true,
@@ -1478,7 +1479,7 @@
    "rank": 35
   },
   {
-   "symbol": "HEROMOTOCO",
+   "symbol": "BHARTIARTL",
    "final_action": "IGNORE",
    "effective_action": "IGNORE",
    "all_gates_passed": true,
@@ -1520,7 +1521,7 @@
    "rank": 36
   },
   {
-   "symbol": "HINDUNILVR",
+   "symbol": "CIPLA",
    "final_action": "IGNORE",
    "effective_action": "IGNORE",
    "all_gates_passed": true,
@@ -1562,7 +1563,7 @@
    "rank": 37
   },
   {
-   "symbol": "LT",
+   "symbol": "GRASIM",
    "final_action": "IGNORE",
    "effective_action": "IGNORE",
    "all_gates_passed": true,
@@ -1604,7 +1605,7 @@
    "rank": 38
   },
   {
-   "symbol": "NESTLEIND",
+   "symbol": "HEROMOTOCO",
    "final_action": "IGNORE",
    "effective_action": "IGNORE",
    "all_gates_passed": true,
@@ -1646,7 +1647,7 @@
    "rank": 39
   },
   {
-   "symbol": "SBILIFE",
+   "symbol": "HINDUNILVR",
    "final_action": "IGNORE",
    "effective_action": "IGNORE",
    "all_gates_passed": true,
@@ -1688,7 +1689,7 @@
    "rank": 40
   },
   {
-   "symbol": "TCS",
+   "symbol": "INFY",
    "final_action": "IGNORE",
    "effective_action": "IGNORE",
    "all_gates_passed": true,
@@ -1730,7 +1731,7 @@
    "rank": 41
   },
   {
-   "symbol": "TECHM",
+   "symbol": "LT",
    "final_action": "IGNORE",
    "effective_action": "IGNORE",
    "all_gates_passed": true,
@@ -1772,7 +1773,7 @@
    "rank": 42
   },
   {
-   "symbol": "TITAN",
+   "symbol": "NESTLEIND",
    "final_action": "IGNORE",
    "effective_action": "IGNORE",
    "all_gates_passed": true,
@@ -1814,11 +1815,11 @@
    "rank": 43
   },
   {
-   "symbol": "APOLLOHOSP",
+   "symbol": "SUNPHARMA",
    "final_action": "IGNORE",
    "effective_action": "IGNORE",
    "all_gates_passed": true,
-   "rank_score": 19.51,
+   "rank_score": 23.69,
    "raw_score": 27.88,
    "factors": {
     "confidence": 0.0,
@@ -1843,10 +1844,9 @@
     "historical_expectancy": 0.075
    },
    "penalties": {
-    "low_sample_reliability": 0.15,
-    "poor_liquidity": 0.15
+    "low_sample_reliability": 0.15
    },
-   "penalty_total": 0.3,
+   "penalty_total": 0.15,
    "raw_confidence": 0.0,
    "calibrated_confidence_advisory": null,
    "strategy": "EMA Cross",
@@ -1857,11 +1857,11 @@
    "rank": 44
   },
   {
-   "symbol": "ASIANPAINT",
+   "symbol": "TCS",
    "final_action": "IGNORE",
    "effective_action": "IGNORE",
    "all_gates_passed": true,
-   "rank_score": 19.51,
+   "rank_score": 23.69,
    "raw_score": 27.88,
    "factors": {
     "confidence": 0.0,
@@ -1886,10 +1886,9 @@
     "historical_expectancy": 0.075
    },
    "penalties": {
-    "low_sample_reliability": 0.15,
-    "poor_liquidity": 0.15
+    "low_sample_reliability": 0.15
    },
-   "penalty_total": 0.3,
+   "penalty_total": 0.15,
    "raw_confidence": 0.0,
    "calibrated_confidence_advisory": null,
    "strategy": "EMA Cross",
@@ -1900,11 +1899,11 @@
    "rank": 45
   },
   {
-   "symbol": "CIPLA",
+   "symbol": "TITAN",
    "final_action": "IGNORE",
    "effective_action": "IGNORE",
    "all_gates_passed": true,
-   "rank_score": 19.51,
+   "rank_score": 23.69,
    "raw_score": 27.88,
    "factors": {
     "confidence": 0.0,
@@ -1929,10 +1928,9 @@
     "historical_expectancy": 0.075
    },
    "penalties": {
-    "low_sample_reliability": 0.15,
-    "poor_liquidity": 0.15
+    "low_sample_reliability": 0.15
    },
-   "penalty_total": 0.3,
+   "penalty_total": 0.15,
    "raw_confidence": 0.0,
    "calibrated_confidence_advisory": null,
    "strategy": "EMA Cross",

@@ -1,14 +1,14 @@
 {
   "bundle_version": 2,
   "phase": 12,
-  "generated_at": "2026-07-19T10:53:30Z",
+  "generated_at": "2026-07-25T23:01:01Z",
   "engine_version": "Research Engine v1.0 \u00b7 Phase 12",
   "mode": "PAPER_TRADING_RESEARCH_ONLY",
   "label": "PAPER / RESEARCH ONLY",
   "market_status": {
     "state": "WEEKEND",
     "is_open": false,
-    "now_ist": "2026-07-19T16:23:30.294838+05:30",
+    "now_ist": "2026-07-26T04:31:01.114654+05:30",
     "timezone": "Asia/Kolkata",
     "session": {
       "pre_open": "09:00",
@@ -19,8 +19,8 @@
     "holiday_today": null,
     "next_transition": {
       "event": "market_open",
-      "at_ist": "2026-07-20T09:15:00+05:30",
-      "seconds_until": 60689
+      "at_ist": "2026-07-27T09:15:00+05:30",
+      "seconds_until": 103438
     },
     "upcoming_holidays": [
       {
@@ -43,8 +43,8 @@
     "provider_id": "yfinance",
     "circuit_breaker": "CLOSED",
     "consecutive_failures": 0,
-    "last_success_ts": "2026-07-18T13:27:19Z",
-    "total_fetches": 246,
+    "last_success_ts": "2026-07-25T22:54:09Z",
+    "total_fetches": 255,
     "total_errors": 0,
     "cached_symbols": 3,
     "quote_ttl_s": 20.0,
@@ -72,25 +72,25 @@
   "sector_rotation_top3": [
     {
       "sector": "BANKING",
-      "avg_score": 36.6,
+      "avg_score": 37.5,
       "stock_count": 6,
-      "vs_median": 13.7,
+      "vs_median": 16.5,
       "momentum": "STRONG",
       "rank": 1
     },
     {
-      "sector": "ENERGY",
-      "avg_score": 32.9,
+      "sector": "FINANCE",
+      "avg_score": 29.6,
       "stock_count": 5,
-      "vs_median": 10.0,
+      "vs_median": 8.6,
       "momentum": "STRONG",
       "rank": 2
     },
     {
-      "sector": "FINANCE",
-      "avg_score": 27.2,
+      "sector": "ENERGY",
+      "avg_score": 25.8,
       "stock_count": 5,
-      "vs_median": 4.3,
+      "vs_median": 4.8,
       "momentum": "OUTPERFORMING",
       "rank": 3
     }
@@ -122,9 +122,9 @@
   },
   "contradictions": {
     "level_distribution": {
-      "NONE": 34,
-      "LOW": 15,
-      "MEDIUM": 1,
+      "NONE": 40,
+      "LOW": 10,
+      "MEDIUM": 0,
       "HIGH": 0
     },
     "high_contradiction_examples": []
@@ -138,8 +138,8 @@
     }
   },
   "action_summary": {
-    "WATCH": 16,
-    "AVOID": 34
+    "WATCH": 21,
+    "AVOID": 29
   },
   "sample_counts": {
     "symbols_analyzed": 50,
@@ -196,38 +196,38 @@
     {
       "file": "phase12_cache.json",
       "exists": true,
-      "size_bytes": 207607,
-      "modified": "2026-07-19T10:53:30Z"
+      "size_bytes": 207082,
+      "modified": "2026-07-25T23:00:32Z"
     },
     {
       "file": "phase7_scan_cache.json",
       "exists": true,
-      "size_bytes": 65943,
-      "modified": "2026-07-18T13:28:24Z"
+      "size_bytes": 65942,
+      "modified": "2026-07-25T22:59:53Z"
     },
     {
       "file": "market_context_cache.json",
       "exists": true,
-      "size_bytes": 557,
-      "modified": "2026-07-17T18:12:48Z"
+      "size_bytes": 566,
+      "modified": "2026-07-25T19:10:22Z"
     },
     {
       "file": "phase11_quote_state.json",
       "exists": true,
       "size_bytes": 1328,
-      "modified": "2026-07-18T13:27:19Z"
+      "modified": "2026-07-25T22:56:19Z"
     },
     {
       "file": "phase12_diagnostic_bundle.json",
       "exists": true,
-      "size_bytes": 5539,
-      "modified": "2026-07-16T18:19:56Z"
+      "size_bytes": 5556,
+      "modified": "2026-07-25T23:00:32Z"
     },
     {
       "file": "phase12_summary.csv",
       "exists": true,
-      "size_bytes": 2648,
-      "modified": "2026-07-16T18:19:56Z"
+      "size_bytes": 2674,
+      "modified": "2026-07-25T23:00:32Z"
     }
   ],
   "errors": {},

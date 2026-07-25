@@ -3,8 +3,8 @@
   "event": "KILL_SWITCH_TOGGLED",
   "activated": false,
   "mode": "PAPER_TRADING",
-  "ts": "2026-07-15T16:09:37Z",
-  "audit_id": "eef2ee7665"
+  "ts": "2026-07-25T23:01:25Z",
+  "audit_id": "aa754dca70"
  },
  {
   "event": "PREVIEW_CREATED",
@@ -15,168 +15,13 @@
   "mode": "PAPER_TRADING",
   "validation_passed": false,
   "failure_reasons": [
-   "NSE CLOSED \u2014 21:39 IST Wed",
+   "NSE CLOSED \u2014 04:31 IST Sun",
    "Sector Energy: \u20b92500.00 > cap \u20b91750.00 (35%)",
    "Order \u20b92500.00 > limit \u20b91000.00"
   ],
-  "preview_id": "0632ddad8102",
+  "preview_id": "249bfaf69c2e",
   "status": "VALIDATION_FAILED",
-  "ts": "2026-07-15T16:09:37Z",
-  "audit_id": "f1714701fe"
- },
- {
-  "event": "PREVIEW_CREATED",
-  "symbol": "HDFCBANK",
-  "side": "BUY",
-  "quantity": 2,
-  "entry_price": 1700.0,
-  "mode": "PAPER_TRADING",
-  "validation_passed": false,
-  "failure_reasons": [
-   "NSE CLOSED \u2014 00:39 IST Sun",
-   "Data quality: UNKNOWN. Must be LIVE or NEAR_LIVE to execute.",
-   "Risk \u20b980.00 > max \u20b950.00 (1% of \u20b95000)",
-   "Sector OTHER: \u20b93400.00 > cap \u20b91750.00 (35%)",
-   "Order \u20b93400.00 > limit \u20b91000.00"
-  ],
-  "preview_id": "e256331200e7",
-  "status": "DATA_STALE",
-  "ts": "2026-07-25T19:09:25Z",
-  "audit_id": "dde3e57e2a"
- },
- {
-  "event": "PREVIEW_CREATED",
-  "symbol": "ICICIBANK",
-  "side": "BUY",
-  "quantity": 1,
-  "entry_price": 1400.0,
-  "mode": "PAPER_TRADING",
-  "validation_passed": false,
-  "failure_reasons": [
-   "NSE CLOSED \u2014 00:40 IST Sun",
-   "Data quality: UNKNOWN. Must be LIVE or NEAR_LIVE to execute."
-  ],
-  "preview_id": "f82134d7bf46",
-  "status": "DATA_STALE",
-  "ts": "2026-07-25T19:10:33Z",
-  "audit_id": "8d21177790"
- },
- {
-  "event": "PREVIEW_CREATED",
-  "symbol": "ICICIBANK",
-  "side": "BUY",
-  "quantity": 1,
-  "entry_price": 1400.0,
-  "mode": "PAPER_TRADING",
-  "validation_passed": false,
-  "failure_reasons": [
-   "NSE CLOSED \u2014 00:40 IST Sun",
-   "Data quality: UNKNOWN. Must be LIVE or NEAR_LIVE to execute."
-  ],
-  "preview_id": "fdfc7f4e5115",
-  "status": "DATA_STALE",
-  "ts": "2026-07-25T19:10:52Z",
-  "audit_id": "10c35e0b90"
- },
- {
-  "event": "PREVIEW_CREATED",
-  "symbol": "ICICIBANK",
-  "side": "BUY",
-  "quantity": 1,
-  "entry_price": 1400.0,
-  "mode": "PAPER_TRADING",
-  "validation_passed": false,
-  "failure_reasons": [
-   "NSE CLOSED \u2014 00:41 IST Sun",
-   "Data quality: UNKNOWN. Must be LIVE or NEAR_LIVE to execute."
-  ],
-  "preview_id": "43e310df9416",
-  "status": "DATA_STALE",
-  "ts": "2026-07-25T19:11:15Z",
-  "audit_id": "fcc6bcdbae"
- },
- {
-  "event": "PREVIEW_CREATED",
-  "symbol": "TCS",
-  "side": "BUY",
-  "quantity": 1,
-  "entry_price": 2200.0,
-  "mode": "PAPER_TRADING",
-  "validation_passed": false,
-  "failure_reasons": [
-   "NSE CLOSED \u2014 00:48 IST Sun",
-   "Data quality: UNKNOWN. Must be LIVE or NEAR_LIVE to execute.",
-   "Sector OTHER: \u20b92200.00 > cap \u20b91750.00 (35%)",
-   "Order \u20b92200.00 > limit \u20b91000.00"
-  ],
-  "preview_id": "d6f040eb3cea",
-  "status": "DATA_STALE",
-  "ts": "2026-07-25T19:18:25Z",
-  "audit_id": "15a0c2eff6"
- },
- {
-  "event": "ORDER_FAILED",
-  "preview_id": "ca2fdc1266be",
-  "symbol": "INFY",
-  "error": "cannot import name 'create_paper_order' from 'paper_trader' (/home/runner/workspace/artifacts/api-server/src/python/paper_trader.py)",
-  "ts": "2026-07-25T19:25:02Z",
-  "audit_id": "f3e1d01ab9"
- },
- {
-  "event": "PAPER_ORDER",
-  "preview_id": "4ad4825cc672",
-  "symbol": "INFY",
-  "side": "BUY",
-  "quantity": 1,
-  "entry_price": 1500.0,
-  "stop_loss": 1470.0,
-  "target": 1560.0,
-  "order_id": "PAPER-3a84a8a2",
-  "mode": "PAPER_TRADING",
-  "strategy": "PHASE_E_DUPLICATE_TEST",
-  "confidence": 0.8,
-  "data_freshness": "LIVE",
-  "ts": "2026-07-25T19:25:46Z",
-  "user_confirmed_step1": true,
-  "user_confirmed_step2": true,
-  "audit_id": "dc61244095"
- },
- {
-  "event": "PAPER_ORDER",
-  "preview_id": "84e726f5f67f",
-  "symbol": "INFY",
-  "side": "BUY",
-  "quantity": 1,
-  "entry_price": 1500.0,
-  "stop_loss": 1470.0,
-  "target": 1560.0,
-  "order_id": "PAPER-e7064b27",
-  "mode": "PAPER_TRADING",
-  "strategy": "PHASE_E_DUPLICATE_TEST",
-  "confidence": 0.8,
-  "data_freshness": "LIVE",
-  "ts": "2026-07-25T19:26:27Z",
-  "user_confirmed_step1": true,
-  "user_confirmed_step2": true,
-  "audit_id": "bede93e37b"
- },
- {
-  "event": "PAPER_ORDER",
-  "preview_id": "77c9aff4db5b",
-  "symbol": "INFY",
-  "side": "BUY",
-  "quantity": 1,
-  "entry_price": 1500.0,
-  "stop_loss": 1470.0,
-  "target": 1560.0,
-  "order_id": "PAPER-ce5b5fe3",
-  "mode": "PAPER_TRADING",
-  "strategy": "PHASE_E_DUPLICATE_TEST",
-  "confidence": 0.8,
-  "data_freshness": "LIVE",
-  "ts": "2026-07-25T19:28:03Z",
-  "user_confirmed_step1": true,
-  "user_confirmed_step2": true,
-  "audit_id": "aa5ff72d45"
+  "ts": "2026-07-25T23:01:25Z",
+  "audit_id": "d7e6280857"
  }
 ]

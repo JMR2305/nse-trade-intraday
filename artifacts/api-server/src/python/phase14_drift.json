@@ -1,19 +1,19 @@
 {
- "generated_at": "2026-07-17T18:19:12.422173+00:00",
- "sample_size": 8,
+ "generated_at": "2026-07-25T23:01:01.791886+00:00",
+ "sample_size": 19,
  "indicators": [
   {
    "name": "sample_size",
-   "value": 8,
+   "value": 19,
    "severity": "INFO",
-   "detail": "Only 8 completed trades \u2014 drift monitoring needs \u226520; all indicators INFO."
+   "detail": "Only 19 completed trades \u2014 drift monitoring needs \u226520; all indicators INFO."
   }
  ],
  "overall_severity": "INFO",
  "learning_frozen": {
   "frozen": false,
   "reason": "decision-time freeze test done",
-  "updated_at": "2026-07-17T18:19:12.400977+00:00"
+  "updated_at": "2026-07-25T23:01:01.770506+00:00"
  },
  "recovery_criteria": "All indicators must fall below CRITICAL thresholds on the next drift computation.",
  "note": "Drift never disables existing safety controls."

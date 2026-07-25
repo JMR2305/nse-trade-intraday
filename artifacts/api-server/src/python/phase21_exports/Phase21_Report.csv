@@ -1,10 +1,10 @@
-Phase 21 Report — PAPER / RESEARCH ONLY,2026-07-19T10:53:52.667077+00:00
+Phase 21 Report — PAPER / RESEARCH ONLY,2026-07-25T23:01:21.535522+00:00
 
 Scorecard
 baseline_model_version,phase21_baseline_v1
 champion_version,p13_champion_v1
 challenger_count,4
-total_evaluated_trades,8
+total_evaluated_trades,19
 confidence_calibration_score,0.4006
 threshold_quality,INSUFFICIENT_EVIDENCE
 readiness_status,INSUFFICIENT_EVIDENCE
@@ -25,7 +25,7 @@ buy_threshold,trades,win_rate,profit_factor,expectancy,max_drawdown,overfit_risk
 
 Strategy x Regime
 strategy,regime,trades,win_rate,profit_factor,expectancy,classification
-AI Scan,RANGE_BOUND,3,0.6667,8.75,155.0,INSUFFICIENT_DATA
+AI Scan,RANGE_BOUND,14,0.7857,5.196,83.93,ELIGIBLE
 EMA Cross,BEARISH,1,0.0,0.0,-89.5,INSUFFICIENT_DATA
 MACD Cross,BEARISH,2,0.0,0.0,-65.95,INSUFFICIENT_DATA
 Trend Rider,BEARISH,2,0.5,1.884,49.75,INSUFFICIENT_DATA
