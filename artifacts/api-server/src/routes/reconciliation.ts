@@ -88,4 +88,13 @@ router.post("/broker/reconciliation/resolve", wrap(async (req, res) => {
   res.json(await runPython(args, 15_000));
 }));
 
+// POST /api/broker/reconciliation/reopen — reopen a previously resolved discrepancy
+router.post("/broker/reconciliation/reopen", wrap(async (req, res) => {
+  const id = parseInt(String(req.body?.id ?? ""), 10);
+  if (!Number.isFinite(id) || id <= 0) {
+    return res.status(400).json({ success: false, error: "Valid discrepancy id required" });
+  }
+  res.json(await runPython(["reconcil_reopen", String(id)], 15_000));
+}));
+
 export default router;

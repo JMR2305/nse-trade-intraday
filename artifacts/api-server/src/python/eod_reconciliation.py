@@ -832,6 +832,33 @@ def check_reconciliation_probe() -> Dict[str, Any]:
     }
 
 
+def reopen_discrepancy(discrepancy_id: int) -> Dict[str, Any]:
+    """Reopen a previously resolved discrepancy, clearing resolved_at and resolved_note."""
+    try:
+        from scan_state_store import _connect
+        conn = _connect()
+        try:
+            _ensure_schema(conn)
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE broker_reconciliation_discrepancies
+                    SET resolved      = FALSE,
+                        resolved_at   = NULL,
+                        resolved_note = NULL
+                    WHERE id = %s
+                    RETURNING id
+                """, (discrepancy_id,))
+                row = cur.fetchone()
+            conn.commit()
+            if row:
+                return {"success": True, "reopened_id": discrepancy_id}
+            return {"success": False, "error": f"Discrepancy {discrepancy_id} not found"}
+        finally:
+            conn.close()
+    except Exception as exc:
+        return {"success": False, "error": str(exc)[:300]}
+
+
 def resolve_discrepancy(
     discrepancy_id: int,
     note: Optional[str] = None,

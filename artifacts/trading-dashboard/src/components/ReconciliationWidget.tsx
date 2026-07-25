@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   CheckCircle2, XCircle, AlertTriangle, RefreshCw,
   Loader2, ShieldCheck, Clock, ChevronDown, ChevronUp,
-  CheckCheck,
+  CheckCheck, RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { API_BASE } from "@/lib/api";
@@ -80,6 +80,9 @@ export default function ReconciliationWidget() {
   const [resolvingId, setResolvingId] = useState<number | null>(null);
   // confirmState: which discrepancy is in the "are you sure?" step
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
+  // reopen confirmation: which resolved discrepancy is awaiting reopen confirm
+  const [reopenConfirmId, setReopenConfirmId] = useState<number | null>(null);
+  const [reopeningId, setReopeningId] = useState<number | null>(null);
 
   // ── Data fetching ─────────────────────────────────────────────────────────
   const { data, isLoading, isError, error, refetch } = useQuery({
@@ -144,6 +147,25 @@ export default function ReconciliationWidget() {
       setResolvingId(null);
     }
   }, [confirm, qc, toast]);
+
+  // ── Reopen: commit ────────────────────────────────────────────────────────
+  const commitReopen = useCallback(async (id: number) => {
+    setReopenConfirmId(null);
+    setReopeningId(id);
+    try {
+      await apiFetch("/broker/reconciliation/reopen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      toast({ title: "Discrepancy reopened", description: `ID ${id} moved back to Open` });
+      qc.invalidateQueries({ queryKey: ["reconciliation-status"] });
+    } catch (err: any) {
+      toast({ title: "Reopen failed", description: err.message, variant: "destructive" });
+    } finally {
+      setReopeningId(null);
+    }
+  }, [qc, toast]);
 
   // ── Derived state ─────────────────────────────────────────────────────────
   const lastRun = data?.last_run ?? {};
@@ -386,29 +408,68 @@ export default function ReconciliationWidget() {
             </button>
             {showResolved && (
               <div className="mt-2 space-y-1.5">
-                {resolvedDisc.map((d: any) => (
-                  <div key={d.id}
-                    className="rounded-md border border-zinc-800 bg-zinc-900/30 px-3 py-2 text-xs font-mono opacity-75">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-3 w-3 text-emerald-600 flex-shrink-0" />
-                      <span className="text-zinc-400 font-semibold">{d.discrepancy_type}</span>
-                      {d.trading_symbol && (
-                        <span className="text-zinc-500">{d.trading_symbol}</span>
-                      )}
-                      <span className="ml-auto text-[10px] text-zinc-600">
-                        resolved {fmtTs(d.resolved_at)}
-                      </span>
-                    </div>
-                    {d.resolved_note && (
-                      <div className="mt-1 text-[10px] text-zinc-600 pl-5 italic">
-                        "{d.resolved_note}"
+                {resolvedDisc.map((d: any) => {
+                  const isConfirmingReopen = reopenConfirmId === d.id;
+                  const isReopening = reopeningId === d.id;
+                  return (
+                    <div key={d.id}
+                      className="rounded-md border border-zinc-800 bg-zinc-900/30 px-3 py-2 text-xs font-mono opacity-75 hover:opacity-100 transition-opacity">
+                      <div className="flex items-start gap-2">
+                        <CheckCircle2 className="h-3 w-3 text-emerald-600 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-zinc-400 font-semibold">{d.discrepancy_type}</span>
+                            {d.trading_symbol && (
+                              <span className="text-zinc-500">{d.trading_symbol}</span>
+                            )}
+                            <span className="text-[10px] text-zinc-600">
+                              resolved {fmtTs(d.resolved_at)}
+                            </span>
+                          </div>
+                          {d.resolved_note && (
+                            <div className="mt-1 text-[10px] text-zinc-600 italic">
+                              "{d.resolved_note}"
+                            </div>
+                          )}
+                          {d.description && (
+                            <div className="mt-0.5 text-[10px] text-zinc-700">{d.description}</div>
+                          )}
+                        </div>
+
+                        {/* Reopen action — two-step confirm */}
+                        <div className="flex-shrink-0">
+                          {isReopening ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-500 mt-0.5" />
+                          ) : isConfirmingReopen ? (
+                            <div className="flex flex-col gap-1 items-end">
+                              <span className="text-[10px] text-amber-400">Reopen?</span>
+                              <div className="flex gap-1">
+                                <Button size="sm" variant="outline"
+                                  className="h-5 text-[10px] gap-1 border-zinc-600 text-zinc-400"
+                                  onClick={() => setReopenConfirmId(null)}>
+                                  Cancel
+                                </Button>
+                                <Button size="sm"
+                                  className="h-5 text-[10px] gap-1 bg-amber-700 hover:bg-amber-600 text-white border-0"
+                                  onClick={() => commitReopen(d.id)}>
+                                  <RotateCcw className="h-2.5 w-2.5" />
+                                  Confirm
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <Button size="sm" variant="outline"
+                              className="h-5 text-[10px] gap-1 border-zinc-700 text-zinc-500 hover:text-amber-400 hover:border-amber-700"
+                              onClick={() => setReopenConfirmId(d.id)}>
+                              <RotateCcw className="h-2.5 w-2.5" />
+                              Reopen
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                    )}
-                    {d.description && (
-                      <div className="mt-0.5 text-[10px] text-zinc-700 pl-5">{d.description}</div>
-                    )}
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

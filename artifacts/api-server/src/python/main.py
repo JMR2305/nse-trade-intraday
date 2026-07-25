@@ -2128,6 +2128,9 @@ def main():
             from eod_reconciliation import resolve_discrepancy
             note_arg = args[2] if len(args) > 2 else None
             result = resolve_discrepancy(int(args[1]), note=note_arg)
+        elif command == "reconcil_reopen" and len(args) > 1:
+            from eod_reconciliation import reopen_discrepancy
+            result = reopen_discrepancy(int(args[1]))
         elif command == "reconcil_probe":
             from eod_reconciliation import check_reconciliation_probe
             result = check_reconciliation_probe()
