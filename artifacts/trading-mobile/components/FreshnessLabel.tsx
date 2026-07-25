@@ -44,20 +44,21 @@ export function FreshnessLabel({
 }
 
 /**
- * Canonical data-status vocabulary — Phase C (Data Truthfulness).
+ * Canonical data-status vocabulary — Phase C + Phase 1B (Data Truthfulness).
  *
- * LIVE        — fresh data from a connected live feed (age < 5 min)
- * DELAYED     — provider connected but delivery is slow (was AGING)
- * STALE       — data age has crossed the staleness threshold
- * CACHED      — data from a previous snapshot; provider offline (was OFFLINE CACHE)
- * UNAVAILABLE — no data has ever been received
+ * LIVE          — fresh data from a connected live feed (age < 5 min)
+ * DELAYED       — provider connected but delivery is slow (was AGING)
+ * STALE         — data age has crossed the staleness threshold
+ * CACHED        — data from a previous snapshot; provider offline (was OFFLINE CACHE)
+ * MARKET_CLOSED — outside NSE trading hours (weekend, holiday, or pre/post session)
+ * UNAVAILABLE   — no data has ever been received
  *
  * Renamed from the legacy vocabulary:
  *   AGING        → DELAYED  (more honest: the data is merely late, not corrupted)
  *   OFFLINE CACHE → CACHED  (shorter, matches the canonical vocabulary)
  *   FRESH        → LIVE     (signals an active, connected feed)
  */
-export type FreshnessBand = "LIVE" | "DELAYED" | "STALE" | "CACHED" | "UNAVAILABLE";
+export type FreshnessBand = "LIVE" | "DELAYED" | "STALE" | "CACHED" | "MARKET_CLOSED" | "UNAVAILABLE";
 
 const FRESH_LIMIT_MS = 5 * 60_000;   // < 5 min  → LIVE
 const DELAYED_LIMIT_MS = 15 * 60_000; // < 15 min → DELAYED (was AGING_LIMIT_MS)
@@ -112,6 +113,8 @@ export function FreshnessStatusBadge({
       ? "#F59E0B"               // amber  — slow / partially missing
       : band === "CACHED"
       ? colors.primary          // blue   — offline cache
+      : band === "MARKET_CLOSED"
+      ? "#94A3B8"               // slate  — closed, not an error
       : band === "UNAVAILABLE"
       ? colors.mutedForeground  // grey   — no data
       : colors.destructive;     // red    — STALE

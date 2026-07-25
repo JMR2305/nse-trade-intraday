@@ -74,9 +74,16 @@ export const SSE_BASE_URL: string = resolveSseBaseUrl(API_BASE_URL);
 export const SSE_STREAM_URL: string = `${SSE_BASE_URL}/stream`;
 
 // ── Production guard ─────────────────────────────────────────────────────────
-// Expo bakes EXPO_PUBLIC_* at bundle time. The __DEV__ flag is true in the
-// Expo dev client but false in production builds and EAS builds.
-if (!__DEV__ && containsLocalhost(API_BASE_URL)) {
+// __DEV__ is a global injected by the Expo/Metro bundler (true in dev client,
+// false in production EAS builds). In Vitest / Node.js test environments it is
+// not defined, so we fall back to checking process.env.NODE_ENV instead.
+const _globalAny = globalThis as Record<string, unknown>;
+const _isDev: boolean =
+  typeof _globalAny["__DEV__"] !== "undefined"
+    ? Boolean(_globalAny["__DEV__"])
+    : process.env.NODE_ENV !== "production";
+
+if (!_isDev && containsLocalhost(API_BASE_URL)) {
   throw new ConfigurationError(
     `EXPO_PUBLIC_API_BASE_URL resolves to "${API_BASE_URL}", which contains localhost/127.0.0.1. ` +
       "Production builds must use an HTTPS URL. " +

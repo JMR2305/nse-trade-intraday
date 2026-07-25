@@ -10,7 +10,7 @@ import {
   Database,
   WifiOff,
 } from "lucide-react";
-import { type DataStatus, DATA_STATUS_COLOR, DATA_STATUS_DOT } from "@/lib/dataStatus";
+import { type DataStatus, DATA_STATUS_COLOR, DATA_STATUS_DOT, isMarketOpen } from "@/lib/dataStatus";
 
 // ── Phase 19C / Phase C — DataFreshnessBar ────────────────────────────────────
 // Canonical data-truthfulness indicator for every data-driven page.
@@ -133,14 +133,18 @@ function ageLabel(seconds?: number): string {
  *  1. No scan has ever completed AND provider is unavailable → UNAVAILABLE
  *  2. Last scan FAILED but we have older cached snapshot → CACHED
  *  3. Last scan FAILED and no cached data → UNAVAILABLE
- *  4. Data exceeds staleness threshold → STALE
- *  5. Some symbols missing or stale → DELAYED
- *  6. All symbols present, data fresh → LIVE
+ *  4. Data exceeds staleness threshold AND market is closed → MARKET_CLOSED
+ *     (stale during closed hours is expected — not a system error)
+ *  5. Data exceeds staleness threshold AND market is open → STALE
+ *  6. Some symbols missing or stale → DELAYED
+ *  7. All symbols present, data fresh → LIVE
  *
- * The labels "STALE" and "FAILED" are preserved in the component for
- * downstream logic (staleness protection, buy_recommendations_disabled).
+ * Market-open determination uses `st.current_time` from the backend —
+ * never from the browser clock.
+ *
+ * Exported for unit testing.
  */
-function deriveDataStatus(
+export function deriveDataStatus(
   loading: boolean,
   failed: boolean,
   stale: boolean,
@@ -156,8 +160,12 @@ function deriveDataStatus(
     // the server is returning CACHED data from the previous good scan.
     return st?.last_scan_time ? "CACHED" : "UNAVAILABLE";
   }
-  // Data is older than the platform's staleness threshold (default 90 min)
-  if (stale) return "STALE";
+  // Data exceeds the platform's staleness threshold
+  if (stale) {
+    // MARKET_CLOSED is more informative than STALE when outside trading hours:
+    // stale data during weekends / post-close is expected, not a system problem.
+    return isMarketOpen(st?.current_time) ? "STALE" : "MARKET_CLOSED";
+  }
   // Provider connected but some symbols are missing or individually stale
   const partialCoverage =
     (meta?.symbols_missing ?? 0) > 0 || (meta?.symbols_stale ?? 0) > 0;
@@ -273,6 +281,7 @@ export default function DataFreshnessBar({
 
   const StatusIcon =
     dataStatus === "UNAVAILABLE" ? WifiOff
+    : dataStatus === "MARKET_CLOSED" ? Clock
     : dataStatus === "STALE" || dataStatus === "DELAYED" || dataStatus === "CACHED" ? AlertTriangle
     : CheckCircle2;
 
@@ -292,7 +301,9 @@ export default function DataFreshnessBar({
             ? "border-warn bg-warn-surface"
             : dataStatus === "DELAYED"
               ? "border-warn/60 bg-warn-surface/60"
-              : "border-border/60 bg-card/40"
+              : dataStatus === "MARKET_CLOSED"
+                ? "border-slate-500/40 bg-slate-500/10"
+                : "border-border/60 bg-card/40"
       } ${className}`}
     >
       <button
