@@ -1,0 +1,583 @@
+# RC-10C1 — FINAL PRODUCTION AUDIT AND FREEZE VERIFICATION
+
+## Objective
+
+Perform an independent final audit of the merged RC-10C1 Portfolio Core implementation.
+
+Do not add new features.
+
+Do not change frozen RC-6 through RC-10D contracts unless a Critical or High-severity defect requires a compatibility fix.
+
+Do not enable live trading.
+
+The goal is to determine whether RC-10C1 can be formally marked FROZEN.
+
+Current reported state:
+
+- RC-10C1 implementation is merged.
+- 612 tests reportedly pass:
+  - 265 new portfolio tests
+  - 347 pre-existing platform tests
+- Portfolio module location:
+  artifacts/api-server/src/python/src/portfolio/
+- RC-8 remains final risk authority.
+- RC-7 remains execution authority.
+- RC-10D remains the only broker integration layer.
+- paper_mode=True must remain structurally enforced.
+
+Treat all previous implementation summaries as claims that must be independently verified.
+
+------------------------------------------------------------
+1. VERIFY REPOSITORY STATE
+------------------------------------------------------------
+
+Confirm:
+
+1. Exact commit hash being audited.
+2. Working tree is clean.
+3. All RC-10C1 files are committed.
+4. No untracked implementation or migration files exist.
+5. RC-10C1 documentation files are present.
+6. No accidental changes were made to frozen RC-6 through RC-10D contracts.
+
+Return:
+
+- commit hash
+- branch
+- changed-file summary compared with the last frozen phase
+- any unexpected changes
+
+------------------------------------------------------------
+2. STATIC ANALYSIS
+------------------------------------------------------------
+
+Run the project-standard commands for:
+
+- ruff
+- mypy
+- formatting verification
+- import validation
+- dead-code or unused-import checks where configured
+
+Specifically inspect src/portfolio/ for:
+
+- unjustified # type: ignore
+- unjustified # noqa
+- TODO
+- FIXME
+- HACK
+- direct float arithmetic on monetary values
+- mutable default arguments
+- broad exception handling
+- silent exception suppression
+- private-field coupling across modules
+
+Run and report the equivalent of:
+
+grep -RniE "TODO|FIXME|HACK" src/portfolio
+grep -RniE "kiteconnect|pyzerodha|zerodha" src/portfolio
+grep -RniE "# type: ignore|# noqa" src/portfolio
+
+The audit must distinguish harmless documentation references from production-code violations.
+
+------------------------------------------------------------
+3. ARCHITECTURAL BOUNDARY VERIFICATION
+------------------------------------------------------------
+
+Prove that:
+
+- Portfolio code cannot place, modify, or cancel orders.
+- Portfolio code has no direct Zerodha SDK dependency.
+- RC-10D is the only broker boundary.
+- RC-8 remains the final risk authority.
+- RC-7 remains the execution authority.
+- RC-10B AI confidence is advisory only.
+- Portfolio allocation approval cannot bypass RC-8.
+- PortfolioService is the only supported portfolio mutation façade.
+- Strategy, AI, UI, and scheduler modules cannot directly mutate portfolio state.
+- Live trading remains disabled.
+- paper_mode cannot be overridden through environment variables or runtime configuration.
+
+List exact files and call paths proving each boundary.
+
+------------------------------------------------------------
+4. FULL TEST EXECUTION
+------------------------------------------------------------
+
+Run:
+
+A. All RC-10C1 unit tests
+B. RC-10C1 integration tests
+C. Required end-to-end tests
+D. Complete platform regression suite
+E. Database-backed tests
+F. Migration parity tests
+G. Concurrency tests
+H. Recovery and reconciliation tests
+
+Report exact:
+
+- commands executed
+- collected tests
+- passed
+- failed
+- skipped
+- xfailed
+- warnings
+- errors
+- duration
+
+Do not report only “all tests passed.”
+
+Compare the result with the claimed baseline:
+
+- 612 passing
+- 265 new
+- 347 pre-existing
+
+Explain any difference in counts.
+
+------------------------------------------------------------
+5. TEST COVERAGE
+------------------------------------------------------------
+
+Generate coverage for src/portfolio/.
+
+Report coverage by module and total.
+
+Minimum acceptance target:
+
+- Overall new portfolio-module coverage ≥ 90%
+- Critical modules should have strong branch coverage:
+  - state_manager.py
+  - position_manager.py
+  - ledger.py
+  - service.py
+  - reconciliation.py
+  - capital_allocator.py
+  - limits.py
+  - pnl.py
+
+Identify meaningful untested branches rather than relying only on the aggregate percentage.
+
+------------------------------------------------------------
+6. DATABASE AND MIGRATION AUDIT
+------------------------------------------------------------
+
+Inspect all portfolio ORM models and migrations.
+
+Verify:
+
+- ORM and migration parity
+- clean-schema migration succeeds
+- migration from current existing schema succeeds
+- downgrade behavior is documented or tested
+- no destructive alteration of RC-7 or RC-10D data
+- correct primary keys
+- foreign keys where appropriate
+- unique constraints
+- idempotency constraints
+- timezone-aware timestamps
+- Decimal-compatible numeric precision
+- production indexes
+- transaction safety
+- async session safety
+- repository session guards
+- rollback behavior on partial failure
+
+List all portfolio tables, indexes, and constraints.
+
+Flag duplicate storage of execution orders, fills, trades, or broker data already owned by RC-7 or RC-10D.
+
+------------------------------------------------------------
+7. CORRECTNESS AUDIT
+------------------------------------------------------------
+
+Independently inspect and test the following high-risk cases:
+
+### Recovery
+
+- Snapshot restores all open positions.
+- Snapshot restores cash, margin, daily P&L, peak equity, version, and timestamps.
+- Replay after snapshot does not duplicate fills.
+- A fill_id differing from event idempotency_key does not break recovery.
+- Corrupt snapshot is rejected safely.
+- Cold-start recovery uses configured initial capital.
+- Readiness remains false until recovery and reconciliation complete.
+
+### Cash and reservations
+
+- available + blocked equals total.
+- Exact reservation fill.
+- Partial fill.
+- Slippage above reserved amount.
+- Fill below reserved amount.
+- Reservation release.
+- Duplicate release.
+- Failed fill processing rolls back atomically.
+- No negative cash unless explicitly permitted.
+
+### Position accounting
+
+- Open.
+- Increase.
+- Partial reduction.
+- Full close.
+- FIFO lot accounting.
+- Duplicate fill.
+- Out-of-order fill.
+- Side reversal.
+- Short positions, if supported.
+- Fees and confirmed-charge adjustments.
+- Realised and unrealised P&L.
+
+### Exposure
+
+- Pending-order exposure included.
+- Partial fills are not double counted.
+- Reserved capital is not double counted.
+- Instrument exposure.
+- Sector exposure.
+- Strategy exposure.
+- Long, short, gross, and net exposure.
+- Stale market prices.
+
+### Allocation and sizing
+
+- Cash reserve is never allocated.
+- Stale allocation decision is rejected.
+- Portfolio state-version mismatch is rejected.
+- Concurrent allocation requests cannot over-allocate.
+- Lot-size rounding never increases risk beyond a limit.
+- Quantity zero results in rejection.
+- AI confidence cannot independently approve a trade.
+
+### Limits
+
+- Exact-boundary behavior.
+- Daily-loss breach.
+- Drawdown breach.
+- Maximum positions.
+- Maximum pending orders.
+- Instrument, sector, and strategy limits.
+- Critical limit may request the existing RC-8 kill switch.
+- No competing kill switch exists.
+
+------------------------------------------------------------
+8. RECONCILIATION AUDIT
+------------------------------------------------------------
+
+Verify all discrepancy categories required by RC-10C1:
+
+- local-only position
+- broker-only position
+- quantity mismatch
+- average-price mismatch
+- realised-P&L mismatch
+- margin mismatch
+- cash mismatch
+- missing fill
+- duplicate fill
+- stale broker snapshot
+- stale local state
+- unknown instrument
+- unresolved order
+
+Test both broker timestamp keys:
+
+- snapshot_at
+- as_of
+
+Verify:
+
+- dry-run mode makes no mutation
+- correction mode requires explicit policy
+- every applied correction is audited
+- no blind destructive correction
+- Critical discrepancy degrades readiness
+- new trades are blocked while readiness is false
+- cancellations, recovery, and reconciliation remain available
+
+------------------------------------------------------------
+9. CONCURRENCY AND FAILURE-INJECTION AUDIT
+------------------------------------------------------------
+
+Test:
+
+- simultaneous fills for the same position
+- duplicate event delivery
+- concurrent allocation requests
+- stale state version at commit
+- repository failure during event persistence
+- snapshot write failure
+- reconciliation interruption
+- cancellation during shutdown
+- process restart between DB commit and in-memory update
+- process restart between in-memory update and DB commit
+
+Verify:
+
+- no I/O while holding long-lived locks
+- no deadlocks
+- no lost updates
+- no duplicate P&L
+- no over-allocation
+- deterministic recovery after partial failure
+
+Document any unresolved consistency window.
+
+------------------------------------------------------------
+10. PERFORMANCE BENCHMARKS
+------------------------------------------------------------
+
+Run repeatable benchmarks for:
+
+- get_state
+- evaluate_allocation
+- calculate_position_size
+- evaluate_limits
+- apply_fill
+- update_market_price
+- create_snapshot
+- restore snapshot
+- replay 1,000 events
+- replay 10,000 events
+- reconciliation with realistic position/order counts
+
+Report:
+
+- test environment
+- dataset size
+- median
+- p95
+- p99 where meaningful
+- memory usage
+- lock contention
+- database round trips
+
+Use realistic NSE intraday assumptions.
+
+Flag any operation that could block the market-data or order path.
+
+------------------------------------------------------------
+11. OPERATIONAL DRILLS
+------------------------------------------------------------
+
+Execute and document:
+
+### Recovery drill
+
+1. Start paper environment.
+2. Open positions.
+3. Create pending reservations.
+4. Record fills and P&L.
+5. Force simulated crash.
+6. Restart.
+7. Restore snapshot.
+8. Replay subsequent events.
+9. Reconcile with paper broker.
+10. Confirm identical portfolio state.
+11. Confirm readiness becomes true only after successful reconciliation.
+
+### Reconciliation drill
+
+Inject at least:
+
+- broker-only position
+- quantity mismatch
+- missing fill
+- stale snapshot
+
+Confirm:
+
+- discrepancies persisted
+- readiness degraded
+- new orders blocked
+- dry run does not mutate
+- controlled correction is audited
+- readiness is restored only after resolution
+
+Provide logs and evidence without exposing secrets.
+
+------------------------------------------------------------
+12. SECURITY AND LOGGING REVIEW
+------------------------------------------------------------
+
+Inspect:
+
+- logs
+- exception messages
+- audit events
+- database payloads
+- configuration dumps
+- metrics labels
+
+Confirm no leakage of:
+
+- broker access token
+- API key
+- request token
+- user account identifiers beyond necessary internal references
+- full raw broker payloads
+- sensitive environment variables
+
+Verify logs are useful for incident response and contain:
+
+- correlation ID
+- portfolio ID
+- internal order ID where relevant
+- event ID
+- state version
+- reconciliation run ID
+
+------------------------------------------------------------
+13. DOCUMENTATION VERIFICATION
+------------------------------------------------------------
+
+Verify all eight documents against the actual implementation:
+
+- RC10C1_Preimplementation_Verification.md
+- RC10C1_Portfolio_Architecture.md
+- RC10C1_Position_Accounting.md
+- RC10C1_Capital_Allocation.md
+- RC10C1_Reconciliation_Runbook.md
+- RC10C1_Recovery_Runbook.md
+- RC10C1_Production_Audit.md
+- RC10C1_Freeze_Readiness.md
+
+Correct documentation only where it contradicts actual behavior.
+
+Do not alter code merely to make it match incorrect documentation.
+
+------------------------------------------------------------
+14. FINDING SEVERITY
+------------------------------------------------------------
+
+Classify findings as:
+
+CRITICAL
+- Can place an order without RC-8 or RC-7.
+- Can activate live trading.
+- Can corrupt positions, cash, or P&L without detection.
+- Recovery can create duplicate positions or fills.
+- Direct broker access bypasses RC-10D.
+- Credential exposure.
+
+HIGH
+- Incorrect exposure or P&L in realistic scenarios.
+- Reconciliation fails to block trading on a Critical mismatch.
+- Cash reservation invariant failure.
+- Data loss on normal restart.
+- Broken migration.
+- Concurrency defect causing over-allocation.
+- Material regression in a frozen phase.
+
+MEDIUM
+- Operational weakness with a safe workaround.
+- Missing non-critical test.
+- Performance concern outside the order-critical path.
+- Documentation inconsistency.
+
+LOW
+- Style, maintainability, or minor observability issue.
+
+------------------------------------------------------------
+15. FIX POLICY
+------------------------------------------------------------
+
+During this audit:
+
+- Fix Critical findings.
+- Fix High findings.
+- Add regression tests for every fixed Critical or High finding.
+- Do not add new features.
+- Do not refactor unrelated frozen modules.
+- Record every modified file.
+- Rerun all tests after every fix round.
+- Re-audit the final commit, not the original commit.
+
+Medium and Low findings should be documented and scheduled unless the fix is isolated and very low risk.
+
+------------------------------------------------------------
+16. FREEZE ACCEPTANCE CRITERIA
+------------------------------------------------------------
+
+RC-10C1 may be marked FROZEN only when:
+
+✓ All new portfolio tests pass
+
+✓ Complete platform regression suite passes or all unrelated historical failures are precisely documented and unchanged
+
+✓ Portfolio coverage is at least 90%
+
+✓ Static analysis passes
+
+✓ Clean and upgrade migrations pass
+
+✓ No direct Zerodha dependency exists
+
+✓ No order-placement capability exists in portfolio code
+
+✓ RC-8 remains final risk authority
+
+✓ RC-7 remains execution authority
+
+✓ RC-10D remains sole broker boundary
+
+✓ Live trading remains structurally disabled
+
+✓ Cash accounting invariants pass
+
+✓ Recovery and replay are deterministic and idempotent
+
+✓ Reconciliation blocks new trades on Critical discrepancies
+
+✓ Concurrency tests pass
+
+✓ Recovery drill passes
+
+✓ Reconciliation drill passes
+
+✓ No Critical findings remain
+
+✓ No High findings remain
+
+✓ Documentation matches implementation
+
+------------------------------------------------------------
+17. REQUIRED FINAL REPORT
+------------------------------------------------------------
+
+Return a final report containing:
+
+1. Audited commit hash
+2. Files reviewed
+3. Files modified during audit
+4. Static-analysis results
+5. Exact test counts
+6. Coverage by module
+7. Regression comparison
+8. Migration results
+9. Recovery-drill results
+10. Reconciliation-drill results
+11. Performance results
+12. Security-review results
+13. Findings table:
+    - ID
+    - severity
+    - file
+    - issue
+    - impact
+    - fix
+    - regression test
+    - final status
+14. Deferred Medium and Low findings
+15. Production-readiness score out of 10
+16. One final verdict only:
+
+- FROZEN
+- NOT READY FOR FREEZE
+
+Do not use READY FOR AUDIT as the final verdict.
+
+Do not mark FROZEN unless every acceptance criterion is supported by executed evidence.
