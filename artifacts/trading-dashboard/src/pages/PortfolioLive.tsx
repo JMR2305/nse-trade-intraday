@@ -1010,6 +1010,11 @@ export default function PortfolioLive() {
   const isFetching = snapshotQuery.isFetching || healthQuery.isFetching || configQuery.isFetching;
   const error = snapshotQuery.error as Error | null;
 
+  // When BOTH queries fail simultaneously (e.g. full server outage), suppress the
+  // individual banners and show a single consolidated "API server unreachable" banner
+  // so operators receive one clear action-point instead of two conflicting messages.
+  const bothFailed = snapshotQuery.isError && healthQuery.isError;
+
   // When the health endpoint is completely unreachable (network error / server down),
   // show UNREACHABLE so operators see a clear signal instead of an endless loading spinner.
   const overallStatus =
@@ -1092,8 +1097,28 @@ export default function PortfolioLive() {
         </div>
       )}
 
-      {/* ── Alert banner for DEGRADED / HALTED ─────────────────────────── */}
-      {isAlert && (
+      {/* ── Consolidated banner — both snapshot AND health failed (full outage) ── */}
+      {bothFailed && (
+        <div
+          className="flex items-start gap-3 rounded-md border border-red-500/40 bg-red-500/10 p-4"
+          data-testid="banner-server-unreachable"
+        >
+          <AlertTriangle className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-mono font-bold text-red-400 text-sm">
+              API server unreachable
+            </p>
+            <p className="text-xs text-muted-foreground font-mono mt-1">
+              Both the portfolio snapshot and the health endpoint could not be reached.
+              Check that the API server is running — the dashboard will retry every{" "}
+              {REFRESH_INTERVAL / 1000}s.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Alert banner for DEGRADED / HALTED (only when not a full outage) ── */}
+      {!bothFailed && isAlert && (
         <div
           className="flex items-start gap-3 rounded-md border border-red-500/40 bg-red-500/10 p-4"
           data-testid="banner-portfolio-alert"
@@ -1116,9 +1141,12 @@ export default function PortfolioLive() {
         </div>
       )}
 
-      {/* Error banner — snapshot fetch failed */}
-      {error && !snap && (
-        <div className="flex items-start gap-3 rounded-md border border-yellow-500/40 bg-yellow-500/10 p-4">
+      {/* Error banner — snapshot fetch failed (only when health is still reachable) */}
+      {!bothFailed && error && !snap && (
+        <div
+          className="flex items-start gap-3 rounded-md border border-yellow-500/40 bg-yellow-500/10 p-4"
+          data-testid="banner-snapshot-error"
+        >
           <AlertTriangle className="h-5 w-5 text-yellow-400 flex-shrink-0" />
           <p className="text-sm text-yellow-400">{error.message}</p>
         </div>

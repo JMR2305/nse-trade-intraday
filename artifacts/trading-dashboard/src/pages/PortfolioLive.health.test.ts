@@ -711,3 +711,145 @@ describe("UNREACHABLE error state — health card shows clear down indicator", (
     expect(recoveredStatus).toBe("HEALTHY");
   });
 });
+
+// ── 14. Dual-error consolidated banner ───────────────────────────────────────
+//
+// When BOTH snapshotQuery.isError AND healthQuery.isError are true (full server
+// outage), showing two separate messages (yellow snapshot banner + red UNREACHABLE
+// badge) is confusing.  The page must instead render a single consolidated
+// "API server unreachable" banner and suppress the two individual banners.
+//
+// Done-looks-like:
+//   - banner-server-unreachable appears in the dual-error case
+//   - banner-portfolio-alert is gated on !bothFailed
+//   - banner-snapshot-error is gated on !bothFailed
+//   - bothFailed is computed as snapshotQuery.isError && healthQuery.isError
+
+describe("dual-error consolidated banner — both snapshot and health queries fail", () => {
+  // ── Source-analysis assertions ────────────────────────────────────────────
+
+  it("defines bothFailed as snapshotQuery.isError && healthQuery.isError", () => {
+    expect(pageSrc).toMatch(/bothFailed\s*=\s*snapshotQuery\.isError\s*&&\s*healthQuery\.isError/);
+  });
+
+  it("renders banner-server-unreachable gated on bothFailed", () => {
+    // The consolidated banner element must exist in source
+    expect(pageSrc).toContain('data-testid="banner-server-unreachable"');
+    // And it must be inside a bothFailed conditional block
+    expect(pageSrc).toMatch(/bothFailed\s*&&\s*\([\s\S]{0,500}banner-server-unreachable/s);
+  });
+
+  it("consolidated banner text says 'API server unreachable'", () => {
+    // The heading must use plain language matching the health-card error card
+    const serverUnreachableCount = (pageSrc.match(/API server unreachable/g) ?? []).length;
+    // Appears at least twice: once in the health card, once in the consolidated banner
+    expect(serverUnreachableCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it("consolidated banner explains both endpoints failed and mentions the retry cadence", () => {
+    expect(pageSrc).toContain("Both the portfolio snapshot and the health endpoint");
+    expect(pageSrc).toContain("retry every");
+  });
+
+  it("banner-portfolio-alert is suppressed in the dual-error case (!bothFailed guard)", () => {
+    // The alert banner must be preceded by !bothFailed in its condition
+    expect(pageSrc).toMatch(/!bothFailed\s*&&\s*isAlert/);
+  });
+
+  it("banner-snapshot-error is suppressed in the dual-error case (!bothFailed guard)", () => {
+    // The snapshot error banner must carry !bothFailed in its condition
+    expect(pageSrc).toMatch(/!bothFailed\s*&&\s*error\s*&&\s*!snap/);
+  });
+
+  it("banner-snapshot-error has a data-testid so tests can assert its absence", () => {
+    expect(pageSrc).toContain('data-testid="banner-snapshot-error"');
+  });
+
+  // ── Pure-logic simulation ─────────────────────────────────────────────────
+
+  function deriveBothFailed(snapshotIsError: boolean, healthIsError: boolean): boolean {
+    return snapshotIsError && healthIsError;
+  }
+
+  function shouldShowConsolidated(snapshotIsError: boolean, healthIsError: boolean): boolean {
+    return deriveBothFailed(snapshotIsError, healthIsError);
+  }
+
+  function shouldShowAlertBanner(
+    snapshotIsError: boolean,
+    healthIsError: boolean,
+    overallStatus: string,
+  ): boolean {
+    const bothFailed = deriveBothFailed(snapshotIsError, healthIsError);
+    const isAlert =
+      overallStatus === "DEGRADED" ||
+      overallStatus === "HALTED" ||
+      overallStatus === "DOWN" ||
+      overallStatus === "UNREACHABLE";
+    return !bothFailed && isAlert;
+  }
+
+  function shouldShowSnapshotErrorBanner(
+    snapshotIsError: boolean,
+    healthIsError: boolean,
+    snap: unknown,
+    error: unknown,
+  ): boolean {
+    const bothFailed = deriveBothFailed(snapshotIsError, healthIsError);
+    return !bothFailed && !!error && !snap;
+  }
+
+  it("simulation: consolidated banner shown when both queries fail", () => {
+    expect(shouldShowConsolidated(true, true)).toBe(true);
+  });
+
+  it("simulation: consolidated banner NOT shown when only snapshot fails", () => {
+    expect(shouldShowConsolidated(true, false)).toBe(false);
+  });
+
+  it("simulation: consolidated banner NOT shown when only health fails", () => {
+    expect(shouldShowConsolidated(false, true)).toBe(false);
+  });
+
+  it("simulation: consolidated banner NOT shown when both succeed", () => {
+    expect(shouldShowConsolidated(false, false)).toBe(false);
+  });
+
+  it("simulation: alert banner suppressed when both fail (UNREACHABLE would normally trigger it)", () => {
+    // With bothFailed=true, even though overallStatus would be UNREACHABLE, the
+    // alert banner must be hidden in favour of the consolidated banner.
+    expect(shouldShowAlertBanner(true, true, "UNREACHABLE")).toBe(false);
+  });
+
+  it("simulation: alert banner shows when only health fails (single-error path unaffected)", () => {
+    // Only healthQuery fails → bothFailed=false → alert banner visible as before
+    expect(shouldShowAlertBanner(false, true, "UNREACHABLE")).toBe(true);
+  });
+
+  it("simulation: snapshot error banner suppressed when both fail", () => {
+    const error = new Error("fetch failed");
+    expect(shouldShowSnapshotErrorBanner(true, true, undefined, error)).toBe(false);
+  });
+
+  it("simulation: snapshot error banner shows when only snapshot fails", () => {
+    const error = new Error("fetch failed");
+    expect(shouldShowSnapshotErrorBanner(true, false, undefined, error)).toBe(true);
+  });
+
+  it("simulation: snapshot error banner not shown when snap data is present (stale data case)", () => {
+    const error = new Error("transient");
+    const snap = { status: "HEALTHY" };
+    // Even if snapshot query errored, if stale data is present the banner is suppressed
+    expect(shouldShowSnapshotErrorBanner(true, false, snap, error)).toBe(false);
+  });
+
+  it("simulation: all three banners are mutually exclusive in dual-error state", () => {
+    const consolidated = shouldShowConsolidated(true, true);
+    const alert = shouldShowAlertBanner(true, true, "UNREACHABLE");
+    const snapshotErr = shouldShowSnapshotErrorBanner(true, true, undefined, new Error("x"));
+    // Exactly one banner shown: the consolidated one
+    expect(consolidated).toBe(true);
+    expect(alert).toBe(false);
+    expect(snapshotErr).toBe(false);
+  });
+});
