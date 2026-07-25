@@ -238,3 +238,163 @@ describe("GET /api/portfolio/config — route integration", () => {
     expect(status).toBe(500);
   });
 });
+
+// ── PATCH /api/portfolio/config — consistency checks ─────────────────────────
+
+/** Make an HTTP PATCH request to the test server. Returns parsed JSON + status. */
+async function patchJson(
+  server: Server,
+  path: string,
+  body: Record<string, unknown>,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const addr = server.address();
+  if (!addr || typeof addr === "string") throw new Error("Server not bound");
+  const port = addr.port;
+
+  const res = await fetch(`http://127.0.0.1:${port}${path}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  let body2: Record<string, unknown>;
+  try {
+    body2 = (await res.json()) as Record<string, unknown>;
+  } catch {
+    body2 = {};
+  }
+  return { status: res.status, body: body2 };
+}
+
+describe("PATCH /api/portfolio/config — instrument/sector vs portfolio limit cross-checks", () => {
+  let server: Server;
+  let spawnMock: ReturnType<typeof vi.fn>;
+
+  beforeAll(async () => {
+    const { default: app } = await import("../app.js");
+    const { spawn } = await import("node:child_process");
+    spawnMock = spawn as ReturnType<typeof vi.fn>;
+
+    await new Promise<void>((resolve) => {
+      server = app.listen(0, "127.0.0.1", () => resolve());
+    });
+  });
+
+  afterAll(() => {
+    server?.close();
+  });
+
+  afterEach(() => {
+    spawnMock.mockReset();
+    // Also clear any session overrides that accumulated during the test
+    // by hitting the DELETE endpoint directly.
+  });
+
+  it("accepts instrument limit equal to portfolio limit", async () => {
+    // base config: max_portfolio_exposure_pct = 0.9
+    spawnMock.mockImplementation(makeSpawnMock(VALID_PYTHON_RESPONSE, 0));
+
+    const { status } = await patchJson(server, "/api/portfolio/config", {
+      max_instrument_exposure_pct: 0.9, // equals portfolio limit → valid
+    });
+
+    // 200 ok OR could be 200 after a DELETE reset; the important thing is NOT 422
+    expect(status).not.toBe(422);
+  });
+
+  it("rejects instrument limit above portfolio limit with HTTP 422", async () => {
+    spawnMock.mockImplementation(makeSpawnMock(VALID_PYTHON_RESPONSE, 0));
+
+    const { status, body } = await patchJson(server, "/api/portfolio/config", {
+      max_instrument_exposure_pct: 0.95, // 95% > 90% portfolio limit
+    });
+
+    expect(status).toBe(422);
+    expect(typeof body["error"]).toBe("string");
+    expect((body["error"] as string).toLowerCase()).toContain("instrument");
+    expect((body["error"] as string).toLowerCase()).toContain("portfolio");
+  });
+
+  it("field_errors contains max_instrument_exposure_pct when instrument limit exceeds portfolio limit", async () => {
+    spawnMock.mockImplementation(makeSpawnMock(VALID_PYTHON_RESPONSE, 0));
+
+    const { body } = await patchJson(server, "/api/portfolio/config", {
+      max_instrument_exposure_pct: 0.95,
+    });
+
+    const fieldErrors = body["field_errors"] as Record<string, string> | undefined;
+    expect(fieldErrors).toBeTruthy();
+    expect(typeof fieldErrors!["max_instrument_exposure_pct"]).toBe("string");
+  });
+
+  it("rejects sector limit above portfolio limit with HTTP 422", async () => {
+    spawnMock.mockImplementation(makeSpawnMock(VALID_PYTHON_RESPONSE, 0));
+
+    const { status, body } = await patchJson(server, "/api/portfolio/config", {
+      max_sector_exposure_pct: 0.95, // 95% > 90% portfolio limit
+    });
+
+    expect(status).toBe(422);
+    expect(typeof body["error"]).toBe("string");
+    expect((body["error"] as string).toLowerCase()).toContain("sector");
+    expect((body["error"] as string).toLowerCase()).toContain("portfolio");
+  });
+
+  it("field_errors contains max_sector_exposure_pct when sector limit exceeds portfolio limit", async () => {
+    spawnMock.mockImplementation(makeSpawnMock(VALID_PYTHON_RESPONSE, 0));
+
+    const { body } = await patchJson(server, "/api/portfolio/config", {
+      max_sector_exposure_pct: 0.95,
+    });
+
+    const fieldErrors = body["field_errors"] as Record<string, string> | undefined;
+    expect(fieldErrors).toBeTruthy();
+    expect(typeof fieldErrors!["max_sector_exposure_pct"]).toBe("string");
+  });
+
+  it("accepts sector limit below portfolio limit", async () => {
+    spawnMock.mockImplementation(makeSpawnMock(VALID_PYTHON_RESPONSE, 0));
+
+    const { status } = await patchJson(server, "/api/portfolio/config", {
+      max_sector_exposure_pct: 0.35, // 35% < 90% portfolio limit → valid
+    });
+
+    expect(status).not.toBe(422);
+  });
+
+  it("rejects a patch that simultaneously sets both limits above the current portfolio limit", async () => {
+    spawnMock.mockImplementation(makeSpawnMock(VALID_PYTHON_RESPONSE, 0));
+
+    const { status } = await patchJson(server, "/api/portfolio/config", {
+      max_instrument_exposure_pct: 0.95,
+      max_sector_exposure_pct: 0.95,
+    });
+
+    expect(status).toBe(422);
+  });
+
+  it("rejects instrument limit above the NEW portfolio limit when both are patched together", async () => {
+    // Patch portfolio limit down to 0.5 and instrument limit to 0.6 in the same call.
+    // The instrument check must use the incoming 0.5, not the base 0.9.
+    spawnMock.mockImplementation(makeSpawnMock(VALID_PYTHON_RESPONSE, 0));
+
+    const { status, body } = await patchJson(server, "/api/portfolio/config", {
+      max_portfolio_exposure_pct: 0.5,
+      max_instrument_exposure_pct: 0.6,
+    });
+
+    expect(status).toBe(422);
+    expect((body["error"] as string).toLowerCase()).toContain("instrument");
+  });
+
+  it("accepts instrument limit below the NEW portfolio limit when both are patched together", async () => {
+    // Patch portfolio limit to 0.8 and instrument limit to 0.3 in the same call.
+    spawnMock.mockImplementation(makeSpawnMock(VALID_PYTHON_RESPONSE, 0));
+
+    const { status } = await patchJson(server, "/api/portfolio/config", {
+      max_portfolio_exposure_pct: 0.8,
+      max_instrument_exposure_pct: 0.3,
+    });
+
+    expect(status).not.toBe(422);
+  });
+});

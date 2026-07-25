@@ -83,7 +83,7 @@ function validateField(field: MutableField, raw: unknown): string | null {
 function validateConsistency(
   base: Record<string, unknown>,
   patch: Partial<Record<MutableField, number>>,
-): string | null {
+): { error: string; field?: MutableField } | null {
   const get = (field: MutableField): number | undefined => {
     if (field in patch) return patch[field];
     return base[field] as number | undefined;
@@ -92,7 +92,7 @@ function validateConsistency(
   const minOv = get("min_order_value");
   const maxOv = get("max_order_value");
   if (minOv !== undefined && maxOv !== undefined && minOv >= maxOv)
-    return `min_order_value (${minOv}) must be less than max_order_value (${maxOv})`;
+    return { error: `min_order_value (${minOv}) must be less than max_order_value (${maxOv})` };
 
   const cashReserve = get("cash_reserve_pct");
   const portfolioExp = get("max_portfolio_exposure_pct");
@@ -101,7 +101,37 @@ function validateConsistency(
     portfolioExp !== undefined &&
     cashReserve + portfolioExp > 1
   )
-    return `cash_reserve_pct + max_portfolio_exposure_pct must not exceed 1.0`;
+    return { error: `cash_reserve_pct + max_portfolio_exposure_pct must not exceed 1.0` };
+
+  const portfolioExpPct = portfolioExp !== undefined
+    ? portfolioExp
+    : (base["max_portfolio_exposure_pct"] as number | undefined);
+
+  const instrumentExp = get("max_instrument_exposure_pct");
+  if (
+    instrumentExp !== undefined &&
+    portfolioExpPct !== undefined &&
+    instrumentExp > portfolioExpPct
+  ) {
+    const limitStr = `${(portfolioExpPct * 100).toFixed(1)}%`;
+    return {
+      error: `Instrument limit (${(instrumentExp * 100).toFixed(1)}%) cannot exceed portfolio limit of ${limitStr}`,
+      field: "max_instrument_exposure_pct",
+    };
+  }
+
+  const sectorExp = get("max_sector_exposure_pct");
+  if (
+    sectorExp !== undefined &&
+    portfolioExpPct !== undefined &&
+    sectorExp > portfolioExpPct
+  ) {
+    const limitStr = `${(portfolioExpPct * 100).toFixed(1)}%`;
+    return {
+      error: `Sector limit (${(sectorExp * 100).toFixed(1)}%) cannot exceed portfolio limit of ${limitStr}`,
+      field: "max_sector_exposure_pct",
+    };
+  }
 
   return null;
 }
@@ -280,11 +310,13 @@ router.patch(
 
     // Build the proposed merged state
     const proposedMerge = { ...sessionOverrides, ...validated };
-    const consistencyError = validateConsistency(baseConfig, proposedMerge);
-    if (consistencyError) {
+    const consistencyResult = validateConsistency(baseConfig, proposedMerge);
+    if (consistencyResult) {
       res.status(422).json({
-        error: consistencyError,
-        field_errors: {},
+        error: consistencyResult.error,
+        field_errors: consistencyResult.field
+          ? { [consistencyResult.field]: consistencyResult.error }
+          : {},
       });
       return;
     }
