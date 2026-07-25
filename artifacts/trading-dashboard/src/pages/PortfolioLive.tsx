@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiJson } from "@/lib/api";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   TrendingUp,
@@ -393,6 +394,7 @@ export default function PortfolioLive() {
 
   return (
     <div className="p-6 space-y-6 overflow-y-auto h-full" data-testid="page-portfolio-live">
+      <DataFreshnessBar variant="scan" />
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>

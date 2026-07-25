@@ -8,6 +8,7 @@ import {
   History, TrendingUp, TrendingDown, Activity, ChevronDown, ChevronUp,
   ArrowRight, Minus,
 } from "lucide-react";
+import DataFreshnessBar from "@/components/DataFreshnessBar";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -285,6 +286,7 @@ export default function SignalHistory() {
 
   return (
     <div className="space-y-4">
+      <DataFreshnessBar variant="scan" />
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-xl font-bold flex items-center gap-2">
           <History className="h-5 w-5 text-primary" />
