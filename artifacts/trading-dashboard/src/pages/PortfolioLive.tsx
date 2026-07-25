@@ -628,6 +628,8 @@ export default function PortfolioLive() {
   const sectorLimitPct = snap?.sector_limit_pct ?? 35.0;
   const sectorExposures = snap?.sector_exposures ?? [];
   const exposureWarnings = snap?.exposure_warnings ?? [];
+  /** true when at least one warning has severity === "CRITICAL" */
+  const hasCriticalWarning = exposureWarnings.some((w) => w.severity === "CRITICAL");
   /** true = limits came from PortfolioConfig; false = hardcoded defaults were used */
   const limitsFromConfig = snap?.limits_from_config ?? true;
 
@@ -790,7 +792,11 @@ export default function PortfolioLive() {
             <span className="flex items-center gap-2">
               {exposureWarnings.length > 0 && (
                 <span
-                  className="inline-flex items-center gap-1 rounded border border-yellow-500/40 bg-yellow-500/10 px-2 py-0.5 text-xs font-mono text-yellow-400"
+                  className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs font-mono ${
+                    hasCriticalWarning
+                      ? "border-red-500/40 bg-red-500/10 text-red-400"
+                      : "border-yellow-500/40 bg-yellow-500/10 text-yellow-400"
+                  }`}
                   data-testid="badge-exposure-warnings-count"
                 >
                   <ShieldAlert className="h-3 w-3" />

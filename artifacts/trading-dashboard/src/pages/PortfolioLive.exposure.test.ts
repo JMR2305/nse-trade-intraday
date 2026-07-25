@@ -418,6 +418,108 @@ describe("PortfolioLive.tsx — badge-exposure-warnings-count source contract", 
   });
 });
 
+// ── 6. Badge colour escalates with severity ───────────────────────────────────
+//
+// The header badge must reflect the worst severity in the warnings list:
+//   • All WARNING  → yellow (border-yellow-500/40 bg-yellow-500/10 text-yellow-400)
+//   • Any CRITICAL → red   (border-red-500/40    bg-red-500/10    text-red-400)
+//
+// These tests exercise the pure-logic `hasCriticalWarning` predicate that
+// drives the conditional class, then confirm the source wires it correctly.
+
+/** Mirrors the hasCriticalWarning predicate used in PortfolioLive.tsx */
+function hasCriticalWarning(warnings: ExposureWarning[]): boolean {
+  return warnings.some((w) => w.severity === "CRITICAL");
+}
+
+/** Mirrors the badge className selection logic */
+function badgeCssClass(warnings: ExposureWarning[]): string {
+  return hasCriticalWarning(warnings)
+    ? "border-red-500/40 bg-red-500/10 text-red-400"
+    : "border-yellow-500/40 bg-yellow-500/10 text-yellow-400";
+}
+
+describe("badge colour — WARNING-only list stays yellow", () => {
+  it("returns yellow classes when the single warning is WARNING severity", () => {
+    const warnings = [makeInstrumentWarning(0.85)]; // ratio 0.85 → WARNING
+    expect(warnings[0].severity).toBe("WARNING");
+    expect(hasCriticalWarning(warnings)).toBe(false);
+    expect(badgeCssClass(warnings)).toContain("yellow");
+    expect(badgeCssClass(warnings)).not.toContain("red-500/40");
+  });
+
+  it("returns yellow classes for multiple WARNING-only warnings", () => {
+    const warnings = [makeInstrumentWarning(0.82), makeSectorWarning(0.90)];
+    expect(warnings.every((w) => w.severity === "WARNING")).toBe(true);
+    expect(hasCriticalWarning(warnings)).toBe(false);
+    expect(badgeCssClass(warnings)).toContain("yellow");
+    expect(badgeCssClass(warnings)).not.toContain("red-500/40");
+  });
+});
+
+describe("badge colour — CRITICAL warning escalates badge to red", () => {
+  it("returns red classes when the single warning is CRITICAL severity", () => {
+    const warnings = [makeInstrumentWarning(1.0)]; // ratio 1.0 → CRITICAL
+    expect(warnings[0].severity).toBe("CRITICAL");
+    expect(hasCriticalWarning(warnings)).toBe(true);
+    expect(badgeCssClass(warnings)).toContain("red-500/40");
+    expect(badgeCssClass(warnings)).not.toContain("yellow");
+  });
+
+  it("returns red classes when exposure significantly exceeds the limit", () => {
+    const warnings = [makeInstrumentWarning(1.3)]; // 130 % of limit → CRITICAL
+    expect(warnings[0].severity).toBe("CRITICAL");
+    expect(hasCriticalWarning(warnings)).toBe(true);
+    expect(badgeCssClass(warnings)).toContain("red-500/40");
+  });
+
+  it("returns red classes when a CRITICAL warning is mixed with WARNING warnings", () => {
+    const warnings: ExposureWarning[] = [
+      makeInstrumentWarning(0.85), // WARNING
+      makeSectorWarning(0.92),     // WARNING
+      makeInstrumentWarning(1.05), // CRITICAL
+    ];
+    expect(hasCriticalWarning(warnings)).toBe(true);
+    expect(badgeCssClass(warnings)).toContain("red-500/40");
+    expect(badgeCssClass(warnings)).not.toContain("yellow");
+  });
+
+  it("returns red even when CRITICAL is the last item in the list", () => {
+    // hasCriticalWarning must scan the full list, not just check index 0
+    const warnings: ExposureWarning[] = [
+      makeInstrumentWarning(0.85), // WARNING — first item
+      makeInstrumentWarning(1.02), // CRITICAL — last item
+    ];
+    expect(hasCriticalWarning(warnings)).toBe(true);
+    expect(badgeCssClass(warnings)).toContain("red-500/40");
+  });
+});
+
+describe("PortfolioLive.tsx — badge colour source contract", () => {
+  it("computes hasCriticalWarning from exposureWarnings at the page level", () => {
+    // Must reference exposureWarnings.some(…) to derive the severity flag
+    expect(pageSrc).toMatch(/hasCriticalWarning\s*=\s*exposureWarnings\.some/);
+  });
+
+  it("badge className is conditional on hasCriticalWarning (not hardcoded yellow)", () => {
+    // The ternary must key off hasCriticalWarning to pick the CSS class
+    expect(pageSrc).toMatch(/hasCriticalWarning\s*\?/);
+  });
+
+  it("badge applies red CSS classes for the CRITICAL branch", () => {
+    expect(pageSrc).toContain("border-red-500/40 bg-red-500/10 text-red-400");
+  });
+
+  it("badge applies yellow CSS classes for the WARNING-only branch", () => {
+    expect(pageSrc).toContain("border-yellow-500/40 bg-yellow-500/10 text-yellow-400");
+  });
+
+  it("severity check uses === 'CRITICAL' (exact string match)", () => {
+    // Prevents accidental truthy checks or misspellings
+    expect(pageSrc).toMatch(/w\.severity\s*===\s*"CRITICAL"/);
+  });
+});
+
 // ── 5. Transition: N warnings → 0 (all positions close mid-session) ──────────
 //
 // These tests simulate the render cycle that occurs when every open position
