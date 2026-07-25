@@ -62,7 +62,6 @@ from src.portfolio.exceptions import (
     CorruptSnapshotError,
     DuplicateEventError,
     NegativeQuantityError,
-    PortfolioHaltedError,
     PortfolioNotReadyError,
     StalePortfolioStateError,
 )
@@ -76,7 +75,6 @@ from src.portfolio.position_sizer import PositionSizer, calculate_size as _calc_
 from src.portfolio.reconciliation import (
     PortfolioReconciliationEngine,
     BrokerSnapshot,
-    detect_stale_state,
 )
 from src.portfolio.repositories.portfolio_event import PortfolioEventRepository
 from src.portfolio.repositories.portfolio_snapshot import PortfolioSnapshotRepository
@@ -342,7 +340,7 @@ class PortfolioService:
             )
         except (StalePortfolioStateError, PortfolioNotReadyError):
             raise
-        except NegativeQuantityError as exc:
+        except NegativeQuantityError:
             # Determine whether rejection is due to insufficient buying power or
             # below min_order_value.  If buying_power < requested → INSUFFICIENT;
             # otherwise genuinely below min threshold.
@@ -813,8 +811,16 @@ class PortfolioService:
         )
         try:
             await self._persist_event(recon_event)
+        except DuplicateEventError:
+            pass  # idempotent re-run
         except Exception as exc:
-            logger.debug("Reconciliation event persist failed", extra={"error": str(exc)})
+            # Unexpected persistence failure — log at WARNING so it surfaces
+            # in monitoring; do NOT re-raise because reconciliation state is
+            # already updated and cannot be rolled back from here.
+            logger.warning(
+                "Reconciliation event persist failed unexpectedly",
+                extra={"error": str(exc), "run_id": str(report.run_id)},
+            )
 
         logger.info(
             "Reconciliation complete",
@@ -1051,8 +1057,15 @@ class PortfolioService:
         )
         try:
             await self._persist_event(snap_event)
+        except DuplicateEventError:
+            pass  # idempotent re-run
         except Exception as exc:
-            logger.debug("Snapshot event persist failed", extra={"error": str(exc)})
+            # Unexpected persistence failure — log at WARNING; snapshot state
+            # is already in memory and the failure must not be silenced.
+            logger.warning(
+                "Snapshot event persist failed unexpectedly",
+                extra={"error": str(exc), "snapshot_id": str(snapshot.snapshot_id)},
+            )
 
         logger.debug(
             "Snapshot created",

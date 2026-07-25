@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from .config import DEFAULT_CONFIG, PortfolioConfig
@@ -206,31 +206,46 @@ class PortfolioReconciliationEngine:
                     },
                 )
 
-            # Average price check
+            # Average price check — narrow exception; malformed value must create
+            # a discrepancy rather than silently defaulting to Decimal("0").
             try:
                 broker_avg_price = Decimal(str(broker_pos.get("average_price", "0")))
-            except Exception:
-                broker_avg_price = Decimal("0")
-
-            price_diff = abs(local_pos.average_entry_price - broker_avg_price)
-            if price_diff > self.PRICE_TOLERANCE:
+            except (ValueError, InvalidOperation, TypeError):
+                logger.warning(
+                    "Malformed broker average_price for %s: %r — recording discrepancy",
+                    local_pos.instrument_symbol,
+                    broker_pos.get("average_price"),
+                )
                 discrepancies.append(
                     PortfolioDiscrepancy(
                         discrepancy_type=PortfolioDiscrepancyType.AVG_PRICE_MISMATCH,
                         instrument_token=token,
                         instrument_symbol=local_pos.instrument_symbol,
                         local_value=str(local_pos.average_entry_price),
-                        broker_value=str(broker_avg_price),
+                        broker_value="PARSE_ERROR",
                         severity=LimitSeverity.WARNING,
                     )
                 )
-                logger.warning(
-                    "AVG_PRICE_MISMATCH detected",
-                    extra={
-                        "instrument_token": token,
-                        "diff": str(price_diff),
-                    },
-                )
+            else:
+                price_diff = abs(local_pos.average_entry_price - broker_avg_price)
+                if price_diff > self.PRICE_TOLERANCE:
+                    discrepancies.append(
+                        PortfolioDiscrepancy(
+                            discrepancy_type=PortfolioDiscrepancyType.AVG_PRICE_MISMATCH,
+                            instrument_token=token,
+                            instrument_symbol=local_pos.instrument_symbol,
+                            local_value=str(local_pos.average_entry_price),
+                            broker_value=str(broker_avg_price),
+                            severity=LimitSeverity.WARNING,
+                        )
+                    )
+                    logger.warning(
+                        "AVG_PRICE_MISMATCH detected",
+                        extra={
+                            "instrument_token": token,
+                            "diff": str(price_diff),
+                        },
+                    )
 
         # Broker positions not in local state (non-zero quantity only)
         for token, broker_pos in broker_by_token.items():
@@ -255,54 +270,80 @@ class PortfolioReconciliationEngine:
 
         # ── 3. Compare cash ──────────────────────────────────────────────
         funds: dict[str, Any] = broker_snapshot.get("funds", {})
+        local_cash = local_snapshot.cash.available
+
+        # Narrow exception: malformed cash must create a discrepancy, not default to 0.
         try:
             broker_cash = Decimal(str(funds.get("available_cash", "0")))
-        except Exception:
-            broker_cash = Decimal("0")
-
-        local_cash = local_snapshot.cash.available
-        cash_diff = abs(local_cash - broker_cash)
-        if cash_diff > self.CASH_TOLERANCE:
+        except (ValueError, InvalidOperation, TypeError):
+            logger.warning(
+                "Malformed broker available_cash: %r — recording CASH_MISMATCH discrepancy",
+                funds.get("available_cash"),
+            )
             discrepancies.append(
                 PortfolioDiscrepancy(
                     discrepancy_type=PortfolioDiscrepancyType.CASH_MISMATCH,
                     local_value=str(local_cash),
-                    broker_value=str(broker_cash),
+                    broker_value="PARSE_ERROR",
                     severity=LimitSeverity.WARNING,
                 )
             )
-            logger.warning(
-                "CASH_MISMATCH detected",
-                extra={
-                    "local_cash": str(local_cash),
-                    "diff": str(cash_diff),
-                },
-            )
+        else:
+            cash_diff = abs(local_cash - broker_cash)
+            if cash_diff > self.CASH_TOLERANCE:
+                discrepancies.append(
+                    PortfolioDiscrepancy(
+                        discrepancy_type=PortfolioDiscrepancyType.CASH_MISMATCH,
+                        local_value=str(local_cash),
+                        broker_value=str(broker_cash),
+                        severity=LimitSeverity.WARNING,
+                    )
+                )
+                logger.warning(
+                    "CASH_MISMATCH detected",
+                    extra={
+                        "local_cash": str(local_cash),
+                        "diff": str(cash_diff),
+                    },
+                )
 
         # ── 4. Compare margin ────────────────────────────────────────────
+        local_used_margin = local_snapshot.margin.used
+
+        # Narrow exception: malformed margin must create a discrepancy, not default to 0.
         try:
             broker_used_margin = Decimal(str(funds.get("used_margin", "0")))
-        except Exception:
-            broker_used_margin = Decimal("0")
-
-        local_used_margin = local_snapshot.margin.used
-        margin_diff = abs(local_used_margin - broker_used_margin)
-        if margin_diff > self.MARGIN_TOLERANCE:
+        except (ValueError, InvalidOperation, TypeError):
+            logger.warning(
+                "Malformed broker used_margin: %r — recording MARGIN_MISMATCH discrepancy",
+                funds.get("used_margin"),
+            )
             discrepancies.append(
                 PortfolioDiscrepancy(
                     discrepancy_type=PortfolioDiscrepancyType.MARGIN_MISMATCH,
                     local_value=str(local_used_margin),
-                    broker_value=str(broker_used_margin),
+                    broker_value="PARSE_ERROR",
                     severity=LimitSeverity.WARNING,
                 )
             )
-            logger.warning(
-                "MARGIN_MISMATCH detected",
-                extra={
-                    "local_margin": str(local_used_margin),
-                    "diff": str(margin_diff),
-                },
-            )
+        else:
+            margin_diff = abs(local_used_margin - broker_used_margin)
+            if margin_diff > self.MARGIN_TOLERANCE:
+                discrepancies.append(
+                    PortfolioDiscrepancy(
+                        discrepancy_type=PortfolioDiscrepancyType.MARGIN_MISMATCH,
+                        local_value=str(local_used_margin),
+                        broker_value=str(broker_used_margin),
+                        severity=LimitSeverity.WARNING,
+                    )
+                )
+                logger.warning(
+                    "MARGIN_MISMATCH detected",
+                    extra={
+                        "local_margin": str(local_used_margin),
+                        "diff": str(margin_diff),
+                    },
+                )
 
         # ── 5. Tally discrepancies ───────────────────────────────────────
         critical_count = sum(

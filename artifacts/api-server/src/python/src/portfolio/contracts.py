@@ -239,7 +239,7 @@ class PortfolioLot(BaseModel):
     lot_id: UUID         = Field(default_factory=uuid4)
     fill_id: str         = Field(..., description="Source fill idempotency key")
     quantity: int        = Field(..., gt=0)
-    entry_price: Decimal = Field(..., gt=Decimal("0"))
+    entry_price: Decimal = Field(..., gt=0)
     filled_at: datetime
     fees: Decimal        = Field(default=Decimal("0"))
     strategy_id: str | None = None
@@ -522,7 +522,7 @@ class PositionSizeRequest(BaseModel):
     instrument_token: int      = Field(..., gt=0)
     instrument_symbol: str
     side: PositionSide
-    entry_price: Decimal       = Field(..., gt=Decimal("0"))
+    entry_price: Decimal       = Field(..., gt=0)
     stop_price: Decimal | None = None
     strategy_id: str | None    = None
     sector: str | None         = None

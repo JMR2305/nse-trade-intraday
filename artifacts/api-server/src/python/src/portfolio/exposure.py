@@ -122,16 +122,16 @@ def calculate_exposure(
     for reservation in pending_reservations.values():
         est_value = Decimal(str(reservation.get("estimated_value", "0")))
         pending_order_exposure += est_value
-        token = reservation.get("instrument_token")
-        if token is not None:
-            token = int(token)
-            if token not in instrument_map:
-                instrument_map[token] = {
-                    "symbol": reservation.get("instrument_symbol", str(token)),
+        res_token = reservation.get("instrument_token")
+        if res_token is not None:
+            res_token = int(res_token)
+            if res_token not in instrument_map:
+                instrument_map[res_token] = {
+                    "symbol": reservation.get("instrument_symbol", str(res_token)),
                     "absolute_value": Decimal("0"),
                     "pending_value": Decimal("0"),
                 }
-            instrument_map[token]["pending_value"] += est_value
+            instrument_map[res_token]["pending_value"] += est_value
 
     # Build sub-models.
     equity_safe = portfolio_equity if portfolio_equity > Decimal("0") else Decimal("1")
