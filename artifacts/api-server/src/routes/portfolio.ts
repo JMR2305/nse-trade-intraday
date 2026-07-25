@@ -84,4 +84,21 @@ router.get(
   }),
 );
 
+/**
+ * GET /api/portfolio/config
+ *
+ * Returns the active PortfolioConfig values as a JSON snapshot.
+ * These are operator-set limits (max positions, daily loss cap, order size
+ * range, exposure limits, etc.) — no secrets or credentials are included.
+ * When PortfolioConfig cannot be loaded, `loaded` is false and `config`
+ * will be empty; the caller should display a "(default)" indicator.
+ */
+router.get(
+  "/portfolio/config",
+  wrap(async (_req, res) => {
+    const data = await runPython(["portfolio_config"]);
+    res.json(data);
+  }),
+);
+
 export default router;

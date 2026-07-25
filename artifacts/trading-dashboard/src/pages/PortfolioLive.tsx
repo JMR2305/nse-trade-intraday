@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiJson } from "@/lib/api";
 import DataFreshnessBar from "@/components/DataFreshnessBar";
@@ -15,6 +15,9 @@ import {
   DollarSign,
   PieChart,
   ShieldAlert,
+  Settings,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -96,6 +99,51 @@ interface PortfolioHealth {
   degraded_reasons?: string[];
   state_freshness_s?: number | null;
   checked_at: string;
+}
+
+interface PortfolioConfigValues {
+  // Identity
+  portfolio_id: string;
+  enabled: boolean;
+  base_currency: string;
+  paper_mode: boolean;
+  // Capital
+  initial_capital: number;
+  cash_reserve_pct: number;
+  // Exposure limits (fractions 0–1)
+  max_portfolio_exposure_pct: number;
+  max_instrument_exposure_pct: number;
+  max_sector_exposure_pct: number;
+  max_strategy_exposure_pct: number;
+  // Position / order counts
+  max_open_positions: number;
+  max_pending_orders: number;
+  // Loss / drawdown caps
+  max_daily_loss_pct: number;
+  max_drawdown_pct: number;
+  max_capital_per_strategy_pct: number;
+  // Position sizing
+  min_order_value: number;
+  max_order_value: number;
+  default_risk_per_trade_pct: number;
+  use_ai_confidence_sizing: boolean;
+  ai_confidence_min: number;
+  // Staleness thresholds (seconds)
+  stale_state_threshold_s: number;
+  stale_broker_threshold_s: number;
+  stale_price_threshold_s: number;
+  // Intervals (seconds)
+  reconciliation_interval_s: number;
+  snapshot_interval_s: number;
+  allocation_ttl_s: number;
+}
+
+interface PortfolioConfigResponse {
+  loaded: boolean;
+  limits_from_config: boolean;
+  config: Partial<PortfolioConfigValues>;
+  error?: string | null;
+  fetched_at: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -359,6 +407,182 @@ function SectorExposureSection({
   );
 }
 
+// ── Active Configuration Section ──────────────────────────────────────────────
+
+/** True only when the API has responded and PortfolioConfig failed to load. */
+function isDefaultsOnly(configResponse: PortfolioConfigResponse | undefined): boolean {
+  return configResponse !== undefined && !configResponse.loaded;
+}
+
+function ActiveConfigSection({
+  configResponse,
+  isLoading,
+}: {
+  configResponse: PortfolioConfigResponse | undefined;
+  /** True while the config query has not yet returned its first result. */
+  isLoading: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const cfg = configResponse?.config ?? {};
+  // Only show the "defaults" warning once we know the API responded with loaded=false.
+  // While still loading (configResponse undefined), show nothing alarming.
+  const usingDefaults = isDefaultsOnly(configResponse);
+
+  const pctFmt = (v: number | undefined) =>
+    v !== undefined ? `${(v * 100).toFixed(1)}%` : "—";
+  const moneyFmt = (v: number | undefined) =>
+    v !== undefined
+      ? `₹${Number(v).toLocaleString("en-IN", { minimumFractionDigits: 0 })}`
+      : "—";
+  const numFmt = (v: number | undefined) =>
+    v !== undefined ? String(v) : "—";
+  const secFmt = (v: number | undefined) =>
+    v !== undefined ? `${v}s` : "—";
+  const boolFmt = (v: boolean | undefined) =>
+    v === undefined ? "—" : v ? "YES" : "NO";
+
+  type ConfigRow = { label: string; value: string; group: string };
+  const rows: ConfigRow[] = [
+    // Positions & Orders
+    { group: "Positions & Orders", label: "Max Open Positions",    value: numFmt(cfg.max_open_positions) },
+    { group: "Positions & Orders", label: "Max Pending Orders",    value: numFmt(cfg.max_pending_orders) },
+    // Loss & Drawdown
+    { group: "Loss & Drawdown",    label: "Daily Loss Cap",        value: pctFmt(cfg.max_daily_loss_pct) },
+    { group: "Loss & Drawdown",    label: "Drawdown Halt",         value: pctFmt(cfg.max_drawdown_pct) },
+    { group: "Loss & Drawdown",    label: "Max Capital / Strategy",value: pctFmt(cfg.max_capital_per_strategy_pct) },
+    // Order Sizing
+    { group: "Order Sizing",       label: "Min Order Size",        value: moneyFmt(cfg.min_order_value) },
+    { group: "Order Sizing",       label: "Max Order Size",        value: moneyFmt(cfg.max_order_value) },
+    { group: "Order Sizing",       label: "Risk per Trade",        value: pctFmt(cfg.default_risk_per_trade_pct) },
+    { group: "Order Sizing",       label: "AI Confidence Sizing",  value: boolFmt(cfg.use_ai_confidence_sizing) },
+    { group: "Order Sizing",       label: "AI Confidence Min",     value: pctFmt(cfg.ai_confidence_min) },
+    // Exposure Limits
+    { group: "Exposure Limits",    label: "Instrument Limit",      value: pctFmt(cfg.max_instrument_exposure_pct) },
+    { group: "Exposure Limits",    label: "Sector Limit",          value: pctFmt(cfg.max_sector_exposure_pct) },
+    { group: "Exposure Limits",    label: "Strategy Limit",        value: pctFmt(cfg.max_strategy_exposure_pct) },
+    { group: "Exposure Limits",    label: "Portfolio Limit",       value: pctFmt(cfg.max_portfolio_exposure_pct) },
+    { group: "Exposure Limits",    label: "Cash Reserve",          value: pctFmt(cfg.cash_reserve_pct) },
+    // Capital
+    { group: "Capital",            label: "Initial Capital",       value: moneyFmt(cfg.initial_capital) },
+    // Staleness & Intervals
+    { group: "Staleness & Intervals", label: "Stale State",        value: secFmt(cfg.stale_state_threshold_s) },
+    { group: "Staleness & Intervals", label: "Stale Broker",       value: secFmt(cfg.stale_broker_threshold_s) },
+    { group: "Staleness & Intervals", label: "Stale Price",        value: secFmt(cfg.stale_price_threshold_s) },
+    { group: "Staleness & Intervals", label: "Reconciliation",     value: secFmt(cfg.reconciliation_interval_s) },
+    { group: "Staleness & Intervals", label: "Snapshot Interval",  value: secFmt(cfg.snapshot_interval_s) },
+    { group: "Staleness & Intervals", label: "Allocation TTL",     value: secFmt(cfg.allocation_ttl_s) },
+  ];
+
+  // Group rows for sectioned display
+  const groups = Array.from(new Set(rows.map((r) => r.group)));
+
+  return (
+    <Card className="bg-card/50 border-border/50" data-testid="section-active-config">
+      <CardHeader className="pb-0 pt-4 px-4">
+        <CardTitle
+          className="text-sm font-mono uppercase tracking-widest text-muted-foreground flex items-center gap-2 cursor-pointer select-none"
+          onClick={() => setOpen((o) => !o)}
+          data-testid="toggle-active-config"
+        >
+          {open ? (
+            <ChevronDown className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5" />
+          )}
+          <Settings className="h-3.5 w-3.5" />
+          Active Configuration
+          {isLoading && (
+            <span className="ml-2 text-xs font-normal text-muted-foreground normal-case">Loading…</span>
+          )}
+          {!isLoading && usingDefaults && (
+            <>
+              <span className="ml-1 text-yellow-500/80 text-xs font-normal">(default)</span>
+              <span className="ml-auto flex items-center gap-1 text-yellow-400 text-xs font-normal normal-case">
+                <AlertTriangle className="h-3 w-3" />
+                Using hardcoded defaults
+              </span>
+            </>
+          )}
+        </CardTitle>
+      </CardHeader>
+      {open && (
+        <CardContent className="p-4 pt-3 space-y-4">
+          {/* Default-fallback warning — only shown after a confirmed load failure */}
+          {usingDefaults && (
+            <div className="flex items-start gap-2 rounded border border-yellow-500/40 bg-yellow-500/10 px-3 py-2">
+              <AlertTriangle className="h-3.5 w-3.5 text-yellow-400 flex-shrink-0 mt-0.5" />
+              <p className="text-xs font-mono text-yellow-400">
+                PortfolioConfig failed to load — values shown are hardcoded defaults, not live config.
+                {configResponse?.error && (
+                  <span className="block text-muted-foreground mt-0.5 truncate" title={configResponse.error}>
+                    {configResponse.error.slice(0, 160)}
+                  </span>
+                )}
+              </p>
+            </div>
+          )}
+
+          {/* Grouped rows */}
+          {groups.map((group) => {
+            const groupRows = rows.filter((r) => r.group === group);
+            return (
+              <div key={group}>
+                <div className="text-xs font-mono uppercase tracking-widest text-muted-foreground/60 mb-2 border-b border-border/30 pb-1">
+                  {group}
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-3">
+                  {groupRows.map(({ label, value }) => (
+                    <div key={label} className="space-y-0.5">
+                      <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
+                        {label}
+                      </div>
+                      <div className="text-sm font-mono font-bold text-foreground tabular-nums">
+                        {value}
+                        {usingDefaults && (
+                          <span className="ml-1 text-yellow-500/70 font-normal text-xs">(dflt)</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Footer */}
+          {configResponse && (
+            <div className="text-xs font-mono text-muted-foreground pt-1 border-t border-border/30 flex flex-wrap gap-x-4">
+              <span>
+                Fetched:{" "}
+                {new Date(configResponse.fetched_at).toLocaleTimeString("en-IN", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                })}
+              </span>
+              {cfg.portfolio_id && (
+                <span>Portfolio: <span className="text-foreground">{cfg.portfolio_id}</span></span>
+              )}
+              {cfg.base_currency && (
+                <span>Currency: <span className="text-foreground">{cfg.base_currency}</span></span>
+              )}
+              {cfg.enabled !== undefined && (
+                <span>
+                  Enabled:{" "}
+                  <span className={cfg.enabled ? "text-green-400" : "text-red-400"}>
+                    {cfg.enabled ? "YES" : "NO"}
+                  </span>
+                </span>
+              )}
+            </div>
+          )}
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function PortfolioLive() {
@@ -376,6 +600,14 @@ export default function PortfolioLive() {
     staleTime: REFRESH_INTERVAL / 2,
   });
 
+  const configQuery = useQuery<PortfolioConfigResponse>({
+    queryKey: ["portfolio-config"],
+    queryFn: () => apiJson("/portfolio/config"),
+    // Config values rarely change mid-session; refresh every 5 minutes
+    refetchInterval: 5 * 60_000,
+    staleTime: 4 * 60_000,
+  });
+
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     return () => {
@@ -386,7 +618,7 @@ export default function PortfolioLive() {
   const snap = snapshotQuery.data;
   const health = healthQuery.data;
   const isLoading = snapshotQuery.isLoading && !snap;
-  const isFetching = snapshotQuery.isFetching || healthQuery.isFetching;
+  const isFetching = snapshotQuery.isFetching || healthQuery.isFetching || configQuery.isFetching;
   const error = snapshotQuery.error as Error | null;
 
   const overallStatus = health?.status ?? snap?.status ?? "UNKNOWN";
@@ -431,6 +663,7 @@ export default function PortfolioLive() {
             onClick={() => {
               snapshotQuery.refetch();
               healthQuery.refetch();
+              configQuery.refetch();
             }}
             disabled={isFetching}
             className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-sm font-mono hover:bg-accent disabled:opacity-50"
@@ -645,6 +878,12 @@ export default function PortfolioLive() {
           limitsFromConfig={limitsFromConfig}
         />
       )}
+
+      {/* ── Active Configuration ────────────────────────────────────────── */}
+      <ActiveConfigSection
+        configResponse={configQuery.data}
+        isLoading={configQuery.isLoading && !configQuery.data}
+      />
 
       {/* ── Health details ──────────────────────────────────────────────── */}
       <Card className="bg-card/50 border-border/50">

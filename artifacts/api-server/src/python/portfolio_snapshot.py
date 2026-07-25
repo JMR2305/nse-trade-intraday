@@ -262,6 +262,64 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
     }
 
 
+def get_portfolio_config() -> Dict[str, Any]:
+    """Return a JSON-serialisable snapshot of the active PortfolioConfig values."""
+    loaded = False
+    cfg_data: Dict[str, Any] = {}
+    error: str | None = None
+    try:
+        from src.portfolio.config import PortfolioConfig
+        cfg = PortfolioConfig()
+        loaded = True
+        cfg_data = {
+            # ── Identity ─────────────────────────────────────────────
+            "portfolio_id":                    cfg.portfolio_id,
+            "enabled":                         cfg.enabled,
+            "base_currency":                   cfg.base_currency,
+            "paper_mode":                      cfg.paper_mode,
+            # ── Capital ──────────────────────────────────────────────
+            "initial_capital":                 float(cfg.initial_capital),
+            "cash_reserve_pct":                float(cfg.cash_reserve_pct),
+            # ── Exposure limits (stored as fractions 0–1) ─────────────
+            "max_portfolio_exposure_pct":      float(cfg.max_portfolio_exposure_pct),
+            "max_instrument_exposure_pct":     float(cfg.max_instrument_exposure_pct),
+            "max_sector_exposure_pct":         float(cfg.max_sector_exposure_pct),
+            "max_strategy_exposure_pct":       float(cfg.max_strategy_exposure_pct),
+            # ── Position / order counts ───────────────────────────────
+            "max_open_positions":              cfg.max_open_positions,
+            "max_pending_orders":              cfg.max_pending_orders,
+            # ── Loss / drawdown caps ──────────────────────────────────
+            "max_daily_loss_pct":              float(cfg.max_daily_loss_pct),
+            "max_drawdown_pct":                float(cfg.max_drawdown_pct),
+            "max_capital_per_strategy_pct":    float(cfg.max_capital_per_strategy_pct),
+            # ── Position sizing ───────────────────────────────────────
+            "min_order_value":                 float(cfg.min_order_value),
+            "max_order_value":                 float(cfg.max_order_value),
+            "default_risk_per_trade_pct":      float(cfg.default_risk_per_trade_pct),
+            "use_ai_confidence_sizing":        cfg.use_ai_confidence_sizing,
+            "ai_confidence_min":               float(cfg.ai_confidence_min),
+            # ── Staleness thresholds (seconds) ────────────────────────
+            "stale_state_threshold_s":         cfg.stale_state_threshold_s,
+            "stale_broker_threshold_s":        cfg.stale_broker_threshold_s,
+            "stale_price_threshold_s":         cfg.stale_price_threshold_s,
+            # ── Intervals (seconds) ───────────────────────────────────
+            "reconciliation_interval_s":       cfg.reconciliation_interval_s,
+            "snapshot_interval_s":             cfg.snapshot_interval_s,
+            "allocation_ttl_s":                cfg.allocation_ttl_s,
+        }
+    except Exception as exc:
+        error = str(exc)
+        logger.debug("PortfolioConfig unavailable in get_portfolio_config: %s", exc)
+
+    return {
+        "loaded": loaded,
+        "limits_from_config": loaded,
+        "config": cfg_data,
+        "error": error,
+        "fetched_at": _now_iso(),
+    }
+
+
 def get_portfolio_health() -> Dict[str, Any]:
     """Return a health/readiness summary for the portfolio service."""
     now = _now_iso()

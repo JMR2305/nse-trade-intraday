@@ -2141,6 +2141,9 @@ def main():
         elif command == "portfolio_health":
             from portfolio_snapshot import get_portfolio_health
             result = get_portfolio_health()
+        elif command == "portfolio_config":
+            from portfolio_snapshot import get_portfolio_config
+            result = get_portfolio_config()
 
         else:
             error_msg = f"Unknown command: {command}"
