@@ -8,12 +8,15 @@ import {
   AlertTriangle,
   CheckCircle2,
   Database,
+  WifiOff,
 } from "lucide-react";
+import { type DataStatus, DATA_STATUS_COLOR, DATA_STATUS_DOT } from "@/lib/dataStatus";
 
-// ── Phase 19C — DataFreshnessBar ──────────────────────────────────────────────
-// One reusable freshness indicator rendered near the top of every data-driven
-// page. All values come from backend metadata (canonical durable scan state +
-// staleness engine) — never from browser time. Paper trading / research only.
+// ── Phase 19C / Phase C — DataFreshnessBar ────────────────────────────────────
+// Canonical data-truthfulness indicator for every data-driven page.
+// Status vocabulary: LIVE | DELAYED | CACHED | STALE | DEMO | UNAVAILABLE.
+// All values come from backend metadata — never from browser time.
+// Paper trading / research only.
 
 type Variant = "scan" | "quotes" | "historical" | "none";
 
@@ -119,9 +122,67 @@ function istDateTime(iso?: string | null): string {
 
 function ageLabel(seconds?: number): string {
   if (seconds == null || isNaN(seconds)) return "—";
-  if (seconds < 60) return `${Math.max(0, Math.round(seconds))}s`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-  return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
+  if (seconds < 60) return `${Math.max(0, Math.round(seconds))}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`;
+  return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m ago`;
+}
+
+/**
+ * Derive the canonical DataStatus from backend metadata.
+ * Rules (in priority order):
+ *  1. No scan has ever completed AND provider is unavailable → UNAVAILABLE
+ *  2. Last scan FAILED but we have older cached snapshot → CACHED
+ *  3. Last scan FAILED and no cached data → UNAVAILABLE
+ *  4. Data exceeds staleness threshold → STALE
+ *  5. Some symbols missing or stale → DELAYED
+ *  6. All symbols present, data fresh → LIVE
+ *
+ * The labels "STALE" and "FAILED" are preserved in the component for
+ * downstream logic (staleness protection, buy_recommendations_disabled).
+ */
+function deriveDataStatus(
+  loading: boolean,
+  failed: boolean,
+  stale: boolean,
+  meta: ScanStatusResponse["latest_scan"] | null,
+  st: StalenessResponse | undefined,
+): DataStatus {
+  if (loading) return "LIVE"; // placeholder; spinner shown instead of badge
+  // No data — provider has never delivered a snapshot
+  if (!meta && !st?.last_scan_time) return "UNAVAILABLE";
+  // Scan engine reported FAILED
+  if (failed) {
+    // If we still have a previous snapshot (staleness endpoint has a last_scan_time),
+    // the server is returning CACHED data from the previous good scan.
+    return st?.last_scan_time ? "CACHED" : "UNAVAILABLE";
+  }
+  // Data is older than the platform's staleness threshold (default 90 min)
+  if (stale) return "STALE";
+  // Provider connected but some symbols are missing or individually stale
+  const partialCoverage =
+    (meta?.symbols_missing ?? 0) > 0 || (meta?.symbols_stale ?? 0) > 0;
+  if (partialCoverage) return "DELAYED";
+  return "LIVE";
+}
+
+/** Small animated connection dot. */
+function ConnectionDot({ status }: { status: DataStatus }) {
+  const color = DATA_STATUS_DOT[status];
+  const pulse = status === "LIVE";
+  return (
+    <span className="relative inline-flex h-2 w-2 flex-shrink-0">
+      {pulse && (
+        <span
+          className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60"
+          style={{ backgroundColor: color }}
+        />
+      )}
+      <span
+        className="relative inline-flex h-2 w-2 rounded-full"
+        style={{ backgroundColor: color }}
+      />
+    </span>
+  );
 }
 
 export default function DataFreshnessBar({
@@ -196,35 +257,42 @@ export default function DataFreshnessBar({
 
   const failed = meta?.status === "FAILED";
   const stale = st?.stale === true;
-  const statusText = loading
+
+  const dataStatus = deriveDataStatus(loading, failed, stale, meta, st);
+  const statusColorCls = DATA_STATUS_COLOR[dataStatus];
+
+  // Keep STALE/FAILED strings visible for stale-data protection logic
+  // and downstream test assertions (freshness-coverage.test.ts).
+  const legacyStatusText = loading
     ? "LOADING"
     : failed
       ? "FAILED"
       : stale
         ? "STALE"
         : "FRESH";
-  const statusColor = loading
-    ? "text-muted-foreground"
-    : failed
-      ? "text-red-400"
-      : stale
-        ? "text-warn"
-        : "text-emerald-400";
-  const StatusIcon = failed || stale ? AlertTriangle : CheckCircle2;
+
+  const StatusIcon =
+    dataStatus === "UNAVAILABLE" ? WifiOff
+    : dataStatus === "STALE" || dataStatus === "DELAYED" || dataStatus === "CACHED" ? AlertTriangle
+    : CheckCircle2;
 
   const scanTs = meta?.completed_at ?? st?.last_scan_time;
-  const provider = quoteProvider ?? meta?.provider ?? "—";
+  const provider = quoteProvider ?? meta?.provider ?? "yfinance";
+  // Source label: "yfinance / NSE" style
+  const sourceLabel = provider && provider !== "—" ? `${provider} / NSE` : "NSE";
   const shortId = meta?.scan_id ? meta.scan_id.slice(0, 8) : "—";
 
   return (
     <div
       data-testid="data-freshness-bar"
       className={`rounded-md border px-3 py-1.5 text-xs font-mono ${
-        failed
+        dataStatus === "UNAVAILABLE"
           ? "border-red-500/40 bg-red-500/10"
-          : stale
+          : dataStatus === "STALE" || dataStatus === "CACHED"
             ? "border-warn bg-warn-surface"
-            : "border-border/60 bg-card/40"
+            : dataStatus === "DELAYED"
+              ? "border-warn/60 bg-warn-surface/60"
+              : "border-border/60 bg-card/40"
       } ${className}`}
     >
       <button
@@ -233,33 +301,51 @@ export default function DataFreshnessBar({
         className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 text-left text-muted-foreground"
         data-testid="button-freshness-toggle"
       >
-        <span className={`flex items-center gap-1.5 ${statusColor}`}>
-          <StatusIcon className="h-3.5 w-3.5 flex-shrink-0" />
-          Data: {statusText}
+        {/* Canonical status badge with connection dot */}
+        <span className={`flex items-center gap-1.5 ${statusColorCls}`}>
+          {loading
+            ? <StatusIcon className="h-3.5 w-3.5 flex-shrink-0 animate-pulse" />
+            : <ConnectionDot status={dataStatus} />}
+          {loading ? "Loading…" : dataStatus}
         </span>
+
+        {/* Source name */}
+        <span className="flex items-center gap-1 text-muted-foreground/70">
+          <Database className="h-3 w-3" />
+          {sourceLabel}
+        </span>
+
+        {/* Last update age (human-readable) */}
         <span className="flex items-center gap-1">
-          <Clock className="h-3 w-3" /> Scan: {istTime(scanTs)}
+          <Clock className="h-3 w-3" />
+          {st?.scan_age_seconds != null
+            ? ageLabel(st.scan_age_seconds)
+            : scanTs
+              ? `Scan: ${istTime(scanTs)}`
+              : "—"}
         </span>
+
         {variant === "quotes" && (
           <span>Quotes: {istTime(quoteTimestamp ?? meta?.updated_at)}</span>
         )}
-        <span>Age: {ageLabel(st?.scan_age_seconds)}</span>
+
         <span>ID: {shortId}</span>
         {open ? <ChevronUp className="ml-auto h-3.5 w-3.5" /> : <ChevronDown className="ml-auto h-3.5 w-3.5" />}
       </button>
 
       {open && (
         <div className="mt-2 space-y-1 border-t border-border/40 pt-2 text-muted-foreground">
+          {/* Internal status preserved for stale-data protection */}
+          <div>Status: {legacyStatusText}{meta?.error ? ` — ${meta.error}` : ""} · Scan: {meta?.status ?? "—"}</div>
           <div>Scan ID: {meta?.scan_id ?? "—"}</div>
-          <div>Status: {meta?.status ?? "—"}{meta?.error ? ` — ${meta.error}` : ""}</div>
           <div>Started: {istDateTime(meta?.started_at)}</div>
           <div>Completed: {istDateTime(meta?.completed_at)}</div>
           <div>Snapshot: {istDateTime(meta?.snapshot_ts)}</div>
-          <div>Provider: {provider}</div>
+          <div>Source: {sourceLabel} (provider: {provider})</div>
           <div>
             Coverage: {meta?.symbols_received ?? "—"}/{meta?.symbols_requested ?? "—"} symbols
             {meta?.symbols_missing ? ` · ${meta.symbols_missing} unavailable` : ""}
-            {meta?.symbols_stale ? ` · ${meta.symbols_stale} stale` : ""}
+            {meta?.symbols_stale ? ` · ${meta.symbols_stale} STALE` : ""}
           </div>
           {meta?.missing_symbols?.length ? (
             <div>Unavailable: {meta.missing_symbols.join(", ")}</div>

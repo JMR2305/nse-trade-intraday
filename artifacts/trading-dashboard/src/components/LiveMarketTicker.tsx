@@ -64,7 +64,14 @@ export default function LiveMarketTicker() {
           connection === "connected" ? "text-emerald-400"
             : connection === "reconnecting" ? "text-amber-400" : "text-red-400",
         )}>
-          {connection === "connected" ? "LIVE STREAM" : connection.toUpperCase()}
+          {/* Use canonical DataStatus vocabulary: LIVE when connected, DELAYED when
+              reconnecting (data may be slightly behind), UNAVAILABLE when offline.
+              "LIVE STREAM" is suppressed — it must never appear when the feed is down. */}
+          {connection === "connected"
+            ? "LIVE"
+            : connection === "reconnecting"
+            ? "DELAYED"
+            : "UNAVAILABLE"}
         </span>
       </div>
 

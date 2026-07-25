@@ -30,6 +30,30 @@ import {
 } from "@/lib/monitorApi";
 import { SnapshotSource, useOfflineSnapshot } from "@/lib/offlineCache";
 import { AppHeader } from "@/components/AppHeader";
+import { computeFreshness } from "@/components/FreshnessLabel";
+
+// ── Market index definitions ───────────────────────────────────────────────────
+// NIFTY / BANK NIFTY / INDIA VIX are fetched as part of the scan watchlist.
+// On mobile there is no SSE stream; freshness is derived from the overall
+// scan connection status and last-scan timestamp.
+const MARKET_INDICES = [
+  { key: "NIFTY",     label: "NIFTY 50"   },
+  { key: "BANKNIFTY", label: "BANK NIFTY" },
+  { key: "INDIAVIX",  label: "INDIA VIX"  },
+] as const;
+
+// Map the backend connectionStatus string to a SnapshotSource understood by
+// computeFreshness / FreshnessStatusBadge.
+//   HEALTHY  → "live"          (data is actively refreshed)
+//   DEGRADED → "memory"        (data present but provider degraded → DELAYED)
+//   anything else → "offline-cache"  (cached data, provider offline → CACHED)
+//   undefined / null → "none"  (no data ever received → UNAVAILABLE)
+function connectionStatusToSource(status?: string | null): SnapshotSource {
+  if (!status) return "none";
+  if (status === "HEALTHY") return "live";
+  if (status === "DEGRADED") return "memory";
+  return "offline-cache";
+}
 
 // Worst source across sections wins; age shown is the oldest data timestamp.
 const SOURCE_RANK: Record<SnapshotSource, number> = { none: 3, "offline-cache": 2, memory: 1, live: 0 };
@@ -230,9 +254,71 @@ export default function HealthScreen() {
       <Text style={[styles.pageSub, { color: colors.mutedForeground }]}>
         Monitoring only — no orders can be placed from this app
       </Text>
-      <FreshnessStatusBadge ts={freshness.ts} source={freshness.source} style={{ marginBottom: 14 }} />
+      <FreshnessStatusBadge
+        ts={freshness.ts}
+        source={freshness.source}
+        sourceLabel="yfinance / NSE"
+        style={{ marginBottom: 14 }}
+      />
 
       {anyStale && <StaleBanner staleTs={staleTs} onRetry={refetchAll} />}
+
+      {/* ── Market Indices ─────────────────────────────────────────────────
+           Each index card shows its own canonical freshness badge derived from
+           the overall scan connection status. Mobile has no SSE stream, so the
+           three indices share the same scan snapshot but each carries an
+           independent badge (not a single global bar). */}
+      <Section title="Market Indices">
+        {live.isLoading && liveData === undefined ? (
+          <RowsSkeleton rows={3} />
+        ) : (
+          (() => {
+            const indexSource = connectionStatusToSource(liveData?.connectionStatus);
+            // Convert ISO timestamp to epoch ms; computeFreshness expects ms.
+            const lastScanMs = liveData?.lastScanTs
+              ? new Date(liveData.lastScanTs).getTime()
+              : null;
+            return (
+              <>
+                {MARKET_INDICES.map(({ key, label }) => {
+                  // Each index independently shows its freshness status.
+                  // Currently all three derive from the same scan snapshot;
+                  // when per-symbol quality data is exposed by the API they
+                  // can diverge without any component-level changes.
+                  const band = computeFreshness(lastScanMs, indexSource, Date.now());
+                  return (
+                    <View
+                      key={key}
+                      style={[styles.indexRow, { borderBottomColor: colors.border }]}
+                      testID={`index-card-${key}`}
+                    >
+                      <Text style={[styles.indexLabel, { color: colors.foreground }]}>
+                        {label}
+                      </Text>
+                      <FreshnessStatusBadge
+                        ts={lastScanMs}
+                        source={indexSource}
+                        sourceLabel="yfinance / NSE"
+                      />
+                      {/* Status text for screen readers / quick scan */}
+                      <Text style={[styles.indexBand, {
+                        color: band === "LIVE" ? colors.success
+                          : band === "UNAVAILABLE" ? colors.mutedForeground
+                          : colors.destructive,
+                      }]}>
+                        {band}
+                      </Text>
+                    </View>
+                  );
+                })}
+                <Text style={[styles.indexNote, { color: colors.mutedForeground }]}>
+                  Values shown at last scan · Live ticker available on desktop
+                </Text>
+              </>
+            );
+          })()
+        )}
+      </Section>
 
       <Section
         title="Live Data"
@@ -493,6 +579,19 @@ const styles = StyleSheet.create({
   disableBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   actionHint: { fontSize: 11, fontFamily: "Inter_400Regular", textAlign: "center" },
   readonlyNote: { fontSize: 11, fontFamily: "Inter_400Regular", paddingVertical: 12 },
+  // Market Indices section
+  indexRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  indexLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold", minWidth: 90 },
+  indexBand: { fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 0.4, flexShrink: 0 },
+  indexNote: { fontSize: 11, fontFamily: "Inter_400Regular", paddingVertical: 10, textAlign: "center" },
   diagnostics: {
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingVertical: 10,
