@@ -606,6 +606,8 @@ class ExecutionEngine:
 
     def step2_submit(self, preview_id: str, token: str) -> Dict[str, Any]:
         """Step 2: final confirmation → actual submission."""
+        # Phase 1: validate all preconditions without consuming the preview, so a
+        # failed check (bad token, expired, kill switch) leaves it reusable.
         preview = self._pending.get(preview_id)
         if not preview:
             return {"success": False, "error": "Preview not found or expired"}
@@ -626,6 +628,13 @@ class ExecutionEngine:
             _append_audit({"event": "ORDER_BLOCKED", "preview_id": preview_id,
                            "reason": "Kill switch activated", "ts": self._now()})
             return {"success": False, "error": "Kill switch activated — order blocked"}
+
+        # Phase 2: atomically claim the preview so that concurrent duplicate
+        # requests cannot both reach the broker.  dict.pop() is GIL-atomic in
+        # CPython; whichever thread wins the pop() proceeds, the other sees None.
+        preview = self._pending.pop(preview_id, None)
+        if not preview:
+            return {"success": False, "error": "Order already submitted — duplicate request blocked"}
 
         now = self._now()
 
@@ -670,7 +679,7 @@ class ExecutionEngine:
             return {"success": False, "error": "RESEARCH_ONLY mode — execution disabled"}
 
         preview.status = OrderStatus.SUBMITTED
-        del self._pending[preview_id]
+        # preview already removed from _pending by the atomic pop() above
         _append_audit({
             "event": event, "preview_id": preview_id,
             "symbol": preview.symbol, "side": preview.side,
