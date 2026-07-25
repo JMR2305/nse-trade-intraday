@@ -4,6 +4,11 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
 import { formatAge, SnapshotSource } from "@/lib/offlineCache";
+import { computeFreshness, FreshnessBand } from "@/lib/freshnessCompute";
+
+// Re-export so existing callers that import from FreshnessLabel.tsx continue to work.
+export type { FreshnessBand };
+export { computeFreshness };
 
 // Ticks every ~30s so age labels stay current without any refetch.
 function useNow(intervalMs = 30_000): number {
@@ -44,44 +49,6 @@ export function FreshnessLabel({
 }
 
 /**
- * Canonical data-status vocabulary — Phase C + Phase 1B (Data Truthfulness).
- *
- * LIVE          — fresh data from a connected live feed (age < 5 min)
- * DELAYED       — provider connected but delivery is slow (was AGING)
- * STALE         — data age has crossed the staleness threshold
- * CACHED        — data from a previous snapshot; provider offline (was OFFLINE CACHE)
- * MARKET_CLOSED — outside NSE trading hours (weekend, holiday, or pre/post session)
- * UNAVAILABLE   — no data has ever been received
- *
- * Renamed from the legacy vocabulary:
- *   AGING        → DELAYED  (more honest: the data is merely late, not corrupted)
- *   OFFLINE CACHE → CACHED  (shorter, matches the canonical vocabulary)
- *   FRESH        → LIVE     (signals an active, connected feed)
- */
-export type FreshnessBand = "LIVE" | "DELAYED" | "STALE" | "CACHED" | "MARKET_CLOSED" | "UNAVAILABLE";
-
-const FRESH_LIMIT_MS = 5 * 60_000;   // < 5 min  → LIVE
-const DELAYED_LIMIT_MS = 15 * 60_000; // < 15 min → DELAYED (was AGING_LIMIT_MS)
-
-/**
- * Classify the shown data. Ages are computed from the backend data timestamp
- * (fetch/snapshot time of a real payload), never from screen-render time.
- */
-export function computeFreshness(
-  ts: number | null | undefined,
-  source: SnapshotSource,
-  now: number,
-): FreshnessBand {
-  if (source === "none" || (!ts && source !== "live")) return "UNAVAILABLE";
-  if (source === "offline-cache") return "CACHED";   // was "OFFLINE CACHE"
-  if (!ts) return "LIVE"; // live data just arrived without a recorded ts
-  const age = now - ts;
-  if (age < FRESH_LIMIT_MS) return "LIVE";           // was "FRESH"
-  if (age < DELAYED_LIMIT_MS) return "DELAYED";      // was "AGING"
-  return "STALE";
-}
-
-/**
  * "LIVE · yfinance / NSE · Updated 2 minutes ago" style badge for Positions,
  * Health, and Alerts tabs. The age label re-renders on a 30-second tick —
  * the underlying data timestamp is never fabricated or refreshed by the tick.
@@ -93,17 +60,23 @@ export function FreshnessStatusBadge({
   ts,
   source,
   sourceLabel,
+  marketState,
   style,
 }: {
   ts: number | null | undefined;
   source: SnapshotSource;
   /** Human-readable data source name, e.g. "yfinance / NSE". Optional. */
   sourceLabel?: string;
+  /**
+   * Market state from the backend health response. When "CLOSED", "WEEKEND",
+   * or "PRE_OPEN" the badge shows MARKET_CLOSED instead of STALE.
+   */
+  marketState?: "OPEN" | "CLOSED" | "WEEKEND" | "PRE_OPEN" | null;
   style?: object;
 }) {
   const colors = useColors();
   const now = useNow();
-  const band = computeFreshness(ts, source, now);
+  const band = computeFreshness(ts, source, now, marketState);
 
   // Colour mapping for the canonical vocabulary
   const tone =
@@ -124,6 +97,8 @@ export function FreshnessStatusBadge({
       ? "no data received"
       : band === "CACHED"
       ? `cached ${formatAge(ts ?? null)}`
+      : band === "MARKET_CLOSED"
+      ? "market closed"
       : `Updated ${formatAge(ts ?? null)}`;
 
   return (

@@ -69,6 +69,68 @@ describe("Phase 1 mobile · DataStatus vocabulary includes MARKET_CLOSED", () =>
   });
 });
 
+// ── computeFreshness MARKET_CLOSED path ──────────────────────────────────────
+
+describe("Phase 1 mobile · computeFreshness MARKET_CLOSED", () => {
+  const STALE_AGE_MS = 20 * 60 * 1000; // 20 min — beyond DELAYED_LIMIT_MS (15 min)
+
+  it("returns STALE when no marketState provided and data is old", async () => {
+    const { computeFreshness } = await import("../freshnessCompute");
+    const now = Date.now();
+    const ts = now - STALE_AGE_MS;
+    expect(computeFreshness(ts, "live", now)).toBe("STALE");
+  });
+
+  it("returns MARKET_CLOSED when marketState is WEEKEND and data is stale", async () => {
+    const { computeFreshness } = await import("../freshnessCompute");
+    const now = Date.now();
+    const ts = now - STALE_AGE_MS;
+    expect(computeFreshness(ts, "live", now, "WEEKEND")).toBe("MARKET_CLOSED");
+  });
+
+  it("returns MARKET_CLOSED when marketState is CLOSED and data is stale", async () => {
+    const { computeFreshness } = await import("../freshnessCompute");
+    const now = Date.now();
+    const ts = now - STALE_AGE_MS;
+    expect(computeFreshness(ts, "live", now, "CLOSED")).toBe("MARKET_CLOSED");
+  });
+
+  it("returns MARKET_CLOSED when marketState is PRE_OPEN and data is stale", async () => {
+    const { computeFreshness } = await import("../freshnessCompute");
+    const now = Date.now();
+    const ts = now - STALE_AGE_MS;
+    expect(computeFreshness(ts, "live", now, "PRE_OPEN")).toBe("MARKET_CLOSED");
+  });
+
+  it("returns DELAYED (not MARKET_CLOSED) when data is fresh enough even if market is closed", async () => {
+    const { computeFreshness } = await import("../freshnessCompute");
+    const now = Date.now();
+    const ts = now - 8 * 60 * 1000; // 8 min — within DELAYED_LIMIT_MS
+    expect(computeFreshness(ts, "live", now, "WEEKEND")).toBe("DELAYED");
+  });
+
+  it("returns LIVE (not MARKET_CLOSED) when data is very fresh even if market is closed", async () => {
+    const { computeFreshness } = await import("../freshnessCompute");
+    const now = Date.now();
+    const ts = now - 2 * 60 * 1000; // 2 min — within FRESH_LIMIT_MS
+    expect(computeFreshness(ts, "live", now, "WEEKEND")).toBe("LIVE");
+  });
+
+  it("returns STALE (not MARKET_CLOSED) when marketState is OPEN and data is stale", async () => {
+    const { computeFreshness } = await import("../freshnessCompute");
+    const now = Date.now();
+    const ts = now - STALE_AGE_MS;
+    expect(computeFreshness(ts, "live", now, "OPEN")).toBe("STALE");
+  });
+
+  it("returns STALE when marketState is null and data is stale", async () => {
+    const { computeFreshness } = await import("../freshnessCompute");
+    const now = Date.now();
+    const ts = now - STALE_AGE_MS;
+    expect(computeFreshness(ts, "live", now, null)).toBe("STALE");
+  });
+});
+
 // ── apiConfig module ──────────────────────────────────────────────────────────
 
 describe("Phase 1 mobile · API base URL resolution", () => {

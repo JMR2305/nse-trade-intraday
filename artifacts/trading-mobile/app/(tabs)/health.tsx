@@ -258,6 +258,7 @@ export default function HealthScreen() {
         ts={freshness.ts}
         source={freshness.source}
         sourceLabel="yfinance / NSE"
+        marketState={marketState as "OPEN" | "CLOSED" | "WEEKEND" | "PRE_OPEN" | null}
         style={{ marginBottom: 14 }}
       />
 
@@ -285,7 +286,8 @@ export default function HealthScreen() {
                   // Currently all three derive from the same scan snapshot;
                   // when per-symbol quality data is exposed by the API they
                   // can diverge without any component-level changes.
-                  const band = computeFreshness(lastScanMs, indexSource, Date.now());
+                  const typedMarketState = marketState as "OPEN" | "CLOSED" | "WEEKEND" | "PRE_OPEN" | null;
+                  const band = computeFreshness(lastScanMs, indexSource, Date.now(), typedMarketState);
                   return (
                     <View
                       key={key}
@@ -299,11 +301,13 @@ export default function HealthScreen() {
                         ts={lastScanMs}
                         source={indexSource}
                         sourceLabel="yfinance / NSE"
+                        marketState={typedMarketState}
                       />
                       {/* Status text for screen readers / quick scan */}
                       <Text style={[styles.indexBand, {
                         color: band === "LIVE" ? colors.success
                           : band === "UNAVAILABLE" ? colors.mutedForeground
+                          : band === "MARKET_CLOSED" ? "#94A3B8"
                           : colors.destructive,
                       }]}>
                         {band}
