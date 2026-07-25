@@ -45,7 +45,6 @@ from paper_trader import (
     get_portfolio, get_trades, execute_buy, execute_sell, reset_portfolio,
     get_trade_replay, get_strategy_performance, _load_state,
 )
-from market_data import get_multiple_ltp
 import config
 from config import DEFAULT_WATCHLIST
 
@@ -87,7 +86,11 @@ def _save_watchlist(watchlist: list[str]) -> None:
 def _load_portfolio_with_live_prices() -> dict:
     state = _load_state()
     symbols = list(state.get("positions", {}).keys())
-    prices = get_multiple_ltp(symbols) if symbols else {}
+    if symbols:
+        from market_data import get_multiple_ltp
+        prices = get_multiple_ltp(symbols)
+    else:
+        prices = {}
     return dict(get_portfolio(prices))
 
 
