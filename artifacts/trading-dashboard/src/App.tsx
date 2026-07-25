@@ -29,6 +29,7 @@ import FeatureImportance from "@/pages/FeatureImportance";
 import WalkForwardValidation from "@/pages/WalkForwardValidation";
 import TradeDecisions from "@/pages/TradeDecisions";
 import PortfolioManager from "@/pages/PortfolioManager";
+import PortfolioLive from "@/pages/PortfolioLive";
 import ExperimentManager from "@/pages/ExperimentManager";
 import ResearchIntelligence from "@/pages/ResearchIntelligence";
 import StrategyEvolution from "@/pages/StrategyEvolution";
@@ -57,6 +58,7 @@ function Router() {
       <Switch>
         <Route path="/" component={TradeDecisions} />
         <Route path="/portfolio-manager" component={PortfolioManager} />
+        <Route path="/portfolio-live" component={PortfolioLive} />
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/market" component={MarketOverview} />
         <Route path="/market-scanner" component={MarketScanner} />

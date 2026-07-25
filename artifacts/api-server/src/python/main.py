@@ -2128,6 +2128,13 @@ def main():
             from eod_reconciliation import resolve_discrepancy
             result = resolve_discrepancy(int(args[1]))
 
+        elif command == "portfolio_snapshot":
+            from portfolio_snapshot import get_portfolio_snapshot
+            result = get_portfolio_snapshot()
+        elif command == "portfolio_health":
+            from portfolio_snapshot import get_portfolio_health
+            result = get_portfolio_health()
+
         else:
             error_msg = f"Unknown command: {command}"
 

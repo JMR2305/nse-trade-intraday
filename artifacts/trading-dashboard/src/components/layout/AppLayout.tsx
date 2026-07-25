@@ -35,6 +35,7 @@ import {
   Radio,
   Menu,
   X,
+  PieChart,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
@@ -56,6 +57,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       label: "Overview",
       items: [
         { href: "/",               label: "Trade Decisions", icon: Target    },
+        { href: "/portfolio-live",    label: "Portfolio",         icon: PieChart   },
         { href: "/portfolio-manager", label: "Portfolio Manager", icon: Briefcase },
         { href: "/dashboard",      label: "Dashboard",      icon: BarChart3 },
         { href: "/performance-analytics", label: "Performance Analytics", icon: BarChart3 },

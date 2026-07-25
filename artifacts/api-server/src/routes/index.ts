@@ -15,11 +15,13 @@ import kiteRouter from "./kite";
 import notificationsRouter from "./notifications";
 import downloadRouter from "./download";
 import reconciliationRouter from "./reconciliation";
+import portfolioRouter from "./portfolio";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(streamRouter);
+router.use(portfolioRouter);
 router.use(phase12Router);
 router.use(phase13Router);
 router.use(phase14Router);
