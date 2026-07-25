@@ -11,4 +11,7 @@ dependencies = [
     "psycopg2-binary>=2.9.12",
     "reportlab>=4.0",
     "yfinance>=1.5.1",
+    # Database ORM — used by src/database/ repositories (SQLAlchemy async engine + asyncpg driver)
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.29",
 ]

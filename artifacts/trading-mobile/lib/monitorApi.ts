@@ -1,8 +1,28 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-const BASE = process.env.EXPO_PUBLIC_DOMAIN
+// API base URL chain:
+//   $REPLIT_DEV_DOMAIN (Replit env)
+//   → EXPO_PUBLIC_DOMAIN=$REPLIT_DEV_DOMAIN (set in package.json dev script)
+//   → process.env.EXPO_PUBLIC_DOMAIN (Expo bakes EXPO_PUBLIC_* at bundle time)
+//   → BASE = "https://<domain>/api" (used for every fetch below)
+//
+// In a production/standalone build where EXPO_PUBLIC_DOMAIN is not set the
+// fallback "/api" is intentionally relative so it reaches whatever origin
+// served the bundle (e.g. a custom deployment domain).
+export const BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
   : "/api";
+
+// Per-request fetch timeout (ms). 15 s is conservative for a trading context;
+// scan endpoints can be slow, but anything beyond this indicates a hung process.
+const FETCH_TIMEOUT_MS = 15_000;
+
+// React Query hook defaults (applied per-hook where relevant):
+//   retry: 1        — one automatic retry on transient network failures
+//   refetchInterval: 60_000  — most health/status data refreshed every 60 s
+//   refetchInterval: 120_000 — slower-changing data (broker/kite) refreshed every 2 min
+// These values are intentionally conservative to avoid hammering the API during
+// market hours while still surfacing stale data within an operator-acceptable window.
 
 export class ApiError extends Error {
   status: number;
@@ -13,10 +33,23 @@ export class ApiError extends Error {
 }
 
 export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      ...init,
+      signal: controller.signal,
+      headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    });
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new ApiError(`Request timed out after ${FETCH_TIMEOUT_MS / 1000}s`, 408);
+    }
+    throw err;
+  }
+  clearTimeout(timeoutId);
   const text = await res.text();
   let data: unknown = {};
   if (text) {

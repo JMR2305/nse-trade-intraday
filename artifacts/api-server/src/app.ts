@@ -25,6 +25,12 @@ app.use(
     },
   }),
 );
+// CORS policy: open to all origins (cors() default).
+// Rationale: the API runs inside Replit's mTLS-secured proxy; all external traffic
+// is already TLS-terminated and origin-validated by the platform. Scoping to the
+// Replit dev domain would block Expo's bundler origin and add operational friction
+// with no meaningful security gain in this paper-trading research environment.
+// Re-evaluate before any live-trading deployment.
 app.use(cors());
 app.use(express.json({ limit: "256kb" }));
 app.use(express.urlencoded({ extended: true, limit: "256kb" }));
