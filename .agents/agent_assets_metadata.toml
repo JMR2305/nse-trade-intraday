@@ -107,3 +107,9 @@ id = "VyTH40d8Gc6Lfw7tYE7NA"
 uri = "file://artifacts/api-server/docs/phase1-connectivity-report.md"
 type = "text"
 title = "Phase 1 — Production Connectivity & Data Readiness Report"
+
+[[outputs]]
+id = "jlBNnjgAEMP1euooqrjyl"
+uri = "file://artifacts/api-server/docs/final-session-report.md"
+type = "text"
+title = "ApexQuant AI — Final Session Report"
