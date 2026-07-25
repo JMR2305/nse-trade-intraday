@@ -1,0 +1,164 @@
+{
+  "audit_run_at": "2026-07-25T22:25:54Z",
+  "api_base": "http://localhost:8080/api",
+  "environment": "development",
+  "overall_status": "DEGRADED",
+  "summary": {
+    "HEALTHY": 13,
+    "DEGRADED": 2,
+    "DOWN": 0,
+    "SKIPPED": 0
+  },
+  "results": [
+    {
+      "id": 1,
+      "subsystem": "Market Data",
+      "status": "HEALTHY",
+      "latency_ms": 863,
+      "fields_verified": ["market.state", "market.now_ist", "quote_provider", "scan_id", "symbols_received", "symbols_requested"],
+      "notes": "state=WEEKEND; coverage=48/50; missing=['LTIM','TATAMOTORS']; yfinance=OK v1.5.1; WEEKEND (expected — no live quotes); market_feed_time=2026-07-24"
+    },
+    {
+      "id": 2,
+      "subsystem": "Scanner",
+      "status": "HEALTHY",
+      "latency_ms": 2,
+      "fields_verified": ["scan_id", "status", "snapshot_ts", "symbols_requested", "symbols_received"],
+      "notes": "scan_id=d49e1ec37b7f; status=SUCCESS; symbols=48/50; missing_symbols=['LTIM','TATAMOTORS']; completed_at=2026-07-25T19:10:13Z; duration=24s"
+    },
+    {
+      "id": 3,
+      "subsystem": "Signal Engine",
+      "status": "HEALTHY",
+      "latency_ms": 788,
+      "fields_verified": ["stock", "signal", "confidence", "price"],
+      "notes": "count=10; first_stock=RELIANCE; all signals carry NO_TRADE (stale weekend data — expected)"
+    },
+    {
+      "id": 4,
+      "subsystem": "AI Advisory",
+      "status": "HEALTHY",
+      "latency_ms": 241,
+      "fields_verified": ["stock", "decision", "confidence", "regime", "paper_label", "staleness"],
+      "notes": "decisions_count=10; PAPER_label=OK; buy_disabled_when_stale=True; stale=3h 16m; label='PAPER / RESEARCH ONLY'"
+    },
+    {
+      "id": 5,
+      "subsystem": "Risk Engine",
+      "status": "DEGRADED",
+      "latency_ms": 136,
+      "fields_verified": ["portfolio/health"],
+      "notes": "pydantic=MISSING — CRITICAL; config_load_failed='No module named pydantic'; PortfolioConfig falls back to hardcoded defaults; health_degraded='Exposure limits using hardcoded defaults'",
+      "gap_priority": "HIGH",
+      "gap_fix": "pip install pydantic in .pythonlibs: run `uv add pydantic` or `uv sync` with pydantic in pyproject.toml"
+    },
+    {
+      "id": 6,
+      "subsystem": "Paper Execution",
+      "status": "HEALTHY",
+      "latency_ms": 215,
+      "fields_verified": ["paper_mode", "live_orders_absent"],
+      "notes": "paper_mode=True; status=DISABLED; auto_paper_entries=OFF (per phase22/activation: paper_automation_active=false); live-orders route=404 (correct)"
+    },
+    {
+      "id": 7,
+      "subsystem": "Portfolio",
+      "status": "HEALTHY",
+      "latency_ms": 192,
+      "fields_verified": ["cash", "equity", "open_positions", "realised_pnl_today", "unrealised_pnl", "initial_capital", "peak_equity", "drawdown_pct"],
+      "notes": "equity=5000; cash=5000; open_positions=0; initial_capital=5000; drawdown_pct=0"
+    },
+    {
+      "id": 8,
+      "subsystem": "P&L",
+      "status": "HEALTHY",
+      "latency_ms": 198,
+      "fields_verified": ["realised_pnl_today", "unrealised_pnl", "total_pnl", "drawdown_amount", "drawdown_pct", "pnl_history"],
+      "notes": "realised_pnl_today=0; unrealised_pnl=0; total_pnl=0; drawdown_pct=0; pnl_history present in legacy /portfolio endpoint"
+    },
+    {
+      "id": 9,
+      "subsystem": "Trade Journal",
+      "status": "HEALTHY",
+      "latency_ms": 127,
+      "fields_verified": ["endpoint_reachable", "returns_list", "scope=all"],
+      "notes": "trade_count=0 (clean state — no trades yet); all_time_count=0; endpoint responds correctly"
+    },
+    {
+      "id": 10,
+      "subsystem": "Audit Logs",
+      "status": "HEALTHY",
+      "latency_ms": 184,
+      "fields_verified": ["endpoint_reachable", "report", "phase", "label", "generated_at"],
+      "notes": "engine_version='Research Engine v1.0 · Phase 13'; label='PAPER / RESEARCH ONLY'; PAPER_label=OK; mode=out_of_sample_paper_trade_comparison"
+    },
+    {
+      "id": 11,
+      "subsystem": "Recovery",
+      "status": "HEALTHY",
+      "latency_ms": 45,
+      "fields_verified": ["healthz", "health/live", "health/ready", "python_runtime", "scan_cache"],
+      "notes": "healthz=OK; uptime=764s; python_runtime=True; scan_cache=True"
+    },
+    {
+      "id": 12,
+      "subsystem": "Mobile App",
+      "status": "DEGRADED",
+      "latency_ms": 44,
+      "fields_verified": ["apiConfig.ts", "dataStatus.ts", "package.json"],
+      "notes": "expo_process=running; expo_port_21338=reachable; apiConfig.ts=present (Phase 1A); NOTE: Expo workflow stuck on port-conflict prompt — workflow needs restart",
+      "gap_priority": "MEDIUM",
+      "gap_fix": "Restart trading-mobile workflow to clear port conflict (process PID 316 already holds 21338)"
+    },
+    {
+      "id": 13,
+      "subsystem": "Dashboard",
+      "status": "HEALTHY",
+      "latency_ms": 37,
+      "fields_verified": ["port_24210_reachable", "apiConfig.ts", "ConnectivityPanel.tsx"],
+      "notes": "vite_process=running; dashboard_port_24210=reachable; apiConfig.ts=present (Phase 1A); ConnectivityPanel.tsx=present"
+    },
+    {
+      "id": 14,
+      "subsystem": "API Server",
+      "status": "HEALTHY",
+      "latency_ms": 1,
+      "fields_verified": ["route:health.ts", "route:trading.ts", "route:portfolio.ts", "route:stream.ts", "route:phase13.ts", "route:phase15.ts", "route:phase22.ts", "route:kite.ts", "route:notifications.ts", "route:reconciliation.ts"],
+      "notes": "response_time=1ms; routes_present=10/10; node_version=v24.13.0; rss=141MB"
+    },
+    {
+      "id": 15,
+      "subsystem": "Database",
+      "status": "HEALTHY",
+      "latency_ms": 10,
+      "fields_verified": ["DATABASE_URL", "connection_ok", "table:paper_portfolio", "table:paper_trades", "table:signals_cache", "table:scan_state", "table:scan_lock", "table:phase20_paper_trades"],
+      "notes": "DATABASE_URL=SET; connection=OK; tables_present=6/6; psycopg2=2.9.12"
+    }
+  ],
+  "gaps": [
+    {
+      "subsystem": "Risk Engine",
+      "priority": "HIGH",
+      "finding": "pydantic not installed in .pythonlibs — PortfolioConfig cannot load, exposure limits fall back to hardcoded defaults",
+      "fix": "Add pydantic to pyproject.toml dependencies and run uv sync"
+    },
+    {
+      "subsystem": "Mobile App",
+      "priority": "MEDIUM",
+      "finding": "Expo workflow stuck on interactive port-conflict prompt (PID 316 holds 21338, second instance waits for Y/n)",
+      "fix": "Restart trading-mobile workflow; or kill PID 316 and let the workflow re-start cleanly"
+    },
+    {
+      "subsystem": "Market Data (production)",
+      "priority": "BLOCKER",
+      "finding": "Deployed production environment uses system python3 (not .pythonlibs/bin/python3) — yfinance missing in that context (confirmed from deployment logs)",
+      "fix": "Add uv sync --frozen to [deployment.build] in .replit so yfinance is available in the Autoscale environment"
+    },
+    {
+      "subsystem": "Scanner",
+      "priority": "LOW",
+      "finding": "LTIM and TATAMOTORS return no data (2/50 symbols missing) — tickers are correct (LTIM.NS, TATAMOTORS.NS), issue is weekend data unavailability from Yahoo Finance",
+      "fix": "Monitor on next trading day (Monday 2026-07-27); no alias change needed"
+    }
+  ]
+}

@@ -2349,5 +2349,14 @@
    ],
    "auto_promotion": false
   }
+ },
+ {
+  "id": "200236aa86",
+  "ts": "2026-07-25T22:25:59.846370+00:00",
+  "event_type": "phase22_readiness_probe",
+  "actor": "system",
+  "detail": {
+   "ts": "2026-07-25T22:25:59.843366+00:00"
+  }
  }
 ]
