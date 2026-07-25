@@ -23,5 +23,76 @@
   "status": "VALIDATION_FAILED",
   "ts": "2026-07-15T16:09:37Z",
   "audit_id": "f1714701fe"
+ },
+ {
+  "event": "PREVIEW_CREATED",
+  "symbol": "HDFCBANK",
+  "side": "BUY",
+  "quantity": 2,
+  "entry_price": 1700.0,
+  "mode": "PAPER_TRADING",
+  "validation_passed": false,
+  "failure_reasons": [
+   "NSE CLOSED \u2014 00:39 IST Sun",
+   "Data quality: UNKNOWN. Must be LIVE or NEAR_LIVE to execute.",
+   "Risk \u20b980.00 > max \u20b950.00 (1% of \u20b95000)",
+   "Sector OTHER: \u20b93400.00 > cap \u20b91750.00 (35%)",
+   "Order \u20b93400.00 > limit \u20b91000.00"
+  ],
+  "preview_id": "e256331200e7",
+  "status": "DATA_STALE",
+  "ts": "2026-07-25T19:09:25Z",
+  "audit_id": "dde3e57e2a"
+ },
+ {
+  "event": "PREVIEW_CREATED",
+  "symbol": "ICICIBANK",
+  "side": "BUY",
+  "quantity": 1,
+  "entry_price": 1400.0,
+  "mode": "PAPER_TRADING",
+  "validation_passed": false,
+  "failure_reasons": [
+   "NSE CLOSED \u2014 00:40 IST Sun",
+   "Data quality: UNKNOWN. Must be LIVE or NEAR_LIVE to execute."
+  ],
+  "preview_id": "f82134d7bf46",
+  "status": "DATA_STALE",
+  "ts": "2026-07-25T19:10:33Z",
+  "audit_id": "8d21177790"
+ },
+ {
+  "event": "PREVIEW_CREATED",
+  "symbol": "ICICIBANK",
+  "side": "BUY",
+  "quantity": 1,
+  "entry_price": 1400.0,
+  "mode": "PAPER_TRADING",
+  "validation_passed": false,
+  "failure_reasons": [
+   "NSE CLOSED \u2014 00:40 IST Sun",
+   "Data quality: UNKNOWN. Must be LIVE or NEAR_LIVE to execute."
+  ],
+  "preview_id": "fdfc7f4e5115",
+  "status": "DATA_STALE",
+  "ts": "2026-07-25T19:10:52Z",
+  "audit_id": "10c35e0b90"
+ },
+ {
+  "event": "PREVIEW_CREATED",
+  "symbol": "ICICIBANK",
+  "side": "BUY",
+  "quantity": 1,
+  "entry_price": 1400.0,
+  "mode": "PAPER_TRADING",
+  "validation_passed": false,
+  "failure_reasons": [
+   "NSE CLOSED \u2014 00:41 IST Sun",
+   "Data quality: UNKNOWN. Must be LIVE or NEAR_LIVE to execute."
+  ],
+  "preview_id": "43e310df9416",
+  "status": "DATA_STALE",
+  "ts": "2026-07-25T19:11:15Z",
+  "audit_id": "fcc6bcdbae"
  }
 ]
