@@ -1,0 +1,333 @@
+{
+  "test_type": "phase2d_paper_sims",
+  "run_at": "2026-07-25T22:54:16.423270+00:00",
+  "summary": {
+    "PASS": 10,
+    "FAIL": 0
+  },
+  "overall_verdict": "PASS",
+  "results": [
+    {
+      "sim": 1,
+      "name": "BUY Entry",
+      "verdict": "PASS",
+      "detail": "ok=True, cash=1166.00, position={'quantity': 3, 'avg_price': 1278.0}",
+      "latency_ms": 937.8,
+      "assertions": [
+        {
+          "a": "execute_buy returns True",
+          "ok": true
+        },
+        {
+          "a": "position created",
+          "ok": true
+        },
+        {
+          "a": "quantity=3",
+          "ok": true
+        },
+        {
+          "a": "avg_price\u22481278",
+          "ok": true
+        },
+        {
+          "a": "cash reduced to \u22481166",
+          "ok": true
+        },
+        {
+          "a": "BUY trade record exists",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "sim": 2,
+      "name": "SELL Exit",
+      "verdict": "PASS",
+      "detail": "buy=True, sell=True, position_closed=True, pnl=150.0",
+      "latency_ms": 339.1,
+      "assertions": [
+        {
+          "a": "BUY succeeded",
+          "ok": true
+        },
+        {
+          "a": "SELL succeeded",
+          "ok": true
+        },
+        {
+          "a": "position closed after SELL",
+          "ok": true
+        },
+        {
+          "a": "SELL trade record exists",
+          "ok": true
+        },
+        {
+          "a": "pnl=\u20b9150",
+          "ok": true
+        },
+        {
+          "a": "exit_type=TARGET_HIT",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "sim": 3,
+      "name": "Stop-Loss Trigger",
+      "verdict": "PASS",
+      "detail": "SL exit at 1445 (SL=1450); pnl=-110.0; position_closed=True",
+      "latency_ms": 546.8,
+      "assertions": [
+        {
+          "a": "BUY succeeded",
+          "ok": true
+        },
+        {
+          "a": "SELL at SL succeeded",
+          "ok": true
+        },
+        {
+          "a": "position closed",
+          "ok": true
+        },
+        {
+          "a": "exit_type=STOP_HIT",
+          "ok": true
+        },
+        {
+          "a": "pnl<0 (loss: \u20b9-110.00)",
+          "ok": true
+        },
+        {
+          "a": "exit at/below SL (1450)",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "sim": 4,
+      "name": "Target Hit",
+      "verdict": "PASS",
+      "detail": "TP exit at 1705 (target=1700); pnl=105.0",
+      "latency_ms": 419.2,
+      "assertions": [
+        {
+          "a": "BUY succeeded",
+          "ok": true
+        },
+        {
+          "a": "SELL at target succeeded",
+          "ok": true
+        },
+        {
+          "a": "pnl>0 (profit: \u20b9105.00)",
+          "ok": true
+        },
+        {
+          "a": "exit at/above target (1700)",
+          "ok": true
+        },
+        {
+          "a": "exit_type=TARGET_HIT",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "sim": 5,
+      "name": "Trailing Stop",
+      "verdict": "PASS",
+      "detail": "trailing_fires_at_2R=True; no_early_fire=True; inverted_stop_blocked=True; stop_stored=True",
+      "latency_ms": 252.2,
+      "assertions": [
+        {
+          "a": "trailing fires when peak\u2265fill+2R and quote\u2264fill+1R",
+          "ok": true
+        },
+        {
+          "a": "trailing does NOT fire if peak < fill+2R",
+          "ok": true
+        },
+        {
+          "a": "trailing blocked for inverted stop",
+          "ok": true
+        },
+        {
+          "a": "stop_loss stored on BUY trade",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "sim": 6,
+      "name": "Partial Exit",
+      "verdict": "PASS",
+      "detail": "sold 2/5; remaining qty=3; partial_pnl=40.0",
+      "latency_ms": 730.4,
+      "assertions": [
+        {
+          "a": "partial SELL succeeded",
+          "ok": true
+        },
+        {
+          "a": "position remains open after partial exit",
+          "ok": true
+        },
+        {
+          "a": "remaining quantity = 3 (5-2)",
+          "ok": true
+        },
+        {
+          "a": "SELL record shows qty=2",
+          "ok": true
+        },
+        {
+          "a": "partial_pnl\u2248\u20b940",
+          "ok": true
+        },
+        {
+          "a": "can sell remaining 3 shares",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "sim": 7,
+      "name": "Multiple Simultaneous Positions",
+      "verdict": "PASS",
+      "detail": "open_positions=3, symbols=['SBIN', 'WIPRO', 'TATAMOTORS'], cash=3000.00, invested=2000.00",
+      "latency_ms": 2491.4,
+      "assertions": [
+        {
+          "a": "\u22653 open positions",
+          "ok": true
+        },
+        {
+          "a": "BUY SBIN succeeded",
+          "ok": true
+        },
+        {
+          "a": "BUY WIPRO succeeded",
+          "ok": true
+        },
+        {
+          "a": "BUY TATAMOTORS succeeded",
+          "ok": true
+        },
+        {
+          "a": "cash + invested \u2248 initial capital",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "sim": 8,
+      "name": "Daily Limits",
+      "verdict": "PASS",
+      "detail": "pre_trade_check=(False, 'Risk assessment REJECT (position_sizing, stock_con'); normal_feasible=True; depleted_feasible=False; loss_limit_gate_blocks=True",
+      "latency_ms": 4.0,
+      "assertions": [
+        {
+          "a": "pre_trade_check returns (bool, str)",
+          "ok": true
+        },
+        {
+          "a": "normal sizing is feasible",
+          "ok": true
+        },
+        {
+          "a": "sizing not feasible when cash depleted",
+          "ok": true
+        },
+        {
+          "a": "daily loss limit gate fails when loss exceeds cap",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "sim": 9,
+      "name": "Kill Switch",
+      "verdict": "PASS",
+      "detail": "live_cb_tripped=False; simulated kill switch: entries_blocked=True; result.ran=False, reason='Circuit breaker tripped \u2014 paper entries paused pending manual review'",
+      "latency_ms": 34.0,
+      "assertions": [
+        {
+          "a": "get_state() returns dict",
+          "ok": true
+        },
+        {
+          "a": "tripped field present",
+          "ok": true
+        },
+        {
+          "a": "is_tripped() consistent with get_state()",
+          "ok": true
+        },
+        {
+          "a": "run_auto_entries returns ran=False when tripped",
+          "ok": true
+        },
+        {
+          "a": "kill switch blocks entries",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "sim": 10,
+      "name": "Position Sizing",
+      "verdict": "PASS",
+      "detail": "SBIN-like \u20b9600: qty=1, stop=\u20b930, max_loss=\u20b930, rr=2.0; no_cash: feasible=False; expensive: feasible=False",
+      "latency_ms": 0.1,
+      "assertions": [
+        {
+          "a": "returns dict",
+          "ok": true
+        },
+        {
+          "a": "feasible=True (\u20b9600, 20%-cap)",
+          "ok": true
+        },
+        {
+          "a": "suggested_quantity \u2265 1",
+          "ok": true
+        },
+        {
+          "a": "max_loss \u2264 max_risk_amount",
+          "ok": true
+        },
+        {
+          "a": "rr_ratio > 0",
+          "ok": true
+        },
+        {
+          "a": "stop_distance=\u20b930",
+          "ok": true
+        },
+        {
+          "a": "tighter stop yields \u2265 standard qty",
+          "ok": true
+        },
+        {
+          "a": "not feasible when cash=0",
+          "ok": true
+        },
+        {
+          "a": "qty=0 when cash=0",
+          "ok": true
+        },
+        {
+          "a": "not feasible for \u20b950000 stock (> 20% cap)",
+          "ok": true
+        },
+        {
+          "a": "compute_from_signal matches compute_position",
+          "ok": true
+        }
+      ]
+    }
+  ]
+}

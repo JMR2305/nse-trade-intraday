@@ -1,0 +1,196 @@
+{
+  "test_type": "phase2b_e2e",
+  "run_at": "2026-07-25T22:54:06.630487+00:00",
+  "api_base": "http://localhost:8080/api",
+  "summary": {
+    "passed": 13,
+    "failed": 0,
+    "skipped": 0,
+    "total": 13
+  },
+  "overall_verdict": "PASS",
+  "halted_at": null,
+  "steps": [
+    {
+      "step": 1,
+      "name": "Market Feed",
+      "verdict": "PASS",
+      "detail": "market.state=WEEKEND, now_ist=2026-07-26T04:24:01.886645+05:30, provider=?",
+      "latency_ms": 6313.3,
+      "fields_verified": [
+        "market.state",
+        "market.now_ist",
+        "quote_provider"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "Scanner",
+      "verdict": "PASS",
+      "detail": "scan_id=d49e1ec37b7f, coverage=48/50, status=SUCCESS",
+      "latency_ms": 140.6,
+      "fields_verified": [
+        "scan_id",
+        "status",
+        "snapshot_ts",
+        "symbols_received"
+      ]
+    },
+    {
+      "step": 3,
+      "name": "Signal Generation",
+      "verdict": "PASS",
+      "detail": "count=10, signal_types={'WATCH', 'NO_TRADE'}, all required fields present",
+      "latency_ms": 825.0,
+      "fields_verified": [
+        "confidence",
+        "price",
+        "regime",
+        "signal",
+        "stock",
+        "stop_loss",
+        "target"
+      ]
+    },
+    {
+      "step": 4,
+      "name": "AI Advisory",
+      "verdict": "PASS",
+      "detail": "decisions=10, PAPER_label=OK ('PAPER / RESEARCH ONLY'), buy_disabled_when_stale=True, all required fields present",
+      "latency_ms": 142.2,
+      "fields_verified": [
+        "confidence",
+        "decision",
+        "entry_price",
+        "regime",
+        "stock",
+        "paper_label"
+      ]
+    },
+    {
+      "step": 5,
+      "name": "RC-8 Risk Validation",
+      "verdict": "PASS",
+      "detail": "health_status=DEGRADED, paper_mode=True, config_loaded=False, config_error=No module named 'pydantic'",
+      "latency_ms": 234.3,
+      "fields_verified": [
+        "portfolio/health",
+        "portfolio/config",
+        "paper_mode"
+      ]
+    },
+    {
+      "step": 6,
+      "name": "RC-7 Paper Execution",
+      "verdict": "PASS",
+      "detail": "execute_buy=OK; msg=Bought 1 \u00d7 RELIANCE @ \u20b91278.00 = \u20b91278.00; position_in_state=True; cash_reduced=True",
+      "latency_ms": 1366.9,
+      "fields_verified": [
+        "execute_buy",
+        "position_created",
+        "cash_deducted"
+      ]
+    },
+    {
+      "step": 7,
+      "name": "Position Creation",
+      "verdict": "PASS",
+      "detail": "open_position_count=0, position_shape=valid, snapshot_reachable=True",
+      "latency_ms": 197.3,
+      "fields_verified": [
+        "open_positions",
+        "open_position_count",
+        "equity",
+        "cash"
+      ]
+    },
+    {
+      "step": 8,
+      "name": "Portfolio Update",
+      "verdict": "PASS",
+      "detail": "equity=5000, cash+invested=5000.00 (diff=0.00), drawdown_pct=0, peak=5000",
+      "latency_ms": 187.5,
+      "fields_verified": [
+        "equity_self_consistent",
+        "drawdown_pct_non_negative",
+        "peak_equity_positive"
+      ]
+    },
+    {
+      "step": 9,
+      "name": "P&L Update",
+      "verdict": "PASS",
+      "detail": "realised=0.0, unrealised=0.0, total=0.0 (diff=0.00, consistent)",
+      "latency_ms": 185.9,
+      "fields_verified": [
+        "realised_pnl_today",
+        "unrealised_pnl",
+        "total_pnl",
+        "pnl_self_consistent"
+      ]
+    },
+    {
+      "step": 10,
+      "name": "Exit Logic",
+      "verdict": "PASS",
+      "detail": "stop_loss_detection=OK, target_detection=OK, no_false_exits=OK, _parse_ts=OK",
+      "latency_ms": 4.2,
+      "fields_verified": [
+        "stop_loss_hit",
+        "target_hit",
+        "no_false_exit",
+        "parse_ts"
+      ]
+    },
+    {
+      "step": 11,
+      "name": "Position Close",
+      "verdict": "PASS",
+      "detail": "BUY+SELL OK; position_cleared=True; pnl=\u20b9100.00; exit_type=TARGET_HIT",
+      "latency_ms": 502.7,
+      "fields_verified": [
+        "buy_executes",
+        "sell_executes",
+        "position_cleared",
+        "cash_restored",
+        "pnl_recorded"
+      ]
+    },
+    {
+      "step": 12,
+      "name": "Audit Log",
+      "verdict": "PASS",
+      "detail": "engine='Research Engine v1.0 \u00b7 Phase 13', mode='out_of_sample_paper_trade_comparison', label='PAPER / RESEARCH ONLY'",
+      "latency_ms": 220.8,
+      "fields_verified": [
+        "report_present",
+        "paper_label",
+        "engine_version",
+        "mode"
+      ]
+    },
+    {
+      "step": 13,
+      "name": "Daily Summary",
+      "verdict": "PASS",
+      "detail": "All 14 required fields present; paper_mode=True; equity=5000, cash=5000, initial_capital=5000",
+      "latency_ms": 208.6,
+      "fields_verified": [
+        "status",
+        "paper_mode",
+        "snapshotted_at",
+        "equity",
+        "cash",
+        "initial_capital",
+        "peak_equity",
+        "drawdown_pct",
+        "realised_pnl_today",
+        "unrealised_pnl",
+        "total_pnl",
+        "open_positions",
+        "sector_exposures",
+        "exposure_warnings"
+      ]
+    }
+  ]
+}

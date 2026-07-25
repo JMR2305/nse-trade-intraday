@@ -1832,5 +1832,82 @@
   "context": "scan",
   "accepted": true,
   "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T22:54:03.840468+00:00",
+  "input": "RELIANCE",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T22:54:05.699547+00:00",
+  "input": "TCS",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T22:54:10.672425+00:00",
+  "input": "RELIANCE",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T22:54:11.605872+00:00",
+  "input": "TCS",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T22:54:11.945323+00:00",
+  "input": "INFY",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T22:54:12.492413+00:00",
+  "input": "HDFCBANK",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T22:54:12.911418+00:00",
+  "input": "WIPRO",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T22:54:13.163446+00:00",
+  "input": "SBIN",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T22:54:13.894154+00:00",
+  "input": "SBIN",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T22:54:14.145597+00:00",
+  "input": "WIPRO",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-25T22:54:14.336107+00:00",
+  "input": "TATAMOTORS",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
  }
 ]

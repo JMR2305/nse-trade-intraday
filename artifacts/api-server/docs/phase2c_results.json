@@ -1,0 +1,92 @@
+{
+  "test_type": "phase2c_failure",
+  "run_at": "2026-07-25T22:54:42.234940+00:00",
+  "api_base": "http://localhost:8080/api",
+  "summary": {
+    "PASS": 10,
+    "FAIL": 0
+  },
+  "overall_verdict": "PASS",
+  "results": [
+    {
+      "test": 1,
+      "name": "Backend Restart Recovery",
+      "kind": "LIVE",
+      "verdict": "PASS",
+      "detail": "status=ok, uptime=799s; python_runtime=True; database=True; no_down_subsystems=True (checked 0 subsystems)",
+      "latency_ms": 295.8
+    },
+    {
+      "test": 2,
+      "name": "SSE Disconnect / Reconnect",
+      "kind": "LIVE",
+      "verdict": "PASS",
+      "detail": "conn_1=OK (HTTP/1.1 200 OK\\r\\nX-Powered-By: Express); disconnect+reconnect=OK (HTTP/1.1 200 OK\\r\\nX-Powered-By: Express)",
+      "latency_ms": 51.5
+    },
+    {
+      "test": 3,
+      "name": "Database Reconnect Recovery",
+      "kind": "SIMULATED",
+      "verdict": "PASS",
+      "detail": "Simulated OperationalError raised on call #1: 'SIMULATED: connection reset by peer'; real connection recovered: db=heliumdb, user=postgres; psycopg2 reconnects on next call (stateless pool)",
+      "latency_ms": 21.6
+    },
+    {
+      "test": 4,
+      "name": "Stale Market Data Propagation",
+      "kind": "LIVE",
+      "verdict": "PASS",
+      "detail": "stale=True, age=3h 44m, buy_disabled_when_stale=True, allowed_actions=['REFRESH', 'WATCH'], PAPER_label=OK",
+      "latency_ms": 123.1
+    },
+    {
+      "test": 5,
+      "name": "Duplicate Order Rejection",
+      "kind": "SIMULATED",
+      "verdict": "PASS",
+      "detail": "First insert OK; second raises DuplicateOpenTrade; test row cleaned up (ledger rows: 0 \u2192 0)",
+      "latency_ms": 6.7
+    },
+    {
+      "test": 6,
+      "name": "Timeout Handling",
+      "kind": "SIMULATED",
+      "verdict": "PASS",
+      "detail": "subprocess.TimeoutExpired raised correctly (subprocess.TimeoutExpired); server health/ready still ok (python_runtime=True); elapsed=502ms",
+      "latency_ms": 501.9
+    },
+    {
+      "test": 7,
+      "name": "Partial API Failure Isolation",
+      "kind": "LIVE",
+      "verdict": "PASS",
+      "detail": "404 route \u2192 404 correctly; healthz=ok; signals=10 items; isolation confirmed",
+      "latency_ms": 224.5
+    },
+    {
+      "test": 8,
+      "name": "Cache Recovery (Last-Good Snapshot)",
+      "kind": "SIMULATED",
+      "verdict": "PASS",
+      "detail": "Prior snapshot preserved after simulated write failure; scan_id=d49e1ec37b7f; meta_consistent=True; write_error_raised=True",
+      "latency_ms": 29.0
+    },
+    {
+      "test": 9,
+      "name": "Market Closed \u2014 No New Entries",
+      "kind": "LIVE",
+      "verdict": "PASS",
+      "detail": "paper_automation_active=False; market_open in failed_checks=['latest_scan_fresh', 'no_fallback_data', 'market_open']; activation_allowed=False",
+      "latency_ms": 268.6
+    },
+    {
+      "test": 10,
+      "name": "Scanner Failure \u2014 Health Reflects DEGRADED",
+      "kind": "SIMULATED",
+      "verdict": "PASS",
+      "detail": "Write failure caught (AttributeError=True); prior snapshot preserved (scan_id=d49e1ec37b7f); health/ready=ready (no 500); scan/status=SUCCESS",
+      "latency_ms": 265.5
+    }
+  ]
+}
