@@ -296,3 +296,124 @@ describe("portfolio_snapshot.py — exposure_warnings shape", () => {
     expect(snapshotPySrc).toContain('if se["ratio"] >= _WARNING_RATIO:');
   });
 });
+
+// ── 4. Badge-count accuracy — badge-exposure-warnings-count ───────────────
+//
+// These tests assert the invariant: the badge text is always derived from
+// `exposureWarnings.length` so it can never drift from the actual list.
+// We cover four scenarios:
+//   a) empty list  → badge absent
+//   b) 1 warning   → badge shows "1 limit warning"
+//   c) 2 warnings  → badge shows "2 limit warnings"
+//   d) 3 warnings  → badge shows "3 limit warnings"
+//   e) mixed kinds → instrument + sector warnings all go into the same count
+
+/** Build an instrument warning at the given ratio. */
+function makeInstrumentWarning(ratio: number): ExposureWarning {
+  const limitPct = 20;
+  return {
+    kind: "instrument",
+    name: "TESTSYM",
+    exposure_pct: ratio * limitPct,
+    limit_pct: limitPct,
+    ratio,
+    severity: ratio >= 1.0 ? "CRITICAL" : "WARNING",
+  };
+}
+
+/** Build a sector warning at the given ratio. */
+function makeSectorWarning(ratio: number): ExposureWarning {
+  const limitPct = 35;
+  return {
+    kind: "sector",
+    name: "IT",
+    exposure_pct: ratio * limitPct,
+    limit_pct: limitPct,
+    ratio,
+    severity: ratio >= 1.0 ? "CRITICAL" : "WARNING",
+  };
+}
+
+/** Mirrors the badge text rendered by PortfolioLive.tsx line 560. */
+function badgeText(warnings: ExposureWarning[]): string {
+  return `${warnings.length} limit warning${warnings.length !== 1 ? "s" : ""}`;
+}
+
+describe("badge-exposure-warnings-count — count stays in sync with warnings list", () => {
+  // ── a) Empty list: badge must not appear ──────────────────────────────
+  it("badge is absent when exposure_warnings is empty", () => {
+    const warnings: ExposureWarning[] = [];
+    // The page gates the badge on exposureWarnings.length > 0
+    expect(warnings.length > 0).toBe(false);
+    expect(bannerShouldRender(warnings)).toBe(false);
+  });
+
+  // ── b) 1 warning: badge shows "1 limit warning" (singular) ───────────
+  it("badge count equals 1 for a single instrument warning", () => {
+    const warnings = [makeInstrumentWarning(0.85)];
+    expect(warnings.length).toBe(1);
+    expect(badgeText(warnings)).toBe("1 limit warning");
+  });
+
+  // ── c) 2 warnings: badge shows "2 limit warnings" (plural) ───────────
+  it("badge count equals 2 for two simultaneous warnings", () => {
+    const warnings = [makeInstrumentWarning(0.85), makeInstrumentWarning(0.90)];
+    expect(warnings.length).toBe(2);
+    expect(badgeText(warnings)).toBe("2 limit warnings");
+  });
+
+  // ── d) 3 warnings: badge shows "3 limit warnings" ────────────────────
+  it("badge count equals 3 for three simultaneous warnings", () => {
+    const warnings = [
+      makeInstrumentWarning(0.82),
+      makeInstrumentWarning(0.95),
+      makeInstrumentWarning(1.05),
+    ];
+    expect(warnings.length).toBe(3);
+    expect(badgeText(warnings)).toBe("3 limit warnings");
+  });
+
+  // ── e) Mixed kinds: both instrument and sector contribute to the count ─
+  it("instrument and sector warnings both count toward the same badge total", () => {
+    const warnings: ExposureWarning[] = [
+      makeInstrumentWarning(0.85), // instrument — near limit
+      makeSectorWarning(0.92),     // sector — near limit
+    ];
+    expect(warnings.length).toBe(2);
+    expect(warnings.filter((w) => w.kind === "instrument")).toHaveLength(1);
+    expect(warnings.filter((w) => w.kind === "sector")).toHaveLength(1);
+    // Both kinds must be included in the badge text, not just one kind
+    expect(badgeText(warnings)).toBe("2 limit warnings");
+  });
+
+  it("three mixed warnings (2 instrument + 1 sector) produce a single badge count of 3", () => {
+    const warnings: ExposureWarning[] = [
+      makeInstrumentWarning(0.82),
+      makeSectorWarning(0.95),
+      makeInstrumentWarning(1.1), // CRITICAL instrument
+    ];
+    expect(warnings.length).toBe(3);
+    expect(badgeText(warnings)).toBe("3 limit warnings");
+  });
+});
+
+describe("PortfolioLive.tsx — badge-exposure-warnings-count source contract", () => {
+  it("badge element carries data-testid='badge-exposure-warnings-count'", () => {
+    expect(pageSrc).toContain('data-testid="badge-exposure-warnings-count"');
+  });
+
+  it("badge is gated on exposureWarnings.length > 0 (absent when empty)", () => {
+    // The badge must be inside the same conditional as the banner
+    expect(pageSrc).toMatch(/exposureWarnings\.length\s*>\s*0/);
+  });
+
+  it("badge text is derived directly from exposureWarnings.length (no cached copy)", () => {
+    // The literal text interpolation must reference exposureWarnings.length
+    expect(pageSrc).toMatch(/exposureWarnings\.length\}\s*limit warning/);
+  });
+
+  it("badge uses plural 'warnings' when count is not 1 (ternary present)", () => {
+    // Plural ternary: `warning${exposureWarnings.length !== 1 ? "s" : ""}`
+    expect(pageSrc).toMatch(/exposureWarnings\.length\s*!==\s*1\s*\?\s*"s"\s*:\s*""/);
+  });
+});
