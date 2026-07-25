@@ -1,0 +1,35 @@
+<svg viewBox="0 0 260 56" xmlns="http://www.w3.org/2000/svg" fill="none">
+  <!--
+    ApexQuant AI — horizontal lockup.
+    Symbol + "ApexQuant AI" wordmark.
+    Primary navy: #17395F   Accent teal: #129C8C
+    Transparent background.
+  -->
+
+  <!-- Mark: left leg -->
+  <path fill="#17395F" d="M3,54 L16,54 L30,4 Z"/>
+  <!-- Mark: right leg -->
+  <path fill="#17395F" d="M57,54 L44,54 L30,4 Z"/>
+  <!-- Bars -->
+  <rect fill="#17395F" x="20" y="44" width="4" height="10"/>
+  <rect fill="#17395F" x="26" y="36" width="4" height="18"/>
+  <rect fill="#17395F" x="32" y="28" width="4" height="26"/>
+  <!-- Trend line -->
+  <polyline points="20,50 26,38 32,30 43,18"
+    fill="none" stroke="#129C8C" stroke-width="2.4"
+    stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="43,18 42,24 37,20" fill="#129C8C"/>
+
+  <!-- Wordmark -->
+  <text x="70" y="38"
+    font-family="Inter, -apple-system, 'Helvetica Neue', Arial, sans-serif"
+    font-size="24" font-weight="700" fill="#17395F">ApexQuant</text>
+  <text x="208" y="38"
+    font-family="Inter, -apple-system, 'Helvetica Neue', Arial, sans-serif"
+    font-size="24" font-weight="700" fill="#129C8C"> AI</text>
+
+  <!-- Tagline -->
+  <text x="70" y="52"
+    font-family="Inter, -apple-system, 'Helvetica Neue', Arial, sans-serif"
+    font-size="9" font-weight="500" fill="#129C8C" letter-spacing="1.5">AI-POWERED NSE TRADING PLATFORM</text>
+</svg>

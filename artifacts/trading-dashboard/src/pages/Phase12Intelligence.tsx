@@ -223,7 +223,7 @@ export default function Phase12Intelligence() {
             Phase 12 Intelligence
           </h1>
           <p className="text-xs text-zinc-500 mt-0.5">
-            Multi-factor institutional-grade analysis · {data?.engine_version ?? "Apex Global AI Engine · Phase 12"} ·{" "}
+            Multi-factor institutional-grade analysis · {data?.engine_version ?? "ApexQuant AI Engine · Phase 12"} ·{" "}
             <span className="text-amber-500">PAPER / RESEARCH ONLY</span>
           </p>
         </div>

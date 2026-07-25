@@ -1,5 +1,5 @@
 /**
- * MetricCard — compact KPI tile for Apex Global dashboards.
+ * MetricCard — compact KPI tile for ApexQuant AI dashboards.
  * Self-contained; uses only shadcn CSS vars so it works in both light/dark.
  */
 import type { ReactNode } from "react";

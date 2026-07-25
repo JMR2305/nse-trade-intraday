@@ -1,19 +1,24 @@
 <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="none">
   <!--
-    Apex Global — favicon (32×32 / 48×48 display).
-    Navy mark on cream background rounded square.
+    ApexQuant AI — favicon / app icon.
+    Navy A-frame + teal trend arrow on cream rounded background.
   -->
-  <!-- Background tile -->
+  <!-- Background -->
   <rect width="48" height="48" rx="10" fill="#F7F4ED"/>
-  <!-- Mountain mark (shifted down 3px for optical centering) -->
-  <path
-    transform="translate(0,3)"
-    fill="#17395F"
-    fill-rule="evenodd"
-    d="M4,40 L24,4 L44,40 Z
-       M12,40 L14,40 L24,4 Z
-       M19,40 L21,40 L24,4 Z
-       M27,40 L29,40 L24,4 Z
-       M34,40 L36,40 L24,4 Z"
-  />
+
+  <!-- A-frame: left leg (scaled for 48x48, apex at 24,4, base at y=44) -->
+  <path fill="#17395F" d="M2,44 L13,44 L24,4 Z"/>
+  <!-- A-frame: right leg -->
+  <path fill="#17395F" d="M46,44 L35,44 L24,4 Z"/>
+
+  <!-- Bars inside A -->
+  <rect fill="#17395F" x="15" y="35" width="3" height="9"/>
+  <rect fill="#17395F" x="20" y="29" width="3" height="15"/>
+  <rect fill="#17395F" x="25" y="23" width="3" height="21"/>
+
+  <!-- Teal trend line + arrow -->
+  <polyline points="15,41 20,31 25,24 34,14"
+    fill="none" stroke="#129C8C" stroke-width="2"
+    stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="34,14 33,19 29,16" fill="#129C8C"/>
 </svg>

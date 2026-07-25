@@ -1,7 +1,7 @@
 {
-  "name": "Apex Global",
-  "short_name": "Apex Global",
-  "description": "Apex Global is an AI-assisted NSE paper-trading and portfolio analytics platform.",
+  "name": "ApexQuant AI",
+  "short_name": "ApexQuant",
+  "description": "ApexQuant AI is an AI-powered NSE paper-trading and portfolio analytics platform.",
   "start_url": "/trading-dashboard/",
   "scope": "/trading-dashboard/",
   "display": "standalone",
@@ -22,6 +22,12 @@
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "maskable"
+    },
+    {
+      "src": "/trading-dashboard/branding/apexquant-ai-logo.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
     }
   ],
   "screenshots": [],

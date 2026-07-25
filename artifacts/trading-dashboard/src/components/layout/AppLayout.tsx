@@ -1,5 +1,5 @@
 /**
- * AppLayout — Apex Global platform shell.
+ * AppLayout — ApexQuant AI platform shell.
  *
  * Preserved from original:
  *  - All navigation items, groups and hrefs (wouter routing)
@@ -265,7 +265,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             className="text-[10px] text-muted-foreground/50 font-mono truncate"
             data-testid="text-engine-version"
           >
-            Apex Global
+            ApexQuant AI
           </span>
         )}
         <Button
@@ -309,7 +309,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
             <div className="flex shrink-0 items-center justify-between border-t border-border/60 px-4 py-3">
               <span className="text-[10px] text-muted-foreground/50 font-mono" data-testid="text-engine-version">
-                Apex Global
+                ApexQuant AI
               </span>
               <Button
                 variant="ghost"

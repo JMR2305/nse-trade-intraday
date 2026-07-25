@@ -1,0 +1,28 @@
+<svg viewBox="0 0 60 56" xmlns="http://www.w3.org/2000/svg" fill="none">
+  <!--
+    ApexQuant AI — geometric mark (symbol only).
+    Navy A-frame + teal bar-chart trend arrow.
+    Transparent background.
+    Primary navy: #17395F   Accent teal: #129C8C
+  -->
+
+  <!-- Left leg of A -->
+  <path fill="#17395F" d="M3,54 L16,54 L30,4 Z"/>
+
+  <!-- Right leg of A -->
+  <path fill="#17395F" d="M57,54 L44,54 L30,4 Z"/>
+
+  <!-- Rising bar chart (navy) -->
+  <rect fill="#17395F" x="20" y="44" width="4" height="10"/>
+  <rect fill="#17395F" x="26" y="36" width="4" height="18"/>
+  <rect fill="#17395F" x="32" y="28" width="4" height="26"/>
+
+  <!-- Teal trend line -->
+  <polyline
+    points="20,50 26,38 32,30 43,18"
+    fill="none" stroke="#129C8C" stroke-width="2.4"
+    stroke-linecap="round" stroke-linejoin="round"
+  />
+  <!-- Arrow head -->
+  <polygon points="43,18 42,24 37,20" fill="#129C8C"/>
+</svg>

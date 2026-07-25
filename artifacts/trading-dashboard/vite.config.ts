@@ -72,4 +72,8 @@ export default defineConfig({
     host: "0.0.0.0",
     allowedHosts: true,
   },
+  test: {
+    // Exclude Playwright E2E specs — those run via `pnpm test:e2e`, not Vitest.
+    exclude: ["**/e2e/**", "**/node_modules/**", "**/dist/**"],
+  },
 });

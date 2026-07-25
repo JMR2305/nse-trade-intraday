@@ -175,7 +175,7 @@
   --accent-border:      hsl(from hsl(var(--accent))      h s calc(l + var(--opaque-button-border-intensity)) / alpha);
   --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
 
-  /* ── OmniRoute semantic RGB tokens (for glassmorphism & new components) ── */
+  /* ── ApexQuant AI semantic RGB tokens (for glassmorphism & new components) ── */
   --omni-success: 16 122 87;
   --omni-warning: 168 134 64;
   --omni-danger:  176 50 56;
@@ -283,7 +283,7 @@
   }
 }
 
-/* ── OmniRoute glass / surface utilities ───────────────────────── */
+/* ── ApexQuant AI glass / surface utilities ───────────────────────── */
 @layer utilities {
   /**
    * Glassmorphism panels — light: frosted cream; dark: frosted navy.
@@ -328,7 +328,7 @@
     @apply outline-none ring-2 ring-primary/40 ring-offset-2 ring-offset-background;
   }
 
-  /* Semantic shadow utilities from OmniRoute tokens */
+  /* Semantic shadow utilities from ApexQuant AI tokens */
   .shadow-card       { box-shadow: var(--shadow-card); }
   .shadow-card-hover { box-shadow: var(--shadow-card-hover); }
   .shadow-pop        { box-shadow: var(--shadow-pop); }
@@ -348,7 +348,7 @@
   .ring-omni-info    { --tw-ring-color: rgb(var(--omni-info)); }
 }
 
-/* ── Extra keyframes (OmniRoute additions) ─────────────────────── */
+/* ── Extra keyframes (ApexQuant AI additions) ─────────────────────── */
 @keyframes fade-in-up {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }

@@ -1,6 +1,6 @@
 /**
  * Lightweight SVG chart primitives — no recharts dependency.
- * SVG chart primitives for Apex Global panels.
+ * SVG chart primitives for ApexQuant AI panels.
  */
 import { useId } from "react";
 import { toneRgb, toneRgbSoft, type Tone } from "@/lib/theme";

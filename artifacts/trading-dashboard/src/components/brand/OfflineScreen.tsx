@@ -1,22 +1,20 @@
 /**
- * OfflineScreen — shown when the Apex Global API server is unreachable.
+ * OfflineScreen — shown when the ApexQuant AI API server is unreachable.
  *
  * Displays:
- *   • Apex Global symbol + wordmark
- *   • PAPER TRADING mode badge
+ *   • ApexQuant AI logo + PAPER TRADING badge
  *   • Clear "temporarily unavailable" message
  *   • Retry button (full page reload)
- *   • Optional "Continue without live data" link
+ *   • Optional "Continue with cached data" link
+ *   • Collapsed technical detail
  */
 import { RefreshCw, WifiOff } from "lucide-react";
-import { Logo } from "@/components/brand/Logo";
+import { BrandHeader } from "@/components/brand/BrandHeader";
 import { Button } from "@/components/ui/button";
 
 interface OfflineScreenProps {
-  /** If true, show a "Continue with demo data" option. */
   allowDemoFallback?: boolean;
   onDemoFallback?: () => void;
-  /** Error detail, shown collapsed. */
   detail?: string;
 }
 
@@ -29,12 +27,12 @@ export function OfflineScreen({
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#F7F4ED] dark:bg-[#0E1626] px-6 text-center">
 
       {/* ── Brand ── */}
-      <Logo size={40} className="mb-4" />
-
-      {/* Paper Trading mode badge */}
-      <span className="mb-8 inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-50 dark:bg-amber-900/20 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-amber-700 dark:text-amber-400">
-        Paper Trading
-      </span>
+      <BrandHeader
+        logoSize={44}
+        showBadge
+        showAiStatus={false}
+        className="mb-10"
+      />
 
       {/* ── Icon ── */}
       <div className="mb-6 grid h-16 w-16 place-items-center rounded-2xl border border-border bg-card shadow-card">
@@ -46,8 +44,8 @@ export function OfflineScreen({
         Services Temporarily Unavailable
       </h1>
       <p className="mb-8 max-w-sm text-[14px] leading-relaxed text-muted-foreground">
-        Apex Global trading services are temporarily unavailable. Your paper positions
-        and strategy settings are safe — no live capital is at risk.
+        ApexQuant AI trading services are temporarily unavailable. Your paper
+        positions and strategy settings are safe — no live capital is at risk.
       </p>
 
       {/* ── Actions ── */}
@@ -70,7 +68,7 @@ export function OfflineScreen({
         )}
       </div>
 
-      {/* ── Collapsed error detail ── */}
+      {/* ── Technical detail ── */}
       {detail && (
         <details className="mt-8 max-w-sm text-left">
           <summary className="cursor-pointer text-[12px] text-muted-foreground/60 hover:text-muted-foreground">
@@ -84,7 +82,7 @@ export function OfflineScreen({
 
       {/* ── Footer ── */}
       <p className="absolute bottom-6 text-[11px] text-muted-foreground/40 tracking-wide">
-        Apex Global · AI-Powered NSE Trading Platform · Paper Mode Only
+        ApexQuant AI · AI-Powered NSE Trading Platform · Paper Mode Only
       </p>
     </div>
   );

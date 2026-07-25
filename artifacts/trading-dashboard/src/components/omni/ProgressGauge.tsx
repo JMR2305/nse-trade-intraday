@@ -1,6 +1,6 @@
 /**
  * ProgressGauge — arc gauge for capacity / utilisation display.
- * Arc gauge component for Apex Global dashboards.
+ * Arc gauge component for ApexQuant AI dashboards.
  */
 import { cn } from "@/lib/utils";
 import type { Tone } from "@/lib/theme";
