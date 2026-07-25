@@ -185,6 +185,54 @@ class ZerodhaOrderGateway:
 
     # ── Order placement ────────────────────────────────────────────────────
 
+    async def place_order_paper_fallback(
+        self, request: BrokerOrderRequest
+    ) -> BrokerOrderResponse:
+        """Place an order through the paper path while retaining all safety guards.
+
+        Used by ZerodhaAdapter when ``_session_expired_paper_fallback`` is active
+        (token expired or approaching expiry).  The execution is forced to paper
+        mode regardless of live-mode configuration, but the kill-switch and
+        idempotency checks run identically to ``place_order()``.
+
+        Raises
+        ------
+        BrokerKillSwitchError
+            If the kill switch is engaged (same as in the normal path).
+        BrokerDuplicateOrderError
+            If the idempotency key has already been processed.
+        """
+        # ── Kill switch check (identical to place_order) ───────────────────
+        from src.core.kill_switch import kill_switch_manager
+        if not kill_switch_manager.state.can_place_orders():
+            ks = kill_switch_manager.state
+            logger.critical(
+                "Order blocked by kill switch (paper fallback path)",
+                extra={
+                    "event_type": "BROKER_ORDER_BLOCKED_KILL_SWITCH",
+                    "kill_switch_level": ks.level.value,
+                    "internal_order_id": request.internal_order_id,
+                    "symbol": request.trading_symbol,
+                },
+            )
+            raise BrokerKillSwitchError(
+                f"Kill switch at {ks.level.value} — order blocked"
+            )
+
+        # ── Duplicate / idempotency check (identical to place_order) ───────
+        if request.idempotency_key in self._correlations:
+            existing = self._correlations[request.idempotency_key]
+            if existing not in (
+                CorrelationStatus.UNCERTAIN.value,
+                CorrelationStatus.FAILED.value,
+            ):
+                raise BrokerDuplicateOrderError(
+                    f"Idempotency key already processed: {request.idempotency_key!r}"
+                )
+
+        # ── Force paper execution ──────────────────────────────────────────
+        return await self._place_paper_order(request)
+
     async def place_order(self, request: BrokerOrderRequest) -> BrokerOrderResponse:
         """Place an order.  Idempotent via idempotency_key check.
 

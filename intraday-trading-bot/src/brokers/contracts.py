@@ -324,6 +324,10 @@ class BrokerHealth(BaseModel):
     unresolved_orders: int = 0
     reconciliation_status: Optional[str] = None
     failure_reason: Optional[str] = None
+    # Token expiry: minutes remaining until Zerodha token expires (None = unknown)
+    token_expiry_minutes: Optional[float] = None
+    # True when token is within the configured warning lead-time window
+    token_expiry_warning: bool = False
     checked_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )

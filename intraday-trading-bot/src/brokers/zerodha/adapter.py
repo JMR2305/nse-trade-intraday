@@ -36,7 +36,7 @@ from src.brokers.contracts import (
     BrokerSession,
     BrokerTrade,
 )
-from src.brokers.exceptions import BrokerSessionExpiredError
+from src.brokers.exceptions import BrokerLiveModeError, BrokerSessionExpiredError
 from src.brokers.interface import BrokerAdapter, OrderUpdateCallback
 from src.brokers.paper_broker import PaperBroker
 from src.brokers.zerodha.account_gateway import ZerodhaAccountGateway
@@ -63,6 +63,14 @@ class ZerodhaAdapter(BrokerAdapter):
     def __init__(self, config: ZerodhaBrokerConfig) -> None:
         self._config = config
         self._paper_broker = PaperBroker()
+
+        # When True, all new order placements are forced to paper mode because
+        # the Zerodha access token has expired or is about to expire.  Set by
+        # check_token_expiry(); cleared when a fresh session is established.
+        self._session_expired_paper_fallback: bool = False
+
+        # Background expiry monitor — created in initialize_live_session()
+        self._expiry_monitor: Optional[Any] = None
 
         # ── Core components ────────────────────────────────────────────────
         self._health_tracker = BrokerHealthTracker(paper_mode=config.paper_trading)
@@ -139,6 +147,8 @@ class ZerodhaAdapter(BrokerAdapter):
 
         session = self._session_manager.exchange_request_token()
         await self._health_tracker.mark_authenticated()
+        await self._health_tracker.clear_token_expiry_warning()
+        self._session_expired_paper_fallback = False
         self._wire_live_client()
         return session
 
@@ -167,6 +177,13 @@ class ZerodhaAdapter(BrokerAdapter):
                 "access token may be expired. Re-run the OAuth flow."
             )
         await self._health_tracker.mark_rest_success()  # REST confirmed reachable
+
+        # Start the background expiry monitor so operators get proactive warnings
+        from src.brokers.zerodha.expiry_monitor import TokenExpiryMonitor
+        if self._expiry_monitor is None:
+            self._expiry_monitor = TokenExpiryMonitor(self)
+        self._expiry_monitor.start()
+
         logger.info(
             "LIVE mode: adapter initialised and session validated",
             extra={"event_type": "LIVE_MODE_ADAPTER_READY", **self._config.log_safe()},
@@ -181,6 +198,8 @@ class ZerodhaAdapter(BrokerAdapter):
         try:
             session = self._session_manager.restore_session()
             await self._health_tracker.mark_authenticated()
+            await self._health_tracker.clear_token_expiry_warning()
+            self._session_expired_paper_fallback = False
             self._wire_live_client()
             return session
         except BrokerSessionExpiredError:
@@ -195,11 +214,161 @@ class ZerodhaAdapter(BrokerAdapter):
 
     async def close(self) -> None:
         """Release all resources."""
+        if self._expiry_monitor is not None:
+            await self._expiry_monitor.stop()
         await self._ws_manager.stop()
         logger.info(
             "ZerodhaAdapter closed",
             extra={"event_type": "ZERODHA_ADAPTER_CLOSED"},
         )
+
+    # ── Token expiry ───────────────────────────────────────────────────────
+
+    async def check_token_expiry(
+        self,
+        warning_lead_minutes: int = 30,
+    ) -> dict:
+        """Proactively check Zerodha token expiry and degrade gracefully.
+
+        Call this periodically (e.g. from TokenExpiryMonitor every 60 s) or
+        ad-hoc before placing a batch of orders.
+
+        Behaviour
+        ---------
+        - **Paper mode**: returns immediately with ``{"action": "none"}``.
+        - **Expiring soon** (within ``warning_lead_minutes``): logs CRITICAL,
+          sends a best-effort alert, sets ``_session_expired_paper_fallback``
+          so new orders route to the paper broker, marks health tracker
+          session invalid.
+        - **Already expired**: same as *expiring soon* plus marks as expired.
+        - **Healthy**: updates ``token_expiry_minutes`` in the health tracker
+          and returns ``{"action": "none"}``.
+
+        Returns
+        -------
+        dict with keys:
+          - ``action``: ``"none"`` | ``"warning_alert"`` | ``"expired_degraded"``
+          - ``minutes_remaining``: float | None
+        """
+        if self._config.paper_trading:
+            return {"action": "none", "minutes_remaining": None}
+
+        is_expiring_soon, is_expired, mins = (
+            self._session_manager.check_expiry_warning(warning_lead_minutes)
+        )
+
+        if not (is_expiring_soon or is_expired):
+            # Healthy session: only update the countdown, never set warning flag
+            if mins is not None:
+                await self._health_tracker.update_token_expiry_minutes(mins)
+            return {"action": "none", "minutes_remaining": mins}
+
+        # Token is expiring soon or already expired — set warning state
+        if mins is not None:
+            await self._health_tracker.mark_token_expiry_warning(
+                mins, is_expired=is_expired
+            )
+
+        action = "expired_degraded" if is_expired else "warning_alert"
+        self._session_expired_paper_fallback = True
+
+        mins_label = f"{mins:.1f}" if mins is not None else "unknown"
+        if is_expired:
+            msg = (
+                "CRITICAL: Zerodha access token has EXPIRED. "
+                "New orders are being routed to paper mode. "
+                "Re-authenticate immediately via the daily OAuth flow."
+            )
+        else:
+            msg = (
+                f"WARNING: Zerodha access token expires in {mins_label} minutes "
+                f"(threshold: {warning_lead_minutes} min). "
+                "New orders will be routed to paper mode at expiry. "
+                "Re-authenticate before the token expires."
+            )
+
+        logger.critical(
+            msg,
+            extra={
+                "event_type": "BROKER_TOKEN_EXPIRY_WARNING",
+                "action": action,
+                "minutes_remaining": mins,
+                "warning_lead_minutes": warning_lead_minutes,
+                **self._config.log_safe(),
+            },
+        )
+
+        # Best-effort alert — must never raise
+        await self._send_expiry_alert(
+            is_expired=is_expired,
+            minutes_remaining=mins,
+            warning_lead_minutes=warning_lead_minutes,
+        )
+
+        return {"action": action, "minutes_remaining": mins}
+
+    async def _send_expiry_alert(
+        self,
+        *,
+        is_expired: bool,
+        minutes_remaining: Optional[float],
+        warning_lead_minutes: int,
+    ) -> None:
+        """Send a best-effort email/push notification on token expiry. Never raises."""
+        try:
+            import sys
+            import os
+            # Locate email_alerts module — path differs by execution environment
+            _python_src = os.path.join(
+                os.path.dirname(__file__), "..", "..", "..", "src", "python"
+            )
+            if _python_src not in sys.path:
+                sys.path.insert(0, _python_src)
+
+            from email_alerts import _log, _deliver, _from_address  # type: ignore[import]
+
+            mins_label = (
+                f"{minutes_remaining:.0f}" if minutes_remaining is not None else "?"
+            )
+            if is_expired:
+                subject = "[NSE Trading] CRITICAL: Zerodha token EXPIRED — orders in paper mode"
+                text = (
+                    "The Zerodha access token has expired.\n\n"
+                    "All new order placements have been automatically switched to paper mode "
+                    "to prevent silent order loss.\n\n"
+                    "ACTION REQUIRED: Complete the daily OAuth2 re-authentication:\n"
+                    "  1. Call GET /broker/auth/login-url to get the login URL\n"
+                    "  2. Complete the browser login\n"
+                    "  3. POST /broker/auth/exchange with the request_token\n"
+                    "  4. Set ZERODHA_ACCESS_TOKEN to the returned access token\n\n"
+                    "See docs/RC10D_Zerodha_Authentication.md for the full recovery runbook."
+                )
+            else:
+                subject = (
+                    f"[NSE Trading] WARNING: Zerodha token expires in {mins_label} min"
+                )
+                text = (
+                    f"The Zerodha access token expires in approximately {mins_label} minutes.\n\n"
+                    f"When expiry occurs (threshold: {warning_lead_minutes} min), "
+                    "new orders will automatically switch to paper mode.\n\n"
+                    "ACTION REQUIRED: Re-authenticate before the token expires.\n"
+                    "See docs/RC10D_Zerodha_Authentication.md for the recovery runbook."
+                )
+
+            try:
+                import phase20_store as store  # type: ignore[import]
+                settings = store.get_settings()
+                to = str(settings.get("email_alert_address") or "").strip()
+                if to and "@" in to:
+                    _deliver(to, subject, text)
+            except Exception as mail_exc:
+                _log(f"token expiry email failed: {type(mail_exc).__name__}: {mail_exc}")
+
+        except Exception as exc:  # noqa: BLE001
+            logger.debug(
+                f"_send_expiry_alert: non-critical failure ({type(exc).__name__}): {exc}",
+                extra={"event_type": "BROKER_EXPIRY_ALERT_FAILED"},
+            )
 
     # ── DB session lifecycle ───────────────────────────────────────────────
 
@@ -221,7 +390,26 @@ class ZerodhaAdapter(BrokerAdapter):
     # ── Orders ─────────────────────────────────────────────────────────────
 
     async def place_broker_order(self, request: BrokerOrderRequest) -> BrokerOrderResponse:
-        """Place an order.  Kill switch enforced in OrderGateway."""
+        """Place an order.  Kill switch enforced in OrderGateway.
+
+        When the session has been degraded to paper mode due to token expiry,
+        the order is routed directly to ``_place_paper_order()`` inside the
+        order gateway, bypassing the live-mode config gates entirely.  This
+        guarantees a deterministic paper fill regardless of how
+        ``_config.paper_trading`` or ``is_live_order_allowed()`` are set.
+        """
+        if self._session_expired_paper_fallback and not self._config.paper_trading:
+            logger.warning(
+                "Order routed to paper broker: session expired paper fallback is active. "
+                "Re-authenticate to restore live order routing.",
+                extra={
+                    "event_type": "BROKER_ORDER_PAPER_FALLBACK",
+                    "internal_order_id": request.internal_order_id,
+                },
+            )
+            # Call the public fallback path — kill-switch and idempotency guards
+            # still run; only live-mode config gates are bypassed.
+            return await self._order_gateway.place_order_paper_fallback(request)
         return await self._order_gateway.place_order(request)
 
     async def modify_broker_order(

@@ -45,6 +45,9 @@ class BrokerHealthTracker:
         self._unresolved_orders: int = 0
         self._reconciliation_status: Optional[str] = None
         self._failure_reason: Optional[str] = None
+        # Token expiry tracking
+        self._token_expiry_minutes: Optional[float] = None
+        self._token_expiry_warning: bool = False
 
     # ── Update methods (called by gateways / websocket / session manager) ──
 
@@ -97,6 +100,52 @@ class BrokerHealthTracker:
         async with self._lock:
             self._reconciliation_status = status
 
+    async def update_token_expiry_minutes(self, minutes_remaining: float) -> None:
+        """Update the expiry countdown for a healthy (non-warning) session.
+
+        Only updates the minutes field; does NOT set the warning flag.
+        Call this on every healthy poll iteration so the UI countdown stays fresh.
+        """
+        async with self._lock:
+            self._token_expiry_minutes = minutes_remaining
+
+    async def mark_token_expiry_warning(
+        self,
+        minutes_remaining: float,
+        *,
+        is_expired: bool = False,
+    ) -> None:
+        """Record that the session token is approaching or past expiry.
+
+        Sets ``token_expiry_warning=True``.  Call only when the token is within
+        the configured warning window or already expired.  For healthy sessions
+        (outside the warning window) use ``update_token_expiry_minutes()``
+        instead so the warning flag is not set spuriously.
+
+        Parameters
+        ----------
+        minutes_remaining:
+            Minutes until the token expires (negative = already expired).
+        is_expired:
+            True when the token has already crossed the expiry boundary.
+        """
+        async with self._lock:
+            self._token_expiry_minutes = minutes_remaining
+            self._token_expiry_warning = True
+            if is_expired:
+                # Treat an expired token the same as an invalid session so
+                # health.is_ready and order-gateway._assert_health() both block
+                # new live orders immediately.
+                self._authenticated = False
+                self._session_valid = False
+                self._failure_reason = "Token expired — re-authenticate via daily OAuth flow"
+
+    async def clear_token_expiry_warning(self) -> None:
+        """Clear the expiry warning after a fresh token is installed."""
+        async with self._lock:
+            self._token_expiry_minutes = None
+            self._token_expiry_warning = False
+
     # ── Read methods ───────────────────────────────────────────────────────
 
     def get_health(self) -> BrokerHealth:
@@ -116,6 +165,8 @@ class BrokerHealthTracker:
             unresolved_orders=self._unresolved_orders,
             reconciliation_status=self._reconciliation_status,
             failure_reason=self._failure_reason,
+            token_expiry_minutes=self._token_expiry_minutes,
+            token_expiry_warning=self._token_expiry_warning,
             checked_at=datetime.now(timezone.utc),
         )
 

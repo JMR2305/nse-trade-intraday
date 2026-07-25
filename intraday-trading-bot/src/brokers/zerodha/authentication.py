@@ -284,6 +284,52 @@ class ZerodhaSessionManager:
                 )
         return self._kite
 
+    # ── Expiry helpers ─────────────────────────────────────────────────────
+
+    def minutes_until_expiry(self) -> Optional[float]:
+        """Return minutes remaining until the current session expires.
+
+        Returns
+        -------
+        float
+            Minutes until expiry (negative = already expired).
+        None
+            No active session is held.
+        """
+        if self._session is None or self._session.expires_at is None:
+            return None
+        delta = self._session.expires_at - datetime.now(timezone.utc)
+        return delta.total_seconds() / 60.0
+
+    def check_expiry_warning(
+        self,
+        warning_lead_minutes: int = 30,
+    ) -> tuple:
+        """Check whether the session is expiring soon or already expired.
+
+        Parameters
+        ----------
+        warning_lead_minutes:
+            Alert when expiry is within this many minutes.  Default 30.
+
+        Returns
+        -------
+        tuple(is_expiring_soon: bool, is_expired: bool, minutes_remaining: Optional[float])
+            - ``is_expiring_soon`` — True if expiry is within warning window
+              (but not yet expired).
+            - ``is_expired`` — True if the token has already passed its
+              expiry timestamp.
+            - ``minutes_remaining`` — Minutes until expiry; negative means
+              already expired; None if no session exists.
+        """
+        mins = self.minutes_until_expiry()
+        if mins is None:
+            return (False, False, None)
+
+        is_expired = mins <= 0
+        is_expiring_soon = (not is_expired) and (mins <= warning_lead_minutes)
+        return (is_expiring_soon, is_expired, mins)
+
     @staticmethod
     def _token_expiry() -> datetime:
         """Zerodha access tokens expire at midnight IST (06:00 UTC next day)."""
