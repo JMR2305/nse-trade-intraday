@@ -5,12 +5,14 @@
  */
 
 import { Fragment, useState, useEffect, useCallback } from "react";
+import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Gauge, RefreshCw, Loader2, CheckCircle2, XCircle, AlertTriangle,
   Clock, TimerReset, ShieldCheck, ChevronDown, ChevronRight, History,
+  ClipboardCheck, ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { API_BASE } from "@/lib/api";
@@ -81,6 +83,7 @@ export default function AutomationHealth() {
   const [breakerAudit, setBreakerAudit] = useState<any[]>([]);
   const [resumeText, setResumeText] = useState("");
   const [resuming, setResuming] = useState(false);
+  const [recon, setRecon] = useState<any>(null);
 
   const load = useCallback(async () => {
     setRefreshing(true);
@@ -101,6 +104,11 @@ export default function AutomationHealth() {
       setBreakerAudit(d?.audit ?? []);
     }
     catch (e) { errs.push(`Circuit breaker: ${e instanceof Error ? e.message : String(e)}`); }
+    try {
+      const d = await safeJson("/broker/reconciliation");
+      setRecon(d ?? null);
+    }
+    catch (e) { errs.push(`Reconciliation: ${e instanceof Error ? e.message : String(e)}`); }
     setErrors(errs);
     setLoading(false);
     setRefreshing(false);
@@ -335,6 +343,103 @@ export default function AutomationHealth() {
           )}
         </CardContent>
       </Card>
+
+      {/* Reconciliation health summary */}
+      {(() => {
+        const lastRun = recon?.last_run ?? {};
+        const dbRun = lastRun?.db_latest_run ?? lastRun;
+        const openDisc: any[] = recon?.open_discrepancies ?? [];
+        const reviewNeeded = openDisc.filter((d: any) => d.requires_manual_review);
+        const hasRun = !!dbRun?.run_id;
+        const isClean = hasRun && (dbRun?.clean ?? true) && openDisc.length === 0;
+        const lastRanToday = recon?.last_ran_today ?? false;
+
+        const cardBorder = reviewNeeded.length > 0
+          ? "border-red-700"
+          : isClean
+            ? "border-emerald-900"
+            : "border-zinc-700";
+
+        const statusBadgeCls = reviewNeeded.length > 0
+          ? "text-red-400 border-red-700 bg-red-950/30"
+          : isClean
+            ? "text-emerald-400 border-emerald-700 bg-emerald-950/30"
+            : hasRun
+              ? "text-amber-400 border-amber-700 bg-amber-950/30"
+              : "text-zinc-400 border-zinc-600 bg-zinc-900/50";
+
+        const statusLabel = reviewNeeded.length > 0
+          ? `${reviewNeeded.length} NEED REVIEW`
+          : isClean
+            ? "CLEAN"
+            : hasRun
+              ? `${openDisc.length} OPEN`
+              : "NO RUN YET";
+
+        return (
+          <Card className={cn("bg-zinc-900", cardBorder)}>
+            <CardHeader className="py-2 px-3">
+              <CardTitle className="text-[11px] font-mono text-zinc-200 flex items-center gap-1.5">
+                <ClipboardCheck className={cn("h-3.5 w-3.5",
+                  reviewNeeded.length > 0 ? "text-red-400" : isClean ? "text-emerald-400" : "text-zinc-400"
+                )} />
+                EOD Reconciliation
+                <Badge variant="outline" className={cn("ml-auto text-[10px] px-2", statusBadgeCls)}>
+                  {statusLabel}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-3 pb-3">
+              <Link href="/broker-execution">
+                <div className="cursor-pointer rounded border border-zinc-800 hover:border-zinc-600 hover:bg-zinc-800/30 transition-colors px-3 py-2.5 text-[11px] space-y-1.5">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-1.5">
+                    <Field
+                      label="Last run"
+                      value={hasRun
+                        ? (dbRun.started_at
+                          ? (() => {
+                              try {
+                                return new Date(dbRun.started_at).toLocaleString("en-IN", {
+                                  timeZone: "Asia/Kolkata",
+                                  dateStyle: "short",
+                                  timeStyle: "short",
+                                }) + " IST";
+                              } catch { return dbRun.started_at; }
+                            })()
+                          : "N/A")
+                        : "No run recorded"}
+                      valueCls={lastRanToday ? "text-emerald-400" : undefined}
+                    />
+                    <Field
+                      label="Result"
+                      value={!hasRun
+                        ? "—"
+                        : dbRun.paper_mode
+                          ? "PAPER MODE"
+                          : isClean
+                            ? `Clean · ${dbRun.orders_checked ?? 0} orders`
+                            : `${dbRun.discrepancy_count ?? openDisc.length} discrepancy/ies`}
+                      valueCls={!hasRun ? undefined : dbRun.paper_mode ? "text-zinc-400" : isClean ? "text-emerald-400" : "text-red-400"}
+                    />
+                    <Field
+                      label="Needs manual review"
+                      value={reviewNeeded.length > 0 ? `${reviewNeeded.length} item(s)` : "None"}
+                      valueCls={reviewNeeded.length > 0 ? "text-red-400" : "text-emerald-400"}
+                    />
+                  </div>
+                  <div className="flex items-center gap-1 text-[10px] text-zinc-500 pt-0.5 border-t border-zinc-800">
+                    <ExternalLink className="h-2.5 w-2.5" />
+                    <span>Click for full reconciliation details on Broker Execution page</span>
+                    {recon?.eod_window_active && (
+                      <span className="ml-auto text-emerald-400">EOD window active</span>
+                    )}
+                  </div>
+                </div>
+              </Link>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* Validation status */}
       <Card className="bg-zinc-900 border-zinc-700">
