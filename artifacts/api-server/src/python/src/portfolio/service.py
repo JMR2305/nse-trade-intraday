@@ -59,6 +59,7 @@ from src.portfolio.contracts import (
     PositionSizeRequest,
 )
 from src.portfolio.exceptions import (
+    CorruptSnapshotError,
     DuplicateEventError,
     NegativeQuantityError,
     PortfolioHaltedError,
@@ -131,6 +132,7 @@ class PortfolioService:
         snapshot_repo: PortfolioSnapshotRepository | None = None,
         event_repo: PortfolioEventRepository | None = None,
         reconciliation_repo: ReconciliationRepository | None = None,
+        alert_callback: Any | None = None,
     ) -> None:
         self.config: PortfolioConfig = config or DEFAULT_CONFIG
 
@@ -162,6 +164,12 @@ class PortfolioService:
         self._event_repo: PortfolioEventRepository | None = event_repo
         self._reconciliation_repo: ReconciliationRepository | None = reconciliation_repo
 
+        # Optional alert hook: callable(kind: str, payload: dict) called when a
+        # structured alert must be dispatched (e.g. CorruptSnapshotError detected).
+        # The callback is invoked synchronously if async is not required; callers
+        # may supply a thin wrapper around their notification service.
+        self._alert_callback: Any | None = alert_callback
+
         logger.info(
             "PortfolioService created",
             extra={
@@ -173,6 +181,50 @@ class PortfolioService:
     # ──────────────────────────────────────────────────────────────────────
     # Internal helpers
     # ──────────────────────────────────────────────────────────────────────
+
+    def _emit_corrupt_snapshot_alert(
+        self,
+        portfolio_id: str,
+        error: Exception,
+        extra_context: dict[str, Any] | None = None,
+    ) -> None:
+        """Emit a structured CRITICAL alert for a corrupt-snapshot event.
+
+        The alert is always written as a structured log at CRITICAL level.
+        If an *alert_callback* was supplied at construction time it is also
+        invoked with ``(kind, payload)`` so external notification systems
+        (email, PagerDuty, etc.) can act on it.
+
+        This method never raises — alerting must not block recovery.
+        """
+        payload: dict[str, Any] = {
+            "kind": "CORRUPT_SNAPSHOT",
+            "portfolio_id": portfolio_id,
+            "error": str(error),
+            "severity": "CRITICAL",
+            "action_required": (
+                "Portfolio snapshot store is corrupt. "
+                "Automatic fill-history rebuild has been triggered. "
+                "Verify rebuilt state before allowing live trading."
+            ),
+        }
+        if extra_context:
+            payload.update(extra_context)
+
+        logger.critical(
+            "CORRUPT_SNAPSHOT_DETECTED: portfolio snapshot failed integrity check — "
+            "falling back to fill-history replay",
+            extra=payload,
+        )
+
+        if self._alert_callback is not None:
+            try:
+                self._alert_callback("CORRUPT_SNAPSHOT", payload)
+            except Exception as cb_exc:
+                logger.warning(
+                    "Alert callback raised during corrupt-snapshot alert",
+                    extra={"callback_error": str(cb_exc)},
+                )
 
     def _snapshot_sync(self, portfolio_id: str | None = None) -> PortfolioSnapshot:
         """Return snapshot from state_manager (synchronous call)."""
@@ -787,14 +839,22 @@ class PortfolioService:
     ) -> PortfolioSnapshot:
         """Recover portfolio state from a persisted snapshot (or initialise fresh).
 
-        If *snapshot* is provided, restores state from it.
-        If *snapshot* is None and ``snapshot_repo`` is configured, attempts
-        DB recovery.  Otherwise creates fresh state with zero cash.
+        Recovery strategy (in priority order)
+        --------------------------------------
+        1. If *snapshot* is provided, restore from it directly.
+        2. If ``snapshot_repo`` is configured, attempt to load the latest
+           valid snapshot from it.  If the repo raises :class:`CorruptSnapshotError`
+           (all candidates are corrupt), emit a structured CRITICAL alert and
+           fall through to step 3.
+        3. Full fill-history replay: if ``event_repo`` is configured, replay
+           every ``FILL_RECEIVED`` event from the beginning of time.  This
+           reconstructs positions without relying on any snapshot.
+        4. Fresh initialisation from ``config.initial_capital`` as a last resort.
 
         Parameters
         ----------
         snapshot:
-            Optional snapshot to restore from.
+            Optional snapshot to restore from (step 1).
         portfolio_id:
             Portfolio to recover (defaults to configured portfolio_id).
 
@@ -805,10 +865,21 @@ class PortfolioService:
         """
         pid = portfolio_id or self.config.portfolio_id
 
-        # ── Determine which snapshot to restore from ──────────────────
+        # ── Step 1 / 2: Determine which snapshot to restore from ──────
         restore_target: PortfolioSnapshot | None = snapshot
+        corrupt_snapshot_error: CorruptSnapshotError | None = None
+
         if restore_target is None and self._snapshot_repo is not None:
-            restore_target = await self._snapshot_repo.get_latest_valid(pid)
+            try:
+                restore_target = await self._snapshot_repo.get_latest_valid(pid)
+            except CorruptSnapshotError as exc:
+                corrupt_snapshot_error = exc
+                # Emit structured alert — do NOT re-raise; fall through to
+                # fill-history rebuild so the system stays operational.
+                self._emit_corrupt_snapshot_alert(
+                    portfolio_id=pid,
+                    error=exc,
+                )
 
         if restore_target is not None:
             # Full state restore: cash + margin + positions + P&L.
@@ -850,9 +921,21 @@ class PortfolioService:
             )
             return recovered
 
-        # No snapshot available — fresh initialisation from configured capital.
+        # ── Step 3: Fill-history replay (snapshot unavailable or corrupt) ──
+        if self._event_repo is not None:
+            result = await self.rebuild_from_fills(portfolio_id=pid)
+            if result is not None:
+                return result
+
+        # ── Step 4: Fresh initialisation — last resort ─────────────────
         # Use config.initial_capital (not zero) so that allocations and limits
         # are immediately functional on a first-time or post-snapshot-loss start.
+        if corrupt_snapshot_error is not None:
+            logger.warning(
+                "Portfolio bootstrapped from initial_capital after corrupt-snapshot "
+                "fallback — no fill events found; verify state before live trading",
+                extra={"portfolio_id": pid},
+            )
         fresh = await self._state_manager.initialise(self.config.initial_capital, pid)
         self._health_monitor.record_recovery(success=True)
         self._health_monitor.record_reconciliation(
@@ -864,6 +947,82 @@ class PortfolioService:
             extra={"portfolio_id": pid},
         )
         return fresh
+
+    async def rebuild_from_fills(
+        self,
+        portfolio_id: str | None = None,
+    ) -> PortfolioSnapshot | None:
+        """Rebuild portfolio state by replaying all fill events from the event store.
+
+        This is used automatically by :meth:`recover` when no valid snapshot
+        exists, and can also be invoked directly by operators via the CLI
+        (``python -m src.portfolio.cli rebuild-from-fills``).
+
+        The method:
+        1. Initialises a fresh in-memory state from ``config.initial_capital``.
+        2. Fetches **all** ``FILL_RECEIVED`` events for *portfolio_id* from
+           ``event_repo`` in sequence order.
+        3. Replays them through the ledger so positions are reconstructed.
+        4. Marks the service as READY.
+
+        Returns
+        -------
+        PortfolioSnapshot
+            The rebuilt snapshot.
+        None
+            If ``event_repo`` is not configured or there are no fill events.
+        """
+        pid = portfolio_id or self.config.portfolio_id
+
+        if self._event_repo is None:
+            logger.warning(
+                "rebuild_from_fills: no event_repo configured — cannot replay fill history",
+                extra={"portfolio_id": pid},
+            )
+            return None
+
+        all_events = await self._event_repo.list_all(portfolio_id=pid)
+        fill_events = [
+            e for e in all_events
+            if e.event_type == PortfolioEventType.FILL_RECEIVED
+        ]
+
+        if not fill_events:
+            logger.warning(
+                "rebuild_from_fills: no FILL_RECEIVED events found in event store",
+                extra={"portfolio_id": pid},
+            )
+            return None
+
+        logger.info(
+            "rebuild_from_fills: replaying %d fill events to rebuild portfolio state",
+            len(fill_events),
+            extra={"portfolio_id": pid},
+        )
+
+        # Reinitialise from configured capital so cash baseline is correct.
+        await self._state_manager.initialise(self.config.initial_capital, pid)
+
+        replayed = await self._ledger.replay(fill_events, self._state_manager)
+
+        # Transition to READY.
+        self._state_manager._status = PortfolioStatus.READY
+        self._state_manager._last_updated = datetime.now(timezone.utc)
+
+        self._health_monitor.record_recovery(success=True)
+        self._health_monitor.record_reconciliation(
+            critical_count=0, warning_count=0, completed_at=datetime.now(timezone.utc)
+        )
+
+        rebuilt = self._state_manager.get_snapshot(pid)
+        logger.info(
+            "rebuild_from_fills complete: replayed=%d positions=%d cash=%s",
+            replayed,
+            len(rebuilt.open_positions),
+            str(rebuilt.cash.total),
+            extra={"portfolio_id": pid},
+        )
+        return rebuilt
 
     # ──────────────────────────────────────────────────────────────────────
     # Snapshot management

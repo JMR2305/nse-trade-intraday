@@ -602,3 +602,275 @@ class TestRecover:
         assert len(recovered.open_positions) == 0, (
             "Closed positions must stay closed after recovery"
         )
+
+
+# ===========================================================================
+# Corrupt-snapshot fallback & fill-history rebuild
+# ===========================================================================
+
+class TestCorruptSnapshotFallback:
+    """Tests for the CorruptSnapshotError → fill-history rebuild path.
+
+    Covers task-17 requirements:
+    - recover() falls back to fill-history replay when no valid snapshot exists
+    - CorruptSnapshotError emits a structured alert instead of just logging
+    - rebuild_from_fills() restores correct position quantities
+    """
+
+    @pytest.mark.asyncio
+    async def test_rebuild_from_fills_restores_position_quantities(self):
+        """Core regression: fill-history rebuild produces correct position counts.
+
+        A service with only an event_repo (no snapshot_repo) must be able to
+        reconstruct exact open positions from FILL_RECEIVED events alone.
+        """
+        from src.portfolio.repositories.portfolio_event import PortfolioEventRepository
+        from src.portfolio.contracts import PortfolioEventType, PortfolioEvent
+
+        config = _make_config()
+        event_repo = PortfolioEventRepository()
+
+        # Seed the event store with two fills: buy 5 RELIANCE, buy 3 INFY
+        buy_reliance = PortfolioEvent(
+            idempotency_key="rebuild-fill-001",
+            event_type=PortfolioEventType.FILL_RECEIVED,
+            instrument_token=738561,
+            payload={
+                "fill_id": "rebuild-fill-001",
+                "side": "BUY",
+                "quantity": "5",
+                "price": "2500",
+                "fees": "0",
+                "instrument_symbol": "RELIANCE",
+                "order_id": "",
+                "sector": "Energy",
+            },
+        )
+        buy_infy = PortfolioEvent(
+            idempotency_key="rebuild-fill-002",
+            event_type=PortfolioEventType.FILL_RECEIVED,
+            instrument_token=408065,
+            payload={
+                "fill_id": "rebuild-fill-002",
+                "side": "BUY",
+                "quantity": "3",
+                "price": "1800",
+                "fees": "0",
+                "instrument_symbol": "INFY",
+                "order_id": "",
+                "sector": "IT",
+            },
+        )
+        await event_repo.append(buy_reliance)
+        await event_repo.append(buy_infy)
+
+        # Build service with the pre-seeded event_repo; no snapshot_repo
+        svc = PortfolioService(config=config, event_repo=event_repo)
+
+        # rebuild_from_fills should reconstruct both positions
+        result = await svc.rebuild_from_fills()
+
+        assert result is not None, "rebuild_from_fills must return a snapshot"
+        assert result.status.value == "READY", (
+            f"Rebuilt portfolio must be READY, got {result.status}"
+        )
+        assert len(result.open_positions) == 2, (
+            f"Expected 2 open positions, got {len(result.open_positions)}"
+        )
+
+        by_symbol = {pos.instrument_symbol: pos for pos in result.open_positions}
+        assert "RELIANCE" in by_symbol, "RELIANCE position must be rebuilt"
+        assert "INFY" in by_symbol, "INFY position must be rebuilt"
+        assert by_symbol["RELIANCE"].open_quantity == 5, (
+            f"RELIANCE qty should be 5, got {by_symbol['RELIANCE'].open_quantity}"
+        )
+        assert by_symbol["INFY"].open_quantity == 3, (
+            f"INFY qty should be 3, got {by_symbol['INFY'].open_quantity}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_recover_falls_back_to_fill_history_on_corrupt_snapshot(self):
+        """recover() falls back to fill-history replay when CorruptSnapshotError is raised.
+
+        Simulates a corrupt snapshot store by monkey-patching get_latest_valid()
+        to raise CorruptSnapshotError.  The service must still produce a READY
+        state with correct positions from the event repo.
+        """
+        from unittest.mock import AsyncMock, patch
+        from src.portfolio.exceptions import CorruptSnapshotError
+        from src.portfolio.repositories.portfolio_event import PortfolioEventRepository
+        from src.portfolio.repositories.portfolio_snapshot import PortfolioSnapshotRepository
+        from src.portfolio.contracts import PortfolioEventType, PortfolioEvent
+
+        config = _make_config()
+        event_repo = PortfolioEventRepository()
+        snapshot_repo = PortfolioSnapshotRepository()
+
+        # Seed the event store with one fill
+        fill_event = PortfolioEvent(
+            idempotency_key="corrupt-fallback-fill-001",
+            event_type=PortfolioEventType.FILL_RECEIVED,
+            instrument_token=738561,
+            payload={
+                "fill_id": "corrupt-fallback-fill-001",
+                "side": "BUY",
+                "quantity": "7",
+                "price": "2500",
+                "fees": "0",
+                "instrument_symbol": "RELIANCE",
+                "order_id": "",
+                "sector": "",
+            },
+        )
+        await event_repo.append(fill_event)
+
+        # Capture alerts so we can assert one was emitted
+        alerts: list[tuple[str, dict]] = []
+        def _alert_hook(kind: str, payload: dict) -> None:
+            alerts.append((kind, payload))
+
+        svc = PortfolioService(
+            config=config,
+            snapshot_repo=snapshot_repo,
+            event_repo=event_repo,
+            alert_callback=_alert_hook,
+        )
+
+        # Force the snapshot repo to raise CorruptSnapshotError
+        snapshot_repo.get_latest_valid = AsyncMock(
+            side_effect=CorruptSnapshotError("checksum mismatch in test")
+        )
+
+        recovered = await svc.recover()
+
+        # Must be READY with correct position rebuilt from fills
+        assert recovered.status.value == "READY", (
+            f"Expected READY after corrupt-snapshot fallback, got {recovered.status}"
+        )
+        assert len(recovered.open_positions) == 1, (
+            f"Expected 1 position from fill replay, got {len(recovered.open_positions)}"
+        )
+        assert recovered.open_positions[0].instrument_symbol == "RELIANCE"
+        assert recovered.open_positions[0].open_quantity == 7
+
+        # A structured alert must have been emitted
+        assert len(alerts) == 1, (
+            f"Expected exactly 1 alert for CorruptSnapshotError, got {len(alerts)}"
+        )
+        kind, payload = alerts[0]
+        assert kind == "CORRUPT_SNAPSHOT", f"Alert kind should be CORRUPT_SNAPSHOT, got {kind!r}"
+        assert "CRITICAL" == payload.get("severity"), (
+            f"Alert severity should be CRITICAL, got {payload.get('severity')!r}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_corrupt_snapshot_alert_fires_even_without_callback(self):
+        """CorruptSnapshotError path must not raise even if no alert_callback is set."""
+        from unittest.mock import AsyncMock
+        from src.portfolio.exceptions import CorruptSnapshotError
+        from src.portfolio.repositories.portfolio_event import PortfolioEventRepository
+        from src.portfolio.repositories.portfolio_snapshot import PortfolioSnapshotRepository
+        from src.portfolio.contracts import PortfolioEventType, PortfolioEvent
+
+        config = _make_config()
+        event_repo = PortfolioEventRepository()
+        snapshot_repo = PortfolioSnapshotRepository()
+
+        fill_event = PortfolioEvent(
+            idempotency_key="no-callback-fill-001",
+            event_type=PortfolioEventType.FILL_RECEIVED,
+            instrument_token=738561,
+            payload={
+                "fill_id": "no-callback-fill-001",
+                "side": "BUY",
+                "quantity": "2",
+                "price": "2500",
+                "fees": "0",
+                "instrument_symbol": "RELIANCE",
+                "order_id": "",
+                "sector": "",
+            },
+        )
+        await event_repo.append(fill_event)
+
+        # No alert_callback — must not raise
+        svc = PortfolioService(
+            config=config,
+            snapshot_repo=snapshot_repo,
+            event_repo=event_repo,
+        )
+        snapshot_repo.get_latest_valid = AsyncMock(
+            side_effect=CorruptSnapshotError("simulated corrupt snapshot")
+        )
+
+        # Should complete without raising
+        recovered = await svc.recover()
+        assert recovered.status.value == "READY"
+        assert len(recovered.open_positions) == 1
+
+    @pytest.mark.asyncio
+    async def test_rebuild_from_fills_returns_none_without_event_repo(self):
+        """rebuild_from_fills returns None when no event_repo is configured."""
+        config = _make_config()
+        svc = PortfolioService(config=config)  # no event_repo
+
+        result = await svc.rebuild_from_fills()
+        assert result is None, (
+            "rebuild_from_fills must return None when event_repo is not configured"
+        )
+
+    @pytest.mark.asyncio
+    async def test_rebuild_from_fills_returns_none_with_empty_event_store(self):
+        """rebuild_from_fills returns None when event_repo has no fill events."""
+        from src.portfolio.repositories.portfolio_event import PortfolioEventRepository
+
+        config = _make_config()
+        event_repo = PortfolioEventRepository()  # empty
+        svc = PortfolioService(config=config, event_repo=event_repo)
+
+        result = await svc.rebuild_from_fills()
+        assert result is None, (
+            "rebuild_from_fills must return None when no FILL_RECEIVED events exist"
+        )
+
+    @pytest.mark.asyncio
+    async def test_recover_uses_initial_capital_as_last_resort(self):
+        """When both snapshot and fill history are absent, recover() uses initial_capital."""
+        config = _make_config(initial_capital=Decimal("75000"))
+        svc = PortfolioService(config=config)  # no repos at all
+
+        recovered = await svc.recover()
+        assert recovered.status.value == "READY"
+        assert recovered.cash.total == Decimal("75000"), (
+            f"Last-resort recovery must use initial_capital=75000, got {recovered.cash.total}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_snapshot_checksum_validation_passes_for_valid_snapshot(self):
+        """validate_snapshot() does not raise for a snapshot without checksum."""
+        from src.portfolio.repositories.portfolio_snapshot import validate_snapshot
+
+        config = _make_config()
+        svc = PortfolioService(config)
+        snap = await svc.initialise(Decimal("100000"))
+
+        # snapshot has no checksum — should pass silently
+        validate_snapshot(snap)  # must not raise
+
+    @pytest.mark.asyncio
+    async def test_snapshot_checksum_validation_fails_for_corrupt_checksum(self):
+        """validate_snapshot() raises CorruptSnapshotError for a bad checksum."""
+        from src.portfolio.repositories.portfolio_snapshot import validate_snapshot
+        from src.portfolio.exceptions import CorruptSnapshotError
+
+        config = _make_config()
+        svc = PortfolioService(config)
+        snap = await svc.initialise(Decimal("100000"))
+
+        # Inject a deliberately wrong checksum
+        snap_with_bad_checksum = snap.model_copy(
+            update={"checksum": "deadbeef000000000000000000000000000000000000000000000000000000ff"}
+        )
+
+        with pytest.raises(CorruptSnapshotError, match="checksum"):
+            validate_snapshot(snap_with_bad_checksum)
