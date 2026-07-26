@@ -246,4 +246,5 @@ check("automation off after disable",
       act.get_activation_status().get("paper_automation_active") is False)
 
 print(f"\nPhase 22 tests: {PASS} passed, {FAIL} failed")
-sys.exit(1 if FAIL else 0)
+if __name__ == "__main__":
+    sys.exit(1 if FAIL else 0)

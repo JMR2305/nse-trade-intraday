@@ -267,8 +267,9 @@ check("T20 main.py market_status command dispatch",
 print()
 total = PASS + FAIL
 print(f"Phase 11 Live Data tests: {PASS} passed, {FAIL} failed of {total}")
-if FAILURES:
-    for f in FAILURES:
-        print(f"  FAIL: {f}")
-    sys.exit(1)
-sys.exit(0)
+if __name__ == "__main__":
+    if FAILURES:
+        for f in FAILURES:
+            print(f"  FAIL: {f}")
+        sys.exit(1)
+    sys.exit(0)

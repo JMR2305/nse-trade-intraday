@@ -1,10 +1,10 @@
 key,value
-generated_at,2026-07-25T23:01:01Z
+generated_at,2026-07-26T09:18:16Z
 engine_version,Research Engine v1.0 · Phase 12
 mode,PAPER_TRADING_RESEARCH_ONLY
 market_status.state,WEEKEND
 market_status.is_open,False
-market_status.now_ist,2026-07-26T04:31:01.114654+05:30
+market_status.now_ist,2026-07-26T14:48:16.409041+05:30
 market_status.timezone,Asia/Kolkata
 market_status.session.pre_open,09:00
 market_status.session.open,09:15
@@ -13,15 +13,15 @@ market_status.session.post_close,16:00
 market_status.holiday_today,
 market_status.next_transition.event,market_open
 market_status.next_transition.at_ist,2026-07-27T09:15:00+05:30
-market_status.next_transition.seconds_until,103438
+market_status.next_transition.seconds_until,66403
 market_status.upcoming_holidays,[3 items]
 market_status.label,PAPER / RESEARCH ONLY
 quote_provider.provider,Yahoo Finance (yfinance)
 quote_provider.provider_id,yfinance
 quote_provider.circuit_breaker,CLOSED
 quote_provider.consecutive_failures,0
-quote_provider.last_success_ts,2026-07-25T22:54:09Z
-quote_provider.total_fetches,255
+quote_provider.last_success_ts,2026-07-26T09:04:59Z
+quote_provider.total_fetches,270
 quote_provider.total_errors,0
 quote_provider.cached_symbols,3
 quote_provider.quote_ttl_s,20.0
@@ -60,8 +60,8 @@ contradictions.level_distribution.LOW,10
 contradictions.level_distribution.MEDIUM,0
 contradictions.level_distribution.HIGH,0
 contradictions.high_contradiction_examples,[0 items]
-sizing_summary.feasible_positions,11
-sizing_summary.not_feasible_positions,39
+sizing_summary.feasible_positions,0
+sizing_summary.not_feasible_positions,50
 sizing_summary.regime_adjustments_applied.standard,48
 sizing_summary.regime_adjustments_applied.none,2
 sample_counts.symbols_analyzed,50

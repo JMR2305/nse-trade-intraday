@@ -39,6 +39,13 @@ from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 
 from config import NIFTY_50, INITIAL_CAPITAL, SECTOR_MAP
+
+try:
+    from phase3f_logging import get_logger as _get_logger
+    _log = _get_logger("live_scan_engine")
+except Exception:
+    _log = None  # structured logging optional
+
 from live_data_provider import (
     DataQuality, LiveDataProvider, ProviderHealth, SymbolFetchResult,
 )
@@ -438,6 +445,10 @@ def run_live_scan(
     universe = sorted(symbols if symbols else list(NIFTY_50))
     t0 = time.monotonic()
 
+    if _log:
+        _log.info("scan_start", scan_id=scan_id,
+                  snapshot_ts=snapshot_ts, symbols_total=len(universe))
+
     # ── Phase 1: Fetch all data up-front (consistent snapshot) ────────────────
     _set_progress("FETCHING", scan_id, {"symbols_total": len(universe),
                                         "symbols_done": 0})
@@ -563,7 +574,7 @@ def run_live_scan(
     try:
         from kite_quote_provider import kite_session_verified, provider_label as _pl
         # PROVEN session only — an expired token must never mark the scan as
-        # Zerodha-connected (would let fallback data pass the entry gate).
+        # Kite-connected (live LTP overlay would let fallback data pass the entry gate).
         _kite_live = kite_session_verified()
         _provider_label = _pl()
     except Exception:
@@ -581,7 +592,7 @@ def run_live_scan(
         "kite_connected": _kite_live,
         "data_provider": _provider_label,
         "ohlcv_source": "yfinance (historical)",
-        "live_quote_source": "Zerodha Kite Connect (LTP overlay)" if _kite_live else "Not configured",
+        "live_quote_source": "Kite Connect (LTP overlay)" if _kite_live else "Not configured",
         "note": "Phase 7 is paper trading and research only. No real broker API "
                 "is called. No real money is at risk. Meta-Learning and Strategy "
                 "Evolution findings do not affect live decisions unless a future "

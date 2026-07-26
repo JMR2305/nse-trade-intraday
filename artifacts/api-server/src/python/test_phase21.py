@@ -202,4 +202,5 @@ for f in files:
           os.path.exists(os.path.join(EXPORT_DIR, os.path.basename(f))))
 
 print(f"\nPhase 21 tests: {PASS} passed, {FAIL} failed")
-sys.exit(1 if FAIL else 0)
+if __name__ == "__main__":
+    sys.exit(1 if FAIL else 0)

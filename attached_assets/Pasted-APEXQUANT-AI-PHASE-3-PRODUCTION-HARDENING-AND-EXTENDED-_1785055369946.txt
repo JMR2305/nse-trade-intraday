@@ -1,0 +1,519 @@
+APEXQUANT AI
+PHASE 3 — PRODUCTION HARDENING AND EXTENDED PAPER-TRADING VALIDATION
+
+Platform:
+ApexQuant AI — AI-Powered NSE Trading Platform
+
+Mode:
+PAPER TRADING / RESEARCH ONLY
+
+Primary objective:
+Resolve the remaining Phase 2 blockers, prepare a stable deployment environment,
+and validate ApexQuant AI across multiple real NSE market sessions.
+
+This phase must not enable live trading.
+
+==================================================
+NON-NEGOTIABLE SAFETY RULES
+==================================================
+
+Do not:
+
+- enable broker live-order placement
+- change paper_mode from true
+- change AI from advisory-only mode
+- alter strategy thresholds
+- alter RC-7 execution logic unless fixing a confirmed defect
+- alter RC-8 risk limits without explicit approval
+- redesign the backend architecture
+- introduce destructive database migrations
+- commit credentials or secret values
+- claim production readiness based only on simulations
+
+Preserve:
+
+- RC-6 Market Data
+- RC-7 Execution
+- RC-8 Risk
+- RC-9 Strategy
+- RC-10 modules
+- kill switch
+- daily loss limits
+- position limits
+- stale-data entry blocking
+- duplicate-order protection
+- audit logging
+- recovery behaviour
+
+==================================================
+PHASE 3A — RESOLVE BLOCKERS
+==================================================
+
+1. AUTOSCALE PYTHON DEPENDENCIES
+
+Resolve the deployment problem where system Python does not see the required
+Python packages.
+
+Required actions:
+
+- inspect `.replit`
+- inspect `pyproject.toml`
+- inspect `uv.lock`
+- inspect API server startup commands
+- inspect `python-env.ts`
+- identify which Python interpreter is used by:
+  - development
+  - tests
+  - Replit deployment
+  - Autoscale runtime
+
+Ensure deployment installs and uses the locked Python environment.
+
+Preferred approach:
+
+- add an appropriate `uv sync --frozen` deployment build step
+- start Python routes through `uv run python`
+- ensure `.pythonlibs` or the uv virtual environment is on the runtime path
+- avoid ad-hoc runtime pip installs
+
+Verify imports in a clean deployment-like environment:
+
+- yfinance
+- pydantic
+- pandas
+- numpy
+- sqlalchemy
+- asyncpg
+- psycopg2
+- kiteconnect
+- reportlab
+- openpyxl
+
+Produce the exact build and runtime commands used.
+
+--------------------------------------------------
+
+2. PYDANTIC AND RISK CONFIGURATION
+
+Add `pydantic>=2.0` through the canonical dependency-management process.
+
+Verify:
+
+- `PortfolioConfig` loads through Pydantic
+- hardcoded fallback is no longer used during normal operation
+- `/api/portfolio/config` returns `loaded: true`
+- configured RC-8 limits are validated
+- malformed configuration is rejected
+- default safety limits remain conservative
+- no risk limits are loosened
+
+Add regression tests for:
+
+- valid configuration
+- missing optional fields
+- invalid negative values
+- excessive exposure
+- malformed types
+- fallback behaviour when configuration loading genuinely fails
+
+--------------------------------------------------
+
+3. RESTORE MISSING MODULES
+
+Investigate:
+
+- `phase20_gates.py`
+- `scan_pipeline.py`
+
+Use this order:
+
+1. Search current repository paths.
+2. Search Git history.
+3. Check whether files were renamed or moved.
+4. Check whether test imports are obsolete.
+5. Restore the real implementation from history where available.
+6. Recreate only if required and architecture-compatible.
+
+Do not create empty stubs merely to satisfy imports.
+
+Verify the related Phase 22 workflows and tests exercise genuine behaviour.
+
+--------------------------------------------------
+
+4. CLEAN PYTHON TEST SUITE
+
+Resolve the acknowledged pre-existing test issues:
+
+- `test_phase7.py` deprecated Zerodha attribute assertion
+- `test_phase11.py` removed `STATE_FILE` assertion
+- `test_phase16.py` validation boundary failure
+- module-level `sys.exit` behaviour preventing normal test collection
+- missing module import failures
+
+Convert Python tests to a standard, collectable test structure where practical.
+
+Target:
+
+- one repeatable command for the complete Python suite
+- zero unexpected collection errors
+- zero stale assertions
+- no suppression or artificial pass conditions
+
+==================================================
+PHASE 3B — MARKET-SESSION READINESS
+==================================================
+
+Prepare a reusable market-session validation suite.
+
+The suite must recognize NSE market states:
+
+- PRE_OPEN
+- OPEN
+- CLOSED
+- WEEKEND
+- HOLIDAY
+
+Use backend-authoritative time, not browser or mobile device time.
+
+Before market open, verify:
+
+- API health
+- database readiness
+- scanner readiness
+- data provider readiness
+- symbol universe
+- paper portfolio state
+- kill switch state
+- circuit breaker state
+- RC-8 configuration loaded
+- SSE connectivity
+- no unresolved previous-session orders
+- no duplicate scanner lock
+
+Generate a pre-market readiness report.
+
+==================================================
+PHASE 3C — LIVE MARKET PAPER-TRADING VALIDATION
+==================================================
+
+Run during real NSE market hours.
+
+Do not place real orders.
+
+Validate the complete workflow using fresh market data:
+
+Market Feed
+→ Scanner
+→ Signal Generation
+→ AI Advisory
+→ RC-8 Risk Validation
+→ RC-7 Paper Execution
+→ Position Creation
+→ Portfolio Update
+→ P&L
+→ Exit Monitoring
+→ Position Close
+→ Trade Journal
+→ Audit Log
+→ Session Summary
+
+Collect evidence for:
+
+1. Market Data
+
+- 50/50 configured-symbol coverage or exact explanation for exclusions
+- data timestamps
+- provider latency
+- missing candles
+- duplicate candles
+- out-of-order data
+- stale-data transitions
+- recovery from temporary provider failure
+
+2. Scanner
+
+- scan start and completion times
+- symbols attempted
+- symbols completed
+- failures
+- scan duration
+- overlapping scan prevention
+- last-good snapshot preservation
+
+3. Signals
+
+- number of signals
+- signal type
+- confidence
+- reasons
+- source-data timestamp
+- stale-data restrictions
+- no false BUY eligibility while data is stale
+
+4. AI Advisory
+
+- advisory-only label present
+- no direct execution capability
+- input completeness
+- output latency
+- confidence and explanation
+- disagreement with deterministic strategy recorded separately
+
+5. Risk Engine
+
+For every attempted paper order, record:
+
+- position sizing
+- available cash
+- current exposure
+- sector exposure if available
+- daily loss state
+- maximum position limit
+- kill switch state
+- allow/reject verdict
+- exact rejection reason
+
+6. Paper Execution
+
+Validate:
+
+- unique client/order ID
+- duplicate rejection
+- idempotent retry handling
+- price and quantity
+- simulated fill
+- partial-exit support
+- order state transitions
+- execution journal entry
+- no live broker endpoint used
+
+7. Portfolio and P&L
+
+Verify after every entry and exit:
+
+- cash
+- invested value
+- open positions
+- realised P&L
+- unrealised P&L
+- total equity
+- drawdown
+- trade count
+
+Confirm accounting identity within an explicit tolerance.
+
+8. Exit Behaviour
+
+Validate naturally occurring or controlled paper scenarios for:
+
+- stop-loss
+- target
+- trailing stop
+- manual paper exit
+- partial exit
+- session-end handling
+
+Do not manipulate live market data.
+Controlled synthetic tests must remain clearly separated from real-session evidence.
+
+==================================================
+PHASE 3D — MULTI-DAY SOAK TEST
+==================================================
+
+Run extended paper-trading validation for at least 5 complete NSE trading sessions.
+
+Do not require actual trades every day.
+
+For each session capture:
+
+- date
+- market state
+- uptime
+- restart count
+- scanner cycles
+- symbol coverage
+- data-provider failures
+- signals generated
+- orders attempted
+- orders allowed
+- orders rejected
+- positions opened
+- positions closed
+- realised P&L
+- unrealised P&L
+- maximum drawdown
+- kill-switch activations
+- duplicate-order attempts
+- database reconnects
+- SSE reconnects
+- error count
+- warning count
+- memory peak
+- CPU peak
+- API p95 latency
+
+Verify overnight and next-session behaviour:
+
+- portfolio state persists
+- closed positions remain closed
+- realised P&L persists
+- session counters reset correctly
+- daily loss state resets only according to policy
+- stale snapshots are not treated as fresh
+- scanner restarts cleanly
+- no duplicate orders after restart
+
+==================================================
+PHASE 3E — OPERATOR EXPERIENCE
+==================================================
+
+Implement only low-risk operational visibility improvements.
+
+1. System Status
+
+Show:
+
+- API status
+- database status
+- market data status
+- scanner status
+- risk configuration status
+- SSE status
+- market state
+- last successful update
+
+2. Safety Status
+
+Show read-only status for:
+
+- paper mode
+- AI advisory-only
+- kill switch
+- circuit breaker
+- daily loss limit
+- open-position limit
+- stale-data entry block
+
+Do not add a live-trading toggle.
+
+3. SSE Reconnect UX
+
+Show:
+
+- connected
+- reconnecting
+- disconnected
+- last event received
+- reconnect attempt count
+
+4. Session Report
+
+Provide a downloadable or accessible report for each market session.
+
+Do not add major dashboard redesigns.
+
+==================================================
+PHASE 3F — OBSERVABILITY
+==================================================
+
+Add structured logging where missing.
+
+Every critical event should contain:
+
+- timestamp
+- correlation ID
+- session ID
+- symbol where relevant
+- order ID where relevant
+- subsystem
+- severity
+- event type
+- result
+- latency
+- safe error details
+
+Never log:
+
+- API secrets
+- access tokens
+- session secrets
+- database passwords
+- full credential headers
+
+Add session-level metrics and produce a post-market summary.
+
+==================================================
+PHASE 3G — VALIDATION
+==================================================
+
+Run:
+
+- complete TypeScript test suite
+- complete Python test suite
+- dashboard typecheck
+- mobile typecheck
+- API server typecheck
+- lint
+- production builds
+- dependency startup check
+- CORS tests
+- clean-start test
+- restart recovery test
+- database reconnect test
+- SSE reconnect test
+- duplicate-order test
+- portfolio consistency test
+
+Confirm:
+
+- zero unexpected test failures
+- zero missing module errors
+- no new `@ts-ignore`
+- no new unsafe `any` suppressions
+- no secrets committed
+- no database schema change unless explicitly approved
+- paper mode remains enforced
+- AI remains advisory only
+- live-order route remains unavailable
+
+==================================================
+REQUIRED REPORTS
+==================================================
+
+Produce:
+
+1. Phase 3A blocker-resolution report
+2. Clean deployment dependency report
+3. Python test-suite report
+4. Pre-market readiness report
+5. Daily market-session report
+6. Five-session soak-test summary
+7. Portfolio consistency report
+8. Failure and recovery report
+9. Performance trend report
+10. Remaining issue register
+11. Exact files changed
+12. Exact dependencies changed
+13. Exact deployment commands
+14. Git diff summary
+15. Production readiness score out of 10
+
+==================================================
+FINAL VERDICT
+==================================================
+
+Use only one:
+
+A. PHASE 3 COMPLETE — READY FOR CONTROLLED PRODUCTION PAPER DEPLOYMENT
+
+B. PHASE 3 PARTIALLY COMPLETE — MARKET SESSION VALIDATION STILL IN PROGRESS
+
+C. PHASE 3 BLOCKED — include exact blocker, evidence, and required resolution
+
+Do not use a success verdict until:
+
+- B1, H1, and H2 are resolved
+- the Python test suite has no unexplained failures
+- at least 5 complete NSE market sessions have been observed
+- portfolio persistence and accounting consistency are verified
+- no safety invariant has regressed

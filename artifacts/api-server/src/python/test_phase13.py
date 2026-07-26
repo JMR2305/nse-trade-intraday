@@ -257,8 +257,9 @@ except Exception as exc:
 print()
 total = PASS + FAIL
 print(f"Phase 13 tests: {PASS} passed, {FAIL} failed of {total}")
-if FAILURES:
-    for f in FAILURES:
-        print(f"  FAIL: {f}")
-    sys.exit(1)
-sys.exit(0)
+if __name__ == "__main__":
+    if FAILURES:
+        for f in FAILURES:
+            print(f"  FAIL: {f}")
+        sys.exit(1)
+    sys.exit(0)

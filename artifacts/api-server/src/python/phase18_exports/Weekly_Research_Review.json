@@ -5,7 +5,7 @@
   "trading_days_completed": 0,
   "finalized_days": 0,
   "completed_paper_trades": 0,
-  "open_paper_trades": 0,
+  "open_paper_trades": 1,
   "weekly_pnl": "Insufficient Data",
   "win_rate": "Insufficient Data",
   "profit_factor": "Insufficient Data",

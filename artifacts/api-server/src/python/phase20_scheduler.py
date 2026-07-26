@@ -25,6 +25,12 @@ from typing import Any, Dict
 
 import phase20_store as store
 
+try:
+    from phase3f_logging import get_logger as _get_logger
+    _log = _get_logger("phase20_scheduler")
+except Exception:
+    _log = None
+
 # Stable identity of THIS scheduler process (Autoscale instance visibility).
 _OWNER = f"{socket.gethostname()}:{os.getpid()}"
 

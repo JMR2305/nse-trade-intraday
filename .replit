@@ -4,6 +4,9 @@ modules = ["nodejs-24", "postgresql-16", "python-3.12"]
 router = "application"
 deploymentTarget = "autoscale"
 
+[deployment.build]
+args = ["bash", "scripts/deploy-build.sh"]
+
 [deployment.postBuild]
 args = ["pnpm", "store", "prune"]
 env = { "CI" = "true" }

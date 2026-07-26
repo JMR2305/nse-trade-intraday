@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-07-25T23:01:21.535522+00:00",
+ "generated_at": "2026-07-26T09:18:27.290336+00:00",
  "label": "PAPER / RESEARCH ONLY",
  "baseline": {
   "baseline_version": "phase21_baseline_v1",
@@ -332,8 +332,8 @@
   "label": "PAPER / RESEARCH ONLY"
  },
  "calibration": {
-  "generated_at": "2026-07-25T23:01:20.037338+00:00",
-  "evaluation_date": "2026-07-25T23:01:20.036863+00:00",
+  "generated_at": "2026-07-26T09:18:25.976856+00:00",
+  "evaluation_date": "2026-07-26T09:18:25.976299+00:00",
   "no_look_ahead": "Only trades closed before evaluation_date are used.",
   "total_trades": 8,
   "global_win_rate": 0.375,
@@ -482,7 +482,7 @@
   "label": "PAPER / RESEARCH ONLY"
  },
  "thresholds": {
-  "generated_at": "2026-07-25T23:01:20.038936+00:00",
+  "generated_at": "2026-07-26T09:18:25.979025+00:00",
   "baseline_buy_threshold": 75.0,
   "total_completed_trades": 8,
   "min_train_sample": 30,
@@ -496,7 +496,7 @@
   "note": "Need at least 45 completed trades for walk-forward optimization; have 8."
  },
  "regime_matrix": {
-  "generated_at": "2026-07-25T23:01:20.040912+00:00",
+  "generated_at": "2026-07-26T09:18:25.981243+00:00",
   "regimes": [
    "BULLISH",
    "BEARISH",
@@ -622,7 +622,7 @@
   "label": "PAPER / RESEARCH ONLY"
  },
  "stop_target": {
-  "generated_at": "2026-07-25T23:01:20.043463+00:00",
+  "generated_at": "2026-07-26T09:18:25.982878+00:00",
   "total_trades": 19,
   "trades_with_full_excursion_data": 0,
   "trades_with_partial_data": 19,
@@ -1109,10 +1109,10 @@
   "challengers": [
    {
     "challenger_id": "chal_calibrated_confidence",
-    "instance_id": "022b6b6f0e",
+    "instance_id": "2cc5e2df24",
     "name": "Calibrated confidence",
     "description": "Replaces raw confidence with bucket-calibrated (shrunk) confidence.",
-    "created_at": "2026-07-25T23:01:21.527130+00:00",
+    "created_at": "2026-07-26T09:18:27.282595+00:00",
     "status": "CHALLENGER",
     "advisory_only": true,
     "affects_live_recommendations": false,
@@ -1126,10 +1126,10 @@
    },
    {
     "challenger_id": "chal_optimized_thresholds",
-    "instance_id": "b5cafe88b9",
+    "instance_id": "c764d7177f",
     "name": "Optimized thresholds",
     "description": "Applies the walk-forward-recommended BUY threshold.",
-    "created_at": "2026-07-25T23:01:21.527459+00:00",
+    "created_at": "2026-07-26T09:18:27.282852+00:00",
     "status": "CHALLENGER",
     "advisory_only": true,
     "affects_live_recommendations": false,
@@ -1143,10 +1143,10 @@
    },
    {
     "challenger_id": "chal_improved_ranking",
-    "instance_id": "7b9882c238",
+    "instance_id": "4f57ac671c",
     "name": "Improved ranking",
     "description": "Deterministic penalty-aware ranking (rank_v1).",
-    "created_at": "2026-07-25T23:01:21.527750+00:00",
+    "created_at": "2026-07-26T09:18:27.283084+00:00",
     "status": "CHALLENGER",
     "advisory_only": true,
     "affects_live_recommendations": false,
@@ -1160,10 +1160,10 @@
    },
    {
     "challenger_id": "chal_alt_stoptarget",
-    "instance_id": "6f2821700b",
+    "instance_id": "7b99ab3ede",
     "name": "Alternative stop/target",
     "description": "Candidate ATR/structure/hybrid stop-target models (SIMULATED).",
-    "created_at": "2026-07-25T23:01:21.528101+00:00",
+    "created_at": "2026-07-26T09:18:27.283317+00:00",
     "status": "CHALLENGER",
     "advisory_only": true,
     "affects_live_recommendations": false,
@@ -1181,7 +1181,7 @@
   "label": "PAPER / RESEARCH ONLY"
  },
  "scorecard": {
-  "generated_at": "2026-07-25T23:01:21.537838+00:00",
+  "generated_at": "2026-07-26T09:18:27.291879+00:00",
   "baseline_model_version": "phase21_baseline_v1",
   "champion_version": "p13_champion_v1",
   "challenger_count": 4,

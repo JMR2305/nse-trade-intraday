@@ -1,5 +1,5 @@
 {
- "active_version": "cal_v34",
+ "active_version": "cal_v39",
  "calibrators": [
   {
    "version": "cal_v1",
@@ -895,6 +895,141 @@
   {
    "version": "cal_v34",
    "created_at": "2026-07-25T23:01:01.653999+00:00",
+   "method": "identity",
+   "calibrator": {
+    "method": "identity"
+   },
+   "train_samples": 0,
+   "test_samples": 8,
+   "data_cutoff": "2026-07-25T22:54:13.735480",
+   "metrics_before": {
+    "brier": 0.2437,
+    "ece": 0.4695,
+    "log_loss": 0.6729,
+    "n": 8
+   },
+   "metrics_after": {
+    "brier": 0.2437,
+    "ece": 0.4695,
+    "log_loss": 0.6729,
+    "n": 8
+   },
+   "status": "ARCHIVED",
+   "reject_reason": null,
+   "note": "identity calibration \u2014 insufficient evidence (8 < 30)",
+   "warning": "Only 8 completed trades \u2014 calibration unreliable below 100."
+  },
+  {
+   "version": "cal_v35",
+   "created_at": "2026-07-26T09:05:43.909101+00:00",
+   "method": "identity",
+   "calibrator": {
+    "method": "identity"
+   },
+   "train_samples": 0,
+   "test_samples": 8,
+   "data_cutoff": "2026-07-25T22:54:13.735480",
+   "metrics_before": {
+    "brier": 0.2437,
+    "ece": 0.4695,
+    "log_loss": 0.6729,
+    "n": 8
+   },
+   "metrics_after": {
+    "brier": 0.2437,
+    "ece": 0.4695,
+    "log_loss": 0.6729,
+    "n": 8
+   },
+   "status": "ARCHIVED",
+   "reject_reason": null,
+   "note": "identity calibration \u2014 insufficient evidence (8 < 30)",
+   "warning": "Only 8 completed trades \u2014 calibration unreliable below 100."
+  },
+  {
+   "version": "cal_v36",
+   "created_at": "2026-07-26T09:09:15.125963+00:00",
+   "method": "identity",
+   "calibrator": {
+    "method": "identity"
+   },
+   "train_samples": 0,
+   "test_samples": 8,
+   "data_cutoff": "2026-07-25T22:54:13.735480",
+   "metrics_before": {
+    "brier": 0.2437,
+    "ece": 0.4695,
+    "log_loss": 0.6729,
+    "n": 8
+   },
+   "metrics_after": {
+    "brier": 0.2437,
+    "ece": 0.4695,
+    "log_loss": 0.6729,
+    "n": 8
+   },
+   "status": "ARCHIVED",
+   "reject_reason": null,
+   "note": "identity calibration \u2014 insufficient evidence (8 < 30)",
+   "warning": "Only 8 completed trades \u2014 calibration unreliable below 100."
+  },
+  {
+   "version": "cal_v37",
+   "created_at": "2026-07-26T09:14:25.576729+00:00",
+   "method": "identity",
+   "calibrator": {
+    "method": "identity"
+   },
+   "train_samples": 0,
+   "test_samples": 8,
+   "data_cutoff": "2026-07-25T22:54:13.735480",
+   "metrics_before": {
+    "brier": 0.2437,
+    "ece": 0.4695,
+    "log_loss": 0.6729,
+    "n": 8
+   },
+   "metrics_after": {
+    "brier": 0.2437,
+    "ece": 0.4695,
+    "log_loss": 0.6729,
+    "n": 8
+   },
+   "status": "ARCHIVED",
+   "reject_reason": null,
+   "note": "identity calibration \u2014 insufficient evidence (8 < 30)",
+   "warning": "Only 8 completed trades \u2014 calibration unreliable below 100."
+  },
+  {
+   "version": "cal_v38",
+   "created_at": "2026-07-26T09:16:10.700446+00:00",
+   "method": "identity",
+   "calibrator": {
+    "method": "identity"
+   },
+   "train_samples": 0,
+   "test_samples": 8,
+   "data_cutoff": "2026-07-25T22:54:13.735480",
+   "metrics_before": {
+    "brier": 0.2437,
+    "ece": 0.4695,
+    "log_loss": 0.6729,
+    "n": 8
+   },
+   "metrics_after": {
+    "brier": 0.2437,
+    "ece": 0.4695,
+    "log_loss": 0.6729,
+    "n": 8
+   },
+   "status": "ARCHIVED",
+   "reject_reason": null,
+   "note": "identity calibration \u2014 insufficient evidence (8 < 30)",
+   "warning": "Only 8 completed trades \u2014 calibration unreliable below 100."
+  },
+  {
+   "version": "cal_v39",
+   "created_at": "2026-07-26T09:18:16.826936+00:00",
    "method": "identity",
    "calibrator": {
     "method": "identity"

@@ -28,6 +28,12 @@ from typing import Any, Dict, List, Optional
 import phase20_store as store
 from scan_state_store import db_available, _connect
 
+try:
+    from phase3f_logging import get_logger as _get_logger
+    _log = _get_logger("phase20_executor")
+except Exception:
+    _log = None
+
 _DIR = os.path.dirname(os.path.abspath(__file__))
 _LEDGER_FILE = os.path.join(_DIR, "phase20_ledger.json")
 

@@ -133,4 +133,5 @@ for bad_call in ("place_order", "kite.order", "modify_order", "cancel_order"):
     check(f"no live-order call: {bad_call}", bad_call not in src)
 
 print(f"\nPhase 22 pipeline tests: {PASS} passed, {FAIL} failed")
-sys.exit(1 if FAIL else 0)
+if __name__ == "__main__":
+    sys.exit(1 if FAIL else 0)

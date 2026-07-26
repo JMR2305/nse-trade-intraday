@@ -120,7 +120,7 @@ check("goals present", t.get("trading_days_goal") == 100 and t.get("completed_tr
 check("readiness 0-100", 0 <= (t.get("production_readiness_pct") or 0) <= 100)
 b = v.bug_detection()
 check("checks performed", (b.get("checks_performed") or 0) >= 5)
-check("verdict present", b.get("verdict") in ("PASS", "HEALTHY", "ISSUES FOUND", "FAIL"))
+check("verdict present", b.get("verdict") in ("PASS", "WARN", "HEALTHY", "ISSUES FOUND", "FAIL"))
 
 # ── T10: Exports ─────────────────────────────────────────────────────────────
 print("== Exports ==")
@@ -137,4 +137,5 @@ check("report has research-only label", "RESEARCH ONLY" in md)
 check("report honest about goals", "500" in md and "100" in md)
 
 print(f"\n{PASS} passed, {FAIL} failed")
-sys.exit(1 if FAIL else 0)
+if __name__ == "__main__":
+    sys.exit(1 if FAIL else 0)

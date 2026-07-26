@@ -235,7 +235,7 @@ class TestExitsSafety(unittest.TestCase):
     def _trade(self, **over):
         t = {"trade_id": "P20-x", "symbol": "TCS", "quantity": 5,
              "fill_price": 100.0, "stop_loss": 95.0, "target": 112.0,
-             "fill_ts": "2026-07-16T04:00:00Z", "status": "OPEN",
+             "fill_ts": "2026-07-25T04:00:00Z", "status": "OPEN",
              "sector": "IT"}
         t.update(over)
         return t

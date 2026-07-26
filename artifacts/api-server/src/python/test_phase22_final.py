@@ -156,4 +156,5 @@ check("skipped count kv readable", cnt is None or int(cnt) >= 0, str(cnt))
 
 print()
 print(f"{PASS} passed, {FAIL} failed")
-sys.exit(1 if FAIL else 0)
+if __name__ == "__main__":
+    sys.exit(1 if FAIL else 0)

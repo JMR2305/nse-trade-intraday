@@ -240,4 +240,5 @@ check("T40 Phase 14 never modifies stop-loss/risk caps",
       and "risk_cap" not in src)
 
 print(f"\nPhase 14 tests: {PASS} passed, {FAIL} failed of {PASS + FAIL}")
-sys.exit(0 if FAIL == 0 else 1)
+if __name__ == "__main__":
+    sys.exit(0 if FAIL == 0 else 1)

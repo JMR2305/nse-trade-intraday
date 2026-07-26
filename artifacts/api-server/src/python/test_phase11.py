@@ -19,6 +19,7 @@ import os
 import shutil
 import tempfile
 from datetime import datetime, timedelta
+from unittest.mock import patch
 
 import phase11_risk as rk
 import paper_trader as pt
@@ -45,7 +46,6 @@ orig = {
     "KILL_SWITCH_FILE": rk.KILL_SWITCH_FILE, "ALERTS_FILE": rk.ALERTS_FILE,
     "SCAN_CACHE_FILE": rk.SCAN_CACHE_FILE, "MARKET_CACHE_FILE": rk.MARKET_CACHE_FILE,
     "EXPORT_DIR": rk.EXPORT_DIR,
-    "PT_STATE_FILE": pt.STATE_FILE,
 }
 rk.STATE_FILE = os.path.join(tmpdir, "state.json")
 rk.CONFIG_FILE = os.path.join(tmpdir, "risk_config.json")
@@ -54,8 +54,6 @@ rk.ALERTS_FILE = os.path.join(tmpdir, "alerts.json")
 rk.SCAN_CACHE_FILE = os.path.join(tmpdir, "scan_cache.json")
 rk.MARKET_CACHE_FILE = os.path.join(tmpdir, "market_cache.json")
 rk.EXPORT_DIR = os.path.join(tmpdir, "exports")
-pt.STATE_FILE = rk.STATE_FILE
-
 NOW = datetime.now()
 
 
@@ -266,20 +264,25 @@ try:
     rk.resume_trading(acknowledge=True)
 
     # ── execute_buy enforcement ──────────────────────────────────────────
-    write_state(cash=10000.0)
-    okd, msg = pt.execute_buy("TCS", 10, 100.0, reason="test", stop_loss_price=95.0, signal_confidence=70.0)
-    ok("buy allowed when risk passes", okd, msg)
-    write_state(cash=10000.0)
-    okd, msg = pt.execute_buy("TCS", 100, 100.0, reason="test", stop_loss_price=95.0, signal_confidence=70.0)
-    ok("buy blocked on REJECT", not okd and "RISK BLOCKED" in msg, msg)
-    okd, msg = pt.execute_buy("TCS", 100, 100.0, reason="test", stop_loss_price=95.0,
-                              signal_confidence=70.0, bypass_risk=True)
-    ok("bypass_risk skips enforcement", okd, msg)
-    write_state(cash=10000.0)
-    rk.trigger_kill_switch("test: block buys")
-    okd, msg = pt.execute_buy("TCS", 5, 100.0, reason="test", stop_loss_price=95.0, signal_confidence=70.0)
-    ok("buy blocked by kill switch", not okd and "Kill switch" in msg, msg)
-    rk.resume_trading(acknowledge=True)
+    # paper_trader reads portfolio state from Postgres (portfolio_store).
+    # We mock _store.load_state / save_state so the test is DB-isolated.
+    _clean_state = {"cash": 10000.0, "positions": {}, "trades": [], "pnl_history": []}
+    with patch.object(pt._store, "load_state", return_value=_clean_state), \
+         patch.object(pt._store, "save_state", lambda s: None):
+        write_state(cash=10000.0)
+        okd, msg = pt.execute_buy("TCS", 10, 100.0, reason="test", stop_loss_price=95.0, signal_confidence=70.0)
+        ok("buy allowed when risk passes", okd, msg)
+        write_state(cash=10000.0)
+        okd, msg = pt.execute_buy("TCS", 100, 100.0, reason="test", stop_loss_price=95.0, signal_confidence=70.0)
+        ok("buy blocked on REJECT", not okd and "RISK BLOCKED" in msg, msg)
+        okd, msg = pt.execute_buy("TCS", 100, 100.0, reason="test", stop_loss_price=95.0,
+                                  signal_confidence=70.0, bypass_risk=True)
+        ok("bypass_risk skips enforcement", okd, msg)
+        write_state(cash=10000.0)
+        rk.trigger_kill_switch("test: block buys")
+        okd, msg = pt.execute_buy("TCS", 5, 100.0, reason="test", stop_loss_price=95.0, signal_confidence=70.0)
+        ok("buy blocked by kill switch", not okd and "Kill switch" in msg, msg)
+        rk.resume_trading(acknowledge=True)
 
     # ── Reports ──────────────────────────────────────────────────────────
     write_state(cash=5000.0, positions={"INFY": {"quantity": 20, "avg_price": 100.0}},
@@ -387,10 +390,7 @@ try:
 
 finally:
     for k, v in orig.items():
-        if k == "PT_STATE_FILE":
-            pt.STATE_FILE = v
-        else:
-            setattr(rk, k, v)
+        setattr(rk, k, v)
     shutil.rmtree(tmpdir, ignore_errors=True)
 
 print(f"\n{'=' * 60}")

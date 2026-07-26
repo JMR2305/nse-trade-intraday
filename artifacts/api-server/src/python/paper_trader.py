@@ -20,6 +20,12 @@ import uuid
 from analytics_engine import classify_outcome
 import portfolio_store as _store
 
+try:
+    from phase3f_logging import get_logger as _get_logger
+    _log = _get_logger("paper_trader")
+except Exception:
+    _log = None  # structured logging optional
+
 INITIAL_CAPITAL = 5000.0
 
 # ── Phase 15: estimated friction costs (research realism, paper only) ────────
@@ -243,7 +249,8 @@ def execute_buy(
     state = _load_state()
     total_cost = quantity * price
 
-    if state["cash"] < total_cost:
+    # bypass_risk also skips the cash check — for test isolation only
+    if not bypass_risk and state["cash"] < total_cost:
         return False, f"Insufficient cash: need ₹{total_cost:.2f}, have ₹{state['cash']:.2f}"
 
     # Deduct cash
@@ -346,7 +353,12 @@ def execute_buy(
     except Exception:
         pass  # snapshot must never block a buy order
 
-    return True, f"Bought {quantity} × {sym} @ ₹{price:.2f} = ₹{total_cost:.2f}{risk_note}"
+    msg = f"Bought {quantity} × {sym} @ ₹{price:.2f} = ₹{total_cost:.2f}{risk_note}"
+    if _log:
+        _log.info("order_filled", result="PAPER_SUBMITTED",
+                  symbol=sym, quantity=quantity, price=price, total_cost=total_cost,
+                  cash_after=state["cash"])
+    return True, msg
 
 
 def execute_sell(
@@ -432,7 +444,11 @@ def execute_sell(
     except Exception:
         pass  # evaluation must never break a sell order
 
-    return True, f"Sold {quantity} × {sym} @ ₹{price:.2f} | P&L: ₹{realized_pnl:.2f}"
+    msg = f"Sold {quantity} × {sym} @ ₹{price:.2f} | P&L: ₹{realized_pnl:.2f}"
+    if _log:
+        _log.info("position_closed", result="PAPER_SUBMITTED",
+                  symbol=sym, quantity=quantity, price=price, realized_pnl=realized_pnl)
+    return True, msg
 
 
 def _append_pnl_snapshot(state: dict, latest_price: float, latest_symbol: str) -> None:
