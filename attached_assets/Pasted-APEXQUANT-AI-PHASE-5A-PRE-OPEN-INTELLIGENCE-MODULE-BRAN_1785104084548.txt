@@ -1,0 +1,603 @@
+APEXQUANT AI
+PHASE 5A — PRE-OPEN INTELLIGENCE MODULE
+
+BRANCH REQUIREMENT
+
+Create and work only on a new Git branch:
+
+phase-5-preopen-intelligence
+
+Do not modify or merge into main.
+
+The main branch must remain available for Phase 4B live-market paper-trading validation.
+
+====================================================
+PLATFORM CONSTRAINTS
+====================================================
+
+Platform:
+ApexQuant AI — NSE Intraday Trading Platform
+
+Mode:
+PAPER TRADING ONLY
+
+AI:
+ADVISORY ONLY
+
+Do not enable:
+
+- real broker execution
+- automatic live orders
+- live-capital deployment
+- AI-controlled trade execution
+
+Do not redesign or alter the behaviour of:
+
+- RC-6 Market Data
+- RC-7 Execution
+- RC-8 Risk
+- RC-9 Strategy
+- RC-10 core workflow
+
+The module must be isolated, optional and feature-flagged.
+
+====================================================
+OBJECTIVE
+====================================================
+
+Build a Pre-Open Intelligence module that captures and analyses NSE pre-open market information between 09:00 and 09:15 IST.
+
+The module must identify:
+
+- gap-up stocks
+- gap-down stocks
+- buy/sell order imbalance
+- indicative opening prices
+- final opening prices
+- executed pre-open quantities
+- unusual pre-open activity
+- sector strength
+- high-priority intraday watchlist candidates
+
+Pre-open data must NOT independently generate or execute a trade.
+
+It may only:
+
+- rank stocks
+- create watchlist candidates
+- adjust advisory confidence
+- provide context to the post-09:15 strategy engine
+
+====================================================
+PART 1 — DATA MODEL
+====================================================
+
+Create a normalized pre-open snapshot model containing:
+
+- snapshot_id
+- trading_date
+- timestamp_ist
+- symbol
+- company_name
+- sector
+- previous_close
+- indicative_equilibrium_price
+- indicative_open_price
+- final_open_price
+- price_change
+- gap_percent
+- total_buy_quantity
+- total_sell_quantity
+- matched_quantity
+- final_executed_quantity
+- total_traded_value
+- buy_sell_imbalance
+- imbalance_percent
+- volume_rank
+- gap_rank
+- liquidity_score
+- data_source
+- data_freshness_seconds
+- source_status
+- is_stale
+- validation_status
+- raw_payload_reference
+
+Use Decimal for prices and financial values where appropriate.
+
+====================================================
+PART 2 — DATA PROVIDER INTERFACE
+====================================================
+
+Implement a provider-independent interface.
+
+Example:
+
+PreOpenDataProvider
+
+Methods:
+
+- fetch_market_snapshot()
+- fetch_symbol_snapshot(symbol)
+- validate_response()
+- normalize_response()
+- health_check()
+
+Do not hardwire the strategy engine directly to one website or provider.
+
+Support provider states:
+
+- LIVE
+- DELAYED
+- STALE
+- UNAVAILABLE
+- PARTIAL
+
+If the provider is unavailable:
+
+- do not crash the API
+- do not generate fake data
+- mark pre-open intelligence unavailable
+- allow the rest of the app to operate normally
+
+Do not scrape in a way that bypasses access restrictions, rate limits or terms of service.
+
+====================================================
+PART 3 — PRE-OPEN SCHEDULER
+====================================================
+
+Create an IST-aware scheduler.
+
+Recommended operation:
+
+08:45
+- initialise module
+- validate provider and database
+- load previous-close reference data
+
+08:55
+- run readiness check
+
+09:00–09:08
+- collect pre-open snapshots every 30 seconds
+
+09:08–09:12
+- collect snapshots every 15 seconds where supported
+
+09:12–09:15
+- capture final auction/opening state
+
+09:15
+- freeze final pre-open snapshot
+- generate ranked intraday watchlist
+
+09:20
+- reconcile indicative prices against actual opening prices
+
+Do not collect pre-open data outside the applicable session except for replay or testing.
+
+Use the existing NSE market calendar and IST session logic.
+
+====================================================
+PART 4 — ANALYTICS
+====================================================
+
+Calculate:
+
+1. Gap percentage
+
+gap_percent =
+(final_or_indicative_open - previous_close)
+÷ previous_close × 100
+
+2. Buy/sell imbalance
+
+imbalance =
+total_buy_quantity - total_sell_quantity
+
+3. Imbalance percentage
+
+imbalance_percent =
+(total_buy_quantity - total_sell_quantity)
+÷ max(total_buy_quantity + total_sell_quantity, 1)
+× 100
+
+4. Participation score
+
+Use matched quantity or executed quantity compared with:
+
+- the rest of the pre-open universe
+- recent average volume where available
+- symbol liquidity profile
+
+5. Pre-open opportunity score
+
+Create a transparent deterministic score from 0–100 using:
+
+- gap strength
+- order imbalance
+- executed quantity
+- liquidity
+- sector confirmation
+- index direction
+- data freshness
+- volatility risk
+
+Do not use opaque AI scoring for the primary ranking.
+
+Store individual factor contributions.
+
+====================================================
+PART 5 — CLASSIFICATION
+====================================================
+
+Classify each symbol as one of:
+
+- STRONG_GAP_UP
+- MODERATE_GAP_UP
+- FLAT_OPEN
+- MODERATE_GAP_DOWN
+- STRONG_GAP_DOWN
+- BUY_IMBALANCE
+- SELL_IMBALANCE
+- HIGH_PARTICIPATION
+- LOW_LIQUIDITY
+- DATA_INCOMPLETE
+- WATCH_AFTER_OPEN
+- AVOID_AT_OPEN
+
+Classification is advisory only.
+
+Do not classify a symbol as BUY or SELL solely from pre-open data.
+
+====================================================
+PART 6 — WATCHLIST GENERATION
+====================================================
+
+At 09:15 create:
+
+- Top gap-up candidates
+- Top gap-down candidates
+- Highest buy-imbalance candidates
+- Highest sell-imbalance candidates
+- Highest executed-quantity candidates
+- Sector leaders
+- Sector laggards
+- Overall ranked watchlist
+
+Each watchlist item must include:
+
+- symbol
+- gap_percent
+- imbalance_percent
+- executed_quantity
+- liquidity_score
+- sector
+- opportunity_score
+- risk flags
+- explanation
+- required post-open confirmation
+
+Required confirmation examples:
+
+- first 5-minute candle close
+- opening range breakout
+- live relative volume
+- spread/liquidity check
+- NIFTY direction
+- sector direction
+- risk-engine approval
+
+====================================================
+PART 7 — POST-OPEN CONFIRMATION
+====================================================
+
+Pre-open candidates must pass a separate post-open confirmation stage.
+
+No paper entry before the configured strategy permits it.
+
+Confirm using:
+
+- actual opening price
+- first 5-minute or configured candle
+- live volume
+- relative volume
+- VWAP relationship
+- opening-range breakout
+- sector strength
+- NIFTY / Bank NIFTY context
+- India VIX context
+- spread and liquidity
+- stale-data gate
+- risk-engine approval
+
+If pre-open conditions do not confirm after market open:
+
+- downgrade to WATCH
+- or mark NO_TRADE
+
+====================================================
+PART 8 — UI PAGE
+====================================================
+
+Add a new page:
+
+Pre-Open Intelligence
+
+Suggested navigation:
+
+OPERATIONS
+- Dashboard
+- Trade Decisions
+- Market Scanner
+- Pre-Open Intelligence
+- Live Data Health
+
+The page should display:
+
+TOP SUMMARY
+
+- Data status
+- Last updated
+- Symbols analysed
+- Valid records
+- Stale records
+- Provider status
+- Market session state
+
+CARDS
+
+- Top Gap Up
+- Top Gap Down
+- Strongest Buy Imbalance
+- Strongest Sell Imbalance
+- Highest Executed Quantity
+- Leading Sector
+
+TABLE
+
+Columns:
+
+- Rank
+- Symbol
+- Sector
+- Previous Close
+- Indicative/Open Price
+- Gap %
+- Buy Quantity
+- Sell Quantity
+- Imbalance %
+- Executed Quantity
+- Opportunity Score
+- Classification
+- Data Status
+- Action: View Details
+
+FILTERS
+
+- Gap up
+- Gap down
+- Buy imbalance
+- Sell imbalance
+- Sector
+- Minimum liquidity
+- Minimum executed quantity
+- Watchlist only
+
+DETAIL DRAWER
+
+Show:
+
+- snapshot timeline
+- indicative price movement
+- buy/sell quantity movement
+- final auction result
+- factor score breakdown
+- data quality
+- risks
+- post-open confirmation requirements
+
+Keep the current visual design language.
+
+====================================================
+PART 9 — API ENDPOINTS
+====================================================
+
+Create versioned endpoints such as:
+
+GET /api/preopen/status
+
+GET /api/preopen/snapshot
+
+GET /api/preopen/symbol/:symbol
+
+GET /api/preopen/rankings
+
+GET /api/preopen/watchlist
+
+GET /api/preopen/sectors
+
+POST /api/preopen/refresh
+
+GET /api/preopen/health
+
+GET /api/preopen/report
+
+All endpoints must:
+
+- return structured JSON
+- expose freshness
+- expose provider status
+- fail safely
+- avoid leaking secrets
+- enforce request timeouts
+- use caching and rate limiting where needed
+
+====================================================
+PART 10 — DATABASE
+====================================================
+
+Add isolated tables or models for:
+
+- preopen_sessions
+- preopen_snapshots
+- preopen_rankings
+- preopen_watchlists
+- preopen_provider_health
+- preopen_reconciliation
+
+Do not modify existing trade, order, portfolio or risk tables unless absolutely necessary.
+
+Use additive, reversible migrations only.
+
+Do not copy development records to production automatically.
+
+====================================================
+PART 11 — RECONCILIATION
+====================================================
+
+After market opens, compare:
+
+- indicative equilibrium price
+- final pre-open price
+- actual opening price
+- price at 09:20
+- price at 09:30
+
+Calculate:
+
+- indicative-to-open error
+- opening continuation
+- opening reversal
+- watchlist confirmation rate
+- false-positive rate
+- sector-confirmation rate
+
+This evidence will later be combined with Phase 4B live-market results.
+
+====================================================
+PART 12 — FEATURE FLAG
+====================================================
+
+Create:
+
+PREOPEN_INTELLIGENCE_ENABLED=false
+
+The module must remain disabled by default in main and production.
+
+The experimental branch may enable it for testing.
+
+When disabled:
+
+- no scheduler runs
+- no provider calls are made
+- no existing workflow changes
+- API returns a clear disabled status
+- application remains fully functional
+
+====================================================
+PART 13 — TESTING
+====================================================
+
+Include tests for:
+
+- gap calculation
+- imbalance calculation
+- zero-quantity division
+- missing fields
+- malformed provider response
+- stale data
+- provider timeout
+- partial market response
+- duplicate snapshots
+- timezone correctness
+- market-holiday handling
+- first-session handling
+- rankings
+- tie-breaking
+- sector aggregation
+- feature flag disabled
+- post-open reconciliation
+- no trade execution from pre-open data
+
+Add fixture-based provider data.
+
+Do not depend on the live NSE session for unit tests.
+
+====================================================
+PART 14 — SAFETY INVARIANTS
+====================================================
+
+Prove:
+
+- paper_mode remains true
+- AI remains advisory only
+- pre-open module cannot submit orders
+- pre-open data cannot bypass the risk engine
+- stale data cannot create an actionable recommendation
+- provider failure cannot crash the application
+- existing Phase 4B workflow is unchanged
+- RC-6 through RC-10 remain regression-free
+
+====================================================
+PART 15 — GIT AND MERGE DISCIPLINE
+====================================================
+
+Work only on:
+
+phase-5-preopen-intelligence
+
+Commit changes in logical groups.
+
+Do not merge to main.
+
+Do not open an automatic merge without approval.
+
+At completion provide:
+
+- branch name
+- commit list
+- changed files
+- migrations
+- feature flags
+- test results
+- deployment preview result
+- known limitations
+- merge dependency list
+
+The module may be considered for merge only after:
+
+1. Phase 4B live data is collected.
+2. At least 5 paper-trading sessions are reviewed.
+3. Pre-open data quality is verified.
+4. No regression is found.
+5. We explicitly approve the merge.
+
+====================================================
+FINAL DELIVERABLES
+====================================================
+
+Provide:
+
+1. Architecture summary
+2. Data-provider design
+3. Database changes
+4. API documentation
+5. UI screenshots or preview
+6. Scheduler behaviour
+7. Analytics formulas
+8. Unit and integration test results
+9. Safety validation
+10. Production impact analysis
+11. Branch and commit details
+12. GO / NO-GO verdict for experimental testing
+
+Final verdict must be one of:
+
+GO FOR EXPERIMENTAL PRE-OPEN TESTING
+
+or
+
+NO-GO — list exact blockers
+
+Do not claim readiness for main-branch merge.
