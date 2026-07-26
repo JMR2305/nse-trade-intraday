@@ -1,6 +1,13 @@
+ai_forecast
 api
 brokers
 core
 database
+execution
+market_data
+market_intelligence
+portfolio
+risk
 services
 strategies
+strategy
