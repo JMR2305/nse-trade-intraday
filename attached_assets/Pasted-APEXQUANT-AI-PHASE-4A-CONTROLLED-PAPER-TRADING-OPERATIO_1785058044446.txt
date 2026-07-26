@@ -1,0 +1,263 @@
+APEXQUANT AI
+PHASE 4A — CONTROLLED PAPER TRADING OPERATIONS
+
+Platform:
+ApexQuant AI – AI Powered NSE Trading Platform
+
+Mode:
+PAPER TRADING ONLY
+AI ADVISORY ONLY
+
+OBJECTIVE
+
+Operate ApexQuant AI during real NSE trading sessions and collect operational evidence.
+
+Do NOT redesign the system.
+
+Do NOT modify:
+
+- RC-6 Market Data
+- RC-7 Execution
+- RC-8 Risk
+- RC-9 Strategy
+- RC-10 modules
+
+No live trading.
+
+No broker execution.
+
+No strategy changes.
+
+==================================================
+
+SECTION 1
+PRE-MARKET AUTOMATION
+
+Automatically execute every trading day before market open.
+
+Verify:
+
+✓ API Server
+✓ Database
+✓ Scanner
+✓ Market Data
+✓ Yahoo Finance connectivity
+✓ SSE Stream
+✓ Portfolio consistency
+✓ Risk Engine
+✓ PortfolioConfig
+✓ Kill Switch
+✓ Circuit Breaker
+✓ Open Positions
+✓ Previous session recovery
+✓ Pending trades
+✓ Symbol universe
+
+Produce:
+
+PreMarketReport.json
+PreMarketReport.md
+
+==================================================
+
+SECTION 2
+LIVE SESSION MONITOR
+
+Continuously monitor:
+
+Market data freshness
+
+Scanner latency
+
+Signals generated
+
+AI recommendations
+
+Risk blocks
+
+Paper orders
+
+Portfolio
+
+P&L
+
+SSE reconnects
+
+API latency
+
+Memory
+
+CPU
+
+Errors
+
+Warnings
+
+Generate timeline events.
+
+==================================================
+
+SECTION 3
+PAPER TRADING VALIDATION
+
+For every paper trade capture:
+
+Timestamp
+
+Symbol
+
+Signal
+
+AI confidence
+
+Risk decision
+
+Position size
+
+Entry
+
+Exit
+
+Target
+
+Stop
+
+Holding time
+
+P&L
+
+Exit reason
+
+Journal ID
+
+Audit ID
+
+Verify accounting consistency after every trade.
+
+==================================================
+
+SECTION 4
+RISK VALIDATION
+
+Measure:
+
+Win Rate
+
+Loss Rate
+
+Average Reward/Risk
+
+Profit Factor
+
+Expectancy
+
+Maximum Drawdown
+
+Largest Win
+
+Largest Loss
+
+Daily Risk
+
+Capital Usage
+
+Position Exposure
+
+Sector Exposure
+
+Kill Switch Events
+
+Circuit Breaker Events
+
+==================================================
+
+SECTION 5
+AI PERFORMANCE
+
+Track:
+
+BUY recommendations
+
+WATCH recommendations
+
+NO TRADE recommendations
+
+False positives
+
+False negatives
+
+Average confidence
+
+Average explanation latency
+
+Agreement with deterministic strategy
+
+AI never executes trades.
+
+==================================================
+
+SECTION 6
+SESSION REPORTS
+
+Generate automatically:
+
+Daily Summary
+
+Trade Summary
+
+Risk Report
+
+Performance Report
+
+System Health Report
+
+AI Report
+
+Portfolio Report
+
+JSON + Markdown
+
+==================================================
+
+SECTION 7
+VALIDATION
+
+Verify continuously:
+
+paper_mode == true
+
+AI advisory only
+
+No live orders
+
+Duplicate order protection
+
+Stale data protection
+
+Recovery works
+
+Portfolio consistent
+
+No API regressions
+
+==================================================
+
+FINAL REPORT
+
+Provide:
+
+Daily operational summary
+
+Trade statistics
+
+Risk statistics
+
+AI statistics
+
+Performance statistics
+
+Remaining issues
+
+Recommendations
+
+Readiness score
