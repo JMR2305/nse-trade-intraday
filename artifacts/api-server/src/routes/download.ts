@@ -116,7 +116,7 @@ function buildPage(): string {
       <p class="sub">Execution Recovery, Persistence &amp; Deterministic Replay</p>
     </div>
     ${cards}
-    <div class="footer">Files are served directly — no login required.</div>
+    <div class="footer">Access requires an authenticated operator session.</div>
   </div>
 </body>
 </html>`;
