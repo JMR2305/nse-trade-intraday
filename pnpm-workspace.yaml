@@ -164,3 +164,11 @@ overrides:
   # drizzle-kit uses esbuild internally on an older version that's vulnerable, this overrides it
   "@esbuild-kit/esm-loader": "npm:tsx@^4.21.0"
   esbuild: "0.27.3"
+  # ---- Security overrides (CVE fixes for transitive deps) ----
+  # CVE-2026-14257: brace-expansion 1.x/2.x/5.x — all versions share one registry package;
+  # force the fixed 5.0.8 across the workspace.
+  brace-expansion: "5.0.8"
+  # CVE-2026-45623 / GHSA-r28c-9q8g-f849: postcss <8.5.23 — force latest safe release.
+  postcss: "^8.5.23"
+  # CVE-2026-59869: js-yaml 4.2.0 — 4.3.0 is the patched 4.x release.
+  js-yaml: "^4.3.0"

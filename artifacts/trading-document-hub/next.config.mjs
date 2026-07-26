@@ -20,6 +20,11 @@ const nextConfig = {
 
   // TypeScript errors must be visible — do NOT set ignoreBuildErrors.
   // (Removed from original V0 config intentionally.)
+  //
+  // NOTE: Next.js 16.2.11 turbopack mis-infers the workspace root in pnpm
+  // monorepos (it walks up to find pnpm-workspace.yaml and then cannot
+  // resolve next/package.json from the app/ subdirectory).  The dev and
+  // build scripts use --webpack to sidestep this until upstream fixes it.
 };
 
 export default nextConfig;
