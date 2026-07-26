@@ -9,13 +9,31 @@ echo " ApexQuant AI — Deployment Build"
 echo "========================================"
 
 echo ""
-echo "--- Step 1: Sync Python dependencies (uv sync --frozen) ---"
-uv sync --frozen
-echo "    Python env ready: $(uv run python --version)"
+echo "--- Step 1: Create workspace-local virtualenv (.venv) ---"
+# We explicitly create a .venv in the workspace filesystem so packages are
+# guaranteed to be available at runtime.  uv sync without this flag installs
+# into the Nix-managed .pythonlibs path which is rebuilt fresh on every
+# runtime container start and loses anything installed during the build phase.
+uv venv .venv
+echo "    Virtualenv: $PWD/.venv"
 
 echo ""
-echo "--- Step 2: Verify critical Python imports ---"
-uv run python -c "
+echo "--- Step 1b: Sync Python dependencies into .venv ---"
+UV_PROJECT_ENVIRONMENT=.venv uv sync --frozen
+echo "    Python env ready: $(.venv/bin/python3 --version)"
+
+echo ""
+echo "--- Step 1c: Write Python executable path for runtime resolution ---"
+UV_PYTHON="$PWD/.venv/bin/python3"
+UV_SITE=$(.venv/bin/python3 -c "import site; print(site.getsitepackages()[0])")
+echo "$UV_PYTHON" > .python-exe
+echo "$UV_SITE"   > .python-site
+echo "    Executable : $UV_PYTHON"
+echo "    Site-pkgs  : $UV_SITE"
+
+echo ""
+echo "--- Step 2: Verify critical Python imports (using .venv) ---"
+.venv/bin/python3 -c "
 imports = [
     'yfinance', 'pydantic', 'pandas', 'numpy',
     'sqlalchemy', 'asyncpg', 'psycopg2',
