@@ -1,0 +1,69 @@
+{
+  "label": "PAPER TRADING / RESEARCH ONLY",
+  "report_type": "phase4a_final_report",
+  "date": "2026-07-26",
+  "generated_at": "2026-07-26T15:26:32.877344+05:30",
+  "readiness_score": 75.6,
+  "readiness_grade": "GOOD",
+  "component_scores": {
+    "safety": 68.3,
+    "risk": 75.0,
+    "ai": 80.0,
+    "system": 90.0
+  },
+  "weights": {
+    "safety": 0.4,
+    "risk": 0.25,
+    "ai": 0.2,
+    "system": 0.15
+  },
+  "operational_summary": {
+    "premarket_overall": "READY_WITH_WARNINGS",
+    "production_ready": false,
+    "trade_count": 0,
+    "closed_trades": 0,
+    "win_rate_pct": 0.0,
+    "total_equity": 909806.02,
+    "realised_pnl": null,
+    "max_drawdown_pct": 0.0
+  },
+  "trade_statistics": {
+    "total_trades": 0,
+    "closed_trades": 0,
+    "win_rate_pct": 0.0,
+    "profit_factor": 0.0,
+    "expectancy": 0.0,
+    "largest_win": 0.0,
+    "largest_loss": 0.0
+  },
+  "risk_statistics": {
+    "max_drawdown_pct": 0.0,
+    "daily_risk_pct": 0.0,
+    "kill_switch_events": 2,
+    "circuit_breaker_events": 0,
+    "sector_exposure": {}
+  },
+  "ai_statistics": {
+    "signals_evaluated": 10,
+    "buy_count": 0,
+    "watch_count": 2,
+    "no_trade_count": 8,
+    "false_positives": 0,
+    "false_negatives": 0,
+    "avg_confidence": 44.5,
+    "avg_explanation_latency_ms": null,
+    "agreement_rate_pct": null
+  },
+  "remaining_issues": [
+    "[safety] 5 pre-market check(s) WARNED",
+    "[safety] 1 safety invariant(s) FAILED",
+    "[safety] 2 safety invariant(s) WARNED",
+    "[risk] 2 kill switch event(s)",
+    "[ai] Low avg AI confidence 44.5%",
+    "[system] Only 1 monitor ticks (low coverage)"
+  ],
+  "recommendations": [
+    "Fix failing pre-market checks before the next session.",
+    "Review kill switch events and acknowledge before resuming."
+  ]
+}

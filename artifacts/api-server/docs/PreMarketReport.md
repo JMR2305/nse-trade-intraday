@@ -2,17 +2,17 @@
 
 **PAPER TRADING / RESEARCH ONLY**
 
-Generated: 2026-07-26T15:13:37.892642+05:30  
+Generated: 2026-07-26T15:26:08.066804+05:30  
 Overall: **READY_WITH_WARNINGS**  
 Checks: 10/15 PASS · 5 WARN · 0 FAIL
 
 | # | Check | Category | Verdict | Detail |
 |---|-------|----------|---------|--------|
 | 1 | API Server | infrastructure | ✅ PASS | healthy |
-| 2 | Database | infrastructure | ✅ PASS | connected (6585.7ms) |
+| 2 | Database | infrastructure | ✅ PASS | connected (5755.3ms) |
 | 3 | Scanner | data | ⚠️ WARN | scan/status HTTP 404 — may not have run yet |
 | 4 | Market Data | data | ✅ PASS | signals OK (10 signals) |
-| 5 | Yahoo Finance connectivity | data | ✅ PASS | ^NSEI price=23767 (604.1ms) |
+| 5 | Yahoo Finance connectivity | data | ✅ PASS | ^NSEI price=23767 (1049.5ms) |
 | 6 | SSE Stream | infrastructure | ✅ PASS | port 8080 reachable (Replit proxies SSE) |
 | 7 | Portfolio consistency | portfolio | ✅ PASS | equity=₹909806.02 cash=₹-37000.00 invested=₹946806.02 diff=₹0.0000 |
 | 8 | Risk Engine | risk | ✅ PASS | kill_switch=False max_risk=1.0% |

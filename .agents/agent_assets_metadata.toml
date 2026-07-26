@@ -119,3 +119,9 @@ id = "9n2PWyoN_Xs0IlLcX9E2h"
 uri = "file://artifacts/api-server/docs/phase2_final_report.md"
 type = "text"
 title = "Phase 2 Final Report"
+
+[[outputs]]
+id = "k0JNg1y4xtyr1574_9zSu"
+uri = "file://artifacts/api-server/docs/Phase4A_Final_Report_20260726.md"
+type = "text"
+title = "Phase 4A Final Report — 2026-07-26"
