@@ -42,7 +42,7 @@ CRITICAL_ENDPOINTS = [
     "/healthz",
     "/portfolio/snapshot",
     "/signals",
-    "/scan/status",
+    "/live-data/scan/status",   # canonical scan endpoint (not /scan/status which is unregistered)
     "/risk/kill-switch",
 ]
 

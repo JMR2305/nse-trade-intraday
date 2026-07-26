@@ -1,0 +1,67 @@
+{
+  "label": "PAPER TRADING / RESEARCH ONLY",
+  "generated_at": "2026-07-26T15:35:48.948186+05:30",
+  "production_ready": true,
+  "passed": 6,
+  "warned": 2,
+  "failed": 0,
+  "total_checked": 8,
+  "total_invariants": 8,
+  "abort_reason": "",
+  "invariants": [
+    {
+      "invariant": "paper_mode == true",
+      "category": "safety",
+      "verdict": "PASS",
+      "detail": "paper_mode=True confirmed",
+      "latency_ms": 1643.3
+    },
+    {
+      "invariant": "AI advisory only",
+      "category": "safety",
+      "verdict": "WARN",
+      "detail": "advisory_only not explicitly set in phase15 response",
+      "latency_ms": 102.5
+    },
+    {
+      "invariant": "No live orders",
+      "category": "safety",
+      "verdict": "PASS",
+      "detail": "GET /live-orders returns 404 (no live order route)",
+      "latency_ms": 1.3
+    },
+    {
+      "invariant": "Duplicate order protection",
+      "category": "safety",
+      "verdict": "PASS",
+      "detail": "0 open positions, 0 duplicates"
+    },
+    {
+      "invariant": "Stale data protection",
+      "category": "data",
+      "verdict": "PASS",
+      "detail": "data appears fresh; staleness gate active (stale=False)",
+      "latency_ms": 703.3
+    },
+    {
+      "invariant": "Session recovery works",
+      "category": "portfolio",
+      "verdict": "WARN",
+      "detail": "snapshot missing cash or positions fields",
+      "latency_ms": 1416.5
+    },
+    {
+      "invariant": "Portfolio consistent",
+      "category": "portfolio",
+      "verdict": "PASS",
+      "detail": "equity=\u20b9909806.02 cash=\u20b9-37000.00 invested=\u20b9946806.02 diff=\u20b90.0000 < \u03b5=\u20b91.0",
+      "latency_ms": 1503.3
+    },
+    {
+      "invariant": "No API regressions",
+      "category": "infrastructure",
+      "verdict": "PASS",
+      "detail": "All 5 critical endpoints respond 2xx"
+    }
+  ]
+}

@@ -144,7 +144,7 @@ def run_premarket_checks() -> dict:
 
     # ── C3: Scanner ───────────────────────────────────────────────────────────
     c = ReadinessCheck("Scanner", "data")
-    s, data, ms = _get("/scan/status")
+    s, data, ms = _get("/live-data/scan/status")
     if s == 200:
         locked = data.get("locked", False)
         last_ts = data.get("last_scan_ts") or data.get("snapshot_ts", "")
@@ -248,7 +248,8 @@ def run_premarket_checks() -> dict:
     s, data, ms = _get("/portfolio/config")
     if s == 200:
         loaded = data.get("loaded", data.get("config_loaded"))
-        paper = data.get("paper_mode")
+        # API response nests fields under "config" key
+        paper = data.get("config", {}).get("paper_mode") or data.get("paper_mode")
         if loaded is True and paper is True:
             c.pass_("pydantic loaded; paper_mode=True", ms)
         elif loaded is True:
@@ -264,7 +265,9 @@ def run_premarket_checks() -> dict:
     c = ReadinessCheck("Kill Switch", "safety")
     s, data, ms = _get("/risk/kill-switch")
     if s == 200:
-        active = data.get("active", data.get("kill_switch_active", None))
+        # API response nests state under "kill_switch" key
+        ks_obj = data.get("kill_switch", {})
+        active = ks_obj.get("active", data.get("active", data.get("kill_switch_active", None)))
         if active is False:
             c.pass_("kill switch clear — trading enabled", ms)
         elif active is True:

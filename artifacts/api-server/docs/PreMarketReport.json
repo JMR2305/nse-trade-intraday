@@ -1,9 +1,9 @@
 {
   "label": "PAPER TRADING / RESEARCH ONLY",
-  "generated_at": "2026-07-26T15:26:08.066804+05:30",
+  "generated_at": "2026-07-26T15:36:20.462287+05:30",
   "overall": "READY_WITH_WARNINGS",
-  "passed": 10,
-  "warned": 5,
+  "passed": 12,
+  "warned": 3,
   "failed": 0,
   "total": 15,
   "checks": [
@@ -12,49 +12,49 @@
       "category": "infrastructure",
       "verdict": "PASS",
       "detail": "healthy",
-      "latency_ms": 35.0
+      "latency_ms": 16.4
     },
     {
       "name": "Database",
       "category": "infrastructure",
       "verdict": "PASS",
-      "detail": "connected (5755.3ms)",
-      "latency_ms": 5755.3
+      "detail": "connected (618.5ms)",
+      "latency_ms": 618.5
     },
     {
       "name": "Scanner",
       "category": "data",
       "verdict": "WARN",
-      "detail": "scan/status HTTP 404 \u2014 may not have run yet",
-      "latency_ms": 4.3
+      "detail": "no previous scan snapshot found",
+      "latency_ms": 112.1
     },
     {
       "name": "Market Data",
       "category": "data",
       "verdict": "PASS",
       "detail": "signals OK (10 signals)",
-      "latency_ms": 719.9
+      "latency_ms": 600.4
     },
     {
       "name": "Yahoo Finance connectivity",
       "category": "data",
       "verdict": "PASS",
-      "detail": "^NSEI price=23767 (1049.5ms)",
-      "latency_ms": 1049.5
+      "detail": "^NSEI price=23767 (846.8ms)",
+      "latency_ms": 846.8
     },
     {
       "name": "SSE Stream",
       "category": "infrastructure",
       "verdict": "PASS",
       "detail": "port 8080 reachable (Replit proxies SSE)",
-      "latency_ms": 2.8
+      "latency_ms": 1.5
     },
     {
       "name": "Portfolio consistency",
       "category": "portfolio",
       "verdict": "PASS",
       "detail": "equity=\u20b9909806.02 cash=\u20b9-37000.00 invested=\u20b9946806.02 diff=\u20b90.0000",
-      "latency_ms": 1846.3
+      "latency_ms": 1616.1
     },
     {
       "name": "Risk Engine",
@@ -65,16 +65,16 @@
     {
       "name": "PortfolioConfig",
       "category": "risk",
-      "verdict": "WARN",
-      "detail": "loaded but paper_mode not confirmed",
-      "latency_ms": 206.6
+      "verdict": "PASS",
+      "detail": "pydantic loaded; paper_mode=True",
+      "latency_ms": 217.3
     },
     {
       "name": "Kill Switch",
       "category": "safety",
-      "verdict": "WARN",
-      "detail": "kill switch state unknown",
-      "latency_ms": 177.5
+      "verdict": "PASS",
+      "detail": "kill switch clear \u2014 trading enabled",
+      "latency_ms": 98.9
     },
     {
       "name": "Circuit Breaker",
@@ -87,7 +87,7 @@
       "category": "portfolio",
       "verdict": "PASS",
       "detail": "0 open positions, none stale",
-      "latency_ms": 1645.6
+      "latency_ms": 1127.8
     },
     {
       "name": "Previous session recovery",
@@ -106,7 +106,7 @@
       "category": "data",
       "verdict": "WARN",
       "detail": "low symbol count: 10 signals",
-      "latency_ms": 677.5
+      "latency_ms": 717.1
     }
   ]
 }

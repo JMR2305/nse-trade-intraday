@@ -125,3 +125,9 @@ id = "k0JNg1y4xtyr1574_9zSu"
 uri = "file://artifacts/api-server/docs/Phase4A_Final_Report_20260726.md"
 type = "text"
 title = "Phase 4A Final Report — 2026-07-26"
+
+[[outputs]]
+id = "qjxjc2we_5abwTBgMPM94"
+uri = "file://artifacts/api-server/docs/Phase4A1_Operational_Readiness_Investigation_20260726.md"
+type = "text"
+title = "Phase 4A.1 — Operational Readiness & Root Cause Investigation"

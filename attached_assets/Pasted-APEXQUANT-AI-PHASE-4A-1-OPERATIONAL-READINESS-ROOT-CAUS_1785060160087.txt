@@ -1,0 +1,298 @@
+APEXQUANT AI
+PHASE 4A.1 — OPERATIONAL READINESS & ROOT CAUSE INVESTIGATION
+
+Platform:
+ApexQuant AI NSE Trading Platform
+
+Mode:
+PAPER TRADING ONLY
+AI ADVISORY ONLY
+
+====================================================
+OBJECTIVE
+====================================================
+
+Do NOT add new features.
+
+Do NOT redesign the architecture.
+
+The objective is to ensure the platform is fully ready for the first real NSE trading session.
+
+The previous Phase 4A report showed:
+
+- Readiness Score: 75.6/100
+- READY_WITH_WARNINGS
+- 5 pre-market warnings
+- 1 failed safety invariant
+- 2 warned safety invariants
+- 2 kill-switch events
+- AI confidence 44.5%
+- Only one monitoring tick
+
+We need a complete engineering investigation.
+
+====================================================
+PART 1
+ROOT CAUSE ANALYSIS
+====================================================
+
+Identify EXACTLY:
+
+1. Which safety invariant failed.
+
+For the failed invariant provide:
+
+- subsystem
+- file
+- function
+- API endpoint
+- log evidence
+- expected behaviour
+- actual behaviour
+- severity
+- root cause
+
+Determine whether it is:
+
+- genuine defect
+- configuration issue
+- expected weekend condition
+- false positive
+- monitoring issue
+
+====================================================
+PART 2
+PRE-MARKET WARNINGS
+====================================================
+
+For each of the 5 warnings provide:
+
+- warning name
+- subsystem
+- reason
+- affected components
+- expected Monday behaviour
+- required fix
+- whether it blocks paper trading
+
+Classify each warning:
+
+BLOCKER
+HIGH
+MEDIUM
+LOW
+INFORMATIONAL
+
+====================================================
+PART 3
+KILL SWITCH ANALYSIS
+====================================================
+
+Investigate both kill switch activations.
+
+For each event provide:
+
+- timestamp
+- triggering subsystem
+- reason
+- triggering rule
+- current configuration
+- expected behaviour
+- whether activation is correct
+- whether it should occur during weekends
+- whether it would occur during market hours
+
+Confirm that:
+
+- no unintended shutdown occurred
+- no paper orders were lost
+- no portfolio corruption occurred
+
+====================================================
+PART 4
+AI CONFIDENCE
+====================================================
+
+Average confidence was 44.5%.
+
+Determine:
+
+- why confidence is low
+- whether weekend data caused it
+- whether stale market data reduced confidence
+- whether confidence thresholds are correct
+- whether behaviour is expected
+
+Do NOT increase confidence artificially.
+
+====================================================
+PART 5
+MONITORING
+====================================================
+
+Only one monitoring tick was recorded.
+
+Determine:
+
+- configured polling interval
+- expected number of ticks
+- whether monitoring stopped early
+- scheduler health
+- logging health
+- report generation timing
+
+Recommend the correct monitoring interval for:
+
+Pre-market
+
+Market hours
+
+Post-market
+
+====================================================
+PART 6
+MONDAY READINESS
+====================================================
+
+Run all readiness checks.
+
+Verify:
+
+API
+
+Database
+
+Scanner
+
+Market Data
+
+Yahoo Finance
+
+Risk Engine
+
+PortfolioConfig
+
+Paper Portfolio
+
+Trade Journal
+
+Audit Logs
+
+Recovery
+
+Operator Dashboard
+
+SSE
+
+Circuit Breaker
+
+Kill Switch
+
+Paper Mode
+
+AI Advisory
+
+Duplicate Order Protection
+
+Stale Data Protection
+
+Portfolio Consistency
+
+====================================================
+PART 7
+NO CODE CHANGES UNLESS REQUIRED
+====================================================
+
+Do NOT modify code unless:
+
+- an actual defect is confirmed
+- a fix is low-risk
+- it cannot affect RC-6 through RC-10 behaviour
+
+If changes are made:
+
+Provide:
+
+- file changed
+- reason
+- before
+- after
+- regression risk
+- validation performed
+
+====================================================
+PART 8
+MONDAY EXECUTION PLAN
+====================================================
+
+Prepare a detailed operating checklist.
+
+09:00
+
+09:10
+
+09:15
+
+09:30
+
+10:00
+
+11:00
+
+12:00
+
+13:00
+
+14:00
+
+15:00
+
+15:30
+
+End of Day
+
+Specify:
+
+what should be monitored
+
+what metrics should be captured
+
+acceptable thresholds
+
+failure conditions
+
+required reports
+
+====================================================
+FINAL REPORT
+====================================================
+
+Produce:
+
+1. Root Cause Investigation Report
+
+2. Warning Resolution Report
+
+3. Kill Switch Investigation
+
+4. AI Confidence Analysis
+
+5. Monitoring Analysis
+
+6. Monday Readiness Checklist
+
+7. Remaining Risks
+
+8. Recommended Fixes
+
+9. GO / NO-GO Decision
+
+Use ONLY one final verdict:
+
+GO FOR MONDAY PAPER TRADING
+
+or
+
+NO-GO — specify exact blocker(s) preventing safe paper trading.
+
+Do not declare GO unless every blocking issue has either been resolved or proven to be an expected weekend-only condition.
