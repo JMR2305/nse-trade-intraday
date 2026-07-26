@@ -50,14 +50,22 @@ const _allowedOrigins: string[] = process.env.ALLOWED_ORIGINS
 // Returns true for any origin whose hostname ends with a Replit domain suffix.
 // Parses the URL so the match is suffix-based rather than pattern-based,
 // which correctly handles multi-label subdomains (e.g. abc.pike.replit.dev).
+//
+// Covered suffixes:
+//   .replit.dev  — workspace preview domains
+//   .replit.app  — published/deployed production domains (e.g. nse-trade-intraday.replit.app)
+//   .repl.co     — legacy deployed domains
+//   .id.repl.co  — legacy user-id domains
 function isReplitOrigin(origin: string): boolean {
   try {
     const { hostname } = new URL(origin);
     return (
       hostname.endsWith(".replit.dev") ||
+      hostname.endsWith(".replit.app") ||
       hostname.endsWith(".repl.co") ||
       hostname.endsWith(".id.repl.co") ||
       hostname === "replit.dev" ||
+      hostname === "replit.app" ||
       hostname === "repl.co"
     );
   } catch {
@@ -81,7 +89,11 @@ app.use(
         }),
       );
     },
-    credentials: false, // never combine dynamic origin with credentials
+    // credentials:true allows the browser to send/receive cookies on
+    // cross-origin (and same-origin-via-proxy) requests.  It is safe here
+    // because the origin callback always returns a specific origin string
+    // rather than the wildcard "*".
+    credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: [
       "Content-Type",
@@ -99,6 +111,12 @@ app.use(express.urlencoded({ extended: true, limit: "256kb" }));
 // Authenticate every request before routing.
 // Public paths (/healthz, /health/live, /health/ready) are exempted inside
 // the middleware so infrastructure probes never require credentials.
+// Root redirect — visiting the bare domain sends the browser to the dashboard.
+// This runs before the /api middleware so it is never auth-gated.
+app.get("/", (_req, res) => {
+  res.redirect(302, "/trading-dashboard/");
+});
+
 app.use("/api", requireApiKey);
 
 app.use("/api", router);

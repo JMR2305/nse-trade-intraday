@@ -18,6 +18,15 @@ const nextConfig = {
     unoptimized: true,
   },
 
+  // Static export for Replit autoscale deployment.
+  // The Replit artifact system expects pre-built static files at dist/public/.
+  // Next.js exports to out/ by default; the build script moves it to dist/public/.
+  output: 'export',
+
+  // Trailing slashes make each page exportable as page/index.html, which
+  // works correctly with Replit's static file server.
+  trailingSlash: true,
+
   // TypeScript errors must be visible — do NOT set ignoreBuildErrors.
   // (Removed from original V0 config intentionally.)
   //
