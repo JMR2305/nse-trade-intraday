@@ -113,3 +113,9 @@ id = "jlBNnjgAEMP1euooqrjyl"
 uri = "file://artifacts/api-server/docs/final-session-report.md"
 type = "text"
 title = "ApexQuant AI — Final Session Report"
+
+[[outputs]]
+id = "9n2PWyoN_Xs0IlLcX9E2h"
+uri = "file://artifacts/api-server/docs/phase2_final_report.md"
+type = "text"
+title = "Phase 2 Final Report"
