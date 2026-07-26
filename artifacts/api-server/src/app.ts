@@ -1,8 +1,10 @@
 import express, { type Express } from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { requireApiKey } from "./lib/auth";
 
 const app: Express = express();
 
@@ -84,13 +86,20 @@ app.use(
     allowedHeaders: [
       "Content-Type",
       "Authorization",
+      "X-API-Key",
       "X-Request-ID",
       "X-Correlation-ID",
     ],
   }),
 );
+app.use(cookieParser());
 app.use(express.json({ limit: "256kb" }));
 app.use(express.urlencoded({ extended: true, limit: "256kb" }));
+
+// Authenticate every request before routing.
+// Public paths (/healthz, /health/live, /health/ready) are exempted inside
+// the middleware so infrastructure probes never require credentials.
+app.use("/api", requireApiKey);
 
 app.use("/api", router);
 

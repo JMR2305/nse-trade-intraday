@@ -149,6 +149,7 @@ export async function apiFetch<T = unknown>(
     res = await fetch(url, {
       ...init,
       signal: controller.signal,
+      credentials: "include",  // send session cookie on every request
       headers: {
         "Content-Type": "application/json",
         ...(init.headers ?? {}),

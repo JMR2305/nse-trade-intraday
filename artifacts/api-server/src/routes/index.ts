@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import authRouter from "./auth";
 import healthRouter from "./health";
 import tradingRouter from "./trading";
 import streamRouter from "./stream";
@@ -20,6 +21,7 @@ import portfolioRouter from "./portfolio";
 
 const router: IRouter = Router();
 
+router.use(authRouter);
 router.use(healthRouter);
 router.use(streamRouter);
 router.use(portfolioRouter);
