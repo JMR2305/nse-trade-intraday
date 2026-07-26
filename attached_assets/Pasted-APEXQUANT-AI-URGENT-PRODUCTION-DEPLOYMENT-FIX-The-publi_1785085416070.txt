@@ -1,0 +1,117 @@
+APEXQUANT AI — URGENT PRODUCTION DEPLOYMENT FIX
+
+The published application is failing because the Python API server crashes during startup with:
+
+ModuleNotFoundError: No module named 'paper_trader'
+
+Traceback points to:
+
+artifacts/api-server/src/python/main.py
+line 44
+from paper_trader import ...
+
+This is affecting Portfolio, Performance Analytics, Portfolio Risk,
+Market Replay, Live Data Health, and Broker & Execution.
+
+OBJECTIVE
+
+Fix the production deployment import/runtime issue without changing trading logic,
+risk rules, paper-mode enforcement, or RC-6 through RC-10 behaviour.
+
+INVESTIGATE
+
+1. Confirm whether paper_trader.py exists in the repository.
+2. Confirm its exact path and filename capitalization.
+3. Confirm it is committed and included in the deployment bundle.
+4. Confirm the production startup working directory.
+5. Confirm whether main.py and paper_trader.py are in the same package.
+6. Check whether the import should be:
+   - from paper_trader import ...
+   - from .paper_trader import ...
+   - from src.python.paper_trader import ...
+7. Check __init__.py files and Python package structure.
+8. Check PYTHONPATH and Replit deployment run command.
+9. Search for all imports of paper_trader and make them package-safe.
+10. Confirm there are no other missing local modules after this one is fixed.
+
+REQUIRED FIX
+
+Use a deployment-safe package structure and import method.
+
+Do not use temporary sys.path hacks unless absolutely unavoidable.
+
+Prefer:
+
+- proper Python package imports
+- correct __init__.py files
+- correct deployment working directory
+- correct start command
+
+VALIDATION
+
+After fixing, verify in the production preview:
+
+1. Python API starts with no traceback.
+2. /api/healthz returns HTTP 200.
+3. Portfolio endpoint returns valid JSON.
+4. Performance Analytics loads.
+5. Portfolio Risk loads.
+6. Market Replay no longer returns HTTP 500.
+7. Live Data Health checks run.
+8. Broker & Execution loads.
+9. Paper mode remains true.
+10. AI remains advisory only.
+11. No real broker order path is enabled.
+
+Also run a repository-wide deployment import smoke test covering every local module
+imported by main.py.
+
+NAVIGATION REVIEW
+
+Do not delete pages yet.
+
+Provide a recommendation to reorganise navigation into:
+
+OPERATIONS
+- Dashboard
+- Trade Decisions
+- Market Scanner
+- Live Data Health
+
+TRADING
+- Signals
+- Signal History
+- Portfolio
+- Broker & Execution
+
+RISK
+- Portfolio Risk
+- Portfolio Manager
+
+ANALYTICS
+- Performance Analytics
+- Market Replay
+
+AI & SYSTEM
+- AI Decision
+- AI Copilot
+- Notifications
+
+Move secondary and research pages into grouped submenus.
+Do not remove functionality until approved.
+
+FINAL OUTPUT
+
+Provide:
+
+- Exact root cause
+- Files changed
+- Import before and after
+- Deployment command before and after
+- Production preview evidence
+- Endpoint validation results
+- Any additional missing modules found
+- GO / NO-GO verdict for republishing
+
+Do not declare GO until the production preview API health endpoint returns 200
+and all six affected pages load without the paper_trader traceback.
