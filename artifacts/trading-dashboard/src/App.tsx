@@ -50,6 +50,7 @@ import Phase13Intelligence from "@/pages/Phase13Intelligence";
 import LearningGovernance from "@/pages/LearningGovernance";
 import AutomationHealth from "@/pages/AutomationHealth";
 import OperatorStatus from "@/pages/OperatorStatus";
+import Phase4ASession from "@/pages/Phase4ASession";
 import { ConnectivityPanel } from "@/components/ConnectivityPanel";
 
 const queryClient = new QueryClient({
@@ -117,6 +118,7 @@ function Router() {
         <Route path="/research-notebook" component={ResearchNotebook} />
         <Route path="/kite-connect" component={KiteConnect} />
         <Route path="/operator-status" component={OperatorStatus} />
+        <Route path="/phase4a-session" component={Phase4ASession} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

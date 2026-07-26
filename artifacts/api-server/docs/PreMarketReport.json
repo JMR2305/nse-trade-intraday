@@ -1,0 +1,112 @@
+{
+  "label": "PAPER TRADING / RESEARCH ONLY",
+  "generated_at": "2026-07-26T15:13:37.892642+05:30",
+  "overall": "READY_WITH_WARNINGS",
+  "passed": 10,
+  "warned": 5,
+  "failed": 0,
+  "total": 15,
+  "checks": [
+    {
+      "name": "API Server",
+      "category": "infrastructure",
+      "verdict": "PASS",
+      "detail": "healthy",
+      "latency_ms": 136.1
+    },
+    {
+      "name": "Database",
+      "category": "infrastructure",
+      "verdict": "PASS",
+      "detail": "connected (6585.7ms)",
+      "latency_ms": 6585.7
+    },
+    {
+      "name": "Scanner",
+      "category": "data",
+      "verdict": "WARN",
+      "detail": "scan/status HTTP 404 \u2014 may not have run yet",
+      "latency_ms": 10.9
+    },
+    {
+      "name": "Market Data",
+      "category": "data",
+      "verdict": "PASS",
+      "detail": "signals OK (10 signals)",
+      "latency_ms": 946.6
+    },
+    {
+      "name": "Yahoo Finance connectivity",
+      "category": "data",
+      "verdict": "PASS",
+      "detail": "^NSEI price=23767 (604.1ms)",
+      "latency_ms": 604.1
+    },
+    {
+      "name": "SSE Stream",
+      "category": "infrastructure",
+      "verdict": "PASS",
+      "detail": "port 8080 reachable (Replit proxies SSE)",
+      "latency_ms": 1.8
+    },
+    {
+      "name": "Portfolio consistency",
+      "category": "portfolio",
+      "verdict": "PASS",
+      "detail": "equity=\u20b9909806.02 cash=\u20b9-37000.00 invested=\u20b9946806.02 diff=\u20b90.0000",
+      "latency_ms": 1354.7
+    },
+    {
+      "name": "Risk Engine",
+      "category": "risk",
+      "verdict": "PASS",
+      "detail": "kill_switch=False max_risk=1.0%"
+    },
+    {
+      "name": "PortfolioConfig",
+      "category": "risk",
+      "verdict": "WARN",
+      "detail": "loaded but paper_mode not confirmed",
+      "latency_ms": 243.0
+    },
+    {
+      "name": "Kill Switch",
+      "category": "safety",
+      "verdict": "WARN",
+      "detail": "kill switch state unknown",
+      "latency_ms": 102.9
+    },
+    {
+      "name": "Circuit Breaker",
+      "category": "safety",
+      "verdict": "PASS",
+      "detail": "circuit breaker clear (via module)"
+    },
+    {
+      "name": "Open Positions",
+      "category": "portfolio",
+      "verdict": "PASS",
+      "detail": "0 open positions, none stale",
+      "latency_ms": 1713.0
+    },
+    {
+      "name": "Previous session recovery",
+      "category": "portfolio",
+      "verdict": "WARN",
+      "detail": "no previous session file (first session or 3D not configured)"
+    },
+    {
+      "name": "Pending trades",
+      "category": "portfolio",
+      "verdict": "PASS",
+      "detail": "0 Phase 20 OPEN positions, 0 pending exits"
+    },
+    {
+      "name": "Symbol universe",
+      "category": "data",
+      "verdict": "WARN",
+      "detail": "low symbol count: 10 signals",
+      "latency_ms": 629.1
+    }
+  ]
+}

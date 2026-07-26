@@ -1,0 +1,23 @@
+{
+  "label": "PAPER TRADING / RESEARCH ONLY",
+  "computed_at": "2026-07-26T15:13:44.779121+05:30",
+  "date": "2026-07-26",
+  "advisory_only": true,
+  "signals_evaluated": 0,
+  "closed_trades_compared": 0,
+  "buy_count": 0,
+  "watch_count": 0,
+  "no_trade_count": 0,
+  "false_positives": 0,
+  "false_negatives": 0,
+  "avg_confidence": null,
+  "avg_explanation_latency_ms": null,
+  "agreement_rate_pct": null,
+  "total_recommendations": 0,
+  "buy_pct": 0,
+  "watch_pct": 0,
+  "no_trade_pct": 0,
+  "confidence_samples": 0,
+  "latency_samples": 0,
+  "comparable_signals": 0
+}

@@ -128,6 +128,7 @@ const navGroups = [
     label: "System",
     items: [
       { href: "/operator-status",   label: "Operator Status",         icon: ShieldCheck },
+      { href: "/phase4a-session",   label: "Phase 4A Operations",     icon: Activity    },
       { href: "/automation",        label: "Automation Health",       icon: Gauge       },
       { href: "/research-notebook", label: "Research Notebook",       icon: BookOpenText},
       { href: "/kite-connect",      label: "Kite Connect",            icon: Radio       },
