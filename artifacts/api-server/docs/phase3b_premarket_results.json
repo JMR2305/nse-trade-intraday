@@ -1,6 +1,6 @@
 {
   "label": "PAPER TRADING / RESEARCH ONLY",
-  "generated_at": "2026-07-26T14:34:32.253875+05:30",
+  "generated_at": "2026-07-26T14:50:39.727265+05:30",
   "overall": "READY_WITH_WARNINGS",
   "passed": 8,
   "warned": 4,
@@ -12,83 +12,83 @@
       "category": "infrastructure",
       "verdict": "PASS",
       "detail": "status=200 healthy",
-      "latency_ms": 18.9
+      "latency_ms": 18.3
     },
     {
       "name": "database readiness",
       "category": "infrastructure",
       "verdict": "PASS",
-      "detail": "database reachable, 670.1ms"
+      "detail": "database reachable, 625.5ms"
     },
     {
       "name": "scanner readiness",
       "category": "data",
       "verdict": "WARN",
       "detail": "scan/status HTTP 404 \u2014 scanner may not have run yet",
-      "latency_ms": 3.3
+      "latency_ms": 1.4
     },
     {
       "name": "data provider readiness",
       "category": "data",
       "verdict": "PASS",
       "detail": "signals endpoint OK; 10 signals",
-      "latency_ms": 624.6
+      "latency_ms": 630.6
     },
     {
       "name": "symbol universe",
       "category": "data",
       "verdict": "WARN",
       "detail": "low symbol count: 10 signals returned",
-      "latency_ms": 844.5
+      "latency_ms": 614.8
     },
     {
       "name": "paper portfolio state",
       "category": "safety",
       "verdict": "PASS",
-      "detail": "paper_mode=True cash=\u20b9-7000",
-      "latency_ms": 1626.4
+      "detail": "paper_mode=True cash=\u20b9-37000",
+      "latency_ms": 1363.6
     },
     {
       "name": "kill switch state",
       "category": "safety",
       "verdict": "WARN",
       "detail": "kill switch state unknown",
-      "latency_ms": 129.3
+      "latency_ms": 104.2
     },
     {
       "name": "circuit breaker state",
       "category": "safety",
       "verdict": "WARN",
       "detail": "circuit breaker endpoint unavailable; health/ready OK",
-      "latency_ms": 119.8
+      "latency_ms": 102.2
     },
     {
       "name": "RC-8 risk configuration",
       "category": "risk",
       "verdict": "PASS",
       "detail": "PortfolioConfig loaded via pydantic",
-      "latency_ms": 231.4
+      "latency_ms": 209.4
     },
     {
       "name": "SSE connectivity",
       "category": "infrastructure",
       "verdict": "PASS",
       "detail": "SSE port reachable (TCP); /stream-health not exposed",
-      "latency_ms": 2.0
+      "latency_ms": 1.1
     },
     {
       "name": "no stale previous-session orders",
       "category": "portfolio",
       "verdict": "PASS",
       "detail": "0 open positions, none stale",
-      "latency_ms": 1305.0
+      "latency_ms": 1450.4
     },
     {
       "name": "no duplicate scanner lock",
       "category": "infrastructure",
       "verdict": "PASS",
       "detail": "scan/status HTTP 404 \u2014 lock status unknown (non-blocking)",
-      "latency_ms": 2.1
+      "latency_ms": 1.7
     }
   ]
 }
