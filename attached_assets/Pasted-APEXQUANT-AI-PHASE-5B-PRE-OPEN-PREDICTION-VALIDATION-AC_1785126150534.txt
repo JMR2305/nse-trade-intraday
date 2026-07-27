@@ -1,0 +1,613 @@
+APEXQUANT AI
+PHASE 5B — PRE-OPEN PREDICTION VALIDATION & ACCURACY ANALYTICS
+
+BRANCH REQUIREMENT
+
+Create and work only on a new Git branch:
+
+phase-5b-preopen-validation
+
+Do not directly modify main.
+
+Do not connect pre-open scores to the Trade Decisions engine in this phase.
+
+====================================================
+PLATFORM MODE
+====================================================
+
+Platform:
+ApexQuant AI — NSE Intraday Trading Platform
+
+Trading mode:
+PAPER TRADING ONLY
+
+AI mode:
+ADVISORY ONLY
+
+Do not enable:
+
+- live broker execution
+- automatic trade placement
+- AI-controlled order execution
+- pre-open-triggered trades
+
+====================================================
+OBJECTIVE
+====================================================
+
+Build a validation and analytics layer that measures how well the Phase 5A Pre-Open Intelligence module predicts actual post-open market behaviour.
+
+The system must compare:
+
+- pre-open indicative price
+- final pre-open price
+- actual opening price
+- price at 09:20
+- price at 09:30
+- price at 10:00
+- price at 10:30
+- intraday high
+- intraday low
+- market close
+
+The purpose is to determine whether:
+
+- high-ranked candidates outperform low-ranked candidates
+- buy imbalance predicts upward continuation
+- sell imbalance predicts downward continuation
+- gap-up stocks continue or reverse
+- sector confirmation improves prediction quality
+- executed pre-open quantity improves signal reliability
+
+====================================================
+PART 1 — VALIDATION DATA MODEL
+====================================================
+
+Create a validation record containing:
+
+- validation_id
+- trading_date
+- session_id
+- symbol
+- sector
+- preopen_rank
+- opportunity_score
+- classification
+- previous_close
+- indicative_price
+- final_preopen_price
+- actual_open
+- price_0920
+- price_0930
+- price_1000
+- price_1030
+- intraday_high
+- intraday_low
+- closing_price
+- buy_quantity
+- sell_quantity
+- imbalance_percent
+- executed_quantity
+- liquidity_score
+- sector_score
+- index_context
+- vix_context
+- gap_percent
+- open_error_percent
+- return_0920
+- return_0930
+- return_1000
+- return_1030
+- max_favourable_excursion
+- max_adverse_excursion
+- closing_return
+- continuation_flag
+- reversal_flag
+- prediction_result
+- validation_status
+- data_quality_status
+- created_at
+- updated_at
+
+Use Decimal for prices and percentages where appropriate.
+
+====================================================
+PART 2 — OUTCOME CLASSIFICATION
+====================================================
+
+Classify each pre-open candidate after market data becomes available.
+
+Use outcomes such as:
+
+- STRONG_CONTINUATION
+- MODERATE_CONTINUATION
+- FLAT
+- EARLY_REVERSAL
+- LATE_REVERSAL
+- FALSE_BREAKOUT
+- NO_LIQUIDITY
+- DATA_INCOMPLETE
+- INVALID_SIGNAL
+
+Define transparent thresholds.
+
+Example:
+
+For bullish pre-open candidates:
+
+STRONG_CONTINUATION:
+- price_0930 >= actual_open + 1%
+- and max_adverse_excursion within acceptable limit
+
+MODERATE_CONTINUATION:
+- price_0930 > actual_open
+- but return below strong threshold
+
+EARLY_REVERSAL:
+- price moves against pre-open direction within first 15 minutes
+
+Do equivalent logic for bearish candidates.
+
+Do not optimise thresholds using only one trading day.
+
+====================================================
+PART 3 — PREDICTION ACCURACY METRICS
+====================================================
+
+Calculate:
+
+- total candidates
+- valid candidates
+- confirmed candidates
+- continuation rate
+- reversal rate
+- false-positive rate
+- average 09:30 return
+- average 10:00 return
+- average 10:30 return
+- average closing return
+- average max favourable excursion
+- average max adverse excursion
+- top-5 accuracy
+- top-10 accuracy
+- gap-up continuation rate
+- gap-down continuation rate
+- buy-imbalance success rate
+- sell-imbalance success rate
+- sector-confirmed success rate
+- high-volume success rate
+- low-liquidity failure rate
+
+Separate analytics by:
+
+- score band
+- rank band
+- sector
+- gap range
+- imbalance range
+- liquidity level
+- market direction
+- VIX regime
+- day of week
+
+====================================================
+PART 4 — SCORE-BAND ANALYSIS
+====================================================
+
+Create score bands:
+
+- 90–100
+- 80–89
+- 70–79
+- 60–69
+- 50–59
+- below 50
+
+For each band display:
+
+- number of candidates
+- continuation rate
+- reversal rate
+- average 09:30 return
+- average 10:30 return
+- average closing return
+- average favourable excursion
+- average adverse excursion
+
+Do not change the Phase 5A opportunity-score formula yet.
+
+This phase observes performance only.
+
+====================================================
+PART 5 — FACTOR CONTRIBUTION ANALYSIS
+====================================================
+
+Analyse each of the eight Phase 5A factors independently.
+
+Measure correlation or predictive contribution for:
+
+- gap strength
+- order imbalance
+- executed quantity
+- liquidity
+- sector confirmation
+- index direction
+- data freshness
+- volatility risk
+
+Produce:
+
+- factor success rate
+- factor average return
+- factor failure rate
+- factor reliability score
+- sample size
+
+Do not claim causal relationships.
+
+Clearly label low-sample findings as inconclusive.
+
+====================================================
+PART 6 — PREDICTION ACCURACY SCREEN
+====================================================
+
+Add a separate page:
+
+Pre-Open Accuracy
+
+Recommended navigation:
+
+ANALYTICS
+- Performance Analytics
+- Pre-Open Accuracy
+- Market Replay
+
+The page should include:
+
+TOP SUMMARY CARDS
+
+- Sessions analysed
+- Candidates analysed
+- Top-10 accuracy
+- Continuation rate
+- Reversal rate
+- Avg 09:30 return
+- Avg 10:30 return
+- Data completeness
+
+DAILY PERFORMANCE TABLE
+
+Columns:
+
+- Date
+- Candidates
+- Valid
+- Top-5 success
+- Top-10 success
+- Continuation rate
+- Reversal rate
+- Avg return
+- Best candidate
+- Worst candidate
+- Data quality
+
+CANDIDATE RESULTS TABLE
+
+Columns:
+
+- Rank
+- Symbol
+- Sector
+- Score
+- Classification
+- Gap %
+- Imbalance %
+- Executed Quantity
+- Open
+- 09:30
+- 10:30
+- Day High
+- Day Low
+- Return
+- Outcome
+
+FILTERS
+
+- trading date
+- score range
+- sector
+- classification
+- outcome
+- gap direction
+- buy/sell imbalance
+- liquidity
+- market direction
+
+DETAIL DRAWER
+
+Show:
+
+- complete price timeline
+- pre-open factor breakdown
+- actual outcome
+- favourable/adverse excursion
+- confirmation result
+- failure reason
+- data-quality warnings
+
+====================================================
+PART 7 — DAILY VALIDATION REPORT
+====================================================
+
+Generate an automatic daily report after market close.
+
+Produce:
+
+PreOpenAccuracy_<YYYYMMDD>.json
+PreOpenAccuracy_<YYYYMMDD>.md
+
+Include:
+
+- session summary
+- candidate rankings
+- actual outcomes
+- top performers
+- failed predictions
+- factor analysis
+- score-band analysis
+- data-quality issues
+- recommendations
+- sample-size warning
+
+====================================================
+PART 8 — FIVE-DAY CONSOLIDATED REPORT
+====================================================
+
+After five completed NSE sessions generate:
+
+Phase5B_5Day_Validation_Report.json
+Phase5B_5Day_Validation_Report.md
+
+Include:
+
+- Day 1 to Day 5 comparison
+- cumulative accuracy
+- score-band performance
+- top-ranked candidate performance
+- sector performance
+- gap-up versus gap-down accuracy
+- buy versus sell imbalance accuracy
+- volume participation analysis
+- factor reliability
+- operational incidents
+- data-quality issues
+- confidence level
+- recommendation
+
+Use one of these conclusions:
+
+- PRE-OPEN MODULE SHOWS POSITIVE PREDICTIVE VALUE
+- PRE-OPEN MODULE REQUIRES MORE DATA
+- PRE-OPEN MODULE DOES NOT YET SHOW RELIABLE VALUE
+
+Do not recommend Trade Decisions integration with fewer than five valid sessions.
+
+====================================================
+PART 9 — DATA QUALITY
+====================================================
+
+Track:
+
+- missing prices
+- delayed updates
+- stale snapshots
+- invalid symbols
+- duplicate records
+- provider timeouts
+- inconsistent timestamps
+- missing executed quantity
+- partial market data
+- holiday/session errors
+
+Exclude invalid records from accuracy metrics.
+
+Show both:
+
+- raw candidate count
+- valid candidate count
+
+====================================================
+PART 10 — API ENDPOINTS
+====================================================
+
+Create endpoints such as:
+
+GET /api/preopen-validation/status
+GET /api/preopen-validation/daily
+GET /api/preopen-validation/candidates
+GET /api/preopen-validation/symbol/:symbol
+GET /api/preopen-validation/score-bands
+GET /api/preopen-validation/factors
+GET /api/preopen-validation/sectors
+GET /api/preopen-validation/report
+POST /api/preopen-validation/run
+
+All endpoints must:
+
+- expose freshness
+- expose sample size
+- expose data quality
+- fail safely
+- not affect trading workflows
+- not place orders
+
+====================================================
+PART 11 — DATABASE
+====================================================
+
+Add isolated additive tables:
+
+- preopen_validation_sessions
+- preopen_candidate_outcomes
+- preopen_score_band_metrics
+- preopen_factor_metrics
+- preopen_daily_reports
+
+Do not modify:
+
+- orders
+- trades
+- portfolio
+- risk
+- execution
+- strategy tables
+
+Use reversible migrations only.
+
+====================================================
+PART 12 — SCHEDULER
+====================================================
+
+Recommended schedule:
+
+09:20
+- record first post-open price
+
+09:30
+- record early confirmation price
+
+10:00
+- record continuation price
+
+10:30
+- record extended confirmation price
+
+15:30–15:45
+- record high, low and close
+- classify outcomes
+- calculate metrics
+- generate daily report
+
+The scheduler must use IST and the existing NSE market calendar.
+
+====================================================
+PART 13 — TESTING
+====================================================
+
+Add tests for:
+
+- continuation classification
+- reversal classification
+- bullish candidates
+- bearish candidates
+- missing prices
+- zero division
+- stale data
+- incomplete sessions
+- duplicate outcomes
+- score bands
+- factor metrics
+- top-5 accuracy
+- top-10 accuracy
+- session aggregation
+- holiday handling
+- timezone correctness
+- five-day report generation
+- no-trade guarantee
+- feature flag disabled
+
+Use fixture-based tests.
+
+Do not require a live market session for unit tests.
+
+====================================================
+PART 14 — SAFETY
+====================================================
+
+Prove:
+
+- no order function exists in Phase 5B
+- no execution endpoint is called
+- pre-open results do not alter trade decisions
+- no strategy weights are changed
+- no risk limits are changed
+- paper_mode remains true
+- AI remains advisory only
+- stale or incomplete data is excluded
+- Phase 4B workflow remains unchanged
+
+====================================================
+PART 15 — FEATURE FLAG
+====================================================
+
+Create:
+
+PREOPEN_VALIDATION_ENABLED=false
+
+Enable only on the experimental branch or development environment.
+
+When disabled:
+
+- no scheduler runs
+- no validation jobs run
+- no provider calls occur
+- APIs return DISABLED
+- navigation may be hidden or disabled
+- existing app remains unaffected
+
+====================================================
+PART 16 — GIT DISCIPLINE
+====================================================
+
+Work only on:
+
+phase-5b-preopen-validation
+
+Do not merge into main automatically.
+
+Do not connect to Trade Decisions.
+
+Do not change the Phase 5A scoring formula.
+
+At completion provide:
+
+- branch name
+- commits
+- changed files
+- migrations
+- tests
+- UI preview
+- API validation
+- known limitations
+- deployment impact
+- merge recommendation
+
+====================================================
+FINAL DELIVERABLES
+====================================================
+
+Provide:
+
+1. Architecture summary
+2. Database changes
+3. API documentation
+4. UI screenshots
+5. Scheduler behaviour
+6. Accuracy formulas
+7. Score-band analysis
+8. Factor analysis
+9. Test results
+10. Safety validation
+11. Production impact
+12. Branch and commit details
+13. GO / NO-GO verdict
+
+Final verdict must be one of:
+
+GO FOR LIVE PAPER-SESSION VALIDATION
+
+or
+
+NO-GO — specify exact blockers
+
+Do not claim readiness for integration into Trade Decisions.
