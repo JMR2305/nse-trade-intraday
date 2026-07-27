@@ -1,0 +1,827 @@
+APEXQUANT AI
+PHASE 5C — INTRADAY SIGNAL OUTCOME VALIDATION & STRATEGY ATTRIBUTION
+
+====================================================
+BRANCH REQUIREMENT
+====================================================
+
+Create and work only on a new Git branch:
+
+phase-5c-signal-validation
+
+Before making any change, confirm:
+
+1. Current branch name.
+2. New branch created successfully.
+3. Main is unchanged.
+4. No automatic merge or pull request will be completed without approval.
+
+Do not merge this branch into main.
+
+Previous experimental branches were merged automatically despite instructions.
+For Phase 5C, merging is explicitly prohibited until operational data is reviewed.
+
+====================================================
+PLATFORM MODE
+====================================================
+
+Platform:
+ApexQuant AI — NSE Intraday Trading Platform
+
+Trading mode:
+PAPER TRADING ONLY
+
+AI mode:
+ADVISORY ONLY
+
+This phase is observational and analytical.
+
+Do not enable:
+
+- live capital
+- real broker order placement
+- autonomous AI execution
+- strategy self-modification
+- automatic threshold optimisation
+- pre-open-triggered orders
+
+====================================================
+OBJECTIVE
+====================================================
+
+Build an isolated analytics layer that tracks every intraday signal from creation through its subsequent market outcome.
+
+The system must answer:
+
+- Which strategies generate useful signals?
+- Which signals continue in the predicted direction?
+- Which signals reverse?
+- Which signals are rejected by risk controls?
+- Which signals become paper trades?
+- Which signals are missed?
+- Which market regimes produce the best results?
+- Does AI agreement improve signal quality?
+- Does pre-open context improve prediction quality?
+- Which factors contribute most to successful outcomes?
+- Where are false positives and false negatives occurring?
+
+Phase 5C must not alter the signal-generation process.
+
+It must observe, record, reconcile and report only.
+
+====================================================
+PART 1 — SIGNAL LIFECYCLE MODEL
+====================================================
+
+Create a normalized SignalValidationRecord containing:
+
+- validation_id
+- trading_date
+- signal_id
+- audit_id
+- journal_id
+- strategy_id
+- strategy_name
+- strategy_version
+- symbol
+- sector
+- exchange
+- signal_direction
+- signal_type
+- signal_timestamp_ist
+- signal_price
+- signal_strength
+- deterministic_score
+- AI_recommendation
+- AI_confidence
+- AI_agreement
+- AI_explanation_latency_ms
+- preopen_rank
+- preopen_opportunity_score
+- preopen_classification
+- market_regime
+- index_direction
+- sector_direction
+- India_VIX_value
+- volume
+- relative_volume
+- VWAP
+- ATR
+- spread
+- liquidity_score
+- data_age_seconds
+- data_quality_status
+- risk_decision
+- risk_rejection_reason
+- proposed_position_size
+- approved_position_size
+- paper_order_created
+- paper_order_id
+- entry_price
+- entry_timestamp
+- stop_loss
+- target_price
+- exit_price
+- exit_timestamp
+- exit_reason
+- realised_pnl
+- unrealised_pnl
+- R_multiple
+- max_favourable_excursion
+- max_adverse_excursion
+- price_5m
+- price_15m
+- price_30m
+- price_60m
+- end_of_day_price
+- outcome_class
+- validation_status
+- created_at
+- updated_at
+
+Use Decimal for prices, P&L and financial calculations.
+
+Do not duplicate existing order or trade records unnecessarily.
+Reference existing IDs wherever possible.
+
+====================================================
+PART 2 — SIGNAL LIFECYCLE STATES
+====================================================
+
+Track each signal through explicit states:
+
+- GENERATED
+- AI_REVIEWED
+- RISK_REVIEWED
+- RISK_REJECTED
+- APPROVED
+- PAPER_ORDER_CREATED
+- PAPER_ORDER_FILLED
+- OPEN_POSITION
+- CLOSED_POSITION
+- EXPIRED
+- CANCELLED
+- MISSED
+- INVALID_DATA
+- STALE_DATA
+- NO_TRADE
+
+Every transition must include:
+
+- timestamp
+- previous state
+- next state
+- reason
+- source component
+- correlation ID
+
+Do not allow silent lifecycle transitions.
+
+====================================================
+PART 3 — OUTCOME CLASSIFICATION
+====================================================
+
+Create transparent outcome classifications:
+
+- STRONG_SUCCESS
+- MODERATE_SUCCESS
+- SMALL_SUCCESS
+- FLAT
+- SMALL_FAILURE
+- MODERATE_FAILURE
+- STRONG_FAILURE
+- STOPPED_OUT
+- TARGET_REACHED
+- TIME_EXIT
+- RISK_REJECTED_VALIDLY
+- RISK_REJECTED_BUT_SIGNAL_SUCCEEDED
+- SIGNAL_EXPIRED
+- FALSE_BREAKOUT
+- EARLY_REVERSAL
+- LATE_REVERSAL
+- DATA_INCOMPLETE
+- INVALID_SIGNAL
+
+Use configurable analysis thresholds, but do not change strategy thresholds.
+
+Outcome classification must support:
+
+- long signals
+- short signals, where currently supported
+- signals that never became trades
+- risk-rejected signals
+- stale-data-rejected signals
+- signals produced outside allowed entry windows
+
+====================================================
+PART 4 — MISSED OPPORTUNITY ANALYSIS
+====================================================
+
+Analyse signals that did not become paper trades.
+
+Classify the reason:
+
+- risk rejection
+- stale data
+- duplicate protection
+- insufficient confidence
+- low liquidity
+- sector limit
+- capital limit
+- position limit
+- entry window closed
+- no post-open confirmation
+- strategy conflict
+- operator decision
+- system failure
+- provider failure
+- unknown
+
+For rejected signals, track the hypothetical market outcome without placing a trade.
+
+Calculate:
+
+- hypothetical 5-minute return
+- hypothetical 15-minute return
+- hypothetical 30-minute return
+- hypothetical 60-minute return
+- hypothetical maximum favourable excursion
+- hypothetical maximum adverse excursion
+- whether rejection was justified
+
+Clearly label all such calculations:
+
+HYPOTHETICAL — NOT A TRADE
+
+Do not include hypothetical P&L in real paper portfolio statistics.
+
+====================================================
+PART 5 — STRATEGY ATTRIBUTION
+====================================================
+
+Measure performance separately by:
+
+- strategy
+- strategy version
+- symbol
+- sector
+- market regime
+- time of day
+- signal direction
+- score band
+- AI agreement
+- AI confidence band
+- pre-open context
+- relative-volume band
+- VIX regime
+- NIFTY direction
+- sector confirmation
+- risk decision
+
+For each grouping calculate:
+
+- signals generated
+- signals approved
+- paper trades entered
+- closed trades
+- win rate
+- loss rate
+- average return
+- median return
+- average R multiple
+- profit factor
+- expectancy
+- average MFE
+- average MAE
+- maximum drawdown contribution
+- false-positive rate
+- missed-opportunity rate
+- sample size
+- confidence level
+
+Do not compare strategies without displaying sample size.
+
+====================================================
+PART 6 — AI ATTRIBUTION
+====================================================
+
+Measure whether AI agreement adds value.
+
+Compare:
+
+1. Deterministic signal + AI agrees
+2. Deterministic signal + AI disagrees
+3. Deterministic signal + AI WATCH
+4. Deterministic signal + no AI result
+5. AI recommendation with stale/incomplete data
+
+Calculate:
+
+- continuation rate
+- reversal rate
+- win rate
+- expectancy
+- MFE
+- MAE
+- false-positive rate
+- missed-opportunity rate
+- explanation latency
+
+AI must remain advisory only.
+
+Do not allow Phase 5C to change AI confidence thresholds.
+
+Do not allow AI output to bypass risk controls.
+
+====================================================
+PART 7 — PRE-OPEN ATTRIBUTION
+====================================================
+
+Where Phase 5A data exists, compare intraday signals with:
+
+- pre-open rank
+- opportunity score
+- gap classification
+- buy/sell imbalance
+- matched/executed quantity
+- sector confirmation
+- post-open confirmation verdict
+
+Create comparison groups:
+
+- signal with strong pre-open confirmation
+- signal with moderate pre-open confirmation
+- signal with conflicting pre-open context
+- signal with no pre-open data
+- signal with stale pre-open data
+
+Do not connect Phase 5A scores to Trade Decisions in this phase.
+
+This is observational attribution only.
+
+Do not declare pre-open predictive value until Phase 5B has at least five valid sessions.
+
+====================================================
+PART 8 — MARKET REGIME ATTRIBUTION
+====================================================
+
+Use existing RC-10 market intelligence where available.
+
+Group outcomes by:
+
+- bullish trend
+- bearish trend
+- range-bound
+- high volatility
+- low volatility
+- opening expansion
+- midday compression
+- closing momentum
+- uncertain regime
+
+Measure which strategies and signals work best in each regime.
+
+Do not modify regime classification logic.
+
+====================================================
+PART 9 — DATA COLLECTION SCHEDULE
+====================================================
+
+Automatically capture outcomes after each signal at:
+
+- signal creation
+- 5 minutes
+- 15 minutes
+- 30 minutes
+- 60 minutes
+- trade entry
+- stop-loss event
+- target event
+- trade exit
+- 15:30 market close
+- end-of-day reconciliation
+
+Use IST and the existing NSE calendar.
+
+If the application restarts:
+
+- reload pending validation records
+- resume missing checkpoints
+- avoid duplicate collection
+- preserve correlation IDs
+- mark unrecoverable gaps as DATA_INCOMPLETE
+
+====================================================
+PART 10 — SIGNAL VALIDATION DASHBOARD
+====================================================
+
+Add a dedicated page:
+
+Signal Validation
+
+Recommended navigation:
+
+ANALYTICS
+- Performance Analytics
+- Pre-Open Accuracy
+- Signal Validation
+- Market Replay
+
+The page must include:
+
+TOP SUMMARY CARDS
+
+- Signals Generated
+- Signals Approved
+- Paper Trades
+- Risk Rejections
+- Win Rate
+- Expectancy
+- False Positives
+- Missed Opportunities
+- Data Completeness
+
+SIGNAL FUNNEL
+
+Show:
+
+Generated
+→ AI Reviewed
+→ Risk Approved
+→ Paper Order
+→ Filled
+→ Closed
+→ Successful
+
+Display counts and conversion percentages.
+
+SIGNAL TABLE
+
+Columns:
+
+- Time
+- Symbol
+- Strategy
+- Direction
+- Signal Score
+- AI Recommendation
+- AI Confidence
+- Pre-Open Score
+- Risk Decision
+- Lifecycle State
+- Entry
+- Exit
+- P&L
+- R Multiple
+- Outcome
+- Data Quality
+
+FILTERS
+
+- date
+- strategy
+- symbol
+- sector
+- direction
+- AI agreement
+- risk decision
+- lifecycle state
+- outcome
+- score band
+- market regime
+- pre-open context
+- data quality
+
+DETAIL DRAWER
+
+Show:
+
+- complete signal timeline
+- factor snapshot
+- AI explanation
+- risk decision
+- pre-open context
+- price checkpoints
+- trade lifecycle
+- MFE and MAE
+- outcome rationale
+- rejection rationale
+- hypothetical outcome, where applicable
+- audit and journal IDs
+
+====================================================
+PART 11 — STRATEGY COMPARISON SCREEN
+====================================================
+
+Within Signal Validation, add a Strategy Comparison tab.
+
+Display:
+
+- strategy name
+- version
+- signal count
+- approved count
+- trade count
+- win rate
+- profit factor
+- expectancy
+- average R
+- MFE
+- MAE
+- false positives
+- missed opportunities
+- best regime
+- worst regime
+- sample-size confidence
+
+Do not label a strategy as superior unless minimum sample-size requirements are met.
+
+Default minimum:
+
+- 20 valid signals
+- 10 completed paper trades
+
+Below minimum, display:
+
+INSUFFICIENT DATA
+
+====================================================
+PART 12 — DAILY REPORT
+====================================================
+
+Generate after market close:
+
+SignalValidation_<YYYYMMDD>.json
+SignalValidation_<YYYYMMDD>.md
+
+Include:
+
+- operational summary
+- signal funnel
+- strategy results
+- AI attribution
+- pre-open attribution
+- risk attribution
+- regime attribution
+- successful signals
+- failed signals
+- rejected signals
+- missed opportunities
+- data-quality issues
+- incidents
+- recommendations
+- sample-size warnings
+
+====================================================
+PART 13 — FIVE-DAY CONSOLIDATED REPORT
+====================================================
+
+After five valid NSE sessions, generate:
+
+Phase5C_5Day_Signal_Validation.json
+Phase5C_5Day_Signal_Validation.md
+
+Include:
+
+- Day 1–Day 5 comparison
+- total signals
+- strategy performance
+- AI agreement performance
+- pre-open attribution
+- risk rejection quality
+- market-regime performance
+- signal funnel conversion
+- expectancy
+- profit factor
+- drawdown
+- false positives
+- missed opportunities
+- system incidents
+- data completeness
+- sample-size confidence
+
+Final conclusion must be one of:
+
+- SIGNAL PIPELINE SHOWS POSITIVE OPERATIONAL VALUE
+- SIGNAL PIPELINE REQUIRES MORE DATA
+- SIGNAL PIPELINE REQUIRES CORRECTIVE WORK
+
+Do not recommend strategy modification automatically.
+
+====================================================
+PART 14 — API ENDPOINTS
+====================================================
+
+Create versioned endpoints:
+
+GET /api/signal-validation/status
+GET /api/signal-validation/summary
+GET /api/signal-validation/signals
+GET /api/signal-validation/signal/:signalId
+GET /api/signal-validation/funnel
+GET /api/signal-validation/strategies
+GET /api/signal-validation/ai-attribution
+GET /api/signal-validation/preopen-attribution
+GET /api/signal-validation/risk-attribution
+GET /api/signal-validation/regimes
+GET /api/signal-validation/missed-opportunities
+GET /api/signal-validation/report
+POST /api/signal-validation/run
+POST /api/signal-validation/reconcile
+
+All endpoints must:
+
+- expose freshness
+- expose data completeness
+- expose sample size
+- fail safely
+- use bounded pagination
+- enforce timeouts
+- not place orders
+- not modify signals
+- not change strategies
+
+Rate-limit manual run and reconciliation endpoints.
+
+====================================================
+PART 15 — DATABASE
+====================================================
+
+Add isolated additive tables:
+
+- signal_validation_sessions
+- signal_validation_records
+- signal_lifecycle_events
+- signal_price_checkpoints
+- signal_strategy_metrics
+- signal_ai_metrics
+- signal_preopen_metrics
+- signal_risk_metrics
+- signal_regime_metrics
+- signal_daily_reports
+
+Use unique constraints for:
+
+- trading_date + signal_id
+- signal_id + checkpoint_type
+- signal_id + lifecycle_event + timestamp where appropriate
+
+Register tables as protected from destructive schema synchronisation.
+
+Do not modify existing:
+
+- orders
+- trades
+- portfolio
+- execution
+- risk
+- strategy
+- signal source tables
+
+unless an additive nullable reference column is absolutely necessary and explicitly justified.
+
+====================================================
+PART 16 — FEATURE FLAG
+====================================================
+
+Create:
+
+SIGNAL_VALIDATION_ENABLED=false
+
+When false:
+
+- no scheduler jobs run
+- no lifecycle listeners register
+- no DB writes occur
+- all APIs return DISABLED
+- navigation entry is hidden or clearly disabled
+- existing trading workflow remains unchanged
+
+Enable only in the experimental branch initially.
+
+Do not add this flag to production deployment until approved.
+
+====================================================
+PART 17 — SAFETY INVARIANTS
+====================================================
+
+Prove through tests that:
+
+- no order submission function exists in Phase 5C
+- no broker endpoint is called
+- no strategy parameter is changed
+- no risk limit is changed
+- no AI threshold is changed
+- no pre-open score changes Trade Decisions
+- hypothetical P&L is separated from paper-trade P&L
+- stale data is excluded
+- duplicate checkpoints are prevented
+- restart recovery is idempotent
+- paper_mode remains true
+- AI remains advisory only
+- main workflow remains operational when Phase 5C is disabled
+
+Use AST scans and integration tests where appropriate.
+
+====================================================
+PART 18 — TESTING
+====================================================
+
+Include fixture-based tests for:
+
+- lifecycle transitions
+- invalid state transitions
+- duplicate events
+- price checkpoints
+- long-signal outcomes
+- short-signal outcomes
+- risk-rejected signals
+- stale-data signals
+- missed opportunities
+- hypothetical outcome separation
+- strategy attribution
+- AI attribution
+- pre-open attribution
+- regime attribution
+- score-band grouping
+- profit factor
+- expectancy
+- R multiple
+- MFE
+- MAE
+- zero-division handling
+- missing price handling
+- restart recovery
+- scheduler timing
+- holiday handling
+- IST correctness
+- five-day report gate
+- feature flag disabled
+- no-trade AST guarantee
+- API pagination
+- API rate limiting
+- report generation
+
+Do not require live market access for unit tests.
+
+====================================================
+PART 19 — GIT DISCIPLINE
+====================================================
+
+Work only on:
+
+phase-5c-signal-validation
+
+Do not merge automatically.
+
+Do not open or merge a pull request without approval.
+
+At completion provide:
+
+- branch confirmation
+- commit list
+- changed files
+- database migrations
+- feature flag
+- test results
+- API test evidence
+- UI preview
+- scheduler details
+- safety validation
+- production impact
+- known limitations
+- merge recommendation
+
+====================================================
+FINAL DELIVERABLES
+====================================================
+
+Provide:
+
+1. Architecture summary
+2. Signal lifecycle design
+3. Database changes
+4. API documentation
+5. UI preview/screenshots
+6. Scheduler behaviour
+7. Attribution formulas
+8. Outcome classification rules
+9. Daily report example
+10. Five-day report design
+11. Unit/integration test results
+12. Safety validation
+13. Production impact analysis
+14. Branch and commit details
+15. GO / NO-GO verdict
+
+The final verdict must be:
+
+GO FOR EXPERIMENTAL SIGNAL VALIDATION
+
+or
+
+NO-GO — list exact blockers
+
+Do not claim readiness for main-branch merge.
+
+Do not connect Phase 5C analytics to live Trade Decisions.
