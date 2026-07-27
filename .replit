@@ -50,3 +50,28 @@ packages = ["freetype", "glibcLocales"]
 
 [userenv.shared]
 PREOPEN_INTELLIGENCE_ENABLED = "true"
+PREOPEN_VALIDATION_ENABLED = "True"
+
+[[ports]]
+localPort = 8080
+externalPort = 8080
+
+[[ports]]
+localPort = 8081
+externalPort = 8081
+
+[[ports]]
+localPort = 21338
+externalPort = 3001
+
+[[ports]]
+localPort = 22312
+externalPort = 3000
+
+[[ports]]
+localPort = 22605
+externalPort = 3002
+
+[[ports]]
+localPort = 24210
+externalPort = 80
