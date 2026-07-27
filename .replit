@@ -49,3 +49,4 @@ packages = ["freetype", "glibcLocales"]
 [userenv]
 
 [userenv.shared]
+PREOPEN_INTELLIGENCE_ENABLED = "true"
