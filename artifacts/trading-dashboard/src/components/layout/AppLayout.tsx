@@ -106,6 +106,7 @@ const navGroups = [
     label: "Analytics",
     items: [
       { href: "/performance-analytics", label: "Performance Analytics", icon: BarChart3 },
+      { href: "/preopen-accuracy",      label: "Pre-Open Accuracy",     icon: Target    },
       { href: "/market-replay",         label: "Market Replay",         icon: Clock     },
     ],
   },

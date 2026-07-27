@@ -1,0 +1,448 @@
+{
+  "report_type": "5DAY_CONSOLIDATED",
+  "sessions_analysed": 3,
+  "trading_dates": [
+    "2026-07-21",
+    "2026-07-22",
+    "2026-07-23"
+  ],
+  "generated_at": "2026-07-27T12:22:45Z",
+  "platform_mode": "PAPER TRADING / ADVISORY ONLY",
+  "sufficient_data": false,
+  "cumulative_metrics": {
+    "total_candidates": 15,
+    "valid_candidates": 15,
+    "confirmed_candidates": 15,
+    "excluded_candidates": 0,
+    "continuation_rate": 100.0,
+    "reversal_rate": 0.0,
+    "false_positive_rate": 0.0,
+    "avg_return_0930": 2.0,
+    "avg_return_1000": 1.8,
+    "avg_return_1030": 1.6,
+    "avg_closing_return": 1.4,
+    "avg_mfe": 2.4,
+    "avg_mae": -0.4,
+    "top5_accuracy": 100.0,
+    "top10_accuracy": 100.0,
+    "gap_up_continuation_rate": 100.0,
+    "gap_down_continuation_rate": 0.0,
+    "buy_imbalance_success_rate": 100.0,
+    "sell_imbalance_success_rate": 0.0,
+    "sector_confirmed_success_rate": 100.0,
+    "high_volume_success_rate": 100.0,
+    "low_liquidity_failure_rate": 0.0,
+    "sample_size_warning": false,
+    "data_completeness_pct": 100.0
+  },
+  "daily_summaries": [
+    {
+      "date": "2026-07-21",
+      "total_candidates": 5,
+      "valid_candidates": 5,
+      "confirmed_candidates": 5,
+      "excluded_candidates": 0,
+      "continuation_rate": 100.0,
+      "reversal_rate": 0.0,
+      "false_positive_rate": 0.0,
+      "avg_return_0930": 2.0,
+      "avg_return_1000": 1.8,
+      "avg_return_1030": 1.6,
+      "avg_closing_return": 1.4,
+      "avg_mfe": 2.4,
+      "avg_mae": -0.4,
+      "top5_accuracy": 100.0,
+      "top10_accuracy": 100.0,
+      "gap_up_continuation_rate": 100.0,
+      "gap_down_continuation_rate": 0.0,
+      "buy_imbalance_success_rate": 100.0,
+      "sell_imbalance_success_rate": 0.0,
+      "sector_confirmed_success_rate": 100.0,
+      "high_volume_success_rate": 100.0,
+      "low_liquidity_failure_rate": 0.0,
+      "sample_size_warning": true,
+      "data_completeness_pct": 100.0
+    },
+    {
+      "date": "2026-07-22",
+      "total_candidates": 5,
+      "valid_candidates": 5,
+      "confirmed_candidates": 5,
+      "excluded_candidates": 0,
+      "continuation_rate": 100.0,
+      "reversal_rate": 0.0,
+      "false_positive_rate": 0.0,
+      "avg_return_0930": 2.0,
+      "avg_return_1000": 1.8,
+      "avg_return_1030": 1.6,
+      "avg_closing_return": 1.4,
+      "avg_mfe": 2.4,
+      "avg_mae": -0.4,
+      "top5_accuracy": 100.0,
+      "top10_accuracy": 100.0,
+      "gap_up_continuation_rate": 100.0,
+      "gap_down_continuation_rate": 0.0,
+      "buy_imbalance_success_rate": 100.0,
+      "sell_imbalance_success_rate": 0.0,
+      "sector_confirmed_success_rate": 100.0,
+      "high_volume_success_rate": 100.0,
+      "low_liquidity_failure_rate": 0.0,
+      "sample_size_warning": true,
+      "data_completeness_pct": 100.0
+    },
+    {
+      "date": "2026-07-23",
+      "total_candidates": 5,
+      "valid_candidates": 5,
+      "confirmed_candidates": 5,
+      "excluded_candidates": 0,
+      "continuation_rate": 100.0,
+      "reversal_rate": 0.0,
+      "false_positive_rate": 0.0,
+      "avg_return_0930": 2.0,
+      "avg_return_1000": 1.8,
+      "avg_return_1030": 1.6,
+      "avg_closing_return": 1.4,
+      "avg_mfe": 2.4,
+      "avg_mae": -0.4,
+      "top5_accuracy": 100.0,
+      "top10_accuracy": 100.0,
+      "gap_up_continuation_rate": 100.0,
+      "gap_down_continuation_rate": 0.0,
+      "buy_imbalance_success_rate": 100.0,
+      "sell_imbalance_success_rate": 0.0,
+      "sector_confirmed_success_rate": 100.0,
+      "high_volume_success_rate": 100.0,
+      "low_liquidity_failure_rate": 0.0,
+      "sample_size_warning": true,
+      "data_completeness_pct": 100.0
+    }
+  ],
+  "score_band_performance": [
+    {
+      "band": "90-100",
+      "score_min": 90,
+      "score_max": 100,
+      "candidates": 3,
+      "continuation_rate": 100.0,
+      "reversal_rate": 0.0,
+      "avg_return_0930": 2.0,
+      "avg_return_1030": 1.6,
+      "avg_closing_return": 1.4,
+      "avg_mfe": 2.4,
+      "avg_mae": -0.4,
+      "sample_size_warning": true,
+      "inconclusive": false
+    },
+    {
+      "band": "80-89",
+      "score_min": 80,
+      "score_max": 89,
+      "candidates": 6,
+      "continuation_rate": 100.0,
+      "reversal_rate": 0.0,
+      "avg_return_0930": 2.0,
+      "avg_return_1030": 1.6,
+      "avg_closing_return": 1.4,
+      "avg_mfe": 2.4,
+      "avg_mae": -0.4,
+      "sample_size_warning": false,
+      "inconclusive": false
+    },
+    {
+      "band": "70-79",
+      "score_min": 70,
+      "score_max": 79,
+      "candidates": 6,
+      "continuation_rate": 100.0,
+      "reversal_rate": 0.0,
+      "avg_return_0930": 2.0,
+      "avg_return_1030": 1.6,
+      "avg_closing_return": 1.4,
+      "avg_mfe": 2.4,
+      "avg_mae": -0.4,
+      "sample_size_warning": false,
+      "inconclusive": false
+    },
+    {
+      "band": "60-69",
+      "score_min": 60,
+      "score_max": 69,
+      "candidates": 0,
+      "continuation_rate": null,
+      "reversal_rate": null,
+      "avg_return_0930": null,
+      "avg_return_1030": null,
+      "avg_closing_return": null,
+      "avg_mfe": null,
+      "avg_mae": null,
+      "sample_size_warning": true,
+      "inconclusive": true
+    },
+    {
+      "band": "50-59",
+      "score_min": 50,
+      "score_max": 59,
+      "candidates": 0,
+      "continuation_rate": null,
+      "reversal_rate": null,
+      "avg_return_0930": null,
+      "avg_return_1030": null,
+      "avg_closing_return": null,
+      "avg_mfe": null,
+      "avg_mae": null,
+      "sample_size_warning": true,
+      "inconclusive": true
+    },
+    {
+      "band": "below-50",
+      "score_min": 0,
+      "score_max": 49,
+      "candidates": 0,
+      "continuation_rate": null,
+      "reversal_rate": null,
+      "avg_return_0930": null,
+      "avg_return_1030": null,
+      "avg_closing_return": null,
+      "avg_mfe": null,
+      "avg_mae": null,
+      "sample_size_warning": true,
+      "inconclusive": true
+    }
+  ],
+  "top_ranked_performance": [
+    {
+      "symbol": "RELIANCE",
+      "date": "2026-07-27",
+      "rank": 1,
+      "outcome": "STRONG_CONTINUATION",
+      "return_0930": 2.0,
+      "score": 90
+    },
+    {
+      "symbol": "RELIANCE",
+      "date": "2026-07-27",
+      "rank": 1,
+      "outcome": "STRONG_CONTINUATION",
+      "return_0930": 2.0,
+      "score": 90
+    },
+    {
+      "symbol": "RELIANCE",
+      "date": "2026-07-27",
+      "rank": 1,
+      "outcome": "STRONG_CONTINUATION",
+      "return_0930": 2.0,
+      "score": 90
+    },
+    {
+      "symbol": "TCS",
+      "date": "2026-07-27",
+      "rank": 2,
+      "outcome": "STRONG_CONTINUATION",
+      "return_0930": 2.0,
+      "score": 85
+    },
+    {
+      "symbol": "TCS",
+      "date": "2026-07-27",
+      "rank": 2,
+      "outcome": "STRONG_CONTINUATION",
+      "return_0930": 2.0,
+      "score": 85
+    },
+    {
+      "symbol": "TCS",
+      "date": "2026-07-27",
+      "rank": 2,
+      "outcome": "STRONG_CONTINUATION",
+      "return_0930": 2.0,
+      "score": 85
+    },
+    {
+      "symbol": "HDFCBANK",
+      "date": "2026-07-27",
+      "rank": 3,
+      "outcome": "STRONG_CONTINUATION",
+      "return_0930": 2.0,
+      "score": 80
+    },
+    {
+      "symbol": "HDFCBANK",
+      "date": "2026-07-27",
+      "rank": 3,
+      "outcome": "STRONG_CONTINUATION",
+      "return_0930": 2.0,
+      "score": 80
+    },
+    {
+      "symbol": "HDFCBANK",
+      "date": "2026-07-27",
+      "rank": 3,
+      "outcome": "STRONG_CONTINUATION",
+      "return_0930": 2.0,
+      "score": 80
+    },
+    {
+      "symbol": "INFY",
+      "date": "2026-07-27",
+      "rank": 4,
+      "outcome": "STRONG_CONTINUATION",
+      "return_0930": 2.0,
+      "score": 75
+    }
+  ],
+  "sector_performance": [
+    {
+      "sector": "Energy",
+      "candidates": 3,
+      "continuation_rate": 100.0,
+      "avg_return_0930": 2.0,
+      "avg_return_1030": 1.6,
+      "inconclusive": false
+    },
+    {
+      "sector": "Finance",
+      "candidates": 6,
+      "continuation_rate": 100.0,
+      "avg_return_0930": 2.0,
+      "avg_return_1030": 1.6,
+      "inconclusive": false
+    },
+    {
+      "sector": "IT",
+      "candidates": 6,
+      "continuation_rate": 100.0,
+      "avg_return_0930": 2.0,
+      "avg_return_1030": 1.6,
+      "inconclusive": false
+    }
+  ],
+  "gap_direction_analysis": [
+    {
+      "band": "gap_up_strong",
+      "candidates": 6,
+      "continuation_rate": 100.0,
+      "avg_return_0930": 2.0,
+      "inconclusive": false
+    },
+    {
+      "band": "gap_up_moderate",
+      "candidates": 9,
+      "continuation_rate": 100.0,
+      "avg_return_0930": 2.0,
+      "inconclusive": false
+    },
+    {
+      "band": "flat",
+      "candidates": 0,
+      "continuation_rate": null,
+      "avg_return_0930": null,
+      "inconclusive": true
+    },
+    {
+      "band": "gap_down_moderate",
+      "candidates": 0,
+      "continuation_rate": null,
+      "avg_return_0930": null,
+      "inconclusive": true
+    },
+    {
+      "band": "gap_down_strong",
+      "candidates": 0,
+      "continuation_rate": null,
+      "avg_return_0930": null,
+      "inconclusive": true
+    }
+  ],
+  "imbalance_analysis": {
+    "buy_imbalance_success_rate": 100.0,
+    "sell_imbalance_success_rate": 0.0
+  },
+  "factor_reliability": [
+    {
+      "factor": "gap_strength",
+      "sample_size": 15,
+      "factor_success_rate": 100.0,
+      "factor_avg_return": 2.0,
+      "factor_failure_rate": 0.0,
+      "factor_reliability_score": 100.0,
+      "inconclusive": false,
+      "note": null
+    },
+    {
+      "factor": "order_imbalance",
+      "sample_size": 15,
+      "factor_success_rate": 100.0,
+      "factor_avg_return": 2.0,
+      "factor_failure_rate": 0.0,
+      "factor_reliability_score": 100.0,
+      "inconclusive": false,
+      "note": null
+    },
+    {
+      "factor": "executed_quantity",
+      "sample_size": 15,
+      "factor_success_rate": 100.0,
+      "factor_avg_return": 2.0,
+      "factor_failure_rate": 0.0,
+      "factor_reliability_score": 100.0,
+      "inconclusive": false,
+      "note": null
+    },
+    {
+      "factor": "liquidity",
+      "sample_size": 15,
+      "factor_success_rate": 100.0,
+      "factor_avg_return": 2.0,
+      "factor_failure_rate": 0.0,
+      "factor_reliability_score": 100.0,
+      "inconclusive": false,
+      "note": null
+    },
+    {
+      "factor": "sector_confirmation",
+      "sample_size": 15,
+      "factor_success_rate": 100.0,
+      "factor_avg_return": 2.0,
+      "factor_failure_rate": 0.0,
+      "factor_reliability_score": 100.0,
+      "inconclusive": false,
+      "note": null
+    },
+    {
+      "factor": "index_direction",
+      "sample_size": 15,
+      "factor_success_rate": 100.0,
+      "factor_avg_return": 2.0,
+      "factor_failure_rate": 0.0,
+      "factor_reliability_score": 100.0,
+      "inconclusive": false,
+      "note": null
+    },
+    {
+      "factor": "data_freshness",
+      "sample_size": 0,
+      "factor_success_rate": null,
+      "factor_avg_return": null,
+      "factor_failure_rate": null,
+      "factor_reliability_score": null,
+      "inconclusive": true,
+      "note": "Insufficient data \u2014 treat as inconclusive"
+    },
+    {
+      "factor": "volatility_risk",
+      "sample_size": 15,
+      "factor_success_rate": 100.0,
+      "factor_avg_return": 2.0,
+      "factor_failure_rate": 0.0,
+      "factor_reliability_score": 100.0,
+      "inconclusive": false,
+      "note": null
+    }
+  ],
+  "confidence_level": "LOW",
+  "verdict": "PRE-OPEN MODULE REQUIRES MORE DATA",
+  "verdict_note": "Verdict based on observed data only. Do not recommend Trade Decisions integration with fewer than 5 valid sessions.",
+  "note": "PAPER TRADING / ADVISORY ONLY. No trade decisions derived from this report."
+}

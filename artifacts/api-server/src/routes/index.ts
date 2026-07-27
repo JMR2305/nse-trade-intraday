@@ -19,6 +19,7 @@ import downloadRouter from "./download";
 import reconciliationRouter from "./reconciliation";
 import portfolioRouter from "./portfolio";
 import preopenRouter from "./preopen";
+import preopenValidationRouter from "./preopen-validation";
 
 const router: IRouter = Router();
 
@@ -40,6 +41,7 @@ router.use(kiteRouter);
 router.use(notificationsRouter);
 router.use(reconciliationRouter);
 router.use(preopenRouter);
+router.use(preopenValidationRouter);
 router.use(tradingRouter);
 router.use(downloadRouter);
 

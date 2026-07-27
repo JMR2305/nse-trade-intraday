@@ -2181,6 +2181,51 @@ def main():
             from preopen_engine import refresh
             result = refresh()
 
+        elif command == "preopen_validation_status":
+            from preopen_validation_engine import get_status
+            result = get_status()
+
+        elif command == "preopen_validation_daily":
+            from preopen_validation_engine import get_daily
+            date = args[1] if len(args) > 1 else None
+            result = get_daily(date)
+
+        elif command == "preopen_validation_candidates":
+            from preopen_validation_engine import get_candidates
+            date  = args[1] if len(args) > 1 else None
+            limit = int(args[2]) if len(args) > 2 else 200
+            result = get_candidates(date, limit)
+
+        elif command == "preopen_validation_symbol" and len(args) > 1:
+            from preopen_validation_engine import get_symbol
+            symbol = args[1]
+            date   = args[2] if len(args) > 2 else None
+            result = get_symbol(symbol, date)
+
+        elif command == "preopen_validation_score_bands":
+            from preopen_validation_engine import get_score_bands
+            date = args[1] if len(args) > 1 else None
+            result = get_score_bands(date)
+
+        elif command == "preopen_validation_factors":
+            from preopen_validation_engine import get_factors
+            date = args[1] if len(args) > 1 else None
+            result = get_factors(date)
+
+        elif command == "preopen_validation_sectors":
+            from preopen_validation_engine import get_sectors
+            date = args[1] if len(args) > 1 else None
+            result = get_sectors(date)
+
+        elif command == "preopen_validation_report":
+            from preopen_validation_engine import get_report
+            date = args[1] if len(args) > 1 else None
+            result = get_report(date)
+
+        elif command == "preopen_validation_run":
+            from preopen_validation_engine import run_validation
+            result = run_validation()
+
         else:
             error_msg = f"Unknown command: {command}"
 
