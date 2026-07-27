@@ -2181,6 +2181,14 @@ def main():
             from preopen_engine import refresh
             result = refresh()
 
+        elif command == "preopen_validation_tick":
+            from preopen_validation_tick import run_tick
+            result = run_tick()
+
+        elif command == "preopen_validation_tick_status":
+            from preopen_validation_tick import get_tick_status
+            result = get_tick_status()
+
         elif command == "preopen_validation_status":
             from preopen_validation_engine import get_status
             result = get_status()

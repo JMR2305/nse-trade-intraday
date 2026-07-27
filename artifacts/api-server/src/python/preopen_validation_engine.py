@@ -44,16 +44,29 @@ def get_status() -> dict:
         return _disabled_response()
     try:
         import preopen_validation_db as db
-        from preopen_validation_scheduler import get_scheduler_status
-        sessions = db.get_validation_sessions(limit=5)
+        from preopen_validation_tick import get_tick_status
+        sessions     = db.get_validation_sessions(limit=5)
+        tick_status  = get_tick_status()
         return {
-            "status":         "ENABLED",
-            "feature_flag":   _ENABLED_VAR,
-            "trading_date":   _today_ist(),
-            "sessions_count": len(sessions),
-            "latest_session": sessions[0] if sessions else None,
-            "scheduler":      get_scheduler_status(),
-            "label":          "PAPER / ADVISORY ONLY",
+            "status":           "ENABLED",
+            "feature_flag":     _ENABLED_VAR,
+            "trading_date":     _today_ist(),
+            "sessions_count":   len(sessions),
+            "latest_session":   sessions[0] if sessions else None,
+            "scheduler": {
+                "registered":       True,
+                "auto_tick":        True,
+                "active":           tick_status.get("trading_day", False)
+                                    and _is_enabled(),
+                "ist_time":         tick_status.get("ist_time"),
+                "trading_day":      tick_status.get("trading_day"),
+                "active_window":    tick_status.get("active_window"),
+                "next_checkpoint":  tick_status.get("next_checkpoint"),
+                "checkpoints_done": tick_status.get("checkpoints_done", []),
+                "all_checkpoints":  tick_status.get("all_checkpoints", []),
+                "session_id":       tick_status.get("session_id"),
+            },
+            "label":            "PAPER / ADVISORY ONLY",
         }
     except Exception as e:
         return {"status": "ERROR", "error": str(e), "label": "PAPER / ADVISORY ONLY"}

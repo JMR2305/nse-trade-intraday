@@ -84,6 +84,24 @@ export function startScanScheduler(): void {
       tickInFlight = false;
     }
 
+    // Phase 5B — Pre-Open Validation tick.
+    // Runs on every minute; the Python side owns all IST time-gating and
+    // checkpoint deduplication. No-ops outside checkpoint windows and on
+    // non-trading days. Paper / advisory only — no orders.
+    runPython(["preopen_validation_tick"]).then((r) => {
+      const res = r as Record<string, unknown>;
+      if (res?.["ran"]) {
+        logger.info(
+          { checkpoint: res["checkpoint"], candidates: res["candidates"],
+            session_id: res["session_id"], trading_date: res["trading_date"] },
+          "Pre-Open Validation checkpoint collected",
+        );
+      }
+    }).catch((err: unknown) => {
+      logger.warn({ err: err instanceof Error ? err.message : String(err) },
+        "Pre-Open Validation tick failed (non-fatal)");
+    });
+
     // Priority 4 (#41): drain the durable alert delivery queue every tick
     // (retries for push + email survive restarts and provider outages).
     // Runs even when no scan is due; never blocks or fails the tick.
