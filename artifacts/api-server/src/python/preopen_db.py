@@ -298,21 +298,30 @@ def save_snapshots(session_id: str, snapshots: List[dict]) -> None:
 
 
 def get_latest_snapshots(trading_date: Optional[str] = None) -> List[dict]:
+    """Return one (most recent) snapshot per symbol for the given trading date.
+
+    Uses DISTINCT ON (symbol) ordered by created_at DESC so that repeated
+    collect_snapshot() calls within the same session never produce duplicate
+    symbols in downstream analytics.  A Python-level dedup runs as a
+    belt-and-suspenders safety net after the DB fetch.
+    """
     def from_db(conn):
         with conn.cursor() as cur:
             if trading_date:
                 cur.execute("""
-                    SELECT * FROM preopen_snapshots
+                    SELECT DISTINCT ON (symbol) *
+                    FROM preopen_snapshots
                     WHERE trading_date = %s
-                    ORDER BY opportunity_score DESC
+                    ORDER BY symbol, created_at DESC
                 """, [trading_date])
             else:
                 cur.execute("""
-                    SELECT * FROM preopen_snapshots
+                    SELECT DISTINCT ON (symbol) *
+                    FROM preopen_snapshots
                     WHERE trading_date = (
                         SELECT MAX(trading_date) FROM preopen_snapshots
                     )
-                    ORDER BY opportunity_score DESC
+                    ORDER BY symbol, created_at DESC
                 """)
             cols = [d[0] for d in cur.description]
             rows = cur.fetchall()
@@ -323,7 +332,16 @@ def get_latest_snapshots(trading_date: Optional[str] = None) -> List[dict]:
                     if isinstance(v, datetime):
                         d[k] = v.isoformat()
                 result.append(d)
-            return result
+
+        # Belt-and-suspenders: deduplicate by symbol in Python, keeping the
+        # row that was already picked as most-recent by the SQL above.
+        seen: Dict[str, dict] = {}
+        for snap in result:
+            sym = snap.get("symbol")
+            if sym and sym not in seen:
+                seen[sym] = snap
+        return list(seen.values())
+
     return _with_db(from_db) or []
 
 
