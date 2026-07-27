@@ -51,6 +51,7 @@ import LearningGovernance from "@/pages/LearningGovernance";
 import AutomationHealth from "@/pages/AutomationHealth";
 import OperatorStatus from "@/pages/OperatorStatus";
 import Phase4ASession from "@/pages/Phase4ASession";
+import PreOpenIntelligence from "@/pages/PreOpenIntelligence";
 import { ConnectivityPanel } from "@/components/ConnectivityPanel";
 import { LoginPage } from "@/components/LoginPage";
 import { useAuth } from "@/hooks/useAuth";
@@ -121,6 +122,7 @@ function Router() {
         <Route path="/kite-connect" component={KiteConnect} />
         <Route path="/operator-status" component={OperatorStatus} />
         <Route path="/phase4a-session" component={Phase4ASession} />
+        <Route path="/preopen-intelligence" component={PreOpenIntelligence} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

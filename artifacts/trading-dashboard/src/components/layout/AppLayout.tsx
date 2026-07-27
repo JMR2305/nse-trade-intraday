@@ -51,6 +51,7 @@ import {
   Bell,
   Microscope,
   Radio,
+  Sunrise,
   Menu,
   X,
   PieChart,
@@ -80,8 +81,9 @@ const navGroups = [
     items: [
       { href: "/dashboard",        label: "Dashboard",        icon: BarChart3   },
       { href: "/",                 label: "Trade Decisions",  icon: Target      },
-      { href: "/market-scanner",   label: "Market Scanner",   icon: Radar       },
-      { href: "/live-data-health", label: "Live Data Health", icon: Wifi        },
+      { href: "/market-scanner",      label: "Market Scanner",      icon: Radar    },
+      { href: "/preopen-intelligence", label: "Pre-Open Intelligence", icon: Sunrise },
+      { href: "/live-data-health",  label: "Live Data Health",  icon: Wifi       },
     ],
   },
   {

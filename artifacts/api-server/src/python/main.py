@@ -2145,6 +2145,42 @@ def main():
             from portfolio_snapshot import get_portfolio_config
             result = get_portfolio_config()
 
+        elif command == "preopen_status":
+            from preopen_engine import get_status
+            result = get_status()
+
+        elif command == "preopen_health":
+            from preopen_engine import get_health
+            result = get_health()
+
+        elif command == "preopen_snapshot":
+            from preopen_engine import get_snapshot
+            result = get_snapshot()
+
+        elif command == "preopen_symbol" and len(args) > 1:
+            from preopen_engine import get_symbol_snapshot
+            result = get_symbol_snapshot(args[1])
+
+        elif command == "preopen_rankings":
+            from preopen_engine import get_rankings
+            result = get_rankings()
+
+        elif command == "preopen_watchlist":
+            from preopen_engine import get_watchlists
+            result = get_watchlists()
+
+        elif command == "preopen_sectors":
+            from preopen_engine import get_sectors
+            result = get_sectors()
+
+        elif command == "preopen_report":
+            from preopen_engine import get_report
+            result = get_report()
+
+        elif command == "preopen_refresh":
+            from preopen_engine import refresh
+            result = refresh()
+
         else:
             error_msg = f"Unknown command: {command}"
 

@@ -18,6 +18,7 @@ import notificationsRouter from "./notifications";
 import downloadRouter from "./download";
 import reconciliationRouter from "./reconciliation";
 import portfolioRouter from "./portfolio";
+import preopenRouter from "./preopen";
 
 const router: IRouter = Router();
 
@@ -38,6 +39,7 @@ router.use(phase4aRouter);
 router.use(kiteRouter);
 router.use(notificationsRouter);
 router.use(reconciliationRouter);
+router.use(preopenRouter);
 router.use(tradingRouter);
 router.use(downloadRouter);
 
