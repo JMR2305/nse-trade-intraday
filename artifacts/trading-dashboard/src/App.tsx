@@ -53,6 +53,7 @@ import OperatorStatus from "@/pages/OperatorStatus";
 import Phase4ASession from "@/pages/Phase4ASession";
 import PreOpenIntelligence from "@/pages/PreOpenIntelligence";
 import PreOpenAccuracy from "@/pages/PreOpenAccuracy";
+import SignalValidationPage from "@/pages/SignalValidationPage";
 import { ConnectivityPanel } from "@/components/ConnectivityPanel";
 import { LoginPage } from "@/components/LoginPage";
 import { useAuth } from "@/hooks/useAuth";
@@ -125,6 +126,7 @@ function Router() {
         <Route path="/phase4a-session" component={Phase4ASession} />
         <Route path="/preopen-intelligence" component={PreOpenIntelligence} />
         <Route path="/preopen-accuracy" component={PreOpenAccuracy} />
+        <Route path="/signal-validation" component={SignalValidationPage} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

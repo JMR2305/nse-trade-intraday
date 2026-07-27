@@ -2197,6 +2197,89 @@ def main():
             from preopen_validation_tick import get_tick_status
             result = get_tick_status()
 
+        # ── Phase 5C: Signal Validation ──────────────────────────────────────
+
+        elif command == "signal_validation_tick":
+            from signal_validation_tick import run_tick as _sv_tick
+            result = _sv_tick()
+
+        elif command == "signal_validation_tick_status":
+            from signal_validation_tick import get_tick_status as _sv_ts
+            result = _sv_ts()
+
+        elif command == "signal_validation_status":
+            from signal_validation_engine import get_status as _sv_status
+            result = _sv_status()
+
+        elif command == "signal_validation_summary":
+            from signal_validation_engine import get_summary as _sv_summary
+            date = args[1] if len(args) > 1 else None
+            result = _sv_summary(date)
+
+        elif command == "signal_validation_signals":
+            from signal_validation_engine import get_signals as _sv_signals
+            date   = args[1] if len(args) > 1 else None
+            limit  = int(args[2]) if len(args) > 2 else 100
+            offset = int(args[3]) if len(args) > 3 else 0
+            result = _sv_signals(trading_date=date, limit=limit, offset=offset)
+
+        elif command == "signal_validation_detail" and len(args) > 1:
+            from signal_validation_engine import get_signal_detail as _sv_detail
+            signal_id = args[1]
+            date = args[2] if len(args) > 2 else None
+            result = _sv_detail(signal_id, date)
+
+        elif command == "signal_validation_funnel":
+            from signal_validation_engine import get_funnel as _sv_funnel
+            date = args[1] if len(args) > 1 else None
+            result = _sv_funnel(date)
+
+        elif command == "signal_validation_strategies":
+            from signal_validation_engine import get_strategies as _sv_strat
+            date = args[1] if len(args) > 1 else None
+            result = _sv_strat(date)
+
+        elif command == "signal_validation_ai":
+            from signal_validation_engine import get_ai_attribution as _sv_ai
+            date = args[1] if len(args) > 1 else None
+            result = _sv_ai(date)
+
+        elif command == "signal_validation_preopen":
+            from signal_validation_engine import get_preopen_attribution as _sv_po
+            date = args[1] if len(args) > 1 else None
+            result = _sv_po(date)
+
+        elif command == "signal_validation_risk":
+            from signal_validation_engine import get_risk_attribution as _sv_risk
+            date = args[1] if len(args) > 1 else None
+            result = _sv_risk(date)
+
+        elif command == "signal_validation_regimes":
+            from signal_validation_engine import get_regimes as _sv_reg
+            date = args[1] if len(args) > 1 else None
+            result = _sv_reg(date)
+
+        elif command == "signal_validation_missed":
+            from signal_validation_engine import get_missed_opportunities as _sv_mo
+            date  = args[1] if len(args) > 1 else None
+            limit = int(args[2]) if len(args) > 2 else 50
+            result = _sv_mo(date, limit)
+
+        elif command == "signal_validation_report":
+            from signal_validation_engine import get_report as _sv_report
+            date = args[1] if len(args) > 1 else None
+            result = _sv_report(date)
+
+        elif command == "signal_validation_run_now":
+            from signal_validation_engine import run_now as _sv_run
+            date = args[1] if len(args) > 1 else None
+            result = _sv_run(date)
+
+        elif command == "signal_validation_reconcile":
+            from signal_validation_engine import reconcile_now as _sv_rec
+            date = args[1] if len(args) > 1 else None
+            result = _sv_rec(date)
+
         elif command == "preopen_validation_status":
             from preopen_validation_engine import get_status
             result = get_status()

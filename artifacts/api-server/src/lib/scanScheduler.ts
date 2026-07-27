@@ -123,6 +123,25 @@ export function startScanScheduler(): void {
         "Pre-Open Validation tick failed (non-fatal)");
     });
 
+    // Phase 5C — Signal Validation tick.
+    // Fires every minute; Python owns all IST window-gating and idempotency.
+    // No-ops outside checkpoint windows and on non-trading days.
+    // SIGNAL_VALIDATION_ENABLED=false → Python returns DISABLED immediately.
+    // Paper / advisory only — no orders, no strategy modification.
+    runPython(["signal_validation_tick"]).then((r) => {
+      const res = r as Record<string, unknown>;
+      if (res?.["ran"]) {
+        logger.info(
+          { phase: res["phase"], session_id: res["session_id"],
+            trading_date: res["trading_date"] },
+          "Signal Validation phase executed",
+        );
+      }
+    }).catch((err: unknown) => {
+      logger.warn({ err: err instanceof Error ? err.message : String(err) },
+        "Signal Validation tick failed (non-fatal)");
+    });
+
     // Priority 4 (#41): drain the durable alert delivery queue every tick
     // (retries for push + email survive restarts and provider outages).
     // Runs even when no scan is due; never blocks or fails the tick.

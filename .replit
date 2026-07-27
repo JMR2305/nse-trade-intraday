@@ -51,6 +51,7 @@ packages = ["freetype", "glibcLocales"]
 [userenv.shared]
 PREOPEN_INTELLIGENCE_ENABLED = "true"
 PREOPEN_VALIDATION_ENABLED = "True"
+SIGNAL_VALIDATION_ENABLED = "false"
 
 [[ports]]
 localPort = 8080

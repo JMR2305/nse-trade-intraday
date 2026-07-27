@@ -107,6 +107,7 @@ const navGroups = [
     items: [
       { href: "/performance-analytics", label: "Performance Analytics", icon: BarChart3 },
       { href: "/preopen-accuracy",      label: "Pre-Open Accuracy",     icon: Target    },
+      { href: "/signal-validation",     label: "Signal Validation",     icon: Activity  },
       { href: "/market-replay",         label: "Market Replay",         icon: Clock     },
     ],
   },

@@ -1,0 +1,210 @@
+{
+  "report_type": "FIVE_DAY",
+  "sessions_analysed": 5,
+  "date_range": "2026-07-20 to 2026-07-24",
+  "generated_at": "2026-07-28T03:18:56.077474+05:30",
+  "label": "PAPER TRADING / ADVISORY ONLY",
+  "daily_comparison": [
+    {
+      "trading_date": "2026-07-20",
+      "summary": {
+        "signals_generated": 20,
+        "signals_approved": 20,
+        "paper_trades": 20,
+        "risk_rejections": 0,
+        "win_rate": 0.5,
+        "expectancy": 65.0,
+        "false_positives": 10,
+        "missed_opportunities": 0,
+        "data_completeness_pct": 100.0
+      }
+    },
+    {
+      "trading_date": "2026-07-21",
+      "summary": {
+        "signals_generated": 20,
+        "signals_approved": 20,
+        "paper_trades": 20,
+        "risk_rejections": 0,
+        "win_rate": 0.5,
+        "expectancy": 65.0,
+        "false_positives": 10,
+        "missed_opportunities": 0,
+        "data_completeness_pct": 100.0
+      }
+    },
+    {
+      "trading_date": "2026-07-22",
+      "summary": {
+        "signals_generated": 20,
+        "signals_approved": 20,
+        "paper_trades": 20,
+        "risk_rejections": 0,
+        "win_rate": 0.5,
+        "expectancy": 65.0,
+        "false_positives": 10,
+        "missed_opportunities": 0,
+        "data_completeness_pct": 100.0
+      }
+    },
+    {
+      "trading_date": "2026-07-23",
+      "summary": {
+        "signals_generated": 20,
+        "signals_approved": 20,
+        "paper_trades": 20,
+        "risk_rejections": 0,
+        "win_rate": 0.5,
+        "expectancy": 65.0,
+        "false_positives": 10,
+        "missed_opportunities": 0,
+        "data_completeness_pct": 100.0
+      }
+    },
+    {
+      "trading_date": "2026-07-24",
+      "summary": {
+        "signals_generated": 20,
+        "signals_approved": 20,
+        "paper_trades": 20,
+        "risk_rejections": 0,
+        "win_rate": 0.5,
+        "expectancy": 65.0,
+        "false_positives": 10,
+        "missed_opportunities": 0,
+        "data_completeness_pct": 100.0
+      }
+    }
+  ],
+  "total_signals": 100,
+  "overall_summary": {
+    "signals_generated": 100,
+    "signals_approved": 100,
+    "paper_trades": 100,
+    "risk_rejections": 0,
+    "win_rate": 0.5,
+    "expectancy": 65.0,
+    "false_positives": 50,
+    "missed_opportunities": 0,
+    "data_completeness_pct": 100.0
+  },
+  "strategy_performance": [
+    {
+      "trading_date": "5day",
+      "session_id": "consolidated",
+      "strategy_id": "RSI_DIV",
+      "strategy_name": "RSI Divergence",
+      "strategy_version": "1.0",
+      "grouping_key": "strategy",
+      "grouping_value": "RSI_DIV",
+      "signals_generated": 100,
+      "signals_approved": 100,
+      "paper_trades": 100,
+      "closed_trades": 100,
+      "win_count": 50,
+      "loss_count": 50,
+      "win_rate": 0.5,
+      "loss_rate": 0.5,
+      "avg_return": 65.0,
+      "median_return": 65.0,
+      "avg_r_multiple": 0.0037142857142857142,
+      "profit_factor": 2.0833333333333335,
+      "expectancy": 65.0,
+      "avg_mfe": null,
+      "avg_mae": null,
+      "max_drawdown_contrib": -120.0,
+      "false_positive_rate": 0.5,
+      "missed_opp_rate": 0.0,
+      "sample_size": 100,
+      "confidence_level": "SUFFICIENT"
+    }
+  ],
+  "ai_agreement_performance": [
+    {
+      "trading_date": "5day",
+      "session_id": "consolidated",
+      "agreement_group": "NO_RESULT",
+      "signals_count": 100,
+      "continuation_rate": 0.5,
+      "reversal_rate": 0.5,
+      "win_rate": 0.5,
+      "expectancy": 65.0,
+      "avg_mfe": null,
+      "avg_mae": null,
+      "false_positive_rate": 0.5,
+      "missed_opp_rate": 0.0,
+      "avg_latency_ms": null,
+      "sample_size": 100
+    }
+  ],
+  "preopen_attribution": [
+    {
+      "trading_date": "5day",
+      "session_id": "consolidated",
+      "confirmation_group": "NONE",
+      "signals_count": 100,
+      "win_rate": 0.5,
+      "expectancy": 65.0,
+      "avg_r_multiple": 0.0037142857142857142,
+      "avg_mfe": null,
+      "avg_mae": null,
+      "sample_size": 100,
+      "predictive_value_declared": true
+    }
+  ],
+  "risk_rejection_quality": {
+    "total_rejected": 0
+  },
+  "regime_performance": [
+    {
+      "trading_date": "5day",
+      "session_id": "consolidated",
+      "regime": "UNKNOWN",
+      "strategy_id": "RSI_DIV",
+      "signals_count": 100,
+      "win_rate": 0.5,
+      "expectancy": 65.0,
+      "avg_r_multiple": 0.0037142857142857142,
+      "sample_size": 100
+    }
+  ],
+  "signal_funnel": {
+    "generated": {
+      "count": 100,
+      "pct": 100.0
+    },
+    "ai_reviewed": {
+      "count": 100,
+      "pct": 100.0
+    },
+    "risk_approved": {
+      "count": 100,
+      "pct": 100.0
+    },
+    "paper_order": {
+      "count": 100,
+      "pct": 100.0
+    },
+    "filled": {
+      "count": 100,
+      "pct": 100.0
+    },
+    "closed": {
+      "count": 100,
+      "pct": 100.0
+    },
+    "successful": {
+      "count": 50,
+      "pct": 50.0
+    }
+  },
+  "expectancy": 65.0,
+  "profit_factor": 2.0833333333333335,
+  "false_positives": 50,
+  "missed_opportunities": 0,
+  "system_incidents": [],
+  "data_completeness": 100.0,
+  "sample_size_confidence": "HIGH",
+  "verdict": "SIGNAL PIPELINE SHOWS POSITIVE OPERATIONAL VALUE",
+  "verdict_note": "Do not recommend strategy modification automatically."
+}

@@ -1,0 +1,267 @@
+{
+  "report_type": "DAILY",
+  "trading_date": "2026-07-27",
+  "session_id": "sess-01",
+  "generated_at": "2026-07-28T03:18:56.065186+05:30",
+  "label": "PAPER TRADING / ADVISORY ONLY",
+  "operational_summary": {
+    "signals_generated": 10,
+    "signals_approved": 10,
+    "paper_trades": 10,
+    "risk_rejections": 0,
+    "win_rate": 0.5,
+    "expectancy": 65.0,
+    "false_positives": 5,
+    "missed_opportunities": 0,
+    "data_completeness_pct": 100.0
+  },
+  "signal_funnel": {
+    "generated": {
+      "count": 10,
+      "pct": 100.0
+    },
+    "ai_reviewed": {
+      "count": 10,
+      "pct": 100.0
+    },
+    "risk_approved": {
+      "count": 10,
+      "pct": 100.0
+    },
+    "paper_order": {
+      "count": 10,
+      "pct": 100.0
+    },
+    "filled": {
+      "count": 10,
+      "pct": 100.0
+    },
+    "closed": {
+      "count": 10,
+      "pct": 100.0
+    },
+    "successful": {
+      "count": 5,
+      "pct": 50.0
+    }
+  },
+  "strategy_results": [
+    {
+      "trading_date": "2026-07-27",
+      "session_id": "sess-01",
+      "strategy_id": "RSI_DIV",
+      "strategy_name": "RSI Divergence",
+      "strategy_version": "1.0",
+      "grouping_key": "strategy",
+      "grouping_value": "RSI_DIV",
+      "signals_generated": 10,
+      "signals_approved": 10,
+      "paper_trades": 10,
+      "closed_trades": 10,
+      "win_count": 5,
+      "loss_count": 5,
+      "win_rate": 0.5,
+      "loss_rate": 0.5,
+      "avg_return": 65.0,
+      "median_return": 65.0,
+      "avg_r_multiple": 0.0037142857142857142,
+      "profit_factor": 2.0833333333333335,
+      "expectancy": 65.0,
+      "avg_mfe": null,
+      "avg_mae": null,
+      "max_drawdown_contrib": -120.0,
+      "false_positive_rate": 0.5,
+      "missed_opp_rate": 0.0,
+      "sample_size": 10,
+      "confidence_level": "SUFFICIENT"
+    }
+  ],
+  "ai_attribution": [
+    {
+      "trading_date": "2026-07-27",
+      "session_id": "sess-01",
+      "agreement_group": "NO_RESULT",
+      "signals_count": 10,
+      "continuation_rate": 0.5,
+      "reversal_rate": 0.5,
+      "win_rate": 0.5,
+      "expectancy": 65.0,
+      "avg_mfe": null,
+      "avg_mae": null,
+      "false_positive_rate": 0.5,
+      "missed_opp_rate": 0.0,
+      "avg_latency_ms": null,
+      "sample_size": 10
+    }
+  ],
+  "preopen_attribution": [
+    {
+      "trading_date": "2026-07-27",
+      "session_id": "sess-01",
+      "confirmation_group": "NONE",
+      "signals_count": 10,
+      "win_rate": 0.5,
+      "expectancy": 65.0,
+      "avg_r_multiple": 0.0037142857142857142,
+      "avg_mfe": null,
+      "avg_mae": null,
+      "sample_size": 10,
+      "predictive_value_declared": false
+    }
+  ],
+  "risk_attribution": {
+    "total_rejected": 0,
+    "rejection_reasons": {},
+    "rejection_justified_rate": null
+  },
+  "regime_attribution": [
+    {
+      "trading_date": "2026-07-27",
+      "session_id": "sess-01",
+      "regime": "UNKNOWN",
+      "strategy_id": "RSI_DIV",
+      "signals_count": 10,
+      "win_rate": 0.5,
+      "expectancy": 65.0,
+      "avg_r_multiple": 0.0037142857142857142,
+      "sample_size": 10
+    }
+  ],
+  "successful_signals": [
+    {
+      "validation_id": "sv-rpt-0",
+      "signal_id": "sig-rpt-0",
+      "symbol": "RELIANCE",
+      "strategy": "RSI Divergence",
+      "direction": "BUY",
+      "outcome": "STRONG_SUCCESS",
+      "r_multiple": "0.01428571428571428571428571429",
+      "realised_pnl": "250.000",
+      "is_hypothetical": false,
+      "label": null
+    },
+    {
+      "validation_id": "sv-rpt-2",
+      "signal_id": "sig-rpt-2",
+      "symbol": "RELIANCE",
+      "strategy": "RSI Divergence",
+      "direction": "BUY",
+      "outcome": "STRONG_SUCCESS",
+      "r_multiple": "0.01428571428571428571428571429",
+      "realised_pnl": "250.000",
+      "is_hypothetical": false,
+      "label": null
+    },
+    {
+      "validation_id": "sv-rpt-4",
+      "signal_id": "sig-rpt-4",
+      "symbol": "RELIANCE",
+      "strategy": "RSI Divergence",
+      "direction": "BUY",
+      "outcome": "STRONG_SUCCESS",
+      "r_multiple": "0.01428571428571428571428571429",
+      "realised_pnl": "250.000",
+      "is_hypothetical": false,
+      "label": null
+    },
+    {
+      "validation_id": "sv-rpt-6",
+      "signal_id": "sig-rpt-6",
+      "symbol": "RELIANCE",
+      "strategy": "RSI Divergence",
+      "direction": "BUY",
+      "outcome": "STRONG_SUCCESS",
+      "r_multiple": "0.01428571428571428571428571429",
+      "realised_pnl": "250.000",
+      "is_hypothetical": false,
+      "label": null
+    },
+    {
+      "validation_id": "sv-rpt-8",
+      "signal_id": "sig-rpt-8",
+      "symbol": "RELIANCE",
+      "strategy": "RSI Divergence",
+      "direction": "BUY",
+      "outcome": "STRONG_SUCCESS",
+      "r_multiple": "0.01428571428571428571428571429",
+      "realised_pnl": "250.000",
+      "is_hypothetical": false,
+      "label": null
+    }
+  ],
+  "failed_signals": [
+    {
+      "validation_id": "sv-rpt-1",
+      "signal_id": "sig-rpt-1",
+      "symbol": "RELIANCE",
+      "strategy": "RSI Divergence",
+      "direction": "BUY",
+      "outcome": "MODERATE_FAILURE",
+      "r_multiple": "-0.006857142857142857142857142857",
+      "realised_pnl": "-120.000",
+      "is_hypothetical": false,
+      "label": null
+    },
+    {
+      "validation_id": "sv-rpt-3",
+      "signal_id": "sig-rpt-3",
+      "symbol": "RELIANCE",
+      "strategy": "RSI Divergence",
+      "direction": "BUY",
+      "outcome": "MODERATE_FAILURE",
+      "r_multiple": "-0.006857142857142857142857142857",
+      "realised_pnl": "-120.000",
+      "is_hypothetical": false,
+      "label": null
+    },
+    {
+      "validation_id": "sv-rpt-5",
+      "signal_id": "sig-rpt-5",
+      "symbol": "RELIANCE",
+      "strategy": "RSI Divergence",
+      "direction": "BUY",
+      "outcome": "MODERATE_FAILURE",
+      "r_multiple": "-0.006857142857142857142857142857",
+      "realised_pnl": "-120.000",
+      "is_hypothetical": false,
+      "label": null
+    },
+    {
+      "validation_id": "sv-rpt-7",
+      "signal_id": "sig-rpt-7",
+      "symbol": "RELIANCE",
+      "strategy": "RSI Divergence",
+      "direction": "BUY",
+      "outcome": "MODERATE_FAILURE",
+      "r_multiple": "-0.006857142857142857142857142857",
+      "realised_pnl": "-120.000",
+      "is_hypothetical": false,
+      "label": null
+    },
+    {
+      "validation_id": "sv-rpt-9",
+      "signal_id": "sig-rpt-9",
+      "symbol": "RELIANCE",
+      "strategy": "RSI Divergence",
+      "direction": "BUY",
+      "outcome": "MODERATE_FAILURE",
+      "r_multiple": "-0.006857142857142857142857142857",
+      "realised_pnl": "-120.000",
+      "is_hypothetical": false,
+      "label": null
+    }
+  ],
+  "rejected_signals": [],
+  "missed_opportunities": [],
+  "data_quality_issues": {
+    "stale_data_count": 0,
+    "incomplete_count": 0,
+    "completeness_pct": 100.0
+  },
+  "incidents": [],
+  "recommendations": [
+    "No corrective actions required for this session.",
+    "NOTE: Recommendations are advisory only. Do not modify strategy parameters."
+  ],
+  "sample_size_warnings": []
+}
