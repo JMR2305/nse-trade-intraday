@@ -84,6 +84,27 @@ export function startScanScheduler(): void {
       tickInFlight = false;
     }
 
+    // Phase 5A — Pre-Open Intelligence tick.
+    // Runs on every minute; Python owns all IST time-gating for each phase:
+    //   08:43 init, 08:53 readiness, 09:00–09:15 collect, 09:15 freeze, 09:18 reconcile.
+    // No-ops outside phase windows and on non-trading days.
+    // Provider failure is caught and returned as DEGRADED/UNAVAILABLE — never crashes.
+    // Paper / advisory only — no orders.
+    runPython(["preopen_intelligence_tick"]).then((r) => {
+      const res = r as Record<string, unknown>;
+      if (res?.["ran"]) {
+        logger.info(
+          { phase: res["phase"], collect_count: res["collect_count"],
+            session_id: res["session_id"], trading_date: res["trading_date"],
+            provider_status: res["provider_status"] },
+          "Pre-Open Intelligence phase executed",
+        );
+      }
+    }).catch((err: unknown) => {
+      logger.warn({ err: err instanceof Error ? err.message : String(err) },
+        "Pre-Open Intelligence tick failed (non-fatal)");
+    });
+
     // Phase 5B — Pre-Open Validation tick.
     // Runs on every minute; the Python side owns all IST time-gating and
     // checkpoint deduplication. No-ops outside checkpoint windows and on

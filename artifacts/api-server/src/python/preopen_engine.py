@@ -68,23 +68,38 @@ def get_status() -> dict:
     if not _is_enabled():
         return _disabled_response()
     try:
-        session = db.get_latest_session()
+        from preopen_intelligence_tick import get_tick_status
+        session  = db.get_latest_session()
         provider = _get_provider()
-        health = provider.health_check()
-        today = _today_ist()
-        snaps = db.get_latest_snapshots(today)
+        health   = provider.health_check()
+        today    = _today_ist()
+        snaps    = db.get_latest_snapshots(today)
+        ts       = get_tick_status()
         return {
-            "status": "ENABLED",
-            "feature_flag": _ENABLED_VAR,
-            "trading_date": today,
-            "provider_status": health.get("status", ProviderState.UNAVAILABLE),
+            "status":           "ENABLED",
+            "feature_flag":     _ENABLED_VAR,
+            "trading_date":     today,
+            "provider_status":  health.get("status", ProviderState.UNAVAILABLE),
             "provider_message": health.get("message", ""),
-            "session": session,
+            "session":          session,
             "symbols_analysed": len(snaps),
-            "valid_records": sum(1 for s in snaps if not s.get("is_stale")),
-            "stale_records": sum(1 for s in snaps if s.get("is_stale")),
-            "last_updated": snaps[0].get("created_at") if snaps else None,
-            "label": "PAPER / ADVISORY ONLY",
+            "valid_records":    sum(1 for s in snaps if not s.get("is_stale")),
+            "stale_records":    sum(1 for s in snaps if s.get("is_stale")),
+            "last_updated":     snaps[0].get("created_at") if snaps else None,
+            "scheduler": {
+                "registered":     True,
+                "auto_tick":      True,
+                "active":         ts.get("active", False),
+                "ist_time":       ts.get("ist_time"),
+                "trading_day":    ts.get("trading_day"),
+                "active_phase":   ts.get("active_phase"),
+                "next_phase":     ts.get("next_phase"),
+                "collect_count":  ts.get("collect_count", 0),
+                "phases_done":    ts.get("phases_done", []),
+                "all_phases":     ts.get("all_phases", []),
+                "session_id":     ts.get("session_id"),
+            },
+            "label":            "PAPER / ADVISORY ONLY",
         }
     except Exception as e:
         return {"status": "ERROR", "error": str(e), "label": "PAPER / ADVISORY ONLY"}

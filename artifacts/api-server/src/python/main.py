@@ -2145,6 +2145,14 @@ def main():
             from portfolio_snapshot import get_portfolio_config
             result = get_portfolio_config()
 
+        elif command == "preopen_intelligence_tick":
+            from preopen_intelligence_tick import run_tick as _pi_tick
+            result = _pi_tick()
+
+        elif command == "preopen_intelligence_tick_status":
+            from preopen_intelligence_tick import get_tick_status as _pi_ts
+            result = _pi_ts()
+
         elif command == "preopen_status":
             from preopen_engine import get_status
             result = get_status()
