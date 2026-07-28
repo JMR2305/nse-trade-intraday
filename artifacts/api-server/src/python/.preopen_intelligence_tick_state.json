@@ -1,6 +1,221 @@
 {
   "trading_date": "2026-07-28",
   "session_id": "preopen-2026-07-28-a9859f",
-  "phases_done": {},
-  "collect_count": 10
+  "phases_done": {
+    "freeze": {
+      "ts": "2026-07-28T09:16:23.688510+05:30",
+      "success": true,
+      "phase": "FROZEN",
+      "log": [
+        {
+          "phase": "FROZEN",
+          "ts": "2026-07-28T09:16:23.798238+05:30"
+        },
+        {
+          "phase": "FROZEN",
+          "ts": "2026-07-28T09:16:23.938565+05:30",
+          "watchlists_generated": [
+            "top_gap_up",
+            "top_gap_down",
+            "buy_imbalance",
+            "sell_imbalance",
+            "highest_executed_qty",
+            "sector_leaders",
+            "sector_laggards",
+            "overall_ranked"
+          ],
+          "symbols": 10
+        }
+      ]
+    },
+    "reconcile": {
+      "ts": "2026-07-28T09:19:44.029810+05:30",
+      "success": true,
+      "phase": "DONE",
+      "log": [
+        {
+          "phase": "RECONCILING",
+          "ts": "2026-07-28T09:19:44.036813+05:30"
+        },
+        {
+          "phase": "DONE",
+          "ts": "2026-07-28T09:19:48.016089+05:30",
+          "reconciliation": {
+            "success": true,
+            "session_id": "preopen-2026-07-28-a9859f",
+            "symbols_reconciled": 10,
+            "avg_indicative_to_open_error_pct": null,
+            "watchlist_confirmation_rate_pct": 0.0,
+            "false_positive_rate_pct": 0.0,
+            "opening_continuation_rate_pct": null,
+            "opening_reversal_rate_pct": null,
+            "records": [
+              {
+                "symbol": "BAJFINANCE",
+                "session_id": "preopen-2026-07-28-a9859f",
+                "trading_date": "2026-07-28",
+                "indicative_equilibrium_price": 1017.9000244140625,
+                "final_pre_open_price": 1017.9000244140625,
+                "actual_open_price": null,
+                "price_at_0920": null,
+                "price_at_0930": null,
+                "indicative_to_open_error": null,
+                "opening_continuation": null,
+                "opening_reversal": null,
+                "watchlist_confirmed": null,
+                "was_in_watchlist": true,
+                "reconciled_at": "2026-07-28T03:49:47Z"
+              },
+              {
+                "symbol": "HDFCBANK",
+                "session_id": "preopen-2026-07-28-a9859f",
+                "trading_date": "2026-07-28",
+                "indicative_equilibrium_price": 743.7000122070312,
+                "final_pre_open_price": 743.7000122070312,
+                "actual_open_price": null,
+                "price_at_0920": null,
+                "price_at_0930": null,
+                "indicative_to_open_error": null,
+                "opening_continuation": null,
+                "opening_reversal": null,
+                "watchlist_confirmed": null,
+                "was_in_watchlist": true,
+                "reconciled_at": "2026-07-28T03:49:47Z"
+              },
+              {
+                "symbol": "ICICIBANK",
+                "session_id": "preopen-2026-07-28-a9859f",
+                "trading_date": "2026-07-28",
+                "indicative_equilibrium_price": 1432.9000244140625,
+                "final_pre_open_price": 1432.9000244140625,
+                "actual_open_price": null,
+                "price_at_0920": null,
+                "price_at_0930": null,
+                "indicative_to_open_error": null,
+                "opening_continuation": null,
+                "opening_reversal": null,
+                "watchlist_confirmed": null,
+                "was_in_watchlist": true,
+                "reconciled_at": "2026-07-28T03:49:47Z"
+              },
+              {
+                "symbol": "INFY",
+                "session_id": "preopen-2026-07-28-a9859f",
+                "trading_date": "2026-07-28",
+                "indicative_equilibrium_price": 1039.800048828125,
+                "final_pre_open_price": 1039.800048828125,
+                "actual_open_price": null,
+                "price_at_0920": null,
+                "price_at_0930": null,
+                "indicative_to_open_error": null,
+                "opening_continuation": null,
+                "opening_reversal": null,
+                "watchlist_confirmed": null,
+                "was_in_watchlist": true,
+                "reconciled_at": "2026-07-28T03:49:47Z"
+              },
+              {
+                "symbol": "LT",
+                "session_id": "preopen-2026-07-28-a9859f",
+                "trading_date": "2026-07-28",
+                "indicative_equilibrium_price": 3789.699951171875,
+                "final_pre_open_price": 3789.699951171875,
+                "actual_open_price": null,
+                "price_at_0920": null,
+                "price_at_0930": null,
+                "indicative_to_open_error": null,
+                "opening_continuation": null,
+                "opening_reversal": null,
+                "watchlist_confirmed": null,
+                "was_in_watchlist": true,
+                "reconciled_at": "2026-07-28T03:49:47Z"
+              },
+              {
+                "symbol": "MARUTI",
+                "session_id": "preopen-2026-07-28-a9859f",
+                "trading_date": "2026-07-28",
+                "indicative_equilibrium_price": 13449.0,
+                "final_pre_open_price": 13449.0,
+                "actual_open_price": null,
+                "price_at_0920": null,
+                "price_at_0930": null,
+                "indicative_to_open_error": null,
+                "opening_continuation": null,
+                "opening_reversal": null,
+                "watchlist_confirmed": null,
+                "was_in_watchlist": true,
+                "reconciled_at": "2026-07-28T03:49:47Z"
+              },
+              {
+                "symbol": "RELIANCE",
+                "session_id": "preopen-2026-07-28-a9859f",
+                "trading_date": "2026-07-28",
+                "indicative_equilibrium_price": 1280.300048828125,
+                "final_pre_open_price": 1280.300048828125,
+                "actual_open_price": null,
+                "price_at_0920": null,
+                "price_at_0930": null,
+                "indicative_to_open_error": null,
+                "opening_continuation": null,
+                "opening_reversal": null,
+                "watchlist_confirmed": null,
+                "was_in_watchlist": true,
+                "reconciled_at": "2026-07-28T03:49:47Z"
+              },
+              {
+                "symbol": "SBIN",
+                "session_id": "preopen-2026-07-28-a9859f",
+                "trading_date": "2026-07-28",
+                "indicative_equilibrium_price": 1011.4000244140625,
+                "final_pre_open_price": 1011.4000244140625,
+                "actual_open_price": null,
+                "price_at_0920": null,
+                "price_at_0930": null,
+                "indicative_to_open_error": null,
+                "opening_continuation": null,
+                "opening_reversal": null,
+                "watchlist_confirmed": null,
+                "was_in_watchlist": true,
+                "reconciled_at": "2026-07-28T03:49:47Z"
+              },
+              {
+                "symbol": "TCS",
+                "session_id": "preopen-2026-07-28-a9859f",
+                "trading_date": "2026-07-28",
+                "indicative_equilibrium_price": 2252.0,
+                "final_pre_open_price": 2252.0,
+                "actual_open_price": null,
+                "price_at_0920": null,
+                "price_at_0930": null,
+                "indicative_to_open_error": null,
+                "opening_continuation": null,
+                "opening_reversal": null,
+                "watchlist_confirmed": null,
+                "was_in_watchlist": true,
+                "reconciled_at": "2026-07-28T03:49:47Z"
+              },
+              {
+                "symbol": "WIPRO",
+                "session_id": "preopen-2026-07-28-a9859f",
+                "trading_date": "2026-07-28",
+                "indicative_equilibrium_price": 176.88999938964844,
+                "final_pre_open_price": 176.88999938964844,
+                "actual_open_price": null,
+                "price_at_0920": null,
+                "price_at_0930": null,
+                "indicative_to_open_error": null,
+                "opening_continuation": null,
+                "opening_reversal": null,
+                "watchlist_confirmed": null,
+                "was_in_watchlist": true,
+                "reconciled_at": "2026-07-28T03:49:47Z"
+              }
+            ],
+            "label": "PAPER / ADVISORY ONLY"
+          }
+        }
+      ]
+    }
+  },
+  "collect_count": 13
 }

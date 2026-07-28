@@ -1,0 +1,12 @@
+{
+  "trading_date": "2026-07-28",
+  "session_id": "val-2026-07-28-c45b0d",
+  "checkpoints_done": {
+    "open_0920": {
+      "ts": "2026-07-28T09:18:47.036095+05:30",
+      "fetched": 10,
+      "symbols": 10,
+      "updated": 10
+    }
+  }
+}
