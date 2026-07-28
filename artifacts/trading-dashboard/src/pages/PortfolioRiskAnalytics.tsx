@@ -10,13 +10,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
   Tooltip, AreaChart, Area, CartesianGrid,
 } from "recharts";
 import {
   ShieldHalf, Loader2, RefreshCw, AlertTriangle, Flame, LayoutGrid,
-  PieChart as PieIcon, BarChart3, TrendingUp,
+  PieChart as PieIcon, BarChart3, TrendingUp, Pencil, Check, X,
 } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -52,6 +53,40 @@ export default function PortfolioRiskAnalytics() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [verdictFilter, setVerdictFilter] = useState<string>("ALL");
+
+  // Stop-loss inline editor state
+  const [editingStop, setEditingStop] = useState<string | null>(null); // symbol being edited
+  const [stopInput, setStopInput] = useState<string>("");              // raw input value
+  const [savingStop, setSavingStop] = useState<string | null>(null);   // symbol being saved
+
+  const saveStop = useCallback(async (symbol: string) => {
+    const val = parseFloat(stopInput);
+    if (isNaN(val) || val <= 0) {
+      toast({ title: "Invalid stop-loss", description: "Enter a positive price.", variant: "destructive" });
+      return;
+    }
+    setSavingStop(symbol);
+    try {
+      const r = await fetch(`${API_BASE}/portfolio/position/${symbol}/stop`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stop_loss: val }),
+      });
+      const d = await r.json();
+      if (!r.ok || !d.success) throw new Error(d.error ?? d.message ?? `HTTP ${r.status}`);
+      toast({ title: "Stop-loss updated", description: d.message });
+      setEditingStop(null);
+      setStopInput("");
+      // Reload analytics so daily risk and heat update immediately
+      const r2 = await fetch(`${API_BASE}/risk/analytics`);
+      const d2 = await r2.json();
+      if (r2.ok && !d2.error) setData(d2);
+    } catch (e: any) {
+      toast({ title: "Failed to update stop-loss", description: e.message, variant: "destructive" });
+    } finally {
+      setSavingStop(null);
+    }
+  }, [stopInput, toast]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -154,13 +189,69 @@ export default function PortfolioRiskAnalytics() {
         <CardContent className="px-5 pb-5">
           {data?.positions?.length ? (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-              {data.positions.map((pos: any) => (
-                <div key={pos.symbol} className={`rounded border p-3 text-xs ${HEAT_BG[pos.heat] ?? HEAT_BG.RED}`}>
-                  <div className="font-bold">{pos.symbol}</div>
-                  <div>₹{pos.value} · {pos.pct_of_portfolio}%</div>
-                  <div className="text-[10px] opacity-80">{pos.heat} — {pos.heat_basis}</div>
-                </div>
-              ))}
+              {data.positions.map((pos: any) => {
+                const isEditing = editingStop === pos.symbol;
+                const isSaving = savingStop === pos.symbol;
+                return (
+                  <div key={pos.symbol} className={`rounded border p-3 text-xs ${HEAT_BG[pos.heat] ?? HEAT_BG.RED}`}>
+                    <div className="font-bold">{pos.symbol}</div>
+                    <div>₹{pos.value} · {pos.pct_of_portfolio}%</div>
+                    <div className="text-[10px] opacity-80">{pos.heat} — {pos.heat_basis}</div>
+
+                    {/* Stop-loss inline editor */}
+                    {isEditing ? (
+                      <div className="mt-2 flex items-center gap-1">
+                        <Input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          value={stopInput}
+                          onChange={(e) => setStopInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") saveStop(pos.symbol);
+                            if (e.key === "Escape") { setEditingStop(null); setStopInput(""); }
+                          }}
+                          className="h-6 w-full border-zinc-600 bg-zinc-800 px-1 text-[10px] text-white"
+                          placeholder="new stop ₹"
+                          autoFocus
+                          disabled={isSaving}
+                        />
+                        <button
+                          onClick={() => saveStop(pos.symbol)}
+                          disabled={isSaving}
+                          className="shrink-0 text-emerald-400 hover:text-emerald-300 disabled:opacity-50"
+                          title="Save"
+                        >
+                          {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                        </button>
+                        <button
+                          onClick={() => { setEditingStop(null); setStopInput(""); }}
+                          className="shrink-0 text-zinc-400 hover:text-zinc-200"
+                          title="Cancel"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="mt-2 flex items-center justify-between gap-1">
+                        <span className="text-[10px] opacity-70">
+                          Stop: {pos.stop_loss != null ? `₹${pos.stop_loss}` : "—"}
+                        </span>
+                        <button
+                          onClick={() => {
+                            setEditingStop(pos.symbol);
+                            setStopInput(pos.stop_loss != null ? String(pos.stop_loss) : "");
+                          }}
+                          className="opacity-60 hover:opacity-100"
+                          title="Update stop-loss"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           ) : <div className="text-xs text-zinc-500">No open positions</div>}
           <div className="mt-3 flex gap-3 text-[10px] text-zinc-500">

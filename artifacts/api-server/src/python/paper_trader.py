@@ -4,7 +4,7 @@ Simulates paper trading for NSE stocks.
 Maintains portfolio state (cash, positions, trade history, P&L history)
 in a local JSON file. No real orders are ever placed.
 
-Initial capital: ₹5,000
+Initial capital: ₹5,00,000
 
 v0.4: Enhanced trade storage for Trade Replay.
 Each BUY record stores AI decision metadata (confidence, regime, rr_ratio,
@@ -26,7 +26,7 @@ try:
 except Exception:
     _log = None  # structured logging optional
 
-INITIAL_CAPITAL = 5000.0
+INITIAL_CAPITAL = 500_000.0   # ₹5 lakh — keep in sync with config.INITIAL_CAPITAL
 
 # ── Phase 15: estimated friction costs (research realism, paper only) ────────
 SLIPPAGE_PCT = 0.05          # assumed 0.05% slippage per side
@@ -249,9 +249,11 @@ def execute_buy(
     state = _load_state()
     total_cost = quantity * price
 
-    # bypass_risk also skips the cash check — for test isolation only
-    if not bypass_risk and state["cash"] < total_cost:
-        return False, f"Insufficient cash: need ₹{total_cost:.2f}, have ₹{state['cash']:.2f}"
+    # Cash floor is always enforced — bypass_risk only skips portfolio risk engine checks,
+    # not the fundamental constraint that you cannot spend money you don't have.
+    if state["cash"] < total_cost:
+        return False, (f"Insufficient cash: need ₹{total_cost:,.2f}, "
+                       f"have ₹{state['cash']:,.2f}")
 
     # Deduct cash
     state["cash"] -= total_cost
@@ -466,6 +468,47 @@ def _append_pnl_snapshot(state: dict, latest_price: float, latest_symbol: str) -
 
     if len(state["pnl_history"]) > 500:
         state["pnl_history"] = state["pnl_history"][-500:]
+
+
+def update_stop_loss(symbol: str, new_stop: float) -> tuple[bool, str]:
+    """
+    Update the stop-loss on the most recent open BUY trade for *symbol*.
+
+    This directly affects Daily Risk and portfolio heat on the next analytics
+    refresh — _position_stop() reads the stop_loss field from the most recent
+    BUY trade, so any update here is immediately picked up by phase11_risk.py.
+
+    Returns:
+        (success, message)
+    """
+    sym = symbol.upper().strip()
+    if new_stop <= 0:
+        return False, "Stop-loss must be a positive price"
+
+    state = _load_state()
+
+    if sym not in state.get("positions", {}):
+        return False, f"No open position in {sym}"
+
+    pos = state["positions"][sym]
+    last_known_price = pos.get("avg_price", 0.0)
+
+    # Find the most recent BUY trade for this symbol and update its stop_loss in-place
+    for t in reversed(state.get("trades", [])):
+        if t.get("symbol") == sym and t.get("action") == "BUY":
+            old_stop = t.get("stop_loss", 0.0)
+            t["stop_loss"] = round(new_stop, 2)
+            # Recompute risk_pct relative to the recorded entry price
+            entry = t.get("price") or last_known_price
+            if entry > 0:
+                t["risk_pct"] = round((entry - new_stop) / entry * 100, 2) if new_stop < entry else 0.0
+            _save_state(state)
+            # Note: structured logging intentionally omitted here — the log
+            # subsystem writes to stdout and would break runPython JSON parsing.
+            return True, (f"Stop-loss for {sym} updated: "
+                          f"₹{old_stop:.2f} → ₹{new_stop:.2f}")
+
+    return False, f"No open BUY trade found for {sym}"
 
 
 # ── Trade Replay ──────────────────────────────────────────────────────────────
@@ -709,7 +752,7 @@ def get_all_trades() -> list[dict]:
 
 def reset_portfolio() -> None:
     """
-    Soft-reset the portfolio to initial state (₹5,000 cash, no positions).
+    Soft-reset the portfolio to initial state (₹5,00,000 cash, no positions).
     Trade history is NEVER deleted — existing trades are archived
     (stamped with archived_at) and remain available as all-time history.
     """

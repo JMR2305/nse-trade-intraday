@@ -1063,6 +1063,7 @@ def risk_analytics() -> dict:
             "symbol": sym, "sector": _sector_of(sym), "quantity": pos["quantity"],
             "avg_price": _r(pos["avg_price"]), "last_price": _r(price), "value": _r(val),
             "pct_of_portfolio": _r(val / pv * 100.0 if pv else 0.0),
+            "stop_loss": _r(stop) if stop else None,
             "risk_to_stop": risk_amt if risk_amt is not None else "Not Available",
             "expected_reward": reward if reward is not None else "Not Available",
             "heat": heat,

@@ -210,11 +210,18 @@ def cmd_reset(reason: str = "Manual portfolio reset") -> dict:
     # Priority 2 (#21): archive the full session before wiping paper state.
     # A failed archive blocks the reset — no session may vanish unrecorded.
     import session_archive
+    from config import INITIAL_CAPITAL
     archive = session_archive.archive_current_session(reason)
     reset_portfolio()
     return {"success": True,
-            "message": "Portfolio reset to ₹5,000",
+            "message": f"Portfolio reset to ₹{INITIAL_CAPITAL:,.0f}",
             "archive_id": archive["id"]}
+
+
+def cmd_update_stop(symbol: str, new_stop: float) -> dict:
+    from paper_trader import update_stop_loss
+    success, message = update_stop_loss(symbol, new_stop)
+    return {"success": success, "message": message}
 
 
 def cmd_session_archives() -> dict:
@@ -597,6 +604,8 @@ def main():
                 channel=args[1] if len(args) > 1 and args[1] != "all" else None,
                 status=args[2] if len(args) > 2 and args[2] != "all" else None,
                 limit=int(args[3]) if len(args) > 3 else 100)
+        elif command == "update_stop" and len(args) >= 3:
+            result = cmd_update_stop(args[1], float(args[2]))
         elif command == "buy" and len(args) >= 4:
             result = cmd_buy(args[1], int(args[2]), float(args[3]),
                              args[4] if len(args) > 4 else "")

@@ -31,7 +31,7 @@ WARM_CACHE_FILE = os.path.join(_DIR, "state.json")
 
 _SCHEMA_READY = False
 
-INITIAL_CAPITAL = 5000.0
+INITIAL_CAPITAL = 500_000.0   # ₹5 lakh — keep in sync with config.INITIAL_CAPITAL and paper_trader.INITIAL_CAPITAL
 
 
 # ── Connection helpers ────────────────────────────────────────────────────────

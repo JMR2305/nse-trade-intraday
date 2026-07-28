@@ -209,6 +209,25 @@ router.post("/portfolio/reset", async (req, res) => {
   }
 });
 
+// PATCH /api/portfolio/position/:symbol/stop
+// Update the stop-loss on an open paper-trading position so that Daily Risk
+// and the portfolio heat heatmap reflect the operator's current thesis.
+// Body: { stop_loss: number }  — must be > 0 and < current price.
+router.patch("/portfolio/position/:symbol/stop", async (req, res) => {
+  try {
+    const symbol = req.params.symbol.toUpperCase();
+    const stop_loss = Number(req.body?.stop_loss);
+    if (!symbol || isNaN(stop_loss) || stop_loss <= 0) {
+      res.status(400).json({ error: 'Body must contain { "stop_loss": <positive number> }' });
+      return;
+    }
+    const data = await runPython(["update_stop", symbol, stop_loss.toString()]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // ── Priority 2 (#21): Archived session review & guarded restore ─────────────
 // Restore is a two-step flow: step 1 validates the exact confirmation phrase
 // and issues a one-time restore token; step 2 requires the phrase AGAIN plus

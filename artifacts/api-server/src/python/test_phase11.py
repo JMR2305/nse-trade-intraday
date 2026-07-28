@@ -266,19 +266,32 @@ try:
     # ── execute_buy enforcement ──────────────────────────────────────────
     # paper_trader reads portfolio state from Postgres (portfolio_store).
     # We mock _store.load_state / save_state so the test is DB-isolated.
-    _clean_state = {"cash": 10000.0, "positions": {}, "trades": [], "pnl_history": []}
-    with patch.object(pt._store, "load_state", return_value=_clean_state), \
+    # Use side_effect=lambda: copy.deepcopy(...) so each execute_buy call
+    # gets a fresh independent state dict — prevents cash from depleting
+    # across calls that share the same mock reference.
+    import copy
+    _clean = {"cash": 10000.0, "positions": {}, "trades": [], "pnl_history": []}
+    with patch.object(pt._store, "load_state", side_effect=lambda: copy.deepcopy(_clean)), \
          patch.object(pt._store, "save_state", lambda s: None):
-        write_state(cash=10000.0)
+        # Risk passes, cash sufficient → success
         okd, msg = pt.execute_buy("TCS", 10, 100.0, reason="test", stop_loss_price=95.0, signal_confidence=70.0)
         ok("buy allowed when risk passes", okd, msg)
-        write_state(cash=10000.0)
+
+        # Risk engine rejects (concentration / large qty) → RISK BLOCKED
         okd, msg = pt.execute_buy("TCS", 100, 100.0, reason="test", stop_loss_price=95.0, signal_confidence=70.0)
         ok("buy blocked on REJECT", not okd and "RISK BLOCKED" in msg, msg)
+
+        # bypass_risk=True skips the risk engine checks but NOT the cash floor
         okd, msg = pt.execute_buy("TCS", 100, 100.0, reason="test", stop_loss_price=95.0,
                                   signal_confidence=70.0, bypass_risk=True)
-        ok("bypass_risk skips enforcement", okd, msg)
-        write_state(cash=10000.0)
+        ok("bypass_risk skips risk engine", okd, msg)
+
+        # Cash floor is always enforced — even bypass_risk=True cannot overdraw
+        okd, msg = pt.execute_buy("TCS", 200, 100.0, reason="test",
+                                  stop_loss_price=95.0, bypass_risk=True)
+        ok("cash floor blocks even with bypass_risk", not okd and "Insufficient cash" in msg, msg)
+
+        # Kill switch blocks all buys
         rk.trigger_kill_switch("test: block buys")
         okd, msg = pt.execute_buy("TCS", 5, 100.0, reason="test", stop_loss_price=95.0, signal_confidence=70.0)
         ok("buy blocked by kill switch", not okd and "Kill switch" in msg, msg)
