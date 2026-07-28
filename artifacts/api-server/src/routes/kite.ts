@@ -67,7 +67,31 @@ router.get("/kite/status", wrap(async (req, res) => {
   const force = req.query.force === "true";
   const args = ["kite_status"];
   if (force) args.push("--force");
-  res.json(await runPython(args, 15_000));
+
+  // Derive the public-facing callback URL from the request so operators
+  // always see the exact URL they must register in the Zerodha developer
+  // console.  Replit's reverse proxy sets x-forwarded-proto and
+  // x-forwarded-host; we fall back gracefully for direct/localhost calls.
+  const proto = (req.headers["x-forwarded-proto"] as string | undefined)
+    ?? req.protocol
+    ?? "https";
+  const host  = (req.headers["x-forwarded-host"] as string | undefined)
+    ?? (req.headers["host"] as string | undefined)
+    ?? "unknown";
+  // Strip any port from the forwarded-host so the URL stays clean.
+  const publicHost = host.split(":")[0];
+  const expectedCallbackUrl = process.env.KITE_CALLBACK_URL
+    ?? `${proto}://${publicHost}/api/kite/callback`;
+
+  const result = await runPython(args, 15_000, {
+    KITE_CALLBACK_URL: expectedCallbackUrl,
+  }) as Record<string, unknown>;
+
+  // Always include the expected callback URL at the top level so the
+  // frontend can display it for Zerodha developer console configuration.
+  result.expected_callback_url = expectedCallbackUrl;
+
+  res.json(result);
 }));
 
 // ── Phase 19A: secure login + callback flow ────────────────────────────────

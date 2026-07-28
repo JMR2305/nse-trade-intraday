@@ -312,6 +312,14 @@ def get_status(force_probe: bool = False) -> Dict[str, Any]:
         ),
         "login_url": get_login_url(),
         "login_endpoint": "/api/kite/login",
+        # The callback URL is injected by the TypeScript route layer, which
+        # derives it from the live request host (x-forwarded-host).  It can
+        # also be overridden via KITE_CALLBACK_URL for fixed deployments.
+        # Included here so the Python status dict is self-contained.
+        "expected_callback_url": (
+            os.environ.get("KITE_CALLBACK_URL")
+            or None
+        ),
         "api_secret_configured": bool(_get_secret()),
         "paper_trading_default": True,
         "live_order_placement_enabled": False,

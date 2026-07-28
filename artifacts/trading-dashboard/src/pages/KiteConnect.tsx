@@ -24,6 +24,8 @@ import {
   Lock,
   ShieldCheck,
   ExternalLink,
+  Copy,
+  Terminal,
 } from "lucide-react";
 
 const API = (path: string) => `/api${path}`;
@@ -205,6 +207,45 @@ function SessionCard({ status, onRefresh, onInvalidate, invalidating, onDisconne
           Kite sessions expire at 06:00 IST daily. Use the "Login with Zerodha" button above to
           reconnect — the token exchange happens securely on the backend.
         </div>
+
+        {/* Zerodha Developer Console setup — callback URL */}
+        {status?.expected_callback_url && (
+          <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-3 space-y-2">
+            <div className="flex items-center gap-2 text-xs font-semibold text-blue-400">
+              <Terminal className="h-3.5 w-3.5 flex-shrink-0" />
+              Zerodha Developer Console — Required Redirect URL
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              In your Zerodha Kite Connect app, set <strong>Redirect URL</strong> to exactly:
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-xs font-mono bg-muted/40 rounded px-2 py-1.5 text-blue-300 break-all select-all">
+                {status.expected_callback_url}
+              </code>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 w-7 p-0 flex-shrink-0"
+                onClick={() => navigator.clipboard.writeText(status.expected_callback_url)}
+                title="Copy to clipboard"
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Go to{" "}
+              <a
+                href="https://developers.kite.trade/apps"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-400 underline underline-offset-2"
+              >
+                developers.kite.trade/apps
+              </a>{" "}
+              → Edit app → Redirect URL field.
+            </p>
+          </div>
+        )}
 
         {/* Safety notice */}
         <div className="flex items-center gap-2 p-2 bg-green-500/10 border border-green-500/20 rounded text-xs text-green-400">
