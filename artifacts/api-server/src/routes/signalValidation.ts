@@ -12,15 +12,13 @@
 import { Router } from "express";
 import { spawn } from "child_process";
 import path from "path";
+import { PYTHON_DIR, PYTHON_BIN } from "../lib/python-env";
 
 const router = Router();
 
-const PYTHON_BIN = process.env.PYTHON_BIN ?? "python3";
-const PYTHON_DIR = path.join(process.cwd(), "src", "python");
-
 function runPython(args: string[]): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    const child = spawn(PYTHON_BIN, ["main.py", ...args], {
+    const child = spawn(PYTHON_BIN, [path.join(PYTHON_DIR, "main.py"), ...args], {
       cwd: PYTHON_DIR,
       env: process.env,
     });
@@ -28,6 +26,7 @@ function runPython(args: string[]): Promise<unknown> {
     let err = "";
     child.stdout.on("data", (d: Buffer) => { out += d.toString(); });
     child.stderr.on("data", (d: Buffer) => { err += d.toString(); });
+    child.on("error", (e: Error) => reject(e));
     child.on("close", (code) => {
       try {
         resolve(JSON.parse(out));
