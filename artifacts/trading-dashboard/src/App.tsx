@@ -55,8 +55,6 @@ import PreOpenIntelligence from "@/pages/PreOpenIntelligence";
 import PreOpenAccuracy from "@/pages/PreOpenAccuracy";
 import SignalValidationPage from "@/pages/SignalValidationPage";
 import { ConnectivityPanel } from "@/components/ConnectivityPanel";
-import { LoginPage } from "@/components/LoginPage";
-import { useAuth } from "@/hooks/useAuth";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -133,43 +131,16 @@ function Router() {
   );
 }
 
-function AuthGate({ children }: { children: React.ReactNode }) {
-  const { authenticated, isLoading } = useAuth();
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-muted-foreground text-sm">Loading…</div>
-      </div>
-    );
-  }
-
-  if (!authenticated) {
-    return (
-      <LoginPage
-        onAuthenticated={() => {
-          // useAuth's query is invalidated inside LoginPage on success;
-          // the re-render happens automatically via React Query.
-        }}
-      />
-    );
-  }
-
-  return <>{children}</>;
-}
-
 function App() {
   return (
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <AuthGate>
-            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-              <Router />
-            </WouterRouter>
-            <Toaster />
-            <ConnectivityPanel />
-          </AuthGate>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <Router />
+          </WouterRouter>
+          <Toaster />
+          <ConnectivityPanel />
         </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>

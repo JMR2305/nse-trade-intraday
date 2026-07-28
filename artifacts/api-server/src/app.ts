@@ -4,7 +4,6 @@ import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
-import { requireApiKey } from "./lib/auth";
 
 const app: Express = express();
 
@@ -116,8 +115,6 @@ app.use(express.urlencoded({ extended: true, limit: "256kb" }));
 app.get("/", (_req, res) => {
   res.redirect(302, "/trading-dashboard/");
 });
-
-app.use("/api", requireApiKey);
 
 app.use("/api", router);
 
