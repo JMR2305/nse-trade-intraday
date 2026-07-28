@@ -1,0 +1,364 @@
+# ApexQuant AI — Phase 5D.1: Execution Quality Intelligence
+
+OBJECTIVE
+
+Build a completely read-only Execution Quality Analytics module for the Intraday Paper Trading system.
+
+This module must measure execution performance only.
+It must NEVER influence:
+- Strategy decisions
+- Signal generation
+- Risk engine
+- Paper trader
+- Order placement
+- Portfolio state
+
+Everything must remain advisory-only.
+
+--------------------------------------------------
+
+FEATURE FLAG
+
+EXECUTION_QUALITY_ENABLED=true
+
+When disabled:
+
+- No scheduler jobs
+- No collectors
+- No analytics generation
+- APIs return:
+  {
+    "status": "DISABLED"
+  }
+
+--------------------------------------------------
+
+NEW MODULE
+
+execution_quality/
+
+Suggested structure:
+
+execution_quality/
+├── execution_models.py
+├── execution_metrics.py
+├── slippage.py
+├── fill_analysis.py
+├── execution_report.py
+└── api.py
+
+--------------------------------------------------
+
+DATA SOURCE
+
+Read ONLY from existing modules.
+
+Allowed:
+
+- Paper trades
+- Signal Validation database
+- Portfolio analytics
+- Market snapshots
+- Strategy metadata
+
+Never duplicate data.
+
+--------------------------------------------------
+
+ENTRY ANALYTICS
+
+For every completed paper trade compute:
+
+• Signal timestamp
+• Order creation timestamp
+• Fill timestamp
+• Intended entry price
+• Actual fill price
+• Entry slippage (₹)
+• Entry slippage (%)
+• Fill delay (seconds)
+
+--------------------------------------------------
+
+EXIT ANALYTICS
+
+Calculate:
+
+• Exit signal time
+• Exit execution time
+• Intended exit
+• Actual exit
+• Exit slippage
+• Exit delay
+
+--------------------------------------------------
+
+SLIPPAGE ENGINE
+
+Track:
+
+Average slippage
+
+Median slippage
+
+Worst slippage
+
+Best slippage
+
+Slippage by:
+
+• Symbol
+• Strategy
+• Sector
+• Time of day
+• Market regime
+
+--------------------------------------------------
+
+FILL ANALYTICS
+
+Calculate:
+
+Average fill delay
+
+Median delay
+
+Maximum delay
+
+Minimum delay
+
+Instant fills
+
+Delayed fills
+
+Missed fills
+
+--------------------------------------------------
+
+TRADE QUALITY SCORE
+
+Every completed trade receives a score.
+
+Range:
+
+0–100
+
+Suggested weighting:
+
+30% Entry quality
+
+25% Exit quality
+
+20% Fill speed
+
+15% Stop execution
+
+10% Target execution
+
+Display:
+
+Trade Quality Score
+
+92 / 100
+
+Excellent
+
+--------------------------------------------------
+
+SUMMARY METRICS
+
+Calculate:
+
+Average Execution Score
+
+Average Entry Slippage
+
+Average Exit Slippage
+
+Average Fill Delay
+
+Best Trade
+
+Worst Trade
+
+Most Efficient Strategy
+
+Highest Slippage Symbol
+
+--------------------------------------------------
+
+EXECUTION DASHBOARD
+
+Create a new dashboard page:
+
+Execution Quality
+
+Summary Cards
+
+• Avg Execution Score
+
+• Avg Slippage
+
+• Avg Fill Delay
+
+• Best Trade
+
+• Worst Trade
+
+Charts
+
+• Execution Score Trend
+
+• Slippage Trend
+
+• Fill Delay Trend
+
+• Strategy Comparison
+
+Trade Table
+
+Columns:
+
+• Symbol
+
+• Strategy
+
+• Signal Time
+
+• Entry
+
+• Exit
+
+• Slippage
+
+• Delay
+
+• Score
+
+--------------------------------------------------
+
+API ENDPOINTS
+
+Create read-only APIs.
+
+Examples:
+
+GET /api/execution-quality/summary
+
+GET /api/execution-quality/trades
+
+GET /api/execution-quality/slippage
+
+GET /api/execution-quality/fills
+
+No endpoint may modify:
+
+- Trades
+- Portfolio
+- Signals
+
+--------------------------------------------------
+
+DATABASE
+
+Reuse existing Phase 5C tables whenever possible.
+
+Create new tables only if absolutely required.
+
+No duplicate storage.
+
+--------------------------------------------------
+
+TESTING
+
+Add automated tests for:
+
+✓ Zero trades
+
+✓ Single completed trade
+
+✓ Multiple completed trades
+
+✓ Delayed fills
+
+✓ Slippage calculations
+
+✓ Score calculations
+
+✓ Disabled feature flag
+
+✓ API responses
+
+✓ Dashboard rendering
+
+✓ Restart persistence
+
+--------------------------------------------------
+
+SAFETY
+
+Must remain:
+
+Read-only
+
+Advisory-only
+
+Paper trading only
+
+No live orders
+
+No strategy modifications
+
+No portfolio mutations
+
+No signal mutations
+
+No execution changes
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Target:
+
+<100 ms analytics generation
+
+No noticeable dashboard slowdown
+
+Minimal memory overhead
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide:
+
+1. Files created
+
+2. Files modified
+
+3. Database changes
+
+4. API endpoints
+
+5. Dashboard screenshots
+
+6. Test count
+
+7. Test results
+
+8. Performance benchmark
+
+9. Known limitations
+
+10. Production impact
+
+Final verdict:
+
+PHASE 5D.1 COMPLETE
+
+or
+
+PHASE 5D.1 NOT COMPLETE
+
+with exact blockers.

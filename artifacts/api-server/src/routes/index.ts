@@ -21,6 +21,7 @@ import portfolioRouter from "./portfolio";
 import preopenRouter from "./preopen";
 import preopenValidationRouter from "./preopen-validation";
 import signalValidationRouter from "./signalValidation";
+import executionQualityRouter from "./executionQuality";
 
 const router: IRouter = Router();
 
@@ -44,6 +45,7 @@ router.use(reconciliationRouter);
 router.use(preopenRouter);
 router.use(preopenValidationRouter);
 router.use(signalValidationRouter);
+router.use(executionQualityRouter);
 router.use(tradingRouter);
 router.use(downloadRouter);
 

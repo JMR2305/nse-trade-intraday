@@ -52,6 +52,7 @@ packages = ["freetype", "glibcLocales"]
 PREOPEN_INTELLIGENCE_ENABLED = "true"
 PREOPEN_VALIDATION_ENABLED = "True"
 SIGNAL_VALIDATION_ENABLED = "true"
+EXECUTION_QUALITY_ENABLED = "true"
 
 [[ports]]
 localPort = 8080

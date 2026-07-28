@@ -54,6 +54,7 @@ import Phase4ASession from "@/pages/Phase4ASession";
 import PreOpenIntelligence from "@/pages/PreOpenIntelligence";
 import PreOpenAccuracy from "@/pages/PreOpenAccuracy";
 import SignalValidationPage from "@/pages/SignalValidationPage";
+import ExecutionQualityPage from "@/pages/ExecutionQualityPage";
 import { ConnectivityPanel } from "@/components/ConnectivityPanel";
 
 const queryClient = new QueryClient({
@@ -125,6 +126,7 @@ function Router() {
         <Route path="/preopen-intelligence" component={PreOpenIntelligence} />
         <Route path="/preopen-accuracy" component={PreOpenAccuracy} />
         <Route path="/signal-validation" component={SignalValidationPage} />
+        <Route path="/execution-quality" component={ExecutionQualityPage} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

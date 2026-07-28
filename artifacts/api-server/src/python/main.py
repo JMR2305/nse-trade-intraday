@@ -2289,6 +2289,29 @@ def main():
             date = args[1] if len(args) > 1 else None
             result = _sv_rec(date)
 
+        # ── Phase 5D.1: Execution Quality ─────────────────────────────────────
+        elif command == "execution_quality_summary":
+            from execution_quality.api import get_summary as _eq_summary
+            date   = args[1] if len(args) > 1 else None
+            result = _eq_summary(date)
+
+        elif command == "execution_quality_trades":
+            from execution_quality.api import get_trades as _eq_trades
+            limit  = int(args[1]) if len(args) > 1 else 200
+            offset = int(args[2]) if len(args) > 2 else 0
+            date   = args[3] if len(args) > 3 else None
+            result = _eq_trades(date, limit, offset)
+
+        elif command == "execution_quality_slippage":
+            from execution_quality.api import get_slippage as _eq_slippage
+            date   = args[1] if len(args) > 1 else None
+            result = _eq_slippage(date)
+
+        elif command == "execution_quality_fills":
+            from execution_quality.api import get_fills as _eq_fills
+            date   = args[1] if len(args) > 1 else None
+            result = _eq_fills(date)
+
         elif command == "preopen_validation_status":
             from preopen_validation_engine import get_status
             result = get_status()
