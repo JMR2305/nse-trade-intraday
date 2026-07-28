@@ -189,14 +189,22 @@ def _equity_series(state: dict) -> list[dict]:
     ]
 
 
+def _parse_ts(ts: str) -> datetime:
+    """Parse an ISO timestamp to a timezone-aware UTC datetime, tolerating naive strings."""
+    dt = datetime.fromisoformat(ts)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 def _drawdown_windows(state: dict) -> dict:
     """Daily / weekly / monthly drawdown from the pnl_history equity series."""
     series = _equity_series(state)
     out = {}
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     for label, days in (("daily", 1), ("weekly", 7), ("monthly", 30)):
         cutoff = now - timedelta(days=days)
-        window = [p for p in series if datetime.fromisoformat(p["timestamp"]) >= cutoff]
+        window = [p for p in series if _parse_ts(p["timestamp"]) >= cutoff]
         if len(window) < 2:
             out[label] = {"drawdown_pct": None, "note": "Not Available — fewer than 2 equity points in window"}
             continue

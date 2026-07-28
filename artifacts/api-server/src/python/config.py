@@ -11,7 +11,7 @@ Designed for future Zerodha integration:
 
 # ── Capital & Risk ─────────────────────────────────────────────────────────────
 
-INITIAL_CAPITAL: float = 5000.0
+INITIAL_CAPITAL: float = 500_000.0   # ₹5 lakh — realistic NSE paper-trading starting capital
 MAX_RISK_PCT: float = 0.01          # 1% max risk per trade (₹50 on ₹5000)
 MAX_CAPITAL_PER_TRADE_PCT: float = 0.20  # never use more than 20% of cash in one trade
 
