@@ -1,0 +1,157 @@
+APEXQUANT AI — PHASE 5C FINAL COMPLETION AND VALIDATION REPORT
+
+The latest confirmed Phase 5C change added:
+
+- _re_advance_stuck_records()
+- a shared claimed_trade_ids set
+- repeated ingest_signals execution throughout 09:00–15:25
+- delayed paper-trade correlation
+- duplicate trade-claim prevention
+
+Now perform the final Phase 5C validation.
+
+Verify and report:
+
+1. BRANCH STATUS
+- Current branch name
+- Whether Phase 5C was merged
+- Commit list
+- Main-branch impact
+
+2. SIGNAL INGESTION
+- Signals generated at market open are captured
+- Signals generated later in the session are captured
+- once_only=False is active
+- Duplicate signals are idempotent
+
+3. DELAYED TRADE CORRELATION
+Test:
+- signal created
+- record reaches APPROVED
+- paper trade arrives on a later scheduler tick
+- _re_advance_stuck_records() matches it
+- lifecycle advances correctly
+
+4. DUPLICATE CLAIM PROTECTION
+Prove:
+- one paper trade cannot be assigned to two signals
+- a trade already claimed in a prior tick remains protected
+- new-ingest and re-advance passes cannot claim the same trade
+- restart does not cause re-claiming
+
+5. LIFECYCLE VALIDATION
+Verify all applicable transitions:
+
+GENERATED
+AI_REVIEWED
+RISK_REVIEWED
+RISK_REJECTED
+APPROVED
+PAPER_ORDER_CREATED
+PAPER_ORDER_FILLED
+OPEN_POSITION
+CLOSED_POSITION
+EXPIRED
+MISSED
+NO_TRADE
+DATA_INCOMPLETE
+
+Confirm invalid transitions are rejected.
+
+6. PRICE CHECKPOINTS
+Verify automatic collection at:
+
+- 5 minutes
+- 15 minutes
+- 30 minutes
+- 60 minutes
+- market close
+
+Confirm:
+- no duplicate checkpoints
+- missed checkpoints recover where possible
+- incomplete data is labelled correctly
+
+7. ATTRIBUTION
+Verify outputs for:
+
+- strategy attribution
+- AI agreement attribution
+- pre-open attribution
+- risk-rejection attribution
+- market-regime attribution
+- missed-opportunity analysis
+
+8. PAPER-TRADE SEPARATION
+Prove:
+- hypothetical outcomes are not included in paper P&L
+- rejected-signal hypothetical returns remain separately labelled
+- no live order path exists
+
+9. UI
+Verify the Signal Validation page includes:
+
+- summary cards
+- signal funnel
+- signal table
+- lifecycle state
+- strategy comparison
+- AI attribution
+- pre-open attribution
+- risk attribution
+- regime attribution
+- missed opportunities
+- detail drawer
+
+10. FEATURE FLAG
+Confirm:
+
+SIGNAL_VALIDATION_ENABLED
+
+When false:
+- no listeners
+- no scheduler jobs
+- no writes
+- APIs return DISABLED
+
+When true:
+- collection starts automatically during NSE market hours
+
+11. TESTS
+Run and report tests for:
+
+- delayed trade arrival
+- stuck-record re-advance
+- duplicate trade claim
+- cross-tick idempotency
+- restart recovery
+- mid-session signal ingestion
+- duplicate signal ingestion
+- lifecycle transitions
+- checkpoint collection
+- attribution metrics
+- hypothetical P&L separation
+- feature flag disabled
+- no-order AST scan
+
+12. FINAL OUTPUT
+Provide:
+
+- architecture summary
+- files changed
+- database tables
+- API endpoints
+- scheduler timing
+- test count and results
+- known limitations
+- production impact
+- remaining blockers
+- readiness score
+
+Final verdict must be one of:
+
+PHASE 5C COMPLETE — GO FOR LIVE PAPER-SESSION VALIDATION
+
+or
+
+PHASE 5C NOT COMPLETE — list exact blockers

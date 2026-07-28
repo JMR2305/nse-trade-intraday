@@ -1,6 +1,6 @@
 # Signal Validation Report — 2026-07-27
 
-> Generated: 2026-07-28T03:18:56.065186+05:30
+> Generated: 2026-07-28T22:46:29.836850+05:30
 
 > PAPER TRADING / ADVISORY ONLY
 
