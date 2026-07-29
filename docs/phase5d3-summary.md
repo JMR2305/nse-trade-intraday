@@ -127,3 +127,35 @@ The stable function signatures in `shared_services.py` must **not be renamed** w
 6. **Recommendations** — Advisory cards with severity, rationale, key metrics
 
 All charts use paper-trading colour coding: green = positive/good, red = negative/bad, amber = borderline.
+
+---
+
+## Issues & known gaps
+
+| # | Area | Description | Severity | Resolution path |
+|---|---|---|---|---|
+| 1 | Feature flag off by default | `STRATEGY_INTELLIGENCE_ENABLED` is not set in the environment, so the page shows the disabled banner until an operator explicitly enables it. | Low — intentional design | Set `STRATEGY_INTELLIGENCE_ENABLED=true` in environment secrets (same pattern as Portfolio Performance). |
+| 2 | Execution quality score availability | `quality_score` on a `ClosedTrade` is only populated when the Phase 5D.1 execution quality module has already computed records for the same trade IDs. Trades entered before 5D.1 was deployed will show `quality_score=0` and `quality_grade=""`. | Low | Acceptable for paper trading; will self-resolve as new trades are recorded. |
+| 3 | Sector detection is best-effort | `_sector_of(symbol)` calls `market_scanner._sector_of()` which returns `"Unknown"` for any symbol not in the NSE sector map. Symbols added to the watchlist after the map was last updated will show under `Unknown`. | Low | Extend the sector map in `market_scanner.py` as new symbols are added. |
+| 4 | FIFO matching covers one open position per symbol | The FIFO BUY→SELL engine closes the first open BUY when it sees any SELL for the same symbol. If the system ever places two open BUYs for the same symbol (currently prevented by paper trading's partial-unique-index), only the first round-trip will be matched. | Low | The paper trading engine's claim-before-buy constraint prevents this in practice. |
+| 5 | Ranking weights are fixed constants | The 7 ranking weights are hardcoded (`20/20/20/15/15/10/10`). Different operators or market conditions may warrant different weightings. | Medium | Expose weights as configurable environment variables in a future iteration. |
+| 6 | No caching between API calls | Every HTTP request triggers a full reload from `portfolio_store` and recomputes all profiles. With hundreds of trades this adds ~50–100 ms per request (within spec), but will grow linearly. | Medium | Add an in-process TTL cache (e.g. 60 s) in `shared_services._load_all()` once trade volume justifies it. |
+| 7 | `worst_day` / `worst_slot` shows `None` when all trades fall in one slot | If all trades happen in a single time slot, `worst` and `best` resolve to the same slot. The UI displays the value correctly but the label is slightly misleading. | Cosmetic | Add a `"—"` fallback when `best == worst` in `time_analysis.py`. |
+| 8 | TypeScript strict-null on `timing?.day_matrix?.[d]?.trades` | Required a `.filter` fix (`?? 0`) during build. No runtime impact, but signals that optional chaining on deeply nested query data should be wrapped consistently throughout the dashboard. | Cosmetic — fixed | Already resolved before ship. Noted so the same pattern is applied in 5D.4/5D.5. |
+
+---
+
+## What to enable before using in a live session
+
+1. `STRATEGY_INTELLIGENCE_ENABLED=true` — in environment secrets.
+2. Ensure `PORTFOLIO_PERFORMANCE_ENABLED=true` is also set — strategy intelligence reads the same `paper_trades` table that portfolio performance uses.
+3. Confirm at least ~10 closed round-trip trades exist for meaningful rankings (rankings with fewer than 5 trades per strategy display "Promising — More Data Needed").
+
+---
+
+## Dependencies for downstream phases
+
+| Phase | What it needs from 5D.3 |
+|---|---|
+| **5D.4 AI Performance Intelligence** | `get_all_strategy_profiles()`, `get_regime_matrix()`, `get_sector_matrix()` from `shared_services` |
+| **5D.5 Executive Dashboard** | `get_summary_snapshot()` — single-call KPI dict; covers best strategy, regime, sector, time slot, and criterion rankings |

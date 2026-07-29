@@ -53,6 +53,7 @@ A paper-trading algorithmic system for Indian NSE stocks with a React web dashbo
 - Initial capital: ₹5,000
 - Do not add automated real order placement
 - Every change/prompt executed must also be reflected in the review package generator (`review_package.py`: implementation summary, feature matrix, tests, data exports) so "Generate Review Package" always includes the latest changes
+- At the end of every phase, write a summary `.md` to `docs/phase<ID>-summary.md` covering: what was built (files created/modified, API endpoints, algorithm details), test results, an **Issues & known gaps** table (area, description, severity, resolution path), a "What to enable" checklist, and downstream phase dependencies.
 
 ## Gotchas
 
