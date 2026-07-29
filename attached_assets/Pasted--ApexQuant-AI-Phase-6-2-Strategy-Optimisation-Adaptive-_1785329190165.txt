@@ -1,0 +1,402 @@
+# ApexQuant AI – Phase 6.2
+Strategy Optimisation & Adaptive Learning Framework
+
+OBJECTIVE
+
+Build a comprehensive Strategy Optimisation Framework that analyses historical paper-trading data and produces advisory recommendations to improve strategy performance.
+
+This phase MUST NOT modify live strategy parameters automatically.
+
+All optimisation is advisory-only.
+
+--------------------------------------------------
+
+ARCHITECTURE
+
+Reuse existing modules only.
+
+Reuse:
+
+• Phase 5C – Signal Validation
+• Phase 5D.1 – Execution Quality
+• Phase 5D.2 – Portfolio Performance
+• Phase 5D.3 – Strategy Intelligence
+• Phase 5D.4 – AI Performance
+• Phase 5D.5 – Executive Dashboard
+• Phase 6.1 – Paper Trading Validation
+
+No duplicated analytics.
+
+--------------------------------------------------
+
+FEATURE FLAG
+
+STRATEGY_OPTIMISATION_ENABLED=true
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Learn from historical paper trades.
+
+Identify:
+
+• Best strategies
+• Worst strategies
+• Best market regimes
+• Best sectors
+• Best time windows
+• Best holding periods
+
+Recommend improvements.
+
+--------------------------------------------------
+
+FOR EACH STRATEGY
+
+Calculate
+
+Total Trades
+
+Win Rate
+
+Average Return
+
+Profit Factor
+
+Maximum Drawdown
+
+Sharpe Ratio
+
+Average Holding Time
+
+Average Confidence
+
+Average Execution Score
+
+Risk Score
+
+Consistency Score
+
+Stability Score
+
+Recovery Score
+
+--------------------------------------------------
+
+MARKET REGIME ANALYSIS
+
+Compare performance during
+
+Bull
+
+Bear
+
+Sideways
+
+High Volatility
+
+Low Volatility
+
+Trending
+
+Gap Days
+
+Expiry Days
+
+--------------------------------------------------
+
+TIME ANALYSIS
+
+Analyse
+
+Opening Hour
+
+Morning
+
+Mid Session
+
+Afternoon
+
+Closing Hour
+
+Recommend ideal trading windows.
+
+--------------------------------------------------
+
+SECTOR ANALYSIS
+
+Rank sectors by
+
+Win Rate
+
+Net P&L
+
+Risk
+
+Consistency
+
+--------------------------------------------------
+
+PARAMETER OPTIMISER
+
+Generate recommendations for
+
+Stop Loss
+
+Target
+
+Risk/Reward
+
+Position Size
+
+Holding Time
+
+Confidence Threshold
+
+Execution Threshold
+
+These are recommendations only.
+
+--------------------------------------------------
+
+STRATEGY SCORE
+
+Generate
+
+Strategy Health Score
+
+0–100
+
+Grade
+
+A+
+
+A
+
+B
+
+C
+
+D
+
+--------------------------------------------------
+
+UNDERPERFORMING STRATEGIES
+
+Automatically identify
+
+Falling Win Rate
+
+Increasing Drawdown
+
+Poor Execution
+
+Poor Confidence
+
+Increasing Risk
+
+Recommend
+
+Pause
+
+Observe
+
+Retune
+
+Replace
+
+--------------------------------------------------
+
+ADAPTIVE LEARNING
+
+Track
+
+Performance Trend
+
+Improvement Trend
+
+Regression Trend
+
+Stability Trend
+
+--------------------------------------------------
+
+PATTERN DISCOVERY
+
+Identify
+
+Repeated winning conditions
+
+Repeated losing conditions
+
+High-confidence setups
+
+Low-confidence setups
+
+Frequent exit reasons
+
+Best combinations
+
+--------------------------------------------------
+
+OPTIMISATION DASHBOARD
+
+Create sections
+
+Overall Strategy Ranking
+
+Market Regime Ranking
+
+Sector Ranking
+
+Time Window Ranking
+
+Parameter Recommendations
+
+Adaptive Learning
+
+Pattern Discovery
+
+Historical Improvements
+
+--------------------------------------------------
+
+API
+
+GET /api/optimisation/summary
+
+GET /api/optimisation/strategies
+
+GET /api/optimisation/recommendations
+
+GET /api/optimisation/patterns
+
+--------------------------------------------------
+
+EXPORT
+
+CSV
+
+JSON
+
+Future PDF support
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Background analysis only.
+
+Never block paper trading.
+
+Cache optimisation results.
+
+--------------------------------------------------
+
+TESTING
+
+Verify
+
+Zero trades
+
+Small dataset
+
+Large dataset
+
+Conflicting strategies
+
+Missing data
+
+Feature flag
+
+API
+
+Dashboard
+
+Restart persistence
+
+--------------------------------------------------
+
+SAFETY
+
+Read-only.
+
+Advisory-only.
+
+Never change
+
+Strategies
+
+Orders
+
+Portfolio
+
+Signals
+
+Risk Engine
+
+AI thresholds
+
+Automatically.
+
+--------------------------------------------------
+
+GITHUB INTEGRATION REQUIREMENTS
+
+Where appropriate, incorporate concepts inspired by previously reviewed GitHub projects, while keeping ApexQuant AI's architecture intact.
+
+Include:
+
+• Adaptive strategy ranking
+• Market regime-aware optimisation
+• Dynamic watchlist insights
+• Strategy consistency scoring
+• Strategy lifecycle monitoring
+• Pattern clustering for winning/losing trades
+• Trade replay references (future-ready)
+• Explainable recommendations with supporting metrics
+
+Do NOT copy external implementations directly.
+
+Build modular components that integrate cleanly with the existing shared_services architecture.
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide
+
+1. Files created
+
+2. Files modified
+
+3. Shared services reused
+
+4. APIs
+
+5. Dashboard screenshots
+
+6. Test count
+
+7. Test results
+
+8. Performance benchmarks
+
+9. Known limitations
+
+10. Explain optimisation methodology
+
+11. Explain GitHub-inspired enhancements incorporated
+
+12. Confirm that optimisation is advisory-only and no trading parameters are automatically modified.
+
+Final Verdict
+
+PHASE 6.2 COMPLETE
+
+or
+
+PHASE 6.2 NOT COMPLETE
+
+with blockers.

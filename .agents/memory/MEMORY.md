@@ -44,3 +44,4 @@
 - [Phase 5D.4 AI performance intelligence](phase5d4-ai-performance.md) — consumer of 5D.3; confidence/calibration/prediction/learning analytics; get_ai_snapshot() for 5D.5; 32 tests; AI_PERFORMANCE_ENABLED flag.
 - [Phase 5D.5 executive dashboard](phase5d5-executive-dashboard.md) — aggregates 5D.1–5D.4 + preopen + risk; ZERO recalculation; patch shared_services.load_all not dashboard_engine.load_all in tests.
 - [Phase 6.1 paper trading validation](phase6-1-validation.md) — FIFO BUY→SELL from portfolio_store; 7 quality checks; per-trade enrichment from metadata; get_validation_snapshot() for future phases.
+- [Phase 6.2 strategy optimisation](phase6-2-strategy-optimisation.md) — advisory-only; reads via collect_all_trade_records(); 5 underperform signals; lifecycle states; test uses eq_score/confidence to trigger underperform (not trade count).

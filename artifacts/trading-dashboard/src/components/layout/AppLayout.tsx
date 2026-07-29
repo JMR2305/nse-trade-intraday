@@ -60,6 +60,7 @@ import {
   TrendingUp,
   Zap,
   LayoutDashboard,
+  Sparkles,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
@@ -110,7 +111,8 @@ const navGroups = [
     label: "Analytics",
     items: [
       { href: "/portfolio-performance",   label: "Portfolio Performance",  icon: TrendingUp },
-      { href: "/strategy-intelligence",  label: "Strategy Intelligence",  icon: Zap        },
+      { href: "/strategy-intelligence",   label: "Strategy Intelligence",  icon: Zap        },
+      { href: "/strategy-optimisation",  label: "Strategy Optimisation",  icon: Sparkles   },
       { href: "/ai-performance",         label: "AI Performance",         icon: Brain      },
       { href: "/performance-analytics", label: "Performance Analytics", icon: BarChart3 },
       { href: "/preopen-accuracy",      label: "Pre-Open Accuracy",     icon: Target    },

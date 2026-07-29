@@ -2464,6 +2464,30 @@ def main():
             from paper_trading_validation.shared_services import export_records_json as _val_json
             result = {"json": _val_json()}
 
+        elif command == "optimisation_summary":
+            from strategy_optimisation.api import cmd_summary as _opt_summary
+            result = _opt_summary()
+
+        elif command == "optimisation_strategies":
+            from strategy_optimisation.api import cmd_strategies as _opt_strategies
+            result = _opt_strategies()
+
+        elif command == "optimisation_recommendations":
+            from strategy_optimisation.api import cmd_recommendations as _opt_recs
+            result = _opt_recs()
+
+        elif command == "optimisation_patterns":
+            from strategy_optimisation.api import cmd_patterns as _opt_patterns
+            result = _opt_patterns()
+
+        elif command == "optimisation_export_csv":
+            from strategy_optimisation.shared_services import export_strategies_csv as _opt_csv
+            result = {"csv": _opt_csv()}
+
+        elif command == "optimisation_export_json":
+            from strategy_optimisation.shared_services import export_recommendations_json as _opt_json
+            result = {"json": _opt_json()}
+
         else:
             error_msg = f"Unknown command: {command}"
 
