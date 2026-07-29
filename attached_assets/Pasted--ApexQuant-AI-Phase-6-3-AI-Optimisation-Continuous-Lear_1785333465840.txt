@@ -1,0 +1,448 @@
+# ApexQuant AI – Phase 6.3
+AI Optimisation & Continuous Learning Framework
+
+OBJECTIVE
+
+Build an AI Optimisation Framework that continuously evaluates the quality of AI recommendations using historical paper-trading data and generates advisory improvements.
+
+This phase MUST NOT retrain models automatically.
+
+This phase MUST NOT change production AI behaviour.
+
+All optimisation is advisory-only.
+
+--------------------------------------------------
+
+ARCHITECTURE
+
+Reuse existing modules only.
+
+Reuse:
+
+• Phase 5C – Signal Validation
+• Phase 5D.1 – Execution Quality
+• Phase 5D.2 – Portfolio Performance
+• Phase 5D.3 – Strategy Intelligence
+• Phase 5D.4 – AI Performance Intelligence
+• Phase 5D.5 – Executive Dashboard
+• Phase 6.1 – Paper Trading Validation
+• Phase 6.2 – Strategy Optimisation
+
+No duplicated analytics.
+
+--------------------------------------------------
+
+FEATURE FLAG
+
+AI_OPTIMISATION_ENABLED=true
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Evaluate how well the AI performs over time.
+
+Measure:
+
+Prediction Quality
+
+Confidence Calibration
+
+Decision Consistency
+
+Recommendation Quality
+
+Learning Progress
+
+Model Stability
+
+Recommendation Drift
+
+--------------------------------------------------
+
+AI PERFORMANCE ANALYSIS
+
+For every AI recommendation calculate:
+
+Prediction Accuracy
+
+Precision
+
+Recall
+
+F1 Score
+
+False Positive Rate
+
+False Negative Rate
+
+Average Confidence
+
+Confidence Error
+
+Calibration Score
+
+Prediction Stability
+
+Recommendation Consistency
+
+--------------------------------------------------
+
+CONFIDENCE CALIBRATION
+
+Analyse confidence bands:
+
+0–20%
+
+20–40%
+
+40–60%
+
+60–80%
+
+80–100%
+
+For each band calculate:
+
+Trades
+
+Win Rate
+
+Average Return
+
+Risk
+
+Prediction Error
+
+Recommend ideal confidence threshold.
+
+--------------------------------------------------
+
+FALSE SIGNAL ANALYSIS
+
+Identify:
+
+False Buy Signals
+
+False Sell Signals
+
+Late Signals
+
+Early Signals
+
+Missed Opportunities
+
+High-confidence losses
+
+Low-confidence wins
+
+Generate advisory insights.
+
+--------------------------------------------------
+
+MODEL DRIFT ANALYSIS
+
+Monitor:
+
+Prediction Drift
+
+Confidence Drift
+
+Strategy Drift
+
+Market Regime Drift
+
+Sector Drift
+
+Performance Drift
+
+Detect statistically significant changes.
+
+--------------------------------------------------
+
+LEARNING ANALYTICS
+
+Track:
+
+Improvement Rate
+
+Regression Rate
+
+Learning Velocity
+
+Consistency Trend
+
+Confidence Trend
+
+Adaptive Trend
+
+--------------------------------------------------
+
+AI VERSION COMPARISON
+
+Future-ready support.
+
+Compare:
+
+Current AI
+
+Previous AI
+
+Experimental AI
+
+Show:
+
+Accuracy Difference
+
+Risk Difference
+
+Win Rate Difference
+
+Recommendation Difference
+
+No automatic promotion.
+
+--------------------------------------------------
+
+EXPLAINABLE AI
+
+Every recommendation must include:
+
+Reason
+
+Supporting Metrics
+
+Historical Evidence
+
+Confidence
+
+Suggested Action
+
+Expected Benefit
+
+--------------------------------------------------
+
+OPTIMISATION RECOMMENDATIONS
+
+Generate advisory recommendations for:
+
+Confidence Threshold
+
+Signal Filters
+
+Market Regime Selection
+
+Sector Selection
+
+Time Window
+
+Risk Threshold
+
+Execution Threshold
+
+Strategy Selection
+
+Never apply automatically.
+
+--------------------------------------------------
+
+AI HEALTH SCORE
+
+Generate
+
+AI Optimisation Score
+
+0–100
+
+Grade
+
+A+
+
+A
+
+B
+
+C
+
+D
+
+Trend
+
+Improving
+
+Stable
+
+Declining
+
+--------------------------------------------------
+
+AI OPTIMISATION DASHBOARD
+
+Create sections
+
+AI Health
+
+Confidence Calibration
+
+Prediction Quality
+
+False Signal Analysis
+
+Model Drift
+
+Learning Progress
+
+Version Comparison
+
+Recommendations
+
+Historical Trend
+
+--------------------------------------------------
+
+API
+
+GET /api/ai-optimisation/summary
+
+GET /api/ai-optimisation/calibration
+
+GET /api/ai-optimisation/drift
+
+GET /api/ai-optimisation/recommendations
+
+GET /api/ai-optimisation/history
+
+--------------------------------------------------
+
+EXPORT
+
+CSV
+
+JSON
+
+Future PDF support
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Run optimisation in background.
+
+Cache heavy analytics.
+
+No impact on paper-trading execution.
+
+--------------------------------------------------
+
+TESTING
+
+Verify:
+
+Zero trades
+
+Small dataset
+
+Large dataset
+
+Poor AI
+
+Excellent AI
+
+Missing confidence values
+
+Feature flag
+
+API
+
+Dashboard
+
+Restart persistence
+
+--------------------------------------------------
+
+SAFETY
+
+Read-only
+
+Advisory-only
+
+Never modify:
+
+AI models
+
+Trading engine
+
+Orders
+
+Portfolio
+
+Signals
+
+Risk Engine
+
+Strategies
+
+Automatically.
+
+--------------------------------------------------
+
+GITHUB INTEGRATION REQUIREMENTS
+
+Where appropriate, incorporate concepts inspired by previously reviewed GitHub projects while preserving ApexQuant AI architecture.
+
+Include:
+
+• AI confidence calibration
+• Adaptive confidence thresholds
+• Recommendation explainability
+• Model drift monitoring
+• Decision quality scoring
+• AI version comparison framework
+• Pattern-based recommendation refinement
+• Future-ready hooks for ML retraining (disabled by default)
+
+Do NOT copy external implementations.
+
+Implement modular shared_services components consistent with previous phases.
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide:
+
+1. Files created
+
+2. Files modified
+
+3. Shared services reused
+
+4. APIs
+
+5. Dashboard screenshots
+
+6. Test count
+
+7. Test results
+
+8. Performance benchmarks
+
+9. Known limitations
+
+10. AI optimisation methodology
+
+11. GitHub-inspired enhancements incorporated
+
+12. Explain how future ML retraining can plug into this framework without changing the architecture.
+
+13. Confirm that AI optimisation remains advisory-only and no AI behaviour is automatically modified.
+
+Final Verdict
+
+PHASE 6.3 COMPLETE
+
+or
+
+PHASE 6.3 NOT COMPLETE
+
+with blockers.

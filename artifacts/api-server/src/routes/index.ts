@@ -28,6 +28,7 @@ import aiPerformanceRouter from "./ai-performance";
 import executiveRouter from "./executive";
 import validationRouter from "./validation";
 import optimisationRouter from "./optimisation";
+import aiOptimisationRouter from "./ai-optimisation";
 
 const router: IRouter = Router();
 
@@ -58,6 +59,7 @@ router.use(aiPerformanceRouter);
 router.use(executiveRouter);
 router.use(validationRouter);
 router.use(optimisationRouter);
+router.use(aiOptimisationRouter);
 router.use(tradingRouter);
 router.use(downloadRouter);
 

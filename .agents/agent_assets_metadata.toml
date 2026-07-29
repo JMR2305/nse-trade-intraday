@@ -137,3 +137,9 @@ id = "tGY5LxP3DzVBLoqvB10J9"
 uri = "file://docs/phase6.2-strategy-optimisation.md"
 type = "text"
 title = "Phase 6.2 — Strategy Optimisation Summary"
+
+[[outputs]]
+id = "uXPbc5ymwiEfJjnvgLKpX"
+uri = "file://docs/phase6.3-ai-optimisation.md"
+type = "text"
+title = "Phase 6.3 — AI Optimisation Deliverables"

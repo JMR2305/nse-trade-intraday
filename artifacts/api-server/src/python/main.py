@@ -2488,6 +2488,34 @@ def main():
             from strategy_optimisation.shared_services import export_recommendations_json as _opt_json
             result = {"json": _opt_json()}
 
+        elif command == "ai_optimisation_summary":
+            from ai_optimisation.api import cmd_summary as _aio_summary
+            result = _aio_summary()
+
+        elif command == "ai_optimisation_calibration":
+            from ai_optimisation.api import cmd_calibration as _aio_cal
+            result = _aio_cal()
+
+        elif command == "ai_optimisation_drift":
+            from ai_optimisation.api import cmd_drift as _aio_drift
+            result = _aio_drift()
+
+        elif command == "ai_optimisation_recommendations":
+            from ai_optimisation.api import cmd_recommendations as _aio_recs
+            result = _aio_recs()
+
+        elif command == "ai_optimisation_history":
+            from ai_optimisation.api import cmd_history as _aio_hist
+            result = _aio_hist()
+
+        elif command == "ai_optimisation_export_csv":
+            from ai_optimisation.shared_services import export_summary_csv as _aio_csv
+            result = {"csv": _aio_csv()}
+
+        elif command == "ai_optimisation_export_json":
+            from ai_optimisation.shared_services import export_full_json as _aio_json
+            result = {"json": _aio_json()}
+
         else:
             error_msg = f"Unknown command: {command}"
 
