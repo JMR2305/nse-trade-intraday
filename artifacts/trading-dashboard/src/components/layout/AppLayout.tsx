@@ -109,6 +109,7 @@ const navGroups = [
     items: [
       { href: "/portfolio-performance",   label: "Portfolio Performance",  icon: TrendingUp },
       { href: "/strategy-intelligence",  label: "Strategy Intelligence",  icon: Zap        },
+      { href: "/ai-performance",         label: "AI Performance",         icon: Brain      },
       { href: "/performance-analytics", label: "Performance Analytics", icon: BarChart3 },
       { href: "/preopen-accuracy",      label: "Pre-Open Accuracy",     icon: Target    },
       { href: "/signal-validation",     label: "Signal Validation",     icon: Activity  },

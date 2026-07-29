@@ -24,6 +24,7 @@ import signalValidationRouter from "./signalValidation";
 import executionQualityRouter from "./executionQuality";
 import performanceRouter from "./performance";
 import strategyRouter from "./strategy";
+import aiPerformanceRouter from "./ai-performance";
 
 const router: IRouter = Router();
 
@@ -50,6 +51,7 @@ router.use(signalValidationRouter);
 router.use(executionQualityRouter);
 router.use(performanceRouter);
 router.use(strategyRouter);
+router.use(aiPerformanceRouter);
 router.use(tradingRouter);
 router.use(downloadRouter);
 

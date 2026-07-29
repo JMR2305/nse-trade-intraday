@@ -1,0 +1,470 @@
+# ApexQuant AI – Phase 5D.4
+AI Performance Intelligence
+
+OBJECTIVE
+
+Build a comprehensive AI Performance Intelligence module for the Intraday Paper Trading platform.
+
+This module is READ-ONLY.
+
+It must NEVER modify:
+
+- Trading engine
+- Paper trading engine
+- Orders
+- Portfolio
+- Risk engine
+- Strategy execution
+- Signal generation
+
+Its purpose is to evaluate how well the AI performs over time using historical paper-trading data.
+
+--------------------------------------------------
+
+IMPORTANT ARCHITECTURE REQUIREMENT
+
+This module MUST reuse existing analytics.
+
+DO NOT recalculate metrics already available in:
+
+• Phase 5C – Signal Validation
+• Phase 5D.1 – Execution Quality
+• Phase 5D.2 – Portfolio Performance
+• Phase 5D.3 – Strategy Intelligence
+
+Import data from the shared services already created.
+
+Create only new AI-specific analytics.
+
+--------------------------------------------------
+
+FEATURE FLAG
+
+AI_PERFORMANCE_ENABLED=true
+
+When disabled:
+
+{
+    "status": "DISABLED"
+}
+
+--------------------------------------------------
+
+NEW MODULE
+
+ai_performance/
+
+Suggested structure:
+
+ai_performance/
+├── ai_models.py
+├── ai_engine.py
+├── confidence_analysis.py
+├── prediction_analysis.py
+├── calibration.py
+├── recommendation_analysis.py
+├── learning_analysis.py
+├── shared_services.py
+└── api.py
+
+--------------------------------------------------
+
+DATA SOURCES
+
+Read ONLY from:
+
+- Strategy Intelligence shared services
+- Portfolio Performance
+- Execution Quality
+- Signal Validation
+- Trade Journal
+- Paper Trades
+- Market Intelligence
+
+Reuse existing calculations wherever possible.
+
+No duplicate storage.
+
+--------------------------------------------------
+
+AI PERFORMANCE METRICS
+
+Calculate:
+
+• Total AI Signals
+
+• Executed Signals
+
+• Ignored Signals
+
+• Successful Signals
+
+• Failed Signals
+
+• Signal Success Rate
+
+• Recommendation Acceptance Rate
+
+• Average Confidence
+
+• Confidence Distribution
+
+--------------------------------------------------
+
+CONFIDENCE ANALYSIS
+
+Analyse:
+
+• Confidence vs Win Rate
+
+• Confidence vs Profit
+
+• Confidence vs Drawdown
+
+• Confidence vs Market Regime
+
+• Confidence vs Sector
+
+Bucket confidence into:
+
+90–100
+
+80–90
+
+70–80
+
+60–70
+
+Below 60
+
+--------------------------------------------------
+
+CALIBRATION ANALYSIS
+
+Measure:
+
+Predicted confidence
+
+vs
+
+Actual success rate
+
+Generate:
+
+Calibration Curve
+
+Calibration Error
+
+Reliability Score
+
+Confidence Bias
+
+Overconfidence Score
+
+Underconfidence Score
+
+--------------------------------------------------
+
+PREDICTION ANALYSIS
+
+Calculate:
+
+Precision
+
+Recall
+
+Accuracy
+
+False Positive Rate
+
+False Negative Rate
+
+True Positive Rate
+
+True Negative Rate
+
+F1 Score
+
+Matthews Correlation Coefficient (MCC)
+
+Balanced Accuracy
+
+--------------------------------------------------
+
+RECOMMENDATION ANALYSIS
+
+Measure:
+
+Recommendation Success %
+
+Recommendation Failure %
+
+Average Profit per Recommendation
+
+Average Loss per Recommendation
+
+Rejected Recommendation Success Rate
+
+Accepted Recommendation Success Rate
+
+--------------------------------------------------
+
+LEARNING ANALYSIS
+
+Track AI improvement over time.
+
+Calculate:
+
+Daily Accuracy
+
+Weekly Accuracy
+
+Monthly Accuracy
+
+Rolling 30-day Accuracy
+
+Rolling Win Rate
+
+Trend Direction
+
+Improving
+
+Stable
+
+Declining
+
+--------------------------------------------------
+
+MARKET CONTEXT ANALYSIS
+
+Analyse AI performance by:
+
+Market Regime
+
+Sector
+
+Time of Day
+
+Day of Week
+
+Volatility
+
+Gap %
+
+Pre-Open Signals
+
+--------------------------------------------------
+
+AI HEALTH SCORE
+
+Generate one overall score (0–100).
+
+Suggested components:
+
+Prediction Accuracy
+
+25%
+
+Calibration Quality
+
+20%
+
+Consistency
+
+20%
+
+Execution Outcome
+
+15%
+
+Risk Awareness
+
+10%
+
+Recommendation Quality
+
+10%
+
+Display:
+
+AI Health Score
+
+94 / 100
+
+Excellent
+
+--------------------------------------------------
+
+AI DASHBOARD
+
+Create:
+
+AI Performance Intelligence
+
+Summary Cards
+
+• AI Health Score
+
+• Prediction Accuracy
+
+• Average Confidence
+
+• Calibration Error
+
+• Precision
+
+• Recall
+
+Charts
+
+• Confidence Distribution
+
+• Calibration Curve
+
+• Accuracy Trend
+
+• Precision vs Recall
+
+• Learning Curve
+
+• Market Regime Performance
+
+• Sector Performance
+
+• Time Performance
+
+Tables
+
+• AI Summary
+
+• Recommendation Analysis
+
+• Confidence Analysis
+
+• Error Analysis
+
+• Improvement Timeline
+
+--------------------------------------------------
+
+API ENDPOINTS
+
+Create read-only APIs.
+
+Examples:
+
+GET /api/ai/summary
+
+GET /api/ai/confidence
+
+GET /api/ai/calibration
+
+GET /api/ai/predictions
+
+GET /api/ai/recommendations
+
+GET /api/ai/learning
+
+--------------------------------------------------
+
+PERFORMANCE TARGET
+
+Analytics generation:
+
+<100 ms
+
+Dashboard loading:
+
+<1 second
+
+--------------------------------------------------
+
+TESTING
+
+Verify:
+
+✓ Zero signals
+
+✓ One signal
+
+✓ Multiple signals
+
+✓ High confidence predictions
+
+✓ Low confidence predictions
+
+✓ Precision calculations
+
+✓ Recall calculations
+
+✓ Calibration calculations
+
+✓ AI Health Score
+
+✓ Shared service reuse
+
+✓ Disabled feature flag
+
+✓ API responses
+
+✓ Dashboard rendering
+
+✓ Restart persistence
+
+--------------------------------------------------
+
+SAFETY
+
+Maintain:
+
+✓ Read-only
+
+✓ Advisory-only
+
+✓ Paper trading only
+
+✓ No portfolio modifications
+
+✓ No strategy modifications
+
+✓ No signal modifications
+
+✓ No order modifications
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide:
+
+1. Files created
+
+2. Files modified
+
+3. Shared services reused
+
+4. APIs added
+
+5. Dashboard screenshots
+
+6. Test count
+
+7. Test results
+
+8. Performance benchmarks
+
+9. Known limitations
+
+10. Explain exactly how the Executive Dashboard (Phase 5D.5) will reuse the AI Performance module without duplicating calculations.
+
+11. Identify any metrics that could become unreliable due to insufficient historical data and specify the minimum sample size required before they should be considered statistically meaningful.
+
+Final verdict:
+
+PHASE 5D.4 COMPLETE
+
+or
+
+PHASE 5D.4 NOT COMPLETE
+
+with exact blockers.

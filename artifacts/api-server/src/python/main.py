@@ -2312,6 +2312,31 @@ def main():
             date   = args[1] if len(args) > 1 else None
             result = _eq_fills(date)
 
+        # ── Phase 5D.4: AI Performance Intelligence ──────────────────────────────
+        elif command == "ai_summary":
+            from ai_performance.api import get_summary as _ai_summary
+            result = _ai_summary()
+
+        elif command == "ai_confidence":
+            from ai_performance.api import get_confidence as _ai_confidence
+            result = _ai_confidence()
+
+        elif command == "ai_calibration":
+            from ai_performance.api import get_calibration as _ai_calibration
+            result = _ai_calibration()
+
+        elif command == "ai_predictions":
+            from ai_performance.api import get_predictions as _ai_predictions
+            result = _ai_predictions()
+
+        elif command == "ai_recommendations":
+            from ai_performance.api import get_recommendations as _ai_recommendations
+            result = _ai_recommendations()
+
+        elif command == "ai_learning":
+            from ai_performance.api import get_learning as _ai_learning
+            result = _ai_learning()
+
         # ── Phase 5D.3: Strategy Intelligence ────────────────────────────────────
         elif command == "strategy_summary":
             from strategy_intelligence.api import get_summary as _si_summary
