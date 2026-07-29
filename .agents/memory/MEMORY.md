@@ -40,3 +40,4 @@
 - [Phase 5D.1 execution quality](phase5d1-execution-quality.md) — read-only EQ module; `@/lib/api` import; apiJson paths omit /api/ prefix; FIFO BUY→SELL matching; AST safety test included.
 - [Phase 5D multi-provider pre-open](phase5d-multi-provider.md) — NSE Official→Kite→Yahoo chain; IEP+qty in detail.preOpenMarket not metadata; order_book_available flag gates imbalance display.
 - [Phase 5D.2 portfolio performance](phase5d2-portfolio-performance.md) — read-only analytics module; PORTFOLIO_PERFORMANCE_ENABLED flag; 5 API endpoints; FIFO BUY→SELL matching reused from EQ module pattern.
+- [Phase 5D.3 strategy intelligence](phase5d3-strategy-intelligence.md) — shared analytics service; stable shared_services.py API for 5D.4/5D.5 reuse; 6 endpoints; 31 tests; STRATEGY_INTELLIGENCE_ENABLED flag.

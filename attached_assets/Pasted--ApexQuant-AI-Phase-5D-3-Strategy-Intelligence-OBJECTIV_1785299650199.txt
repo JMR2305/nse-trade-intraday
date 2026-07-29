@@ -1,0 +1,422 @@
+# ApexQuant AI – Phase 5D.3
+Strategy Intelligence
+
+OBJECTIVE
+
+Build a comprehensive Strategy Intelligence module for the Intraday Paper Trading platform.
+
+This module is READ-ONLY.
+
+It must NEVER modify:
+
+- Trading engine
+- Paper trading engine
+- Orders
+- Portfolio
+- Risk engine
+- Signal engine
+- Strategy execution
+
+It must only analyse historical paper-trading performance and provide advisory insights.
+
+--------------------------------------------------
+
+IMPORTANT ARCHITECTURE REQUIREMENT
+
+This module MUST be designed as a shared analytics service.
+
+The analytics, calculations, models and APIs created here will be reused by:
+
+• Phase 5D.4 – AI Performance Intelligence
+• Phase 5D.5 – Executive Dashboard
+• Future reporting modules
+
+Do NOT duplicate calculations in later phases.
+
+Create reusable services that expose strategy statistics through common interfaces.
+
+Future modules should consume these services instead of recalculating metrics.
+
+--------------------------------------------------
+
+FEATURE FLAG
+
+STRATEGY_INTELLIGENCE_ENABLED=true
+
+When disabled:
+
+{
+    "status": "DISABLED"
+}
+
+--------------------------------------------------
+
+NEW MODULE
+
+strategy_intelligence/
+
+Suggested structure:
+
+strategy_intelligence/
+├── strategy_models.py
+├── strategy_engine.py
+├── strategy_rankings.py
+├── strategy_statistics.py
+├── market_regime_analysis.py
+├── sector_analysis.py
+├── time_analysis.py
+├── recommendations.py
+├── shared_services.py
+└── api.py
+
+--------------------------------------------------
+
+DATA SOURCES
+
+Read ONLY from:
+
+- Paper trades
+- Portfolio Performance (5D.2)
+- Execution Quality (5D.1)
+- Signal Validation (5C)
+- Market Intelligence
+- Trade Journal
+- Portfolio Store
+
+Reuse existing data.
+
+Never duplicate storage.
+
+--------------------------------------------------
+
+STRATEGY PERFORMANCE
+
+Calculate:
+
+• Total Trades
+
+• Winning Trades
+
+• Losing Trades
+
+• Win Rate
+
+• Loss Rate
+
+• Net P&L
+
+• Average Profit
+
+• Average Loss
+
+• Profit Factor
+
+• Expectancy
+
+• Maximum Drawdown
+
+• Average Holding Time
+
+• Execution Quality Score
+
+--------------------------------------------------
+
+STRATEGY RANKING
+
+Rank strategies by:
+
+• Net Profit
+
+• Win Rate
+
+• Profit Factor
+
+• Risk Adjusted Return
+
+• Drawdown
+
+• Execution Score
+
+• Consistency
+
+Display:
+
+Top Performing Strategies
+
+--------------------------------------------------
+
+MARKET REGIME ANALYSIS
+
+Analyse strategy performance during:
+
+• Bull Market
+
+• Bear Market
+
+• Sideways Market
+
+• High Volatility
+
+• Low Volatility
+
+Identify the best strategy for every market regime.
+
+--------------------------------------------------
+
+SECTOR ANALYSIS
+
+Analyse strategy performance across:
+
+• Banking
+
+• IT
+
+• Pharma
+
+• Auto
+
+• FMCG
+
+• Energy
+
+• Metal
+
+• Realty
+
+• Financial Services
+
+• Others
+
+Display:
+
+• Best Sector
+
+• Worst Sector
+
+• Highest Win Rate
+
+• Highest Returns
+
+--------------------------------------------------
+
+TIME ANALYSIS
+
+Analyse:
+
+• 9:15–10:00
+
+• 10:00–11:00
+
+• 11:00–12:00
+
+• 12:00–13:00
+
+• 13:00–14:00
+
+• 14:00–15:30
+
+Also calculate:
+
+• Best Day
+
+• Worst Day
+
+• Best Hour
+
+• Worst Hour
+
+--------------------------------------------------
+
+RECOMMENDATION ENGINE
+
+Generate advisory-only recommendations.
+
+Examples:
+
+• Increase allocation
+
+• Reduce allocation
+
+• Monitor closely
+
+• Underperforming
+
+• Excellent consistency
+
+• High drawdown risk
+
+• Needs review
+
+Recommendations MUST NEVER automatically enable, disable or modify strategies.
+
+--------------------------------------------------
+
+STRATEGY DASHBOARD
+
+Create:
+
+Strategy Intelligence Dashboard
+
+Summary Cards
+
+• Best Strategy
+
+• Worst Strategy
+
+• Highest Win Rate
+
+• Highest Profit Factor
+
+• Lowest Drawdown
+
+• Best Execution Score
+
+Charts
+
+• Strategy Comparison
+
+• Win Rate Comparison
+
+• Profit Factor Comparison
+
+• Drawdown Comparison
+
+• Market Regime Performance
+
+• Sector Performance
+
+• Time-of-Day Performance
+
+Tables
+
+• Strategy Leaderboard
+
+• Strategy Statistics
+
+• Market Regime Matrix
+
+• Sector Matrix
+
+• Recommendation Matrix
+
+--------------------------------------------------
+
+API ENDPOINTS
+
+Create read-only APIs.
+
+Examples:
+
+GET /api/strategy/summary
+
+GET /api/strategy/rankings
+
+GET /api/strategy/regimes
+
+GET /api/strategy/sectors
+
+GET /api/strategy/timing
+
+GET /api/strategy/recommendations
+
+--------------------------------------------------
+
+PERFORMANCE TARGET
+
+Analytics generation:
+
+<100 ms
+
+Dashboard loading:
+
+<1 second
+
+--------------------------------------------------
+
+TESTING
+
+Verify:
+
+✓ Zero trades
+
+✓ One strategy
+
+✓ Multiple strategies
+
+✓ Winning strategy
+
+✓ Losing strategy
+
+✓ Mixed performance
+
+✓ Market regime calculations
+
+✓ Sector calculations
+
+✓ Time analysis
+
+✓ Recommendation generation
+
+✓ Shared service reuse
+
+✓ API responses
+
+✓ Dashboard rendering
+
+✓ Restart persistence
+
+--------------------------------------------------
+
+SAFETY
+
+Maintain:
+
+✓ Read-only
+
+✓ Advisory-only
+
+✓ Paper trading only
+
+✓ No portfolio modifications
+
+✓ No strategy execution changes
+
+✓ No signal modifications
+
+✓ No order modifications
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide:
+
+1. Files created
+
+2. Files modified
+
+3. Shared services created
+
+4. APIs added
+
+5. Dashboard screenshots
+
+6. Test count
+
+7. Test results
+
+8. Performance benchmarks
+
+9. Known limitations
+
+10. Explain exactly how Phase 5D.4 (AI Performance Intelligence) and Phase 5D.5 (Executive Dashboard) will reuse this module without duplicating calculations.
+
+Final verdict:
+
+PHASE 5D.3 COMPLETE
+
+or
+
+PHASE 5D.3 NOT COMPLETE
+
+with exact blockers.

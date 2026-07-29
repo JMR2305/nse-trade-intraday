@@ -58,6 +58,7 @@ import {
   ChevronLeft,
   Search,
   TrendingUp,
+  Zap,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
@@ -106,7 +107,8 @@ const navGroups = [
   {
     label: "Analytics",
     items: [
-      { href: "/portfolio-performance",  label: "Portfolio Performance",  icon: TrendingUp },
+      { href: "/portfolio-performance",   label: "Portfolio Performance",  icon: TrendingUp },
+      { href: "/strategy-intelligence",  label: "Strategy Intelligence",  icon: Zap        },
       { href: "/performance-analytics", label: "Performance Analytics", icon: BarChart3 },
       { href: "/preopen-accuracy",      label: "Pre-Open Accuracy",     icon: Target    },
       { href: "/signal-validation",     label: "Signal Validation",     icon: Activity  },

@@ -2312,6 +2312,31 @@ def main():
             date   = args[1] if len(args) > 1 else None
             result = _eq_fills(date)
 
+        # ── Phase 5D.3: Strategy Intelligence ────────────────────────────────────
+        elif command == "strategy_summary":
+            from strategy_intelligence.api import get_summary as _si_summary
+            result = _si_summary()
+
+        elif command == "strategy_rankings":
+            from strategy_intelligence.api import get_rankings as _si_rankings
+            result = _si_rankings()
+
+        elif command == "strategy_regimes":
+            from strategy_intelligence.api import get_regimes as _si_regimes
+            result = _si_regimes()
+
+        elif command == "strategy_sectors":
+            from strategy_intelligence.api import get_sectors as _si_sectors
+            result = _si_sectors()
+
+        elif command == "strategy_timing":
+            from strategy_intelligence.api import get_timing as _si_timing
+            result = _si_timing()
+
+        elif command == "strategy_recommendations":
+            from strategy_intelligence.api import get_recommendations_api as _si_recs
+            result = _si_recs()
+
         # ── Phase 5D.2: Portfolio Performance Intelligence ─────────────────────
         elif command == "performance_summary":
             from portfolio_performance.api import get_summary as _pp_summary
