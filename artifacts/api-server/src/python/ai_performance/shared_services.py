@@ -58,7 +58,7 @@ def _compute_all() -> Dict[str, Any]:
     rec_analysis = compute_recommendation_analysis(signals)
     learning     = compute_learning_analysis(signals)
 
-    health = _compute_health_score(signals, pred, calibration, rec_analysis, profiles)
+    health = _compute_health_score(signals, pred, calibration, rec_analysis, profiles, learning)
 
     return {
         "signals":       signals,
@@ -74,7 +74,7 @@ def _compute_all() -> Dict[str, Any]:
     }
 
 
-def _compute_health_score(signals, pred, calibration, rec_analysis, profiles) -> AIHealthScore:
+def _compute_health_score(signals, pred, calibration, rec_analysis, profiles, learning=None) -> AIHealthScore:
     """
     AI Health Score (0–100) using weighted components.
 
@@ -99,8 +99,9 @@ def _compute_health_score(signals, pred, calibration, rec_analysis, profiles) ->
     h.calibration_quality = round(calibration.reliability_score, 2)
 
     # 3. Consistency (20%) — lower stdev in daily accuracies = more consistent
-    from .learning_analysis import compute_learning_analysis
-    learning = compute_learning_analysis(signals)
+    if learning is None:
+        from .learning_analysis import compute_learning_analysis
+        learning = compute_learning_analysis(signals)
     daily = [d["accuracy"] for d in learning["daily"] if d["count"] > 0]
     if len(daily) >= 2:
         stdev = _stats.stdev(daily)

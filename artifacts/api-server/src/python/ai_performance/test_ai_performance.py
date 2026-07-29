@@ -667,5 +667,224 @@ class TestRestartPersistence(unittest.TestCase):
         )
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# 15. Scale benchmark — _compute_all() under 100 ms at 100 / 500 / 1000 trades
+# ══════════════════════════════════════════════════════════════════════════════
+class TestScaleBenchmark(unittest.TestCase):
+    """_compute_all() must stay under 100 ms after the _rolling_30d refactor."""
+
+    def setUp(self):
+        os.environ["AI_PERFORMANCE_ENABLED"]        = "true"
+        os.environ["STRATEGY_INTELLIGENCE_ENABLED"] = "true"
+
+    def tearDown(self):
+        os.environ.pop("AI_PERFORMANCE_ENABLED", None)
+
+    # ── Synthetic trade generator ─────────────────────────────────────────────
+    @staticmethod
+    def _make_raw_trades(n_pairs: int):
+        symbols    = ["INFY", "TCS", "RELIANCE", "HDFC", "WIPRO",
+                      "BHARTIARTL", "ICICIBANK", "SBI", "LT", "AXISBANK"]
+        conf_vals  = [0.95, 0.85, 0.75, 0.65, 0.45]
+        base       = datetime(2025, 1, 2, 4, 0, 0, tzinfo=timezone.utc)
+
+        trades = []
+        for i in range(n_pairs):
+            sym   = symbols[i % len(symbols)]
+            conf  = conf_vals[i % len(conf_vals)]
+            day   = i // len(symbols)
+            high  = conf >= 0.60
+            win   = ((i % 10) < 7) if high else ((i % 10) < 4)
+            pnl   = 500.0 if win else -200.0
+            xt    = "TARGET_HIT" if win else "STOP_HIT"
+            qty, price = 10, 1000.0
+            buy_ts  = (base + timedelta(days=day, hours=9)).isoformat()
+            sell_ts = (base + timedelta(days=day, hours=15)).isoformat()
+
+            trades.append({
+                "id": f"buy-{i}", "symbol": sym, "action": "BUY",
+                "quantity": qty, "price": price, "total": qty * price,
+                "timestamp": buy_ts,
+                "strategy_id": "s1",
+                "strategy_name": "Momentum" if i % 2 == 0 else "Mean Reversion",
+                "stop_loss": price * 0.97, "target": price * 1.05,
+                "market_regime_at_entry": "Bullish",
+                "signal_confidence": conf, "reason": "signal",
+            })
+            trades.append({
+                "id": f"sell-{i}", "symbol": sym, "action": "SELL",
+                "quantity": qty, "price": price + pnl / qty,
+                "total": qty * (price + pnl / qty),
+                "timestamp": sell_ts,
+                "pnl": pnl, "pnl_pct": pnl / (qty * price) * 100,
+                "exit_type": xt,
+            })
+        return trades
+
+    def _time_compute_all(self, n_pairs: int):
+        import time
+        trades = self._make_raw_trades(n_pairs)
+        import portfolio_store as _ps
+        from ai_performance.shared_services import _compute_all
+        with patch("portfolio_store.load_all_trades_any", return_value=trades):
+            t0     = time.perf_counter()
+            result = _compute_all()
+            ms     = (time.perf_counter() - t0) * 1000.0
+        return ms, result
+
+    def test_100_trades_under_100ms(self):
+        ms, result = self._time_compute_all(100)
+        n_signals = len(result.get("signals", []))
+        self.assertGreater(n_signals, 0, "_compute_all returned 0 signals — feature flag inactive?")
+        self.assertLess(ms, 100.0,
+            msg=f"_compute_all() at 100 trades: {ms:.1f} ms (limit 100 ms)")
+
+    def test_500_trades_under_100ms(self):
+        ms, result = self._time_compute_all(500)
+        self.assertGreater(len(result.get("signals", [])), 0)
+        self.assertLess(ms, 100.0,
+            msg=f"_compute_all() at 500 trades: {ms:.1f} ms (limit 100 ms)")
+
+    def test_1000_trades_under_100ms(self):
+        ms, result = self._time_compute_all(1000)
+        self.assertGreater(len(result.get("signals", [])), 0)
+        self.assertLess(ms, 100.0,
+            msg=f"_compute_all() at 1000 trades: {ms:.1f} ms (limit 100 ms)")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 16. ECE stability — variance < 0.02 when each bucket has >= 20 signals
+# ══════════════════════════════════════════════════════════════════════════════
+class TestECEStabilityAtScale(unittest.TestCase):
+    """Calibration ECE stabilises (stdev < 0.02) when each bucket >= 20 signals."""
+
+    @staticmethod
+    def _make_calibration_signals(n_per_bucket: int, seed: int):
+        """
+        Create AISignalRecord objects for all 5 confidence buckets.
+        Win rate per bucket ≈ midpoint confidence (well-calibrated baseline)
+        plus a small pseudo-random perturbation from `seed`.
+        """
+        from ai_performance.ai_models import AISignalRecord, CONFIDENCE_BUCKETS
+        signals = []
+        lcg = (seed * 1103515245 + 12345) & 0x7FFFFFFF
+
+        for label, lo, hi in CONFIDENCE_BUCKETS:
+            conf_mid = min((lo + hi) / 2.0, 0.95)
+            lcg = (lcg * 1103515245 + 12345) & 0x7FFFFFFF
+            noise    = ((lcg % 9) - 4) / 100.0        # ±0.04
+            win_rate = max(0.0, min(1.0, conf_mid + noise))
+            n_win    = round(win_rate * n_per_bucket)
+            high     = conf_mid >= 0.60
+
+            for j in range(n_per_bucket):
+                is_w = j < n_win
+                signals.append(AISignalRecord(
+                    signal_confidence = conf_mid,
+                    confidence_bucket = label,
+                    is_winner  = is_w,
+                    is_tp = high and is_w,
+                    is_fp = high and not is_w,
+                    is_tn = not high and not is_w,
+                    is_fn = not high and is_w,
+                ))
+        return signals
+
+    def test_ece_stdev_lt_002_at_20_per_bucket(self):
+        """ECE stdev < 0.02 across 10 pseudo-random seeds when n=20 per bucket."""
+        import statistics as _st
+        from ai_performance.calibration import compute_calibration
+        eces = [
+            compute_calibration(self._make_calibration_signals(20, s)).ece
+            for s in range(10)
+        ]
+        stdev = _st.stdev(eces)
+        self.assertLess(stdev, 0.02,
+            msg=f"ECE stdev={stdev:.4f} at 20 trades/bucket (must be < 0.02)")
+
+    def test_ece_small_when_well_calibrated(self):
+        """ECE < 0.10 when 20 trades/bucket have win rate ≈ predicted confidence."""
+        from ai_performance.calibration import compute_calibration
+        from ai_performance.ai_models import AISignalRecord, CONFIDENCE_BUCKETS
+        signals = []
+        for label, lo, hi in CONFIDENCE_BUCKETS:
+            conf_mid  = min((lo + hi) / 2.0, 0.95)
+            n_win     = round(conf_mid * 20)
+            high      = conf_mid >= 0.60
+            for j in range(20):
+                is_w = j < n_win
+                signals.append(AISignalRecord(
+                    signal_confidence=conf_mid, confidence_bucket=label,
+                    is_winner=is_w,
+                    is_tp=high and is_w, is_fp=high and not is_w,
+                    is_tn=not high and not is_w, is_fn=not high and is_w,
+                ))
+        m = compute_calibration(signals)
+        self.assertLess(m.ece, 0.10,
+            msg=f"ECE={m.ece:.4f} with well-calibrated data at 20/bucket")
+
+    def test_ece_stable_across_scales(self):
+        """ECE at 40 trades/bucket should be within 0.04 of ECE at 20 trades/bucket."""
+        from ai_performance.calibration import compute_calibration
+        # Use seed=42 for reproducibility; doubled n → should converge closer
+        ece_20 = compute_calibration(self._make_calibration_signals(20, 42)).ece
+        ece_40 = compute_calibration(self._make_calibration_signals(40, 42)).ece
+        self.assertLess(abs(ece_20 - ece_40), 0.04,
+            msg=f"ECE drifts too much between 20/bucket ({ece_20:.4f}) and 40/bucket ({ece_40:.4f})")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 17. MCC at scale — non-zero and scale-invariant with all quadrants populated
+# ══════════════════════════════════════════════════════════════════════════════
+class TestMCCAtScale(unittest.TestCase):
+    """MCC is non-zero and scale-invariant when TP/FP/TN/FN all have samples."""
+
+    @staticmethod
+    def _mcc_signals(tp: int, fp: int, tn: int, fn: int):
+        from ai_performance.ai_models import AISignalRecord
+        return (
+            [AISignalRecord(is_tp=True,  is_winner=True,  is_high_confidence=True)]  * tp +
+            [AISignalRecord(is_fp=True,  is_winner=False, is_high_confidence=True)]  * fp +
+            [AISignalRecord(is_tn=True,  is_winner=False, is_high_confidence=False)] * tn +
+            [AISignalRecord(is_fn=True,  is_winner=True,  is_high_confidence=False)] * fn
+        )
+
+    def test_mcc_nonzero_100_signals(self):
+        """MCC > 0 at 100 signals when TP+TN dominate FP+FN (better than random)."""
+        from ai_performance.prediction_analysis import compute_prediction_metrics
+        m = compute_prediction_metrics(self._mcc_signals(40, 20, 30, 10))
+        self.assertGreater(m.mcc, 0.0,
+            msg=f"MCC={m.mcc} with TP=40,FP=20,TN=30,FN=10 should be > 0")
+
+    def test_mcc_nonzero_500_signals(self):
+        """MCC > 0 at 500 signals — same ratio as 100-signal test."""
+        from ai_performance.prediction_analysis import compute_prediction_metrics
+        m = compute_prediction_metrics(self._mcc_signals(200, 100, 150, 50))
+        self.assertGreater(m.mcc, 0.0)
+
+    def test_mcc_scale_invariant(self):
+        """MCC(5× data) == MCC(1× data) — the metric is scale-free."""
+        from ai_performance.prediction_analysis import compute_prediction_metrics
+        tp, fp, tn, fn = 50, 30, 40, 20
+        m1 = compute_prediction_metrics(self._mcc_signals(tp,    fp,    tn,    fn))
+        m5 = compute_prediction_metrics(self._mcc_signals(tp*5,  fp*5,  tn*5,  fn*5))
+        self.assertAlmostEqual(m1.mcc, m5.mcc, places=3,
+            msg=f"MCC should be scale-invariant: {m1.mcc} vs {m5.mcc}")
+
+    def test_mcc_formula_correctness(self):
+        """Verify MCC formula numerics against hand-computed value."""
+        import math
+        from ai_performance.prediction_analysis import compute_prediction_metrics
+        # TP=40, FP=20, TN=30, FN=10
+        # MCC = (40×30 - 20×10) / sqrt((40+20)(40+10)(30+20)(30+10))
+        #      = (1200 - 200)   / sqrt(60 × 50 × 50 × 40)
+        #      = 1000           / sqrt(6_000_000)
+        #      ≈ 1000           / 2449.49 ≈ 0.4082
+        expected = 1000 / math.sqrt(60 * 50 * 50 * 40)
+        m = compute_prediction_metrics(self._mcc_signals(40, 20, 30, 10))
+        self.assertAlmostEqual(m.mcc, expected, places=3,
+            msg=f"MCC={m.mcc:.4f} vs hand-computed {expected:.4f}")
+
+
 if __name__ == "__main__":
     unittest.main()
