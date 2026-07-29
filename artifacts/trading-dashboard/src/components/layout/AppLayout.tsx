@@ -114,6 +114,7 @@ const navGroups = [
       { href: "/strategy-intelligence",   label: "Strategy Intelligence",  icon: Zap        },
       { href: "/strategy-optimisation",  label: "Strategy Optimisation",  icon: Sparkles   },
       { href: "/ai-optimisation",        label: "AI Optimisation",        icon: Target     },
+      { href: "/risk-optimisation",      label: "Risk Optimisation",      icon: ShieldCheck },
       { href: "/ai-performance",         label: "AI Performance",         icon: Brain      },
       { href: "/performance-analytics", label: "Performance Analytics", icon: BarChart3 },
       { href: "/preopen-accuracy",      label: "Pre-Open Accuracy",     icon: Target    },

@@ -29,6 +29,7 @@ import executiveRouter from "./executive";
 import validationRouter from "./validation";
 import optimisationRouter from "./optimisation";
 import aiOptimisationRouter from "./ai-optimisation";
+import riskOptimisationRouter from "./risk-optimisation";
 
 const router: IRouter = Router();
 
@@ -60,6 +61,7 @@ router.use(executiveRouter);
 router.use(validationRouter);
 router.use(optimisationRouter);
 router.use(aiOptimisationRouter);
+router.use(riskOptimisationRouter);
 router.use(tradingRouter);
 router.use(downloadRouter);
 

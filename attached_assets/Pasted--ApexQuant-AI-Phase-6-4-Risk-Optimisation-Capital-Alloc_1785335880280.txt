@@ -1,0 +1,463 @@
+# ApexQuant AI – Phase 6.4
+Risk Optimisation & Capital Allocation Intelligence
+
+OBJECTIVE
+
+Build a comprehensive Risk Optimisation Framework that analyses historical paper-trading data and produces advisory recommendations for improving portfolio risk, capital allocation, and trade sizing.
+
+This phase MUST NEVER modify:
+
+• Orders
+• Portfolio
+• Strategies
+• Signals
+• Risk engine
+• Position sizes
+
+All optimisation is READ-ONLY and ADVISORY-ONLY.
+
+--------------------------------------------------
+
+ARCHITECTURE
+
+Reuse existing modules.
+
+Reuse:
+
+• Phase 5C – Signal Validation
+• Phase 5D.1 – Execution Quality
+• Phase 5D.2 – Portfolio Performance
+• Phase 5D.3 – Strategy Intelligence
+• Phase 5D.4 – AI Performance
+• Phase 5D.5 – Executive Dashboard
+• Phase 6.1 – Paper Trading Validation
+• Phase 6.2 – Strategy Optimisation
+• Phase 6.3 – AI Optimisation
+
+No duplicated analytics.
+
+--------------------------------------------------
+
+FEATURE FLAG
+
+RISK_OPTIMISATION_ENABLED=true
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Analyse historical paper-trading performance and generate advisory recommendations for:
+
+Capital Allocation
+
+Position Sizing
+
+Portfolio Concentration
+
+Sector Diversification
+
+Risk Budget
+
+Exposure Limits
+
+Stop Loss Optimisation
+
+Reward/Risk Optimisation
+
+Drawdown Reduction
+
+Capital Preservation
+
+--------------------------------------------------
+
+CAPITAL ALLOCATION ANALYSIS
+
+Calculate
+
+Capital Utilisation
+
+Average Capital Usage
+
+Idle Capital
+
+Capital Efficiency
+
+Capital Turnover
+
+Recommended Allocation
+
+Allocation Stability
+
+--------------------------------------------------
+
+POSITION SIZING
+
+Analyse
+
+Average Position Size
+
+Largest Position
+
+Smallest Position
+
+Winning Position Sizes
+
+Losing Position Sizes
+
+Recommended Position Size
+
+Maximum Safe Position
+
+Risk Per Trade
+
+--------------------------------------------------
+
+PORTFOLIO CONCENTRATION
+
+Measure
+
+Single Position Exposure
+
+Sector Exposure
+
+Strategy Exposure
+
+Market Regime Exposure
+
+Correlation Risk
+
+Diversification Score
+
+--------------------------------------------------
+
+DRAWDOWN ANALYSIS
+
+Calculate
+
+Maximum Drawdown
+
+Average Drawdown
+
+Recovery Time
+
+Recovery Efficiency
+
+Worst Drawdown Period
+
+Drawdown Frequency
+
+--------------------------------------------------
+
+STOP LOSS ANALYSIS
+
+Analyse
+
+Stop Loss Hits
+
+Average Loss
+
+Average Stop Distance
+
+Trailing Stop Performance
+
+Premature Exits
+
+Late Exits
+
+Recommend improvements.
+
+--------------------------------------------------
+
+TARGET ANALYSIS
+
+Evaluate
+
+Target Hits
+
+Average Reward
+
+Reward/Risk Ratio
+
+Missed Profit
+
+Early Profit Booking
+
+Extended Winners
+
+--------------------------------------------------
+
+RISK BUDGET
+
+Recommend
+
+Maximum Daily Risk
+
+Maximum Open Positions
+
+Maximum Sector Allocation
+
+Maximum Strategy Allocation
+
+Maximum Portfolio Risk
+
+Maximum Exposure
+
+--------------------------------------------------
+
+STRESS TESTING
+
+Simulate advisory scenarios
+
+20% market correction
+
+Gap Down
+
+Gap Up
+
+High Volatility
+
+Multiple Losing Trades
+
+Sector Collapse
+
+Liquidity Reduction
+
+Display estimated portfolio impact.
+
+--------------------------------------------------
+
+RISK HEALTH SCORE
+
+Generate
+
+Risk Optimisation Score
+
+0–100
+
+Grade
+
+A+
+
+A
+
+B
+
+C
+
+D
+
+Trend
+
+Improving
+
+Stable
+
+Declining
+
+--------------------------------------------------
+
+RECOMMENDATIONS
+
+Generate explainable advisory recommendations.
+
+Every recommendation must include
+
+Reason
+
+Supporting Metrics
+
+Historical Evidence
+
+Confidence
+
+Expected Benefit
+
+Risk Reduction
+
+Priority
+
+--------------------------------------------------
+
+RISK OPTIMISATION DASHBOARD
+
+Create sections
+
+Portfolio Risk
+
+Capital Allocation
+
+Position Sizing
+
+Sector Diversification
+
+Drawdown Analysis
+
+Stop Loss Analysis
+
+Target Analysis
+
+Stress Testing
+
+Recommendations
+
+Historical Risk Trend
+
+--------------------------------------------------
+
+API
+
+GET /api/risk-optimisation/summary
+
+GET /api/risk-optimisation/capital
+
+GET /api/risk-optimisation/drawdown
+
+GET /api/risk-optimisation/stress
+
+GET /api/risk-optimisation/recommendations
+
+--------------------------------------------------
+
+EXPORT
+
+CSV
+
+JSON
+
+Future PDF support
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Background analysis only.
+
+Cache heavy analytics.
+
+No impact on paper-trading execution.
+
+--------------------------------------------------
+
+TESTING
+
+Verify
+
+Zero trades
+
+Small dataset
+
+Large dataset
+
+High drawdown
+
+Low drawdown
+
+High concentration
+
+Feature flag
+
+API
+
+Dashboard
+
+Restart persistence
+
+Stress scenarios
+
+--------------------------------------------------
+
+SAFETY
+
+Read-only
+
+Advisory-only
+
+Never modify
+
+Orders
+
+Portfolio
+
+Strategies
+
+Signals
+
+Risk Engine
+
+Capital Allocation
+
+Automatically.
+
+--------------------------------------------------
+
+GITHUB INTEGRATION REQUIREMENTS
+
+Where appropriate, incorporate concepts inspired by previously reviewed GitHub projects while preserving ApexQuant AI architecture.
+
+Include:
+
+• Dynamic position sizing recommendations
+
+• Portfolio concentration analysis
+
+• Sector exposure monitoring
+
+• Correlation-aware diversification
+
+• Adaptive risk budgeting
+
+• Drawdown recovery analytics
+
+• Stress-test simulation framework
+
+• Capital efficiency scoring
+
+• Risk-adjusted performance ranking
+
+• Future-ready hooks for Monte Carlo simulations (disabled by default)
+
+Do NOT copy external implementations.
+
+Implement modular shared_services components consistent with previous phases.
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide
+
+1. Files created
+
+2. Files modified
+
+3. Shared services reused
+
+4. APIs
+
+5. Dashboard screenshots
+
+6. Test count
+
+7. Test results
+
+8. Performance benchmarks
+
+9. Known limitations
+
+10. Risk optimisation methodology
+
+11. GitHub-inspired enhancements incorporated
+
+12. Explain how future Monte Carlo simulations and advanced portfolio optimisation can integrate without changing the architecture.
+
+13. Confirm that all recommendations remain advisory-only and no portfolio or risk parameters are automatically modified.
+
+Final Verdict
+
+PHASE 6.4 COMPLETE
+
+or
+
+PHASE 6.4 NOT COMPLETE
+
+with exact blockers.

@@ -143,3 +143,9 @@ id = "uXPbc5ymwiEfJjnvgLKpX"
 uri = "file://docs/phase6.3-ai-optimisation.md"
 type = "text"
 title = "Phase 6.3 — AI Optimisation Deliverables"
+
+[[outputs]]
+id = "Lj9aY_6BBduFybrcniUbs"
+uri = "file://docs/phase6.4-risk-optimisation.md"
+type = "text"
+title = "Phase 6.4 — Risk Optimisation Deliverables"

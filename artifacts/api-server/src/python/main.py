@@ -2516,6 +2516,34 @@ def main():
             from ai_optimisation.shared_services import export_full_json as _aio_json
             result = {"json": _aio_json()}
 
+        elif command == "risk_optimisation_summary":
+            from risk_optimisation.api import cmd_summary as _ro_summary
+            result = _ro_summary()
+
+        elif command == "risk_optimisation_capital":
+            from risk_optimisation.api import cmd_capital as _ro_capital
+            result = _ro_capital()
+
+        elif command == "risk_optimisation_drawdown":
+            from risk_optimisation.api import cmd_drawdown as _ro_drawdown
+            result = _ro_drawdown()
+
+        elif command == "risk_optimisation_stress":
+            from risk_optimisation.api import cmd_stress as _ro_stress
+            result = _ro_stress()
+
+        elif command == "risk_optimisation_recommendations":
+            from risk_optimisation.api import cmd_recommendations as _ro_recs
+            result = _ro_recs()
+
+        elif command == "risk_optimisation_export_csv":
+            from risk_optimisation.shared_services import export_summary_csv as _ro_csv
+            result = {"csv": _ro_csv()}
+
+        elif command == "risk_optimisation_export_json":
+            from risk_optimisation.shared_services import export_full_json as _ro_json
+            result = {"json": _ro_json()}
+
         else:
             error_msg = f"Unknown command: {command}"
 
