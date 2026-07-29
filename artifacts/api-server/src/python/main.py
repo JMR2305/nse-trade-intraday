@@ -2440,6 +2440,30 @@ def main():
             from preopen_validation_engine import run_validation
             result = run_validation()
 
+        elif command == "validation_session":
+            from paper_trading_validation.api import cmd_session as _val_session
+            result = _val_session()
+
+        elif command == "validation_history":
+            from paper_trading_validation.api import cmd_history as _val_history
+            result = _val_history()
+
+        elif command == "validation_quality":
+            from paper_trading_validation.api import cmd_quality as _val_quality
+            result = _val_quality()
+
+        elif command == "validation_statistics":
+            from paper_trading_validation.api import cmd_statistics as _val_statistics
+            result = _val_statistics()
+
+        elif command == "validation_export_csv":
+            from paper_trading_validation.shared_services import export_records_csv as _val_csv
+            result = {"csv": _val_csv()}
+
+        elif command == "validation_export_json":
+            from paper_trading_validation.shared_services import export_records_json as _val_json
+            result = {"json": _val_json()}
+
         else:
             error_msg = f"Unknown command: {command}"
 

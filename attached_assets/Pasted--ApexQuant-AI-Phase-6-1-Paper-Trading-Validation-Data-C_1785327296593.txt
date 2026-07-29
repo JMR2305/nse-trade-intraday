@@ -1,0 +1,309 @@
+# ApexQuant AI – Phase 6.1
+Paper Trading Validation & Data Collection Framework
+
+OBJECTIVE
+
+Build a comprehensive validation framework that records every paper-trading decision and measures overall system performance during real market sessions.
+
+This phase does NOT introduce new trading logic.
+
+The goal is to collect high-quality historical data that will be used for optimisation in later phases.
+
+--------------------------------------------------
+
+IMPORTANT ARCHITECTURE REQUIREMENT
+
+This phase MUST reuse existing modules.
+
+Reuse:
+
+• Phase 5C – Signal Validation
+• Phase 5D.1 – Execution Quality
+• Phase 5D.2 – Portfolio Performance
+• Phase 5D.3 – Strategy Intelligence
+• Phase 5D.4 – AI Performance
+• Phase 5D.5 – Executive Dashboard
+
+Do NOT duplicate analytics.
+
+--------------------------------------------------
+
+FEATURE FLAG
+
+PAPER_VALIDATION_ENABLED=true
+
+When disabled:
+
+No validation collector runs.
+
+--------------------------------------------------
+
+OBJECTIVE OF DATA COLLECTION
+
+Record every completed paper trade together with the complete decision context.
+
+Every trade must become a permanent validation record.
+
+--------------------------------------------------
+
+CAPTURE FOR EVERY TRADE
+
+Trade ID
+
+Timestamp
+
+Symbol
+
+Strategy
+
+Market Regime
+
+Sector
+
+Entry Price
+
+Exit Price
+
+Quantity
+
+Holding Time
+
+P&L
+
+Execution Quality Score
+
+AI Confidence
+
+AI Recommendation
+
+Signal Validation Status
+
+Risk Score
+
+Portfolio State
+
+Executive Score
+
+Reason for Exit
+
+(Target / Stop Loss / Time Exit / Manual / Risk Rule)
+
+--------------------------------------------------
+
+SESSION METADATA
+
+Record:
+
+Trading Date
+
+Session Start
+
+Session End
+
+Market Status
+
+Pre-Open Summary
+
+Market Breadth
+
+NIFTY
+
+BANK NIFTY
+
+INDIA VIX
+
+Leading Sector
+
+Top Gap
+
+--------------------------------------------------
+
+VALIDATION METRICS
+
+Calculate:
+
+Daily Win Rate
+
+Daily Net P&L
+
+Daily Drawdown
+
+Average Holding Time
+
+Average Slippage
+
+Average AI Confidence
+
+Average Execution Score
+
+Average Executive Score
+
+--------------------------------------------------
+
+LONG-TERM METRICS
+
+Weekly
+
+Monthly
+
+Rolling 30 Days
+
+Rolling 90 Days
+
+Rolling 180 Days
+
+--------------------------------------------------
+
+DATA QUALITY CHECKS
+
+Verify:
+
+Missing values
+
+Duplicate trades
+
+Invalid timestamps
+
+Negative quantities
+
+Impossible prices
+
+Incomplete AI data
+
+Corrupted records
+
+Generate data-quality reports.
+
+--------------------------------------------------
+
+VALIDATION DASHBOARD
+
+Create:
+
+Paper Trading Validation
+
+Sections
+
+Today's Session
+
+Historical Performance
+
+Data Quality
+
+Trade Timeline
+
+Validation Statistics
+
+Growth of Dataset
+
+--------------------------------------------------
+
+API ENDPOINTS
+
+GET /api/validation/session
+
+GET /api/validation/history
+
+GET /api/validation/quality
+
+GET /api/validation/statistics
+
+--------------------------------------------------
+
+EXPORT
+
+Allow export as:
+
+CSV
+
+JSON
+
+Future-ready for PDF
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Collection must NOT slow paper trading.
+
+Background collection only.
+
+--------------------------------------------------
+
+TESTING
+
+Verify:
+
+Zero trades
+
+Single trade
+
+Multiple trades
+
+Corrupted record detection
+
+Duplicate detection
+
+Export
+
+Dashboard
+
+Feature flag
+
+Restart persistence
+
+--------------------------------------------------
+
+SAFETY
+
+Read-only.
+
+Advisory-only.
+
+No modifications to:
+
+Trading engine
+
+Orders
+
+Strategies
+
+Signals
+
+Portfolio
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide:
+
+1. Files created
+
+2. Files modified
+
+3. APIs
+
+4. Dashboard screenshots
+
+5. Test count
+
+6. Test results
+
+7. Performance benchmarks
+
+8. Known limitations
+
+9. Data schema
+
+10. Storage growth estimate
+
+Final Verdict
+
+PHASE 6.1 COMPLETE
+
+or
+
+PHASE 6.1 NOT COMPLETE
+
+with blockers.
