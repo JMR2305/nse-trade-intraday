@@ -2665,6 +2665,32 @@ def main():
             from macro_intelligence.api import cmd_export_json as _mac_json
             result = _mac_json()
 
+        # ── Phase 7.4 — Explainable AI & Decision Intelligence ────────────────
+        elif command == "explainable_ai_summary":
+            from explainable_ai.api import cmd_summary as _xai_summary
+            result = _xai_summary()
+        elif command == "explainable_ai_decision":
+            from explainable_ai.api import cmd_decision as _xai_decision
+            result = _xai_decision()
+        elif command == "explainable_ai_contributions":
+            from explainable_ai.api import cmd_contributions as _xai_contributions
+            result = _xai_contributions()
+        elif command == "explainable_ai_confidence":
+            from explainable_ai.api import cmd_confidence as _xai_confidence
+            result = _xai_confidence()
+        elif command == "explainable_ai_scenarios":
+            from explainable_ai.api import cmd_scenarios as _xai_scenarios
+            result = _xai_scenarios()
+        elif command == "explainable_ai_history":
+            from explainable_ai.api import cmd_history as _xai_history
+            result = _xai_history()
+        elif command == "explainable_ai_snapshot":
+            from explainable_ai.api import cmd_snapshot as _xai_snapshot
+            result = _xai_snapshot()
+        elif command == "explainable_ai_export":
+            from explainable_ai.api import cmd_export as _xai_export
+            result = _xai_export()
+
         else:
             error_msg = f"Unknown command: {command}"
 

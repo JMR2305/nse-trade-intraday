@@ -64,6 +64,7 @@ import {
   Sparkles,
   Rocket,
   CalendarDays,
+  Lightbulb,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
@@ -121,6 +122,7 @@ const navGroups = [
       { href: "/market-intelligence",     label: "Market Intelligence",     icon: Globe2      },
       { href: "/event-intelligence",      label: "Event Intelligence",       icon: CalendarDays },
       { href: "/macro-intelligence",      label: "Macro Intelligence",       icon: Globe       },
+      { href: "/explainable-ai",          label: "Explainable AI",           icon: Lightbulb   },
       { href: "/live-readiness",          label: "Live Readiness",          icon: Rocket      },
       { href: "/ai-performance",         label: "AI Performance",         icon: Brain      },
       { href: "/performance-analytics", label: "Performance Analytics", icon: BarChart3 },

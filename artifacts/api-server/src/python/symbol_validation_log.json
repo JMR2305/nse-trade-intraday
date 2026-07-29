@@ -1,355 +1,5 @@
 [
  {
-  "ts": "2026-07-25T23:03:23.826419+00:00",
-  "input": "HDFCBANK",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-25T23:03:24.026195+00:00",
-  "input": "ICICIBANK",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-25T23:03:24.258880+00:00",
-  "input": "BAJFINANCE",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-25T23:03:24.439198+00:00",
-  "input": "HDFC",
-  "context": "portfolio",
-  "accepted": false,
-  "reason": "'HDFC' is outside the approved NIFTY 50 research universe"
- },
- {
-  "ts": "2026-07-25T23:03:24.465309+00:00",
-  "input": "MARUTI",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T08:51:36.419359+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T08:51:38.523623+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T08:51:38.526166+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T08:51:38.537578+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:00:25.314448+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:00:34.404571+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:00:34.408769+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:00:34.638965+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:05:41.579242+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:05:41.615861+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:05:41.620556+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:05:42.913416+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:09:12.670433+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:09:12.706564+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:09:12.708955+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:09:14.260649+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:10:06.729965+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:10:06.785323+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:10:06.790347+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:10:08.076331+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:13:45.459470+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:13:46.737770+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:13:46.740617+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:13:46.925787+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:14:23.814036+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:14:24.703951+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:14:24.710740+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:14:24.785559+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:16:08.819391+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:18:14.338395+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:18:15.615548+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:18:15.617876+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T09:18:15.811727+00:00",
-  "input": "TCS",
-  "context": "portfolio",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T16:52:00.157394+00:00",
-  "input": "TCS",
-  "context": "scan",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T16:52:00.167068+00:00",
-  "input": "INFY",
-  "context": "scan",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T16:52:00.174877+00:00",
-  "input": "WIPRO",
-  "context": "scan",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T16:52:00.176815+00:00",
-  "input": "HCLTECH",
-  "context": "scan",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T16:52:00.178673+00:00",
-  "input": "TECHM",
-  "context": "scan",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T16:52:00.193970+00:00",
-  "input": "LTIM",
-  "context": "scan",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T16:52:00.207376+00:00",
-  "input": "HDFCBANK",
-  "context": "scan",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T16:52:00.220090+00:00",
-  "input": "ICICIBANK",
-  "context": "scan",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T16:52:00.233057+00:00",
-  "input": "SBIN",
-  "context": "scan",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T16:52:00.248969+00:00",
-  "input": "AXISBANK",
-  "context": "scan",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T16:52:00.266058+00:00",
-  "input": "KOTAKBANK",
-  "context": "scan",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T16:52:00.276717+00:00",
-  "input": "INDUSINDBK",
-  "context": "scan",
-  "accepted": true,
-  "reason": "ok"
- },
- {
   "ts": "2026-07-26T16:52:00.282114+00:00",
   "input": "BAJFINANCE",
   "context": "scan",
@@ -3494,6 +3144,356 @@
  },
  {
   "ts": "2026-07-29T17:28:19.771365+00:00",
+  "input": "BHARTIARTL",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.749398+00:00",
+  "input": "TCS",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.756599+00:00",
+  "input": "INFY",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.760034+00:00",
+  "input": "WIPRO",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.762892+00:00",
+  "input": "HCLTECH",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.765833+00:00",
+  "input": "TECHM",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.768700+00:00",
+  "input": "LTIM",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.771850+00:00",
+  "input": "HDFCBANK",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.774780+00:00",
+  "input": "ICICIBANK",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.777652+00:00",
+  "input": "SBIN",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.780526+00:00",
+  "input": "AXISBANK",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.783494+00:00",
+  "input": "KOTAKBANK",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.786270+00:00",
+  "input": "INDUSINDBK",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.788870+00:00",
+  "input": "BAJFINANCE",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.791770+00:00",
+  "input": "BAJAJFINSV",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.794252+00:00",
+  "input": "HDFCLIFE",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.796969+00:00",
+  "input": "SBILIFE",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.799454+00:00",
+  "input": "SHRIRAMFIN",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.801847+00:00",
+  "input": "RELIANCE",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.804414+00:00",
+  "input": "ONGC",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.807383+00:00",
+  "input": "POWERGRID",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.810058+00:00",
+  "input": "NTPC",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.812923+00:00",
+  "input": "COALINDIA",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.815887+00:00",
+  "input": "LT",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.818806+00:00",
+  "input": "ULTRACEMCO",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.821773+00:00",
+  "input": "GRASIM",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.824701+00:00",
+  "input": "ADANIPORTS",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.827657+00:00",
+  "input": "MARUTI",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.830586+00:00",
+  "input": "TATAMOTORS",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.833692+00:00",
+  "input": "BAJAJ-AUTO",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.836619+00:00",
+  "input": "EICHERMOT",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.839590+00:00",
+  "input": "M&M",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.842452+00:00",
+  "input": "HEROMOTOCO",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.845364+00:00",
+  "input": "HINDUNILVR",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.848190+00:00",
+  "input": "NESTLEIND",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.851161+00:00",
+  "input": "BRITANNIA",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.854121+00:00",
+  "input": "ITC",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.857051+00:00",
+  "input": "TATACONSUM",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.859923+00:00",
+  "input": "SUNPHARMA",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.862860+00:00",
+  "input": "CIPLA",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.865872+00:00",
+  "input": "DRREDDY",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.868812+00:00",
+  "input": "DIVISLAB",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.871778+00:00",
+  "input": "APOLLOHOSP",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.874685+00:00",
+  "input": "TATASTEEL",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.877564+00:00",
+  "input": "HINDALCO",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.880564+00:00",
+  "input": "JSWSTEEL",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.883358+00:00",
+  "input": "ADANIENT",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.886197+00:00",
+  "input": "TITAN",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.889505+00:00",
+  "input": "ASIANPAINT",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.892447+00:00",
+  "input": "TRENT",
+  "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-07-29T21:16:35.895338+00:00",
   "input": "BHARTIARTL",
   "context": "scan",
   "accepted": true,
