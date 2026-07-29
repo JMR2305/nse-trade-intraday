@@ -1,0 +1,507 @@
+OBJECTIVE
+
+Build a comprehensive Research, Simulation & Innovation Lab for ApexQuant AI.
+
+This module serves as the experimentation environment for validating new ideas, comparing strategies, simulating market conditions, and researching improvements before they are considered for production.
+
+This module MUST remain completely READ-ONLY and ADVISORY-ONLY.
+
+It MUST NEVER
+
+• Place orders
+
+• Execute trades
+
+• Modify AI models
+
+• Retrain production models
+
+• Change strategies
+
+• Modify portfolio
+
+• Modify risk parameters
+
+• Override production decisions
+
+--------------------------------------------------
+
+ARCHITECTURE
+
+Reuse existing modules.
+
+Integrate with
+
+• Phase 7.1 Market Intelligence Hub
+
+• Phase 7.2 Event Intelligence Hub
+
+• Phase 7.3 Economic & Macro Intelligence Hub
+
+• Phase 7.4 Explainable AI Hub
+
+• Phase 6.x AI Optimisation
+
+• Phase 6.x Risk Optimisation
+
+• Executive Dashboard
+
+Reuse shared snapshots.
+
+Never duplicate calculations.
+
+--------------------------------------------------
+
+FEATURE FLAG
+
+RESEARCH_LAB_ENABLED=true
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Create one unified Research Lab providing
+
+Strategy Research
+
+Scenario Simulation
+
+Historical Replay
+
+Parameter Experiments
+
+Market Regime Comparison
+
+Risk Simulation
+
+Performance Benchmarking
+
+Innovation Workspace
+
+Research Reports
+
+--------------------------------------------------
+
+STRATEGY RESEARCH
+
+Allow comparison of
+
+Trend Following
+
+Mean Reversion
+
+Momentum
+
+Breakout
+
+Range Trading
+
+Volatility Based
+
+Sector Rotation
+
+Custom Research Strategies
+
+Display
+
+Performance
+
+Consistency
+
+Drawdown
+
+Win Rate
+
+Risk Metrics
+
+--------------------------------------------------
+
+SCENARIO SIMULATION
+
+Simulate
+
+Bull Market
+
+Bear Market
+
+Sideways Market
+
+High Volatility
+
+Low Volatility
+
+Gap Opening
+
+News Driven Market
+
+Macro Shock
+
+Generate advisory-only outcomes.
+
+--------------------------------------------------
+
+HISTORICAL REPLAY
+
+Replay historical market periods.
+
+Allow operators to review
+
+Market Intelligence
+
+Event Intelligence
+
+Macro Intelligence
+
+AI Explanation
+
+Risk Assessment
+
+Historical outcomes
+
+No production impact.
+
+--------------------------------------------------
+
+PARAMETER EXPERIMENTS
+
+Allow testing of
+
+Indicator thresholds
+
+Risk thresholds
+
+Confidence thresholds
+
+Position sizing assumptions
+
+Market filters
+
+Ranking weights
+
+Simulation only.
+
+--------------------------------------------------
+
+MARKET REGIME COMPARISON
+
+Compare performance across
+
+Bull
+
+Bear
+
+Range
+
+Volatile
+
+Low Volatility
+
+Transition regimes
+
+--------------------------------------------------
+
+RISK SIMULATION
+
+Estimate
+
+Expected Drawdown
+
+Capital Usage
+
+Risk Distribution
+
+Reward Distribution
+
+Volatility Exposure
+
+Stress Conditions
+
+--------------------------------------------------
+
+PERFORMANCE BENCHMARKING
+
+Compare
+
+Research Strategy
+
+Baseline Strategy
+
+Market Benchmark
+
+Paper Trading Results
+
+Show
+
+Relative Performance
+
+Risk Adjusted Return
+
+Consistency
+
+--------------------------------------------------
+
+INNOVATION WORKSPACE
+
+Maintain
+
+Research Notes
+
+Experiment Metadata
+
+Simulation Results
+
+Version History
+
+Experiment Status
+
+Research Tags
+
+--------------------------------------------------
+
+RESEARCH REPORTS
+
+Generate
+
+Executive Summary
+
+Experiment Objectives
+
+Methodology
+
+Key Findings
+
+Performance Summary
+
+Risk Analysis
+
+Limitations
+
+Recommendations
+
+--------------------------------------------------
+
+RESEARCH SCORE
+
+Generate
+
+0–100
+
+Grade
+
+A+
+
+A
+
+B
+
+C
+
+D
+
+Trend
+
+Improving
+
+Stable
+
+Weakening
+
+--------------------------------------------------
+
+DASHBOARD
+
+Create sections
+
+Research Overview
+
+Strategy Comparison
+
+Scenario Simulator
+
+Historical Replay
+
+Parameter Experiments
+
+Risk Simulation
+
+Performance Benchmark
+
+Innovation Workspace
+
+Research Reports
+
+--------------------------------------------------
+
+API
+
+GET /api/research-lab/summary
+
+GET /api/research-lab/strategies
+
+GET /api/research-lab/simulations
+
+GET /api/research-lab/replay
+
+GET /api/research-lab/benchmark
+
+GET /api/research-lab/reports
+
+--------------------------------------------------
+
+EXPORT
+
+CSV
+
+JSON
+
+Future PDF
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Background execution only.
+
+Reuse cached snapshots.
+
+Reuse historical datasets.
+
+No blocking operations.
+
+--------------------------------------------------
+
+TESTING
+
+Verify
+
+Feature flag
+
+Strategy comparison
+
+Scenario simulation
+
+Historical replay
+
+Parameter experiments
+
+Benchmark generation
+
+Research reports
+
+Dashboard
+
+API
+
+Shared services
+
+Exports
+
+--------------------------------------------------
+
+SAFETY
+
+Read-only
+
+Advisory-only
+
+Never modify
+
+Orders
+
+Strategies
+
+Portfolio
+
+Risk Engine
+
+AI Models
+
+Execution Engine
+
+Signals
+
+--------------------------------------------------
+
+GITHUB INTEGRATION REQUIREMENTS
+
+Incorporate concepts inspired by previously reviewed GitHub projects where appropriate.
+
+Include
+
+• Strategy comparison framework
+
+• Simulation engine concepts
+
+• Historical replay architecture
+
+• Research experiment tracking
+
+• Benchmark analytics
+
+• Transparent reporting
+
+Do NOT copy external implementations.
+
+Maintain ApexQuant AI modular architecture.
+
+--------------------------------------------------
+
+FUTURE INTEGRATION
+
+Design this as the foundation for future research capabilities including
+
+• Walk-forward optimisation
+
+• Monte Carlo analysis
+
+• Portfolio optimisation
+
+• Advanced statistical validation
+
+• Machine learning experiment tracking
+
+• Future production candidate evaluation
+
+without requiring architectural redesign.
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide
+
+1. Files created
+
+2. Files modified
+
+3. Shared services reused
+
+4. APIs
+
+5. Dashboard
+
+6. Test count
+
+7. Test results
+
+8. Performance benchmarks
+
+9. Known limitations
+
+10. Research methodology
+
+11. GitHub-inspired enhancements
+
+12. Explain how future research modules integrate without architecture changes.
+
+13. Confirm the module remains READ-ONLY and ADVISORY-ONLY.
+
+Final Verdict
+
+PHASE 7.5 COMPLETE
+
+or
+
+PHASE 7.5 NOT COMPLETE
+
+with exact blockers.

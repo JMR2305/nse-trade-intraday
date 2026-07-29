@@ -2691,6 +2691,32 @@ def main():
             from explainable_ai.api import cmd_export as _xai_export
             result = _xai_export()
 
+        # ── Phase 7.5 — Research, Simulation & Innovation Lab ─────────────────
+        elif command == "research_lab_summary":
+            from research_lab.api import cmd_summary as _rl_summary
+            result = _rl_summary()
+        elif command == "research_lab_strategies":
+            from research_lab.api import cmd_strategies as _rl_strategies
+            result = _rl_strategies()
+        elif command == "research_lab_simulations":
+            from research_lab.api import cmd_simulations as _rl_simulations
+            result = _rl_simulations()
+        elif command == "research_lab_replay":
+            from research_lab.api import cmd_replay as _rl_replay
+            result = _rl_replay()
+        elif command == "research_lab_benchmark":
+            from research_lab.api import cmd_benchmark as _rl_benchmark
+            result = _rl_benchmark()
+        elif command == "research_lab_reports":
+            from research_lab.api import cmd_reports as _rl_reports
+            result = _rl_reports()
+        elif command == "research_lab_snapshot":
+            from research_lab.api import cmd_snapshot as _rl_snapshot
+            result = _rl_snapshot()
+        elif command == "research_lab_export":
+            from research_lab.api import cmd_export as _rl_export
+            result = _rl_export()
+
         else:
             error_msg = f"Unknown command: {command}"
 

@@ -35,6 +35,7 @@ import marketIntelligenceRouter from "./market-intelligence";
 import eventIntelligenceRouter from "./event-intelligence";
 import macroIntelligenceRouter from "./macro-intelligence";
 import explainableAiRouter from "./explainable-ai";
+import researchLabRouter   from "./research-lab";
 
 const router: IRouter = Router();
 
@@ -72,6 +73,7 @@ router.use(marketIntelligenceRouter);
 router.use(eventIntelligenceRouter);
 router.use(macroIntelligenceRouter);
 router.use(explainableAiRouter);
+router.use(researchLabRouter);
 router.use(tradingRouter);
 router.use(downloadRouter);
 
