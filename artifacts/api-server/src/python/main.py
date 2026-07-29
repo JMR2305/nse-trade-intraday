@@ -2312,6 +2312,28 @@ def main():
             date   = args[1] if len(args) > 1 else None
             result = _eq_fills(date)
 
+        # ── Phase 5D.2: Portfolio Performance Intelligence ─────────────────────
+        elif command == "performance_summary":
+            from portfolio_performance.api import get_summary as _pp_summary
+            result = _pp_summary()
+
+        elif command == "performance_equity":
+            from portfolio_performance.api import get_equity as _pp_equity
+            period = args[1] if len(args) > 1 else "daily"
+            result = _pp_equity(period)
+
+        elif command == "performance_drawdown":
+            from portfolio_performance.api import get_drawdown as _pp_drawdown
+            result = _pp_drawdown()
+
+        elif command == "performance_statistics":
+            from portfolio_performance.api import get_statistics as _pp_statistics
+            result = _pp_statistics()
+
+        elif command == "performance_portfolio":
+            from portfolio_performance.api import get_portfolio as _pp_portfolio
+            result = _pp_portfolio()
+
         elif command == "preopen_validation_status":
             from preopen_validation_engine import get_status
             result = get_status()

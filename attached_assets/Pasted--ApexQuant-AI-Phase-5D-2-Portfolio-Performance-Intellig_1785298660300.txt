@@ -1,0 +1,329 @@
+# ApexQuant AI – Phase 5D.2
+Portfolio Performance Intelligence
+
+OBJECTIVE
+
+Build a comprehensive Portfolio Performance Intelligence module for the Intraday Paper Trading platform.
+
+This module is READ-ONLY.
+
+It must NEVER modify:
+
+- Trading engine
+- Paper trading engine
+- Orders
+- Portfolio
+- Risk engine
+- Strategies
+- Signals
+
+It will only analyse existing portfolio and trade data.
+
+--------------------------------------------------
+
+FEATURE FLAG
+
+PORTFOLIO_PERFORMANCE_ENABLED=true
+
+When disabled:
+
+- No analytics processing
+- APIs return:
+  {
+    "status": "DISABLED"
+  }
+
+--------------------------------------------------
+
+NEW MODULE
+
+portfolio_performance/
+
+Suggested files:
+
+portfolio_performance/
+├── performance_engine.py
+├── performance_models.py
+├── equity_curve.py
+├── drawdown.py
+├── statistics.py
+├── reports.py
+└── api.py
+
+--------------------------------------------------
+
+DATA SOURCES
+
+Reuse existing data.
+
+Read ONLY from:
+
+- Completed paper trades
+- Portfolio history
+- Daily P&L
+- Closed positions
+- Open positions
+- Trade journal
+- Execution Quality module (5D.1)
+
+Do not duplicate data.
+
+--------------------------------------------------
+
+PERFORMANCE METRICS
+
+Calculate:
+
+• Total Portfolio Value
+
+• Cash Available
+
+• Invested Capital
+
+• Unrealised P&L
+
+• Realised P&L
+
+• Total Net P&L
+
+• Today's P&L
+
+• Weekly P&L
+
+• Monthly P&L
+
+• Lifetime P&L
+
+--------------------------------------------------
+
+TRADE STATISTICS
+
+Calculate:
+
+• Total Trades
+
+• Winning Trades
+
+• Losing Trades
+
+• Win Rate
+
+• Loss Rate
+
+• Average Winner
+
+• Average Loser
+
+• Largest Profit
+
+• Largest Loss
+
+• Average Holding Time
+
+--------------------------------------------------
+
+RISK METRICS
+
+Calculate:
+
+• Maximum Drawdown
+
+• Current Drawdown
+
+• Recovery %
+
+• Profit Factor
+
+• Expectancy
+
+• Risk / Reward Ratio
+
+• Average R Multiple
+
+--------------------------------------------------
+
+PORTFOLIO ANALYTICS
+
+Calculate:
+
+• Portfolio Utilisation
+
+• Sector Allocation
+
+• Capital Allocation
+
+• Exposure by Symbol
+
+• Exposure by Sector
+
+• Position Concentration
+
+--------------------------------------------------
+
+EQUITY CURVE
+
+Generate:
+
+• Daily Equity Curve
+
+• Weekly Equity Curve
+
+• Monthly Equity Curve
+
+Support historical replay.
+
+--------------------------------------------------
+
+PERFORMANCE DASHBOARD
+
+Create a new dashboard:
+
+Portfolio Performance
+
+Summary Cards
+
+• Portfolio Value
+
+• Today's P&L
+
+• Net P&L
+
+• Win Rate
+
+• Profit Factor
+
+• Max Drawdown
+
+Charts
+
+• Equity Curve
+
+• Daily P&L
+
+• Monthly P&L
+
+• Drawdown Curve
+
+• Sector Allocation
+
+Tables
+
+Performance Summary
+
+Strategy Contribution
+
+Top Winners
+
+Top Losers
+
+--------------------------------------------------
+
+API ENDPOINTS
+
+Create read-only endpoints.
+
+Examples:
+
+GET /api/performance/summary
+
+GET /api/performance/equity
+
+GET /api/performance/drawdown
+
+GET /api/performance/statistics
+
+GET /api/performance/portfolio
+
+--------------------------------------------------
+
+PERFORMANCE TARGET
+
+Analytics generation:
+
+<100 ms
+
+Dashboard load:
+
+<1 second
+
+--------------------------------------------------
+
+TESTING
+
+Verify:
+
+✓ Zero trades
+
+✓ Single trade
+
+✓ Multiple trades
+
+✓ Winning portfolio
+
+✓ Losing portfolio
+
+✓ Mixed portfolio
+
+✓ Drawdown calculations
+
+✓ Equity curve calculations
+
+✓ Disabled feature flag
+
+✓ API responses
+
+✓ Dashboard rendering
+
+✓ Restart persistence
+
+--------------------------------------------------
+
+SAFETY
+
+Must remain:
+
+Read-only
+
+Advisory-only
+
+Paper trading only
+
+No order modifications
+
+No portfolio mutations
+
+No signal changes
+
+No strategy changes
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide:
+
+1. Files created
+
+2. Files modified
+
+3. APIs added
+
+4. Dashboard screenshots
+
+5. Test count
+
+6. Test results
+
+7. Performance benchmarks
+
+8. Known limitations
+
+Final verdict:
+
+PHASE 5D.2 COMPLETE
+
+or
+
+PHASE 5D.2 NOT COMPLETE
+
+with exact blockers.
