@@ -18,6 +18,7 @@ import {
   ChevronRight,
   AlertTriangle,
   Info,
+  Zap,
 } from "lucide-react";
 
 const REC_STYLE: Record<string, string> = {
@@ -35,6 +36,151 @@ const REC_LABEL: Record<string, string> = {
   WATCH:      "WATCH",
   AVOID:      "AVOID",
 };
+
+// ── Phase 6.2 strategy × regime advisory panel ────────────────────────────────
+//
+// Maps the live P13 regime to Phase 6.2 regime labels, then finds the
+// strategy with the best win-rate in that regime from /optimisation/strategies.
+// READ-ONLY. ADVISORY-ONLY. No signal, order, or risk-engine state is touched.
+
+// Maps P13 regime labels AND common trade-decisions regime strings → P6.2 canonical labels.
+// P13: TRENDING_UP / RANGE_BOUND / TRENDING_DOWN / VOLATILE / CRISIS
+// trade-decisions: Bullish / Bearish / Sideways / Volatile / Neutral / Trending …
+const P13_TO_P62: Record<string, string> = {
+  // Phase 13 uppercase
+  TRENDING_UP:   "Bull",
+  RANGE_BOUND:   "Sideways",
+  TRENDING_DOWN: "Bear",
+  VOLATILE:      "High Volatility",
+  CRISIS:        "Bear",
+  // Trade-decisions string variants
+  Bullish:       "Bull",
+  Bearish:       "Bear",
+  Neutral:       "Sideways",
+  Ranging:       "Sideways",
+  Trending:      "Trending",
+  "High Volatility": "High Volatility",
+  "Low Volatility":  "Low Volatility",
+};
+
+// Fuzzy fallback: substring match on lowercase
+function resolveP62Regime(raw?: string): string | null {
+  if (!raw) return null;
+  const exact = P13_TO_P62[raw];
+  if (exact) return exact;
+  const lo = raw.toLowerCase();
+  if (lo.includes("bull"))    return "Bull";
+  if (lo.includes("bear"))    return "Bear";
+  if (lo.includes("sideways") || lo.includes("range") || lo.includes("neutral")) return "Sideways";
+  if (lo.includes("high vol") || lo.includes("volatile")) return "High Volatility";
+  if (lo.includes("low vol") || lo.includes("calm"))      return "Low Volatility";
+  if (lo.includes("trend"))   return "Trending";
+  if (lo.includes("gap"))     return "Gap Days";
+  if (lo.includes("expiry"))  return "Expiry Days";
+  // Unknown — pass through cleaned up
+  return raw.replace(/_/g, " ");
+}
+
+function StrategyRegimeAdvisoryPanel({ currentRegime }: { currentRegime?: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["opt-strategies-brief"],
+    queryFn: () => apiJson<any>("/optimisation/strategies"),
+    staleTime: 180_000,
+    refetchInterval: 180_000,
+  });
+
+  // Stay invisible while loading or if the feature is disabled / errored
+  if (isLoading) return null;
+  if (!data || data.status === "DISABLED" || data.status === "ERROR") return null;
+
+  const strategies: any[] = data.strategies ?? [];
+  if (!strategies.length) return null;
+
+  // Map current regime string → P6.2 canonical label (best-effort)
+  const p62Regime = resolveP62Regime(currentRegime);
+
+  // Find strategy with highest win-rate for the current regime (≥2 trades in regime)
+  let bestStrategy: any = null;
+  let regimeWinRate: number | null = null;
+
+  if (p62Regime) {
+    let topWR = -1;
+    for (const s of strategies) {
+      const rb = (s.regime_breakdown ?? []).find(
+        (r: any) => r.regime.toLowerCase() === p62Regime.toLowerCase(),
+      );
+      if (rb && rb.trades >= 2 && rb.win_rate > topWR) {
+        bestStrategy = s;
+        regimeWinRate = rb.win_rate;
+        topWR = rb.win_rate;
+      }
+    }
+  }
+
+  // Fallback: top-ranked strategy overall (health score)
+  const fallback = !bestStrategy;
+  if (fallback) {
+    bestStrategy = strategies[0];
+    regimeWinRate = bestStrategy?.win_rate ?? null;
+  }
+
+  if (!bestStrategy) return null;
+
+  const wrPct = regimeWinRate !== null ? (regimeWinRate * 100).toFixed(0) : "—";
+  const regimeLabel = p62Regime ?? "all regimes";
+  const scopeNote = fallback
+    ? `(no regime history yet — showing top strategy overall)`
+    : `in ${regimeLabel}`;
+
+  const GRADE_COLOR: Record<string, string> = {
+    "A+": "text-emerald-400",
+    "A":  "text-emerald-400",
+    "B":  "text-sky-400",
+    "C":  "text-amber-400",
+    "D":  "text-red-400",
+  };
+  const gradeColor = GRADE_COLOR[bestStrategy.grade ?? ""] ?? "text-zinc-300";
+
+  return (
+    <div
+      className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded border border-sky-800/50 bg-sky-950/20 px-3 py-2 text-[11px] font-mono"
+      data-testid="panel-strategy-regime-advisory"
+    >
+      <Zap className="h-3.5 w-3.5 text-sky-400 shrink-0" />
+      <span className="text-zinc-400 uppercase tracking-wide font-semibold">Strategy Advisory</span>
+      <span className="text-zinc-600">·</span>
+      {currentRegime && (
+        <>
+          <span className="text-zinc-500">Current regime:</span>
+          <span className="text-sky-300 font-semibold">{currentRegime.replace(/_/g, " ")}</span>
+          <span className="text-zinc-600">·</span>
+        </>
+      )}
+      <span className="text-zinc-500">Best strategy {scopeNote}:</span>
+      <span className="text-white font-bold">{bestStrategy.strategy}</span>
+      <span className={`font-bold ${gradeColor}`}>({bestStrategy.grade})</span>
+      <span className="text-zinc-400">
+        win rate{" "}
+        <span className={Number(wrPct) >= 50 ? "text-emerald-400" : "text-amber-400"}>
+          {wrPct}%
+        </span>
+      </span>
+      {bestStrategy.health_score != null && (
+        <span className="text-zinc-600">
+          · health{" "}
+          <span className="text-zinc-300">{Number(bestStrategy.health_score).toFixed(0)}/100</span>
+        </span>
+      )}
+      <a
+        href="/strategy-optimisation"
+        className="ml-auto text-sky-400 hover:text-sky-300 hover:underline shrink-0"
+      >
+        Full analysis →
+      </a>
+      <span className="text-zinc-600 italic shrink-0">advisory only</span>
+    </div>
+  );
+}
 
 // ── Phase 13 regime strip ──────────────────────────────────────────────────────
 
@@ -729,6 +875,8 @@ export default function TradeDecisions() {
         <SummaryCard label="Model Version" value={`v${data?.model_version ?? 0}`} />
         <SummaryCard label="Last Updated" value={updatedTime} />
       </div>
+
+      <StrategyRegimeAdvisoryPanel currentRegime={data?.market_regime} />
 
       {(data?.data_unavailable_count ?? 0) > 0 && (
         <div className="flex items-center gap-2 rounded-md border border-warn bg-warn-surface px-3 py-2 text-sm text-warn">
