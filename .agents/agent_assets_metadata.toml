@@ -149,3 +149,9 @@ id = "Lj9aY_6BBduFybrcniUbs"
 uri = "file://docs/phase6.4-risk-optimisation.md"
 type = "text"
 title = "Phase 6.4 — Risk Optimisation Deliverables"
+
+[[outputs]]
+id = "gId4EygSzyZ3V-zG-3mdH"
+uri = "file://docs/phase7.3-summary.md"
+type = "text"
+title = "Phase 7.3 — Economic & Macro Intelligence Hub Summary"
