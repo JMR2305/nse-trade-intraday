@@ -82,11 +82,17 @@ class PreOpenSnapshot:
 
     # Data quality
     data_source: str = "unknown"
+    provider_label: str = "Yahoo Finance (Fallback)"   # human-readable provider name
     data_freshness_seconds: int = 0
     source_status: str = ProviderState.UNAVAILABLE
     is_stale: bool = True
     validation_status: str = "UNVALIDATED"
     raw_payload_reference: Optional[str] = None
+
+    # True when the provider supplied real buy/sell auction quantities.
+    # False for Yahoo Finance and Kite (which don't expose the NSE auction book).
+    # Downstream code must check this flag before displaying imbalance values.
+    order_book_available: bool = False
 
     def to_dict(self) -> dict:
         return asdict(self)

@@ -66,13 +66,17 @@ class PreOpenDataProvider(ABC):
 
 class YFinancePreOpenProvider(PreOpenDataProvider):
     """
-    Uses yfinance to approximate pre-open data.
+    Fallback pre-open provider using yfinance.
 
     NOTE: yfinance does not expose NSE pre-open auction order books directly.
     This implementation fetches the previous close and uses it to construct
     a best-effort snapshot. Gap % is 0 until an actual open price is available.
     Provider state is set to DELAYED to reflect this limitation.
+    order_book_available is always False (no auction quantities from Yahoo).
     """
+
+    PROVIDER_ID    = "yfinance"
+    PROVIDER_LABEL = "Yahoo Finance (Fallback)"
 
     def __init__(self, symbols: Optional[List[str]] = None, timeout: int = 30):
         import config
@@ -138,19 +142,21 @@ class YFinancePreOpenProvider(PreOpenDataProvider):
             final_open_price=raw.get("open_price"),
             price_change=raw.get("price_change"),
             gap_percent=gap_pct,
-            total_buy_quantity=int(raw.get("buy_qty", 0)),
-            total_sell_quantity=int(raw.get("sell_qty", 0)),
+            total_buy_quantity=0,
+            total_sell_quantity=0,
             matched_quantity=0,
             final_executed_quantity=int(raw.get("volume", 0)),
             total_traded_value=float(raw.get("traded_value", 0)),
-            buy_sell_imbalance=int(raw.get("buy_qty", 0)) - int(raw.get("sell_qty", 0)),
+            buy_sell_imbalance=0,
             imbalance_percent=0.0,
             liquidity_score=0.0,
-            data_source="yfinance",
+            data_source=self.PROVIDER_ID,
+            provider_label=self.PROVIDER_LABEL,
             data_freshness_seconds=int(raw.get("age_seconds", 0)),
             source_status=ProviderState.DELAYED,
             is_stale=raw.get("age_seconds", 9999) > 300,
             validation_status="VALID",
+            order_book_available=False,  # Yahoo Finance does not supply auction quantities
         )
 
     def _fetch_one(self, symbol: str) -> Optional[dict]:
@@ -210,6 +216,9 @@ FIXTURE_SNAPSHOTS: List[Dict] = [
 class MockPreOpenProvider(PreOpenDataProvider):
     """Fixture-based provider for unit testing. No network calls."""
 
+    PROVIDER_ID    = "mock"
+    PROVIDER_LABEL = "Mock Data"
+
     def __init__(self, fixtures: Optional[List[dict]] = None,
                  state: str = ProviderState.LIVE,
                  fail: bool = False,
@@ -244,6 +253,8 @@ class MockPreOpenProvider(PreOpenDataProvider):
         buy_qty = int(raw.get("buy_qty", 0))
         sell_qty = int(raw.get("sell_qty", 0))
 
+        total_qty = buy_qty + sell_qty
+        imbalance_pct = round((buy_qty - sell_qty) / max(total_qty, 1) * 100, 4) if total_qty > 0 else 0.0
         return PreOpenSnapshot(
             snapshot_id=snap_id,
             trading_date=now[:10],
@@ -263,13 +274,15 @@ class MockPreOpenProvider(PreOpenDataProvider):
             final_executed_quantity=int(raw.get("volume", 0)),
             total_traded_value=float(raw.get("traded_value", 0)),
             buy_sell_imbalance=buy_qty - sell_qty,
-            imbalance_percent=0.0,
+            imbalance_percent=imbalance_pct,
             liquidity_score=0.0,
-            data_source="mock",
+            data_source=self.PROVIDER_ID,
+            provider_label=self.PROVIDER_LABEL,
             data_freshness_seconds=age,
             source_status=self.state if not is_stale else ProviderState.STALE,
             is_stale=is_stale,
             validation_status="VALID" if not is_stale else "STALE",
+            order_book_available=buy_qty > 0 or sell_qty > 0,
         )
 
     def fetch_symbol_snapshot(self, symbol: str) -> Optional[PreOpenSnapshot]:

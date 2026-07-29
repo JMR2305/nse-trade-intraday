@@ -52,14 +52,29 @@ def _today_ist() -> str:
     return (datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d")
 
 
-def _get_provider():
-    """Get the configured provider. Falls back to YFinance, then disabled."""
-    provider_name = os.environ.get("PREOPEN_PROVIDER", "yfinance").lower()
+def _get_provider(symbols=None):
+    """
+    Get the best available provider via the priority chain:
+      1. NSE Official  (full auction data: IEP, buy/sell qty, imbalance)
+      2. Zerodha Kite  (IEP + prev close; no order-book quantities)
+      3. Yahoo Finance (prev close + open; fallback only)
+
+    PREOPEN_PROVIDER env var can force a specific provider:
+      mock    — fixture data (unit tests only)
+      yfinance — Yahoo Finance only
+      auto    — priority chain (default)
+    """
+    provider_name = os.environ.get("PREOPEN_PROVIDER", "auto").lower()
     if provider_name == "mock":
         from preopen_provider import MockPreOpenProvider
         return MockPreOpenProvider()
-    from preopen_provider import YFinancePreOpenProvider
-    return YFinancePreOpenProvider()
+    if provider_name == "yfinance":
+        from preopen_provider import YFinancePreOpenProvider
+        return YFinancePreOpenProvider()
+    # Default: auto-select via priority chain (NSE → Kite → Yahoo)
+    from preopen_provider_manager import get_best_provider
+    provider, _label = get_best_provider()
+    return provider
 
 
 # ── Status ────────────────────────────────────────────────────────────────────
@@ -81,6 +96,7 @@ def get_status() -> dict:
             "trading_date":     today,
             "provider_status":  health.get("status", ProviderState.UNAVAILABLE),
             "provider_message": health.get("message", ""),
+            "provider_label":   health.get("provider", getattr(provider, "PROVIDER_LABEL", "Unknown")),
             "session":          session,
             "symbols_analysed": len(snaps),
             "valid_records":    sum(1 for s in snaps if not s.get("is_stale")),
@@ -204,6 +220,7 @@ def collect_snapshot(session_id: Optional[str] = None) -> dict:
             "valid_count": valid,
             "stale_count": stale,
             "provider_status": health.get("status"),
+            "provider_label": health.get("provider", getattr(provider, "PROVIDER_LABEL", "Unknown")),
             "label": "PAPER / ADVISORY ONLY",
         }
     except Exception as e:
@@ -224,6 +241,18 @@ def get_snapshot() -> dict:
     today = _today_ist()
     snaps = db.get_latest_snapshots(today)
     session = db.get_latest_session()
+    # Derive the active provider label from the stored snapshots (avoids an
+    # extra provider health-check on every poll).  Falls back to the current
+    # provider's label when no snapshots exist yet.
+    provider_label: str = "Unknown"
+    if snaps:
+        provider_label = snaps[0].get("provider_label") or "Unknown"
+    if provider_label == "Unknown":
+        try:
+            p = _get_provider()
+            provider_label = getattr(p, "PROVIDER_LABEL", "Unknown")
+        except Exception:
+            pass
     return {
         "success": True,
         "trading_date": today,
@@ -232,6 +261,7 @@ def get_snapshot() -> dict:
         "count": len(snaps),
         "valid_count": sum(1 for s in snaps if not s.get("is_stale")),
         "stale_count": sum(1 for s in snaps if s.get("is_stale")),
+        "provider_label": provider_label,
         "label": "PAPER / ADVISORY ONLY",
     }
 

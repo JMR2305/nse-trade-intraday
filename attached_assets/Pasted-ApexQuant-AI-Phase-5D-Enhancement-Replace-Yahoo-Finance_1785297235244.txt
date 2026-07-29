@@ -1,0 +1,266 @@
+ApexQuant AI – Phase 5D Enhancement
+Replace Yahoo Finance with a Multi-Provider Pre-Open Data Layer
+
+Background
+
+The current Pre-Open Intelligence module works correctly, but its functionality is limited because it primarily relies on Yahoo Finance (yfinance).
+
+Yahoo Finance does not expose the complete NSE pre-open auction book, which results in missing information such as:
+
+- Buy Quantity
+- Sell Quantity
+- Buy/Sell Imbalance
+- Indicative Equilibrium Price (IEP)
+- Matched Quantity
+- Complete auction statistics
+
+The goal is NOT to change the UI.
+
+The goal is to improve the data source.
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Implement a multi-provider pre-open data architecture.
+
+Priority:
+
+1. NSE official pre-open data (Primary)
+2. Zerodha Kite APIs (Secondary)
+3. Yahoo Finance (Fallback only)
+
+--------------------------------------------------
+
+NEW DATA SOURCE PRIORITY
+
+Primary Provider
+
+NSE Official Pre-Open Market Data
+
+Fetch whenever available.
+
+Use it to populate:
+
+• Indicative Price
+• Previous Close
+• Gap %
+• Buy Quantity
+• Sell Quantity
+• Buy/Sell Imbalance
+• Indicative Matched Quantity
+• Total Traded Quantity
+• Auction Statistics
+
+--------------------------------------------------
+
+Secondary Provider
+
+Zerodha Kite APIs
+
+Evaluate whether Kite provides any additional useful information for:
+
+• Quotes
+• Market depth
+• Instrument metadata
+• Trading session validation
+
+Use Zerodha wherever it improves reliability.
+
+--------------------------------------------------
+
+Fallback Provider
+
+Yahoo Finance
+
+Use ONLY if:
+
+- NSE data is unavailable
+- Zerodha data is unavailable
+
+Yahoo should never be the preferred provider for pre-open auction analytics.
+
+--------------------------------------------------
+
+PROVIDER MANAGER
+
+Create a provider selection layer.
+
+Example priority:
+
+NSE Available?
+        ↓
+      YES
+Use NSE
+
+        ↓
+      NO
+
+Zerodha Available?
+        ↓
+      YES
+Use Zerodha
+
+        ↓
+      NO
+
+Use Yahoo Finance
+
+--------------------------------------------------
+
+UI IMPROVEMENTS
+
+Display active provider.
+
+Example:
+
+Provider
+
+NSE
+
+or
+
+Provider
+
+Zerodha
+
+or
+
+Provider
+
+Yahoo Finance (Fallback)
+
+--------------------------------------------------
+
+VERIFY GAP CALCULATION
+
+Ensure Gap % uses:
+
+Gap %
+
+=
+
+((Indicative Price - Previous Close)
+
+÷ Previous Close)
+
+×100
+
+Do not silently replace indicative price with previous close.
+
+--------------------------------------------------
+
+VERIFY IMBALANCE
+
+Populate:
+
+Buy Quantity
+
+Sell Quantity
+
+Buy Imbalance
+
+Sell Imbalance
+
+Imbalance %
+
+from the provider whenever available.
+
+If unavailable, display:
+
+"Not supplied by provider"
+
+instead of showing misleading zero values.
+
+--------------------------------------------------
+
+DATA VALIDATION
+
+Verify:
+
+✓ Previous Close
+
+✓ Indicative Price
+
+✓ Gap %
+
+✓ Buy Qty
+
+✓ Sell Qty
+
+✓ Executed Quantity
+
+✓ Sector
+
+✓ Timestamp
+
+Reject incomplete or corrupted records.
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Maintain existing refresh speed.
+
+No UI slowdown.
+
+No duplicate API calls.
+
+--------------------------------------------------
+
+BACKWARD COMPATIBILITY
+
+Do not modify:
+
+- Trading engine
+- Paper trading
+- Portfolio
+- Signal engine
+- Strategy engine
+- Risk engine
+
+This enhancement must affect only the data acquisition layer.
+
+--------------------------------------------------
+
+TESTING
+
+Verify:
+
+✓ NSE provider working
+
+✓ Zerodha provider working
+
+✓ Yahoo fallback working
+
+✓ Automatic provider failover
+
+✓ Gap calculations
+
+✓ Imbalance calculations
+
+✓ Dashboard rendering
+
+✓ API responses
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide:
+
+1. Data providers implemented
+2. Provider priority logic
+3. Files modified
+4. API changes
+5. Screenshots
+6. Test results
+7. Performance impact
+8. Any remaining limitations
+
+Finally answer:
+
+1. Which provider is currently active?
+2. Can Buy/Sell Imbalance now be populated?
+3. Can Indicative Equilibrium Price now be populated?
+4. Is Yahoo Finance now only a fallback provider?

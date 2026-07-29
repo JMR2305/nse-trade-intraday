@@ -38,3 +38,4 @@
 - [ApexQuant AI brand](apexquant-ai-brand.md) — brand = "ApexQuant AI"; navy A-frame + teal chart mark; BrandMark/BrandLogo/BrandHeader/PaperTradingBadge components; Logo.tsx re-exports for compat.
 - [Phase 3 completion](phase3-completion.md) — Phase 3A–3G all done; 50/50 phase3g_validate.py; key test pitfalls documented.
 - [Phase 5D.1 execution quality](phase5d1-execution-quality.md) — read-only EQ module; `@/lib/api` import; apiJson paths omit /api/ prefix; FIFO BUY→SELL matching; AST safety test included.
+- [Phase 5D multi-provider pre-open](phase5d-multi-provider.md) — NSE Official→Kite→Yahoo chain; IEP+qty in detail.preOpenMarket not metadata; order_book_available flag gates imbalance display.

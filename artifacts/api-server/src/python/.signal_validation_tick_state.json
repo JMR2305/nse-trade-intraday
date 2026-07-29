@@ -1,6 +1,17 @@
 {
   "trading_date": "2026-07-29",
   "session_id": "sv-2026-07-29-fef84b",
-  "phases_done": {},
-  "ingest_count": 12
+  "phases_done": {
+    "checkpoint_5m": {
+      "ts": "2026-07-29T09:25:29.300010+05:30",
+      "checkpointed": 0,
+      "note": "no_active_records"
+    },
+    "checkpoint_15m": {
+      "ts": "2026-07-29T09:36:29.390610+05:30",
+      "checkpointed": 0,
+      "note": "no_active_records"
+    }
+  },
+  "ingest_count": 19
 }

@@ -43,18 +43,22 @@ interface Snapshot {
   liquidity_score: number;
   buy_sell_imbalance: number;
   validation_status: string;
+  data_source: string;                      // "nse_official" | "zerodha_kite" | "yfinance" | "mock"
+  provider_label: string;                   // human-readable provider name
+  order_book_available: boolean;            // true only when auction buy/sell qty are real
 }
 
 interface SnapshotResponse {
   success: boolean;
   trading_date: string;
-  session: { status?: string; provider_status?: string; frozen_at?: string } | null;
+  session: { status?: string; provider_status?: string; provider_label?: string; frozen_at?: string } | null;
   snapshots: Snapshot[];
   valid_count: number;
   stale_count: number;
   label: string;
   status?: string;
   message?: string;
+  provider_label?: string;                  // active provider label from the engine
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -98,15 +102,28 @@ function classLabel(cls: string) {
   );
 }
 
-function providerBadge(status: string) {
+/** Maps data_source → short display label for the "Provider" column badge. */
+function providerName(dataSource: string | undefined, providerLabel?: string): string {
+  if (providerLabel) return providerLabel;
+  const map: Record<string, string> = {
+    nse_official: "NSE Official",
+    zerodha_kite: "Zerodha Kite",
+    yfinance:     "Yahoo Finance (Fallback)",
+    mock:         "Mock Data",
+  };
+  return map[dataSource ?? ""] ?? dataSource ?? "Unknown";
+}
+
+function providerBadge(status: string, dataSource?: string, label?: string) {
   const colors: Record<string, string> = {
     LIVE: "bg-emerald-500", DELAYED: "bg-amber-500",
     STALE: "bg-orange-500", UNAVAILABLE: "bg-red-500", PARTIAL: "bg-yellow-500",
   };
+  const display = label ?? providerName(dataSource);
   return (
     <span className="flex items-center gap-1.5">
-      <span className={cn("h-2 w-2 rounded-full", colors[status] ?? "bg-slate-400")} />
-      <span className="text-xs font-medium">{status || "UNKNOWN"}</span>
+      <span className={cn("h-2 w-2 rounded-full flex-shrink-0", colors[status] ?? "bg-slate-400")} />
+      <span className="text-xs font-medium">{display}</span>
     </span>
   );
 }
@@ -209,22 +226,35 @@ function DetailDrawer({ snap, onClose }: { snap: Snapshot; onClose: () => void }
         {/* Order book */}
         <Card>
           <CardHeader className="pb-2 pt-3 px-4">
-            <CardTitle className="text-xs uppercase tracking-wider text-muted-foreground">Order Book</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-xs uppercase tracking-wider text-muted-foreground">Order Book</CardTitle>
+              {!snap.order_book_available && (
+                <span className="text-[10px] text-amber-600 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded-full font-medium">
+                  Not supplied by provider
+                </span>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="px-4 pb-3 grid grid-cols-3 gap-3 text-sm">
             <div>
               <div className="text-xs text-muted-foreground">Buy Qty</div>
-              <div className="font-semibold text-emerald-600">{fmtQty(snap.total_buy_quantity)}</div>
+              {snap.order_book_available
+                ? <div className="font-semibold text-emerald-600">{fmtQty(snap.total_buy_quantity)}</div>
+                : <div className="text-xs text-muted-foreground italic">Not supplied by provider</div>}
             </div>
             <div>
               <div className="text-xs text-muted-foreground">Sell Qty</div>
-              <div className="font-semibold text-red-600">{fmtQty(snap.total_sell_quantity)}</div>
+              {snap.order_book_available
+                ? <div className="font-semibold text-red-600">{fmtQty(snap.total_sell_quantity)}</div>
+                : <div className="text-xs text-muted-foreground italic">Not supplied by provider</div>}
             </div>
             <div>
               <div className="text-xs text-muted-foreground">Imbalance</div>
-              <div className={cn("font-bold", snap.imbalance_percent > 0 ? "text-emerald-600" : "text-red-600")}>
-                {fmt(snap.imbalance_percent)}%
-              </div>
+              {snap.order_book_available
+                ? <div className={cn("font-bold", snap.imbalance_percent > 0 ? "text-emerald-600" : "text-red-600")}>
+                    {fmt(snap.imbalance_percent)}%
+                  </div>
+                : <div className="text-xs text-muted-foreground italic">Not supplied by provider</div>}
             </div>
             <div>
               <div className="text-xs text-muted-foreground">Executed Qty</div>
@@ -267,8 +297,8 @@ function DetailDrawer({ snap, onClose }: { snap: Snapshot; onClose: () => void }
           </CardHeader>
           <CardContent className="px-4 pb-3 space-y-1 text-sm">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Provider status</span>
-              {providerBadge(snap.source_status)}
+              <span className="text-muted-foreground">Provider</span>
+              {providerBadge(snap.source_status, snap.data_source, snap.provider_label)}
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Freshness</span>
@@ -505,7 +535,13 @@ export default function PreOpenIntelligence() {
             </div>
             <div>
               <div className="text-xs text-muted-foreground">Provider</div>
-              <div className="mt-0.5">{providerBadge(session?.provider_status ?? "UNKNOWN")}</div>
+              <div className="mt-0.5">
+                {providerBadge(
+                  session?.provider_status ?? "UNKNOWN",
+                  undefined,
+                  data?.provider_label ?? session?.provider_label,
+                )}
+              </div>
             </div>
             <div>
               <div className="text-xs text-muted-foreground">Session</div>
@@ -736,10 +772,14 @@ export default function PreOpenIntelligence() {
                     {gapIcon(s.gap_percent)}
                     {s.gap_percent !== null ? `${fmt(s.gap_percent)}%` : "—"}
                   </td>
-                  <td className="px-3 py-2 text-emerald-600">{fmtQty(s.total_buy_quantity)}</td>
-                  <td className="px-3 py-2 text-red-600">{fmtQty(s.total_sell_quantity)}</td>
-                  <td className={cn("px-3 py-2 font-bold", s.imbalance_percent > 0 ? "text-emerald-600" : "text-red-600")}>
-                    {fmt(s.imbalance_percent)}%
+                  <td className="px-3 py-2 text-emerald-600">
+                    {s.order_book_available ? fmtQty(s.total_buy_quantity) : <span className="text-muted-foreground text-xs">—</span>}
+                  </td>
+                  <td className="px-3 py-2 text-red-600">
+                    {s.order_book_available ? fmtQty(s.total_sell_quantity) : <span className="text-muted-foreground text-xs">—</span>}
+                  </td>
+                  <td className={cn("px-3 py-2 font-bold", s.order_book_available ? (s.imbalance_percent > 0 ? "text-emerald-600" : "text-red-600") : "text-muted-foreground")}>
+                    {s.order_book_available ? `${fmt(s.imbalance_percent)}%` : <span className="text-xs font-normal">—</span>}
                   </td>
                   <td className="px-3 py-2 font-mono">{fmtQty(s.final_executed_quantity)}</td>
                   <td className="px-3 py-2">
@@ -754,7 +794,7 @@ export default function PreOpenIntelligence() {
                     </div>
                   </td>
                   <td className="px-3 py-2">{classLabel(s.classification)}</td>
-                  <td className="px-3 py-2">{providerBadge(s.source_status)}</td>
+                  <td className="px-3 py-2">{providerBadge(s.source_status, s.data_source, s.provider_label)}</td>
                   <td className="px-3 py-2">
                     <Button
                       variant="ghost"
