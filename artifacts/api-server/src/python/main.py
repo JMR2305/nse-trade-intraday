@@ -2639,6 +2639,32 @@ def main():
             from event_intelligence.api import cmd_export_json as _ei_json
             result = _ei_json()
 
+        # ── Phase 7.3 — Economic & Macro Intelligence ─────────────────────────
+        elif command == "macro_intelligence_summary":
+            from macro_intelligence.api import cmd_summary as _mac_summary
+            result = _mac_summary()
+        elif command == "macro_intelligence_calendar":
+            from macro_intelligence.api import cmd_calendar as _mac_calendar
+            result = _mac_calendar()
+        elif command == "macro_intelligence_global":
+            from macro_intelligence.api import cmd_global as _mac_global
+            result = _mac_global()
+        elif command == "macro_intelligence_flows":
+            from macro_intelligence.api import cmd_flows as _mac_flows
+            result = _mac_flows()
+        elif command == "macro_intelligence_commodities":
+            from macro_intelligence.api import cmd_commodities as _mac_commodities
+            result = _mac_commodities()
+        elif command == "macro_intelligence_brief":
+            from macro_intelligence.api import cmd_brief as _mac_brief
+            result = _mac_brief()
+        elif command == "macro_intelligence_export_csv":
+            from macro_intelligence.api import cmd_export_csv as _mac_csv
+            result = _mac_csv()
+        elif command == "macro_intelligence_export_json":
+            from macro_intelligence.api import cmd_export_json as _mac_json
+            result = _mac_json()
+
         else:
             error_msg = f"Unknown command: {command}"
 
