@@ -109,11 +109,27 @@ def _check_debug_mode() -> ReadinessCheck:
     )
 
 
+_RUNTIME_MANAGED_KEYS: frozenset = frozenset({
+    # Replit injects these automatically — their values are strong, machine-generated,
+    # and must never be flagged as weak placeholders.
+    "PGPASSWORD", "PGUSER", "PGHOST", "PGPORT", "PGDATABASE",
+    "DATABASE_URL", "REPLIT_DOMAINS", "REPLIT_DEV_DOMAIN", "REPL_ID",
+    "REPLIT_DB_URL",
+})
+
+
 def _check_secrets_not_in_env_values() -> ReadinessCheck:
-    """Spot-check that no obviously dangerous patterns exist in env values (e.g. hardcoded tokens)."""
+    """Spot-check that no obviously dangerous patterns exist in env values (e.g. hardcoded tokens).
+
+    Replit-managed runtime keys (PGPASSWORD, DATABASE_URL, etc.) are explicitly excluded:
+    their values are machine-generated strong credentials and must not be evaluated for
+    'weakness'.  Checking them would produce false-positives that mislead operators.
+    """
     suspicious_keys = ["PASSWORD", "TOKEN", "SECRET", "KEY", "CREDENTIAL"]
     exposed = []
     for k, v in os.environ.items():
+        if k in _RUNTIME_MANAGED_KEYS:
+            continue  # never evaluate Replit-managed keys
         if any(pat in k.upper() for pat in suspicious_keys):
             # Just verify it's set — never log the value
             # Check it isn't a trivially weak placeholder

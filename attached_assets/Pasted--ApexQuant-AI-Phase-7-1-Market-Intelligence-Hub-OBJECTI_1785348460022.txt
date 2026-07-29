@@ -1,0 +1,377 @@
+# ApexQuant AI – Phase 7.1
+Market Intelligence Hub
+
+OBJECTIVE
+
+Build a unified Market Intelligence Hub that consolidates all market intelligence into a single advisory platform.
+
+This phase MUST NOT modify:
+
+• Orders
+• Portfolio
+• Strategies
+• AI
+• Risk Engine
+• Signals
+
+Everything remains READ-ONLY and ADVISORY-ONLY.
+
+--------------------------------------------------
+
+ARCHITECTURE
+
+Reuse existing modules.
+
+Especially reuse and extend:
+
+• Phase 10A Market Intelligence components
+  - MultiTimeframeContext
+  - TimeframeAggregator
+  - IndicatorEngine
+  - MarketRegime
+  - StrategyScore
+  - WatchlistRankingSnapshot
+  - AnnouncementRecord
+
+Reuse:
+
+• Phase 5D.x
+• Phase 6.x
+• Shared snapshot interfaces
+
+Do NOT duplicate existing Market Intelligence logic.
+
+Extend it into a unified intelligence service.
+
+--------------------------------------------------
+
+FEATURE FLAG
+
+MARKET_INTELLIGENCE_HUB_ENABLED=true
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Create a central intelligence engine providing:
+
+• Multi-timeframe analysis
+• Market regime detection
+• Trend strength
+• Momentum analysis
+• Relative strength ranking
+• Sector leadership
+• Sector rotation
+• Volatility regime
+• Gap analysis
+• Watchlist intelligence
+• Market breadth
+• Daily intelligence summary
+
+--------------------------------------------------
+
+MULTI-TIMEFRAME
+
+Analyse:
+
+1 Minute
+
+5 Minute
+
+15 Minute
+
+30 Minute
+
+1 Hour
+
+Daily
+
+Weekly
+
+Generate unified trend agreement.
+
+--------------------------------------------------
+
+MARKET REGIME
+
+Detect:
+
+Bull
+
+Bear
+
+Sideways
+
+Trending
+
+High Volatility
+
+Low Volatility
+
+Breakout
+
+Reversal
+
+Transition
+
+--------------------------------------------------
+
+SECTOR INTELLIGENCE
+
+Rank sectors by:
+
+Relative Strength
+
+Momentum
+
+Participation
+
+Leadership
+
+Weakness
+
+Rotation
+
+Generate sector heat ranking.
+
+--------------------------------------------------
+
+WATCHLIST INTELLIGENCE
+
+Generate:
+
+Priority Score
+
+Opportunity Score
+
+Risk Score
+
+Composite Rank
+
+Reason for ranking
+
+Historical movement
+
+--------------------------------------------------
+
+MARKET BREADTH
+
+Analyse:
+
+Advancers
+
+Decliners
+
+Sector participation
+
+Breadth strength
+
+Breadth momentum
+
+--------------------------------------------------
+
+VOLATILITY
+
+Measure:
+
+ATR trend
+
+Volatility regime
+
+Volatility expansion
+
+Volatility contraction
+
+Gap risk
+
+--------------------------------------------------
+
+INTELLIGENCE SUMMARY
+
+Generate:
+
+Top Opportunities
+
+Highest Risk Areas
+
+Strongest Sectors
+
+Weakest Sectors
+
+Market Health Score
+
+Overall Market Outlook
+
+--------------------------------------------------
+
+MARKET HEALTH SCORE
+
+Generate
+
+0–100
+
+Grade
+
+A+
+
+A
+
+B
+
+C
+
+D
+
+Trend
+
+Improving
+
+Stable
+
+Weakening
+
+--------------------------------------------------
+
+DASHBOARD
+
+Create sections:
+
+Market Overview
+
+Market Health
+
+Multi-Timeframe
+
+Sector Intelligence
+
+Market Breadth
+
+Volatility
+
+Watchlist Intelligence
+
+Top Opportunities
+
+Daily Summary
+
+--------------------------------------------------
+
+API
+
+GET /api/market-intelligence/summary
+
+GET /api/market-intelligence/sectors
+
+GET /api/market-intelligence/watchlist
+
+GET /api/market-intelligence/breadth
+
+GET /api/market-intelligence/overview
+
+--------------------------------------------------
+
+EXPORT
+
+CSV
+
+JSON
+
+Future PDF
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Background calculations only.
+
+Reuse caches where possible.
+
+--------------------------------------------------
+
+TESTING
+
+Verify:
+
+Feature flag
+
+Empty data
+
+Mixed market regimes
+
+Sector ranking
+
+Dashboard
+
+API
+
+Shared services
+
+--------------------------------------------------
+
+SAFETY
+
+Read-only
+
+Advisory-only
+
+Never modify trading behaviour.
+
+--------------------------------------------------
+
+GITHUB INTEGRATION
+
+Incorporate useful concepts from shortlisted GitHub projects where appropriate:
+
+• Adaptive market ranking
+
+• Regime-aware scoring
+
+• Dynamic watchlist prioritisation
+
+• Sector rotation analytics
+
+• Relative strength analysis
+
+• Explainable intelligence summaries
+
+Do NOT copy external implementations.
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide:
+
+1. Files created
+
+2. Files modified
+
+3. Shared services reused
+
+4. APIs
+
+5. Dashboard
+
+6. Test count
+
+7. Test results
+
+8. Performance benchmarks
+
+9. Known limitations
+
+10. Market Intelligence methodology
+
+11. GitHub-inspired enhancements
+
+12. Explain how future news, macroeconomic intelligence, and explainable AI integrate without changing the architecture.
+
+13. Confirm advisory-only operation.
+
+Final Verdict
+
+PHASE 7.1 COMPLETE
+
+or
+
+PHASE 7.1 NOT COMPLETE

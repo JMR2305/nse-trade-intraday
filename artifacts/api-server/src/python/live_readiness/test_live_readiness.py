@@ -312,6 +312,41 @@ class TestSecurityChecker(unittest.TestCase):
         r = check_security()
         self.assertEqual(r["passed"] + r["warnings"] + r["failures"], r["total_checks"])
 
+    def test_runtime_managed_keys_excluded_from_weak_value_check(self):
+        """PGPASSWORD and other Replit-managed keys must never trigger a false-positive FAIL,
+        even when their value happens to look like a weak placeholder string."""
+        import live_readiness.security_checker as sc
+        # Temporarily inject a value that would trip the weak-value check on any non-managed key
+        original = os.environ.get("PGPASSWORD")
+        try:
+            os.environ["PGPASSWORD"] = "password"   # worst-case weak value
+            r = sc.check_security()
+            weak_check = next(c for c in r["checks"] if c["name"] == "secrets_not_exposed")
+            # Must still PASS — PGPASSWORD is runtime-managed and excluded
+            self.assertEqual(weak_check["status"], "PASS",
+                msg="PGPASSWORD with value 'password' must not trigger secrets_not_exposed FAIL")
+        finally:
+            if original is None:
+                os.environ.pop("PGPASSWORD", None)
+            else:
+                os.environ["PGPASSWORD"] = original
+
+    def test_non_managed_weak_key_still_fails(self):
+        """A non-managed env var with a weak value MUST still be caught."""
+        import live_readiness.security_checker as sc
+        original = os.environ.get("APP_SECRET_KEY")
+        try:
+            os.environ["APP_SECRET_KEY"] = "secret"  # weak placeholder
+            r = sc.check_security()
+            weak_check = next(c for c in r["checks"] if c["name"] == "secrets_not_exposed")
+            self.assertEqual(weak_check["status"], "FAIL",
+                msg="A non-managed key with value 'secret' must trigger secrets_not_exposed FAIL")
+        finally:
+            if original is None:
+                os.environ.pop("APP_SECRET_KEY", None)
+            else:
+                os.environ["APP_SECRET_KEY"] = original
+
 
 # ===========================================================================
 # 7. Config checker (5 tests)
