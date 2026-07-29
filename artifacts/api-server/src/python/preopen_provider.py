@@ -114,9 +114,13 @@ class YFinancePreOpenProvider(PreOpenDataProvider):
         snap_id = f"yf-{symbol}-{uuid.uuid4().hex[:8]}"
         now = now_ist_str()
         prev_close = float(raw.get("previous_close", 0))
-        ind_price = raw.get("indicative_price") or prev_close or None
+        # "indicative_price" comes from LiveNSEPreOpenProvider (Kite auction IEP).
+        # yfinance doesn't provide it, so fall back to the actual open_price that
+        # _fetch_one() already fetched.  Do NOT fall back to prev_close — that
+        # would make gap_pct = 0 permanently because (prev_close - prev_close) = 0.
+        ind_price = raw.get("indicative_price") or raw.get("open_price") or None
         gap_pct = 0.0
-        if ind_price and prev_close > 0:
+        if ind_price and prev_close > 0 and ind_price != prev_close:
             gap_pct = round((ind_price - prev_close) / prev_close * 100, 4)
 
         return PreOpenSnapshot(
@@ -126,7 +130,9 @@ class YFinancePreOpenProvider(PreOpenDataProvider):
             symbol=symbol.upper(),
             company_name=raw.get("company_name", symbol),
             sector=self._sector_map.get(symbol.upper(), "Unknown"),
-            previous_close=prev_close,
+            # Store None instead of 0.0 when yfinance hasn't returned a close yet —
+            # 0.0 is not a valid close price and confuses downstream analytics.
+            previous_close=prev_close if prev_close > 0 else None,
             indicative_equilibrium_price=ind_price,
             indicative_open_price=ind_price,
             final_open_price=raw.get("open_price"),
