@@ -2544,6 +2544,38 @@ def main():
             from risk_optimisation.shared_services import export_full_json as _ro_json
             result = {"json": _ro_json()}
 
+        elif command == "readiness_summary":
+            from live_readiness.api import cmd_summary as _rd_summary
+            result = _rd_summary()
+
+        elif command == "readiness_system":
+            from live_readiness.api import cmd_system as _rd_system
+            result = _rd_system()
+
+        elif command == "readiness_data":
+            from live_readiness.api import cmd_data as _rd_data
+            result = _rd_data()
+
+        elif command == "readiness_recovery":
+            from live_readiness.api import cmd_recovery as _rd_recovery
+            result = _rd_recovery()
+
+        elif command == "readiness_security":
+            from live_readiness.api import cmd_security as _rd_security
+            result = _rd_security()
+
+        elif command == "readiness_report":
+            from live_readiness.api import cmd_report as _rd_report
+            result = _rd_report()
+
+        elif command == "readiness_export_csv":
+            from live_readiness.shared_services import export_summary_csv as _rd_csv
+            result = {"csv": _rd_csv()}
+
+        elif command == "readiness_export_json":
+            from live_readiness.shared_services import export_full_json as _rd_json
+            result = {"json": _rd_json()}
+
         else:
             error_msg = f"Unknown command: {command}"
 

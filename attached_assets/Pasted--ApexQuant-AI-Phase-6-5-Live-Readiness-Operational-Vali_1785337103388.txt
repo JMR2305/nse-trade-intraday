@@ -1,0 +1,479 @@
+# ApexQuant AI – Phase 6.5
+Live Readiness & Operational Validation Framework
+
+OBJECTIVE
+
+Build a comprehensive Operational Readiness Framework that continuously validates the health, stability, reliability, recoverability, and operational readiness of the complete ApexQuant AI platform.
+
+This phase DOES NOT enable live trading.
+
+This phase DOES NOT place real orders.
+
+This phase DOES NOT modify trading behaviour.
+
+Everything remains READ-ONLY and ADVISORY-ONLY.
+
+--------------------------------------------------
+
+ARCHITECTURE
+
+Reuse existing modules only.
+
+Reuse:
+
+• Phase 5C – Signal Validation
+• Phase 5D.1 – Execution Quality
+• Phase 5D.2 – Portfolio Performance
+• Phase 5D.3 – Strategy Intelligence
+• Phase 5D.4 – AI Performance Intelligence
+• Phase 5D.5 – Executive Dashboard
+• Phase 6.1 – Paper Trading Validation
+• Phase 6.2 – Strategy Optimisation
+• Phase 6.3 – AI Optimisation
+• Phase 6.4 – Risk Optimisation
+
+No duplicated analytics.
+
+--------------------------------------------------
+
+FEATURE FLAG
+
+READINESS_VALIDATION_ENABLED=true
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Validate:
+
+System Health
+
+Data Quality
+
+Operational Stability
+
+Recovery Capability
+
+API Reliability
+
+Paper Trading Readiness
+
+Broker Connectivity Status
+
+Performance
+
+Configuration Consistency
+
+Security Readiness
+
+Generate one unified readiness assessment.
+
+--------------------------------------------------
+
+SYSTEM HEALTH
+
+Monitor
+
+CPU usage
+
+Memory usage
+
+API latency
+
+Background task health
+
+Queue health
+
+Scheduler health
+
+Database connectivity
+
+Cache health
+
+Service availability
+
+Overall System Health Score
+
+--------------------------------------------------
+
+DATA QUALITY
+
+Validate
+
+Missing records
+
+Duplicate trades
+
+FIFO consistency
+
+Journal consistency
+
+Portfolio consistency
+
+Signal consistency
+
+Timestamp consistency
+
+Data freshness
+
+Generate Data Quality Score
+
+--------------------------------------------------
+
+RECOVERY VALIDATION
+
+Verify
+
+Crash recovery
+
+Journal replay
+
+State restoration
+
+Session restoration
+
+Recovery timing
+
+Recovery success rate
+
+Recovery Health Score
+
+--------------------------------------------------
+
+API VALIDATION
+
+Verify
+
+Endpoint availability
+
+Average latency
+
+Error rate
+
+Timeout rate
+
+Authentication
+
+Response consistency
+
+API Health Score
+
+--------------------------------------------------
+
+BROKER READINESS
+
+Paper-trading only.
+
+Verify
+
+Authentication status
+
+Session validity
+
+Token expiry
+
+Connectivity
+
+Market data availability
+
+Order simulation readiness
+
+Never place live orders.
+
+--------------------------------------------------
+
+PERFORMANCE VALIDATION
+
+Measure
+
+Average processing time
+
+Peak processing time
+
+Signal generation latency
+
+Dashboard response time
+
+Background task duration
+
+Export performance
+
+--------------------------------------------------
+
+CONFIGURATION VALIDATION
+
+Verify
+
+Environment variables
+
+Feature flags
+
+Database configuration
+
+API keys present
+
+Required services enabled
+
+Configuration checksum
+
+--------------------------------------------------
+
+SECURITY READINESS
+
+Verify
+
+Secrets not exposed
+
+Configuration safety
+
+Debug mode disabled
+
+Unsafe defaults
+
+Logging safety
+
+Audit logging enabled
+
+Generate Security Readiness Score
+
+--------------------------------------------------
+
+READINESS SCORE
+
+Generate
+
+Operational Readiness Score
+
+0–100
+
+Grade
+
+A+
+
+A
+
+B
+
+C
+
+D
+
+Trend
+
+Improving
+
+Stable
+
+Declining
+
+--------------------------------------------------
+
+GO / NO-GO ASSESSMENT
+
+Generate one final recommendation.
+
+Possible states
+
+READY FOR EXTENDED PAPER TRADING
+
+READY WITH OBSERVATIONS
+
+NOT READY
+
+Include:
+
+Strengths
+
+Weaknesses
+
+Risks
+
+Recommendations
+
+Required actions
+
+--------------------------------------------------
+
+READINESS DASHBOARD
+
+Create sections
+
+Overall Readiness
+
+System Health
+
+Data Quality
+
+Recovery
+
+API Health
+
+Broker Readiness
+
+Performance
+
+Configuration
+
+Security
+
+Go / No-Go Summary
+
+--------------------------------------------------
+
+API
+
+GET /api/readiness/summary
+
+GET /api/readiness/system
+
+GET /api/readiness/data
+
+GET /api/readiness/recovery
+
+GET /api/readiness/security
+
+GET /api/readiness/report
+
+--------------------------------------------------
+
+EXPORT
+
+CSV
+
+JSON
+
+Future PDF report
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Background validation only.
+
+Cache heavy operations.
+
+No impact on paper trading.
+
+--------------------------------------------------
+
+TESTING
+
+Verify
+
+Zero trades
+
+Normal trading day
+
+Heavy trading day
+
+Restart recovery
+
+Missing configuration
+
+Failed API
+
+Feature flag
+
+Dashboard
+
+Persistence
+
+Export
+
+--------------------------------------------------
+
+SAFETY
+
+Read-only
+
+Advisory-only
+
+Never
+
+Modify trades
+
+Modify portfolio
+
+Modify AI
+
+Modify strategies
+
+Modify orders
+
+Enable live trading
+
+Automatically.
+
+--------------------------------------------------
+
+GITHUB INTEGRATION REQUIREMENTS
+
+Where appropriate, incorporate concepts inspired by previously reviewed GitHub projects while preserving ApexQuant AI architecture.
+
+Include:
+
+• Operational health monitoring
+
+• Service dependency validation
+
+• Recovery verification
+
+• Readiness scoring
+
+• Configuration auditing
+
+• Data integrity validation
+
+• Audit trail verification
+
+• Future deployment checklist
+
+• Health snapshot aggregation
+
+• Future CI/CD integration hooks (disabled by default)
+
+Do NOT copy external implementations.
+
+Implement modular shared_services components consistent with previous phases.
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide
+
+1. Files created
+
+2. Files modified
+
+3. Shared services reused
+
+4. APIs
+
+5. Dashboard screenshots
+
+6. Test count
+
+7. Test results
+
+8. Performance benchmarks
+
+9. Known limitations
+
+10. Operational readiness methodology
+
+11. GitHub-inspired enhancements incorporated
+
+12. Explain how future live deployment validation, CI/CD, automated smoke testing, and production monitoring can integrate without changing the architecture.
+
+13. Confirm that this phase NEVER enables live trading and remains advisory-only.
+
+Final Verdict
+
+PHASE 6.5 COMPLETE
+
+or
+
+PHASE 6.5 NOT COMPLETE
+
+with exact blockers.
