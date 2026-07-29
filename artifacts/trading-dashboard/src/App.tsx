@@ -58,6 +58,7 @@ import ExecutionQualityPage from "@/pages/ExecutionQualityPage";
 import PortfolioPerformance from "@/pages/PortfolioPerformance";
 import StrategyIntelligence from "@/pages/StrategyIntelligence";
 import AIPerformanceIntelligence from "@/pages/AIPerformanceIntelligence";
+import ExecutiveDashboard from "@/pages/ExecutiveDashboard";
 import { ConnectivityPanel } from "@/components/ConnectivityPanel";
 
 const queryClient = new QueryClient({
@@ -133,6 +134,7 @@ function Router() {
         <Route path="/portfolio-performance" component={PortfolioPerformance} />
         <Route path="/strategy-intelligence" component={StrategyIntelligence} />
         <Route path="/ai-performance" component={AIPerformanceIntelligence} />
+        <Route path="/executive-dashboard" component={ExecutiveDashboard} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

@@ -1,0 +1,252 @@
+"""
+widgets.py — Phase 5D.5 widget data formatters.
+
+Each widget function receives the aggregated data dict from dashboard_engine.load_all()
+and returns a clean, flat dict ready for the frontend.
+ZERO calculation — only reads, reshapes, and defaults.
+"""
+from __future__ import annotations
+from typing import Any
+
+
+def _g(d: dict, *keys, default=None) -> Any:
+    """Safe nested get."""
+    for k in keys:
+        if not isinstance(d, dict):
+            return default
+        d = d.get(k, default)  # type: ignore[assignment]
+    return d
+
+
+# ---------------------------------------------------------------------------
+# Section 1 — System Health
+# ---------------------------------------------------------------------------
+
+def widget_system_health(data: dict) -> dict:
+    sys = data.get("system", {})
+    sched = _g(sys, "scheduler") or {}
+    meta  = _g(sys, "meta")      or {}
+    return {
+        "application_health": _g(meta, "status", default="UNKNOWN"),
+        "scheduler_health":   _g(sched, "status", default="UNKNOWN"),
+        "database_status":    _g(meta, "database", default="UNKNOWN"),
+        "api_status":         _g(meta, "api", default="UNKNOWN"),
+        "feature_flags":      _g(meta, "feature_flags", default=[]),
+        "background_jobs":    _g(sched, "active_jobs", default=[]),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Section 2 — Portfolio Overview
+# ---------------------------------------------------------------------------
+
+def widget_portfolio_overview(data: dict) -> dict:
+    pf   = data.get("portfolio", {})
+    summ = _g(pf, "summary") or {}
+    port = _g(pf, "portfolio") or {}
+    return {
+        "portfolio_value":    _g(summ, "total_portfolio_value", default=0.0),
+        "today_pnl":          _g(summ, "today_pnl", default=0.0),
+        "net_pnl":            _g(summ, "total_net_pnl", default=0.0),
+        "cash_available":     _g(summ, "cash_available", default=0.0),
+        "invested_capital":   _g(summ, "invested_capital", default=0.0),
+        "open_positions":     _g(port, "position_count", default=0),
+        "win_rate":           _g(summ, "win_rate_pct", default=0.0),
+        "profit_factor":      _g(summ, "profit_factor", default=0.0),
+        "drawdown":           _g(summ, "max_drawdown_pct", default=0.0),
+        "current_drawdown":   _g(summ, "current_drawdown_pct", default=0.0),
+        "total_return_pct":   _g(summ, "total_return_pct", default=0.0),
+        "portfolio_utilisation_pct": _g(summ, "portfolio_utilisation_pct", default=0.0),
+        "initial_capital":    _g(summ, "initial_capital", default=500000.0),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Section 3 — AI Health
+# ---------------------------------------------------------------------------
+
+def widget_ai_health(data: dict) -> dict:
+    ai  = data.get("ai", {})
+    snap = _g(ai, "snapshot") or {}
+    comp = _g(ai, "components") or {}
+    learn = _g(ai, "learning") or {}
+    return {
+        "health_score":         _g(snap, "health_score", default=0.0),
+        "health_label":         _g(snap, "health_label", default="N/A"),
+        "prediction_accuracy":  _g(snap, "prediction_accuracy", default=0.0),
+        "precision":            _g(snap, "precision", default=0.0),
+        "recall":               _g(snap, "recall", default=0.0),
+        "avg_confidence":       _g(snap, "avg_confidence", default=0.0),
+        "trend_direction":      _g(snap, "trend_direction", default="Stable"),
+        "accuracy_delta":       _g(snap, "accuracy_delta", default=0.0),
+        "calibration_ece":      _g(snap, "calibration_ece", default=0.0),
+        "calibration_quality":  round((1 - _g(snap, "calibration_ece", default=0.0)) * 100, 1),
+        "total_signals":        _g(snap, "total_signals", default=0),
+        "components":           comp,
+        "recent_accuracy":      _g(learn, "recent_accuracy", default=0.0),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Section 4 — Strategy Overview
+# ---------------------------------------------------------------------------
+
+def widget_strategy_overview(data: dict) -> dict:
+    st   = data.get("strategy", {})
+    snap = _g(st, "snapshot") or {}
+    crit = _g(st, "criterion") or {}
+    recs = _g(st, "recs") or []
+    best_pf  = _g(crit, "best_profit_factor") or {}
+    best_wr  = _g(crit, "best_win_rate") or {}
+    best_pnl = _g(crit, "best_net_pnl") or {}
+    worst    = _g(crit, "worst_net_pnl") or {}
+    return {
+        "total_strategies":    _g(snap, "total_strategies", default=0),
+        "best_strategy":       _g(snap, "best_strategy", default="N/A"),
+        "worst_strategy":      _g(worst, "name", default="N/A"),
+        "highest_win_rate":    _g(best_wr, "name", default="N/A"),
+        "best_profit_factor":  _g(best_pf, "name", default="N/A"),
+        "best_regime":         _g(snap, "best_regime", default="N/A"),
+        "best_sector":         _g(snap, "best_sector", default="N/A"),
+        "total_net_pnl":       _g(snap, "total_net_pnl", default=0.0),
+        "overall_win_rate":    _g(snap, "overall_win_rate", default=0.0),
+        "recommendation_count": len(recs),
+        "strong_buy_count":    sum(1 for r in recs if isinstance(r, dict) and _g(r, "verdict", default="").upper() == "STRONG_BUY"),
+        "recommendations":     recs[:5],  # top 5 for executive view
+    }
+
+
+# ---------------------------------------------------------------------------
+# Section 5 — Execution Quality
+# ---------------------------------------------------------------------------
+
+def widget_execution_quality(data: dict) -> dict:
+    eq = data.get("execution_quality", {})
+    return {
+        "execution_score":   _g(eq, "avg_execution_score", default=0.0),
+        "avg_slippage":      _g(eq, "avg_entry_slippage_pct", default=0.0),
+        "avg_fill_delay":    _g(eq, "avg_fill_delay_seconds", default=0.0),
+        "total_trades":      _g(eq, "total_trades", default=0),
+        "best_execution":    _g(eq, "best_execution_score", default=0.0),
+        "worst_execution":   _g(eq, "worst_execution_score", default=0.0),
+        "exit_slippage":     _g(eq, "avg_exit_slippage_pct", default=0.0),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Section 6 — Pre-Open Intelligence
+# ---------------------------------------------------------------------------
+
+def widget_preopen(data: dict) -> dict:
+    po     = data.get("preopen", {})
+    status = _g(po, "status") or {}
+    ranks  = _g(po, "rankings") or {}
+    sects  = _g(po, "sectors") or {}
+    top_symbols = _g(ranks, "top_symbols") or []
+    top_gapup   = next((s for s in top_symbols if _g(s, "gap_pct", default=0) > 0), {})
+    top_gapdown = next((s for s in reversed(top_symbols) if _g(s, "gap_pct", default=0) < 0), {})
+    buy_imbals  = [s for s in top_symbols if _g(s, "imbalance_type", default="") == "BUY"]
+    sell_imbals = [s for s in top_symbols if _g(s, "imbalance_type", default="") == "SELL"]
+    return {
+        "top_gap_up":            _g(top_gapup,  "symbol", default="N/A"),
+        "top_gap_up_pct":        _g(top_gapup,  "gap_pct", default=0.0),
+        "top_gap_down":          _g(top_gapdown, "symbol", default="N/A"),
+        "top_gap_down_pct":      _g(top_gapdown, "gap_pct", default=0.0),
+        "buy_imbalance":         _g(buy_imbals[0],  "symbol", default="N/A") if buy_imbals else "N/A",
+        "sell_imbalance":        _g(sell_imbals[0], "symbol", default="N/A") if sell_imbals else "N/A",
+        "leading_sector":        _g(sects, "leading_sector", default="N/A"),
+        "highest_exec_qty":      _g(ranks, "highest_exec_qty", default=0),
+        "provider":              _g(status, "provider_label", default="N/A"),
+        "last_refresh":          _g(status, "last_updated", default="N/A"),
+        "symbols_analysed":      _g(status, "symbols_analysed", default=0),
+        "trading_date":          _g(status, "trading_date", default="N/A"),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Section 7 — Portfolio Risk
+# ---------------------------------------------------------------------------
+
+def widget_portfolio_risk(data: dict) -> dict:
+    rk     = data.get("risk", {})
+    risk   = _g(rk, "risk") or {}
+    alerts = _g(rk, "alerts") or {}
+    salloc = _g(risk, "sector_allocation") or []
+    top_sector = max(salloc, key=lambda x: _g(x, "weight_pct", default=0.0), default={})
+    ral = _g(alerts, "alerts") or []
+    return {
+        "utilisation":           _g(risk, "utilization_pct", default=_g(risk, "portfolio_heat", default=0.0)),
+        "largest_position":      _g(risk, "largest_position_pct", default=0.0),
+        "maximum_risk":          _g(risk, "daily_risk", default=0.0),
+        "sector_concentration":  _g(top_sector, "weight_pct", default=0.0),
+        "top_sector":            _g(top_sector, "sector", default="N/A"),
+        "kill_switch_active":    _g(risk, "kill_switch", "active", default=False),
+        "risk_alerts":           ral[:5],
+        "alert_count":           len(ral),
+        "diversification_score": _g(risk, "diversification_score", default=0.0),
+        "portfolio_heat":        _g(risk, "portfolio_heat", default=0.0),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Section 8 — Live Alerts
+# ---------------------------------------------------------------------------
+
+def widget_live_alerts(data: dict) -> dict:
+    sys  = data.get("system", {})
+    risk = data.get("risk", {})
+    meta = _g(sys, "meta") or {}
+    sched = _g(sys, "scheduler") or {}
+    ral   = _g(risk, "alerts", "alerts") or []
+    critical = [a for a in ral if isinstance(a, dict) and _g(a, "level", default="") in ("CRITICAL", "ERROR")]
+    warnings = [a for a in ral if isinstance(a, dict) and _g(a, "level", default="") == "WARNING"]
+    info     = [a for a in ral if isinstance(a, dict) and _g(a, "level", default="") == "INFO"]
+    return {
+        "critical":           critical[:3],
+        "warnings":           warnings[:5],
+        "info":               info[:3],
+        "recent_errors":      _g(meta, "recent_errors", default=[])[:3],
+        "feature_flag_issues": _g(meta, "feature_flag_issues", default=[])[:3],
+        "scheduler_issues":   _g(sched, "issues", default=[])[:3],
+        "total_critical":     len(critical),
+        "total_warnings":     len(warnings),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Section 9 — Market Snapshot
+# ---------------------------------------------------------------------------
+
+def widget_market_snapshot(data: dict) -> dict:
+    sys  = data.get("system", {})
+    meta = _g(sys, "meta") or {}
+    return {
+        "nifty":         _g(meta, "nifty",      default={"price": None, "change_pct": None}),
+        "bank_nifty":    _g(meta, "bank_nifty", default={"price": None, "change_pct": None}),
+        "india_vix":     _g(meta, "india_vix",  default={"price": None, "change_pct": None}),
+        "market_regime": _g(meta, "market_regime", default="UNKNOWN"),
+        "market_breadth": _g(meta, "market_breadth", default="N/A"),
+        "top_sectors":   _g(meta, "top_sectors", default=[]),
+        "market_status": _g(meta, "market_status", default="UNKNOWN"),
+        "ist_time":      _g(meta, "ist_time", default="N/A"),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Header data
+# ---------------------------------------------------------------------------
+
+def widget_header(data: dict) -> dict:
+    sys  = data.get("system", {})
+    po   = data.get("preopen", {})
+    meta = _g(sys, "meta") or {}
+    po_status = _g(po, "status") or {}
+    return {
+        "market_status":     _g(meta, "market_status", default="UNKNOWN"),
+        "ist_time":          _g(meta, "ist_time", default="N/A"),
+        "market_regime":     _g(meta, "market_regime", default="UNKNOWN"),
+        "paper_trading":     True,
+        "active_provider":   _g(po_status, "provider_label", default="N/A"),
+        "watchlist_count":   _g(po_status, "symbols_analysed", default=0),
+        "trading_date":      _g(po_status, "trading_date", default="N/A"),
+    }

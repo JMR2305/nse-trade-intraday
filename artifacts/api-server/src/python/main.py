@@ -2337,6 +2337,17 @@ def main():
             from ai_performance.api import get_learning as _ai_learning
             result = _ai_learning()
 
+        # ── Phase 5D.5: Executive Dashboard ──────────────────────────────────────
+        elif command == "executive_summary":
+            from executive_dashboard.api import get_summary as _exec_summary
+            result = _exec_summary()
+        elif command == "executive_health":
+            from executive_dashboard.api import get_health as _exec_health
+            result = _exec_health()
+        elif command == "executive_widgets":
+            from executive_dashboard.api import get_widgets as _exec_widgets
+            result = _exec_widgets()
+
         # ── Phase 5D.3: Strategy Intelligence ────────────────────────────────────
         elif command == "strategy_summary":
             from strategy_intelligence.api import get_summary as _si_summary

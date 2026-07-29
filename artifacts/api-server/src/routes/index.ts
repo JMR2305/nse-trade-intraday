@@ -25,6 +25,7 @@ import executionQualityRouter from "./executionQuality";
 import performanceRouter from "./performance";
 import strategyRouter from "./strategy";
 import aiPerformanceRouter from "./ai-performance";
+import executiveRouter from "./executive";
 
 const router: IRouter = Router();
 
@@ -52,6 +53,7 @@ router.use(executionQualityRouter);
 router.use(performanceRouter);
 router.use(strategyRouter);
 router.use(aiPerformanceRouter);
+router.use(executiveRouter);
 router.use(tradingRouter);
 router.use(downloadRouter);
 

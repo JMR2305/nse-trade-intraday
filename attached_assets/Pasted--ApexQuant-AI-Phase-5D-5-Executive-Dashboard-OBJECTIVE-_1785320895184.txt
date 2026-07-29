@@ -1,0 +1,503 @@
+# ApexQuant AI – Phase 5D.5
+Executive Dashboard
+
+OBJECTIVE
+
+Build a unified Executive Dashboard that serves as the single operational command center for ApexQuant AI.
+
+This dashboard MUST NOT recalculate analytics.
+
+It must aggregate and present information from:
+
+• Phase 5C – Signal Validation
+• Phase 5D.1 – Execution Quality
+• Phase 5D.2 – Portfolio Performance
+• Phase 5D.3 – Strategy Intelligence
+• Phase 5D.4 – AI Performance Intelligence
+• Pre-Open Intelligence
+• Market Intelligence
+• Portfolio Risk
+
+The dashboard is READ-ONLY.
+
+It must NEVER modify:
+
+- Trading engine
+- Paper trading engine
+- Orders
+- Portfolio
+- Risk engine
+- Strategy execution
+- Signals
+
+--------------------------------------------------
+
+IMPORTANT ARCHITECTURE REQUIREMENT
+
+This dashboard MUST ONLY consume existing shared services.
+
+Do NOT duplicate calculations.
+
+Do NOT recompute metrics.
+
+Reuse:
+
+Strategy Intelligence shared_services
+
+AI Performance shared_services
+
+Portfolio Performance APIs
+
+Execution Quality APIs
+
+Signal Validation APIs
+
+Pre-Open APIs
+
+Portfolio Risk APIs
+
+--------------------------------------------------
+
+FEATURE FLAG
+
+EXECUTIVE_DASHBOARD_ENABLED=true
+
+When disabled:
+
+{
+    "status":"DISABLED"
+}
+
+--------------------------------------------------
+
+NEW MODULE
+
+executive_dashboard/
+
+Suggested structure
+
+executive_dashboard/
+
+├── dashboard_models.py
+
+├── dashboard_engine.py
+
+├── widgets.py
+
+├── layout.py
+
+├── api.py
+
+└── shared_services.py
+
+--------------------------------------------------
+
+TOP HEADER
+
+Display:
+
+Current Market Status
+
+NSE Open / Closed
+
+Current Time
+
+Market Regime
+
+Paper Trading Status
+
+Active Provider
+
+Current Watchlist
+
+--------------------------------------------------
+
+SECTION 1
+
+SYSTEM HEALTH
+
+Cards:
+
+Application Health
+
+Scheduler Health
+
+Database Status
+
+API Status
+
+Feature Flags
+
+Background Jobs
+
+--------------------------------------------------
+
+SECTION 2
+
+PORTFOLIO OVERVIEW
+
+Cards:
+
+Portfolio Value
+
+Today's P&L
+
+Net P&L
+
+Cash Available
+
+Invested Capital
+
+Open Positions
+
+Win Rate
+
+Profit Factor
+
+Drawdown
+
+--------------------------------------------------
+
+SECTION 3
+
+AI HEALTH
+
+Reuse Phase 5D.4
+
+Display:
+
+AI Health Score
+
+Prediction Accuracy
+
+Precision
+
+Recall
+
+Average Confidence
+
+Trend Direction
+
+Calibration Quality
+
+--------------------------------------------------
+
+SECTION 4
+
+STRATEGY OVERVIEW
+
+Reuse Phase 5D.3
+
+Display:
+
+Best Strategy
+
+Worst Strategy
+
+Highest Win Rate
+
+Best Profit Factor
+
+Best Regime
+
+Best Sector
+
+Recommendation Summary
+
+--------------------------------------------------
+
+SECTION 5
+
+EXECUTION QUALITY
+
+Reuse Phase 5D.1
+
+Display:
+
+Execution Score
+
+Average Slippage
+
+Average Fill Delay
+
+Best Execution
+
+Worst Execution
+
+--------------------------------------------------
+
+SECTION 6
+
+PRE-OPEN INTELLIGENCE
+
+Reuse existing module.
+
+Display:
+
+Top Gap Up
+
+Top Gap Down
+
+Buy Imbalance
+
+Sell Imbalance
+
+Leading Sector
+
+Highest Executed Quantity
+
+Current Data Provider
+
+Last Refresh Time
+
+--------------------------------------------------
+
+SECTION 7
+
+PORTFOLIO RISK
+
+Reuse existing module.
+
+Display:
+
+Utilisation
+
+Largest Position
+
+Maximum Risk
+
+Sector Concentration
+
+Risk Alerts
+
+--------------------------------------------------
+
+SECTION 8
+
+LIVE ALERTS
+
+Display:
+
+Critical Alerts
+
+Warning Alerts
+
+Information
+
+Recent Errors
+
+Feature Flag Issues
+
+Scheduler Issues
+
+--------------------------------------------------
+
+SECTION 9
+
+MARKET SNAPSHOT
+
+Display:
+
+NIFTY
+
+BANK NIFTY
+
+INDIA VIX
+
+Market Breadth
+
+Top Sectors
+
+Market Regime
+
+--------------------------------------------------
+
+SECTION 10
+
+QUICK ACTIONS
+
+Buttons:
+
+Open Portfolio
+
+Open Strategy Intelligence
+
+Open AI Performance
+
+Open Execution Quality
+
+Open Pre-Open Intelligence
+
+Open Portfolio Risk
+
+Open Trade Decisions
+
+--------------------------------------------------
+
+EXECUTIVE SCORE
+
+Generate one overall score.
+
+Suggested weighting
+
+Portfolio Health
+
+25%
+
+AI Health
+
+20%
+
+Strategy Health
+
+20%
+
+Execution Quality
+
+15%
+
+Risk
+
+10%
+
+System Health
+
+10%
+
+Display:
+
+Executive Score
+
+96 / 100
+
+Excellent
+
+--------------------------------------------------
+
+DASHBOARD LAYOUT
+
+Desktop
+
+Single-page executive view
+
+Responsive widgets
+
+Collapsible sections
+
+Mobile
+
+Optimised cards
+
+Swipeable sections
+
+Fast loading
+
+--------------------------------------------------
+
+API
+
+GET /api/executive/summary
+
+GET /api/executive/health
+
+GET /api/executive/widgets
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Dashboard load
+
+<1 second
+
+No duplicate API calls
+
+Reuse shared services
+
+Lazy load detailed widgets
+
+--------------------------------------------------
+
+TESTING
+
+Verify
+
+✓ Feature flag
+
+✓ Shared service reuse
+
+✓ Zero data
+
+✓ Partial data
+
+✓ Full data
+
+✓ Widget rendering
+
+✓ Mobile layout
+
+✓ Desktop layout
+
+✓ API responses
+
+✓ Restart persistence
+
+--------------------------------------------------
+
+SAFETY
+
+Maintain
+
+✓ Read-only
+
+✓ Advisory-only
+
+✓ Paper Trading only
+
+✓ No portfolio mutations
+
+✓ No order modifications
+
+✓ No signal modifications
+
+✓ No strategy modifications
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide
+
+1. Files created
+
+2. Files modified
+
+3. Shared services reused
+
+4. Dashboard screenshots (Desktop and Mobile)
+
+5. API endpoints
+
+6. Test count
+
+7. Test results
+
+8. Performance benchmarks
+
+9. Known limitations
+
+10. Explain exactly which shared services are reused from each previous phase.
+
+11. Confirm that no analytics are recalculated inside the Executive Dashboard and that all metrics are consumed from existing modules.
+
+12. Verify that the dashboard can support future modules (Live Trading, ML Engine, Options, Swing Trading) without architectural changes.
+
+Final verdict
+
+PHASE 5D.5 COMPLETE
+
+or
+
+PHASE 5D.5 NOT COMPLETE
+
+with exact blockers.

@@ -59,6 +59,7 @@ import {
   Search,
   TrendingUp,
   Zap,
+  LayoutDashboard,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
@@ -81,6 +82,7 @@ const navGroups = [
   {
     label: "Operations",
     items: [
+      { href: "/executive-dashboard", label: "Executive Dashboard", icon: LayoutDashboard },
       { href: "/dashboard",        label: "Dashboard",        icon: BarChart3   },
       { href: "/",                 label: "Trade Decisions",  icon: Target      },
       { href: "/market-scanner",      label: "Market Scanner",      icon: Radar    },

@@ -42,3 +42,4 @@
 - [Phase 5D.2 portfolio performance](phase5d2-portfolio-performance.md) — read-only analytics module; PORTFOLIO_PERFORMANCE_ENABLED flag; 5 API endpoints; FIFO BUY→SELL matching reused from EQ module pattern.
 - [Phase 5D.3 strategy intelligence](phase5d3-strategy-intelligence.md) — shared analytics service; stable shared_services.py API for 5D.4/5D.5 reuse; 6 endpoints; 31 tests; STRATEGY_INTELLIGENCE_ENABLED flag.
 - [Phase 5D.4 AI performance intelligence](phase5d4-ai-performance.md) — consumer of 5D.3; confidence/calibration/prediction/learning analytics; get_ai_snapshot() for 5D.5; 32 tests; AI_PERFORMANCE_ENABLED flag.
+- [Phase 5D.5 executive dashboard](phase5d5-executive-dashboard.md) — aggregates 5D.1–5D.4 + preopen + risk; ZERO recalculation; patch shared_services.load_all not dashboard_engine.load_all in tests.
