@@ -2874,7 +2874,18 @@ router.get("/phase20/positions", async (_req, res) => {
 // POST /api/phase20/exits/tick — evaluate exits for open paper positions now
 router.post("/phase20/exits/tick", async (_req, res) => {
   try {
-    res.json(await runPython(["phase20_exit_tick"]));
+    const result = await runPython(["phase20_exit_tick"]) as Record<string, unknown>;
+    // Publish paper.trade.recorded when at least one position was closed so the
+    // Live Readiness page invalidates its Data Quality score immediately.
+    const closedCount = Number(result?.["exits_processed"] ?? result?.["closed_count"] ?? result?.["trades_closed"] ?? 0);
+    if (closedCount > 0 || result?.["success"] === true) {
+      eventBus.publish("paper.trade.recorded", {
+        source: "exits_tick",
+        closed_count: closedCount,
+        ts: new Date().toISOString(),
+      });
+    }
+    res.json(result);
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }

@@ -1,0 +1,446 @@
+OBJECTIVE
+
+Build a comprehensive Event & Corporate Intelligence Hub that continuously collects, analyses and summarises corporate events, regulatory announcements and market news.
+
+This module MUST remain completely READ-ONLY and ADVISORY-ONLY.
+
+It MUST NEVER:
+
+• Place orders
+• Modify signals
+• Change strategies
+• Modify AI decisions
+• Modify portfolio
+• Change risk parameters
+• Execute trades
+
+--------------------------------------------------
+
+ARCHITECTURE
+
+Reuse existing modules.
+
+Especially integrate with:
+
+• Phase 7.1 Market Intelligence Hub
+• Phase 6.3 AI Optimisation
+• Phase 6.4 Risk Optimisation
+• Phase 6.5 Live Readiness
+• Executive Dashboard
+• Shared snapshot interfaces
+
+Do NOT duplicate existing analytics.
+
+--------------------------------------------------
+
+FEATURE FLAG
+
+EVENT_INTELLIGENCE_ENABLED=true
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Create one unified Event Intelligence Engine providing:
+
+Corporate Intelligence
+
+Regulatory Intelligence
+
+News Intelligence
+
+Event Impact Analysis
+
+Event Timeline
+
+Daily Intelligence Brief
+
+--------------------------------------------------
+
+CORPORATE INTELLIGENCE
+
+Analyse
+
+Quarterly Results
+
+Annual Results
+
+Earnings Surprise
+
+Dividend Announcements
+
+Bonus Issues
+
+Stock Splits
+
+Rights Issues
+
+Buybacks
+
+Promoter Holding Changes
+
+Insider Transactions (where available)
+
+Bulk Deals
+
+Block Deals
+
+Board Meetings
+
+Management Guidance
+
+Corporate Actions
+
+--------------------------------------------------
+
+REGULATORY INTELLIGENCE
+
+Track
+
+NSE Announcements
+
+BSE Announcements
+
+SEBI Circulars
+
+ASM List
+
+GSM List
+
+F&O Ban List
+
+Margin Changes
+
+Index Inclusion
+
+Index Exclusion
+
+Trading Suspension
+
+Compliance Notices
+
+--------------------------------------------------
+
+NEWS INTELLIGENCE
+
+Categorise
+
+Company News
+
+Sector News
+
+Market News
+
+Global News
+
+Breaking News
+
+Economic Headlines
+
+Generate
+
+News Importance Score
+
+News Freshness Score
+
+Duplicate Detection
+
+Related Companies
+
+Related Sectors
+
+--------------------------------------------------
+
+EVENT IMPACT ENGINE
+
+For every event generate
+
+Importance Score
+
+Confidence Score
+
+Expected Duration
+
+Bullish
+
+Bearish
+
+Neutral
+
+Expected Volatility
+
+Affected Stocks
+
+Affected Sectors
+
+Historical Similar Events
+
+Potential Trading Risk
+
+Potential Opportunity
+
+--------------------------------------------------
+
+EVENT TIMELINE
+
+Generate
+
+Upcoming Events
+
+Today's Events
+
+Past 7 Days
+
+Past 30 Days
+
+Future Calendar
+
+--------------------------------------------------
+
+DAILY INTELLIGENCE BRIEF
+
+Generate advisory report
+
+Today's Important Events
+
+Stocks Requiring Attention
+
+High Risk Stocks
+
+High Opportunity Stocks
+
+Sector Highlights
+
+Potential Volatility Events
+
+Market Summary
+
+--------------------------------------------------
+
+EVENT INTELLIGENCE SCORE
+
+Generate
+
+0–100
+
+Grade
+
+A+
+
+A
+
+B
+
+C
+
+D
+
+Trend
+
+Improving
+
+Stable
+
+Weakening
+
+--------------------------------------------------
+
+DASHBOARD
+
+Create sections
+
+Overall Event Intelligence
+
+Corporate Actions
+
+News Intelligence
+
+Regulatory Events
+
+Event Timeline
+
+Impact Analysis
+
+Daily Intelligence Brief
+
+High Priority Alerts
+
+Upcoming Events
+
+--------------------------------------------------
+
+API
+
+GET /api/event-intelligence/summary
+
+GET /api/event-intelligence/news
+
+GET /api/event-intelligence/corporate
+
+GET /api/event-intelligence/regulatory
+
+GET /api/event-intelligence/timeline
+
+GET /api/event-intelligence/brief
+
+--------------------------------------------------
+
+EXPORT
+
+CSV
+
+JSON
+
+Future PDF
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Background processing only.
+
+Cache processed events.
+
+Deduplicate repeated news.
+
+Avoid blocking dashboard performance.
+
+--------------------------------------------------
+
+TESTING
+
+Verify
+
+Feature flag
+
+No events
+
+Corporate events
+
+News events
+
+Regulatory events
+
+Duplicate detection
+
+Timeline ordering
+
+Dashboard
+
+API
+
+Shared services
+
+Export
+
+--------------------------------------------------
+
+SAFETY
+
+Read-only
+
+Advisory-only
+
+Never modify
+
+Orders
+
+Signals
+
+Portfolio
+
+Strategies
+
+Risk Engine
+
+AI Models
+
+Execution Engine
+
+--------------------------------------------------
+
+GITHUB INTEGRATION REQUIREMENTS
+
+Incorporate concepts inspired by previously reviewed GitHub projects where appropriate.
+
+Include
+
+• Event scoring
+
+• News categorisation
+
+• Corporate action analysis
+
+• Regulatory event monitoring
+
+• Duplicate news detection
+
+• Event priority ranking
+
+• Historical event comparison
+
+• Explainable event summaries
+
+Do NOT copy external implementations.
+
+Maintain ApexQuant AI modular architecture.
+
+--------------------------------------------------
+
+FUTURE INTEGRATION
+
+Design architecture so future modules can connect without changes.
+
+Support future integration with
+
+• Phase 7.3 Economic Intelligence
+
+• Phase 7.4 Explainable AI
+
+• Phase 7.5 Research & Simulation Lab
+
+• Executive Dashboard
+
+• Future Live Deployment Readiness
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide
+
+1. Files created
+
+2. Files modified
+
+3. Shared services reused
+
+4. APIs
+
+5. Dashboard
+
+6. Test count
+
+7. Test results
+
+8. Performance benchmarks
+
+9. Known limitations
+
+10. Event Intelligence methodology
+
+11. GitHub-inspired enhancements
+
+12. Explain how future Economic Intelligence, Explainable AI and Research Lab integrate without architecture changes.
+
+13. Confirm the module remains READ-ONLY and ADVISORY-ONLY.
+
+Final Verdict
+
+PHASE 7.2 COMPLETE
+
+or
+
+PHASE 7.2 NOT COMPLETE
+
+with exact blockers.

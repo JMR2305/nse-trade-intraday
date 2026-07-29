@@ -17,7 +17,8 @@
  * READ-ONLY. ADVISORY-ONLY.
  * This page NEVER enables live trading.
  */
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { apiJson } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,18 +27,56 @@ import {
   AlertTriangle, XCircle, Minus, Info, ChevronRight,
   Rocket,
 } from "lucide-react";
+import { SSE_STREAM_URL } from "@/lib/apiConfig";
 
 // ---------------------------------------------------------------------------
 // API hooks
 // ---------------------------------------------------------------------------
 
-const Q = { staleTime: 3 * 60 * 1000, retry: 1 };
+// Data Quality and summary scores are invalidated immediately when a new paper
+// trade is recorded — staleTime kept at 60 s as a safety-net fallback only.
+const Q = { staleTime: 60 * 1000, retry: 1 };
 
 function useSummary()  { return useQuery({ queryKey: ["rd-summary"],  queryFn: () => apiJson("readiness/summary"),  ...Q }); }
 function useSystem()   { return useQuery({ queryKey: ["rd-system"],   queryFn: () => apiJson("readiness/system"),   ...Q }); }
 function useData()     { return useQuery({ queryKey: ["rd-data"],     queryFn: () => apiJson("readiness/data"),     ...Q }); }
 function useRecovery() { return useQuery({ queryKey: ["rd-recovery"], queryFn: () => apiJson("readiness/recovery"), ...Q }); }
 function useSecurity() { return useQuery({ queryKey: ["rd-security"], queryFn: () => apiJson("readiness/security"), ...Q }); }
+
+/**
+ * Subscribe to the SSE stream and invalidate the Data Quality and Summary
+ * queries the moment a `paper.trade.recorded` event arrives.  No polling
+ * loop: the event is pushed by the server's paper-trade write path.
+ */
+function usePaperTradeInvalidation() {
+  const qc = useQueryClient();
+  useEffect(() => {
+    let es: EventSource | null = null;
+    let closed = false;
+
+    const connect = () => {
+      if (closed) return;
+      es = new EventSource(SSE_STREAM_URL);
+
+      es.addEventListener("paper.trade.recorded", () => {
+        // A paper trade was just written — refresh the two score-bearing queries.
+        void qc.invalidateQueries({ queryKey: ["rd-data"] });
+        void qc.invalidateQueries({ queryKey: ["rd-summary"] });
+      });
+
+      es.onerror = () => {
+        es?.close();
+        if (!closed) setTimeout(connect, 5_000);
+      };
+    };
+
+    connect();
+    return () => {
+      closed = true;
+      es?.close();
+    };
+  }, [qc]);
+}
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -516,6 +555,9 @@ function Section10FutureHooks({ system }: { system: any }) {
 // ---------------------------------------------------------------------------
 
 export default function LiveReadiness() {
+  // Invalidate Data Quality + Summary the moment a paper trade is recorded.
+  usePaperTradeInvalidation();
+
   const summary  = useSummary();
   const system   = useSystem();
   const data     = useData();
