@@ -131,3 +131,9 @@ id = "qjxjc2we_5abwTBgMPM94"
 uri = "file://artifacts/api-server/docs/Phase4A1_Operational_Readiness_Investigation_20260726.md"
 type = "text"
 title = "Phase 4A.1 — Operational Readiness & Root Cause Investigation"
+
+[[outputs]]
+id = "tGY5LxP3DzVBLoqvB10J9"
+uri = "file://docs/phase6.2-strategy-optimisation.md"
+type = "text"
+title = "Phase 6.2 — Strategy Optimisation Summary"
