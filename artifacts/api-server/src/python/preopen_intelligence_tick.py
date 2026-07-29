@@ -8,11 +8,12 @@ This module owns all IST time-gating and per-phase deduplication so the
 Node scheduler needs zero time-of-day awareness for Phase 5A.
 
 Phase windows (IST):
-  08:43–08:51  →  INIT      (once)   provider health, DB, prev-close, calendar
-  08:53–09:00  →  READINESS (once)   confirm provider is not UNAVAILABLE
-  09:00–09:15  →  COLLECT   (every tick — one snapshot per minute)
-  09:15–09:18  →  FREEZE    (once)   rank watchlist, generate signals
-  09:18–09:23  →  RECONCILE (once)   indicative vs actual price delta
+  08:43–08:51  →  INIT             (once)   provider health, DB, prev-close, calendar
+  08:53–09:00  →  READINESS        (once)   confirm provider is not UNAVAILABLE
+  09:00–09:15  →  COLLECT          (every tick — one snapshot per minute)
+  09:15–09:18  →  FREEZE           (once)   rank watchlist, generate signals
+  09:18–09:23  →  RECONCILE        (once)   indicative vs actual price delta (09:20 prices)
+  09:28–09:35  →  RECONCILE_0930   (once)   patch price_at_0930 on existing records
 
 State is persisted per trading date in a JSON sidecar file so:
   - One-shot phases (init, readiness, freeze, reconcile) never repeat.
@@ -49,11 +50,12 @@ _STATE_FILE  = os.path.join(
 # once_only=False → executed on every tick inside the window (snapshot collect).
 #
 _PHASES = [
-    ("init",       (8, 43), (8, 51),  True),
-    ("readiness",  (8, 53), (9,  0),  True),
-    ("collect",    (9,  0), (9, 15),  False),
-    ("freeze",     (9, 15), (9, 18),  True),
-    ("reconcile",  (9, 18), (9, 23),  True),
+    ("init",            (8, 43), (8, 51),  True),
+    ("readiness",       (8, 53), (9,  0),  True),
+    ("collect",         (9,  0), (9, 15),  False),
+    ("freeze",          (9, 15), (9, 18),  True),
+    ("reconcile",       (9, 18), (9, 23),  True),
+    ("reconcile_0930",  (9, 28), (9, 35),  True),   # post-open enrichment: patch price_at_0930
 ]
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -252,6 +254,28 @@ def _run_reconcile(session_id: str, trading_date: str) -> dict:
         return {"success": False, "error": str(e)}
 
 
+def _run_reconcile_0930(session_id: str, trading_date: str) -> dict:
+    """
+    09:28–09:35 — post-open enrichment: patch price_at_0930 on existing
+    reconciliation records using live quotes fetched at 09:30 IST.
+
+    This is a once-only, best-effort pass.  If live quotes are unavailable
+    the function returns success=True with prices_patched=0 rather than
+    failing the session — the 09:20 reconciliation data is still valid.
+    """
+    try:
+        from preopen_scheduler import PreOpenScheduler
+        sched = PreOpenScheduler(session_id=session_id)
+        sched._phase_09_30_post_open_reconcile()
+        return {
+            "success":       sched.phase not in ("ERROR",),
+            "phase":         sched.phase,
+            "log":           sched._log[-5:],
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 # ── Main tick ──────────────────────────────────────────────────────────────────
 
 def run_tick() -> Dict[str, Any]:
@@ -337,6 +361,8 @@ def run_tick() -> Dict[str, Any]:
             detail = _run_freeze(session_id, trading_date)
         elif phase_name == "reconcile":
             detail = _run_reconcile(session_id, trading_date)
+        elif phase_name == "reconcile_0930":
+            detail = _run_reconcile_0930(session_id, trading_date)
         else:
             detail = {"error": f"Unknown phase: {phase_name}"}
     except Exception as e:

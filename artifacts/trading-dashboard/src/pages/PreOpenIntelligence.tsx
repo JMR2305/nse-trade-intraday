@@ -15,6 +15,7 @@ import {
   TrendingUp, TrendingDown, Activity, BarChart3, Wifi, WifiOff,
   ChevronDown, ChevronUp, RefreshCw, AlertTriangle, Clock,
   ArrowUpRight, ArrowDownRight, Minus, Filter, X, Eye,
+  CheckCircle2, Target, Percent, BarChart2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -59,6 +60,41 @@ interface SnapshotResponse {
   status?: string;
   message?: string;
   provider_label?: string;                  // active provider label from the engine
+}
+
+interface AccuracyResponse {
+  success?: boolean;
+  status?: string;
+  available: boolean;
+  trading_date?: string;
+  session_id?: string;
+  reconciled_at?: string;
+  symbols_reconciled?: number;
+  with_error_count?: number;
+  with_direction_count?: number;
+  watchlist_total?: number;
+  watchlist_confirmed_count?: number;
+  avg_indicative_to_open_error_pct?: number | null;
+  hit_rate_pct?: number | null;
+  confirmation_rate_pct?: number | null;
+  false_positive_rate_pct?: number | null;
+  continuation_rate_pct?: number | null;
+  reversal_rate_pct?: number | null;
+  grade?: string;
+  grade_label?: string;
+  message?: string;
+  symbols?: Array<{
+    symbol: string;
+    indicative_price: number | null;
+    actual_open: number | null;
+    price_at_0920: number | null;
+    price_at_0930: number | null;
+    error_pct: number | null;
+    direction_correct: boolean | null;
+    was_in_watchlist: boolean;
+    watchlist_confirmed: boolean | null;
+  }>;
+  label?: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -354,6 +390,240 @@ function DetailDrawer({ snap, onClose }: { snap: Snapshot; onClose: () => void }
   );
 }
 
+// ── Session Accuracy card ─────────────────────────────────────────────────────
+
+function gradeColor(grade: string | undefined): string {
+  switch (grade) {
+    case "A": return "text-emerald-600 dark:text-emerald-400";
+    case "B": return "text-green-600 dark:text-green-400";
+    case "C": return "text-amber-600 dark:text-amber-400";
+    case "D": return "text-red-600 dark:text-red-400";
+    default:  return "text-muted-foreground";
+  }
+}
+
+function rateBar(value: number | null | undefined, colorClass: string) {
+  if (value == null) return <span className="text-xs text-muted-foreground">N/A</span>;
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-1 bg-muted rounded-full h-1.5 min-w-[60px]">
+        <div
+          className={cn("h-full rounded-full", colorClass)}
+          style={{ width: `${Math.min(value, 100)}%` }}
+        />
+      </div>
+      <span className="text-xs font-mono w-12 text-right">{value.toFixed(1)}%</span>
+    </div>
+  );
+}
+
+function SessionAccuracyCard({ accuracy }: { accuracy: AccuracyResponse | undefined }) {
+  // Not yet loaded or disabled
+  if (!accuracy) return null;
+  if (accuracy.status === "DISABLED") return null;
+
+  // No reconciliation data yet — show a pending note
+  if (!accuracy.available) {
+    return (
+      <Card>
+        <CardHeader className="pb-2 pt-4 px-4">
+          <div className="flex items-center gap-2">
+            <Target className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-semibold">Session Accuracy</CardTitle>
+            <span className="text-[10px] text-muted-foreground ml-auto">Available post-09:30 IST</span>
+          </div>
+        </CardHeader>
+        <CardContent className="px-4 pb-4">
+          <p className="text-sm text-muted-foreground">
+            {accuracy.message ?? "Reconciliation runs automatically after market open (09:20–09:30 IST). Check back after the session."}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const {
+    trading_date, symbols_reconciled, with_error_count, with_direction_count,
+    watchlist_total, watchlist_confirmed_count,
+    avg_indicative_to_open_error_pct, hit_rate_pct, confirmation_rate_pct,
+    false_positive_rate_pct, grade, grade_label, reconciled_at, symbols,
+  } = accuracy;
+
+  return (
+    <Card>
+      <CardHeader className="pb-2 pt-4 px-4">
+        <div className="flex items-start justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Target className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-semibold">Session Accuracy</CardTitle>
+            <Badge variant="outline" className="text-[10px]">ADVISORY ONLY</Badge>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            {trading_date && <span>{trading_date}</span>}
+            {reconciled_at && (
+              <span className="font-mono">
+                Reconciled {new Date(reconciled_at).toLocaleTimeString("en-IN", {
+                  hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata",
+                })} IST
+              </span>
+            )}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="px-4 pb-4 space-y-4">
+        {/* Grade + summary stats */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="space-y-0.5">
+            <div className="text-xs text-muted-foreground flex items-center gap-1">
+              <BarChart2 className="h-3 w-3" /> Grade
+            </div>
+            <div className={cn("text-2xl font-bold", gradeColor(grade))}>{grade}</div>
+            <div className="text-xs text-muted-foreground">{grade_label}</div>
+          </div>
+          <div className="space-y-0.5">
+            <div className="text-xs text-muted-foreground flex items-center gap-1">
+              <Percent className="h-3 w-3" /> Mean Abs Error
+            </div>
+            <div className="text-xl font-bold">
+              {avg_indicative_to_open_error_pct != null
+                ? `${avg_indicative_to_open_error_pct.toFixed(2)}%`
+                : "N/A"}
+            </div>
+            <div className="text-xs text-muted-foreground">{with_error_count ?? 0} of {symbols_reconciled} symbols</div>
+          </div>
+          <div className="space-y-0.5">
+            <div className="text-xs text-muted-foreground flex items-center gap-1">
+              <CheckCircle2 className="h-3 w-3" /> Hit Rate
+            </div>
+            <div className={cn("text-xl font-bold", hit_rate_pct != null && hit_rate_pct >= 60 ? "text-emerald-600 dark:text-emerald-400" : hit_rate_pct != null && hit_rate_pct >= 45 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400")}>
+              {hit_rate_pct != null ? `${hit_rate_pct.toFixed(1)}%` : "N/A"}
+            </div>
+            <div className="text-xs text-muted-foreground">Correct direction calls</div>
+          </div>
+          <div className="space-y-0.5">
+            <div className="text-xs text-muted-foreground flex items-center gap-1">
+              <Activity className="h-3 w-3" /> Confirmation Rate
+            </div>
+            <div className={cn("text-xl font-bold", confirmation_rate_pct != null && confirmation_rate_pct >= 60 ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400")}>
+              {confirmation_rate_pct != null ? `${confirmation_rate_pct.toFixed(1)}%` : "N/A"}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {watchlist_confirmed_count ?? 0} of {watchlist_total ?? 0} watchlist candidates
+            </div>
+          </div>
+        </div>
+
+        {/* Rate bars */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Direction Hit Rate</span>
+              <span className="text-xs text-muted-foreground">{with_direction_count ?? 0} symbols</span>
+            </div>
+            {rateBar(hit_rate_pct, "bg-emerald-500")}
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Watchlist Confirmation</span>
+              <span className="text-xs text-muted-foreground">{watchlist_total ?? 0} candidates</span>
+            </div>
+            {rateBar(confirmation_rate_pct, "bg-primary")}
+          </div>
+          <div className="space-y-1">
+            <span className="text-xs text-muted-foreground">False Positive Rate</span>
+            {rateBar(false_positive_rate_pct, "bg-red-500")}
+          </div>
+          <div className="space-y-1">
+            <span className="text-xs text-muted-foreground">Reversal Rate (all symbols)</span>
+            {rateBar(accuracy.reversal_rate_pct, "bg-orange-400")}
+          </div>
+        </div>
+
+        {/* Per-symbol table (collapsed at >10 rows) */}
+        {symbols && symbols.length > 0 && (
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Per-Symbol Detail
+            </div>
+            <div className="overflow-x-auto rounded-md border border-border">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border bg-muted/40">
+                    <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Symbol</th>
+                    <th className="px-3 py-2 text-right font-semibold text-muted-foreground">Indicative</th>
+                    <th className="px-3 py-2 text-right font-semibold text-muted-foreground">Actual Open</th>
+                    <th className="px-3 py-2 text-right font-semibold text-muted-foreground">Error %</th>
+                    <th className="px-3 py-2 text-center font-semibold text-muted-foreground">Direction</th>
+                    <th className="px-3 py-2 text-center font-semibold text-muted-foreground">Watchlist</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {symbols.slice(0, 20).map((s) => (
+                    <tr key={s.symbol} className="border-b border-border/50 hover:bg-muted/20">
+                      <td className="px-3 py-1.5 font-bold">{s.symbol}</td>
+                      <td className="px-3 py-1.5 text-right font-mono">
+                        {s.indicative_price != null ? `₹${s.indicative_price.toFixed(2)}` : "—"}
+                      </td>
+                      <td className="px-3 py-1.5 text-right font-mono">
+                        {s.actual_open != null ? `₹${s.actual_open.toFixed(2)}` : "—"}
+                      </td>
+                      <td className={cn(
+                        "px-3 py-1.5 text-right font-mono",
+                        s.error_pct == null ? "text-muted-foreground" :
+                        s.error_pct < 0.3 ? "text-emerald-600 dark:text-emerald-400" :
+                        s.error_pct < 0.8 ? "text-amber-600 dark:text-amber-400" :
+                        "text-red-600 dark:text-red-400"
+                      )}>
+                        {s.error_pct != null ? `${s.error_pct.toFixed(2)}%` : "—"}
+                      </td>
+                      <td className="px-3 py-1.5 text-center">
+                        {s.direction_correct == null ? (
+                          <Minus className="h-3.5 w-3.5 mx-auto text-muted-foreground" />
+                        ) : s.direction_correct ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 mx-auto text-emerald-500" />
+                        ) : (
+                          <AlertTriangle className="h-3.5 w-3.5 mx-auto text-red-500" />
+                        )}
+                      </td>
+                      <td className="px-3 py-1.5 text-center">
+                        {s.was_in_watchlist ? (
+                          s.watchlist_confirmed ? (
+                            <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300">
+                              ✓
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300">
+                              ✗
+                            </span>
+                          )
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {symbols.length > 20 && (
+                    <tr>
+                      <td colSpan={6} className="px-3 py-2 text-center text-xs text-muted-foreground">
+                        +{symbols.length - 20} more symbols not shown
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        <p className="text-[10px] text-muted-foreground/70 italic">
+          Accuracy metrics are retrospective and advisory only. They measure indicative pre-open price quality,
+          not trade performance. No paper entries are created from pre-open data.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function PreOpenIntelligence() {
@@ -377,6 +647,13 @@ export default function PreOpenIntelligence() {
   const { data: watchlistData } = useQuery<{ watchlists?: Record<string, any[]>; status?: string }>({
     queryKey: ["preopen-watchlist"],
     queryFn: () => apiJson("/preopen/watchlist"),
+    refetchInterval: 60_000,
+    retry: 1,
+  });
+
+  const { data: accuracyData } = useQuery<AccuracyResponse>({
+    queryKey: ["preopen-accuracy"],
+    queryFn: () => apiJson("/preopen/accuracy"),
     refetchInterval: 60_000,
     retry: 1,
   });
@@ -811,6 +1088,9 @@ export default function PreOpenIntelligence() {
           </table>
         </div>
       </Card>
+
+      {/* Session Accuracy — visible once reconciliation data is available */}
+      <SessionAccuracyCard accuracy={accuracyData} />
 
       {/* Advisory footer */}
       <p className="text-[11px] text-muted-foreground/60 text-center pb-2">

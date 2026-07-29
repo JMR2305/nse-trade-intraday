@@ -36,13 +36,15 @@ interface CacheEntry {
 }
 const _cache = new Map<string, CacheEntry>();
 const CACHE_TTL_MS: Record<string, number> = {
-  status:   15_000,   // 15 s
-  health:   30_000,   // 30 s
-  snapshot: 30_000,
-  rankings: 30_000,
-  watchlist:60_000,   // 1 min — frozen list
-  sectors:  30_000,
-  report:   60_000,
+  status:           15_000,   // 15 s
+  health:           30_000,   // 30 s
+  snapshot:         30_000,
+  rankings:         30_000,
+  watchlist:        60_000,   // 1 min — frozen list
+  sectors:          30_000,
+  report:           60_000,
+  "accuracy:latest":60_000,   // 1 min — reconciliation data stable post-open
+  accuracy_history: 120_000,  // 2 min — historical summary
 };
 
 function cached(key: string, fn: () => Promise<unknown>): Promise<unknown> {
@@ -172,6 +174,33 @@ router.get("/preopen/sectors", wrap(async (_req, res) => {
 /** GET /api/preopen/report */
 router.get("/preopen/report", wrap(async (_req, res) => {
   const data = await cached("report", () => runPython(["preopen_report"], 60_000));
+  res.json(data);
+}));
+
+/**
+ * GET /api/preopen/accuracy
+ * Session accuracy report: MAE %, hit rate, confirmation rate, per-symbol records.
+ * Shows data for today (or ?date=YYYY-MM-DD for a historical date).
+ * Available post-09:30 IST once the reconciliation step has run.
+ */
+router.get("/preopen/accuracy", wrap(async (req, res) => {
+  const date = typeof req.query.date === "string" ? req.query.date.slice(0, 10) : undefined;
+  const cacheKey = `accuracy:${date ?? "latest"}`;
+  const data = await cached(cacheKey, () => {
+    const pyArgs = date ? ["preopen_accuracy", date] : ["preopen_accuracy"];
+    return runPython(pyArgs, 15_000);
+  });
+  res.json(data);
+}));
+
+/**
+ * GET /api/preopen/accuracy/history
+ * Accuracy summary for the last 5 sessions (trading dates with reconciliation data).
+ */
+router.get("/preopen/accuracy/history", wrap(async (_req, res) => {
+  const data = await cached("accuracy_history", () =>
+    runPython(["preopen_accuracy_history"], 15_000)
+  );
   res.json(data);
 }));
 

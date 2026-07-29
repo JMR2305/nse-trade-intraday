@@ -457,3 +457,32 @@ def get_reconciliation(trading_date: Optional[str] = None) -> List[dict]:
             cols = [d[0] for d in cur.description]
             return [dict(zip(cols, row)) for row in cur.fetchall()]
     return _with_db(from_db) or []
+
+
+def get_reconciliation_dates(n: int = 5) -> List[str]:
+    """Return the last N distinct trading dates that have reconciliation records."""
+    def from_db(conn):
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT DISTINCT trading_date
+                FROM preopen_reconciliation
+                ORDER BY trading_date DESC
+                LIMIT %s
+            """, [n])
+            return [row[0] for row in cur.fetchall()]
+    return _with_db(from_db) or []
+
+
+def update_reconciliation_0930(trading_date: str, prices_0930: Dict[str, float]) -> None:
+    """Patch price_at_0930 for existing reconciliation records (post-open enrichment)."""
+    def to_db(conn):
+        with conn.cursor() as cur:
+            for symbol, price in prices_0930.items():
+                cur.execute("""
+                    UPDATE preopen_reconciliation
+                    SET price_at_0930 = %s
+                    WHERE trading_date = %s AND symbol = %s
+                      AND price_at_0930 IS NULL
+                """, [price, trading_date, symbol])
+        conn.commit()
+    _with_db(to_db)

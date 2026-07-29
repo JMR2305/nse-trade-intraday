@@ -2198,6 +2198,15 @@ def main():
             from preopen_engine import refresh
             result = refresh()
 
+        elif command == "preopen_accuracy":
+            from preopen_accuracy import get_accuracy
+            date_arg = args[1] if len(args) > 1 else None
+            result = get_accuracy(date_arg)
+
+        elif command == "preopen_accuracy_history":
+            from preopen_accuracy import get_accuracy_history
+            result = get_accuracy_history()
+
         elif command == "preopen_validation_tick":
             from preopen_validation_tick import run_tick
             result = run_tick()

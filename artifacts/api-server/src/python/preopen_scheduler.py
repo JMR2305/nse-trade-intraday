@@ -50,10 +50,10 @@ def _is_market_holiday(date_str: str) -> bool:
 
 
 def _is_preopen_window() -> bool:
-    """Return True if current IST time is in the 08:45–09:20 window."""
+    """Return True if current IST time is in the 08:45–09:35 window (includes post-open recon)."""
     now = _now_ist()
     start = now.replace(hour=8, minute=45, second=0, microsecond=0)
-    end   = now.replace(hour=9,  minute=25, second=0, microsecond=0)
+    end   = now.replace(hour=9,  minute=35, second=0, microsecond=0)
     return start <= now <= end
 
 
@@ -274,6 +274,47 @@ class PreOpenScheduler:
         except Exception as e:
             self._emit(SchedulerPhase.ERROR, {"error": f"reconcile failed: {e}"})
 
+    def _phase_09_30_post_open_reconcile(self) -> None:
+        """
+        09:30 — enrich reconciliation records with actual 09:30 prices.
+
+        The 09:20 step captures prices immediately after open. By 09:30 the
+        opening auction has fully cleared and prices are more reliable. This
+        step patches price_at_0930 on existing records and updates the session
+        status so the accuracy report can surface the enriched data.
+        """
+        self._emit(SchedulerPhase.RECON, {"step": "0930"})
+        try:
+            import preopen_db as db_mod
+            today = _today_ist()
+            snaps = db_mod.get_latest_snapshots(today)
+
+            # Fetch live quotes at 09:30
+            try:
+                from live_quote_service import get_quotes
+                symbols = [s.get("symbol") for s in snaps if s.get("symbol")]
+                quotes = get_quotes(symbols, force=True)
+                prices_0930 = {sym: float(q.get("price", 0))
+                               for sym, q in (quotes.get("quotes") or {}).items()
+                               if q.get("price")}
+            except Exception:
+                prices_0930 = {}
+
+            if prices_0930:
+                db_mod.update_reconciliation_0930(today, prices_0930)
+
+            db_mod.upsert_session({
+                "session_id": self.session_id,
+                "trading_date": today,
+                "status": "RECONCILED_0930",
+            })
+            self._emit(SchedulerPhase.DONE, {
+                "step": "0930",
+                "prices_patched": len(prices_0930),
+            })
+        except Exception as e:
+            self._emit(SchedulerPhase.ERROR, {"error": f"09:30 reconcile failed: {e}"})
+
     def run_once(self) -> Dict[str, Any]:
         """Run the full pre-open cycle synchronously (for testing / manual trigger)."""
         if not self._should_run():
@@ -283,6 +324,7 @@ class PreOpenScheduler:
         result = self._collect_one()
         self._phase_09_15_freeze()
         self._phase_09_20_reconcile()
+        self._phase_09_30_post_open_reconcile()
         return {"ran": True, "session_id": self.session_id, "log": self._log}
 
     def status(self) -> Dict[str, Any]:
