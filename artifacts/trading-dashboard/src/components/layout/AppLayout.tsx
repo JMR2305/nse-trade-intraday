@@ -62,6 +62,7 @@ import {
   LayoutDashboard,
   Sparkles,
   Rocket,
+  CalendarDays,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
@@ -117,6 +118,7 @@ const navGroups = [
       { href: "/ai-optimisation",        label: "AI Optimisation",        icon: Target     },
       { href: "/risk-optimisation",      label: "Risk Optimisation",      icon: ShieldCheck },
       { href: "/market-intelligence",     label: "Market Intelligence",     icon: Globe2      },
+      { href: "/event-intelligence",      label: "Event Intelligence",       icon: CalendarDays },
       { href: "/live-readiness",          label: "Live Readiness",          icon: Rocket      },
       { href: "/ai-performance",         label: "AI Performance",         icon: Brain      },
       { href: "/performance-analytics", label: "Performance Analytics", icon: BarChart3 },

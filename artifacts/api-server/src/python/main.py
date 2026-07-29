@@ -2613,6 +2613,32 @@ def main():
             from market_intelligence_hub.shared_services import export_full_json as _mi_json
             result = {"json": _mi_json()}
 
+        # ── Phase 7.2 — Event & Corporate Intelligence ────────────────────────
+        elif command == "event_intelligence_summary":
+            from event_intelligence.api import cmd_summary as _ei_summary
+            result = _ei_summary()
+        elif command == "event_intelligence_corporate":
+            from event_intelligence.api import cmd_corporate as _ei_corporate
+            result = _ei_corporate()
+        elif command == "event_intelligence_regulatory":
+            from event_intelligence.api import cmd_regulatory as _ei_regulatory
+            result = _ei_regulatory()
+        elif command == "event_intelligence_news":
+            from event_intelligence.api import cmd_news as _ei_news
+            result = _ei_news()
+        elif command == "event_intelligence_timeline":
+            from event_intelligence.api import cmd_timeline as _ei_timeline
+            result = _ei_timeline()
+        elif command == "event_intelligence_brief":
+            from event_intelligence.api import cmd_brief as _ei_brief
+            result = _ei_brief()
+        elif command == "event_intelligence_export_csv":
+            from event_intelligence.api import cmd_export_csv as _ei_csv
+            result = _ei_csv()
+        elif command == "event_intelligence_export_json":
+            from event_intelligence.api import cmd_export_json as _ei_json
+            result = _ei_json()
+
         else:
             error_msg = f"Unknown command: {command}"
 
