@@ -233,6 +233,32 @@ def widget_market_snapshot(data: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Section 11 — Live Readiness (Phase 6.5)
+# ---------------------------------------------------------------------------
+
+def widget_readiness(data: dict) -> dict:
+    """Flat Phase 6.5 snapshot for the Executive Dashboard tile."""
+    rd = data.get("readiness", {})
+    if not rd.get("available", False):
+        return {
+            "available":       False,
+            "disabled":        True,
+            "readiness_score": 0.0,
+            "grade":           "N/A",
+            "verdict":         "NOT READY",
+            "verdict_short":   "DISABLED",
+        }
+    return {
+        "available":       True,
+        "disabled":        False,
+        "readiness_score": rd.get("readiness_score", 0.0),
+        "grade":           rd.get("grade", "N/A"),
+        "verdict":         rd.get("verdict", "NOT READY"),
+        "verdict_short":   rd.get("verdict_short", "NOT READY"),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Header data
 # ---------------------------------------------------------------------------
 

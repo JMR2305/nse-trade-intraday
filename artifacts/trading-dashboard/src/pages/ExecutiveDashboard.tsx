@@ -131,6 +131,14 @@ interface ExecSummary {
   };
   quick_actions?: Array<{ label: string; href: string }>;
   sections?: Array<{ id: string; title: string; order: number }>;
+  live_readiness?: {
+    available: boolean;
+    disabled: boolean;
+    readiness_score: number;
+    grade: string;
+    verdict: string;
+    verdict_short: string;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -588,6 +596,87 @@ function MarketSection({ d }: { d: ExecSummary["market_snapshot"] }) {
 }
 
 // ---------------------------------------------------------------------------
+// Section 11 — Live Readiness (Phase 6.5)
+// ---------------------------------------------------------------------------
+function ReadinessTile({ d }: { d: ExecSummary["live_readiness"] }) {
+  if (!d) return <p className="text-slate-500 text-sm">No data</p>;
+
+  if (d.disabled || !d.available) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-4 text-center">
+        <Shield className="w-8 h-8 text-slate-600" />
+        <div>
+          <p className="text-sm font-medium text-slate-400">Readiness Validation Disabled</p>
+          <p className="text-xs text-slate-500 mt-1">
+            Set <code className="bg-slate-800 px-1 rounded text-amber-300">READINESS_VALIDATION_ENABLED=true</code>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const score = d.readiness_score ?? 0;
+  const isReady    = d.verdict?.includes("READY FOR EXTENDED");
+  const isWarnReady = d.verdict?.includes("WITH OBSERVATIONS");
+  const verdictColor = isReady && !isWarnReady ? "text-emerald-400" :
+                       isWarnReady             ? "text-blue-400"    : "text-red-400";
+  const verdictBg    = isReady && !isWarnReady ? "bg-emerald-500/10 border-emerald-500/30" :
+                       isWarnReady             ? "bg-blue-500/10 border-blue-500/30"       :
+                                                 "bg-red-500/10 border-red-500/30";
+  const gradeBg      = score >= 80 ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" :
+                       score >= 60 ? "bg-amber-500/15 text-amber-300 border-amber-500/30"       :
+                                     "bg-red-500/15 text-red-300 border-red-500/30";
+
+  /* Inline compact score ring (80×80) so we don't clash with the 130px ring above */
+  const r = 30;
+  const circ = 2 * Math.PI * r;
+  const fill = (Math.min(score, 100) / 100) * circ;
+  const ringColor = score >= 80 ? "#34d399" : score >= 60 ? "#fbbf24" : "#f87171";
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-4">
+        {/* Mini score ring */}
+        <svg width="80" height="80" viewBox="0 0 80 80" className="shrink-0">
+          <circle cx="40" cy="40" r={r} fill="none" stroke="#1e293b" strokeWidth="9" />
+          <circle cx="40" cy="40" r={r} fill="none"
+            stroke={ringColor} strokeWidth="9"
+            strokeDasharray={`${fill} ${circ - fill}`}
+            strokeLinecap="round"
+            transform="rotate(-90 40 40)"
+            style={{ transition: "stroke-dasharray 0.5s ease" }}
+          />
+          <text x="40" y="44" textAnchor="middle" fill={ringColor} fontSize="16" fontWeight="bold">
+            {Math.round(score)}
+          </text>
+        </svg>
+
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={cn("px-2 py-0.5 rounded-full border text-xs font-bold", gradeBg)}>
+              Grade {d.grade}
+            </span>
+            <span className={cn("px-2 py-0.5 rounded-full border text-xs font-semibold", verdictBg, verdictColor)}>
+              {d.verdict_short}
+            </span>
+          </div>
+          <p className="text-xs text-slate-400 leading-snug line-clamp-2">{d.verdict}</p>
+        </div>
+      </div>
+
+      <Link
+        href="/live-readiness"
+        className="flex items-center justify-center gap-1.5 w-full px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-lg text-slate-300 text-xs hover:bg-slate-700/50 hover:text-slate-100 transition-colors"
+      >
+        <Shield className="w-3.5 h-3.5" />
+        View Full Readiness Report
+        <ChevronRight className="w-3.5 h-3.5" />
+      </Link>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Section 10 — Quick Actions
 // ---------------------------------------------------------------------------
 function QuickActionsSection({ actions }: { actions: ExecSummary["quick_actions"] }) {
@@ -595,11 +684,13 @@ function QuickActionsSection({ actions }: { actions: ExecSummary["quick_actions"
   return (
     <div className="flex flex-wrap gap-2">
       {actions.map(a => (
-        <Link key={a.href} href={a.href}>
-          <a className="flex items-center gap-1.5 px-3 py-2 bg-blue-800/30 border border-blue-700/50 rounded-lg text-blue-300 text-sm hover:bg-blue-700/40 transition-colors">
-            <ExternalLink className="w-3.5 h-3.5" />
-            {a.label}
-          </a>
+        <Link
+          key={a.href}
+          href={a.href}
+          className="flex items-center gap-1.5 px-3 py-2 bg-blue-800/30 border border-blue-700/50 rounded-lg text-blue-300 text-sm hover:bg-blue-700/40 transition-colors"
+        >
+          <ExternalLink className="w-3.5 h-3.5" />
+          {a.label}
         </Link>
       ))}
     </div>
@@ -707,6 +798,10 @@ export default function ExecutiveDashboard() {
 
         <SectionCard title="Live Alerts"        icon={<AlertTriangle className="w-4 h-4 text-amber-400" />}>
           <AlertsSection d={d.live_alerts} />
+        </SectionCard>
+
+        <SectionCard title="Live Readiness"     icon={<Shield className="w-4 h-4 text-emerald-400" />}>
+          <ReadinessTile d={d.live_readiness} />
         </SectionCard>
       </div>
 

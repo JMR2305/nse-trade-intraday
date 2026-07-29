@@ -18,6 +18,7 @@ from .widgets import (
     widget_portfolio_risk,
     widget_live_alerts,
     widget_market_snapshot,
+    widget_readiness,
 )
 from .layout import compute_executive_score, SECTIONS, QUICK_ACTIONS
 
@@ -34,6 +35,7 @@ def _build_widgets(data: dict) -> dict:
         "portfolio_risk":      widget_portfolio_risk(data),
         "live_alerts":         widget_live_alerts(data),
         "market_snapshot":     widget_market_snapshot(data),
+        "live_readiness":      widget_readiness(data),
     }
 
 

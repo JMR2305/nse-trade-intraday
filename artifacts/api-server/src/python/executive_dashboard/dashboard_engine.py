@@ -139,6 +139,16 @@ def _load_system_health() -> dict:
     return {"available": True, "scheduler": sched, "meta": meta}
 
 
+def _load_readiness() -> dict:
+    """Phase 6.5 — live_readiness.shared_services (direct import)."""
+    try:
+        from live_readiness.shared_services import get_readiness_snapshot
+        snap = get_readiness_snapshot()
+        return {"available": True, **snap}
+    except Exception as exc:
+        return {"available": False, "error": str(exc)}
+
+
 # ---------------------------------------------------------------------------
 # Public aggregator
 # ---------------------------------------------------------------------------
@@ -158,4 +168,5 @@ def load_all() -> dict:
         "risk":             _load_risk(),
         "signals":          _load_signal_validation(),
         "system":           _load_system_health(),
+        "readiness":        _load_readiness(),
     }
