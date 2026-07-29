@@ -63,6 +63,7 @@ import StrategyOptimisation from "@/pages/StrategyOptimisation";
 import AIOptimisation from "@/pages/AIOptimisation";
 import RiskOptimisation from "@/pages/RiskOptimisation";
 import LiveReadiness from "@/pages/LiveReadiness";
+import MarketIntelligenceHub from "@/pages/MarketIntelligenceHub";
 import { ConnectivityPanel } from "@/components/ConnectivityPanel";
 
 const queryClient = new QueryClient({
@@ -142,6 +143,7 @@ function Router() {
         <Route path="/strategy-optimisation" component={StrategyOptimisation} />
         <Route path="/ai-optimisation" component={AIOptimisation} />
         <Route path="/risk-optimisation" component={RiskOptimisation} />
+        <Route path="/market-intelligence" component={MarketIntelligenceHub} />
         <Route path="/live-readiness" component={LiveReadiness} />
         <Route component={NotFound} />
       </Switch>

@@ -2576,6 +2576,34 @@ def main():
             from live_readiness.shared_services import export_full_json as _rd_json
             result = {"json": _rd_json()}
 
+        elif command == "market_intelligence_summary":
+            from market_intelligence_hub.api import cmd_summary as _mi_summary
+            result = _mi_summary()
+
+        elif command == "market_intelligence_sectors":
+            from market_intelligence_hub.api import cmd_sectors as _mi_sectors
+            result = _mi_sectors()
+
+        elif command == "market_intelligence_watchlist":
+            from market_intelligence_hub.api import cmd_watchlist as _mi_watchlist
+            result = _mi_watchlist()
+
+        elif command == "market_intelligence_breadth":
+            from market_intelligence_hub.api import cmd_breadth as _mi_breadth
+            result = _mi_breadth()
+
+        elif command == "market_intelligence_overview":
+            from market_intelligence_hub.api import cmd_overview as _mi_overview
+            result = _mi_overview()
+
+        elif command == "market_intelligence_export_csv":
+            from market_intelligence_hub.shared_services import export_summary_csv as _mi_csv
+            result = {"csv": _mi_csv()}
+
+        elif command == "market_intelligence_export_json":
+            from market_intelligence_hub.shared_services import export_full_json as _mi_json
+            result = {"json": _mi_json()}
+
         else:
             error_msg = f"Unknown command: {command}"
 

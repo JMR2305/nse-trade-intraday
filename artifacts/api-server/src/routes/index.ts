@@ -31,6 +31,7 @@ import optimisationRouter from "./optimisation";
 import aiOptimisationRouter from "./ai-optimisation";
 import riskOptimisationRouter from "./risk-optimisation";
 import readinessRouter from "./readiness";
+import marketIntelligenceRouter from "./market-intelligence";
 
 const router: IRouter = Router();
 
@@ -64,6 +65,7 @@ router.use(optimisationRouter);
 router.use(aiOptimisationRouter);
 router.use(riskOptimisationRouter);
 router.use(readinessRouter);
+router.use(marketIntelligenceRouter);
 router.use(tradingRouter);
 router.use(downloadRouter);
 
