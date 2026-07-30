@@ -259,24 +259,70 @@ def get_reports() -> Dict[str, Any]:
     }
 
 
+_SNAPSHOT_CACHE_FILE = __import__("os").path.join(
+    __import__("os").path.dirname(__file__), "_snapshot_cache.json"
+)
+_SNAPSHOT_TTL_SECONDS = 300   # 5 minutes — balances freshness vs. yfinance latency
+
+
+def _load_snapshot_cache() -> Dict[str, Any] | None:
+    """Return cached snapshot if it exists and is younger than TTL, else None."""
+    import time, json as _json, os as _os
+    if not _os.path.exists(_SNAPSHOT_CACHE_FILE):
+        return None
+    try:
+        with open(_SNAPSHOT_CACHE_FILE, "r") as f:
+            cached = _json.load(f)
+        if time.time() - cached.get("_cached_at", 0) < _SNAPSHOT_TTL_SECONDS:
+            cached.pop("_cached_at", None)
+            return cached
+    except Exception:
+        pass
+    return None
+
+
+def _save_snapshot_cache(snap: Dict[str, Any]) -> None:
+    """Persist snapshot to file with a timestamp key."""
+    import time, json as _json
+    try:
+        payload = dict(snap)
+        payload["_cached_at"] = time.time()
+        with open(_SNAPSHOT_CACHE_FILE, "w") as f:
+            _json.dump(payload, f, default=str)
+    except Exception:
+        pass
+
+
 def get_research_lab_snapshot() -> Dict[str, Any]:
-    """Flat KPI snapshot for cross-phase aggregation."""
+    """
+    Flat KPI snapshot for cross-phase aggregation.
+
+    Results are cached to a file for _SNAPSHOT_TTL_SECONDS so that the
+    spawn-per-request Python model does not re-fetch yfinance on every call.
+    First call after cache expiry is slow (~15 s); subsequent calls are <100 ms.
+    """
     if not is_enabled():
         return disabled_response("get_research_lab_snapshot")
 
+    cached = _load_snapshot_cache()
+    if cached is not None:
+        return cached
+
     summary = get_summary()
-    return {
-        "status":           "ENABLED",
-        "research_score":   summary.get("research_score", 0),
-        "grade":            summary.get("grade", "N/A"),
-        "trend":            summary.get("trend", "STABLE"),
-        "total_strategies": summary.get("total_strategies", 0),
-        "total_scenarios":  summary.get("total_scenarios", 0),
+    snap = {
+        "status":            "ENABLED",
+        "research_score":    summary.get("research_score", 0),
+        "grade":             summary.get("grade", "N/A"),
+        "trend":             summary.get("trend", "STABLE"),
+        "total_strategies":  summary.get("total_strategies", 0),
+        "total_scenarios":   summary.get("total_scenarios", 0),
         "total_experiments": summary.get("total_experiments", 0),
         "expected_drawdown": summary.get("expected_drawdown", 0),
-        "benchmark_alpha":  summary.get("benchmark_alpha", 0),
-        "advisory_only":    True,
+        "benchmark_alpha":   summary.get("benchmark_alpha", 0),
+        "advisory_only":     True,
     }
+    _save_snapshot_cache(snap)
+    return snap
 
 
 def export_csv() -> str:

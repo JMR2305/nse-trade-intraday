@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import {
   Activity, AlertCircle, AlertTriangle, BarChart3, Brain,
   CheckCircle, ChevronDown, ChevronRight, Clock, Cpu, Database,
-  ExternalLink, Gauge, Globe2, Info, LayoutDashboard, Monitor,
+  ExternalLink, FlaskConical, Gauge, Globe2, Info, LayoutDashboard, Monitor,
   RefreshCw, Shield, ShieldAlert, Star, TrendingDown, TrendingUp,
   Wifi, Zap,
 } from "lucide-react";
@@ -141,6 +141,23 @@ interface ExecSummary {
   };
 }
 
+/** Shape of GET /api/research-lab/snapshot */
+interface ResearchLabSnapshot {
+  status: string;
+  research_score: number;
+  grade: string;
+  /** "STABLE" | "IMPROVING" | "DECLINING" */
+  trend: string;
+  total_strategies: number;
+  total_scenarios: number;
+  total_experiments: number;
+  /** Expected max drawdown % across simulations */
+  expected_drawdown: number;
+  /** Alpha vs benchmark (percentage points) */
+  benchmark_alpha: number;
+  advisory_only: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -183,11 +200,17 @@ function pnlColor(v: number): string {
 // ---------------------------------------------------------------------------
 // KPI Card
 // ---------------------------------------------------------------------------
-function KpiCard({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
+function KpiCard({ label, value, sub, color }: { label: string; value: unknown; sub?: string; color?: string }) {
+  // Guard: if the API sends an object/array where a string is expected, render "N/A"
+  // rather than crashing with "Objects are not valid as React child".
+  const safeValue =
+    value == null ? "N/A"
+    : typeof value === "string" || typeof value === "number" ? String(value)
+    : "N/A";
   return (
     <div className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-3">
       <p className="text-xs text-slate-400 mb-1">{label}</p>
-      <p className={cn("text-lg font-bold", color ?? "text-slate-100")}>{value}</p>
+      <p className={cn("text-lg font-bold", color ?? "text-slate-100")}>{safeValue}</p>
       {sub && <p className="text-xs text-slate-500 mt-0.5">{sub}</p>}
     </div>
   );
@@ -677,6 +700,119 @@ function ReadinessTile({ d }: { d: ExecSummary["live_readiness"] }) {
 }
 
 // ---------------------------------------------------------------------------
+// Section 12 — Research Lab tile (Phase 7.5)
+// ---------------------------------------------------------------------------
+function ResearchLabTile({ d }: { d: ResearchLabSnapshot | undefined }) {
+  if (!d) return <p className="text-slate-500 text-sm">No data</p>;
+
+  // Treat a response with no recognisable status field as "not yet loaded"
+  if (!("status" in d)) return <p className="text-slate-500 text-sm">Loading…</p>;
+
+  if (d.status === "DISABLED") {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-4 text-center">
+        <FlaskConical className="w-8 h-8 text-slate-600" />
+        <div>
+          <p className="text-sm font-medium text-slate-400">Research Lab Disabled</p>
+          <p className="text-xs text-slate-500 mt-1">
+            Set{" "}
+            <code className="bg-slate-800 px-1 rounded text-amber-300">
+              RESEARCH_LAB_ENABLED=true
+            </code>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const score = d.research_score ?? 0;
+  // Backend emits "IMPROVING" | "WEAKENING" | "STABLE" (and possibly "DECLINING")
+  const isUp   = d.trend === "IMPROVING";
+  const isDown = d.trend === "WEAKENING" || d.trend === "DECLINING";
+  const TrendIcon  = isUp ? TrendingUp : isDown ? TrendingDown : Activity;
+  const trendColor = isUp ? "text-emerald-400" : isDown ? "text-red-400" : "text-slate-400";
+  const ringColor  = score >= 80 ? "#34d399" : score >= 60 ? "#fbbf24" : "#f87171";
+  const gradeBg    =
+    score >= 80 ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+    : score >= 60 ? "bg-amber-500/15 text-amber-300 border-amber-500/30"
+    : "bg-red-500/15 text-red-300 border-red-500/30";
+
+  const r    = 30;
+  const circ = 2 * Math.PI * r;
+  const fill = (Math.min(score, 100) / 100) * circ;
+
+  return (
+    <div className="space-y-3">
+      {/* Score ring + meta */}
+      <div className="flex items-center gap-4">
+        <svg width="80" height="80" viewBox="0 0 80 80" className="shrink-0" aria-label={`Research score ${Math.round(score)}/100`}>
+          <circle cx="40" cy="40" r={r} fill="none" stroke="#1e293b" strokeWidth="9" />
+          <circle
+            cx="40" cy="40" r={r} fill="none"
+            stroke={ringColor} strokeWidth="9"
+            strokeDasharray={`${fill} ${circ - fill}`}
+            strokeLinecap="round"
+            transform="rotate(-90 40 40)"
+            style={{ transition: "stroke-dasharray 0.5s ease" }}
+          />
+          <text x="40" y="44" textAnchor="middle" fill={ringColor} fontSize="16" fontWeight="bold">
+            {Math.round(score)}
+          </text>
+        </svg>
+
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={cn("px-2 py-0.5 rounded-full border text-xs font-bold", gradeBg)}>
+              Grade {d.grade}
+            </span>
+            <span className={cn("flex items-center gap-1 text-xs font-semibold", trendColor)}>
+              <TrendIcon className="w-3.5 h-3.5" />
+              {d.trend ? d.trend.charAt(0) + d.trend.slice(1).toLowerCase() : "Stable"}
+            </span>
+          </div>
+          <p className="text-xs text-slate-400">Research score /100 · advisory only</p>
+        </div>
+      </div>
+
+      {/* KPI row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-2.5">
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider">Strategies</p>
+          <p className="text-base font-bold text-slate-100">{d.total_strategies}</p>
+        </div>
+        <div className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-2.5">
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider">Scenarios</p>
+          <p className="text-base font-bold text-slate-100">{d.total_scenarios}</p>
+        </div>
+        <div className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-2.5">
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider">Exp. Drawdown</p>
+          <p className={cn("text-base font-bold", (d.expected_drawdown ?? 0) > 10 ? "text-red-400" : "text-slate-100")}>
+            {d.expected_drawdown != null ? `${d.expected_drawdown.toFixed(1)}%` : "—"}
+          </p>
+        </div>
+        <div className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-2.5">
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider">Bench. Alpha</p>
+          <p className={cn("text-base font-bold", (d.benchmark_alpha ?? 0) >= 0 ? "text-emerald-400" : "text-red-400")}>
+            {d.benchmark_alpha != null
+              ? `${d.benchmark_alpha >= 0 ? "+" : ""}${d.benchmark_alpha.toFixed(2)}%`
+              : "—"}
+          </p>
+        </div>
+      </div>
+
+      <Link
+        href="/research-lab"
+        className="flex items-center justify-center gap-1.5 w-full px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-lg text-slate-300 text-xs hover:bg-slate-700/50 hover:text-slate-100 transition-colors"
+      >
+        <FlaskConical className="w-3.5 h-3.5" />
+        View Full Research Lab
+        <ChevronRight className="w-3.5 h-3.5" />
+      </Link>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Section 10 — Quick Actions
 // ---------------------------------------------------------------------------
 function QuickActionsSection({ actions }: { actions: ExecSummary["quick_actions"] }) {
@@ -704,6 +840,14 @@ export default function ExecutiveDashboard() {
   const { data, isLoading, isError, error, refetch } = useQuery<ExecSummary>({
     queryKey: ["executive-summary"],
     queryFn: () => apiJson<ExecSummary>("executive/summary"),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+
+  // Research Lab snapshot — separate query so a disabled flag doesn't break the rest of the page
+  const { data: researchSnap } = useQuery<ResearchLabSnapshot>({
+    queryKey: ["research-lab-snapshot-exec"],
+    queryFn: () => apiJson<ResearchLabSnapshot>("research-lab/snapshot"),
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
@@ -802,6 +946,10 @@ export default function ExecutiveDashboard() {
 
         <SectionCard title="Live Readiness"     icon={<Shield className="w-4 h-4 text-emerald-400" />}>
           <ReadinessTile d={d.live_readiness} />
+        </SectionCard>
+
+        <SectionCard title="Research Lab" icon={<FlaskConical className="w-4 h-4 text-violet-400" />}>
+          <ResearchLabTile d={researchSnap} />
         </SectionCard>
       </div>
 
