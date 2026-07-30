@@ -18,6 +18,17 @@ def _g(d: dict, *keys, default=None) -> Any:
     return d
 
 
+def _as_str(v: Any, fallback: str = "N/A") -> str:
+    """Coerce *v* to a non-empty string, using *fallback* for None/dict/list.
+
+    Guards against the backend accidentally returning a dict or None where a
+    plain string KPI label is expected (e.g. ``best_regime``).
+    """
+    if isinstance(v, str):
+        return v or fallback
+    return fallback
+
+
 # ---------------------------------------------------------------------------
 # Section 1 — System Health
 # ---------------------------------------------------------------------------
@@ -106,7 +117,7 @@ def widget_strategy_overview(data: dict) -> dict:
         "worst_strategy":      _g(worst, "name", default="N/A"),
         "highest_win_rate":    _g(best_wr, "name", default="N/A"),
         "best_profit_factor":  _g(best_pf, "name", default="N/A"),
-        "best_regime":         _g(snap, "best_regime", default="N/A"),
+        "best_regime":         _as_str(_g(snap, "best_regime", default="N/A")),
         "best_sector":         _g(snap, "best_sector", default="N/A"),
         "total_net_pnl":       _g(snap, "total_net_pnl", default=0.0),
         "overall_win_rate":    _g(snap, "overall_win_rate", default=0.0),

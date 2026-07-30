@@ -182,6 +182,21 @@ def get_criterion_rankings() -> dict:
         return {}
 
 
+def _best_regime_str(rd: dict) -> str:
+    """
+    Return the regime NAME with the highest net P&L as a plain string.
+
+    ``rd`` is the dict returned by ``compute_regime_matrix()``; its ``matrix``
+    key maps regime names to per-regime stats.  We pick the regime name with
+    the best ``net_pnl``.  Returns ``"N/A"`` when there are no regimes (e.g.
+    no closed trades yet).
+    """
+    matrix = rd.get("matrix", {})
+    if not matrix:
+        return "N/A"
+    return max(matrix, key=lambda k: matrix[k].get("net_pnl", 0))
+
+
 def get_summary_snapshot() -> dict:
     """
     Top-level KPI snapshot for embedding in Phase 5D.5 Executive Dashboard.
@@ -219,7 +234,7 @@ def get_summary_snapshot() -> dict:
             "best_strategy":     best.strategy_name if best else None,
             "best_strategy_pnl": round(best.net_pnl, 2) if best else 0.0,
             "worst_strategy":    worst.strategy_name if worst else None,
-            "best_regime":       rd.get("best_per_regime", {}),
+            "best_regime":       _best_regime_str(rd),
             "best_sector":       sd.get("best_sector"),
             "worst_sector":      sd.get("worst_sector"),
             "best_time_slot":    td.get("best_slot"),

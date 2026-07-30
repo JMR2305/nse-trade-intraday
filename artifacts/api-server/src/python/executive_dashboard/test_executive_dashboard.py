@@ -475,5 +475,73 @@ class TestRestartPersistence(unittest.TestCase):
         self.assertEqual(r1["sections"], r2["sections"])
 
 
+# ---------------------------------------------------------------------------
+# Test: best_regime coercion in widget (regression guard for #217)
+# ---------------------------------------------------------------------------
+
+class TestBestRegimeWidgetCoercion(unittest.TestCase):
+    """
+    Guard: widget_strategy_overview() must always return best_regime as a str,
+    even when the upstream snapshot sends a dict/None/empty-object.
+    """
+
+    def setUp(self):
+        _set_flag("true")
+
+    def tearDown(self):
+        _clear_flag()
+
+    def _run_widget(self, best_regime_value):
+        from executive_dashboard.widgets import widget_strategy_overview
+        data = {
+            "strategy": {
+                "available": True,
+                "snapshot": {
+                    "total_strategies": 2,
+                    "best_strategy": "MACD_CROSS",
+                    "best_regime":  best_regime_value,   # ← value under test
+                    "best_sector":  "IT",
+                    "total_net_pnl":    3000.0,
+                    "overall_win_rate": 60.0,
+                },
+                "criterion": {},
+                "recs": [],
+            }
+        }
+        return widget_strategy_overview(data)
+
+    def test_empty_dict_coerced_to_na(self):
+        """Regression: {} must yield 'N/A', not crash KpiCard."""
+        result = self._run_widget({})
+        self.assertIsInstance(result["best_regime"], str)
+        self.assertEqual(result["best_regime"], "N/A")
+
+    def test_non_empty_dict_coerced_to_na(self):
+        """A dict with keys must also yield 'N/A', not '[object Object]'."""
+        result = self._run_widget({"regime": "Bullish", "count": 3})
+        self.assertIsInstance(result["best_regime"], str)
+        self.assertEqual(result["best_regime"], "N/A")
+
+    def test_none_coerced_to_na(self):
+        result = self._run_widget(None)
+        self.assertIsInstance(result["best_regime"], str)
+        self.assertEqual(result["best_regime"], "N/A")
+
+    def test_valid_string_passes_through(self):
+        result = self._run_widget("Bullish")
+        self.assertIsInstance(result["best_regime"], str)
+        self.assertEqual(result["best_regime"], "Bullish")
+
+    def test_empty_string_coerced_to_na(self):
+        result = self._run_widget("")
+        self.assertIsInstance(result["best_regime"], str)
+        self.assertEqual(result["best_regime"], "N/A")
+
+    def test_list_coerced_to_na(self):
+        result = self._run_widget(["Bullish", "Bearish"])
+        self.assertIsInstance(result["best_regime"], str)
+        self.assertEqual(result["best_regime"], "N/A")
+
+
 if __name__ == "__main__":
     unittest.main()

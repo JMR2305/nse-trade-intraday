@@ -605,5 +605,99 @@ class TestRestartPersistence(unittest.TestCase):
         self.assertAlmostEqual(r1["total_net_pnl"], r2["total_net_pnl"], places=2)
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# 12. best_regime always returns a string
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestBestRegimeString(unittest.TestCase):
+    """
+    Guard: get_summary_snapshot() must return best_regime as a plain str,
+    never as a dict/None, so the executive dashboard KpiCard never crashes.
+    """
+
+    def setUp(self):
+        os.environ["STRATEGY_INTELLIGENCE_ENABLED"] = "true"
+
+    def tearDown(self):
+        os.environ.pop("STRATEGY_INTELLIGENCE_ENABLED", None)
+
+    # ── _best_regime_str helper ────────────────────────────────────────────
+
+    def test_helper_empty_matrix_returns_na(self):
+        from strategy_intelligence.shared_services import _best_regime_str
+        result = _best_regime_str({"matrix": {}, "best_per_regime": {}})
+        self.assertIsInstance(result, str)
+        self.assertEqual(result, "N/A")
+
+    def test_helper_missing_matrix_returns_na(self):
+        from strategy_intelligence.shared_services import _best_regime_str
+        result = _best_regime_str({})
+        self.assertIsInstance(result, str)
+        self.assertEqual(result, "N/A")
+
+    def test_helper_picks_highest_pnl_regime(self):
+        from strategy_intelligence.shared_services import _best_regime_str
+        rd = {
+            "matrix": {
+                "Bullish":       {"net_pnl": 1000.0, "win_rate": 80.0},
+                "Bearish":       {"net_pnl": -300.0, "win_rate": 30.0},
+                "High Volatility": {"net_pnl": 500.0, "win_rate": 60.0},
+            },
+            "best_per_regime": {
+                "Bullish": "MACD_CROSS",
+                "High Volatility": "RSI_BOUNCE",
+            },
+        }
+        result = _best_regime_str(rd)
+        self.assertIsInstance(result, str)
+        self.assertEqual(result, "Bullish")
+
+    def test_helper_single_regime(self):
+        from strategy_intelligence.shared_services import _best_regime_str
+        rd = {
+            "matrix": {"Bearish": {"net_pnl": -100.0, "win_rate": 40.0}},
+            "best_per_regime": {"Bearish": "VWAP_PULL"},
+        }
+        result = _best_regime_str(rd)
+        self.assertIsInstance(result, str)
+        self.assertEqual(result, "Bearish")
+
+    # ── get_summary_snapshot integration ──────────────────────────────────
+
+    def test_snapshot_best_regime_is_string_with_zero_trades(self):
+        """No trades → best_regime must be the string 'N/A', never {}."""
+        from strategy_intelligence.shared_services import get_summary_snapshot
+        with patch("portfolio_store.load_all_trades_any", return_value=[]):
+            snap = get_summary_snapshot()
+        self.assertIsInstance(snap.get("best_regime"), str,
+            f"best_regime was {type(snap.get('best_regime')).__name__!r}, expected str")
+        self.assertEqual(snap["best_regime"], "N/A")
+
+    def test_snapshot_best_regime_is_string_with_trades(self):
+        """With regime data, best_regime must still be a plain string."""
+        from strategy_intelligence.shared_services import get_summary_snapshot
+        trades = [
+            _buy("INFY",  offset=0, day=0, regime="Bullish"),
+            _sell("INFY", offset=2, day=0, pnl=800.0),
+            _buy("TCS",   offset=0, day=1, regime="Bearish"),
+            _sell("TCS",  offset=2, day=1, pnl=-200.0),
+        ]
+        with patch("portfolio_store.load_all_trades_any", return_value=trades):
+            snap = get_summary_snapshot()
+        regime = snap.get("best_regime")
+        self.assertIsInstance(regime, str,
+            f"best_regime was {type(regime).__name__!r}, expected str")
+        # "Bullish" has higher net P&L (800) than "Bearish" (-200)
+        self.assertEqual(regime, "Bullish")
+
+    def test_snapshot_best_regime_not_dict(self):
+        """Regression: best_regime must never be a dict (the original bug)."""
+        from strategy_intelligence.shared_services import get_summary_snapshot
+        with patch("portfolio_store.load_all_trades_any", return_value=[]):
+            snap = get_summary_snapshot()
+        self.assertNotIsInstance(snap.get("best_regime"), dict,
+            "best_regime returned a dict — the API contract regression has returned")
+
+
 if __name__ == "__main__":
     unittest.main()
