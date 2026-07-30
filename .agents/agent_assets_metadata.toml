@@ -161,3 +161,9 @@ id = "i_wOoQa5AKnbMi2E3PWjE"
 uri = "file://phase7-summary.md"
 type = "text"
 title = "Phase 7 — Intelligence & Research Layer Summary"
+
+[[outputs]]
+id = "GK7HD1X1hJES_ZU2gbhyC"
+uri = "file://phase7-5-summary.md"
+type = "text"
+title = "Phase 7.5 — Research Lab Summary"
