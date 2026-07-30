@@ -543,5 +543,389 @@ class TestBestRegimeWidgetCoercion(unittest.TestCase):
         self.assertEqual(result["best_regime"], "N/A")
 
 
+# ---------------------------------------------------------------------------
+# Test: _as_str guard on all remaining string KPI fields (Task #223)
+# ---------------------------------------------------------------------------
+
+class TestStringKpiCoercion(unittest.TestCase):
+    """
+    Verify that every string-typed KPI field in every widget function returns
+    a plain str even when the upstream snapshot sends a dict, list, or None.
+
+    One representative "bad value" test per widget is sufficient to confirm the
+    guard is wired; the _as_str() unit itself is covered by the best_regime
+    tests above.
+    """
+
+    def setUp(self):
+        _set_flag("true")
+
+    def tearDown(self):
+        _clear_flag()
+
+    # ── widget_strategy_overview ──────────────────────────────────────────────
+
+    def _strategy_widget(self, overrides: dict) -> dict:
+        from executive_dashboard.widgets import widget_strategy_overview
+        snap = {
+            "total_strategies": 2,
+            "best_strategy":    "MACD_CROSS",
+            "best_regime":      "BULL",
+            "best_sector":      "IT",
+            "total_net_pnl":    1000.0,
+            "overall_win_rate": 55.0,
+        }
+        snap.update(overrides)
+        data = {
+            "strategy": {
+                "available": True,
+                "snapshot": snap,
+                "criterion": {},
+                "recs": [],
+            }
+        }
+        return widget_strategy_overview(data)
+
+    def test_best_strategy_dict_coerced(self):
+        r = self._strategy_widget({"best_strategy": {}})
+        self.assertIsInstance(r["best_strategy"], str)
+        self.assertEqual(r["best_strategy"], "N/A")
+
+    def test_best_strategy_list_coerced(self):
+        r = self._strategy_widget({"best_strategy": ["A", "B"]})
+        self.assertIsInstance(r["best_strategy"], str)
+        self.assertEqual(r["best_strategy"], "N/A")
+
+    def test_best_strategy_none_coerced(self):
+        r = self._strategy_widget({"best_strategy": None})
+        self.assertIsInstance(r["best_strategy"], str)
+        self.assertEqual(r["best_strategy"], "N/A")
+
+    def test_best_strategy_valid_passes_through(self):
+        r = self._strategy_widget({"best_strategy": "RSI_BOUNCE"})
+        self.assertEqual(r["best_strategy"], "RSI_BOUNCE")
+
+    def test_worst_strategy_dict_coerced(self):
+        from executive_dashboard.widgets import widget_strategy_overview
+        data = {
+            "strategy": {
+                "available": True,
+                "snapshot": {"best_regime": "BULL"},
+                "criterion": {
+                    "worst_net_pnl": {"name": {}, "net_pnl": -100.0},
+                },
+                "recs": [],
+            }
+        }
+        r = widget_strategy_overview(data)
+        self.assertIsInstance(r["worst_strategy"], str)
+        self.assertEqual(r["worst_strategy"], "N/A")
+
+    def test_highest_win_rate_dict_coerced(self):
+        from executive_dashboard.widgets import widget_strategy_overview
+        data = {
+            "strategy": {
+                "available": True,
+                "snapshot": {"best_regime": "BULL"},
+                "criterion": {
+                    "best_win_rate": {"name": {}, "win_rate": 70.0},
+                },
+                "recs": [],
+            }
+        }
+        r = widget_strategy_overview(data)
+        self.assertIsInstance(r["highest_win_rate"], str)
+        self.assertEqual(r["highest_win_rate"], "N/A")
+
+    def test_best_profit_factor_dict_coerced(self):
+        from executive_dashboard.widgets import widget_strategy_overview
+        data = {
+            "strategy": {
+                "available": True,
+                "snapshot": {"best_regime": "BULL"},
+                "criterion": {
+                    "best_profit_factor": {"name": {}, "profit_factor": 2.5},
+                },
+                "recs": [],
+            }
+        }
+        r = widget_strategy_overview(data)
+        self.assertIsInstance(r["best_profit_factor"], str)
+        self.assertEqual(r["best_profit_factor"], "N/A")
+
+    def test_best_sector_dict_coerced(self):
+        r = self._strategy_widget({"best_sector": {"sector": "IT", "weight": 0.4}})
+        self.assertIsInstance(r["best_sector"], str)
+        self.assertEqual(r["best_sector"], "N/A")
+
+    def test_best_sector_none_coerced(self):
+        r = self._strategy_widget({"best_sector": None})
+        self.assertIsInstance(r["best_sector"], str)
+        self.assertEqual(r["best_sector"], "N/A")
+
+    def test_best_sector_valid_passes_through(self):
+        r = self._strategy_widget({"best_sector": "TECHNOLOGY"})
+        self.assertEqual(r["best_sector"], "TECHNOLOGY")
+
+    # ── widget_ai_health ──────────────────────────────────────────────────────
+
+    def _ai_widget(self, snap_overrides: dict) -> dict:
+        from executive_dashboard.widgets import widget_ai_health
+        snap = {
+            "health_score": 75.0, "health_label": "Good",
+            "prediction_accuracy": 65.0, "precision": 68.0, "recall": 60.0,
+            "avg_confidence": 70.0, "trend_direction": "Stable",
+            "accuracy_delta": 1.0, "calibration_ece": 0.05, "total_signals": 30,
+        }
+        snap.update(snap_overrides)
+        return widget_ai_health({"ai": {"available": True, "snapshot": snap,
+                                        "components": {}, "learning": {}}})
+
+    def test_health_label_dict_coerced(self):
+        r = self._ai_widget({"health_label": {"level": "Good"}})
+        self.assertIsInstance(r["health_label"], str)
+        self.assertEqual(r["health_label"], "N/A")
+
+    def test_health_label_none_coerced(self):
+        r = self._ai_widget({"health_label": None})
+        self.assertIsInstance(r["health_label"], str)
+        self.assertEqual(r["health_label"], "N/A")
+
+    def test_health_label_valid_passes_through(self):
+        r = self._ai_widget({"health_label": "Excellent"})
+        self.assertEqual(r["health_label"], "Excellent")
+
+    def test_trend_direction_dict_coerced_to_stable(self):
+        r = self._ai_widget({"trend_direction": {"direction": "up"}})
+        self.assertIsInstance(r["trend_direction"], str)
+        self.assertEqual(r["trend_direction"], "Stable")
+
+    def test_trend_direction_none_coerced_to_stable(self):
+        r = self._ai_widget({"trend_direction": None})
+        self.assertIsInstance(r["trend_direction"], str)
+        self.assertEqual(r["trend_direction"], "Stable")
+
+    def test_trend_direction_valid_passes_through(self):
+        r = self._ai_widget({"trend_direction": "Improving"})
+        self.assertEqual(r["trend_direction"], "Improving")
+
+    # ── widget_preopen ────────────────────────────────────────────────────────
+
+    def test_preopen_leading_sector_dict_coerced(self):
+        from executive_dashboard.widgets import widget_preopen
+        data = {"preopen": {
+            "available": True,
+            "status": {"provider_label": "NSE", "last_updated": "09:00",
+                       "symbols_analysed": 10, "trading_date": "2026-07-30"},
+            "rankings": {"top_symbols": []},
+            "sectors": {"leading_sector": {"name": "IT", "weight": 0.4}},
+        }}
+        r = widget_preopen(data)
+        self.assertIsInstance(r["leading_sector"], str)
+        self.assertEqual(r["leading_sector"], "N/A")
+
+    def test_preopen_provider_dict_coerced(self):
+        from executive_dashboard.widgets import widget_preopen
+        data = {"preopen": {
+            "available": True,
+            "status": {"provider_label": {"name": "NSE"}, "last_updated": "09:00",
+                       "symbols_analysed": 10, "trading_date": "2026-07-30"},
+            "rankings": {"top_symbols": []},
+            "sectors": {},
+        }}
+        r = widget_preopen(data)
+        self.assertIsInstance(r["provider"], str)
+        self.assertEqual(r["provider"], "N/A")
+
+    def test_preopen_trading_date_dict_coerced(self):
+        from executive_dashboard.widgets import widget_preopen
+        data = {"preopen": {
+            "available": True,
+            "status": {"provider_label": "NSE", "last_updated": "09:00",
+                       "symbols_analysed": 10,
+                       "trading_date": {"date": "2026-07-30"}},
+            "rankings": {"top_symbols": []},
+            "sectors": {},
+        }}
+        r = widget_preopen(data)
+        self.assertIsInstance(r["trading_date"], str)
+        self.assertEqual(r["trading_date"], "N/A")
+
+    # ── widget_portfolio_risk ─────────────────────────────────────────────────
+
+    def test_risk_top_sector_dict_coerced(self):
+        from executive_dashboard.widgets import widget_portfolio_risk
+        data = {"risk": {
+            "available": True,
+            "risk": {
+                "sector_allocation": [{"sector": {"name": "IT"}, "weight_pct": 50.0}],
+                "diversification_score": 60.0,
+                "portfolio_heat": 20.0,
+                "kill_switch": {"active": False},
+                "utilization_pct": 20.0,
+            },
+            "alerts": {"alerts": []},
+        }}
+        r = widget_portfolio_risk(data)
+        self.assertIsInstance(r["top_sector"], str)
+        self.assertEqual(r["top_sector"], "N/A")
+
+    def test_risk_top_sector_valid_passes_through(self):
+        from executive_dashboard.widgets import widget_portfolio_risk
+        data = {"risk": {
+            "available": True,
+            "risk": {
+                "sector_allocation": [{"sector": "TECHNOLOGY", "weight_pct": 50.0}],
+                "diversification_score": 60.0, "portfolio_heat": 20.0,
+                "kill_switch": {"active": False}, "utilization_pct": 20.0,
+            },
+            "alerts": {"alerts": []},
+        }}
+        r = widget_portfolio_risk(data)
+        self.assertEqual(r["top_sector"], "TECHNOLOGY")
+
+    # ── widget_system_health ──────────────────────────────────────────────────
+
+    def test_system_health_app_health_dict_coerced(self):
+        from executive_dashboard.widgets import widget_system_health
+        data = {"system": {
+            "available": True,
+            "scheduler": {"status": "HEALTHY", "active_jobs": []},
+            "meta": {"status": {"level": "HEALTHY"}, "database": "CONNECTED",
+                     "api": "UP"},
+        }}
+        r = widget_system_health(data)
+        self.assertIsInstance(r["application_health"], str)
+        self.assertEqual(r["application_health"], "UNKNOWN")
+
+    def test_system_health_db_status_dict_coerced(self):
+        from executive_dashboard.widgets import widget_system_health
+        data = {"system": {
+            "available": True,
+            "scheduler": {"status": "HEALTHY", "active_jobs": []},
+            "meta": {"status": "HEALTHY", "database": {"connected": True}, "api": "UP"},
+        }}
+        r = widget_system_health(data)
+        self.assertIsInstance(r["database_status"], str)
+        self.assertEqual(r["database_status"], "UNKNOWN")
+
+    def test_system_health_valid_passes_through(self):
+        from executive_dashboard.widgets import widget_system_health
+        data = {"system": {
+            "available": True,
+            "scheduler": {"status": "HEALTHY", "active_jobs": []},
+            "meta": {"status": "HEALTHY", "database": "CONNECTED",
+                     "api": "UP"},
+        }}
+        r = widget_system_health(data)
+        self.assertEqual(r["application_health"], "HEALTHY")
+        self.assertEqual(r["database_status"], "CONNECTED")
+
+    # ── widget_market_snapshot ────────────────────────────────────────────────
+
+    def test_market_regime_dict_coerced(self):
+        from executive_dashboard.widgets import widget_market_snapshot
+        data = {"system": {"meta": {"market_regime": {"name": "BULL"}}}}
+        r = widget_market_snapshot(data)
+        self.assertIsInstance(r["market_regime"], str)
+        self.assertEqual(r["market_regime"], "UNKNOWN")
+
+    def test_market_status_dict_coerced(self):
+        from executive_dashboard.widgets import widget_market_snapshot
+        data = {"system": {"meta": {"market_status": {"open": True}}}}
+        r = widget_market_snapshot(data)
+        self.assertIsInstance(r["market_status"], str)
+        self.assertEqual(r["market_status"], "UNKNOWN")
+
+    def test_market_snapshot_valid_passes_through(self):
+        from executive_dashboard.widgets import widget_market_snapshot
+        data = {"system": {"meta": {
+            "market_regime": "TRENDING", "market_status": "OPEN", "ist_time": "09:30",
+        }}}
+        r = widget_market_snapshot(data)
+        self.assertEqual(r["market_regime"], "TRENDING")
+        self.assertEqual(r["market_status"], "OPEN")
+
+    # ── widget_readiness ──────────────────────────────────────────────────────
+
+    def test_readiness_grade_dict_coerced(self):
+        from executive_dashboard.widgets import widget_readiness
+        data = {"readiness": {
+            "available": True,
+            "readiness_score": 75.0,
+            "grade": {"letter": "B"},
+            "verdict": "READY",
+            "verdict_short": "GO",
+        }}
+        r = widget_readiness(data)
+        self.assertIsInstance(r["grade"], str)
+        self.assertEqual(r["grade"], "N/A")
+
+    def test_readiness_verdict_dict_coerced(self):
+        from executive_dashboard.widgets import widget_readiness
+        data = {"readiness": {
+            "available": True,
+            "readiness_score": 75.0,
+            "grade": "B",
+            "verdict": {"text": "READY"},
+            "verdict_short": "GO",
+        }}
+        r = widget_readiness(data)
+        self.assertIsInstance(r["verdict"], str)
+        self.assertEqual(r["verdict"], "NOT READY")
+
+    def test_readiness_valid_passes_through(self):
+        from executive_dashboard.widgets import widget_readiness
+        data = {"readiness": {
+            "available": True,
+            "readiness_score": 84.0,
+            "grade": "B",
+            "verdict": "READY FOR EXTENDED PAPER TRADING",
+            "verdict_short": "GO",
+        }}
+        r = widget_readiness(data)
+        self.assertEqual(r["grade"], "B")
+        self.assertEqual(r["verdict_short"], "GO")
+
+    # ── widget_header ─────────────────────────────────────────────────────────
+
+    def test_header_market_status_dict_coerced(self):
+        from executive_dashboard.widgets import widget_header
+        data = {
+            "system":  {"meta": {"market_status": {"open": True},
+                                 "ist_time": "09:30", "market_regime": "BULL"}},
+            "preopen": {"status": {}},
+        }
+        r = widget_header(data)
+        self.assertIsInstance(r["market_status"], str)
+        self.assertEqual(r["market_status"], "UNKNOWN")
+
+    def test_header_trading_date_dict_coerced(self):
+        from executive_dashboard.widgets import widget_header
+        data = {
+            "system":  {"meta": {"market_status": "OPEN",
+                                 "ist_time": "09:30", "market_regime": "BULL"}},
+            "preopen": {"status": {"trading_date": {"date": "2026-07-30"}}},
+        }
+        r = widget_header(data)
+        self.assertIsInstance(r["trading_date"], str)
+        self.assertEqual(r["trading_date"], "N/A")
+
+    def test_header_valid_passes_through(self):
+        from executive_dashboard.widgets import widget_header
+        data = {
+            "system":  {"meta": {"market_status": "OPEN",
+                                 "ist_time": "09:30", "market_regime": "TRENDING"}},
+            "preopen": {"status": {"provider_label": "NSE Official",
+                                   "trading_date": "2026-07-30",
+                                   "symbols_analysed": 50}},
+        }
+        r = widget_header(data)
+        self.assertEqual(r["market_status"],   "OPEN")
+        self.assertEqual(r["market_regime"],   "TRENDING")
+        self.assertEqual(r["active_provider"], "NSE Official")
+        self.assertEqual(r["trading_date"],    "2026-07-30")
+
+
 if __name__ == "__main__":
     unittest.main()

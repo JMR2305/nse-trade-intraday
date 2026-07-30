@@ -38,10 +38,10 @@ def widget_system_health(data: dict) -> dict:
     sched = _g(sys, "scheduler") or {}
     meta  = _g(sys, "meta")      or {}
     return {
-        "application_health": _g(meta, "status", default="UNKNOWN"),
-        "scheduler_health":   _g(sched, "status", default="UNKNOWN"),
-        "database_status":    _g(meta, "database", default="UNKNOWN"),
-        "api_status":         _g(meta, "api", default="UNKNOWN"),
+        "application_health": _as_str(_g(meta,  "status",   default="UNKNOWN"), fallback="UNKNOWN"),
+        "scheduler_health":   _as_str(_g(sched, "status",   default="UNKNOWN"), fallback="UNKNOWN"),
+        "database_status":    _as_str(_g(meta,  "database", default="UNKNOWN"), fallback="UNKNOWN"),
+        "api_status":         _as_str(_g(meta,  "api",      default="UNKNOWN"), fallback="UNKNOWN"),
         "feature_flags":      _g(meta, "feature_flags", default=[]),
         "background_jobs":    _g(sched, "active_jobs", default=[]),
     }
@@ -83,12 +83,12 @@ def widget_ai_health(data: dict) -> dict:
     learn = _g(ai, "learning") or {}
     return {
         "health_score":         _g(snap, "health_score", default=0.0),
-        "health_label":         _g(snap, "health_label", default="N/A"),
+        "health_label":         _as_str(_g(snap, "health_label",     default="N/A"),   fallback="N/A"),
         "prediction_accuracy":  _g(snap, "prediction_accuracy", default=0.0),
         "precision":            _g(snap, "precision", default=0.0),
         "recall":               _g(snap, "recall", default=0.0),
         "avg_confidence":       _g(snap, "avg_confidence", default=0.0),
-        "trend_direction":      _g(snap, "trend_direction", default="Stable"),
+        "trend_direction":      _as_str(_g(snap, "trend_direction",  default="Stable"), fallback="Stable"),
         "accuracy_delta":       _g(snap, "accuracy_delta", default=0.0),
         "calibration_ece":      _g(snap, "calibration_ece", default=0.0),
         "calibration_quality":  round((1 - _g(snap, "calibration_ece", default=0.0)) * 100, 1),
@@ -113,12 +113,12 @@ def widget_strategy_overview(data: dict) -> dict:
     worst    = _g(crit, "worst_net_pnl") or {}
     return {
         "total_strategies":    _g(snap, "total_strategies", default=0),
-        "best_strategy":       _g(snap, "best_strategy", default="N/A"),
-        "worst_strategy":      _g(worst, "name", default="N/A"),
-        "highest_win_rate":    _g(best_wr, "name", default="N/A"),
-        "best_profit_factor":  _g(best_pf, "name", default="N/A"),
-        "best_regime":         _as_str(_g(snap, "best_regime", default="N/A")),
-        "best_sector":         _g(snap, "best_sector", default="N/A"),
+        "best_strategy":       _as_str(_g(snap,    "best_strategy", default="N/A")),
+        "worst_strategy":      _as_str(_g(worst,   "name",          default="N/A")),
+        "highest_win_rate":    _as_str(_g(best_wr, "name",          default="N/A")),
+        "best_profit_factor":  _as_str(_g(best_pf, "name",          default="N/A")),
+        "best_regime":         _as_str(_g(snap,    "best_regime",   default="N/A")),
+        "best_sector":         _as_str(_g(snap,    "best_sector",   default="N/A")),
         "total_net_pnl":       _g(snap, "total_net_pnl", default=0.0),
         "overall_win_rate":    _g(snap, "overall_win_rate", default=0.0),
         "recommendation_count": len(recs),
@@ -159,18 +159,18 @@ def widget_preopen(data: dict) -> dict:
     buy_imbals  = [s for s in top_symbols if _g(s, "imbalance_type", default="") == "BUY"]
     sell_imbals = [s for s in top_symbols if _g(s, "imbalance_type", default="") == "SELL"]
     return {
-        "top_gap_up":            _g(top_gapup,  "symbol", default="N/A"),
+        "top_gap_up":            _as_str(_g(top_gapup,  "symbol", default="N/A")),
         "top_gap_up_pct":        _g(top_gapup,  "gap_pct", default=0.0),
-        "top_gap_down":          _g(top_gapdown, "symbol", default="N/A"),
+        "top_gap_down":          _as_str(_g(top_gapdown, "symbol", default="N/A")),
         "top_gap_down_pct":      _g(top_gapdown, "gap_pct", default=0.0),
-        "buy_imbalance":         _g(buy_imbals[0],  "symbol", default="N/A") if buy_imbals else "N/A",
-        "sell_imbalance":        _g(sell_imbals[0], "symbol", default="N/A") if sell_imbals else "N/A",
-        "leading_sector":        _g(sects, "leading_sector", default="N/A"),
+        "buy_imbalance":         _as_str(_g(buy_imbals[0],  "symbol", default="N/A") if buy_imbals else "N/A"),
+        "sell_imbalance":        _as_str(_g(sell_imbals[0], "symbol", default="N/A") if sell_imbals else "N/A"),
+        "leading_sector":        _as_str(_g(sects,  "leading_sector", default="N/A")),
         "highest_exec_qty":      _g(ranks, "highest_exec_qty", default=0),
-        "provider":              _g(status, "provider_label", default="N/A"),
-        "last_refresh":          _g(status, "last_updated", default="N/A"),
+        "provider":              _as_str(_g(status, "provider_label", default="N/A")),
+        "last_refresh":          _as_str(_g(status, "last_updated",   default="N/A")),
         "symbols_analysed":      _g(status, "symbols_analysed", default=0),
-        "trading_date":          _g(status, "trading_date", default="N/A"),
+        "trading_date":          _as_str(_g(status, "trading_date",   default="N/A")),
     }
 
 
@@ -190,7 +190,7 @@ def widget_portfolio_risk(data: dict) -> dict:
         "largest_position":      _g(risk, "largest_position_pct", default=0.0),
         "maximum_risk":          _g(risk, "daily_risk", default=0.0),
         "sector_concentration":  _g(top_sector, "weight_pct", default=0.0),
-        "top_sector":            _g(top_sector, "sector", default="N/A"),
+        "top_sector":            _as_str(_g(top_sector, "sector", default="N/A")),
         "kill_switch_active":    _g(risk, "kill_switch", "active", default=False),
         "risk_alerts":           ral[:5],
         "alert_count":           len(ral),
@@ -235,11 +235,11 @@ def widget_market_snapshot(data: dict) -> dict:
         "nifty":         _g(meta, "nifty",      default={"price": None, "change_pct": None}),
         "bank_nifty":    _g(meta, "bank_nifty", default={"price": None, "change_pct": None}),
         "india_vix":     _g(meta, "india_vix",  default={"price": None, "change_pct": None}),
-        "market_regime": _g(meta, "market_regime", default="UNKNOWN"),
-        "market_breadth": _g(meta, "market_breadth", default="N/A"),
+        "market_regime": _as_str(_g(meta, "market_regime", default="UNKNOWN"), fallback="UNKNOWN"),
+        "market_breadth": _as_str(_g(meta, "market_breadth", default="N/A")),
         "top_sectors":   _g(meta, "top_sectors", default=[]),
-        "market_status": _g(meta, "market_status", default="UNKNOWN"),
-        "ist_time":      _g(meta, "ist_time", default="N/A"),
+        "market_status": _as_str(_g(meta, "market_status", default="UNKNOWN"), fallback="UNKNOWN"),
+        "ist_time":      _as_str(_g(meta, "ist_time", default="N/A")),
     }
 
 
@@ -263,9 +263,9 @@ def widget_readiness(data: dict) -> dict:
         "available":       True,
         "disabled":        False,
         "readiness_score": rd.get("readiness_score", 0.0),
-        "grade":           rd.get("grade", "N/A"),
-        "verdict":         rd.get("verdict", "NOT READY"),
-        "verdict_short":   rd.get("verdict_short", "NOT READY"),
+        "grade":           _as_str(rd.get("grade",         "N/A"),       fallback="N/A"),
+        "verdict":         _as_str(rd.get("verdict",       "NOT READY"), fallback="NOT READY"),
+        "verdict_short":   _as_str(rd.get("verdict_short", "NOT READY"), fallback="NOT READY"),
     }
 
 
@@ -279,11 +279,11 @@ def widget_header(data: dict) -> dict:
     meta = _g(sys, "meta") or {}
     po_status = _g(po, "status") or {}
     return {
-        "market_status":     _g(meta, "market_status", default="UNKNOWN"),
-        "ist_time":          _g(meta, "ist_time", default="N/A"),
-        "market_regime":     _g(meta, "market_regime", default="UNKNOWN"),
+        "market_status":     _as_str(_g(meta,      "market_status",  default="UNKNOWN"), fallback="UNKNOWN"),
+        "ist_time":          _as_str(_g(meta,      "ist_time",       default="N/A")),
+        "market_regime":     _as_str(_g(meta,      "market_regime",  default="UNKNOWN"), fallback="UNKNOWN"),
         "paper_trading":     True,
-        "active_provider":   _g(po_status, "provider_label", default="N/A"),
+        "active_provider":   _as_str(_g(po_status, "provider_label", default="N/A")),
         "watchlist_count":   _g(po_status, "symbols_analysed", default=0),
-        "trading_date":      _g(po_status, "trading_date", default="N/A"),
+        "trading_date":      _as_str(_g(po_status, "trading_date",   default="N/A")),
     }
