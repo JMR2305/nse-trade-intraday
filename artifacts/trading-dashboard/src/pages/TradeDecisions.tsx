@@ -19,6 +19,7 @@ import {
   AlertTriangle,
   Info,
   Zap,
+  TrendingUp,
 } from "lucide-react";
 
 const REC_STYLE: Record<string, string> = {
@@ -178,6 +179,258 @@ function StrategyRegimeAdvisoryPanel({ currentRegime }: { currentRegime?: string
         Full analysis →
       </a>
       <span className="text-zinc-600 italic shrink-0">advisory only</span>
+    </div>
+  );
+}
+
+// ── Pre-Open Advisory Panel ────────────────────────────────────────────────────
+//
+// Fetches STRONG_GAP_UP candidates with opportunity_score ≥ 70 from the
+// pre-open engine and surfaces them as advisory hints in the Trade Decisions
+// feed.  Labelled "PRE-OPEN ADVISORY" so operators can distinguish them from
+// live-scan signals.  READ-ONLY / ADVISORY-ONLY — no orders are generated.
+
+interface PreOpenHint {
+  symbol: string;
+  sector: string;
+  classification: string;
+  opportunity_score: number;
+  gap_percent: number | null;
+  imbalance_percent: number | null;
+  order_book_available: boolean;
+  executed_quantity: number | null;
+  liquidity_score: number | null;
+  previous_close: number | null;
+  indicative_price: number | null;
+  factor_scores: Record<string, number>;
+  data_source: string;
+  provider_label: string;
+  label: string;
+}
+
+function PreOpenAdvisoryPanel() {
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["preopen-signal-hints"],
+    queryFn: () => apiJson<any>("/preopen/signal-hints"),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+
+  // Stay invisible while loading, disabled, or no qualifying hints
+  if (isLoading) return null;
+  if (!data || data.status === "DISABLED") return null;
+
+  const hints: PreOpenHint[] = data.signal_hints ?? [];
+  if (hints.length === 0) return null;
+
+  return (
+    <div
+      className="rounded-lg border border-emerald-700/40 bg-emerald-950/20"
+      data-testid="panel-preopen-advisory"
+    >
+      {/* Header */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2 text-[11px] font-mono border-b border-emerald-700/30">
+        <TrendingUp className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+        <span className="text-emerald-300 uppercase tracking-wide font-semibold">
+          PRE-OPEN ADVISORY
+        </span>
+        <span
+          className="rounded border border-emerald-600/50 bg-emerald-500/10 px-1.5 py-0.5 text-emerald-300 font-bold text-[10px]"
+          data-testid="badge-preopen-hint-count"
+        >
+          {hints.length} strong gap-up{hints.length !== 1 ? "s" : ""}
+        </span>
+        <span className="text-zinc-500">·</span>
+        <span className="text-zinc-400">score ≥ 70 · STRONG_GAP_UP · advisory only</span>
+        <a
+          href="/pre-open"
+          className="ml-auto text-emerald-400 hover:text-emerald-300 hover:underline shrink-0 text-[11px]"
+        >
+          Full pre-open report →
+        </a>
+      </div>
+
+      {/* Hint rows */}
+      <div className="divide-y divide-emerald-800/20">
+        {hints.map((h) => {
+          const isOpen = expanded === h.symbol;
+          return (
+            <div key={h.symbol} data-testid={`row-preopen-hint-${h.symbol}`}>
+              {/* Summary row */}
+              <button
+                className="w-full text-left px-3 py-2 hover:bg-emerald-900/20 transition-colors"
+                onClick={() => setExpanded(isOpen ? null : h.symbol)}
+                aria-expanded={isOpen}
+              >
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-mono">
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    {isOpen ? (
+                      <ChevronDown className="h-3 w-3 text-emerald-500 shrink-0" />
+                    ) : (
+                      <ChevronRight className="h-3 w-3 text-emerald-500 shrink-0" />
+                    )}
+                    <span className="font-bold text-emerald-200 text-xs">{h.symbol}</span>
+                    <span className="text-zinc-500 text-[10px]">{h.sector}</span>
+                  </span>
+
+                  {/* Score */}
+                  <span className="flex items-center gap-1">
+                    <span className="text-zinc-500">score</span>
+                    <span className="font-bold text-emerald-300">
+                      {Number(h.opportunity_score).toFixed(0)}
+                    </span>
+                    <span className="text-zinc-600">/100</span>
+                  </span>
+
+                  {/* Gap */}
+                  {h.gap_percent != null && (
+                    <span className="flex items-center gap-1">
+                      <span className="text-zinc-500">gap</span>
+                      <span className={`font-bold ${h.gap_percent >= 0 ? "text-emerald-300" : "text-red-400"}`}>
+                        {h.gap_percent >= 0 ? "+" : ""}{Number(h.gap_percent).toFixed(2)}%
+                      </span>
+                    </span>
+                  )}
+
+                  {/* Imbalance — only when order book data is available */}
+                  {h.order_book_available && h.imbalance_percent != null && (
+                    <span className="flex items-center gap-1">
+                      <span className="text-zinc-500">buy imbalance</span>
+                      <span className={`font-bold ${h.imbalance_percent > 0 ? "text-emerald-300" : "text-red-400"}`}>
+                        {h.imbalance_percent >= 0 ? "+" : ""}{Number(h.imbalance_percent).toFixed(1)}%
+                      </span>
+                    </span>
+                  )}
+
+                  {/* Participation (executed qty) */}
+                  {h.executed_quantity != null && h.executed_quantity > 0 && (
+                    <span className="flex items-center gap-1">
+                      <span className="text-zinc-500">participation</span>
+                      <span className="text-zinc-300 font-bold">
+                        {h.executed_quantity.toLocaleString()}
+                      </span>
+                    </span>
+                  )}
+
+                  {/* Indicative price */}
+                  {h.indicative_price != null && (
+                    <span className="flex items-center gap-1">
+                      <span className="text-zinc-500">IEP</span>
+                      <span className="text-zinc-200">
+                        ₹{Number(h.indicative_price).toFixed(2)}
+                      </span>
+                    </span>
+                  )}
+
+                  {/* Data source badge */}
+                  <span className="text-zinc-600 text-[10px] ml-auto shrink-0">
+                    via {h.provider_label}
+                  </span>
+                </div>
+              </button>
+
+              {/* Expanded factor breakdown */}
+              {isOpen && (
+                <div className="px-8 pb-3 pt-1">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Factor scores */}
+                    {Object.keys(h.factor_scores).length > 0 && (
+                      <div>
+                        <div className="text-[10px] font-mono uppercase text-zinc-500 mb-1.5 tracking-wide">
+                          Factor Breakdown
+                        </div>
+                        <div className="space-y-1 font-mono text-[11px]">
+                          {Object.entries(h.factor_scores).map(([factor, score]) => {
+                            const pct = Math.max(0, Math.min(100, Number(score)));
+                            return (
+                              <div key={factor} className="flex items-center gap-2">
+                                <span className="w-36 text-zinc-500 shrink-0 capitalize">
+                                  {factor.replace(/_/g, " ")}
+                                </span>
+                                <div className="flex-1 h-1 rounded bg-zinc-800 overflow-hidden">
+                                  <div
+                                    className="h-full rounded bg-emerald-500/60"
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                                <span className="w-8 text-right text-emerald-300 font-bold">
+                                  {Number(score).toFixed(0)}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Key stats */}
+                    <div>
+                      <div className="text-[10px] font-mono uppercase text-zinc-500 mb-1.5 tracking-wide">
+                        Pre-Open Stats
+                      </div>
+                      <dl className="space-y-1 font-mono text-[11px]">
+                        {h.previous_close != null && (
+                          <div className="flex justify-between gap-4">
+                            <dt className="text-zinc-500">Previous close</dt>
+                            <dd className="text-zinc-200">₹{Number(h.previous_close).toFixed(2)}</dd>
+                          </div>
+                        )}
+                        {h.indicative_price != null && (
+                          <div className="flex justify-between gap-4">
+                            <dt className="text-zinc-500">Indicative price</dt>
+                            <dd className="text-zinc-200">₹{Number(h.indicative_price).toFixed(2)}</dd>
+                          </div>
+                        )}
+                        {h.gap_percent != null && (
+                          <div className="flex justify-between gap-4">
+                            <dt className="text-zinc-500">Gap %</dt>
+                            <dd className={h.gap_percent >= 0 ? "text-emerald-300 font-bold" : "text-red-400 font-bold"}>
+                              {h.gap_percent >= 0 ? "+" : ""}{Number(h.gap_percent).toFixed(2)}%
+                            </dd>
+                          </div>
+                        )}
+                        {h.order_book_available && h.imbalance_percent != null && (
+                          <div className="flex justify-between gap-4">
+                            <dt className="text-zinc-500">Buy imbalance</dt>
+                            <dd className={h.imbalance_percent > 0 ? "text-emerald-300 font-bold" : "text-red-400 font-bold"}>
+                              {h.imbalance_percent >= 0 ? "+" : ""}{Number(h.imbalance_percent).toFixed(1)}%
+                            </dd>
+                          </div>
+                        )}
+                        {!h.order_book_available && (
+                          <div className="flex justify-between gap-4">
+                            <dt className="text-zinc-500">Imbalance</dt>
+                            <dd className="text-zinc-600 italic text-[10px]">not available (no order book)</dd>
+                          </div>
+                        )}
+                        {h.liquidity_score != null && (
+                          <div className="flex justify-between gap-4">
+                            <dt className="text-zinc-500">Liquidity score</dt>
+                            <dd className="text-zinc-200">{Number(h.liquidity_score).toFixed(1)}</dd>
+                          </div>
+                        )}
+                        {h.executed_quantity != null && (
+                          <div className="flex justify-between gap-4">
+                            <dt className="text-zinc-500">Executed qty</dt>
+                            <dd className="text-zinc-200">{h.executed_quantity.toLocaleString()}</dd>
+                          </div>
+                        )}
+                      </dl>
+                    </div>
+                  </div>
+
+                  <p className="mt-2.5 text-[10px] text-amber-600/80 font-mono flex items-start gap-1">
+                    <AlertTriangle className="h-2.5 w-2.5 mt-0.5 shrink-0" />
+                    PRE-OPEN ADVISORY · no orders are generated from this data · paper trading &amp; research only
+                  </p>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -877,6 +1130,8 @@ export default function TradeDecisions() {
       </div>
 
       <StrategyRegimeAdvisoryPanel currentRegime={data?.market_regime} />
+
+      <PreOpenAdvisoryPanel />
 
       {(data?.data_unavailable_count ?? 0) > 0 && (
         <div className="flex items-center gap-2 rounded-md border border-warn bg-warn-surface px-3 py-2 text-sm text-warn">

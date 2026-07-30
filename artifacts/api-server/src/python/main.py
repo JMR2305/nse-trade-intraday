@@ -2198,6 +2198,10 @@ def main():
             from preopen_engine import refresh
             result = refresh()
 
+        elif command == "preopen_signal_hints":
+            from preopen_engine import get_signal_hints
+            result = get_signal_hints()
+
         elif command == "preopen_accuracy":
             from preopen_accuracy import get_accuracy
             date_arg = args[1] if len(args) > 1 else None

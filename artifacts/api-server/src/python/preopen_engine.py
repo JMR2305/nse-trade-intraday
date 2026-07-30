@@ -388,3 +388,79 @@ def refresh() -> dict:
     today = _today_ist()
     session_id = f"preopen-{today}-manual-{uuid.uuid4().hex[:6]}"
     return collect_snapshot(session_id=session_id)
+
+
+# ── Signal hints (Trade Decisions integration) ────────────────────────────────
+
+def get_signal_hints(min_score: float = 70.0) -> dict:
+    """
+    Return pre-open signal hints for the Trade Decisions feed.
+
+    Filters today's snapshots to STRONG_GAP_UP candidates with
+    opportunity_score >= min_score and non-stale data.  Each hint is
+    labelled "PRE-OPEN ADVISORY" so operators can distinguish them from
+    live-scan signals.
+
+    Advisory only — this function never generates or implies an order.
+    """
+    if not _is_enabled():
+        return _disabled_response()
+
+    today = _today_ist()
+    snaps = db.get_latest_snapshots(today)
+
+    hints: List[dict] = []
+    for s in snaps:
+        if (
+            s.get("classification") == Classification.STRONG_GAP_UP
+            and (s.get("opportunity_score") or 0) >= min_score
+            and not s.get("is_stale", True)
+        ):
+            factors = s.get("factor_scores") or {}
+            # Normalise factor_scores — may be stored as JSON string
+            if isinstance(factors, str):
+                try:
+                    import json as _json
+                    factors = _json.loads(factors)
+                except Exception:
+                    factors = {}
+
+            hints.append({
+                "symbol": s.get("symbol"),
+                "sector": s.get("sector"),
+                "classification": s.get("classification"),
+                "opportunity_score": s.get("opportunity_score"),
+                "gap_percent": s.get("gap_percent"),
+                "imbalance_percent": s.get("imbalance_percent"),
+                "buy_sell_imbalance": s.get("buy_sell_imbalance"),
+                "order_book_available": s.get("order_book_available", False),
+                "executed_quantity": s.get("final_executed_quantity"),
+                "liquidity_score": s.get("liquidity_score"),
+                "previous_close": s.get("previous_close"),
+                "indicative_price": (
+                    s.get("indicative_equilibrium_price")
+                    or s.get("indicative_open_price")
+                ),
+                "factor_scores": factors,
+                "data_source": s.get("data_source", "unknown"),
+                "provider_label": s.get("provider_label", "Unknown"),
+                "label": "PRE-OPEN ADVISORY",
+                "advisory_only": True,
+            })
+
+    hints.sort(key=lambda h: -(h.get("opportunity_score") or 0))
+
+    return {
+        "success": True,
+        "trading_date": today,
+        "signal_hints": hints,
+        "count": len(hints),
+        "min_score_threshold": min_score,
+        "classification_filter": Classification.STRONG_GAP_UP,
+        "label": "PRE-OPEN ADVISORY",
+        "advisory_only": True,
+        "note": (
+            "Pre-open signal hints are advisory only. "
+            "No orders are generated automatically from this data."
+        ),
+    }

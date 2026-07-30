@@ -43,6 +43,7 @@ const CACHE_TTL_MS: Record<string, number> = {
   watchlist:        60_000,   // 1 min — frozen list
   sectors:          30_000,
   report:           60_000,
+  signal_hints:     30_000,   // 30 s — same cadence as rankings
   "accuracy:latest":60_000,   // 1 min — reconciliation data stable post-open
   accuracy_history: 120_000,  // 2 min — historical summary
 };
@@ -200,6 +201,20 @@ router.get("/preopen/accuracy", wrap(async (req, res) => {
 router.get("/preopen/accuracy/history", wrap(async (_req, res) => {
   const data = await cached("accuracy_history", () =>
     runPython(["preopen_accuracy_history"], 15_000)
+  );
+  res.json(data);
+}));
+
+/**
+ * GET /api/preopen/signal-hints
+ * Pre-open advisory hints for Trade Decisions integration.
+ * Returns STRONG_GAP_UP candidates with opportunity_score >= 70 (non-stale).
+ * Cached 30 s — same cadence as rankings.
+ * Advisory only — no orders are generated.
+ */
+router.get("/preopen/signal-hints", wrap(async (_req, res) => {
+  const data = await cached("signal_hints", () =>
+    runPython(["preopen_signal_hints"], 30_000)
   );
   res.json(data);
 }));
