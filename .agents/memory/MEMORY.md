@@ -49,3 +49,4 @@
 - [Phase 6.5 live readiness](phase65-live-readiness.md) — Operational Readiness Score, GO/NO-GO verdict, 8 endpoints, 50/50 tests; NEVER import from readiness_checker.py (Phase 8 broker); PGPASSWORD false-positive on secrets check is expected.
 - [Phase 7.1 market intelligence hub](phase71-market-intelligence.md) — 5 endpoints, 54/54 tests; overview is slow (~3s) due to yfinance multi-TF; directional regime outranks LOW_VOL; React not Solid.js.
 - [Phase 7.5 research lab](phase75-research-lab.md) — 8 endpoints; routes must omit /api/ prefix (app.use("/api", router) strips it); RESEARCH_LAB_ENABLED=true; 96/96 tests.
+- [Phase 8.1 Observability Center](phase81-observability.md) — 6 endpoints, 95/95 tests; NEVER call Phase 7 snapshot functions from observability probes — import-check only or summary times out.

@@ -9,7 +9,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 _cache: dict = {}
-_CACHE_TTL_S = 300
+# TTL must stay ≤ 30 s so that a VIX spike is visible within one
+# Executive Dashboard polling cycle (refetchInterval = 30 000 ms).
+_CACHE_TTL_S = 25
 
 VIX_TICKER = "^INDIAVIX"
 

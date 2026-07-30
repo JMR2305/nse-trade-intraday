@@ -759,7 +759,197 @@ class TestAPIDispatch(unittest.TestCase):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 14. Advisory-Only Safety (AST scan)
+# 14. VIX Spike Behaviour — Executive Dashboard macro tile contract
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestVIXSpikeBehavior(unittest.TestCase):
+    """
+    Task #193 — Confirm the macro tile updates correctly when VIX spikes.
+
+    `get_macro_intelligence_snapshot()` is the stable contract consumed by the
+    Executive Dashboard macro tile.  These tests verify that when India VIX
+    crosses the HIGH (22+) and EXTREME (30+) thresholds, the snapshot returns
+    the correct `vix_risk_level` and `vix_regime` labels so the tile reflects
+    reality within the 30-second polling interval.
+
+    Strategy: patch `_fetch_vix` (the yfinance-calling leaf function) with
+    controlled data and clear the module-level cache before each scenario so
+    the patched function is actually invoked.
+    """
+
+    def _clear_vi_cache(self):
+        import macro_intelligence.volatility_intelligence as vi
+        vi._cache.clear()
+
+    # ── Test 1: VIX = 24 ──────────────────────────────────────────────────────
+    def test_vix_24_snapshot_returns_high_risk_and_expansion_regime(self):
+        """
+        India VIX at 24 (above HIGH threshold of 22) with a 5-day close trend
+        rising from 20 → 24 (+20%) must produce vix_risk_level=HIGH and
+        vix_regime=EXPANSION in get_macro_intelligence_snapshot().
+        """
+        # 5-day closes: 20 → 24 gives (24-20)/20*100 = 20% > 10% → EXPANSION
+        mock_fetch_return = {
+            "current": 24.0,
+            "prev":    20.0,
+            "closes":  [20.0, 21.0, 22.0, 23.0, 24.0],
+            "available": True,
+        }
+        self._clear_vi_cache()
+        with patch(
+            "macro_intelligence.volatility_intelligence._fetch_vix",
+            return_value=mock_fetch_return,
+        ):
+            from macro_intelligence.shared_services import get_macro_intelligence_snapshot
+            snap = get_macro_intelligence_snapshot()
+
+        self.assertEqual(
+            snap["vix_risk_level"], "HIGH",
+            f"VIX=24 must give risk_level=HIGH; got {snap['vix_risk_level']!r}",
+        )
+        self.assertEqual(
+            snap["vix_regime"], "EXPANSION",
+            f"Rising 20→24 VIX must give regime=EXPANSION; got {snap['vix_regime']!r}",
+        )
+        # india_vix in snapshot must reflect the spiked value
+        self.assertGreaterEqual(snap["india_vix"], 24.0)
+
+    # ── Test 2: VIX = 30 ──────────────────────────────────────────────────────
+    def test_vix_30_snapshot_returns_extreme_risk(self):
+        """
+        India VIX at 30 (at the EXTREME threshold) must produce
+        vix_risk_level=EXTREME in get_macro_intelligence_snapshot().
+        """
+        mock_fetch_return = {
+            "current": 30.0,
+            "prev":    25.0,
+            "closes":  [25.0, 26.5, 27.0, 28.5, 30.0],  # +20% → EXPANSION
+            "available": True,
+        }
+        self._clear_vi_cache()
+        with patch(
+            "macro_intelligence.volatility_intelligence._fetch_vix",
+            return_value=mock_fetch_return,
+        ):
+            from macro_intelligence.shared_services import get_macro_intelligence_snapshot
+            snap = get_macro_intelligence_snapshot()
+
+        self.assertEqual(
+            snap["vix_risk_level"], "EXTREME",
+            f"VIX=30 must give risk_level=EXTREME; got {snap['vix_risk_level']!r}",
+        )
+        self.assertGreaterEqual(snap["india_vix"], 30.0)
+
+    # ── Test 3: TTL contract ───────────────────────────────────────────────────
+    def test_vix_cache_ttl_within_dashboard_polling_interval(self):
+        """
+        The VIX cache TTL must be ≤ 30 s so that a real spike is always
+        visible within one Executive Dashboard polling cycle (30 000 ms).
+        This is a regression guard — changing _CACHE_TTL_S above 30 will
+        immediately fail this test.
+        """
+        import macro_intelligence.volatility_intelligence as vi
+        self.assertLessEqual(
+            vi._CACHE_TTL_S, 30,
+            f"VIX cache TTL is {vi._CACHE_TTL_S} s — must be ≤ 30 s so spikes "
+            f"are visible within one Executive Dashboard polling cycle.",
+        )
+
+    # ── Test 4: spike propagates after natural cache expiry (no manual clear) ──
+    def test_vix_spike_visible_after_cache_expires_without_manual_clear(self):
+        """
+        Proves the end-to-end freshness contract:
+        1. Cache is primed with baseline VIX = 18 (MEDIUM / STABLE).
+        2. Time is advanced past _CACHE_TTL_S without touching _cache directly.
+        3. Next call to get_volatility_intelligence() must re-fetch and return
+           the spiked VIX = 24 values — vix_risk_level HIGH, regime EXPANSION.
+        This mirrors what happens in production across one polling cycle.
+        """
+        import macro_intelligence.volatility_intelligence as vi
+        from datetime import datetime, timezone, timedelta
+
+        baseline_fetch = {
+            "current": 18.0, "prev": 18.0,
+            "closes": [17.0, 17.5, 18.0, 18.0, 18.0],
+            "available": True,
+        }
+        spike_fetch = {
+            "current": 24.0, "prev": 18.0,
+            "closes": [18.0, 20.0, 21.0, 22.0, 24.0],  # +33% → EXPANSION
+            "available": True,
+        }
+
+        # Step 1 — prime the cache with baseline (MEDIUM / STABLE)
+        vi._cache.clear()
+        with patch("macro_intelligence.volatility_intelligence._fetch_vix",
+                   return_value=baseline_fetch):
+            first = vi.get_volatility_intelligence()
+        self.assertEqual(first["risk_level"], "MEDIUM")
+
+        # Step 2 — simulate TTL expiry by backdating the cached timestamp
+        expired_ts = (datetime.now(timezone.utc)
+                      - timedelta(seconds=vi._CACHE_TTL_S + 1))
+        vi._cache["volatility_intelligence"]["ts"] = expired_ts
+
+        # Step 3 — re-fetch with spike; cache is stale so _fetch_vix runs again
+        with patch("macro_intelligence.volatility_intelligence._fetch_vix",
+                   return_value=spike_fetch):
+            second = vi.get_volatility_intelligence()
+
+        self.assertEqual(
+            second["risk_level"], "HIGH",
+            "After cache expiry a VIX spike to 24 must register as HIGH risk.",
+        )
+        self.assertEqual(
+            second["regime"], "EXPANSION",
+            "Rising VIX (18→24, +33%) must produce EXPANSION regime.",
+        )
+
+    # ── Test 5: Executive Dashboard contract integration ───────────────────────
+    def test_executive_dashboard_snapshot_includes_macro_score_when_enabled(self):
+        """
+        Integration: with MACRO_INTELLIGENCE_ENABLED=true,
+        get_macro_intelligence_snapshot() must return all fields the Executive
+        Dashboard macro tile depends on — macro_score, grade, vix_risk_level,
+        vix_regime, india_vix — and report available=True.
+        """
+        os.environ["MACRO_INTELLIGENCE_ENABLED"] = "true"
+        self._clear_vi_cache()
+
+        from macro_intelligence.shared_services import get_macro_intelligence_snapshot
+        snap = get_macro_intelligence_snapshot()
+
+        # Core fields the Executive Dashboard tile reads
+        for field in ("macro_score", "grade", "vix_risk_level", "vix_regime", "india_vix"):
+            self.assertIn(
+                field, snap,
+                f"Executive Dashboard snapshot missing required field: {field!r}",
+            )
+
+        self.assertTrue(
+            snap.get("available"),
+            "Snapshot must report available=True when MACRO_INTELLIGENCE_ENABLED=true",
+        )
+
+        # macro_score must be a valid 0-100 number (not the error-fallback 0.0 sentinel)
+        self.assertGreaterEqual(snap["macro_score"], 0.0)
+        self.assertLessEqual(snap["macro_score"], 100.0)
+
+        # vix_risk_level must be one of the known labels
+        self.assertIn(
+            snap["vix_risk_level"], {"LOW", "MEDIUM", "HIGH", "EXTREME"},
+            f"Unexpected vix_risk_level: {snap['vix_risk_level']!r}",
+        )
+
+        # vix_regime must be one of the known regimes
+        self.assertIn(
+            snap["vix_regime"], {"EXPANSION", "CONTRACTION", "STABLE"},
+            f"Unexpected vix_regime: {snap['vix_regime']!r}",
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 15. Advisory-Only Safety (AST scan)
 # ══════════════════════════════════════════════════════════════════════════════
 
 class TestAdvisoryOnlySafety(unittest.TestCase):

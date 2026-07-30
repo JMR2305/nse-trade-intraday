@@ -2717,6 +2717,26 @@ def main():
             from research_lab.api import cmd_export as _rl_export
             result = _rl_export()
 
+        # ── Phase 8.1: Observability Center ──────────────────────────────────
+        elif command == "observability_summary":
+            from observability_center.api import cmd_summary as _f; result = _f()
+        elif command == "observability_system":
+            from observability_center.api import cmd_system as _f; result = _f()
+        elif command == "observability_performance":
+            from observability_center.api import cmd_performance as _f; result = _f()
+        elif command == "observability_errors":
+            from observability_center.api import cmd_errors as _f; result = _f()
+        elif command == "observability_alerts":
+            from observability_center.api import cmd_alerts as _f; result = _f()
+        elif command == "observability_audit":
+            from observability_center.api import cmd_audit as _f; result = _f()
+        elif command == "observability_snapshot":
+            from observability_center.api import cmd_snapshot as _f; result = _f()
+        elif command == "observability_export_csv":
+            from observability_center.api import cmd_export_csv as _f; result = _f()
+        elif command == "observability_export_json":
+            from observability_center.api import cmd_export_json as _f; result = _f()
+
         else:
             error_msg = f"Unknown command: {command}"
 

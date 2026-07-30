@@ -11,6 +11,11 @@
       "ts": "2026-07-30T09:28:36.723154+05:30",
       "symbols": 0,
       "skipped": "no_candidates"
+    },
+    "price_1000": {
+      "ts": "2026-07-30T09:58:00.352772+05:30",
+      "symbols": 0,
+      "skipped": "no_candidates"
     }
   }
 }

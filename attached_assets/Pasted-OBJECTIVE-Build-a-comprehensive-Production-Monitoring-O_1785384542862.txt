@@ -1,0 +1,539 @@
+OBJECTIVE
+
+Build a comprehensive Production Monitoring & Observability Center for ApexQuant AI.
+
+This module provides operators with complete visibility into the health, performance and operational status of the platform.
+
+This module MUST remain completely READ-ONLY and ADVISORY-ONLY.
+
+It MUST NEVER
+
+• Place orders
+
+• Execute trades
+
+• Modify AI models
+
+• Modify strategies
+
+• Modify portfolio
+
+• Modify risk parameters
+
+• Restart services automatically
+
+• Change configuration automatically
+
+It should only monitor, analyse and report.
+
+--------------------------------------------------
+
+ARCHITECTURE
+
+Reuse existing modules.
+
+Integrate with
+
+• Phase 6.5 Live Readiness
+
+• Phase 7.1 Market Intelligence
+
+• Phase 7.2 Event Intelligence
+
+• Phase 7.3 Macro Intelligence
+
+• Phase 7.4 Explainable AI
+
+• Phase 7.5 Research Lab
+
+• Executive Dashboard
+
+Reuse all existing snapshots.
+
+Never duplicate health calculations.
+
+--------------------------------------------------
+
+FEATURE FLAG
+
+OBSERVABILITY_CENTER_ENABLED=true
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Create one unified Operations & Observability Center providing
+
+System Health
+
+Application Health
+
+API Monitoring
+
+Database Monitoring
+
+Cache Monitoring
+
+Background Jobs
+
+Resource Monitoring
+
+Error Monitoring
+
+Alert Center
+
+Audit Dashboard
+
+Performance Dashboard
+
+Availability Dashboard
+
+--------------------------------------------------
+
+SYSTEM HEALTH
+
+Monitor
+
+Overall Health Score
+
+Service Availability
+
+Application Status
+
+API Status
+
+Database Status
+
+Cache Status
+
+Background Workers
+
+Feature Flags
+
+Environment Status
+
+--------------------------------------------------
+
+API MONITORING
+
+Track
+
+Response Time
+
+Request Count
+
+Error Rate
+
+Success Rate
+
+Slow Endpoints
+
+Endpoint Availability
+
+Average Latency
+
+95th Percentile Latency
+
+--------------------------------------------------
+
+DATABASE MONITORING
+
+Display
+
+Connection Status
+
+Pool Usage
+
+Query Performance
+
+Slow Queries
+
+Storage Usage
+
+Read Operations
+
+Write Operations
+
+Connection Errors
+
+--------------------------------------------------
+
+CACHE MONITORING
+
+Monitor
+
+Cache Hit Rate
+
+Cache Miss Rate
+
+Cache Size
+
+Memory Usage
+
+Cache Expiry
+
+Refresh Frequency
+
+--------------------------------------------------
+
+BACKGROUND JOBS
+
+Track
+
+Scheduler Status
+
+Running Jobs
+
+Completed Jobs
+
+Failed Jobs
+
+Retry Queue
+
+Average Runtime
+
+Next Scheduled Tasks
+
+--------------------------------------------------
+
+RESOURCE MONITORING
+
+Display
+
+CPU Usage
+
+Memory Usage
+
+Disk Usage
+
+Network Activity
+
+Process Health
+
+Application Uptime
+
+--------------------------------------------------
+
+ERROR MONITORING
+
+Track
+
+Application Errors
+
+API Errors
+
+Validation Errors
+
+Unhandled Exceptions
+
+Recent Errors
+
+Error Frequency
+
+--------------------------------------------------
+
+ALERT CENTER
+
+Generate
+
+Critical Alerts
+
+Warnings
+
+Information
+
+Acknowledged Alerts
+
+Resolved Alerts
+
+Alert History
+
+--------------------------------------------------
+
+AUDIT DASHBOARD
+
+Display
+
+User Actions
+
+Configuration Changes
+
+Feature Flag Changes
+
+Deployments
+
+Session Activity
+
+Audit Timeline
+
+--------------------------------------------------
+
+PERFORMANCE DASHBOARD
+
+Measure
+
+Dashboard Load Time
+
+API Performance
+
+Module Response Time
+
+Background Processing
+
+Snapshot Generation Time
+
+Overall Performance Score
+
+--------------------------------------------------
+
+AVAILABILITY
+
+Generate
+
+Overall Availability %
+
+Service Uptime
+
+Module Availability
+
+Health Trend
+
+Incident Count
+
+Recovery Time
+
+--------------------------------------------------
+
+OBSERVABILITY SCORE
+
+Generate
+
+0–100
+
+Grade
+
+A+
+
+A
+
+B
+
+C
+
+D
+
+Trend
+
+Improving
+
+Stable
+
+Degrading
+
+--------------------------------------------------
+
+DASHBOARD
+
+Create sections
+
+Operations Overview
+
+System Health
+
+API Performance
+
+Database
+
+Cache
+
+Background Jobs
+
+Resources
+
+Errors
+
+Alerts
+
+Audit
+
+Performance
+
+Availability
+
+--------------------------------------------------
+
+API
+
+GET /api/observability/summary
+
+GET /api/observability/system
+
+GET /api/observability/performance
+
+GET /api/observability/errors
+
+GET /api/observability/alerts
+
+GET /api/observability/audit
+
+--------------------------------------------------
+
+EXPORT
+
+CSV
+
+JSON
+
+Future PDF
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Background collection only.
+
+Reuse existing monitoring snapshots.
+
+No expensive polling.
+
+No blocking operations.
+
+--------------------------------------------------
+
+TESTING
+
+Verify
+
+Feature flag
+
+Health aggregation
+
+API metrics
+
+Database metrics
+
+Cache metrics
+
+Job monitoring
+
+Error aggregation
+
+Alert generation
+
+Dashboard
+
+API
+
+Shared services
+
+Export
+
+--------------------------------------------------
+
+SAFETY
+
+Read-only
+
+Advisory-only
+
+Never modify
+
+Orders
+
+Strategies
+
+Portfolio
+
+Risk Engine
+
+AI Models
+
+Execution Engine
+
+Configuration
+
+--------------------------------------------------
+
+GITHUB INTEGRATION REQUIREMENTS
+
+Incorporate concepts inspired by previously reviewed GitHub projects where appropriate.
+
+Include
+
+• Health aggregation
+
+• Service dependency monitoring
+
+• Performance dashboards
+
+• Error analytics
+
+• Availability metrics
+
+• Audit reporting
+
+Do NOT copy external implementations.
+
+Maintain ApexQuant AI modular architecture.
+
+--------------------------------------------------
+
+FUTURE INTEGRATION
+
+Design this module so future capabilities can integrate without architectural changes, including
+
+• Phase 8.2 Advanced Paper Trading Analytics
+
+• Phase 8.3 Data Quality & Validation
+
+• Phase 8.4 Advanced Risk Validation
+
+• Phase 8.5 Operational Control Centre
+
+• Phase 8.6 Security & Compliance
+
+• Phase 8.7 Performance Optimisation
+
+• Phase 8.8 Deployment & Disaster Recovery
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide
+
+1. Files created
+
+2. Files modified
+
+3. Shared services reused
+
+4. APIs
+
+5. Dashboard
+
+6. Test count
+
+7. Test results
+
+8. Performance benchmarks
+
+9. Known limitations
+
+10. Observability methodology
+
+11. GitHub-inspired enhancements
+
+12. Explain how later Phase 8 modules integrate without architectural changes.
+
+13. Confirm the module remains READ-ONLY and ADVISORY-ONLY.
+
+Final Verdict
+
+PHASE 8.1 COMPLETE
+
+or
+
+PHASE 8.1 NOT COMPLETE
+
+with exact blockers.
