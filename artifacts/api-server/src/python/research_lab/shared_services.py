@@ -293,6 +293,26 @@ def _save_snapshot_cache(snap: Dict[str, Any]) -> None:
         pass
 
 
+def invalidate_snapshot_cache() -> str:
+    """Delete the file-based snapshot cache so the next call fetches fresh data.
+
+    Called by the post-scan pipeline after each successful scan so the
+    Executive Dashboard Research Lab tile reflects the latest scan results
+    instead of showing stale data for up to 5 minutes.
+
+    Safe to call even when the file does not exist.
+    Returns a human-readable status string for pipeline logging.
+    """
+    import os as _os
+    try:
+        if _os.path.exists(_SNAPSHOT_CACHE_FILE):
+            _os.remove(_SNAPSHOT_CACHE_FILE)
+            return f"cache invalidated: {_os.path.basename(_SNAPSHOT_CACHE_FILE)} removed"
+        return "cache already clear (file did not exist)"
+    except Exception as exc:
+        return f"cache invalidation failed (non-fatal): {exc}"
+
+
 def get_research_lab_snapshot() -> Dict[str, Any]:
     """
     Flat KPI snapshot for cross-phase aggregation.

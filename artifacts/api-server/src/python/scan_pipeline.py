@@ -240,6 +240,15 @@ def _run(snap: Dict[str, Any], trigger: str) -> Dict[str, Any]:
         return f"consistency PASS ({stale} stale-source values)"
     modules.append(_run_module("consistency", consistency))
 
+    # I) Research Lab snapshot cache invalidation — best-effort, non-blocking.
+    # Deletes _snapshot_cache.json so the Executive Dashboard Research Lab tile
+    # shows fresh data on its next poll instead of data up to 5 minutes stale.
+    # Not in REQUIRED_MODULES: a cache-flush failure never blocks bundle publish.
+    def research_lab_cache_flush():
+        from research_lab.shared_services import invalidate_snapshot_cache
+        return invalidate_snapshot_cache()
+    modules.append(_run_module("research_lab_cache_flush", research_lab_cache_flush))
+
     failed = [m["module"] for m in modules if m["status"] != "OK"]
     required_failed = [m for m in failed if m in REQUIRED_MODULES]
     synchronized = not required_failed
