@@ -155,3 +155,9 @@ id = "gId4EygSzyZ3V-zG-3mdH"
 uri = "file://docs/phase7.3-summary.md"
 type = "text"
 title = "Phase 7.3 — Economic & Macro Intelligence Hub Summary"
+
+[[outputs]]
+id = "i_wOoQa5AKnbMi2E3PWjE"
+uri = "file://phase7-summary.md"
+type = "text"
+title = "Phase 7 — Intelligence & Research Layer Summary"
