@@ -198,6 +198,30 @@ def archive_all_trades() -> None:
         conn.close()
 
 
+def load_trades() -> List[Dict[str, Any]]:
+    """
+    Return the current-session (non-archived) trades, oldest first.
+
+    Used by paper_trading_validation.validation_collector.collect_all_trade_records()
+    to drive the analytics pipeline.  Only active trades are returned so that
+    archived sessions from previous days do not pollute today's analytics.
+
+    With DATABASE_URL: reads from Postgres.
+    Without DATABASE_URL: falls back to state.json trades list.
+    """
+    if db_available():
+        conn = _connect()
+        try:
+            _ensure_schema(conn)
+            return _load_all_trades(conn, include_archived=False)
+        finally:
+            conn.close()
+
+    # Local-dev fallback
+    state = _read_json_fallback()
+    return state.get("trades", [])
+
+
 def load_all_trades_any() -> List[Dict[str, Any]]:
     """
     Return ALL trades — current session AND archived (all-time history),
