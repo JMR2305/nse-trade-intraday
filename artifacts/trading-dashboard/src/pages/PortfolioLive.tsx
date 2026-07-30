@@ -22,6 +22,7 @@ import {
   X,
   Check,
   RotateCcw,
+  LineChart,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -325,6 +326,244 @@ function DrawdownBar({ pct: drawdownPct }: { pct: number }) {
         {w.toFixed(1)}%
       </span>
     </div>
+  );
+}
+
+// ── Mini SVG sparkline (pure SVG, no chart library) ──────────────────────────
+
+function Sparkline({
+  values,
+  width = 200,
+  height = 44,
+}: {
+  values: number[];
+  width?: number;
+  height?: number;
+}) {
+  if (values.length < 2) {
+    return (
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="w-full h-full opacity-30"
+        aria-hidden="true"
+      >
+        <line
+          x1="0" y1={height / 2}
+          x2={width} y2={height / 2}
+          stroke="currentColor" strokeWidth="1" strokeDasharray="4 4"
+        />
+      </svg>
+    );
+  }
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const pad = 4;
+  const usableW = width - pad * 2;
+  const usableH = height - pad * 2;
+  const pts = values.map((v, i) => ({
+    x: pad + (i / (values.length - 1)) * usableW,
+    y: pad + ((max - v) / range) * usableH,
+  }));
+  const linePath = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
+  const areaPath = `${linePath} L ${pts[pts.length - 1].x.toFixed(1)} ${(height - pad).toFixed(1)} L ${pad} ${(height - pad).toFixed(1)} Z`;
+  const rising = values[values.length - 1] >= values[0];
+  const stroke = rising ? "#4ade80" : "#f87171";
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      className="w-full h-full"
+      preserveAspectRatio="none"
+      aria-label="14-day equity sparkline"
+    >
+      <path d={areaPath} fill={stroke} fillOpacity="0.12" />
+      <path d={linePath} fill="none" stroke={stroke} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// ── Performance Snapshot (Phase 5D.2 inline summary) ─────────────────────────
+//
+// Fetches /api/performance/summary and /api/performance/equity to render a
+// compact "Performance Snapshot" strip at the top of the Portfolio page.
+// Silently hidden when PORTFOLIO_PERFORMANCE_ENABLED is false.
+// READ-ONLY · ADVISORY ONLY · no mutation.
+
+/** Typed shape of GET /api/performance/summary */
+interface PerfSummary {
+  status: string;
+  today_pnl: number;
+  total_net_pnl: number;
+  realised_pnl: number;
+  /** 0–100 (percent, not fraction) */
+  win_rate: number;
+  profit_factor: number;
+  total_trades: number;
+  winning_trades: number;
+  losing_trades: number;
+  /** ₹ per trade (currency, not percent) */
+  expectancy: number;
+  max_drawdown_pct: number;
+}
+
+/** Typed shape of GET /api/performance/equity */
+interface PerfEquity {
+  status: string;
+  daily_pnl: Array<{ date: string; pnl: number; equity: number }>;
+}
+
+function PerformanceSnapshot() {
+  const { data: summary } = useQuery<PerfSummary>({
+    queryKey: ["perf-summary-inline"],
+    queryFn: () => apiJson("/performance/summary") as Promise<PerfSummary>,
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+  });
+
+  const { data: equity } = useQuery<PerfEquity>({
+    queryKey: ["perf-equity-inline"],
+    queryFn: () => apiJson("/performance/equity?period=daily") as Promise<PerfEquity>,
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+  });
+
+  // Stay invisible when disabled or not yet loaded
+  if (!summary || summary.status === "DISABLED") return null;
+
+  const sparkValues = (equity?.daily_pnl ?? []).slice(-14).map((d) => Number(d.equity));
+
+  const todayPnl    = Number(summary.today_pnl    ?? 0);
+  const netPnl      = Number(summary.total_net_pnl ?? summary.realised_pnl ?? 0);
+  const winRate     = Number(summary.win_rate      ?? 0);   // 0–100 percent (API returns percent, not fraction)
+  const profitFac   = Number(summary.profit_factor ?? 0);
+  const totalTrades = Number(summary.total_trades  ?? 0);
+  const expectancy  = Number(summary.expectancy    ?? 0);   // ₹ per trade (currency, not percent)
+
+  return (
+    <Card
+      className="bg-card/50 border-border/50"
+      data-testid="section-performance-snapshot"
+    >
+      <CardHeader className="pb-2 pt-4 px-4">
+        <CardTitle className="text-sm font-mono uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+          <LineChart className="h-3.5 w-3.5" />
+          Performance Snapshot
+          <span className="ml-1 rounded border border-sky-700/50 bg-sky-900/20 px-1.5 py-px text-[10px] font-mono text-sky-400 font-normal normal-case">
+            advisory only
+          </span>
+          <a
+            href="/portfolio-performance"
+            className="ml-auto text-xs font-normal text-sky-400 hover:text-sky-300 hover:underline normal-case"
+          >
+            Full report →
+          </a>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-4 pt-0">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 items-end">
+
+          {/* Today P&L */}
+          <div data-testid="stat-today-pnl">
+            <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-0.5">
+              Today P&amp;L
+            </div>
+            <div className={`text-lg font-bold font-mono tabular-nums ${pnlColor(todayPnl)}`}>
+              {todayPnl >= 0 ? "+" : ""}{rupee(todayPnl)}
+            </div>
+          </div>
+
+          {/* Net P&L */}
+          <div data-testid="stat-net-pnl">
+            <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-0.5">
+              Net P&amp;L
+            </div>
+            <div className={`text-lg font-bold font-mono tabular-nums ${pnlColor(netPnl)}`}>
+              {netPnl >= 0 ? "+" : ""}{rupee(netPnl)}
+            </div>
+            {totalTrades > 0 && (
+              <div className="text-[10px] text-muted-foreground font-mono">
+                {totalTrades} trade{totalTrades !== 1 ? "s" : ""}
+              </div>
+            )}
+          </div>
+
+          {/* Win Rate */}
+          <div data-testid="stat-win-rate">
+            <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-0.5">
+              Win Rate
+            </div>
+            <div className={`text-lg font-bold font-mono tabular-nums ${
+              winRate >= 60 ? "text-green-400" :
+              winRate >= 40 ? "text-yellow-400" :
+              totalTrades === 0 ? "text-muted-foreground" : "text-red-400"
+            }`}>
+              {totalTrades === 0 ? "—" : `${winRate.toFixed(0)}%`}
+            </div>
+            {totalTrades > 0 && (
+              <div className="text-[10px] text-muted-foreground font-mono">
+                {summary.winning_trades ?? 0}W / {summary.losing_trades ?? 0}L
+              </div>
+            )}
+          </div>
+
+          {/* Profit Factor */}
+          <div data-testid="stat-profit-factor">
+            <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-0.5">
+              Profit Factor
+            </div>
+            <div className={`text-lg font-bold font-mono tabular-nums ${
+              profitFac >= 1.5 ? "text-green-400" :
+              profitFac >= 1.0 ? "text-yellow-400" :
+              profitFac === 0 ? "text-muted-foreground" : "text-red-400"
+            }`}>
+              {profitFac > 0 ? profitFac.toFixed(2) : "—"}
+            </div>
+            {expectancy !== 0 && (
+              <div className={`text-[10px] font-mono ${expectancy >= 0 ? "text-green-400/70" : "text-red-400/70"}`}>
+                E={expectancy >= 0 ? "+" : ""}{rupee(expectancy)}/trade
+              </div>
+            )}
+          </div>
+
+          {/* Max Drawdown */}
+          <div data-testid="stat-max-drawdown">
+            <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-0.5">
+              Max Drawdown
+            </div>
+            <div className={`text-lg font-bold font-mono tabular-nums ${
+              (summary.max_drawdown_pct ?? 0) >= 10 ? "text-red-400" :
+              (summary.max_drawdown_pct ?? 0) >= 5  ? "text-yellow-400" : "text-muted-foreground"
+            }`}>
+              {(summary.max_drawdown_pct ?? 0) > 0
+                ? `-${Number(summary.max_drawdown_pct).toFixed(1)}%`
+                : "—"}
+            </div>
+          </div>
+
+          {/* 14-day equity sparkline */}
+          <div className="h-11" data-testid="sparkline-equity">
+            {sparkValues.length >= 2 ? (
+              <>
+                <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-0.5">
+                  Equity (14d)
+                </div>
+                <Sparkline values={sparkValues} />
+              </>
+            ) : (
+              <div className="flex items-center h-full">
+                <span className="text-[10px] text-muted-foreground font-mono">
+                  Collecting equity history…
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <p className="mt-3 text-[10px] text-muted-foreground font-mono">
+          Source: Phase 5D.2 Portfolio Performance · paper trading only · not investment advice
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1232,6 +1471,9 @@ export default function PortfolioLive() {
           </CardContent>
         </Card>
       )}
+
+      {/* ── Performance Snapshot (Phase 5D.2 inline — hidden when disabled) ─── */}
+      <PerformanceSnapshot />
 
       {/* ── Open Positions ──────────────────────────────────────────────── */}
       <Card className="bg-card/50 border-border/50">
