@@ -208,6 +208,64 @@ const DISABLED_RESEARCH_SNAP = {
   advisory_only:     true,
 };
 
+/**
+ * Representative payload matching the REAL /api/ai/summary response shape.
+ * - health_score is a composite object (total_score 0-100, label, components)
+ * - prediction.accuracy is a 0-1 fraction (NOT a percentage)
+ * - avg_confidence is a 0-1 fraction (NOT a percentage)
+ */
+const FULL_AI_SUMMARY = {
+  status:                "ENABLED",
+  total_signals:          142,
+  executed_signals:        38,
+  ignored_signals:        104,
+  successful_signals:      27,
+  failed_signals:          11,
+  signal_success_rate:   0.71,
+  high_confidence_pct:   0.54,
+  avg_confidence:        0.68,    // 0-1 fraction → displays as "68.0%"
+  health_score: {
+    total_score:    72.5,
+    label:          "Good",
+    components: {
+      prediction_accuracy: 65.0,
+      calibration_quality: 78.0,
+      consistency:         70.0,
+      execution_outcome:   80.0,
+      risk_awareness:      60.0,
+      recommendation_quality: 75.0,
+    },
+    weights: {
+      prediction_accuracy: 0.25,
+      calibration_quality: 0.20,
+      consistency:         0.20,
+      execution_outcome:   0.15,
+      risk_awareness:      0.10,
+      recommendation_quality: 0.10,
+    },
+  },
+  trend_direction:   "Improving",
+  accuracy_delta:         3.2,
+  recent_accuracy:       0.71,
+  prediction: {
+    tp: 27, fp: 11, tn: 82, fn: 22,
+    accuracy:           0.73,   // 0-1 fraction → displays as "73.0%"
+    precision:          0.71,
+    recall:             0.75,
+    f1_score:           0.73,
+    false_positive_rate: 0.12,
+    false_negative_rate: 0.25,
+    true_positive_rate:  0.75,
+    true_negative_rate:  0.88,
+    mcc:                 0.47,
+    balanced_accuracy:   0.81,
+  },
+  calibration_ece:          0.04,
+  calibration_reliability:  0.91,
+};
+
+const DISABLED_AI_SUMMARY = { status: "DISABLED" };
+
 // ── Helper ────────────────────────────────────────────────────────────────────
 
 function mountDashboard() {
@@ -228,6 +286,26 @@ function mountDashboard() {
   );
 }
 
+/**
+ * Build a standard mock that routes the three queries correctly.
+ *   executive/summary      → execSummary
+ *   research-lab/snapshot  → researchSnap
+ *   ai/summary             → aiSummary
+ * Any other path returns {}.
+ */
+function makeMock(
+  execSummary: unknown = FULL_EXEC_SUMMARY,
+  researchSnap: unknown = FULL_RESEARCH_SNAP,
+  aiSummary: unknown = FULL_AI_SUMMARY,
+) {
+  return (path: string) => {
+    if (path === "executive/summary")    return Promise.resolve(execSummary);
+    if (path === "research-lab/snapshot") return Promise.resolve(researchSnap);
+    if (path === "ai/summary")           return Promise.resolve(aiSummary);
+    return Promise.resolve({});
+  };
+}
+
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
 beforeEach(() => { vi.clearAllMocks(); });
@@ -237,11 +315,7 @@ afterEach(cleanup);
 
 describe("ExecutiveDashboard — full payload", () => {
   it("renders all section card titles without crashing", async () => {
-    vi.mocked(apiJson).mockImplementation((path: string) =>
-      path === "executive/summary"
-        ? Promise.resolve(FULL_EXEC_SUMMARY)
-        : Promise.resolve(FULL_RESEARCH_SNAP),
-    );
+    vi.mocked(apiJson).mockImplementation(makeMock());
 
     mountDashboard();
 
@@ -258,47 +332,60 @@ describe("ExecutiveDashboard — full payload", () => {
   });
 
   it("renders the executive score ring with total and label", async () => {
-    vi.mocked(apiJson).mockImplementation((path: string) =>
-      path === "executive/summary"
-        ? Promise.resolve(FULL_EXEC_SUMMARY)
-        : Promise.resolve(FULL_RESEARCH_SNAP),
-    );
+    vi.mocked(apiJson).mockImplementation(makeMock());
 
     mountDashboard();
     await waitFor(() => expect(screen.queryByText("78")).toBeTruthy());
-    await waitFor(() => expect(screen.queryByText("Good")).toBeTruthy());
+    // "Good" now appears in both the executive score ring AND the AI health tile badge,
+    // so use queryAllByText which returns all matches without throwing on duplicates.
+    await waitFor(() => expect(screen.queryAllByText("Good").length).toBeGreaterThan(0));
   });
 
   it("renders portfolio KPI labels", async () => {
-    vi.mocked(apiJson).mockImplementation((path: string) =>
-      path === "executive/summary"
-        ? Promise.resolve(FULL_EXEC_SUMMARY)
-        : Promise.resolve(FULL_RESEARCH_SNAP),
-    );
+    vi.mocked(apiJson).mockImplementation(makeMock());
 
     mountDashboard();
     await waitFor(() => expect(screen.queryByText("Portfolio Value")).toBeTruthy());
     await waitFor(() => expect(screen.queryByText("Open Positions")).toBeTruthy());
   });
 
-  it("renders AI health score ring", async () => {
-    vi.mocked(apiJson).mockImplementation((path: string) =>
-      path === "executive/summary"
-        ? Promise.resolve(FULL_EXEC_SUMMARY)
-        : Promise.resolve(FULL_RESEARCH_SNAP),
-    );
+  it("renders AI Health tile with score, label, and trend from /api/ai/summary", async () => {
+    // The AIHealthTile fetches from ai/summary directly, NOT from executive/summary.
+    // It should show the composite label "Good" (from health_score.label),
+    // the trend "Improving", and the accuracy/confidence KPIs (converted from fractions).
+    vi.mocked(apiJson).mockImplementation(makeMock());
 
     mountDashboard();
-    await waitFor(() => expect(screen.queryByText("Healthy")).toBeTruthy());
-    await waitFor(() => expect(screen.queryByText("Prediction Accuracy")).toBeTruthy());
+    // Label from health_score.label — "Good" appears in both the score ring AND the tile badge
+    await waitFor(() => expect(screen.queryAllByText("Good").length).toBeGreaterThan(0));
+    // Trend text is in a data-testid span so it's uniquely addressable
+    await waitFor(() => expect(screen.getByTestId("ai-health-trend").textContent).toBe("Improving"));
+    // Accuracy metric label
+    await waitFor(() => expect(screen.queryByText("Accuracy")).toBeTruthy());
+    // Link to full AI Performance page
+    await waitFor(() => expect(screen.queryByText("View Full AI Performance")).toBeTruthy());
+  });
+
+  it("renders accuracy as a percentage (0-1 fraction converted to 73.0%), not raw 0.7%", async () => {
+    vi.mocked(apiJson).mockImplementation(makeMock());
+
+    mountDashboard();
+    // prediction.accuracy = 0.73 → should display as "73.0%"
+    await waitFor(() => expect(screen.queryByText("73.0%")).toBeTruthy());
+    // Must NOT display the raw fraction as a percentage
+    expect(screen.queryByText("0.7%")).toBeFalsy();
+  });
+
+  it("renders avg_confidence as a percentage (0-1 fraction converted to 68.0%), not raw 0.7%", async () => {
+    vi.mocked(apiJson).mockImplementation(makeMock());
+
+    mountDashboard();
+    // avg_confidence = 0.68 → should display as "68.0%"
+    await waitFor(() => expect(screen.queryByText("68.0%")).toBeTruthy());
   });
 
   it("renders strategy section KPI labels", async () => {
-    vi.mocked(apiJson).mockImplementation((path: string) =>
-      path === "executive/summary"
-        ? Promise.resolve(FULL_EXEC_SUMMARY)
-        : Promise.resolve(FULL_RESEARCH_SNAP),
-    );
+    vi.mocked(apiJson).mockImplementation(makeMock());
 
     mountDashboard();
     await waitFor(() => expect(screen.queryByText("Best Strategy")).toBeTruthy());
@@ -310,10 +397,9 @@ describe("ExecutiveDashboard — full payload", () => {
 
 describe("ExecutiveDashboard — null/absent sections (graceful degradation)", () => {
   it("shows 'No data' for every absent section without crashing", async () => {
-    vi.mocked(apiJson).mockImplementation((path: string) =>
-      path === "executive/summary"
-        ? Promise.resolve({ status: "ENABLED" })
-        : Promise.resolve(DISABLED_RESEARCH_SNAP),
+    // executive/summary has no sections; research-lab and ai/summary are DISABLED.
+    vi.mocked(apiJson).mockImplementation(
+      makeMock({ status: "ENABLED" }, DISABLED_RESEARCH_SNAP, DISABLED_AI_SUMMARY),
     );
 
     mountDashboard();
@@ -324,20 +410,17 @@ describe("ExecutiveDashboard — null/absent sections (graceful degradation)", (
       await waitFor(() => expect(screen.queryByText(title)).toBeTruthy());
     }
 
-    // Multiple "No data" placeholders should appear
+    // Multiple "No data" placeholders should appear (AI Health now shows
+    // "AI Performance Disabled" not "No data", so ≥5 from other sections)
     await waitFor(() => {
       const noDataEls = screen.queryAllByText("No data");
-      expect(noDataEls.length).toBeGreaterThanOrEqual(6);
+      expect(noDataEls.length).toBeGreaterThanOrEqual(5);
     });
   });
 
   it("shows 'No alerts' placeholder when live_alerts is absent", async () => {
     const payload = { ...FULL_EXEC_SUMMARY, live_alerts: undefined };
-    vi.mocked(apiJson).mockImplementation((path: string) =>
-      path === "executive/summary"
-        ? Promise.resolve(payload)
-        : Promise.resolve(FULL_RESEARCH_SNAP),
-    );
+    vi.mocked(apiJson).mockImplementation(makeMock(payload));
 
     mountDashboard();
     await waitFor(() => expect(screen.queryByText("No alerts")).toBeTruthy());
@@ -348,11 +431,7 @@ describe("ExecutiveDashboard — null/absent sections (graceful degradation)", (
       ...FULL_EXEC_SUMMARY,
       live_alerts: { critical: [], warnings: [], info: [], total_critical: 0, total_warnings: 0 },
     };
-    vi.mocked(apiJson).mockImplementation((path: string) =>
-      path === "executive/summary"
-        ? Promise.resolve(payload)
-        : Promise.resolve(FULL_RESEARCH_SNAP),
-    );
+    vi.mocked(apiJson).mockImplementation(makeMock(payload));
 
     mountDashboard();
     await waitFor(() =>
@@ -364,11 +443,7 @@ describe("ExecutiveDashboard — null/absent sections (graceful degradation)", (
 
 describe("ExecutiveDashboard — Research Lab tile", () => {
   it("shows 'Research Lab Disabled' when snapshot status is DISABLED", async () => {
-    vi.mocked(apiJson).mockImplementation((path: string) =>
-      path === "executive/summary"
-        ? Promise.resolve(FULL_EXEC_SUMMARY)
-        : Promise.resolve(DISABLED_RESEARCH_SNAP),
-    );
+    vi.mocked(apiJson).mockImplementation(makeMock(FULL_EXEC_SUMMARY, DISABLED_RESEARCH_SNAP));
 
     mountDashboard();
     await waitFor(() =>
@@ -376,22 +451,14 @@ describe("ExecutiveDashboard — Research Lab tile", () => {
   });
 
   it("shows grade badge when snapshot status is ENABLED", async () => {
-    vi.mocked(apiJson).mockImplementation((path: string) =>
-      path === "executive/summary"
-        ? Promise.resolve(FULL_EXEC_SUMMARY)
-        : Promise.resolve(FULL_RESEARCH_SNAP),
-    );
+    vi.mocked(apiJson).mockImplementation(makeMock());
 
     mountDashboard();
     await waitFor(() => expect(screen.queryByText("Grade C")).toBeTruthy());
   });
 
   it("shows Research Lab link button when ENABLED", async () => {
-    vi.mocked(apiJson).mockImplementation((path: string) =>
-      path === "executive/summary"
-        ? Promise.resolve(FULL_EXEC_SUMMARY)
-        : Promise.resolve(FULL_RESEARCH_SNAP),
-    );
+    vi.mocked(apiJson).mockImplementation(makeMock());
 
     mountDashboard();
     await waitFor(() =>
@@ -399,30 +466,24 @@ describe("ExecutiveDashboard — Research Lab tile", () => {
   });
 
   it("renders trend IMPROVING without crashing", async () => {
-    vi.mocked(apiJson).mockImplementation((path: string) =>
-      path === "executive/summary"
-        ? Promise.resolve(FULL_EXEC_SUMMARY)
-        : Promise.resolve({ ...FULL_RESEARCH_SNAP, trend: "IMPROVING" }),
+    vi.mocked(apiJson).mockImplementation(
+      makeMock(FULL_EXEC_SUMMARY, { ...FULL_RESEARCH_SNAP, trend: "IMPROVING" }),
     );
     mountDashboard();
     await waitFor(() => expect(screen.queryByText("Research Lab")).toBeTruthy());
   });
 
   it("renders trend DECLINING without crashing", async () => {
-    vi.mocked(apiJson).mockImplementation((path: string) =>
-      path === "executive/summary"
-        ? Promise.resolve(FULL_EXEC_SUMMARY)
-        : Promise.resolve({ ...FULL_RESEARCH_SNAP, trend: "DECLINING" }),
+    vi.mocked(apiJson).mockImplementation(
+      makeMock(FULL_EXEC_SUMMARY, { ...FULL_RESEARCH_SNAP, trend: "DECLINING" }),
     );
     mountDashboard();
     await waitFor(() => expect(screen.queryByText("Research Lab")).toBeTruthy());
   });
 
   it("renders trend WEAKENING without crashing", async () => {
-    vi.mocked(apiJson).mockImplementation((path: string) =>
-      path === "executive/summary"
-        ? Promise.resolve(FULL_EXEC_SUMMARY)
-        : Promise.resolve({ ...FULL_RESEARCH_SNAP, trend: "WEAKENING" }),
+    vi.mocked(apiJson).mockImplementation(
+      makeMock(FULL_EXEC_SUMMARY, { ...FULL_RESEARCH_SNAP, trend: "WEAKENING" }),
     );
     mountDashboard();
     await waitFor(() => expect(screen.queryByText("Research Lab")).toBeTruthy());
@@ -431,6 +492,7 @@ describe("ExecutiveDashboard — Research Lab tile", () => {
   it("shows 'No data' placeholder when research-lab/snapshot is still pending", async () => {
     vi.mocked(apiJson).mockImplementation((path: string) => {
       if (path === "executive/summary") return Promise.resolve(FULL_EXEC_SUMMARY);
+      if (path === "ai/summary")        return Promise.resolve(FULL_AI_SUMMARY);
       return new Promise(() => {}); // research snap never resolves
     });
 
@@ -444,6 +506,95 @@ describe("ExecutiveDashboard — Research Lab tile", () => {
   });
 });
 
+// ── Tests: AI Health tile ─────────────────────────────────────────────────────
+
+describe("ExecutiveDashboard — AI Health tile", () => {
+  it("shows 'AI Performance Disabled' when ai/summary returns DISABLED", async () => {
+    vi.mocked(apiJson).mockImplementation(
+      makeMock(FULL_EXEC_SUMMARY, FULL_RESEARCH_SNAP, DISABLED_AI_SUMMARY),
+    );
+
+    mountDashboard();
+    await waitFor(() =>
+      expect(screen.queryByText("AI Performance Disabled")).toBeTruthy());
+  });
+
+  it("shows score label 'Good' from health_score.label when ENABLED", async () => {
+    vi.mocked(apiJson).mockImplementation(makeMock());
+
+    mountDashboard();
+    // "Good" appears in multiple places (exec score ring + tile badge); use queryAllByText
+    await waitFor(() => expect(screen.queryAllByText("Good").length).toBeGreaterThan(0));
+  });
+
+  it("shows trend 'Improving' from trend_direction field", async () => {
+    vi.mocked(apiJson).mockImplementation(makeMock());
+
+    mountDashboard();
+    // Trend text is in data-testid="ai-health-trend" for reliable querying
+    await waitFor(() => expect(screen.getByTestId("ai-health-trend").textContent).toBe("Improving"));
+  });
+
+  it("shows 'View Full AI Performance' link to /ai-performance", async () => {
+    vi.mocked(apiJson).mockImplementation(makeMock());
+
+    mountDashboard();
+    await waitFor(() =>
+      expect(screen.queryByText("View Full AI Performance")).toBeTruthy());
+  });
+
+  it("shows accuracy as 73.0% (0.73 fraction × 100), not '0.7%'", async () => {
+    vi.mocked(apiJson).mockImplementation(makeMock());
+
+    mountDashboard();
+    await waitFor(() => expect(screen.queryByText("73.0%")).toBeTruthy());
+    expect(screen.queryByText("0.7%")).toBeFalsy();
+  });
+
+  it("shows avg_confidence as 68.0% (0.68 fraction × 100)", async () => {
+    vi.mocked(apiJson).mockImplementation(makeMock());
+
+    mountDashboard();
+    await waitFor(() => expect(screen.queryByText("68.0%")).toBeTruthy());
+  });
+
+  it("shows 'Declining' trend with no crash", async () => {
+    vi.mocked(apiJson).mockImplementation(
+      makeMock(FULL_EXEC_SUMMARY, FULL_RESEARCH_SNAP, {
+        ...FULL_AI_SUMMARY, trend_direction: "Declining",
+      }),
+    );
+
+    mountDashboard();
+    await waitFor(() => expect(screen.queryByText("AI Health")).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId("ai-health-trend").textContent).toBe("Declining"));
+  });
+
+  it("shows 'Stable' trend with no crash", async () => {
+    vi.mocked(apiJson).mockImplementation(
+      makeMock(FULL_EXEC_SUMMARY, FULL_RESEARCH_SNAP, {
+        ...FULL_AI_SUMMARY, trend_direction: "Stable",
+      }),
+    );
+
+    mountDashboard();
+    await waitFor(() => expect(screen.queryByText("AI Health")).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId("ai-health-trend").textContent).toBe("Stable"));
+  });
+
+  it("shows 'Loading…' when ai/summary query is still pending", async () => {
+    vi.mocked(apiJson).mockImplementation((path: string) => {
+      if (path === "executive/summary")    return Promise.resolve(FULL_EXEC_SUMMARY);
+      if (path === "research-lab/snapshot") return Promise.resolve(FULL_RESEARCH_SNAP);
+      return new Promise(() => {}); // ai/summary never resolves
+    });
+
+    mountDashboard();
+    await waitFor(() => expect(screen.queryByText("AI Health")).toBeTruthy());
+    await waitFor(() => expect(screen.queryByText("Loading…")).toBeTruthy());
+  });
+});
+
 // ── Tests: KpiCard safety — object/null values ────────────────────────────────
 
 describe("ExecutiveDashboard — KpiCard safety (non-string API values)", () => {
@@ -452,19 +603,13 @@ describe("ExecutiveDashboard — KpiCard safety (non-string API values)", () => 
       ...FULL_EXEC_SUMMARY,
       strategy_overview: {
         ...FULL_EXEC_SUMMARY.strategy_overview,
-        best_regime: {} as unknown as string,  // regression: was crashing with "Objects are not valid as React child"
+        best_regime: {} as unknown as string,
       },
     };
-    vi.mocked(apiJson).mockImplementation((path: string) =>
-      path === "executive/summary"
-        ? Promise.resolve(payload)
-        : Promise.resolve(FULL_RESEARCH_SNAP),
-    );
+    vi.mocked(apiJson).mockImplementation(makeMock(payload));
 
     mountDashboard();
-    // Page must render without React error boundary — section card title is visible
     await waitFor(() => expect(screen.queryByText("Strategy Overview")).toBeTruthy());
-    // KpiCard label for Best Regime must be present
     await waitFor(() => expect(screen.queryByText("Best Regime")).toBeTruthy());
   });
 
@@ -476,17 +621,12 @@ describe("ExecutiveDashboard — KpiCard safety (non-string API values)", () => 
         best_regime: {} as unknown as string,
       },
     };
-    vi.mocked(apiJson).mockImplementation((path: string) =>
-      path === "executive/summary"
-        ? Promise.resolve(payload)
-        : Promise.resolve(FULL_RESEARCH_SNAP),
-    );
+    vi.mocked(apiJson).mockImplementation(makeMock(payload));
 
     mountDashboard();
     await waitFor(() => {
       const label = screen.queryByText("Best Regime");
       expect(label).toBeTruthy();
-      // Sibling element inside the same KpiCard should be "N/A"
       const card = label?.closest(".bg-slate-800\\/60");
       expect(card?.textContent).toContain("N/A");
     });
@@ -500,11 +640,7 @@ describe("ExecutiveDashboard — KpiCard safety (non-string API values)", () => 
         best_regime: null as unknown as string,
       },
     };
-    vi.mocked(apiJson).mockImplementation((path: string) =>
-      path === "executive/summary"
-        ? Promise.resolve(payload)
-        : Promise.resolve(FULL_RESEARCH_SNAP),
-    );
+    vi.mocked(apiJson).mockImplementation(makeMock(payload));
 
     mountDashboard();
     await waitFor(() => expect(screen.queryByText("Best Regime")).toBeTruthy());
@@ -518,11 +654,7 @@ describe("ExecutiveDashboard — KpiCard safety (non-string API values)", () => 
         best_strategy: ["unexpected", "array"] as unknown as string,
       },
     };
-    vi.mocked(apiJson).mockImplementation((path: string) =>
-      path === "executive/summary"
-        ? Promise.resolve(payload)
-        : Promise.resolve(FULL_RESEARCH_SNAP),
-    );
+    vi.mocked(apiJson).mockImplementation(makeMock(payload));
 
     mountDashboard();
     await waitFor(() => expect(screen.queryByText("Strategy Overview")).toBeTruthy());
@@ -550,10 +682,8 @@ describe("ExecutiveDashboard — page-level states", () => {
   });
 
   it("shows the disabled banner when summary status is DISABLED", async () => {
-    vi.mocked(apiJson).mockImplementation((path: string) =>
-      path === "executive/summary"
-        ? Promise.resolve({ status: "DISABLED", feature_flag: "EXECUTIVE_DASHBOARD_ENABLED" })
-        : Promise.resolve(DISABLED_RESEARCH_SNAP),
+    vi.mocked(apiJson).mockImplementation(
+      makeMock({ status: "DISABLED", feature_flag: "EXECUTIVE_DASHBOARD_ENABLED" }, DISABLED_RESEARCH_SNAP, DISABLED_AI_SUMMARY),
     );
 
     mountDashboard();
@@ -570,11 +700,7 @@ describe("ExecutiveDashboard — risk section", () => {
       ...FULL_EXEC_SUMMARY,
       portfolio_risk: { ...FULL_EXEC_SUMMARY.portfolio_risk, kill_switch_active: true },
     };
-    vi.mocked(apiJson).mockImplementation((path: string) =>
-      path === "executive/summary"
-        ? Promise.resolve(payload)
-        : Promise.resolve(FULL_RESEARCH_SNAP),
-    );
+    vi.mocked(apiJson).mockImplementation(makeMock(payload));
 
     mountDashboard();
     await waitFor(() =>
@@ -593,11 +719,7 @@ describe("ExecutiveDashboard — Live Readiness tile", () => {
         readiness_score: 0, grade: "N/A", verdict: "", verdict_short: "NO-GO",
       },
     };
-    vi.mocked(apiJson).mockImplementation((path: string) =>
-      path === "executive/summary"
-        ? Promise.resolve(payload)
-        : Promise.resolve(FULL_RESEARCH_SNAP),
-    );
+    vi.mocked(apiJson).mockImplementation(makeMock(payload));
 
     mountDashboard();
     await waitFor(() =>
@@ -605,11 +727,7 @@ describe("ExecutiveDashboard — Live Readiness tile", () => {
   });
 
   it("renders 'View Full Readiness Report' link when available", async () => {
-    vi.mocked(apiJson).mockImplementation((path: string) =>
-      path === "executive/summary"
-        ? Promise.resolve(FULL_EXEC_SUMMARY)
-        : Promise.resolve(FULL_RESEARCH_SNAP),
-    );
+    vi.mocked(apiJson).mockImplementation(makeMock());
 
     mountDashboard();
     await waitFor(() =>
@@ -631,11 +749,7 @@ describe("ExecutiveDashboard — market snapshot", () => {
         market_status: "CLOSED",
       },
     };
-    vi.mocked(apiJson).mockImplementation((path: string) =>
-      path === "executive/summary"
-        ? Promise.resolve(payload)
-        : Promise.resolve(FULL_RESEARCH_SNAP),
-    );
+    vi.mocked(apiJson).mockImplementation(makeMock(payload));
 
     mountDashboard();
     await waitFor(() => expect(screen.queryByText("Market Snapshot")).toBeTruthy());

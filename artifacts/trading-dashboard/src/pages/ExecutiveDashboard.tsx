@@ -141,6 +141,42 @@ interface ExecSummary {
   };
 }
 
+/** Shape of GET /api/ai/summary (confirmed against live endpoint) */
+interface AISummaryData {
+  status: string;
+  /** Composite object {total_score 0-100, label, components, weights} */
+  health_score?: number | { total_score: number; label: string; components?: Record<string, number>; weights?: Record<string, number> };
+  trend_direction?: string;
+  /** Change in accuracy (percentage points) */
+  accuracy_delta?: number;
+  /** Average confidence as 0–1 fraction — multiply by 100 for display */
+  avg_confidence?: number;
+  /** Total processed signals */
+  total_signals?: number;
+  /** Prediction confusion-matrix metrics — accuracy/precision/recall are 0–1 fractions */
+  prediction?: {
+    accuracy?: number;    // 0-1 fraction
+    precision?: number;   // 0-1 fraction
+    recall?: number;      // 0-1 fraction
+    f1_score?: number;
+  };
+  signal_success_rate?: number;
+  high_confidence_pct?: number;
+  recent_accuracy?: number;         // 0-1 fraction
+}
+
+/** Extract the numeric health score regardless of whether the API returned a scalar or object */
+function extractAiScore(hs: AISummaryData["health_score"]): number {
+  if (hs == null) return 0;
+  if (typeof hs === "number") return hs;
+  return hs.total_score ?? 0;
+}
+function extractAiLabel(hs: AISummaryData["health_score"]): string {
+  if (hs == null) return "N/A";
+  if (typeof hs === "number") return hs >= 80 ? "Excellent" : hs >= 65 ? "Good" : hs >= 50 ? "Fair" : hs >= 35 ? "Poor" : "Critical";
+  return hs.label ?? "N/A";
+}
+
 /** Shape of GET /api/research-lab/snapshot */
 interface ResearchLabSnapshot {
   status: string;
@@ -408,46 +444,6 @@ function PortfolioSection({ d }: { d: ExecSummary["portfolio_overview"] }) {
       <KpiCard label="Win Rate"        value={`${fmt(d.win_rate, 1)}%`} color={d.win_rate >= 55 ? "text-emerald-400" : "text-amber-400"} />
       <KpiCard label="Profit Factor"   value={fmt(d.profit_factor)}     color={(d.profit_factor ?? 0) >= 1.5 ? "text-emerald-400" : "text-amber-400"} />
       <KpiCard label="Max Drawdown"    value={`${fmt(d.drawdown)}%`}    color={(d.drawdown ?? 0) > 5 ? "text-red-400" : "text-emerald-400"} />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Section 3 — AI Health
-// ---------------------------------------------------------------------------
-function AIHealthSection({ d }: { d: ExecSummary["ai_health"] }) {
-  if (!d) return <p className="text-slate-500 text-sm">No data</p>;
-  const TrendIcon =
-    d.trend_direction === "Improving" ? TrendingUp
-    : d.trend_direction === "Declining" ? TrendingDown
-    : Activity;
-  const trendColor =
-    d.trend_direction === "Improving" ? "text-emerald-400"
-    : d.trend_direction === "Declining" ? "text-red-400"
-    : "text-slate-400";
-  return (
-    <div className="flex flex-col md:flex-row gap-4">
-      <div className="flex justify-center items-center shrink-0">
-        <ScoreRing score={d.health_score ?? 0} label={d.health_label ?? "N/A"} />
-      </div>
-      <div className="flex-1 grid grid-cols-2 md:grid-cols-3 gap-3">
-        <KpiCard label="Prediction Accuracy" value={`${fmt(d.prediction_accuracy, 1)}%`} color={scoreColor(d.prediction_accuracy ?? 0)} />
-        <KpiCard label="Precision"           value={`${fmt(d.precision, 1)}%`}           color={scoreColor(d.precision ?? 0)} />
-        <KpiCard label="Recall"              value={`${fmt(d.recall, 1)}%`}              color={scoreColor(d.recall ?? 0)} />
-        <KpiCard label="Avg Confidence"      value={`${fmt(d.avg_confidence, 1)}%`} />
-        <KpiCard label="Calibration Quality" value={`${fmt(d.calibration_quality, 1)}%`} color={scoreColor(d.calibration_quality ?? 0)} />
-        <div className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-3">
-          <p className="text-xs text-slate-400 mb-1">Trend</p>
-          <div className="flex items-center gap-1.5">
-            <TrendIcon className={cn("w-4 h-4", trendColor)} />
-            <span className="text-sm font-semibold text-slate-100">{d.trend_direction}</span>
-            <span className="text-xs text-slate-400">
-              ({(d.accuracy_delta ?? 0) >= 0 ? "+" : ""}{fmt(d.accuracy_delta, 1)} pp)
-            </span>
-          </div>
-          <p className="text-xs text-slate-500 mt-0.5">{d.total_signals} signals</p>
-        </div>
-      </div>
     </div>
   );
 }
@@ -813,6 +809,128 @@ function ResearchLabTile({ d }: { d: ResearchLabSnapshot | undefined }) {
 }
 
 // ---------------------------------------------------------------------------
+// Section 13 — AI Health Tile (compact, sourced from /api/ai/summary)
+// ---------------------------------------------------------------------------
+function AIHealthTile({ d }: { d: AISummaryData | undefined }) {
+  if (!d) return <p className="text-slate-500 text-sm">Loading…</p>;
+
+  if (d.status === "DISABLED") {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-4 text-center">
+        <Brain className="w-8 h-8 text-slate-600" />
+        <div>
+          <p className="text-sm font-medium text-slate-400">AI Performance Disabled</p>
+          <p className="text-xs text-slate-500 mt-1">
+            Set{" "}
+            <code className="bg-slate-800 px-1 rounded text-amber-300">
+              AI_PERFORMANCE_ENABLED=true
+            </code>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const score      = extractAiScore(d.health_score);
+  const label      = extractAiLabel(d.health_score);
+  const trend      = d.trend_direction ?? "Stable";
+  const delta      = d.accuracy_delta ?? 0;
+  const isUp       = trend === "Improving";
+  const isDown     = trend === "Declining";
+  const TrendIcon  = isUp ? TrendingUp : isDown ? TrendingDown : Activity;
+  const trendColor = isUp ? "text-emerald-400" : isDown ? "text-red-400" : "text-slate-400";
+  const ringColor  = score >= 80 ? "#34d399" : score >= 65 ? "#60a5fa" : score >= 50 ? "#fbbf24" : score >= 35 ? "#f97316" : "#f87171";
+  const labelBg    =
+    score >= 80 ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+    : score >= 65 ? "bg-blue-500/15 text-blue-300 border-blue-500/30"
+    : score >= 50 ? "bg-amber-500/15 text-amber-300 border-amber-500/30"
+    : "bg-red-500/15 text-red-300 border-red-500/30";
+
+  const r    = 30;
+  const circ = 2 * Math.PI * r;
+  const fill = (Math.min(score, 100) / 100) * circ;
+
+  return (
+    <div className="space-y-3">
+      {/* Score ring + label */}
+      <div className="flex items-center gap-4">
+        <svg
+          width="80" height="80" viewBox="0 0 80 80"
+          className="shrink-0"
+          aria-label={`AI Health Score ${Math.round(score)}/100`}
+        >
+          <circle cx="40" cy="40" r={r} fill="none" stroke="#1e293b" strokeWidth="9" />
+          <circle
+            cx="40" cy="40" r={r} fill="none"
+            stroke={ringColor} strokeWidth="9"
+            strokeDasharray={`${fill} ${circ - fill}`}
+            strokeLinecap="round"
+            transform="rotate(-90 40 40)"
+            style={{ transition: "stroke-dasharray 0.5s ease" }}
+          />
+          <text x="40" y="44" textAnchor="middle" fill={ringColor} fontSize="16" fontWeight="bold">
+            {Math.round(score)}
+          </text>
+        </svg>
+
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={cn("px-2 py-0.5 rounded-full border text-xs font-bold", labelBg)}>
+              {label}
+            </span>
+            <span className={cn("flex items-center gap-1 text-xs font-semibold", trendColor)}>
+              <TrendIcon className="w-3.5 h-3.5" />
+              <span data-testid="ai-health-trend">{trend}</span>
+              <span className="text-slate-400 font-normal">
+                ({delta >= 0 ? "+" : ""}{delta.toFixed(1)} pp)
+              </span>
+            </span>
+          </div>
+          <p className="text-xs text-slate-400">AI health score /100 · advisory only</p>
+        </div>
+      </div>
+
+      {/* Key metrics
+          NOTE on fractions: prediction.accuracy and avg_confidence are 0–1 from the API;
+          multiply by 100 before displaying as percentages. */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {d.prediction?.accuracy != null && (
+          <div className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-2.5">
+            <p className="text-[10px] text-slate-500 uppercase tracking-wider">Accuracy</p>
+            <p className={cn("text-base font-bold", scoreColor(d.prediction.accuracy * 100))}>
+              {(d.prediction.accuracy * 100).toFixed(1)}%
+            </p>
+          </div>
+        )}
+        {d.avg_confidence != null && (
+          <div className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-2.5">
+            <p className="text-[10px] text-slate-500 uppercase tracking-wider">Avg Confidence</p>
+            <p className="text-base font-bold text-slate-100">
+              {(d.avg_confidence * 100).toFixed(1)}%
+            </p>
+          </div>
+        )}
+        {d.total_signals != null && (
+          <div className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-2.5">
+            <p className="text-[10px] text-slate-500 uppercase tracking-wider">Signals</p>
+            <p className="text-base font-bold text-slate-100">{d.total_signals}</p>
+          </div>
+        )}
+      </div>
+
+      <Link
+        href="/ai-performance"
+        className="flex items-center justify-center gap-1.5 w-full px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-lg text-slate-300 text-xs hover:bg-slate-700/50 hover:text-slate-100 transition-colors"
+      >
+        <Brain className="w-3.5 h-3.5" />
+        View Full AI Performance
+        <ChevronRight className="w-3.5 h-3.5" />
+      </Link>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Section 10 — Quick Actions
 // ---------------------------------------------------------------------------
 function QuickActionsSection({ actions }: { actions: ExecSummary["quick_actions"] }) {
@@ -848,6 +966,14 @@ export default function ExecutiveDashboard() {
   const { data: researchSnap } = useQuery<ResearchLabSnapshot>({
     queryKey: ["research-lab-snapshot-exec"],
     queryFn: () => apiJson<ResearchLabSnapshot>("research-lab/snapshot"),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+
+  // AI Health summary — separate query; hidden when AI_PERFORMANCE_ENABLED=false
+  const { data: aiSummary } = useQuery<AISummaryData>({
+    queryKey: ["ai-summary-exec"],
+    queryFn: () => apiJson<AISummaryData>("ai/summary"),
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
@@ -921,7 +1047,7 @@ export default function ExecutiveDashboard() {
         </SectionCard>
 
         <SectionCard title="AI Health"          icon={<Brain      className="w-4 h-4 text-purple-400" />}>
-          <AIHealthSection d={d.ai_health} />
+          <AIHealthTile d={aiSummary} />
         </SectionCard>
 
         <SectionCard title="Strategy Overview"  icon={<Zap        className="w-4 h-4 text-amber-400" />}>
