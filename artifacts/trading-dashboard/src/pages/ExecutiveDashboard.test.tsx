@@ -1014,3 +1014,161 @@ describe("ExecutiveDashboard — market snapshot", () => {
     });
   });
 });
+
+// ── Tests: ScoreRing animation — Task #248 ────────────────────────────────────
+/**
+ * The ScoreRing SVG arc uses:
+ *   circ = 2π × 52 ≈ 326.73
+ *   fill = (min(score, 100) / 100) × circ
+ *   strokeDasharray = `${fill} ${circ - fill}`
+ *   style = { transition: "stroke-dasharray 0.6s ease" }
+ *
+ * Auto-refresh pattern: the component polls every 60 s via queryKey
+ * ["executive-summary"]. When paper_analytics improves the server returns a
+ * higher executive_score.total and React re-renders the same arc element with
+ * a larger strokeDasharray fill while the CSS transition smooths the change.
+ *
+ * These tests exercise a LIVE component update (not two separate mounts):
+ *  (a) mount with score=63 → read fill1
+ *  (b) inject score=73 via qc.setQueryData() (mirrors a successful refetch)
+ *  (c) wait for React to update the SAME arc element → read fill2
+ *  (d) assert fill2 > fill1 and both agree with the 2π×52 formula
+ *  (e) assert the transition style is present before AND after the update
+ */
+describe("ExecutiveDashboard — ScoreRing animation (Task #248)", () => {
+  const R     = 52;
+  const CIRC  = 2 * Math.PI * R; // ≈ 326.726
+
+  /** Build an executive summary fixture with a specific total score. */
+  function summaryWithScore(total: number) {
+    return {
+      ...FULL_EXEC_SUMMARY,
+      executive_score: {
+        total,
+        label: total >= 90 ? "Excellent" : total >= 75 ? "Good" : "Average",
+        components: {
+          portfolio_health:  total,
+          ai_health:         total,
+          strategy_health:   total,
+          execution_quality: total,
+          risk:              total,
+          system_health:     total,
+          paper_analytics:   total,
+        },
+        weights: {
+          portfolio_health:  1 / 7,
+          ai_health:         1 / 7,
+          strategy_health:   1 / 7,
+          execution_quality: 1 / 7,
+          risk:              1 / 7,
+          system_health:     1 / 7,
+          paper_analytics:   1 / 7,
+        },
+      },
+    };
+  }
+
+  /** Mount the dashboard with a caller-supplied QueryClient so tests can
+   *  call setQueryData() / invalidateQueries() on the live component. */
+  function mountWithClient(qc: QueryClient) {
+    return render(
+      React.createElement(
+        QueryClientProvider, { client: qc },
+        React.createElement(ExecutiveDashboard),
+      ),
+    );
+  }
+
+  /** Find the animated arc circle — it is the only <circle> with a
+   *  stroke-dasharray attribute (the track/background circle has none). */
+  function findArcCircle(container: HTMLElement): Element {
+    const circles = container.querySelectorAll("circle[stroke-dasharray]");
+    if (!circles.length) throw new Error("Arc circle not found in SVG");
+    return circles[0];
+  }
+
+  /** Parse the FILL portion from strokeDasharray="<fill> <remain>". */
+  function parseFill(el: Element): number {
+    const raw = el.getAttribute("stroke-dasharray") ?? "0 0";
+    return parseFloat(raw.split(/\s+/)[0]);
+  }
+
+  it("arc strokeDasharray grows on the live component when score improves 63→73", async () => {
+    // ── Mount with score = 63 ─────────────────────────────────────────────
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false, staleTime: Infinity } },
+    });
+    vi.clearAllMocks();
+    vi.mocked(apiJson).mockImplementation(makeMock(summaryWithScore(63)));
+    const { container } = mountWithClient(qc);
+
+    // Wait for the initial arc to appear with the score=63 fill
+    await waitFor(() => { findArcCircle(container); }); // throws if absent
+    const fill1 = parseFill(findArcCircle(container));
+    expect(fill1).toBeCloseTo((63 / 100) * CIRC, 1);
+
+    // ── Simulate an auto-refresh returning score = 73 ─────────────────────
+    // setQueryData writes the new payload directly into the cache, triggering
+    // an immediate re-render — identical in effect to a successful refetch.
+    qc.setQueryData(["executive-summary"], summaryWithScore(73));
+
+    // Wait for React to update the SAME arc element in the SAME container
+    await waitFor(() => {
+      const fill = parseFill(findArcCircle(container));
+      expect(fill).toBeGreaterThan(fill1);
+    });
+
+    const fill2 = parseFill(findArcCircle(container));
+    // The new fill must match the 2π×52 geometry for score=73
+    expect(fill2).toBeCloseTo((73 / 100) * CIRC, 1);
+    // The improvement is exactly (73−63)/100 × circ
+    expect(fill2 - fill1).toBeCloseTo((10 / 100) * CIRC, 1);
+  });
+
+  it("arc element keeps its CSS transition style after a cache-driven score update", async () => {
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false, staleTime: Infinity } },
+    });
+    vi.clearAllMocks();
+    vi.mocked(apiJson).mockImplementation(makeMock(summaryWithScore(63)));
+    const { container } = mountWithClient(qc);
+
+    await waitFor(() => { findArcCircle(container); });
+
+    // Verify transition is present on initial render
+    const arcBefore = findArcCircle(container) as unknown as HTMLElement;
+    expect(arcBefore.style?.transition).toContain("stroke-dasharray");
+    expect(arcBefore.style?.transition).toContain("0.6s");
+    expect(arcBefore.style?.transition).toContain("ease");
+
+    // Update via cache (mirrors auto-refresh)
+    qc.setQueryData(["executive-summary"], summaryWithScore(73));
+
+    await waitFor(() => {
+      const fill = parseFill(findArcCircle(container));
+      expect(fill).toBeGreaterThan((63 / 100) * CIRC);
+    });
+
+    // Transition must still be present after the re-render
+    const arcAfter = findArcCircle(container) as unknown as HTMLElement;
+    expect(arcAfter.style?.transition).toContain("stroke-dasharray");
+    expect(arcAfter.style?.transition).toContain("0.6s");
+  });
+
+  it("fill at score=63 is strictly less than fill at score=73 (geometry)", () => {
+    const fill63 = (63 / 100) * CIRC;
+    const fill73 = (73 / 100) * CIRC;
+    expect(fill73).toBeGreaterThan(fill63);
+    expect(fill73 - fill63).toBeCloseTo((10 / 100) * CIRC, 4);
+  });
+
+  it("fill + remaining always equals circumference for any valid score", () => {
+    for (const score of [0, 25, 50, 63, 73, 90, 100]) {
+      const fill   = (Math.min(score, 100) / 100) * CIRC;
+      const remain = CIRC - fill;
+      expect(fill + remain).toBeCloseTo(CIRC, 6);
+      expect(fill).toBeGreaterThanOrEqual(0);
+      expect(fill).toBeLessThanOrEqual(CIRC);
+    }
+  });
+});
