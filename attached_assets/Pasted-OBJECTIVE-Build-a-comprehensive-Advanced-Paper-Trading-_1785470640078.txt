@@ -1,0 +1,582 @@
+OBJECTIVE
+
+Build a comprehensive Advanced Paper Trading Analytics module for ApexQuant AI.
+
+This module analyses all completed paper trades, recommendations, and pre-open validation results to measure trading performance, strategy effectiveness, execution quality, and behavioural patterns.
+
+This module MUST remain completely READ-ONLY and ADVISORY-ONLY.
+
+It MUST NEVER
+
+• Place orders
+• Modify paper trades
+• Modify strategies
+• Modify AI models
+• Modify portfolio
+• Modify risk parameters
+• Modify historical data
+
+It should only analyse, compare and report.
+
+--------------------------------------------------
+
+FEATURE FLAG
+
+PAPER_ANALYTICS_ENABLED=true
+
+--------------------------------------------------
+
+ARCHITECTURE
+
+Reuse existing modules
+
+• Paper Trading
+• Portfolio Analytics
+• Research Lab
+• Explainable AI
+• Executive Dashboard
+• Observability Center
+• Pre-Open Validation
+• Risk Engine
+
+Reuse existing snapshots.
+
+Never duplicate calculations.
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Provide complete analytics covering
+
+Trade Performance
+
+Strategy Performance
+
+Portfolio Performance
+
+Risk Metrics
+
+Execution Quality
+
+Time Analysis
+
+Sector Analysis
+
+Market Condition Analysis
+
+Pre-Open Validation Analytics
+
+Learning Insights
+
+--------------------------------------------------
+
+TRADE ANALYTICS
+
+Display
+
+Total Trades
+
+Winning Trades
+
+Losing Trades
+
+Win Rate
+
+Average Profit
+
+Average Loss
+
+Profit Factor
+
+Expectancy
+
+Average Holding Time
+
+Largest Winner
+
+Largest Loser
+
+Longest Winning Streak
+
+Longest Losing Streak
+
+--------------------------------------------------
+
+EQUITY CURVE
+
+Generate
+
+Daily Equity Curve
+
+Weekly Curve
+
+Monthly Curve
+
+Rolling Returns
+
+Drawdown Curve
+
+Recovery Curve
+
+--------------------------------------------------
+
+RISK ANALYTICS
+
+Calculate
+
+Maximum Drawdown
+
+Average Drawdown
+
+Recovery Time
+
+Risk / Reward
+
+Reward Distribution
+
+Loss Distribution
+
+Volatility
+
+Sharpe Ratio
+
+Sortino Ratio
+
+Calmar Ratio
+
+--------------------------------------------------
+
+STRATEGY ANALYTICS
+
+Compare
+
+Trend Following
+
+Momentum
+
+VWAP Pullback
+
+ORB
+
+Breakout
+
+Mean Reversion
+
+Sector Rotation
+
+Other implemented strategies
+
+For each strategy display
+
+Trades
+
+Win Rate
+
+Average Return
+
+Drawdown
+
+Expectancy
+
+Contribution
+
+Confidence
+
+--------------------------------------------------
+
+SECTOR ANALYTICS
+
+Display
+
+Banking
+
+IT
+
+Auto
+
+Energy
+
+Pharma
+
+FMCG
+
+Metal
+
+Infra
+
+Finance
+
+Other tracked sectors
+
+Show
+
+Trade Count
+
+Win Rate
+
+Average Return
+
+Contribution
+
+--------------------------------------------------
+
+TIME ANALYTICS
+
+Analyse
+
+Opening Session
+
+Morning
+
+Mid Session
+
+Afternoon
+
+Closing Session
+
+Best Trading Hour
+
+Worst Trading Hour
+
+Average Hold Duration
+
+--------------------------------------------------
+
+PRE-OPEN VALIDATION ANALYTICS
+
+Integrate with the Pre-Open Accuracy module.
+
+Analyse
+
+Prediction Accuracy
+
+Continuation Rate
+
+Reversal Rate
+
+Top-10 Accuracy
+
+Open
+
+09:30
+
+10:30
+
+Day High
+
+Day Low
+
+Day Close
+
+Maximum Favorable Excursion (MFE)
+
+Maximum Adverse Excursion (MAE)
+
+Trend Classification
+
+Gap Fill Rate
+
+Gap & Go Rate
+
+Early Reversal
+
+Late Reversal
+
+Range Day
+
+Trend Day
+
+Historical accuracy by score band
+
+--------------------------------------------------
+
+EXECUTION QUALITY
+
+Measure
+
+Entry Quality
+
+Exit Quality
+
+Slippage Estimate
+
+Execution Delay
+
+Missed Opportunity
+
+Average Capture %
+
+--------------------------------------------------
+
+PORTFOLIO ANALYTICS
+
+Display
+
+Capital Growth
+
+Cash Utilisation
+
+Sector Allocation
+
+Strategy Allocation
+
+Exposure
+
+Position Concentration
+
+Diversification
+
+--------------------------------------------------
+
+LEARNING INSIGHTS
+
+Automatically identify
+
+Best Strategy
+
+Worst Strategy
+
+Best Sector
+
+Weak Sector
+
+Most Consistent Strategy
+
+Highest Risk Strategy
+
+Best Market Condition
+
+Worst Market Condition
+
+Common Winning Characteristics
+
+Common Losing Characteristics
+
+--------------------------------------------------
+
+AI INSIGHTS
+
+Generate advisory observations such as
+
+Most profitable trading window
+
+Highest-performing market regime
+
+Most reliable strategy
+
+Most reliable pre-open score band
+
+Recommended research areas
+
+Confidence score
+
+These are informational only.
+
+--------------------------------------------------
+
+DASHBOARD
+
+Create tabs
+
+Overview
+
+Trades
+
+Strategies
+
+Risk
+
+Portfolio
+
+Time
+
+Sectors
+
+Pre-Open
+
+Execution
+
+Learning
+
+AI Insights
+
+Export
+
+--------------------------------------------------
+
+API
+
+GET /api/paper-analytics/summary
+
+GET /api/paper-analytics/trades
+
+GET /api/paper-analytics/strategies
+
+GET /api/paper-analytics/risk
+
+GET /api/paper-analytics/preopen
+
+GET /api/paper-analytics/portfolio
+
+GET /api/paper-analytics/learning
+
+GET /api/paper-analytics/export
+
+--------------------------------------------------
+
+EXPORT
+
+CSV
+
+JSON
+
+Future PDF
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Reuse existing snapshots.
+
+No duplicate calculations.
+
+No blocking operations.
+
+--------------------------------------------------
+
+TESTING
+
+Verify
+
+Trade analytics
+
+Strategy analytics
+
+Risk analytics
+
+Sector analytics
+
+Portfolio analytics
+
+Pre-open analytics
+
+Learning insights
+
+Dashboard
+
+APIs
+
+Shared services
+
+Exports
+
+Feature flag
+
+--------------------------------------------------
+
+SAFETY
+
+READ-ONLY
+
+ADVISORY-ONLY
+
+Never modify
+
+Orders
+
+Paper trades
+
+Strategies
+
+Portfolio
+
+Risk Engine
+
+AI Models
+
+Execution Engine
+
+--------------------------------------------------
+
+GITHUB INTEGRATION REQUIREMENTS
+
+Incorporate concepts inspired by previously reviewed GitHub projects where appropriate.
+
+Include
+
+• Performance attribution
+
+• Equity curves
+
+• Drawdown analysis
+
+• Strategy benchmarking
+
+• Trade analytics
+
+• Portfolio attribution
+
+Do NOT copy external implementations.
+
+Maintain ApexQuant AI modular architecture.
+
+--------------------------------------------------
+
+FUTURE INTEGRATION
+
+Design this module so future phases integrate without architectural changes.
+
+Support
+
+• Phase 8.3 Data Quality & Validation
+
+• Phase 8.4 Advanced Risk Validation
+
+• Phase 8.5 Operational Control Centre
+
+• Phase 8.6 Security & Compliance
+
+• Phase 8.7 Performance Optimisation
+
+• Phase 8.8 Deployment & Disaster Recovery
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide
+
+1. Files created
+
+2. Files modified
+
+3. Shared services reused
+
+4. APIs
+
+5. Dashboard
+
+6. Test count
+
+7. Test results
+
+8. Performance methodology
+
+9. Known limitations
+
+10. GitHub-inspired enhancements
+
+11. Explain future integration
+
+12. Confirm READ-ONLY and ADVISORY-ONLY architecture
+
+Final Verdict
+
+PHASE 8.2 COMPLETE
+
+or
+
+PHASE 8.2 NOT COMPLETE
+
+with exact blockers.
