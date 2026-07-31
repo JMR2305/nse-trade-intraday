@@ -2741,6 +2741,28 @@ def main():
         elif command == "observability_export_json":
             from observability_center.api import cmd_export_json as _f; result = _f()
 
+        # ── Phase 8.2: Paper Analytics ────────────────────────────────────────
+        elif command == "paper_analytics_summary":
+            from paper_analytics.api import cmd_summary as _f; result = _f()
+        elif command == "paper_analytics_trades":
+            from paper_analytics.api import cmd_trades as _f; result = _f()
+        elif command == "paper_analytics_strategies":
+            from paper_analytics.api import cmd_strategies as _f; result = _f()
+        elif command == "paper_analytics_risk":
+            from paper_analytics.api import cmd_risk as _f; result = _f()
+        elif command == "paper_analytics_preopen":
+            from paper_analytics.api import cmd_preopen as _f; result = _f()
+        elif command == "paper_analytics_portfolio":
+            from paper_analytics.api import cmd_portfolio as _f; result = _f()
+        elif command == "paper_analytics_learning":
+            from paper_analytics.api import cmd_learning as _f; result = _f()
+        elif command == "paper_analytics_snapshot":
+            from paper_analytics.api import cmd_snapshot as _f; result = _f()
+        elif command == "paper_analytics_export_json":
+            from paper_analytics.api import cmd_export_json as _f; result = _f()
+        elif command == "paper_analytics_export_csv":
+            from paper_analytics.api import cmd_export_csv as _f; result = _f()
+
         else:
             error_msg = f"Unknown command: {command}"
 

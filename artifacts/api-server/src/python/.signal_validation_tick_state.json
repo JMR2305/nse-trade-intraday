@@ -6,7 +6,22 @@
       "ts": "2026-07-31T09:25:11.736293+05:30",
       "checkpointed": 0,
       "note": "no_active_records"
+    },
+    "checkpoint_15m": {
+      "ts": "2026-07-31T09:36:58.047338+05:30",
+      "checkpointed": 0,
+      "note": "no_active_records"
+    },
+    "checkpoint_30m": {
+      "ts": "2026-07-31T09:46:12.942188+05:30",
+      "checkpointed": 0,
+      "note": "no_active_records"
+    },
+    "checkpoint_60m": {
+      "ts": "2026-07-31T10:15:49.512295+05:30",
+      "checkpointed": 0,
+      "note": "no_active_records"
     }
   },
-  "ingest_count": 0
+  "ingest_count": 9
 }

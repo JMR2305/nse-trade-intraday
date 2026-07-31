@@ -126,6 +126,7 @@ const navGroups = [
       { href: "/explainable-ai",          label: "Explainable AI",           icon: Lightbulb      },
       { href: "/research-lab",            label: "Research Lab",             icon: FlaskConical   },
       { href: "/observability",           label: "Observability",            icon: Monitor        },
+      { href: "/paper-analytics",         label: "Paper Analytics",          icon: BarChart3      },
       { href: "/live-readiness",          label: "Live Readiness",          icon: Rocket          },
       { href: "/ai-performance",         label: "AI Performance",         icon: Brain      },
       { href: "/performance-analytics", label: "Performance Analytics", icon: BarChart3 },

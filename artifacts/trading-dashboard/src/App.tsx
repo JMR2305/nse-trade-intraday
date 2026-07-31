@@ -69,6 +69,7 @@ import MacroIntelligence from "@/pages/MacroIntelligence";
 import ExplainableAI from "@/pages/ExplainableAI";
 import ResearchLab          from "@/pages/ResearchLab";
 import ObservabilityCenter  from "@/pages/ObservabilityCenter";
+import PaperAnalytics       from "@/pages/PaperAnalytics";
 import { ConnectivityPanel } from "@/components/ConnectivityPanel";
 
 const queryClient = new QueryClient({
@@ -154,6 +155,7 @@ function Router() {
         <Route path="/explainable-ai" component={ExplainableAI} />
         <Route path="/research-lab"     component={ResearchLab} />
         <Route path="/observability"    component={ObservabilityCenter} />
+        <Route path="/paper-analytics"  component={PaperAnalytics} />
         <Route path="/live-readiness" component={LiveReadiness} />
         <Route component={NotFound} />
       </Switch>

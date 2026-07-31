@@ -37,6 +37,7 @@ import macroIntelligenceRouter from "./macro-intelligence";
 import explainableAiRouter from "./explainable-ai";
 import researchLabRouter       from "./research-lab";
 import observabilityRouter     from "./observability";
+import paperAnalyticsRouter    from "./paper-analytics";
 
 const router: IRouter = Router();
 
@@ -76,6 +77,7 @@ router.use(macroIntelligenceRouter);
 router.use(explainableAiRouter);
 router.use(researchLabRouter);
 router.use(observabilityRouter);
+router.use(paperAnalyticsRouter);
 router.use(tradingRouter);
 router.use(downloadRouter);
 
