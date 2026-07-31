@@ -21,6 +21,48 @@ import { apiJson } from "@/lib/api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+/** Shape of GET /api/phase13/regime */
+interface Phase13Regime {
+  regime?: string;
+  status?: string;
+}
+
+/**
+ * Translate Phase 13 live-regime taxonomy → Strategy Intelligence stored-regime labels.
+ *
+ * Phase 13 uses 5 categories (based on VIX + price momentum):
+ *   TRENDING_UP | TRENDING_DOWN | RANGE_BOUND | VOLATILE | CRISIS
+ *
+ * Strategy Intelligence stores trades with 7 categories (based on EMA cross + 5-day return):
+ *   Strong Bullish | Bullish | Neutral | Bearish | Strong Bearish | High Volatility | Low Volatility
+ *
+ * Mapping rationale:
+ *   TRENDING_UP   → Strong Bullish or Bullish   (upward momentum; exact tier depends on magnitude)
+ *   TRENDING_DOWN → Bearish or Strong Bearish   (downward momentum; both plausible)
+ *   RANGE_BOUND   → Neutral or Low Volatility   (sideways, low stress)
+ *   VOLATILE      → High Volatility             (VIX spike, high annualised vol)
+ *   CRISIS        → Strong Bearish              (severe sell-off)
+ */
+export const PHASE13_TO_SI_REGIMES: Readonly<Record<string, readonly string[]>> = {
+  TRENDING_UP:   ["Strong Bullish", "Bullish"],
+  TRENDING_DOWN: ["Bearish", "Strong Bearish"],
+  RANGE_BOUND:   ["Neutral", "Low Volatility"],
+  VOLATILE:      ["High Volatility"],
+  CRISIS:        ["Strong Bearish"],
+};
+
+/**
+ * Primary (single best) SI label for each Phase 13 value.
+ * Used when synthesising a placeholder zero-trade row for the active regime.
+ */
+export const PHASE13_TO_SI_PRIMARY: Readonly<Record<string, string>> = {
+  TRENDING_UP:   "Bullish",
+  TRENDING_DOWN: "Bearish",
+  RANGE_BOUND:   "Neutral",
+  VOLATILE:      "High Volatility",
+  CRISIS:        "Strong Bearish",
+};
+
 interface StrategyProfile {
   strategy_name: string;
   total_trades: number;
@@ -237,6 +279,23 @@ export default function StrategyIntelligence() {
     queryFn: () => apiJson("strategy/recommendations"),
     refetchInterval: 90_000,
   });
+
+  // Live market regime — used in the Regimes tab to highlight the active row.
+  // Phase 13 uses a different taxonomy than Strategy Intelligence, so we map it.
+  const { data: liveRegimeData } = useQuery<Phase13Regime>({
+    queryKey: ["phase13-regime-si"],
+    queryFn: () => apiJson("phase13/regime"),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+  /** Raw Phase 13 regime label, e.g. "RANGE_BOUND" */
+  const livePhase13Regime: string | undefined = liveRegimeData?.regime;
+  /** SI labels that correspond to the live Phase 13 regime, e.g. ["Neutral","Low Volatility"] */
+  const liveSiEquivalents: readonly string[] =
+    livePhase13Regime ? (PHASE13_TO_SI_REGIMES[livePhase13Regime] ?? []) : [];
+  /** Primary SI label for display / synthesis, e.g. "Neutral" */
+  const liveSiPrimary: string | undefined =
+    livePhase13Regime ? PHASE13_TO_SI_PRIMARY[livePhase13Regime] : undefined;
 
   const isDisabled = summary?.status === "DISABLED";
   const isLoading  = sumLoading;
@@ -499,6 +558,37 @@ export default function StrategyIntelligence() {
           {/* ── Regimes tab ── */}
           {tab === "regimes" && (
             <div className="space-y-4">
+              {/* Live regime banner — shows Phase 13 label + its SI equivalents */}
+              {livePhase13Regime ? (
+                <div className="flex items-start gap-3 rounded-xl border border-blue-500/30 bg-blue-500/10 px-4 py-3">
+                  <Globe2 className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
+                  <div className="text-sm text-blue-200 leading-relaxed">
+                    <span>Current live market regime (Phase 13):&nbsp;</span>
+                    <span className="font-bold text-blue-300">{livePhase13Regime}</span>
+                    {liveSiEquivalents.length > 0 && (
+                      <>
+                        <span> — corresponds to historical labels&nbsp;</span>
+                        <span className="font-semibold text-blue-300">
+                          {liveSiEquivalents.join(" / ")}
+                        </span>
+                        <span>&nbsp;in the matrix below (highlighted).</span>
+                      </>
+                    )}
+                    {liveSiEquivalents.length === 0 && (
+                      <span className="text-amber-300"> — no known historical label mapping; matrix cannot be highlighted.</span>
+                    )}
+                    <span className="block text-xs mt-1 text-blue-300/70">
+                      Rows marked <span className="font-semibold text-amber-300">LOW SAMPLE</span> have fewer than 3 trades — treat as insufficient evidence.
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 border border-border rounded-lg px-3 py-2">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  Live regime not available — current regime rows cannot be highlighted.
+                </div>
+              )}
+
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 <ChartCard title="P&L by Market Regime">
                   {regimeBar.length > 0 ? (
@@ -538,31 +628,236 @@ export default function StrategyIntelligence() {
               </div>
 
               <div className="rounded-xl border border-border bg-card p-5">
-                <h3 className="text-sm font-semibold mb-3">Market Regime Matrix</h3>
-                {regimes?.summary && regimes.summary.length > 0 ? (
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="text-muted-foreground border-b border-border">
-                        {["Regime","Trades","Win %","Net P&L","Avg P&L","Best Strategy"].map(h => (
-                          <th key={h} className="text-right pb-2 px-2 first:text-left">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {regimes.summary.map(r => (
-                        <tr key={r.regime} className="border-b border-border/40">
-                          <td className="py-2 px-2 font-medium">{r.regime}</td>
-                          <td className="py-2 px-2 text-right tabular-nums">{r.trades}</td>
-                          <td className={cn("py-2 px-2 text-right tabular-nums", r.win_rate >= 50 ? "text-emerald-400" : "text-red-400")}>{fmt(r.win_rate, 1)}%</td>
-                          <td className={cn("py-2 px-2 text-right tabular-nums font-semibold", r.net_pnl >= 0 ? "text-emerald-400" : "text-red-400")}>{fmtRs(r.net_pnl)}</td>
-                          <td className="py-2 px-2 text-right tabular-nums text-muted-foreground">{fmtRs(r.avg_pnl)}</td>
-                          <td className="py-2 px-2 text-right text-sky-400">{r.best_strategy}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : <EmptyState label="No regime data yet" />}
+                <h3 className="text-sm font-semibold mb-1 flex items-center gap-2">
+                  Market Regime Matrix
+                </h3>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Advisory only · Paper trading · Badges indicate data quality for the current live regime.
+                </p>
+                {(() => {
+                  // Build the display rows: existing summary rows, plus a synthetic
+                  // zero-trade row for the live SI-equivalent regime when it has no
+                  // historical trades at all (the API never emits zero-count rows).
+                  const existingRows: RegimeRow[] = regimes?.summary ?? [];
+                  const existingRegimeNames = new Set(existingRows.map(r => r.regime));
+
+                  // Synthesise a placeholder row only when we know the live regime
+                  // AND the primary SI equivalent hasn't been traded before.
+                  const syntheticRow: RegimeRow | null =
+                    liveSiPrimary && !existingRegimeNames.has(liveSiPrimary)
+                      ? { regime: liveSiPrimary, trades: 0, win_rate: 0, net_pnl: 0, avg_pnl: 0, best_strategy: "—" }
+                      : null;
+
+                  const displayRows: RegimeRow[] = syntheticRow
+                    ? [syntheticRow, ...existingRows]
+                    : existingRows;
+
+                  if (displayRows.length === 0) {
+                    return (
+                      <div className="space-y-2">
+                        <EmptyState label="No regime data yet" />
+                        {liveSiPrimary && (
+                          <div className="flex items-center gap-2 justify-center pb-2">
+                            <span className="px-2 py-0.5 rounded text-xs font-semibold bg-red-500/20 text-red-300 border border-red-500/30">
+                              NO TRADES IN CURRENT REGIME ({liveSiPrimary})
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="overflow-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-muted-foreground border-b border-border">
+                            {["Regime","Trades","Win %","Net P&L","Avg P&L","Best Strategy"].map(h => (
+                              <th key={h} className="text-right pb-2 px-2 first:text-left">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {displayRows.map(r => {
+                            // A row is "live" when its SI label matches any of the
+                            // Phase 13 → SI equivalents for the current live regime.
+                            const isLive    = liveSiEquivalents.includes(r.regime);
+                            const noTrades  = r.trades === 0;
+                            const lowSample = r.trades > 0 && r.trades < 3;
+                            const isSynthetic = syntheticRow?.regime === r.regime && noTrades;
+                            return (
+                              <tr
+                                key={r.regime}
+                                className={cn(
+                                  "border-b border-border/40",
+                                  isLive
+                                    ? "bg-blue-500/10 border-l-2 border-l-blue-400"
+                                    : "hover:bg-muted/20",
+                                )}
+                              >
+                                {/* Regime name + chips */}
+                                <td className="py-2 px-2 font-medium">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span>{r.regime}</span>
+                                    {isLive && (
+                                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30 leading-none">
+                                        LIVE
+                                      </span>
+                                    )}
+                                    {isSynthetic && (
+                                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-500/20 text-slate-400 border border-slate-500/30 leading-none">
+                                        NO HISTORY
+                                      </span>
+                                    )}
+                                    {isLive && noTrades && !isSynthetic && (
+                                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-500/20 text-red-300 border border-red-500/30 leading-none">
+                                        NO TRADES
+                                      </span>
+                                    )}
+                                    {lowSample && (
+                                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30 leading-none">
+                                        LOW SAMPLE
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+
+                                {/* Trades count */}
+                                <td className={cn(
+                                  "py-2 px-2 text-right tabular-nums font-medium",
+                                  noTrades  ? "text-red-400"   :
+                                  lowSample ? "text-amber-400" : "",
+                                )}>
+                                  {r.trades}
+                                </td>
+
+                                {/* Win % — suppressed when no data */}
+                                <td className={cn("py-2 px-2 text-right tabular-nums",
+                                  noTrades ? "text-muted-foreground" :
+                                  r.win_rate >= 50 ? "text-emerald-400" : "text-red-400")}>
+                                  {noTrades ? "—" : `${fmt(r.win_rate, 1)}%`}
+                                </td>
+
+                                {/* Net P&L */}
+                                <td className={cn("py-2 px-2 text-right tabular-nums font-semibold",
+                                  noTrades ? "text-muted-foreground" :
+                                  r.net_pnl >= 0 ? "text-emerald-400" : "text-red-400")}>
+                                  {noTrades ? "—" : fmtRs(r.net_pnl)}
+                                </td>
+
+                                {/* Avg P&L */}
+                                <td className="py-2 px-2 text-right tabular-nums text-muted-foreground">
+                                  {noTrades ? "—" : fmtRs(r.avg_pnl)}
+                                </td>
+
+                                {/* Best Strategy */}
+                                <td className="py-2 px-2 text-right text-sky-400">
+                                  {noTrades ? (
+                                    <span className="text-muted-foreground italic">No trades in current regime</span>
+                                  ) : r.best_strategy}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
               </div>
+
+              {/* Per-strategy regime coverage for current live regime */}
+              {livePhase13Regime && liveSiEquivalents.length > 0 &&
+               rankings?.profiles && rankings.profiles.some(p => p.total_trades > 0) && (
+                <div className="rounded-xl border border-border bg-card p-5">
+                  <h3 className="text-sm font-semibold mb-1 flex items-center gap-2">
+                    <Globe2 className="h-4 w-4 text-blue-400" />
+                    Strategy Coverage in Current Regime: {livePhase13Regime}
+                    <span className="font-normal text-muted-foreground text-xs ml-1">
+                      (historical label{liveSiEquivalents.length > 1 ? "s" : ""}: {liveSiEquivalents.join(" / ")})
+                    </span>
+                  </h3>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Shows how many trades each strategy has across historical labels that match the active regime.
+                    Zero-trade rows are unreliable — do not act on them.
+                  </p>
+                  <div className="overflow-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-muted-foreground border-b border-border">
+                          {["Strategy","Trades in Regime","Win %","Net P&L","Coverage Quality"].map(h => (
+                            <th key={h} className="text-right pb-2 px-2 first:text-left">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rankings.profiles
+                          .filter(p => p.total_trades > 0)
+                          .map(p => {
+                            // Sum trades across all matching SI labels for this Phase 13 regime.
+                            // This correctly handles TRENDING_UP → Bullish + Strong Bullish.
+                            let cnt = 0;
+                            let winRateSum = 0;
+                            let netPnlSum  = 0;
+                            let matchCount = 0;
+                            for (const siLabel of liveSiEquivalents) {
+                              const rb = p.regime_breakdown?.[siLabel];
+                              if (rb && rb.trades > 0) {
+                                cnt         += rb.trades;
+                                winRateSum  += rb.win_rate * rb.trades; // weighted
+                                netPnlSum   += rb.net_pnl;
+                                matchCount  += 1;
+                              }
+                            }
+                            const winRateAvg = cnt > 0 ? winRateSum / cnt : 0;
+                            const noTr = cnt === 0;
+                            const low  = cnt > 0 && cnt < 3;
+                            return (
+                              <tr
+                                key={p.strategy_name}
+                                className={cn(
+                                  "border-b border-border/40",
+                                  noTr ? "bg-red-500/5" : low ? "bg-amber-500/5" : "hover:bg-muted/20",
+                                )}
+                              >
+                                <td className="py-2 px-2 font-semibold">{p.strategy_name}</td>
+                                <td className={cn("py-2 px-2 text-right tabular-nums font-medium",
+                                  noTr ? "text-red-400" : low ? "text-amber-400" : "text-emerald-400")}>
+                                  {cnt}
+                                </td>
+                                <td className={cn("py-2 px-2 text-right tabular-nums",
+                                  noTr ? "text-muted-foreground" :
+                                  winRateAvg >= 50 ? "text-emerald-400" : "text-red-400")}>
+                                  {noTr ? "—" : `${fmt(winRateAvg, 1)}%`}
+                                </td>
+                                <td className={cn("py-2 px-2 text-right tabular-nums font-semibold",
+                                  noTr ? "text-muted-foreground" :
+                                  netPnlSum >= 0 ? "text-emerald-400" : "text-red-400")}>
+                                  {noTr ? "—" : fmtRs(netPnlSum)}
+                                </td>
+                                <td className="py-2 px-2 text-right">
+                                  {noTr ? (
+                                    <span data-testid="no-trades-badge" className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-300 border border-red-500/30">
+                                      NO TRADES IN CURRENT REGIME
+                                    </span>
+                                  ) : low ? (
+                                    <span data-testid="low-sample-badge" className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                      LOW SAMPLE
+                                    </span>
+                                  ) : (
+                                    <span data-testid="sufficient-badge" className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                      SUFFICIENT DATA
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
