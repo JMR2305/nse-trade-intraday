@@ -1,47 +1,20 @@
 {
-  "trading_date": "2026-07-30",
-  "session_id": "preopen-2026-07-30-32a7f9",
+  "trading_date": "2026-07-31",
+  "session_id": "preopen-2026-07-31-ca1335",
   "phases_done": {
-    "reconcile": {
-      "ts": "2026-07-30T09:20:39.923927+05:30",
-      "success": true,
-      "phase": "DONE",
-      "log": [
-        {
-          "phase": "RECONCILING",
-          "ts": "2026-07-30T09:20:39.982774+05:30"
-        },
-        {
-          "phase": "DONE",
-          "ts": "2026-07-30T09:20:40.105321+05:30",
-          "reconciliation": {
-            "success": true,
-            "session_id": "preopen-2026-07-30-32a7f9",
-            "symbols_reconciled": 0,
-            "avg_indicative_to_open_error_pct": null,
-            "watchlist_confirmation_rate_pct": null,
-            "false_positive_rate_pct": null,
-            "opening_continuation_rate_pct": null,
-            "opening_reversal_rate_pct": null,
-            "records": [],
-            "label": "PAPER / ADVISORY ONLY"
-          }
-        }
-      ]
-    },
     "reconcile_0930": {
-      "ts": "2026-07-30T09:28:36.670547+05:30",
+      "ts": "2026-07-31T09:28:12.875589+05:30",
       "success": true,
       "phase": "DONE",
       "log": [
         {
           "phase": "RECONCILING",
-          "ts": "2026-07-30T09:28:36.674475+05:30",
+          "ts": "2026-07-31T09:28:12.880657+05:30",
           "step": "0930"
         },
         {
           "phase": "DONE",
-          "ts": "2026-07-30T09:28:36.719521+05:30",
+          "ts": "2026-07-31T09:28:12.907256+05:30",
           "step": "0930",
           "prices_patched": 0
         }

@@ -167,3 +167,9 @@ id = "GK7HD1X1hJES_ZU2gbhyC"
 uri = "file://phase7-5-summary.md"
 type = "text"
 title = "Phase 7.5 — Research Lab Summary"
+
+[[outputs]]
+id = "NU0vmNkUg9zVs5h438DyB"
+uri = "file://docs/observability-center-summary.md"
+type = "text"
+title = "Production Monitoring & Observability Center — Build Summary"
