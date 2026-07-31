@@ -699,5 +699,132 @@ class TestBestRegimeString(unittest.TestCase):
             "best_regime returned a dict — the API contract regression has returned")
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# 13. _as_str coercion on string KPI fields in get_summary_snapshot()
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestStringKpiCoercion(unittest.TestCase):
+    """
+    Guard: every string KPI field in get_summary_snapshot() must be a plain
+    str, never a dict/None/list, even when upstream compute functions return
+    unexpected types.
+    """
+
+    def setUp(self):
+        os.environ["STRATEGY_INTELLIGENCE_ENABLED"] = "true"
+
+    def tearDown(self):
+        os.environ.pop("STRATEGY_INTELLIGENCE_ENABLED", None)
+
+    # ── _as_str helper unit tests ─────────────────────────────────────────────
+
+    def test_as_str_none_returns_fallback(self):
+        from strategy_intelligence.shared_services import _as_str
+        self.assertEqual(_as_str(None), "N/A")
+
+    def test_as_str_dict_returns_fallback(self):
+        from strategy_intelligence.shared_services import _as_str
+        self.assertEqual(_as_str({"key": "value"}), "N/A")
+
+    def test_as_str_list_returns_fallback(self):
+        from strategy_intelligence.shared_services import _as_str
+        self.assertEqual(_as_str(["a", "b"]), "N/A")
+
+    def test_as_str_empty_string_returns_fallback(self):
+        from strategy_intelligence.shared_services import _as_str
+        self.assertEqual(_as_str(""), "N/A")
+
+    def test_as_str_valid_string_passes_through(self):
+        from strategy_intelligence.shared_services import _as_str
+        self.assertEqual(_as_str("Momentum"), "Momentum")
+
+    def test_as_str_custom_fallback(self):
+        from strategy_intelligence.shared_services import _as_str
+        self.assertEqual(_as_str(None, fallback="—"), "—")
+
+    # ── get_summary_snapshot() field types ────────────────────────────────────
+
+    def test_best_strategy_is_str_no_trades(self):
+        """No trades → best_strategy must be 'N/A', not None."""
+        from strategy_intelligence.shared_services import get_summary_snapshot
+        with patch("portfolio_store.load_all_trades_any", return_value=[]):
+            snap = get_summary_snapshot()
+        self.assertIsInstance(snap.get("best_strategy"), str,
+            f"best_strategy type={type(snap.get('best_strategy')).__name__!r}")
+        self.assertEqual(snap["best_strategy"], "N/A")
+
+    def test_worst_strategy_is_str_no_trades(self):
+        """No trades → worst_strategy must be 'N/A', not None."""
+        from strategy_intelligence.shared_services import get_summary_snapshot
+        with patch("portfolio_store.load_all_trades_any", return_value=[]):
+            snap = get_summary_snapshot()
+        self.assertIsInstance(snap.get("worst_strategy"), str,
+            f"worst_strategy type={type(snap.get('worst_strategy')).__name__!r}")
+        self.assertEqual(snap["worst_strategy"], "N/A")
+
+    def test_best_sector_is_str_no_trades(self):
+        """No trades → best_sector must be a str, not None."""
+        from strategy_intelligence.shared_services import get_summary_snapshot
+        with patch("portfolio_store.load_all_trades_any", return_value=[]):
+            snap = get_summary_snapshot()
+        self.assertIsInstance(snap.get("best_sector"), str,
+            f"best_sector type={type(snap.get('best_sector')).__name__!r}")
+
+    def test_worst_sector_is_str_no_trades(self):
+        from strategy_intelligence.shared_services import get_summary_snapshot
+        with patch("portfolio_store.load_all_trades_any", return_value=[]):
+            snap = get_summary_snapshot()
+        self.assertIsInstance(snap.get("worst_sector"), str,
+            f"worst_sector type={type(snap.get('worst_sector')).__name__!r}")
+
+    def test_best_time_slot_is_str_no_trades(self):
+        from strategy_intelligence.shared_services import get_summary_snapshot
+        with patch("portfolio_store.load_all_trades_any", return_value=[]):
+            snap = get_summary_snapshot()
+        self.assertIsInstance(snap.get("best_time_slot"), str,
+            f"best_time_slot type={type(snap.get('best_time_slot')).__name__!r}")
+
+    def test_best_day_is_str_no_trades(self):
+        from strategy_intelligence.shared_services import get_summary_snapshot
+        with patch("portfolio_store.load_all_trades_any", return_value=[]):
+            snap = get_summary_snapshot()
+        self.assertIsInstance(snap.get("best_day"), str,
+            f"best_day type={type(snap.get('best_day')).__name__!r}")
+
+    def test_string_fields_with_real_trades(self):
+        """With trades, all string KPI fields must still be plain strings."""
+        from strategy_intelligence.shared_services import get_summary_snapshot
+        trades = [
+            _buy("INFY", offset=0, day=0),
+            _sell("INFY", offset=2, day=0, pnl=800.0),
+        ]
+        with patch("portfolio_store.load_all_trades_any", return_value=trades):
+            snap = get_summary_snapshot()
+        for field in ("best_strategy", "worst_strategy", "best_sector",
+                      "worst_sector", "best_time_slot", "best_day"):
+            self.assertIsInstance(snap.get(field), str,
+                f"{field} type={type(snap.get(field)).__name__!r} with trades")
+
+    def test_no_string_field_is_none(self):
+        """None must never appear for any string KPI field."""
+        from strategy_intelligence.shared_services import get_summary_snapshot
+        with patch("portfolio_store.load_all_trades_any", return_value=[]):
+            snap = get_summary_snapshot()
+        for field in ("best_strategy", "worst_strategy", "best_sector",
+                      "worst_sector", "best_time_slot", "best_day"):
+            self.assertIsNotNone(snap.get(field),
+                f"{field} was None — _as_str coercion is missing")
+
+    def test_no_string_field_is_dict(self):
+        """Regression: dict must never appear for any string KPI field."""
+        from strategy_intelligence.shared_services import get_summary_snapshot
+        with patch("portfolio_store.load_all_trades_any", return_value=[]):
+            snap = get_summary_snapshot()
+        for field in ("best_strategy", "worst_strategy", "best_sector",
+                      "worst_sector", "best_time_slot", "best_day"):
+            self.assertNotIsInstance(snap.get(field), dict,
+                f"{field} was a dict — the upstream dict-leaking bug returned")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -886,5 +886,142 @@ class TestMCCAtScale(unittest.TestCase):
             msg=f"MCC={m.mcc:.4f} vs hand-computed {expected:.4f}")
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# 15. _as_str coercion on string KPI fields in get_ai_snapshot()
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestStringKpiCoercion(unittest.TestCase):
+    """
+    Guard: every string KPI field in get_ai_snapshot() must be a plain str,
+    never a dict/None/list, even when upstream compute functions return
+    unexpected types.
+    """
+
+    def setUp(self):
+        os.environ["AI_PERFORMANCE_ENABLED"] = "true"
+        os.environ["STRATEGY_INTELLIGENCE_ENABLED"] = "true"
+
+    def tearDown(self):
+        os.environ.pop("AI_PERFORMANCE_ENABLED", None)
+        os.environ.pop("STRATEGY_INTELLIGENCE_ENABLED", None)
+
+    # ── _as_str helper unit tests ─────────────────────────────────────────────
+
+    def test_as_str_none_returns_fallback(self):
+        from ai_performance.shared_services import _as_str
+        self.assertEqual(_as_str(None), "N/A")
+
+    def test_as_str_dict_returns_fallback(self):
+        from ai_performance.shared_services import _as_str
+        self.assertEqual(_as_str({"nested": "dict"}), "N/A")
+
+    def test_as_str_empty_string_returns_fallback(self):
+        from ai_performance.shared_services import _as_str
+        self.assertEqual(_as_str(""), "N/A")
+
+    def test_as_str_valid_string_passes_through(self):
+        from ai_performance.shared_services import _as_str
+        self.assertEqual(_as_str("Good"), "Good")
+
+    def test_as_str_custom_fallback(self):
+        from ai_performance.shared_services import _as_str
+        self.assertEqual(_as_str(None, fallback="Stable"), "Stable")
+
+    # ── _calibration_quality_label helper ────────────────────────────────────
+
+    def test_calibration_label_well_calibrated(self):
+        from ai_performance.shared_services import _calibration_quality_label
+        self.assertEqual(_calibration_quality_label(85.0), "Well Calibrated")
+
+    def test_calibration_label_boundary_80(self):
+        from ai_performance.shared_services import _calibration_quality_label
+        self.assertEqual(_calibration_quality_label(80.0), "Well Calibrated")
+
+    def test_calibration_label_fairly_calibrated(self):
+        from ai_performance.shared_services import _calibration_quality_label
+        self.assertEqual(_calibration_quality_label(70.0), "Fairly Calibrated")
+
+    def test_calibration_label_poorly_calibrated(self):
+        from ai_performance.shared_services import _calibration_quality_label
+        self.assertEqual(_calibration_quality_label(50.0), "Poorly Calibrated")
+
+    def test_calibration_label_uncalibrated(self):
+        from ai_performance.shared_services import _calibration_quality_label
+        self.assertEqual(_calibration_quality_label(20.0), "Uncalibrated")
+
+    def test_calibration_label_zero(self):
+        from ai_performance.shared_services import _calibration_quality_label
+        self.assertEqual(_calibration_quality_label(0.0), "Uncalibrated")
+
+    # ── get_ai_snapshot() field types ─────────────────────────────────────────
+
+    def test_health_label_is_str_zero_signals(self):
+        """Zero signals → health_label must be a plain str, not None."""
+        from ai_performance.shared_services import get_ai_snapshot
+        with patch("portfolio_store.load_all_trades_any", return_value=[]):
+            snap = get_ai_snapshot()
+        self.assertIsInstance(snap.get("health_label"), str,
+            f"health_label type={type(snap.get('health_label')).__name__!r}")
+
+    def test_trend_direction_is_str_zero_signals(self):
+        """Zero signals → trend_direction must be a plain str, not None/dict."""
+        from ai_performance.shared_services import get_ai_snapshot
+        with patch("portfolio_store.load_all_trades_any", return_value=[]):
+            snap = get_ai_snapshot()
+        self.assertIsInstance(snap.get("trend_direction"), str,
+            f"trend_direction type={type(snap.get('trend_direction')).__name__!r}")
+
+    def test_calibration_quality_label_is_str_zero_signals(self):
+        """Zero signals → calibration_quality_label must be a plain str."""
+        from ai_performance.shared_services import get_ai_snapshot
+        with patch("portfolio_store.load_all_trades_any", return_value=[]):
+            snap = get_ai_snapshot()
+        self.assertIsInstance(snap.get("calibration_quality_label"), str,
+            f"calibration_quality_label type={type(snap.get('calibration_quality_label')).__name__!r}")
+
+    def test_string_fields_with_real_trades(self):
+        """With trades, all string KPI fields must still be plain strings."""
+        from ai_performance.shared_services import get_ai_snapshot
+        trades = _make_trades([
+            ("INFY",   0.80, 500.0,  0, "TARGET_HIT"),
+            ("HDFCBANK", 0.70, 300.0, 1, "TARGET_HIT"),
+        ])
+        with patch("portfolio_store.load_all_trades_any", return_value=trades):
+            snap = get_ai_snapshot()
+        for field in ("health_label", "trend_direction", "calibration_quality_label"):
+            self.assertIsInstance(snap.get(field), str,
+                f"{field} type={type(snap.get(field)).__name__!r} with trades")
+
+    def test_no_string_field_is_none(self):
+        """None must never appear for any string KPI field."""
+        from ai_performance.shared_services import get_ai_snapshot
+        with patch("portfolio_store.load_all_trades_any", return_value=[]):
+            snap = get_ai_snapshot()
+        for field in ("health_label", "trend_direction", "calibration_quality_label"):
+            self.assertIsNotNone(snap.get(field),
+                f"{field} was None — _as_str coercion is missing")
+
+    def test_no_string_field_is_dict(self):
+        """Regression: dict must never appear for any string KPI field."""
+        from ai_performance.shared_services import get_ai_snapshot
+        with patch("portfolio_store.load_all_trades_any", return_value=[]):
+            snap = get_ai_snapshot()
+        for field in ("health_label", "trend_direction", "calibration_quality_label"):
+            self.assertNotIsInstance(snap.get(field), dict,
+                f"{field} was a dict — the upstream dict-leaking bug returned")
+
+    def test_health_label_coerces_none_to_na(self):
+        """If h.label is somehow None, health_label must fall back to 'N/A'."""
+        from ai_performance.shared_services import _as_str
+        coerced = _as_str(None, fallback="N/A")
+        self.assertEqual(coerced, "N/A")
+
+    def test_trend_direction_coerces_dict_to_stable(self):
+        """If learning['trend_direction'] is a dict, must fall back to 'Stable'."""
+        from ai_performance.shared_services import _as_str
+        coerced = _as_str({"direction": "up"}, fallback="Stable")
+        self.assertEqual(coerced, "Stable")
+
+
 if __name__ == "__main__":
     unittest.main()

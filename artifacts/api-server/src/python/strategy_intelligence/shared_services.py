@@ -28,6 +28,17 @@ from typing import List, Dict, Any, Optional
 from .strategy_models import StrategyProfile, is_enabled, disabled_response, _LABEL
 
 
+def _as_str(v: Any, fallback: str = "N/A") -> str:
+    """Coerce *v* to a non-empty string, using *fallback* for None/dict/list.
+
+    Guards against upstream snapshot functions returning a dict or None where a
+    plain string KPI label is expected (e.g. ``best_sector``).
+    """
+    if isinstance(v, str):
+        return v or fallback
+    return fallback
+
+
 def _load_all() -> Dict[str, Any]:
     """
     Single authoritative data pipeline:
@@ -231,14 +242,14 @@ def get_summary_snapshot() -> dict:
             "total_closed_trades": total_closed,
             "total_net_pnl":     round(total_pnl, 2),
             "overall_win_rate":  round(overall_wr, 2),
-            "best_strategy":     best.strategy_name if best else None,
+            "best_strategy":     _as_str(best.strategy_name if best else None),
             "best_strategy_pnl": round(best.net_pnl, 2) if best else 0.0,
-            "worst_strategy":    worst.strategy_name if worst else None,
+            "worst_strategy":    _as_str(worst.strategy_name if worst else None),
             "best_regime":       _best_regime_str(rd),
-            "best_sector":       sd.get("best_sector"),
-            "worst_sector":      sd.get("worst_sector"),
-            "best_time_slot":    td.get("best_slot"),
-            "best_day":          td.get("best_day"),
+            "best_sector":       _as_str(sd.get("best_sector")),
+            "worst_sector":      _as_str(sd.get("worst_sector")),
+            "best_time_slot":    _as_str(td.get("best_slot")),
+            "best_day":          _as_str(td.get("best_day")),
             "criterion_rankings": crit,
         }
     except Exception as exc:

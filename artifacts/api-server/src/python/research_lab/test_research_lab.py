@@ -193,5 +193,120 @@ class TestScanPipelineIncludesFlushModule(unittest.TestCase):
         self.assertNotIn("research_lab_cache_flush", sp.REQUIRED_MODULES)
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# _as_str coercion on grade and trend in get_research_lab_snapshot()
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestStringKpiCoercion(unittest.TestCase):
+    """
+    Guard: grade and trend in get_research_lab_snapshot() must always be plain
+    strings, never a dict/None/list, even when the upstream get_summary()
+    returns unexpected types for these fields.
+    """
+
+    # ── _as_str helper unit tests ─────────────────────────────────────────────
+
+    def test_as_str_none_returns_fallback(self):
+        from research_lab.shared_services import _as_str
+        self.assertEqual(_as_str(None), "N/A")
+
+    def test_as_str_dict_returns_fallback(self):
+        from research_lab.shared_services import _as_str
+        self.assertEqual(_as_str({"grade": "A"}), "N/A")
+
+    def test_as_str_list_returns_fallback(self):
+        from research_lab.shared_services import _as_str
+        self.assertEqual(_as_str(["A", "B"]), "N/A")
+
+    def test_as_str_empty_string_returns_fallback(self):
+        from research_lab.shared_services import _as_str
+        self.assertEqual(_as_str(""), "N/A")
+
+    def test_as_str_valid_string_passes_through(self):
+        from research_lab.shared_services import _as_str
+        self.assertEqual(_as_str("IMPROVING"), "IMPROVING")
+
+    def test_as_str_custom_fallback(self):
+        from research_lab.shared_services import _as_str
+        self.assertEqual(_as_str(None, fallback="STABLE"), "STABLE")
+
+    # ── grade coercion guards ─────────────────────────────────────────────────
+
+    def test_grade_coerced_when_dict(self):
+        """If get_summary() returns grade as a dict, _as_str must coerce it."""
+        from research_lab.shared_services import _as_str
+        upstream_grade = {"letter": "A", "score": 85}
+        coerced = _as_str(upstream_grade, fallback="N/A")
+        self.assertEqual(coerced, "N/A")
+        self.assertIsInstance(coerced, str)
+
+    def test_grade_coerced_when_none(self):
+        from research_lab.shared_services import _as_str
+        coerced = _as_str(None, fallback="N/A")
+        self.assertEqual(coerced, "N/A")
+        self.assertIsInstance(coerced, str)
+
+    def test_grade_valid_string_survives_coercion(self):
+        from research_lab.shared_services import _as_str
+        self.assertEqual(_as_str("A"), "A")
+
+    # ── trend coercion guards ─────────────────────────────────────────────────
+
+    def test_trend_coerced_when_dict(self):
+        """If get_summary() returns trend as a dict, _as_str must coerce it."""
+        from research_lab.shared_services import _as_str
+        upstream_trend = {"direction": "up", "delta": 5}
+        coerced = _as_str(upstream_trend, fallback="STABLE")
+        self.assertEqual(coerced, "STABLE")
+        self.assertIsInstance(coerced, str)
+
+    def test_trend_coerced_when_none(self):
+        from research_lab.shared_services import _as_str
+        coerced = _as_str(None, fallback="STABLE")
+        self.assertEqual(coerced, "STABLE")
+        self.assertIsInstance(coerced, str)
+
+    def test_trend_valid_strings_survive_coercion(self):
+        from research_lab.shared_services import _as_str
+        for val in ("IMPROVING", "WEAKENING", "STABLE"):
+            self.assertEqual(_as_str(val), val)
+
+    # ── cached snapshot field types ───────────────────────────────────────────
+
+    def test_cached_snapshot_grade_and_trend_are_str(self):
+        """Snapshot loaded from file cache must have grade/trend as strings."""
+        import tempfile
+        import time
+        import json
+        import importlib
+
+        import research_lab.shared_services as mod
+        importlib.reload(mod)
+
+        with tempfile.NamedTemporaryFile(
+            suffix=".json", delete=False, mode="w"
+        ) as f:
+            json.dump({
+                "status": "ENABLED",
+                "research_score": 72,
+                "grade": "B",
+                "trend": "IMPROVING",
+                "_cached_at": time.time(),
+            }, f)
+            tmp_path = f.name
+
+        try:
+            mod._SNAPSHOT_CACHE_FILE = tmp_path
+            snap = mod.get_research_lab_snapshot()
+            self.assertIsInstance(snap.get("grade"), str,
+                f"grade from cache type={type(snap.get('grade')).__name__!r}")
+            self.assertIsInstance(snap.get("trend"), str,
+                f"trend from cache type={type(snap.get('trend')).__name__!r}")
+        finally:
+            import os
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

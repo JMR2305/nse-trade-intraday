@@ -13,6 +13,18 @@ from typing import Any, Dict, List
 
 from .models import is_enabled, disabled_response
 
+
+def _as_str(v: Any, fallback: str = "N/A") -> str:
+    """Coerce *v* to a non-empty string, using *fallback* for None/dict/list.
+
+    Guards against upstream snapshot functions returning a dict or None where a
+    plain string KPI label is expected (e.g. ``grade``, ``trend``).
+    """
+    if isinstance(v, str):
+        return v or fallback
+    return fallback
+
+
 # ── Upstream snapshot loaders ─────────────────────────────────────────────────
 
 def _market_snap() -> Dict[str, Any]:
@@ -332,8 +344,8 @@ def get_research_lab_snapshot() -> Dict[str, Any]:
     snap = {
         "status":            "ENABLED",
         "research_score":    summary.get("research_score", 0),
-        "grade":             summary.get("grade", "N/A"),
-        "trend":             summary.get("trend", "STABLE"),
+        "grade":             _as_str(summary.get("grade"), fallback="N/A"),
+        "trend":             _as_str(summary.get("trend"), fallback="STABLE"),
         "total_strategies":  summary.get("total_strategies", 0),
         "total_scenarios":   summary.get("total_scenarios", 0),
         "total_experiments": summary.get("total_experiments", 0),

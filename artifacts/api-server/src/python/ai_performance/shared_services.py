@@ -31,6 +31,29 @@ from .ai_models import (
 import statistics as _stats
 
 
+def _as_str(v: Any, fallback: str = "N/A") -> str:
+    """Coerce *v* to a non-empty string, using *fallback* for None/dict/list.
+
+    Guards against upstream learning/health dicts returning a non-string where
+    a plain string KPI label is expected (e.g. ``health_label``,
+    ``trend_direction``, ``calibration_quality_label``).
+    """
+    if isinstance(v, str):
+        return v or fallback
+    return fallback
+
+
+def _calibration_quality_label(reliability_score: float) -> str:
+    """Convert a 0–100 reliability score to a human-readable calibration label."""
+    if reliability_score >= 80:
+        return "Well Calibrated"
+    if reliability_score >= 60:
+        return "Fairly Calibrated"
+    if reliability_score >= 40:
+        return "Poorly Calibrated"
+    return "Uncalibrated"
+
+
 def _compute_all() -> Dict[str, Any]:
     """
     Full computation pipeline — called once per request.
@@ -290,20 +313,26 @@ def get_ai_snapshot() -> dict:
         return {
             "status":               "ENABLED",
             "label":                _LABEL,
-            "health_score":         h.total_score,
-            "health_label":         h.label,
-            "prediction_accuracy":  round(p.accuracy * 100, 2),
-            "balanced_accuracy":    round(p.balanced_accuracy * 100, 2),
-            "precision":            round(p.precision * 100, 2),
-            "recall":               round(p.recall * 100, 2),
-            "f1_score":             round(p.f1_score, 4),
-            "avg_confidence":       round(
+            "health_score":              h.total_score,
+            "health_label":              _as_str(h.label, fallback="N/A"),
+            "prediction_accuracy":       round(p.accuracy * 100, 2),
+            "balanced_accuracy":         round(p.balanced_accuracy * 100, 2),
+            "precision":                 round(p.precision * 100, 2),
+            "recall":                    round(p.recall * 100, 2),
+            "f1_score":                  round(p.f1_score, 4),
+            "avg_confidence":            round(
                 _stats.mean(s.signal_confidence for s in d["signals"]) * 100, 2
             ) if d["signals"] else 0.0,
-            "calibration_ece":      d["calibration"].ece,
-            "trend_direction":      d["learning"]["trend_direction"],
-            "accuracy_delta":       d["learning"]["accuracy_delta"],
-            "total_signals":        len(d["signals"]),
+            "calibration_ece":           d["calibration"].ece,
+            "calibration_quality_label": _as_str(
+                _calibration_quality_label(d["calibration"].reliability_score),
+                fallback="N/A",
+            ),
+            "trend_direction":           _as_str(
+                d["learning"].get("trend_direction"), fallback="Stable"
+            ),
+            "accuracy_delta":            d["learning"]["accuracy_delta"],
+            "total_signals":             len(d["signals"]),
         }
     except Exception as exc:
         return {"error": str(exc), "status": "ERROR", "label": _LABEL}

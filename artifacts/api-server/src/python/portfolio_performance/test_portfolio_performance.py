@@ -496,5 +496,161 @@ class TestRestartPersistence(unittest.TestCase):
         self.assertAlmostEqual(r1["realised_pnl"], r2["realised_pnl"], places=2)
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# portfolio_performance/shared_services.py — string KPI coercion tests
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestStringKpiCoercion(unittest.TestCase):
+    """
+    Guard: grade and trend in get_portfolio_performance_snapshot() must always
+    be plain strings, never a dict/None/list, regardless of upstream data.
+    """
+
+    def setUp(self):
+        os.environ["PORTFOLIO_PERFORMANCE_ENABLED"] = "true"
+
+    def tearDown(self):
+        os.environ.pop("PORTFOLIO_PERFORMANCE_ENABLED", None)
+
+    # ── _as_str helper unit tests ─────────────────────────────────────────────
+
+    def test_as_str_none_returns_fallback(self):
+        from portfolio_performance.shared_services import _as_str
+        self.assertEqual(_as_str(None), "N/A")
+
+    def test_as_str_dict_returns_fallback(self):
+        from portfolio_performance.shared_services import _as_str
+        self.assertEqual(_as_str({"key": "val"}), "N/A")
+
+    def test_as_str_empty_string_returns_fallback(self):
+        from portfolio_performance.shared_services import _as_str
+        self.assertEqual(_as_str(""), "N/A")
+
+    def test_as_str_valid_string_passes_through(self):
+        from portfolio_performance.shared_services import _as_str
+        self.assertEqual(_as_str("IMPROVING"), "IMPROVING")
+
+    # ── _portfolio_grade helper ───────────────────────────────────────────────
+
+    def test_grade_a_high_win_rate(self):
+        from portfolio_performance.shared_services import _portfolio_grade
+        self.assertEqual(_portfolio_grade(70.0), "A")
+
+    def test_grade_b_mid_win_rate(self):
+        from portfolio_performance.shared_services import _portfolio_grade
+        self.assertEqual(_portfolio_grade(58.0), "B")
+
+    def test_grade_c(self):
+        from portfolio_performance.shared_services import _portfolio_grade
+        self.assertEqual(_portfolio_grade(48.0), "C")
+
+    def test_grade_d(self):
+        from portfolio_performance.shared_services import _portfolio_grade
+        self.assertEqual(_portfolio_grade(38.0), "D")
+
+    def test_grade_f_zero_win_rate(self):
+        from portfolio_performance.shared_services import _portfolio_grade
+        self.assertEqual(_portfolio_grade(0.0), "F")
+
+    # ── _portfolio_trend helper ───────────────────────────────────────────────
+
+    def test_trend_improving_positive_weekly(self):
+        from portfolio_performance.shared_services import _portfolio_trend
+        self.assertEqual(_portfolio_trend(500.0, 1000.0), "IMPROVING")
+
+    def test_trend_weakening_negative_weekly(self):
+        from portfolio_performance.shared_services import _portfolio_trend
+        self.assertEqual(_portfolio_trend(-200.0, 1000.0), "WEAKENING")
+
+    def test_trend_stable_zero_weekly(self):
+        from portfolio_performance.shared_services import _portfolio_trend
+        self.assertEqual(_portfolio_trend(0.0, 0.0), "STABLE")
+
+    # ── get_portfolio_performance_snapshot() disabled ─────────────────────────
+
+    def test_disabled_returns_disabled_status(self):
+        os.environ.pop("PORTFOLIO_PERFORMANCE_ENABLED", None)
+        from portfolio_performance.shared_services import get_portfolio_performance_snapshot
+        snap = get_portfolio_performance_snapshot()
+        self.assertEqual(snap["status"], "DISABLED")
+
+    # ── get_portfolio_performance_snapshot() field types ─────────────────────
+
+    def _make_summary(self, win_rate=55.0, weekly_pnl=200.0, monthly_pnl=600.0,
+                      net_pnl=1000.0, total_ret=0.5, trades=5, opens=1):
+        return {
+            "status": "ENABLED", "win_rate": win_rate,
+            "weekly_pnl": weekly_pnl, "monthly_pnl": monthly_pnl,
+            "total_net_pnl": net_pnl, "total_return_pct": total_ret,
+            "total_trades": trades, "open_trades": opens,
+        }
+
+    def test_grade_is_str(self):
+        from portfolio_performance.shared_services import get_portfolio_performance_snapshot
+        with patch("portfolio_performance.api.get_summary",
+                   return_value=self._make_summary()):
+            snap = get_portfolio_performance_snapshot()
+        self.assertIsInstance(snap.get("grade"), str,
+            f"grade type={type(snap.get('grade')).__name__!r}")
+
+    def test_trend_is_str(self):
+        from portfolio_performance.shared_services import get_portfolio_performance_snapshot
+        with patch("portfolio_performance.api.get_summary",
+                   return_value=self._make_summary()):
+            snap = get_portfolio_performance_snapshot()
+        self.assertIsInstance(snap.get("trend"), str,
+            f"trend type={type(snap.get('trend')).__name__!r}")
+
+    def test_grade_not_none(self):
+        from portfolio_performance.shared_services import get_portfolio_performance_snapshot
+        with patch("portfolio_performance.api.get_summary",
+                   return_value=self._make_summary()):
+            snap = get_portfolio_performance_snapshot()
+        self.assertIsNotNone(snap.get("grade"), "grade was None")
+
+    def test_trend_not_none(self):
+        from portfolio_performance.shared_services import get_portfolio_performance_snapshot
+        with patch("portfolio_performance.api.get_summary",
+                   return_value=self._make_summary()):
+            snap = get_portfolio_performance_snapshot()
+        self.assertIsNotNone(snap.get("trend"), "trend was None")
+
+    def test_grade_not_dict(self):
+        from portfolio_performance.shared_services import get_portfolio_performance_snapshot
+        with patch("portfolio_performance.api.get_summary",
+                   return_value=self._make_summary()):
+            snap = get_portfolio_performance_snapshot()
+        self.assertNotIsInstance(snap.get("grade"), dict,
+            "grade was a dict — coercion is missing")
+
+    def test_grade_value_b_for_55_pct_win_rate(self):
+        from portfolio_performance.shared_services import get_portfolio_performance_snapshot
+        with patch("portfolio_performance.api.get_summary",
+                   return_value=self._make_summary(win_rate=55.0)):
+            snap = get_portfolio_performance_snapshot()
+        self.assertEqual(snap["grade"], "B")
+
+    def test_trend_improving_for_positive_weekly(self):
+        from portfolio_performance.shared_services import get_portfolio_performance_snapshot
+        with patch("portfolio_performance.api.get_summary",
+                   return_value=self._make_summary(weekly_pnl=500.0)):
+            snap = get_portfolio_performance_snapshot()
+        self.assertEqual(snap["trend"], "IMPROVING")
+
+    def test_trend_weakening_for_negative_weekly(self):
+        from portfolio_performance.shared_services import get_portfolio_performance_snapshot
+        with patch("portfolio_performance.api.get_summary",
+                   return_value=self._make_summary(weekly_pnl=-200.0)):
+            snap = get_portfolio_performance_snapshot()
+        self.assertEqual(snap["trend"], "WEAKENING")
+
+    def test_advisory_only_flag_present(self):
+        from portfolio_performance.shared_services import get_portfolio_performance_snapshot
+        with patch("portfolio_performance.api.get_summary",
+                   return_value=self._make_summary()):
+            snap = get_portfolio_performance_snapshot()
+        self.assertTrue(snap.get("advisory_only"))
+
+
 if __name__ == "__main__":
     unittest.main()
