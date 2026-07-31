@@ -191,6 +191,18 @@ function extractAiLabel(hs: AISummaryData["health_score"]): string {
   return hs.label ?? "N/A";
 }
 
+/** Shape of GET /api/data-quality/snapshot */
+interface DataQualitySnapshot {
+  available:      boolean;
+  advisory_only?: boolean;
+  quality_score?: number;
+  grade?:         string;
+  critical_count?: number;
+  warning_count?:  number;
+  total_issues?:   number;
+  generated_at?:   string;
+}
+
 /** Shape of GET /api/research-lab/snapshot */
 interface ResearchLabSnapshot {
   status: string;
@@ -1058,6 +1070,107 @@ function PaperAnalyticsTile({ d }: { d: ExecSummary["paper_analytics"] }) {
 }
 
 // ---------------------------------------------------------------------------
+// Section 15 — Data Quality Tile (Phase 8.3 / Task #255)
+// ---------------------------------------------------------------------------
+function DataQualityTile({ d }: { d: DataQualitySnapshot | undefined }) {
+  if (!d) return <p className="text-slate-500 text-sm">Loading…</p>;
+
+  if (!d.available) {
+    return (
+      <div
+        data-testid="dq-disabled"
+        className="flex flex-col items-center justify-center gap-3 py-4 text-center"
+      >
+        <Database className="w-8 h-8 text-slate-600" />
+        <div>
+          <p className="text-sm font-medium text-slate-400">Data Quality Disabled</p>
+          <p className="text-xs text-slate-500 mt-1">
+            Set{" "}
+            <code className="bg-slate-800 px-1 rounded text-amber-300">
+              DATA_QUALITY_ENABLED=true
+            </code>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const score    = d.quality_score ?? 0;
+  const grade    = d.grade ?? "D";
+  const critical = d.critical_count ?? 0;
+  const warnings = d.warning_count  ?? 0;
+
+  const ringColor = score >= 80 ? "#34d399" : score >= 60 ? "#fbbf24" : "#f87171";
+  const gradeBg   =
+    score >= 80 ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+    : score >= 60 ? "bg-amber-500/15 text-amber-300 border-amber-500/30"
+    : "bg-red-500/15 text-red-300 border-red-500/30";
+
+  const r    = 30;
+  const circ = 2 * Math.PI * r;
+  const fill = (Math.min(score, 100) / 100) * circ;
+
+  return (
+    <div className="space-y-3" data-testid="dq-tile">
+      {/* Score ring + grade */}
+      <div className="flex items-center gap-4">
+        <svg
+          width="80" height="80" viewBox="0 0 80 80"
+          className="shrink-0"
+          aria-label={`Data Quality Score ${Math.round(score)}/100`}
+        >
+          <circle cx="40" cy="40" r={r} fill="none" stroke="#1e293b" strokeWidth="9" />
+          <circle
+            cx="40" cy="40" r={r} fill="none"
+            stroke={ringColor} strokeWidth="9"
+            strokeDasharray={`${fill} ${circ - fill}`}
+            strokeLinecap="round"
+            transform="rotate(-90 40 40)"
+            style={{ transition: "stroke-dasharray 0.5s ease" }}
+          />
+          <text x="40" y="44" textAnchor="middle" fill={ringColor} fontSize="16" fontWeight="bold"
+                data-testid="dq-score-text">
+            {Math.round(score)}
+          </text>
+        </svg>
+
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={cn("px-2 py-0.5 rounded-full border text-xs font-bold", gradeBg)}
+                  data-testid="dq-grade-badge">
+              Grade {grade}
+            </span>
+            {critical > 0 && (
+              <span
+                data-testid="dq-critical-badge"
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-900/40 border border-red-700/50 text-red-300 text-xs font-semibold"
+              >
+                <AlertCircle className="w-3 h-3" />
+                {critical} Critical
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-3 text-xs text-slate-500">
+            <span>Score: <span className={cn("font-semibold", scoreColor(score))}>{score.toFixed(1)}</span>/100</span>
+            {warnings > 0 && <span className="text-amber-400">{warnings} Warnings</span>}
+          </div>
+        </div>
+      </div>
+
+      <Link
+        href="/data-quality"
+        className="flex items-center justify-center gap-1.5 w-full px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-lg text-slate-300 text-xs hover:bg-slate-700/50 hover:text-slate-100 transition-colors"
+        data-testid="dq-link"
+      >
+        <Database className="w-3.5 h-3.5" />
+        View Full Data Quality Report
+        <ChevronRight className="w-3.5 h-3.5" />
+      </Link>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Section 10 — Quick Actions
 // ---------------------------------------------------------------------------
 function QuickActionsSection({ actions }: { actions: ExecSummary["quick_actions"] }) {
@@ -1101,6 +1214,14 @@ export default function ExecutiveDashboard() {
   const { data: aiSummary } = useQuery<AISummaryData>({
     queryKey: ["ai-summary-exec"],
     queryFn: () => apiJson<AISummaryData>("ai/summary"),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+
+  // Data Quality snapshot — separate query; gracefully shows disabled state
+  const { data: dqSnap } = useQuery<DataQualitySnapshot>({
+    queryKey: ["dq-snapshot-exec"],
+    queryFn: () => apiJson<DataQualitySnapshot>("data-quality/snapshot"),
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
@@ -1207,6 +1328,10 @@ export default function ExecutiveDashboard() {
 
         <SectionCard title="Paper Analytics" icon={<LineChart className="w-4 h-4 text-teal-400" />}>
           <PaperAnalyticsTile d={d.paper_analytics} />
+        </SectionCard>
+
+        <SectionCard title="Data Quality" icon={<Database className="w-4 h-4 text-blue-400" />}>
+          <DataQualityTile d={dqSnap} />
         </SectionCard>
       </div>
 

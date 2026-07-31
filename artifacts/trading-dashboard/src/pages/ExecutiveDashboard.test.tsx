@@ -266,6 +266,34 @@ const FULL_AI_SUMMARY = {
 
 const DISABLED_AI_SUMMARY = { status: "DISABLED" };
 
+const FULL_DQ_SNAPSHOT = {
+  available:      true,
+  advisory_only:  true,
+  quality_score:  83.5,
+  grade:          "A",
+  critical_count: 1,
+  warning_count:  3,
+  total_issues:   4,
+  generated_at:   "2026-07-31T09:15:00Z",
+};
+
+const CLEAN_DQ_SNAPSHOT = {
+  available:      true,
+  advisory_only:  true,
+  quality_score:  95.0,
+  grade:          "A+",
+  critical_count: 0,
+  warning_count:  0,
+  total_issues:   0,
+  generated_at:   "2026-07-31T09:15:00Z",
+};
+
+const DISABLED_DQ_SNAPSHOT = {
+  available:      false,
+  advisory_only:  true,
+  quality_score:  0,
+};
+
 // ── Helper ────────────────────────────────────────────────────────────────────
 
 function mountDashboard() {
@@ -287,21 +315,24 @@ function mountDashboard() {
 }
 
 /**
- * Build a standard mock that routes the three queries correctly.
- *   executive/summary      → execSummary
- *   research-lab/snapshot  → researchSnap
- *   ai/summary             → aiSummary
+ * Build a standard mock that routes the four queries correctly.
+ *   executive/summary       → execSummary
+ *   research-lab/snapshot   → researchSnap
+ *   ai/summary              → aiSummary
+ *   data-quality/snapshot   → dqSnap
  * Any other path returns {}.
  */
 function makeMock(
   execSummary: unknown = FULL_EXEC_SUMMARY,
   researchSnap: unknown = FULL_RESEARCH_SNAP,
   aiSummary: unknown = FULL_AI_SUMMARY,
+  dqSnap: unknown = FULL_DQ_SNAPSHOT,
 ) {
   return (path: string) => {
-    if (path === "executive/summary")    return Promise.resolve(execSummary);
+    if (path === "executive/summary")     return Promise.resolve(execSummary);
     if (path === "research-lab/snapshot") return Promise.resolve(researchSnap);
-    if (path === "ai/summary")           return Promise.resolve(aiSummary);
+    if (path === "ai/summary")            return Promise.resolve(aiSummary);
+    if (path === "data-quality/snapshot") return Promise.resolve(dqSnap);
     return Promise.resolve({});
   };
 }
@@ -1170,5 +1201,128 @@ describe("ExecutiveDashboard — ScoreRing animation (Task #248)", () => {
       expect(fill).toBeGreaterThanOrEqual(0);
       expect(fill).toBeLessThanOrEqual(CIRC);
     }
+  });
+});
+
+// ── Tests: Data Quality widget (Task #255) ────────────────────────────────────
+
+describe("ExecutiveDashboard — Data Quality widget", () => {
+  it("renders 'Data Quality' section card title", async () => {
+    vi.mocked(apiJson).mockImplementation(makeMock());
+    mountDashboard();
+    await waitFor(() => expect(screen.queryByText("Data Quality")).toBeTruthy());
+  });
+
+  it("renders dq-tile when snapshot is available", async () => {
+    vi.mocked(apiJson).mockImplementation(makeMock());
+    mountDashboard();
+    await waitFor(() => expect(screen.queryByTestId("dq-tile")).toBeTruthy());
+  });
+
+  it("shows the quality score in the ring", async () => {
+    vi.mocked(apiJson).mockImplementation(makeMock());
+    mountDashboard();
+    // FULL_DQ_SNAPSHOT.quality_score = 83.5 → rounds to 84
+    await waitFor(() => expect(screen.queryByTestId("dq-score-text")).toBeTruthy());
+    await waitFor(() => expect(screen.queryByTestId("dq-score-text")?.textContent).toBe("84"));
+  });
+
+  it("shows grade badge with grade letter", async () => {
+    vi.mocked(apiJson).mockImplementation(makeMock());
+    mountDashboard();
+    await waitFor(() => expect(screen.queryByTestId("dq-grade-badge")).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.queryByTestId("dq-grade-badge")?.textContent).toContain("A")
+    );
+  });
+
+  it("shows red critical badge when critical_count > 0", async () => {
+    vi.mocked(apiJson).mockImplementation(makeMock());
+    mountDashboard();
+    await waitFor(() => expect(screen.queryByTestId("dq-critical-badge")).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.queryByTestId("dq-critical-badge")?.textContent).toContain("1 Critical")
+    );
+  });
+
+  it("hides critical badge when critical_count is 0", async () => {
+    vi.mocked(apiJson).mockImplementation(
+      makeMock(FULL_EXEC_SUMMARY, FULL_RESEARCH_SNAP, FULL_AI_SUMMARY, CLEAN_DQ_SNAPSHOT)
+    );
+    mountDashboard();
+    await waitFor(() => expect(screen.queryByTestId("dq-tile")).toBeTruthy());
+    expect(screen.queryByTestId("dq-critical-badge")).toBeNull();
+  });
+
+  it("shows A+ grade when score is 95", async () => {
+    vi.mocked(apiJson).mockImplementation(
+      makeMock(FULL_EXEC_SUMMARY, FULL_RESEARCH_SNAP, FULL_AI_SUMMARY, CLEAN_DQ_SNAPSHOT)
+    );
+    mountDashboard();
+    await waitFor(() =>
+      expect(screen.queryByTestId("dq-grade-badge")?.textContent).toContain("A+")
+    );
+  });
+
+  it("shows disabled state when available is false", async () => {
+    vi.mocked(apiJson).mockImplementation(
+      makeMock(FULL_EXEC_SUMMARY, FULL_RESEARCH_SNAP, FULL_AI_SUMMARY, DISABLED_DQ_SNAPSHOT)
+    );
+    mountDashboard();
+    await waitFor(() => expect(screen.queryByTestId("dq-disabled")).toBeTruthy());
+  });
+
+  it("disabled state shows helpful flag message", async () => {
+    vi.mocked(apiJson).mockImplementation(
+      makeMock(FULL_EXEC_SUMMARY, FULL_RESEARCH_SNAP, FULL_AI_SUMMARY, DISABLED_DQ_SNAPSHOT)
+    );
+    mountDashboard();
+    await waitFor(() =>
+      expect(screen.queryByText("Data Quality Disabled")).toBeTruthy()
+    );
+  });
+
+  it("shows 'View Full Data Quality Report' link", async () => {
+    vi.mocked(apiJson).mockImplementation(makeMock());
+    mountDashboard();
+    // Use text match — wouter Link mock doesn't forward data-testid
+    await waitFor(() =>
+      expect(screen.queryByText("View Full Data Quality Report")).toBeTruthy()
+    );
+  });
+
+  it("dq link text is present and navigable", async () => {
+    vi.mocked(apiJson).mockImplementation(makeMock());
+    mountDashboard();
+    await waitFor(() => {
+      const link = screen.queryByText("View Full Data Quality Report")
+        ?.closest("a") as HTMLAnchorElement | null;
+      expect(link).toBeTruthy();
+      expect(link?.getAttribute("href")).toBe("/data-quality");
+    });
+  });
+
+  it("snapshot query calls data-quality/snapshot endpoint", async () => {
+    const mockFn = vi.fn(makeMock());
+    vi.mocked(apiJson).mockImplementation(mockFn);
+    mountDashboard();
+    await waitFor(() =>
+      expect(mockFn.mock.calls.some(([p]) => p === "data-quality/snapshot")).toBe(true)
+    );
+  });
+
+  it("snapshot pending — section card still renders (no crash)", async () => {
+    vi.mocked(apiJson).mockImplementation((path: string) => {
+      if (path === "executive/summary") return Promise.resolve(FULL_EXEC_SUMMARY);
+      if (path === "data-quality/snapshot") return new Promise(() => {}); // never resolves
+      return Promise.resolve({});
+    });
+    mountDashboard();
+    await waitFor(() => expect(screen.queryByText("Data Quality")).toBeTruthy());
+    // At least one tile shows Loading… while query is pending
+    // (multiple tiles may show it, so use queryAllByText)
+    await waitFor(() =>
+      expect(screen.queryAllByText("Loading…").length).toBeGreaterThan(0)
+    );
   });
 });
