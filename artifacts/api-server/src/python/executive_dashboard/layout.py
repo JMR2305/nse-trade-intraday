@@ -82,7 +82,7 @@ def compute_executive_score(widgets: dict) -> ExecutiveScore:
     # Reads from the paper_analytics widget (Phase 8.2).  Falls back to 50.0
     # when the feature flag is off so the composite is never deflated by a
     # disabled module.
-    pa = widgets.get("paper_analytics", {})
+    pa = widgets.get("paper_analytics") or {}
     if pa.get("available", False):
         pa_analytics_score = _clamp(pa.get("analytics_score", 50.0))
     else:

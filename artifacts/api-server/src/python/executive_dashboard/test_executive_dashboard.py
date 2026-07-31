@@ -1285,5 +1285,201 @@ class TestPaperAnalyticsDisabledPipeline(unittest.TestCase):
         self.assertEqual(r["grade"], "N/A")
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# Paper Analytics neutral fallback — regression guard
+#
+# Design invariant: when PAPER_ANALYTICS_ENABLED is off (or the module is
+# unavailable for any reason), compute_executive_score() must use 50.0 as
+# the paper_analytics component — never 0.0.  Using 0.0 would silently
+# subtract 5 points (10% × 50) from every operator's Executive Score on any
+# fresh deployment before paper trades exist.
+#
+# These tests pin that invariant so a future refactor can't break it quietly.
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _base_widgets() -> dict:
+    """Minimal widget dict with every component at a stable mid-range value."""
+    return {
+        "portfolio_overview": {
+            "net_pnl":        1000.0,
+            "drawdown":       2.0,
+            "win_rate":       55.0,
+            "profit_factor":  1.5,
+        },
+        "ai_health": {"health_score": 70.0},
+        "strategy_overview": {
+            "overall_win_rate": 55.0,
+            "total_net_pnl":    1000.0,
+            "strong_buy_count": 2,
+        },
+        "execution_quality": {"execution_score": 70.0},
+        "portfolio_risk": {
+            "alert_count":       0,
+            "kill_switch_active": False,
+            "utilisation":       30.0,
+        },
+        "system_health": {
+            "application_health": "HEALTHY",
+            "database_status":    "CONNECTED",
+            "api_status":         "HEALTHY",
+            "scheduler_health":   "HEALTHY",
+        },
+    }
+
+
+class TestPaperAnalyticsNeutralFallback(unittest.TestCase):
+    """
+    Regression guard: disabled / unavailable paper_analytics must yield a
+    50.0 component score in compute_executive_score(), never 0.0.
+    """
+
+    # ── 1. available=False → component is exactly 50.0 ───────────────────────
+
+    def test_available_false_uses_neutral_fifty(self):
+        """available=False → compute_executive_score uses paper_analytics=50.0."""
+        from executive_dashboard.layout import compute_executive_score
+        widgets = _base_widgets()
+        widgets["paper_analytics"] = {"available": False, "analytics_score": 0.0}
+        score = compute_executive_score(widgets)
+        self.assertAlmostEqual(score.paper_analytics, 50.0, places=1)
+
+    def test_available_false_with_status_disabled(self):
+        """{available: False, status: 'DISABLED'} → neutral 50.0."""
+        from executive_dashboard.layout import compute_executive_score
+        widgets = _base_widgets()
+        widgets["paper_analytics"] = {"available": False, "status": "DISABLED"}
+        score = compute_executive_score(widgets)
+        self.assertAlmostEqual(score.paper_analytics, 50.0, places=1)
+
+    def test_missing_paper_analytics_key_uses_neutral_fifty(self):
+        """Missing paper_analytics key in widgets dict → neutral 50.0 (not 0.0)."""
+        from executive_dashboard.layout import compute_executive_score
+        widgets = _base_widgets()
+        # Deliberately omit paper_analytics to simulate an old engine that
+        # hasn't wired the key yet.
+        widgets.pop("paper_analytics", None)
+        score = compute_executive_score(widgets)
+        self.assertAlmostEqual(score.paper_analytics, 50.0, places=1)
+
+    def test_paper_analytics_none_uses_neutral_fifty(self):
+        """paper_analytics mapped to None → neutral 50.0 (not crash or 0.0)."""
+        from executive_dashboard.layout import compute_executive_score
+        widgets = _base_widgets()
+        widgets["paper_analytics"] = None  # type: ignore[assignment]
+        # The engine calls .get() on the value so None triggers the disabled path.
+        score = compute_executive_score(widgets)
+        self.assertAlmostEqual(score.paper_analytics, 50.0, places=1)
+
+    # ── 2. Total equivalence: disabled == explicit 50.0 ──────────────────────
+
+    def test_disabled_total_equals_explicit_neutral_total(self):
+        """
+        The composite total with disabled paper_analytics must equal the total
+        produced when paper_analytics=50.0 is passed directly to ExecutiveScore.
+        """
+        from executive_dashboard.layout import compute_executive_score
+        from executive_dashboard.dashboard_models import ExecutiveScore, SCORE_WEIGHTS
+
+        widgets = _base_widgets()
+        widgets["paper_analytics"] = {"available": False, "status": "DISABLED"}
+
+        score_disabled = compute_executive_score(widgets)
+
+        # Manually construct an equivalent ExecutiveScore with paper_analytics=50.0
+        score_explicit = ExecutiveScore(
+            portfolio_health  = score_disabled.portfolio_health,
+            ai_health         = score_disabled.ai_health,
+            strategy_health   = score_disabled.strategy_health,
+            execution_quality = score_disabled.execution_quality,
+            risk              = score_disabled.risk,
+            system_health     = score_disabled.system_health,
+            paper_analytics   = 50.0,
+        )
+
+        self.assertAlmostEqual(score_disabled.total, score_explicit.total, places=1)
+
+    def test_disabled_does_not_equal_zero_total(self):
+        """
+        The composite total with disabled paper_analytics must NOT equal the total
+        produced when paper_analytics=0.0 — that would mean zero is being used.
+        """
+        from executive_dashboard.layout import compute_executive_score
+        from executive_dashboard.dashboard_models import ExecutiveScore
+
+        widgets = _base_widgets()
+        widgets["paper_analytics"] = {"available": False, "status": "DISABLED"}
+
+        score_disabled = compute_executive_score(widgets)
+
+        score_if_zero = ExecutiveScore(
+            portfolio_health  = score_disabled.portfolio_health,
+            ai_health         = score_disabled.ai_health,
+            strategy_health   = score_disabled.strategy_health,
+            execution_quality = score_disabled.execution_quality,
+            risk              = score_disabled.risk,
+            system_health     = score_disabled.system_health,
+            paper_analytics   = 0.0,
+        )
+
+        # The two totals must differ by the weight × 50 gap (≈ 5 points).
+        self.assertNotAlmostEqual(score_disabled.total, score_if_zero.total, places=0)
+
+    # ── 3. Enabled path still uses the real score ─────────────────────────────
+
+    def test_available_true_uses_actual_analytics_score(self):
+        """available=True → compute_executive_score uses analytics_score, not 50.0."""
+        from executive_dashboard.layout import compute_executive_score
+        widgets = _base_widgets()
+        widgets["paper_analytics"] = {"available": True, "analytics_score": 85.0}
+        score = compute_executive_score(widgets)
+        self.assertAlmostEqual(score.paper_analytics, 85.0, places=1)
+
+    def test_enabled_low_score_differs_from_neutral(self):
+        """An enabled but poor analytics score (20) is below neutral (50) in the total."""
+        from executive_dashboard.layout import compute_executive_score
+        widgets_neutral = _base_widgets()
+        widgets_neutral["paper_analytics"] = {"available": False}
+
+        widgets_poor = _base_widgets()
+        widgets_poor["paper_analytics"] = {"available": True, "analytics_score": 20.0}
+
+        score_neutral = compute_executive_score(widgets_neutral)
+        score_poor    = compute_executive_score(widgets_poor)
+
+        self.assertGreater(score_neutral.total, score_poor.total)
+
+    def test_enabled_high_score_exceeds_neutral(self):
+        """An enabled and excellent analytics score (95) is above neutral (50) in the total."""
+        from executive_dashboard.layout import compute_executive_score
+        widgets_neutral = _base_widgets()
+        widgets_neutral["paper_analytics"] = {"available": False}
+
+        widgets_great = _base_widgets()
+        widgets_great["paper_analytics"] = {"available": True, "analytics_score": 95.0}
+
+        score_neutral = compute_executive_score(widgets_neutral)
+        score_great   = compute_executive_score(widgets_great)
+
+        self.assertGreater(score_great.total, score_neutral.total)
+
+    # ── 4. Clamping guard ─────────────────────────────────────────────────────
+
+    def test_analytics_score_above_100_clamped(self):
+        """analytics_score > 100 is clamped to 100.0 — not passed through raw."""
+        from executive_dashboard.layout import compute_executive_score
+        widgets = _base_widgets()
+        widgets["paper_analytics"] = {"available": True, "analytics_score": 999.0}
+        score = compute_executive_score(widgets)
+        self.assertLessEqual(score.paper_analytics, 100.0)
+
+    def test_analytics_score_below_zero_clamped(self):
+        """analytics_score < 0 is clamped to 0.0 — not passed through raw."""
+        from executive_dashboard.layout import compute_executive_score
+        widgets = _base_widgets()
+        widgets["paper_analytics"] = {"available": True, "analytics_score": -50.0}
+        score = compute_executive_score(widgets)
+        self.assertGreaterEqual(score.paper_analytics, 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()
