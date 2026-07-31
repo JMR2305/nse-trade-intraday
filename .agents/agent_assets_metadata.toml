@@ -173,3 +173,10 @@ id = "NU0vmNkUg9zVs5h438DyB"
 uri = "file://docs/observability-center-summary.md"
 type = "text"
 title = "Production Monitoring & Observability Center — Build Summary"
+
+[[outputs]]
+id = "NauKSaXDQD6AUs2_Yr1aw"
+uri = "file://docs/advanced-paper-trading-analytics.md"
+type = "text"
+title = "Advanced Paper Trading Analytics — ApexQuant AI"
+description = "Phase 8.2 module summary: architecture, 12-tab dashboard, scoring formula, API endpoints, and test coverage."
