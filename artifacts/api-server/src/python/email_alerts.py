@@ -34,7 +34,12 @@ from html import escape as _esc
 from typing import Any, Dict, Optional
 
 # Notification kinds that trigger an email (critical, user-must-know alerts).
-EMAIL_KINDS = ("PERFORMANCE_ALERT", "CIRCUIT_BREAKER_TRIPPED", "RECONCILIATION_DISCREPANCY")
+EMAIL_KINDS = (
+    "PERFORMANCE_ALERT",
+    "CIRCUIT_BREAKER_TRIPPED",
+    "RECONCILIATION_DISCREPANCY",
+    "DATA_QUALITY_CRITICAL",   # Phase 8.3 — critical data quality issues
+)
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 

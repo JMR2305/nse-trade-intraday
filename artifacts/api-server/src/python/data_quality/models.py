@@ -106,3 +106,8 @@ def domain_result(
 
 # ── Status constants ──────────────────────────────────────────────────────────
 ADVISORY_LABEL = "DATA QUALITY / ADVISORY ONLY"
+
+# ── Notification kinds ────────────────────────────────────────────────────────
+#: Emitted when one or more CRITICAL data quality issues are detected.
+#: Deduped per check+domain+field+symbol over a 30-minute window.
+DATA_QUALITY_CRITICAL = "DATA_QUALITY_CRITICAL"

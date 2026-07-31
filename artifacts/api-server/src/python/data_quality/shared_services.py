@@ -22,12 +22,21 @@ READ-ONLY · ADVISORY-ONLY.
 """
 from __future__ import annotations
 
+import time
 from datetime import datetime, timezone
 
 from .models import (
     is_enabled, disabled_response, quality_grade,
-    SEVERITY_ORDER, _now_iso,
+    SEVERITY_ORDER, _now_iso, DATA_QUALITY_CRITICAL,
 )
+
+# ── Notification dedup cache ───────────────────────────────────────────────────
+# Maps dedup_key → unix timestamp of last notification fired.
+# Keys are  "{domain}|{check}|{field}|{symbol}".
+# Using a module-level dict gives process-scoped dedup, which is the correct
+# scope for an API server that handles one GET at a time per Python process.
+_NOTIF_DEDUP: dict[str, float] = {}
+_NOTIF_TTL_SECONDS: int = 1800   # 30 minutes
 
 _DOMAIN_WEIGHTS = {
     "market":    0.20,
@@ -38,6 +47,81 @@ _DOMAIN_WEIGHTS = {
     "signals":   0.10,
     "config":    0.15,
 }
+
+
+def _add_notification(kind: str, title: str, body: str,
+                      severity: str, context: dict) -> None:
+    """
+    Thin shim that imports ``add_notification`` from ``phase20_store`` at
+    call-time and delegates to it.  Lives at module scope so tests can patch
+    ``data_quality.shared_services._add_notification`` directly without
+    needing to mock the entire ``phase20_store`` module.
+
+    Raises whatever ``phase20_store.add_notification`` raises; callers are
+    expected to catch all exceptions.
+    """
+    from phase20_store import add_notification as _fn  # type: ignore[import]
+    _fn(kind=kind, title=title, body=body, severity=severity, context=context)
+
+
+def _emit_critical_notifications(domains: dict[str, dict]) -> None:
+    """
+    Fire a DATA_QUALITY_CRITICAL notification for each new CRITICAL issue found
+    across all validation domains.
+
+    Deduplication: a notification for a given (domain, check, field, symbol)
+    combination is suppressed if the same combination was already sent within
+    the last 30 minutes (_NOTIF_TTL_SECONDS).  This avoids alert storms when
+    the same bad data persists across successive summary calls.
+
+    Failures are swallowed — a broken notification path must never prevent the
+    data-quality summary from returning.
+    """
+    now = time.monotonic()
+
+    for domain_name, domain_data in domains.items():
+        for issue in domain_data.get("issues", []):
+            if issue.get("severity") != "CRITICAL":
+                continue
+
+            check  = issue.get("check",  "")
+            field  = issue.get("field",  "")
+            symbol = issue.get("symbol", "")
+
+            dedup_key = f"{domain_name}|{check}|{field}|{symbol}"
+            # Sentinel -(_NOTIF_TTL_SECONDS + 1) guarantees first-ever entry
+            # always passes the window check regardless of what monotonic() returns.
+            last_sent = _NOTIF_DEDUP.get(dedup_key, -(_NOTIF_TTL_SECONDS + 1))
+            if now - last_sent < _NOTIF_TTL_SECONDS:
+                continue   # already notified recently — skip
+
+            title = f"[Data Quality] CRITICAL: {check}"
+            parts = [f"Domain: {domain_name}"]
+            if field:
+                parts.append(f"Field: {field}")
+            if symbol:
+                parts.append(f"Symbol: {symbol}")
+            parts.append(f"Issue: {issue.get('message', '')}")
+            body = " | ".join(parts)
+
+            try:
+                _add_notification(
+                    kind=DATA_QUALITY_CRITICAL,
+                    title=title,
+                    body=body,
+                    severity="CRITICAL",
+                    context={
+                        "domain":  domain_name,
+                        "check":   check,
+                        "field":   field,
+                        "symbol":  symbol,
+                        "message": issue.get("message", ""),
+                        "advisory_only": True,
+                    },
+                )
+                _NOTIF_DEDUP[dedup_key] = now
+            except Exception:
+                pass   # never let a single failed notification stop others
 
 
 def _safe(fn, default=None):
@@ -193,6 +277,12 @@ def get_summary() -> dict:
     try:
         from .history_store import persist_run as _persist
         _persist(result)
+    except Exception:
+        pass
+
+    # Emit notifications for any new CRITICAL issues — non-blocking.
+    try:
+        _emit_critical_notifications(domains)
     except Exception:
         pass
 
