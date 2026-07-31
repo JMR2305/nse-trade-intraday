@@ -242,6 +242,231 @@ function EquityCurveChart({
   );
 }
 
+// ── Equity curve with drawdown shading (hero chart for Trades tab) ────────────
+/**
+ * Full-width equity curve chart with contrasting shading over drawdown periods.
+ *
+ * Each point in `points` is a drawdown_curve row:
+ *   { timestamp, equity, drawdown, drawdown_pct }
+ *
+ * Rendering layers (bottom → top):
+ *  1. Rose fill between the running peak and current equity (drawdown region)
+ *  2. Teal area fill below the equity line
+ *  3. Teal equity line
+ *  4. Date labels on the x-axis (every Nth point)
+ *  5. Equity labels on the y-axis
+ *  6. "Advisory only" badge
+ */
+function EquityWithDrawdownChart({
+  points,
+  height = 180,
+  initialCapital,
+}: {
+  points: { timestamp?: string; equity: number; drawdown?: number; drawdown_pct?: number }[];
+  height?: number;
+  initialCapital?: number;
+}) {
+  if (!points || points.length < 2) {
+    return (
+      <div className="flex flex-col items-center justify-center py-8 gap-2">
+        <Activity className="w-8 h-8 text-slate-600" />
+        <p className="text-slate-500 text-sm">No equity data yet — complete some paper trades first.</p>
+        <Badge label="Advisory only" cls="bg-amber-500/10 text-amber-400 border-amber-500/30 text-xs" />
+      </div>
+    );
+  }
+
+  const SVG_W = 480;
+  const PAD_L = 62;   // left padding for y-axis labels
+  const PAD_R = 12;
+  const PAD_T = 14;
+  const PAD_B = 28;   // bottom padding for x-axis labels
+
+  const cW = SVG_W - PAD_L - PAD_R;
+  const cH = height - PAD_T - PAD_B;
+
+  const equities = points.map(p => p.equity);
+  const peaks    = points.map(p => p.equity + (p.drawdown ?? 0));
+
+  const allVals  = [...equities, ...peaks];
+  if (initialCapital != null) allVals.push(initialCapital);
+  const minV = Math.min(...allVals);
+  const maxV = Math.max(...allVals);
+  const rng  = maxV - minV || 1;
+
+  const toX = (i: number) => PAD_L + (i / (points.length - 1)) * cW;
+  const toY = (v: number) => PAD_T + cH - ((v - minV) / rng) * cH;
+
+  // Equity polyline points string
+  const eqPts = points.map((p, i) => `${toX(i).toFixed(1)},${toY(p.equity).toFixed(1)}`).join(" ");
+
+  // Area fill path below equity line
+  const areaPath =
+    `M${toX(0).toFixed(1)},${(PAD_T + cH).toFixed(1)} ` +
+    points.map((p, i) => `L${toX(i).toFixed(1)},${toY(p.equity).toFixed(1)}`).join(" ") +
+    ` L${toX(points.length - 1).toFixed(1)},${(PAD_T + cH).toFixed(1)} Z`;
+
+  // Drawdown shading: for each point where drawdown > 0, fill between peak and equity
+  // We group consecutive drawdown points into filled polygons
+  const drawdownRegions: string[] = [];
+  let inDD = false;
+  let ddStart = 0;
+
+  const flushDD = (end: number) => {
+    if (end <= ddStart) return;
+    // Top path (peaks, left→right), bottom path (equities, right→left)
+    const topPts  = points.slice(ddStart, end + 1).map((p, j) => `${toX(ddStart + j).toFixed(1)},${toY(p.equity + (p.drawdown ?? 0)).toFixed(1)}`);
+    const botPts  = points.slice(ddStart, end + 1).map((p, j) => `${toX(ddStart + j).toFixed(1)},${toY(p.equity).toFixed(1)}`).reverse();
+    drawdownRegions.push(`M${topPts[0]} ${topPts.slice(1).map(p => `L${p}`).join(" ")} ${botPts.map(p => `L${p}`).join(" ")} Z`);
+  };
+
+  points.forEach((p, i) => {
+    const hasDD = (p.drawdown ?? 0) > 0.5;  // ignore sub-rupee noise
+    if (hasDD && !inDD) { inDD = true; ddStart = i; }
+    else if (!hasDD && inDD) { flushDD(i - 1); inDD = false; }
+  });
+  if (inDD) flushDD(points.length - 1);
+
+  // Y-axis labels (4 ticks)
+  const yTicks = [0, 0.33, 0.67, 1].map(f => minV + f * rng);
+
+  // X-axis labels: pick up to 5 evenly spread dates
+  const N = points.length;
+  const xIndices = N <= 5
+    ? points.map((_, i) => i)
+    : [0, Math.floor(N * 0.25), Math.floor(N * 0.5), Math.floor(N * 0.75), N - 1];
+  const dateLabel = (ts?: string) => ts ? ts.slice(5, 10) : "";  // MM-DD
+
+  const lastEq   = equities[equities.length - 1];
+  const firstEq  = equities[0];
+  const pctChg   = firstEq > 0 ? ((lastEq - firstEq) / firstEq * 100) : 0;
+  const isUp     = lastEq >= firstEq;
+
+  return (
+    <div className="space-y-2">
+      {/* Header row */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-400 font-medium uppercase tracking-wide">Portfolio Value over Time</span>
+          <Badge label="Advisory only" cls="bg-amber-500/10 text-amber-400 border-amber-500/30 text-xs" />
+        </div>
+        <div className="flex items-center gap-3 text-xs">
+          {/* Legend */}
+          <span className="flex items-center gap-1 text-slate-500">
+            <span className="w-3 h-0.5 bg-teal-400 inline-block rounded" />
+            Equity
+          </span>
+          {drawdownRegions.length > 0 && (
+            <span className="flex items-center gap-1 text-slate-500">
+              <span className="w-3 h-3 bg-rose-500/30 inline-block rounded-sm border border-rose-500/40" />
+              Drawdown
+            </span>
+          )}
+          <span className={`font-semibold ${isUp ? "text-emerald-400" : "text-rose-400"}`}>
+            {isUp ? "+" : ""}{fmtPct(pctChg)}
+          </span>
+        </div>
+      </div>
+
+      {/* SVG chart */}
+      <div className="w-full rounded-lg bg-slate-900/40 overflow-hidden">
+        <svg
+          width="100%"
+          height={height}
+          viewBox={`0 0 ${SVG_W} ${height}`}
+          preserveAspectRatio="none"
+          aria-label="Paper portfolio equity curve with drawdown shading"
+        >
+          {/* Grid lines */}
+          {yTicks.map((v, i) => (
+            <line
+              key={i}
+              x1={PAD_L} y1={toY(v).toFixed(1)}
+              x2={SVG_W - PAD_R} y2={toY(v).toFixed(1)}
+              stroke="#1e293b" strokeWidth="1"
+            />
+          ))}
+
+          {/* Initial capital reference line (if available) */}
+          {initialCapital != null && (
+            <line
+              x1={PAD_L} y1={toY(initialCapital).toFixed(1)}
+              x2={SVG_W - PAD_R} y2={toY(initialCapital).toFixed(1)}
+              stroke="#64748b" strokeWidth="1" strokeDasharray="3 3"
+              opacity="0.6"
+            />
+          )}
+
+          {/* Drawdown shading (rose fill between peak and equity) */}
+          {drawdownRegions.map((d, i) => (
+            <path key={i} d={d} fill="#ef4444" opacity="0.18" />
+          ))}
+
+          {/* Equity area fill */}
+          <path d={areaPath} fill="#14b8a6" opacity="0.12" />
+
+          {/* Equity line */}
+          <polyline
+            points={eqPts}
+            fill="none"
+            stroke="#14b8a6"
+            strokeWidth="2"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+
+          {/* Last point dot */}
+          {(() => {
+            const li = points.length - 1;
+            return (
+              <circle
+                cx={toX(li).toFixed(1)}
+                cy={toY(points[li].equity).toFixed(1)}
+                r="3.5"
+                fill="#14b8a6"
+              />
+            );
+          })()}
+
+          {/* Y-axis labels */}
+          {yTicks.map((v, i) => (
+            <text
+              key={i}
+              x={(PAD_L - 4).toFixed(1)}
+              y={(toY(v) + 3).toFixed(1)}
+              textAnchor="end"
+              fill="#64748b"
+              fontSize="9"
+              fontFamily="monospace"
+            >
+              {v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1_000 ? `${(v / 1_000).toFixed(0)}K` : v.toFixed(0)}
+            </text>
+          ))}
+
+          {/* X-axis labels */}
+          {xIndices.map(i => (
+            <text
+              key={i}
+              x={toX(i).toFixed(1)}
+              y={(height - 6).toFixed(1)}
+              textAnchor="middle"
+              fill="#64748b"
+              fontSize="9"
+              fontFamily="monospace"
+            >
+              {dateLabel(points[i].timestamp)}
+            </text>
+          ))}
+
+          {/* Axes */}
+          <line x1={PAD_L} y1={PAD_T} x2={PAD_L} y2={PAD_T + cH} stroke="#334155" strokeWidth="1" />
+          <line x1={PAD_L} y1={PAD_T + cH} x2={SVG_W - PAD_R} y2={PAD_T + cH} stroke="#334155" strokeWidth="1" />
+        </svg>
+      </div>
+    </div>
+  );
+}
+
 // ── Drawdown mini-chart ───────────────────────────────────────────────────────
 function DrawdownChart({ points, height = 60 }: { points: { drawdown_pct: number }[]; height?: number }) {
   const vals = points.map(p => -(p.drawdown_pct ?? 0)).filter(v => isFinite(v));
@@ -391,6 +616,15 @@ export default function PaperAnalytics() {
       <div className="space-y-5">
         <SectionHeader icon={<Activity className="w-5 h-5 text-teal-400" />} title="Trade Analytics" sub="All completed paper trades" />
 
+        {/* ── Hero: equity curve with drawdown shading ── */}
+        <div className="bg-slate-800/50 border border-slate-700/40 rounded-2xl p-4">
+          <EquityWithDrawdownChart
+            points={ddCurve.length >= 2 ? ddCurve : dailyPts}
+            height={190}
+            initialCapital={T.initial_capital}
+          />
+        </div>
+
         {/* Core KPIs */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <KpiCard label="Total Trades"  value={T.total_trades ?? 0} />
@@ -407,13 +641,8 @@ export default function PaperAnalytics() {
           <KpiCard label="Total PnL"     value={<span className={pnlColor(T.total_pnl ?? 0)}>{fmtRs(T.total_pnl)}</span>} />
         </div>
 
-        {/* Equity Curves */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <ChartCard title="Daily Equity" icon={<TrendingUp className="w-3.5 h-3.5 text-teal-400" />}>
-            {dailyPts.length >= 2
-              ? <EquityCurveChart points={dailyPts} color="#14b8a6" height={70} />
-              : <NoData />}
-          </ChartCard>
+        {/* Comparison curves (Weekly + Monthly) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <ChartCard title="Weekly Equity" icon={<TrendingUp className="w-3.5 h-3.5 text-sky-400" />}>
             {weeklyPts.length >= 2
               ? <EquityCurveChart points={weeklyPts} color="#38bdf8" height={70} />
