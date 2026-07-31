@@ -1162,5 +1162,390 @@ class TestAnalyticsScore(unittest.TestCase):
         self.assertGreater(s, 70)
 
 
+# ── Task #249 — Score freshness on new trade ──────────────────────────────────
+class TestScoreFreshnessOnNewTrade(unittest.TestCase):
+    """
+    Confirm get_summary() reads live loader output every call — no module-level
+    caching that would mask a new trade recorded mid-session.
+    """
+
+    _BASE_RISK = {"sharpe_ratio": 1.0, "max_drawdown_pct": 5.0,
+                  "sortino_ratio": 1.2, "calmar_ratio": 0.8, "volatility_pct": 18.0}
+    _BASE_LRN  = {"best_strategy": "RSI", "best_sector": "IT",
+                  "best_market_condition": "TRENDING", "available": True, "has_data": True}
+    _BASE_STR  = {"total_strategies": 1, "available": True, "strategies": []}
+    _BASE_SEC  = {"best_sector": "IT", "available": True, "sectors": []}
+
+    def _patch_loaders(self, trades_payload):
+        return (
+            patch("paper_analytics.shared_services._load_trades",   return_value=trades_payload),
+            patch("paper_analytics.shared_services._load_risk",     return_value=self._BASE_RISK),
+            patch("paper_analytics.shared_services._load_learning", return_value=self._BASE_LRN),
+            patch("paper_analytics.shared_services._load_strategies", return_value=self._BASE_STR),
+            patch("paper_analytics.shared_services._load_sector",   return_value=self._BASE_SEC),
+        )
+
+    def _summary(self, trades_payload):
+        from paper_analytics.shared_services import get_summary
+        patches = self._patch_loaders(trades_payload)
+        with patches[0], patches[1], patches[2], patches[3], patches[4]:
+            return get_summary()
+
+    def _trades_payload(self, n, win_rate=60.0, pf=1.5):
+        return {
+            "available": True, "total_trades": n, "win_rate": win_rate,
+            "profit_factor": pf, "expectancy": 500.0, "total_pnl": n * 500.0,
+            "realised_pnl": n * 500.0,
+        }
+
+    # ── Freshness ──────────────────────────────────────────────────────────────
+    def test_total_trades_reflects_new_trade(self):
+        """After a new trade closes the summary total_trades must increase."""
+        before = self._summary(self._trades_payload(5))
+        after  = self._summary(self._trades_payload(6))
+        self.assertEqual(before["total_trades"], 5)
+        self.assertEqual(after["total_trades"],  6)
+
+    def test_score_increases_after_new_winning_trade(self):
+        """Adding a 6th winning trade produces a higher analytics_score."""
+        score_before = self._summary(self._trades_payload(5,  win_rate=60.0))["analytics_score"]
+        score_after  = self._summary(self._trades_payload(30, win_rate=70.0))["analytics_score"]
+        self.assertGreater(score_after, score_before)
+
+    def test_two_calls_with_different_data_return_different_results(self):
+        """No module-level caching: two calls with different loader output diverge."""
+        s1 = self._summary(self._trades_payload(3))
+        s2 = self._summary(self._trades_payload(20, win_rate=75.0, pf=2.2))
+        self.assertNotEqual(s1["total_trades"],    s2["total_trades"])
+        self.assertNotEqual(s1["analytics_score"], s2["analytics_score"])
+
+    def test_summary_idempotent_with_same_data(self):
+        """Same loader output must produce identical summary twice (no randomness)."""
+        payload = self._trades_payload(10, win_rate=55.0)
+        s1 = self._summary(payload)
+        s2 = self._summary(payload)
+        self.assertEqual(s1["total_trades"],    s2["total_trades"])
+        self.assertEqual(s1["analytics_score"], s2["analytics_score"])
+        self.assertEqual(s1["grade"],           s2["grade"])
+
+    def test_grade_updates_when_score_crosses_threshold(self):
+        """Grade reflects the live score, not a stale cached value."""
+        from paper_analytics.models import analytics_grade
+        low_payload  = self._trades_payload(1, win_rate=10.0, pf=0.2)
+        high_payload = self._trades_payload(40, win_rate=80.0, pf=3.0)
+        grade_low  = self._summary(low_payload)["grade"]
+        grade_high = self._summary(high_payload)["grade"]
+        # At high inputs the grade must be strictly better than at low inputs
+        grade_order = {"A+": 5, "A": 4, "B": 3, "C": 2, "D": 1}
+        self.assertGreater(
+            grade_order.get(grade_high, 0),
+            grade_order.get(grade_low,  0),
+            f"Expected {grade_high} > {grade_low}",
+        )
+
+    def test_win_rate_in_summary_matches_loader_output(self):
+        """win_rate in summary is read from the loader, not recalculated."""
+        s = self._summary(self._trades_payload(10, win_rate=63.5))
+        self.assertAlmostEqual(s["win_rate"], 63.5, places=1)
+
+    def test_status_is_enabled_after_new_trade(self):
+        s = self._summary(self._trades_payload(7))
+        self.assertEqual(s["status"], "ENABLED")
+
+
+# ── Task #250 — Zero-trade portfolio shows no misleading zeros ────────────────
+class TestZeroTradePortfolio(unittest.TestCase):
+    """
+    Confirm a fresh portfolio (no closed trades) returns null — not 0.0 — for
+    rate and ratio fields so the React UI renders "—" rather than "0.00%".
+    """
+
+    _ZERO_TRADES = {
+        "available": True, "total_trades": 0, "win_rate": 0.0,
+        "profit_factor": 0.0, "expectancy": 0.0, "total_pnl": 0.0,
+        "realised_pnl": 0.0,
+    }
+    _ZERO_RISK = {
+        "sharpe_ratio": 0.0, "sortino_ratio": 0.0, "calmar_ratio": 0.0,
+        "max_drawdown_pct": 0.0, "volatility_pct": 0.0,
+    }
+    _ZERO_LRN = {"available": True, "has_data": False, "best_strategy": "N/A",
+                 "best_sector": "N/A", "best_market_condition": "N/A"}
+    _ZERO_STR = {"total_strategies": 0, "available": True, "strategies": []}
+    _ZERO_SEC = {"best_sector": "N/A", "available": True, "sectors": []}
+
+    def _summary(self):
+        from paper_analytics.shared_services import get_summary
+        with patch("paper_analytics.shared_services._load_trades",   return_value=self._ZERO_TRADES), \
+             patch("paper_analytics.shared_services._load_risk",     return_value=self._ZERO_RISK), \
+             patch("paper_analytics.shared_services._load_learning", return_value=self._ZERO_LRN), \
+             patch("paper_analytics.shared_services._load_strategies", return_value=self._ZERO_STR), \
+             patch("paper_analytics.shared_services._load_sector",   return_value=self._ZERO_SEC):
+            return get_summary()
+
+    # ── Null-not-zero contract ────────────────────────────────────────────────
+    def test_win_rate_is_none_for_zero_trades(self):
+        """win_rate must be None when there are no trades — not 0.0."""
+        s = self._summary()
+        self.assertIsNone(s["win_rate"],
+            "win_rate should be None (renders '—' in UI) for 0 trades, not 0.0")
+
+    def test_profit_factor_is_none_for_zero_trades(self):
+        s = self._summary()
+        self.assertIsNone(s["profit_factor"],
+            "profit_factor should be None for 0 trades, not 0.0")
+
+    def test_expectancy_is_none_for_zero_trades(self):
+        s = self._summary()
+        self.assertIsNone(s["expectancy"],
+            "expectancy should be None for 0 trades, not 0.0")
+
+    def test_sharpe_ratio_is_none_for_zero_trades(self):
+        s = self._summary()
+        self.assertIsNone(s["sharpe_ratio"],
+            "sharpe_ratio should be None for 0 trades, not 0.0")
+
+    def test_sortino_ratio_is_none_for_zero_trades(self):
+        s = self._summary()
+        self.assertIsNone(s["sortino_ratio"])
+
+    def test_calmar_ratio_is_none_for_zero_trades(self):
+        s = self._summary()
+        self.assertIsNone(s["calmar_ratio"])
+
+    def test_volatility_pct_is_none_for_zero_trades(self):
+        s = self._summary()
+        self.assertIsNone(s["volatility_pct"])
+
+    # ── Non-rate fields still present ────────────────────────────────────────
+    def test_total_trades_is_zero(self):
+        s = self._summary()
+        self.assertEqual(s["total_trades"], 0)
+
+    def test_total_pnl_is_zero_not_none(self):
+        """total_pnl is a cumulative sum — zero is correct for no trades."""
+        s = self._summary()
+        self.assertEqual(s["total_pnl"], 0.0)
+
+    def test_analytics_score_is_low_for_zero_trades(self):
+        """Score must be well below 50 with no trading data."""
+        s = self._summary()
+        self.assertLess(s["analytics_score"], 20,
+            "analytics_score should be < 20 with zero trades")
+
+    def test_status_still_enabled_for_zero_trades(self):
+        s = self._summary()
+        self.assertEqual(s["status"], "ENABLED")
+
+    def test_grade_is_d_for_zero_trades(self):
+        """Lowest grade when there is no trading data."""
+        s = self._summary()
+        self.assertEqual(s["grade"], "D")
+
+    # ── Trade analytics — null winner/loser ───────────────────────────────────
+    def test_largest_winner_none_for_zero_trades(self):
+        """largest_winner must be None, not a zero-filled dict."""
+        from paper_analytics.trade_analytics import get_trade_analytics
+        with patch("portfolio_performance.performance_engine.load_performance_data",
+                   return_value=_make_perf_data([])), \
+             patch("portfolio_performance.performance_engine.INITIAL_CAPITAL", 500_000.0):
+            r = get_trade_analytics()
+        self.assertIsNone(r["largest_winner"])
+
+    def test_largest_loser_none_for_zero_trades(self):
+        from paper_analytics.trade_analytics import get_trade_analytics
+        with patch("portfolio_performance.performance_engine.load_performance_data",
+                   return_value=_make_perf_data([])), \
+             patch("portfolio_performance.performance_engine.INITIAL_CAPITAL", 500_000.0):
+            r = get_trade_analytics()
+        self.assertIsNone(r["largest_loser"])
+
+    def test_all_public_endpoints_return_available_or_disabled_not_crash(self):
+        """Every endpoint must return a dict (not raise) for a zero-trade portfolio."""
+        import paper_analytics.shared_services as ss
+        endpoints = [
+            ss.get_summary, ss.get_trades, ss.get_strategies,
+            ss.get_risk,    ss.get_portfolio,
+        ]
+        for fn in endpoints:
+            with patch("portfolio_performance.performance_engine.load_performance_data",
+                       return_value=_make_perf_data([])), \
+                 patch("portfolio_performance.performance_engine.INITIAL_CAPITAL", 500_000.0), \
+                 patch("paper_analytics.shared_services._load_trades",   return_value=self._ZERO_TRADES), \
+                 patch("paper_analytics.shared_services._load_risk",     return_value=self._ZERO_RISK), \
+                 patch("paper_analytics.shared_services._load_learning", return_value=self._ZERO_LRN), \
+                 patch("paper_analytics.shared_services._load_strategies", return_value=self._ZERO_STR), \
+                 patch("paper_analytics.shared_services._load_sector",   return_value=self._ZERO_SEC), \
+                 patch("paper_analytics.shared_services._load_portfolio", return_value={"available": True, "total_value": 500_000.0}):
+                result = fn()
+            self.assertIsInstance(result, dict, f"{fn.__name__} did not return a dict")
+
+
+# ── Task #251 — Pre-Open Analytics with real session data ─────────────────────
+class TestPreopenWithRealSessionData(unittest.TestCase):
+    """
+    Confirm that when the preopen_accuracy module has reconciled sessions
+    the Pre-Open Analytics tab correctly extracts and surfaces the accuracy data.
+    """
+
+    # Realistic preopen_accuracy.get_accuracy() response shape
+    _ACCURACY = {
+        "trading_date":               "2026-07-30",
+        "symbols_reconciled":         25,
+        "hit_rate_pct":               68.0,
+        "continuation_rate_pct":      55.0,
+        "reversal_rate_pct":          45.0,
+        "confirmation_rate_pct":      72.0,
+        "false_positive_rate_pct":    28.0,
+        "avg_indicative_to_open_error_pct": 0.42,
+        "grade":                      "B",
+        "grade_label":                "Good",
+        "symbols": [
+            {"symbol": "RELIANCE", "preopen_score": 85, "direction_correct": True,  "error_pct": 0.3},
+            {"symbol": "TCS",      "preopen_score": 82, "direction_correct": True,  "error_pct": 0.5},
+            {"symbol": "HDFCBANK", "preopen_score": 75, "direction_correct": False, "error_pct": 0.9},
+            {"symbol": "INFY",     "preopen_score": 65, "direction_correct": True,  "error_pct": 0.2},
+            {"symbol": "WIPRO",    "preopen_score": 45, "direction_correct": False, "error_pct": 1.1},
+            {"symbol": "SAIL",     "preopen_score": 30, "direction_correct": False, "error_pct": 2.0},
+        ],
+    }
+
+    _HISTORY = {
+        "sessions": [
+            {
+                "trading_date": "2026-07-29", "hit_rate_pct": 64.0,
+                "continuation_rate_pct": 52.0, "reversal_rate_pct": 48.0,
+                "symbols_reconciled": 22, "grade": "B",
+                "avg_indicative_to_open_error_pct": 0.5,
+            },
+            {
+                "trading_date": "2026-07-28", "hit_rate_pct": 72.0,
+                "continuation_rate_pct": 60.0, "reversal_rate_pct": 40.0,
+                "symbols_reconciled": 20, "grade": "A",
+                "avg_indicative_to_open_error_pct": 0.3,
+            },
+        ]
+    }
+
+    def _call(self):
+        from paper_analytics.preopen_analytics import get_preopen_analytics
+        with patch("paper_analytics.preopen_analytics.get_accuracy",
+                   return_value=self._ACCURACY), \
+             patch("paper_analytics.preopen_analytics.get_accuracy_history",
+                   return_value=self._HISTORY), \
+             patch.dict("sys.modules", {
+                 "preopen_accuracy": MagicMock(
+                     get_accuracy=MagicMock(return_value=self._ACCURACY),
+                     get_accuracy_history=MagicMock(return_value=self._HISTORY),
+                 )
+             }):
+            return get_preopen_analytics()
+
+    def _get(self):
+        """Call with preopen_accuracy importable via sys.modules stub."""
+        mock_module = MagicMock()
+        mock_module.get_accuracy         = MagicMock(return_value=self._ACCURACY)
+        mock_module.get_accuracy_history = MagicMock(return_value=self._HISTORY)
+        with patch.dict("sys.modules", {"preopen_accuracy": mock_module}):
+            from paper_analytics.preopen_analytics import get_preopen_analytics
+            return get_preopen_analytics()
+
+    # ── available=True when data exists ───────────────────────────────────────
+    def test_available_true_when_data_present(self):
+        r = self._get()
+        self.assertTrue(r["available"],
+            "available should be True when preopen_accuracy has data")
+
+    def test_advisory_only_flag_set(self):
+        r = self._get()
+        self.assertTrue(r["advisory_only"])
+
+    # ── latest_session fields ─────────────────────────────────────────────────
+    def test_hit_rate_extracted_from_latest_session(self):
+        r = self._get()
+        ls = r.get("latest_session", {})
+        self.assertAlmostEqual(ls["hit_rate_pct"], 68.0)
+
+    def test_trading_date_in_latest_session(self):
+        r = self._get()
+        self.assertEqual(r["latest_session"]["trading_date"], "2026-07-30")
+
+    def test_grade_in_latest_session(self):
+        r = self._get()
+        self.assertEqual(r["latest_session"]["grade"], "B")
+
+    def test_symbols_reconciled_in_latest_session(self):
+        r = self._get()
+        self.assertEqual(r["latest_session"]["symbols_reconciled"], 25)
+
+    # ── Score-band accuracy ───────────────────────────────────────────────────
+    def test_score_bands_present(self):
+        r = self._get()
+        self.assertIn("score_band_accuracy", r)
+        self.assertIsInstance(r["score_band_accuracy"], list)
+        self.assertGreater(len(r["score_band_accuracy"]), 0)
+
+    def test_high_score_band_has_higher_accuracy(self):
+        """Symbols with score 80+ are mostly direction_correct → high band accuracy."""
+        r = self._get()
+        bands = {b["band"]: b for b in r["score_band_accuracy"]}
+        high_band = bands.get("80–100 (Strong)")
+        self.assertIsNotNone(high_band, "80–100 band should exist")
+        # 2 of 2 symbols in 80–100 band are direction_correct → 100%
+        self.assertAlmostEqual(high_band["accuracy"], 100.0)
+
+    def test_score_band_accuracy_values_in_range(self):
+        r = self._get()
+        for b in r["score_band_accuracy"]:
+            self.assertGreaterEqual(b["accuracy"], 0.0)
+            self.assertLessEqual(b["accuracy"], 100.0)
+
+    # ── Gap-and-go ────────────────────────────────────────────────────────────
+    def test_gap_and_go_count_matches_direction_correct(self):
+        """gap_and_go_count == number of symbols where direction_correct is True."""
+        r = self._get()
+        expected = sum(1 for s in self._ACCURACY["symbols"]
+                       if s.get("direction_correct") is True)
+        self.assertEqual(r["trend_classification"]["gap_and_go_count"], expected)
+
+    def test_gap_and_go_rate_is_percentage(self):
+        r = self._get()
+        rate = r["trend_classification"]["gap_and_go_rate"]
+        self.assertGreaterEqual(rate, 0.0)
+        self.assertLessEqual(rate, 100.0)
+
+    # ── History ───────────────────────────────────────────────────────────────
+    def test_history_contains_both_sessions(self):
+        r = self._get()
+        self.assertEqual(len(r["history"]), 2)
+
+    def test_history_sessions_have_trading_date(self):
+        r = self._get()
+        for row in r["history"]:
+            self.assertIn("trading_date", row)
+
+    def test_history_sessions_count_field(self):
+        r = self._get()
+        self.assertEqual(r["history_sessions"], 2)
+
+    # ── MAE (open vs indicative) ──────────────────────────────────────────────
+    def test_mae_open_vs_indicative_is_float(self):
+        r = self._get()
+        mae = r.get("mae_open_vs_indicative_pct")
+        self.assertIsNotNone(mae)
+        self.assertIsInstance(mae, float)
+
+    def test_mfe_explicitly_unavailable(self):
+        r = self._get()
+        self.assertFalse(r.get("mfe_available", True),
+            "MFE must be marked unavailable — requires intraday data")
+
+    # ── Symbols list ──────────────────────────────────────────────────────────
+    def test_symbols_list_present(self):
+        r = self._get()
+        self.assertIn("symbols", r)
+        self.assertEqual(len(r["symbols"]), 6)
+
+
 if __name__ == "__main__":
     unittest.main()

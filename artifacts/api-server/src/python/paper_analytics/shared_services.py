@@ -122,6 +122,17 @@ def get_summary() -> dict:
         score = _compute_analytics_score(trades, risk, learning)
         grade = analytics_grade(score)
 
+        n = int(trades.get("total_trades", 0))
+
+        # Rate and ratio fields are undefined — not zero — when there are no
+        # closed trades.  Returning None lets the React UI render "—" instead
+        # of the misleading "0.00%" or "0.00" that a zero float would produce.
+        def _rate(key: str):
+            return trades.get(key) if n > 0 else None
+
+        def _risk_ratio(key: str):
+            return risk.get(key) if n > 0 else None
+
         return {
             "status":          "ENABLED",
             "available":       True,
@@ -130,18 +141,18 @@ def get_summary() -> dict:
             "analytics_score": score,
             "grade":           grade,
             # Trade highlights
-            "total_trades":    trades.get("total_trades", 0),
-            "win_rate":        trades.get("win_rate", 0.0),
-            "profit_factor":   trades.get("profit_factor", 0.0),
-            "expectancy":      trades.get("expectancy", 0.0),
+            "total_trades":    n,
+            "win_rate":        _rate("win_rate"),
+            "profit_factor":   _rate("profit_factor"),
+            "expectancy":      _rate("expectancy"),
             "total_pnl":       trades.get("total_pnl", 0.0),
             "realised_pnl":    trades.get("realised_pnl", 0.0),
-            # Risk highlights
-            "sharpe_ratio":    risk.get("sharpe_ratio", 0.0),
-            "sortino_ratio":   risk.get("sortino_ratio", 0.0),
-            "calmar_ratio":    risk.get("calmar_ratio", 0.0),
+            # Risk highlights (also undefined without trades)
+            "sharpe_ratio":    _risk_ratio("sharpe_ratio"),
+            "sortino_ratio":   _risk_ratio("sortino_ratio"),
+            "calmar_ratio":    _risk_ratio("calmar_ratio"),
             "max_drawdown_pct": risk.get("max_drawdown_pct", 0.0),
-            "volatility_pct":  risk.get("volatility_pct", 0.0),
+            "volatility_pct":  _risk_ratio("volatility_pct"),
             # Learning highlights
             "best_strategy":   learning.get("best_strategy", "N/A"),
             "worst_strategy":  learning.get("worst_strategy", "N/A"),

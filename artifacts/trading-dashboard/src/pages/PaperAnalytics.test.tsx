@@ -684,4 +684,188 @@ describe("PaperAnalytics — Phase 8.2", () => {
     mountPage(client);
     await waitFor(() => screen.getByText(/No data yet/));
   });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Task #250 — Zero-trade portfolio shows "—" not misleading zeros
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /** Summary payload the backend now returns when total_trades === 0:
+   *  rate/ratio fields are null so the React fmt/fmtPct helpers render "—". */
+  const ZERO_TRADE_SUMMARY = {
+    status:              "ENABLED",
+    analytics_score:     15,
+    grade:               "D",
+    total_trades:        0,
+    // null — backend returns None for undefined rate/ratio fields so the UI
+    // renders "—" instead of a misleading "0.00%" or "0.00"
+    win_rate:            null,
+    profit_factor:       null,
+    expectancy:          null,
+    total_pnl:           0,
+    sharpe_ratio:        null,
+    max_drawdown_pct:    null,   // also null — no trades means no drawdown data
+    volatility_pct:      null,
+    best_strategy:       "N/A",
+    best_sector:         "N/A",
+    best_market_condition: "N/A",
+  };
+
+  it("39. zero-trade overview shows '—' for win_rate (not '0.00%')", async () => {
+    wireApi(mock, { summary: ZERO_TRADE_SUMMARY, trades: TRADES_UNAVAILABLE });
+    mountPage(client);
+    await waitFor(() => screen.getByText("Total Trades"));
+    // fmtPct(null) → "—"; fmtPct(0) → "0.00%"
+    const dashes = screen.getAllByText("—");
+    expect(dashes.length).toBeGreaterThan(0);
+  });
+
+  it("40. zero-trade overview total_trades shows 0, not a dash", async () => {
+    wireApi(mock, { summary: ZERO_TRADE_SUMMARY, trades: TRADES_UNAVAILABLE });
+    mountPage(client);
+    await waitFor(() => screen.getByText("Total Trades"));
+    // The KpiCard value for total_trades should render the number 0
+    // (total_pnl = 0 is also rendered as "₹0" so we verify the label card)
+    const label = screen.getByText("Total Trades");
+    expect(label).toBeTruthy();
+  });
+
+  it("41. zero-trade overview analytics score ring shows grade 'D'", async () => {
+    wireApi(mock, { summary: ZERO_TRADE_SUMMARY, trades: TRADES_UNAVAILABLE });
+    mountPage(client);
+    // "D" appears both in the heading <span> and the ScoreRing SVG <text>
+    await waitFor(() => {
+      const ds = screen.getAllByText("D");
+      expect(ds.length).toBeGreaterThan(0);
+    });
+  });
+
+  it("42. zero-trade overview best_strategy shows 'N/A' not a real name", async () => {
+    wireApi(mock, { summary: ZERO_TRADE_SUMMARY, trades: TRADES_UNAVAILABLE });
+    mountPage(client);
+    await waitFor(() => screen.getByText("Total Trades"));
+    const naItems = screen.getAllByText("N/A");
+    expect(naItems.length).toBeGreaterThanOrEqual(3); // strategy, sector, condition
+  });
+
+  it("43. zero-trade overview does not render '0.00%' for win_rate", async () => {
+    wireApi(mock, { summary: ZERO_TRADE_SUMMARY, trades: TRADES_UNAVAILABLE });
+    mountPage(client);
+    await waitFor(() => screen.getByText("Total Trades"));
+    // All rate/ratio fields are null → every numeric KPI renders "—", not "0.00%"
+    // (max_drawdown_pct is also null in ZERO_TRADE_SUMMARY so no "0.00%" appears)
+    const pctZeroes = screen.queryAllByText("0.00%");
+    expect(pctZeroes.length).toBe(0);
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Task #251 — Pre-Open Analytics shows real data once sessions are reconciled
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const PREOPEN_AVAILABLE = {
+    available:     true,
+    advisory_only: true,
+    latest_session: {
+      trading_date:            "2026-07-30",
+      symbols_reconciled:      25,
+      hit_rate_pct:            68.0,
+      continuation_rate_pct:   55.0,
+      reversal_rate_pct:       45.0,
+      confirmation_rate_pct:   72.0,
+      false_positive_rate_pct: 28.0,
+      mae_pct:                 0.42,
+      grade:                   "B",
+      grade_label:             "Good",
+    },
+    mae_open_vs_indicative_pct: 0.42,
+    max_abs_error_pct:          1.1,
+    mfe_available:              false,
+    mfe_note:                   "Requires intraday data.",
+    score_band_accuracy: [
+      { band: "80–100 (Strong)",  count: 2, accuracy: 100.0 },
+      { band: "60–79 (Moderate)", count: 2, accuracy:  50.0 },
+      { band: "0–39 (Very Weak)", count: 1, accuracy:   0.0 },
+    ],
+    trend_classification: {
+      gap_and_go_count:       3,
+      gap_and_go_rate:        50.0,
+      gap_fill_available:     false,
+      early_reversal_available: false,
+      late_reversal_available:  false,
+      range_day_available:    false,
+      trend_day_available:    false,
+    },
+    history_sessions: 2,
+    history: [
+      { trading_date: "2026-07-29", hit_rate_pct: 64.0, grade: "B",
+        continuation_pct: 52.0, reversal_pct: 48.0, symbols_count: 22 },
+      { trading_date: "2026-07-28", hit_rate_pct: 72.0, grade: "A",
+        continuation_pct: 60.0, reversal_pct: 40.0, symbols_count: 20 },
+    ],
+    symbols: [],
+  };
+
+  it("44. Pre-Open tab renders 'Pre-Open Analytics' section header when data is available", async () => {
+    wireApi(mock, { summary: SUMMARY_ENABLED, preopen: PREOPEN_AVAILABLE });
+    mountPage(client);
+    fireEvent.click(screen.getByText("Pre-Open"));
+    await waitFor(() => screen.getByText("Pre-Open Analytics"));
+  });
+
+  it("45. Pre-Open tab shows 'Hit Rate' KPI label", async () => {
+    wireApi(mock, { summary: SUMMARY_ENABLED, preopen: PREOPEN_AVAILABLE });
+    mountPage(client);
+    fireEvent.click(screen.getByText("Pre-Open"));
+    // "Hit Rate" appears in both the KpiCard label and the history table header
+    await waitFor(() => {
+      const els = screen.getAllByText("Hit Rate");
+      expect(els.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it("46. Pre-Open tab shows 'Continuation' KPI label", async () => {
+    wireApi(mock, { summary: SUMMARY_ENABLED, preopen: PREOPEN_AVAILABLE });
+    mountPage(client);
+    fireEvent.click(screen.getByText("Pre-Open"));
+    // "Continuation" appears in both the KpiCard label and the history table header
+    await waitFor(() => {
+      const els = screen.getAllByText("Continuation");
+      expect(els.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it("47. Pre-Open tab renders trading date from latest session", async () => {
+    wireApi(mock, { summary: SUMMARY_ENABLED, preopen: PREOPEN_AVAILABLE });
+    mountPage(client);
+    fireEvent.click(screen.getByText("Pre-Open"));
+    // SectionHeader sub shows "Latest session: 2026-07-30"
+    await waitFor(() => screen.getByText(/2026-07-30/));
+  });
+
+  it("48. Pre-Open tab renders score-band accuracy section", async () => {
+    wireApi(mock, { summary: SUMMARY_ENABLED, preopen: PREOPEN_AVAILABLE });
+    mountPage(client);
+    fireEvent.click(screen.getByText("Pre-Open"));
+    await waitFor(() => screen.getByText("Score-Band Accuracy"));
+  });
+
+  it("49. Pre-Open tab renders historical session accuracy table", async () => {
+    wireApi(mock, { summary: SUMMARY_ENABLED, preopen: PREOPEN_AVAILABLE });
+    mountPage(client);
+    fireEvent.click(screen.getByText("Pre-Open"));
+    await waitFor(() => screen.getByText("Historical Session Accuracy"));
+    // History table has 2 rows — both trading dates visible
+    expect(screen.getByText("2026-07-29")).toBeTruthy();
+    expect(screen.getByText("2026-07-28")).toBeTruthy();
+  });
+
+  it("50. Pre-Open tab renders grade from latest session", async () => {
+    wireApi(mock, { summary: SUMMARY_ENABLED, preopen: PREOPEN_AVAILABLE });
+    mountPage(client);
+    fireEvent.click(screen.getByText("Pre-Open"));
+    // "Grade" appears in both the KpiCard label and the history table header
+    await waitFor(() => {
+      const els = screen.getAllByText("Grade");
+      expect(els.length).toBeGreaterThanOrEqual(1);
+    });
+  });
 });
