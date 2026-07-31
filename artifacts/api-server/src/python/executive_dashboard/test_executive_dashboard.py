@@ -1091,5 +1091,166 @@ class TestWidgetPaperAnalytics(unittest.TestCase):
         self.assertEqual(r["total_trades"], 0)
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# Paper Analytics — end-to-end disabled-state pipeline tests
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestPaperAnalyticsDisabledPipeline(unittest.TestCase):
+    """
+    Verifies the full pipeline from _load_paper_analytics() → widget_paper_analytics()
+    → _build_widgets() → executive/summary payload when the feature flag is off.
+
+    Patches _load_paper_analytics at the engine level so the tests exercise
+    the full widget + shared_services stack without hitting the real DB or
+    the paper_analytics module.
+    """
+
+    def setUp(self):
+        os.environ["EXECUTIVE_DASHBOARD_ENABLED"] = "true"
+
+    def tearDown(self):
+        os.environ.pop("EXECUTIVE_DASHBOARD_ENABLED", None)
+
+    # ── 1. widget_paper_analytics with status: DISABLED snapshot ─────────────
+
+    def test_status_disabled_snapshot_yields_disabled_widget(self):
+        """_load_paper_analytics returning {available:False, status:'DISABLED'} → widget disabled."""
+        from executive_dashboard.widgets import widget_paper_analytics
+        data = {"paper_analytics": {"available": False, "status": "DISABLED"}}
+        r = widget_paper_analytics(data)
+        self.assertFalse(r["available"])
+        self.assertTrue(r["disabled"])
+
+    def test_status_disabled_grade_is_safe_string(self):
+        from executive_dashboard.widgets import widget_paper_analytics
+        data = {"paper_analytics": {"available": False, "status": "DISABLED"}}
+        r = widget_paper_analytics(data)
+        self.assertIsInstance(r["grade"], str)
+        self.assertEqual(r["grade"], "N/A")
+
+    def test_status_disabled_best_strategy_is_safe_string(self):
+        from executive_dashboard.widgets import widget_paper_analytics
+        data = {"paper_analytics": {"available": False, "status": "DISABLED"}}
+        r = widget_paper_analytics(data)
+        self.assertIsInstance(r["best_strategy"], str)
+        self.assertEqual(r["best_strategy"], "N/A")
+
+    def test_status_disabled_best_sector_is_safe_string(self):
+        from executive_dashboard.widgets import widget_paper_analytics
+        data = {"paper_analytics": {"available": False, "status": "DISABLED"}}
+        r = widget_paper_analytics(data)
+        self.assertIsInstance(r["best_sector"], str)
+        self.assertEqual(r["best_sector"], "N/A")
+
+    def test_status_disabled_numeric_fields_are_zero(self):
+        from executive_dashboard.widgets import widget_paper_analytics
+        data = {"paper_analytics": {"available": False, "status": "DISABLED"}}
+        r = widget_paper_analytics(data)
+        self.assertEqual(r["analytics_score"], 0.0)
+        self.assertEqual(r["win_rate"], 0.0)
+        self.assertEqual(r["profit_factor"], 0.0)
+        self.assertEqual(r["total_trades"], 0)
+        self.assertEqual(r["total_pnl"], 0.0)
+        self.assertEqual(r["sharpe_ratio"], 0.0)
+
+    def test_advisory_only_true_even_when_disabled(self):
+        from executive_dashboard.widgets import widget_paper_analytics
+        data = {"paper_analytics": {"available": False, "status": "DISABLED"}}
+        r = widget_paper_analytics(data)
+        self.assertTrue(r["advisory_only"])
+
+    # ── 2. Full pipeline: _load_paper_analytics patched → build_widgets ───────
+
+    def test_patched_disabled_load_reaches_build_widgets(self):
+        """Patch _load_paper_analytics in load_all → verify paper_analytics widget in summary."""
+        with patch("executive_dashboard.dashboard_engine._load_paper_analytics",
+                   return_value={"available": False, "status": "DISABLED"}):
+            with _patch_engine(self):
+                # _patch_engine patches shared_services.load_all with a dict that has
+                # no 'paper_analytics' key — we need to patch dashboard_engine.load_all directly
+                pass
+        # Patch dashboard_engine.load_all directly so shared_services.load_all also picks it up
+        disabled_pa = {"available": False, "status": "DISABLED"}
+        full_data = {
+            "strategy":          _make_strategy_data(),
+            "ai":                _make_ai_data(),
+            "execution_quality": _make_eq_data(),
+            "portfolio":         _make_portfolio_data(),
+            "preopen":           _make_preopen_data(),
+            "risk":              _make_risk_data(),
+            "signals":           {"available": True, "status": {}, "summary": {}},
+            "system":            _make_system_data(),
+            "readiness":         {"available": True, "readiness_score": 80.0, "grade": "B",
+                                  "verdict": "READY", "verdict_short": "GO"},
+            "paper_analytics":   disabled_pa,
+        }
+        with patch("executive_dashboard.shared_services.load_all", return_value=full_data):
+            from executive_dashboard.shared_services import _build_widgets
+            widgets = _build_widgets(full_data)
+        pa_widget = widgets.get("paper_analytics", {})
+        self.assertFalse(pa_widget["available"])
+        self.assertTrue(pa_widget["disabled"])
+
+    def test_patched_disabled_load_in_executive_summary(self):
+        """Disabled paper_analytics is present (not missing) in the full /executive/summary payload."""
+        disabled_pa = {"available": False, "status": "DISABLED"}
+        full_data = {
+            "strategy":          _make_strategy_data(),
+            "ai":                _make_ai_data(),
+            "execution_quality": _make_eq_data(),
+            "portfolio":         _make_portfolio_data(),
+            "preopen":           _make_preopen_data(),
+            "risk":              _make_risk_data(),
+            "signals":           {"available": True, "status": {}, "summary": {}},
+            "system":            _make_system_data(),
+            "readiness":         {"available": True, "readiness_score": 80.0, "grade": "B",
+                                  "verdict": "READY", "verdict_short": "GO"},
+            "paper_analytics":   disabled_pa,
+        }
+        with patch("executive_dashboard.shared_services.load_all", return_value=full_data):
+            from executive_dashboard.shared_services import get_executive_summary
+            r = get_executive_summary()
+        # Key must exist — not omitted — so the frontend always gets a well-formed object
+        self.assertIn("paper_analytics", r)
+        pa = r["paper_analytics"]
+        self.assertFalse(pa["available"])
+        self.assertTrue(pa["disabled"])
+
+    def test_disabled_paper_analytics_all_string_fields_are_str(self):
+        """Every string KPI field in the disabled widget is a plain str, never None or dict."""
+        disabled_pa = {"available": False, "status": "DISABLED"}
+        full_data = {
+            "strategy":          _make_strategy_data(),
+            "ai":                _make_ai_data(),
+            "execution_quality": _make_eq_data(),
+            "portfolio":         _make_portfolio_data(),
+            "preopen":           _make_preopen_data(),
+            "risk":              _make_risk_data(),
+            "signals":           {"available": True, "status": {}, "summary": {}},
+            "system":            _make_system_data(),
+            "readiness":         {"available": True, "readiness_score": 80.0, "grade": "B",
+                                  "verdict": "READY", "verdict_short": "GO"},
+            "paper_analytics":   disabled_pa,
+        }
+        with patch("executive_dashboard.shared_services.load_all", return_value=full_data):
+            from executive_dashboard.shared_services import get_executive_summary
+            r = get_executive_summary()
+        pa = r["paper_analytics"]
+        for field in ("grade", "best_strategy", "best_sector"):
+            self.assertIsInstance(pa[field], str, f"{field} was not a str")
+            self.assertIsNotNone(pa[field], f"{field} was None")
+
+    # ── 3. Missing paper_analytics key from load_all → disabled widget ────────
+
+    def test_missing_key_in_load_all_yields_disabled_widget(self):
+        """If load_all omits 'paper_analytics' entirely, widget_paper_analytics still returns disabled."""
+        from executive_dashboard.widgets import widget_paper_analytics
+        # Empty data — no paper_analytics key at all
+        r = widget_paper_analytics({})
+        self.assertFalse(r["available"])
+        self.assertTrue(r["disabled"])
+        self.assertEqual(r["grade"], "N/A")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -591,7 +591,9 @@ describe("ExecutiveDashboard — AI Health tile", () => {
 
     mountDashboard();
     await waitFor(() => expect(screen.queryByText("AI Health")).toBeTruthy());
-    await waitFor(() => expect(screen.queryByText("Loading…")).toBeTruthy());
+    // At least one "Loading…" placeholder is present (there may be more if other
+    // tiles are also pending — use queryAllByText to avoid a "multiple elements" error)
+    await waitFor(() => expect(screen.queryAllByText("Loading…").length).toBeGreaterThan(0));
   });
 });
 
@@ -732,6 +734,146 @@ describe("ExecutiveDashboard — Live Readiness tile", () => {
     mountDashboard();
     await waitFor(() =>
       expect(screen.queryByText("View Full Readiness Report")).toBeTruthy());
+  });
+});
+
+// ── Tests: Paper Analytics tile ──────────────────────────────────────────────
+
+describe("ExecutiveDashboard — Paper Analytics tile", () => {
+  /**
+   * paper_analytics data comes from the executive/summary payload (not a
+   * separate query), so we just embed it in the exec summary fixture.
+   */
+  const FULL_EXEC_WITH_PAPER = {
+    ...FULL_EXEC_SUMMARY,
+    paper_analytics: {
+      available:       true,
+      disabled:        false,
+      analytics_score: 72.5,
+      grade:           "B",
+      win_rate:        58.0,
+      profit_factor:   1.8,
+      total_trades:    25,
+      total_pnl:       12000,
+      sharpe_ratio:    1.2,
+      best_strategy:   "Momentum",
+      best_sector:     "IT",
+      advisory_only:   true,
+    },
+  };
+
+  const DISABLED_EXEC_WITH_PAPER = {
+    ...FULL_EXEC_SUMMARY,
+    paper_analytics: {
+      available:       false,
+      disabled:        true,
+      analytics_score: 0,
+      grade:           "N/A",
+      win_rate:        0,
+      profit_factor:   0,
+      total_trades:    0,
+      total_pnl:       0,
+      sharpe_ratio:    0,
+      best_strategy:   "N/A",
+      best_sector:     "N/A",
+      advisory_only:   true,
+    },
+  };
+
+  it("shows 'Paper Analytics' section card title", async () => {
+    vi.mocked(apiJson).mockImplementation(makeMock(FULL_EXEC_WITH_PAPER));
+
+    mountDashboard();
+    await waitFor(() => expect(screen.queryByText("Paper Analytics")).toBeTruthy());
+  });
+
+  it("shows 'Paper Analytics Disabled' when paper_analytics.disabled is true", async () => {
+    vi.mocked(apiJson).mockImplementation(makeMock(DISABLED_EXEC_WITH_PAPER));
+
+    mountDashboard();
+    await waitFor(() =>
+      expect(screen.queryByText("Paper Analytics Disabled")).toBeTruthy());
+  });
+
+  it("shows PAPER_ANALYTICS_ENABLED=true hint in the disabled state", async () => {
+    vi.mocked(apiJson).mockImplementation(makeMock(DISABLED_EXEC_WITH_PAPER));
+
+    mountDashboard();
+    await waitFor(() =>
+      expect(screen.queryByText("PAPER_ANALYTICS_ENABLED=true")).toBeTruthy());
+  });
+
+  it("renders data-testid='paper-analytics-disabled' when disabled", async () => {
+    vi.mocked(apiJson).mockImplementation(makeMock(DISABLED_EXEC_WITH_PAPER));
+
+    mountDashboard();
+    await waitFor(() =>
+      expect(screen.queryByTestId("paper-analytics-disabled")).toBeTruthy());
+  });
+
+  it("does NOT render the score ring (data-testid='paper-analytics-tile') when disabled", async () => {
+    vi.mocked(apiJson).mockImplementation(makeMock(DISABLED_EXEC_WITH_PAPER));
+
+    mountDashboard();
+    await waitFor(() =>
+      expect(screen.queryByText("Paper Analytics Disabled")).toBeTruthy());
+    // Enabled tile must be absent
+    expect(screen.queryByTestId("paper-analytics-tile")).toBeFalsy();
+  });
+
+  it("renders data-testid='paper-analytics-tile' (score ring) when enabled", async () => {
+    vi.mocked(apiJson).mockImplementation(makeMock(FULL_EXEC_WITH_PAPER));
+
+    mountDashboard();
+    await waitFor(() =>
+      expect(screen.queryByTestId("paper-analytics-tile")).toBeTruthy());
+  });
+
+  it("does NOT render the disabled message when enabled", async () => {
+    vi.mocked(apiJson).mockImplementation(makeMock(FULL_EXEC_WITH_PAPER));
+
+    mountDashboard();
+    await waitFor(() =>
+      expect(screen.queryByTestId("paper-analytics-tile")).toBeTruthy());
+    expect(screen.queryByTestId("paper-analytics-disabled")).toBeFalsy();
+  });
+
+  it("shows 'Grade B' badge inside the paper-analytics-tile when analytics score is 72.5", async () => {
+    vi.mocked(apiJson).mockImplementation(makeMock(FULL_EXEC_WITH_PAPER));
+
+    mountDashboard();
+    await waitFor(() => {
+      const tile = screen.queryByTestId("paper-analytics-tile");
+      expect(tile).toBeTruthy();
+      expect(tile?.textContent).toContain("Grade B");
+    });
+  });
+
+  it("shows 'View Full Paper Analytics' link when enabled", async () => {
+    vi.mocked(apiJson).mockImplementation(makeMock(FULL_EXEC_WITH_PAPER));
+
+    mountDashboard();
+    await waitFor(() =>
+      expect(screen.queryByText("View Full Paper Analytics")).toBeTruthy());
+  });
+
+  it("shows 'ADVISORY ONLY' badge when enabled", async () => {
+    vi.mocked(apiJson).mockImplementation(makeMock(FULL_EXEC_WITH_PAPER));
+
+    mountDashboard();
+    await waitFor(() => expect(screen.queryByText("ADVISORY ONLY")).toBeTruthy());
+  });
+
+  it("renders without crash when paper_analytics is absent from summary", async () => {
+    // paper_analytics key is undefined (old backend that hasn't been updated yet)
+    const payloadNoPa = { ...FULL_EXEC_SUMMARY };
+    delete (payloadNoPa as Record<string, unknown>)["paper_analytics"];
+    vi.mocked(apiJson).mockImplementation(makeMock(payloadNoPa));
+
+    mountDashboard();
+    await waitFor(() => expect(screen.queryByText("Paper Analytics")).toBeTruthy());
+    // Tile shows "Loading…" when d is undefined
+    await waitFor(() => expect(screen.queryByText("Loading…")).toBeTruthy());
   });
 });
 

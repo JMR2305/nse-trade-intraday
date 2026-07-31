@@ -952,7 +952,10 @@ function PaperAnalyticsTile({ d }: { d: ExecSummary["paper_analytics"] }) {
 
   if (d.disabled || !d.available) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 py-4 text-center">
+      <div
+        data-testid="paper-analytics-disabled"
+        className="flex flex-col items-center justify-center gap-3 py-4 text-center"
+      >
         <LineChart className="w-8 h-8 text-slate-600" />
         <div>
           <p className="text-sm font-medium text-slate-400">Paper Analytics Disabled</p>
