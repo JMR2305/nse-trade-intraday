@@ -273,6 +273,54 @@ def widget_readiness(data: dict) -> dict:
 # Header data
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Section 12 — Paper Analytics (Phase 8.2)
+# ---------------------------------------------------------------------------
+
+def widget_paper_analytics(data: dict) -> dict:
+    """Flat KPI tile for the Paper Analytics score (Phase 8.2).
+
+    Reads from the ``paper_analytics`` key populated by dashboard_engine
+    via ``get_paper_analytics_snapshot()``.  Gracefully degrades when the
+    feature flag ``PAPER_ANALYTICS_ENABLED`` is off.
+    """
+    pa = data.get("paper_analytics", {})
+    available = bool(pa.get("available", False))
+    if not available:
+        return {
+            "available":       False,
+            "disabled":        True,
+            "analytics_score": 0.0,
+            "grade":           "N/A",
+            "win_rate":        0.0,
+            "profit_factor":   0.0,
+            "total_trades":    0,
+            "total_pnl":       0.0,
+            "sharpe_ratio":    0.0,
+            "best_strategy":   "N/A",
+            "best_sector":     "N/A",
+            "advisory_only":   True,
+        }
+    return {
+        "available":       True,
+        "disabled":        False,
+        "analytics_score": _g(pa, "analytics_score", default=0.0),
+        "grade":           _as_str(_g(pa, "grade",           default="N/A")),
+        "win_rate":        _g(pa, "win_rate",                default=0.0),
+        "profit_factor":   _g(pa, "profit_factor",           default=0.0),
+        "total_trades":    int(_g(pa, "total_trades",         default=0) or 0),
+        "total_pnl":       _g(pa, "total_pnl",               default=0.0),
+        "sharpe_ratio":    _g(pa, "sharpe_ratio",            default=0.0),
+        "best_strategy":   _as_str(_g(pa, "best_strategy",   default="N/A")),
+        "best_sector":     _as_str(_g(pa, "best_sector",     default="N/A")),
+        "advisory_only":   True,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Header data
+# ---------------------------------------------------------------------------
+
 def widget_header(data: dict) -> dict:
     sys  = data.get("system", {})
     po   = data.get("preopen", {})

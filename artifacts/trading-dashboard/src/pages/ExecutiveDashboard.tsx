@@ -16,7 +16,7 @@ import {
   CheckCircle, ChevronDown, ChevronRight, Clock, Cpu, Database,
   ExternalLink, FlaskConical, Gauge, Globe2, Info, LayoutDashboard, Monitor,
   RefreshCw, Shield, ShieldAlert, Star, TrendingDown, TrendingUp,
-  Wifi, Zap,
+  Wifi, Zap, LineChart,
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -138,6 +138,20 @@ interface ExecSummary {
     grade: string;
     verdict: string;
     verdict_short: string;
+  };
+  paper_analytics?: {
+    available: boolean;
+    disabled: boolean;
+    analytics_score: number;
+    grade: string;
+    win_rate: number;
+    profit_factor: number;
+    total_trades: number;
+    total_pnl: number;
+    sharpe_ratio: number;
+    best_strategy: string;
+    best_sector: string;
+    advisory_only: boolean;
   };
 }
 
@@ -931,6 +945,114 @@ function AIHealthTile({ d }: { d: AISummaryData | undefined }) {
 }
 
 // ---------------------------------------------------------------------------
+// Section 14 — Paper Analytics Tile (Phase 8.2)
+// ---------------------------------------------------------------------------
+function PaperAnalyticsTile({ d }: { d: ExecSummary["paper_analytics"] }) {
+  if (!d) return <p className="text-slate-500 text-sm">Loading…</p>;
+
+  if (d.disabled || !d.available) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-4 text-center">
+        <LineChart className="w-8 h-8 text-slate-600" />
+        <div>
+          <p className="text-sm font-medium text-slate-400">Paper Analytics Disabled</p>
+          <p className="text-xs text-slate-500 mt-1">
+            Set{" "}
+            <code className="bg-slate-800 px-1 rounded text-amber-300">
+              PAPER_ANALYTICS_ENABLED=true
+            </code>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const score = d.analytics_score ?? 0;
+  const ringColor = score >= 80 ? "#34d399" : score >= 60 ? "#fbbf24" : "#f87171";
+  const gradeBg =
+    score >= 80 ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+    : score >= 60 ? "bg-amber-500/15 text-amber-300 border-amber-500/30"
+    : "bg-red-500/15 text-red-300 border-red-500/30";
+
+  const r    = 30;
+  const circ = 2 * Math.PI * r;
+  const fill = (Math.min(score, 100) / 100) * circ;
+
+  return (
+    <div className="space-y-3" data-testid="paper-analytics-tile">
+      {/* Score ring + grade */}
+      <div className="flex items-center gap-4">
+        <svg
+          width="80" height="80" viewBox="0 0 80 80"
+          className="shrink-0"
+          aria-label={`Analytics score ${Math.round(score)}/100`}
+        >
+          <circle cx="40" cy="40" r={r} fill="none" stroke="#1e293b" strokeWidth="9" />
+          <circle
+            cx="40" cy="40" r={r} fill="none"
+            stroke={ringColor} strokeWidth="9"
+            strokeDasharray={`${fill} ${circ - fill}`}
+            strokeLinecap="round"
+            transform="rotate(-90 40 40)"
+            style={{ transition: "stroke-dasharray 0.5s ease" }}
+          />
+          <text x="40" y="44" textAnchor="middle" fill={ringColor} fontSize="16" fontWeight="bold">
+            {Math.round(score)}
+          </text>
+        </svg>
+
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={cn("px-2 py-0.5 rounded-full border text-xs font-bold", gradeBg)}>
+              Grade {d.grade}
+            </span>
+            <span className="px-2 py-0.5 rounded border border-amber-700/50 bg-amber-900/30 text-amber-300 text-[10px] font-mono">
+              ADVISORY ONLY
+            </span>
+          </div>
+          <p className="text-xs text-slate-400">Analytics score /100 · paper trades only</p>
+        </div>
+      </div>
+
+      {/* Key KPIs */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-2.5">
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider">Win Rate</p>
+          <p className={cn("text-base font-bold", (d.win_rate ?? 0) >= 55 ? "text-emerald-400" : "text-amber-400")}>
+            {fmt(d.win_rate, 1)}%
+          </p>
+        </div>
+        <div className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-2.5">
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider">Profit Factor</p>
+          <p className={cn("text-base font-bold", (d.profit_factor ?? 0) >= 1.5 ? "text-emerald-400" : "text-amber-400")}>
+            {fmt(d.profit_factor)}
+          </p>
+        </div>
+        <div className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-2.5">
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider">Total P&L</p>
+          <p className={cn("text-base font-bold", pnlColor(d.total_pnl ?? 0))}>
+            {fmtInr(d.total_pnl)}
+          </p>
+        </div>
+        <div className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-2.5">
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider">Trades</p>
+          <p className="text-base font-bold text-slate-100">{d.total_trades}</p>
+        </div>
+      </div>
+
+      <Link
+        href="/paper-analytics"
+        className="flex items-center justify-center gap-1.5 w-full px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-lg text-slate-300 text-xs hover:bg-slate-700/50 hover:text-slate-100 transition-colors"
+      >
+        <LineChart className="w-3.5 h-3.5" />
+        View Full Paper Analytics
+        <ChevronRight className="w-3.5 h-3.5" />
+      </Link>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Section 10 — Quick Actions
 // ---------------------------------------------------------------------------
 function QuickActionsSection({ actions }: { actions: ExecSummary["quick_actions"] }) {
@@ -1076,6 +1198,10 @@ export default function ExecutiveDashboard() {
 
         <SectionCard title="Research Lab" icon={<FlaskConical className="w-4 h-4 text-violet-400" />}>
           <ResearchLabTile d={researchSnap} />
+        </SectionCard>
+
+        <SectionCard title="Paper Analytics" icon={<LineChart className="w-4 h-4 text-teal-400" />}>
+          <PaperAnalyticsTile d={d.paper_analytics} />
         </SectionCard>
       </div>
 

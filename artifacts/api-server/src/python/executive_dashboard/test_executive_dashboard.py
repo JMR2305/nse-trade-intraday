@@ -927,5 +927,169 @@ class TestStringKpiCoercion(unittest.TestCase):
         self.assertEqual(r["trading_date"],    "2026-07-30")
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# widget_paper_analytics — Phase 8.2
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestWidgetPaperAnalytics(unittest.TestCase):
+    """
+    Covers widget_paper_analytics() for all inputs:
+      - missing / unavailable data  → disabled stub
+      - full snapshot               → correct field mapping
+      - string coercion             → grade / best_strategy / best_sector
+      - advisory_only always True
+    """
+
+    def setUp(self):
+        os.environ["EXECUTIVE_DASHBOARD_ENABLED"] = "true"
+
+    def tearDown(self):
+        os.environ.pop("EXECUTIVE_DASHBOARD_ENABLED", None)
+
+    def _pa(self, overrides: dict) -> dict:
+        from executive_dashboard.widgets import widget_paper_analytics
+        snap = {
+            "available":       True,
+            "analytics_score": 72.5,
+            "grade":           "B",
+            "win_rate":        58.0,
+            "profit_factor":   1.8,
+            "total_trades":    25,
+            "total_pnl":       12_000.0,
+            "sharpe_ratio":    1.2,
+            "best_strategy":   "Momentum",
+            "best_sector":     "IT",
+        }
+        snap.update(overrides)
+        return widget_paper_analytics({"paper_analytics": snap})
+
+    # ── disabled / missing ────────────────────────────────────────────────────
+
+    def test_empty_data_returns_disabled(self):
+        from executive_dashboard.widgets import widget_paper_analytics
+        r = widget_paper_analytics({})
+        self.assertFalse(r["available"])
+        self.assertTrue(r["disabled"])
+        self.assertEqual(r["analytics_score"], 0.0)
+        self.assertEqual(r["grade"], "N/A")
+        self.assertTrue(r["advisory_only"])
+
+    def test_available_false_returns_disabled(self):
+        from executive_dashboard.widgets import widget_paper_analytics
+        r = widget_paper_analytics({"paper_analytics": {"available": False}})
+        self.assertFalse(r["available"])
+        self.assertTrue(r["disabled"])
+        self.assertEqual(r["grade"], "N/A")
+        self.assertEqual(r["best_strategy"], "N/A")
+        self.assertTrue(r["advisory_only"])
+
+    # ── happy path ────────────────────────────────────────────────────────────
+
+    def test_analytics_score_passed_through(self):
+        r = self._pa({})
+        self.assertAlmostEqual(r["analytics_score"], 72.5, places=1)
+
+    def test_win_rate_passed_through(self):
+        r = self._pa({})
+        self.assertAlmostEqual(r["win_rate"], 58.0, places=1)
+
+    def test_profit_factor_passed_through(self):
+        r = self._pa({})
+        self.assertAlmostEqual(r["profit_factor"], 1.8, places=1)
+
+    def test_total_trades_passed_through(self):
+        r = self._pa({})
+        self.assertEqual(r["total_trades"], 25)
+
+    def test_total_pnl_passed_through(self):
+        r = self._pa({})
+        self.assertAlmostEqual(r["total_pnl"], 12_000.0, places=0)
+
+    def test_sharpe_ratio_passed_through(self):
+        r = self._pa({})
+        self.assertAlmostEqual(r["sharpe_ratio"], 1.2, places=1)
+
+    def test_available_true_when_enabled(self):
+        r = self._pa({})
+        self.assertTrue(r["available"])
+        self.assertFalse(r["disabled"])
+
+    def test_advisory_only_always_true(self):
+        r = self._pa({})
+        self.assertTrue(r["advisory_only"])
+
+    # ── string coercion ───────────────────────────────────────────────────────
+
+    def test_grade_dict_coerced_to_na(self):
+        r = self._pa({"grade": {"letter": "B", "score": 72}})
+        self.assertIsInstance(r["grade"], str)
+        self.assertEqual(r["grade"], "N/A")
+
+    def test_grade_none_coerced_to_na(self):
+        r = self._pa({"grade": None})
+        self.assertIsInstance(r["grade"], str)
+        self.assertEqual(r["grade"], "N/A")
+
+    def test_grade_valid_passes_through(self):
+        r = self._pa({"grade": "A"})
+        self.assertEqual(r["grade"], "A")
+
+    def test_best_strategy_dict_coerced(self):
+        r = self._pa({"best_strategy": {"name": "Momentum"}})
+        self.assertIsInstance(r["best_strategy"], str)
+        self.assertEqual(r["best_strategy"], "N/A")
+
+    def test_best_strategy_none_coerced(self):
+        r = self._pa({"best_strategy": None})
+        self.assertIsInstance(r["best_strategy"], str)
+        self.assertEqual(r["best_strategy"], "N/A")
+
+    def test_best_strategy_valid_passes_through(self):
+        r = self._pa({"best_strategy": "MACD_CROSS"})
+        self.assertEqual(r["best_strategy"], "MACD_CROSS")
+
+    def test_best_sector_dict_coerced(self):
+        r = self._pa({"best_sector": {"sector": "IT", "weight": 0.4}})
+        self.assertIsInstance(r["best_sector"], str)
+        self.assertEqual(r["best_sector"], "N/A")
+
+    def test_best_sector_none_coerced(self):
+        r = self._pa({"best_sector": None})
+        self.assertIsInstance(r["best_sector"], str)
+        self.assertEqual(r["best_sector"], "N/A")
+
+    def test_best_sector_valid_passes_through(self):
+        r = self._pa({"best_sector": "Banking"})
+        self.assertEqual(r["best_sector"], "Banking")
+
+    # ── regression: no string field is ever dict or None ─────────────────────
+
+    def test_no_string_field_is_none(self):
+        r = self._pa({"grade": None, "best_strategy": None, "best_sector": None})
+        for field in ("grade", "best_strategy", "best_sector"):
+            self.assertIsNotNone(r.get(field), f"{field} was None")
+
+    def test_no_string_field_is_dict(self):
+        r = self._pa({
+            "grade":         {"bad": "value"},
+            "best_strategy": {"bad": "value"},
+            "best_sector":   {"bad": "value"},
+        })
+        for field in ("grade", "best_strategy", "best_sector"):
+            self.assertNotIsInstance(r.get(field), dict, f"{field} was a dict")
+
+    # ── total_trades coercion from float ─────────────────────────────────────
+
+    def test_total_trades_coerced_from_float(self):
+        r = self._pa({"total_trades": 12.9})
+        self.assertIsInstance(r["total_trades"], int)
+        self.assertEqual(r["total_trades"], 12)
+
+    def test_total_trades_coerced_from_none(self):
+        r = self._pa({"total_trades": None})
+        self.assertIsInstance(r["total_trades"], int)
+        self.assertEqual(r["total_trades"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()

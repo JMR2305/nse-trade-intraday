@@ -139,6 +139,16 @@ def _load_system_health() -> dict:
     return {"available": True, "scheduler": sched, "meta": meta}
 
 
+def _load_paper_analytics() -> dict:
+    """Phase 8.2 — paper_analytics.shared_services (direct import)."""
+    try:
+        from paper_analytics.shared_services import get_paper_analytics_snapshot
+        snap = get_paper_analytics_snapshot()
+        return snap
+    except Exception as exc:
+        return {"available": False, "error": str(exc)}
+
+
 def _load_readiness() -> dict:
     """Phase 6.5 — live_readiness.shared_services (direct import)."""
     try:
@@ -169,4 +179,5 @@ def load_all() -> dict:
         "signals":          _load_signal_validation(),
         "system":           _load_system_health(),
         "readiness":        _load_readiness(),
+        "paper_analytics":  _load_paper_analytics(),
     }
