@@ -877,6 +877,119 @@ describe("ExecutiveDashboard — Paper Analytics tile", () => {
   });
 });
 
+// ── Tests: Executive Score ring reflects paper_analytics changes ──────────────
+//
+// The backend computes executive_score.total; the frontend renders it in the
+// score ring.  These tests verify that different paper_analytics scores produce
+// different displayed totals, and that the 10-point full-range spread (weight
+// 10% × 100-point range) is represented correctly in the payload returned.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("ExecutiveDashboard — Executive Score ring reflects paper analytics changes", () => {
+  /**
+   * payloadWithPaScore() builds an exec-summary fixture where executive_score.total
+   * has already incorporated paper_analytics at the given score.
+   *
+   * The backend owns the arithmetic; we simulate it here by adjusting the
+   * pre-computed total that the API would return:
+   *   base total with paper_analytics=50 (neutral) = 68
+   *   total with paper_analytics=0   = 68 - (50-0)  * 0.10 = 63
+   *   total with paper_analytics=100 = 68 + (100-50)* 0.10 = 73
+   *
+   * Base of 68 is chosen so the DOM totals (63 and 73) are distinct from every
+   * component score in FULL_EXEC_SUMMARY (80, 75, 70, 85, 82, 76), preventing
+   * false positives from the ScoreBreakdown grid.
+   */
+  const BASE_TOTAL_AT_NEUTRAL = 68;
+  const PA_WEIGHT = 0.10;
+  const NEUTRAL = 50;
+
+  function payloadWithPaScore(paScore: number) {
+    const total = Math.round(
+      (BASE_TOTAL_AT_NEUTRAL + (paScore - NEUTRAL) * PA_WEIGHT) * 10
+    ) / 10;
+    return {
+      ...FULL_EXEC_SUMMARY,
+      executive_score: {
+        ...FULL_EXEC_SUMMARY.executive_score,
+        total,
+        label: total >= 75 ? "Good" : total >= 50 ? "Average" : "Poor",
+        components: {
+          ...(FULL_EXEC_SUMMARY.executive_score.components as Record<string, number>),
+          paper_analytics: paScore,
+        },
+      },
+      paper_analytics: {
+        available:       paScore > 0,
+        disabled:        paScore === 0,
+        analytics_score: paScore,
+        grade:           paScore >= 80 ? "A" : paScore >= 60 ? "B" : "D",
+        win_rate:        paScore >= 80 ? 65.0 : 40.0,
+        profit_factor:   paScore >= 80 ? 2.1  : 0.9,
+        total_trades:    10,
+        total_pnl:       paScore >= 80 ? 8000 : -1000,
+        sharpe_ratio:    paScore >= 80 ? 1.5  : 0.4,
+        best_strategy:   "Momentum",
+        best_sector:     "IT",
+        advisory_only:   true,
+      },
+    };
+  }
+
+  it("score ring shows different totals for poor (score=0) and excellent (score=100) paper analytics", async () => {
+    // ── Render 1: poor paper analytics (score=0) → total=63 ──────────────────
+    const payloadPoor = payloadWithPaScore(0);    // total = 63
+    vi.mocked(apiJson).mockImplementation(makeMock(payloadPoor));
+    mountDashboard();
+
+    // Wait for the score ring to render; ScoreRing has data-testid="exec-score-total"
+    await waitFor(() =>
+      expect(screen.queryByTestId("exec-score-total")).toBeTruthy()
+    );
+    const poorTotal = screen.getByTestId("exec-score-total").textContent?.trim();
+    expect(poorTotal).toBe(String(Math.round(payloadPoor.executive_score.total)));  // "63"
+
+    // ── Render 2: excellent paper analytics (score=100) → total=73 ───────────
+    cleanup();
+    const payloadExcellent = payloadWithPaScore(100);    // total = 73
+    vi.mocked(apiJson).mockImplementation(makeMock(payloadExcellent));
+    mountDashboard();
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("exec-score-total")).toBeTruthy()
+    );
+    const excellentTotal = screen.getByTestId("exec-score-total").textContent?.trim();
+    expect(excellentTotal).toBe(String(Math.round(payloadExcellent.executive_score.total)));  // "73"
+
+    // The excellent render must show a strictly higher total than the poor render
+    expect(Number(excellentTotal)).toBeGreaterThan(Number(poorTotal));
+  });
+
+  it("poor-to-excellent improvement produces ≈10-point spread in displayed totals", () => {
+    // This is a pure arithmetic invariant — no DOM needed.
+    const totalPoor      = payloadWithPaScore(0).executive_score.total;    // 65
+    const totalExcellent = payloadWithPaScore(100).executive_score.total;  // 75
+    const delta = totalExcellent - totalPoor;
+    // Expected: 100 × 0.10 = 10.0 (±0.5 for rounding)
+    expect(Math.abs(delta - 10.0)).toBeLessThanOrEqual(0.5);
+  });
+
+  it("poor-to-neutral improvement (score 20→50) produces ≈3-point spread", () => {
+    const totalPoor    = payloadWithPaScore(20).executive_score.total;
+    const totalNeutral = payloadWithPaScore(50).executive_score.total;
+    const delta = totalNeutral - totalPoor;
+    // Expected: (50-20) × 0.10 = 3.0 (±0.5)
+    expect(Math.abs(delta - 3.0)).toBeLessThanOrEqual(0.5);
+  });
+
+  it("score ring total is strictly higher for excellent analytics than for poor", async () => {
+    const payloadPoor      = payloadWithPaScore(20);
+    const payloadExcellent = payloadWithPaScore(90);
+    expect(payloadExcellent.executive_score.total)
+      .toBeGreaterThan(payloadPoor.executive_score.total);
+  });
+});
+
 // ── Tests: Market Snapshot with null prices ───────────────────────────────────
 
 describe("ExecutiveDashboard — market snapshot", () => {

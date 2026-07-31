@@ -1481,5 +1481,174 @@ class TestPaperAnalyticsNeutralFallback(unittest.TestCase):
         self.assertGreaterEqual(score.paper_analytics, 0.0)
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# Paper Analytics score impact on Executive Score composite — regression guard
+#
+# These tests verify that the 10% weight produces a proportionally correct
+# change in the composite total when paper_analytics.analytics_score moves —
+# e.g. from poor (20) to excellent (90) mid-session.
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestPaperAnalyticsScoreImpact(unittest.TestCase):
+    """
+    Verifies compute_executive_score() total changes proportionally when the
+    paper_analytics analytics_score improves or declines.
+
+    Key invariant: the weight of paper_analytics is 0.10 (10%), so a change of
+    Δ points in analytics_score should produce Δ × 0.10 change in the composite
+    total (±0.5 for rounding).
+    """
+
+    # ── 1. Core proportionality: 20 → 90 delta ────────────────────────────────
+
+    def test_score_delta_poor_to_excellent_matches_weight(self):
+        """
+        analytics_score 20 → 90: total delta ≈ (90-20) × 0.10 = 7.0 points.
+        Verifies the 10% weight is applied, not ignored or doubled.
+        """
+        from executive_dashboard.layout import compute_executive_score
+        from executive_dashboard.dashboard_models import SCORE_WEIGHTS
+
+        widgets_poor = _base_widgets()
+        widgets_poor["paper_analytics"] = {"available": True, "analytics_score": 20.0}
+
+        widgets_great = _base_widgets()
+        widgets_great["paper_analytics"] = {"available": True, "analytics_score": 90.0}
+
+        score_poor  = compute_executive_score(widgets_poor)
+        score_great = compute_executive_score(widgets_great)
+
+        expected_delta = (90.0 - 20.0) * SCORE_WEIGHTS["paper_analytics"]  # = 7.0
+        actual_delta   = score_great.total - score_poor.total
+        self.assertAlmostEqual(actual_delta, expected_delta, delta=0.5,
+                               msg=f"Expected delta ≈{expected_delta:.1f}, got {actual_delta:.1f}")
+
+    def test_excellent_score_higher_than_poor(self):
+        """analytics_score=90 produces a strictly higher composite than score=20."""
+        from executive_dashboard.layout import compute_executive_score
+
+        widgets_poor = _base_widgets()
+        widgets_poor["paper_analytics"] = {"available": True, "analytics_score": 20.0}
+
+        widgets_great = _base_widgets()
+        widgets_great["paper_analytics"] = {"available": True, "analytics_score": 90.0}
+
+        self.assertGreater(
+            compute_executive_score(widgets_great).total,
+            compute_executive_score(widgets_poor).total,
+        )
+
+    # ── 2. Full range: 0 → 100 delta ─────────────────────────────────────────
+
+    def test_full_range_delta_is_ten_points(self):
+        """
+        analytics_score 0 → 100: total delta ≈ 100 × 0.10 = 10.0 points.
+        This is the maximum possible contribution of paper_analytics.
+        """
+        from executive_dashboard.layout import compute_executive_score
+        from executive_dashboard.dashboard_models import SCORE_WEIGHTS
+
+        widgets_zero = _base_widgets()
+        widgets_zero["paper_analytics"] = {"available": True, "analytics_score": 0.0}
+
+        widgets_max = _base_widgets()
+        widgets_max["paper_analytics"] = {"available": True, "analytics_score": 100.0}
+
+        score_zero = compute_executive_score(widgets_zero)
+        score_max  = compute_executive_score(widgets_max)
+
+        expected_delta = 100.0 * SCORE_WEIGHTS["paper_analytics"]  # = 10.0
+        actual_delta   = score_max.total - score_zero.total
+        self.assertAlmostEqual(actual_delta, expected_delta, delta=0.5,
+                               msg=f"Expected delta ≈{expected_delta:.1f}, got {actual_delta:.1f}")
+
+    # ── 3. Only paper_analytics changed — other components untouched ──────────
+
+    def test_other_components_unchanged_when_paper_analytics_moves(self):
+        """
+        Moving analytics_score does not affect any other component score.
+        portfolio_health, ai_health, etc. must be identical in both payloads.
+        """
+        from executive_dashboard.layout import compute_executive_score
+
+        widgets_poor = _base_widgets()
+        widgets_poor["paper_analytics"] = {"available": True, "analytics_score": 20.0}
+
+        widgets_great = _base_widgets()
+        widgets_great["paper_analytics"] = {"available": True, "analytics_score": 90.0}
+
+        score_poor  = compute_executive_score(widgets_poor)
+        score_great = compute_executive_score(widgets_great)
+
+        for attr in ("portfolio_health", "ai_health", "strategy_health",
+                     "execution_quality", "risk", "system_health"):
+            self.assertAlmostEqual(
+                getattr(score_poor, attr), getattr(score_great, attr), places=1,
+                msg=f"{attr} should be identical in both payloads",
+            )
+
+    # ── 4. Neutral → excellent: delta ≈ 5 points ─────────────────────────────
+
+    def test_neutral_to_excellent_delta_matches_weight(self):
+        """
+        disabled (neutral 50) → enabled excellent (score=100):
+        delta ≈ (100-50) × 0.10 = 5.0 points.
+        """
+        from executive_dashboard.layout import compute_executive_score
+        from executive_dashboard.dashboard_models import SCORE_WEIGHTS
+
+        widgets_neutral = _base_widgets()
+        widgets_neutral["paper_analytics"] = {"available": False}
+
+        widgets_excellent = _base_widgets()
+        widgets_excellent["paper_analytics"] = {"available": True, "analytics_score": 100.0}
+
+        score_neutral   = compute_executive_score(widgets_neutral)
+        score_excellent = compute_executive_score(widgets_excellent)
+
+        expected_delta = (100.0 - 50.0) * SCORE_WEIGHTS["paper_analytics"]  # = 5.0
+        actual_delta   = score_excellent.total - score_neutral.total
+        self.assertAlmostEqual(actual_delta, expected_delta, delta=0.5,
+                               msg=f"Expected delta ≈{expected_delta:.1f}, got {actual_delta:.1f}")
+
+    # ── 5. Monotonicity: score goes up as analytics_score improves ────────────
+
+    def test_total_increases_monotonically_as_analytics_improves(self):
+        """
+        As analytics_score increases from 0 to 100 in steps of 20, the
+        composite total must strictly increase each time (monotonic).
+        """
+        from executive_dashboard.layout import compute_executive_score
+
+        previous_total = None
+        for pa_score in (0, 20, 40, 60, 80, 100):
+            widgets = _base_widgets()
+            widgets["paper_analytics"] = {"available": True, "analytics_score": float(pa_score)}
+            total = compute_executive_score(widgets).total
+            if previous_total is not None:
+                self.assertGreater(
+                    total, previous_total,
+                    msg=f"Total should increase: pa={pa_score}, total={total} <= prev={previous_total}",
+                )
+            previous_total = total
+
+    # ── 6. Regression: component value recorded in to_dict() ─────────────────
+
+    def test_paper_analytics_component_reflected_in_to_dict(self):
+        """The paper_analytics component score exposed via to_dict() matches input."""
+        from executive_dashboard.layout import compute_executive_score
+
+        widgets = _base_widgets()
+        widgets["paper_analytics"] = {"available": True, "analytics_score": 73.0}
+
+        score = compute_executive_score(widgets)
+        d = score.to_dict()
+
+        self.assertAlmostEqual(
+            d["components"]["paper_analytics"], 73.0, places=1,
+            msg="to_dict() paper_analytics component should match input score",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

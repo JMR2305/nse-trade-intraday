@@ -321,7 +321,8 @@ function ScoreRing({ score, label }: { score: number; label: string }) {
           transform="rotate(-90 65 65)"
           style={{ transition: "stroke-dasharray 0.6s ease" }}
         />
-        <text x="65" y="59" textAnchor="middle" fill={color} fontSize="26" fontWeight="bold">
+        <text x="65" y="59" textAnchor="middle" fill={color} fontSize="26" fontWeight="bold"
+              data-testid="exec-score-total">
           {Math.round(score)}
         </text>
         <text x="65" y="75" textAnchor="middle" fill="#94a3b8" fontSize="11">/100</text>
