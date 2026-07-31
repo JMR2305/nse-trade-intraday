@@ -394,15 +394,163 @@ describe("DataQuality page — Alerts tab", () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 // History tab
 // ═══════════════════════════════════════════════════════════════════════════════
-describe("DataQuality page — History tab", () => {
-  it("shows Phase 8.4 coming-soon placeholder", async () => {
+// ── History fixtures ──────────────────────────────────────────────────────────
+function makeRun(score: number, grade: string, i = 0) {
+  return {
+    id: i + 1,
+    run_ts: `2026-07-${String(i + 1).padStart(2, "0")}T09:15:00Z`,
+    quality_score: score,
+    grade,
+    critical_count: 0,
+    warning_count: 1,
+    domain_scores: { market: 90, preopen: 85, paper: 80, portfolio: 75, ai: 70, signals: 92, config: 65 },
+  };
+}
+
+const HISTORY_EMPTY = {
+  status: "ENABLED", available: true, advisory_only: true,
+  total_runs: 0, runs: [], generated_at: "2026-07-30T09:15:00Z",
+};
+
+const HISTORY_WITH_RUNS = {
+  status: "ENABLED", available: true, advisory_only: true,
+  total_runs: 3,
+  runs: [makeRun(85, "A", 2), makeRun(78, "B", 1), makeRun(72, "B", 0)],
+  generated_at: "2026-07-30T09:15:00Z",
+};
+
+const HISTORY_ONE_RUN = {
+  status: "ENABLED", available: true, advisory_only: true,
+  total_runs: 1, runs: [makeRun(80, "A", 0)],
+  generated_at: "2026-07-30T09:15:00Z",
+};
+
+const HISTORY_DISABLED = {
+  status: "DISABLED", available: false, advisory_only: true,
+};
+
+describe("DataQuality page — History tab (Task #257)", () => {
+  it("shows empty state when no runs recorded", async () => {
     const qc = mkQc();
-    wireApi(mockApi, { summary: SUMMARY_ENABLED });
+    wireApi(mockApi, { summary: SUMMARY_ENABLED, history: HISTORY_EMPTY });
+    renderPage(qc);
+    clickTab("History");
+    await waitFor(() => expect(screen.queryByText(/No history yet/i)).toBeTruthy());
+  });
+
+  it("shows run count in section sub-heading", async () => {
+    const qc = mkQc();
+    wireApi(mockApi, { summary: SUMMARY_ENABLED, history: HISTORY_WITH_RUNS });
+    renderPage(qc);
+    clickTab("History");
+    await waitFor(() => expect(screen.queryByText(/3 runs stored/i)).toBeTruthy());
+  });
+
+  it("renders sparkline SVG when ≥ 2 runs", async () => {
+    const qc = mkQc();
+    wireApi(mockApi, { summary: SUMMARY_ENABLED, history: HISTORY_WITH_RUNS });
     renderPage(qc);
     clickTab("History");
     await waitFor(() =>
-      expect(screen.queryByText(/History Coming in Phase 8\.4/i)).toBeTruthy()
+      expect(screen.queryByTestId("dq-history-sparkline")).toBeTruthy()
     );
+  });
+
+  it("shows 'not enough data' when only 1 run", async () => {
+    const qc = mkQc();
+    wireApi(mockApi, { summary: SUMMARY_ENABLED, history: HISTORY_ONE_RUN });
+    renderPage(qc);
+    clickTab("History");
+    await waitFor(() =>
+      expect(screen.queryByText(/Not enough data/i)).toBeTruthy()
+    );
+  });
+
+  it("renders history table when runs exist", async () => {
+    const qc = mkQc();
+    wireApi(mockApi, { summary: SUMMARY_ENABLED, history: HISTORY_WITH_RUNS });
+    renderPage(qc);
+    clickTab("History");
+    await waitFor(() =>
+      expect(screen.queryByTestId("dq-history-table")).toBeTruthy()
+    );
+  });
+
+  it("shows latest quality score in the trend KPI row", async () => {
+    const qc = mkQc();
+    wireApi(mockApi, { summary: SUMMARY_ENABLED, history: HISTORY_WITH_RUNS });
+    renderPage(qc);
+    clickTab("History");
+    await waitFor(() => {
+      // Latest score is 85.0
+      const cells = screen.queryAllByText(/85\.0%/);
+      expect(cells.length).toBeGreaterThan(0);
+    });
+  });
+
+  it("shows grade column in the history table", async () => {
+    const qc = mkQc();
+    wireApi(mockApi, { summary: SUMMARY_ENABLED, history: HISTORY_WITH_RUNS });
+    renderPage(qc);
+    clickTab("History");
+    await waitFor(() =>
+      // Grade "A" appears in table
+      expect(screen.queryAllByText("A").length).toBeGreaterThan(0)
+    );
+  });
+
+  it("shows run timestamp in table", async () => {
+    const qc = mkQc();
+    wireApi(mockApi, { summary: SUMMARY_ENABLED, history: HISTORY_WITH_RUNS });
+    renderPage(qc);
+    clickTab("History");
+    await waitFor(() =>
+      expect(screen.queryByText(/2026-07-03 09:15/)).toBeTruthy()
+    );
+  });
+
+  it("shows trend KPI row with + or - delta when ≥ 2 runs", async () => {
+    const qc = mkQc();
+    wireApi(mockApi, { summary: SUMMARY_ENABLED, history: HISTORY_WITH_RUNS });
+    renderPage(qc);
+    clickTab("History");
+    await waitFor(() =>
+      expect(screen.queryByText("Trend")).toBeTruthy()
+    );
+  });
+
+  it("shows Disabled view when status=DISABLED", async () => {
+    const qc = mkQc();
+    wireApi(mockApi, { summary: SUMMARY_ENABLED, history: HISTORY_DISABLED });
+    renderPage(qc);
+    clickTab("History");
+    await waitFor(() =>
+      expect(screen.queryByText("Data Quality Disabled")).toBeTruthy()
+    );
+  });
+
+  it("shows 'pruned after 90 days' note in sub-heading", async () => {
+    const qc = mkQc();
+    wireApi(mockApi, { summary: SUMMARY_ENABLED, history: HISTORY_WITH_RUNS });
+    renderPage(qc);
+    clickTab("History");
+    await waitFor(() =>
+      expect(screen.queryByText(/pruned after 90 days/i)).toBeTruthy()
+    );
+  });
+
+  it("history query is only enabled when History tab is active", async () => {
+    const qc = mkQc();
+    const calls: string[] = [];
+    mockApi.mockImplementation((path: string) => {
+      calls.push(path);
+      if (path.includes("summary")) return Promise.resolve(SUMMARY_ENABLED);
+      return Promise.resolve({ status: "DISABLED", available: false });
+    });
+    renderPage(qc);
+    // Wait for summary to load but don't click History tab
+    await waitFor(() => screen.queryByTestId("dq-score-total"));
+    expect(calls.some(p => p.includes("history"))).toBe(false);
   });
 });
 

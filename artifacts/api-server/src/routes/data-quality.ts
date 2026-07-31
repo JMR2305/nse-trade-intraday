@@ -80,6 +80,11 @@ router.get("/data-quality/snapshot",  async (_req, res) => {
   catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
+router.get("/data-quality/history",   async (_req, res) => {
+  try { res.json(await runPython(["data_quality_history"])); }
+  catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
 router.get("/data-quality/export",    async (req, res) => {
   const fmt = (req.query.format as string) || "json";
   try {

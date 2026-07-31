@@ -8,7 +8,7 @@ from .shared_services import (
     get_summary, get_market, get_preopen, get_paper,
     get_portfolio, get_ai, get_signals, get_config,
     get_alerts, get_export_json, get_export_csv,
-    get_data_quality_snapshot,
+    get_data_quality_snapshot, get_history,
 )
 from .models import is_enabled, disabled_response
 
@@ -22,6 +22,7 @@ def cmd_signals()  -> dict: return get_signals()
 def cmd_config()   -> dict: return get_config()
 def cmd_alerts()   -> dict: return get_alerts()
 def cmd_snapshot() -> dict: return get_data_quality_snapshot()
+def cmd_history()  -> dict: return get_history()
 def cmd_export_json() -> dict: return get_export_json()
 
 def cmd_export_csv() -> dict:

@@ -2788,6 +2788,36 @@ def main():
             from data_quality.api import cmd_export_json as _f; result = _f()
         elif command == "data_quality_export_csv":
             from data_quality.api import cmd_export_csv as _f; result = _f()
+        elif command == "data_quality_history":
+            from data_quality.api import cmd_history as _f; result = _f()
+
+        # ── Phase 8.4: Advanced Risk Validation Framework ─────────────────────
+        elif command == "rv_summary":
+            from risk_validation.api import cmd_summary      as _f; result = _f()
+        elif command == "rv_portfolio":
+            from risk_validation.api import cmd_portfolio     as _f; result = _f()
+        elif command == "rv_sector":
+            from risk_validation.api import cmd_sector        as _f; result = _f()
+        elif command == "rv_correlation":
+            from risk_validation.api import cmd_correlation   as _f; result = _f()
+        elif command == "rv_stress":
+            from risk_validation.api import cmd_stress        as _f; result = _f()
+        elif command == "rv_tail":
+            from risk_validation.api import cmd_tail          as _f; result = _f()
+        elif command == "rv_execution":
+            from risk_validation.api import cmd_execution     as _f; result = _f()
+        elif command == "rv_market":
+            from risk_validation.api import cmd_market        as _f; result = _f()
+        elif command == "rv_drift":
+            from risk_validation.api import cmd_drift         as _f; result = _f()
+        elif command == "rv_alerts":
+            from risk_validation.api import cmd_alerts        as _f; result = _f()
+        elif command == "rv_snapshot":
+            from risk_validation.api import cmd_snapshot      as _f; result = _f()
+        elif command == "rv_export_json":
+            from risk_validation.api import cmd_export_json   as _f; result = _f()
+        elif command == "rv_export_csv":
+            from risk_validation.api import cmd_export_csv    as _f; result = _f()
 
         else:
             error_msg = f"Unknown command: {command}"

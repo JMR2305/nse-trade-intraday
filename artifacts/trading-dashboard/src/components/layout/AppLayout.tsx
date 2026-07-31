@@ -128,6 +128,7 @@ const navGroups = [
       { href: "/observability",           label: "Observability",            icon: Monitor        },
       { href: "/paper-analytics",         label: "Paper Analytics",          icon: BarChart3      },
       { href: "/data-quality",            label: "Data Quality",             icon: ShieldCheck    },
+      { href: "/risk-validation",         label: "Risk Validation",           icon: ShieldCheck    },
       { href: "/live-readiness",          label: "Live Readiness",          icon: Rocket          },
       { href: "/ai-performance",         label: "AI Performance",         icon: Brain      },
       { href: "/performance-analytics", label: "Performance Analytics", icon: BarChart3 },

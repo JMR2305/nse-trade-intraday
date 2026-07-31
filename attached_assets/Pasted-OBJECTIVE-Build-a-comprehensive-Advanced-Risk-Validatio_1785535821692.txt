@@ -1,0 +1,541 @@
+OBJECTIVE
+
+Build a comprehensive Advanced Risk Validation Framework for ApexQuant AI.
+
+This module continuously validates portfolio risk, strategy risk, execution risk and market risk using independent cross-checks.
+
+This module MUST remain completely READ-ONLY and ADVISORY-ONLY.
+
+It MUST NEVER
+
+• Modify portfolio
+
+• Modify positions
+
+• Modify AI
+
+• Modify strategies
+
+• Change limits
+
+• Place orders
+
+• Execute trades
+
+Its responsibility is to validate, score, stress-test and explain risk.
+
+--------------------------------------------------
+
+FEATURE FLAG
+
+RISK_VALIDATION_ENABLED=true
+
+--------------------------------------------------
+
+ARCHITECTURE
+
+Reuse existing modules
+
+• Risk Engine
+
+• Portfolio Analytics
+
+• Paper Analytics
+
+• Market Intelligence
+
+• Macro Intelligence
+
+• Explainable AI
+
+• Research Lab
+
+• Data Quality
+
+• Executive Dashboard
+
+Reuse existing snapshots.
+
+Never duplicate calculations.
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Validate
+
+Portfolio Risk
+
+Strategy Risk
+
+Execution Risk
+
+Market Risk
+
+Liquidity Risk
+
+Sector Risk
+
+Concentration Risk
+
+Correlation Risk
+
+Capital Risk
+
+Tail Risk
+
+Operational Risk
+
+--------------------------------------------------
+
+PORTFOLIO VALIDATION
+
+Validate
+
+Capital
+
+Cash
+
+Exposure
+
+Utilisation
+
+Largest Position
+
+Portfolio Heat
+
+Position Sizing
+
+Leverage
+
+Margin Usage (paper)
+
+Drawdown
+
+Recovery
+
+--------------------------------------------------
+
+POSITION VALIDATION
+
+Check
+
+Entry Size
+
+Exit Size
+
+Risk %
+
+Stop Distance
+
+Reward %
+
+Holding Time
+
+Capital Allocation
+
+Position Concentration
+
+--------------------------------------------------
+
+SECTOR VALIDATION
+
+Analyse
+
+Sector Concentration
+
+Sector Correlation
+
+Sector Exposure
+
+Sector Diversification
+
+Dominant Sector
+
+Weak Sector
+
+Sector Drift
+
+--------------------------------------------------
+
+CORRELATION VALIDATION
+
+Measure
+
+Portfolio Correlation
+
+Sector Correlation
+
+Strategy Correlation
+
+Market Correlation
+
+Correlation Drift
+
+Diversification Score
+
+--------------------------------------------------
+
+TAIL RISK
+
+Estimate
+
+Worst Case Loss
+
+Gap Risk
+
+High Volatility Scenario
+
+Market Shock
+
+Liquidity Shock
+
+Circuit Limit Scenario
+
+Stress Drawdown
+
+Recovery Estimate
+
+--------------------------------------------------
+
+SCENARIO STRESS TESTS
+
+Simulate
+
+5%
+
+10%
+
+15%
+
+20%
+
+Market Fall
+
+Gap Up
+
+Gap Down
+
+Volatility Spike
+
+Sector Collapse
+
+Flash Crash
+
+Global Shock
+
+Generate advisory-only impact.
+
+--------------------------------------------------
+
+EXECUTION RISK
+
+Validate
+
+Slippage Estimate
+
+Execution Delay
+
+Missed Opportunities
+
+Order Timing
+
+Price Drift
+
+Paper Execution Quality
+
+--------------------------------------------------
+
+MARKET RISK
+
+Combine
+
+Market Regime
+
+India VIX
+
+Macro Intelligence
+
+Event Intelligence
+
+Sector Rotation
+
+Liquidity
+
+Generate
+
+Market Risk Score
+
+--------------------------------------------------
+
+RISK DRIFT
+
+Detect
+
+Growing Exposure
+
+Growing Drawdown
+
+Increasing Concentration
+
+Increasing Correlation
+
+Increasing Volatility
+
+Capital Deterioration
+
+--------------------------------------------------
+
+VALIDATION SCORE
+
+Generate
+
+Overall Risk Validation Score
+
+0–100
+
+Grade
+
+A+
+
+A
+
+B
+
+C
+
+D
+
+Trend
+
+Improving
+
+Stable
+
+Deteriorating
+
+--------------------------------------------------
+
+ALERTS
+
+Generate
+
+Critical
+
+Warning
+
+Information
+
+High Exposure
+
+High Correlation
+
+Sector Concentration
+
+Tail Risk
+
+Drawdown Alert
+
+Stress Alert
+
+--------------------------------------------------
+
+DASHBOARD
+
+Create tabs
+
+Overview
+
+Portfolio
+
+Positions
+
+Sectors
+
+Correlation
+
+Stress Tests
+
+Tail Risk
+
+Execution
+
+Market Risk
+
+Risk Drift
+
+Alerts
+
+Export
+
+--------------------------------------------------
+
+API
+
+GET /api/risk-validation/summary
+
+GET /api/risk-validation/portfolio
+
+GET /api/risk-validation/stress
+
+GET /api/risk-validation/correlation
+
+GET /api/risk-validation/tail
+
+GET /api/risk-validation/execution
+
+GET /api/risk-validation/drift
+
+GET /api/risk-validation/export
+
+--------------------------------------------------
+
+EXPORT
+
+CSV
+
+JSON
+
+Future PDF
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Background calculations only.
+
+Reuse snapshots.
+
+No duplicate analytics.
+
+No blocking operations.
+
+--------------------------------------------------
+
+TESTING
+
+Verify
+
+Feature flag
+
+Stress tests
+
+Correlation
+
+Portfolio validation
+
+Execution validation
+
+Tail risk
+
+Market risk
+
+Alerts
+
+Dashboard
+
+Shared services
+
+Exports
+
+--------------------------------------------------
+
+SAFETY
+
+READ-ONLY
+
+ADVISORY-ONLY
+
+Never modify
+
+Orders
+
+Portfolio
+
+Strategies
+
+Risk Engine
+
+AI Models
+
+Execution Engine
+
+--------------------------------------------------
+
+GITHUB INTEGRATION REQUIREMENTS
+
+Incorporate concepts inspired by previously reviewed GitHub projects where appropriate.
+
+Include
+
+• Stress testing
+
+• Correlation analytics
+
+• Tail-risk estimation
+
+• Portfolio concentration analysis
+
+• Scenario simulation
+
+• Risk attribution
+
+Do NOT copy external implementations.
+
+Maintain ApexQuant AI modular architecture.
+
+--------------------------------------------------
+
+FUTURE INTEGRATION
+
+Design this module so future phases integrate without architectural changes.
+
+Support
+
+• Phase 8.5 Operational Control Centre
+
+• Phase 8.6 Security & Compliance
+
+• Phase 8.7 Performance Optimisation
+
+• Phase 8.8 Deployment & Disaster Recovery
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide
+
+1. Files created
+
+2. Files modified
+
+3. Shared services reused
+
+4. APIs
+
+5. Dashboard
+
+6. Test count
+
+7. Test results
+
+8. Validation methodology
+
+9. Known limitations
+
+10. GitHub-inspired enhancements
+
+11. Future integration explanation
+
+12. Confirm READ-ONLY and ADVISORY-ONLY architecture
+
+Final Verdict
+
+PHASE 8.4 COMPLETE
+
+or
+
+PHASE 8.4 NOT COMPLETE
+
+with exact blockers.

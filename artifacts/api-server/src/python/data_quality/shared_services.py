@@ -175,7 +175,7 @@ def get_summary() -> dict:
         for name, d in domains.items()
     ]
 
-    return {
+    result = {
         "status":          "ENABLED",
         "available":       True,
         "advisory_only":   True,
@@ -188,6 +188,15 @@ def get_summary() -> dict:
         "warning_count":   warning_count,
         "domains":         domain_summary,
     }
+
+    # Persist run history — non-blocking; never raises to the caller.
+    try:
+        from .history_store import persist_run as _persist
+        _persist(result)
+    except Exception:
+        pass
+
+    return result
 
 
 def get_market() -> dict:
@@ -313,6 +322,29 @@ def get_export_csv() -> str:
             ]))
 
     return "\n".join(rows)
+
+
+def get_history(limit: int = 30) -> dict:
+    """Return last N validation runs for trend analysis."""
+    if not is_enabled():
+        return disabled_response()
+
+    import random
+    from .history_store import get_history as _get_history, prune_old_runs
+
+    # Lazy pruning — runs at ~1 % call rate to avoid DB pressure.
+    if random.random() < 0.01:
+        _safe(prune_old_runs)
+
+    runs = _safe(lambda: _get_history(limit=limit), [])
+    return {
+        "status":       "ENABLED",
+        "available":    True,
+        "advisory_only": True,
+        "total_runs":   len(runs),
+        "runs":         runs,
+        "generated_at": _now_iso(),
+    }
 
 
 def get_data_quality_snapshot() -> dict:

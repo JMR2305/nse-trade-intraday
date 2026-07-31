@@ -95,6 +95,25 @@ interface AlertsData {
   stale?:          Issue[];
 }
 
+interface HistoryRun {
+  id?:             number;
+  run_ts:          string;
+  quality_score:   number;
+  grade:           string;
+  critical_count:  number;
+  warning_count:   number;
+  domain_scores:   Record<string, number>;
+}
+
+interface HistoryData {
+  status?:        string;
+  available?:     boolean;
+  advisory_only?: boolean;
+  total_runs?:    number;
+  runs?:          HistoryRun[];
+  generated_at?:  string;
+}
+
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
 const TABS = [
@@ -549,22 +568,188 @@ function renderExport(qc: unknown) {
   );
 }
 
+// ── History tab — Sparkline ───────────────────────────────────────────────────
+
+function QualitySparkline({ runs }: { runs: HistoryRun[] }) {
+  if (runs.length < 2) {
+    return (
+      <p className="text-xs text-slate-500 py-4 text-center">
+        Not enough data to draw a trend — need at least 2 runs.
+      </p>
+    );
+  }
+
+  const W = 400, H = 70, PAD_X = 12, PAD_Y = 8;
+  const innerW = W - PAD_X * 2;
+  const innerH = H - PAD_Y * 2;
+
+  // runs are most-recent first; reverse to plot oldest→newest left→right
+  const ordered = [...runs].reverse();
+  const n = ordered.length;
+
+  const xOf = (i: number) => PAD_X + (i / Math.max(n - 1, 1)) * innerW;
+  const yOf = (score: number) => PAD_Y + (1 - Math.min(score, 100) / 100) * innerH;
+
+  const pts = ordered.map((r, i) => `${xOf(i).toFixed(1)},${yOf(r.quality_score).toFixed(1)}`).join(" ");
+  const last = ordered[ordered.length - 1];
+  const color = last.quality_score >= 90 ? "#34d399"
+              : last.quality_score >= 75 ? "#60a5fa"
+              : last.quality_score >= 60 ? "#fbbf24"
+              : "#f87171";
+
+  return (
+    <div>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="w-full h-16"
+        data-testid="dq-history-sparkline"
+        preserveAspectRatio="none"
+      >
+        {/* Reference lines at 90, 75, 60 */}
+        {[90, 75, 60].map(ref => (
+          <line key={ref}
+            x1={PAD_X} y1={yOf(ref)} x2={W - PAD_X} y2={yOf(ref)}
+            stroke="#334155" strokeWidth="0.8" strokeDasharray="3,3"
+          />
+        ))}
+        {/* Trend line */}
+        <polyline
+          points={pts}
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        {/* Dots at each data point */}
+        {ordered.map((r, i) => (
+          <circle
+            key={i}
+            cx={xOf(i)} cy={yOf(r.quality_score)} r="3"
+            fill={color}
+            opacity="0.85"
+          />
+        ))}
+      </svg>
+      <div className="flex justify-between text-xs text-slate-600 px-1 mt-1">
+        <span>{ordered[0]?.run_ts?.slice(0, 10) ?? "oldest"}</span>
+        <span className="text-slate-500">Quality Score over Time</span>
+        <span>{ordered[ordered.length - 1]?.run_ts?.slice(0, 10) ?? "latest"}</span>
+      </div>
+    </div>
+  );
+}
+
 // ── History tab ───────────────────────────────────────────────────────────────
 
-function renderHistory() {
+const DOMAIN_SHORT: Record<string, string> = {
+  market: "Mkt", preopen: "Pre", paper: "Ppr",
+  portfolio: "Port", ai: "AI", signals: "Sig", config: "Cfg",
+};
+
+function renderHistory(H: HistoryData | undefined) {
+  if (!H) return <LoadingView />;
+  if (H.status === "DISABLED") return <DisabledView msg="Set DATA_QUALITY_ENABLED=true to record history" />;
+
+  const runs = H.runs ?? [];
+
   return (
-    <div className="space-y-4">
-      <SectionHeader icon={<Clock className="w-4 h-4 text-teal-400" />}
+    <div className="space-y-5">
+      <SectionHeader
+        icon={<Clock className="w-4 h-4 text-teal-400" />}
         title="Validation Run History"
-        sub="Historical validation snapshots — available in Phase 8.4+" />
-      <Card className="py-10 text-center">
-        <Clock className="w-8 h-8 text-slate-600 mx-auto mb-3" />
-        <p className="text-slate-400 text-sm font-medium">History Coming in Phase 8.4</p>
-        <p className="text-slate-500 text-xs mt-1">
-          Validation run history will be stored and queryable in the next phase.
-          Each run will record scores, grades, and issue counts per domain.
-        </p>
-      </Card>
+        sub={`${H.total_runs ?? runs.length} runs stored · last 30 shown · pruned after 90 days`}
+      />
+
+      {runs.length === 0 ? (
+        <Card className="py-10 text-center">
+          <Clock className="w-8 h-8 text-slate-600 mx-auto mb-3" />
+          <p className="text-slate-300 text-sm font-medium">No history yet</p>
+          <p className="text-slate-500 text-xs mt-1">
+            Each time the Overview tab loads, a run record is saved automatically.
+            Check back after the next scan.
+          </p>
+        </Card>
+      ) : (
+        <>
+          {/* Sparkline */}
+          <Card>
+            <p className="text-xs font-semibold text-slate-400 mb-3">
+              Quality Score Trend ({runs.length} run{runs.length !== 1 ? "s" : ""})
+            </p>
+            <QualitySparkline runs={runs} />
+          </Card>
+
+          {/* KPI row for latest vs earliest */}
+          {runs.length >= 2 && (() => {
+            const latest   = runs[0];
+            const earliest = runs[runs.length - 1];
+            const delta    = latest.quality_score - earliest.quality_score;
+            return (
+              <div className="grid grid-cols-3 gap-3">
+                <KpiCard label="Latest Score"
+                  value={`${fmt(latest.quality_score)}%`}
+                  color={scoreColor(latest.quality_score)} />
+                <KpiCard label="Earliest Score"
+                  value={`${fmt(earliest.quality_score)}%`}
+                  color={scoreColor(earliest.quality_score)} />
+                <KpiCard label="Trend"
+                  value={`${delta >= 0 ? "+" : ""}${fmt(delta)}%`}
+                  color={delta >= 0 ? "text-emerald-400" : "text-red-400"} />
+              </div>
+            );
+          })()}
+
+          {/* Run table */}
+          <Card>
+            <p className="text-xs font-semibold text-slate-400 mb-3">Recent Runs</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs" data-testid="dq-history-table">
+                <thead>
+                  <tr className="border-b border-slate-700/50">
+                    {["Run Time (UTC)", "Score", "Grade", "Critical", "Warnings",
+                      ...Object.keys(DOMAIN_SHORT).map(k => DOMAIN_SHORT[k])].map(h => (
+                      <th key={h} className="pb-2 px-2 text-left text-slate-500 font-medium whitespace-nowrap">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {runs.map((r, i) => (
+                    <tr key={i} className="border-b border-slate-700/20 hover:bg-slate-700/10">
+                      <td className="py-2 px-2 text-slate-400 whitespace-nowrap font-mono text-xs">
+                        {r.run_ts?.slice(0, 16).replace("T", " ") ?? "—"}
+                      </td>
+                      <td className={`py-2 px-2 font-semibold ${scoreColor(r.quality_score)}`}>
+                        {fmt(r.quality_score)}%
+                      </td>
+                      <td className={`py-2 px-2 font-bold ${gradeColor(r.grade)}`}>
+                        {r.grade}
+                      </td>
+                      <td className={`py-2 px-2 ${r.critical_count > 0 ? "text-red-400" : "text-slate-500"}`}>
+                        {r.critical_count}
+                      </td>
+                      <td className={`py-2 px-2 ${r.warning_count > 0 ? "text-yellow-400" : "text-slate-500"}`}>
+                        {r.warning_count}
+                      </td>
+                      {Object.keys(DOMAIN_SHORT).map(domain => (
+                        <td key={domain} className={`py-2 px-2 ${
+                          scoreColor(r.domain_scores?.[domain] ?? 0)
+                        }`}>
+                          {r.domain_scores?.[domain] != null
+                            ? `${fmt(r.domain_scores[domain])}%`
+                            : "—"}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </>
+      )}
     </div>
   );
 }
@@ -636,6 +821,13 @@ export default function DataQuality() {
     refetchInterval: POLL,
   });
 
+  const history = useQuery<HistoryData>({
+    queryKey: ["dq-history"],
+    queryFn:  () => apiJson("data-quality/history"),
+    enabled:  tab === "history",
+    refetchInterval: POLL,
+  });
+
   const S = summary.data;
 
   const tabContent: Record<TabId, () => React.ReactNode> = {
@@ -680,7 +872,7 @@ export default function DataQuality() {
       />
     ),
     alerts:    () => renderAlerts(alerts.data),
-    history:   () => renderHistory(),
+    history:   () => renderHistory(history.data),
     export:    () => renderExport(null),
   };
 
