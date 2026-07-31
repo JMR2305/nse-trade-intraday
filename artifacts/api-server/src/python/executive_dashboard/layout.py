@@ -78,6 +78,16 @@ def compute_executive_score(widgets: dict) -> ExecutiveScore:
         + (25.0 if sched_up else 0.0)
     )
 
+    # ── Paper Analytics (10%) ─────────────────────────────────────────────────
+    # Reads from the paper_analytics widget (Phase 8.2).  Falls back to 50.0
+    # when the feature flag is off so the composite is never deflated by a
+    # disabled module.
+    pa = widgets.get("paper_analytics", {})
+    if pa.get("available", False):
+        pa_analytics_score = _clamp(pa.get("analytics_score", 50.0))
+    else:
+        pa_analytics_score = 50.0  # neutral default — disabled modules don't penalise
+
     return ExecutiveScore(
         portfolio_health  = portfolio_score,
         ai_health         = ai_score,
@@ -85,6 +95,7 @@ def compute_executive_score(widgets: dict) -> ExecutiveScore:
         execution_quality = execution_score,
         risk              = risk_score,
         system_health     = system_score,
+        paper_analytics   = pa_analytics_score,
     )
 
 

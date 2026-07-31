@@ -21,13 +21,23 @@ def disabled_response() -> dict:
 # ---------------------------------------------------------------------------
 # Executive Score weights (must sum to 1.0)
 # ---------------------------------------------------------------------------
+# Phase 8.2: paper_analytics added at 10%. Existing weights scaled × 0.9
+# proportionally so the total remains exactly 1.0.
+#   portfolio_health  0.25 → 0.225
+#   ai_health         0.20 → 0.180
+#   strategy_health   0.20 → 0.180
+#   execution_quality 0.15 → 0.135
+#   risk              0.10 → 0.090
+#   system_health     0.10 → 0.090
+#   paper_analytics   0.00 → 0.100  (new)
 SCORE_WEIGHTS = {
-    "portfolio_health":   0.25,
-    "ai_health":          0.20,
-    "strategy_health":    0.20,
-    "execution_quality":  0.15,
-    "risk":               0.10,
-    "system_health":      0.10,
+    "portfolio_health":   0.225,
+    "ai_health":          0.180,
+    "strategy_health":    0.180,
+    "execution_quality":  0.135,
+    "risk":               0.090,
+    "system_health":      0.090,
+    "paper_analytics":    0.100,
 }
 
 
@@ -51,16 +61,18 @@ class ExecutiveScore:
     execution_quality:  float = 50.0
     risk:               float = 50.0
     system_health:      float = 50.0
+    paper_analytics:    float = 50.0   # Phase 8.2 — paper-trading analytics score
 
     @property
     def total(self) -> float:
         return round(
-            self.portfolio_health  * SCORE_WEIGHTS["portfolio_health"]
-            + self.ai_health       * SCORE_WEIGHTS["ai_health"]
-            + self.strategy_health * SCORE_WEIGHTS["strategy_health"]
+            self.portfolio_health    * SCORE_WEIGHTS["portfolio_health"]
+            + self.ai_health         * SCORE_WEIGHTS["ai_health"]
+            + self.strategy_health   * SCORE_WEIGHTS["strategy_health"]
             + self.execution_quality * SCORE_WEIGHTS["execution_quality"]
-            + self.risk            * SCORE_WEIGHTS["risk"]
-            + self.system_health   * SCORE_WEIGHTS["system_health"],
+            + self.risk              * SCORE_WEIGHTS["risk"]
+            + self.system_health     * SCORE_WEIGHTS["system_health"]
+            + self.paper_analytics   * SCORE_WEIGHTS["paper_analytics"],
             1,
         )
 
@@ -79,6 +91,7 @@ class ExecutiveScore:
                 "execution_quality": round(self.execution_quality, 1),
                 "risk":              round(self.risk, 1),
                 "system_health":     round(self.system_health, 1),
+                "paper_analytics":   round(self.paper_analytics, 1),
             },
             "weights": SCORE_WEIGHTS,
         }

@@ -342,9 +342,10 @@ function ScoreBreakdown({ score }: { score: NonNullable<ExecSummary["executive_s
     execution_quality: "Execution",
     risk:              "Risk",
     system_health:     "System",
+    paper_analytics:   "Analytics",
   };
   return (
-    <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+    <div className="grid grid-cols-4 md:grid-cols-7 gap-2">
       {Object.entries(score.components).map(([k, v]) => (
         <div key={k} className="text-center">
           <p className="text-xs text-slate-400">{labels[k] ?? k}</p>
