@@ -1,0 +1,571 @@
+OBJECTIVE
+
+Build a comprehensive Data Quality & Validation Framework for ApexQuant AI.
+
+This module validates every piece of market, portfolio, paper-trading, AI, and analytics data before it is consumed by downstream modules.
+
+This module MUST remain completely READ-ONLY and ADVISORY-ONLY.
+
+It MUST NEVER
+
+• Modify market data
+• Modify paper trades
+• Modify AI predictions
+• Modify strategy outputs
+• Modify portfolio
+• Modify execution engine
+• Auto-correct production data
+
+Its responsibility is to detect, classify, score and report data quality issues.
+
+--------------------------------------------------
+
+FEATURE FLAG
+
+DATA_QUALITY_ENABLED=true
+
+--------------------------------------------------
+
+ARCHITECTURE
+
+Reuse existing modules
+
+• Market Scanner
+• Pre-Open Intelligence
+• Signal Validation
+• Paper Trading
+• Portfolio Analytics
+• AI Performance
+• Research Lab
+• Executive Dashboard
+• Observability Center
+
+Create a shared service
+
+data_quality/shared_services.py
+
+This becomes the ONLY public interface.
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Validate
+
+Market Data
+
+Paper Trading Data
+
+Portfolio Data
+
+AI Data
+
+Pre-Open Data
+
+Signal Data
+
+Research Data
+
+Analytics Data
+
+Configuration
+
+Scheduler Outputs
+
+--------------------------------------------------
+
+DATA QUALITY CHECKS
+
+Validate
+
+Missing values
+
+Null values
+
+Duplicate records
+
+Timestamp ordering
+
+Future timestamps
+
+Negative prices
+
+Zero prices
+
+Invalid OHLC
+
+Invalid volume
+
+Price spikes
+
+Volume spikes
+
+Sector mapping
+
+Symbol mapping
+
+Exchange mapping
+
+Currency consistency
+
+Percentage ranges
+
+Probability ranges
+
+Confidence ranges
+
+AI score ranges
+
+Risk score ranges
+
+Portfolio totals
+
+Cash consistency
+
+Position consistency
+
+Trade consistency
+
+--------------------------------------------------
+
+MARKET DATA VALIDATION
+
+Check
+
+Open
+
+High
+
+Low
+
+Close
+
+Volume
+
+VWAP
+
+Previous Close
+
+Gap %
+
+Timestamp
+
+Exchange session
+
+Reject impossible combinations such as
+
+High < Low
+
+Close > High
+
+Open < Low
+
+Negative volume
+
+--------------------------------------------------
+
+PRE-OPEN VALIDATION
+
+Verify
+
+IEP
+
+Buy Quantity
+
+Sell Quantity
+
+Imbalance
+
+Gap %
+
+Previous Close
+
+Auction timestamps
+
+Provider consistency
+
+Detect
+
+Missing auction data
+
+Provider mismatch
+
+Fallback activation
+
+--------------------------------------------------
+
+PAPER TRADING VALIDATION
+
+Verify
+
+Trade IDs
+
+Order sequence
+
+Position size
+
+Cash balance
+
+Average price
+
+P&L consistency
+
+Duplicate trades
+
+Negative cash
+
+Position reconciliation
+
+--------------------------------------------------
+
+PORTFOLIO VALIDATION
+
+Verify
+
+Capital
+
+Cash
+
+Exposure
+
+Utilisation
+
+Allocation
+
+Sector %
+
+Risk %
+
+Largest Position
+
+Portfolio Heat
+
+Cross-check
+
+Portfolio equals
+
+Cash + Position Value
+
+--------------------------------------------------
+
+AI VALIDATION
+
+Verify
+
+Confidence
+
+Prediction Probability
+
+Calibration
+
+Feature completeness
+
+Missing features
+
+Inference latency
+
+Output consistency
+
+--------------------------------------------------
+
+SIGNAL VALIDATION
+
+Check
+
+Lifecycle
+
+Duplicate IDs
+
+Missing approvals
+
+Signal timestamps
+
+Paper-order linkage
+
+Execution status
+
+--------------------------------------------------
+
+CONFIGURATION VALIDATION
+
+Verify
+
+Environment variables
+
+Feature flags
+
+Provider selection
+
+API keys present
+
+Scheduler configuration
+
+--------------------------------------------------
+
+QUALITY SCORE
+
+Generate
+
+Overall Data Quality Score
+
+0–100
+
+Grade
+
+A+
+
+A
+
+B
+
+C
+
+D
+
+Score Components
+
+Completeness
+
+Consistency
+
+Accuracy
+
+Freshness
+
+Integrity
+
+Validity
+
+--------------------------------------------------
+
+ALERTS
+
+Generate
+
+Critical
+
+Warning
+
+Information
+
+Duplicate
+
+Missing Data
+
+Invalid Price
+
+Invalid Trade
+
+Stale Data
+
+Provider Failure
+
+Configuration Error
+
+--------------------------------------------------
+
+DASHBOARD
+
+Create tabs
+
+Overview
+
+Market Data
+
+Pre-Open
+
+Paper Trading
+
+Portfolio
+
+AI
+
+Signals
+
+Configuration
+
+Alerts
+
+History
+
+Export
+
+--------------------------------------------------
+
+API
+
+GET /api/data-quality/summary
+
+GET /api/data-quality/market
+
+GET /api/data-quality/preopen
+
+GET /api/data-quality/paper
+
+GET /api/data-quality/portfolio
+
+GET /api/data-quality/ai
+
+GET /api/data-quality/signals
+
+GET /api/data-quality/config
+
+GET /api/data-quality/export
+
+--------------------------------------------------
+
+EXPORT
+
+CSV
+
+JSON
+
+Future PDF
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Reuse existing snapshots.
+
+Never duplicate calculations.
+
+Background validation only.
+
+No blocking operations.
+
+--------------------------------------------------
+
+TESTING
+
+Verify
+
+Market validation
+
+Portfolio validation
+
+Paper-trading validation
+
+AI validation
+
+Signal validation
+
+Configuration validation
+
+Quality score
+
+Dashboard
+
+Shared services
+
+APIs
+
+Exports
+
+Feature flag
+
+--------------------------------------------------
+
+SAFETY
+
+READ-ONLY
+
+ADVISORY-ONLY
+
+Never modify
+
+Trades
+
+Orders
+
+Portfolio
+
+Strategies
+
+Execution Engine
+
+AI Models
+
+Market Data
+
+--------------------------------------------------
+
+GITHUB INTEGRATION REQUIREMENTS
+
+Incorporate concepts inspired by previously reviewed GitHub projects where appropriate.
+
+Include
+
+• Schema validation
+
+• Integrity checking
+
+• Duplicate detection
+
+• Data freshness monitoring
+
+• Consistency verification
+
+• Validation scoring
+
+Do NOT copy external implementations.
+
+Maintain ApexQuant AI modular architecture.
+
+--------------------------------------------------
+
+FUTURE INTEGRATION
+
+Design this module so future phases integrate without architectural changes.
+
+Support
+
+• Phase 8.4 Advanced Risk Validation
+
+• Phase 8.5 Operational Control Centre
+
+• Phase 8.6 Security & Compliance
+
+• Phase 8.7 Performance Optimisation
+
+• Phase 8.8 Deployment & Disaster Recovery
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide
+
+1. Files created
+
+2. Files modified
+
+3. Shared services reused
+
+4. APIs
+
+5. Dashboard
+
+6. Test count
+
+7. Test results
+
+8. Validation methodology
+
+9. Known limitations
+
+10. GitHub-inspired enhancements
+
+11. Future integration explanation
+
+12. Confirm READ-ONLY and ADVISORY-ONLY architecture
+
+Final Verdict
+
+PHASE 8.3 COMPLETE
+
+or
+
+PHASE 8.3 NOT COMPLETE
+
+with exact blockers.

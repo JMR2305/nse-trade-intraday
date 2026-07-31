@@ -38,6 +38,7 @@ import explainableAiRouter from "./explainable-ai";
 import researchLabRouter       from "./research-lab";
 import observabilityRouter     from "./observability";
 import paperAnalyticsRouter    from "./paper-analytics";
+import dataQualityRouter       from "./data-quality";
 
 const router: IRouter = Router();
 
@@ -78,6 +79,7 @@ router.use(explainableAiRouter);
 router.use(researchLabRouter);
 router.use(observabilityRouter);
 router.use(paperAnalyticsRouter);
+router.use(dataQualityRouter);
 router.use(tradingRouter);
 router.use(downloadRouter);
 

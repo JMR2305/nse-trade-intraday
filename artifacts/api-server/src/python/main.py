@@ -2763,6 +2763,32 @@ def main():
         elif command == "paper_analytics_export_csv":
             from paper_analytics.api import cmd_export_csv as _f; result = _f()
 
+        # ── Phase 8.3: Data Quality & Validation Framework ────────────────────
+        elif command == "data_quality_summary":
+            from data_quality.api import cmd_summary as _f; result = _f()
+        elif command == "data_quality_market":
+            from data_quality.api import cmd_market as _f; result = _f()
+        elif command == "data_quality_preopen":
+            from data_quality.api import cmd_preopen as _f; result = _f()
+        elif command == "data_quality_paper":
+            from data_quality.api import cmd_paper as _f; result = _f()
+        elif command == "data_quality_portfolio":
+            from data_quality.api import cmd_portfolio as _f; result = _f()
+        elif command == "data_quality_ai":
+            from data_quality.api import cmd_ai as _f; result = _f()
+        elif command == "data_quality_signals":
+            from data_quality.api import cmd_signals as _f; result = _f()
+        elif command == "data_quality_config":
+            from data_quality.api import cmd_config as _f; result = _f()
+        elif command == "data_quality_alerts":
+            from data_quality.api import cmd_alerts as _f; result = _f()
+        elif command == "data_quality_snapshot":
+            from data_quality.api import cmd_snapshot as _f; result = _f()
+        elif command == "data_quality_export_json":
+            from data_quality.api import cmd_export_json as _f; result = _f()
+        elif command == "data_quality_export_csv":
+            from data_quality.api import cmd_export_csv as _f; result = _f()
+
         else:
             error_msg = f"Unknown command: {command}"
 
