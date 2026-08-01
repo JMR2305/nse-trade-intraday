@@ -180,3 +180,10 @@ uri = "file://docs/advanced-paper-trading-analytics.md"
 type = "text"
 title = "Advanced Paper Trading Analytics — ApexQuant AI"
 description = "Phase 8.2 module summary: architecture, 12-tab dashboard, scoring formula, API endpoints, and test coverage."
+
+[[outputs]]
+id = "J04LpXmxtV9o3JzgKz-7Q"
+uri = "file://services/web_intelligence/PHASE_8_5_SUMMARY.md"
+type = "text"
+title = "Phase 8.5 — Operational Control Centre Summary"
+description = "Complete build summary: architecture, score formula, 11 tabs, 14 API endpoints, test coverage, and deployment checklist."
