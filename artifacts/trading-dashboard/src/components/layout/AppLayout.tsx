@@ -97,6 +97,7 @@ const navGroups = [
       { href: "/operations-center",   label: "Operations Center",        icon: Monitor      },
       { href: "/security-center",     label: "Security & Compliance",    icon: ShieldCheck  },
       { href: "/performance-center",  label: "Performance Centre",       icon: Zap          },
+      { href: "/deployment-center",   label: "Deployment & DR",           icon: Rocket       },
     ],
   },
   {

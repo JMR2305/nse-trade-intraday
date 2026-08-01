@@ -42,6 +42,7 @@ import dataQualityRouter       from "./data-quality";
 import riskValidationRouter    from "./risk-validation";
 import operationsRouter        from "./operations";
 import securityRouter          from "./security";
+import deploymentRouter        from "./deployment";
 
 const router: IRouter = Router();
 
@@ -86,6 +87,7 @@ router.use(dataQualityRouter);
 router.use(riskValidationRouter);
 router.use(operationsRouter);
 router.use(securityRouter);
+router.use(deploymentRouter);
 router.use(tradingRouter);
 router.use(downloadRouter);
 

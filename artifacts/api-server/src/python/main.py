@@ -2904,6 +2904,31 @@ def main():
         elif command == "perf_export_csv":
             from performance_center.api import cmd_export_csv     as _f; result = _f()
 
+        elif command == "deploy_summary":
+            from deployment_center.api import cmd_summary         as _f; result = _f()
+        elif command == "deploy_readiness":
+            from deployment_center.api import cmd_readiness       as _f; result = _f()
+        elif command == "deploy_config":
+            from deployment_center.api import cmd_config          as _f; result = _f()
+        elif command == "deploy_backups":
+            from deployment_center.api import cmd_backups         as _f; result = _f()
+        elif command == "deploy_restore":
+            from deployment_center.api import cmd_restore         as _f; result = _f()
+        elif command == "deploy_rollback":
+            from deployment_center.api import cmd_rollback        as _f; result = _f()
+        elif command == "deploy_infrastructure":
+            from deployment_center.api import cmd_infrastructure  as _f; result = _f()
+        elif command == "deploy_continuity":
+            from deployment_center.api import cmd_continuity      as _f; result = _f()
+        elif command == "deploy_recommendations":
+            from deployment_center.api import cmd_recommendations as _f; result = _f()
+        elif command == "deploy_snapshot":
+            from deployment_center.api import cmd_snapshot        as _f; result = _f()
+        elif command == "deploy_export_json":
+            from deployment_center.api import cmd_export_json     as _f; result = _f()
+        elif command == "deploy_export_csv":
+            from deployment_center.api import cmd_export_csv      as _f; result = _f()
+
         else:
             error_msg = f"Unknown command: {command}"
 
