@@ -52,3 +52,4 @@
 - [Phase 8.1 Observability Center](phase81-observability.md) — 6 endpoints, 95/95 tests; NEVER call Phase 7 snapshot functions from observability probes — import-check only or summary times out.
 - [Phase 8.4 Risk Validation](phase84-risk-validation.md) — 8-domain weighted score; runPython is always inlined per-route (no shared import); queryAllByText when text appears in multiple nodes.
 - [Phase 8.5 Operational Control Centre](phase85-ops-center.md) — 14 commands (ops_*), 11-tab React page, 57/57 tests; gate: OPERATIONS_CENTER_ENABLED; score=obs×0.25+dq×0.30+rv×0.30+sched×0.15.
+- [Phase 8.6 Security & Compliance Centre](phase86-security-center.md) — 13 commands (sec_*), 11-tab React page, 76/76 tests; gate: SECURITY_CENTER_ENABLED; secret presence-only (never expose values); score=secrets×0.30+session×0.20+config×0.20+api×0.15+deps×0.15.

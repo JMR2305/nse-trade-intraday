@@ -1,0 +1,463 @@
+OBJECTIVE
+
+Build a comprehensive Security & Compliance Centre for ApexQuant AI.
+
+This module continuously audits platform security, configuration, authentication, secrets, APIs and compliance posture.
+
+This module MUST remain completely READ-ONLY and ADVISORY-ONLY.
+
+It MUST NEVER
+
+• Modify secrets
+• Rotate credentials automatically
+• Disable users
+• Modify feature flags
+• Modify configuration
+• Restart services
+• Place orders
+• Modify portfolio
+• Execute trades
+
+Its responsibility is to monitor, validate, score and report security posture.
+
+--------------------------------------------------
+
+FEATURE FLAG
+
+SECURITY_CENTER_ENABLED=true
+
+--------------------------------------------------
+
+ARCHITECTURE
+
+Reuse existing modules
+
+• Operations Center (8.5)
+
+• Observability Center (8.1)
+
+• Data Quality Framework (8.3)
+
+• Risk Validation Framework (8.4)
+
+• Executive Dashboard
+
+• Scheduler
+
+• Authentication Layer
+
+• Environment Configuration
+
+Reuse existing snapshot interfaces.
+
+Never duplicate security checks.
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Provide continuous monitoring of
+
+Authentication
+
+Sessions
+
+Secrets
+
+Configuration
+
+API Security
+
+Dependency Health
+
+Audit Trail
+
+Compliance
+
+Environment
+
+Deployment Security
+
+--------------------------------------------------
+
+AUTHENTICATION
+
+Monitor
+
+Login Status
+
+Session Health
+
+Session Lifetime
+
+Expired Sessions
+
+Concurrent Sessions
+
+Authentication Failures
+
+--------------------------------------------------
+
+SESSION MANAGEMENT
+
+Display
+
+Session Count
+
+Active Sessions
+
+Session Duration
+
+Last Login
+
+Session Expiration
+
+Invalid Sessions
+
+--------------------------------------------------
+
+SECRET VALIDATION
+
+Validate
+
+SESSION_SECRET present
+
+API Keys present
+
+Database credentials
+
+Environment secrets
+
+Missing secrets
+
+Weak configuration
+
+Never expose secret values.
+
+Only validate existence and configuration.
+
+--------------------------------------------------
+
+CONFIGURATION AUDIT
+
+Verify
+
+Environment variables
+
+Feature Flags
+
+Provider selection
+
+Scheduler configuration
+
+Required configuration
+
+Missing configuration
+
+Invalid configuration
+
+--------------------------------------------------
+
+API SECURITY
+
+Validate
+
+HTTPS enabled
+
+Authentication middleware
+
+Rate limiting status
+
+CORS configuration
+
+Input validation
+
+Response security headers
+
+--------------------------------------------------
+
+DEPENDENCY AUDIT
+
+Report
+
+Python packages
+
+Node packages
+
+Known vulnerable versions
+
+Outdated dependencies
+
+License summary
+
+Dependency health
+
+Do not auto-update.
+
+--------------------------------------------------
+
+AUDIT LOG
+
+Display
+
+Configuration changes
+
+Deployments
+
+Feature Flag changes
+
+Session events
+
+Authentication events
+
+System events
+
+Timeline
+
+--------------------------------------------------
+
+COMPLIANCE
+
+Generate
+
+Security Score
+
+Compliance Score
+
+Audit Score
+
+Configuration Score
+
+Environment Score
+
+Overall Security Grade
+
+--------------------------------------------------
+
+ALERTS
+
+Generate
+
+Critical
+
+Warning
+
+Information
+
+Missing Secret
+
+Weak Configuration
+
+Expired Session
+
+Authentication Failure
+
+Configuration Drift
+
+Dependency Advisory
+
+--------------------------------------------------
+
+DASHBOARD
+
+Create tabs
+
+Overview
+
+Authentication
+
+Sessions
+
+Secrets
+
+Configuration
+
+API Security
+
+Dependencies
+
+Audit Log
+
+Compliance
+
+Alerts
+
+Export
+
+--------------------------------------------------
+
+API
+
+GET /api/security/summary
+
+GET /api/security/auth
+
+GET /api/security/sessions
+
+GET /api/security/secrets
+
+GET /api/security/config
+
+GET /api/security/api
+
+GET /api/security/dependencies
+
+GET /api/security/audit
+
+GET /api/security/compliance
+
+GET /api/security/export
+
+--------------------------------------------------
+
+EXPORT
+
+CSV
+
+JSON
+
+Future PDF
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Background validation only.
+
+Reuse snapshots.
+
+No duplicate calculations.
+
+No blocking operations.
+
+--------------------------------------------------
+
+TESTING
+
+Verify
+
+Feature flag
+
+Authentication checks
+
+Session validation
+
+Secret validation
+
+Configuration audit
+
+API validation
+
+Dependency audit
+
+Dashboard
+
+APIs
+
+Exports
+
+Shared services
+
+--------------------------------------------------
+
+SAFETY
+
+READ-ONLY
+
+ADVISORY-ONLY
+
+Never modify
+
+Secrets
+
+Configuration
+
+Orders
+
+Portfolio
+
+Strategies
+
+Risk Engine
+
+AI Models
+
+Execution Engine
+
+--------------------------------------------------
+
+GITHUB INTEGRATION REQUIREMENTS
+
+Incorporate concepts inspired by previously reviewed GitHub projects where appropriate.
+
+Include
+
+• Security posture scoring
+
+• Configuration auditing
+
+• Secret validation
+
+• Session monitoring
+
+• Dependency health reporting
+
+• Compliance dashboards
+
+Do NOT copy external implementations.
+
+Maintain ApexQuant AI modular architecture.
+
+--------------------------------------------------
+
+FUTURE INTEGRATION
+
+Design this module so future phases integrate without architectural changes.
+
+Support
+
+• Phase 8.7 Performance Optimisation
+
+• Phase 8.8 Deployment & Disaster Recovery
+
+• Future production deployment
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide
+
+1. Files created
+
+2. Files modified
+
+3. Shared services reused
+
+4. APIs
+
+5. Dashboard
+
+6. Test count
+
+7. Test results
+
+8. Security methodology
+
+9. Known limitations
+
+10. GitHub-inspired enhancements
+
+11. Future integration explanation
+
+12. Confirm READ-ONLY and ADVISORY-ONLY architecture.
+
+Final Verdict
+
+PHASE 8.6 COMPLETE
+
+or
+
+PHASE 8.6 NOT COMPLETE
+
+with exact blockers.

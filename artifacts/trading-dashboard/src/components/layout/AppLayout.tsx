@@ -95,6 +95,7 @@ const navGroups = [
       { href: "/preopen-intelligence", label: "Pre-Open Intelligence", icon: Sunrise },
       { href: "/live-data-health",    label: "Live Data Health",         icon: Wifi         },
       { href: "/operations-center",   label: "Operations Center",        icon: Monitor      },
+      { href: "/security-center",     label: "Security & Compliance",    icon: ShieldCheck  },
     ],
   },
   {

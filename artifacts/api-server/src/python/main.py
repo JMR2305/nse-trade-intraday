@@ -2849,6 +2849,34 @@ def main():
         elif command == "ops_export_csv":
             from operations_center.api import cmd_export_csv    as _f; result = _f()
 
+        # ── Phase 8.6: Security & Compliance Centre ───────────────────────────
+        elif command == "sec_summary":
+            from security_center.api import cmd_summary      as _f; result = _f()
+        elif command == "sec_auth":
+            from security_center.api import cmd_auth         as _f; result = _f()
+        elif command == "sec_sessions":
+            from security_center.api import cmd_sessions     as _f; result = _f()
+        elif command == "sec_secrets":
+            from security_center.api import cmd_secrets      as _f; result = _f()
+        elif command == "sec_config":
+            from security_center.api import cmd_config       as _f; result = _f()
+        elif command == "sec_api":
+            from security_center.api import cmd_api          as _f; result = _f()
+        elif command == "sec_dependencies":
+            from security_center.api import cmd_dependencies as _f; result = _f()
+        elif command == "sec_audit":
+            from security_center.api import cmd_audit        as _f; result = _f()
+        elif command == "sec_compliance":
+            from security_center.api import cmd_compliance   as _f; result = _f()
+        elif command == "sec_alerts":
+            from security_center.api import cmd_alerts       as _f; result = _f()
+        elif command == "sec_snapshot":
+            from security_center.api import cmd_snapshot     as _f; result = _f()
+        elif command == "sec_export_json":
+            from security_center.api import cmd_export_json  as _f; result = _f()
+        elif command == "sec_export_csv":
+            from security_center.api import cmd_export_csv   as _f; result = _f()
+
         else:
             error_msg = f"Unknown command: {command}"
 
