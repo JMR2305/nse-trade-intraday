@@ -269,3 +269,70 @@ export function searchItems(query: string): SearchItem[] {
 
   return results.slice(0, 20);
 }
+
+// ── Related pages ──────────────────────────────────────────────────────────────
+
+/** Pages in the same agent as href, excluding href itself (max 4) */
+export function getRelatedPages(
+  href: string,
+): (AgentPage & { agentId: string; agentName: string; agentColor: string })[] {
+  const agent = getAgentForPath(href);
+  if (!agent) return [];
+  return agent.pages
+    .filter((p) => p.href !== href)
+    .slice(0, 4)
+    .map((p) => ({ ...p, agentId: agent.id, agentName: agent.shortName, agentColor: agent.color }));
+}
+
+// ── Workflow shortcuts ─────────────────────────────────────────────────────────
+
+export interface WorkflowShortcut {
+  id:          string;
+  label:       string;
+  emoji:       string;
+  description: string;
+  pages:       { href: string; label: string }[];
+}
+
+export const WORKFLOW_SHORTCUTS: WorkflowShortcut[] = [
+  {
+    id: "morning", label: "Morning Workflow", emoji: "🌅",
+    description: "Start-of-day market checks",
+    pages: [
+      { href: "/preopen-intelligence", label: "Pre-Open Intelligence" },
+      { href: "/market-intelligence",  label: "Market Intelligence" },
+      { href: "/signals",              label: "Signals" },
+      { href: "/command-center",       label: "Command Centre" },
+    ],
+  },
+  {
+    id: "market-open", label: "Market Open", emoji: "🔔",
+    description: "Market open execution checklist",
+    pages: [
+      { href: "/market",               label: "Market Overview" },
+      { href: "/portfolio-live",       label: "Portfolio" },
+      { href: "/broker-execution",     label: "Broker & Execution" },
+      { href: "/risk-validation",      label: "Risk Validation" },
+    ],
+  },
+  {
+    id: "closing", label: "Closing Workflow", emoji: "🌆",
+    description: "End-of-day review and reconciliation",
+    pages: [
+      { href: "/portfolio-performance",label: "Portfolio Performance" },
+      { href: "/paper-analytics",      label: "Paper Analytics" },
+      { href: "/broker-execution",     label: "Broker & Execution" },
+      { href: "/ai-performance",       label: "AI Performance" },
+    ],
+  },
+];
+
+// ── Keyboard jump map (Ctrl/⌘ + 1-5) ──────────────────────────────────────────
+
+export const KEYBOARD_JUMP_MAP: Record<string, string> = {
+  "1": "/command-center",
+  "2": "/market",           // Market Data Agent
+  "3": "/research-lab",     // Research Agent
+  "4": "/portfolio-risk",   // Risk Agent
+  "5": "/ai-performance",   // AI Decision Agent
+};

@@ -33,8 +33,15 @@ import LiveMarketTicker from "@/components/LiveMarketTicker";
 import { StaleScanBanner } from "@/components/Phase15SystemHealth";
 import { Logo } from "@/components/brand/Logo";
 import { cn } from "@/lib/utils";
-import { AGENTS, getAgentForPath, type Agent, type AgentPage } from "./AgentConfig";
+import {
+  AGENTS, getAgentForPath, getRelatedPages, KEYBOARD_JUMP_MAP,
+  type Agent, type AgentPage,
+} from "./AgentConfig";
 import { QuickSwitcher } from "./QuickSwitcher";
+import {
+  incrementVisit, getProfile, setProfile, getMostUsed, PROFILES, getProfileDef,
+  type WorkspaceProfile,
+} from "./WorkspaceStore";
 
 // ── localStorage helpers ───────────────────────────────────────────────────────
 
@@ -75,7 +82,7 @@ function recordRecent(href: string, label: string, color: string) {
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
-  const [location]   = useLocation();
+  const [location, navigate] = useLocation();
   const { theme, setTheme } = useTheme();
   const reconciliationBadgeCount = useReconciliationBadge();
 
@@ -83,6 +90,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [collapsed,   setCollapsed]   = useState(false);
   const [quickOpen,   setQuickOpen]   = useState(false);
   const [favourites,  setFavourites]  = useState<string[]>(() => readFavourites());
+  const [activeProfile, setActiveProfile] = useState<WorkspaceProfile>(() => getProfile());
 
   // Active agent derived from current route
   const activeAgent = getAgentForPath(location);
@@ -92,8 +100,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     readExpanded(activeAgent?.id)
   );
 
-  // When route changes, auto-expand the owning agent and record recent page
+  // When route changes: track visit, auto-expand agent, record recent page
   useEffect(() => {
+    incrementVisit(location);
     const agent = getAgentForPath(location);
     if (agent && !expanded.includes(agent.id)) {
       const next = [...expanded, agent.id];
@@ -108,16 +117,20 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location]);
 
-  // Ctrl+K global shortcut
+  // Ctrl+K / Ctrl+1-5 global shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
-        e.preventDefault();
-        setQuickOpen(true);
-      }
+      if (!(e.ctrlKey || e.metaKey)) return;
+      // Ctrl+K — open search
+      if (e.key === "k") { e.preventDefault(); setQuickOpen(true); return; }
+      // Ctrl+1-5 — jump to agent first page; skip when typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const jumpHref = KEYBOARD_JUMP_MAP[e.key];
+      if (jumpHref) { e.preventDefault(); navigate(jumpHref); }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Favourites helpers ───────────────────────────────────────────────────
@@ -216,6 +229,38 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             hasActive={agent.pages.some((p) => p.href === location)}
           />
         ))}
+
+        {/* ── Related Pages (siblings in same agent) ── */}
+        {!collapsed && (() => {
+          const related = getRelatedPages(location);
+          if (related.length === 0) return null;
+          const ownerAgent = getAgentForPath(location);
+          return (
+            <div className="mx-2 mt-3 mb-1">
+              <p className="px-1 pb-1 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/30">
+                See also in {ownerAgent?.shortName}
+              </p>
+              <ul className="space-y-0.5">
+                {related.slice(0, 3).map((p) => {
+                  const Icon = p.icon;
+                  return (
+                    <li key={p.href}>
+                      <Link
+                        href={p.href}
+                        onClick={onNav}
+                        className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[11.5px] text-muted-foreground/50 hover:text-muted-foreground/90 hover:bg-sidebar-accent/40 transition-colors"
+                      >
+                        <Icon className="w-3 h-3 flex-shrink-0" style={{ color: p.agentColor + "99" }} />
+                        <span className="truncate">{p.label}</span>
+                        <ChevronRight className="w-2.5 h-2.5 ml-auto flex-shrink-0 opacity-40" />
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          );
+        })()}
       </nav>
     );
   };
@@ -229,17 +274,18 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         className="hidden md:flex items-center gap-2 px-5 py-1.5 border-b border-white/5 text-[11px]"
         style={{ background: activeAgent.color + "12", borderTop: `1px solid ${activeAgent.color}25` }}
       >
-        <span className="w-1.5 h-1.5 rounded-full animate-pulse"
-          style={{ backgroundColor: activeAgent.color }} />
+        {/* Breadcrumb: Home › Agent › Page */}
+        <span className="text-muted-foreground/35 text-[10px]">🏠</span>
+        <ChevronRight className="w-2.5 h-2.5 text-muted-foreground/25 flex-shrink-0" />
         <span className="font-semibold" style={{ color: activeAgent.color }}>
-          {activeAgent.emoji} {activeAgent.name}
+          {activeAgent.emoji} {activeAgent.shortName}
         </span>
-        <span className="text-muted-foreground/40">·</span>
+        <ChevronRight className="w-2.5 h-2.5 text-muted-foreground/25 flex-shrink-0" />
         <span className="text-muted-foreground/70">{activePage?.label ?? "—"}</span>
-        <span className="ml-auto flex items-center gap-1.5">
-          <span className="text-muted-foreground/40">Advisory only</span>
-          <span className="w-1 h-1 rounded-full bg-muted-foreground/20" />
-          <span className="text-muted-foreground/40">Read-only</span>
+        <span className="ml-auto flex items-center gap-3">
+          <span className="text-muted-foreground/35">Advisory only</span>
+          <span className="text-muted-foreground/35">·</span>
+          <span className="text-muted-foreground/35">Read-only</span>
         </span>
       </div>
     );
@@ -294,6 +340,32 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       )}
 
       <SidebarNav />
+
+      {/* Workspace Profile Switcher */}
+      {!collapsed && (
+        <div className="px-3 pb-2 border-t border-border/40 pt-2">
+          <p className="text-[9px] uppercase tracking-wider text-muted-foreground/30 mb-1.5 px-1">Workspace</p>
+          <div className="flex flex-wrap gap-1">
+            {PROFILES.map((p) => {
+              const active = activeProfile === p.id;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => { setProfile(p.id); setActiveProfile(p.id); }}
+                  title={p.description}
+                  className={cn(
+                    "flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium transition-all",
+                    active ? "ring-1 ring-inset" : "opacity-40 hover:opacity-70",
+                  )}
+                  style={active ? { backgroundColor: p.color + "20", color: p.color } : {}}
+                >
+                  {p.emoji} {p.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <div className={cn(
@@ -444,7 +516,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* QuickSwitcher modal */}
-      <QuickSwitcher open={quickOpen} onClose={() => setQuickOpen(false)} />
+      <QuickSwitcher open={quickOpen} onClose={() => setQuickOpen(false)} currentPath={location} />
     </div>
   );
 }

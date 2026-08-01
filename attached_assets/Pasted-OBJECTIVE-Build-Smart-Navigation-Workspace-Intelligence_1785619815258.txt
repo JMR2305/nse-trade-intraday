@@ -1,0 +1,487 @@
+OBJECTIVE
+
+Build Smart Navigation & Workspace Intelligence for ApexQuant AI.
+
+The goal is to make navigation intelligent, context-aware and personalised.
+
+NO business logic changes.
+
+NO trading logic changes.
+
+NO AI model changes.
+
+NO API calculation changes.
+
+This phase only enhances operator productivity.
+
+--------------------------------------------------
+
+OBJECTIVE
+
+An operator should find any page, stock, strategy, alert or report within seconds.
+
+The system should intelligently recommend where to navigate based on current market conditions.
+
+--------------------------------------------------
+
+GLOBAL SEARCH
+
+Upgrade Ctrl+K into a universal search.
+
+Search
+
+Pages
+
+Agents
+
+Stocks
+
+Watchlists
+
+Strategies
+
+Open Positions
+
+Paper Orders
+
+Research Notes
+
+Alerts
+
+Reports
+
+Recent Symbols
+
+Pinned Items
+
+Feature Flags
+
+Settings
+
+--------------------------------------------------
+
+SEARCH CATEGORIES
+
+Display grouped results
+
+Pages
+
+Stocks
+
+Agents
+
+Strategies
+
+Reports
+
+Alerts
+
+Portfolio
+
+Recent
+
+--------------------------------------------------
+
+SMART RECOMMENDATIONS
+
+Based on context recommend
+
+Examples
+
+"3 new breakout opportunities"
+
+"Risk Alert requires attention"
+
+"Research Agent has 8 new announcements"
+
+"AI confidence dropped"
+
+"Watchlist changed"
+
+Recommendations are advisory only.
+
+--------------------------------------------------
+
+CONTEXT-AWARE NAVIGATION
+
+Example
+
+Operator opens
+
+Risk Summary
+
+System suggests
+
+Portfolio Risk
+
+Tail Risk
+
+Stress Tests
+
+Risk Validation
+
+Example
+
+Operator opens
+
+Market Regime
+
+System suggests
+
+Sector Rotation
+
+Market Breadth
+
+Volatility
+
+Pre-open Intelligence
+
+--------------------------------------------------
+
+INTELLIGENT SHORTCUTS
+
+Create
+
+Most Used
+
+Recently Opened
+
+Pinned Pages
+
+Frequently Visited
+
+Morning Workflow
+
+Market Open Workflow
+
+Closing Workflow
+
+--------------------------------------------------
+
+WORKSPACE PROFILES
+
+Support multiple layouts
+
+Intraday
+
+Swing
+
+Research
+
+Paper Trading
+
+Operations
+
+Allow switching with one click.
+
+--------------------------------------------------
+
+FAVOURITES
+
+Allow users to pin
+
+Stocks
+
+Strategies
+
+Pages
+
+Dashboards
+
+Reports
+
+Agents
+
+Persist locally.
+
+--------------------------------------------------
+
+SMART BOOKMARKS
+
+Save
+
+Current filters
+
+Selected watchlist
+
+Chart state
+
+Dashboard layout
+
+Search history
+
+--------------------------------------------------
+
+COMMAND PALETTE
+
+Ctrl + K
+
+Commands
+
+Open Agent
+
+Open Dashboard
+
+Search Stock
+
+Jump to Alert
+
+Open Portfolio
+
+Open Research
+
+Go to Command Centre
+
+--------------------------------------------------
+
+BREADCRUMBS
+
+Display
+
+Home
+
+↓
+
+Agent
+
+↓
+
+Page
+
+↓
+
+Context
+
+--------------------------------------------------
+
+RELATED PAGES
+
+Every page should show
+
+Related Pages
+
+Related Agents
+
+Related Reports
+
+Related Alerts
+
+--------------------------------------------------
+
+RECENT ACTIVITY
+
+Display
+
+Recent pages
+
+Recent stocks
+
+Recent reports
+
+Recent searches
+
+Recent recommendations
+
+--------------------------------------------------
+
+SESSION MEMORY
+
+Remember
+
+Collapsed groups
+
+Favourite agents
+
+Workspace profile
+
+Recent activity
+
+Dashboard layout
+
+Restore automatically.
+
+--------------------------------------------------
+
+KEYBOARD SHORTCUTS
+
+Ctrl + K
+
+Search
+
+Ctrl + 1
+
+Command Centre
+
+Ctrl + 2
+
+Market Data
+
+Ctrl + 3
+
+Research
+
+Ctrl + 4
+
+Risk
+
+Ctrl + 5
+
+AI
+
+Esc
+
+Close dialogs
+
+--------------------------------------------------
+
+RESPONSIVE
+
+Desktop
+
+Tablet
+
+Mobile
+
+Maintain identical navigation logic.
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Search
+
+<100 ms
+
+Navigation
+
+<50 ms
+
+No duplicate API calls.
+
+Search indexes cached.
+
+--------------------------------------------------
+
+TESTING
+
+Verify
+
+Search
+
+Recommendations
+
+Workspace Profiles
+
+Bookmarks
+
+Favourites
+
+Keyboard shortcuts
+
+Responsive layout
+
+Session restore
+
+--------------------------------------------------
+
+SAFETY
+
+READ-ONLY
+
+Navigation only.
+
+No calculations.
+
+No API changes.
+
+No business logic changes.
+
+--------------------------------------------------
+
+GITHUB INTEGRATION REQUIREMENTS
+
+Incorporate concepts inspired by previously reviewed GitHub projects where appropriate.
+
+Include
+
+• Universal search
+
+• Command palette
+
+• Smart recommendations
+
+• Workspace memory
+
+• Context-aware navigation
+
+• Modern productivity features
+
+Do NOT copy external implementations.
+
+Maintain ApexQuant AI architecture.
+
+--------------------------------------------------
+
+FUTURE MULTI-AGENT INTEGRATION
+
+Prepare navigation for
+
+Supervisor Agent
+
+Market Data Agent
+
+Research Agent
+
+Market Intelligence Agent
+
+Stock Monitoring Agent
+
+Strategy Agent
+
+Risk Agent
+
+AI Decision Agent
+
+Execution Agent
+
+Learning Agent
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide
+
+1. Files created
+
+2. Files modified
+
+3. Search improvements
+
+4. Workspace intelligence
+
+5. Smart recommendations
+
+6. Keyboard shortcuts
+
+7. Test count
+
+8. Test results
+
+9. Performance measurements
+
+10. Future agent integration
+
+11. Confirm zero business logic changes
+
+12. Screenshots
+
+Final Verdict
+
+PHASE 9.3 COMPLETE
+
+or
+
+PHASE 9.3 NOT COMPLETE
+
+with exact blockers.
