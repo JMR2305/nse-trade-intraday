@@ -76,6 +76,7 @@ import OperationsCenter     from "@/pages/OperationsCenter";
 import SecurityCenter       from "@/pages/SecurityCenter";
 import PerformanceCenter    from "@/pages/PerformanceCenter";
 import DeploymentCenter     from "@/pages/DeploymentCenter";
+import CommandCenter        from "@/pages/CommandCenter";
 import { ConnectivityPanel } from "@/components/ConnectivityPanel";
 
 const queryClient = new QueryClient({
@@ -168,6 +169,7 @@ function Router() {
         <Route path="/security-center"      component={SecurityCenter} />
         <Route path="/performance-center"   component={PerformanceCenter} />
         <Route path="/deployment-center"    component={DeploymentCenter} />
+        <Route path="/command-center"       component={CommandCenter} />
         <Route path="/live-readiness" component={LiveReadiness} />
         <Route component={NotFound} />
       </Switch>

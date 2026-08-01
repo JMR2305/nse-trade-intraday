@@ -1,0 +1,553 @@
+OBJECTIVE
+
+Build the ApexQuant AI Unified Command Centre.
+
+This becomes the DEFAULT HOME PAGE after login.
+
+It should provide a complete real-time summary of the platform, market, portfolio, AI and operational health.
+
+This page MUST NOT perform calculations.
+
+It must ONLY aggregate snapshot data from existing modules.
+
+--------------------------------------------------
+
+ARCHITECTURE
+
+Reuse ALL existing snapshot interfaces.
+
+DO NOT duplicate calculations.
+
+Consume
+
+• Market Intelligence
+
+• Pre-Open Intelligence
+
+• Paper Trading
+
+• Portfolio Analytics
+
+• AI Optimisation
+
+• Risk Validation
+
+• Data Quality
+
+• Observability
+
+• Operations Centre
+
+• Security Centre
+
+• Performance Centre
+
+• Deployment Centre
+
+• Research Lab
+
+--------------------------------------------------
+
+OBJECTIVE
+
+An operator should understand the complete system in under 30 seconds.
+
+--------------------------------------------------
+
+TOP HEADER
+
+Display
+
+Market Status
+
+Current Time
+
+Trading Session
+
+Execution Mode
+
+(Currently Paper Trading)
+
+Platform Status
+
+Last Refresh
+
+--------------------------------------------------
+
+SECTION 1
+
+MARKET OVERVIEW
+
+Display
+
+NIFTY 50
+
+BANK NIFTY
+
+FINNIFTY
+
+India VIX
+
+Advance
+
+Decline
+
+Neutral
+
+Bullish Stocks
+
+Bearish Stocks
+
+Top 5 Gainers
+
+Top 5 Losers
+
+Top Volume Stocks
+
+Top Delivery Stocks
+
+Sector Heat Map
+
+Current Market Regime
+
+Market Trend
+
+--------------------------------------------------
+
+SECTION 2
+
+PORTFOLIO SNAPSHOT
+
+Display
+
+Portfolio Value
+
+Cash Available
+
+Invested Amount
+
+Today's P&L
+
+Overall P&L
+
+Realised P&L
+
+Unrealised P&L
+
+Open Positions
+
+Holdings
+
+Portfolio Utilisation
+
+Largest Position
+
+Sector Allocation
+
+Diversification Score
+
+--------------------------------------------------
+
+SECTION 3
+
+TODAY'S TRADING
+
+Display
+
+Signals Generated
+
+Signals Approved
+
+Signals Rejected
+
+Paper Orders
+
+Trades Today
+
+Winning Trades
+
+Losing Trades
+
+Current Win Rate
+
+Average Risk Reward
+
+--------------------------------------------------
+
+SECTION 4
+
+AI SUMMARY
+
+Display
+
+AI Health
+
+Confidence
+
+Learning Stage
+
+Model Drift
+
+Confidence Threshold
+
+Current Dataset Size
+
+Completed Trades Learned
+
+Signals Analysed
+
+Highest Conviction Opportunity
+
+--------------------------------------------------
+
+SECTION 5
+
+RISK SUMMARY
+
+Reuse Phase 8.4
+
+Display
+
+Risk Score
+
+Portfolio Heat
+
+Tail Risk
+
+Exposure
+
+Correlation
+
+Concentration
+
+Current Risk Level
+
+--------------------------------------------------
+
+SECTION 6
+
+MARKET INTELLIGENCE
+
+Display
+
+Current Regime
+
+Trend Strength
+
+Sector Rotation
+
+Strongest Sector
+
+Weakest Sector
+
+Macro Events Today
+
+Corporate Events Today
+
+Pre-open Summary
+
+--------------------------------------------------
+
+SECTION 7
+
+SYSTEM HEALTH
+
+Reuse Phase 8
+
+Display
+
+Observability
+
+Operations
+
+Data Quality
+
+Security
+
+Performance
+
+Deployment
+
+Overall Platform Health
+
+--------------------------------------------------
+
+SECTION 8
+
+WATCHLIST
+
+Display
+
+Top AI Picks
+
+High Conviction
+
+Breakouts
+
+Momentum
+
+Watchlist Changes
+
+--------------------------------------------------
+
+SECTION 9
+
+ALERT CENTRE
+
+Aggregate
+
+Risk Alerts
+
+AI Alerts
+
+Market Alerts
+
+Security Alerts
+
+Operations Alerts
+
+Data Alerts
+
+Critical Alerts first.
+
+--------------------------------------------------
+
+SECTION 10
+
+AI DAILY BRIEFING
+
+Generate natural-language summary.
+
+Example
+
+Today's Market Summary
+
+Market is moderately bullish.
+
+318 stocks are bullish.
+
+145 stocks are bearish.
+
+Banking is strongest.
+
+Portfolio is up 1.2%.
+
+Risk remains LOW.
+
+Three high-confidence opportunities detected.
+
+No critical platform issues.
+
+--------------------------------------------------
+
+SECTION 11
+
+QUICK ACTIONS
+
+Read-only navigation shortcuts.
+
+Buttons
+
+Market Intelligence
+
+Paper Analytics
+
+Risk
+
+AI Dashboard
+
+Research Lab
+
+Operations Centre
+
+Performance
+
+Deployment
+
+--------------------------------------------------
+
+SECTION 12
+
+SESSION TIMELINE
+
+Display
+
+08:45
+
+Pre-open complete
+
+09:00
+
+Market Scan
+
+09:15
+
+Market Open
+
+09:22
+
+Signals Generated
+
+09:30
+
+Risk Updated
+
+10:15
+
+Paper Orders
+
+...
+
+--------------------------------------------------
+
+DASHBOARD DESIGN
+
+Large summary cards.
+
+Very few tables.
+
+Heavy use of charts.
+
+Heat maps.
+
+Progress bars.
+
+Gauges.
+
+Trend arrows.
+
+Colour-coded health indicators.
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Page load target
+
+< 2 seconds
+
+Reuse cached snapshots.
+
+No duplicate API calls.
+
+Lazy load secondary widgets.
+
+--------------------------------------------------
+
+API
+
+GET /api/command-center/summary
+
+GET /api/command-center/briefing
+
+GET /api/command-center/alerts
+
+GET /api/command-center/timeline
+
+--------------------------------------------------
+
+EXPORT
+
+JSON
+
+CSV
+
+Future PDF
+
+--------------------------------------------------
+
+TESTING
+
+Verify
+
+Snapshot aggregation
+
+Dashboard rendering
+
+Brief generation
+
+Alerts
+
+Timeline
+
+Performance
+
+Responsive layout
+
+--------------------------------------------------
+
+SAFETY
+
+READ-ONLY
+
+ADVISORY-ONLY
+
+No order placement.
+
+No strategy execution.
+
+No configuration changes.
+
+--------------------------------------------------
+
+GITHUB INTEGRATION REQUIREMENTS
+
+Incorporate concepts inspired by previously reviewed GitHub projects where appropriate.
+
+Include
+
+• Executive dashboard
+
+• Market summary
+
+• Portfolio overview
+
+• Alert aggregation
+
+• AI briefing
+
+• Modern trading terminal UX
+
+Do NOT copy external implementations.
+
+Maintain ApexQuant AI modular architecture.
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide
+
+1. Files created
+
+2. Files modified
+
+3. Snapshot interfaces reused
+
+4. APIs
+
+5. Dashboard
+
+6. Charts
+
+7. Test count
+
+8. Test results
+
+9. Performance metrics
+
+10. GitHub-inspired enhancements
+
+11. Future integration
+
+12. Confirm READ-ONLY and ADVISORY-ONLY.
+
+Final Verdict
+
+PHASE 9.1 COMPLETE
+
+or
+
+PHASE 9.1 NOT COMPLETE
+
+with exact blockers.

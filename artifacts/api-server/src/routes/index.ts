@@ -43,6 +43,7 @@ import riskValidationRouter    from "./risk-validation";
 import operationsRouter        from "./operations";
 import securityRouter          from "./security";
 import deploymentRouter        from "./deployment";
+import commandCenterRouter     from "./command-center";
 
 const router: IRouter = Router();
 
@@ -88,6 +89,7 @@ router.use(riskValidationRouter);
 router.use(operationsRouter);
 router.use(securityRouter);
 router.use(deploymentRouter);
+router.use(commandCenterRouter);
 router.use(tradingRouter);
 router.use(downloadRouter);
 

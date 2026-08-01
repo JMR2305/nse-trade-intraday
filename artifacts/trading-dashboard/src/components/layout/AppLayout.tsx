@@ -88,6 +88,7 @@ const navGroups = [
   {
     label: "Operations",
     items: [
+      { href: "/command-center",      label: "Command Centre",      icon: Sparkles        },
       { href: "/executive-dashboard", label: "Executive Dashboard", icon: LayoutDashboard },
       { href: "/dashboard",        label: "Dashboard",        icon: BarChart3   },
       { href: "/",                 label: "Trade Decisions",  icon: Target      },

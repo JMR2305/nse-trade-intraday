@@ -2929,6 +2929,21 @@ def main():
         elif command == "deploy_export_csv":
             from deployment_center.api import cmd_export_csv      as _f; result = _f()
 
+        elif command == "cmd_center_summary":
+            from command_center.api import cmd_summary     as _f; result = _f()
+        elif command == "cmd_center_briefing":
+            from command_center.api import cmd_briefing    as _f; result = _f()
+        elif command == "cmd_center_alerts":
+            from command_center.api import cmd_alerts      as _f; result = _f()
+        elif command == "cmd_center_timeline":
+            from command_center.api import cmd_timeline    as _f; result = _f()
+        elif command == "cmd_center_snapshot":
+            from command_center.api import cmd_snapshot    as _f; result = _f()
+        elif command == "cmd_center_export_json":
+            from command_center.api import cmd_export_json as _f; result = _f()
+        elif command == "cmd_center_export_csv":
+            from command_center.api import cmd_export_csv  as _f; result = _f()
+
         else:
             error_msg = f"Unknown command: {command}"
 
