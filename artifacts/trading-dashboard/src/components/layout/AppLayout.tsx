@@ -1,71 +1,30 @@
 /**
- * AppLayout — ApexQuant AI platform shell.
+ * AppLayout — Phase 9.2 — Multi-Agent Workspace
  *
- * Preserved from original:
- *  - All navigation items, groups and hrefs (wouter routing)
- *  - useReconciliationBadge (badge on Broker & Execution)
+ * Navigation/layout/UX only — zero business logic changes.
+ * NO API changes. NO calculation changes.
+ *
+ * What changed from Phase 9.1:
+ *  - Module-based nav → 10 Agent groups (collapsible, colour-coded)
+ *  - Command Centre as pinned top-level home button
+ *  - ★ Starred / Favourites group (localStorage)
+ *  - Agent context header bar (coloured strip below top bar)
+ *  - Ctrl+K QuickSwitcher (global keyboard shortcut)
+ *  - Recent pages tracked in localStorage
+ *  - Responsive: mobile drawer preserves all agent groups
+ *
+ * Preserved unchanged:
+ *  - useReconciliationBadge hook
  *  - LiveMarketTicker, StaleScanBanner, CopilotPanel
- *  - useTheme / theme toggle
- *  - Mobile sidebar drawer
- *
- * New in this revision:
- *  - Warm cream / dark-navy theme via updated CSS vars
- *  - Collapsible desktop sidebar (icon-only collapsed mode)
- *  - Glassmorphism top-bar
- *  - Rounded active-indicator (left accent bar + tinted bg)
- *  - Logo component instead of text + icon
- *  - Ambient background mesh on main canvas
+ *  - All hrefs / wouter Route config
+ *  - Theme toggle
  */
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useReconciliationBadge } from "@/hooks/useReconciliationBadge";
 import {
-  BarChart3,
-  Activity,
-  History,
-  Eye,
-  Moon,
-  Sun,
-  Globe2,
-  Globe,
-  Brain,
-  GraduationCap,
-  RotateCcw,
-  FlaskConical,
-  ShieldCheck,
-  GitCompare,
-  Settings2,
-  Radar,
-  Clock,
-  Layers,
-  Database,
-  BookOpenText,
-  Dna,
-  Gauge,
-  Route,
-  Target,
-  Briefcase,
-  TestTubes,
-  Wifi,
-  ShieldAlert,
-  Bot,
-  Bell,
-  Microscope,
-  Radio,
-  Sunrise,
-  Menu,
-  X,
-  PieChart,
-  ChevronLeft,
-  Search,
-  TrendingUp,
-  Zap,
-  LayoutDashboard,
-  Sparkles,
-  Rocket,
-  CalendarDays,
-  Lightbulb,
-  Monitor,
+  Moon, Sun, Menu, X, ChevronLeft, ChevronDown, ChevronRight,
+  Star, StarOff, Search, Command, Home, Sparkles,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
@@ -74,259 +33,278 @@ import LiveMarketTicker from "@/components/LiveMarketTicker";
 import { StaleScanBanner } from "@/components/Phase15SystemHealth";
 import { Logo } from "@/components/brand/Logo";
 import { cn } from "@/lib/utils";
+import { AGENTS, getAgentForPath, type Agent, type AgentPage } from "./AgentConfig";
+import { QuickSwitcher } from "./QuickSwitcher";
 
-interface AppLayoutProps {
-  children: React.ReactNode;
+// ── localStorage helpers ───────────────────────────────────────────────────────
+
+const FAV_KEY      = "apexquant_favourites";        // string[] of hrefs
+const EXPAND_KEY   = "apexquant_agents_expanded";   // string[] of agent ids
+const RECENT_KEY   = "apexquant_recent_pages";
+
+function readFavourites(): string[] {
+  try { return JSON.parse(localStorage.getItem(FAV_KEY) || "[]"); }
+  catch { return []; }
+}
+function writeFavourites(hrefs: string[]) {
+  try { localStorage.setItem(FAV_KEY, JSON.stringify(hrefs)); }
+  catch {}
+}
+function readExpanded(fallbackAgentId?: string): string[] {
+  try {
+    const stored = JSON.parse(localStorage.getItem(EXPAND_KEY) || "null");
+    if (Array.isArray(stored)) return stored;
+  } catch {}
+  return fallbackAgentId ? [fallbackAgentId] : [];
+}
+function writeExpanded(ids: string[]) {
+  try { localStorage.setItem(EXPAND_KEY, JSON.stringify(ids)); }
+  catch {}
+}
+function recordRecent(href: string, label: string, color: string) {
+  try {
+    const existing = JSON.parse(localStorage.getItem(RECENT_KEY) || "[]");
+    const filtered = existing.filter((r: any) => r.href !== href);
+    localStorage.setItem(
+      RECENT_KEY,
+      JSON.stringify([{ href, label, agentColor: color }, ...filtered].slice(0, 8))
+    );
+  } catch {}
 }
 
-// ── Navigation tree ────────────────────────────────────────────────
-// Primary groups mirror the operator workflow: Operations → Trading →
-// Risk → Analytics → AI & System.  Secondary / research pages are kept
-// in two trailing groups so nothing is removed — just reorganised.
+// ── Component ──────────────────────────────────────────────────────────────────
 
-const navGroups = [
-  {
-    label: "Operations",
-    items: [
-      { href: "/command-center",      label: "Command Centre",      icon: Sparkles        },
-      { href: "/executive-dashboard", label: "Executive Dashboard", icon: LayoutDashboard },
-      { href: "/dashboard",        label: "Dashboard",        icon: BarChart3   },
-      { href: "/",                 label: "Trade Decisions",  icon: Target      },
-      { href: "/market-scanner",      label: "Market Scanner",      icon: Radar    },
-      { href: "/preopen-intelligence", label: "Pre-Open Intelligence", icon: Sunrise },
-      { href: "/live-data-health",    label: "Live Data Health",         icon: Wifi         },
-      { href: "/operations-center",   label: "Operations Center",        icon: Monitor      },
-      { href: "/security-center",     label: "Security & Compliance",    icon: ShieldCheck  },
-      { href: "/performance-center",  label: "Performance Centre",       icon: Zap          },
-      { href: "/deployment-center",   label: "Deployment & DR",           icon: Rocket       },
-    ],
-  },
-  {
-    label: "Trading",
-    items: [
-      { href: "/signals",          label: "Signals",          icon: Activity    },
-      { href: "/signal-history",   label: "Signal History",   icon: History     },
-      { href: "/portfolio-live",   label: "Portfolio",        icon: PieChart    },
-      { href: "/broker-execution", label: "Broker & Execution",icon: ShieldAlert },
-    ],
-  },
-  {
-    label: "Risk",
-    items: [
-      { href: "/portfolio-risk",    label: "Portfolio Risk",    icon: ShieldCheck },
-      { href: "/portfolio-manager", label: "Portfolio Manager", icon: Briefcase   },
-    ],
-  },
-  {
-    label: "Analytics",
-    items: [
-      { href: "/portfolio-performance",   label: "Portfolio Performance",  icon: TrendingUp },
-      { href: "/strategy-intelligence",   label: "Strategy Intelligence",  icon: Zap        },
-      { href: "/strategy-optimisation",  label: "Strategy Optimisation",  icon: Sparkles   },
-      { href: "/ai-optimisation",        label: "AI Optimisation",        icon: Target     },
-      { href: "/risk-optimisation",      label: "Risk Optimisation",      icon: ShieldCheck },
-      { href: "/market-intelligence",     label: "Market Intelligence",     icon: Globe2      },
-      { href: "/event-intelligence",      label: "Event Intelligence",       icon: CalendarDays },
-      { href: "/macro-intelligence",      label: "Macro Intelligence",       icon: Globe       },
-      { href: "/explainable-ai",          label: "Explainable AI",           icon: Lightbulb      },
-      { href: "/research-lab",            label: "Research Lab",             icon: FlaskConical   },
-      { href: "/observability",           label: "Observability",            icon: Monitor        },
-      { href: "/paper-analytics",         label: "Paper Analytics",          icon: BarChart3      },
-      { href: "/data-quality",            label: "Data Quality",             icon: ShieldCheck    },
-      { href: "/risk-validation",         label: "Risk Validation",           icon: ShieldCheck    },
-      { href: "/live-readiness",          label: "Live Readiness",          icon: Rocket          },
-      { href: "/ai-performance",         label: "AI Performance",         icon: Brain      },
-      { href: "/performance-analytics", label: "Performance Analytics", icon: BarChart3 },
-      { href: "/preopen-accuracy",      label: "Pre-Open Accuracy",     icon: Target    },
-      { href: "/signal-validation",     label: "Signal Validation",     icon: Activity  },
-      { href: "/execution-quality",     label: "Execution Quality",     icon: Gauge     },
-      { href: "/market-replay",         label: "Market Replay",         icon: Clock     },
-    ],
-  },
-  {
-    label: "AI & System",
-    items: [
-      { href: "/ai-decision",   label: "AI Decision",  icon: Brain    },
-      { href: "/ai-copilot",    label: "AI Copilot",   icon: Bot      },
-      { href: "/notifications", label: "Notifications", icon: Bell     },
-    ],
-  },
-  {
-    label: "Research",
-    items: [
-      { href: "/trade-replay",          label: "Trade Replay",            icon: RotateCcw     },
-      { href: "/trades",                label: "All Trades",              icon: History       },
-      { href: "/watchlist",             label: "Watchlist",               icon: Eye           },
-      { href: "/backtest",              label: "Backtest",                icon: FlaskConical  },
-      { href: "/validate",              label: "Validate",                icon: ShieldCheck   },
-      { href: "/strategy-lab",          label: "Strategy Lab",            icon: GitCompare    },
-      { href: "/optimizer",             label: "Optimizer",               icon: Settings2     },
-      { href: "/paper-basket-test",     label: "Paper Basket Test",       icon: Layers        },
-      { href: "/trade-intelligence",    label: "Trade Intelligence",      icon: Database      },
-      { href: "/historical-knowledge",  label: "Historical Knowledge",    icon: BookOpenText  },
-      { href: "/learning-insights",     label: "Learning Insights",       icon: Brain         },
-      { href: "/learning-review",       label: "Learning Review",         icon: GraduationCap },
-      { href: "/pattern-quality",       label: "Pattern Quality",         icon: Gauge         },
-      { href: "/feature-importance",    label: "Feature Importance",      icon: BarChart3     },
-      { href: "/walk-forward",          label: "Walk-Forward Validation", icon: Route         },
-      { href: "/experiments",           label: "Research Factory",        icon: TestTubes     },
-      { href: "/research-intelligence", label: "Research Intelligence",   icon: Brain         },
-      { href: "/strategy-evolution",    label: "Strategy Evolution",      icon: Dna           },
-      { href: "/phase12",               label: "Phase 12 Intelligence",   icon: Microscope    },
-      { href: "/phase13",               label: "Phase 13 · Inst. AI",    icon: Microscope    },
-      { href: "/learning",              label: "Learning & Governance",   icon: GraduationCap },
-    ],
-  },
-  {
-    label: "System Tools",
-    items: [
-      { href: "/phase4a-session",   label: "Phase 4A Operations",     icon: Activity    },
-      { href: "/operator-status",   label: "Operator Status",         icon: ShieldCheck },
-      { href: "/automation",        label: "Automation Health",       icon: Gauge       },
-      { href: "/kite-connect",      label: "Kite Connect",            icon: Radio       },
-      { href: "/market",            label: "Market Overview",         icon: Globe2      },
-      { href: "/research-notebook", label: "Research Notebook",       icon: BookOpenText},
-      { href: "/validation",        label: "Paper Trading Validation",icon: ShieldCheck },
-      { href: "/system-validation", label: "System Validation",       icon: ShieldCheck },
-      { href: "/risk",              label: "Risk Management",         icon: ShieldCheck },
-      { href: "/settings",          label: "Settings",                icon: Settings2   },
-    ],
-  },
-];
-
-// ── Component ──────────────────────────────────────────────────────
-
-export function AppLayout({ children }: AppLayoutProps) {
-  const [location] = useLocation();
+export function AppLayout({ children }: { children: React.ReactNode }) {
+  const [location]   = useLocation();
   const { theme, setTheme } = useTheme();
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
   const reconciliationBadgeCount = useReconciliationBadge();
 
-  // ── Sidebar nav content (shared by desktop + mobile drawer) ──
+  const [mobileOpen,  setMobileOpen]  = useState(false);
+  const [collapsed,   setCollapsed]   = useState(false);
+  const [quickOpen,   setQuickOpen]   = useState(false);
+  const [favourites,  setFavourites]  = useState<string[]>(() => readFavourites());
 
-  const SidebarNav = ({ onNav }: { onNav?: () => void }) => (
-    <nav className="flex-1 overflow-y-auto px-2 py-3 min-h-0">
-      {navGroups.map((group) => (
-        <div key={group.label} className="mb-4">
-          {!collapsed && (
-            <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/60 select-none">
-              {group.label}
-            </p>
-          )}
-          <ul className="space-y-0.5">
-            {group.items.map((item) => {
-              const Icon = item.icon;
-              const isActive = location === item.href;
-              const isBroker = item.href === "/broker-execution";
-              const badgeCount = isBroker ? reconciliationBadgeCount : 0;
+  // Active agent derived from current route
+  const activeAgent = getAgentForPath(location);
 
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    onClick={onNav}
-                    data-testid={`link-nav-${item.label.toLowerCase().replace(/\s/g, "-")}`}
-                    className={cn(
-                      "group relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition-all duration-150",
-                      collapsed ? "justify-center px-0" : "",
-                      isActive
-                        ? "text-foreground"
-                        : "text-muted-foreground/80 hover:text-foreground hover:bg-sidebar-accent/60",
-                    )}
-                  >
-                    {/* Active indicator: left accent bar + tinted bg */}
-                    {isActive && (
-                      <>
-                        <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary" />
-                        <span className="absolute inset-0 rounded-xl bg-primary/8 ring-1 ring-inset ring-primary/15" />
-                      </>
-                    )}
-
-                    <Icon
-                      className={cn(
-                        "relative h-[17px] w-[17px] shrink-0",
-                        isActive ? "text-primary" : "text-muted-foreground/70 group-hover:text-foreground",
-                      )}
-                    />
-
-                    {!collapsed && (
-                      <span className="relative flex-1 truncate">{item.label}</span>
-                    )}
-
-                    {/* Reconciliation badge */}
-                    {!collapsed && badgeCount > 0 && (
-                      <span
-                        className="relative ml-auto shrink-0 inline-flex items-center justify-center h-4 min-w-[1rem] rounded-full bg-red-500 text-[10px] font-bold text-white leading-none px-1"
-                        data-testid="badge-reconciliation-count"
-                      >
-                        {badgeCount > 99 ? "99+" : badgeCount}
-                      </span>
-                    )}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ))}
-    </nav>
+  // Expanded agent groups — auto-expand active agent on first visit
+  const [expanded, setExpanded] = useState<string[]>(() =>
+    readExpanded(activeAgent?.id)
   );
 
-  // ── Desktop sidebar ──
+  // When route changes, auto-expand the owning agent and record recent page
+  useEffect(() => {
+    const agent = getAgentForPath(location);
+    if (agent && !expanded.includes(agent.id)) {
+      const next = [...expanded, agent.id];
+      setExpanded(next);
+      writeExpanded(next);
+    }
+    // Record recent
+    if (agent) {
+      const page = agent.pages.find((p) => p.href === location);
+      if (page) recordRecent(location, page.label, agent.color);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location]);
 
+  // Ctrl+K global shortcut
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        setQuickOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  // ── Favourites helpers ───────────────────────────────────────────────────
+  const isFav = useCallback((href: string) => favourites.includes(href), [favourites]);
+  const toggleFav = useCallback((href: string) => {
+    setFavourites((prev) => {
+      const next = prev.includes(href) ? prev.filter((h) => h !== href) : [href, ...prev];
+      writeFavourites(next);
+      return next;
+    });
+  }, []);
+
+  // ── Toggle agent group ───────────────────────────────────────────────────
+  const toggleAgent = useCallback((id: string) => {
+    setExpanded((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      writeExpanded(next);
+      return next;
+    });
+  }, []);
+
+  // ── Shared nav render ─────────────────────────────────────────────────────
+  const SidebarNav = ({ onNav }: { onNav?: () => void }) => {
+    // Starred pages (lookup full page info from agents)
+    const starredPages = favourites.flatMap((href) => {
+      const agent = getAgentForPath(href);
+      if (!agent) return [];
+      const page  = agent.pages.find((p) => p.href === href);
+      if (!page)  return [];
+      return [{ page, agent }];
+    });
+
+    return (
+      <nav className="flex-1 overflow-y-auto min-h-0 px-2 py-2 space-y-0.5">
+
+        {/* ── Command Centre (pinned top) ── */}
+        <Link
+          href="/command-center"
+          onClick={onNav}
+          className={cn(
+            "group flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-semibold transition-all duration-150 mb-2",
+            collapsed ? "justify-center px-0" : "",
+            location === "/command-center"
+              ? "bg-primary/10 text-primary ring-1 ring-inset ring-primary/20"
+              : "text-muted-foreground/80 hover:bg-sidebar-accent/60 hover:text-foreground",
+          )}
+        >
+          <Home className={cn(
+            "h-4 w-4 shrink-0",
+            location === "/command-center" ? "text-primary" : "text-muted-foreground/60 group-hover:text-foreground",
+          )} />
+          {!collapsed && <span className="flex-1 truncate">Command Centre</span>}
+          {!collapsed && location === "/command-center" && (
+            <span className="text-[9px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full font-bold">HOME</span>
+          )}
+        </Link>
+
+        {/* ── Divider ── */}
+        {!collapsed && <div className="border-t border-border/40 mx-2 my-2" />}
+
+        {/* ── Starred / Favourites group ── */}
+        {!collapsed && starredPages.length > 0 && (
+          <AgentGroup
+            label="Starred"
+            emoji="★"
+            color="#F59E0B"
+            items={starredPages.map(({ page, agent }) => ({ page, agentColor: agent.color }))}
+            isExpanded={expanded.includes("__starred__")}
+            onToggle={() => toggleAgent("__starred__")}
+            activeHref={location}
+            isFav={isFav}
+            onToggleFav={toggleFav}
+            onNav={onNav}
+            reconciliationBadgeCount={reconciliationBadgeCount}
+            collapsed={collapsed}
+            isStarredGroup
+          />
+        )}
+
+        {/* ── 10 Agent groups ── */}
+        {AGENTS.map((agent) => (
+          <AgentGroup
+            key={agent.id}
+            label={collapsed ? "" : `${agent.emoji} ${agent.name}`}
+            emoji={agent.emoji}
+            color={agent.color}
+            items={agent.pages.map((page) => ({ page, agentColor: agent.color }))}
+            isExpanded={expanded.includes(agent.id) || !!collapsed}
+            onToggle={() => toggleAgent(agent.id)}
+            activeHref={location}
+            isFav={isFav}
+            onToggleFav={toggleFav}
+            onNav={onNav}
+            reconciliationBadgeCount={reconciliationBadgeCount}
+            collapsed={collapsed}
+            hasActive={agent.pages.some((p) => p.href === location)}
+          />
+        ))}
+      </nav>
+    );
+  };
+
+  // ── Agent context bar (shown above content, below header) ─────────────────
+  const AgentContextBar = () => {
+    if (!activeAgent) return null;
+    const activePage = activeAgent.pages.find((p) => p.href === location);
+    return (
+      <div
+        className="hidden md:flex items-center gap-2 px-5 py-1.5 border-b border-white/5 text-[11px]"
+        style={{ background: activeAgent.color + "12", borderTop: `1px solid ${activeAgent.color}25` }}
+      >
+        <span className="w-1.5 h-1.5 rounded-full animate-pulse"
+          style={{ backgroundColor: activeAgent.color }} />
+        <span className="font-semibold" style={{ color: activeAgent.color }}>
+          {activeAgent.emoji} {activeAgent.name}
+        </span>
+        <span className="text-muted-foreground/40">·</span>
+        <span className="text-muted-foreground/70">{activePage?.label ?? "—"}</span>
+        <span className="ml-auto flex items-center gap-1.5">
+          <span className="text-muted-foreground/40">Advisory only</span>
+          <span className="w-1 h-1 rounded-full bg-muted-foreground/20" />
+          <span className="text-muted-foreground/40">Read-only</span>
+        </span>
+      </div>
+    );
+  };
+
+  // ── Desktop sidebar ────────────────────────────────────────────────────────
   const DesktopSidebar = () => (
-    <aside
-      className={cn(
-        "glass-strong relative z-30 hidden md:flex h-full flex-col border-r border-border/60 transition-[width] duration-300 ease-in-out",
-        collapsed ? "w-[68px]" : "w-[240px]",
-      )}
-    >
-      {/* Header: logo + collapse toggle */}
+    <aside className={cn(
+      "glass-strong relative z-30 hidden md:flex h-full flex-col border-r border-border/60 transition-[width] duration-300 ease-in-out",
+      collapsed ? "w-[60px]" : "w-[252px]",
+    )}>
+      {/* Logo + collapse */}
       <div className={cn(
-        "flex h-14 shrink-0 items-center border-b border-border/60 px-4",
+        "flex h-14 shrink-0 items-center border-b border-border/60 px-3",
         collapsed ? "justify-center" : "justify-between",
       )}>
         <Logo showWordmark={!collapsed} size={26} />
-
         <button
           onClick={() => setCollapsed((c) => !c)}
           className={cn(
             "grid h-7 w-7 place-items-center rounded-lg text-muted-foreground/60 hover:bg-sidebar-accent hover:text-foreground transition",
-            collapsed
-              ? "absolute -right-3.5 top-5 z-50 border border-border bg-background shadow-sm"
-              : "",
+            collapsed ? "absolute -right-3.5 top-5 z-50 border border-border bg-background shadow-sm" : "",
           )}
           aria-label="Toggle sidebar"
         >
-          <ChevronLeft
-            className={cn(
-              "h-4 w-4 transition-transform duration-300",
-              collapsed && "rotate-180",
-            )}
-          />
+          <ChevronLeft className={cn("h-4 w-4 transition-transform duration-300", collapsed && "rotate-180")} />
         </button>
       </div>
 
-      {/* Nav */}
+      {/* Ctrl+K search hint (when expanded) */}
+      {!collapsed && (
+        <button
+          onClick={() => setQuickOpen(true)}
+          className="mx-2 my-2 flex items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-[12px] text-muted-foreground/60 hover:bg-muted/50 hover:text-muted-foreground transition-colors"
+        >
+          <Search className="w-3.5 h-3.5" />
+          <span className="flex-1 text-left">Search…</span>
+          <span className="flex items-center gap-0.5 text-[10px] opacity-60">
+            <kbd className="bg-muted/60 px-1 rounded">⌘</kbd>
+            <kbd className="bg-muted/60 px-1 rounded">K</kbd>
+          </span>
+        </button>
+      )}
+      {collapsed && (
+        <button
+          onClick={() => setQuickOpen(true)}
+          className="mx-auto mt-2 mb-1 grid h-8 w-8 place-items-center rounded-lg text-muted-foreground/50 hover:bg-sidebar-accent hover:text-foreground transition"
+          title="Search (⌘K)"
+        >
+          <Search className="w-3.5 h-3.5" />
+        </button>
+      )}
+
       <SidebarNav />
 
-      {/* Footer: engine version + theme toggle */}
+      {/* Footer */}
       <div className={cn(
         "flex shrink-0 items-center gap-2 border-t border-border/60 px-4 py-3",
         collapsed ? "justify-center" : "justify-between",
       )}>
         {!collapsed && (
-          <span
-            className="text-[10px] text-muted-foreground/50 font-mono truncate"
-            data-testid="text-engine-version"
-          >
-            ApexQuant AI
-          </span>
+          <span className="text-[10px] text-muted-foreground/40 font-mono truncate">ApexQuant AI</span>
         )}
         <Button
-          variant="ghost"
-          size="icon"
+          variant="ghost" size="icon"
           className="h-8 w-8 shrink-0 text-muted-foreground/70 hover:text-foreground"
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           data-testid="button-toggle-theme"
@@ -337,20 +315,13 @@ export function AppLayout({ children }: AppLayoutProps) {
     </aside>
   );
 
-  // ── Mobile sidebar drawer ──
-
+  // ── Mobile drawer ──────────────────────────────────────────────────────────
   const MobileDrawer = () => (
     <>
       {mobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-foreground/20 backdrop-blur-sm"
-            onClick={() => setMobileOpen(false)}
-          />
-
-          {/* Drawer panel */}
-          <aside className="absolute left-0 top-0 h-full w-[240px] flex flex-col border-r border-border/60 bg-sidebar shadow-pop animate-[fade-in-up_0.2s_ease-out_both]">
+          <div className="absolute inset-0 bg-foreground/20 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
+          <aside className="absolute left-0 top-0 h-full w-[260px] flex flex-col border-r border-border/60 bg-sidebar shadow-pop animate-[fade-in-up_0.2s_ease-out_both]">
             <div className="flex h-14 shrink-0 items-center justify-between border-b border-border/60 px-4">
               <Logo showWordmark size={26} />
               <button
@@ -361,19 +332,21 @@ export function AppLayout({ children }: AppLayoutProps) {
               </button>
             </div>
 
+            {/* Search */}
+            <button
+              onClick={() => { setMobileOpen(false); setQuickOpen(true); }}
+              className="mx-2 my-2 flex items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-[12px] text-muted-foreground/60"
+            >
+              <Search className="w-3.5 h-3.5" />
+              <span>Search…</span>
+            </button>
+
             <SidebarNav onNav={() => setMobileOpen(false)} />
 
             <div className="flex shrink-0 items-center justify-between border-t border-border/60 px-4 py-3">
-              <span className="text-[10px] text-muted-foreground/50 font-mono" data-testid="text-engine-version">
-                ApexQuant AI
-              </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-muted-foreground/70"
-                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                data-testid="button-toggle-theme"
-              >
+              <span className="text-[10px] text-muted-foreground/50 font-mono" data-testid="text-engine-version">ApexQuant AI</span>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/70"
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")} data-testid="button-toggle-theme">
                 {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </Button>
             </div>
@@ -383,21 +356,17 @@ export function AppLayout({ children }: AppLayoutProps) {
     </>
   );
 
-  // ── Root layout ──
-
+  // ── Root layout ────────────────────────────────────────────────────────────
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background text-foreground selection:bg-primary/15 selection:text-foreground">
-      {/* Ambient background layers */}
+      {/* Ambient background */}
       <div className="pointer-events-none absolute inset-0 -z-10 bg-mesh" />
       <div className="pointer-events-none absolute inset-0 -z-10 opacity-40 bg-grid-faint [background-size:56px_56px]" />
 
-      {/* Desktop sidebar */}
       <DesktopSidebar />
-
-      {/* Mobile drawer */}
       <MobileDrawer />
 
-      {/* ── Main column ── */}
+      {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 
         {/* Mobile top bar */}
@@ -409,35 +378,31 @@ export function AppLayout({ children }: AppLayoutProps) {
             <Menu className="h-4 w-4" />
           </button>
           <Logo showWordmark size={22} />
-
-          {/* PAPER TRADING badge — always visible on mobile */}
           <span className="shrink-0 inline-flex items-center rounded-full border border-warn px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest bg-warn-surface text-warn">
             Paper
           </span>
-
           <div className="ml-auto flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-muted-foreground/70"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              data-testid="button-toggle-theme"
-            >
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/70"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")} data-testid="button-toggle-theme">
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
           </div>
         </div>
 
-        {/* Top bar — desktop: search + status pills */}
+        {/* Desktop top bar */}
         <header className="glass-strong hidden md:flex h-13 shrink-0 items-center gap-3 border-b border-border/60 px-5 z-20">
-          {/* Search */}
-          <div className="relative flex-1 max-w-xs">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/50" />
-            <input
-              placeholder="Search pages, symbols, strategies…"
-              className="h-8 w-full rounded-lg border border-border bg-card/60 pl-8 pr-3 text-[12px] text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30 transition"
-            />
-          </div>
+          {/* Search button (opens QuickSwitcher) */}
+          <button
+            onClick={() => setQuickOpen(true)}
+            className="relative flex items-center gap-2 h-8 flex-1 max-w-xs rounded-lg border border-border bg-card/60 px-3 text-[12px] text-muted-foreground/50 hover:border-primary/40 hover:bg-card/80 transition-colors"
+          >
+            <Search className="w-3.5 h-3.5 flex-shrink-0" />
+            <span className="flex-1 text-left">Search pages, symbols, strategies…</span>
+            <span className="hidden lg:flex items-center gap-0.5 text-[10px] opacity-60 flex-shrink-0">
+              <kbd className="bg-muted/60 px-1 rounded">⌘</kbd>
+              <kbd className="bg-muted/60 px-1 rounded">K</kbd>
+            </span>
+          </button>
 
           <div className="flex-1" />
 
@@ -455,17 +420,14 @@ export function AppLayout({ children }: AppLayoutProps) {
             <span className="text-[11px] font-medium text-primary">AI Advisory Active</span>
           </div>
 
-          {/* Theme toggle */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-muted-foreground/70 hover:text-foreground"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            data-testid="button-toggle-theme"
-          >
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/70 hover:text-foreground"
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")} data-testid="button-toggle-theme">
             {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </Button>
         </header>
+
+        {/* Agent context bar */}
+        <AgentContextBar />
 
         {/* Live tickers and banners */}
         <LiveMarketTicker />
@@ -478,9 +440,180 @@ export function AppLayout({ children }: AppLayoutProps) {
           </div>
         </main>
 
-        {/* AI Copilot panel */}
         <CopilotPanel />
       </div>
+
+      {/* QuickSwitcher modal */}
+      <QuickSwitcher open={quickOpen} onClose={() => setQuickOpen(false)} />
+    </div>
+  );
+}
+
+// ── AgentGroup sub-component ───────────────────────────────────────────────────
+
+interface AgentGroupProps {
+  label:     string;
+  emoji:     string;
+  color:     string;
+  items:     { page: AgentPage; agentColor: string }[];
+  isExpanded: boolean;
+  onToggle:  () => void;
+  activeHref: string;
+  isFav:     (href: string) => boolean;
+  onToggleFav: (href: string) => void;
+  onNav?:    () => void;
+  reconciliationBadgeCount: number;
+  collapsed: boolean;
+  hasActive?: boolean;
+  isStarredGroup?: boolean;
+}
+
+function AgentGroup({
+  label, emoji, color, items, isExpanded, onToggle,
+  activeHref, isFav, onToggleFav, onNav,
+  reconciliationBadgeCount, collapsed, hasActive, isStarredGroup,
+}: AgentGroupProps) {
+  const [hoveredHref, setHoveredHref] = useState<string | null>(null);
+  const hasAnyActive = items.some((i) => i.page.href === activeHref);
+
+  if (collapsed) {
+    // Icon-only mode: show just the emoji as a section separator dot
+    return (
+      <div className="flex justify-center py-1">
+        <div
+          className={cn(
+            "w-7 h-7 rounded-lg flex items-center justify-center text-[13px] cursor-pointer transition-all",
+            hasAnyActive
+              ? "ring-1 ring-inset"
+              : "opacity-50 hover:opacity-100",
+          )}
+          style={hasAnyActive ? { backgroundColor: color + "25" } : {}}
+          title={label}
+        >
+          {emoji}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-0.5">
+      {/* Agent group header */}
+      <button
+        onClick={onToggle}
+        className={cn(
+          "group flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-[11px] font-semibold transition-all duration-150",
+          hasAnyActive
+            ? "text-foreground/90"
+            : "text-muted-foreground/60 hover:text-muted-foreground/80",
+          isStarredGroup ? "opacity-80" : "",
+        )}
+      >
+        {/* Colour dot */}
+        <span
+          className="w-1.5 h-1.5 rounded-full flex-shrink-0 transition-all"
+          style={{
+            backgroundColor: hasAnyActive ? color : color + "80",
+            boxShadow: hasAnyActive ? `0 0 6px ${color}80` : "none",
+          }}
+        />
+        <span
+          className="flex-1 truncate uppercase tracking-[0.12em] text-[10px]"
+          style={hasAnyActive ? { color: color + "cc" } : {}}
+        >
+          {label}
+        </span>
+        <span className="text-[9px] text-muted-foreground/30 mr-0.5">{items.length}</span>
+        {isExpanded
+          ? <ChevronDown className="h-3 w-3 text-muted-foreground/40 flex-shrink-0" />
+          : <ChevronRight className="h-3 w-3 text-muted-foreground/30 flex-shrink-0" />}
+      </button>
+
+      {/* Pages list */}
+      {isExpanded && (
+        <ul className="space-y-0.5 mb-1">
+          {items.map(({ page, agentColor }) => {
+            const Icon        = page.icon;
+            const isActive    = activeHref === page.href;
+            const isBroker    = page.href === "/broker-execution";
+            const badgeCount  = isBroker ? reconciliationBadgeCount : 0;
+            const isHovered   = hoveredHref === page.href;
+            const starred     = isFav(page.href);
+
+            return (
+              <li key={page.href}>
+                <div
+                  className="relative flex items-center"
+                  onMouseEnter={() => setHoveredHref(page.href)}
+                  onMouseLeave={() => setHoveredHref(null)}
+                >
+                  <Link
+                    href={page.href}
+                    onClick={onNav}
+                    data-testid={`link-nav-${page.label.toLowerCase().replace(/\s/g, "-")}`}
+                    className={cn(
+                      "group relative flex flex-1 min-w-0 items-center gap-2.5 rounded-xl px-3 py-1.5 text-[12.5px] font-medium transition-all duration-100",
+                      isActive
+                        ? "text-foreground"
+                        : "text-muted-foreground/75 hover:text-foreground hover:bg-sidebar-accent/50",
+                      // Pad right when hovered to make room for star
+                      isHovered ? "pr-7" : "",
+                    )}
+                  >
+                    {/* Active: left accent + tinted bg */}
+                    {isActive && (
+                      <>
+                        <span
+                          className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r-full"
+                          style={{ backgroundColor: agentColor }}
+                        />
+                        <span
+                          className="absolute inset-0 rounded-xl ring-1 ring-inset"
+                          style={{
+                            backgroundColor: agentColor + "14",
+                            outlineColor:    agentColor + "30",
+                          }}
+                        />
+                      </>
+                    )}
+
+                    <Icon
+                      className={cn("relative h-[15px] w-[15px] shrink-0 transition-colors")}
+                      style={isActive ? { color: agentColor } : {}}
+                    />
+                    <span className="relative flex-1 truncate">{page.label}</span>
+
+                    {/* Reconciliation badge */}
+                    {badgeCount > 0 && (
+                      <span className="relative ml-auto shrink-0 inline-flex items-center justify-center h-4 min-w-[1rem] rounded-full bg-red-500 text-[10px] font-bold text-white leading-none px-1"
+                        data-testid="badge-reconciliation-count">
+                        {badgeCount > 99 ? "99+" : badgeCount}
+                      </span>
+                    )}
+                  </Link>
+
+                  {/* Star / favourite button (shown on hover) */}
+                  {isHovered && (
+                    <button
+                      onClick={(e) => { e.preventDefault(); onToggleFav(page.href); }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded transition-colors text-muted-foreground/40 hover:text-amber-400"
+                      title={starred ? "Remove from starred" : "Star this page"}
+                    >
+                      {starred
+                        ? <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                        : <Star className="w-3 h-3" />}
+                    </button>
+                  )}
+                  {/* Persistent star indicator when starred and not hovered */}
+                  {!isHovered && starred && (
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-amber-400/60" />
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }

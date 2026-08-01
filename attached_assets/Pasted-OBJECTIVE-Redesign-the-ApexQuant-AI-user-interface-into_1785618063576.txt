@@ -1,0 +1,537 @@
+OBJECTIVE
+
+Redesign the ApexQuant AI user interface into a Multi-Agent Workspace.
+
+The goal is to organise the entire platform around logical AI Agents rather than individual technical modules.
+
+NO business logic changes.
+
+NO API changes.
+
+NO calculations.
+
+Only navigation, layout and user experience improvements.
+
+--------------------------------------------------
+
+OBJECTIVE
+
+An operator should immediately know
+
+• Which Agent is responsible
+
+• What the Agent is doing
+
+• Where information belongs
+
+• Where to drill down
+
+--------------------------------------------------
+
+WORKSPACE PHILOSOPHY
+
+Current
+
+Module Based
+
+↓
+
+New
+
+Agent Based
+
+Every page belongs to exactly ONE primary Agent.
+
+--------------------------------------------------
+
+NEW SIDEBAR
+
+🏠 Command Centre
+
+(Default Landing Page)
+
+--------------------------------------------------
+
+📡 Agent 1
+
+Market Data Agent
+
+Contains
+
+• Live Market
+
+• NSE Data
+
+• Zerodha Feed
+
+• OHLC
+
+• Market Breadth
+
+• Volume
+
+• Delivery
+
+• Watchlists
+
+--------------------------------------------------
+
+📰 Agent 2
+
+Research Agent
+
+Contains
+
+• News
+
+• NSE Announcements
+
+• Corporate Actions
+
+• Earnings
+
+• Economic Calendar
+
+• Macro Events
+
+• Research Sources
+
+--------------------------------------------------
+
+📈 Agent 3
+
+Market Intelligence Agent
+
+Contains
+
+• Market Regime
+
+• Trend Analysis
+
+• Sector Rotation
+
+• Volatility
+
+• Breadth Analysis
+
+• Market Dashboard
+
+--------------------------------------------------
+
+👁 Agent 4
+
+Stock Monitoring Agent
+
+Contains
+
+• Live Scanner
+
+• Breakout Scanner
+
+• Momentum Scanner
+
+• High Volume
+
+• High Delivery
+
+• Watchlist Changes
+
+• Monitoring Alerts
+
+--------------------------------------------------
+
+🎯 Agent 5
+
+Strategy Agent
+
+Contains
+
+• Breakout Strategy
+
+• VWAP Strategy
+
+• ORB Strategy
+
+• Mean Reversion
+
+• Momentum Strategy
+
+• Strategy Comparison
+
+• Strategy Ranking
+
+--------------------------------------------------
+
+⚠ Agent 6
+
+Risk Agent
+
+Contains
+
+• Portfolio Risk
+
+• Position Risk
+
+• Sector Risk
+
+• Correlation
+
+• Tail Risk
+
+• Stress Testing
+
+• Risk Validation
+
+--------------------------------------------------
+
+🤖 Agent 7
+
+AI Decision Agent
+
+Contains
+
+• AI Dashboard
+
+• Explainable AI
+
+• AI Optimisation
+
+• Confidence Analysis
+
+• Model Drift
+
+• Recommendations
+
+• Learning Status
+
+--------------------------------------------------
+
+💼 Agent 8
+
+Execution Agent
+
+Contains
+
+• Paper Orders
+
+• Open Positions
+
+• Closed Positions
+
+• Order History
+
+• Recommendations
+
+• Execution Status
+
+• Execution Mode
+
+--------------------------------------------------
+
+📚 Agent 9
+
+Learning Agent
+
+Contains
+
+• Paper Analytics
+
+• Trade Replay
+
+• Research Lab
+
+• Historical Learning
+
+• AI Performance
+
+• Performance Review
+
+--------------------------------------------------
+
+🛠 Agent 10
+
+Operations Agent
+
+Contains
+
+• Operations Centre
+
+• Observability
+
+• Data Quality
+
+• Security
+
+• Performance
+
+• Deployment
+
+• Scheduler
+
+• Feature Flags
+
+--------------------------------------------------
+
+AGENT HEADER
+
+Every page should display
+
+Agent Name
+
+Agent Status
+
+Current Activity
+
+Last Update
+
+Health
+
+Example
+
+Agent
+
+Market Intelligence
+
+Status
+
+Healthy
+
+Current Task
+
+Evaluating 186 stocks
+
+Last Update
+
+6 seconds ago
+
+--------------------------------------------------
+
+COLOUR CODING
+
+Market Data
+
+Blue
+
+Research
+
+Green
+
+Market Intelligence
+
+Purple
+
+Monitoring
+
+Orange
+
+Strategy
+
+Red
+
+Risk
+
+Amber
+
+AI
+
+Indigo
+
+Execution
+
+Teal
+
+Learning
+
+Cyan
+
+Operations
+
+Grey
+
+Colours must remain consistent across the application.
+
+--------------------------------------------------
+
+COMMAND CENTRE LINKS
+
+Each card links directly to its owning Agent.
+
+Example
+
+Risk Summary
+
+↓
+
+Risk Agent
+
+AI Summary
+
+↓
+
+AI Decision Agent
+
+--------------------------------------------------
+
+GLOBAL SEARCH
+
+Search across
+
+Pages
+
+Agents
+
+Strategies
+
+Watchlists
+
+Alerts
+
+Recommendations
+
+Recent Pages
+
+--------------------------------------------------
+
+FAVOURITES
+
+Allow operators to
+
+Pin favourite pages
+
+Pin favourite agents
+
+Recent pages
+
+--------------------------------------------------
+
+QUICK SWITCHER
+
+Keyboard shortcut
+
+Ctrl + K
+
+Open Agent Search
+
+--------------------------------------------------
+
+RESPONSIVE DESIGN
+
+Desktop
+
+Tablet
+
+Mobile
+
+Maintain identical navigation hierarchy.
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Navigation
+
+<100 ms
+
+Sidebar
+
+Lazy loaded
+
+No duplicate API calls
+
+--------------------------------------------------
+
+TESTING
+
+Verify
+
+Navigation
+
+Agent routing
+
+Quick search
+
+Favourites
+
+Responsive layout
+
+Colour consistency
+
+Keyboard shortcut
+
+--------------------------------------------------
+
+SAFETY
+
+READ-ONLY
+
+Navigation only
+
+No business logic changes
+
+No API changes
+
+No calculation changes
+
+--------------------------------------------------
+
+GITHUB INTEGRATION REQUIREMENTS
+
+Incorporate concepts inspired by previously reviewed GitHub projects where appropriate.
+
+Include
+
+• Modern workspace navigation
+
+• Agent grouping
+
+• Global search
+
+• Quick switcher
+
+• Favourites
+
+• Professional trading workstation layout
+
+Do NOT copy external implementations.
+
+Maintain ApexQuant AI architecture.
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide
+
+1. Files created
+
+2. Files modified
+
+3. Navigation changes
+
+4. Agent hierarchy
+
+5. Search functionality
+
+6. Responsive improvements
+
+7. Test count
+
+8. Test results
+
+9. Performance measurements
+
+10. Future multi-agent integration
+
+11. Confirm no business logic changes
+
+12. Screenshots of the new navigation
+
+Final Verdict
+
+PHASE 9.2 COMPLETE
+
+or
+
+PHASE 9.2 NOT COMPLETE
+
+with exact blockers.
