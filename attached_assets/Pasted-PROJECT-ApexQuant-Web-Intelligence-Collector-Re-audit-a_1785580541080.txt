@@ -1,0 +1,183 @@
+PROJECT: ApexQuant Web Intelligence Collector — Re-audit and Fix Pass
+
+CONTEXT
+
+This is an isolated POC repository/service for ApexQuant AI.
+
+It must remain completely separate from:
+- intraday trading logic
+- swing trading logic
+- Zerodha credentials
+- signal generation
+- risk engine
+- expected-value engine
+- portfolio management
+- paper/live execution
+- the main trading database
+
+The uploaded ZIP is the revised version of:
+apexquant-web-intelligence.zip
+
+The first audit found major issues. Some have reportedly been fixed, including:
+- Python syntax errors
+- redirect validation
+- streaming response-size checks
+- content-type validation
+- hourly domain rate limiting
+- readiness checks
+
+However, the revised build still requires full independent verification.
+
+IMPORTANT:
+Do not trust the included project report or prior claims.
+Verify the actual code and report only observed results.
+
+TASK
+
+1. Extract and inspect the uploaded ZIP.
+2. Install dependencies in a clean environment.
+3. Run:
+   - python -m compileall
+   - pytest -v
+   - ruff check
+   - mypy
+   - alembic upgrade head
+   - Docker build
+   - docker-compose startup
+4. Start the service and verify:
+   - /health
+   - /ready
+   - read-only API endpoints
+   - CLI commands
+   - fixture collection
+   - repeated collection idempotency
+5. Compare the actual implementation against the required architecture and security boundaries.
+6. Fix all confirmed defects.
+7. Add or improve tests for every defect fixed.
+8. Do not connect to any real external website.
+9. Do not add NSE, BSE, Zerodha, live-price, or execution integrations.
+10. Do not modify any ApexQuant trading repository or trading-engine code.
+
+SPECIFIC ITEMS TO VERIFY
+
+A. Robots handling
+The current RobotsChecker may fail open when robots.txt retrieval or parsing fails.
+
+Required:
+- Review this behavior.
+- For production-approved sources, ambiguous robots status must fail closed.
+- A source-specific explicit compliance override may be allowed only through reviewed configuration.
+- Add tests for:
+  - robots allow
+  - robots disallow
+  - robots fetch failure
+  - robots parse failure
+  - cached robots result
+  - explicit reviewed override
+
+B. SSRF and redirects
+Verify:
+- every redirect target is validated
+- localhost is blocked
+- private RFC1918 ranges are blocked
+- link-local addresses are blocked
+- metadata-service IPs are blocked
+- DNS resolution is checked
+- redirect loops and excessive redirects are rejected
+- URL overrides cannot escape the approved source host/path policy
+
+C. Streaming and resource controls
+Verify:
+- responses are streamed
+- download stops when size limit is exceeded
+- compressed/decompressed size risks are handled
+- unsupported content types are rejected
+- timeouts and retry limits are bounded
+- 4xx errors are not retried except approved cases
+- concurrency limits work
+- hourly rate limits work
+
+D. Source registry persistence
+Verify that:
+- approved sources are stored persistently
+- enable/disable survives process restart
+- CLI and API use the same repository
+- emergency source disable is reliable
+
+E. Parser correctness
+Verify:
+- Scrapling is actually used when required
+- production does not silently fall back to an inferior parser
+- missing selectors produce PARSER_MISMATCH
+- per-record publication dates are extracted correctly
+- one record cannot inherit another record’s date
+- empty extraction never reports success
+
+F. Deduplication
+Verify:
+- keys are scoped by source
+- exact duplicates are ignored
+- changed content updates the existing logical record
+- records_updated increments correctly
+- duplicates_ignored is not used for changed content
+- new snapshots are preserved for changed content
+
+G. API correctness
+Verify:
+- all declared filters match real database fields
+- pagination is bounded
+- totals use SQL COUNT rather than loading all rows
+- raw content is never exposed
+- internal filesystem paths are not leaked
+- readiness checks database, storage, and required parser availability
+
+H. Database and migrations
+Verify:
+- Alembic is the source of truth
+- startup does not silently create or mutate schema with create_all
+- fresh database migration works
+- upgrade path works
+- SQLite test mode and PostgreSQL mode are both handled correctly
+
+I. Docker
+Verify:
+- package install order is correct
+- runtime image does not unnecessarily include dev dependencies
+- non-root user is used where practical
+- healthcheck works
+- environment variables are documented
+- container starts successfully
+
+J. Test isolation
+Verify:
+- no test contacts the internet
+- local fixtures are used
+- network access is blocked or mocked
+- failure in one source does not affect another
+- cancellation and partial failures are covered
+
+REQUIRED OUTPUT
+
+After fixes, provide:
+
+1. branch name
+2. commit hash
+3. exact files changed
+4. complete test results
+5. compileall result
+6. Ruff result
+7. mypy result
+8. Alembic migration result
+9. Docker build result
+10. container startup result
+11. endpoint verification results
+12. CLI verification results
+13. security findings
+14. remaining limitations
+15. confirmation that no trading code was touched
+16. final recommendation:
+   - MERGE
+   - HOLD
+   - REJECT
+
+Do not mark MERGE unless all critical and high-severity issues are resolved and all quality checks pass.
