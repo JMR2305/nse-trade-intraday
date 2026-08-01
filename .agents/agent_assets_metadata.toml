@@ -208,3 +208,10 @@ uri = "file://services/web_intelligence/PHASE_8_8_SUMMARY.md"
 type = "text"
 title = "Phase 8.8 — Deployment & Disaster Recovery Centre Summary"
 description = "Complete build summary: 5-domain DR scoring, 12 API endpoints, 10-tab dashboard, business continuity assessment, 10-agent future readiness table, 109/109 tests, and final verdict."
+
+[[outputs]]
+id = "A6SVlx5KhkfOz4NtAcZXN"
+uri = "file://artifacts/api-server/services/web_intelligence/PHASE_9_1_SUMMARY.md"
+type = "text"
+title = "Phase 9.1 — Unified Command Centre Summary"
+description = "Complete build summary for the ApexQuant AI Unified Command Centre — endpoints, sections, upstream interfaces, test results, and safety guarantees."
