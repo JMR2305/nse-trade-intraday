@@ -1,0 +1,503 @@
+OBJECTIVE
+
+Build a comprehensive Performance Optimisation & Scalability Framework for ApexQuant AI.
+
+This module continuously analyses platform performance and recommends optimisation opportunities.
+
+This module MUST remain completely READ-ONLY and ADVISORY-ONLY.
+
+It MUST NEVER
+
+• Modify algorithms
+
+• Modify AI models
+
+• Modify database records
+
+• Modify strategies
+
+• Restart services
+
+• Change configuration automatically
+
+• Place orders
+
+• Modify portfolio
+
+Its responsibility is to monitor, profile, benchmark and recommend.
+
+--------------------------------------------------
+
+FEATURE FLAG
+
+PERFORMANCE_CENTER_ENABLED=true
+
+--------------------------------------------------
+
+ARCHITECTURE
+
+Reuse existing modules
+
+• Operations Center
+
+• Observability Center
+
+• Security Center
+
+• Data Quality
+
+• Risk Validation
+
+• Paper Analytics
+
+• Research Lab
+
+• Executive Dashboard
+
+Reuse existing snapshots.
+
+Never duplicate profiling.
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Continuously evaluate
+
+API Performance
+
+Database Performance
+
+Scheduler Performance
+
+Cache Performance
+
+Memory Usage
+
+CPU Usage
+
+Background Jobs
+
+Dashboard Performance
+
+Agent Performance (future)
+
+Network Usage
+
+--------------------------------------------------
+
+API PERFORMANCE
+
+Measure
+
+Average Response Time
+
+95th Percentile
+
+99th Percentile
+
+Slowest Endpoints
+
+Fastest Endpoints
+
+Request Count
+
+Error Rate
+
+Throughput
+
+--------------------------------------------------
+
+DATABASE PERFORMANCE
+
+Measure
+
+Query Time
+
+Slow Queries
+
+Connection Pool
+
+Read Operations
+
+Write Operations
+
+Storage Growth
+
+Index Usage
+
+--------------------------------------------------
+
+CACHE PERFORMANCE
+
+Measure
+
+Hit Rate
+
+Miss Rate
+
+Refresh Time
+
+Cache Size
+
+Invalidation Frequency
+
+Snapshot Reuse
+
+--------------------------------------------------
+
+SCHEDULER PERFORMANCE
+
+Measure
+
+Execution Time
+
+Job Duration
+
+Delayed Jobs
+
+Failed Jobs
+
+Retry Count
+
+Queue Size
+
+--------------------------------------------------
+
+RESOURCE PERFORMANCE
+
+Monitor
+
+CPU
+
+Memory
+
+Disk
+
+Network
+
+Python Workers
+
+Node Processes
+
+--------------------------------------------------
+
+FRONTEND PERFORMANCE
+
+Measure
+
+Dashboard Load Time
+
+API Render Time
+
+Page Load Time
+
+Component Render Time
+
+Navigation Speed
+
+Bundle Size
+
+--------------------------------------------------
+
+PERFORMANCE SCORE
+
+Generate
+
+Overall Performance Score
+
+0–100
+
+Grade
+
+A+
+
+A
+
+B
+
+C
+
+D
+
+Trend
+
+Improving
+
+Stable
+
+Degrading
+
+--------------------------------------------------
+
+OPTIMISATION RECOMMENDATIONS
+
+Generate advisory suggestions
+
+Examples
+
+"Consider caching Market Intelligence snapshot."
+
+"Database query exceeds target latency."
+
+"Scheduler approaching execution limit."
+
+"Dashboard rendering could be reduced by lazy loading."
+
+"API response time above threshold."
+
+Recommendations only.
+
+Never optimise automatically.
+
+--------------------------------------------------
+
+BENCHMARKING
+
+Compare
+
+Current Session
+
+Yesterday
+
+Last Week
+
+Rolling Average
+
+Peak Performance
+
+--------------------------------------------------
+
+SCALABILITY
+
+Estimate
+
+Current Capacity
+
+Recommended Capacity
+
+Estimated Maximum Stocks
+
+Estimated Maximum Concurrent Users
+
+Estimated Scheduler Load
+
+Future Agent Capacity
+
+--------------------------------------------------
+
+FUTURE MULTI-AGENT READINESS
+
+Prepare performance metrics for
+
+Market Data Agent
+
+Research Agent
+
+Market Intelligence Agent
+
+Stock Monitoring Agent
+
+Strategy Agent
+
+Risk Agent
+
+AI Decision Agent
+
+Execution Agent
+
+Learning Agent
+
+Supervisor Agent
+
+--------------------------------------------------
+
+DASHBOARD
+
+Create tabs
+
+Overview
+
+API
+
+Database
+
+Cache
+
+Scheduler
+
+Resources
+
+Frontend
+
+Benchmark
+
+Recommendations
+
+Scalability
+
+Export
+
+--------------------------------------------------
+
+API
+
+GET /api/performance/summary
+
+GET /api/performance/api
+
+GET /api/performance/database
+
+GET /api/performance/cache
+
+GET /api/performance/scheduler
+
+GET /api/performance/resources
+
+GET /api/performance/frontend
+
+GET /api/performance/scalability
+
+GET /api/performance/recommendations
+
+GET /api/performance/export
+
+--------------------------------------------------
+
+EXPORT
+
+CSV
+
+JSON
+
+Future PDF
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Background profiling only.
+
+Reuse existing snapshots.
+
+No duplicate profiling.
+
+No blocking operations.
+
+--------------------------------------------------
+
+TESTING
+
+Verify
+
+Feature flag
+
+Performance score
+
+API metrics
+
+Database metrics
+
+Scheduler metrics
+
+Cache metrics
+
+Frontend metrics
+
+Scalability estimation
+
+Dashboard
+
+Exports
+
+--------------------------------------------------
+
+SAFETY
+
+READ-ONLY
+
+ADVISORY-ONLY
+
+Never modify
+
+Strategies
+
+Orders
+
+Portfolio
+
+Configuration
+
+Risk Engine
+
+AI Models
+
+--------------------------------------------------
+
+GITHUB INTEGRATION REQUIREMENTS
+
+Incorporate concepts inspired by previously reviewed GitHub projects where appropriate.
+
+Include
+
+• Performance dashboards
+
+• Query profiling
+
+• Cache analytics
+
+• Scheduler analytics
+
+• Scalability estimation
+
+• Optimisation recommendations
+
+Do NOT copy external implementations.
+
+Maintain ApexQuant AI modular architecture.
+
+--------------------------------------------------
+
+FUTURE INTEGRATION
+
+Design this module so Phase 8.8 and future multi-agent architecture integrate without architectural changes.
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide
+
+1. Files created
+
+2. Files modified
+
+3. Shared services reused
+
+4. APIs
+
+5. Dashboard
+
+6. Test count
+
+7. Test results
+
+8. Performance methodology
+
+9. Known limitations
+
+10. GitHub-inspired enhancements
+
+11. Future integration explanation
+
+12. Confirm READ-ONLY and ADVISORY-ONLY architecture.
+
+Final Verdict
+
+PHASE 8.7 COMPLETE
+
+or
+
+PHASE 8.7 NOT COMPLETE
+
+with exact blockers.

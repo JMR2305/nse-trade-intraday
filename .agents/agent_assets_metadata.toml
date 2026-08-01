@@ -194,3 +194,10 @@ uri = "file://services/web_intelligence/PHASE_8_6_SUMMARY.md"
 type = "text"
 title = "Phase 8.6 — Security & Compliance Centre Summary"
 description = "Complete build summary: architecture, 8-domain security methodology, 12 API endpoints, 11-tab dashboard, 76/76 tests, downstream interface, and final verdict."
+
+[[outputs]]
+id = "cTjgAJ4sDeKxezMzsjdaB"
+uri = "file://services/web_intelligence/PHASE_8_7_SUMMARY.md"
+type = "text"
+title = "Phase 8.7 — Performance Optimisation & Scalability Framework Summary"
+description = "Complete build summary: 9-domain performance methodology, 12 API endpoints, 11-tab dashboard, scalability estimation, 10-agent readiness table, 70/70 tests, and final verdict."

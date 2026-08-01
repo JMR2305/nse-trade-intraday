@@ -74,6 +74,7 @@ import DataQuality          from "@/pages/DataQuality";
 import RiskValidation       from "@/pages/RiskValidation";
 import OperationsCenter     from "@/pages/OperationsCenter";
 import SecurityCenter       from "@/pages/SecurityCenter";
+import PerformanceCenter    from "@/pages/PerformanceCenter";
 import { ConnectivityPanel } from "@/components/ConnectivityPanel";
 
 const queryClient = new QueryClient({
@@ -164,6 +165,7 @@ function Router() {
         <Route path="/risk-validation"      component={RiskValidation} />
         <Route path="/operations-center"    component={OperationsCenter} />
         <Route path="/security-center"      component={SecurityCenter} />
+        <Route path="/performance-center"   component={PerformanceCenter} />
         <Route path="/live-readiness" component={LiveReadiness} />
         <Route component={NotFound} />
       </Switch>

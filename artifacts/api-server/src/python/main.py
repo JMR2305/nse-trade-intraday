@@ -2877,6 +2877,33 @@ def main():
         elif command == "sec_export_csv":
             from security_center.api import cmd_export_csv   as _f; result = _f()
 
+        elif command == "perf_summary":
+            from performance_center.api import cmd_summary        as _f; result = _f()
+        elif command == "perf_api":
+            from performance_center.api import cmd_api            as _f; result = _f()
+        elif command == "perf_database":
+            from performance_center.api import cmd_database       as _f; result = _f()
+        elif command == "perf_cache":
+            from performance_center.api import cmd_cache          as _f; result = _f()
+        elif command == "perf_scheduler":
+            from performance_center.api import cmd_scheduler      as _f; result = _f()
+        elif command == "perf_resources":
+            from performance_center.api import cmd_resources      as _f; result = _f()
+        elif command == "perf_frontend":
+            from performance_center.api import cmd_frontend       as _f; result = _f()
+        elif command == "perf_scalability":
+            from performance_center.api import cmd_scalability    as _f; result = _f()
+        elif command == "perf_benchmark":
+            from performance_center.api import cmd_benchmark      as _f; result = _f()
+        elif command == "perf_recommendations":
+            from performance_center.api import cmd_recommendations as _f; result = _f()
+        elif command == "perf_snapshot":
+            from performance_center.api import cmd_snapshot       as _f; result = _f()
+        elif command == "perf_export_json":
+            from performance_center.api import cmd_export_json    as _f; result = _f()
+        elif command == "perf_export_csv":
+            from performance_center.api import cmd_export_csv     as _f; result = _f()
+
         else:
             error_msg = f"Unknown command: {command}"
 
