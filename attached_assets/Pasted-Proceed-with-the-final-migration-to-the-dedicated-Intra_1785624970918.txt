@@ -1,0 +1,91 @@
+Proceed with the final migration to the dedicated Intraday GitHub repository.
+
+CURRENT VERIFIED STATE
+
+- New origin:
+  https://github.com/JMR2305/nse-trade-intraday
+
+- Old shared repository preserved as:
+  old-shared-origin
+
+- Current latest Intraday branch:
+  phase-5c-signal-validation
+
+- Current latest commit:
+  4b8fda7
+
+- Existing local main:
+  2303d97
+
+- The existing local main is 194 commits behind the current branch.
+
+SAFETY RULES
+
+- Do not force-push.
+- Do not reset, rebase, squash, amend, or delete commits.
+- Do not delete any branch.
+- Do not push anything to old-shared-origin.
+- Do not push Replit internal subrepl branches.
+- Do not expose secrets.
+- Stop immediately if main cannot be fast-forwarded.
+- Do not create a merge commit unless I separately approve it.
+
+STEPS
+
+1. Confirm:
+   - working tree is clean
+   - current branch is phase-5c-signal-validation
+   - origin points to JMR2305/nse-trade-intraday
+   - old-shared-origin points to JMR2305/nse-ai-trading-platform
+   - the new origin repository is empty or has no conflicting history
+
+2. Protect the old shared remote from accidental pushes by disabling its push URL while retaining fetch access.
+
+3. Verify that local main is an ancestor of phase-5c-signal-validation using:
+
+   git merge-base --is-ancestor main phase-5c-signal-validation
+
+4. If and only if that command succeeds:
+
+   - switch to main
+   - fast-forward main using:
+
+     git merge --ff-only phase-5c-signal-validation
+
+5. Confirm that main now points to commit 4b8fda7.
+
+6. Run the appropriate Intraday validation:
+   - relevant automated tests
+   - lint/type/build checks where configured
+   - verify no secrets are tracked
+   - verify application startup or build health
+
+7. Show me:
+   - final branch hashes
+   - test results
+   - git status
+   - commits that will be pushed
+   - exact list of branches proposed for migration
+
+8. Push only these branches to the new origin:
+
+   - main
+   - phase-5c-signal-validation
+   - phase-5-preopen-intelligence
+   - phase-5b-preopen-validation
+
+9. Do not push:
+   - subrepl-* branches
+   - replit-agent
+   - the safety backup branch
+   - batch-assets until its contents are separately reviewed
+   - anything to old-shared-origin
+
+10. After pushing, verify:
+    - origin/main exists
+    - origin/main points to 4b8fda7
+    - main tracks origin/main
+    - all four approved branches appear in the new repository
+    - no branch was sent to the old shared repository
+
+Provide a final Git migration report.
