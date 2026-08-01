@@ -21,9 +21,14 @@ class SnapshotRepository:
         return self._to_domain(orm) if orm else None
 
     async def save(self, snapshot: RawSnapshot) -> None:
-        """Save a raw snapshot."""
+        """Save or update a raw snapshot.
+
+        Uses merge() (upsert on primary key) so that calling save() a second
+        time with the same ID — e.g. when collection updates parser_version
+        after the initial insert — does not raise a UNIQUE constraint error.
+        """
         orm = self._to_orm(snapshot)
-        self._session.add(orm)
+        await self._session.merge(orm)
         await self._session.commit()
 
     def _to_domain(self, orm: RawSnapshotORM) -> RawSnapshot:

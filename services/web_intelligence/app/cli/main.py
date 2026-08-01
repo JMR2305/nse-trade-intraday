@@ -188,30 +188,34 @@ def inspect_run(run_id: str) -> None:
 
 @app.command()
 def disable_source(source_id: str) -> None:
-    """Disable a source."""
+    """Disable a source (persisted to DB so the change survives restart)."""
 
     async def _run() -> None:
-        registry = create_default_registry()
-        if await registry.disable(source_id):
-            typer.echo(f"Source {source_id} disabled")
-        else:
-            typer.echo(f"ERROR: Source {source_id} not found", err=True)
-            raise typer.Exit(1)
+        async with AsyncSessionLocal() as session:
+            registry = create_default_registry(session=session)
+            await registry.sync_from_db()
+            if await registry.disable(source_id):
+                typer.echo(f"Source {source_id} disabled")
+            else:
+                typer.echo(f"ERROR: Source {source_id} not found", err=True)
+                raise typer.Exit(1)
 
     asyncio.run(_run())
 
 
 @app.command()
 def enable_source(source_id: str) -> None:
-    """Enable a source."""
+    """Enable a source (persisted to DB so the change survives restart)."""
 
     async def _run() -> None:
-        registry = create_default_registry()
-        if await registry.enable(source_id):
-            typer.echo(f"Source {source_id} enabled")
-        else:
-            typer.echo(f"ERROR: Source {source_id} not found", err=True)
-            raise typer.Exit(1)
+        async with AsyncSessionLocal() as session:
+            registry = create_default_registry(session=session)
+            await registry.sync_from_db()
+            if await registry.enable(source_id):
+                typer.echo(f"Source {source_id} enabled")
+            else:
+                typer.echo(f"ERROR: Source {source_id} not found", err=True)
+                raise typer.Exit(1)
 
     asyncio.run(_run())
 

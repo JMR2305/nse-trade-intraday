@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head><title>Test Fixture</title></head>
+<body>
+  <div class="fixture-item">
+    <span class="fixture-title">Market Holiday Announcement</span>
+    <span class="fixture-summary">Trading will be closed on 2024-01-26 for Republic Day.</span>
+    <span class="fixture-date">2024-01-15T10:00:00</span>
+  </div>
+  <div class="fixture-item">
+    <span class="fixture-title">Regulatory Circular Update</span>
+    <span class="fixture-summary">New margin requirements effective February 1, 2024.</span>
+    <span class="fixture-date">2024-01-20T14:30:00</span>
+  </div>
+</body>
+</html>

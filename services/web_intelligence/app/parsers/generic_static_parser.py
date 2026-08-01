@@ -19,6 +19,11 @@ class GenericStaticParser(SourceParser):
     - <h2 class="title">Title</h2>
     - <p class="summary">Summary</p>
     - <time datetime="...">Publication date</time>
+
+    Compatible with scrapling 0.4.x Selector API:
+    - Use `css()` to select multiple elements (returns iterable Selectors)
+    - Use `find()` to get the first matching element (returns single Selector or None)
+    - Access text via the `.text` property — not the `.text()` method
     """
 
     @property
@@ -35,9 +40,9 @@ class GenericStaticParser(SourceParser):
         adapter = ScraplingAdapter()
         doc = adapter.parse_html(html_content, url=source_url)
 
-        articles = doc.find("article.intelligence-item")
+        # css() returns all matching elements; find() returns the first only
+        articles = doc.css("article.intelligence-item")
         if not articles:
-            # Check if the page has any content at all
             body = doc.find("body")
             if not body:
                 logger.warning(
@@ -53,7 +58,6 @@ class GenericStaticParser(SourceParser):
                     error_message="No <body> tag found in document",
                 )
 
-            # Body exists but no expected articles
             logger.warning(
                 "parser_mismatch_no_articles",
                 parser=self.parser_name,
@@ -71,10 +75,10 @@ class GenericStaticParser(SourceParser):
         for idx, article in enumerate(articles):
             try:
                 title_elem = article.find("h2.title")
-                title = title_elem[0].text() if title_elem else ""
+                title = title_elem.text if title_elem else ""
 
                 summary_elem = article.find("p.summary")
-                summary = summary_elem[0].text() if summary_elem else ""
+                summary = summary_elem.text if summary_elem else ""
 
                 time_elem = article.find("time")
                 published_at = None

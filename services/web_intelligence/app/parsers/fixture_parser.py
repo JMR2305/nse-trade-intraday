@@ -18,6 +18,11 @@ class FixtureParser(SourceParser):
     - <span class="fixture-title">Title</span>
     - <span class="fixture-summary">Summary</span>
     - <span class="fixture-date">ISO date</span>
+
+    Compatible with scrapling 0.4.x Selector API:
+    - Use `css()` to select multiple elements (returns iterable Selectors)
+    - Use `find()` to get the first matching element (returns single Selector or None)
+    - Access text via the `.text` property — not the `.text()` method
     """
 
     @property
@@ -34,7 +39,8 @@ class FixtureParser(SourceParser):
         adapter = ScraplingAdapter()
         doc = adapter.parse_html(html_content, url=source_url)
 
-        items = doc.find("div.fixture-item")
+        # css() returns all matching elements (iterable); find() returns first only
+        items = doc.css("div.fixture-item")
         if not items:
             body = doc.find("body")
             if not body:
@@ -55,16 +61,16 @@ class FixtureParser(SourceParser):
         for idx, item in enumerate(items):
             try:
                 title_elem = item.find("span.fixture-title")
-                title = title_elem[0].text() if title_elem else ""
+                title = title_elem.text if title_elem else ""
 
                 summary_elem = item.find("span.fixture-summary")
-                summary = summary_elem[0].text() if summary_elem else ""
+                summary = summary_elem.text if summary_elem else ""
 
                 date_elem = item.find("span.fixture-date")
                 published_at = None
                 if date_elem:
                     try:
-                        published_at = datetime.fromisoformat(date_elem[0].text().strip())
+                        published_at = datetime.fromisoformat(date_elem.text.strip())
                     except ValueError:
                         pass
 

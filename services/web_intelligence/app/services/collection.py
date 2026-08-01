@@ -66,11 +66,13 @@ class CollectionService:
 
         try:
             # 1. Fetch
+            from app.domain.enums import SourceType
             fetch_result = await self.fetch_client.fetch(
                 target_url,
                 user_agent=source.user_agent,
                 request_interval_seconds=source.request_interval_seconds,
                 maximum_requests_per_hour=source.maximum_requests_per_hour,
+                allow_file_urls=(source.source_type == SourceType.LOCAL_HTML_FIXTURE),
             )
 
             # 2. Store raw snapshot
@@ -178,7 +180,7 @@ class CollectionService:
                 })
                 processed_record, is_new, was_updated = await self.dedup_service.process_record(record)
                 if is_new:
-                    await self.intelligence_repo.save(processed_record)
+                    # Record already persisted inside process_record — do not double-save
                     records_inserted += 1
                     collection_metrics.records_created += 1
                 elif was_updated:

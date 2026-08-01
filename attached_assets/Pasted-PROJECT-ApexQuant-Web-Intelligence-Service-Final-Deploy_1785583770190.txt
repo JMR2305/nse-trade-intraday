@@ -1,0 +1,396 @@
+PROJECT: ApexQuant Web Intelligence Service — Final Deployment Verification
+
+CONTEXT
+
+The Web Intelligence service has already undergone a remediation pass.
+
+The attached summary reports that:
+- robots handling is now fail-closed,
+- SSRF protections are always enabled,
+- cross-origin redirects are blocked,
+- deduplication is source-scoped,
+- source registry state persists,
+- Alembic is the sole schema manager,
+- 61 unit tests pass,
+- compileall, Ruff, mypy, and SQLite Alembic migration checks pass,
+- the service remains isolated from the trading engine.
+
+Do not trust the summary blindly. Verify the actual repository and report only observed results.
+
+GOAL
+
+Perform the final deployment-readiness verification for the isolated Web Intelligence service.
+
+Do not add new business features.
+Do not connect real NSE, BSE, news, broker, or live-market sources.
+Do not modify any ApexQuant trading-engine, intraday, swing, Zerodha, risk, portfolio, signal, or execution code.
+
+SCOPE
+
+Verify the service located at:
+
+services/web_intelligence/
+
+Run all checks in a clean environment.
+
+1. SOURCE AND BRANCH VERIFICATION
+
+Report:
+- current branch
+- latest commit hash
+- repository status
+- exact files modified during this verification
+- confirmation that no trading-engine files were changed
+
+2. DEPENDENCY INSTALLATION
+
+From services/web_intelligence/, run:
+
+pip install -e ".[dev]"
+
+Verify:
+- dependency installation completes successfully,
+- Scrapling is installed and importable,
+- FastAPI, SQLAlchemy, Alembic, PostgreSQL driver, pytest, Ruff, and mypy are available,
+- no dependency version conflict prevents startup.
+
+3. PYTHON AND QUALITY CHECKS
+
+Run:
+
+python -m compileall app migrations tests
+ruff check app tests
+mypy app --ignore-missing-imports
+
+Report exact results.
+
+Do not describe Ruff or mypy as fully clean when warnings or ignored errors remain.
+Clearly separate:
+- zero new errors,
+- pre-existing warnings,
+- ignored typing gaps.
+
+4. FULL TEST SUITE
+
+Run the complete test suite, not only unit tests:
+
+pytest tests/ -v
+
+Also run with network blocking or equivalent protection to confirm no test contacts the public internet.
+
+Verify:
+- unit tests,
+- integration tests,
+- API tests,
+- collection-pipeline tests,
+- fixture-based collection,
+- idempotent repeated collection,
+- source failure isolation,
+- robots tests,
+- SSRF and redirect tests,
+- persistence tests,
+- readiness tests.
+
+Report:
+- total tests collected,
+- passed,
+- failed,
+- skipped,
+- warnings,
+- execution duration.
+
+Do not claim all tests pass unless pytest exits successfully.
+
+5. POSTGRESQL VERIFICATION
+
+The prior report only confirmed migration on SQLite.
+
+Create a clean PostgreSQL test database and verify:
+
+- DATABASE_URL uses PostgreSQL with asyncpg,
+- alembic upgrade head succeeds,
+- all required tables and columns exist,
+- source registry persistence works,
+- intelligence-record creation works,
+- deduplication works across restarts,
+- changed-content updates work,
+- API reads work against PostgreSQL,
+- alembic current reports the expected revision.
+
+Run and report:
+
+alembic upgrade head
+alembic current
+
+Then perform a small PostgreSQL repository smoke test.
+
+Do not use Base.metadata.create_all().
+
+6. MIGRATION RELIABILITY
+
+Verify:
+
+- Alembic is the only schema-management mechanism,
+- application startup does not silently create tables,
+- startup fails clearly when migrations are missing,
+- a fresh PostgreSQL database upgrades cleanly,
+- re-running alembic upgrade head is idempotent.
+
+If practical, test downgrade/upgrade only where the migration explicitly supports it. Do not force an unsafe downgrade.
+
+7. DOCKER BUILD
+
+Run:
+
+docker build -t apexquant-web-intelligence:verification .
+
+Verify:
+
+- build succeeds,
+- project package is installed correctly,
+- runtime image does not unnecessarily contain development tools,
+- the container does not run as root where avoidable,
+- no secrets are copied into the image,
+- .env is not copied into the image,
+- healthcheck is valid,
+- image starts with the documented command.
+
+Report the image size and any warnings.
+
+8. DOCKER COMPOSE STARTUP
+
+Run:
+
+docker compose up --build -d
+
+Use PostgreSQL through Docker Compose.
+
+Verify:
+
+- PostgreSQL becomes healthy,
+- migrations apply,
+- API container becomes healthy,
+- service remains running,
+- logs show no startup exceptions,
+- shutdown is graceful.
+
+Then run:
+
+docker compose ps
+docker compose logs --no-color
+
+Report relevant results without exposing secrets.
+
+9. ENDPOINT SMOKE TESTS
+
+Against the running container, verify:
+
+GET /health
+GET /ready
+GET /api/v1/sources
+GET /api/v1/collection-runs
+GET /api/v1/intelligence
+
+Also verify one known invalid ID returns the correct 404 behavior.
+
+For /ready, confirm it checks:
+- database connectivity,
+- snapshot-storage write/read/delete,
+- required parser availability,
+- migration readiness if implemented.
+
+Verify:
+- raw content is never returned,
+- internal filesystem paths are not exposed,
+- pagination limit above maximum is rejected,
+- declared filters correspond to actual database fields.
+
+10. CLI SMOKE TESTS
+
+Run and report:
+
+list-sources
+validate-source <fixture-source-id>
+collect-source <fixture-source-id>
+inspect-run <generated-run-id>
+disable-source <fixture-source-id>
+enable-source <fixture-source-id>
+
+Verify:
+- source disable persists across a new process,
+- disabled sources cannot be collected,
+- enabled state persists,
+- fixture collection succeeds,
+- repeated fixture collection is idempotent,
+- changed fixture content is treated as an update rather than a duplicate.
+
+Restore the fixture source to its original state at the end.
+
+11. FIXTURE-BASED END-TO-END TEST
+
+Run one complete local-fixture collection:
+
+Approved source
+→ robots/policy decision
+→ URL validation
+→ fetch
+→ raw snapshot
+→ parser
+→ schema validation
+→ deduplication
+→ PostgreSQL persistence
+→ API retrieval
+
+Verify:
+- one raw snapshot is saved,
+- one intelligence record is created,
+- collection-run counters are correct,
+- repeated collection increments duplicates_ignored appropriately,
+- changed content increments records_updated,
+- no real network call occurs.
+
+12. SCRAPLING PRODUCTION BEHAVIOR
+
+Verify:
+
+- Scrapling is the actual parser in normal runtime,
+- production does not silently fall back when Scrapling is unavailable,
+- missing Scrapling causes readiness failure or startup failure,
+- fallback parser is limited to explicit test/development use only,
+- parser mismatch fails closed.
+
+If this is not enforced, fix it and add tests.
+
+13. ROBOTS POLICY GOVERNANCE
+
+Verify:
+
+- normal robots failures fail closed,
+- allow/disallow results are cached correctly,
+- robots_policy="allow" is treated as an explicit reviewed override,
+- the override is documented and auditable.
+
+If the model lacks fields for:
+- approval reason,
+- approved by,
+- approval date,
+- review/expiry date,
+
+do not redesign the full service in this pass. Instead:
+- document the governance gap,
+- prevent casual use of the override where practical,
+- recommend the exact follow-up schema change.
+
+14. SECURITY RE-VERIFICATION
+
+Confirm with tests:
+
+- localhost blocked,
+- private IPv4 and IPv6 blocked,
+- link-local blocked,
+- metadata-service addresses blocked,
+- unsupported schemes blocked,
+- redirect loops blocked,
+- excessive redirects blocked,
+- cross-origin redirects blocked,
+- every redirect hop validated,
+- approved-source URL overrides cannot escape allowed host/path rules,
+- streaming stops at maximum response size,
+- unsupported content types rejected,
+- authorization and cookie headers are not logged,
+- internal storage paths are not exposed by API.
+
+15. OBSERVABILITY
+
+Verify structured logs include:
+
+- collection_run_id
+- source_id
+- host
+- status
+- duration
+- retry count
+- records extracted
+- data-quality status
+
+Verify logs do not include:
+- raw page bodies,
+- secrets,
+- cookies,
+- authorization headers,
+- database passwords.
+
+16. DOCUMENTATION CHECK
+
+Update documentation only when actual behavior differs from the current docs.
+
+Confirm README includes correct commands for:
+- installation,
+- migrations,
+- local startup,
+- PostgreSQL,
+- Docker,
+- tests,
+- CLI usage,
+- source onboarding,
+- known limitations.
+
+Do not mark the service production-ready merely because tests pass.
+
+17. FIX POLICY
+
+Fix only confirmed defects required for deployment verification.
+
+For every fix:
+- add or update a test,
+- explain root cause,
+- list exact file changes,
+- rerun all affected checks.
+
+Do not add real external sources.
+Do not add a frontend.
+Do not add scheduling beyond existing safe defaults.
+Do not merge with trading services.
+
+FINAL REPORT
+
+Provide a final report containing:
+
+1. branch name
+2. commit hash
+3. repository status
+4. exact files changed
+5. dependency-install result
+6. compileall result
+7. full pytest result
+8. Ruff result
+9. mypy result
+10. PostgreSQL migration result
+11. PostgreSQL repository smoke-test result
+12. Docker build result
+13. Docker Compose startup result
+14. endpoint smoke-test results
+15. CLI smoke-test results
+16. fixture end-to-end result
+17. Scrapling runtime-verification result
+18. robots override governance finding
+19. security verification summary
+20. remaining warnings and limitations
+21. confirmation that no trading code was touched
+22. final recommendation:
+    - DEPLOYABLE FOR INTERNAL POC
+    - HOLD
+    - REJECT
+
+APPROVAL RULE
+
+Recommend DEPLOYABLE FOR INTERNAL POC only when:
+
+- full tests pass,
+- PostgreSQL migrations and persistence work,
+- Docker build and startup succeed,
+- fixture collection works end to end,
+- no critical or high-severity security defect remains,
+- no trading-engine code was modified.
+
+Do not approve connection to real NSE, BSE, news, or financial websites in this pass.

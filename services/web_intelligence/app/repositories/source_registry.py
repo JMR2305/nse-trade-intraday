@@ -36,7 +36,7 @@ class SourceRegistry:
         return [s for s in self._sources.values() if s.enabled]
 
     async def disable(self, source_id: str) -> bool:
-        """Disable a source. Persists to DB if session available. Returns True if found."""
+        """Disable a source. Upserts to DB if session available. Returns True if found."""
         src = self._sources.get(source_id)
         if src is None:
             return False
@@ -44,20 +44,12 @@ class SourceRegistry:
         self._sources[source_id] = updated
 
         if self._session:
-            result = await self._session.execute(
-                select(ApprovedSourceORM).where(ApprovedSourceORM.id == source_id)
-            )
-            orm = result.scalar_one_or_none()
-            if orm:
-                orm.enabled = 0
-                orm.updated_at = datetime.utcnow()
-                await self._session.commit()
-                logger.info("source_disabled_persisted", source_id=source_id)
+            await self._upsert_enabled(source_id, enabled=0)
 
         return True
 
     async def enable(self, source_id: str) -> bool:
-        """Enable a source. Persists to DB if session available. Returns True if found."""
+        """Enable a source. Upserts to DB if session available. Returns True if found."""
         src = self._sources.get(source_id)
         if src is None:
             return False
@@ -65,17 +57,49 @@ class SourceRegistry:
         self._sources[source_id] = updated
 
         if self._session:
-            result = await self._session.execute(
-                select(ApprovedSourceORM).where(ApprovedSourceORM.id == source_id)
-            )
-            orm = result.scalar_one_or_none()
-            if orm:
-                orm.enabled = 1
-                orm.updated_at = datetime.utcnow()
-                await self._session.commit()
-                logger.info("source_enabled_persisted", source_id=source_id)
+            await self._upsert_enabled(source_id, enabled=1)
 
         return True
+
+    async def _upsert_enabled(self, source_id: str, *, enabled: int) -> None:
+        """Persist the enabled/disabled state to the DB.
+
+        If the source is a default (not yet in the DB), it is inserted so
+        subsequent restarts load the correct state via sync_from_db().
+        """
+        src = self._sources.get(source_id)
+        if src is None or self._session is None:
+            return
+        result = await self._session.execute(
+            select(ApprovedSourceORM).where(ApprovedSourceORM.id == source_id)
+        )
+        orm = result.scalar_one_or_none()
+        if orm:
+            orm.enabled = enabled
+            orm.updated_at = datetime.utcnow()
+        else:
+            # Default source not yet in DB — insert it so state persists across restarts
+            orm = ApprovedSourceORM(
+                id=src.id,
+                name=src.name,
+                base_url=src.base_url,
+                source_type=src.source_type,
+                enabled=enabled,
+                robots_policy=src.robots_policy or "",
+                request_interval_seconds=src.request_interval_seconds,
+                maximum_requests_per_hour=src.maximum_requests_per_hour,
+                user_agent=src.user_agent,
+                parser_name=src.parser_name,
+                created_at=src.created_at,
+                updated_at=datetime.utcnow(),
+            )
+            self._session.add(orm)
+        await self._session.commit()
+        logger.info(
+            "source_enabled_state_persisted",
+            source_id=source_id,
+            enabled=bool(enabled),
+        )
 
     async def sync_from_db(self) -> None:
         """Load all persisted sources from the database into the in-memory registry.

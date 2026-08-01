@@ -19,7 +19,7 @@ async def health_check() -> dict[str, str]:
 
 
 @router.get("/ready")
-async def readiness_check() -> dict[str, str | bool]:
+async def readiness_check() -> dict[str, object]:
     """Readiness probe — validates database connectivity and storage accessibility."""
     checks: dict[str, bool] = {}
 
@@ -47,9 +47,11 @@ async def readiness_check() -> dict[str, str | bool]:
         logger.error("readiness_storage_failed", error=str(e))
         checks["storage"] = False
 
-    # Parser availability check — ensure Scrapling is importable
+    # Parser availability check — instantiate the adapter, which raises in
+    # production mode when the scrapling library is not installed.
     try:
-        from app.collectors.scrapling_adapter import ScraplingAdapter  # noqa: F401
+        from app.collectors.scrapling_adapter import ScraplingAdapter
+        ScraplingAdapter()
         checks["scrapling"] = True
     except Exception as e:
         logger.error("readiness_parser_failed", error=str(e))

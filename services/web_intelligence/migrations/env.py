@@ -1,3 +1,4 @@
+import os
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
@@ -7,6 +8,17 @@ from app.repositories.database import Base
 from app.repositories.orm_models import ApprovedSourceORM, CollectionRunORM, IntelligenceRecordORM, RawSnapshotORM
 
 config = context.config
+
+# Allow DATABASE_URL environment variable to override the value in alembic.ini.
+# This is the primary mechanism for switching between SQLite (development) and
+# PostgreSQL (staging / production) without editing alembic.ini.
+_db_url = os.environ.get("DATABASE_URL")
+if _db_url:
+    # asyncpg URLs are for runtime only; Alembic's sync engine needs the plain psycopg2 form.
+    _sync_url = _db_url.replace("postgresql+asyncpg://", "postgresql://").replace(
+        "sqlite+aiosqlite:///", "sqlite:///"
+    )
+    config.set_main_option("sqlalchemy.url", _sync_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

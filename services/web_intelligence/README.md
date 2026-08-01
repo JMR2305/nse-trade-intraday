@@ -12,50 +12,137 @@ This service:
 - Does NOT write to the trading engine database
 - Runs in a separate branch: `feature/web-intelligence-collector`
 
-## Local Setup
+---
+
+## Local Setup (PostgreSQL)
+
 ```bash
 cd services/web_intelligence
-python -m venv .venv
-source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env
-# Edit .env as needed
+# Edit .env — set DATABASE_URL to your PostgreSQL instance:
+# DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/web_intelligence
 ```
 
-## Database Migrations
+Run Alembic migrations **before** starting the service:
 ```bash
 alembic upgrade head
 ```
 
-## Docker Setup
+Start the service:
 ```bash
-docker-compose up --build
+uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
+
+---
+
+## Docker Compose (full stack)
+
+Starts PostgreSQL, runs migrations automatically, then starts the service:
+
+```bash
+docker compose up --build
+```
+
+The `migrate` service runs `alembic upgrade head` and waits for PostgreSQL to be ready before starting the web-intelligence container. No external healthcheck exec is needed.
+
+Check logs:
+```bash
+docker compose logs -f web-intelligence
+docker compose logs migrate
+```
+
+Verify it's up:
+```bash
+curl http://localhost:8000/health
+curl http://localhost:8000/ready
+```
+
+---
+
+## Database Migrations
+
+```bash
+# Apply all pending migrations
+alembic upgrade head
+
+# Check current revision
+alembic current
+
+# Create a new migration
+alembic revision --autogenerate -m "describe your change"
+```
+
+---
 
 ## Running Tests
+
 ```bash
-pytest tests/ -v --tb=short
+# Runs against an isolated in-memory SQLite DB per test — no PostgreSQL needed
+DATABASE_URL=sqlite+aiosqlite:///./test.db pytest tests/ -v --tb=short
 ```
+
+---
 
 ## Running Linting
+
 ```bash
 ruff check app tests
-mypy app
+mypy app --ignore-missing-imports
 ```
 
-## Fixture-Based Collection
+---
+
+## CLI Commands
+
 ```bash
-python -m app.cli.main collect-source local_fixture_source
+# List all registered sources
+python -m app.cli.main list-sources
+
+# Validate a source configuration
+python -m app.cli.main validate-source <source_id>
+
+# Trigger a collection run
+python -m app.cli.main collect-source <source_id>
+
+# Inspect a previous run
+python -m app.cli.main inspect-run <run_id>
+
+# Disable / enable a source (persists across restarts via DB)
+python -m app.cli.main disable-source <source_id>
+python -m app.cli.main enable-source <source_id>
 ```
+
+---
+
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/` | Service root / isolation confirmation |
+| GET | `/health` | Liveness probe |
+| GET | `/ready` | Readiness probe (DB + storage + scrapling) |
+| GET | `/api/v1/sources` | List registered sources |
+| GET | `/api/v1/sources/{id}` | Get a specific source |
+| GET | `/api/v1/collection-runs` | List collection runs |
+| GET | `/api/v1/collection-runs/{id}` | Inspect a run |
+| GET | `/api/v1/intelligence` | List intelligence records |
+| GET | `/api/v1/intelligence/{id}` | Get a specific record |
+| GET | `/api/v1/snapshots/{id}` | Get a raw snapshot |
+
+---
 
 ## Adding a Source Safely
 See `docs/source-onboarding.md` for the mandatory checklist.
+
+---
 
 ## Known Limitations
 - POC only: no real external financial websites configured
 - Scheduling is disabled by default
 - Raw content is not exposed via public API
-- SQLite used for local tests; PostgreSQL for deployment
+- Docker healthcheck exec is blocked in some sandbox environments;
+  the compose file uses a Python TCP-probe loop inside the migrate command instead
 
 ## Why No Live Prices?
 Live price collection is explicitly out of scope. This is an intelligence-support service only, not a market data feed.

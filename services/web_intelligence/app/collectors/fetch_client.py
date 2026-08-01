@@ -92,9 +92,22 @@ class FetchClient:
         request_interval_seconds: float = 5.0,
         maximum_requests_per_hour: int = 60,
         headers: dict[str, str] | None = None,
+        allow_file_urls: bool = False,
     ) -> FetchResult:
-        """Fetch a URL with security checks, rate limiting, and retries."""
+        """Fetch a URL with security checks, rate limiting, and retries.
+
+        LOCAL_HTML_FIXTURE sources must pass ``allow_file_urls=True`` to read
+        from the local filesystem.  All other URLs go through the full SSRF /
+        scheme / redirect security stack regardless of the URL scheme.
+        """
         start_time = time.monotonic()
+
+        # file:// is ONLY allowed for LOCAL_HTML_FIXTURE sources that explicitly
+        # opt in.  Without the flag, file:// is blocked by the URL validator
+        # like any other unsupported scheme.
+        if url.startswith("file://") and allow_file_urls:
+            return await self._fetch_local_file(url, start_time)
+
         retry_count = 0
 
         try:
@@ -251,6 +264,51 @@ class FetchClient:
                 retry_count=retry_count,
             )
 
+    async def _fetch_local_file(self, url: str, start_time: float) -> FetchResult:
+        """Read a local file:// URL from the filesystem.
+
+        Only used by LOCAL_HTML_FIXTURE sources in development / testing.
+        No SSRF checks apply — the path must be an absolute filesystem path
+        under the project directory and should never be user-supplied.
+        """
+        import urllib.parse
+
+        parsed = urllib.parse.urlparse(url)
+        # file:///absolute/path → netloc="", path="/absolute/path" — use as-is
+        # file://relative/path  → netloc="relative", path="/path" — reconstruct
+        if parsed.netloc:
+            file_path = parsed.netloc + parsed.path
+        else:
+            file_path = parsed.path
+        start = time.monotonic()
+        try:
+            with open(file_path, "rb") as fh:
+                content = fh.read()
+            duration_ms = int((time.monotonic() - start) * 1000)
+            logger.debug("local_file_fetched", path=file_path, size=len(content))
+            return FetchResult(
+                url=url,
+                status_code=200,
+                headers={"content-type": "text/html"},
+                content=content,
+                duration_ms=duration_ms,
+                content_type="text/html",
+                data_quality_status=DataQualityStatus.VALID,
+            )
+        except OSError as e:
+            duration_ms = int((time.monotonic() - start) * 1000)
+            logger.warning("local_file_fetch_failed", path=file_path, error=str(e))
+            return FetchResult(
+                url=url,
+                status_code=None,
+                headers={},
+                content=b"",
+                duration_ms=duration_ms,
+                content_type=None,
+                error=f"local file read error: {e}",
+                data_quality_status=DataQualityStatus.HTTP_ERROR,
+            )
+
     async def _do_fetch(
         self, url: str, headers: dict[str, str], start_time: float
     ) -> FetchResult:
@@ -348,8 +406,10 @@ class FetchClient:
                     )
 
             duration_ms = int((time.monotonic() - start_time) * 1000)
+            from urllib.parse import urlparse as _urlparse
+            _domain = _urlparse(current_url).netloc or "unknown"
             self.metrics.record_fetch(
-                domain,
+                _domain,
                 FetchMetrics(
                     success=response.status_code < 400,
                     latency_ms=duration_ms,

@@ -1,4 +1,9 @@
-"""Scrapling adapter behind a clean interface."""
+"""Scrapling adapter behind a clean interface.
+
+Uses the ``scrapling.Selector`` API (v0.4+) for pure-HTML parsing —
+no browser / playwright dependency required.  The ``Fetcher`` class from
+scrapling 0.2.x required playwright; ``Selector`` does not.
+"""
 from typing import Any
 
 from app.logging import get_logger
@@ -11,40 +16,69 @@ class ScraplingAdapter:
 
     This allows swapping or upgrading the scraping framework
     without changing downstream code.
+
+    In production mode (``settings.production_mode = True``) the adapter
+    **requires** Scrapling to be installed.  A missing or broken installation
+    raises ``RuntimeError`` at construction time so the service startup and
+    readiness probe both fail fast and clearly.  The silent fallback parser
+    is reserved for explicit test/development use (``production_mode=False``).
     """
 
     def __init__(self) -> None:
+        from app.config import settings
+
         self._scrapling_available = False
         try:
-            from scrapling import Fetcher
+            from scrapling import Selector  # v0.4+ pure-HTML API, no playwright needed
 
-            self._Fetcher = Fetcher
+            self._Selector = Selector
             self._scrapling_available = True
             logger.info("scrapling_adapter_initialized")
-        except ImportError:
+        except (ImportError, Exception) as exc:
+            if settings.production_mode:
+                raise RuntimeError(
+                    "Scrapling is not available but PRODUCTION_MODE=true. "
+                    "Install scrapling or set PRODUCTION_MODE=false for local dev. "
+                    f"Cause: {exc}"
+                ) from exc
             logger.warning("scrapling_not_available_using_fallback")
 
     def parse_html(self, html_content: bytes | str, url: str = "") -> Any:
         """Parse HTML content and return a traversable document.
 
-        Returns a Scrapling Adaptor object or a minimal fallback.
+        Returns a Scrapling Selector object or a minimal fallback.
         """
         if self._scrapling_available:
-            fetcher = self._Fetcher()
-            return fetcher.adapt(html_content, url=url)
+            text = html_content.decode("utf-8", errors="replace") if isinstance(html_content, bytes) else html_content
+            return self._Selector(text, url=url)
 
-        # Fallback: minimal HTML parsing
+        # Fallback: minimal HTML parsing (dev/test only)
         return _FallbackHtmlParser(html_content, url)
 
 
 class _FallbackHtmlParser:
-    """Minimal fallback parser when Scrapling is not installed."""
+    """Minimal fallback parser when Scrapling is not installed (dev/test only).
+
+    Supports the same interface as scrapling 0.4.x Selector:
+    - `find(selector)` returns the FIRST matching element (or None)
+    - `css(selector)` returns ALL matching elements as a list
+    - `.text` property (not `.text()` method) returns text content
+    """
 
     def __init__(self, content: bytes | str, url: str = "") -> None:
         self._content = content.decode("utf-8") if isinstance(content, bytes) else content
         self._url = url
 
-    def find(self, selector: str) -> list["_FallbackHtmlParser"]:
+    def css(self, selector: str) -> list["_FallbackHtmlParser"]:
+        """Return ALL matching elements (alias for find used for multi-element iteration)."""
+        return self._find_all(selector)
+
+    def find(self, selector: str) -> "_FallbackHtmlParser | None":
+        """Return the FIRST matching element or None — mirrors scrapling 0.4.x API."""
+        results = self._find_all(selector)
+        return results[0] if results else None
+
+    def _find_all(self, selector: str) -> list["_FallbackHtmlParser"]:
         """Basic selector support for testing — handles tag, .class, tag.class, #id."""
         import re
 
@@ -101,8 +135,9 @@ class _FallbackHtmlParser:
 
         return results
 
+    @property
     def text(self) -> str:
-        """Return raw text content."""
+        """Return raw text content — property to match scrapling 0.4.x Selector.text API."""
         import re
 
         text = re.sub(r"<[^>]+>", " ", self._content)
