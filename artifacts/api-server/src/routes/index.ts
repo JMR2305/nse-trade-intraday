@@ -40,6 +40,7 @@ import observabilityRouter     from "./observability";
 import paperAnalyticsRouter    from "./paper-analytics";
 import dataQualityRouter       from "./data-quality";
 import riskValidationRouter    from "./risk-validation";
+import operationsRouter        from "./operations";
 
 const router: IRouter = Router();
 
@@ -82,6 +83,7 @@ router.use(observabilityRouter);
 router.use(paperAnalyticsRouter);
 router.use(dataQualityRouter);
 router.use(riskValidationRouter);
+router.use(operationsRouter);
 router.use(tradingRouter);
 router.use(downloadRouter);
 

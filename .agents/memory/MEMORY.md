@@ -51,3 +51,4 @@
 - [Phase 7.5 research lab](phase75-research-lab.md) — 8 endpoints; routes must omit /api/ prefix (app.use("/api", router) strips it); RESEARCH_LAB_ENABLED=true; 96/96 tests.
 - [Phase 8.1 Observability Center](phase81-observability.md) — 6 endpoints, 95/95 tests; NEVER call Phase 7 snapshot functions from observability probes — import-check only or summary times out.
 - [Phase 8.4 Risk Validation](phase84-risk-validation.md) — 8-domain weighted score; runPython is always inlined per-route (no shared import); queryAllByText when text appears in multiple nodes.
+- [Phase 8.5 Operational Control Centre](phase85-ops-center.md) — 14 commands (ops_*), 11-tab React page, 57/57 tests; gate: OPERATIONS_CENTER_ENABLED; score=obs×0.25+dq×0.30+rv×0.30+sched×0.15.

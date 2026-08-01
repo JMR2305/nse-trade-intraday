@@ -93,7 +93,8 @@ const navGroups = [
       { href: "/",                 label: "Trade Decisions",  icon: Target      },
       { href: "/market-scanner",      label: "Market Scanner",      icon: Radar    },
       { href: "/preopen-intelligence", label: "Pre-Open Intelligence", icon: Sunrise },
-      { href: "/live-data-health",  label: "Live Data Health",  icon: Wifi       },
+      { href: "/live-data-health",    label: "Live Data Health",         icon: Wifi         },
+      { href: "/operations-center",   label: "Operations Center",        icon: Monitor      },
     ],
   },
   {

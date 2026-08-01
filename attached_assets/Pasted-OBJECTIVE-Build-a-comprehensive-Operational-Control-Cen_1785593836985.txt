@@ -1,0 +1,565 @@
+OBJECTIVE
+
+Build a comprehensive Operational Control Centre for ApexQuant AI.
+
+This module becomes the primary operational dashboard for monitoring and managing the platform during market hours.
+
+This module MUST remain completely READ-ONLY and ADVISORY-ONLY.
+
+It MUST NEVER
+
+• Place orders
+
+• Execute trades
+
+• Modify portfolio
+
+• Modify strategies
+
+• Modify AI models
+
+• Change risk parameters
+
+• Modify feature flags automatically
+
+• Restart services automatically
+
+The module should monitor, coordinate and advise only.
+
+--------------------------------------------------
+
+FEATURE FLAG
+
+OPERATIONS_CENTER_ENABLED=true
+
+--------------------------------------------------
+
+ARCHITECTURE
+
+Reuse existing modules
+
+• Phase 8.1 Observability Center
+
+• Phase 8.2 Paper Trading Analytics
+
+• Phase 8.3 Data Quality Framework
+
+• Phase 8.4 Risk Validation Framework
+
+• Phase 7 Market Intelligence
+
+• Phase 7 Event Intelligence
+
+• Phase 7 Macro Intelligence
+
+• Explainable AI
+
+• Research Lab
+
+• Executive Dashboard
+
+Reuse existing shared snapshot interfaces.
+
+Never duplicate calculations.
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Provide a unified operations console covering
+
+Platform Health
+
+Market Status
+
+Portfolio Status
+
+Paper Trading Status
+
+Risk Status
+
+Data Quality
+
+Scheduler
+
+Background Jobs
+
+Feature Flags
+
+Alerts
+
+Daily Checklist
+
+Operational Timeline
+
+--------------------------------------------------
+
+OPERATIONS OVERVIEW
+
+Display
+
+Overall Platform Score
+
+Overall Operational Status
+
+Market Status
+
+Trading Session Status
+
+System Health
+
+Risk Level
+
+Data Quality
+
+Outstanding Alerts
+
+Current Active Modules
+
+--------------------------------------------------
+
+MARKET OPERATIONS
+
+Display
+
+Market Open/Closed
+
+Pre-open
+
+Auction
+
+Normal Session
+
+Closing Session
+
+Holiday Status
+
+Live Data Provider
+
+Market Regime
+
+Current India VIX
+
+--------------------------------------------------
+
+PAPER TRADING OPERATIONS
+
+Display
+
+Open Positions
+
+Today's Trades
+
+Pending Signals
+
+Paper Orders
+
+Cash
+
+Capital
+
+Exposure
+
+Current P&L
+
+--------------------------------------------------
+
+RISK OPERATIONS
+
+Reuse Phase 8.4
+
+Display
+
+Risk Validation Score
+
+Tail Risk
+
+Correlation
+
+Stress Result
+
+Concentration
+
+Drift
+
+Current Alerts
+
+--------------------------------------------------
+
+DATA QUALITY
+
+Reuse Phase 8.3
+
+Display
+
+Overall Quality Score
+
+Critical Issues
+
+Warnings
+
+Provider Status
+
+Freshness
+
+Validation Status
+
+--------------------------------------------------
+
+OBSERVABILITY
+
+Reuse Phase 8.1
+
+Display
+
+API Health
+
+Database
+
+Cache
+
+Scheduler
+
+Workers
+
+Performance
+
+Availability
+
+--------------------------------------------------
+
+FEATURE FLAGS
+
+Display ONLY
+
+Enabled
+
+Disabled
+
+Experimental
+
+Future
+
+Read-only
+
+No editing capability.
+
+--------------------------------------------------
+
+BACKGROUND JOBS
+
+Display
+
+Scheduler Status
+
+Current Jobs
+
+Upcoming Jobs
+
+Failed Jobs
+
+Retry Queue
+
+Execution Timeline
+
+--------------------------------------------------
+
+ALERT CENTER
+
+Aggregate alerts from
+
+Observability
+
+Data Quality
+
+Risk Validation
+
+Paper Analytics
+
+Market Intelligence
+
+Categorise
+
+Critical
+
+Warning
+
+Information
+
+Acknowledged
+
+Resolved
+
+--------------------------------------------------
+
+DAILY OPERATOR CHECKLIST
+
+Automatically generate
+
+Morning Checklist
+
+Pre-open Checklist
+
+Market-open Checklist
+
+Mid-session Checklist
+
+Closing Checklist
+
+End-of-day Checklist
+
+Each checklist should reference the latest platform state.
+
+--------------------------------------------------
+
+OPERATIONAL TIMELINE
+
+Display chronological events
+
+Platform startup
+
+Market open
+
+Major alerts
+
+Scheduler events
+
+Data provider changes
+
+Feature flag changes
+
+Deployments
+
+Validation events
+
+--------------------------------------------------
+
+OPERATIONS SCORE
+
+Generate
+
+0–100
+
+Grade
+
+A+
+
+A
+
+B
+
+C
+
+D
+
+Trend
+
+Improving
+
+Stable
+
+Degrading
+
+--------------------------------------------------
+
+DASHBOARD
+
+Create tabs
+
+Overview
+
+Market
+
+Paper Trading
+
+Risk
+
+Data Quality
+
+Observability
+
+Jobs
+
+Alerts
+
+Checklist
+
+Timeline
+
+Export
+
+--------------------------------------------------
+
+API
+
+GET /api/operations/summary
+
+GET /api/operations/market
+
+GET /api/operations/risk
+
+GET /api/operations/data-quality
+
+GET /api/operations/observability
+
+GET /api/operations/jobs
+
+GET /api/operations/checklist
+
+GET /api/operations/timeline
+
+GET /api/operations/export
+
+--------------------------------------------------
+
+EXPORT
+
+CSV
+
+JSON
+
+Future PDF
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Reuse cached snapshots.
+
+No duplicate calculations.
+
+Background aggregation only.
+
+No blocking operations.
+
+--------------------------------------------------
+
+TESTING
+
+Verify
+
+Feature flag
+
+Snapshot aggregation
+
+Dashboard
+
+Alerts
+
+Checklist
+
+Timeline
+
+Jobs
+
+Shared services
+
+API
+
+Exports
+
+--------------------------------------------------
+
+SAFETY
+
+READ-ONLY
+
+ADVISORY-ONLY
+
+Never modify
+
+Orders
+
+Portfolio
+
+Strategies
+
+Risk Engine
+
+Execution Engine
+
+AI Models
+
+Feature Flags
+
+Configuration
+
+--------------------------------------------------
+
+GITHUB INTEGRATION REQUIREMENTS
+
+Incorporate concepts inspired by previously reviewed GitHub projects where appropriate.
+
+Include
+
+• Unified operations dashboard
+
+• Health aggregation
+
+• Alert prioritisation
+
+• Operational timeline
+
+• Read-only feature flag monitoring
+
+• Daily operational checklist
+
+Do NOT copy external implementations.
+
+Maintain ApexQuant AI modular architecture.
+
+--------------------------------------------------
+
+FUTURE INTEGRATION
+
+Design this module so future phases integrate without architectural changes.
+
+Support
+
+• Phase 8.6 Security & Compliance
+
+• Phase 8.7 Performance Optimisation
+
+• Phase 8.8 Deployment & Disaster Recovery
+
+• Future Live Trading Readiness
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide
+
+1. Files created
+
+2. Files modified
+
+3. Shared services reused
+
+4. APIs
+
+5. Dashboard
+
+6. Test count
+
+7. Test results
+
+8. Operations methodology
+
+9. Known limitations
+
+10. GitHub-inspired enhancements
+
+11. Explain future integration.
+
+12. Confirm READ-ONLY and ADVISORY-ONLY architecture.
+
+Final Verdict
+
+PHASE 8.5 COMPLETE
+
+or
+
+PHASE 8.5 NOT COMPLETE
+
+with exact blockers.

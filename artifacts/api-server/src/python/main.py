@@ -2819,6 +2819,36 @@ def main():
         elif command == "rv_export_csv":
             from risk_validation.api import cmd_export_csv    as _f; result = _f()
 
+        # ── Phase 8.5: Operational Control Centre ─────────────────────────────
+        elif command == "ops_summary":
+            from operations_center.api import cmd_summary       as _f; result = _f()
+        elif command == "ops_market":
+            from operations_center.api import cmd_market        as _f; result = _f()
+        elif command == "ops_paper":
+            from operations_center.api import cmd_paper         as _f; result = _f()
+        elif command == "ops_risk":
+            from operations_center.api import cmd_risk          as _f; result = _f()
+        elif command == "ops_data_quality":
+            from operations_center.api import cmd_data_quality  as _f; result = _f()
+        elif command == "ops_observability":
+            from operations_center.api import cmd_observability as _f; result = _f()
+        elif command == "ops_flags":
+            from operations_center.api import cmd_flags         as _f; result = _f()
+        elif command == "ops_jobs":
+            from operations_center.api import cmd_jobs          as _f; result = _f()
+        elif command == "ops_alerts":
+            from operations_center.api import cmd_alerts        as _f; result = _f()
+        elif command == "ops_checklist":
+            from operations_center.api import cmd_checklist     as _f; result = _f()
+        elif command == "ops_timeline":
+            from operations_center.api import cmd_timeline      as _f; result = _f()
+        elif command == "ops_snapshot":
+            from operations_center.api import cmd_snapshot      as _f; result = _f()
+        elif command == "ops_export_json":
+            from operations_center.api import cmd_export_json   as _f; result = _f()
+        elif command == "ops_export_csv":
+            from operations_center.api import cmd_export_csv    as _f; result = _f()
+
         else:
             error_msg = f"Unknown command: {command}"
 
