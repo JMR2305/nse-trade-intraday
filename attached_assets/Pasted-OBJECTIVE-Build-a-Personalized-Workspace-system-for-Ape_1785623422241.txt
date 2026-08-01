@@ -1,0 +1,445 @@
+OBJECTIVE
+
+Build a Personalized Workspace system for ApexQuant AI.
+
+Allow every operator to customize dashboards, layouts and workflows without changing business logic.
+
+This phase MUST NOT modify
+
+• Trading Engine
+
+• AI Models
+
+• Strategies
+
+• Portfolio
+
+• Risk Engine
+
+• APIs
+
+• Database calculations
+
+This phase is UI/UX only.
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Every operator should be able to create a workspace that matches their trading style.
+
+--------------------------------------------------
+
+WORKSPACE PROFILES
+
+Provide built-in profiles
+
+⚡ Intraday
+
+📊 Swing
+
+🔬 Research
+
+📄 Paper Trading
+
+🛠 Operations
+
+Allow users to
+
+Create new profiles
+
+Rename profiles
+
+Duplicate profiles
+
+Delete personal profiles
+
+Restore defaults
+
+--------------------------------------------------
+
+CUSTOM DASHBOARD
+
+Every dashboard becomes widget based.
+
+Widgets can be
+
+Moved
+
+Resized
+
+Hidden
+
+Pinned
+
+Grouped
+
+Collapsed
+
+Expanded
+
+--------------------------------------------------
+
+AVAILABLE WIDGETS
+
+Market Overview
+
+Portfolio
+
+Today's P&L
+
+Watchlist
+
+Risk Summary
+
+AI Summary
+
+Market Intelligence
+
+Pre-open Intelligence
+
+Alerts
+
+Research Feed
+
+Paper Trading
+
+Execution
+
+Learning
+
+Performance
+
+Operations
+
+Security
+
+Deployment
+
+System Health
+
+Trading Timeline
+
+AI Daily Briefing
+
+Quick Notes
+
+--------------------------------------------------
+
+LAYOUT ENGINE
+
+Support
+
+Drag & Drop
+
+Grid Layout
+
+Resizable Cards
+
+Auto Save
+
+Undo
+
+Reset Layout
+
+--------------------------------------------------
+
+PERSONAL KPI BAR
+
+Allow user to choose
+
+8–12 favourite KPIs
+
+Examples
+
+Portfolio
+
+Today's P&L
+
+Risk
+
+AI Confidence
+
+Market Breadth
+
+NIFTY
+
+Bank NIFTY
+
+Bullish Stocks
+
+Open Positions
+
+Platform Health
+
+--------------------------------------------------
+
+SMART DASHBOARD
+
+Dashboard automatically adapts
+
+Pre-open
+
+Market Open
+
+Market Hours
+
+Closing Session
+
+After Market
+
+Highlight relevant widgets.
+
+--------------------------------------------------
+
+WIDGET SETTINGS
+
+Each widget supports
+
+Refresh interval
+
+Compact mode
+
+Expanded mode
+
+Theme
+
+Visible metrics
+
+--------------------------------------------------
+
+MULTI-MONITOR SUPPORT
+
+Support
+
+Monitor 1
+
+Command Centre
+
+Monitor 2
+
+Live Scanner
+
+Monitor 3
+
+Research
+
+Save layouts.
+
+--------------------------------------------------
+
+SESSION MEMORY
+
+Remember
+
+Open pages
+
+Widget positions
+
+Profile
+
+Collapsed sections
+
+Pinned widgets
+
+Last active workspace
+
+Restore automatically.
+
+--------------------------------------------------
+
+WORKSPACE TEMPLATES
+
+Provide templates
+
+Professional Trader
+
+Research Analyst
+
+Risk Manager
+
+AI Analyst
+
+Executive View
+
+--------------------------------------------------
+
+FOCUS MODE
+
+Modes
+
+Live Trading
+
+Research
+
+Review
+
+Learning
+
+Operations
+
+Each mode hides non-essential widgets.
+
+--------------------------------------------------
+
+NOTIFICATION CENTER
+
+Allow user to choose
+
+Which alerts appear
+
+Popup
+
+Banner
+
+Sidebar
+
+Silent
+
+--------------------------------------------------
+
+THEMES
+
+Support
+
+Current Light Theme
+
+Current Dark Theme
+
+Future Custom Themes
+
+Maintain colour consistency.
+
+--------------------------------------------------
+
+RESPONSIVE DESIGN
+
+Desktop
+
+Tablet
+
+Mobile
+
+Layouts adapt automatically.
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Dashboard load
+
+<2 seconds
+
+Drag
+
+Smooth 60fps
+
+No duplicate API calls
+
+Reuse cached snapshots
+
+--------------------------------------------------
+
+TESTING
+
+Verify
+
+Widget movement
+
+Layout persistence
+
+Workspace profiles
+
+Focus mode
+
+Session restore
+
+Themes
+
+Responsive behaviour
+
+--------------------------------------------------
+
+SAFETY
+
+READ-ONLY
+
+UI only
+
+No calculations
+
+No business logic
+
+No API changes
+
+--------------------------------------------------
+
+GITHUB INTEGRATION REQUIREMENTS
+
+Incorporate concepts inspired by previously reviewed GitHub projects where appropriate.
+
+Include
+
+• Widget dashboards
+
+• Drag-drop layouts
+
+• Personal workspaces
+
+• Focus mode
+
+• Multi-monitor layouts
+
+• Professional trading workstation UX
+
+Do NOT copy external implementations.
+
+Maintain ApexQuant AI architecture.
+
+--------------------------------------------------
+
+FUTURE MULTI-AGENT INTEGRATION
+
+Each Agent can expose its own widgets.
+
+Operators choose which Agent widgets appear on their workspace.
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide
+
+1. Files created
+
+2. Files modified
+
+3. Widget framework
+
+4. Workspace profiles
+
+5. Layout engine
+
+6. Session persistence
+
+7. Test count
+
+8. Test results
+
+9. Performance measurements
+
+10. Future Agent integration
+
+11. Confirm zero business logic changes
+
+12. Screenshots
+
+Final Verdict
+
+PHASE 9.4 COMPLETE
+
+or
+
+PHASE 9.4 NOT COMPLETE
+
+with exact blockers.

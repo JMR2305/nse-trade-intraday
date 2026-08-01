@@ -197,6 +197,7 @@ export const AGENTS: Agent[] = [
     description: "Infrastructure, observability, data quality, security, deployment",
     color: "#6B7280",      // slate-500
     pages: [
+      { href: "/workspace",          label: "My Workspace",              icon: LayoutDashboard, tags: ["workspace", "dashboard", "widgets", "personalise"] },
       { href: "/operations-center",  label: "Operations Centre",         icon: Monitor,    tags: ["ops"] },
       { href: "/observability",      label: "Observability",             icon: Activity,   tags: ["observe"] },
       { href: "/data-quality",       label: "Data Quality",              icon: ShieldCheck,tags: ["data", "quality"] },
