@@ -146,6 +146,7 @@ export const AGENTS: Agent[] = [
     description: "AI dashboard, explainability, optimisation, confidence, drift",
     color: "#6366F1",      // indigo-500
     pages: [
+      { href: "/agent-ai-decision",  label: "AI Decision Agent",   icon: Brain,         tags: ["decision", "agent", "phase10c"] },
       { href: "/ai-performance",     label: "AI Performance",      icon: Brain,         tags: ["ai", "performance"] },
       { href: "/ai-optimisation",    label: "AI Optimisation",     icon: Zap,           tags: ["ai", "optimise"] },
       { href: "/explainable-ai",     label: "Explainable AI",      icon: Lightbulb,     tags: ["xai", "explain"] },
@@ -167,6 +168,7 @@ export const AGENTS: Agent[] = [
     description: "Paper orders, positions, order history, execution status",
     color: "#14B8A6",      // teal-500
     pages: [
+      { href: "/agent-execution",     label: "Execution Agent",      icon: Briefcase,      tags: ["execution", "agent", "phase10c"] },
       { href: "/",                    label: "Trade Decisions",      icon: Target,         tags: ["trade", "decision"] },
       { href: "/portfolio-live",      label: "Portfolio",            icon: PieChart,       tags: ["portfolio", "live"] },
       { href: "/portfolio-manager",   label: "Portfolio Manager",    icon: Briefcase,      tags: ["manager"] },

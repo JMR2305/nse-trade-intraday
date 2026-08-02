@@ -2944,6 +2944,32 @@ def main():
         elif command == "cmd_center_export_csv":
             from command_center.api import cmd_export_csv  as _f; result = _f()
 
+        # ── Phase 10C: Decision Layer ─────────────────────────────────────────
+        elif command == "agent_ai_decision_snapshot":
+            from ai_decision_agent.shared_services import get_ai_decision_snapshot as _f; result = _f()
+        elif command == "agent_ai_decision_recommendations":
+            from ai_decision_agent.shared_services import get_ai_decision_recommendations as _f; result = _f()
+        elif command == "agent_ai_decision_status":
+            from ai_decision_agent.shared_services import get_ai_decision_status as _f; result = _f()
+        elif command == "agent_ai_decision_symbol":
+            sym_arg = args[1] if len(args) > 1 else (args[0] if args else "")
+            from ai_decision_agent.shared_services import get_ai_decision_for_symbol as _f; result = _f(sym_arg)
+        elif command == "agent_execution_snapshot":
+            from execution_agent.shared_services import get_execution_snapshot as _f; result = _f()
+        elif command == "agent_execution_queue":
+            from execution_agent.shared_services import get_execution_queue as _f; result = _f()
+        elif command == "agent_execution_status":
+            from execution_agent.shared_services import get_execution_status as _f; result = _f()
+        elif command == "agent_execution_plan":
+            sym_arg = args[1] if len(args) > 1 else (args[0] if args else "")
+            from execution_agent.shared_services import get_execution_plan_for_symbol as _f; result = _f(sym_arg)
+        elif command == "agent_decision_summary":
+            from decision_layer.shared_services import get_decision_summary as _f; result = _f()
+        elif command == "agent_decision_timeline":
+            from decision_layer.shared_services import get_decision_timeline as _f; result = _f()
+        elif command == "agent_decision_performance":
+            from decision_layer.shared_services import get_decision_performance as _f; result = _f()
+
         # ── Phase 10B: Analysis Layer ─────────────────────────────────────────
         elif command == "agent_market_intelligence_snapshot":
             from market_intelligence_agent.shared_services import get_market_intelligence_agent_snapshot as _f; result = _f()

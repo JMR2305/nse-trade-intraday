@@ -601,6 +601,9 @@ export default function CommandCenter() {
           {/* Analysis Layer (Phase 10B) — full width */}
           <AnalysisLayerCard />
 
+          {/* Decision Layer (Phase 10C) — full width */}
+          <DecisionLayerCard />
+
           {/* System Health — full width */}
           <SystemHealthSection systemHealth={r.system_health} />
 
@@ -625,6 +628,80 @@ export default function CommandCenter() {
           </p>
         </>
       )}
+    </div>
+  );
+}
+
+// ── Decision Layer Card (Phase 10C) ───────────────────────────────────────────
+
+const DT_CLR: Record<string, string> = {
+  BUY_CANDIDATE: "text-emerald-400", ACCUMULATE: "text-teal-400",
+  WATCH: "text-blue-400", SELL_CANDIDATE: "text-rose-400",
+  REDUCE_EXPOSURE: "text-orange-400", AVOID: "text-red-400", NO_ACTION: "text-gray-400",
+};
+
+function DecisionLayerCard() {
+  const { data, isLoading } = useQuery({
+    queryKey:  ["cc", "decision-summary"],
+    queryFn:   () => apiJson("decision-layer/summary"),
+    refetchInterval: 60_000,
+    retry: 1,
+    staleTime: 30_000,
+  });
+  const d = data as any;
+
+  if (isLoading) {
+    return (
+      <div className="bg-card border border-border rounded-xl p-4">
+        <SectionHeader icon={Brain} title="Decision Layer" />
+        <div className="animate-pulse h-16 bg-muted rounded-lg" />
+      </div>
+    );
+  }
+  if (!d?.available) {
+    return (
+      <div className="bg-card border border-border rounded-xl p-4">
+        <SectionHeader icon={Brain} title="Decision Layer" />
+        <p className="text-xs text-muted-foreground">Decision agents not yet initialised.</p>
+      </div>
+    );
+  }
+
+  const topDecision  = (d.top_decision  as string) ?? "—";
+  const topSymbol    = (d.top_symbol    as string) ?? "—";
+  const topScore     = (d.top_score     as number) ?? 0;
+  const topConf      = (d.top_confidence as number) ?? 0;
+  const pending      = (d.pending_recommendations as number) ?? 0;
+  const queueSz      = (d.execution_queue_size as number) ?? 0;
+  const paperOrds    = (d.paper_orders_count as number) ?? 0;
+  const execMode     = (d.execution_mode as string) ?? "PAPER";
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-4">
+      <SectionHeader icon={Brain} title="Phase 10C — Decision Layer"
+        sub={`${d.total_candidates ?? 0} candidates · ${d.total_recommendations ?? 0} recommendations`} />
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <KpiCard label="Top Opportunity"
+          value={topSymbol !== "—" ? `${topSymbol}` : "—"}
+          sub={topDecision !== "—" ? topDecision.replace("_", " ") : undefined}
+          color={DT_CLR[topDecision] ?? ""} />
+        <KpiCard label="Confidence"      value={`${Math.round(topConf * 100)}%`}  color="text-indigo-400" />
+        <KpiCard label="Score"           value={`${topScore.toFixed(0)}/100`}      color="text-violet-400" />
+        <KpiCard label="Pending Recs"    value={pending}                           color="text-amber-400" />
+        <KpiCard label="Exec Queue"      value={queueSz}                          color="text-teal-400" />
+        <div className="bg-card rounded-xl border border-border p-3 flex flex-col gap-1">
+          <p className="text-xs text-muted-foreground">Execution Mode</p>
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-white text-xs font-semibold self-start ${
+            execMode === "LIVE" ? "bg-red-700" : execMode === "SEMI_AUTO" ? "bg-amber-600" : "bg-teal-600"
+          }`}>
+            {execMode === "LIVE" ? "🔴 LIVE" : execMode === "SEMI_AUTO" ? "⚡ SEMI-AUTO" : "📄 PAPER"}
+          </span>
+          <p className="text-xs text-muted-foreground">{paperOrds} paper orders</p>
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground mt-3">
+        READ-ONLY · ADVISORY-ONLY · 2 agents · 7 decision types · 10 pre-execution checks · Never places orders
+      </p>
     </div>
   );
 }

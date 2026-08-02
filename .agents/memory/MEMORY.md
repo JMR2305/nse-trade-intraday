@@ -64,3 +64,4 @@
 - [Phase 9.7 Design System](phase97-design-system.md) — designTokens.ts + 15 DS components in src/components/ds/; PageHeader applied to Timeline+Reports; gallery at /design-system; Babel rejects generic-JSX <Comp<T>> even when tsc accepts it.
 - [Phase 10A Multi-Agent Framework](phase10a-agent-framework.md) — 4 Python packages, 9 routes, 93 tests; Supervisor NEVER auto-restarts; agents lazy-init on first API call; SnapshotBus is process-level singleton.
 - [Phase 10B Analysis Layer](phase10b-analysis-layer.md) — 4 advisory agents (MI/SM/Strategy/Risk); 12 routes; 85/85 tests; TableColumn uses `label` not `header`; render receives `unknown` so cast explicitly.
+- [Phase 10C Decision Layer](phase10c-decision-layer.md) — AIDecisionAgent (7 types, 7 scores, explainability+conflicts) + ExecutionAgent (10 pre-exec checks, NSE charges, paper-only default); 76/76 tests; LIVE_EXECUTION_ENABLED defaults false.

@@ -1,0 +1,575 @@
+OBJECTIVE
+
+Build the Decision Layer of the ApexQuant AI Multi-Agent Platform.
+
+This phase introduces
+
+• AI Decision Agent
+
+• Execution Agent
+
+The AI Decision Agent consumes analytical snapshots from Phase 10B and produces explainable recommendations.
+
+The Execution Agent validates, simulates and manages paper/live execution workflows.
+
+IMPORTANT
+
+Execution remains
+
+READ-ONLY by default.
+
+Paper Trading enabled.
+
+Live Trading requires explicit operator approval and feature flag.
+
+NO autonomous live order placement.
+
+--------------------------------------------------
+
+ARCHITECTURE
+
+Reuse
+
+Agent Framework
+
+Supervisor
+
+Snapshot Bus
+
+Heartbeat
+
+Scheduler
+
+Registry
+
+Market Data Agent
+
+Research Agent
+
+Market Intelligence Agent
+
+Stock Monitoring Agent
+
+Strategy Agent
+
+Risk Agent
+
+--------------------------------------------------
+
+AI DECISION AGENT
+
+Consumes
+
+Market Intelligence Snapshot
+
+Stock Monitoring Snapshot
+
+Strategy Snapshot
+
+Risk Snapshot
+
+Research Snapshot
+
+Portfolio Snapshot
+
+Produces
+
+Decision Snapshot
+
+Responsibilities
+
+Evaluate every candidate.
+
+Rank opportunities.
+
+Assign confidence.
+
+Generate explainable recommendation.
+
+Generate supporting evidence.
+
+Assign recommendation priority.
+
+Generate recommendation expiry.
+
+Generate recommendation reasoning.
+
+Never place orders.
+
+--------------------------------------------------
+
+DECISION ENGINE
+
+For every candidate calculate
+
+Overall Score
+
+Confidence
+
+Market Score
+
+Strategy Score
+
+Risk Score
+
+Research Score
+
+Liquidity Score
+
+Volatility Score
+
+Portfolio Impact
+
+Decision Priority
+
+Recommendation Expiry
+
+--------------------------------------------------
+
+DECISION TYPES
+
+WATCH
+
+ACCUMULATE
+
+BUY CANDIDATE
+
+SELL CANDIDATE
+
+REDUCE EXPOSURE
+
+AVOID
+
+NO ACTION
+
+Recommendations only.
+
+--------------------------------------------------
+
+EXPLAINABLE AI
+
+Every recommendation must include
+
+Why generated
+
+Contributing agents
+
+Supporting signals
+
+Supporting strategies
+
+Risk explanation
+
+Confidence explanation
+
+Conflicting evidence
+
+Reason recommendation expires
+
+Natural language summary
+
+--------------------------------------------------
+
+CONFLICT RESOLUTION
+
+Handle
+
+Bullish strategy
+
+Bearish research
+
+High confidence
+
+High risk
+
+Conflicting signals
+
+Document why final recommendation was chosen.
+
+--------------------------------------------------
+
+RECOMMENDATION RANKING
+
+Rank
+
+Highest confidence
+
+Highest quality
+
+Lowest risk
+
+Best reward/risk
+
+Highest liquidity
+
+Best market alignment
+
+--------------------------------------------------
+
+EXECUTION AGENT
+
+Consumes
+
+Decision Snapshot
+
+Portfolio Snapshot
+
+Paper Trading
+
+Produces
+
+Execution Snapshot
+
+Responsibilities
+
+Validate recommendation.
+
+Check execution mode.
+
+Create paper order.
+
+Validate live order eligibility.
+
+Estimate slippage.
+
+Estimate costs.
+
+Validate capital.
+
+Generate execution plan.
+
+Never bypass risk checks.
+
+--------------------------------------------------
+
+EXECUTION MODES
+
+Paper
+
+Default
+
+Semi-Automatic
+
+Operator approval required.
+
+Live
+
+Feature flag
+
+Manual confirmation required.
+
+No autonomous live execution.
+
+--------------------------------------------------
+
+PRE-EXECUTION CHECKLIST
+
+Validate
+
+Capital
+
+Position sizing
+
+Portfolio limits
+
+Sector exposure
+
+Daily loss
+
+Market status
+
+Trading session
+
+Liquidity
+
+Freeze quantity
+
+Risk limits
+
+--------------------------------------------------
+
+EXECUTION PLAN
+
+Display
+
+Suggested Entry
+
+Suggested Exit
+
+Stop Loss
+
+Target
+
+Expected Risk
+
+Expected Reward
+
+Position Size
+
+Estimated Charges
+
+Expected Holding Time
+
+--------------------------------------------------
+
+ORDER VALIDATION
+
+Validate
+
+Instrument
+
+Quantity
+
+Tick size
+
+Lot size
+
+Freeze limits
+
+Market timing
+
+Exchange status
+
+--------------------------------------------------
+
+COMMAND CENTRE
+
+Add
+
+Decision Centre
+
+Display
+
+Top Opportunities
+
+AI Confidence
+
+Pending Recommendations
+
+Execution Queue
+
+Paper Orders
+
+Execution Mode
+
+--------------------------------------------------
+
+WORKSPACE
+
+Create
+
+AI Decision Page
+
+Execution Page
+
+Recommendation Details
+
+Decision Trace
+
+Execution Planner
+
+--------------------------------------------------
+
+TIMELINE
+
+Publish
+
+Recommendation Created
+
+Recommendation Updated
+
+Recommendation Expired
+
+Paper Order Created
+
+Execution Cancelled
+
+Validation Failed
+
+Every event integrates with Phase 9 Timeline.
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Measure
+
+Decision latency
+
+Ranking latency
+
+Execution planning latency
+
+Recommendations per minute
+
+Average confidence
+
+--------------------------------------------------
+
+SCALABILITY
+
+Display
+
+Candidates evaluated
+
+Recommendations generated
+
+Execution queue size
+
+Decision throughput
+
+Average processing time
+
+--------------------------------------------------
+
+FEATURE FLAGS
+
+AI_DECISION_AGENT_ENABLED
+
+EXECUTION_AGENT_ENABLED
+
+LIVE_EXECUTION_ENABLED=false
+
+PAPER_EXECUTION_ENABLED=true
+
+--------------------------------------------------
+
+TESTING
+
+Verify
+
+Decision generation
+
+Ranking
+
+Explainability
+
+Conflict resolution
+
+Execution validation
+
+Paper execution
+
+Feature flags
+
+Supervisor integration
+
+Dashboard
+
+Timeline
+
+--------------------------------------------------
+
+SAFETY
+
+READ-ONLY
+
+ADVISORY
+
+Paper execution only.
+
+Live execution requires
+
+Feature flag
+
+Operator confirmation
+
+Risk validation
+
+No autonomous live trading.
+
+--------------------------------------------------
+
+GITHUB INTEGRATION REQUIREMENTS
+
+Incorporate concepts inspired by previously reviewed GitHub projects where appropriate.
+
+Include
+
+• Explainable AI
+
+• Recommendation ranking
+
+• Paper execution workflow
+
+• Cost estimation
+
+• Execution validation
+
+Do NOT copy external implementations.
+
+Maintain ApexQuant AI architecture.
+
+--------------------------------------------------
+
+FUTURE INTEGRATION
+
+Outputs become inputs for
+
+Learning Agent
+
+Knowledge Agent
+
+Executive Reports
+
+Timeline
+
+Command Centre
+
+without redesign.
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide
+
+1. Files created
+
+2. Files modified
+
+3. AI Decision Agent architecture
+
+4. Execution Agent architecture
+
+5. Decision Snapshot schema
+
+6. Execution Snapshot schema
+
+7. Explainability framework
+
+8. Recommendation ranking engine
+
+9. Execution planner
+
+10. Dashboard integration
+
+11. Timeline integration
+
+12. Performance benchmarks
+
+13. Scalability measurements
+
+14. Test count
+
+15. Test results
+
+16. Known limitations
+
+17. Architecture diagram
+
+18. Sequence diagram
+
+19. Decision flow diagram
+
+20. Confirm READ-ONLY / ADVISORY architecture
+
+Final Verdict
+
+PHASE 10C COMPLETE
+
+or
+
+PHASE 10C NOT COMPLETE
+
+with exact blockers.
