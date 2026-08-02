@@ -14,6 +14,7 @@ import {
   ShieldAlert, Briefcase, PieChart, History, RotateCcw, LayoutDashboard,
   Monitor, Rocket, Settings2, Radio, Dna, Microscope, GitCompare,
   Route, Layers, ChevronRight, Bot, Bell, FileBarChart2, Palette,
+  GitBranch, GitCommit,
 } from "lucide-react";
 
 // Re-export LucideIcon type alias for consumers
@@ -194,7 +195,15 @@ export const AGENTS: Agent[] = [
       { href: "/lessons-library",   label: "Lessons Library",      icon: GraduationCap,tags: ["lessons", "library"] },
       { href: "/knowledge-search",  label: "Knowledge Search",     icon: Lightbulb,    tags: ["search", "knowledge"] },
       { href: "/trade-memory",      label: "Trade Memory",         icon: Database,     tags: ["memory", "trades"] },
-      { href: "/paper-analytics",   label: "Paper Analytics",      icon: BarChart3,    tags: ["paper", "analytics"] },
+      { href: "/paper-analytics",        label: "Paper Analytics",         icon: BarChart3,    tags: ["paper", "analytics"] },
+      { href: "/collab-graph",           label: "Collaboration Graph",      icon: GitBranch,    tags: ["collaboration", "graph", "agents", "dependencies"] },
+      { href: "/decision-lineage",       label: "Decision Lineage",         icon: GitCommit,    tags: ["lineage", "traceability", "decision", "pipeline"] },
+      { href: "/autonomous-ops",         label: "Autonomous Operations",    icon: Monitor,      tags: ["autonomous", "ops", "operations", "platform"] },
+      { href: "/system-health",          label: "System Health Score",      icon: Activity,     tags: ["health", "score", "system", "platform"] },
+      { href: "/agent-comm-monitor",     label: "Comm Monitor",             icon: Radio,        tags: ["communication", "monitor", "channels", "latency"] },
+      { href: "/collab-alerts",          label: "Collaboration Alerts",     icon: Bell,         tags: ["alerts", "collaboration", "advisory"] },
+      { href: "/scalability-dashboard",  label: "Scalability Dashboard",    icon: BarChart3,    tags: ["scalability", "capacity", "forecast"] },
+      { href: "/supervisor-extended",    label: "Extended Supervisor",      icon: Shield,       tags: ["supervisor", "extended", "restart", "recommendations"] },
     ],
   },
 

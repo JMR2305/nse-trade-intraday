@@ -1,0 +1,567 @@
+OBJECTIVE
+
+Complete the ApexQuant AI Multi-Agent Platform.
+
+This phase introduces
+
+• Collaborative Intelligence Layer
+
+• Autonomous Operations Layer
+
+The objective is to allow all existing agents to collaborate through the Snapshot Bus and Supervisor Agent while providing complete operational visibility.
+
+This phase MUST NOT
+
+• Place autonomous live trades
+
+• Retrain AI automatically
+
+• Modify strategies automatically
+
+• Change portfolio automatically
+
+All collaboration remains
+
+READ-ONLY
+
+ADVISORY
+
+Operator-controlled.
+
+--------------------------------------------------
+
+ARCHITECTURE
+
+Reuse
+
+Supervisor Agent
+
+Snapshot Bus
+
+Heartbeat
+
+Scheduler
+
+Registry
+
+Timeline
+
+Command Centre
+
+Learning Layer
+
+Decision Layer
+
+Analysis Layer
+
+All existing agents remain unchanged.
+
+This phase coordinates them.
+
+--------------------------------------------------
+
+COLLABORATIVE INTELLIGENCE
+
+Create an Agent Collaboration Engine.
+
+Responsibilities
+
+Track agent dependencies
+
+Track snapshot flow
+
+Track recommendation lineage
+
+Track decision contributors
+
+Detect missing dependencies
+
+Detect stale snapshots
+
+Detect conflicting outputs
+
+Generate collaboration health score
+
+--------------------------------------------------
+
+AGENT COLLABORATION GRAPH
+
+Visualise
+
+Supervisor
+
+↓
+
+Market Data
+
+↓
+
+Research
+
+↓
+
+Market Intelligence
+
+↓
+
+Stock Monitoring
+
+↓
+
+Strategy
+
+↓
+
+Risk
+
+↓
+
+AI Decision
+
+↓
+
+Execution
+
+↓
+
+Learning
+
+↓
+
+Knowledge
+
+Display
+
+Producer
+
+Consumer
+
+Snapshot type
+
+Latency
+
+Health
+
+--------------------------------------------------
+
+DECISION LINEAGE
+
+For every recommendation display
+
+Originating market snapshot
+
+Research contribution
+
+Market intelligence contribution
+
+Monitoring contribution
+
+Strategy contribution
+
+Risk contribution
+
+AI Decision reasoning
+
+Execution validation
+
+Learning outcome (when available)
+
+Knowledge references
+
+End-to-end traceability.
+
+--------------------------------------------------
+
+AUTONOMOUS OPERATIONS DASHBOARD
+
+Create dedicated Operations page.
+
+Display
+
+Registered Agents
+
+Healthy Agents
+
+Busy Agents
+
+Warning Agents
+
+Failed Agents
+
+Snapshot Throughput
+
+Queue Depth
+
+Heartbeat Status
+
+Memory Usage
+
+CPU Usage
+
+Data Freshness
+
+Average Decision Latency
+
+Average Snapshot Latency
+
+Learning Queue
+
+Knowledge Queue
+
+--------------------------------------------------
+
+SUPERVISOR ENHANCEMENTS
+
+Extend Supervisor with
+
+Dependency Validation
+
+Snapshot Freshness Validation
+
+Collaboration Health
+
+System Capacity Score
+
+Agent Restart Recommendations
+
+Recovery Suggestions
+
+Maintenance Recommendations
+
+No automatic recovery.
+
+Recommendations only.
+
+--------------------------------------------------
+
+SYSTEM HEALTH SCORE
+
+Calculate
+
+Agent Health
+
+Snapshot Health
+
+Heartbeat Health
+
+Timeline Health
+
+Knowledge Health
+
+Learning Health
+
+Performance Health
+
+Overall Platform Health
+
+Display historical trend.
+
+--------------------------------------------------
+
+AGENT COMMUNICATION MONITOR
+
+Display
+
+Snapshot publisher
+
+Snapshot consumer
+
+Publish rate
+
+Consumption rate
+
+Dropped snapshots
+
+Average latency
+
+Errors
+
+Warnings
+
+--------------------------------------------------
+
+COLLABORATION ALERTS
+
+Generate advisory alerts for
+
+Missing snapshot
+
+Agent offline
+
+Heartbeat missed
+
+Queue overload
+
+Slow consumer
+
+Stale research
+
+Data freshness issues
+
+Conflicting recommendations
+
+--------------------------------------------------
+
+SCALABILITY DASHBOARD
+
+Display
+
+Current monitored symbols
+
+Current agents
+
+Snapshots per minute
+
+Recommendations per hour
+
+Learning throughput
+
+Knowledge growth
+
+Estimated remaining capacity
+
+CPU
+
+Memory
+
+Future scaling estimate
+
+--------------------------------------------------
+
+COMMAND CENTRE
+
+Add
+
+Multi-Agent Operations
+
+Display
+
+Platform Health
+
+Active Agents
+
+Current Collaboration Status
+
+Latest Supervisor Alerts
+
+Top Recommendation Pipeline
+
+Current System Capacity
+
+--------------------------------------------------
+
+TIMELINE
+
+Publish events
+
+Agent Registered
+
+Agent Offline
+
+Snapshot Published
+
+Snapshot Delayed
+
+Dependency Warning
+
+Supervisor Advisory
+
+Capacity Warning
+
+Learning Completed
+
+Knowledge Updated
+
+--------------------------------------------------
+
+EXECUTIVE REPORTS
+
+Add
+
+Platform Operations Summary
+
+Daily Agent Summary
+
+Collaboration Health
+
+Performance Summary
+
+Capacity Forecast
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Measure
+
+Snapshot latency
+
+End-to-end decision latency
+
+Agent communication latency
+
+Heartbeat latency
+
+Supervisor evaluation latency
+
+Dashboard rendering
+
+--------------------------------------------------
+
+FEATURE FLAGS
+
+COLLABORATION_ENGINE_ENABLED
+
+AUTONOMOUS_OPERATIONS_ENABLED
+
+SUPERVISOR_EXTENDED_ENABLED
+
+COLLABORATION_ALERTS_ENABLED
+
+--------------------------------------------------
+
+TESTING
+
+Verify
+
+Collaboration graph
+
+Dependency validation
+
+Decision lineage
+
+Supervisor recommendations
+
+Operations dashboard
+
+Alerts
+
+Performance
+
+Timeline integration
+
+Executive Reports
+
+Feature flags
+
+--------------------------------------------------
+
+SAFETY
+
+READ-ONLY
+
+ADVISORY
+
+No autonomous execution
+
+No automatic strategy tuning
+
+No automatic AI retraining
+
+No automatic portfolio changes
+
+Operator approval required for all future write actions.
+
+--------------------------------------------------
+
+GITHUB INTEGRATION REQUIREMENTS
+
+Incorporate concepts inspired by previously reviewed GitHub projects where appropriate.
+
+Include
+
+• Agent orchestration
+
+• Collaboration graph
+
+• Dependency monitoring
+
+• Operations dashboards
+
+• Decision lineage
+
+• Capacity planning
+
+Do NOT copy external implementations.
+
+Maintain ApexQuant AI architecture.
+
+--------------------------------------------------
+
+FUTURE READINESS
+
+Prepare for
+
+Additional strategy agents
+
+Additional research agents
+
+Options trading
+
+Swing trading
+
+Multi-market support
+
+Cloud scaling
+
+Distributed agent deployment
+
+without architectural redesign.
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide
+
+1. Files created
+
+2. Files modified
+
+3. Collaboration Engine architecture
+
+4. Supervisor enhancements
+
+5. Operations Dashboard
+
+6. Decision Lineage implementation
+
+7. Collaboration Graph
+
+8. System Health architecture
+
+9. Capacity Dashboard
+
+10. Timeline integration
+
+11. Executive Report integration
+
+12. Performance benchmarks
+
+13. Scalability measurements
+
+14. Test count
+
+15. Test results
+
+16. Known limitations
+
+17. Architecture diagram
+
+18. Sequence diagram
+
+19. Collaboration flow diagram
+
+20. Platform health calculation
+
+21. Confirm READ-ONLY / ADVISORY architecture
+
+Final Verdict
+
+PHASE 10E COMPLETE
+
+or
+
+PHASE 10E NOT COMPLETE
+
+with exact blockers.

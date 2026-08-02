@@ -3026,6 +3026,38 @@ def main():
         elif command == "agent_analysis_performance":
             from analysis_layer.shared_services import get_analysis_performance as _f; result = _f()
 
+        # ── Phase 10E: Collaborative Intelligence + Autonomous Operations ────
+        elif command == "agent_collab_snapshot":
+            from collaboration_engine.shared_services import get_collaboration_snapshot as _f; result = _f()
+        elif command == "agent_collab_graph":
+            from collaboration_engine.shared_services import get_collaboration_graph as _f; result = _f()
+        elif command == "agent_collab_lineage":
+            from collaboration_engine.shared_services import get_collaboration_lineage as _f; result = _f()
+        elif command == "agent_collab_alerts":
+            from collaboration_engine.shared_services import get_collaboration_alerts as _f; result = _f()
+        elif command == "agent_collab_health":
+            from collaboration_engine.shared_services import get_collaboration_health as _f; result = _f()
+        elif command == "agent_collab_comm_monitor":
+            from collaboration_engine.shared_services import get_comm_monitor as _f; result = _f()
+        elif command == "agent_collab_dependencies":
+            from collaboration_engine.shared_services import get_collaboration_dependencies as _f; result = _f()
+        elif command == "agent_collab_summary":
+            from collaboration_layer.shared_services import get_collaboration_summary as _f; result = _f()
+        elif command == "agent_collab_timeline":
+            from collaboration_layer.shared_services import get_collaboration_timeline as _f; result = _f()
+        elif command == "agent_collab_performance":
+            from collaboration_layer.shared_services import get_collaboration_performance as _f; result = _f()
+        elif command == "agent_autonomous_ops_snapshot":
+            from autonomous_operations.shared_services import get_autonomous_ops_snapshot as _f; result = _f()
+        elif command == "agent_system_health":
+            from autonomous_operations.shared_services import get_system_health as _f; result = _f()
+        elif command == "agent_scalability_dashboard":
+            from autonomous_operations.shared_services import get_scalability_dashboard as _f; result = _f()
+        elif command == "agent_supervisor_extended":
+            from autonomous_operations.shared_services import get_supervisor_extended as _f; result = _f()
+        elif command == "agent_capacity_forecast":
+            from autonomous_operations.shared_services import get_capacity_forecast as _f; result = _f()
+
         # ── Phase 10A: Agent Framework ────────────────────────────────────────
         elif command == "agent_supervisor_snapshot":
             from supervisor_agent.shared_services import get_supervisor_snapshot as _f; result = _f()

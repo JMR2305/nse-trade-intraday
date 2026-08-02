@@ -89,7 +89,15 @@ import KnowledgeAgentPage   from "@/pages/KnowledgeAgentPage";
 import PatternExplorerPage  from "@/pages/PatternExplorerPage";
 import LessonsLibraryPage   from "@/pages/LessonsLibraryPage";
 import KnowledgeSearchPage  from "@/pages/KnowledgeSearchPage";
-import TradeMemoryPage      from "@/pages/TradeMemoryPage";
+import TradeMemoryPage           from "@/pages/TradeMemoryPage";
+import CollaborationGraphPage    from "@/pages/CollaborationGraphPage";
+import DecisionLineagePage       from "@/pages/DecisionLineagePage";
+import AutonomousOpsPage         from "@/pages/AutonomousOpsPage";
+import SystemHealthPage          from "@/pages/SystemHealthPage";
+import AgentCommMonitorPage      from "@/pages/AgentCommMonitorPage";
+import CollaborationAlertsPage   from "@/pages/CollaborationAlertsPage";
+import ScalabilityDashboardPage  from "@/pages/ScalabilityDashboardPage";
+import SupervisorExtendedPage    from "@/pages/SupervisorExtendedPage";
 import { ConnectivityPanel } from "@/components/ConnectivityPanel";
 
 const queryClient = new QueryClient({
@@ -196,7 +204,15 @@ function Router() {
         <Route path="/lessons-library"       component={LessonsLibraryPage} />
         <Route path="/knowledge-search"      component={KnowledgeSearchPage} />
         <Route path="/trade-memory"          component={TradeMemoryPage} />
-        <Route path="/live-readiness" component={LiveReadiness} />
+        <Route path="/live-readiness"          component={LiveReadiness} />
+        <Route path="/collab-graph"            component={CollaborationGraphPage} />
+        <Route path="/decision-lineage"        component={DecisionLineagePage} />
+        <Route path="/autonomous-ops"          component={AutonomousOpsPage} />
+        <Route path="/system-health"           component={SystemHealthPage} />
+        <Route path="/agent-comm-monitor"      component={AgentCommMonitorPage} />
+        <Route path="/collab-alerts"           component={CollaborationAlertsPage} />
+        <Route path="/scalability-dashboard"   component={ScalabilityDashboardPage} />
+        <Route path="/supervisor-extended"     component={SupervisorExtendedPage} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

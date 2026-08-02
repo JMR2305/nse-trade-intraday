@@ -608,6 +608,9 @@ export default function CommandCenter() {
           {/* Learning Layer (Phase 10D) — full width */}
           <LearningLayerCard />
 
+          {/* Multi-Agent Operations (Phase 10E) — full width */}
+          <MultiAgentOpsCard />
+
           {/* System Health — full width */}
           <SystemHealthSection systemHealth={r.system_health} />
 
@@ -772,6 +775,78 @@ function LearningLayerCard() {
       </div>
       <p className="text-xs text-muted-foreground mt-3">
         READ-ONLY · ADVISORY-ONLY · 2 agents · No model changes · All improvements require operator review
+      </p>
+    </div>
+  );
+}
+
+// ── Multi-Agent Operations Card (Phase 10E) ──────────────────────────────────
+
+function MultiAgentOpsCard() {
+  const { data, isLoading } = useQuery({
+    queryKey:  ["cc", "collab-summary"],
+    queryFn:   () => apiJson("collab/summary"),
+    refetchInterval: 60_000,
+    retry: 1,
+    staleTime: 30_000,
+  });
+  const d = data as any;
+
+  if (isLoading) {
+    return (
+      <div className="bg-card border border-border rounded-xl p-4">
+        <SectionHeader icon={Bot} title="Multi-Agent Operations" />
+        <div className="animate-pulse h-16 bg-muted rounded-lg" />
+      </div>
+    );
+  }
+  if (!d?.available) {
+    return (
+      <div className="bg-card border border-border rounded-xl p-4">
+        <SectionHeader icon={Bot} title="Multi-Agent Operations" />
+        <p className="text-xs text-muted-foreground">Collaboration engine initialising…</p>
+      </div>
+    );
+  }
+
+  const collabHealth:  string = (d.collaboration_health as string) ?? "UNKNOWN";
+  const overallHealth: string = (d.overall_health        as string) ?? "UNKNOWN";
+  const graphPct:      number = (d.graph_health_pct      as number) ?? 0;
+  const tracePct:      number = (d.traceability_pct      as number) ?? 0;
+  const registered:    number = (d.registered_agents     as number) ?? 0;
+  const healthy:       number = (d.healthy_agents        as number) ?? 0;
+  const alertCount:    number = (d.alert_count           as number) ?? 0;
+  const critAlerts:    number = (d.critical_alerts       as number) ?? 0;
+  const snapThru:      number = (d.snapshot_throughput   as number) ?? 0;
+  const healthScore:   number = (d.overall_health_score  as number) ?? 0;
+
+  const collabCls = collabHealth === "HEALTHY" ? "bg-emerald-600" :
+                    collabHealth === "DEGRADED" ? "bg-amber-500"  :
+                    collabHealth === "CRITICAL" ? "bg-red-600"    : "bg-slate-600";
+  const alertCls  = critAlerts > 0 ? "text-red-400" : alertCount > 0 ? "text-amber-400" : "text-slate-400";
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-4">
+      <SectionHeader icon={Bot} title="Phase 10E — Multi-Agent Operations"
+        sub={`${registered} agents · ${graphPct.toFixed(0)}% graph health · ${snapThru} snapshots published`} />
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <KpiCard label="Registered"     value={registered}              color="text-slate-300" />
+        <KpiCard label="Healthy Agents" value={healthy}                 color="text-emerald-400" />
+        <KpiCard label="Graph Health"   value={`${graphPct.toFixed(0)}%`} color="text-violet-400" />
+        <KpiCard label="Traceability"   value={`${tracePct.toFixed(0)}%`} color="text-teal-400" />
+        <KpiCard label="Health Score"   value={`${healthScore.toFixed(0)}%`} color="text-cyan-400" />
+        <div className="bg-card rounded-xl border border-border p-3 flex flex-col gap-1">
+          <p className="text-xs text-muted-foreground">Collaboration</p>
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-white text-xs font-semibold self-start ${collabCls}`}>
+            {collabHealth.replace(/_/g, " ")}
+          </span>
+          <p className={`text-xs font-semibold ${alertCls}`}>
+            {critAlerts > 0 ? `${critAlerts} critical alert(s)` : alertCount > 0 ? `${alertCount} advisory alert(s)` : "All clear"}
+          </p>
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground mt-3">
+        READ-ONLY · ADVISORY-ONLY · 2 new agents · 15 endpoints · No autonomous execution · No automatic recovery
       </p>
     </div>
   );
