@@ -236,3 +236,10 @@ uri = "file://artifacts/trading-dashboard/PHASE_10A_SUMMARY.md"
 type = "text"
 title = "Phase 10A — Multi-Agent Framework Summary"
 description = "Full deliverables doc: architecture diagrams, 9 routes, 93 test results, scalability estimates, and READ-ONLY/ADVISORY-ONLY confirmation."
+
+[[outputs]]
+id = "b704WUgzcY69fIUs6azhE"
+uri = "file://artifacts/trading-dashboard/PHASE_10B_SUMMARY.md"
+type = "text"
+title = "Phase 10B — Analysis Layer Summary"
+description = "Complete summary: 4 advisory agents, 12 API routes, 85/85 tests, architecture diagrams, and benchmark data."
