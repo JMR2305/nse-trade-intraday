@@ -63,3 +63,4 @@
 - [Phase 9.6 Executive Reports](phase96-executive-reports.md) — 7 report types, AI Insights (5 questions), 9 KPI scores, Report Library (localStorage); pure useMemo from 4 cached queries; Security/Performance/Deployment scores are placeholders pending those center summary endpoints.
 - [Phase 9.7 Design System](phase97-design-system.md) — designTokens.ts + 15 DS components in src/components/ds/; PageHeader applied to Timeline+Reports; gallery at /design-system; Babel rejects generic-JSX <Comp<T>> even when tsc accepts it.
 - [Phase 10A Multi-Agent Framework](phase10a-agent-framework.md) — 4 Python packages, 9 routes, 93 tests; Supervisor NEVER auto-restarts; agents lazy-init on first API call; SnapshotBus is process-level singleton.
+- [Phase 10B Analysis Layer](phase10b-analysis-layer.md) — 4 advisory agents (MI/SM/Strategy/Risk); 12 routes; 85/85 tests; TableColumn uses `label` not `header`; render receives `unknown` so cast explicitly.

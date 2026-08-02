@@ -2944,6 +2944,33 @@ def main():
         elif command == "cmd_center_export_csv":
             from command_center.api import cmd_export_csv  as _f; result = _f()
 
+        # ── Phase 10B: Analysis Layer ─────────────────────────────────────────
+        elif command == "agent_market_intelligence_snapshot":
+            from market_intelligence_agent.shared_services import get_market_intelligence_agent_snapshot as _f; result = _f()
+        elif command == "agent_market_intelligence_status":
+            from market_intelligence_agent.shared_services import get_market_intelligence_agent_status as _f; result = _f()
+        elif command == "agent_stock_monitoring_snapshot":
+            from stock_monitoring_agent.shared_services import get_stock_monitoring_snapshot as _f; result = _f()
+        elif command == "agent_stock_monitoring_events":
+            from stock_monitoring_agent.shared_services import get_monitoring_events as _f; result = _f()
+        elif command == "agent_stock_monitoring_priority":
+            from stock_monitoring_agent.shared_services import get_priority_queue as _f; result = _f()
+        elif command == "agent_strategy_snapshot":
+            from strategy_agent.shared_services import get_strategy_snapshot as _f; result = _f()
+        elif command == "agent_strategy_symbol":
+            sym_arg = args[1] if len(args) > 1 else (args[0] if args else "")
+            from strategy_agent.shared_services import get_strategy_for_symbol as _f; result = _f(sym_arg)
+        elif command == "agent_risk_snapshot":
+            from risk_agent.shared_services import get_risk_snapshot as _f; result = _f()
+        elif command == "agent_risk_detail":
+            from risk_agent.shared_services import get_risk_detail as _f; result = _f()
+        elif command == "agent_analysis_summary":
+            from analysis_layer.shared_services import get_analysis_summary as _f; result = _f()
+        elif command == "agent_analysis_timeline":
+            from analysis_layer.shared_services import get_analysis_timeline as _f; result = _f()
+        elif command == "agent_analysis_performance":
+            from analysis_layer.shared_services import get_analysis_performance as _f; result = _f()
+
         # ── Phase 10A: Agent Framework ────────────────────────────────────────
         elif command == "agent_supervisor_snapshot":
             from supervisor_agent.shared_services import get_supervisor_snapshot as _f; result = _f()

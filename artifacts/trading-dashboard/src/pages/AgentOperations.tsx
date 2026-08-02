@@ -483,10 +483,149 @@ export default function AgentOperations() {
         </div>
       )}
 
+      {/* ── Phase 10B: Analysis Layer ─────────────────────────────────────── */}
+      <AnalysisLayerSection />
+
       {/* Advisory footer */}
       <p className="text-xs text-center text-muted-foreground pb-2">
         READ-ONLY · ADVISORY-ONLY · No agent restart from this page · Supervisor never auto-restarts
       </p>
+    </div>
+  );
+}
+
+// ── Analysis Layer Section (Phase 10B) ────────────────────────────────────────
+
+const aa = (path: string) => ({
+  queryKey:  ["analysis-agents", path],
+  queryFn:   () => apiJson("analysis-agents/" + path),
+  refetchInterval: 45_000,
+  retry: 1,
+  staleTime: 20_000,
+});
+
+const RISK_COLOR: Record<string, string> = {
+  LOW:      "text-emerald-400",
+  MODERATE: "text-amber-400",
+  HIGH:     "text-orange-400",
+  CRITICAL: "text-red-400",
+  UNKNOWN:  "text-slate-400",
+};
+
+function AnalysisLayerSection() {
+  const { data: summary, isLoading: sumLoading } = useQuery(aa("summary"));
+  const { data: perf,    isLoading: perfLoading } = useQuery(aa("performance"));
+
+  const agentStatusRows: Array<{
+    agent_id: string;
+    state: string;
+    health_score: number;
+    processing_time_ms: number;
+    snapshots_published: number;
+    heartbeat_status: string;
+    registered: boolean;
+  }> = (perf?.agent_metrics ?? []);
+
+  const agentCols: TableColumn<Record<string, unknown>>[] = [
+    {
+      key: "agent_id", label: "Agent",
+      render: (v) => <span className="font-mono text-xs">{String(v)}</span>,
+    },
+    {
+      key: "state", label: "State",
+      render: (v, row) => (
+        <span className={STATE_COLOR[String(v)] ?? "text-slate-400"}>
+          {row["registered"] ? String(v) : "NOT_REGISTERED"}
+        </span>
+      ),
+    },
+    {
+      key: "health_score", label: "Health",
+      render: (v) => <span className={scoreColor(Number(v))}>{Number(v).toFixed(1)}</span>,
+    },
+    {
+      key: "processing_time_ms", label: "Latency",
+      render: (v) => `${Number(v).toFixed(0)} ms`,
+    },
+    {
+      key: "snapshots_published", label: "Published",
+      render: (v) => String(v),
+    },
+    {
+      key: "heartbeat_status", label: "Heartbeat",
+      render: (v) => <span className={HB_COLOR[String(v)] ?? "text-slate-400"}>{String(v)}</span>,
+    },
+  ];
+
+  return (
+    <div>
+      <SH icon={Activity} title="Phase 10B — Analysis Layer" />
+
+      {(sumLoading || perfLoading) ? (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[0,1,2,3].map(i => <KpiCardSkeleton key={i} />)}
+        </div>
+      ) : (
+        <>
+          {/* Summary KPIs */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3 mb-4">
+            <div className="bg-card border border-border rounded-xl p-3 flex flex-col gap-1">
+              <p className="text-xs text-muted-foreground">Market Regime</p>
+              <p className="text-lg font-bold text-teal-400">{summary?.market_regime ?? "—"}</p>
+              <p className="text-xs text-muted-foreground">{summary?.momentum_state ?? ""}</p>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-3 flex flex-col gap-1">
+              <p className="text-xs text-muted-foreground">Symbols Monitored</p>
+              <p className="text-lg font-bold">{summary?.symbols_monitored ?? 0}</p>
+              <p className="text-xs text-muted-foreground">Priority queue</p>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-3 flex flex-col gap-1">
+              <p className="text-xs text-muted-foreground">Breakouts Found</p>
+              <p className="text-lg font-bold text-emerald-400">{summary?.breakouts_found ?? 0}</p>
+              <p className="text-xs text-muted-foreground">This cycle</p>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-3 flex flex-col gap-1">
+              <p className="text-xs text-muted-foreground">Top Strategy</p>
+              <p className="text-base font-bold text-blue-400 truncate">{summary?.top_strategy ?? "—"}</p>
+              <p className="text-xs text-muted-foreground">Score {summary?.highest_score?.toFixed(0) ?? "—"}</p>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-3 flex flex-col gap-1">
+              <p className="text-xs text-muted-foreground">Portfolio Risk</p>
+              <p className={`text-lg font-bold ${RISK_COLOR[summary?.risk_level] ?? "text-slate-400"}`}>
+                {summary?.risk_level ?? "—"}
+              </p>
+              <p className="text-xs text-muted-foreground">Score {summary?.risk_score?.toFixed(0) ?? "—"}/100</p>
+            </div>
+          </div>
+
+          {/* Agent performance table */}
+          {agentStatusRows.length > 0 && (
+            <div className="bg-card border border-border rounded-xl p-4">
+              <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">
+                Analysis Agent Health
+              </p>
+              <DataTable
+                data={agentStatusRows as Array<Record<string, unknown>>}
+                columns={agentCols}
+              />
+              <p className="text-xs text-muted-foreground mt-2 italic">
+                {perf?.symbols_monitored ?? 0} symbols monitored ·{" "}
+                {perf?.strategy_evaluations ?? 0} strategy evaluations ·{" "}
+                {perf?.strategies_registered ?? 0} strategies registered
+              </p>
+            </div>
+          )}
+          {agentStatusRows.length === 0 && (
+            <EmptyState
+              title="Analysis Agents Not Running"
+              description="No Phase 10B analysis agents have been registered yet. Trigger a snapshot to initialise."
+            />
+          )}
+          <p className="text-xs text-muted-foreground mt-2 italic">
+            READ-ONLY · ADVISORY-ONLY · 4 analysis agents · 6 strategies · 9 risk dimensions · 12 event types
+          </p>
+        </>
+      )}
     </div>
   );
 }

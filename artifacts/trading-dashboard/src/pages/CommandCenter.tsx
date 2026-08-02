@@ -598,6 +598,9 @@ export default function CommandCenter() {
             <MarketIntelSection mi={r.market_intelligence} />
           </div>
 
+          {/* Analysis Layer (Phase 10B) — full width */}
+          <AnalysisLayerCard />
+
           {/* System Health — full width */}
           <SystemHealthSection systemHealth={r.system_health} />
 
@@ -622,6 +625,74 @@ export default function CommandCenter() {
           </p>
         </>
       )}
+    </div>
+  );
+}
+
+// ── Analysis Layer Card (Phase 10B) ───────────────────────────────────────────
+
+const RISK_CHIP: Record<string, string> = {
+  LOW: "bg-emerald-600", MODERATE: "bg-amber-500",
+  HIGH: "bg-orange-600", CRITICAL: "bg-red-700", UNKNOWN: "bg-gray-600",
+};
+
+function AnalysisLayerCard() {
+  const { data, isLoading } = useQuery({
+    queryKey:  ["cc", "analysis-summary"],
+    queryFn:   () => apiJson("analysis-agents/summary"),
+    refetchInterval: 45_000,
+    retry: 1,
+    staleTime: 20_000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="bg-card border border-border rounded-xl p-4">
+        <SectionHeader icon={Bot} title="Analysis Layer" />
+        <div className="animate-pulse h-16 bg-muted rounded-lg" />
+      </div>
+    );
+  }
+
+  if (!data?.available) {
+    return (
+      <div className="bg-card border border-border rounded-xl p-4">
+        <SectionHeader icon={Bot} title="Analysis Layer" />
+        <p className="text-xs text-muted-foreground">Analysis agents not yet initialised.</p>
+      </div>
+    );
+  }
+
+  const riskLevel: string = (data.risk_level as string) ?? "UNKNOWN";
+  const regime: string    = (data.market_regime as string) ?? "—";
+  const momentum: string  = (data.momentum_state as string) ?? "—";
+  const topStrategy: string = (data.top_strategy as string) ?? "—";
+  const highestScore: number  = (data.highest_score as number) ?? 0;
+  const breakoutsFound: number = (data.breakouts_found as number) ?? 0;
+  const riskScore: number = (data.risk_score as number) ?? 0;
+  const symbolsMonitored: number = (data.symbols_monitored as number) ?? 0;
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-4">
+      <SectionHeader icon={Bot} title="Phase 10B — Analysis Layer"
+        sub={`${symbolsMonitored} symbols monitored`} />
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <KpiCard label="Market Regime"  value={regime}       color="text-teal-400" />
+        <KpiCard label="Momentum"       value={momentum}     color="text-blue-400" />
+        <KpiCard label="Breakouts"      value={breakoutsFound}  color="text-emerald-400" />
+        <KpiCard label="Top Strategy"   value={topStrategy}  color="text-violet-400" />
+        <KpiCard label="Best Score"     value={`${highestScore.toFixed(0)}/100`} />
+        <div className="bg-card rounded-xl border border-border p-3 flex flex-col gap-1">
+          <p className="text-xs text-muted-foreground">Portfolio Risk</p>
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-white text-xs font-semibold self-start ${RISK_CHIP[riskLevel] ?? "bg-gray-600"}`}>
+            {riskLevel}
+          </span>
+          <p className="text-xs text-muted-foreground">Score {riskScore.toFixed(0)}/100</p>
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground mt-3">
+        READ-ONLY · ADVISORY-ONLY · 4 agents · 6 strategies · 9 risk dimensions · 12 event types
+      </p>
     </div>
   );
 }
