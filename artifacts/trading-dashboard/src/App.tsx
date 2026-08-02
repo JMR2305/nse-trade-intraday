@@ -81,6 +81,7 @@ import Workspace            from "@/pages/Workspace";
 import TradingTimeline      from "@/pages/TradingTimeline";
 import ExecutiveReports     from "@/pages/ExecutiveReports";
 import DesignSystem         from "@/pages/DesignSystem";
+import AgentOperations      from "@/pages/AgentOperations";
 import { ConnectivityPanel } from "@/components/ConnectivityPanel";
 
 const queryClient = new QueryClient({
@@ -178,6 +179,7 @@ function Router() {
         <Route path="/trading-timeline"    component={TradingTimeline} />
         <Route path="/executive-reports"   component={ExecutiveReports} />
         <Route path="/design-system"       component={DesignSystem} />
+        <Route path="/agent-operations"    component={AgentOperations} />
         <Route path="/live-readiness" component={LiveReadiness} />
         <Route component={NotFound} />
       </Switch>

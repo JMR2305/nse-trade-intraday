@@ -13,7 +13,7 @@ import { useState } from "react";
 import {
   TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2,
   Activity, Shield, Zap, Rocket, BarChart2, Brain, Monitor,
-  Download, Clock, ArrowUpRight, ArrowDownRight, FlaskConical,
+  Download, Clock, ArrowUpRight, ArrowDownRight, FlaskConical, Bot,
 } from "lucide-react";
 
 // ── query helpers ──────────────────────────────────────────────────────────────

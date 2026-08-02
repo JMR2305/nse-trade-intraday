@@ -2944,6 +2944,27 @@ def main():
         elif command == "cmd_center_export_csv":
             from command_center.api import cmd_export_csv  as _f; result = _f()
 
+        # ── Phase 10A: Agent Framework ────────────────────────────────────────
+        elif command == "agent_supervisor_snapshot":
+            from supervisor_agent.shared_services import get_supervisor_snapshot as _f; result = _f()
+        elif command == "agent_list":
+            from supervisor_agent.shared_services import get_agent_list as _f; result = _f()
+        elif command == "agent_detail":
+            agent_id_arg = args[0] if args else ""
+            from supervisor_agent.shared_services import get_agent_detail as _f; result = _f(agent_id_arg)
+        elif command == "agent_supervisor_alerts":
+            from supervisor_agent.shared_services import get_supervisor_alerts as _f; result = _f()
+        elif command == "agent_market_data_snapshot":
+            from market_data_agent.shared_services import get_market_data_snapshot as _f; result = _f()
+        elif command == "agent_market_data_metrics":
+            from market_data_agent.shared_services import get_market_data_metrics as _f; result = _f()
+        elif command == "agent_research_snapshot":
+            from research_agent.shared_services import get_research_snapshot as _f; result = _f()
+        elif command == "agent_research_metrics":
+            from research_agent.shared_services import get_research_metrics as _f; result = _f()
+        elif command == "agent_scalability":
+            from supervisor_agent.shared_services import get_scalability_estimate as _f; result = _f()
+
         else:
             error_msg = f"Unknown command: {command}"
 
