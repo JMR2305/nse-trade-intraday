@@ -14,6 +14,7 @@ import {
   TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2,
   Activity, Shield, Zap, Rocket, BarChart2, Brain, Monitor,
   Download, Clock, ArrowUpRight, ArrowDownRight, FlaskConical, Bot,
+  BookOpen,
 } from "lucide-react";
 
 // ── query helpers ──────────────────────────────────────────────────────────────
@@ -604,6 +605,9 @@ export default function CommandCenter() {
           {/* Decision Layer (Phase 10C) — full width */}
           <DecisionLayerCard />
 
+          {/* Learning Layer (Phase 10D) — full width */}
+          <LearningLayerCard />
+
           {/* System Health — full width */}
           <SystemHealthSection systemHealth={r.system_health} />
 
@@ -701,6 +705,73 @@ function DecisionLayerCard() {
       </div>
       <p className="text-xs text-muted-foreground mt-3">
         READ-ONLY · ADVISORY-ONLY · 2 agents · 7 decision types · 10 pre-execution checks · Never places orders
+      </p>
+    </div>
+  );
+}
+
+// ── Learning Layer Card (Phase 10D) ──────────────────────────────────────────
+
+function LearningLayerCard() {
+  const { data, isLoading } = useQuery({
+    queryKey:  ["cc", "learning-summary"],
+    queryFn:   () => apiJson("learning-layer/summary"),
+    refetchInterval: 60_000,
+    retry: 1,
+    staleTime: 30_000,
+  });
+  const d = data as any;
+
+  if (isLoading) {
+    return (
+      <div className="bg-card border border-border rounded-xl p-4">
+        <SectionHeader icon={BookOpen} title="Learning Layer" />
+        <div className="animate-pulse h-16 bg-muted rounded-lg" />
+      </div>
+    );
+  }
+  if (!d?.available) {
+    return (
+      <div className="bg-card border border-border rounded-xl p-4">
+        <SectionHeader icon={BookOpen} title="Learning Layer" />
+        <p className="text-xs text-muted-foreground">Learning agents not yet initialised.</p>
+      </div>
+    );
+  }
+
+  const health:       string = (d.learning_health        as string) ?? "UNKNOWN";
+  const tradesLearned: number = (d.trades_learned_today  as number) ?? 0;
+  const recAcc:       number = (d.recommendation_accuracy as number) ?? 0;
+  const kbSize:       number = (d.knowledge_base_size    as number) ?? 0;
+  const patterns:     number = (d.patterns_identified    as number) ?? 0;
+  const topInsight:   string = (d.top_insight            as string) ?? "—";
+  const topLessons:   string[] = (d.top_lessons          as string[]) ?? [];
+
+  const healthCls = health === "HEALTHY" ? "bg-emerald-600" :
+                    health === "DEGRADED" ? "bg-amber-500"  : "bg-slate-600";
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-4">
+      <SectionHeader icon={BookOpen} title="Phase 10D — Learning Layer"
+        sub={`${tradesLearned} trades learned · ${kbSize} knowledge records`} />
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <KpiCard label="Trades Learned"   value={tradesLearned}            color="text-cyan-400" />
+        <KpiCard label="Rec Accuracy"     value={`${recAcc.toFixed(0)}%`}  color="text-teal-400" />
+        <KpiCard label="Knowledge Base"   value={kbSize}                   color="text-blue-400" />
+        <KpiCard label="Patterns"         value={patterns}                 color="text-violet-400" />
+        <KpiCard label="Top Insight"      value={topInsight !== "N/A" ? topInsight : "—"} color="text-indigo-400" />
+        <div className="bg-card rounded-xl border border-border p-3 flex flex-col gap-1">
+          <p className="text-xs text-muted-foreground">Learning Health</p>
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-white text-xs font-semibold self-start ${healthCls}`}>
+            {health.replace(/_/g, " ")}
+          </span>
+          {topLessons.length > 0 && (
+            <p className="text-[10px] text-muted-foreground truncate" title={topLessons[0]}>{topLessons[0]}</p>
+          )}
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground mt-3">
+        READ-ONLY · ADVISORY-ONLY · 2 agents · No model changes · All improvements require operator review
       </p>
     </div>
   );

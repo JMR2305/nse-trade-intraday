@@ -84,6 +84,12 @@ import DesignSystem         from "@/pages/DesignSystem";
 import AgentOperations      from "@/pages/AgentOperations";
 import AiDecisionAgentPage  from "@/pages/AiDecisionAgentPage";
 import ExecutionAgentPage   from "@/pages/ExecutionAgentPage";
+import LearningAgentPage    from "@/pages/LearningAgentPage";
+import KnowledgeAgentPage   from "@/pages/KnowledgeAgentPage";
+import PatternExplorerPage  from "@/pages/PatternExplorerPage";
+import LessonsLibraryPage   from "@/pages/LessonsLibraryPage";
+import KnowledgeSearchPage  from "@/pages/KnowledgeSearchPage";
+import TradeMemoryPage      from "@/pages/TradeMemoryPage";
 import { ConnectivityPanel } from "@/components/ConnectivityPanel";
 
 const queryClient = new QueryClient({
@@ -184,6 +190,12 @@ function Router() {
         <Route path="/agent-operations"      component={AgentOperations} />
         <Route path="/agent-ai-decision"     component={AiDecisionAgentPage} />
         <Route path="/agent-execution"       component={ExecutionAgentPage} />
+        <Route path="/agent-learning"        component={LearningAgentPage} />
+        <Route path="/agent-knowledge"       component={KnowledgeAgentPage} />
+        <Route path="/pattern-explorer"      component={PatternExplorerPage} />
+        <Route path="/lessons-library"       component={LessonsLibraryPage} />
+        <Route path="/knowledge-search"      component={KnowledgeSearchPage} />
+        <Route path="/trade-memory"          component={TradeMemoryPage} />
         <Route path="/live-readiness" component={LiveReadiness} />
         <Route component={NotFound} />
       </Switch>

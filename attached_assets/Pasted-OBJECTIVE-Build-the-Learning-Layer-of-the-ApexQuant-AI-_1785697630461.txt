@@ -1,0 +1,537 @@
+OBJECTIVE
+
+Build the Learning Layer of the ApexQuant AI Multi-Agent Platform.
+
+This phase introduces
+
+• Learning Agent
+
+• Knowledge Agent
+
+The Learning Agent analyses completed trading sessions and recommendation outcomes.
+
+The Knowledge Agent creates a searchable long-term knowledge base for ApexQuant AI.
+
+IMPORTANT
+
+This phase MUST NOT
+
+• Modify AI models automatically
+
+• Change strategy parameters
+
+• Place orders
+
+• Execute trades
+
+• Retrain models autonomously
+
+Learning remains advisory.
+
+All improvements require operator review.
+
+--------------------------------------------------
+
+ARCHITECTURE
+
+Reuse
+
+Agent Framework
+
+Supervisor
+
+Snapshot Bus
+
+Heartbeat
+
+Scheduler
+
+Registry
+
+Timeline
+
+Decision Layer
+
+Execution Layer
+
+Executive Reports
+
+Command Centre
+
+--------------------------------------------------
+
+LEARNING AGENT
+
+Consumes
+
+Decision Snapshot
+
+Execution Snapshot
+
+Paper Trading Results
+
+Trading Timeline
+
+Executive Reports
+
+Risk Snapshot
+
+Strategy Snapshot
+
+Produces
+
+Learning Snapshot
+
+Responsibilities
+
+Analyse
+
+Winning trades
+
+Losing trades
+
+Expired recommendations
+
+False positives
+
+False negatives
+
+Strategy effectiveness
+
+Confidence calibration
+
+Decision latency
+
+Risk effectiveness
+
+Market regime performance
+
+Never change models automatically.
+
+--------------------------------------------------
+
+LEARNING METRICS
+
+Generate
+
+Recommendation Accuracy
+
+Strategy Win Rate
+
+Confidence Calibration
+
+Average Holding Time
+
+Average Reward/Risk
+
+Sector Performance
+
+Market Regime Performance
+
+Risk Prediction Accuracy
+
+Execution Validation Accuracy
+
+--------------------------------------------------
+
+LEARNING INSIGHTS
+
+Automatically identify
+
+Best strategy today
+
+Worst strategy today
+
+Most profitable sector
+
+Weakest sector
+
+Most reliable recommendation type
+
+Common rejection reasons
+
+Most frequent risk warnings
+
+Recurring market patterns
+
+--------------------------------------------------
+
+KNOWLEDGE AGENT
+
+Consumes
+
+Research
+
+Timeline
+
+Reports
+
+Learning Snapshot
+
+Decision Snapshot
+
+Annotations
+
+Produces
+
+Knowledge Snapshot
+
+Responsibilities
+
+Index
+
+Research
+
+Reports
+
+Timeline events
+
+Decision explanations
+
+Learning insights
+
+Operator notes
+
+Lessons learned
+
+Create searchable knowledge base.
+
+--------------------------------------------------
+
+KNOWLEDGE SEARCH
+
+Support natural-language queries.
+
+Examples
+
+"Show all successful banking breakouts."
+
+"Show every recommendation above 80% confidence."
+
+"What happened after RBI announcements?"
+
+"Which strategy performs best during high volatility?"
+
+"Show similar market conditions."
+
+--------------------------------------------------
+
+PATTERN DISCOVERY
+
+Identify recurring patterns
+
+Examples
+
+Gap-up followed by breakout
+
+Sector rotation before rallies
+
+High VIX with false breakouts
+
+Morning momentum fading
+
+Repeated risk failures
+
+These remain advisory observations.
+
+--------------------------------------------------
+
+TRADE MEMORY
+
+For every completed paper trade store
+
+Decision
+
+Execution Plan
+
+Outcome
+
+Timeline
+
+AI Explanation
+
+Strategy
+
+Risk
+
+Lessons Learned
+
+Related Research
+
+--------------------------------------------------
+
+LESSONS LIBRARY
+
+Automatically generate
+
+What worked
+
+What failed
+
+What should be reviewed
+
+What should be monitored
+
+Open research questions
+
+--------------------------------------------------
+
+KNOWLEDGE DASHBOARD
+
+Display
+
+Knowledge Base Size
+
+Trades Learned
+
+Recommendations Analysed
+
+Patterns Identified
+
+Search Activity
+
+Learning Health
+
+--------------------------------------------------
+
+COMMAND CENTRE
+
+Add
+
+Learning Centre
+
+Display
+
+Trades Learned Today
+
+Recommendation Accuracy
+
+Top Lessons
+
+New Patterns
+
+Knowledge Growth
+
+--------------------------------------------------
+
+WORKSPACE
+
+Create
+
+Learning Agent Page
+
+Knowledge Agent Page
+
+Pattern Explorer
+
+Lessons Library
+
+Knowledge Search
+
+Trade Memory
+
+--------------------------------------------------
+
+TIMELINE
+
+Publish
+
+Learning Completed
+
+Pattern Detected
+
+Lesson Generated
+
+Knowledge Indexed
+
+Trade Learned
+
+Timeline remains compatible with Phase 9.
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Measure
+
+Learning latency
+
+Knowledge indexing speed
+
+Search latency
+
+Pattern detection time
+
+Memory growth
+
+--------------------------------------------------
+
+SCALABILITY
+
+Display
+
+Trades indexed
+
+Knowledge records
+
+Patterns stored
+
+Search throughput
+
+Learning throughput
+
+Memory usage
+
+--------------------------------------------------
+
+FEATURE FLAGS
+
+LEARNING_AGENT_ENABLED
+
+KNOWLEDGE_AGENT_ENABLED
+
+AUTO_MODEL_UPDATES=false
+
+AUTO_STRATEGY_TUNING=false
+
+--------------------------------------------------
+
+TESTING
+
+Verify
+
+Learning metrics
+
+Knowledge indexing
+
+Pattern detection
+
+Search
+
+Trade memory
+
+Lessons library
+
+Timeline integration
+
+Supervisor integration
+
+Dashboard
+
+Feature flags
+
+--------------------------------------------------
+
+SAFETY
+
+READ-ONLY
+
+ADVISORY
+
+No model retraining
+
+No parameter tuning
+
+No automatic optimisation
+
+No strategy modification
+
+Operator approval required for future improvements.
+
+--------------------------------------------------
+
+GITHUB INTEGRATION REQUIREMENTS
+
+Incorporate concepts inspired by previously reviewed GitHub projects where appropriate.
+
+Include
+
+• Knowledge indexing
+
+• Pattern recognition
+
+• Learning dashboards
+
+• Searchable trade history
+
+• Explainable lessons
+
+Do NOT copy external implementations.
+
+Maintain ApexQuant AI architecture.
+
+--------------------------------------------------
+
+FUTURE INTEGRATION
+
+Outputs become inputs for
+
+Executive Reports
+
+Command Centre
+
+AI Decision Agent
+
+Supervisor Agent
+
+without redesign.
+
+Future model improvements must remain reviewable before adoption.
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide
+
+1. Files created
+
+2. Files modified
+
+3. Learning Agent architecture
+
+4. Knowledge Agent architecture
+
+5. Learning Snapshot schema
+
+6. Knowledge Snapshot schema
+
+7. Pattern discovery framework
+
+8. Knowledge search implementation
+
+9. Lessons Library
+
+10. Trade Memory architecture
+
+11. Dashboard integration
+
+12. Timeline integration
+
+13. Performance benchmarks
+
+14. Scalability measurements
+
+15. Test count
+
+16. Test results
+
+17. Known limitations
+
+18. Architecture diagram
+
+19. Sequence diagram
+
+20. Learning flow diagram
+
+21. Confirm READ-ONLY / ADVISORY architecture
+
+Final Verdict
+
+PHASE 10D COMPLETE
+
+or
+
+PHASE 10D NOT COMPLETE
+
+with exact blockers.

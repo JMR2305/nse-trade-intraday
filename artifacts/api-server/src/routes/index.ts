@@ -47,6 +47,7 @@ import commandCenterRouter     from "./command-center";
 import agentFrameworkRouter    from "./agentFramework";
 import { analysisAgentsRouter } from "./analysisAgents";
 import { decisionLayerRouter }  from "./decisionLayer";
+import { learningLayerRouter }  from "./learningLayer";
 
 const router: IRouter = Router();
 
@@ -96,6 +97,7 @@ router.use(commandCenterRouter);
 router.use(agentFrameworkRouter);
 router.use(analysisAgentsRouter);
 router.use(decisionLayerRouter);
+router.use(learningLayerRouter);
 router.use(tradingRouter);
 router.use(downloadRouter);
 

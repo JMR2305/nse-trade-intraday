@@ -185,10 +185,16 @@ export const AGENTS: Agent[] = [
   {
     id: "learning", num: 9,
     emoji: "📚", name: "Learning Agent", shortName: "Learning",
-    description: "Paper analytics, trade replay, historical learning, AI performance",
+    description: "Learning metrics, knowledge base, patterns, lessons, trade memory",
     color: "#06B6D4",      // cyan-500
     pages: [
-      { href: "/paper-analytics",  label: "Paper Analytics",  icon: BarChart3,     tags: ["paper", "analytics"] },
+      { href: "/agent-learning",    label: "Learning Agent",       icon: Brain,        tags: ["learning", "agent", "phase10d"] },
+      { href: "/agent-knowledge",   label: "Knowledge Agent",      icon: BookOpenText, tags: ["knowledge", "agent", "phase10d"] },
+      { href: "/pattern-explorer",  label: "Pattern Explorer",     icon: Activity,     tags: ["patterns", "discovery"] },
+      { href: "/lessons-library",   label: "Lessons Library",      icon: GraduationCap,tags: ["lessons", "library"] },
+      { href: "/knowledge-search",  label: "Knowledge Search",     icon: Lightbulb,    tags: ["search", "knowledge"] },
+      { href: "/trade-memory",      label: "Trade Memory",         icon: Database,     tags: ["memory", "trades"] },
+      { href: "/paper-analytics",   label: "Paper Analytics",      icon: BarChart3,    tags: ["paper", "analytics"] },
     ],
   },
 

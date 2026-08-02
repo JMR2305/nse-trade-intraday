@@ -2970,6 +2970,35 @@ def main():
         elif command == "agent_decision_performance":
             from decision_layer.shared_services import get_decision_performance as _f; result = _f()
 
+        # ── Phase 10D: Learning Layer ──────────────────────────────────────────
+        elif command == "agent_learning_snapshot":
+            from learning_agent.shared_services import get_learning_snapshot as _f; result = _f()
+        elif command == "agent_learning_metrics":
+            from learning_agent.shared_services import get_learning_metrics as _f; result = _f()
+        elif command == "agent_learning_insights":
+            from learning_agent.shared_services import get_learning_insights as _f; result = _f()
+        elif command == "agent_learning_status":
+            from learning_agent.shared_services import get_learning_status as _f; result = _f()
+        elif command == "agent_knowledge_snapshot":
+            from knowledge_agent.shared_services import get_knowledge_snapshot as _f; result = _f()
+        elif command == "agent_knowledge_search":
+            query_arg = args[1] if len(args) > 1 else (args[0] if args else "")
+            from knowledge_agent.shared_services import get_knowledge_search as _f; result = _f(query_arg)
+        elif command == "agent_knowledge_patterns":
+            from knowledge_agent.shared_services import get_knowledge_patterns as _f; result = _f()
+        elif command == "agent_knowledge_lessons":
+            from knowledge_agent.shared_services import get_knowledge_lessons as _f; result = _f()
+        elif command == "agent_knowledge_memory":
+            from knowledge_agent.shared_services import get_trade_memory as _f; result = _f()
+        elif command == "agent_knowledge_status":
+            from knowledge_agent.shared_services import get_knowledge_status as _f; result = _f()
+        elif command == "agent_learning_summary":
+            from learning_layer.shared_services import get_learning_summary as _f; result = _f()
+        elif command == "agent_learning_timeline":
+            from learning_layer.shared_services import get_learning_timeline as _f; result = _f()
+        elif command == "agent_learning_performance":
+            from learning_layer.shared_services import get_learning_performance as _f; result = _f()
+
         # ── Phase 10B: Analysis Layer ─────────────────────────────────────────
         elif command == "agent_market_intelligence_snapshot":
             from market_intelligence_agent.shared_services import get_market_intelligence_agent_snapshot as _f; result = _f()
