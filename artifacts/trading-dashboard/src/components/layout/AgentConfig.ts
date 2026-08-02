@@ -13,7 +13,7 @@ import {
   Shield, ShieldCheck,
   ShieldAlert, Briefcase, PieChart, History, RotateCcw, LayoutDashboard,
   Monitor, Rocket, Settings2, Radio, Dna, Microscope, GitCompare,
-  Route, Layers, ChevronRight, Bot, Bell,
+  Route, Layers, ChevronRight, Bot, Bell, FileBarChart2,
 } from "lucide-react";
 
 // Re-export LucideIcon type alias for consumers
@@ -199,6 +199,7 @@ export const AGENTS: Agent[] = [
     pages: [
       { href: "/workspace",          label: "My Workspace",              icon: LayoutDashboard, tags: ["workspace", "dashboard", "widgets", "personalise"] },
       { href: "/trading-timeline",   label: "Trading Day Timeline",      icon: Clock,           tags: ["timeline", "session", "playback", "review", "history"] },
+      { href: "/executive-reports",  label: "Executive Reports",         icon: FileBarChart2,   tags: ["reports", "briefing", "executive", "summary", "eod"] },
       { href: "/operations-center",  label: "Operations Centre",         icon: Monitor,    tags: ["ops"] },
       { href: "/observability",      label: "Observability",             icon: Activity,   tags: ["observe"] },
       { href: "/data-quality",       label: "Data Quality",              icon: ShieldCheck,tags: ["data", "quality"] },

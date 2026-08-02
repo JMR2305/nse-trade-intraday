@@ -1,0 +1,501 @@
+OBJECTIVE
+
+Build the Executive Reports & AI Briefings module.
+
+Automatically generate intelligent reports and summaries for operators throughout the trading day.
+
+This module MUST remain READ-ONLY and ADVISORY-ONLY.
+
+NO business logic changes.
+
+NO AI model modifications.
+
+NO trading engine changes.
+
+NO automatic trading actions.
+
+--------------------------------------------------
+
+ARCHITECTURE
+
+Reuse existing modules
+
+• Command Centre
+
+• Trading Timeline
+
+• Market Intelligence
+
+• Research
+
+• AI Decision
+
+• Risk Validation
+
+• Paper Trading
+
+• Operations Centre
+
+• Security Centre
+
+• Performance Centre
+
+• Deployment Centre
+
+Reuse existing snapshot interfaces.
+
+Generate reports from existing data only.
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Provide concise, actionable summaries instead of requiring operators to inspect multiple dashboards.
+
+--------------------------------------------------
+
+REPORT TYPES
+
+1.
+
+Morning Brief
+
+Generated before market open.
+
+Include
+
+Market readiness
+
+Pre-open intelligence
+
+Important overnight news
+
+Corporate announcements
+
+Economic events
+
+Market regime
+
+Expected volatility
+
+Top AI watchlist
+
+Risk reminders
+
+Platform readiness
+
+Estimated trading opportunities
+
+--------------------------------------------------
+
+2.
+
+Market Open Brief
+
+Generated shortly after market open.
+
+Include
+
+Opening gaps
+
+Market breadth
+
+Sector leaders
+
+Top gainers
+
+Top losers
+
+Pre-open accuracy
+
+Early AI recommendations
+
+Risk changes
+
+--------------------------------------------------
+
+3.
+
+Midday Brief
+
+Generated during market hours.
+
+Include
+
+Current market trend
+
+Bullish/Bearish counts
+
+Top sectors
+
+Portfolio summary
+
+Today's P&L
+
+Open positions
+
+AI confidence
+
+Highest conviction trades
+
+Risk summary
+
+Operational health
+
+--------------------------------------------------
+
+4.
+
+Market Close Brief
+
+Generated after market close.
+
+Include
+
+Market summary
+
+Best performing sectors
+
+Worst performing sectors
+
+Portfolio performance
+
+Paper trading summary
+
+Win/Loss statistics
+
+Largest gain
+
+Largest loss
+
+Risk summary
+
+AI observations
+
+--------------------------------------------------
+
+5.
+
+End-of-Day Executive Report
+
+Comprehensive report including
+
+Trading activity
+
+Strategy performance
+
+AI performance
+
+Decision trace highlights
+
+Risk review
+
+Operational summary
+
+Platform health
+
+Learning summary
+
+Action items
+
+--------------------------------------------------
+
+6.
+
+Weekly Report
+
+Include
+
+Weekly performance
+
+Strategy ranking
+
+Market regime history
+
+Best trades
+
+Worst trades
+
+AI improvements
+
+Risk trend
+
+Learning trend
+
+--------------------------------------------------
+
+7.
+
+Monthly Report
+
+Include
+
+Monthly performance
+
+Portfolio growth
+
+Strategy comparison
+
+AI confidence trend
+
+Market statistics
+
+Sector analysis
+
+Operational health trend
+
+--------------------------------------------------
+
+REPORT STRUCTURE
+
+Each report should contain
+
+Executive Summary
+
+Key Metrics
+
+Charts
+
+Highlights
+
+Recommendations
+
+Warnings
+
+Next Steps
+
+--------------------------------------------------
+
+AI INSIGHTS
+
+Generate
+
+What changed today?
+
+Why did it happen?
+
+What performed well?
+
+What underperformed?
+
+What should be monitored next?
+
+Remain advisory only.
+
+--------------------------------------------------
+
+EXECUTIVE KPI SUMMARY
+
+Display
+
+Market Score
+
+Portfolio Score
+
+AI Score
+
+Risk Score
+
+Operations Score
+
+Security Score
+
+Performance Score
+
+Deployment Score
+
+Overall Platform Score
+
+--------------------------------------------------
+
+REPORT EXPORT
+
+Support
+
+CSV
+
+JSON
+
+Future PDF
+
+Future Email
+
+--------------------------------------------------
+
+REPORT LIBRARY
+
+Maintain chronological history of reports.
+
+Filter by
+
+Date
+
+Type
+
+Trading session
+
+Search
+
+Favourite
+
+--------------------------------------------------
+
+QUICK ACTIONS
+
+Read-only navigation
+
+Jump to
+
+Command Centre
+
+Timeline
+
+Risk
+
+AI
+
+Portfolio
+
+Research
+
+Operations
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Report generation
+
+<2 seconds
+
+Reuse cached snapshots.
+
+No duplicate calculations.
+
+--------------------------------------------------
+
+TESTING
+
+Verify
+
+Morning Brief
+
+Market Open Brief
+
+Midday Brief
+
+Close Brief
+
+Executive Report
+
+Weekly
+
+Monthly
+
+Exports
+
+Library
+
+Responsive layout
+
+--------------------------------------------------
+
+SAFETY
+
+READ-ONLY
+
+ADVISORY-ONLY
+
+No execution
+
+No order placement
+
+No configuration changes
+
+--------------------------------------------------
+
+GITHUB INTEGRATION REQUIREMENTS
+
+Incorporate concepts inspired by previously reviewed GitHub projects where appropriate.
+
+Include
+
+• Executive dashboards
+
+• AI briefings
+
+• Report history
+
+• Executive summaries
+
+• Professional reporting UX
+
+Do NOT copy external implementations.
+
+Maintain ApexQuant AI modular architecture.
+
+--------------------------------------------------
+
+FUTURE MULTI-AGENT INTEGRATION
+
+Every Agent should contribute its own section.
+
+Examples
+
+Research Agent
+
+Market Intelligence Agent
+
+Risk Agent
+
+AI Decision Agent
+
+Execution Agent
+
+Learning Agent
+
+Operations Agent
+
+Supervisor Agent
+
+Each agent publishes a summary that becomes part of the final report.
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide
+
+1. Files created
+
+2. Files modified
+
+3. Report architecture
+
+4. Report templates
+
+5. AI briefing engine
+
+6. Report library
+
+7. Test count
+
+8. Test results
+
+9. Performance measurements
+
+10. Future agent integration
+
+11. Confirm zero business logic changes
+
+12. Screenshots
+
+Final Verdict
+
+PHASE 9.6 COMPLETE
+
+or
+
+PHASE 9.6 NOT COMPLETE
+
+with exact blockers.
