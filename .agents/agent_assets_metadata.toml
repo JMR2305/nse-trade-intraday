@@ -229,3 +229,10 @@ uri = "file://artifacts/api-server/services/web_intelligence/PHASE_9_3_SUMMARY.m
 type = "text"
 title = "Phase 9.3 — Smart Navigation & Workspace Intelligence Summary"
 description = "Complete build summary for Phase 9.3."
+
+[[outputs]]
+id = "VG1zEEkJOJkP4Fk6v-tMc"
+uri = "file://artifacts/trading-dashboard/PHASE_10A_SUMMARY.md"
+type = "text"
+title = "Phase 10A — Multi-Agent Framework Summary"
+description = "Full deliverables doc: architecture diagrams, 9 routes, 93 test results, scalability estimates, and READ-ONLY/ADVISORY-ONLY confirmation."
