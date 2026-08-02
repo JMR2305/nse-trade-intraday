@@ -78,6 +78,7 @@ import PerformanceCenter    from "@/pages/PerformanceCenter";
 import DeploymentCenter     from "@/pages/DeploymentCenter";
 import CommandCenter        from "@/pages/CommandCenter";
 import Workspace            from "@/pages/Workspace";
+import TradingTimeline      from "@/pages/TradingTimeline";
 import { ConnectivityPanel } from "@/components/ConnectivityPanel";
 
 const queryClient = new QueryClient({
@@ -172,6 +173,7 @@ function Router() {
         <Route path="/deployment-center"    component={DeploymentCenter} />
         <Route path="/command-center"       component={CommandCenter} />
         <Route path="/workspace"            component={Workspace} />
+        <Route path="/trading-timeline"    component={TradingTimeline} />
         <Route path="/live-readiness" component={LiveReadiness} />
         <Route component={NotFound} />
       </Switch>

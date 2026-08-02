@@ -1,0 +1,497 @@
+OBJECTIVE
+
+Build the Trading Day Timeline & Intelligent Session Assistant.
+
+This becomes the complete chronological record of every trading session.
+
+It should combine
+
+• Market Events
+
+• AI Decisions
+
+• Research
+
+• Risk
+
+• Paper Trading
+
+• Future Live Trading
+
+• Operations
+
+• Learning
+
+into one interactive timeline.
+
+NO business logic changes.
+
+NO AI model changes.
+
+NO trading engine changes.
+
+READ-ONLY and ADVISORY-ONLY.
+
+--------------------------------------------------
+
+ARCHITECTURE
+
+Reuse existing modules
+
+• Command Centre
+
+• Market Intelligence
+
+• Research
+
+• Pre-open Intelligence
+
+• AI Decision
+
+• Risk Validation
+
+• Paper Trading
+
+• Operations Centre
+
+• Security
+
+• Performance
+
+• Deployment
+
+Reuse existing snapshot interfaces.
+
+No duplicate calculations.
+
+--------------------------------------------------
+
+TIMELINE SECTIONS
+
+08:00
+
+Platform Startup
+
+08:30
+
+System Health Check
+
+08:45
+
+Pre-open Intelligence
+
+08:50
+
+Research Summary
+
+09:00
+
+Market Readiness
+
+09:08
+
+Auction Monitoring
+
+09:15
+
+Market Open
+
+Throughout Session
+
+Signals
+
+Recommendations
+
+Risk Updates
+
+Orders
+
+Alerts
+
+Market Events
+
+15:30
+
+Market Close
+
+15:45
+
+Paper Trading Summary
+
+16:00
+
+Learning Complete
+
+--------------------------------------------------
+
+TIMELINE EVENTS
+
+Each event should display
+
+Timestamp
+
+Agent Responsible
+
+Category
+
+Priority
+
+Description
+
+Related Stock (if applicable)
+
+Related Strategy
+
+Confidence
+
+Risk Level
+
+Links to Details
+
+--------------------------------------------------
+
+EVENT CATEGORIES
+
+Market
+
+Research
+
+AI
+
+Strategy
+
+Risk
+
+Portfolio
+
+Execution
+
+Learning
+
+Operations
+
+Security
+
+Performance
+
+Deployment
+
+--------------------------------------------------
+
+FILTERS
+
+Filter by
+
+Time
+
+Agent
+
+Stock
+
+Strategy
+
+Category
+
+Priority
+
+Watchlist
+
+Market Session
+
+Search text
+
+--------------------------------------------------
+
+SESSION PLAYBACK
+
+Provide controls
+
+Play
+
+Pause
+
+Step Forward
+
+Step Back
+
+Jump to Time
+
+Playback Speed
+
+This is for review only.
+
+No simulation.
+
+--------------------------------------------------
+
+AI SESSION SUMMARY
+
+Generate natural-language summaries
+
+Examples
+
+Morning Summary
+
+Midday Summary
+
+Closing Summary
+
+End-of-Day Review
+
+Weekly Highlights
+
+--------------------------------------------------
+
+DECISION TRACE
+
+For every recommendation show
+
+Market Context
+
+Research Inputs
+
+Strategy Score
+
+Risk Score
+
+AI Confidence
+
+Final Recommendation
+
+Explainability Link
+
+--------------------------------------------------
+
+TIMELINE COMPARISON
+
+Allow comparison between
+
+Today
+
+Yesterday
+
+Previous Week
+
+Selected Trading Day
+
+--------------------------------------------------
+
+ANNOTATIONS
+
+Operators can add
+
+Notes
+
+Tags
+
+Bookmarks
+
+Lessons Learned
+
+These remain local unless future sync is added.
+
+--------------------------------------------------
+
+SMART HIGHLIGHTS
+
+Automatically identify
+
+Best Trade
+
+Worst Trade
+
+Highest Confidence Signal
+
+Largest Risk Change
+
+Most Active Sector
+
+Biggest Market Move
+
+Largest Portfolio Impact
+
+--------------------------------------------------
+
+WORKFLOW CHECKLIST
+
+Track completion of
+
+Morning Preparation
+
+Pre-open Review
+
+Risk Review
+
+Trading Review
+
+Closing Review
+
+End-of-Day Learning
+
+--------------------------------------------------
+
+EXPORT
+
+CSV
+
+JSON
+
+Future PDF
+
+Timeline Report
+
+--------------------------------------------------
+
+DASHBOARD
+
+Tabs
+
+Timeline
+
+Playback
+
+AI Summary
+
+Decision Trace
+
+Highlights
+
+Notes
+
+Comparison
+
+Checklist
+
+Export
+
+--------------------------------------------------
+
+API
+
+Reuse existing timeline and snapshot APIs.
+
+No new business endpoints unless strictly required.
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Timeline load
+
+<2 seconds
+
+Reuse cached snapshots.
+
+Lazy-load older events.
+
+No duplicate API calls.
+
+--------------------------------------------------
+
+TESTING
+
+Verify
+
+Timeline rendering
+
+Filters
+
+Playback
+
+Comparison
+
+Annotations
+
+Highlights
+
+Exports
+
+Responsive layout
+
+--------------------------------------------------
+
+SAFETY
+
+READ-ONLY
+
+ADVISORY-ONLY
+
+No order placement
+
+No execution
+
+No configuration changes
+
+No AI modifications
+
+--------------------------------------------------
+
+GITHUB INTEGRATION REQUIREMENTS
+
+Incorporate concepts inspired by previously reviewed GitHub projects where appropriate.
+
+Include
+
+• Interactive timeline
+
+• Decision traceability
+
+• Session replay
+
+• Smart highlights
+
+• Annotation support
+
+• Executive daily review
+
+Do NOT copy external implementations.
+
+Maintain ApexQuant AI architecture.
+
+--------------------------------------------------
+
+FUTURE MULTI-AGENT INTEGRATION
+
+Every timeline event should identify the originating Agent.
+
+Future Phase 10 agents should publish events automatically to this timeline.
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide
+
+1. Files created
+
+2. Files modified
+
+3. Timeline architecture
+
+4. Event model
+
+5. Playback implementation
+
+6. Decision trace
+
+7. Test count
+
+8. Test results
+
+9. Performance metrics
+
+10. Future agent integration
+
+11. Confirm zero business logic changes
+
+12. Screenshots
+
+Final Verdict
+
+PHASE 9.5 COMPLETE
+
+or
+
+PHASE 9.5 NOT COMPLETE
+
+with exact blockers.

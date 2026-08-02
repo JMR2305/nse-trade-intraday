@@ -198,6 +198,7 @@ export const AGENTS: Agent[] = [
     color: "#6B7280",      // slate-500
     pages: [
       { href: "/workspace",          label: "My Workspace",              icon: LayoutDashboard, tags: ["workspace", "dashboard", "widgets", "personalise"] },
+      { href: "/trading-timeline",   label: "Trading Day Timeline",      icon: Clock,           tags: ["timeline", "session", "playback", "review", "history"] },
       { href: "/operations-center",  label: "Operations Centre",         icon: Monitor,    tags: ["ops"] },
       { href: "/observability",      label: "Observability",             icon: Activity,   tags: ["observe"] },
       { href: "/data-quality",       label: "Data Quality",              icon: ShieldCheck,tags: ["data", "quality"] },
