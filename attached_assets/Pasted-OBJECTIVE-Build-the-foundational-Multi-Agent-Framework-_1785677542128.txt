@@ -1,0 +1,522 @@
+OBJECTIVE
+
+Build the foundational Multi-Agent Framework for ApexQuant AI.
+
+This phase establishes the infrastructure required for all future intelligent agents.
+
+It introduces:
+
+• Agent Framework
+• Agent Registry
+• Supervisor Agent
+• Shared Snapshot Bus
+• Market Data Agent
+• Research Agent
+
+This phase MUST NOT modify
+
+• Trading Engine
+
+• Risk Engine
+
+• Portfolio Engine
+
+• Strategy Logic
+
+• AI Models
+
+• Order Execution
+
+All agents operate in READ-ONLY and ADVISORY-ONLY mode.
+
+--------------------------------------------------
+
+ARCHITECTURE
+
+Create a common Agent Framework.
+
+Every future agent must inherit from this framework.
+
+Core Components
+
+Agent Base Class
+
+Agent Registry
+
+Agent Lifecycle Manager
+
+Agent Scheduler
+
+Agent Health Monitor
+
+Shared Snapshot Bus
+
+Agent Metrics
+
+Heartbeat Service
+
+Event Publisher
+
+Agent Configuration
+
+--------------------------------------------------
+
+AGENT STATES
+
+Support
+
+Initializing
+
+Starting
+
+Running
+
+Busy
+
+Idle
+
+Paused
+
+Warning
+
+Error
+
+Stopped
+
+Every state must expose timestamp and reason.
+
+--------------------------------------------------
+
+SUPERVISOR AGENT
+
+Create the Supervisor Agent.
+
+Responsibilities
+
+Register Agents
+
+Start Agents
+
+Stop Agents
+
+Pause Agents
+
+Resume Agents
+
+Monitor Health
+
+Monitor Heartbeats
+
+Monitor Queue Length
+
+Monitor Processing Time
+
+Detect Stalled Agents
+
+Generate Advisory Alerts
+
+Display Overall Agent Health
+
+The Supervisor MUST NEVER restart agents automatically.
+
+Recommendations only.
+
+--------------------------------------------------
+
+AGENT REGISTRY
+
+Maintain registry of
+
+Agent ID
+
+Agent Name
+
+Version
+
+Owner
+
+Status
+
+Priority
+
+Dependencies
+
+Capabilities
+
+Current Task
+
+Last Heartbeat
+
+Health Score
+
+--------------------------------------------------
+
+SHARED SNAPSHOT BUS
+
+Implement a shared snapshot system.
+
+Agents publish snapshots.
+
+Agents subscribe to snapshots.
+
+No direct agent-to-agent calls.
+
+Example
+
+Market Data Agent
+
+publishes
+
+Market Snapshot
+
+Research Agent
+
+publishes
+
+Research Snapshot
+
+Future agents consume snapshots.
+
+--------------------------------------------------
+
+MARKET DATA AGENT
+
+Create Agent
+
+Responsibilities
+
+Collect
+
+NSE data
+
+Zerodha market data
+
+OHLC
+
+Volume
+
+Delivery
+
+India VIX
+
+Sector indices
+
+Pre-open auction
+
+Watchlists
+
+Data freshness
+
+Normalise all data.
+
+Publish unified Market Snapshot.
+
+No analysis.
+
+No recommendations.
+
+--------------------------------------------------
+
+RESEARCH AGENT
+
+Create Agent
+
+Responsibilities
+
+Collect
+
+Corporate announcements
+
+Earnings
+
+Economic calendar
+
+Macro events
+
+Sector news
+
+Company actions
+
+Research feeds already integrated into ApexQuant AI
+
+Normalise research.
+
+Publish Research Snapshot.
+
+No recommendations.
+
+--------------------------------------------------
+
+AGENT DASHBOARD
+
+Create a dedicated Agent Operations dashboard.
+
+Display
+
+All registered agents
+
+Status
+
+Current task
+
+Health
+
+Last heartbeat
+
+Queue depth
+
+Processing latency
+
+Snapshots published
+
+Snapshots consumed
+
+Agent dependencies
+
+--------------------------------------------------
+
+COMMAND CENTRE INTEGRATION
+
+Add new section
+
+Agent Operations
+
+Display
+
+Healthy Agents
+
+Busy Agents
+
+Warning Agents
+
+Failed Agents
+
+Last heartbeat
+
+System capacity
+
+Stocks monitored
+
+Data freshness
+
+--------------------------------------------------
+
+WORKSPACE INTEGRATION
+
+Every Agent receives
+
+Own page
+
+Own status card
+
+Own activity panel
+
+Own metrics
+
+Use Phase 9 design system.
+
+--------------------------------------------------
+
+PERFORMANCE METRICS
+
+Measure
+
+Agent startup time
+
+Heartbeat latency
+
+Snapshot publish latency
+
+Snapshot consumption latency
+
+Memory
+
+CPU
+
+Queue length
+
+Maximum monitored symbols
+
+Average scan interval
+
+--------------------------------------------------
+
+SCALABILITY ESTIMATOR
+
+Display
+
+Current monitored stocks
+
+Safe capacity
+
+Estimated maximum capacity
+
+Current scan interval
+
+Recommended scan interval
+
+Current agent count
+
+Future supported agents
+
+--------------------------------------------------
+
+CONFIGURATION
+
+Every Agent configurable via feature flags.
+
+Examples
+
+SUPERVISOR_AGENT_ENABLED=true
+
+MARKET_DATA_AGENT_ENABLED=true
+
+RESEARCH_AGENT_ENABLED=true
+
+--------------------------------------------------
+
+TESTING
+
+Verify
+
+Agent registration
+
+Heartbeat
+
+Lifecycle
+
+Supervisor
+
+Snapshot publish
+
+Snapshot subscribe
+
+Health monitoring
+
+Scheduler
+
+Dashboard
+
+Performance metrics
+
+Feature flags
+
+Failure handling
+
+--------------------------------------------------
+
+SAFETY
+
+READ-ONLY
+
+ADVISORY-ONLY
+
+No order placement
+
+No execution
+
+No AI modification
+
+No strategy modification
+
+No portfolio modification
+
+--------------------------------------------------
+
+GITHUB INTEGRATION REQUIREMENTS
+
+Incorporate concepts inspired by previously reviewed GitHub projects where appropriate.
+
+Include
+
+• Actor-style agent architecture
+
+• Health monitoring
+
+• Heartbeat monitoring
+
+• Snapshot/event bus
+
+• Agent registry
+
+• Metrics dashboard
+
+Do NOT copy external implementations.
+
+Maintain ApexQuant AI modular architecture.
+
+--------------------------------------------------
+
+FUTURE INTEGRATION
+
+This framework must support future
+
+Market Intelligence Agent
+
+Stock Monitoring Agent
+
+Strategy Agent
+
+Risk Agent
+
+AI Decision Agent
+
+Execution Agent
+
+Learning Agent
+
+Knowledge Agent
+
+without architectural redesign.
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide
+
+1. Files created
+
+2. Files modified
+
+3. Agent Framework architecture
+
+4. Supervisor architecture
+
+5. Market Data Agent implementation
+
+6. Research Agent implementation
+
+7. Snapshot bus architecture
+
+8. Agent Registry
+
+9. Agent Dashboard
+
+10. Performance benchmarks
+
+11. Scalability estimates
+
+12. Test count
+
+13. Test results
+
+14. Known limitations
+
+15. Architecture diagram
+
+16. Sequence diagram
+
+17. Agent interaction diagram
+
+18. Confirm READ-ONLY and ADVISORY-ONLY architecture.
+
+Final Verdict
+
+PHASE 10A COMPLETE
+
+or
+
+PHASE 10A NOT COMPLETE
+
+with exact blockers.
