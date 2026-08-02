@@ -243,3 +243,10 @@ uri = "file://artifacts/trading-dashboard/PHASE_10B_SUMMARY.md"
 type = "text"
 title = "Phase 10B — Analysis Layer Summary"
 description = "Complete summary: 4 advisory agents, 12 API routes, 85/85 tests, architecture diagrams, and benchmark data."
+
+[[outputs]]
+id = "3r_mChGhuEJG8oCj5CWuH"
+uri = "file://artifacts/trading-dashboard/PHASE_10C_SUMMARY.md"
+type = "text"
+title = "Phase 10C Summary"
+description = "Complete deliverables document for the Decision Layer — AI Decision Agent, Execution Agent, architecture diagrams, schemas, test results, and safety confirmation."
