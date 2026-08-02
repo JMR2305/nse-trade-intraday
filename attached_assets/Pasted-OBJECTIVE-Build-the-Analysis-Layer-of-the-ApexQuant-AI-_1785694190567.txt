@@ -1,0 +1,519 @@
+OBJECTIVE
+
+Build the Analysis Layer of the ApexQuant AI Multi-Agent Platform.
+
+This phase introduces
+
+• Market Intelligence Agent
+
+• Stock Monitoring Agent
+
+• Strategy Agent
+
+• Risk Agent
+
+These agents consume snapshots published by Phase 10A agents and produce analytical snapshots for future AI Decision Agents.
+
+NO
+
+• Order placement
+
+• Trade execution
+
+• AI model retraining
+
+• Portfolio modification
+
+• Strategy execution
+
+READ-ONLY
+
+ADVISORY-ONLY
+
+--------------------------------------------------
+
+ARCHITECTURE
+
+Reuse Phase 10A
+
+Agent Framework
+
+Supervisor
+
+Snapshot Bus
+
+Heartbeat
+
+Scheduler
+
+Health Monitor
+
+Agent Registry
+
+All new agents inherit BaseAgent.
+
+--------------------------------------------------
+
+MARKET INTELLIGENCE AGENT
+
+Consumes
+
+Market Snapshot
+
+Research Snapshot
+
+Produces
+
+Market Intelligence Snapshot
+
+Responsibilities
+
+Determine
+
+Market Regime
+
+Trend Strength
+
+Sector Rotation
+
+Sector Leadership
+
+Market Breadth
+
+Volatility Regime
+
+Liquidity
+
+Momentum State
+
+Gap Analysis
+
+Data Freshness
+
+Current Trading Session
+
+Publish
+
+Market Intelligence Snapshot
+
+Never recommend trades.
+
+--------------------------------------------------
+
+STOCK MONITORING AGENT
+
+Continuously monitor configured stock universe.
+
+Monitor
+
+Current Holdings
+
+Watchlists
+
+NIFTY 50
+
+Sector Leaders
+
+Future expandable universe
+
+Detect
+
+Breakouts
+
+Breakdowns
+
+Gap Ups
+
+Gap Downs
+
+VWAP Cross
+
+Volume Spike
+
+Delivery Spike
+
+Momentum Shift
+
+Trend Reversal
+
+New High
+
+New Low
+
+Unusual Activity
+
+Every detected event becomes
+
+Monitoring Snapshot
+
+--------------------------------------------------
+
+SMART PRIORITY ENGINE
+
+Implement monitoring priorities.
+
+Priority 1
+
+Open Positions
+
+Priority 2
+
+High Conviction Watchlist
+
+Priority 3
+
+Today's Candidates
+
+Priority 4
+
+NIFTY 50
+
+Priority 5
+
+Background Universe
+
+Higher priority symbols receive more frequent evaluation.
+
+--------------------------------------------------
+
+STRATEGY AGENT
+
+Evaluate every monitored symbol.
+
+Strategies
+
+Breakout
+
+VWAP Pullback
+
+Opening Range Breakout
+
+Momentum
+
+Mean Reversion
+
+Gap Strategy
+
+Future strategies plug in automatically.
+
+Each strategy produces
+
+Strategy Score
+
+Confidence
+
+Supporting Factors
+
+Risk Flags
+
+Strength
+
+Weakness
+
+Publish
+
+Strategy Snapshot
+
+Never generate BUY/SELL.
+
+--------------------------------------------------
+
+RISK AGENT
+
+Consumes
+
+Portfolio
+
+Market Intelligence
+
+Strategy Snapshot
+
+Paper Trading
+
+Produces
+
+Risk Snapshot
+
+Evaluate
+
+Portfolio Exposure
+
+Position Sizing
+
+Sector Concentration
+
+Correlation
+
+Portfolio Heat
+
+Daily Risk
+
+Capital Utilisation
+
+Maximum Drawdown
+
+Tail Risk
+
+Risk Level
+
+Publish Risk Snapshot.
+
+Never modify portfolio.
+
+--------------------------------------------------
+
+AGENT OPERATIONS
+
+Extend Agent Operations dashboard.
+
+Display
+
+Current Activity
+
+Symbols Monitored
+
+Evaluation Frequency
+
+Queue Length
+
+Snapshot Rate
+
+Average Processing Time
+
+CPU
+
+Memory
+
+--------------------------------------------------
+
+COMMAND CENTRE
+
+Add
+
+Analysis Layer
+
+Display
+
+Current Market Regime
+
+Symbols Monitored
+
+Breakouts Found
+
+Risk Level
+
+Top Strategy
+
+Highest Confidence Setup
+
+--------------------------------------------------
+
+TIMELINE
+
+Publish events
+
+Market Regime Changed
+
+Sector Rotation Changed
+
+Breakout Detected
+
+Risk Updated
+
+Strategy Evaluated
+
+Every event appears in Phase 9 Timeline.
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Measure
+
+Symbols monitored
+
+Average scan interval
+
+Snapshot latency
+
+Evaluation time
+
+Strategy throughput
+
+Risk calculation time
+
+--------------------------------------------------
+
+SCALABILITY
+
+Display
+
+Current monitored symbols
+
+Current scan frequency
+
+Safe monitoring capacity
+
+Estimated maximum capacity
+
+Agent throughput
+
+CPU usage
+
+Memory usage
+
+--------------------------------------------------
+
+CONFIGURATION
+
+Feature Flags
+
+MARKET_INTELLIGENCE_AGENT_ENABLED
+
+STOCK_MONITORING_AGENT_ENABLED
+
+STRATEGY_AGENT_ENABLED
+
+RISK_AGENT_ENABLED
+
+Monitoring priorities configurable.
+
+--------------------------------------------------
+
+TESTING
+
+Verify
+
+Snapshot subscriptions
+
+Snapshot publication
+
+Market regime
+
+Stock monitoring
+
+Priority engine
+
+Strategy evaluation
+
+Risk calculations
+
+Heartbeat
+
+Supervisor integration
+
+Dashboard
+
+Timeline
+
+Feature flags
+
+--------------------------------------------------
+
+SAFETY
+
+READ-ONLY
+
+ADVISORY-ONLY
+
+No BUY/SELL
+
+No Order Placement
+
+No Portfolio Modification
+
+No AI Retraining
+
+No Strategy Execution
+
+--------------------------------------------------
+
+GITHUB INTEGRATION REQUIREMENTS
+
+Incorporate concepts inspired by previously reviewed GitHub projects where appropriate.
+
+Include
+
+• Modular strategy framework
+
+• Priority-based stock monitoring
+
+• Market regime detection
+
+• Breadth analysis
+
+• Sector rotation
+
+• Portfolio risk analytics
+
+Do NOT copy external implementations.
+
+Maintain ApexQuant AI modular architecture.
+
+--------------------------------------------------
+
+FUTURE INTEGRATION
+
+Outputs from this phase become inputs to
+
+AI Decision Agent
+
+Execution Agent
+
+Learning Agent
+
+Knowledge Agent
+
+without architectural redesign.
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide
+
+1. Files created
+
+2. Files modified
+
+3. Market Intelligence Agent architecture
+
+4. Stock Monitoring Agent architecture
+
+5. Strategy Agent architecture
+
+6. Risk Agent architecture
+
+7. Snapshot definitions
+
+8. Timeline integration
+
+9. Dashboard updates
+
+10. Performance benchmarks
+
+11. Scalability measurements
+
+12. Test count
+
+13. Test results
+
+14. Known limitations
+
+15. Architecture diagram
+
+16. Sequence diagram
+
+17. Agent dependency diagram
+
+18. Confirm READ-ONLY and ADVISORY-ONLY architecture.
+
+Final Verdict
+
+PHASE 10B COMPLETE
+
+or
+
+PHASE 10B NOT COMPLETE
+
+with exact blockers.
