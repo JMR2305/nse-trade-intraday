@@ -1,0 +1,453 @@
+OBJECTIVE
+
+Build the UX Consolidation & Professional Design System.
+
+This phase DOES NOT add new business functionality.
+
+Its purpose is to unify the appearance, navigation, accessibility and usability of the entire ApexQuant AI platform.
+
+NO
+
+• Trading Engine changes
+
+• AI changes
+
+• API changes
+
+• Database changes
+
+• Business logic changes
+
+READ-ONLY
+
+UI/UX ONLY
+
+--------------------------------------------------
+
+OBJECTIVE
+
+Every page should feel like it belongs to the same professional trading platform.
+
+--------------------------------------------------
+
+DESIGN SYSTEM
+
+Create one global design system.
+
+Standardise
+
+Typography
+
+Spacing
+
+Buttons
+
+Cards
+
+Tables
+
+Charts
+
+Forms
+
+Icons
+
+Badges
+
+Colours
+
+Status Indicators
+
+Progress Bars
+
+Empty States
+
+Loading States
+
+--------------------------------------------------
+
+COLOUR SYSTEM
+
+Create standard colours
+
+Market Data
+
+Blue
+
+Research
+
+Green
+
+Market Intelligence
+
+Purple
+
+Monitoring
+
+Orange
+
+Strategy
+
+Red
+
+Risk
+
+Amber
+
+AI
+
+Indigo
+
+Execution
+
+Teal
+
+Learning
+
+Cyan
+
+Operations
+
+Grey
+
+Maintain identical colours across every page.
+
+--------------------------------------------------
+
+COMPONENT LIBRARY
+
+Create reusable components
+
+Info Card
+
+KPI Card
+
+Metric Tile
+
+Agent Status Card
+
+Alert Card
+
+Timeline Card
+
+Recommendation Card
+
+Health Card
+
+Section Header
+
+Statistic Card
+
+Summary Card
+
+--------------------------------------------------
+
+PAGE CONSISTENCY
+
+Every page should include
+
+Title
+
+Subtitle
+
+Agent
+
+Last Updated
+
+Status
+
+Actions
+
+Breadcrumb
+
+Help
+
+--------------------------------------------------
+
+TABLE STANDARDISATION
+
+Every table should support
+
+Search
+
+Sort
+
+Filter
+
+Export
+
+Pagination
+
+Column chooser
+
+Responsive layout
+
+--------------------------------------------------
+
+CHART STANDARDISATION
+
+Standardise
+
+Colours
+
+Legends
+
+Tooltips
+
+Axes
+
+Animations
+
+Time ranges
+
+Export
+
+Loading
+
+--------------------------------------------------
+
+LOADING EXPERIENCE
+
+Consistent
+
+Skeleton Loaders
+
+Progress Indicators
+
+Loading Messages
+
+Background Refresh
+
+--------------------------------------------------
+
+EMPTY STATES
+
+Every empty page should explain
+
+Why data is missing
+
+How data appears
+
+What to do next
+
+Links to related pages
+
+--------------------------------------------------
+
+ERROR STATES
+
+Consistent
+
+Network Error
+
+Permission Error
+
+Unavailable Data
+
+Provider Offline
+
+Retry
+
+Diagnostics Link
+
+--------------------------------------------------
+
+ACCESSIBILITY
+
+Verify
+
+Keyboard Navigation
+
+ARIA Labels
+
+Colour Contrast
+
+Focus Indicators
+
+Screen Readers
+
+Responsive Fonts
+
+--------------------------------------------------
+
+RESPONSIVE
+
+Desktop
+
+Tablet
+
+Mobile
+
+Large Monitor
+
+Multi-monitor
+
+--------------------------------------------------
+
+SESSION EXPERIENCE
+
+Transitions
+
+Animations
+
+Navigation
+
+Consistent page refresh
+
+No unnecessary flashing
+
+--------------------------------------------------
+
+HELP SYSTEM
+
+Every page includes
+
+Help
+
+Documentation
+
+Related Pages
+
+Related Agent
+
+Frequently Asked Questions
+
+--------------------------------------------------
+
+NOTIFICATION SYSTEM
+
+Standardise
+
+Success
+
+Warning
+
+Error
+
+Information
+
+Critical
+
+--------------------------------------------------
+
+ICON SYSTEM
+
+Every Agent
+
+Every Status
+
+Every Alert
+
+Every Strategy
+
+Every Report
+
+Should have one consistent icon.
+
+--------------------------------------------------
+
+PERFORMANCE
+
+Reuse existing components.
+
+Reduce duplicate UI.
+
+Lazy load large components.
+
+No duplicate API calls.
+
+--------------------------------------------------
+
+TESTING
+
+Verify
+
+Component consistency
+
+Responsive layout
+
+Accessibility
+
+Performance
+
+Dark/Light themes
+
+Navigation
+
+Visual regression
+
+--------------------------------------------------
+
+SAFETY
+
+UI ONLY
+
+READ-ONLY
+
+No business logic changes
+
+No API changes
+
+No AI changes
+
+--------------------------------------------------
+
+GITHUB INTEGRATION REQUIREMENTS
+
+Incorporate concepts inspired by previously reviewed GitHub projects where appropriate.
+
+Include
+
+• Modern trading workstation design
+
+• Design tokens
+
+• Shared component library
+
+• Accessibility improvements
+
+• Visual consistency
+
+Do NOT copy external implementations.
+
+Maintain ApexQuant AI architecture.
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide
+
+1. Files created
+
+2. Files modified
+
+3. Shared component library
+
+4. Design tokens
+
+5. Standardised layouts
+
+6. Accessibility report
+
+7. Test count
+
+8. Test results
+
+9. Performance improvements
+
+10. Future multi-agent readiness
+
+11. Confirm zero business logic changes
+
+12. Before/After screenshots
+
+Final Verdict
+
+PHASE 9.7 COMPLETE
+
+or
+
+PHASE 9.7 NOT COMPLETE
+
+with exact blockers.

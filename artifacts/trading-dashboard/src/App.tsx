@@ -80,6 +80,7 @@ import CommandCenter        from "@/pages/CommandCenter";
 import Workspace            from "@/pages/Workspace";
 import TradingTimeline      from "@/pages/TradingTimeline";
 import ExecutiveReports     from "@/pages/ExecutiveReports";
+import DesignSystem         from "@/pages/DesignSystem";
 import { ConnectivityPanel } from "@/components/ConnectivityPanel";
 
 const queryClient = new QueryClient({
@@ -176,6 +177,7 @@ function Router() {
         <Route path="/workspace"            component={Workspace} />
         <Route path="/trading-timeline"    component={TradingTimeline} />
         <Route path="/executive-reports"   component={ExecutiveReports} />
+        <Route path="/design-system"       component={DesignSystem} />
         <Route path="/live-readiness" component={LiveReadiness} />
         <Route component={NotFound} />
       </Switch>

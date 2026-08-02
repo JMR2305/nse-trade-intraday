@@ -386,6 +386,11 @@
   from { background-position: -200% 0; }
   to   { background-position:  200% 0; }
 }
+/* DS Phase 9.7 — alias used by LoadingSkeleton.tsx */
+@keyframes aq-skeleton-shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position:  200% 0; }
+}
 @keyframes pulse-soft {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.55; }

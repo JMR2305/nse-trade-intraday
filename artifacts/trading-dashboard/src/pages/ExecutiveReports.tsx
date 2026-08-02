@@ -23,6 +23,7 @@ import { apiJson } from "@/lib/api";
 import { Badge }   from "@/components/ui/badge";
 import { Button }  from "@/components/ui/button";
 import { Input }   from "@/components/ui/input";
+import { PageHeader } from "@/components/ds";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -710,19 +711,34 @@ export default function ExecutiveReports() {
     <div style={{ padding: "20px 24px", minHeight: "100vh", fontFamily: "inherit" }}>
 
       {/* Page header */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <FileBarChart2 size={22} color="#A78BFA" />
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: "#F9FAFB", margin: 0 }}>Executive Reports</h1>
-            <Badge variant="outline" style={{ fontSize: 10, color: "#9CA3AF", borderColor: "#374151" }}>Advisory · Read-only</Badge>
-          </div>
-          <p style={{ color: "#6B7280", fontSize: 13, margin: "4px 0 0 32px" }}>AI Briefings & Intelligent Session Reports · {new Date().toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={saveCurrentReport} style={{ fontSize: 11, height: 32 }}>
-          <BookMarked size={12} style={{ marginRight: 5 }} /> Save Report
-        </Button>
-      </div>
+      <PageHeader
+        title="Executive Reports"
+        subtitle={`AI Briefings & Intelligent Session Reports · ${new Date().toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", weekday: "long", year: "numeric", month: "long", day: "numeric" })}`}
+        icon={FileBarChart2}
+        agentId="operations"
+        agentName="Operations Agent"
+        advisory
+        readOnly
+        breadcrumbs={[{ label: "Operations" }, { label: "Executive Reports" }]}
+        actions={
+          <Button variant="outline" size="sm" onClick={saveCurrentReport} style={{ fontSize: 11, height: 32 }}>
+            <BookMarked size={12} style={{ marginRight: 5 }} /> Save Report
+          </Button>
+        }
+        helpTitle="Executive Reports & AI Briefings"
+        faqs={[
+          { q: "How are reports generated?", a: "Reports are generated from existing cached data — no new API calls. All data reuses the 30-second stale-time cache." },
+          { q: "What is the Report Library?", a: "The Library tab saves a copy of the current report to your browser's localStorage so you can review it later." },
+          { q: "Why are Weekly/Monthly reports limited?", a: "Full weekly and monthly analytics require multi-session data persistence, planned for Phase 10+." },
+          { q: "How do I export a report?", a: "Use the CSV or JSON buttons at the top of any report to download its data." },
+        ]}
+        relatedPages={[
+          { label: "Trading Timeline",  href: "/trading-timeline" },
+          { label: "Command Centre",    href: "/command-center" },
+          { label: "AI Performance",    href: "/ai-performance" },
+          { label: "Portfolio",         href: "/portfolio-live" },
+        ]}
+      />
 
       {/* KPI scores row */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>

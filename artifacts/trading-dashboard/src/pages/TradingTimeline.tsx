@@ -22,6 +22,7 @@ import {
   ChevronDown, SlidersHorizontal, Calendar, Eye, FileText,
   MessageSquare, Layers, Cpu, Globe, FlaskConical,
 } from "lucide-react";
+import { PageHeader } from "@/components/ds";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -637,28 +638,33 @@ export default function TradingTimeline() {
     <div className="flex flex-col h-full min-h-0 bg-background">
 
       {/* ── Header ── */}
-      <div className="shrink-0 px-6 pt-5 pb-3 border-b border-border/30">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <Clock className="w-5 h-5 text-primary" />
-              <h1 className="text-lg font-bold tracking-tight">Trading Day Timeline</h1>
-              <Badge variant="outline" className="text-[10px] text-muted-foreground/60 border-border/40">
-                Advisory · Read-only
-              </Badge>
-            </div>
-            <p className="text-[12px] text-muted-foreground/60">
-              Complete chronological record · {allEvents.length} events across {[...new Set(allEvents.map(e => e.category))].length} categories
-            </p>
-          </div>
-          <div className="flex items-center gap-2 text-[11px] text-muted-foreground/50">
-            <div className={cn("w-2 h-2 rounded-full", tlLoading ? "bg-amber-400 animate-pulse" : "bg-emerald-400")} />
-            {tlLoading ? "Loading…" : "Live"}
-          </div>
-        </div>
+      <div className="shrink-0 px-6 pt-5">
+        <PageHeader
+          title="Trading Day Timeline"
+          subtitle={`Complete chronological record · ${allEvents.length} events across ${[...new Set(allEvents.map(e => e.category))].length} categories`}
+          icon={Clock}
+          agentId="operations"
+          agentName="Learning Agent"
+          status={tlLoading ? "stale" : "live"}
+          advisory
+          readOnly
+          breadcrumbs={[{ label: "Operations" }, { label: "Trading Day Timeline" }]}
+          helpTitle="Trading Day Timeline"
+          faqs={[
+            { q: "What events appear in the timeline?", a: "All scan runs, platform alerts, AI signals, and paper trade events from today's session, normalised into a single chronological feed." },
+            { q: "How do I filter events?", a: "Open the Filters sidebar on the Timeline tab to filter by Category, Priority, and Agent. Use the search bar to filter by keyword." },
+            { q: "How do I save notes?", a: "Go to the Notes tab and click 'Add Annotation'. Notes are saved to your browser's localStorage." },
+            { q: "How do I export the timeline?", a: "Go to the Export tab and choose CSV, JSON, or Annotations JSON." },
+          ]}
+          relatedPages={[
+            { label: "Command Centre",   href: "/command-center" },
+            { label: "Executive Reports",href: "/executive-reports" },
+            { label: "AI Decision",      href: "/ai-decision" },
+          ]}
+        />
 
         {/* Tab bar */}
-        <div className="flex gap-1 mt-4 overflow-x-auto scrollbar-hide">
+        <div className="flex gap-1 mt-4 pb-3 overflow-x-auto scrollbar-hide border-b border-border/30">
           {TABS.map(t => {
             const TIcon = t.icon;
             return (
