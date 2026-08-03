@@ -250,3 +250,10 @@ uri = "file://artifacts/trading-dashboard/PHASE_10C_SUMMARY.md"
 type = "text"
 title = "Phase 10C Summary"
 description = "Complete deliverables document for the Decision Layer — AI Decision Agent, Execution Agent, architecture diagrams, schemas, test results, and safety confirmation."
+
+[[outputs]]
+id = "rnQxQvGxTJRqVnIMKwRUt"
+uri = "file://APEXQUANT_AI_PLATFORM_SUMMARY.md"
+type = "text"
+title = "ApexQuant AI — Platform Summary"
+description = "End-to-end summary of the autonomous paper trading platform build: architecture, all phases, safety invariants, and the scan abort fix."
