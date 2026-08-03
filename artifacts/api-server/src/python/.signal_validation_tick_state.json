@@ -16,7 +16,12 @@
       "ts": "2026-08-03T09:46:57.119689+05:30",
       "checkpointed": 0,
       "note": "no_active_records"
+    },
+    "eod_close": {
+      "ts": "2026-08-03T15:25:11.936803+05:30",
+      "classified": 0,
+      "note": "no_records"
     }
   },
-  "ingest_count": 36
+  "ingest_count": 45
 }

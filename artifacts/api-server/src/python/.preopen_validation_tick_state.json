@@ -19,6 +19,12 @@
       "fetched": 10,
       "symbols": 10,
       "updated": 10
+    },
+    "eod_classify": {
+      "ts": "2026-08-03T15:28:12.343418+05:30",
+      "classified": 10,
+      "continuation_rate": 20.0,
+      "report_path": "/home/runner/workspace/artifacts/api-server/src/python/reports/PreOpenAccuracy_20260803.json"
     }
   }
 }
