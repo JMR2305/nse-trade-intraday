@@ -3138,6 +3138,27 @@ def main():
         elif command == "phase11_snapshot":
             from phase11_autonomous import get_phase11_snapshot as _f; result = _f()
 
+        # ── Daily session management ───────────────────────────────────────────
+        elif command == "daily_session_status":
+            from daily_session_manager import get_session_status as _f; result = _f()
+        elif command == "daily_session_init":
+            # Manual trigger — force=True ignores the idempotency guard.
+            force = bool((data or {}).get("force", False))
+            from daily_session_manager import initialize_daily_session as _f
+            result = _f(force=force)
+        elif command == "daily_session_verify_agents":
+            from daily_session_manager import verify_agents as _f; result = _f()
+        elif command == "daily_session_enable_autonomous":
+            # Convenience: enable auto entries for the current session.
+            from phase20_store import update_settings, CONFIRMATION_TEXT
+            result = update_settings(
+                {"auto_paper_entries": True, "auto_scan_enabled": True, "auto_paper_exits": True},
+                confirmation_text=CONFIRMATION_TEXT,
+            )
+        elif command == "daily_session_disable_autonomous":
+            from phase20_store import update_settings
+            result = update_settings({"auto_paper_entries": False})
+
         else:
             error_msg = f"Unknown command: {command}"
 

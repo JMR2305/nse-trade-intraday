@@ -26,7 +26,7 @@ try:
 except Exception:
     _log = None  # structured logging optional
 
-INITIAL_CAPITAL = 500_000.0   # ₹5 lakh — keep in sync with config.INITIAL_CAPITAL
+INITIAL_CAPITAL = 50_000.0    # ₹50,000 — daily paper-trading session capital (resets every trading day)
 
 # ── Phase 15: estimated friction costs (research realism, paper only) ────────
 SLIPPAGE_PCT = 0.05          # assumed 0.05% slippage per side

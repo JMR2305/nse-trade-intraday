@@ -175,6 +175,18 @@ def run_tick() -> Dict[str, Any]:
     from market_hours import market_status
     mstat = market_status()
     mstate = str(mstat.get("state") or mstat.get("market_state") or "").upper()
+
+    # ── Daily session initialisation (pre-market + OPEN fallback) ────────────
+    # Runs once per trading day before the first scan.  Idempotent.
+    # Handles: portfolio archive, ₹50K capital reset, auto_paper_entries ON,
+    # agent warm-start, and Mode B top-up check.
+    session_init: Any = None
+    try:
+        from daily_session_manager import check_and_maybe_initialize
+        session_init = check_and_maybe_initialize(mstate)
+    except Exception as exc:
+        session_init = {"error": str(exc)[:200]}
+
     if mstate != "OPEN":
         report = _maybe_generate_session_report(mstate)
         eod_recon = _maybe_run_eod_reconciliation() if mstate == "CLOSED" else None
@@ -186,6 +198,8 @@ def run_tick() -> Dict[str, Any]:
         out: Dict[str, Any] = {"success": True, "ran_scan": False,
                                "reason": f"Market not open (state={mstate or 'UNKNOWN'})",
                                "market": mstat}
+        if session_init is not None:
+            out["session_init"] = session_init
         if report is not None:
             out["session_report"] = report
         if eod_recon is not None:
@@ -365,4 +379,15 @@ def _manage_paper(settings: Dict[str, Any], ran_scan: bool) -> Dict[str, Any]:
         out["evidence_outcomes"] = update_outcomes()
     except Exception as exc:
         out["evidence_outcomes"] = {"error": str(exc)[:200]}
+    # ── Continuous Research Mode (Mode B) top-up ─────────────────────────────
+    # Apply a capital top-up if the operator has selected Mode B and cash has
+    # fallen below the configured threshold. Advisory-only; never places a
+    # live order. Idempotent per threshold crossing.
+    try:
+        from phase11_autonomous import check_and_apply_topup
+        topup = check_and_apply_topup()
+        if topup:
+            out["crm_topup"] = topup
+    except Exception as exc:
+        out["crm_topup"] = {"error": str(exc)[:200]}
     return out

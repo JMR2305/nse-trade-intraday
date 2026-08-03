@@ -1,7 +1,14 @@
 {
   "config": {
+    "argv": [
+      "/nix/store/9cyx2v23dip6p9q98384k9v06c96qskb-nodejs-24.13.0/bin/node",
+      "/home/runner/workspace/artifacts/trading-dashboard/node_modules/@playwright/test/cli.js",
+      "test",
+      "--project=chromium"
+    ],
     "configFile": "/home/runner/workspace/artifacts/trading-dashboard/playwright.config.ts",
     "rootDir": "/home/runner/workspace/artifacts/trading-dashboard/e2e",
+    "failOnFlakyTests": false,
     "forbidOnly": false,
     "fullyParallel": false,
     "globalSetup": null,
@@ -11,9 +18,28 @@
     "grepInvert": null,
     "maxFailures": 0,
     "metadata": {
-      "actualWorkers": 1
+      "actualWorkers": 2
     },
     "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/home/runner/workspace/artifacts/trading-dashboard/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 2
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/home/runner/workspace/artifacts/trading-dashboard/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
     "reporter": [
       [
         "list",
@@ -28,27 +54,13 @@
     ],
     "reportSlowTests": {
       "max": 5,
-      "threshold": 15000
+      "threshold": 300000
     },
-    "quiet": false,
-    "projects": [
-      {
-        "outputDir": "/home/runner/workspace/artifacts/trading-dashboard/test-results",
-        "repeatEach": 1,
-        "retries": 0,
-        "id": "chromium",
-        "name": "chromium",
-        "testDir": "/home/runner/workspace/artifacts/trading-dashboard/e2e",
-        "testIgnore": [],
-        "testMatch": [
-          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
-        ],
-        "timeout": 30000
-      }
-    ],
     "shard": null,
+    "tags": [],
     "updateSnapshots": "missing",
-    "version": "1.40.0",
+    "updateSourceMethod": "patch",
+    "version": "1.62.0",
     "workers": 2,
     "webServer": {
       "command": "PORT=5174 BASE_PATH=/trading-dashboard/ pnpm exec vite --config vite.config.ts --host 0.0.0.0",
@@ -63,6 +75,652 @@
     }
   },
   "suites": [
+    {
+      "title": "ai-paper-trader-empty-state.spec.ts",
+      "file": "ai-paper-trader-empty-state.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "AI Paper Trader — empty-state smoke tests",
+          "file": "ai-paper-trader-empty-state.spec.ts",
+          "line": 174,
+          "column": 6,
+          "specs": [
+            {
+              "title": "safety banner is visible and says PAPER ONLY",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 12908,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-03T14:37:48.649Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "8e1f4a10fad31bdea7d3-9f090920ffb345dca954",
+              "file": "ai-paper-trader-empty-state.spec.ts",
+              "line": 192,
+              "column": 3
+            },
+            {
+              "title": "S1 Market Status section heading renders",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3742,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-03T14:38:01.990Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "8e1f4a10fad31bdea7d3-13088428312c5bd30e41",
+              "file": "ai-paper-trader-empty-state.spec.ts",
+              "line": 207,
+              "column": 3
+            },
+            {
+              "title": "S2 Portfolio Summary section renders with zero-value KPIs",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3302,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-03T14:38:05.749Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "8e1f4a10fad31bdea7d3-3518f81720402d0be419",
+              "file": "ai-paper-trader-empty-state.spec.ts",
+              "line": 218,
+              "column": 3
+            },
+            {
+              "title": "S3 Live AI Status section renders with fallback values",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3468,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-03T14:38:09.083Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "8e1f4a10fad31bdea7d3-d79ede4d8effc032a09f",
+              "file": "ai-paper-trader-empty-state.spec.ts",
+              "line": 230,
+              "column": 3
+            },
+            {
+              "title": "S4 Current Holdings shows empty-state message (no crash)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3673,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-03T14:38:12.571Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "8e1f4a10fad31bdea7d3-da2944e9af68124e592c",
+              "file": "ai-paper-trader-empty-state.spec.ts",
+              "line": 242,
+              "column": 3
+            },
+            {
+              "title": "S5 Activity Feed renders filter buttons and empty state",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3103,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-03T14:38:16.260Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "8e1f4a10fad31bdea7d3-ba3cccf7c689a97305c0",
+              "file": "ai-paper-trader-empty-state.spec.ts",
+              "line": 255,
+              "column": 3
+            },
+            {
+              "title": "S6 Recommendation Queue shows empty-state message",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3123,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-03T14:38:19.378Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "8e1f4a10fad31bdea7d3-b635e771e6490141b7e6",
+              "file": "ai-paper-trader-empty-state.spec.ts",
+              "line": 272,
+              "column": 3
+            },
+            {
+              "title": "S7 Closed Trades shows empty-state message",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2876,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-03T14:38:22.529Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "8e1f4a10fad31bdea7d3-d4dd49897e6e60ec9f84",
+              "file": "ai-paper-trader-empty-state.spec.ts",
+              "line": 284,
+              "column": 3
+            },
+            {
+              "title": "S8 AI Performance section renders zero-value KPIs",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2869,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-03T14:38:25.435Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "8e1f4a10fad31bdea7d3-5eb89049dd7a641a40f7",
+              "file": "ai-paper-trader-empty-state.spec.ts",
+              "line": 296,
+              "column": 3
+            },
+            {
+              "title": "Charts tab opens without errors",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2736,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-03T14:38:28.321Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "8e1f4a10fad31bdea7d3-0fda4fa3247dd63ab1ce",
+              "file": "ai-paper-trader-empty-state.spec.ts",
+              "line": 307,
+              "column": 3
+            },
+            {
+              "title": "Date History tab opens and shows calendar",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2494,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-03T14:38:31.070Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "8e1f4a10fad31bdea7d3-711b7b6424a770553964",
+              "file": "ai-paper-trader-empty-state.spec.ts",
+              "line": 317,
+              "column": 3
+            },
+            {
+              "title": "Replay tab opens and shows date picker",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2468,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-03T14:38:33.573Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "8e1f4a10fad31bdea7d3-6c31e5ee810699832db3",
+              "file": "ai-paper-trader-empty-state.spec.ts",
+              "line": 330,
+              "column": 3
+            },
+            {
+              "title": "Capital tab opens and shows config section",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2342,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-03T14:38:36.058Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "8e1f4a10fad31bdea7d3-a1910ddbf708506b7ea0",
+              "file": "ai-paper-trader-empty-state.spec.ts",
+              "line": 345,
+              "column": 3
+            },
+            {
+              "title": "no unhandled JS errors on page load with empty data",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4011,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-03T14:38:38.413Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "8e1f4a10fad31bdea7d3-92338866c0dededbc88b",
+              "file": "ai-paper-trader-empty-state.spec.ts",
+              "line": 361,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "health-card-degraded.spec.ts",
+      "file": "health-card-degraded.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Portfolio health card — DEGRADED state",
+          "file": "health-card-degraded.spec.ts",
+          "line": 122,
+          "column": 6,
+          "specs": [
+            {
+              "title": "badge-portfolio-status shows DEGRADED",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 12846,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-03T14:37:48.641Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "db9905a41c312349bfb1-ca23e49f7adfa144fcc8",
+              "file": "health-card-degraded.spec.ts",
+              "line": 134,
+              "column": 3
+            },
+            {
+              "title": "banner-portfolio-alert is visible when status is DEGRADED",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 3560,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-03T14:38:01.919Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "db9905a41c312349bfb1-d372642a119ac6eeceea",
+              "file": "health-card-degraded.spec.ts",
+              "line": 142,
+              "column": 3
+            },
+            {
+              "title": "health card shows PortfolioConfig warning text",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 3525,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-03T14:38:05.522Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "db9905a41c312349bfb1-e9831973960935c898d2",
+              "file": "health-card-degraded.spec.ts",
+              "line": 151,
+              "column": 3
+            },
+            {
+              "title": "banner contains the DEGRADED status label",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 3425,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-03T14:38:09.081Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "db9905a41c312349bfb1-05966c43bc9a1898f300",
+              "file": "health-card-degraded.spec.ts",
+              "line": 164,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
     {
       "title": "market-closed-badge.spec.ts",
       "file": "market-closed-badge.spec.ts",
@@ -89,14 +747,16 @@
                   "projectName": "chromium",
                   "results": [
                     {
-                      "workerIndex": 0,
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
                       "status": "passed",
-                      "duration": 4822,
+                      "duration": 3427,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-07-25T22:10:36.614Z",
+                      "startTime": "2026-08-03T14:38:12.551Z",
+                      "annotations": [],
                       "attachments": []
                     }
                   ],
@@ -121,14 +781,16 @@
                   "projectName": "chromium",
                   "results": [
                     {
-                      "workerIndex": 0,
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
                       "status": "passed",
-                      "duration": 1575,
+                      "duration": 2848,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-07-25T22:10:41.922Z",
+                      "startTime": "2026-08-03T14:38:15.998Z",
+                      "annotations": [],
                       "attachments": []
                     }
                   ],
@@ -153,14 +815,16 @@
                   "projectName": "chromium",
                   "results": [
                     {
-                      "workerIndex": 0,
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
                       "status": "passed",
-                      "duration": 1666,
+                      "duration": 2827,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-07-25T22:10:43.499Z",
+                      "startTime": "2026-08-03T14:38:18.868Z",
+                      "annotations": [],
                       "attachments": []
                     }
                   ],
@@ -185,14 +849,16 @@
                   "projectName": "chromium",
                   "results": [
                     {
-                      "workerIndex": 0,
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
                       "status": "passed",
-                      "duration": 1612,
+                      "duration": 2677,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-07-25T22:10:45.165Z",
+                      "startTime": "2026-08-03T14:38:21.727Z",
+                      "annotations": [],
                       "attachments": []
                     }
                   ],
@@ -217,14 +883,16 @@
                   "projectName": "chromium",
                   "results": [
                     {
-                      "workerIndex": 0,
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
                       "status": "passed",
-                      "duration": 1631,
+                      "duration": 3117,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-07-25T22:10:46.779Z",
+                      "startTime": "2026-08-03T14:38:24.429Z",
+                      "annotations": [],
                       "attachments": []
                     }
                   ],
@@ -243,9 +911,9 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-07-25T22:10:34.938Z",
-    "duration": 13621.025000000001,
-    "expected": 5,
+    "startTime": "2026-08-03T14:37:47.200Z",
+    "duration": 55529.751,
+    "expected": 23,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0

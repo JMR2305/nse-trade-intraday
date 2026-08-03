@@ -165,4 +165,27 @@ router.get("/learning", handle(["phase11_learning"], TIMEOUT_SLOW));
 // ── Snapshot (Command Centre card) ────────────────────────────────────────
 router.get("/snapshot", handle(["phase11_snapshot"], TIMEOUT_MEDIUM));
 
+// ── Daily Session Management ───────────────────────────────────────────────
+// GET  /phase11/session/status  — returns today's initialisation state
+router.get("/session/status", handle(["daily_session_status"], TIMEOUT_FAST));
+
+// POST /phase11/session/init    — force-initialise today's session
+router.post("/session/init", async (req: any, res: any) => {
+  try {
+    const force = Boolean(req.body?.force ?? false);
+    res.json(await runPython(["daily_session_init", JSON.stringify({ force })], TIMEOUT_MEDIUM));
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /phase11/session/enable-autonomous  — enable auto paper entries
+router.post("/session/enable-autonomous", handle(["daily_session_enable_autonomous"], TIMEOUT_FAST));
+
+// POST /phase11/session/disable-autonomous — disable auto paper entries
+router.post("/session/disable-autonomous", handle(["daily_session_disable_autonomous"], TIMEOUT_FAST));
+
+// GET  /phase11/session/agents  — verify / warm-start all 11 agents
+router.get("/session/agents", handle(["daily_session_verify_agents"], TIMEOUT_MEDIUM));
+
 export default router;

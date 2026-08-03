@@ -8,7 +8,7 @@
  * PAPER TRADING ONLY — No live broker orders. Advisory display only.
  */
 import { useState, useEffect, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiJson } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,6 +18,7 @@ import {
   Target, Clock, BookOpen, Search, Zap, Bell, Monitor,
   BarChart2, Wallet, Layers, Trophy, Info,
   CalendarDays, RotateCcw, PieChart,
+  Power, CheckCircle2, XCircle, AlertTriangle, Bot, Cpu, Shield, RefreshCcw,
 } from "lucide-react";
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
@@ -154,6 +155,28 @@ interface CapitalConfig {
 }
 interface TopupEntry {
   date: string; type: string; amount: number; reason: string; balance_after: number;
+}
+interface SessionStatus {
+  today: string;
+  initialized_today: boolean;
+  last_init_date: string | null;
+  last_init_at: string | null;
+  session_state: string;
+  auto_scan_enabled: boolean;
+  auto_paper_entries: boolean;
+  auto_paper_exits: boolean;
+  capital_mode: string;            // "A" | "B"
+  capital_mode_label: string;
+  starting_capital: number;
+  topup_threshold: number;
+  paper_only: boolean;
+  advisory_only: boolean;
+  no_live_orders: boolean;
+}
+interface AgentHealth {
+  agents: Record<string, string>;
+  healthy: number;
+  total: number;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -292,6 +315,244 @@ function evCls(type: string, cat: string) {
   if (cat === "SCAN")     return "text-teal-400   bg-teal-950/30   border-teal-800/40";
   if (cat === "LEARNING") return "text-purple-400 bg-purple-950/30 border-purple-800/40";
   return "text-slate-400 bg-slate-800/30 border-slate-700/40";
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// S0 — Autonomous Trading Session Status
+// ══════════════════════════════════════════════════════════════════════════════
+
+function S0AutonomousSession() {
+  const qc = useQueryClient();
+
+  const { data: sess, isLoading: sessLoad, refetch: refetchSess } =
+    useQuery<SessionStatus>({
+      queryKey: ["apt", "session-status"],
+      queryFn:  () => apiJson("/phase11/session/status"),
+      refetchInterval: 30_000, staleTime: 15_000, retry: 1,
+    });
+
+  const { data: agents, isLoading: agentsLoad, refetch: refetchAgents } =
+    useQuery<AgentHealth>({
+      queryKey: ["apt", "session-agents"],
+      queryFn:  () => apiJson("/phase11/session/agents"),
+      staleTime: 60_000, retry: 1,
+      // Don't auto-refetch agents every tick — expensive
+      refetchInterval: 120_000,
+    });
+
+  const initMut = useMutation({
+    mutationFn: (force: boolean) =>
+      apiJson("/phase11/session/init", { method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ force }) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["apt", "session-status"] });
+      qc.invalidateQueries({ queryKey: ["apt", "session-agents"] });
+      qc.invalidateQueries({ queryKey: ["apt", "portfolio"] });
+    },
+  });
+
+  const enableMut = useMutation({
+    mutationFn: () =>
+      apiJson("/phase11/session/enable-autonomous", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["apt", "session-status"] }),
+  });
+
+  const disableMut = useMutation({
+    mutationFn: () =>
+      apiJson("/phase11/session/disable-autonomous", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["apt", "session-status"] }),
+  });
+
+  const initialized = sess?.initialized_today ?? false;
+  const autoEntries = sess?.auto_paper_entries ?? false;
+  const crmMode     = (sess?.capital_mode ?? "A") === "B";
+  const healthy     = agents?.healthy ?? 0;
+  const total       = agents?.total   ?? 11;
+  const agentOk     = healthy === total;
+
+  const statusCls = initialized
+    ? "bg-emerald-950/30 border-emerald-700/40"
+    : "bg-amber-950/30 border-amber-700/40";
+  const statusIcon = initialized
+    ? <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+    : <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />;
+
+  return (
+    <div className={`border rounded-xl p-4 ${statusCls}`}>
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Bot className="w-4 h-4 text-teal-400" />
+          <h2 className="font-semibold text-xs tracking-widest uppercase text-slate-400">
+            Autonomous Trading Session
+          </h2>
+          <Badge className="text-xs bg-teal-950 border-teal-700/50 text-teal-300 px-2 py-0">
+            {sess?.today ?? "—"}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => refetchSess()}
+            className="text-xs text-slate-500 hover:text-teal-400 flex items-center gap-1 transition-colors">
+            <RefreshCcw className="w-3 h-3" />
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+        {/* Session Status */}
+        <div className={`rounded-xl border p-3 ${initialized
+          ? "bg-emerald-950/40 border-emerald-700/40"
+          : "bg-amber-950/40 border-amber-700/40"}`}>
+          <span className="text-xs text-slate-500">Session</span>
+          <div className="flex items-center gap-1 mt-0.5">
+            {statusIcon}
+            <span className={`text-sm font-bold ${initialized ? "text-emerald-400" : "text-amber-400"}`}>
+              {sessLoad ? "…" : initialized ? "READY" : "NOT INIT"}
+            </span>
+          </div>
+          {sess?.last_init_at && (
+            <span className="text-xs text-slate-600">{istTime(sess.last_init_at)} IST</span>
+          )}
+        </div>
+
+        {/* Auto Paper Entries */}
+        <div className={`rounded-xl border p-3 ${autoEntries
+          ? "bg-emerald-950/40 border-emerald-700/40"
+          : "bg-slate-900/60 border-slate-800/40"}`}>
+          <span className="text-xs text-slate-500">Auto Entries</span>
+          <div className="flex items-center gap-1 mt-0.5">
+            {autoEntries
+              ? <Power className="w-3.5 h-3.5 text-emerald-400" />
+              : <XCircle className="w-3.5 h-3.5 text-slate-500" />}
+            <span className={`text-sm font-bold ${autoEntries ? "text-emerald-400" : "text-slate-400"}`}>
+              {sessLoad ? "…" : autoEntries ? "ON" : "OFF"}
+            </span>
+          </div>
+          <span className="text-xs text-slate-600">PAPER only</span>
+        </div>
+
+        {/* Auto Exits */}
+        <div className="rounded-xl border bg-emerald-950/40 border-emerald-700/40 p-3">
+          <span className="text-xs text-slate-500">Auto Exits</span>
+          <div className="flex items-center gap-1 mt-0.5">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="text-sm font-bold text-emerald-400">
+              {sessLoad ? "…" : (sess?.auto_paper_exits ?? true) ? "ON" : "OFF"}
+            </span>
+          </div>
+          <span className="text-xs text-slate-600">Always active</span>
+        </div>
+
+        {/* Agents */}
+        <div className={`rounded-xl border p-3 ${agentsLoad ? "bg-slate-900/60 border-slate-800/40"
+          : agentOk ? "bg-emerald-950/40 border-emerald-700/40"
+          : "bg-amber-950/40 border-amber-700/40"}`}>
+          <span className="text-xs text-slate-500">Agents</span>
+          <div className="flex items-center gap-1 mt-0.5">
+            <Cpu className={`w-3.5 h-3.5 ${agentOk ? "text-emerald-400" : "text-amber-400"}`} />
+            <span className={`text-sm font-bold ${agentOk ? "text-emerald-400" : "text-amber-400"}`}>
+              {agentsLoad ? "…" : `${healthy}/${total}`}
+            </span>
+          </div>
+          <button onClick={() => refetchAgents()}
+            className="text-xs text-slate-600 hover:text-teal-400 transition-colors">
+            verify →
+          </button>
+        </div>
+
+        {/* Capital Mode */}
+        <div className="rounded-xl border bg-slate-900/60 border-slate-800/40 p-3">
+          <span className="text-xs text-slate-500">Capital Mode</span>
+          <div className="flex items-center gap-1 mt-0.5">
+            <Shield className={`w-3.5 h-3.5 ${crmMode ? "text-violet-400" : "text-teal-400"}`} />
+            <span className={`text-sm font-bold font-mono ${crmMode ? "text-violet-400" : "text-teal-400"}`}>
+              {sessLoad ? "…" : `Mode ${sess?.capital_mode ?? "A"}`}
+            </span>
+          </div>
+          <span className="text-xs text-slate-600">{crmMode ? "Continuous Research" : "Daily ₹50K"}</span>
+        </div>
+
+        {/* Starting Capital */}
+        <div className="rounded-xl border bg-slate-900/60 border-slate-800/40 p-3">
+          <span className="text-xs text-slate-500">Daily Capital</span>
+          <span className="text-sm font-bold text-blue-400 font-mono">
+            {sessLoad ? "…" : `₹${((sess?.starting_capital ?? 50_000) / 1_000).toFixed(0)}K`}
+          </span>
+          <br />
+          <span className="text-xs text-slate-600">Resets each day</span>
+        </div>
+      </div>
+
+      {/* Action Row */}
+      <div className="flex flex-wrap items-center gap-2">
+        {!initialized && (
+          <button
+            disabled={initMut.isPending}
+            onClick={() => initMut.mutate(false)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-700/40 hover:bg-emerald-700/60 text-emerald-300 border border-emerald-700/50 transition-colors disabled:opacity-50">
+            {initMut.isPending
+              ? <RefreshCcw className="w-3 h-3 animate-spin" />
+              : <Power className="w-3 h-3" />}
+            Initialize Today's Session
+          </button>
+        )}
+
+        {initialized && !autoEntries && (
+          <button
+            disabled={enableMut.isPending}
+            onClick={() => enableMut.mutate()}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-teal-700/40 hover:bg-teal-700/60 text-teal-300 border border-teal-700/50 transition-colors disabled:opacity-50">
+            {enableMut.isPending
+              ? <RefreshCcw className="w-3 h-3 animate-spin" />
+              : <Power className="w-3 h-3" />}
+            Enable Autonomous Trading
+          </button>
+        )}
+
+        {initialized && autoEntries && (
+          <button
+            disabled={disableMut.isPending}
+            onClick={() => disableMut.mutate()}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-700/40 hover:bg-slate-700/60 text-slate-400 border border-slate-700/50 transition-colors disabled:opacity-50">
+            <XCircle className="w-3 h-3" />
+            Pause Autonomous Trading
+          </button>
+        )}
+
+        <button
+          disabled={initMut.isPending}
+          onClick={() => initMut.mutate(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg text-slate-500 hover:text-amber-400 border border-slate-700/40 hover:border-amber-700/40 transition-colors disabled:opacity-50">
+          <RotateCcw className="w-3 h-3" />
+          Force Reset (₹50K)
+        </button>
+
+        <div className="ml-auto flex items-center gap-3">
+          <span className="text-xs text-slate-600 flex items-center gap-1">
+            <Shield className="w-3 h-3 text-emerald-600" />
+            PAPER ONLY · No live orders · No real money
+          </span>
+        </div>
+      </div>
+
+      {/* Error display */}
+      {initMut.error && (
+        <p className="text-xs text-rose-400 mt-2">
+          ⚠ {String((initMut.error as Error).message).slice(0, 120)}
+        </p>
+      )}
+
+      {/* CRM info banner when Mode B active */}
+      {crmMode && (
+        <div className="mt-3 rounded-lg bg-violet-950/30 border border-violet-800/40 px-3 py-2 text-xs text-violet-300">
+          🔄 <strong>Continuous Research Mode</strong> is active (Mode B).
+          Capital will automatically top up to ₹{((sess?.starting_capital ?? 50_000) / 1_000).toFixed(0)}K
+          when available cash falls below ₹{((sess?.topup_threshold ?? 10_000) / 1_000).toFixed(0)}K.
+          Every top-up is logged in the Capital tab.
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1395,6 +1656,9 @@ export default function AIPaperTraderPage() {
       </div>
 
       <div className="max-w-screen-2xl mx-auto px-4 py-4 space-y-4">
+
+        {/* S0 — Autonomous Session Status */}
+        <S0AutonomousSession />
 
         {/* S1 */}
         <S1MarketStatus />
