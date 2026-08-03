@@ -151,6 +151,7 @@ export const AGENTS: Agent[] = [
       { href: "/ai-performance",     label: "AI Performance",      icon: Brain,         tags: ["ai", "performance"] },
       { href: "/ai-optimisation",    label: "AI Optimisation",     icon: Zap,           tags: ["ai", "optimise"] },
       { href: "/explainable-ai",     label: "Explainable AI",      icon: Lightbulb,     tags: ["xai", "explain"] },
+      { href: "/ai-paper-trader",    label: "AI Paper Trader",     icon: Bot,           tags: ["paper", "trader", "phase11"] },
       { href: "/ai-copilot",         label: "AI Copilot",          icon: Bot,           tags: ["copilot", "chat"] },
       { href: "/feature-importance", label: "Feature Importance",  icon: BarChart3,     tags: ["features", "shap"] },
       { href: "/learning-insights",  label: "Learning Insights",   icon: Brain,         tags: ["learning", "insights"] },
@@ -179,6 +180,7 @@ export const AGENTS: Agent[] = [
       { href: "/trade-replay",        label: "Trade Replay",         icon: RotateCcw,      tags: ["replay"] },
       { href: "/dashboard",           label: "Dashboard",            icon: LayoutDashboard,tags: ["dashboard"] },
       { href: "/executive-dashboard", label: "Executive Dashboard",  icon: LayoutDashboard,tags: ["executive"] },
+      { href: "/ai-paper-trader",    label: "AI Paper Trader",      icon: Rocket,          tags: ["paper", "trader", "phase11"] },
     ],
   },
 

@@ -611,6 +611,9 @@ export default function CommandCenter() {
           {/* Multi-Agent Operations (Phase 10E) — full width */}
           <MultiAgentOpsCard />
 
+          {/* AI Paper Trader shortcut */}
+          <AIPaperTraderShortcut />
+
           {/* Paper Trading Centre (Phase 11) — full width */}
           <PaperTradingCentreCard />
 
@@ -856,6 +859,28 @@ function MultiAgentOpsCard() {
 }
 
 // ── Paper Trading Centre Card (Phase 11) ────────────────────────────────────
+
+// ── AI Paper Trader Shortcut ──────────────────────────────────────────────────
+
+function AIPaperTraderShortcut() {
+  return (
+    <a href="/ai-paper-trader"
+      className="flex items-center gap-3 bg-indigo-950/40 border border-indigo-700/50 rounded-xl p-4 hover:bg-indigo-950/60 transition-colors no-underline group">
+      <span className="text-2xl select-none">🤖</span>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="font-bold text-slate-100 text-sm">AI Paper Trader</p>
+          <Badge className="text-xs bg-indigo-900/60 text-indigo-300 border-indigo-700/50 px-1.5 py-0">Phase 11</Badge>
+          <Badge className="text-xs bg-emerald-900/50 text-emerald-300 border-emerald-700/50 px-1.5 py-0">⭐ Primary Screen</Badge>
+        </div>
+        <p className="text-xs text-slate-500 mt-0.5">
+          Live market status · Portfolio · Holdings · Activity Feed · Charts · Replay — all in one screen
+        </p>
+      </div>
+      <ArrowUpRight className="w-4 h-4 text-indigo-400 group-hover:text-indigo-300 flex-shrink-0" />
+    </a>
+  );
+}
 
 interface Phase11Snapshot {
   portfolio_value: number; starting_capital: number;

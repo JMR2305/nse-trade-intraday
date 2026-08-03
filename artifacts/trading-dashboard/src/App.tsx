@@ -41,6 +41,7 @@ import PerformanceAnalytics from "@/pages/PerformanceAnalytics";
 import Settings from "@/pages/Settings";
 import RiskManagement from "@/pages/RiskManagement";
 import PaperTradingValidation from "@/pages/PaperTradingValidation";
+import AIPaperTraderPage from "@/pages/AIPaperTraderPage";
 import SystemValidation from "@/pages/SystemValidation";
 import ResearchNotebook from "@/pages/ResearchNotebook";
 import KiteConnect from "@/pages/KiteConnect";
@@ -226,6 +227,7 @@ function Router() {
         <Route path="/paper-trading-replay"        component={Phase11ReplayPage} />
         <Route path="/paper-trading-reports"       component={Phase11ReportsPage} />
         <Route path="/paper-trading-timeline"      component={Phase11TimelinePage} />
+        <Route path="/ai-paper-trader"            component={AIPaperTraderPage} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>
