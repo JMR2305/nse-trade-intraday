@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   useGetSignals,
   useRunScan,
@@ -15,9 +15,13 @@ import DataFreshnessBar from "@/components/DataFreshnessBar";
 import { EntryEvaluationPanel } from "@/components/Phase20Lifecycle";
 import {
   Play, ChevronDown, ChevronUp, TrendingUp, TrendingDown,
-  Clock, Brain, AlertTriangle, Activity,
+  Clock, Brain, AlertTriangle, Activity, XCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiJson } from "@/lib/api";
+
+// How long to wait before showing the Cancel button (ms)
+const CANCEL_SHOW_AFTER_MS = 30_000;
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -209,18 +213,69 @@ export default function Signals() {
 
   const runScan = useRunScan();
 
+  // ── Elapsed timer + cancel support ──────────────────────────────────────────
+  const [scanElapsed, setScanElapsed] = useState(0);
+  const [aborting, setAborting] = useState(false);
+  const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (runScan.isPending) {
+      setScanElapsed(0);
+      elapsedRef.current = setInterval(() => setScanElapsed(s => s + 1), 1000);
+    } else {
+      if (elapsedRef.current !== null) {
+        clearInterval(elapsedRef.current);
+        elapsedRef.current = null;
+      }
+      setAborting(false);
+    }
+    return () => {
+      if (elapsedRef.current !== null) {
+        clearInterval(elapsedRef.current);
+        elapsedRef.current = null;
+      }
+    };
+  }, [runScan.isPending]);
+
+  const handleAbort = async () => {
+    setAborting(true);
+    try {
+      await apiJson("/live-data/scan/abort", { method: "POST" }, 10_000);
+      toast({
+        title: "Scan cancelled",
+        description: "The scan was stopped. Previous results are still shown.",
+      });
+    } catch {
+      toast({
+        title: "Cancel failed",
+        description: "Could not abort the scan — it may have already finished.",
+        variant: "destructive",
+      });
+    } finally {
+      setAborting(false);
+    }
+  };
+
   const handleRunScan = () => {
+    setScanElapsed(0);
     runScan.mutate(undefined, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetPortfolioQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetSignalsQueryKey() });
         toast({ title: "Scan Complete", description: "Signals updated with regime and MTF analysis." });
       },
-      onError: () => {
+      onError: (err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("aborted")) {
+          // Cancellation is expected; toast already shown by handleAbort.
+          return;
+        }
         toast({ title: "Scan Failed", description: "Could not complete the market scan.", variant: "destructive" });
       },
     });
   };
+
+  const showCancel = runScan.isPending && scanElapsed >= 30;
 
   const actionable = signals?.filter(s => ["STRONG_BUY", "BUY", "STRONG_SELL", "SELL"].includes(s.signal)) ?? [];
   const watchCount = signals?.filter(s => s.signal === "WATCH").length ?? 0;
@@ -236,14 +291,37 @@ export default function Signals() {
             Multi-timeframe · Market regime · EMA · RSI · MACD · VWAP · Supertrend · ATR
           </p>
         </div>
-        <Button
-          onClick={handleRunScan}
-          disabled={runScan.isPending}
-          className="font-mono bg-primary text-primary-foreground shadow-lg"
-        >
-          <Play className={`mr-2 h-4 w-4 ${runScan.isPending ? "animate-pulse" : ""}`} />
-          {runScan.isPending ? "SCANNING..." : "RUN SCAN"}
-        </Button>
+        <div className="flex flex-col items-end gap-1">
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={handleRunScan}
+              disabled={runScan.isPending}
+              className="font-mono bg-primary text-primary-foreground shadow-lg"
+            >
+              <Play className={`mr-2 h-4 w-4 ${runScan.isPending ? "animate-pulse" : ""}`} />
+              {runScan.isPending ? `SCANNING… ${scanElapsed}s` : "RUN SCAN"}
+            </Button>
+            {showCancel && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleAbort}
+                disabled={aborting}
+                className="border-destructive text-destructive hover:bg-destructive/10 font-mono"
+                title="Stop the in-flight scan (previous results are kept)"
+              >
+                <XCircle className="mr-1.5 h-3.5 w-3.5" />
+                {aborting ? "Stopping…" : "Cancel scan"}
+              </Button>
+            )}
+          </div>
+          {runScan.isPending && (
+            <p className="text-xs text-muted-foreground">
+              ~30–90s · NIFTY 50 · do not close
+              {showCancel && " · or cancel above"}
+            </p>
+          )}
+        </div>
       </div>
 
       <DataFreshnessBar variant="scan" />

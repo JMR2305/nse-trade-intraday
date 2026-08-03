@@ -1,5 +1,6 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useGetSignals, useGetTradeDecisions, useRunScan } from "@workspace/api-client-react";
+import { apiJson } from "@/lib/monitorApi";
 import * as Haptics from "expo-haptics";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -153,6 +154,7 @@ export default function SignalsScreen() {
   );
   const { mutateAsync: runScan, isPending: isScanning } = useRunScan();
   const [scanElapsed, setScanElapsed] = useState(0);
+  const [aborting, setAborting] = useState(false);
   const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -164,6 +166,7 @@ export default function SignalsScreen() {
         clearInterval(elapsedRef.current);
         elapsedRef.current = null;
       }
+      setAborting(false);
     }
     return () => {
       if (elapsedRef.current !== null) {
@@ -173,14 +176,26 @@ export default function SignalsScreen() {
     };
   }, [isScanning]);
 
+  const handleAbort = useCallback(async () => {
+    setAborting(true);
+    try {
+      await apiJson("/live-data/scan/abort", { method: "POST" });
+    } catch {
+      // best-effort; scan may have already completed
+    } finally {
+      setAborting(false);
+    }
+  }, []);
+
   const handleScan = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setScanError(false);
     try {
       await runScan();
       await Promise.all([refetch(), decisions.refetch()]);
-    } catch {
-      setScanError(true);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!msg.includes("aborted")) setScanError(true);
     }
   }, [runScan, refetch, decisions]);
 
@@ -212,7 +227,7 @@ export default function SignalsScreen() {
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>Signals</Text>
           {!signalsStale && !decisionsSnapshot.isStale && <FreshnessLabel ts={dataUpdatedAt} />}
         </View>
-        <View style={{ alignItems: "flex-end" }}>
+        <View style={{ alignItems: "flex-end", gap: 6 }}>
           <Pressable
             style={[styles.scanBtn, { backgroundColor: colors.primary }, (isScanning || isFetching) && { opacity: 0.6 }]}
             onPress={handleScan}
@@ -228,9 +243,22 @@ export default function SignalsScreen() {
               {isScanning ? `Scanning… ${scanElapsed}s` : "Scan"}
             </Text>
           </Pressable>
+          {isScanning && scanElapsed >= 30 && (
+            <Pressable
+              style={[styles.cancelBtn, { borderColor: colors.destructive }, aborting && { opacity: 0.5 }]}
+              onPress={handleAbort}
+              disabled={aborting}
+              testID="cancel-scan-btn"
+            >
+              <Feather name="x-circle" size={13} color={colors.destructive} />
+              <Text style={[styles.cancelBtnText, { color: colors.destructive }]}>
+                {aborting ? "Stopping…" : "Cancel scan"}
+              </Text>
+            </Pressable>
+          )}
           {isScanning && (
-            <Text style={{ fontSize: 10, color: colors.mutedForeground, marginTop: 3 }}>
-              ~30–90s · do not close
+            <Text style={{ fontSize: 10, color: colors.mutedForeground }}>
+              ~30–90s · do not close{scanElapsed >= 30 ? " · or cancel" : ""}
             </Text>
           )}
         </View>
@@ -328,6 +356,16 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   scanBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  cancelBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  cancelBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   inlineError: { fontSize: 12, fontFamily: "Inter_500Medium", paddingHorizontal: 20, paddingTop: 8 },
   list: { paddingTop: 12, paddingHorizontal: 16 },
   sectionTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", marginBottom: 8 },

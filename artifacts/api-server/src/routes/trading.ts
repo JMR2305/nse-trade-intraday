@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { spawn } from "child_process";
+import type { ChildProcess } from "child_process";
 import path from "path";
 import fs from "fs";
 import { eventBus } from "../lib/events";
@@ -115,9 +116,16 @@ router.get("/trades", async (req, res) => {
 });
 
 // POST /api/run-scan
+// The UI's useRunScan() mutation targets this route.  We use spawnRunScan so
+// the process is tracked and POST /api/live-data/scan/abort can kill it.
+// Idempotent: concurrent callers join the same in-flight promise.
 router.post("/run-scan", async (_req, res) => {
   try {
-    const result = await runPython(["scan"]) as Record<string, unknown>;
+    if (!rsScanInFlight) {
+      rsScanInFlight = spawnRunScan(["scan"])
+        .finally(() => { rsScanInFlight = null; });
+    }
+    const result = await rsScanInFlight as Record<string, unknown>;
     res.json({
       signals: result.signals ?? [],
       ai_decisions: result.ai_decisions ?? [],
@@ -947,10 +955,139 @@ const P7_CACHE_MS = 10 * 60 * 1000;  // 10 min — same as trade-decisions
 let p7Cache: { data: unknown; ts: number } | null = null;
 let p7InFlight: Promise<unknown> | null = null;
 
+// ── Abort support ────────────────────────────────────────────────────────────
+//
+// Two separate scan flows can be in flight:
+//   • p7*   — Phase 7 canonical scan (/live-data/scan/run via getP7Scan)
+//   • rs*   — Legacy intelligence scan (/run-scan, target of useRunScan)
+//
+// Both are tracked with the same pattern so a single POST /live-data/scan/abort
+// can kill whichever scan is running.
+//
+// Race-safety rules:
+//   1. Only the close/error/timeout handlers clear the proc variable, and only
+//      when it still holds the exact same ChildProcess instance (identity check).
+//      This prevents an abort from clobbering a *subsequent* scan's tracking.
+//   2. The abort handler calls the reject callback to settle the in-flight
+//      promise immediately (propagating the cancellation to all awaiters), but
+//      it does NOT null p7InFlight / rsInFlight — .finally() handles that
+//      naturally once the promise settles.
+//   3. After the reject callback fires, p7InFlightReject / rsReject is nulled
+//      so that the process close handler (which may arrive a few ms later) does
+//      not call reject a second time.
+
+let p7Proc: ChildProcess | null = null;
+let p7InFlightReject: ((err: Error) => void) | null = null;
+
+/** Spawn a Phase 7 scan and track it for abort support. */
+function spawnP7Scan(args: string[]): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    p7InFlightReject = reject;
+    const proc = spawn(PYTHON_BIN, [path.join(PYTHON_DIR, "main.py"), ...args], {
+      cwd: PYTHON_DIR,
+    });
+    p7Proc = proc;
+
+    let stdout = "";
+    let stderr = "";
+    const timeout = cmdTimeout(args);
+    const timer = setTimeout(() => {
+      try { proc.kill("SIGTERM"); } catch { /* ignore */ }
+      if (p7Proc === proc) p7Proc = null;
+      p7InFlightReject = null;
+      reject(new Error(`Python process timed out after ${timeout / 1000}s (${args[0] ?? "unknown"})`));
+    }, timeout);
+
+    proc.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });
+    proc.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
+
+    proc.on("close", (code) => {
+      clearTimeout(timer);
+      if (p7Proc === proc) p7Proc = null;
+      p7InFlightReject = null;
+      if (code !== 0) {
+        try {
+          const parsed = JSON.parse(stdout.trim());
+          if (parsed.error) return reject(new Error(parsed.error));
+        } catch { /* ignore */ }
+        reject(new Error(stderr || `Python exited with code ${code}`));
+      } else {
+        try {
+          resolve(JSON.parse(stdout.trim()));
+        } catch {
+          reject(new Error(`Failed to parse Python output: ${stdout}`));
+        }
+      }
+    });
+
+    proc.on("error", (err) => {
+      clearTimeout(timer);
+      if (p7Proc === proc) p7Proc = null;
+      p7InFlightReject = null;
+      reject(err);
+    });
+  });
+}
+
+// ── Legacy intelligence scan tracking (used by POST /api/run-scan) ───────────
+let rsScanProc: ChildProcess | null = null;
+let rsScanReject: ((err: Error) => void) | null = null;
+let rsScanInFlight: Promise<unknown> | null = null;
+
+/** Spawn the legacy intelligence scan and track it for abort support. */
+function spawnRunScan(args: string[]): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    rsScanReject = reject;
+    const proc = spawn(PYTHON_BIN, [path.join(PYTHON_DIR, "main.py"), ...args], {
+      cwd: PYTHON_DIR,
+    });
+    rsScanProc = proc;
+
+    let stdout = "";
+    let stderr = "";
+    const timeout = cmdTimeout(args);
+    const timer = setTimeout(() => {
+      try { proc.kill("SIGTERM"); } catch { /* ignore */ }
+      if (rsScanProc === proc) rsScanProc = null;
+      rsScanReject = null;
+      reject(new Error(`Python process timed out after ${timeout / 1000}s (${args[0] ?? "unknown"})`));
+    }, timeout);
+
+    proc.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });
+    proc.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
+
+    proc.on("close", (code) => {
+      clearTimeout(timer);
+      if (rsScanProc === proc) rsScanProc = null;
+      rsScanReject = null;
+      if (code !== 0) {
+        try {
+          const parsed = JSON.parse(stdout.trim());
+          if (parsed.error) return reject(new Error(parsed.error));
+        } catch { /* ignore */ }
+        reject(new Error(stderr || `Python exited with code ${code}`));
+      } else {
+        try {
+          resolve(JSON.parse(stdout.trim()));
+        } catch {
+          reject(new Error(`Failed to parse Python output: ${stdout}`));
+        }
+      }
+    });
+
+    proc.on("error", (err) => {
+      clearTimeout(timer);
+      if (rsScanProc === proc) rsScanProc = null;
+      rsScanReject = null;
+      reject(err);
+    });
+  });
+}
+
 async function getP7Scan(force = false): Promise<unknown> {
   if (!force && p7Cache && Date.now() - p7Cache.ts < P7_CACHE_MS) return p7Cache.data;
   if (!p7InFlight) {
-    p7InFlight = runPython(["phase7_scan", ...(force ? ["force"] : [])])
+    p7InFlight = spawnP7Scan(["phase7_scan", ...(force ? ["force"] : [])])
       .then((data) => { p7Cache = { data, ts: Date.now() }; return data; })
       .finally(() => { p7InFlight = null; });
   }
@@ -1056,6 +1193,43 @@ router.post("/live-data/scan/run", async (_req, res) => {
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
   }
+});
+
+// POST /api/live-data/scan/abort — cancel any in-flight scan
+// Handles both the Phase 7 canonical scan and the legacy /run-scan flow.
+// Safe to call at any time; returns { aborted: false } when idle.
+//
+// Safety: we do NOT null p7InFlight / rsScanInFlight here — their .finally()
+// handlers clear them once the promise actually settles (after SIGTERM).
+// We also do NOT null p7Proc / rsScanProc — the close-event handler does
+// that via an identity check so a subsequent scan's tracking is never clobbered.
+router.post("/live-data/scan/abort", (_req, res) => {
+  const wasRunning = !!(p7Proc || p7InFlight || rsScanProc || rsScanInFlight);
+
+  // Kill Phase 7 scan process (if running)
+  if (p7Proc) {
+    try { p7Proc.kill("SIGTERM"); } catch { /* already dead */ }
+  }
+  // Reject the Phase 7 in-flight promise so all awaiters see the cancellation
+  // immediately (before the OS delivers the close event).
+  if (p7InFlightReject) {
+    p7InFlightReject(new Error("Scan aborted by operator"));
+    p7InFlightReject = null;  // prevent double-rejection from close handler
+  }
+
+  // Kill legacy run-scan process (if running)
+  if (rsScanProc) {
+    try { rsScanProc.kill("SIGTERM"); } catch { /* already dead */ }
+  }
+  if (rsScanReject) {
+    rsScanReject(new Error("Scan aborted by operator"));
+    rsScanReject = null;
+  }
+
+  res.json({
+    aborted: wasRunning,
+    message: wasRunning ? "Scan process terminated" : "No scan was in flight",
+  });
 });
 
 // ── Phase 11 — Live health v2 + diagnostic bundle ────────────────────────────
