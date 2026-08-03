@@ -273,7 +273,8 @@ export default function MarketScanner() {
     setIsScanning(true);
     try {
       // 1. Trigger ONE genuine server-side canonical scan (durable snapshot).
-      const run = await apiJson<any>("/live-data/scan/run", { method: "POST" });
+      // Scanning 50 stocks via Yahoo Finance takes 30-90 s — use 120 s timeout.
+      const run = await apiJson<any>("/live-data/scan/run", { method: "POST" }, 120_000);
       if (run?.success === false || run?.error) {
         throw new Error(run?.error || "Scan failed");
       }
@@ -286,7 +287,7 @@ export default function MarketScanner() {
         description: `Scan ID ${meta?.scan_id ?? "unknown"} · snapshot ${meta?.snapshot_ts ?? ""}`,
       });
       // 3. Refresh this page's view with a forced fresh market scan.
-      const fresh = await apiJson<any>("/market-scan?refresh=true");
+      const fresh = await apiJson<any>("/market-scan?refresh=true", undefined, 60_000);
       queryClient.setQueryData(getGetMarketScanQueryKey(), fresh);
     } catch (e) {
       const status = (e as { status?: number })?.status;

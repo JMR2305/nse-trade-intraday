@@ -9,6 +9,13 @@ const router: IRouter = Router();
 import { PYTHON_DIR, PYTHON_BIN } from "../lib/python-env";
 import { dispatchSignalPushNotifications } from "../lib/pushNotifier";
 
+// Timeouts by command type.  Scan commands run yf.download across 50 symbols
+// and need up to ~150 s; all other commands should finish well within 90 s.
+const SCAN_COMMANDS = new Set(["phase7_scan", "market_scan", "scan"]);
+function cmdTimeout(args: string[]): number {
+  return SCAN_COMMANDS.has(args[0] ?? "") ? 150_000 : 90_000;
+}
+
 function runPython(args: string[]): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const proc = spawn(PYTHON_BIN, [path.join(PYTHON_DIR, "main.py"), ...args], {
@@ -18,6 +25,11 @@ function runPython(args: string[]): Promise<unknown> {
     let stdout = "";
     let stderr = "";
 
+    const timer = setTimeout(() => {
+      proc.kill("SIGTERM");
+      reject(new Error(`Python process timed out after ${cmdTimeout(args) / 1000}s (${args[0] ?? "unknown"})`));
+    }, cmdTimeout(args));
+
     proc.stdout.on("data", (d: Buffer) => {
       stdout += d.toString();
     });
@@ -26,6 +38,7 @@ function runPython(args: string[]): Promise<unknown> {
     });
 
     proc.on("close", (code) => {
+      clearTimeout(timer);
       if (code !== 0) {
         try {
           const parsed = JSON.parse(stdout.trim());
