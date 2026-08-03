@@ -482,8 +482,154 @@ function S3AIStatus({ portfolio, recs }: { portfolio?: Portfolio; recs?: RecsDat
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// S4 — Current Holdings
+// PnlSparkline — compact inline SVG price-momentum chart
 // ══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Renders a 96×36 SVG sparkline for a single position.
+ *
+ * Colour logic:
+ *   - Green  : current_price ≥ buy_price  (trending toward / above entry)
+ *   - Red    : current_price <  buy_price  (trending toward stop-loss)
+ *
+ * A dashed reference line is drawn at buy_price so operators can see the
+ * entry level at a glance.
+ *
+ * If fewer than 2 points are available a "no data" dash is shown instead of
+ * a broken chart.
+ */
+function PnlSparkline({
+  points, buyPrice, target, stopLoss,
+}: {
+  points: number[];
+  buyPrice: number;
+  target: number;
+  stopLoss: number;
+}) {
+  const W = 96, H = 36, PAD = 3;
+
+  // Guard: need at least 2 points to draw a line
+  if (points.length < 2) {
+    return (
+      <svg width={W} height={H} className="inline-block align-middle opacity-30">
+        <line x1={PAD} y1={H / 2} x2={W - PAD} y2={H / 2}
+          stroke="#64748b" strokeWidth={1} strokeDasharray="4 3" />
+      </svg>
+    );
+  }
+
+  // Include target / stop-loss in the y-domain so reference lines land in-frame
+  const allY = [...points, buyPrice, target, stopLoss].filter(v => v > 0);
+  const minY = Math.min(...allY);
+  const maxY = Math.max(...allY);
+  const rangeY = maxY - minY || 1;
+
+  const toX = (i: number) =>
+    PAD + ((i / (points.length - 1)) * (W - PAD * 2));
+  const toY = (v: number) =>
+    PAD + ((1 - (v - minY) / rangeY) * (H - PAD * 2));
+
+  // Polyline path
+  const d = points
+    .map((v, i) => `${i === 0 ? "M" : "L"}${toX(i).toFixed(1)},${toY(v).toFixed(1)}`)
+    .join(" ");
+
+  // Fill path (close to bottom)
+  const fillD = `${d} L${toX(points.length - 1).toFixed(1)},${H} L${toX(0).toFixed(1)},${H} Z`;
+
+  const lastPrice  = points[points.length - 1];
+  const isGreen    = lastPrice >= buyPrice;
+  const lineColor  = isGreen ? "#10B981" : "#EF4444";    // emerald / rose
+  const fillColor  = isGreen ? "#10B981" : "#EF4444";
+  const refY       = toY(buyPrice);
+  const targetY    = target > 0  ? toY(target)   : null;
+  const slY        = stopLoss > 0 ? toY(stopLoss) : null;
+
+  const gradId = `spkG_${buyPrice.toFixed(0)}_${lastPrice.toFixed(0)}`;
+
+  return (
+    <svg width={W} height={H} className="inline-block align-middle overflow-visible"
+      role="img" aria-label={`Price trend: ${isGreen ? "up" : "down"}`}>
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stopColor={fillColor} stopOpacity={0.25} />
+          <stop offset="100%" stopColor={fillColor} stopOpacity={0}    />
+        </linearGradient>
+      </defs>
+
+      {/* Target line (faint green dashes at top) */}
+      {targetY !== null && targetY >= PAD && targetY <= H - PAD && (
+        <line x1={PAD} y1={targetY} x2={W - PAD} y2={targetY}
+          stroke="#10B981" strokeWidth={0.8} strokeDasharray="3 2" opacity={0.5} />
+      )}
+
+      {/* Stop-loss line (faint red dashes at bottom) */}
+      {slY !== null && slY >= PAD && slY <= H - PAD && (
+        <line x1={PAD} y1={slY} x2={W - PAD} y2={slY}
+          stroke="#EF4444" strokeWidth={0.8} strokeDasharray="3 2" opacity={0.5} />
+      )}
+
+      {/* Buy-price reference line (slate dashes) */}
+      {refY >= PAD && refY <= H - PAD && (
+        <line x1={PAD} y1={refY} x2={W - PAD} y2={refY}
+          stroke="#94a3b8" strokeWidth={0.8} strokeDasharray="3 2" opacity={0.6} />
+      )}
+
+      {/* Area fill */}
+      <path d={fillD} fill={`url(#${gradId})`} />
+
+      {/* Main price line */}
+      <path d={d} fill="none" stroke={lineColor} strokeWidth={1.5}
+        strokeLinecap="round" strokeLinejoin="round" />
+
+      {/* Last-price dot */}
+      <circle
+        cx={toX(points.length - 1)} cy={toY(lastPrice)}
+        r={2.5} fill={lineColor} />
+    </svg>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// S4 — Current Holdings (with P&L sparklines)
+// ══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Build a symbol → price-point array from timeline events.
+ * Each event that carries a non-zero price for a known symbol contributes
+ * one point. The array is capped at 20 points (most recent first → reversed
+ * so sparkline reads left-to-right chronologically).
+ *
+ * Additionally the position's buy_price is always prepended as the first
+ * anchor point and current_price is always appended as the final point,
+ * so even a single intraday price event produces a meaningful 3-point line.
+ */
+function buildSparkPoints(
+  symbol: string,
+  buyPrice: number,
+  currentPrice: number,
+  events: TimelineEvent[],
+): number[] {
+  const priceEvents = events
+    .filter(e => e.symbol === symbol && typeof e.price === "number" && e.price > 0)
+    .map(e => e.price as number);
+
+  // Keep up to 18 intermediate price snapshots (timeline is ascending,
+  // so they're already in chronological order)
+  const mid = priceEvents.slice(-18);
+
+  // Build: entry → intermediate snapshots → current
+  const pts = [buyPrice, ...mid, currentPrice];
+
+  // De-duplicate consecutive identical prices to avoid flat artefacts
+  const deduped: number[] = [];
+  for (const p of pts) {
+    if (deduped.length === 0 || deduped[deduped.length - 1] !== p) {
+      deduped.push(p);
+    }
+  }
+  return deduped;
+}
 
 function S4Holdings() {
   const { data, isLoading, refetch } = useQuery<unknown>({
@@ -493,13 +639,30 @@ function S4Holdings() {
   });
   const list = toArr<OpenPosition>(data);
 
+  // Fetch timeline for sparkline price history — shared with S5 via same
+  // query key so no extra network request is made when both are mounted.
+  const { data: tlData } = useQuery<{ events: TimelineEvent[] }>({
+    queryKey: ["apt", "timeline"],
+    queryFn: () => apiJson("/phase11/timeline?limit=200"),
+    refetchInterval: 30_000, staleTime: 15_000, retry: 1,
+  });
+  const tlEvents = tlData?.events ?? [];
+
   return (
     <div className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
         <SecTitle icon={Layers} title={`Current Holdings (${list.length})`} />
-        <button onClick={() => refetch()} className="text-slate-500 hover:text-teal-400 transition-colors ml-2">
-          <RefreshCw className="w-3.5 h-3.5" />
-        </button>
+        <div className="flex items-center gap-3 ml-auto">
+          {list.length > 0 && (
+            <span className="text-xs text-slate-600 flex items-center gap-1">
+              <span className="inline-block w-3 h-0.5 bg-emerald-500 rounded" /> toward target
+              <span className="inline-block w-3 h-0.5 bg-rose-500 rounded ml-2" /> toward S/L
+            </span>
+          )}
+          <button onClick={() => refetch()} className="text-slate-500 hover:text-teal-400 transition-colors">
+            <RefreshCw className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
       {isLoading && <SkeletonRows n={4} />}
       {!isLoading && list.length === 0 && (
@@ -510,31 +673,51 @@ function S4Holdings() {
           <table className="w-full text-xs whitespace-nowrap">
             <thead>
               <tr className="border-b border-slate-800/60">
-                {["Stock","Buy Time","Buy ₹","Qty","Cur ₹","Value","P/L","P/L %","Target","S/L","Exp Ret","Confidence","Strategy","Risk","Duration"].map(h => (
+                {[
+                  "Stock","Momentum","Buy Time","Buy ₹","Qty","Cur ₹",
+                  "Value","P/L","P/L %","Target","S/L","Exp Ret",
+                  "Confidence","Strategy","Risk","Duration",
+                ].map(h => (
                   <th key={h} className="pb-2 pr-3 text-left text-slate-500 font-medium">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {list.map((p) => (
-                <tr key={p.stock} className="border-b border-slate-800/30 hover:bg-slate-800/20 transition-colors">
-                  <td className="py-2 pr-3 font-bold text-slate-100">{p.stock}</td>
-                  <td className="py-2 pr-3 text-slate-400">{istDateTime(p.buy_time)}</td>
-                  <td className="py-2 pr-3 font-mono">₹{fmt(p.buy_price, 2)}</td>
-                  <td className="py-2 pr-3 font-mono">{p.quantity}</td>
-                  <td className="py-2 pr-3 font-mono">₹{fmt(p.current_price, 2)}</td>
-                  <td className="py-2 pr-3 font-mono">{fmtK(p.current_value)}</td>
-                  <td className={`py-2 pr-3 font-mono font-bold ${pnlCls(p.current_pnl)}`}>{fmtK(p.current_pnl)}</td>
-                  <td className={`py-2 pr-3 font-mono font-bold ${pnlCls(p.current_pnl_pct)}`}>{(p.current_pnl_pct ?? 0).toFixed(2)}%</td>
-                  <td className="py-2 pr-3 font-mono text-emerald-400">₹{fmt(p.target, 2)}</td>
-                  <td className="py-2 pr-3 font-mono text-rose-400">₹{fmt(p.stop_loss, 2)}</td>
-                  <td className={`py-2 pr-3 font-mono ${pnlCls(p.expected_return_current)}`}>{(p.expected_return_current ?? 0).toFixed(1)}%</td>
-                  <td className="py-2 pr-3 w-28"><ConfBar value={p.ai_confidence} /></td>
-                  <td className="py-2 pr-3 text-violet-300">{p.strategy}</td>
-                  <td className="py-2 pr-3"><RiskBadge level={p.risk_level} /></td>
-                  <td className="py-2 pr-3 text-slate-400">{p.holding_label}</td>
-                </tr>
-              ))}
+              {list.map((p) => {
+                const sparkPts = buildSparkPoints(
+                  p.stock, p.buy_price, p.current_price, tlEvents,
+                );
+                return (
+                  <tr key={p.stock} className="border-b border-slate-800/30 hover:bg-slate-800/20 transition-colors">
+                    <td className="py-2 pr-3 font-bold text-slate-100">{p.stock}</td>
+                    {/* ── Sparkline cell ── */}
+                    <td className="py-2 pr-4">
+                      <div title={`${p.stock} price trend — ${sparkPts.length} points. Entry ₹${p.buy_price.toFixed(2)} → Current ₹${p.current_price.toFixed(2)}`}>
+                        <PnlSparkline
+                          points={sparkPts}
+                          buyPrice={p.buy_price}
+                          target={p.target}
+                          stopLoss={p.stop_loss}
+                        />
+                      </div>
+                    </td>
+                    <td className="py-2 pr-3 text-slate-400">{istDateTime(p.buy_time)}</td>
+                    <td className="py-2 pr-3 font-mono">₹{fmt(p.buy_price, 2)}</td>
+                    <td className="py-2 pr-3 font-mono">{p.quantity}</td>
+                    <td className="py-2 pr-3 font-mono">₹{fmt(p.current_price, 2)}</td>
+                    <td className="py-2 pr-3 font-mono">{fmtK(p.current_value)}</td>
+                    <td className={`py-2 pr-3 font-mono font-bold ${pnlCls(p.current_pnl)}`}>{fmtK(p.current_pnl)}</td>
+                    <td className={`py-2 pr-3 font-mono font-bold ${pnlCls(p.current_pnl_pct)}`}>{(p.current_pnl_pct ?? 0).toFixed(2)}%</td>
+                    <td className="py-2 pr-3 font-mono text-emerald-400">₹{fmt(p.target, 2)}</td>
+                    <td className="py-2 pr-3 font-mono text-rose-400">₹{fmt(p.stop_loss, 2)}</td>
+                    <td className={`py-2 pr-3 font-mono ${pnlCls(p.expected_return_current)}`}>{(p.expected_return_current ?? 0).toFixed(1)}%</td>
+                    <td className="py-2 pr-3 w-28"><ConfBar value={p.ai_confidence} /></td>
+                    <td className="py-2 pr-3 text-violet-300">{p.strategy}</td>
+                    <td className="py-2 pr-3"><RiskBadge level={p.risk_level} /></td>
+                    <td className="py-2 pr-3 text-slate-400">{p.holding_label}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
