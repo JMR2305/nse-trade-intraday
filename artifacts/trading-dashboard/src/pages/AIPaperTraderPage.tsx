@@ -710,34 +710,167 @@ const ACTIVITY_MAP: Record<string, string> = {
 };
 
 function S3AIStatus({ portfolio, recs }: { portfolio?: Portfolio; recs?: RecsData }) {
-  const { data: tl } = useQuery<{ events: TimelineEvent[] }>({
+  const qc = useQueryClient();
+
+  // Reuse the health-v2 cache populated by S1 — zero extra network requests
+  const { data: hv2 } = useQuery<HealthV2>({
+    queryKey: ["apt", "hv2"],
+    queryFn:  () => apiJson("/live-data/health-v2"),
+    refetchInterval: 30_000, staleTime: 15_000, retry: 1,
+  });
+
+  const { data: tl, refetch: refetchTl } = useQuery<{ events: TimelineEvent[] }>({
     queryKey: ["apt", "tl-live"],
-    queryFn: () => apiJson("/phase11/timeline?limit=5"),
+    queryFn:  () => apiJson("/phase11/timeline?limit=5"),
     refetchInterval: 20_000, staleTime: 10_000, retry: 1,
   });
-  // Timeline is sorted chronologically ascending — last element is the most recent event
+
+  // ── Scan-and-trade mutation ────────────────────────────────────────────────
+  // Calls the existing POST /live-data/scan/run endpoint (30 s rate-limit on
+  // the server, idempotent under concurrency). On success we bust every "apt"
+  // cache so holdings, recs, portfolio, activity feed all update at once.
+  const [lastScanAt, setLastScanAt]       = useState<string | null>(null);
+  const [scanError,  setScanError]        = useState<string | null>(null);
+  const [cooldownSec, setCooldownSec]     = useState(0);
+
+  const scanMut = useMutation({
+    mutationFn: () =>
+      // A 50-stock live scan can take 30–90 s; use 120 s to match the
+      // server-side timeout so normal scans never abort client-side first.
+      apiJson("/live-data/scan/run", { method: "POST" }, 120_000),
+    onSuccess: () => {
+      setLastScanAt(istNow());
+      setScanError(null);
+      // Invalidate every "apt" query — holdings, portfolio, recs, timeline, …
+      qc.invalidateQueries({ queryKey: ["apt"] });
+      // Also bust the health snapshot so scan_id updates in S1
+      qc.invalidateQueries({ queryKey: ["apt", "hv2"] });
+      // Start a 30-second client-side cooldown matching the server rate-limit
+      setCooldownSec(30);
+      refetchTl();
+    },
+    onError: (err: Error) => {
+      // Preserve 429 rate-limit messages verbatim for the operator
+      setScanError(err.message.slice(0, 160));
+    },
+  });
+
+  // Tick the cooldown counter down every second
+  useEffect(() => {
+    if (cooldownSec <= 0) return;
+    const t = setTimeout(() => setCooldownSec(s => Math.max(0, s - 1)), 1_000);
+    return () => clearTimeout(t);
+  }, [cooldownSec]);
+
+  // Market state derived from the shared health cache
+  const mktState     = hv2?.market?.state ?? "";
+  const isMarketOpen = mktState === "OPEN" || mktState === "PRE_OPEN";
+  const scanning     = scanMut.isPending;
+  const canScan      = isMarketOpen && !scanning && cooldownSec === 0;
+
+  // Tooltip text for the disabled states
+  const disabledReason = scanning
+    ? "Scan in progress…"
+    : cooldownSec > 0
+    ? `Rate limit — wait ${cooldownSec}s`
+    : !isMarketOpen
+    ? `Market is ${mktState || "closed"} — scans only run during OPEN / PRE_OPEN`
+    : undefined;
+
+  // Timeline
   const events   = tl?.events ?? [];
   const latest   = events.length > 0 ? events[events.length - 1] : null;
   const activity = latest ? (ACTIVITY_MAP[latest.type] ?? "🔵 Analysing") : "🔵 Analysing";
   const best     = recs?.items?.[0];
 
   return (
-    <div className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-4 h-full">
-      <SecTitle icon={Brain} title="Live AI Status" color="text-indigo-400" />
-      <div className="grid grid-cols-2 gap-3 mb-3">
-        <Kpi label="Stocks Monitored" value="50"                           color="text-blue-400" />
-        <Kpi label="Recommendations"  value={recs?.count ?? "—"}          color="text-amber-400" />
+    <div className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-4 h-full flex flex-col">
+      {/* Header row: title + Run Scan button */}
+      <div className="flex items-center gap-2 mb-3">
+        <Brain className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+        <h2 className="font-semibold text-xs tracking-widest uppercase text-slate-400 flex-1">
+          Live AI Status
+        </h2>
+
+        {/* ▶ Run Scan button */}
+        <div className="relative group">
+          <button
+            onClick={() => { setScanError(null); scanMut.mutate(); }}
+            disabled={!canScan}
+            title={disabledReason}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+              scanning
+                ? "bg-teal-900/50 border-teal-700/50 text-teal-300 cursor-wait"
+                : canScan
+                ? "bg-teal-700/40 hover:bg-teal-700/60 border-teal-600/50 text-teal-200 hover:text-white shadow-sm hover:shadow-teal-900/40"
+                : "bg-slate-800/40 border-slate-700/30 text-slate-600 cursor-not-allowed"
+            }`}
+          >
+            {scanning
+              ? <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              : <PlayCircle className="w-3.5 h-3.5" />}
+            {scanning ? "Scanning…" : "Run Scan"}
+          </button>
+
+          {/* Tooltip shown when the button is disabled */}
+          {disabledReason && !scanning && (
+            <div className="absolute right-0 top-full mt-1.5 z-20 hidden group-hover:block
+              w-56 px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700/60
+              text-xs text-slate-300 shadow-lg pointer-events-none whitespace-normal leading-snug">
+              {disabledReason}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* KPI grid */}
+      <div className="grid grid-cols-2 gap-3 mb-3 flex-1">
+        <Kpi label="Stocks Monitored" value="50"                                color="text-blue-400" />
+        <Kpi label="Recommendations"  value={recs?.count ?? "—"}               color="text-amber-400" />
         <Kpi label="Open Positions"   value={portfolio?.open_positions ?? "—"} color="text-teal-400" />
         <Kpi label="Current Activity" value={<span className="text-sm">{activity}</span>} />
-        {best && <Kpi label="Best Opportunity"   value={<span className="text-violet-300 font-mono">{best.symbol}</span>} sub={`${fmt(best.confidence, 0)}% conf`} />}
+        {best && <Kpi label="Best Opportunity"   value={<span className="text-violet-300 font-mono">{best.symbol}</span>}  sub={`${fmt(best.confidence, 0)}% conf`} />}
         {best && <Kpi label="Highest Confidence" value={<span className="text-emerald-400">{fmt(best.confidence, 0)}%</span>} sub={best.strategy} />}
       </div>
-      {latest && (
-        <p className="text-xs text-slate-500 flex items-center gap-1 truncate">
-          <Clock className="w-3 h-3 flex-shrink-0" />
-          {istTime(latest.ts)} — {latest.label}
-        </p>
-      )}
+
+      {/* Scan status / latest event footer */}
+      <div className="space-y-1.5">
+        {/* Scan error */}
+        {scanError && (
+          <p className="text-xs text-rose-400 flex items-center gap-1">
+            <XCircle className="w-3 h-3 flex-shrink-0" />
+            {scanError}
+          </p>
+        )}
+
+        {/* Cooldown progress bar */}
+        {cooldownSec > 0 && (
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-1 bg-slate-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-teal-600/60 rounded-full transition-all duration-1000"
+                style={{ width: `${(cooldownSec / 30) * 100}%` }}
+              />
+            </div>
+            <span className="text-xs text-slate-600 tabular-nums w-12 text-right">
+              next in {cooldownSec}s
+            </span>
+          </div>
+        )}
+
+        {/* Last scan time or latest timeline event */}
+        {lastScanAt ? (
+          <p className="text-xs text-teal-500 flex items-center gap-1">
+            <CheckCircle2 className="w-3 h-3 flex-shrink-0" />
+            Scan completed at {lastScanAt} IST
+          </p>
+        ) : latest ? (
+          <p className="text-xs text-slate-500 flex items-center gap-1 truncate">
+            <Clock className="w-3 h-3 flex-shrink-0" />
+            {istTime(latest.ts)} — {latest.label}
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }
