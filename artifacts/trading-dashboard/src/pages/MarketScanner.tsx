@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiJson } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -267,6 +267,28 @@ export default function MarketScanner() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [isScanning, setIsScanning] = useState(false);
+  const [scanElapsed, setScanElapsed] = useState(0);
+  const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (isScanning) {
+      setScanElapsed(0);
+      elapsedRef.current = setInterval(() => {
+        setScanElapsed((s) => s + 1);
+      }, 1000);
+    } else {
+      if (elapsedRef.current !== null) {
+        clearInterval(elapsedRef.current);
+        elapsedRef.current = null;
+      }
+    }
+    return () => {
+      if (elapsedRef.current !== null) {
+        clearInterval(elapsedRef.current);
+        elapsedRef.current = null;
+      }
+    };
+  }, [isScanning]);
 
   async function handleRescan() {
     if (isScanning) return;
@@ -292,10 +314,10 @@ export default function MarketScanner() {
     } catch (e) {
       const status = (e as { status?: number })?.status;
       if (status === 429) {
-        // Rate limit — a scan just ran; not a failure.
+        // Rate limit — a scan completed recently; data shown is current.
         toast({
-          title: "Scan already ran recently",
-          description: String(e instanceof Error ? e.message : e),
+          title: "Results are current",
+          description: "A scan finished recently — the data above is up to date. Wait 30 s before triggering a fresh scan.",
         });
         void queryClient.invalidateQueries({ queryKey: ["/api/phase15/staleness"] });
       } else {
@@ -341,21 +363,28 @@ export default function MarketScanner() {
             NIFTY 50 universe scan · best strategy per stock · opportunity ranking — paper trading only
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          {data?.scanned_at && (
-            <span className="text-xs text-muted-foreground font-mono">
-              Last scan: {formatTime(data.scanned_at)}
+        <div className="flex flex-col items-end gap-1">
+          <div className="flex items-center gap-3">
+            {data?.scanned_at && (
+              <span className="text-xs text-muted-foreground font-mono">
+                Last scan: {formatTime(data.scanned_at)}
+              </span>
+            )}
+            <button
+              onClick={() => void handleRescan()}
+              disabled={isScanning}
+              data-testid="button-rescan"
+              className="flex items-center gap-2 text-xs font-mono px-3 py-1.5 rounded border border-border hover:bg-muted/40 transition-colors text-muted-foreground hover:text-foreground disabled:opacity-50 min-w-[100px] justify-center"
+            >
+              <RefreshCcw className={`h-3 w-3 flex-shrink-0 ${isScanning ? "animate-spin" : ""}`} />
+              {isScanning ? `Scanning… ${scanElapsed}s` : "Rescan"}
+            </button>
+          </div>
+          {isScanning && (
+            <span className="text-[10px] font-mono text-muted-foreground/60 text-right">
+              ~30–90s · NIFTY 50 · do not close
             </span>
           )}
-          <button
-            onClick={() => void handleRescan()}
-            disabled={isScanning}
-            data-testid="button-rescan"
-            className="flex items-center gap-2 text-xs font-mono px-3 py-1.5 rounded border border-border hover:bg-muted/40 transition-colors text-muted-foreground hover:text-foreground disabled:opacity-50"
-          >
-            <RefreshCcw className={`h-3 w-3 ${isScanning ? "animate-spin" : ""}`} />
-            {isScanning ? "Scanning…" : "Rescan"}
-          </button>
         </div>
       </div>
 
