@@ -1,7 +1,7 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useGetSignals, useGetTradeDecisions, useRunScan } from "@workspace/api-client-react";
 import * as Haptics from "expo-haptics";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   DimensionValue,
@@ -152,6 +152,26 @@ export default function SignalsScreen() {
     decisions.dataUpdatedAt,
   );
   const { mutateAsync: runScan, isPending: isScanning } = useRunScan();
+  const [scanElapsed, setScanElapsed] = useState(0);
+  const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (isScanning) {
+      setScanElapsed(0);
+      elapsedRef.current = setInterval(() => setScanElapsed((s) => s + 1), 1000);
+    } else {
+      if (elapsedRef.current !== null) {
+        clearInterval(elapsedRef.current);
+        elapsedRef.current = null;
+      }
+    }
+    return () => {
+      if (elapsedRef.current !== null) {
+        clearInterval(elapsedRef.current);
+        elapsedRef.current = null;
+      }
+    };
+  }, [isScanning]);
 
   const handleScan = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -192,19 +212,28 @@ export default function SignalsScreen() {
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>Signals</Text>
           {!signalsStale && !decisionsSnapshot.isStale && <FreshnessLabel ts={dataUpdatedAt} />}
         </View>
-        <Pressable
-          style={[styles.scanBtn, { backgroundColor: colors.primary }, (isScanning || isFetching) && { opacity: 0.6 }]}
-          onPress={handleScan}
-          disabled={isScanning || isFetching}
-          testID="run-scan-btn"
-        >
-          {isScanning || isFetching ? (
-            <ActivityIndicator size="small" color={colors.primaryForeground} />
-          ) : (
-            <Feather name="refresh-cw" size={16} color={colors.primaryForeground} />
+        <View style={{ alignItems: "flex-end" }}>
+          <Pressable
+            style={[styles.scanBtn, { backgroundColor: colors.primary }, (isScanning || isFetching) && { opacity: 0.6 }]}
+            onPress={handleScan}
+            disabled={isScanning || isFetching}
+            testID="run-scan-btn"
+          >
+            {isScanning || isFetching ? (
+              <ActivityIndicator size="small" color={colors.primaryForeground} />
+            ) : (
+              <Feather name="refresh-cw" size={16} color={colors.primaryForeground} />
+            )}
+            <Text style={[styles.scanBtnText, { color: colors.primaryForeground }]}>
+              {isScanning ? `Scanning… ${scanElapsed}s` : "Scan"}
+            </Text>
+          </Pressable>
+          {isScanning && (
+            <Text style={{ fontSize: 10, color: colors.mutedForeground, marginTop: 3 }}>
+              ~30–90s · do not close
+            </Text>
           )}
-          <Text style={[styles.scanBtnText, { color: colors.primaryForeground }]}>Scan</Text>
-        </Pressable>
+        </View>
       </View>
 
       {scanError && (

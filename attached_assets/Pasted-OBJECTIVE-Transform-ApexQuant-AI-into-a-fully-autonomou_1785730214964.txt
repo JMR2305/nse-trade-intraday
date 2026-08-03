@@ -1,0 +1,557 @@
+OBJECTIVE
+
+Transform ApexQuant AI into a fully autonomous paper trading platform.
+
+Starting Capital
+
+₹50,000
+
+The AI should independently analyse, decide and execute PAPER trades throughout the NSE trading session.
+
+NO live trading.
+
+NO real money.
+
+This phase is for validating the intelligence and decision-making capability of the platform.
+
+--------------------------------------------------
+
+OPERATING HOURS
+
+Automatically start before market open.
+
+Run continuously throughout the NSE trading session.
+
+Continue
+
+Market Data
+
+Research
+
+Analysis
+
+Monitoring
+
+Decision Making
+
+Paper Execution
+
+Portfolio Updates
+
+Learning
+
+until market close.
+
+Automatically perform
+
+End-of-Day Learning
+
+Reports
+
+Knowledge Updates
+
+--------------------------------------------------
+
+PAPER PORTFOLIO
+
+Default Capital
+
+₹50,000
+
+Configurable.
+
+Maintain
+
+Cash
+
+Invested Amount
+
+Buying Power
+
+Current Value
+
+Realised P/L
+
+Unrealised P/L
+
+Portfolio Return
+
+Drawdown
+
+--------------------------------------------------
+
+POSITION SIZING
+
+DO NOT use fixed quantities.
+
+Instead calculate quantity using
+
+Available Capital
+
+Maximum Position Size %
+
+Maximum Sector Allocation %
+
+Risk Score
+
+Liquidity
+
+Expected Volatility
+
+Expected Reward/Risk
+
+Round quantity to valid market lot sizes where applicable.
+
+--------------------------------------------------
+
+PAPER EXECUTION
+
+The AI may
+
+BUY
+
+SELL
+
+PARTIAL EXIT
+
+ADD POSITION
+
+REDUCE POSITION
+
+EXIT
+
+Paper only.
+
+--------------------------------------------------
+
+PORTFOLIO PAGE
+
+Display
+
+Current Holdings
+
+Cash
+
+Portfolio Value
+
+Buying Power
+
+Daily Return
+
+Overall Return
+
+Current P/L
+
+Open Positions
+
+Closed Positions
+
+Sector Allocation
+
+Risk Score
+
+--------------------------------------------------
+
+OPEN POSITION TABLE
+
+Display
+
+Stock
+
+Buy Time
+
+Buy Price
+
+Current Price
+
+Quantity
+
+Current Value
+
+Current P/L
+
+Current %
+
+AI Confidence
+
+Expected Return At Entry
+
+Current Expected Return
+
+Target
+
+Stop Loss
+
+Strategy
+
+Market Regime
+
+Risk Level
+
+Holding Duration
+
+--------------------------------------------------
+
+CLOSED POSITION TABLE
+
+Display
+
+Buy Time
+
+Sell Time
+
+Entry Price
+
+Exit Price
+
+Quantity
+
+Profit/Loss
+
+Profit %
+
+Holding Period
+
+Exit Reason
+
+AI Confidence
+
+Strategy
+
+Lesson Learned
+
+--------------------------------------------------
+
+TRADING TIMELINE
+
+Chronological log.
+
+Example
+
+09:15
+
+Market Open
+
+09:18
+
+Breakout detected
+
+09:20
+
+BUY
+
+10:05
+
+Confidence increased
+
+11:12
+
+Partial Exit
+
+13:10
+
+Target Updated
+
+14:55
+
+SELL
+
+15:30
+
+Market Close
+
+--------------------------------------------------
+
+RECOMMENDATION QUEUE
+
+Display
+
+Pending Opportunities
+
+Confidence
+
+Risk
+
+Expected Return
+
+Estimated Holding Period
+
+Entry
+
+Stop Loss
+
+Target
+
+Reasoning
+
+--------------------------------------------------
+
+SUMMARY PAGE
+
+This becomes the main dashboard.
+
+Calendar View
+
+Operator clicks any date.
+
+Load
+
+Market Summary
+
+Portfolio
+
+Open Positions
+
+Closed Positions
+
+Timeline
+
+Learning
+
+Charts
+
+Reports
+
+for that date.
+
+--------------------------------------------------
+
+MARKET SUMMARY
+
+Display
+
+Market Regime
+
+NIFTY
+
+BANK NIFTY
+
+India VIX
+
+Advance/Decline
+
+Top Gainers
+
+Top Losers
+
+Sector Leaders
+
+Sector Laggards
+
+--------------------------------------------------
+
+AI PERFORMANCE
+
+Display
+
+Trades Analysed
+
+Trades Executed
+
+Win Rate
+
+Average Gain
+
+Average Loss
+
+Profit Factor
+
+Recommendation Accuracy
+
+Average Confidence
+
+Average Holding Time
+
+Best Strategy
+
+Worst Strategy
+
+--------------------------------------------------
+
+LEARNING
+
+Generate
+
+Best Trade
+
+Worst Trade
+
+Most Reliable Strategy
+
+Common Mistakes
+
+Tomorrow's Watchlist
+
+Tomorrow's Risks
+
+Lessons Learned
+
+--------------------------------------------------
+
+REPLAY MODE
+
+Operator clicks
+
+Replay Day
+
+Replay entire session.
+
+Show
+
+AI Decisions
+
+Trades
+
+Portfolio
+
+Timeline
+
+P/L
+
+Learning
+
+--------------------------------------------------
+
+CAPITAL MODES
+
+Mode A
+
+Evaluation Mode
+
+Capital fixed.
+
+Trading stops if funds exhausted.
+
+Mode B
+
+Continuous Research Mode
+
+When capital drops below configurable threshold
+
+Top up
+
+back to ₹50,000.
+
+Every top-up must be logged with timestamp, amount, reason and clearly shown in reports so performance statistics remain transparent.
+
+--------------------------------------------------
+
+COMMAND CENTRE
+
+Add
+
+Paper Trading Centre
+
+Display
+
+Current Portfolio
+
+Today's Return
+
+Current Positions
+
+Cash
+
+AI Confidence
+
+Trades Today
+
+Recommendations
+
+Top Opportunity
+
+Platform Health
+
+--------------------------------------------------
+
+REPORTS
+
+Daily
+
+Weekly
+
+Monthly
+
+Portfolio
+
+Learning
+
+Strategy Performance
+
+Capital History
+
+Reset History
+
+--------------------------------------------------
+
+TESTING
+
+Verify
+
+Paper Orders
+
+Portfolio
+
+Capital Calculations
+
+Timeline
+
+Reports
+
+Replay
+
+Learning
+
+Date Selection
+
+Performance
+
+--------------------------------------------------
+
+SAFETY
+
+PAPER ONLY
+
+NO LIVE ORDERS
+
+NO REAL MONEY
+
+Reuse existing agent architecture.
+
+--------------------------------------------------
+
+DELIVERABLES
+
+Provide
+
+1 Files created
+
+2 Files modified
+
+3 Paper Trading architecture
+
+4 Portfolio Dashboard
+
+5 Summary Dashboard
+
+6 Daily History
+
+7 Replay Mode
+
+8 Reports
+
+9 Learning integration
+
+10 Test count
+
+11 Test results
+
+12 Screenshots
+
+13 Final Verdict
+
+PHASE 11 COMPLETE
+
+or
+
+PHASE 11 NOT COMPLETE

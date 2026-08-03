@@ -611,6 +611,9 @@ export default function CommandCenter() {
           {/* Multi-Agent Operations (Phase 10E) — full width */}
           <MultiAgentOpsCard />
 
+          {/* Paper Trading Centre (Phase 11) — full width */}
+          <PaperTradingCentreCard />
+
           {/* System Health — full width */}
           <SystemHealthSection systemHealth={r.system_health} />
 
@@ -847,6 +850,71 @@ function MultiAgentOpsCard() {
       </div>
       <p className="text-xs text-muted-foreground mt-3">
         READ-ONLY · ADVISORY-ONLY · 2 new agents · 15 endpoints · No autonomous execution · No automatic recovery
+      </p>
+    </div>
+  );
+}
+
+// ── Paper Trading Centre Card (Phase 11) ────────────────────────────────────
+
+interface Phase11Snapshot {
+  portfolio_value: number; starting_capital: number;
+  today_pnl: number; cash: number; open_positions: number;
+  recommendation_count: number; top_opportunity: string | null;
+  win_rate: number; capital_mode: string; paper_only: boolean;
+  portfolio_return: number; unrealised_pnl: number;
+}
+
+function PaperTradingCentreCard() {
+  const { data, isLoading } = useQuery({
+    queryKey:  ["cc", "phase11-snapshot"],
+    queryFn:   () => apiJson<Phase11Snapshot>("phase11/snapshot"),
+    refetchInterval: 60_000,
+    retry: 1,
+    staleTime: 30_000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="bg-card border border-border rounded-xl p-4">
+        <SectionHeader icon={Rocket} title="Paper Trading Centre" />
+        <div className="animate-pulse h-16 bg-muted rounded-lg" />
+      </div>
+    );
+  }
+  if (!data || (data as any).error) {
+    return (
+      <div className="bg-card border border-border rounded-xl p-4">
+        <SectionHeader icon={Rocket} title="Paper Trading Centre" />
+        <p className="text-xs text-muted-foreground">Paper trading data not yet available. Run a scan first.</p>
+      </div>
+    );
+  }
+
+  const d = data;
+  const pnlCls = d.today_pnl > 0 ? "text-emerald-400" : d.today_pnl < 0 ? "text-red-400" : "";
+  const retCls = d.portfolio_return > 0 ? "text-emerald-400" : d.portfolio_return < 0 ? "text-red-400" : "";
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-4">
+      <SectionHeader icon={Rocket} title="Phase 11 — Paper Trading Centre"
+        sub={`Mode ${d.capital_mode} · Starting ₹${(d.starting_capital / 1000).toFixed(0)}k · Paper only`} />
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+        <KpiCard label="Portfolio Value"   value={`₹${(d.portfolio_value / 1000).toFixed(1)}k`} color="text-teal-300" />
+        <KpiCard label="Today P/L"         value={`${d.today_pnl >= 0 ? "+" : ""}₹${(d.today_pnl / 1000).toFixed(2)}k`} color={pnlCls} />
+        <KpiCard label="Return"            value={`${d.portfolio_return >= 0 ? "+" : ""}${d.portfolio_return.toFixed(2)}%`} color={retCls} />
+        <KpiCard label="Cash"              value={`₹${(d.cash / 1000).toFixed(1)}k`} />
+        <KpiCard label="Open Positions"    value={d.open_positions} color="text-blue-400" />
+        <KpiCard label="Recommendations"   value={d.recommendation_count} color="text-amber-400" />
+        <KpiCard label="Win Rate"          value={`${d.win_rate.toFixed(0)}%`} color={d.win_rate >= 60 ? "text-emerald-400" : "text-amber-400"} />
+        <div className="bg-card rounded-xl border border-border p-3 flex flex-col gap-1">
+          <p className="text-xs text-muted-foreground">Top Opportunity</p>
+          <p className="text-sm font-bold text-violet-400 truncate">{d.top_opportunity ?? "—"}</p>
+          <span className="text-xs text-emerald-500">📄 PAPER ONLY</span>
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground mt-3">
+        READ-ONLY · ADVISORY-ONLY · Paper money only · No live execution
       </p>
     </div>
   );

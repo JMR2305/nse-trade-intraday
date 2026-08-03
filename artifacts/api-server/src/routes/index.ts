@@ -50,6 +50,7 @@ import { decisionLayerRouter }      from "./decisionLayer";
 import { learningLayerRouter }      from "./learningLayer";
 import { collaborationEngineRouter } from "./collaborationEngine";
 import { autonomousOpsRouter }      from "./autonomousOps";
+import phase11Router                from "./phase11";
 
 const router: IRouter = Router();
 
@@ -102,6 +103,7 @@ router.use(decisionLayerRouter);
 router.use(learningLayerRouter);
 router.use(collaborationEngineRouter);
 router.use(autonomousOpsRouter);
+router.use("/phase11", phase11Router);
 router.use(tradingRouter);
 router.use(downloadRouter);
 

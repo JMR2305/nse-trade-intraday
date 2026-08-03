@@ -98,6 +98,12 @@ import AgentCommMonitorPage      from "@/pages/AgentCommMonitorPage";
 import CollaborationAlertsPage   from "@/pages/CollaborationAlertsPage";
 import ScalabilityDashboardPage  from "@/pages/ScalabilityDashboardPage";
 import SupervisorExtendedPage    from "@/pages/SupervisorExtendedPage";
+import Phase11SummaryPage          from "@/pages/Phase11SummaryPage";
+import Phase11PortfolioPage        from "@/pages/Phase11PortfolioPage";
+import Phase11RecommendationQueuePage from "@/pages/Phase11RecommendationQueuePage";
+import Phase11ReplayPage           from "@/pages/Phase11ReplayPage";
+import Phase11ReportsPage          from "@/pages/Phase11ReportsPage";
+import Phase11TimelinePage         from "@/pages/Phase11TimelinePage";
 import { ConnectivityPanel } from "@/components/ConnectivityPanel";
 
 const queryClient = new QueryClient({
@@ -213,6 +219,13 @@ function Router() {
         <Route path="/collab-alerts"           component={CollaborationAlertsPage} />
         <Route path="/scalability-dashboard"   component={ScalabilityDashboardPage} />
         <Route path="/supervisor-extended"     component={SupervisorExtendedPage} />
+        {/* ── Phase 11: Autonomous Paper Trading ── */}
+        <Route path="/paper-trading-summary"       component={Phase11SummaryPage} />
+        <Route path="/paper-trading-portfolio"     component={Phase11PortfolioPage} />
+        <Route path="/paper-trading-recommendations" component={Phase11RecommendationQueuePage} />
+        <Route path="/paper-trading-replay"        component={Phase11ReplayPage} />
+        <Route path="/paper-trading-reports"       component={Phase11ReportsPage} />
+        <Route path="/paper-trading-timeline"      component={Phase11TimelinePage} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

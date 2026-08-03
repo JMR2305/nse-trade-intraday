@@ -11,8 +11,11 @@ import { API_BASE_URL } from "./apiConfig";
 /** @deprecated Use API_BASE_URL from lib/apiConfig instead. */
 export const BASE: string = API_BASE_URL;
 
-// Per-request fetch timeout (ms). 15 s is conservative for a trading context;
-// scan endpoints can be slow, but anything beyond this indicates a hung process.
+// Per-request fetch timeout (ms) for standard data endpoints.
+// NOTE: The mobile Scan button (signals tab) calls useRunScan which uses
+// customFetch — that path has no AbortController timeout, so scans that
+// take 30–90 s will complete without being aborted.  This constant applies
+// only to the apiJson() calls in this file (health probes, settings, etc).
 const FETCH_TIMEOUT_MS = 15_000;
 
 // React Query hook defaults (applied per-hook where relevant):

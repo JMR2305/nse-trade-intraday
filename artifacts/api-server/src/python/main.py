@@ -3079,6 +3079,65 @@ def main():
         elif command == "agent_scalability":
             from supervisor_agent.shared_services import get_scalability_estimate as _f; result = _f()
 
+        # ── Phase 11: Autonomous Paper Trading ─────────────────────────────────
+        elif command == "phase11_capital_config":
+            from phase11_autonomous import get_capital_config as _f; result = _f()
+        elif command == "phase11_capital_config_update":
+            _payload = json.loads(args[1]) if len(args) > 1 else {}
+            from phase11_autonomous import update_capital_config as _f; result = _f(_payload)
+        elif command == "phase11_topup_log":
+            _payload = json.loads(args[1]) if len(args) > 1 else {}
+            _limit = int(_payload.get("limit", 50) or 50)
+            from phase11_autonomous import get_topup_log as _f; result = _f(_limit)
+        elif command == "phase11_topup_check":
+            from phase11_autonomous import check_and_apply_topup as _f; result = _f() or {}
+        elif command == "phase11_portfolio":
+            from phase11_autonomous import get_phase11_portfolio as _f; result = _f()
+        elif command == "phase11_open_positions":
+            from phase11_autonomous import get_open_positions_detail as _f; result = _f()
+        elif command == "phase11_closed_positions":
+            _payload = json.loads(args[1]) if len(args) > 1 else {}
+            _limit = int(_payload.get("limit", 100) or 100)
+            from phase11_autonomous import get_closed_positions_detail as _f; result = _f(_limit)
+        elif command == "phase11_recommendation_queue":
+            from phase11_autonomous import get_recommendation_queue as _f; result = _f()
+        elif command == "phase11_timeline":
+            _payload = json.loads(args[1]) if len(args) > 1 else {}
+            from phase11_autonomous import get_session_timeline as _f
+            result = _f(session_date=_payload.get("date") or None)
+        elif command == "phase11_calendar":
+            _payload = json.loads(args[1]) if len(args) > 1 else {}
+            _yr = int(_payload.get("year") or 0) or None
+            _mo = int(_payload.get("month") or 0) or None
+            from phase11_autonomous import get_calendar_data as _f; result = _f(_yr, _mo)
+        elif command == "phase11_daily_summary":
+            _payload = json.loads(args[1]) if len(args) > 1 else {}
+            from phase11_autonomous import get_daily_summary as _f
+            result = _f(_payload.get("date") or _payload.get("date", ""))
+        elif command == "phase11_replay":
+            _payload = json.loads(args[1]) if len(args) > 1 else {}
+            from phase11_autonomous import get_replay_data as _f
+            result = _f(_payload.get("date") or "")
+        elif command == "phase11_daily_report":
+            _payload = json.loads(args[1]) if len(args) > 1 else {}
+            from phase11_autonomous import generate_daily_report as _f
+            result = _f(_payload.get("date") or None)
+        elif command == "phase11_weekly_report":
+            _payload = json.loads(args[1]) if len(args) > 1 else {}
+            from phase11_autonomous import generate_weekly_report as _f
+            result = _f(_payload.get("week_start") or None)
+        elif command == "phase11_monthly_report":
+            _payload = json.loads(args[1]) if len(args) > 1 else {}
+            _yr = int(_payload.get("year") or 0) or None
+            _mo = int(_payload.get("month") or 0) or None
+            from phase11_autonomous import generate_monthly_report as _f; result = _f(_yr, _mo)
+        elif command == "phase11_ai_performance":
+            from phase11_autonomous import get_ai_performance_metrics as _f; result = _f()
+        elif command == "phase11_learning":
+            from phase11_autonomous import get_learning_summary as _f; result = _f()
+        elif command == "phase11_snapshot":
+            from phase11_autonomous import get_phase11_snapshot as _f; result = _f()
+
         else:
             error_msg = f"Unknown command: {command}"
 

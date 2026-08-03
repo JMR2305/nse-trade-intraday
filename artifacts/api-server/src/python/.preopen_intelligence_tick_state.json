@@ -215,6 +215,24 @@
           }
         }
       ]
+    },
+    "reconcile_0930": {
+      "ts": "2026-08-03T09:28:17.003612+05:30",
+      "success": true,
+      "phase": "DONE",
+      "log": [
+        {
+          "phase": "RECONCILING",
+          "ts": "2026-08-03T09:28:17.012105+05:30",
+          "step": "0930"
+        },
+        {
+          "phase": "DONE",
+          "ts": "2026-08-03T09:28:20.898949+05:30",
+          "step": "0930",
+          "prices_patched": 0
+        }
+      ]
     }
   },
   "collect_count": 2

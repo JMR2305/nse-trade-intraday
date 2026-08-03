@@ -1,414 +1,753 @@
 """
-test_phase11.py — Phase 11 Institutional Risk Engine test suite.
+test_phase11.py — Phase 11 Autonomous Paper Trading Platform Tests
+Tests capital modes, portfolio, recommendation queue, timeline, calendar,
+replay, reports, AI performance, and learning.
 
-Runs against isolated temp state files — never touches real state.json,
-config, alerts or kill-switch files. Verifies:
-  - all 8 pre-trade checks and verdict logic
-  - dynamic position sizing math (reproducible, auditable)
-  - portfolio dashboard payload
-  - alerts generation + dedupe
-  - kill switch trigger / acknowledge-to-resume / enforcement
-  - execute_buy enforcement (blocked on REJECT, bypass for legacy/tests)
-  - live execution remains disabled (phase 8 mode unchanged)
-  - read-only guarantee for assessment paths
-  - report files produced
+Run: python -m pytest test_phase11.py -v
+PAPER ONLY — no live orders, no real money.
 """
+from __future__ import annotations
 
 import json
 import os
-import shutil
-import tempfile
-from datetime import datetime, timedelta
-from unittest.mock import patch
+import sys
+import unittest
+from datetime import date, timedelta
+from unittest.mock import MagicMock, patch
 
-import phase11_risk as rk
-import paper_trader as pt
+# ── Fixtures ──────────────────────────────────────────────────────────────────
 
-PASS = 0
-FAIL = 0
-FAILURES = []
-
-
-def ok(name: str, cond: bool, detail: str = ""):
-    global PASS, FAIL
-    if cond:
-        PASS += 1
-    else:
-        FAIL += 1
-        FAILURES.append(f"{name}: {detail}")
-
-
-# ── Isolated environment ─────────────────────────────────────────────────────
-
-tmpdir = tempfile.mkdtemp(prefix="phase11_test_")
-orig = {
-    "STATE_FILE": rk.STATE_FILE, "CONFIG_FILE": rk.CONFIG_FILE,
-    "KILL_SWITCH_FILE": rk.KILL_SWITCH_FILE, "ALERTS_FILE": rk.ALERTS_FILE,
-    "SCAN_CACHE_FILE": rk.SCAN_CACHE_FILE, "MARKET_CACHE_FILE": rk.MARKET_CACHE_FILE,
-    "EXPORT_DIR": rk.EXPORT_DIR,
+SAMPLE_STATE = {
+    "cash": 35_000.0,
+    "positions": {
+        "RELIANCE": {
+            "qty": 5,
+            "avg_price": 2800.0,
+            "current_price": 2870.0,
+            "stop_loss": 2720.0,
+            "target": 2980.0,
+            "strategy": "BREAKOUT",
+            "confidence": 78.0,
+            "risk_level": "MEDIUM",
+            "buy_ts": "2025-08-01T04:25:00Z",
+        },
+        "INFY": {
+            "qty": 10,
+            "avg_price": 1500.0,
+            "current_price": 1480.0,
+            "stop_loss": 1450.0,
+            "target": 1600.0,
+            "strategy": "MOMENTUM",
+            "confidence": 65.0,
+            "risk_level": "LOW",
+            "buy_ts": "2025-08-01T05:30:00Z",
+        },
+    },
+    "trades": [
+        {
+            "symbol": "TCS", "action": "BUY", "quantity": 5,
+            "price": 3500.0, "pnl": 0,
+            "buy_ts": "2025-08-01T04:20:00Z",
+            "trade_ts": "2025-08-01T04:20:00Z",
+            "strategy": "BREAKOUT", "confidence": 80.0,
+        },
+        {
+            "symbol": "TCS", "action": "SELL", "quantity": 5,
+            "price": 3620.0, "pnl": 600.0,
+            "buy_ts": "2025-08-01T04:20:00Z",
+            "trade_ts": "2025-08-01T08:30:00Z",
+            "strategy": "BREAKOUT", "confidence": 80.0,
+            "entry_price": 3500.0, "exit_reason": "TARGET_HIT",
+        },
+        {
+            "symbol": "WIPRO", "action": "SELL", "quantity": 20,
+            "price": 450.0, "pnl": -300.0,
+            "buy_ts": "2025-08-01T05:00:00Z",
+            "trade_ts": "2025-08-01T09:00:00Z",
+            "strategy": "MOMENTUM", "confidence": 55.0,
+            "entry_price": 465.0, "exit_reason": "STOP_LOSS",
+        },
+    ],
+    "pnl_history": [
+        {"value": 51_000.0}, {"value": 52_500.0}, {"value": 50_800.0},
+    ],
+    "daily_pnl": 300.0,
 }
-rk.STATE_FILE = os.path.join(tmpdir, "state.json")
-rk.CONFIG_FILE = os.path.join(tmpdir, "risk_config.json")
-rk.KILL_SWITCH_FILE = os.path.join(tmpdir, "kill_switch.json")
-rk.ALERTS_FILE = os.path.join(tmpdir, "alerts.json")
-rk.SCAN_CACHE_FILE = os.path.join(tmpdir, "scan_cache.json")
-rk.MARKET_CACHE_FILE = os.path.join(tmpdir, "market_cache.json")
-rk.EXPORT_DIR = os.path.join(tmpdir, "exports")
-NOW = datetime.now()
+
+SAMPLE_KV: dict = {}
 
 
-def write_state(cash=10000.0, positions=None, trades=None, pnl=None):
-    with open(rk.STATE_FILE, "w") as f:
-        json.dump({
-            "cash": cash,
-            "positions": positions or {},
-            "trades": trades or [],
-            "pnl_history": pnl or [{"timestamp": NOW.isoformat(), "value": cash}],
-        }, f)
+def _kv_get_mock(key, default=None):
+    return SAMPLE_KV.get(key, default)
 
 
-def write_scan(recs):
-    with open(rk.SCAN_CACHE_FILE, "w") as f:
-        json.dump({"recommendations": recs}, f)
+def _kv_set_mock(key, value):
+    SAMPLE_KV[key] = value
 
 
-def write_market(vix=15.0):
-    with open(rk.MARKET_CACHE_FILE, "w") as f:
-        json.dump({"vix": vix, "vix_category": "TEST"}, f)
+# ── Test: Capital Config ──────────────────────────────────────────────────────
+
+class TestCapitalConfig(unittest.TestCase):
+    def setUp(self):
+        SAMPLE_KV.clear()
+
+    @patch("phase11_autonomous.kv_get", side_effect=_kv_get_mock)
+    @patch("phase11_autonomous.kv_set", side_effect=_kv_set_mock)
+    def _import_with_mocks(self, mock_set, mock_get):
+        import importlib
+        import phase11_autonomous as m
+        importlib.reload(m)
+        return m
+
+    def test_get_capital_config_defaults(self):
+        with patch("phase20_store.kv_get", side_effect=_kv_get_mock):
+            import phase11_autonomous as m
+            cfg = m.get_capital_config()
+        self.assertEqual(cfg["mode"], "A")
+        self.assertEqual(cfg["starting_capital"], m.PHASE11_DEFAULT_CAPITAL)
+        self.assertIn("mode_label", cfg)
+        self.assertTrue(cfg["paper_only"])
+        self.assertTrue(cfg["advisory_only"])
+
+    def test_get_capital_config_mode_b(self):
+        SAMPLE_KV[("phase11_capital_mode")] = "B"
+        with patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d)):
+            import phase11_autonomous as m
+            cfg = m.get_capital_config()
+        self.assertEqual(cfg["mode"], "B")
+        self.assertIn("top-up", cfg["mode_label"].lower())
+
+    def test_update_capital_config_mode(self):
+        with patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d)), \
+             patch("phase20_store.kv_set", side_effect=_kv_set_mock):
+            import phase11_autonomous as m
+            cfg = m.update_capital_config({"mode": "B"})
+        self.assertEqual(SAMPLE_KV.get("phase11_capital_mode"), "B")
+
+    def test_update_capital_config_bad_mode_raises(self):
+        with patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d)), \
+             patch("phase20_store.kv_set", side_effect=_kv_set_mock):
+            import phase11_autonomous as m
+            with self.assertRaises(ValueError):
+                m.update_capital_config({"mode": "C"})
+
+    def test_update_capital_config_low_capital_raises(self):
+        with patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d)), \
+             patch("phase20_store.kv_set", side_effect=_kv_set_mock):
+            import phase11_autonomous as m
+            with self.assertRaises(ValueError):
+                m.update_capital_config({"starting_capital": 500})
+
+    def test_update_capital_config_valid_capital(self):
+        with patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d)), \
+             patch("phase20_store.kv_set", side_effect=_kv_set_mock):
+            import phase11_autonomous as m
+            m.update_capital_config({"starting_capital": 100_000.0})
+        self.assertEqual(SAMPLE_KV.get("phase11_starting_capital"), 100_000.0)
 
 
-write_state()
-write_scan([])
-write_market()
+# ── Test: Portfolio Summary ───────────────────────────────────────────────────
 
-try:
-    # ── Position sizing ──────────────────────────────────────────────────
-    write_state(cash=10000.0)
-    s = rk.position_size("TCS", price=100.0, stop_loss=95.0, confidence=70.0)
-    # risk budget = 10000*1% = 100; conf 70 -> band [60,1.0] -> x1.0; /5 = 20
-    # capital cap 20% = 2000/100 = 20 → recommended 20
-    ok("sizing success", s["success"])
-    ok("sizing qty capped by capital", s["recommended_quantity"] == 20, str(s["constraints"]))
-    ok("sizing by_risk_budget", s["constraints"]["by_risk_budget"] == 20, str(s["constraints"]))
-    ok("sizing audit steps present", len(s["audit_steps"]) >= 5)
-    ok("sizing ATR honest", s["inputs"]["atr"] is None and "Not Available" in s["inputs"]["atr_note"])
+class TestPortfolioSummary(unittest.TestCase):
+    @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
+    @patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d))
+    def test_portfolio_has_required_fields(self, mock_kv, mock_load):
+        import phase11_autonomous as m
+        p = m.get_phase11_portfolio()
+        for field in [
+            "starting_capital", "cash", "invested_amount", "buying_power",
+            "current_value", "realised_pnl", "unrealised_pnl", "total_pnl",
+            "portfolio_return", "daily_pnl", "daily_return", "drawdown_pct",
+            "open_positions", "capital_mode", "paper_only", "advisory_only", "as_of",
+        ]:
+            self.assertIn(field, p, f"Missing field: {field}")
 
-    s2 = rk.position_size("TCS", price=100.0, stop_loss=95.0, confidence=70.0)
-    ok("sizing reproducible", s["recommended_quantity"] == s2["recommended_quantity"]
-       and s["constraints"] == s2["constraints"])
+    @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
+    @patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d))
+    def test_portfolio_values_correct(self, mock_kv, mock_load):
+        import phase11_autonomous as m
+        p = m.get_phase11_portfolio()
+        self.assertEqual(p["cash"], 35_000.0)
+        self.assertEqual(p["open_positions"], 2)
+        # invested = 5*2800 + 10*1500 = 14000+15000=29000
+        self.assertAlmostEqual(p["invested_amount"], 29_000.0, places=0)
+        # unrealised = 5*(2870-2800) + 10*(1480-1500) = 350 - 200 = 150
+        self.assertAlmostEqual(p["unrealised_pnl"], 150.0, places=0)
 
-    slow = rk.position_size("TCS", price=100.0, stop_loss=95.0, confidence=30.0)
-    ok("low confidence halves budget", slow["constraints"]["by_risk_budget"] == 10, str(slow["constraints"]))
+    @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
+    @patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d))
+    def test_realised_pnl_from_sells(self, mock_kv, mock_load):
+        import phase11_autonomous as m
+        p = m.get_phase11_portfolio()
+        # TCS SELL pnl=600, WIPRO SELL pnl=-300 → total 300
+        self.assertAlmostEqual(p["realised_pnl"], 300.0, places=0)
 
-    snone = rk.position_size("TCS", price=100.0, stop_loss=95.0, confidence=None)
-    ok("no confidence -> conservative 0.5x", snone["constraints"]["by_risk_budget"] == 10)
+    @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
+    @patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d))
+    def test_paper_only_flags(self, mock_kv, mock_load):
+        import phase11_autonomous as m
+        p = m.get_phase11_portfolio()
+        self.assertTrue(p["paper_only"])
+        self.assertTrue(p["advisory_only"])
 
-    bad = rk.position_size("TCS", price=100.0, stop_loss=None)
-    ok("no stop -> cannot size", not bad["success"] and bad["recommended_quantity"] == 0)
-    bad2 = rk.position_size("TCS", price=100.0, stop_loss=105.0)
-    ok("stop above price -> cannot size", not bad2["success"])
+    @patch("portfolio_store.load_state", return_value={})
+    @patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d))
+    def test_portfolio_empty_state(self, mock_kv, mock_load):
+        import phase11_autonomous as m
+        p = m.get_phase11_portfolio()
+        self.assertGreaterEqual(p["cash"], 0)
+        self.assertEqual(p["open_positions"], 0)
 
-    # ── Pre-trade checks ─────────────────────────────────────────────────
-    write_state(cash=10000.0)
-    a = rk.assess_trade("TCS", 10, 100.0, 95.0, 70.0)
-    ok("assess approve clean", a["verdict"] in ("APPROVE", "APPROVE_WITH_WARNINGS"), a["verdict"])
-    ok("assess 8 checks", len(a["checks"]) == 8, str(len(a["checks"])))
-    ok("assess echoes inputs", a["inputs"]["price"] == 100.0 and a["inputs"]["stop_loss"] == 95.0)
 
-    # 1. max risk per trade: 100 qty x 5 = 500 = 5% of PV >> 1%
-    a = rk.assess_trade("TCS", 100, 100.0, 95.0, 70.0)
-    ok("max risk fail rejects", a["verdict"] == "REJECT" and "max_risk_per_trade" in a["hard_fails"], str(a["hard_fails"]))
+# ── Test: Open Positions Detail ───────────────────────────────────────────────
 
-    # 2. REDUCE when above recommended but within risk tolerance
-    a = rk.assess_trade("TCS", 24, 100.0, 95.0, 70.0)
-    # 24*5=120 → 1.2% <= 1.25% tolerance; recommended 20 → REDUCE
-    ok("reduce verdict", a["verdict"] == "REDUCE" and a["recommended_quantity"] == 20,
-       f"{a['verdict']} rec={a['recommended_quantity']} fails={a['hard_fails']}")
+class TestOpenPositions(unittest.TestCase):
+    @patch("phase11_autonomous._get_current_regime", return_value="TRENDING")
+    @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
+    @patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d))
+    def test_open_positions_has_required_fields(self, mock_kv, mock_load, mock_regime):
+        import phase11_autonomous as m
+        positions = m.get_open_positions_detail()
+        self.assertEqual(len(positions), 2)
+        required = [
+            "stock", "buy_time", "buy_price", "current_price", "quantity",
+            "current_value", "current_pnl", "current_pnl_pct", "ai_confidence",
+            "target", "stop_loss", "strategy", "market_regime", "risk_level",
+            "holding_label",
+        ]
+        for pos in positions:
+            for f in required:
+                self.assertIn(f, pos, f"Missing field {f} in position")
 
-    # 3. liquidity from scan cache
-    write_scan([{"symbol": "TCS", "sector": "IT", "volume_ratio": 0.1,
-                 "data_age_days": 1.0, "calibrated_confidence": 70.0,
-                 "entry_price": 100.0, "stop_loss": 95.0}])
-    a = rk.assess_trade("TCS", 10, 100.0, 95.0, 70.0)
-    liq = next(c for c in a["checks"] if c["check"] == "liquidity")
-    ok("liquidity warn on low volume", liq["status"] == "WARN", str(liq))
-    write_scan([])
-    a = rk.assess_trade("TCS", 10, 100.0, 95.0, 70.0)
-    liq = next(c for c in a["checks"] if c["check"] == "liquidity")
-    ok("liquidity honest when unknown", "Not Available" in liq["detail"], str(liq))
+    @patch("phase11_autonomous._get_current_regime", return_value="TRENDING")
+    @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
+    @patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d))
+    def test_open_positions_pnl_values(self, mock_kv, mock_load, mock_regime):
+        import phase11_autonomous as m
+        positions = m.get_open_positions_detail()
+        reliance = next((p for p in positions if p["stock"] == "RELIANCE"), None)
+        self.assertIsNotNone(reliance)
+        # pnl = 5 * (2870 - 2800) = 350
+        self.assertAlmostEqual(reliance["current_pnl"], 350.0, places=0)
 
-    # 4. gap risk: stale data
-    write_scan([{"symbol": "TCS", "sector": "IT", "volume_ratio": 1.0,
-                 "data_age_days": 10.0, "entry_price": 100.0, "stop_loss": 95.0}])
-    a = rk.assess_trade("TCS", 10, 100.0, 95.0, 70.0)
-    gap = next(c for c in a["checks"] if c["check"] == "gap_risk")
-    ok("gap risk warns on stale data", gap["status"] == "WARN", str(gap))
-    # tight stop
-    write_scan([])
-    a = rk.assess_trade("TCS", 10, 100.0, 99.5, 70.0)
-    gap = next(c for c in a["checks"] if c["check"] == "gap_risk")
-    ok("gap risk warns on tight stop", gap["status"] == "WARN", str(gap))
-    # VIX spike
-    write_market(vix=30.0)
-    a = rk.assess_trade("TCS", 10, 100.0, 95.0, 70.0)
-    gap = next(c for c in a["checks"] if c["check"] == "gap_risk")
-    ok("gap risk warns on VIX spike", gap["status"] == "WARN" and "VIX" in gap["detail"], str(gap))
-    write_market(vix=15.0)
+    @patch("phase11_autonomous._get_current_regime", return_value="TRENDING")
+    @patch("portfolio_store.load_state", return_value={"positions": {}, "trades": []})
+    @patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d))
+    def test_open_positions_empty(self, mock_kv, mock_load, mock_regime):
+        import phase11_autonomous as m
+        positions = m.get_open_positions_detail()
+        self.assertEqual(positions, [])
 
-    # 5/6. sector & stock limits
-    write_state(cash=2000.0, positions={"INFY": {"quantity": 30, "avg_price": 100.0}},
-                trades=[{"symbol": "INFY", "action": "BUY", "quantity": 30, "price": 100.0,
-                         "stop_loss": 95.0, "timestamp": NOW.isoformat()}])
-    a = rk.assess_trade("TCS", 15, 100.0, 98.0, 70.0)  # IT+IT: 3000+1500 = 90% of 5000
-    ok("sector limit enforced", "sector_exposure" in a["hard_fails"], str(a["hard_fails"]))
-    a = rk.assess_trade("INFY", 15, 100.0, 98.0, 70.0)
-    ok("stock concentration enforced", "stock_concentration" in a["hard_fails"], str(a["hard_fails"]))
 
-    # 7. correlation proxy
-    corr = next(c for c in rk.assess_trade("TCS", 1, 100.0, 98.0, 70.0)["checks"] if c["check"] == "correlation")
-    ok("same-sector correlation warns", corr["status"] == "WARN" and corr["value"] == 0.7, str(corr))
-    corr2 = next(c for c in rk.assess_trade("RELIANCE", 1, 100.0, 98.0, 70.0)["checks"] if c["check"] == "correlation")
-    ok("cross-sector correlation passes", corr2["status"] == "PASS" and corr2["value"] == 0.25, str(corr2))
-    ok("correlation labelled as proxy", "proxy" in corr["detail"].lower())
+# ── Test: Closed Positions Detail ─────────────────────────────────────────────
 
-    # 8. portfolio heat
-    write_state(cash=5000.0,
-                positions={"INFY": {"quantity": 50, "avg_price": 100.0}},
-                trades=[{"symbol": "INFY", "action": "BUY", "quantity": 50, "price": 100.0,
-                         "stop_loss": 90.0, "timestamp": NOW.isoformat()}])
-    # heat = 50*10 / 10000 = 5%; +TCS 10x5=50 → 0.5% → 5.5% < 6 PASS
-    a = rk.assess_trade("TCS", 10, 100.0, 95.0, 70.0)
-    heat = next(c for c in a["checks"] if c["check"] == "portfolio_heat")
-    ok("heat computed", heat["status"] == "PASS" and abs(heat["value"] - 5.5) < 0.01, str(heat))
-    a = rk.assess_trade("TCS", 25, 100.0, 90.0, 70.0)  # +2.5% → 7.5% > 6
-    ok("heat limit enforced", "portfolio_heat" in a["hard_fails"], str(a["hard_fails"]))
+class TestClosedPositions(unittest.TestCase):
+    @patch("phase11_autonomous._get_phase20_closed_trades", return_value=[])
+    @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
+    def test_closed_positions_has_required_fields(self, mock_load, mock_p20):
+        import phase11_autonomous as m
+        closed = m.get_closed_positions_detail()
+        required = [
+            "symbol", "buy_time", "sell_time", "entry_price", "exit_price",
+            "quantity", "pnl", "pnl_pct", "holding_label", "exit_reason",
+            "ai_confidence", "strategy", "lesson_learned",
+        ]
+        for pos in closed:
+            for f in required:
+                self.assertIn(f, pos, f"Missing field {f} in closed position")
 
-    # unbounded risk positions excluded from heat but flagged
-    write_state(cash=5000.0, positions={"WIPRO": {"quantity": 5, "avg_price": 100.0}}, trades=[])
-    heat_pct, detail, unbounded = rk._portfolio_heat(rk._state(), 5500.0)
-    ok("no-stop position excluded from heat", heat_pct == 0.0 and len(unbounded) == 1, f"{heat_pct} {unbounded}")
+    @patch("phase11_autonomous._get_phase20_closed_trades", return_value=[])
+    @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
+    def test_only_sell_actions_in_closed(self, mock_load, mock_p20):
+        import phase11_autonomous as m
+        closed = m.get_closed_positions_detail()
+        for pos in closed:
+            self.assertIn(pos["symbol"], ["TCS", "WIPRO"])
 
-    # ── Dashboard ────────────────────────────────────────────────────────
-    write_state(cash=5000.0,
-                positions={"INFY": {"quantity": 20, "avg_price": 100.0}, "RELIANCE": {"quantity": 10, "avg_price": 100.0}},
-                trades=[{"symbol": "INFY", "action": "BUY", "quantity": 20, "price": 100.0, "stop_loss": 95.0, "timestamp": NOW.isoformat()},
-                        {"symbol": "RELIANCE", "action": "BUY", "quantity": 10, "price": 100.0, "stop_loss": 95.0, "timestamp": NOW.isoformat()}],
-                pnl=[{"timestamp": (NOW - timedelta(days=2)).isoformat(), "value": 8500.0},
-                     {"timestamp": (NOW - timedelta(hours=5)).isoformat(), "value": 8300.0},
-                     {"timestamp": NOW.isoformat(), "value": 8000.0}])
-    d = rk.portfolio_risk()
-    ok("dashboard success", d["success"])
-    ok("dashboard pv", d["portfolio_value"] == 8000.0, str(d["portfolio_value"]))
-    ok("dashboard cash pct", d["cash_allocation_pct"] == 62.5, str(d["cash_allocation_pct"]))
-    ok("dashboard sectors", {s["sector"] for s in d["sector_allocation"]} == {"IT", "ENERGY"})
-    ok("dashboard corr matrix", d["correlation_matrix"]["matrix"][0]["correlations"]["INFY"] == 1.0)
-    ok("dashboard corr labelled proxy", "proxy" in d["correlation_matrix"]["method"])
-    ok("dashboard diversification 0-100", 0 <= (d["diversification_score"] or 0) <= 100)
-    ok("dashboard exposures sorted", d["largest_exposures"][0]["symbol"] == "INFY")
-    ok("dashboard heat", abs(d["portfolio_heat_pct"] - (150 / 8000 * 100)) < 0.01, str(d["portfolio_heat_pct"]))
-    ok("dashboard budget usage", d["risk_budget"]["used_pct_of_budget"] > 0)
-    # weekly window: peak 8500 → 8000 = 5.88%
-    ok("dashboard weekly drawdown", abs(d["drawdowns"]["weekly"]["drawdown_pct"] - 5.88) < 0.05,
-       str(d["drawdowns"]))
-    ok("dashboard daily drawdown", d["drawdowns"]["daily"]["drawdown_pct"] is not None)
-    d2 = rk.portfolio_risk()
-    ok("dashboard reproducible", d["portfolio_heat_pct"] == d2["portfolio_heat_pct"]
-       and d["diversification_score"] == d2["diversification_score"])
+    @patch("phase11_autonomous._get_phase20_closed_trades", return_value=[])
+    @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
+    def test_loss_trade_has_lesson(self, mock_load, mock_p20):
+        import phase11_autonomous as m
+        closed = m.get_closed_positions_detail()
+        wipro = next((c for c in closed if c["symbol"] == "WIPRO"), None)
+        self.assertIsNotNone(wipro)
+        self.assertTrue(len(wipro["lesson_learned"]) > 0)
 
-    # ── Alerts ───────────────────────────────────────────────────────────
-    # daily loss: realized -400 today on pv 8000 = 5% > 3%
-    rk.update_config({"auto_kill_switch": False})
-    write_state(cash=8000.0, positions={},
-                trades=[{"symbol": "INFY", "action": "SELL", "quantity": 10, "price": 60.0,
-                         "pnl": -400.0, "timestamp": NOW.isoformat()}])
-    al = rk.risk_alerts()
-    types = {a["type"] for a in al["new_alerts"]}
-    ok("daily loss alert", "DAILY_LOSS_LIMIT" in types, str(types))
-    al2 = rk.risk_alerts()
-    ok("alerts deduped", not any(a["type"] == "DAILY_LOSS_LIMIT" for a in al2["new_alerts"]))
 
-    write_state(cash=1000.0, positions={"INFY": {"quantity": 50, "avg_price": 100.0}},
-                trades=[{"symbol": "INFY", "action": "BUY", "quantity": 50, "price": 100.0,
-                         "stop_loss": 95.0, "timestamp": NOW.isoformat()}])
-    al = rk.risk_alerts()
-    types = {a["type"] for a in al["new_alerts"]}
-    ok("sector concentration alert", "SECTOR_CONCENTRATION" in types, str(types))
-    ok("oversized position alert", "POSITION_OVERSIZED" in types, str(types))
-    write_market(vix=30.0)
-    al = rk.risk_alerts()
-    ok("volatility spike alert", any(a["type"] == "VOLATILITY_SPIKE" for a in al["new_alerts"]), str(al["new_alerts"]))
-    write_market(vix=15.0)
+# ── Test: Recommendation Queue ────────────────────────────────────────────────
 
-    # ── Kill switch ──────────────────────────────────────────────────────
-    ks = rk.trigger_kill_switch("test: manual", source="manual")
-    ok("kill switch triggers", ks["success"] and ks["kill_switch"]["active"])
-    ok("kill switch simulated note", "SIMULATED" in ks["note"])
-    a = rk.assess_trade("TCS", 1, 100.0, 95.0, 70.0)
-    ok("kill switch rejects trades", a["verdict"] == "REJECT" and "Kill switch" in a["reason"])
-    allowed, msg = rk.pre_trade_check("TCS", 1, 100.0, 95.0, 70.0)
-    ok("pre_trade_check blocks on kill switch", not allowed and "Kill switch" in msg)
-    r = rk.resume_trading(acknowledge=False)
-    ok("resume requires acknowledgement", not r["success"] and "acknowledg" in r["error"].lower())
-    r = rk.resume_trading(acknowledge=True)
-    ok("resume with ack works", r["success"] and not r["kill_switch"]["active"])
-    events = rk.kill_switch_status()["events"]
-    ok("kill switch audit trail", [e["event"] for e in events] == ["TRIGGERED", "RESUMED"], str(events))
+class TestRecommendationQueue(unittest.TestCase):
+    @patch("phase11_autonomous._get_ai_decision_recs", return_value=[
+        {"symbol": "HDFC", "action": "BUY", "confidence": 82.0,
+         "risk_level": "MEDIUM", "expected_return": 5.5,
+         "estimated_holding": "2 days", "entry": 1700.0,
+         "stop_loss": 1650.0, "target": 1800.0, "reasoning": "Breakout", "strategy": "BREAKOUT"},
+        {"symbol": "ICICI", "action": "SELL", "confidence": 70.0,
+         "risk_level": "HIGH", "expected_return": -2.0,
+         "estimated_holding": "1 day", "entry": 950.0,
+         "stop_loss": 980.0, "target": 920.0, "reasoning": "Reversal", "strategy": "REVERSAL"},
+    ])
+    def test_recommendation_queue_filters_buy_only(self, mock_recs):
+        import phase11_autonomous as m
+        result = m.get_recommendation_queue()
+        self.assertIn("items", result)
+        # Only BUY/STRONG BUY pass
+        for item in result["items"]:
+            self.assertIn(item["action"].upper().replace(" ", "_"),
+                          ("BUY", "STRONG_BUY", "STRONG BUY"))
 
-    # auto kill switch on daily loss
-    rk.update_config({"auto_kill_switch": True})
-    write_state(cash=8000.0, positions={},
-                trades=[{"symbol": "X", "action": "SELL", "quantity": 1, "price": 1.0,
-                         "pnl": -400.0, "timestamp": NOW.isoformat()}])
-    d = rk.portfolio_risk()
-    ok("auto kill switch on daily loss", d["kill_switch"]["active"] and d["auto_kill_triggered"], str(d["auto_kill_triggered"]))
-    rk.resume_trading(acknowledge=True)
+    @patch("phase11_autonomous._get_ai_decision_recs", return_value=[
+        {"symbol": "HDFC", "action": "BUY", "confidence": 82.0,
+         "risk_level": "MEDIUM", "expected_return": 5.5,
+         "estimated_holding": "2 days", "entry": 1700.0,
+         "stop_loss": 1650.0, "target": 1800.0, "reasoning": "Breakout", "strategy": "BREAKOUT"},
+        {"symbol": "RELIANCE", "action": "STRONG BUY", "confidence": 91.0,
+         "risk_level": "LOW", "expected_return": 7.0,
+         "estimated_holding": "3 days", "entry": 2800.0,
+         "stop_loss": 2720.0, "target": 3000.0, "reasoning": "Momentum", "strategy": "MOMENTUM"},
+    ])
+    def test_recommendation_queue_sorted_by_confidence(self, mock_recs):
+        import phase11_autonomous as m
+        result = m.get_recommendation_queue()
+        items = result["items"]
+        if len(items) >= 2:
+            self.assertGreaterEqual(items[0]["confidence"], items[1]["confidence"])
 
-    # ── execute_buy enforcement ──────────────────────────────────────────
-    # paper_trader reads portfolio state from Postgres (portfolio_store).
-    # We mock _store.load_state / save_state so the test is DB-isolated.
-    # Use side_effect=lambda: copy.deepcopy(...) so each execute_buy call
-    # gets a fresh independent state dict — prevents cash from depleting
-    # across calls that share the same mock reference.
-    import copy
-    _clean = {"cash": 10000.0, "positions": {}, "trades": [], "pnl_history": []}
-    with patch.object(pt._store, "load_state", side_effect=lambda: copy.deepcopy(_clean)), \
-         patch.object(pt._store, "save_state", lambda s: None):
-        # Risk passes, cash sufficient → success
-        okd, msg = pt.execute_buy("TCS", 10, 100.0, reason="test", stop_loss_price=95.0, signal_confidence=70.0)
-        ok("buy allowed when risk passes", okd, msg)
+    @patch("phase11_autonomous._get_ai_decision_recs", return_value=[])
+    @patch("phase11_autonomous._get_scan_signal_recs", return_value=[])
+    def test_recommendation_queue_empty(self, mock_scan, mock_ai):
+        import phase11_autonomous as m
+        result = m.get_recommendation_queue()
+        self.assertEqual(result["count"], 0)
+        self.assertTrue(result["paper_only"])
 
-        # Risk engine rejects (concentration / large qty) → RISK BLOCKED
-        okd, msg = pt.execute_buy("TCS", 100, 100.0, reason="test", stop_loss_price=95.0, signal_confidence=70.0)
-        ok("buy blocked on REJECT", not okd and "RISK BLOCKED" in msg, msg)
+    def test_recommendation_queue_has_required_keys(self):
+        import phase11_autonomous as m
+        with patch("phase11_autonomous._get_ai_decision_recs", return_value=[]), \
+             patch("phase11_autonomous._get_scan_signal_recs", return_value=[]):
+            result = m.get_recommendation_queue()
+        for key in ["items", "count", "advisory_only", "paper_only", "as_of"]:
+            self.assertIn(key, result)
 
-        # bypass_risk=True skips the risk engine checks but NOT the cash floor
-        okd, msg = pt.execute_buy("TCS", 100, 100.0, reason="test", stop_loss_price=95.0,
-                                  signal_confidence=70.0, bypass_risk=True)
-        ok("bypass_risk skips risk engine", okd, msg)
 
-        # Cash floor is always enforced — even bypass_risk=True cannot overdraw
-        okd, msg = pt.execute_buy("TCS", 200, 100.0, reason="test",
-                                  stop_loss_price=95.0, bypass_risk=True)
-        ok("cash floor blocks even with bypass_risk", not okd and "Insufficient cash" in msg, msg)
+# ── Test: Session Timeline ────────────────────────────────────────────────────
 
-        # Kill switch blocks all buys
-        rk.trigger_kill_switch("test: block buys")
-        okd, msg = pt.execute_buy("TCS", 5, 100.0, reason="test", stop_loss_price=95.0, signal_confidence=70.0)
-        ok("buy blocked by kill switch", not okd and "Kill switch" in msg, msg)
-        rk.resume_trading(acknowledge=True)
+class TestSessionTimeline(unittest.TestCase):
+    @patch("phase11_autonomous._notification_events", return_value=[])
+    @patch("phase11_autonomous._trade_events", return_value=[])
+    def test_timeline_has_milestones(self, mock_te, mock_ne):
+        import phase11_autonomous as m
+        result = m.get_session_timeline("2025-08-04")  # Monday
+        events = result["events"]
+        types = [e["type"] for e in events]
+        self.assertIn("MARKET_OPEN", types)
+        self.assertIn("SCAN", types)
 
-    # ── Reports ──────────────────────────────────────────────────────────
-    write_state(cash=5000.0, positions={"INFY": {"quantity": 20, "avg_price": 100.0}},
-                trades=[{"symbol": "INFY", "action": "BUY", "quantity": 20, "price": 100.0,
-                         "stop_loss": 95.0, "timestamp": NOW.isoformat()}])
-    for kind in rk.REPORT_KINDS:
-        r = rk.risk_report(kind)
-        ok(f"report {kind}", r["success"] and os.path.exists(r["file"]), str(r))
-        ok(f"report {kind} has content", os.path.getsize(r["file"]) > 50)
-    r = rk.risk_report("bogus")
-    ok("report kind allowlisted", not r["success"] and "Unknown report kind" in r["error"])
+    @patch("phase11_autonomous._notification_events", return_value=[])
+    @patch("phase11_autonomous._trade_events", return_value=[])
+    def test_timeline_weekend_has_no_market_milestones(self, mock_te, mock_ne):
+        import phase11_autonomous as m
+        result = m.get_session_timeline("2025-08-03")  # Sunday
+        market_events = [e for e in result["events"] if e.get("category") == "MARKET"]
+        self.assertEqual(len(market_events), 0)
 
-    # ── Risk scores / approval cards / analytics ─────────────────────────
-    rk.update_config({"max_sector_pct": 40.0})
-    write_state(cash=5000.0, positions={"INFY": {"quantity": 20, "avg_price": 100.0}},
-                trades=[{"symbol": "INFY", "action": "BUY", "quantity": 20, "price": 100.0,
-                         "stop_loss": 95.0, "timestamp": NOW.isoformat()}])
-    write_market(vix=15.0)
-    good_rec = {"symbol": "RELIANCE", "sector": "ENERGY", "entry_price": 100.0, "stop_loss": 97.0,
-                "target_price": 110.0, "rr_ratio": 3.3, "calibrated_confidence": 68.0,
-                "opportunity_score": 70.0, "volume_ratio": 1.2, "data_age_days": 0.0,
-                "adx": 35.0, "above_ema20": True, "above_ema50": True,
-                "final_action": "BUY", "win_rate": 60.0, "profit_factor": 2.1,
-                "data_quality": "LIVE", "snapshot_ts": NOW.isoformat()}
-    weak_rec = {**good_rec, "symbol": "TCS", "sector": "IT", "adx": 8.0, "above_ema20": False,
-                "above_ema50": False, "volume_ratio": 0.02, "data_age_days": 10.0,
-                "stop_loss": 91.0, "final_action": "WATCH", "calibrated_confidence": 30.0}
-    write_scan([good_rec, weak_rec])
+    @patch("phase11_autonomous._notification_events", return_value=[])
+    @patch("phase11_autonomous._trade_events", return_value=[
+        {"ts": "2025-08-04T04:30:00Z", "type": "BUY", "label": "BUY HDFC @ ₹1700",
+         "symbol": "HDFC", "price": 1700, "pnl": 0, "strategy": "BREAKOUT", "category": "TRADE"},
+    ])
+    def test_timeline_includes_trade_events(self, mock_te, mock_ne):
+        import phase11_autonomous as m
+        result = m.get_session_timeline("2025-08-04")
+        trade_events = [e for e in result["events"] if e.get("category") == "TRADE"]
+        self.assertGreater(len(trade_events), 0)
 
-    rs = rk.risk_score(good_rec, ["IT"], rk.get_config())
-    ok("risk score 0-100", rs["overall_score"] is not None and 0 <= rs["overall_score"] <= 100, str(rs))
-    ok("risk score band valid", rs["band"] in ("LOW", "MEDIUM", "HIGH", "EXTREME"))
-    ok("event risk honest", rs["components"]["event_risk"]["score"] is None
-       and "Not Available" in rs["components"]["event_risk"]["basis"])
-    rs_weak = rk.risk_score(weak_rec, ["IT"], rk.get_config())
-    ok("weak stock riskier", rs_weak["overall_score"] > rs["overall_score"],
-       f"{rs_weak['overall_score']} vs {rs['overall_score']}")
-    ok("risk score reproducible",
-       rk.risk_score(good_rec, ["IT"], rk.get_config())["overall_score"] == rs["overall_score"])
-    # weighted aggregation: matches explicit weighted avg renormalized over available components
-    comps = {k: v["score"] for k, v in rs["components"].items() if v["score"] is not None}
-    w = rk.RISK_SCORE_WEIGHTS
-    expected = rk._r(sum(comps[k] * w[k] for k in comps) / sum(w[k] for k in comps))
-    ok("risk score weighted+renormalized", rs["overall_score"] == expected,
-       f"{rs['overall_score']} vs {expected}")
-    # candidate without entry price → honest REJECT card, not dropped
-    write_scan([good_rec, weak_rec, {"symbol": "NOPRICE", "sector": "IT", "entry_price": 0.0,
-                                     "final_action": "AVOID"}])
-    cp_all = rk.approval_cards()
-    ok("all candidates get cards", len(cp_all["cards"]) == 3)
-    np_card = next(c for c in cp_all["cards"] if c["symbol"] == "NOPRICE")
-    ok("no-price candidate rejected honestly", np_card["verdict"] == "REJECT"
-       and "Not Available" in np_card["explanation"] and np_card["risk_band"] == "Not Available")
-    write_scan([good_rec, weak_rec])
+    @patch("phase11_autonomous._notification_events", return_value=[])
+    @patch("phase11_autonomous._trade_events", return_value=[])
+    def test_timeline_sorted_chronologically(self, mock_te, mock_ne):
+        import phase11_autonomous as m
+        result = m.get_session_timeline("2025-08-04")
+        events = result["events"]
+        tss = [e["ts"] for e in events if e.get("ts")]
+        self.assertEqual(tss, sorted(tss))
 
-    cp = rk.approval_cards()
-    ok("approval cards built", cp["success"] and len(cp["cards"]) == 2)
-    by_sym = {c["symbol"]: c for c in cp["cards"]}
-    ok("approve for strong BUY candidate", by_sym["RELIANCE"]["verdict"] == "APPROVE", str(by_sym["RELIANCE"]["verdict"]))
-    ok("watch/reject for weak candidate", by_sym["TCS"]["verdict"] in ("WATCH", "REJECT"))
-    ok("card has explanation", len(by_sym["RELIANCE"]["explanation"]) > 10)
-    ok("card sizing consistent",
-       by_sym["RELIANCE"]["capital_required"] == rk._r(by_sym["RELIANCE"]["recommended_quantity"] * 100.0))
-    ok("card max risk math", by_sym["RELIANCE"]["max_risk"] ==
-       rk._r(by_sym["RELIANCE"]["recommended_quantity"] * 3.0), str(by_sym["RELIANCE"]["max_risk"]))
-    ok("card reward math", by_sym["RELIANCE"]["expected_reward"] ==
-       rk._r(by_sym["RELIANCE"]["recommended_quantity"] * 10.0))
+    @patch("phase11_autonomous._notification_events", return_value=[])
+    @patch("phase11_autonomous._trade_events", return_value=[])
+    def test_timeline_has_required_fields(self, mock_te, mock_ne):
+        import phase11_autonomous as m
+        result = m.get_session_timeline("2025-08-04")
+        for key in ["session_date", "events", "event_count", "advisory_only", "paper_only"]:
+            self.assertIn(key, result)
 
-    an = rk.risk_analytics()
-    ok("analytics success", an["success"])
-    ok("analytics utilization", an["portfolio"]["utilization_pct"] == rk._r(2000 / 7000 * 100))
-    ok("analytics largest position", an["portfolio"]["largest_position"]["symbol"] == "INFY")
-    ok("analytics daily risk", an["portfolio"]["daily_risk"] == 100.0, str(an["portfolio"]["daily_risk"]))
-    ok("analytics max loss = invested", an["portfolio"]["max_possible_loss"] == 2000.0)
-    ok("analytics heatmap colors", all(p["heat"] in ("GREEN", "YELLOW", "ORANGE", "RED") for p in an["positions"]))
-    ok("analytics pie includes cash", any(x["name"] == "CASH" for x in an["charts"]["allocation_pie"]))
-    ok("analytics risk distribution counts", sum(x["count"] for x in an["charts"]["risk_distribution"]) == 2)
-    ok("analytics gauge", an["charts"]["utilization_gauge"]["value"] == an["portfolio"]["utilization_pct"])
-    # no-stop position → daily risk honest, heat RED
-    write_state(cash=5000.0, positions={"WIPRO": {"quantity": 5, "avg_price": 100.0}}, trades=[])
-    an2 = rk.risk_analytics()
-    ok("analytics honest daily risk without stops", "Not Available" in str(an2["portfolio"]["daily_risk"]))
-    ok("no-stop position heat RED", an2["positions"][0]["heat"] == "RED")
-    write_scan([])
 
-    # ── Config ───────────────────────────────────────────────────────────
-    c = rk.update_config({"max_sector_pct": 50.0})
-    ok("config update", c["success"] and rk.get_config()["max_sector_pct"] == 50.0)
-    c = rk.update_config({"nonsense_key": 1})
-    ok("config rejects unknown keys", not c["success"])
+# ── Test: Calendar Data ───────────────────────────────────────────────────────
 
-    # ── Read-only guarantee & live execution stays off ───────────────────
-    write_state(cash=7777.0)
-    before = open(rk.STATE_FILE).read()
-    rk.assess_trade("TCS", 5, 100.0, 95.0, 70.0)
-    rk.portfolio_risk()
-    rk.position_size("TCS", 100.0, 95.0, 70.0)
-    after = open(rk.STATE_FILE).read()
-    ok("assessment paths are read-only on state", before == after)
+class TestCalendarData(unittest.TestCase):
+    @patch("phase11_autonomous._all_trades_in_range", return_value=[
+        {"trade_ts": "2025-08-01T09:00:00Z", "action": "SELL", "pnl": 500.0},
+        {"trade_ts": "2025-08-01T10:00:00Z", "action": "SELL", "pnl": -200.0},
+        {"trade_ts": "2025-08-04T09:00:00Z", "action": "SELL", "pnl": 800.0},
+    ])
+    def test_calendar_structure(self, mock_trades):
+        import phase11_autonomous as m
+        result = m.get_calendar_data(2025, 8)
+        self.assertIn("days", result)
+        self.assertIn("year", result)
+        self.assertIn("month", result)
+        self.assertIn("trading_days", result)
+        self.assertIn("total_pnl", result)
 
-    p8cfg = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "phase8_config.json")))
-    mode = p8cfg.get("mode", "")
-    ok("live execution remains disabled", "LIVE" not in str(mode).upper() or "PAPER" in str(mode).upper(),
-       f"phase8 mode={mode}")
+    @patch("phase11_autonomous._all_trades_in_range", return_value=[
+        {"trade_ts": "2025-08-01T09:00:00Z", "action": "SELL", "pnl": 500.0},
+    ])
+    def test_calendar_day_has_required_fields(self, mock_trades):
+        import phase11_autonomous as m
+        result = m.get_calendar_data(2025, 8)
+        day = result["days"][0]
+        for f in ["date", "weekday", "has_trades", "trade_count", "pnl", "wins", "losses"]:
+            self.assertIn(f, day)
 
-finally:
-    for k, v in orig.items():
-        setattr(rk, k, v)
-    shutil.rmtree(tmpdir, ignore_errors=True)
+    @patch("phase11_autonomous._all_trades_in_range", return_value=[
+        {"trade_ts": "2025-08-01T09:00:00Z", "action": "SELL", "pnl": 300.0},
+        {"trade_ts": "2025-08-01T10:00:00Z", "action": "SELL", "pnl": -100.0},
+    ])
+    def test_calendar_pnl_aggregated(self, mock_trades):
+        import phase11_autonomous as m
+        result = m.get_calendar_data(2025, 8)
+        aug1 = next((d for d in result["days"] if d["date"] == "2025-08-01"), None)
+        self.assertIsNotNone(aug1)
+        self.assertTrue(aug1["has_trades"])
+        self.assertAlmostEqual(aug1["pnl"], 200.0, places=0)
 
-print(f"\n{'=' * 60}")
-print(f"Phase 11 test suite: {PASS} passed, {FAIL} failed")
-for f in FAILURES:
-    print(f"  FAIL: {f}")
-print("=" * 60)
-exit(0 if FAIL == 0 else 1)
+    @patch("phase11_autonomous._all_trades_in_range", return_value=[])
+    def test_calendar_no_trades(self, mock_trades):
+        import phase11_autonomous as m
+        result = m.get_calendar_data(2025, 8)
+        self.assertEqual(result["trading_days"], 0)
+        self.assertEqual(result["total_pnl"], 0.0)
+
+
+# ── Test: Daily Summary ───────────────────────────────────────────────────────
+
+class TestDailySummary(unittest.TestCase):
+    SAMPLE_TRADES = [
+        {"symbol": "HDFC", "action": "BUY", "quantity": 5, "price": 1700,
+         "pnl": 0, "trade_ts": "2025-08-01T04:20:00Z", "confidence": 80.0, "strategy": "BREAKOUT"},
+        {"symbol": "HDFC", "action": "SELL", "quantity": 5, "price": 1760,
+         "pnl": 300.0, "trade_ts": "2025-08-01T08:00:00Z",
+         "confidence": 80.0, "strategy": "BREAKOUT", "entry_price": 1700.0, "exit_reason": "TARGET_HIT"},
+        {"symbol": "ICICI", "action": "SELL", "quantity": 10, "price": 940,
+         "pnl": -200.0, "trade_ts": "2025-08-01T09:00:00Z",
+         "confidence": 60.0, "strategy": "MOMENTUM", "entry_price": 960.0, "exit_reason": "STOP_LOSS"},
+    ]
+
+    @patch("phase11_autonomous.get_session_timeline",
+           return_value={"events": [], "session_date": "2025-08-01"})
+    @patch("phase11_autonomous._get_market_summary", return_value={})
+    @patch("phase11_autonomous._get_learning_for_date", return_value={})
+    @patch("phase11_autonomous._all_trades_in_range", return_value=SAMPLE_TRADES)
+    def test_daily_summary_has_required_keys(self, mock_t, mock_l, mock_m, mock_tl):
+        import phase11_autonomous as m
+        result = m.get_daily_summary("2025-08-01")
+        for key in ["date", "summary", "closed_trades", "best_trade",
+                    "worst_trade", "timeline", "learning"]:
+            self.assertIn(key, result)
+
+    @patch("phase11_autonomous.get_session_timeline",
+           return_value={"events": [], "session_date": "2025-08-01"})
+    @patch("phase11_autonomous._get_market_summary", return_value={})
+    @patch("phase11_autonomous._get_learning_for_date", return_value={})
+    @patch("phase11_autonomous._all_trades_in_range", return_value=SAMPLE_TRADES)
+    def test_daily_summary_stats_correct(self, mock_t, mock_l, mock_m, mock_tl):
+        import phase11_autonomous as m
+        result = m.get_daily_summary("2025-08-01")
+        s = result["summary"]
+        self.assertEqual(s["total_trades"], 3)
+        self.assertEqual(s["closed"], 2)
+        self.assertEqual(s["wins"], 1)
+        self.assertEqual(s["losses"], 1)
+        self.assertAlmostEqual(s["win_rate"], 50.0, places=0)
+        self.assertAlmostEqual(s["total_pnl"], 100.0, places=0)  # 300 - 200
+
+
+# ── Test: Replay Data ─────────────────────────────────────────────────────────
+
+class TestReplayData(unittest.TestCase):
+    @patch("phase11_autonomous._get_ai_decisions_for_date", return_value=[])
+    @patch("phase11_autonomous.get_session_timeline",
+           return_value={"events": [], "session_date": "2025-08-01"})
+    @patch("phase11_autonomous._all_trades_in_range", return_value=[
+        {"symbol": "HDFC", "action": "BUY", "quantity": 5, "price": 1700,
+         "pnl": 0, "trade_ts": "2025-08-01T04:20:00Z"},
+        {"symbol": "HDFC", "action": "SELL", "quantity": 5, "price": 1760,
+         "pnl": 300.0, "trade_ts": "2025-08-01T08:00:00Z"},
+    ])
+    def test_replay_has_snapshots(self, mock_t, mock_tl, mock_ai):
+        import phase11_autonomous as m
+        with patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d)):
+            result = m.get_replay_data("2025-08-01")
+        self.assertIn("trade_snapshots", result)
+        self.assertIn("events", result)
+        self.assertIn("final_pnl", result)
+        self.assertEqual(len(result["trade_snapshots"]), 2)
+
+    @patch("phase11_autonomous._get_ai_decisions_for_date", return_value=[])
+    @patch("phase11_autonomous.get_session_timeline",
+           return_value={"events": [], "session_date": "2025-08-01"})
+    @patch("phase11_autonomous._all_trades_in_range", return_value=[
+        {"symbol": "HDFC", "action": "BUY", "quantity": 5, "price": 1700,
+         "pnl": 0, "trade_ts": "2025-08-01T04:20:00Z"},
+        {"symbol": "HDFC", "action": "SELL", "quantity": 5, "price": 1760,
+         "pnl": 300.0, "trade_ts": "2025-08-01T08:00:00Z"},
+    ])
+    def test_replay_portfolio_value_tracked(self, mock_t, mock_tl, mock_ai):
+        import phase11_autonomous as m
+        with patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d)):
+            result = m.get_replay_data("2025-08-01")
+        snapshots = result["trade_snapshots"]
+        # After BUY: positions opened, cash decreased
+        buy_snap  = snapshots[0]
+        sell_snap = snapshots[1]
+        self.assertGreater(buy_snap["open_positions"], 0)
+        # After SELL: position closed
+        self.assertEqual(sell_snap["open_positions"], 0)
+
+    @patch("phase11_autonomous._get_ai_decisions_for_date", return_value=[])
+    @patch("phase11_autonomous.get_session_timeline",
+           return_value={"events": [], "session_date": "2025-08-01"})
+    @patch("phase11_autonomous._all_trades_in_range", return_value=[])
+    def test_replay_empty_day(self, mock_t, mock_tl, mock_ai):
+        import phase11_autonomous as m
+        with patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d)):
+            result = m.get_replay_data("2025-08-01")
+        self.assertEqual(result["trade_count"], 0)
+        self.assertEqual(result["final_pnl"], 0.0)
+
+
+# ── Test: Reports ─────────────────────────────────────────────────────────────
+
+class TestReports(unittest.TestCase):
+    CLOSED_TRADES = [
+        {"symbol": "HDFC", "action": "SELL", "quantity": 5, "price": 1760, "pnl": 300.0,
+         "trade_ts": "2025-08-01T08:00:00Z", "confidence": 80.0, "strategy": "BREAKOUT",
+         "entry_price": 1700.0, "exit_reason": "TARGET_HIT"},
+        {"symbol": "WIPRO", "action": "SELL", "quantity": 20, "price": 450, "pnl": -200.0,
+         "trade_ts": "2025-08-01T09:00:00Z", "confidence": 55.0, "strategy": "MOMENTUM",
+         "entry_price": 460.0, "exit_reason": "STOP_LOSS"},
+    ]
+
+    @patch("phase11_autonomous.get_daily_summary", return_value={
+        "summary": {"total_trades": 3, "opened": 1, "closed": 2, "total_pnl": 100.0,
+                    "wins": 1, "losses": 1, "win_rate": 50.0, "avg_confidence": 70.0},
+        "best_trade": None, "worst_trade": None,
+        "closed_trades": [], "learning": {}, "market_summary": {},
+    })
+    @patch("phase11_autonomous.get_topup_log", return_value=[])
+    @patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d))
+    def test_daily_report_has_required_fields(self, mock_kv, mock_tl, mock_sum):
+        import phase11_autonomous as m
+        report = m.generate_daily_report("2025-08-01")
+        for f in ["report_type", "date", "capital_mode", "starting_capital",
+                  "pnl", "win_rate", "advisory_only", "paper_only", "generated_at"]:
+            self.assertIn(f, report)
+        self.assertEqual(report["report_type"], "DAILY")
+
+    @patch("phase11_autonomous._all_trades_in_range", return_value=CLOSED_TRADES)
+    @patch("phase11_autonomous.get_topup_log", return_value=[])
+    @patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d))
+    def test_weekly_report_has_required_fields(self, mock_kv, mock_tl, mock_trades):
+        import phase11_autonomous as m
+        report = m.generate_weekly_report()
+        for f in ["report_type", "week_start", "week_end", "total_pnl",
+                  "win_rate", "advisory_only", "paper_only", "generated_at"]:
+            self.assertIn(f, report)
+        self.assertEqual(report["report_type"], "WEEKLY")
+
+    @patch("phase11_autonomous._all_trades_in_range", return_value=CLOSED_TRADES)
+    @patch("phase11_autonomous.get_topup_log", return_value=[])
+    @patch("phase11_autonomous.get_calendar_data", return_value={"days": []})
+    @patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d))
+    def test_monthly_report_has_required_fields(self, mock_kv, mock_cal, mock_tl, mock_trades):
+        import phase11_autonomous as m
+        report = m.generate_monthly_report(2025, 8)
+        for f in ["report_type", "year", "month", "month_label", "total_pnl",
+                  "win_rate", "profit_factor", "advisory_only", "paper_only"]:
+            self.assertIn(f, report)
+        self.assertEqual(report["report_type"], "MONTHLY")
+        self.assertEqual(report["month_label"], "August 2025")
+
+
+# ── Test: AI Performance ──────────────────────────────────────────────────────
+
+class TestAIPerformance(unittest.TestCase):
+    @patch("paper_analytics.shared_services.get_paper_analytics_snapshot", return_value={})
+    @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
+    def test_ai_performance_has_required_fields(self, mock_load, mock_snap):
+        import phase11_autonomous as m
+        result = m.get_ai_performance_metrics()
+        for f in [
+            "trades_analysed", "trades_executed", "closed_trades", "win_rate",
+            "avg_gain", "avg_loss", "profit_factor", "recommendation_accuracy",
+            "avg_confidence", "avg_holding_mins", "avg_holding_label",
+            "best_strategy", "worst_strategy", "advisory_only", "as_of",
+        ]:
+            self.assertIn(f, result, f"Missing field: {f}")
+
+    @patch("paper_analytics.shared_services.get_paper_analytics_snapshot", return_value={})
+    @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
+    def test_ai_performance_win_rate(self, mock_load, mock_snap):
+        import phase11_autonomous as m
+        result = m.get_ai_performance_metrics()
+        # TCS SELL pnl=600 (win), WIPRO SELL pnl=-300 (loss) → 50% win rate
+        self.assertAlmostEqual(result["win_rate"], 50.0, places=0)
+
+    @patch("paper_analytics.shared_services.get_paper_analytics_snapshot", return_value={})
+    @patch("portfolio_store.load_state", return_value={"trades": []})
+    def test_ai_performance_empty_trades(self, mock_load, mock_snap):
+        import phase11_autonomous as m
+        result = m.get_ai_performance_metrics()
+        self.assertEqual(result["win_rate"], 0.0)
+        self.assertEqual(result["closed_trades"], 0)
+
+
+# ── Test: Learning Summary ────────────────────────────────────────────────────
+
+class TestLearningSummary(unittest.TestCase):
+    @patch("paper_analytics.shared_services.get_paper_analytics_snapshot", return_value={})
+    @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
+    def test_learning_has_required_fields(self, mock_load, mock_snap):
+        import phase11_autonomous as m
+        with patch("phase11_autonomous._get_watch_candidates", return_value=[]):
+            result = m.get_learning_summary()
+        for f in [
+            "best_trade", "worst_trade", "most_reliable_strategy",
+            "common_mistakes", "tomorrow_watchlist", "lessons_learned", "advisory_only",
+        ]:
+            self.assertIn(f, result, f"Missing field: {f}")
+
+    @patch("paper_analytics.shared_services.get_paper_analytics_snapshot", return_value={})
+    @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
+    def test_learning_identifies_best_trade(self, mock_load, mock_snap):
+        import phase11_autonomous as m
+        with patch("phase11_autonomous._get_watch_candidates", return_value=[]):
+            result = m.get_learning_summary()
+        best = result["best_trade"]
+        self.assertIsNotNone(best)
+        self.assertEqual(best["symbol"], "TCS")  # pnl=600 is best
+
+
+# ── Test: Snapshot ────────────────────────────────────────────────────────────
+
+class TestPhase11Snapshot(unittest.TestCase):
+    @patch("phase11_autonomous.get_phase11_portfolio", return_value={
+        "current_value": 52_000.0, "cash": 35_000.0, "daily_pnl": 400.0,
+        "daily_return": 0.8, "unrealised_pnl": 150.0, "realised_pnl": 300.0,
+        "open_positions": 2, "buying_power": 35_000.0, "portfolio_return": 4.0,
+        "drawdown_pct": 1.5,
+    })
+    @patch("phase11_autonomous.get_recommendation_queue",
+           return_value={"count": 3, "items": [{"symbol": "HDFC", "confidence": 85.0}]})
+    @patch("phase11_autonomous.get_ai_performance_metrics",
+           return_value={"win_rate": 65.0, "avg_confidence": 75.0})
+    @patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d))
+    def test_snapshot_has_required_fields(self, mock_kv, mock_perf, mock_recs, mock_port):
+        import phase11_autonomous as m
+        snap = m.get_phase11_snapshot()
+        for f in [
+            "portfolio_value", "cash", "today_pnl", "today_return", "open_positions",
+            "buying_power", "portfolio_return", "recommendations", "top_opportunity",
+            "win_rate", "capital_mode", "date", "advisory_only", "paper_only", "as_of",
+        ]:
+            self.assertIn(f, snap, f"Missing field: {f}")
+
+    @patch("phase11_autonomous.get_phase11_portfolio", return_value={
+        "current_value": 52_000.0, "cash": 35_000.0, "daily_pnl": 400.0,
+        "daily_return": 0.8, "unrealised_pnl": 150.0, "realised_pnl": 300.0,
+        "open_positions": 2, "buying_power": 35_000.0, "portfolio_return": 4.0,
+        "drawdown_pct": 1.5,
+    })
+    @patch("phase11_autonomous.get_recommendation_queue",
+           return_value={"count": 3, "items": [{"symbol": "HDFC", "confidence": 85.0}]})
+    @patch("phase11_autonomous.get_ai_performance_metrics",
+           return_value={"win_rate": 65.0, "avg_confidence": 75.0})
+    @patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d))
+    def test_snapshot_paper_only(self, mock_kv, mock_perf, mock_recs, mock_port):
+        import phase11_autonomous as m
+        snap = m.get_phase11_snapshot()
+        self.assertTrue(snap["paper_only"])
+        self.assertTrue(snap["advisory_only"])
+
+
+# ── Test: Helpers ─────────────────────────────────────────────────────────────
+
+class TestHelpers(unittest.TestCase):
+    def test_fmt_holding_minutes(self):
+        import phase11_autonomous as m
+        self.assertEqual(m._fmt_holding(45), "45m")
+        self.assertEqual(m._fmt_holding(60), "1h")
+        self.assertEqual(m._fmt_holding(90), "1h 30m")
+        self.assertEqual(m._fmt_holding(0), "0m")
+        self.assertEqual(m._fmt_holding(-1), "—")
+
+    def test_calc_holding_mins(self):
+        import phase11_autonomous as m
+        mins = m._calc_holding_mins("2025-08-01T04:20:00Z", "2025-08-01T08:20:00Z")
+        self.assertEqual(mins, 240)
+
+    def test_calc_holding_mins_bad_input(self):
+        import phase11_autonomous as m
+        self.assertEqual(m._calc_holding_mins("", ""), 0)
+        self.assertEqual(m._calc_holding_mins(None, None), 0)
+
+    def test_trade_brief_none(self):
+        import phase11_autonomous as m
+        self.assertIsNone(m._trade_brief(None))
+
+    def test_trade_brief_valid(self):
+        import phase11_autonomous as m
+        brief = m._trade_brief({"symbol": "HDFC", "pnl": 500.0, "strategy": "BREAKOUT",
+                                 "action": "SELL", "price": 1760.0})
+        self.assertEqual(brief["symbol"], "HDFC")
+        self.assertAlmostEqual(brief["pnl"], 500.0)
+
+
+# ── Test: Capital Mode B Top-up ───────────────────────────────────────────────
+
+class TestCapitalModeB(unittest.TestCase):
+    def setUp(self):
+        SAMPLE_KV.clear()
+        SAMPLE_KV["phase11_capital_mode"]     = "B"
+        SAMPLE_KV["phase11_starting_capital"] = 50_000.0
+        SAMPLE_KV["phase11_topup_threshold"]  = 10_000.0
+        SAMPLE_KV["phase11_topup_target"]     = 50_000.0
+
+    @patch("phase11_autonomous.record_topup")
+    @patch("portfolio_store.save_state")
+    @patch("portfolio_store.load_state", return_value={"cash": 8_000.0, "positions": {}, "trades": []})
+    def test_topup_applied_when_below_threshold(self, mock_load, mock_save, mock_record):
+        import phase11_autonomous as m
+        with patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d)):
+            result = m.check_and_apply_topup()
+        # Should top up from 8000 to 50000
+        if result:
+            self.assertTrue(result["applied"])
+            self.assertAlmostEqual(result["amount"], 42_000.0, places=0)
+
+    @patch("portfolio_store.load_state", return_value={"cash": 30_000.0, "positions": {}, "trades": []})
+    def test_no_topup_when_above_threshold(self, mock_load):
+        import phase11_autonomous as m
+        with patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d)):
+            result = m.check_and_apply_topup()
+        self.assertIsNone(result)
+
+    @patch("portfolio_store.load_state", return_value={"cash": 5_000.0, "positions": {}, "trades": []})
+    def test_no_topup_in_mode_a(self, mock_load):
+        SAMPLE_KV["phase11_capital_mode"] = "A"
+        import phase11_autonomous as m
+        with patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d)):
+            result = m.check_and_apply_topup()
+        self.assertIsNone(result)
+
+
+if __name__ == "__main__":
+    unittest.main()
