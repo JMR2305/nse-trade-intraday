@@ -37,6 +37,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "bell", selected: "bell.fill" }} />
         <Label>Alerts</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="ai-ops">
+        <Icon sf={{ default: "brain", selected: "brain.fill" }} />
+        <Label>Pipeline</Label>
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }
@@ -147,6 +151,18 @@ function ClassicTabLayout() {
               <SymbolView name="bell.fill" tintColor={color} size={22} />
             ) : (
               <Feather name="bell" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="ai-ops"
+        options={{
+          title: "Pipeline",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="brain.fill" tintColor={color} size={22} />
+            ) : (
+              <Feather name="cpu" size={22} color={color} />
             ),
         }}
       />

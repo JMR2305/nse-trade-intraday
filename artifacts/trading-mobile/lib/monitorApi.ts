@@ -165,6 +165,108 @@ export interface BrokerStatus {
   safety_controls?: { kill_switch?: boolean; [key: string]: unknown };
 }
 
+// ---------- AI Operations Centre types ----------
+
+export interface AgentState {
+  name: string;
+  agent_id: string;
+  enabled: boolean;
+  status: "ACTIVE" | "WAITING" | "ERROR" | "DISABLED" | "UNKNOWN";
+  health_pct: number;
+  last_refresh_date: string;
+  last_refresh_time: string;
+  last_refresh_ts: string | null;
+  avg_processing_ms: number;
+  current_activity: string;
+  stocks_in: number;
+  stocks_out: number;
+  stocks_rejected: number;
+  rejection_reason: string;
+  errors: string[];
+  warnings: string[];
+  details: Record<string, unknown>;
+}
+
+export interface OpsSnapshot {
+  generated_at: string;
+  platform: {
+    health_pct: number;
+    status: string;
+    scan_id: string;
+    scan_number: number;
+    scan_status: string;
+    market_state: string;
+    trading_session: string;
+    current_time_ist: string;
+    last_refresh_ist: string;
+    next_refresh_est: string;
+    scan_interval_min: number;
+  };
+  pipeline: {
+    universe_loaded: number;
+    stocks_reviewed: number;
+    passed_market_data: number;
+    passed_research: number;
+    passed_intelligence: number;
+    passed_monitoring: number;
+    passed_strategy: number;
+    passed_risk: number;
+    buy_recommendations: number;
+    paper_orders_executed: number;
+    open_positions: number;
+  };
+  pipeline_nodes: Array<{
+    id: string;
+    label: string;
+    agent_key: string;
+    status: string;
+    health_pct: number;
+    stocks_out: number;
+  }>;
+  agents: Record<string, AgentState>;
+}
+
+// The ops-centre snapshot aggregates 12 agents and typically takes 30–40 s.
+// We use a custom fetch with a 60 s timeout instead of the default 15 s apiJson.
+async function fetchOpsSnapshot(): Promise<OpsSnapshot> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60_000);
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}/ops-centre/snapshot`, {
+      signal: controller.signal,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new ApiError("Ops snapshot timed out after 60 s", 408);
+    }
+    throw err;
+  }
+  clearTimeout(timeoutId);
+  const text = await res.text();
+  if (!res.ok) {
+    let msg = `Request failed (${res.status})`;
+    try {
+      const d = JSON.parse(text) as Record<string, unknown>;
+      if (d.error) msg = String(d.error);
+    } catch { /* ignore */ }
+    throw new ApiError(msg, res.status);
+  }
+  return JSON.parse(text) as OpsSnapshot;
+}
+
+export function useOpsSnapshot() {
+  return useQuery({
+    queryKey: ["ops-centre", "snapshot"],
+    queryFn: fetchOpsSnapshot,
+    refetchInterval: 30_000,
+    retry: 1,
+    staleTime: 20_000,
+  });
+}
+
 // ---------- Hooks ----------
 
 export function useLiveDataHealth() {
