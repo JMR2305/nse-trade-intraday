@@ -1,0 +1,601 @@
+OBJECTIVE
+
+Upgrade the existing AI Operations Centre to Version 2.
+
+The purpose of Version 2 is to eliminate guesswork.
+
+At any moment the operator should immediately know:
+
+• Which agent is working
+• Which agent is waiting
+• Which agent is delayed
+• Which agent is blocking the pipeline
+• Why stocks did not flow to the next agent
+• Whether the data is stale
+• Whether intervention is required
+
+Keep the existing Version 1 page.
+
+Enhance it.
+
+DO NOT redesign the layout.
+
+==================================================
+
+SECTION 1
+
+AGENT HEALTH SUMMARY
+
+At the top display
+
+Healthy Agents
+
+Warning Agents
+
+Error Agents
+
+Waiting Agents
+
+Stale Agents
+
+Average Processing Time
+
+Slowest Agent
+
+Pipeline Efficiency %
+
+==================================================
+
+SECTION 2
+
+LAST REFRESH DETAILS
+
+For EVERY agent display
+
+Last Successful Refresh
+
+Last Attempted Refresh
+
+Next Scheduled Refresh
+
+Refresh Interval
+
+Refresh Delay
+
+Data Age
+
+Examples
+
+Last Success
+
+13:42:18
+
+Last Attempt
+
+13:47:18
+
+Expected
+
+13:47:18
+
+Delay
+
+0 sec
+
+Status
+
+Fresh
+
+If stale
+
+Display
+
+STALE
+
+Last successful refresh 27 minutes ago.
+
+==================================================
+
+SECTION 3
+
+PIPELINE EFFICIENCY
+
+Instead of only counts
+
+Show conversion %
+
+Example
+
+Universe
+
+500
+
+↓
+
+Selected
+
+20
+
+4%
+
+↓
+
+Research Passed
+
+18
+
+90%
+
+↓
+
+Strategy Passed
+
+10
+
+55%
+
+↓
+
+Risk Passed
+
+6
+
+60%
+
+↓
+
+BUY
+
+4
+
+66%
+
+↓
+
+Executed
+
+3
+
+75%
+
+Display overall pipeline efficiency.
+
+==================================================
+
+SECTION 4
+
+BLOCKER EXPLANATION
+
+This is mandatory.
+
+If an agent forwards
+
+0
+
+items
+
+Always display WHY.
+
+Examples
+
+No stocks exceeded confidence threshold.
+
+No stocks matched breakout criteria.
+
+Sector allocation exceeded.
+
+Capital exhausted.
+
+Market closed.
+
+Research unavailable.
+
+Risk validation failed.
+
+Reward/Risk below minimum.
+
+Never display blank values.
+
+==================================================
+
+SECTION 5
+
+REJECTION SUMMARY
+
+Display
+
+Today's Rejections
+
+Grouped by reason.
+
+Example
+
+Low Confidence
+
+34
+
+Poor Reward/Risk
+
+21
+
+Sector Exposure
+
+8
+
+Capital Limit
+
+6
+
+Negative News
+
+5
+
+Missing Market Data
+
+2
+
+==================================================
+
+SECTION 6
+
+CLICK TO EXPAND
+
+Every rejected stock should display
+
+Stock
+
+Confidence
+
+Risk
+
+Reason
+
+Agent
+
+Timestamp
+
+Example
+
+TCS
+
+Confidence
+
+64%
+
+Rejected by Strategy Agent
+
+Reason
+
+Below minimum confidence.
+
+------------------------------------------------
+
+SBIN
+
+Rejected by Risk Agent
+
+Reason
+
+Sector allocation exceeded.
+
+==================================================
+
+SECTION 7
+
+AGENT SCORECARD
+
+For today
+
+Supervisor
+
+Success %
+
+Market Data
+
+Success %
+
+Research
+
+Success %
+
+Monitoring
+
+Success %
+
+Strategy
+
+Success %
+
+Risk
+
+Success %
+
+Decision
+
+Success %
+
+Execution
+
+Success %
+
+Learning
+
+Success %
+
+Knowledge
+
+Success %
+
+Operations
+
+Success %
+
+==================================================
+
+SECTION 8
+
+PIPELINE BOTTLENECKS
+
+Automatically detect
+
+Largest bottleneck
+
+Example
+
+Risk Agent
+
+Rejected 82% of candidates.
+
+Suggestion
+
+Review risk thresholds.
+
+Or
+
+Strategy confidence threshold preventing recommendations.
+
+Or
+
+Research unavailable.
+
+==================================================
+
+SECTION 9
+
+LIVE PERFORMANCE
+
+Display
+
+Average Scan Time
+
+Fastest Scan
+
+Slowest Scan
+
+Average Decision Time
+
+Average Execution Time
+
+Average Agent Latency
+
+==================================================
+
+SECTION 10
+
+AGENT DEPENDENCY VIEW
+
+Display
+
+Supervisor
+
+↓
+
+Market Data
+
+↓
+
+Research
+
+↓
+
+Market Intelligence
+
+↓
+
+Monitoring
+
+↓
+
+Strategy
+
+↓
+
+Risk
+
+↓
+
+Decision
+
+↓
+
+Execution
+
+↓
+
+Learning
+
+↓
+
+Knowledge
+
+↓
+
+Operations
+
+Each node displays
+
+Healthy
+
+Waiting
+
+Blocked
+
+Error
+
+If blocked
+
+Display
+
+Blocked because
+
+Strategy Agent forwarded zero candidates.
+
+==================================================
+
+SECTION 11
+
+PIPELINE EXPLANATION
+
+Automatically generate
+
+Operator Summary
+
+Examples
+
+"The AI scanned 500 stocks.
+
+20 were shortlisted.
+
+10 passed strategy.
+
+6 passed risk.
+
+3 BUY recommendations generated.
+
+2 paper trades executed.
+
+The primary bottleneck today was Risk Validation."
+
+==================================================
+
+SECTION 12
+
+HOVER HELP
+
+Every metric should explain
+
+What it means
+
+Why it matters
+
+Expected range
+
+==================================================
+
+SECTION 13
+
+TIMELINE ENHANCEMENT
+
+Every event must display
+
+Timestamp
+
+Agent
+
+Action
+
+Duration
+
+Result
+
+Example
+
+13:42:12
+
+Strategy Agent
+
+Evaluated
+
+18 Stocks
+
+Duration
+
+1.8 sec
+
+Forwarded
+
+8
+
+==================================================
+
+SECTION 14
+
+AUTO ALERTS
+
+Display warnings
+
+Research stale
+
+Market Data delayed
+
+No recommendations for over 30 minutes
+
+Execution idle
+
+Risk rejecting 100%
+
+Decision Agent not producing BUY candidates
+
+==================================================
+
+SECTION 15
+
+EXPORT
+
+Allow exporting
+
+Today's Operations Report
+
+PDF
+
+CSV
+
+JSON
+
+==================================================
+
+PERFORMANCE
+
+Maintain fast loading.
+
+Reuse Version 1 architecture.
+
+Do not introduce heavy polling.
+
+==================================================
+
+DELIVERABLES
+
+Provide
+
+1 Files Created
+
+2 Files Modified
+
+3 Screenshots
+
+4 Mobile Screenshots
+
+5 Performance Impact
+
+6 Test Count
+
+7 Test Results
+
+8 Final Verdict
+
+AI OPERATIONS CENTRE V2 COMPLETE
+
+or
+
+NOT COMPLETE

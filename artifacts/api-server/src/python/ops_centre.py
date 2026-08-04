@@ -628,6 +628,69 @@ def _collect_operations() -> Dict[str, Any]:
 
 # ── Pipeline summary (fast, from scan context + portfolio) ────────────────────
 
+def _get_bottleneck_suggestion(agent_key: str) -> str:
+    _suggestions: Dict[str, str] = {
+        "supervisor":          "Check that all agents are initialised and registered correctly.",
+        "market_data":         "Verify data provider connectivity and NSE symbol coverage.",
+        "research":            "Research agent may be filtering too aggressively. Check news quality thresholds.",
+        "market_intelligence": "Current market regime may be blocking stocks. Review regime conditions in Settings.",
+        "monitoring":          "No technical signals detected. Confirm watchlist symbols and monitoring criteria.",
+        "strategy":            "Confidence threshold may be too high. Review strategy parameters in Settings.",
+        "risk":                "Risk thresholds may be too conservative. Review capital limits and sector exposure rules.",
+        "ai_decision":         "AI not generating BUY/SELL signals. Check confidence floor and decision thresholds.",
+        "execution":           "Execution agent idle. Confirm paper trading is enabled and a scan has run.",
+        "learning":            "Insufficient completed trade history. Needs more paper trades to learn from.",
+        "knowledge":           "Knowledge base update stalled. Check for errors in the learning cycle.",
+        "operations":          "System resource pressure detected. Monitor CPU/memory in Operations Centre.",
+    }
+    return _suggestions.get(agent_key, "Review agent configuration and error logs.")
+
+
+def _operator_summary(
+    pipeline: Dict[str, Any],
+    agents: Dict[str, Any],
+    bottleneck: Optional[Dict[str, Any]],
+) -> str:
+    universe   = _i(pipeline.get("universe_loaded", 0))
+    reviewed   = _i(pipeline.get("stocks_reviewed", universe))
+    strat_pass = _i(pipeline.get("passed_strategy", 0))
+    risk_pass  = _i(pipeline.get("passed_risk", 0))
+    buy_recs   = _i(pipeline.get("buy_recommendations", 0))
+    executed   = _i(pipeline.get("paper_orders_executed", 0))
+
+    parts: List[str] = []
+    if universe > 0:
+        parts.append(f"The AI scanned {universe} stocks.")
+    if reviewed > 0 and reviewed != universe:
+        parts.append(f"{reviewed} were shortlisted for analysis.")
+    if strat_pass > 0:
+        parts.append(f"{strat_pass} passed strategy evaluation.")
+    if risk_pass > 0 and risk_pass != strat_pass:
+        parts.append(f"{risk_pass} passed risk validation.")
+    if buy_recs > 0:
+        parts.append(f"{buy_recs} BUY recommendation{'s' if buy_recs != 1 else ''} generated.")
+    if executed > 0:
+        parts.append(f"{executed} paper trade{'s' if executed != 1 else ''} executed.")
+
+    if not parts:
+        return "No pipeline activity recorded this session yet."
+
+    summary = " ".join(parts)
+
+    if bottleneck:
+        summary += (f" The primary bottleneck was {bottleneck['agent']} "
+                    f"({bottleneck['rejected_pct']}% of candidates blocked).")
+    elif buy_recs == 0 and universe > 0:
+        if strat_pass == 0:
+            summary += " No stocks passed strategy evaluation this cycle."
+        elif risk_pass == 0:
+            summary += " All strategy candidates were blocked at the risk gate."
+        else:
+            summary += " No BUY recommendations were generated."
+
+    return summary
+
+
 def _pipeline_summary() -> Dict[str, Any]:
     try:
         from phase15_scan_context import build_scan_context
@@ -980,6 +1043,89 @@ def get_ops_centre_snapshot() -> Dict[str, Any]:
         node["health_pct"] = a.get("health_pct", 0)
         node["stocks_out"] = a.get("stocks_out", 0)
 
+    # ── Per-agent staleness (V2) ──────────────────────────────────────────────
+    try:
+        from phase20_store import get_settings as _gs2
+        scan_interval_min = int((_gs2() or {}).get("scan_interval_minutes", 5))
+    except Exception:
+        scan_interval_min = 5
+
+    now_utc = datetime.now(timezone.utc)
+    for _ad in agents.values():
+        _lts = _ad.get("last_refresh_ts")
+        if _lts:
+            try:
+                _ldt = datetime.fromisoformat(str(_lts).replace("Z", "+00:00"))
+                _age = (now_utc - _ldt).total_seconds() / 60
+                _ad["data_age_minutes"] = round(_age, 1)
+                _ad["is_stale"] = _age > (scan_interval_min * 2)
+            except Exception:
+                _ad["data_age_minutes"] = None
+                _ad["is_stale"] = False
+        else:
+            _ad["data_age_minutes"] = None
+            _ad["is_stale"] = False
+
+    # ── Rejection summary (V2 — Section 5) ───────────────────────────────────
+    rejection_summary: List[Dict[str, Any]] = []
+    for _ak, _ad in agents.items():
+        _rej = _i(_ad.get("stocks_rejected", 0))
+        if _rej > 0:
+            rejection_summary.append({
+                "agent":    _ad.get("name", _ak),
+                "agent_id": _ak,
+                "reason":   str(_ad.get("rejection_reason") or "Unknown reason"),
+                "count":    _rej,
+            })
+    rejection_summary.sort(key=lambda x: x["count"], reverse=True)
+
+    # ── Performance metrics (V2 — Section 9) ─────────────────────────────────
+    _latencies = [(n, _i(a.get("avg_processing_ms", 0)))
+                  for n, a in agents.items() if _i(a.get("avg_processing_ms", 0)) > 0]
+    _lat_vals = [v for _, v in _latencies]
+    _slowest  = max(_latencies, key=lambda x: x[1]) if _latencies else (None, 0)
+    _statuses = [a.get("status", "UNKNOWN") for a in agents.values() if a.get("enabled")]
+    _healthy  = sum(1 for s in _statuses if s == "ACTIVE")
+    _errors   = sum(1 for s in _statuses if s == "ERROR")
+    _waiting  = sum(1 for s in _statuses if s == "WAITING")
+    _stale    = sum(1 for a in agents.values() if a.get("is_stale"))
+    _warning  = sum(1 for a in agents.values()
+                    if a.get("status") == "ACTIVE" and a.get("is_stale"))
+    _univ     = _i(pipeline.get("universe_loaded", 0))
+    _exec     = _i(pipeline.get("paper_orders_executed", 0))
+    performance_metrics: Dict[str, Any] = {
+        "avg_agent_latency_ms":    round(sum(_lat_vals) / len(_lat_vals)) if _lat_vals else 0,
+        "slowest_agent":           agents.get(_slowest[0], {}).get("name") if _slowest[0] else None,
+        "slowest_agent_ms":        _slowest[1] if _slowest[0] else 0,
+        "enabled_agent_count":     len(_statuses),
+        "healthy_count":           _healthy,
+        "warning_count":           _warning,
+        "error_count":             _errors,
+        "waiting_count":           _waiting,
+        "stale_count":             _stale,
+        "pipeline_efficiency_pct": round(_exec / _univ * 100, 1) if _univ > 0 else 0.0,
+    }
+
+    # ── Bottleneck detection (V2 — Section 8) ────────────────────────────────
+    bottleneck: Optional[Dict[str, Any]] = None
+    _worst_rate = 0.0
+    for _ak, _ad in agents.items():
+        _si = _i(_ad.get("stocks_in", 0))
+        _so = _i(_ad.get("stocks_out", 0))
+        if _si > 0:
+            _rate = (_si - _so) / _si
+            if _rate > _worst_rate and _rate > 0.5:
+                _worst_rate = _rate
+                bottleneck = {
+                    "agent":        _ad.get("name", _ak),
+                    "agent_id":     _ak,
+                    "rejected_pct": round(_rate * 100),
+                    "suggestion":   _get_bottleneck_suggestion(_ak),
+                }
+
+    # ── Operator summary (V2 — Section 11) ───────────────────────────────────
+    operator_summary = _operator_summary(pipeline, agents, bottleneck)
+
     # ── Persist fast-access cache so get_fast_platform_status() can serve
     # the platform bar + pipeline flow in < 1 s on the next page load.
     # ops_last_health_pct is always written — even if 0 — so the fast endpoint
@@ -994,11 +1140,16 @@ def get_ops_centre_snapshot() -> Dict[str, Any]:
         pass  # never block the main snapshot on cache persistence failure
 
     return {
-        "generated_at":   _now_iso(),
-        "advisory_only":  True,
-        "paper_only":     True,
-        "platform":       platform,
-        "pipeline":       pipeline,
-        "pipeline_nodes": pipeline_nodes,
-        "agents":         agents,
+        "generated_at":      _now_iso(),
+        "advisory_only":     True,
+        "paper_only":        True,
+        "platform":          platform,
+        "pipeline":          pipeline,
+        "pipeline_nodes":    pipeline_nodes,
+        "agents":            agents,
+        # V2 additions
+        "rejection_summary":   rejection_summary,
+        "performance_metrics": performance_metrics,
+        "bottleneck":          bottleneck,
+        "operator_summary":    operator_summary,
     }

@@ -25,6 +25,13 @@ import {
   XCircle, Zap, Clock, BarChart2, BookOpen, Network,
   FlaskConical, Radio, Swords, Gauge,
 } from "lucide-react";
+import {
+  AgentHealthSummary, RefreshDetailsTable, PipelineFunnelV2,
+  RejectionPanel, AgentScorecard, BottleneckCard, LivePerformanceCard,
+  DependencyChain, OperatorSummaryCard, AutoAlertsBar,
+  LiveEventLogV2, ExportPanel,
+  type OpsSnapshotV2, type RejectionEntry, type PerformanceMetrics, type Bottleneck,
+} from "@/components/ops-v2/OpsV2Sections";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -46,6 +53,9 @@ interface AgentState {
   errors: string[];
   warnings: string[];
   details: Record<string, unknown>;
+  // V2 additions
+  data_age_minutes: number | null;
+  is_stale: boolean;
 }
 
 interface PipelineNode {
@@ -87,6 +97,11 @@ interface OpsSnapshot {
   };
   pipeline_nodes: PipelineNode[];
   agents: Record<string, AgentState>;
+  // V2 additions
+  rejection_summary: RejectionEntry[];
+  performance_metrics: PerformanceMetrics;
+  bottleneck: Bottleneck | null;
+  operator_summary: string;
 }
 
 /** Fast response from /api/ops-centre/platform — < 1 s */
@@ -864,13 +879,30 @@ export default function AIOperationsCentrePage() {
 
       <div className="max-w-screen-2xl mx-auto px-4 py-4 space-y-4">
 
-        {/* 1. Platform Status — fast data, visible within ~1 s */}
+        {/* ── V2 §14: Auto Alerts — shown immediately when snapshot data is ready ── */}
+        <AutoAlertsBar data={snapshotData as unknown as OpsSnapshotV2} />
+
+        {/* ── V1: Platform Status — fast data, visible within ~1 s ── */}
         <PlatformStatusBar data={effectivePlatform as unknown as OpsSnapshot} loading={platformLoading && !effectivePlatform} />
 
-        {/* 2. Pipeline Flow — fast data for node states, visible within ~1 s */}
+        {/* ── V2 §11: Pipeline Explanation + §8: Bottleneck ── */}
+        {(snapshotData || snapshotLoading) && (
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <OperatorSummaryCard data={snapshotData as unknown as OpsSnapshotV2} loading={snapshotLoading} />
+            <BottleneckCard      data={snapshotData as unknown as OpsSnapshotV2} loading={snapshotLoading} />
+          </div>
+        )}
+
+        {/* ── V2 §1: Agent Health Summary ── */}
+        <AgentHealthSummary data={snapshotData as unknown as OpsSnapshotV2} loading={snapshotLoading} />
+
+        {/* ── V1: Pipeline Flow — fast data for node states, visible within ~1 s ── */}
         <PipelineFlow nodes={effectiveNodes} loading={platformLoading && !effectiveNodes} />
 
-        {/* 3. Agent Cards — loaded from the slower full snapshot */}
+        {/* ── V2 §10: Agent Dependency View ── */}
+        <DependencyChain data={snapshotData as unknown as OpsSnapshotV2} loading={snapshotLoading} />
+
+        {/* ── V1: Agent Cards — loaded from the slower full snapshot ── */}
         <div>
           <div className="flex items-center gap-2 mb-3">
             <Cpu className="w-4 h-4 text-teal-400" />
@@ -888,7 +920,6 @@ export default function AIOperationsCentrePage() {
               </Badge>
             )}
           </div>
-
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             {AGENT_ORDER.map(([key]) => (
               <AgentCard
@@ -900,15 +931,30 @@ export default function AIOperationsCentrePage() {
           </div>
         </div>
 
-        {/* 4. Pipeline Funnel + Event Log (side by side on wide screens) */}
+        {/* ── V2 §5+6: Rejection Summary + §7: Agent Scorecard ── */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          <PipelineFunnel pipeline={snapshotData?.pipeline} loading={snapshotLoading} />
-          <LiveEventLog />
+          <RejectionPanel  data={snapshotData as unknown as OpsSnapshotV2} loading={snapshotLoading} />
+          <AgentScorecard  data={snapshotData as unknown as OpsSnapshotV2} loading={snapshotLoading} />
         </div>
+
+        {/* ── V2 §2: Refresh Details + §9: Live Performance ── */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <RefreshDetailsTable  data={snapshotData as unknown as OpsSnapshotV2} loading={snapshotLoading} />
+          <LivePerformanceCard  data={snapshotData as unknown as OpsSnapshotV2} loading={snapshotLoading} />
+        </div>
+
+        {/* ── V2 §3: Pipeline Efficiency + V2 §13: Enhanced Timeline ── */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <PipelineFunnelV2 pipeline={snapshotData?.pipeline} loading={snapshotLoading} />
+          <LiveEventLogV2 />
+        </div>
+
+        {/* ── V2 §15: Export ── */}
+        <ExportPanel data={snapshotData as unknown as OpsSnapshotV2} />
 
         {/* Footer */}
         <p className="text-center text-xs text-slate-700 pb-4">
-          🧠 ApexQuant AI Operations Centre · Read-only · Advisory only · No live orders ·
+          🧠 ApexQuant AI Operations Centre V2 · Read-only · Advisory only · No live orders ·
           Platform status refreshes every 10s · Agent details every 30s
         </p>
       </div>
