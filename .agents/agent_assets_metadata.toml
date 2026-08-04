@@ -257,3 +257,10 @@ uri = "file://APEXQUANT_AI_PLATFORM_SUMMARY.md"
 type = "text"
 title = "ApexQuant AI — Platform Summary"
 description = "End-to-end summary of the autonomous paper trading platform build: architecture, all phases, safety invariants, and the scan abort fix."
+
+[[outputs]]
+id = "yodolJnkmotS_I2cx3lMF"
+uri = "file://AI_OPERATIONS_CENTRE_SUMMARY.md"
+type = "text"
+title = "AI Operations Centre — Final Summary"
+description = "Complete summary of all AI Operations Centre work: web dashboard, mobile Pipeline tab, fast platform endpoint, Risk Agent fix, file changes, and pending follow-up tasks."
