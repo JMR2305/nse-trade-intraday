@@ -2903,6 +2903,17 @@ router.post("/risk/config", async (req, res) => {
 // ── Phase 20 — auto-scan settings, scheduler health, history, paper engine ──
 // Paper trading / research only. No live orders anywhere.
 
+// GET /api/ops-centre/platform — fast platform status (< 1 s, reads only cached KV + market hours)
+// Returns platform health %, scan metadata, market state, and last-known pipeline node statuses.
+// Populated from the KV cache written by /ops-centre/snapshot after each full agent collection.
+router.get("/ops-centre/platform", async (_req, res) => {
+  try {
+    res.json(await runPython(["ops_centre_platform"]));
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/ops-centre/snapshot — AI Operations Centre full snapshot (all 12 agents, parallel)
 router.get("/ops-centre/snapshot", async (_req, res) => {
   try {

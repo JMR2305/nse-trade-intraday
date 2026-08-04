@@ -2824,6 +2824,8 @@ def main():
             from pipeline_stats import get_pipeline_stats as _f; result = _f()
         elif command == "ops_centre_snapshot":
             from ops_centre import get_ops_centre_snapshot as _f; result = _f()
+        elif command == "ops_centre_platform":
+            from ops_centre import get_fast_platform_status as _f; result = _f()
 
         # ── Phase 8.5: Operational Control Centre ─────────────────────────────
         elif command == "ops_summary":

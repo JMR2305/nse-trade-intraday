@@ -89,6 +89,15 @@ interface OpsSnapshot {
   agents: Record<string, AgentState>;
 }
 
+/** Fast response from /api/ops-centre/platform — < 1 s */
+interface FastPlatformStatus {
+  generated_at: string;
+  fast: boolean;
+  advisory_only: boolean;
+  platform: OpsSnapshot["platform"];
+  pipeline_nodes: PipelineNode[];
+}
+
 interface TimelineEvent {
   timestamp: string;
   ist_time?: string;
@@ -768,7 +777,29 @@ const AGENT_ORDER: Array<[string, string]> = [
 export default function AIOperationsCentrePage() {
   const [lastUpdated, setLastUpdated] = useState<number>(Date.now());
 
-  const { data, isLoading, isFetching, dataUpdatedAt, refetch } = useQuery<OpsSnapshot>({
+  // ── Fast query: platform bar + pipeline flow  (< 1 s, 10 s refresh) ────────
+  const {
+    data: platformData,
+    isLoading: platformLoading,
+    isFetching: platformFetching,
+    dataUpdatedAt: platformUpdatedAt,
+    refetch: refetchPlatform,
+  } = useQuery<FastPlatformStatus>({
+    queryKey: ["ops-centre", "platform"],
+    queryFn:  () => apiJson("/ops-centre/platform"),
+    refetchInterval: 10_000,
+    staleTime: 8_000,
+    retry: 1,
+  });
+
+  // ── Slow query: agent cards + pipeline funnel (~10-40 s, 30 s refresh) ─────
+  const {
+    data: snapshotData,
+    isLoading: snapshotLoading,
+    isFetching: snapshotFetching,
+    dataUpdatedAt: snapshotUpdatedAt,
+    refetch: refetchSnapshot,
+  } = useQuery<OpsSnapshot>({
     queryKey: ["ops-centre", "snapshot"],
     queryFn:  () => apiJson("/ops-centre/snapshot"),
     refetchInterval: 30_000,
@@ -776,11 +807,32 @@ export default function AIOperationsCentrePage() {
     retry: 1,
   });
 
+  // After a full snapshot lands, its platform section supersedes the fast one
+  // (it has the freshly-computed health_pct, not the cached value).
+  const effectivePlatform: FastPlatformStatus | undefined = snapshotData
+    ? {
+        generated_at:  snapshotData.generated_at,
+        fast:          false,
+        advisory_only: true,
+        platform:      snapshotData.platform,
+        pipeline_nodes: snapshotData.pipeline_nodes,
+      }
+    : platformData;
+
+  const effectiveNodes = snapshotData?.pipeline_nodes ?? platformData?.pipeline_nodes;
+
   useEffect(() => {
-    if (dataUpdatedAt) setLastUpdated(dataUpdatedAt);
-  }, [dataUpdatedAt]);
+    const ts = snapshotUpdatedAt || platformUpdatedAt;
+    if (ts) setLastUpdated(ts);
+  }, [snapshotUpdatedAt, platformUpdatedAt]);
 
   const secsAgo = Math.round((Date.now() - lastUpdated) / 1000);
+  const isFetching = platformFetching || snapshotFetching;
+
+  function refetchAll() {
+    void refetchPlatform();
+    void refetchSnapshot();
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200">
@@ -802,7 +854,7 @@ export default function AIOperationsCentrePage() {
             <span className="text-[10px] text-slate-500">
               Updated {secsAgo}s ago
             </span>
-            <button onClick={() => refetch()}
+            <button onClick={refetchAll}
               className="flex items-center gap-1 px-2 py-1 text-xs text-slate-400 hover:text-teal-300 border border-slate-700/50 hover:border-teal-700/50 rounded-lg transition-colors">
               <RefreshCcw className="w-3 h-3" /> Refresh
             </button>
@@ -812,13 +864,13 @@ export default function AIOperationsCentrePage() {
 
       <div className="max-w-screen-2xl mx-auto px-4 py-4 space-y-4">
 
-        {/* 1. Platform Status */}
-        <PlatformStatusBar data={data} loading={isLoading} />
+        {/* 1. Platform Status — fast data, visible within ~1 s */}
+        <PlatformStatusBar data={effectivePlatform as unknown as OpsSnapshot} loading={platformLoading && !effectivePlatform} />
 
-        {/* 2. Pipeline Flow */}
-        <PipelineFlow nodes={data?.pipeline_nodes} loading={isLoading} />
+        {/* 2. Pipeline Flow — fast data for node states, visible within ~1 s */}
+        <PipelineFlow nodes={effectiveNodes} loading={platformLoading && !effectiveNodes} />
 
-        {/* 3. Agent Cards — 2-col grid on desktop */}
+        {/* 3. Agent Cards — loaded from the slower full snapshot */}
         <div>
           <div className="flex items-center gap-2 mb-3">
             <Cpu className="w-4 h-4 text-teal-400" />
@@ -826,9 +878,13 @@ export default function AIOperationsCentrePage() {
               Agent Details
             </h2>
             <span className="text-[10px] text-slate-600">— click any card to expand</span>
-            {data && (
+            {snapshotData ? (
               <Badge className="ml-auto text-[10px] bg-slate-800 border-slate-700 text-slate-400">
                 {AGENT_ORDER.length} agents
+              </Badge>
+            ) : (
+              <Badge className="ml-auto text-[10px] bg-amber-950 border-amber-800 text-amber-400">
+                Loading agent details…
               </Badge>
             )}
           </div>
@@ -838,7 +894,7 @@ export default function AIOperationsCentrePage() {
               <AgentCard
                 key={key}
                 agentKey={key}
-                agent={isLoading ? undefined : data?.agents?.[key]}
+                agent={snapshotLoading ? undefined : snapshotData?.agents?.[key]}
               />
             ))}
           </div>
@@ -846,13 +902,14 @@ export default function AIOperationsCentrePage() {
 
         {/* 4. Pipeline Funnel + Event Log (side by side on wide screens) */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          <PipelineFunnel pipeline={data?.pipeline} loading={isLoading} />
+          <PipelineFunnel pipeline={snapshotData?.pipeline} loading={snapshotLoading} />
           <LiveEventLog />
         </div>
 
         {/* Footer */}
         <p className="text-center text-xs text-slate-700 pb-4">
-          🧠 ApexQuant AI Operations Centre · Read-only · Advisory only · No live orders · Auto-refresh every 30s
+          🧠 ApexQuant AI Operations Centre · Read-only · Advisory only · No live orders ·
+          Platform status refreshes every 10s · Agent details every 30s
         </p>
       </div>
     </div>

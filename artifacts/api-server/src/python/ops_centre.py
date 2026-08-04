@@ -768,6 +768,143 @@ def _preload_modules() -> None:
             pass
 
 
+def get_fast_platform_status() -> Dict[str, Any]:
+    """
+    Returns platform status + pipeline node states in < 1 s.
+
+    Data sources (all sub-second Postgres/cache reads):
+      - scan_state_store.load_latest_meta()   → scan_id, snapshot_ts, status
+      - market_hours.market_status()          → market state (cached)
+      - phase20_store KV:
+          ops_last_health_pct   → last computed health % from a full snapshot
+          ops_last_pipeline_nodes → last computed pipeline node statuses
+
+    health_pct and pipeline_nodes are populated from the persisted KV values
+    written by get_ops_centre_snapshot() after every full agent collection.
+    On first call before any full snapshot has run, health_pct defaults to
+    a rough estimate (100% if scan data is fresh, else 0), and pipeline_nodes
+    default to UNKNOWN.
+    """
+    import json as _json
+
+    # ── Scan + market metadata (always fresh) ────────────────────────────────
+    from market_hours import market_status
+    mstat = market_status()
+    mstate = str(mstat.get("state") or mstat.get("market_state") or "UNKNOWN").upper()
+
+    from scan_state_store import load_latest_meta
+    meta = load_latest_meta() or {}
+    scan_id   = str(meta.get("scan_id") or "—")
+    snap_ts   = str(meta.get("snapshot_ts") or "—")
+    _, snap_time = _ist(meta.get("snapshot_ts"))
+
+    scan_count = 0
+    interval_min = 5
+    try:
+        from phase20_store import kv_get, get_settings
+        scan_count = int(kv_get("scan_run_count", 0) or 0)
+        s = get_settings()
+        interval_min = int(s.get("scan_interval_minutes", 5))
+    except Exception:
+        pass
+
+    next_refresh_est = ""
+    try:
+        if meta.get("snapshot_ts"):
+            last_dt = datetime.fromisoformat(
+                str(meta["snapshot_ts"]).replace("Z", "+00:00"))
+            nxt = last_dt + timedelta(minutes=interval_min)
+            _, next_refresh_est = _ist(nxt.isoformat())
+    except Exception:
+        pass
+
+    # ── Cached agent health from last full snapshot ──────────────────────────
+    # Use None as the sentinel for "no cached value" so that a legitimately
+    # computed 0% health is preserved exactly and never overridden by the
+    # scan-age heuristic below.
+    health_pct_cached: Optional[int] = None
+    pipeline_nodes: List[Dict[str, Any]] = []
+    cache_ts: Optional[str] = None
+    try:
+        from phase20_store import kv_get as _kv
+        cached_health = _kv("ops_last_health_pct")
+        if cached_health is not None:
+            health_pct_cached = int(cached_health)
+        cached_nodes = _kv("ops_last_pipeline_nodes")
+        if cached_nodes:
+            pipeline_nodes = _json.loads(str(cached_nodes))
+        cached_ts = _kv("ops_last_snapshot_ts")
+        if cached_ts:
+            cache_ts = str(cached_ts)
+    except Exception:
+        pass
+
+    # Default pipeline nodes when no full snapshot has run yet
+    if not pipeline_nodes:
+        _node_defs = [
+            ("supervisor",          "Supervisor"),
+            ("market_data",         "Market Data"),
+            ("research",            "Research"),
+            ("market_intelligence", "Market Intelligence"),
+            ("monitoring",          "Monitoring"),
+            ("strategy",            "Strategy"),
+            ("risk",                "Risk"),
+            ("ai_decision",         "AI Decision"),
+            ("execution",           "Execution"),
+            ("learning",            "Learning"),
+            ("knowledge",           "Knowledge"),
+            ("operations",          "Operations"),
+        ]
+        pipeline_nodes = [
+            {"id": k, "label": l, "agent_key": k,
+             "status": "UNKNOWN", "health_pct": 0, "stocks_out": 0}
+            for k, l in _node_defs
+        ]
+
+    # Derive health_pct:
+    # - If a real cached value exists (including 0), use it exactly.
+    # - Only apply the scan-age heuristic when no cached value is present at
+    #   all (i.e. no full snapshot has run since the server started).
+    if health_pct_cached is not None:
+        health_pct: int = health_pct_cached
+    elif meta.get("snapshot_ts"):
+        # Provisional estimate: a recent scan suggests the system was healthy
+        # when it last ran.  Operators see this only until the first full
+        # snapshot completes and writes a real cached value.
+        try:
+            last_dt = datetime.fromisoformat(
+                str(meta["snapshot_ts"]).replace("Z", "+00:00"))
+            age_min = (datetime.now(timezone.utc) - last_dt).total_seconds() / 60
+            health_pct = 95 if age_min < interval_min * 2 else 50
+        except Exception:
+            health_pct = 0
+    else:
+        health_pct = 0
+
+    scan_status = str(meta.get("status") or "COMPLETE")
+
+    return {
+        "generated_at":      _now_iso(),
+        "fast":              True,
+        "advisory_only":     True,
+        "cache_ts":          cache_ts,       # ISO timestamp of the full snapshot that set the cache
+        "platform": {
+            "health_pct":        health_pct,
+            "status":            "OPERATIONAL",
+            "scan_id":           scan_id[:16],
+            "scan_number":       scan_count,
+            "scan_status":       scan_status,
+            "market_state":      mstate,
+            "trading_session":   "Intraday NSE" if mstate == "OPEN" else f"Market {mstate.title()}",
+            "current_time_ist":  _ist(_now_iso())[1],
+            "last_refresh_ist":  snap_time,
+            "next_refresh_est":  next_refresh_est,
+            "scan_interval_min": interval_min,
+        },
+        "pipeline_nodes":    pipeline_nodes,
+    }
+
+
 def get_ops_centre_snapshot() -> Dict[str, Any]:
     """
     Collect all 12 agent snapshots sequentially (avoids Python import-lock
@@ -842,6 +979,19 @@ def get_ops_centre_snapshot() -> Dict[str, Any]:
         node["status"] = a.get("status", "UNKNOWN")
         node["health_pct"] = a.get("health_pct", 0)
         node["stocks_out"] = a.get("stocks_out", 0)
+
+    # ── Persist fast-access cache so get_fast_platform_status() can serve
+    # the platform bar + pipeline flow in < 1 s on the next page load.
+    # ops_last_health_pct is always written — even if 0 — so the fast endpoint
+    # can distinguish "cached 0%" from "no cache yet" (None sentinel).
+    try:
+        import json as _json
+        from phase20_store import kv_set as _kv_set
+        _kv_set("ops_last_health_pct", str(platform["health_pct"]))
+        _kv_set("ops_last_pipeline_nodes", _json.dumps(pipeline_nodes))
+        _kv_set("ops_last_snapshot_ts", _now_iso())
+    except Exception:
+        pass  # never block the main snapshot on cache persistence failure
 
     return {
         "generated_at":   _now_iso(),
