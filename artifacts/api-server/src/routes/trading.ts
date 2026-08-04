@@ -2906,7 +2906,7 @@ router.post("/risk/config", async (req, res) => {
 // GET /api/ops-centre/snapshot — AI Operations Centre full snapshot (all 12 agents, parallel)
 router.get("/ops-centre/snapshot", async (_req, res) => {
   try {
-    res.json(await runPython(["ops_centre_snapshot"], 30_000));
+    res.json(await runPython(["ops_centre_snapshot"]));
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
   }

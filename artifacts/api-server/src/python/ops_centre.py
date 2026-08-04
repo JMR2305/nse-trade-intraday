@@ -367,67 +367,67 @@ def _collect_strategy() -> Dict[str, Any]:
 
 
 def _collect_risk() -> Dict[str, Any]:
+    """
+    Risk Agent card.  get_risk_snapshot() now guarantees available=True once
+    the Phase-20 pipeline has evaluated at least one candidate (three-level
+    fallback: SnapshotBus → execute_task() → phase20 evaluation data).
+    """
     raw = _safe(lambda: _get_fn("risk_agent.shared_services", "get_risk_snapshot")())
-    # risk_agent may not be available; fall back gracefully
+
     if raw is None or not raw.get("available"):
-        # Derive from phase20 gates as a proxy
-        try:
-            from phase20_gates import get_last_evaluation
-            ev = get_last_evaluation() or {}
-            total   = len(ev.get("candidates") or [])
-            passed  = _i(ev.get("eligible_count") or 0)
-            blocked = _i(ev.get("blocked_count") or 0)
-            blocked_details = ev.get("candidates") or []
-            reasons = set()
-            for c in blocked_details:
-                if not c.get("eligible"):
-                    for fg in (c.get("failed_gates") or [])[:3]:
-                        reasons.add(fg.replace("_", " ").title())
-            reason_str = "; ".join(list(reasons)[:4]) if reasons else ""
+        # Nothing available yet (no scan has run at all)
+        return _agent_base(
+            raw or {"available": False, "error": "No scan data yet"},
+            "Risk Agent", "risk", "RISK_AGENT_ENABLED",
+            stocks_in=0, stocks_out=0,
+            current_activity="Waiting for first pipeline scan to complete",
+            rejection_reason="No entry evaluation available yet.",
+        )
 
-            # Build a synthetic "available" raw so _agent_base doesn't mark as timed-out
-            syn_raw = {"available": True, "generated_at": _now_iso()}
-            base = _agent_base(
-                syn_raw, "Risk Agent", "risk", "RISK_AGENT_ENABLED",
-                stocks_in=total, stocks_out=passed,
-                current_activity=f"Evaluated {total} candidates · {passed} approved",
-                rejection_reason=reason_str or (
-                    f"{blocked} blocked by risk/sizing gates" if blocked else ""),
-                details={
-                    "candidates_evaluated": total,
-                    "approved":             passed,
-                    "rejected":             blocked,
-                    "rejection_reasons":    list(reasons)[:5],
-                },
-            )
-            if raw and not raw.get("available"):
-                base["status"] = "WAITING"
-                base["health_pct"] = 70
-            else:
-                base["status"] = "ACTIVE" if total > 0 else "WAITING"
-                base["health_pct"] = 90
-            return base
-        except Exception:
-            pass
+    # ── Extract normalised fields from the snapshot ───────────────────────────
+    total       = _i(raw.get("candidates_evaluated", raw.get("stocks_received", 0)))
+    approved    = _i(raw.get("approved", raw.get("stocks_approved", total)))
+    blocked     = _i(raw.get("rejected", raw.get("blocked_count", max(0, total - approved))))
+    rej_reasons = _lst(raw.get("rejection_reasons"))
+    reason      = "; ".join(rej_reasons[:3]) if rej_reasons else (
+        f"{blocked} candidate(s) blocked by risk/sizing gates" if blocked else ""
+    )
 
-    received = _i((raw or {}).get("stocks_received",
-                (raw or {}).get("candidates_evaluated", 0)))
-    approved = _i((raw or {}).get("stocks_approved",
-                (raw or {}).get("approved", received)))
-    rej_reasons = _lst((raw or {}).get("rejection_reasons"))
-    reason = "; ".join(rej_reasons[:3]) if rej_reasons else ""
+    risk_score   = _f(raw.get("risk_score", 0))
+    risk_level   = str(raw.get("risk_level", "—"))
+    reward_risk  = _f(raw.get("reward_risk", 0))
+    cap_used     = _f(raw.get("capital_used", 0))
+    cap_avail    = _f(raw.get("capital_available", 0))
+    cap_used_pct = _f(raw.get("capital_used_pct", 0))
+    open_pos     = _i(raw.get("open_positions", 0))
+    global_pass  = bool(raw.get("global_pass", True))
+    source       = str(raw.get("source", "agent"))
+
+    activity = (
+        f"Evaluated {total} candidates · {approved} approved · "
+        f"Risk {risk_level} ({risk_score:.0f}/100)"
+        if total > 0 else "Waiting for pipeline candidates"
+    )
 
     return _agent_base(
         raw, "Risk Agent", "risk", "RISK_AGENT_ENABLED",
-        stocks_in=received, stocks_out=approved,
-        current_activity=f"Evaluated {received} stocks — {approved} approved",
+        stocks_in=total, stocks_out=approved,
+        current_activity=activity,
         rejection_reason=reason,
         details={
-            "capital_used":    str((raw or {}).get("capital_used", "—")),
-            "sector_exposure": (raw or {}).get("sector_exposure"),
-            "reward_risk":     float((raw or {}).get("reward_risk", 0)),
-            "risk_score":      float((raw or {}).get("risk_score", 0)),
-            "rejection_reasons": rej_reasons[:5],
+            "candidates_evaluated": total,
+            "approved":             approved,
+            "rejected":             blocked,
+            "risk_level":           risk_level,
+            "risk_score":           risk_score,
+            "reward_risk":          f"{reward_risk:.2f}×" if reward_risk else "—",
+            "capital_used":         f"₹{cap_used:,.0f}" if cap_used else "—",
+            "capital_used_pct":     f"{cap_used_pct:.1f}%" if cap_used_pct else "—",
+            "capital_available":    f"₹{cap_avail:,.0f}" if cap_avail else "—",
+            "open_positions":       open_pos,
+            "global_gates_pass":    "✓ Pass" if global_pass else "✗ Fail",
+            "data_source":          source,
+            "rejection_reasons":    rej_reasons[:5],
         },
     )
 
