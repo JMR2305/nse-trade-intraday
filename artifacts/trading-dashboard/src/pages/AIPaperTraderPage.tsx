@@ -19,6 +19,7 @@ import {
   BarChart2, Wallet, Layers, Trophy, Info,
   CalendarDays, RotateCcw, PieChart,
   Power, CheckCircle2, XCircle, AlertTriangle, Bot, Cpu, Shield, RefreshCcw,
+  GitBranch, ArrowDown, ChevronDown,
 } from "lucide-react";
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
@@ -550,6 +551,296 @@ function S0AutonomousSession() {
           when available cash falls below ₹{((sess?.topup_threshold ?? 10_000) / 1_000).toFixed(0)}K.
           Every top-up is logged in the Capital tab.
         </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SPipeline — Execution Pipeline Funnel
+// ══════════════════════════════════════════════════════════════════════════════
+
+interface PipelineFunnelStage {
+  stage: string;
+  label: string;
+  count: number;
+  detail: string;
+  passed: boolean;
+  blocker?: boolean;
+  gates?: { gate: string; passed: boolean; reason: string }[];
+}
+
+interface PipelineStats {
+  generated_at?: string;
+  scan_id?: string;
+  scan_available?: boolean;
+  eval_available?: boolean;
+  funnel?: PipelineFunnelStage[];
+  first_blocker?: string | null;
+  top_buy_candidates?: {
+    symbol: string; action: string;
+    opportunity_score: number; confidence: number;
+    technical_score: number; rr_ratio: number;
+    regime: string; data_quality: string;
+  }[];
+  candidate_gate_details?: {
+    symbol: string; eligible: boolean; failed_gates: string[];
+    opportunity_score: number; confidence: number;
+  }[];
+  settings?: {
+    min_confidence?: number; min_opportunity_score?: number;
+    min_trade_quality?: number; min_risk_reward?: number;
+    max_trades_per_day?: number; auto_paper_entries?: boolean;
+  };
+  summary?: {
+    stocks_scanned: number; live_data_count: number;
+    passed_intelligence: number; buy_signals: number;
+    global_pass: boolean; candidates_evaluated: number;
+    candidates_eligible: number; paper_orders_today: number;
+    open_positions: number;
+  };
+  stage_errors?: string[];
+}
+
+function SPipelineStats() {
+  const [expanded, setExpanded] = useState(false);
+  const [showGates, setShowGates] = useState<string | null>(null);
+
+  const { data, isLoading, refetch, dataUpdatedAt } = useQuery<PipelineStats>({
+    queryKey: ["apt", "pipeline"],
+    queryFn:  () => apiJson("/phase20/pipeline"),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+    retry: 1,
+  });
+
+  const summary   = data?.summary;
+  const funnel    = data?.funnel ?? [];
+  const blocker   = data?.first_blocker;
+  const hasBlock  = !!blocker;
+
+  // Colour each stage
+  function stageCls(s: PipelineFunnelStage) {
+    if (s.blocker) return "bg-rose-950/40 border-rose-700/50";
+    if (!s.passed && s.stage !== "paper_orders_today") return "bg-amber-950/30 border-amber-700/40";
+    if (s.passed)  return "bg-emerald-950/30 border-emerald-700/40";
+    return "bg-slate-900/50 border-slate-800/40";
+  }
+  function stageIcon(s: PipelineFunnelStage) {
+    if (s.blocker)  return <XCircle className="w-3.5 h-3.5 text-rose-400 flex-shrink-0" />;
+    if (!s.passed && s.stage !== "paper_orders_today") return <AlertTriangle className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />;
+    if (s.passed)   return <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />;
+    return <Clock className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />;
+  }
+
+  const overall = hasBlock ? "bg-rose-950/20 border-rose-700/30" : "bg-emerald-950/20 border-emerald-700/30";
+
+  return (
+    <div className={`border rounded-xl p-4 ${overall}`}>
+      {/* Header */}
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <GitBranch className="w-4 h-4 text-teal-400" />
+          <h2 className="font-semibold text-xs tracking-widest uppercase text-slate-400">
+            Execution Pipeline
+          </h2>
+          {isLoading
+            ? <Badge className="text-xs bg-slate-900 border-slate-700 text-slate-400">loading…</Badge>
+            : hasBlock
+              ? <Badge className="text-xs bg-rose-950 border-rose-700/50 text-rose-300">Blocked</Badge>
+              : <Badge className="text-xs bg-emerald-950 border-emerald-700/50 text-emerald-300">Flowing</Badge>
+          }
+        </div>
+        <div className="flex items-center gap-3">
+          {summary && (
+            <span className="text-xs text-slate-500 font-mono">
+              {summary.paper_orders_today} order{summary.paper_orders_today !== 1 ? "s" : ""} today ·{" "}
+              {summary.open_positions} open
+            </span>
+          )}
+          <button onClick={() => refetch()}
+            className="text-xs text-slate-500 hover:text-teal-400 flex items-center gap-1 transition-colors">
+            <RefreshCcw className="w-3 h-3" />
+          </button>
+          <button onClick={() => setExpanded(e => !e)}
+            className="text-xs text-slate-500 hover:text-teal-400 transition-colors flex items-center gap-1">
+            <ChevronDown className={`w-3 h-3 transition-transform ${expanded ? "rotate-180" : ""}`} />
+            {expanded ? "Collapse" : "Expand"}
+          </button>
+        </div>
+      </div>
+
+      {/* Funnel — compact horizontal strip */}
+      {isLoading ? (
+        <div className="flex gap-2">
+          {[...Array(7)].map((_, i) => (
+            <Skeleton key={i} className="h-16 flex-1 rounded-lg" />
+          ))}
+        </div>
+      ) : (
+        <div className="flex items-stretch gap-1 overflow-x-auto pb-1">
+          {funnel.map((stage, idx) => (
+            <div key={stage.stage} className="flex items-center">
+              {/* Stage card */}
+              <div
+                className={`flex flex-col min-w-[110px] rounded-lg border p-2 cursor-pointer
+                  ${stageCls(stage)}
+                  ${showGates === stage.stage ? "ring-1 ring-teal-500/50" : ""}
+                `}
+                onClick={() => setShowGates(prev => prev === stage.stage ? null : stage.stage)}
+              >
+                <div className="flex items-center gap-1 mb-1">
+                  {stageIcon(stage)}
+                  <span className="text-[10px] text-slate-400 leading-tight">{stage.label}</span>
+                </div>
+                <span className={`text-xl font-bold font-mono leading-none mb-0.5 ${
+                  stage.blocker ? "text-rose-300"
+                    : !stage.passed && stage.stage !== "paper_orders_today" ? "text-amber-300"
+                    : stage.passed ? "text-emerald-300"
+                    : "text-slate-400"
+                }`}>
+                  {stage.count}
+                </span>
+                <span className="text-[9px] text-slate-500 leading-tight line-clamp-2">{stage.detail}</span>
+              </div>
+              {/* Connector arrow */}
+              {idx < funnel.length - 1 && (
+                <ArrowDown className="w-3 h-3 text-slate-600 flex-shrink-0 mx-0.5 rotate-[-90deg]" />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Expanded gate detail */}
+      {expanded && !isLoading && (
+        <div className="mt-4 space-y-3">
+          {/* Blocker explanation */}
+          {blocker && (
+            <div className="rounded-lg bg-rose-950/30 border border-rose-700/40 px-3 py-2">
+              <p className="text-xs text-rose-300 font-medium flex items-center gap-1.5">
+                <XCircle className="w-3.5 h-3.5" />
+                First blockage: <code className="font-mono">{blocker}</code>
+              </p>
+              {funnel.find(f => f.stage === blocker)?.detail && (
+                <p className="text-xs text-rose-400/80 mt-1">
+                  {funnel.find(f => f.stage === blocker)?.detail}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Global gates */}
+          {(() => {
+            const gStage = funnel.find(s => s.stage === "global_gates");
+            if (!gStage?.gates?.length) return null;
+            return (
+              <div className="rounded-lg bg-slate-900/40 border border-slate-800/40 p-3">
+                <p className="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1.5">
+                  <Shield className="w-3 h-3" /> Global Gates
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                  {gStage.gates.map(g => (
+                    <div key={g.gate} className="flex items-start gap-1.5">
+                      {g.passed
+                        ? <CheckCircle2 className="w-3 h-3 text-emerald-400 flex-shrink-0 mt-px" />
+                        : <XCircle className="w-3 h-3 text-rose-400 flex-shrink-0 mt-px" />}
+                      <div>
+                        <span className="text-[10px] font-mono text-slate-300">{g.gate}</span>
+                        <p className="text-[9px] text-slate-500 leading-snug">{g.reason}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Top BUY candidates */}
+          {(data?.top_buy_candidates?.length ?? 0) > 0 && (
+            <div className="rounded-lg bg-slate-900/40 border border-slate-800/40 p-3">
+              <p className="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1.5">
+                <TrendingUp className="w-3 h-3 text-teal-400" /> BUY Candidates This Scan
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-[10px]">
+                  <thead>
+                    <tr className="text-slate-500">
+                      <th className="text-left pb-1 pr-2">Symbol</th>
+                      <th className="text-left pb-1 pr-2">Action</th>
+                      <th className="text-right pb-1 pr-2">Opp Score</th>
+                      <th className="text-right pb-1 pr-2">Confidence</th>
+                      <th className="text-right pb-1 pr-2">Quality</th>
+                      <th className="text-right pb-1 pr-2">R:R</th>
+                      <th className="text-left pb-1">Regime</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(data?.top_buy_candidates ?? []).map(c => (
+                      <tr key={c.symbol} className="border-t border-slate-800/30">
+                        <td className="py-1 pr-2 font-mono text-teal-300">{c.symbol}</td>
+                        <td className="py-1 pr-2">
+                          <span className={`px-1 rounded text-[9px] ${c.action === "STRONG BUY" ? "bg-emerald-900/60 text-emerald-300" : "bg-teal-900/60 text-teal-300"}`}>
+                            {c.action}
+                          </span>
+                        </td>
+                        <td className="py-1 pr-2 text-right font-mono text-emerald-300">{c.opportunity_score.toFixed(1)}</td>
+                        <td className="py-1 pr-2 text-right font-mono text-blue-300">{c.confidence.toFixed(1)}%</td>
+                        <td className="py-1 pr-2 text-right font-mono text-slate-300">{c.technical_score.toFixed(1)}</td>
+                        <td className="py-1 pr-2 text-right font-mono text-amber-300">{c.rr_ratio.toFixed(1)}×</td>
+                        <td className="py-1 text-slate-400 text-[9px]">{c.regime}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Per-candidate gate failures */}
+          {(data?.candidate_gate_details?.filter(c => !c.eligible).length ?? 0) > 0 && (
+            <div className="rounded-lg bg-slate-900/40 border border-slate-800/40 p-3">
+              <p className="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1.5">
+                <XCircle className="w-3 h-3 text-rose-400" /> Blocked Candidates
+              </p>
+              <div className="space-y-1">
+                {(data?.candidate_gate_details ?? [])
+                  .filter(c => !c.eligible)
+                  .map(c => (
+                    <div key={c.symbol} className="flex items-start gap-2 text-[10px]">
+                      <span className="font-mono text-rose-300 w-16 flex-shrink-0">{c.symbol}</span>
+                      <span className="text-slate-500">
+                        {c.failed_gates.map(g => (
+                          <span key={g} className="inline-block bg-rose-950/50 border border-rose-800/40 text-rose-400 rounded px-1 mr-1 mb-0.5">{g}</span>
+                        ))}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {/* Active settings thresholds */}
+          {data?.settings && (
+            <div className="rounded-lg bg-slate-900/30 border border-slate-800/30 px-3 py-2">
+              <p className="text-[10px] text-slate-500 font-semibold mb-1">Active Thresholds</p>
+              <div className="flex flex-wrap gap-3 text-[10px] text-slate-400 font-mono">
+                <span>min_confidence: <strong className="text-blue-300">{data.settings.min_confidence}</strong></span>
+                <span>min_opp_score: <strong className="text-emerald-300">{data.settings.min_opportunity_score}</strong></span>
+                <span>min_quality: <strong className="text-amber-300">{data.settings.min_trade_quality}</strong></span>
+                <span>min_rr: <strong className="text-teal-300">{data.settings.min_risk_reward}×</strong></span>
+                <span>max_per_day: <strong className="text-violet-300">{data.settings.max_trades_per_day}</strong></span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Stage errors (non-blocking, shown as footer note) */}
+      {(data?.stage_errors?.length ?? 0) > 0 && (
+        <p className="mt-2 text-[10px] text-slate-600">
+          ⚠ Pipeline diagnostics partial: {data!.stage_errors!.join("; ").slice(0, 120)}
+        </p>
       )}
     </div>
   );
@@ -1822,6 +2113,9 @@ export default function AIPaperTraderPage() {
 
         {/* S0 — Autonomous Session Status */}
         <S0AutonomousSession />
+
+        {/* Pipeline Funnel — shows stocks→signals→gates→orders at a glance */}
+        <SPipelineStats />
 
         {/* S1 */}
         <S1MarketStatus />

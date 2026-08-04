@@ -1,19 +1,5 @@
 [
  {
-  "ts": "2026-07-26T17:48:32.201863+00:00",
-  "input": "BAJFINANCE",
-  "context": "scan",
-  "accepted": true,
-  "reason": "ok"
- },
- {
-  "ts": "2026-07-26T17:48:32.206459+00:00",
-  "input": "BAJAJFINSV",
-  "context": "scan",
-  "accepted": true,
-  "reason": "ok"
- },
- {
   "ts": "2026-07-26T17:48:32.211945+00:00",
   "input": "HDFCLIFE",
   "context": "scan",
@@ -3496,6 +3482,20 @@
   "ts": "2026-08-03T03:57:15.332641+00:00",
   "input": "BHARTIARTL",
   "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-08-04T08:27:42.982295+00:00",
+  "input": "TRENT",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-08-04T08:27:43.683860+00:00",
+  "input": "DIVISLAB",
+  "context": "portfolio",
   "accepted": true,
   "reason": "ok"
  }

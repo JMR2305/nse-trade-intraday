@@ -30,6 +30,7 @@
 - [Push notification alerts](push-notifications.md) — advisory-only Expo push after scans; dedupe by signals_cache updated_at per token; lazy CREATE TABLE bootstrap; registration always user-initiated.
 - [Portfolio Postgres store](portfolio-postgres-store.md) — paper_portfolio + paper_trades + signals_cache tables; drizzle-kit push needs TTY so use executeSql() or rely on Python auto-create.
 - [Phase 22 session & bulk fetch](phase22-session-and-bulk-fetch.md) — fail-safe token expiry (malformed = expired); bulk yf.download fixed 900s scans; token-store tests must stub DB layer or they pollute the dev DB.
+- [Pipeline scoring & gate calibration](pipeline-scoring-gates.md) — 3 blockers that silenced all paper BUY orders: reliability ÷8/10 (→÷4/5), provider_zerodha gate, settings thresholds too high.
 - [Stale composite dist](stale-composite-dist.md) — phantom missing-export/implicit-any typecheck errors mean stale lib dist; run `tsc -b lib/<pkg>` before editing pages.
 - [Email alert delivery](email-alerts.md) — critical kinds emailed from the add_notification hook; env-resolved transport (Resend→SMTP→logged skip); opt-in settings excluded from config hash.
 - [RC-8B merge](rc8b-merge.md) — vocabulary break from RC-8A; Pydantic v2 `Literal` pattern for frozen limit configs; ExecutionService wiring; pre-existing test_kill_switch failure unrelated to RC-8B.

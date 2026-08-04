@@ -168,6 +168,11 @@ def _strategy_perf_score(m: dict) -> float:
     stock, using the same backtest metrics computed for the Optimizer/Lab.
     Rewards win rate, profit factor, net return, and Sharpe — scaled down
     for strategies with very few trades (low reliability).
+
+    Reliability denominator is 4 trades (not 8) because NIFTY 50 trend-
+    following strategies legitimately fire only 2–4 times over a 6-month
+    lookback window.  Using 8 would permanently cap scores below the BUY
+    threshold for any low-frequency intraday/swing strategy.
     """
     trades = m.get("total_trades", 0)
     if trades == 0:
@@ -185,15 +190,19 @@ def _strategy_perf_score(m: dict) -> float:
         ((sharpe + 3.0) / 6.0)    * 15.0
     )
 
-    # Reliability discount: strategies with <8 trades over 6mo are less trustworthy
-    reliability = min(1.0, trades / 8.0)
+    # Reliability discount: strategies with <4 trades over 6mo are less
+    # trustworthy.  Full reliability (1.0) is reached at 4+ trades, which
+    # matches typical NIFTY trend-following signal frequency.
+    reliability = min(1.0, trades / 4.0)
     score = raw * (0.35 + 0.65 * reliability)
     return round(max(0.0, min(100.0, score)), 1)
 
 
 def _confidence_score(perf_score: float, trades: int, live_signal: bool) -> float:
     """0–100 confidence in the current recommendation."""
-    reliability = min(1.0, trades / 10.0)
+    # Denominator 5 (was 10): full confidence achieved at 5+ trades, matching
+    # realistic low-frequency strategy signal counts over a 6-month window.
+    reliability = min(1.0, trades / 5.0)
     base = perf_score * 0.75 + reliability * 25.0
     if live_signal:
         base = min(100.0, base + 8.0)

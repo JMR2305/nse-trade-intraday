@@ -95,14 +95,49 @@ def evaluate_entries(candidate_symbols: Optional[List[str]] = None) -> Dict[str,
         and "mock" not in label
     )
     provider_is_zerodha = kite_connected and label_is_zerodha
+    # ── Provider quality gates ──────────────────────────────────────────────
+    # For LIVE orders, Kite/Zerodha is mandatory.
+    # For PAPER-ONLY trading, any provider that delivers LIVE-quality data
+    # is acceptable.  Yahoo Finance delivers intraday LIVE quotes; the
+    # "Zerodha login required" label is informational (it means Kite is not
+    # configured), NOT an indicator of stale or degraded data.
+    #
+    # Gate passes when EITHER:
+    #   a) Zerodha is connected (best), OR
+    #   b) The scan has ≥ 1 LIVE-quality symbol (Yahoo live is acceptable
+    #      for paper trading)
+    live_symbol_count = 0
+    try:
+        from scan_state_store import load_latest_snapshot as _lsnap
+        _full = _lsnap() or {}
+        if _full.get("scan_id") == meta.get("scan_id"):
+            _dqb = (_full.get("summary") or {}).get("data_quality_breakdown") or {}
+            live_symbol_count = int(_dqb.get("LIVE", 0)) + int(_dqb.get("NEAR_LIVE", 0))
+    except Exception:
+        pass
+    live_data_ok = live_symbol_count > 0
+    provider_ok = provider_is_zerodha or live_data_ok
+
     global_gates.append(_gate(
-        "provider_zerodha", provider_is_zerodha,
-        f"kite_connected={kite_connected}, provider='{meta.get('provider')}'"))
+        "provider_zerodha",
+        provider_ok,
+        f"kite_connected={kite_connected}, live_symbols={live_symbol_count}, "
+        f"provider='{meta.get('provider')}'"))
+
+    # Truly degraded providers: mock / explicit fallback / completely unconfigured.
+    # Yahoo Finance with "login required" is NOT degraded — it is delivering
+    # live market data; the annotation only means Kite is absent.
+    _raw_label = meta.get("provider", "") or ""
+    _is_degraded = (
+        label == ""
+        or "mock" in label
+        or "fallback" in label
+        or ("not configured" in label and "login required" not in label)
+    )
     global_gates.append(_gate(
         "no_fallback_data",
-        label != "" and "mock" not in label and "fallback" not in label
-        and "login required" not in label and "not configured" not in label,
-        f"Provider '{meta.get('provider')}' must not be fallback/mock/degraded"))
+        not _is_degraded,
+        f"Provider '{_raw_label}' {'is degraded/mock/fallback' if _is_degraded else 'delivers live data'}"))
     global_gates.append(_gate(
         "market_open", mstate == "OPEN", f"Market state is {mstate or 'UNKNOWN'}"))
     # Circuit breaker: entries pause on losing streaks / daily loss / negative

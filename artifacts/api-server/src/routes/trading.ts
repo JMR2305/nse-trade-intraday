@@ -2903,6 +2903,15 @@ router.post("/risk/config", async (req, res) => {
 // ── Phase 20 — auto-scan settings, scheduler health, history, paper engine ──
 // Paper trading / research only. No live orders anywhere.
 
+// GET /api/phase20/pipeline — execution pipeline funnel diagnostics
+router.get("/phase20/pipeline", async (_req, res) => {
+  try {
+    res.json(await runPython(["pipeline_stats"]));
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/phase20/settings — durable auto-scan + paper-trade settings
 router.get("/phase20/settings", async (_req, res) => {
   try {
