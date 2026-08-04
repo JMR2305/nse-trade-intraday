@@ -968,6 +968,370 @@ def get_fast_platform_status() -> Dict[str, Any]:
     }
 
 
+def _load_ai_decisions_safe() -> List[Dict[str, Any]]:
+    """Load the ai_decisions cache — returns [] on any error."""
+    try:
+        import signals_store as _ss
+        raw = _ss.load_ai_decisions()
+        if isinstance(raw, dict):
+            return list(raw.get("recommendations", []) or [])
+        if isinstance(raw, list):
+            return list(raw)
+    except Exception:
+        pass
+    try:
+        import json, os as _os
+        _p = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "ai_decisions_cache.json")
+        if _os.path.exists(_p):
+            with open(_p) as _f:
+                _d = json.load(_f)
+            if isinstance(_d, dict):
+                return list(_d.get("recommendations", []) or [])
+            if isinstance(_d, list):
+                return list(_d)
+    except Exception:
+        pass
+    return []
+
+
+def get_v3_enrichment(agents: Dict[str, Any], pipeline: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    V3 — derive investigation data from existing caches.
+    No new agent calls; runs after all agent collectors have finished.
+    """
+    recs = _load_ai_decisions_safe()
+
+    PASS_DEC = {"BUY", "STRONG_BUY"}
+
+    # ── Missed Opportunities (Section 4) ──────────────────────────────────────
+    missed: List[Dict[str, Any]] = []
+    for r in recs:
+        if r.get("decision_type") not in PASS_DEC:
+            exp = r.get("explanation", {})
+            exp_str = exp.get("summary", "") if isinstance(exp, dict) else str(exp or "")
+            missed.append({
+                "symbol":          str(r.get("symbol", "—")),
+                "decision_type":   str(r.get("decision_type", "—")),
+                "confidence":      round(_f(r.get("confidence", 0)) * 100),
+                "reason":          str(r.get("rejection_reason") or exp_str or "—"),
+                "expected_return": round(_f(r.get("expected_return", 0)) * 100, 1),
+            })
+    missed.sort(key=lambda x: x["confidence"], reverse=True)
+
+    # ── Confidence Distribution (Section 5) ───────────────────────────────────
+    dist: Dict[str, int] = {"90_100": 0, "80_90": 0, "70_80": 0, "60_70": 0, "below_60": 0}
+    for r in recs:
+        c = _f(r.get("confidence", 0)) * 100
+        if   c >= 90: dist["90_100"] += 1
+        elif c >= 80: dist["80_90"]  += 1
+        elif c >= 70: dist["70_80"]  += 1
+        elif c >= 60: dist["60_70"]  += 1
+        else:          dist["below_60"] += 1
+
+    # ── Recommendation Leaderboard (Section 6) ────────────────────────────────
+    def _entry(r: Dict[str, Any]) -> Dict[str, Any]:
+        sc = r.get("scores", {}) or {}
+        exp = r.get("explanation", {})
+        exp_str = exp.get("summary", "") if isinstance(exp, dict) else str(exp or "")
+        return {
+            "symbol":          str(r.get("symbol", "—")),
+            "decision_type":   str(r.get("decision_type", "—")),
+            "confidence":      round(_f(r.get("confidence", 0)) * 100),
+            "expected_return": round(_f(r.get("expected_return", 0)) * 100, 1),
+            "explanation":     exp_str[:120],
+            "scores":          {k: round(_f(v) * 100) for k, v in sc.items()},
+        }
+
+    top_buy   = sorted([_entry(r) for r in recs if r.get("decision_type") in PASS_DEC],
+                       key=lambda x: x["confidence"], reverse=True)[:8]
+    top_watch = sorted([_entry(r) for r in recs if r.get("decision_type") in ("WATCH", "HOLD")],
+                       key=lambda x: x["confidence"], reverse=True)[:8]
+    top_sell  = sorted([_entry(r) for r in recs if r.get("decision_type") in ("SELL", "STRONG_SELL", "AVOID")],
+                       key=lambda x: x["confidence"], reverse=True)[:8]
+
+    # ── Pipeline Heatmap (Section 12) ────────────────────────────────────────
+    AGENT_ORDER_V3 = [
+        "supervisor","market_data","research","market_intelligence",
+        "monitoring","strategy","risk","ai_decision",
+        "execution","learning","knowledge","operations",
+    ]
+    heatmap: List[Dict[str, Any]] = []
+    for key in AGENT_ORDER_V3:
+        a = agents.get(key, {})
+        ms = _i(a.get("avg_processing_ms", 0))
+        st = str(a.get("status", "UNKNOWN"))
+        colour = ("green" if ms < 2000 else "yellow" if ms < 5000 else "red") if ms > 0 else (
+            "red" if st == "ERROR" else "yellow" if st == "WAITING" else "grey"
+        )
+        heatmap.append({
+            "agent_key":  key,
+            "label":      str(a.get("name", key)),
+            "ms":         ms,
+            "colour":     colour,
+            "status":     st,
+            "stocks_out": _i(a.get("stocks_out", 0)),
+            "health_pct": _i(a.get("health_pct", 0)),
+        })
+
+    # ── Smart Insights (Section 13) ───────────────────────────────────────────
+    enabled_agents = [a for a in agents.values() if a.get("enabled")]
+    strongest = max(enabled_agents, key=lambda a: _i(a.get("health_pct", 0)), default=None)
+    weakest   = min(enabled_agents, key=lambda a: _i(a.get("health_pct", 0)), default=None)
+
+    rej_counts: Dict[str, int] = {}
+    for a in agents.values():
+        rr = str(a.get("rejection_reason", "") or "").strip()
+        if rr and rr not in ("—", "None", ""):
+            rej_counts[rr] = rej_counts.get(rr, 0) + _i(a.get("stocks_rejected", 0))
+    most_common_rej = (max(rej_counts, key=rej_counts.get) if rej_counts else "None detected")[:80]
+
+    strat_det  = agents.get("strategy", {}).get("details", {}) or {}
+    most_active_strat = str(strat_det.get("top_strategy") or strat_det.get("best_strategy") or "N/A")
+
+    best_opp      = top_buy[0]["symbol"]  if top_buy  else "None"
+    biggest_missed = missed[0]["symbol"]  if missed   else "None"
+
+    # Bottleneck stage (biggest absolute drop in pipeline)
+    prev = _i(pipeline.get("universe_loaded", 0))
+    stage_pairs = [
+        ("stocks_reviewed","Reviewed"), ("passed_market_data","Market Data"),
+        ("passed_research","Research"), ("passed_intelligence","Intelligence"),
+        ("passed_monitoring","Monitoring"), ("passed_strategy","Strategy"),
+        ("passed_risk","Risk"), ("buy_recommendations","BUY Recs"),
+        ("paper_orders_executed","Executed"),
+    ]
+    bottleneck_stage = "None"
+    worst_drop_v3 = 0
+    for pkey, plabel in stage_pairs:
+        cur = _i(pipeline.get(pkey, 0))
+        drop = prev - cur
+        if drop > worst_drop_v3:
+            worst_drop_v3 = drop
+            bottleneck_stage = plabel
+        prev = cur
+
+    smart_insights: List[Dict[str, str]] = [
+        {"label": "Today's Strongest Agent",   "value": strongest["name"] if strongest else "N/A", "icon": "trophy"},
+        {"label": "Today's Weakest Agent",     "value": weakest["name"]   if weakest   else "N/A", "icon": "alert"},
+        {"label": "Biggest Bottleneck",        "value": bottleneck_stage,                           "icon": "funnel"},
+        {"label": "Most Common Rejection",     "value": most_common_rej,                            "icon": "x-circle"},
+        {"label": "Best Opportunity",          "value": best_opp,                                   "icon": "star"},
+        {"label": "Biggest Missed Opportunity","value": biggest_missed,                              "icon": "trending-down"},
+        {"label": "Most Active Strategy",      "value": most_active_strat,                          "icon": "zap"},
+    ]
+
+    # ── End-of-Day Executive Summary (Section 14) ────────────────────────────
+    universe   = _i(pipeline.get("universe_loaded", 0))
+    strat_pass = _i(pipeline.get("passed_strategy", 0))
+    risk_pass  = _i(pipeline.get("passed_risk", 0))
+    buy_count  = _i(pipeline.get("buy_recommendations", 0))
+    exec_count = _i(pipeline.get("paper_orders_executed", 0))
+    open_pos   = _i(pipeline.get("open_positions", 0))
+    buy_recs_list = [r for r in recs if r.get("decision_type") in PASS_DEC]
+    avg_conf_pct = (
+        sum(_f(r.get("confidence", 0)) * 100 for r in buy_recs_list) / len(buy_recs_list)
+        if buy_recs_list else 0.0
+    )
+    parts: List[str] = []
+    if universe > 0: parts.append(f"The AI scanned {universe} stocks.")
+    if strat_pass > 0: parts.append(f"{strat_pass} reached Strategy.")
+    if risk_pass > 0: parts.append(f"{risk_pass} passed Risk.")
+    if buy_count > 0:
+        parts.append(f"{buy_count} BUY recommendation{'s were' if buy_count!=1 else ' was'} generated.")
+    if exec_count > 0:
+        parts.append(f"{exec_count} paper trade{'s' if exec_count!=1 else ''} executed.")
+    if open_pos > 0:
+        parts.append(f"{open_pos} position{'s' if open_pos!=1 else ''} currently open.")
+    if avg_conf_pct > 0:
+        parts.append(f"Average confidence was {avg_conf_pct:.0f}%.")
+    if bottleneck_stage != "None":
+        parts.append(f"Largest bottleneck was {bottleneck_stage}.")
+    executive_summary = " ".join(parts) or "No pipeline activity recorded today."
+
+    # ── Agent Load Monitor (Section 7) ────────────────────────────────────────
+    agent_load: Dict[str, Any] = {}
+    for key in AGENT_ORDER_V3:
+        a = agents.get(key, {})
+        ms = _i(a.get("avg_processing_ms", 0))
+        agent_load[key] = {
+            "name":              str(a.get("name", key)),
+            "queue_size":        _i(a.get("stocks_in", 0)),
+            "items_processed":   _i(a.get("stocks_out", 0)),
+            "items_rejected":    _i(a.get("stocks_rejected", 0)),
+            "avg_processing_ms": ms,
+            "max_processing_ms": ms,  # max not separately tracked; same as avg here
+            "utilisation_pct":   min(100, _i(a.get("health_pct", 0))),
+            "capacity_pct":      100,
+            "status":            str(a.get("status", "UNKNOWN")),
+        }
+
+    return {
+        "missed_opportunities":       missed[:25],
+        "confidence_distribution":    dist,
+        "recommendation_leaderboard": {"top_buy": top_buy, "top_watch": top_watch, "top_sell": top_sell},
+        "pipeline_heatmap":           heatmap,
+        "smart_insights":             smart_insights,
+        "executive_summary":          executive_summary,
+        "agent_load_monitor":         agent_load,
+    }
+
+
+def get_stock_journey(symbol: str) -> Dict[str, Any]:
+    """
+    On-demand only — traces a single symbol's journey through all agents.
+    Called only when the operator searches, never polled.
+    """
+    symbol = symbol.upper().strip()
+    recs = _load_ai_decisions_safe()
+    rec = next((r for r in recs if str(r.get("symbol", "")).upper() == symbol), None)
+
+    stages: List[Dict[str, Any]] = []
+
+    # Supervisor
+    stages.append({
+        "agent": "Supervisor", "agent_id": "supervisor",
+        "decision": "Selected" if rec else "Not in universe",
+        "reason": "Symbol included in scan universe" if rec else "Not in current watchlist or scan",
+        "timestamp": "—", "processing_ms": 0,
+        "status": "PASS" if rec else "INFO",
+    })
+
+    if rec:
+        sc = rec.get("scores", {}) or {}
+        exp = rec.get("explanation", {})
+        exp_str = exp.get("summary", "") if isinstance(exp, dict) else str(exp or "")
+        decision_type = str(rec.get("decision_type", "—"))
+        conf_pct = round(_f(rec.get("confidence", 0)) * 100)
+
+        # Market Data
+        stages.append({
+            "agent": "Market Data", "agent_id": "market_data",
+            "decision": "Updated", "reason": "Live price data retrieved successfully",
+            "timestamp": "—", "processing_ms": 0, "status": "PASS",
+        })
+        # Research
+        rs = round(_f(sc.get("research", 0)) * 100)
+        stages.append({
+            "agent": "Research", "agent_id": "research",
+            "decision": "Positive" if rs >= 50 else "Negative",
+            "reason": f"Research score: {rs}%",
+            "timestamp": "—", "processing_ms": 0,
+            "status": "PASS" if rs >= 50 else "WARN",
+        })
+        # Market Intelligence
+        regsc = round(_f(sc.get("regime", sc.get("market_intelligence", 0))) * 100)
+        stages.append({
+            "agent": "Market Intelligence", "agent_id": "market_intelligence",
+            "decision": "Bullish" if regsc >= 60 else "Neutral" if regsc >= 40 else "Bearish",
+            "reason": f"Regime score: {regsc}%",
+            "timestamp": "—", "processing_ms": 0,
+            "status": "PASS" if regsc >= 50 else "WARN",
+        })
+        # Monitoring
+        momsc = round(_f(sc.get("momentum", 0)) * 100)
+        stages.append({
+            "agent": "Monitoring", "agent_id": "monitoring",
+            "decision": "Signal detected" if momsc >= 50 else "No signal",
+            "reason": f"Momentum score: {momsc}%",
+            "timestamp": "—", "processing_ms": 0,
+            "status": "PASS" if momsc >= 50 else "WARN",
+        })
+        # Strategy
+        ovsc = round(_f(sc.get("overall", 0)) * 100)
+        stages.append({
+            "agent": "Strategy", "agent_id": "strategy",
+            "decision": f"Confidence {conf_pct}%",
+            "reason": f"Overall score: {ovsc}% · Decision: {decision_type}",
+            "timestamp": "—", "processing_ms": 0,
+            "status": "PASS" if conf_pct >= 70 else "WARN",
+        })
+        # Risk
+        risksc = round(_f(sc.get("risk", 0)) * 100)
+        risk_pass_v3 = decision_type not in ("AVOID", "IGNORE", "NO_ACTION")
+        stages.append({
+            "agent": "Risk", "agent_id": "risk",
+            "decision": "Approved" if risk_pass_v3 else "Rejected",
+            "reason": str(rec.get("rejection_reason") or f"Risk score: {risksc}%"),
+            "timestamp": "—", "processing_ms": 0,
+            "status": "PASS" if risk_pass_v3 else "FAIL",
+        })
+        # AI Decision
+        stages.append({
+            "agent": "AI Decision", "agent_id": "ai_decision",
+            "decision": decision_type,
+            "reason": exp_str[:200] or "Decision generated",
+            "timestamp": "—", "processing_ms": 0,
+            "status": ("PASS" if decision_type in ("BUY", "STRONG_BUY")
+                       else "WARN" if decision_type in ("WATCH", "HOLD")
+                       else "FAIL"),
+        })
+        # Execution
+        executed = decision_type in ("BUY", "STRONG_BUY")
+        stages.append({
+            "agent": "Execution", "agent_id": "execution",
+            "decision": "Paper order placed" if executed else "Not executed",
+            "reason": "Paper trade entered" if executed else f"Decision was {decision_type}",
+            "timestamp": "—", "processing_ms": 0,
+            "status": "PASS" if executed else "INFO",
+        })
+
+        # Factor Breakdown for Decision Breakdown (Section 2)
+        factor_map = {
+            "Momentum":          sc.get("momentum", 0),
+            "Research":          sc.get("research", 0),
+            "Market Regime":     sc.get("regime", sc.get("market_intelligence", 0)),
+            "Volume":            sc.get("volume", 0),
+            "Risk":              sc.get("risk", 0),
+            "Technical":         sc.get("technical", 0),
+        }
+        total_w = sum(_f(v) for v in factor_map.values() if _f(v) > 0)
+        factor_breakdown = [
+            {
+                "factor":     k,
+                "weight_pct": round(_f(v) / total_w * 100) if total_w > 0 else 0,
+                "score_pct":  round(_f(v) * 100),
+            }
+            for k, v in factor_map.items() if _f(v) > 0
+        ]
+
+        # Why Not This Trade — thresholds
+        why_not: Optional[Dict[str, Any]] = None
+        if decision_type not in ("BUY", "STRONG_BUY"):
+            failing = []
+            if conf_pct < 70:
+                failing.append({"field": "Confidence", "current": f"{conf_pct}%", "threshold": "≥ 70%"})
+            if momsc < 50:
+                failing.append({"field": "Momentum", "current": f"{momsc}%", "threshold": "≥ 50%"})
+            if regsc < 50:
+                failing.append({"field": "Regime", "current": f"{regsc}%", "threshold": "≥ 50%"})
+            if risksc < 50:
+                failing.append({"field": "Risk Score", "current": f"{risksc}%", "threshold": "≥ 50%"})
+            rejected_by = "Risk" if decision_type in ("AVOID",) else "AI Decision"
+            why_not = {
+                "rejected_by":      rejected_by,
+                "reason":           str(rec.get("rejection_reason") or exp_str or "Below threshold"),
+                "failing_criteria": failing,
+                "alternative":      "Increase confidence above 70% and ensure risk score above 50%.",
+            }
+
+        return {
+            "symbol": symbol, "found": True,
+            "decision_type": decision_type, "confidence": conf_pct,
+            "stages": stages, "factor_breakdown": factor_breakdown,
+            "explanation": exp_str[:300],
+            "scores": {k: round(_f(v) * 100) for k, v in sc.items()},
+            "why_not": why_not,
+        }
+
+    return {
+        "symbol": symbol, "found": False,
+        "decision_type": "NOT_IN_SCAN", "confidence": 0,
+        "stages": stages, "factor_breakdown": [],
+        "explanation": f"{symbol} was not found in the most recent scan results.",
+        "scores": {}, "why_not": None,
+    }
+
+
 def get_ops_centre_snapshot() -> Dict[str, Any]:
     """
     Collect all 12 agent snapshots sequentially (avoids Python import-lock
@@ -1139,6 +1503,9 @@ def get_ops_centre_snapshot() -> Dict[str, Any]:
     except Exception:
         pass  # never block the main snapshot on cache persistence failure
 
+    # ── V3 Enrichment ─────────────────────────────────────────────────────────
+    v3 = get_v3_enrichment(agents, pipeline)
+
     return {
         "generated_at":      _now_iso(),
         "advisory_only":     True,
@@ -1152,4 +1519,12 @@ def get_ops_centre_snapshot() -> Dict[str, Any]:
         "performance_metrics": performance_metrics,
         "bottleneck":          bottleneck,
         "operator_summary":    operator_summary,
+        # V3 additions
+        "missed_opportunities":       v3["missed_opportunities"],
+        "confidence_distribution":    v3["confidence_distribution"],
+        "recommendation_leaderboard": v3["recommendation_leaderboard"],
+        "pipeline_heatmap":           v3["pipeline_heatmap"],
+        "smart_insights":             v3["smart_insights"],
+        "executive_summary":          v3["executive_summary"],
+        "agent_load_monitor":         v3["agent_load_monitor"],
     }

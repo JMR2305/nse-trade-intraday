@@ -1,0 +1,597 @@
+OBJECTIVE
+
+Upgrade AI Operations Centre to Version 3.
+
+Version 3 transforms the Operations Centre into an AI Investigation Centre.
+
+The objective is complete transparency.
+
+An operator should be able to investigate any stock, any recommendation and any rejection from start to finish.
+
+Maintain all Version 1 and Version 2 functionality.
+
+No redesign.
+
+Enhance only.
+
+==================================================
+
+SECTION 1
+
+STOCK JOURNEY
+
+This is the most important feature.
+
+Operator can search any stock.
+
+Example
+
+RELIANCE
+
+Display complete journey.
+
+Supervisor
+
+Selected
+
+↓
+
+Market Data
+
+Updated
+
+↓
+
+Research
+
+Positive
+
+↓
+
+Market Intelligence
+
+Bullish
+
+↓
+
+Monitoring
+
+Breakout detected
+
+↓
+
+Strategy
+
+Confidence
+
+82%
+
+↓
+
+Risk
+
+Rejected
+
+Reason
+
+Sector exposure exceeded
+
+↓
+
+Execution
+
+Not executed
+
+Every stage must show
+
+Timestamp
+
+Processing Time
+
+Decision
+
+Reason
+
+==================================================
+
+SECTION 2
+
+DECISION BREAKDOWN
+
+For every BUY recommendation display
+
+Market Data Contribution
+
+Research Contribution
+
+Market Intelligence Contribution
+
+Monitoring Contribution
+
+Strategy Contribution
+
+Risk Contribution
+
+Weight
+
+Confidence
+
+Reason
+
+Example
+
+Momentum
+
+32%
+
+Research
+
+18%
+
+Market Regime
+
+20%
+
+Volume
+
+12%
+
+Risk
+
+18%
+
+Final Confidence
+
+86%
+
+==================================================
+
+SECTION 3
+
+SCAN REPLAY
+
+Replay any completed scan.
+
+Display
+
+Supervisor
+
+↓
+
+Market Data
+
+↓
+
+Research
+
+↓
+
+Market Intelligence
+
+↓
+
+Monitoring
+
+↓
+
+Strategy
+
+↓
+
+Risk
+
+↓
+
+AI Decision
+
+↓
+
+Execution
+
+Replay should animate
+
+Timeline
+
+Pipeline
+
+Agent cards
+
+==================================================
+
+SECTION 4
+
+AI MISSED OPPORTUNITIES
+
+Display
+
+Stocks that were NOT purchased.
+
+Reason
+
+Examples
+
+Low confidence
+
+Sector exposure
+
+Capital exhausted
+
+Poor Reward/Risk
+
+Negative research
+
+Market closed
+
+Display
+
+Expected Return
+
+Confidence
+
+Reason
+
+==================================================
+
+SECTION 5
+
+CONFIDENCE DISTRIBUTION
+
+Display
+
+90-100%
+
+80-90%
+
+70-80%
+
+60-70%
+
+Below 60%
+
+Show stock count in every range.
+
+==================================================
+
+SECTION 6
+
+RECOMMENDATION LEADERBOARD
+
+Top BUY
+
+Top WATCH
+
+Top SELL
+
+Highest Confidence
+
+Largest Expected Return
+
+Lowest Risk
+
+==================================================
+
+SECTION 7
+
+AGENT LOAD MONITOR
+
+Display
+
+Queue Size
+
+Items Waiting
+
+Average Processing Time
+
+Maximum Processing Time
+
+Current Utilisation
+
+Agent Capacity
+
+==================================================
+
+SECTION 8
+
+HISTORICAL AGENT PERFORMANCE
+
+Display
+
+Today
+
+7 Days
+
+30 Days
+
+For every agent
+
+Average Latency
+
+Average Health
+
+Average Rejection %
+
+Average Success %
+
+==================================================
+
+SECTION 9
+
+AI VS MARKET
+
+Display
+
+AI Return
+
+NIFTY Return
+
+BANK NIFTY Return
+
+Alpha Generated
+
+Win Rate
+
+Best Strategy
+
+Worst Strategy
+
+==================================================
+
+SECTION 10
+
+WHY THIS TRADE?
+
+Every BUY
+
+SELL
+
+EXIT
+
+must have
+
+Explain
+
+button.
+
+Display
+
+Market Regime
+
+Research
+
+Strategy
+
+Risk
+
+Position Size
+
+Target
+
+Stop Loss
+
+Confidence
+
+Expected Return
+
+==================================================
+
+SECTION 11
+
+WHY NOT THIS TRADE?
+
+When a stock is rejected
+
+Display
+
+Rejected By
+
+Reason
+
+Alternative Threshold
+
+What would have made this stock pass?
+
+==================================================
+
+SECTION 12
+
+PIPELINE HEATMAP
+
+Colour every stage.
+
+Green
+
+Fast
+
+Yellow
+
+Slow
+
+Red
+
+Blocked
+
+Operator immediately knows bottlenecks.
+
+==================================================
+
+SECTION 13
+
+SMART INSIGHTS
+
+Automatically generate
+
+Today's strongest agent
+
+Today's weakest agent
+
+Biggest bottleneck
+
+Most common rejection
+
+Best opportunity
+
+Biggest missed opportunity
+
+Most active strategy
+
+==================================================
+
+SECTION 14
+
+END OF DAY EXECUTIVE SUMMARY
+
+Generate
+
+Plain English report.
+
+Example
+
+"The AI scanned 520 stocks.
+
+22 reached Strategy.
+
+9 passed Risk.
+
+4 BUY recommendations were generated.
+
+3 paper trades executed.
+
+Average confidence was 84%.
+
+Largest bottleneck was Strategy Agent due to low confidence."
+
+==================================================
+
+SECTION 15
+
+INVESTIGATION MODE
+
+Operator clicks
+
+Investigate
+
+Stock
+
+Trade
+
+Recommendation
+
+Rejected Candidate
+
+Timeline Event
+
+Open Position
+
+Show every event related to that item.
+
+==================================================
+
+SECTION 16
+
+FILTERS
+
+Allow filtering by
+
+Agent
+
+Stock
+
+Sector
+
+Strategy
+
+Risk Level
+
+Confidence
+
+Date
+
+Market Regime
+
+==================================================
+
+SECTION 17
+
+SEARCH
+
+Global search
+
+Type
+
+TCS
+
+Show
+
+Timeline
+
+Recommendation
+
+Research
+
+Learning
+
+Risk
+
+Decision
+
+Execution
+
+Knowledge
+
+==================================================
+
+SECTION 18
+
+MOBILE
+
+Keep everything responsive.
+
+Cards collapse automatically.
+
+==================================================
+
+SECTION 19
+
+PERFORMANCE
+
+Do not add additional API polling.
+
+Reuse existing snapshot.
+
+All analytics should be derived from the current snapshot where possible.
+
+==================================================
+
+SAFETY
+
+Read Only
+
+Advisory Only
+
+No execution logic changes.
+
+==================================================
+
+DELIVERABLES
+
+Provide
+
+1 Files Created
+
+2 Files Modified
+
+3 Screenshots
+
+4 Mobile Screenshots
+
+5 Performance Impact
+
+6 Test Results
+
+7 Final Verdict
+
+AI OPERATIONS CENTRE V3 COMPLETE
+
+or
+
+NOT COMPLETE

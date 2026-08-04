@@ -2914,6 +2914,13 @@ router.get("/ops-centre/platform", async (_req, res) => {
   }
 });
 
+// GET /api/ops-centre/journey/:symbol — V3 on-demand stock journey (not polled)
+router.get("/ops-centre/journey/:symbol", async (req, res) => {
+  const symbol = (req.params.symbol || "").toUpperCase().trim();
+  if (!symbol) { res.status(400).json({ error: "symbol required" }); return; }
+  res.json(await runPython(["ops_v3_stock_journey", symbol]));
+});
+
 // GET /api/ops-centre/snapshot — AI Operations Centre full snapshot (all 12 agents, parallel)
 router.get("/ops-centre/snapshot", async (_req, res) => {
   try {

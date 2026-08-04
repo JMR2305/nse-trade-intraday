@@ -32,6 +32,13 @@ import {
   LiveEventLogV2, ExportPanel,
   type OpsSnapshotV2, type RejectionEntry, type PerformanceMetrics, type Bottleneck,
 } from "@/components/ops-v2/OpsV2Sections";
+import {
+  StockJourneyPanel, ScanReplayPanel, MissedOpportunities,
+  ConfidenceDistribution, RecommendationLeaderboard, AgentLoadMonitor,
+  HistoricalAgentPerf, AIvsMarket, PipelineHeatmap,
+  SmartInsights, EndOfDaySummary, FilterBar,
+  type OpsSnapshotV3, type FilterState,
+} from "@/components/ops-v3/OpsV3Sections";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -102,6 +109,18 @@ interface OpsSnapshot {
   performance_metrics: PerformanceMetrics;
   bottleneck: Bottleneck | null;
   operator_summary: string;
+  // V3 additions
+  missed_opportunities: import("@/components/ops-v3/OpsV3Sections").MissedOpp[];
+  confidence_distribution: Record<string, number>;
+  recommendation_leaderboard: {
+    top_buy: import("@/components/ops-v3/OpsV3Sections").RecEntry[];
+    top_watch: import("@/components/ops-v3/OpsV3Sections").RecEntry[];
+    top_sell: import("@/components/ops-v3/OpsV3Sections").RecEntry[];
+  };
+  pipeline_heatmap: import("@/components/ops-v3/OpsV3Sections").HeatmapStage[];
+  smart_insights: import("@/components/ops-v3/OpsV3Sections").SmartInsight[];
+  executive_summary: string;
+  agent_load_monitor: Record<string, import("@/components/ops-v3/OpsV3Sections").AgentLoad>;
 }
 
 /** Fast response from /api/ops-centre/platform — < 1 s */
@@ -791,6 +810,7 @@ const AGENT_ORDER: Array<[string, string]> = [
 
 export default function AIOperationsCentrePage() {
   const [lastUpdated, setLastUpdated] = useState<number>(Date.now());
+  const [v3Filters, setV3Filters] = useState<FilterState>({ agent: "ALL", decision: "ALL", minConf: 0 });
 
   // ── Fast query: platform bar + pipeline flow  (< 1 s, 10 s refresh) ────────
   const {
@@ -952,10 +972,55 @@ export default function AIOperationsCentrePage() {
         {/* ── V2 §15: Export ── */}
         <ExportPanel data={snapshotData as unknown as OpsSnapshotV2} />
 
+        {/* ════════════════════ V3 — AI INVESTIGATION CENTRE ════════════════════ */}
+
+        {/* V3 divider */}
+        <div className="flex items-center gap-3 py-2">
+          <div className="flex-1 h-px bg-teal-800/30" />
+          <span className="text-[10px] tracking-widest uppercase text-teal-600 font-semibold">AI Investigation Centre — V3</span>
+          <div className="flex-1 h-px bg-teal-800/30" />
+        </div>
+
+        {/* ── V3 §16: Global Filters ── */}
+        <FilterBar filters={v3Filters} onChange={setV3Filters} />
+
+        {/* ── V3 §13: Smart Insights ── */}
+        <SmartInsights data={snapshotData as unknown as OpsSnapshotV3} loading={snapshotLoading} />
+
+        {/* ── V3 §14: End of Day Executive Summary ── */}
+        <EndOfDaySummary data={snapshotData as unknown as OpsSnapshotV3} loading={snapshotLoading} />
+
+        {/* ── V3 §1+§2+§10+§11+§15+§17: Stock Journey / Investigation / Search ── */}
+        <StockJourneyPanel />
+
+        {/* ── V3 §3: Scan Replay ── */}
+        <ScanReplayPanel data={snapshotData as unknown as OpsSnapshotV3} />
+
+        {/* ── V3 §6: Recommendation Leaderboard + §5: Confidence Distribution ── */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <RecommendationLeaderboard data={snapshotData as unknown as OpsSnapshotV3} loading={snapshotLoading} />
+          <ConfidenceDistribution    data={snapshotData as unknown as OpsSnapshotV3} loading={snapshotLoading} />
+        </div>
+
+        {/* ── V3 §4: Missed Opportunities + §9: AI vs Market ── */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <MissedOpportunities data={snapshotData as unknown as OpsSnapshotV3} loading={snapshotLoading} />
+          <AIvsMarket />
+        </div>
+
+        {/* ── V3 §12: Pipeline Heatmap ── */}
+        <PipelineHeatmap data={snapshotData as unknown as OpsSnapshotV3} loading={snapshotLoading} />
+
+        {/* ── V3 §7: Agent Load Monitor + §8: Historical Performance ── */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <AgentLoadMonitor    data={snapshotData as unknown as OpsSnapshotV3} loading={snapshotLoading} />
+          <HistoricalAgentPerf data={snapshotData as unknown as OpsSnapshotV3} loading={snapshotLoading} />
+        </div>
+
         {/* Footer */}
         <p className="text-center text-xs text-slate-700 pb-4">
-          🧠 ApexQuant AI Operations Centre V2 · Read-only · Advisory only · No live orders ·
-          Platform status refreshes every 10s · Agent details every 30s
+          🧠 ApexQuant AI Operations Centre V3 · Read-only · Advisory only · No live orders ·
+          Platform 10s · Agents 30s · Stock Journey on-demand only
         </p>
       </div>
     </div>
