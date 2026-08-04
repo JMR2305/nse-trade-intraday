@@ -1,27 +1,12 @@
 {
-  "trading_date": "2026-08-03",
-  "session_id": "sv-2026-08-03-e70e99",
+  "trading_date": "2026-08-04",
+  "session_id": "sv-2026-08-04-648cef",
   "phases_done": {
-    "checkpoint_5m": {
-      "ts": "2026-08-03T09:25:16.925416+05:30",
-      "checkpointed": 0,
-      "note": "no_active_records"
-    },
-    "checkpoint_15m": {
-      "ts": "2026-08-03T09:36:16.920432+05:30",
-      "checkpointed": 0,
-      "note": "no_active_records"
-    },
     "checkpoint_30m": {
-      "ts": "2026-08-03T09:46:57.119689+05:30",
+      "ts": "2026-08-04T09:48:48.652875+05:30",
       "checkpointed": 0,
       "note": "no_active_records"
-    },
-    "eod_close": {
-      "ts": "2026-08-03T15:25:11.936803+05:30",
-      "classified": 0,
-      "note": "no_records"
     }
   },
-  "ingest_count": 45
+  "ingest_count": 0
 }

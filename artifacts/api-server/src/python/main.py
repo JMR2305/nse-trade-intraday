@@ -2818,6 +2818,8 @@ def main():
             from risk_validation.api import cmd_export_json   as _f; result = _f()
         elif command == "rv_export_csv":
             from risk_validation.api import cmd_export_csv    as _f; result = _f()
+        elif command == "rv_pre_trade_log":
+            from risk_validation.api import cmd_pre_trade_log as _f; result = _f()
 
         # ── Phase 8.5: Operational Control Centre ─────────────────────────────
         elif command == "ops_summary":

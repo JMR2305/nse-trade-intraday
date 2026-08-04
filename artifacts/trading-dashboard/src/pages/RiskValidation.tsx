@@ -81,25 +81,26 @@ interface StressScenario {
 const POLL = 60_000;
 
 const TABS = [
-  "overview", "portfolio", "positions", "sectors",
+  "overview", "trade-approvals", "portfolio", "positions", "sectors",
   "correlation", "stress", "tail", "execution",
   "market", "drift", "alerts", "export",
 ] as const;
 type Tab = (typeof TABS)[number];
 
 const TAB_LABELS: Record<Tab, string> = {
-  overview:    "Overview",
-  portfolio:   "Portfolio",
-  positions:   "Positions",
-  sectors:     "Sectors",
-  correlation: "Correlation",
-  stress:      "Stress Tests",
-  tail:        "Tail Risk",
-  execution:   "Execution",
-  market:      "Market Risk",
-  drift:       "Risk Drift",
-  alerts:      "Alerts",
-  export:      "Export",
+  overview:          "Overview",
+  "trade-approvals": "Trade Approvals",
+  portfolio:         "Portfolio",
+  positions:         "Positions",
+  sectors:           "Sectors",
+  correlation:       "Correlation",
+  stress:            "Stress Tests",
+  tail:              "Tail Risk",
+  execution:         "Execution",
+  market:            "Market Risk",
+  drift:             "Risk Drift",
+  alerts:            "Alerts",
+  export:            "Export",
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -687,6 +688,204 @@ function renderAlerts(A: any) {
   );
 }
 
+// ── Pre-trade approval types ───────────────────────────────────────────────────
+
+interface PreTradeApproval {
+  trade_id:      string;
+  symbol:        string;
+  side:          string;
+  status:        string;
+  decision_ts:   string;
+  fill_price:    number;
+  quantity:      number;
+  verdict:       string;     // "APPROVED" | "APPROVED_WARN" | "REJECTED"
+  approved:      boolean;
+  reason:        string;
+  critical_count: number;
+  warning_count:  number;
+  issues:        Issue[];
+  metrics:       Record<string, any>;
+  summary:       Record<string, any>;
+}
+
+interface PreTradeLog {
+  status:        string;
+  available:     boolean;
+  generated_at:  string;
+  total:         number;
+  approvals:     PreTradeApproval[];
+}
+
+// ── Trade Approvals tab ────────────────────────────────────────────────────────
+
+function VerdictBadge({ verdict }: { verdict: string }) {
+  const cls = verdict === "APPROVED"
+    ? "bg-emerald-900/50 text-emerald-300 border-emerald-700/50"
+    : verdict === "APPROVED_WARN"
+    ? "bg-yellow-900/50 text-yellow-300 border-yellow-700/50"
+    : "bg-red-900/50 text-red-300 border-red-700/50";
+  const label = verdict === "APPROVED"      ? "✓ APPROVED"
+              : verdict === "APPROVED_WARN"  ? "⚠ APPROVED"
+              : "✗ REJECTED";
+  return (
+    <span className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${cls}`}>
+      {label}
+    </span>
+  );
+}
+
+function renderTradeApprovals(log: PreTradeLog | undefined) {
+  if (!log) return <LoadingView />;
+  if (log.status === "DISABLED") return <DisabledView />;
+
+  const approvals = log.approvals ?? [];
+  const approved  = approvals.filter(a => a.verdict === "APPROVED").length;
+  const warned    = approvals.filter(a => a.verdict === "APPROVED_WARN").length;
+  const rejected  = approvals.filter(a => a.verdict === "REJECTED").length;
+
+  return (
+    <div className="space-y-4">
+      <SectionHeader
+        icon={<Target className="w-4 h-4 text-teal-400" />}
+        title="Pre-Trade Risk Approvals"
+        sub="Every AI paper BUY passes through the Risk Agent before execution"
+      />
+
+      {/* Summary KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <KpiCard label="Total Validated" value={String(log.total ?? 0)} />
+        <KpiCard label="Approved"
+          value={String(approved)}
+          color="text-emerald-400" />
+        <KpiCard label="Approved with Warnings"
+          value={String(warned)}
+          color={warned > 0 ? "text-yellow-400" : "text-slate-400"} />
+        <KpiCard label="Rejected by Risk Agent"
+          value={String(rejected)}
+          color={rejected > 0 ? "text-red-400" : "text-emerald-400"} />
+      </div>
+
+      {approvals.length === 0 ? (
+        <Card className="py-10 text-center">
+          <ShieldCheck className="w-8 h-8 text-slate-600 mx-auto mb-3" />
+          <p className="text-slate-300 text-sm font-medium">No validated trades yet</p>
+          <p className="text-slate-500 text-xs mt-1">
+            Pre-trade Risk Agent validation runs automatically before every paper BUY.
+            Results appear here after the first scan during market hours.
+          </p>
+        </Card>
+      ) : (
+        <Card>
+          <p className="text-xs font-semibold text-slate-400 mb-3">
+            Last {approvals.length} validated trades (most recent first)
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-slate-700/50">
+                  {["Symbol","Time","Price","Qty","Verdict","Warnings","Rejection Reason"].map(h => (
+                    <th key={h} className="pb-2 px-2 text-left text-slate-500 font-medium whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {approvals.map((a, i) => (
+                  <tr key={i} className={`border-b border-slate-700/20 ${
+                    a.verdict === "REJECTED" ? "bg-red-950/20" :
+                    a.verdict === "APPROVED_WARN" ? "bg-yellow-950/10" : ""
+                  }`}>
+                    <td className="py-2 px-2 font-semibold text-slate-200 font-mono">{a.symbol}</td>
+                    <td className="py-2 px-2 text-slate-400 whitespace-nowrap">
+                      {a.decision_ts ? a.decision_ts.slice(11,19) + " UTC" : "—"}
+                    </td>
+                    <td className="py-2 px-2 text-slate-300 font-mono">
+                      {a.fill_price ? `₹${Number(a.fill_price).toFixed(2)}` : "—"}
+                    </td>
+                    <td className="py-2 px-2 text-slate-400">{a.quantity ?? "—"}</td>
+                    <td className="py-2 px-2"><VerdictBadge verdict={a.verdict} /></td>
+                    <td className={`py-2 px-2 ${a.warning_count > 0 ? "text-yellow-400" : "text-slate-500"}`}>
+                      {a.warning_count > 0 ? `${a.warning_count} warning${a.warning_count > 1 ? "s" : ""}` : "—"}
+                    </td>
+                    <td className="py-2 px-2 text-red-300 max-w-xs truncate">
+                      {a.reason || (a.verdict === "REJECTED" ? "See issues" : "—")}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Expand warnings/issues for the first rejected trade if any */}
+          {rejected > 0 && (() => {
+            const rej = approvals.find(a => a.verdict === "REJECTED");
+            if (!rej) return null;
+            return (
+              <div className="mt-4 pt-4 border-t border-slate-700/40">
+                <p className="text-xs font-semibold text-red-400 mb-2">
+                  Most Recent Rejected Trade — {rej.symbol}
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-3">
+                  {rej.metrics?.rr_ratio && (
+                    <div className="bg-slate-800/60 rounded-lg p-2">
+                      <p className="text-xs text-slate-500">R:R Ratio</p>
+                      <p className="text-sm font-bold text-slate-200 font-mono">
+                        {Number(rej.metrics.rr_ratio.rr_ratio ?? 0).toFixed(2)}
+                        <span className="text-xs text-slate-500 ml-1">
+                          (min {rej.metrics.rr_ratio.min_required})
+                        </span>
+                      </p>
+                    </div>
+                  )}
+                  {rej.metrics?.capital_at_risk && (
+                    <div className="bg-slate-800/60 rounded-lg p-2">
+                      <p className="text-xs text-slate-500">Capital at Risk</p>
+                      <p className="text-sm font-bold text-slate-200 font-mono">
+                        {Number(rej.metrics.capital_at_risk.risk_pct ?? 0).toFixed(2)}%
+                      </p>
+                    </div>
+                  )}
+                  {rej.metrics?.position_size && (
+                    <div className="bg-slate-800/60 rounded-lg p-2">
+                      <p className="text-xs text-slate-500">Position Size</p>
+                      <p className="text-sm font-bold text-slate-200 font-mono">
+                        {Number(rej.metrics.position_size.position_pct ?? 0).toFixed(1)}%
+                        <span className="text-xs text-slate-500 ml-1">
+                          (max {rej.metrics.position_size.max_allowed_pct}%)
+                        </span>
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <IssuesTable issues={rej.issues ?? []} />
+              </div>
+            );
+          })()}
+        </Card>
+      )}
+
+      {/* Thresholds reference */}
+      <Card>
+        <p className="text-xs font-semibold text-slate-400 mb-3">Risk Agent Thresholds</p>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+          {[
+            { label: "Max Position Size",   value: "20% of portfolio" },
+            { label: "Max Capital at Risk",  value: "2% per trade" },
+            { label: "Min Reward:Risk Ratio", value: "1.5× or better" },
+            { label: "Max Stop Distance",    value: "5% from entry" },
+            { label: "Max Utilisation",      value: "92% of portfolio" },
+            { label: "Min Cash Buffer",      value: "5% must remain" },
+          ].map(({ label, value }) => (
+            <div key={label} className="bg-slate-800/40 rounded-lg p-2">
+              <p className="text-slate-500">{label}</p>
+              <p className="text-slate-300 font-semibold mt-0.5">{value}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 function renderExport(enabled: boolean) {
   const downloadUrl = (fmt: string) =>
     `${import.meta.env.BASE_URL}api/risk-validation/export?format=${fmt}`;
@@ -794,21 +993,29 @@ export default function RiskValidation() {
     refetchInterval: POLL,
   });
 
+  const preTradeLog = useQuery<PreTradeLog>({
+    queryKey: ["rv-pre-trade-log"],
+    queryFn:  () => apiJson("risk-validation/pre-trade-log"),
+    enabled:  tab === "trade-approvals",
+    refetchInterval: POLL,
+  });
+
   const isEnabled = summary.data?.status !== "DISABLED";
 
   const tabContent: Record<Tab, () => React.ReactNode> = {
-    overview:    () => renderOverview(summary.data),
-    portfolio:   () => renderPortfolio(portfolio.data),
-    positions:   () => renderPositions(portfolio.data),
-    sectors:     () => renderSectors(sectors.data),
-    correlation: () => renderCorrelation(correlation.data),
-    stress:      () => renderStress(stress.data),
-    tail:        () => renderTail(tail.data),
-    execution:   () => renderExecution(execution.data),
-    market:      () => renderMarket(market.data),
-    drift:       () => renderDrift(drift.data),
-    alerts:      () => renderAlerts(alerts.data),
-    export:      () => renderExport(isEnabled),
+    overview:          () => renderOverview(summary.data),
+    "trade-approvals": () => renderTradeApprovals(preTradeLog.data),
+    portfolio:         () => renderPortfolio(portfolio.data),
+    positions:         () => renderPositions(portfolio.data),
+    sectors:           () => renderSectors(sectors.data),
+    correlation:       () => renderCorrelation(correlation.data),
+    stress:            () => renderStress(stress.data),
+    tail:              () => renderTail(tail.data),
+    execution:         () => renderExecution(execution.data),
+    market:            () => renderMarket(market.data),
+    drift:             () => renderDrift(drift.data),
+    alerts:            () => renderAlerts(alerts.data),
+    export:            () => renderExport(isEnabled),
   };
 
   return (

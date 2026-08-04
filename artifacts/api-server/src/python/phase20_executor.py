@@ -384,6 +384,52 @@ def create_paper_entry(candidate: Dict[str, Any], settings: Dict[str, Any],
     fill_price = fill["fill_price"]
     charges = compute_charges(fill_price * qty, settings)
 
+    # ── Risk Agent pre-trade validation ──────────────────────────────────────
+    # Every paper BUY order passes through the pre-trade risk gate before any
+    # ledger claim or portfolio debit occurs. REJECTED trades are blocked here;
+    # APPROVED_WARN trades proceed but warnings are embedded in evidence.
+    # The validator never raises: errors degrade to APPROVED_WARN so a bug in
+    # validation cannot silently drop legitimate trades.
+    _rv_result: Dict[str, Any] = {}
+    try:
+        from risk_validation.pre_trade import validate_pre_trade
+        rv = validate_pre_trade(
+            symbol=sym,
+            fill_price=fill_price,
+            qty=qty,
+            stop_loss=float(sizing.get("stop_loss") or 0),
+            target=float(sizing.get("target_price") or 0),
+            risk_amount=float(sizing.get("risk_amount") or 0),
+            settings=settings,
+            candidate=candidate,
+        )
+        _rv_result = rv.to_dict()
+        if rv.verdict == "REJECTED":
+            store.add_notification(
+                "ENTRY_BLOCKED_RISK",
+                f"Risk Agent REJECTED {sym} paper BUY",
+                rv.reason,
+                severity="WARN",
+                context={"symbol": sym, "scan_id": scan_id,
+                         "risk_validation": _rv_result},
+            )
+            return {"created": False, "symbol": sym,
+                    "reason": f"Risk Agent: {rv.reason}",
+                    "risk_validation": _rv_result}
+        if rv.verdict == "APPROVED_WARN" and rv.issues:
+            warnings_txt = " | ".join(
+                i.message for i in rv.issues if i.severity == "WARNING")
+            store.add_notification(
+                "RISK_WARN",
+                f"Risk Agent warnings for {sym}",
+                warnings_txt,
+                severity="INFO",
+                context={"symbol": sym, "scan_id": scan_id},
+            )
+    except Exception as rv_exc:
+        _rv_result = {"verdict": "APPROVED_WARN", "approved": True,
+                      "error": str(rv_exc)[:200]}
+
     try:
         from model_versioning import get_active_version
         model_version = str(get_active_version().get("version", 0))
@@ -399,6 +445,10 @@ def create_paper_entry(candidate: Dict[str, Any], settings: Dict[str, Any],
     row = _build_row(trade_id, scan_id, snapshot_ts, sym, candidate, sizing,
                      signal_price, fill, fill_price, qty, charges,
                      model_version, settings, trigger_source, now_iso)
+    # Embed the risk-agent validation result in the immutable evidence record.
+    if _rv_result:
+        row.setdefault("evidence", {})["risk_validation"] = _rv_result
+
     try:
         _insert_row(row)
     except DuplicateOpenTrade:

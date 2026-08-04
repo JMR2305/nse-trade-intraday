@@ -54,6 +54,8 @@ router.get("/risk-validation/drift",       handle("rv_drift"));
 router.get("/risk-validation/alerts",      handle("rv_alerts"));
 router.get("/risk-validation/snapshot",    handle("rv_snapshot"));
 
+router.get("/risk-validation/pre-trade-log", handle("rv_pre_trade_log"));
+
 router.get("/risk-validation/export", async (req: any, res: any) => {
   const fmt = String(req.query.format ?? "json").toLowerCase();
   try {

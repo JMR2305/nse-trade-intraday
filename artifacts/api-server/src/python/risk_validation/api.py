@@ -32,3 +32,55 @@ def cmd_export_csv() -> dict:
         "advisory_only": True,
         "csv":           get_export_csv(),
     }
+
+
+def cmd_pre_trade_log() -> dict:
+    """Return the last 20 pre-trade risk validation outcomes from trade evidence."""
+    from datetime import datetime, timezone
+
+    def _now() -> str:
+        return datetime.now(timezone.utc).isoformat()
+
+    try:
+        from phase20_executor import get_ledger
+        trades = get_ledger(100)
+    except Exception as exc:
+        return {"status": "ENABLED", "available": False,
+                "advisory_only": True, "error": str(exc)[:200],
+                "approvals": []}
+
+    approvals = []
+    for t in trades:
+        ev = t.get("evidence") or {}
+        rv = ev.get("risk_validation") or {}
+        if not rv:
+            continue
+        approvals.append({
+            "trade_id":    t.get("trade_id"),
+            "symbol":      t.get("symbol"),
+            "side":        t.get("side", "BUY"),
+            "status":      t.get("status"),
+            "decision_ts": t.get("decision_ts"),
+            "fill_price":  t.get("fill_price"),
+            "quantity":    t.get("quantity"),
+            "verdict":     rv.get("verdict", "APPROVED"),
+            "approved":    rv.get("approved", True),
+            "reason":      rv.get("reason", ""),
+            "critical_count": rv.get("critical_count", 0),
+            "warning_count":  rv.get("warning_count", 0),
+            "issues":      rv.get("issues", []),
+            "metrics":     rv.get("metrics", {}),
+            "summary":     rv.get("summary", {}),
+        })
+
+    # Most recent first
+    approvals.sort(key=lambda x: x.get("decision_ts") or "", reverse=True)
+
+    return {
+        "status":        "ENABLED",
+        "available":     True,
+        "advisory_only": True,
+        "generated_at":  _now(),
+        "total":         len(approvals),
+        "approvals":     approvals[:20],
+    }
