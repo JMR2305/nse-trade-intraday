@@ -2822,6 +2822,8 @@ def main():
             from risk_validation.api import cmd_pre_trade_log as _f; result = _f()
         elif command == "pipeline_stats":
             from pipeline_stats import get_pipeline_stats as _f; result = _f()
+        elif command == "ops_centre_snapshot":
+            from ops_centre import get_ops_centre_snapshot as _f; result = _f()
 
         # ── Phase 8.5: Operational Control Centre ─────────────────────────────
         elif command == "ops_summary":

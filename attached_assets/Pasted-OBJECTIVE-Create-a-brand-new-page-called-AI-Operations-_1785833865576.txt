@@ -1,0 +1,621 @@
+OBJECTIVE
+
+Create a brand new page called:
+
+🧠 AI Operations Centre
+
+This page will become the real-time operational dashboard for the complete ApexQuant AI Multi-Agent system.
+
+The goal is to make the AI completely transparent.
+
+At any moment the operator should know:
+
+• Which agent is currently running
+• When each agent last refreshed
+• What data each agent received
+• What data each agent forwarded
+• Why any stock was rejected
+• Whether the agent is healthy
+• Whether the pipeline is progressing normally
+
+This page is READ ONLY.
+
+No manual intervention.
+
+No trading controls.
+
+Display operational information only.
+
+==================================================
+
+TOP SECTION
+
+Display
+
+Overall Platform Status
+
+Overall Health %
+
+Current Scan Number
+
+Current Scan Status
+
+Market Status
+
+Current Trading Session
+
+Current Cycle Start Time
+
+Current Cycle End Time
+
+Current Time
+
+Last Global Refresh
+
+Next Scheduled Refresh
+
+==================================================
+
+OVERALL PIPELINE
+
+Display the complete AI pipeline
+
+Supervisor
+
+↓
+
+Market Data
+
+↓
+
+Research
+
+↓
+
+Market Intelligence
+
+↓
+
+Monitoring
+
+↓
+
+Strategy
+
+↓
+
+Risk
+
+↓
+
+AI Decision
+
+↓
+
+Execution
+
+↓
+
+Learning
+
+↓
+
+Knowledge
+
+↓
+
+Operations
+
+Show
+
+Green
+
+Running
+
+Yellow
+
+Waiting
+
+Red
+
+Error
+
+Grey
+
+Disabled
+
+Each stage should animate while processing.
+
+==================================================
+
+Create one expandable card for EVERY agent.
+
+Every card must contain the same layout.
+
+--------------------------------------------------
+
+SUPERVISOR AGENT
+
+Display
+
+Status
+
+Last Refresh Date
+
+Last Refresh Time
+
+Next Refresh
+
+Processing Time
+
+Stocks Loaded
+
+Stocks Selected
+
+Stocks Forwarded
+
+Stocks Rejected
+
+Reason
+
+Current Activity
+
+Health
+
+Errors
+
+Warnings
+
+If no stocks forwarded
+
+Display exactly WHY.
+
+Example
+
+"No stocks met minimum review criteria."
+
+--------------------------------------------------
+
+MARKET DATA AGENT
+
+Display
+
+Status
+
+Last Refresh Date
+
+Last Refresh Time
+
+Processing Time
+
+Stocks Received
+
+Stocks Updated
+
+Missing Data
+
+Data Quality %
+
+Failed Symbols
+
+Forwarded
+
+Rejected
+
+Reason
+
+==================================================
+
+RESEARCH AGENT
+
+Display
+
+Stocks Received
+
+News Processed
+
+Corporate Actions
+
+Positive
+
+Neutral
+
+Negative
+
+Forwarded
+
+Rejected
+
+Reason
+
+==================================================
+
+MARKET INTELLIGENCE AGENT
+
+Display
+
+Market Regime
+
+Sector Rotation
+
+Liquidity
+
+Volatility
+
+Stocks Received
+
+Passed
+
+Rejected
+
+Reason
+
+==================================================
+
+MONITORING AGENT
+
+Display
+
+Stocks Scanned
+
+Breakouts
+
+Momentum
+
+Relative Strength
+
+Volume Spike
+
+Candidates
+
+Rejected
+
+Reason
+
+==================================================
+
+STRATEGY AGENT
+
+Display
+
+Stocks Received
+
+Strategies Executed
+
+Breakout
+
+Momentum
+
+VWAP
+
+ORB
+
+Gap
+
+Passed
+
+Rejected
+
+Reason
+
+If all rejected
+
+Display
+
+"Rejected because confidence below configured threshold."
+
+==================================================
+
+RISK AGENT
+
+Display
+
+Stocks Received
+
+Approved
+
+Rejected
+
+Capital Used
+
+Sector Exposure
+
+Reward/Risk
+
+Risk Score
+
+Reason for every rejection
+
+Examples
+
+Poor Reward/Risk
+
+Maximum Capital Reached
+
+Sector Exposure Exceeded
+
+Daily Risk Limit
+
+==================================================
+
+AI DECISION AGENT
+
+Display
+
+Stocks Received
+
+BUY
+
+SELL
+
+WATCH
+
+HOLD
+
+Rejected
+
+Highest Confidence
+
+Lowest Confidence
+
+Average Confidence
+
+Reason for every rejection
+
+==================================================
+
+EXECUTION AGENT
+
+Display
+
+Paper BUY Orders
+
+Paper SELL Orders
+
+Open Positions
+
+Closed Positions
+
+Capital Used
+
+Remaining Capital
+
+Execution Errors
+
+==================================================
+
+LEARNING AGENT
+
+Display
+
+Trades Analysed
+
+Winning Trades
+
+Losing Trades
+
+Lessons Generated
+
+Knowledge Updated
+
+==================================================
+
+KNOWLEDGE AGENT
+
+Display
+
+Knowledge Records
+
+Learning Sessions
+
+Reports Generated
+
+Last Update
+
+==================================================
+
+OPERATIONS AGENT
+
+Display
+
+CPU
+
+Memory
+
+Queue Size
+
+Heartbeat
+
+Database
+
+API Status
+
+System Health
+
+==================================================
+
+IMPORTANT
+
+Every agent MUST display
+
+Last Refresh Date
+
+Last Refresh Time
+
+Next Scheduled Refresh
+
+Average Processing Time
+
+Current Status
+
+Current Activity
+
+==================================================
+
+NO DATA HANDLING
+
+If an agent receives
+
+0 stocks
+
+Display
+
+Reason
+
+Example
+
+"No stocks passed from Strategy Agent."
+
+If an agent forwards
+
+0 stocks
+
+Display
+
+Reason
+
+Example
+
+"No BUY recommendation generated because highest confidence was only 61% while minimum threshold is 75%."
+
+Never leave empty cards.
+
+Always explain WHY.
+
+==================================================
+
+PIPELINE SUMMARY
+
+Display
+
+Universe Loaded
+
+↓
+
+Stocks Reviewed
+
+↓
+
+Passed Market Data
+
+↓
+
+Passed Research
+
+↓
+
+Passed Intelligence
+
+↓
+
+Passed Monitoring
+
+↓
+
+Passed Strategy
+
+↓
+
+Passed Risk
+
+↓
+
+BUY Recommendations
+
+↓
+
+Paper Orders Executed
+
+↓
+
+Open Positions
+
+Display counts at every stage.
+
+==================================================
+
+LIVE EVENT LOG
+
+Display chronological events
+
+Example
+
+13:45:10
+
+Supervisor selected 20 stocks
+
+13:45:15
+
+Market Data updated
+
+13:45:18
+
+Research rejected 2 stocks
+
+Reason
+
+Negative earnings
+
+13:45:22
+
+Strategy rejected 8 stocks
+
+Reason
+
+Low confidence
+
+13:45:27
+
+Risk approved 5 stocks
+
+13:45:31
+
+AI Decision generated 3 BUY signals
+
+13:45:35
+
+Execution completed 3 paper BUY orders
+
+==================================================
+
+AUTO REFRESH
+
+Refresh automatically every 5–10 seconds.
+
+Highlight updated fields.
+
+==================================================
+
+MOBILE
+
+Must be fully responsive.
+
+Cards should collapse neatly.
+
+==================================================
+
+DELIVERABLES
+
+Provide
+
+1. Files Created
+
+2. Files Modified
+
+3. Architecture
+
+4. UI Screenshots
+
+5. Mobile Screenshots
+
+6. Test Results
+
+7. Performance Impact
+
+8. Final Verdict
+
+AI OPERATIONS CENTRE COMPLETE
+
+or
+
+NOT COMPLETE

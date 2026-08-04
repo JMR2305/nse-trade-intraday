@@ -2903,6 +2903,15 @@ router.post("/risk/config", async (req, res) => {
 // ── Phase 20 — auto-scan settings, scheduler health, history, paper engine ──
 // Paper trading / research only. No live orders anywhere.
 
+// GET /api/ops-centre/snapshot — AI Operations Centre full snapshot (all 12 agents, parallel)
+router.get("/ops-centre/snapshot", async (_req, res) => {
+  try {
+    res.json(await runPython(["ops_centre_snapshot"], 30_000));
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/phase20/pipeline — execution pipeline funnel diagnostics
 router.get("/phase20/pipeline", async (_req, res) => {
   try {

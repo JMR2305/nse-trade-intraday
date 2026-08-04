@@ -99,6 +99,7 @@ import AgentCommMonitorPage      from "@/pages/AgentCommMonitorPage";
 import CollaborationAlertsPage   from "@/pages/CollaborationAlertsPage";
 import ScalabilityDashboardPage  from "@/pages/ScalabilityDashboardPage";
 import SupervisorExtendedPage    from "@/pages/SupervisorExtendedPage";
+import AIOperationsCentrePage      from "@/pages/AIOperationsCentrePage";
 import Phase11SummaryPage          from "@/pages/Phase11SummaryPage";
 import Phase11PortfolioPage        from "@/pages/Phase11PortfolioPage";
 import Phase11RecommendationQueuePage from "@/pages/Phase11RecommendationQueuePage";
@@ -228,6 +229,7 @@ function Router() {
         <Route path="/paper-trading-reports"       component={Phase11ReportsPage} />
         <Route path="/paper-trading-timeline"      component={Phase11TimelinePage} />
         <Route path="/ai-paper-trader"            component={AIPaperTraderPage} />
+        <Route path="/ai-operations-centre"       component={AIOperationsCentrePage} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>
