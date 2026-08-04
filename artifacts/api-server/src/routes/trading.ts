@@ -1150,46 +1150,74 @@ router.get("/live-data/scan/status", async (_req, res) => {
 let lastScanRunTs = 0;
 const SCAN_RUN_MIN_GAP_MS = 30_000;
 
-router.post("/live-data/scan/run", async (_req, res) => {
+// POST /api/live-data/scan/run — async fire-and-forget
+//
+// A full 50-symbol scan takes 90–120 s. Keeping the HTTP connection open for
+// that long causes client-side timeouts (120 s) to fire before the server
+// responds. Fix: acknowledge immediately, run the scan in the background, and
+// let the caller detect completion by polling GET /live-data/scan/status
+// (snapshot_ts advances when the scan completes).
+//
+// Response:
+//   { started: true,  status: "RUNNING"         }  — scan kicked off
+//   { started: true,  status: "ALREADY_RUNNING" }  — scan already in flight
+//   { started: false, status: "RATE_LIMITED",
+//     retry_in_s: N }                              — 429 (30 s gap)
+router.post("/live-data/scan/run", (_req, res) => {
   try {
     const now = Date.now();
-    if (p7InFlight) {
-      // Idempotent: join the in-flight scan rather than spawning another.
-      res.json(await p7InFlight);
-      return;
-    }
+
+    // Rate-limit: prevent flooding (30-second gap between manual triggers)
     if (now - lastScanRunTs < SCAN_RUN_MIN_GAP_MS) {
+      const retryInS = Math.ceil((SCAN_RUN_MIN_GAP_MS - (now - lastScanRunTs)) / 1000);
       res.status(429).json({
-        success: false,
-        error: `Scan rate limit — wait ${Math.ceil((SCAN_RUN_MIN_GAP_MS - (now - lastScanRunTs)) / 1000)}s before running another fresh scan.`,
+        started:    false,
+        status:     "RATE_LIMITED",
+        retry_in_s: retryInS,
+        error: `Scan rate limit — wait ${retryInS}s before running another fresh scan.`,
       });
       return;
     }
-    lastScanRunTs = now;
-    p7Cache = null;  // invalidate Phase 7 cache; other caches expire naturally
-    marketScanCache = null;  // Phase 19B: Market Scanner view must refresh too
-    scanStatusCache = null;  // Phase 19C: freshness bar must see the new scan
-    eventBus.publish("scan.started", { ts: new Date().toISOString() });
-    void runPython(["system_event", "SCAN_STARTED", JSON.stringify({ reason: "Fresh live scan started." })]).catch(() => undefined);
-    try {
-      const result = await getP7Scan(true) as Record<string, unknown>;
-      eventBus.publish("scan.completed", {
-        scan_id: result?.["scan_id"],
-        snapshot_ts: result?.["snapshot_ts"],
-        summary: result?.["summary"],
-      });
-      void runPython(["system_event", "SCAN_COMPLETED", JSON.stringify({
-        reason: `Live scan completed (scan ${String(result?.["scan_id"] ?? "unknown")}).`,
-      })]).catch(() => undefined);
-      // Advisory push alerts for high-confidence signals (never blocks response).
-      void dispatchSignalPushNotifications().catch(() => undefined);
-      res.json(result);
-    } catch (scanErr) {
-      const msg = scanErr instanceof Error ? scanErr.message : String(scanErr);
-      eventBus.publish("scan.failed", { error: msg });
-      void runPython(["system_event", "SCAN_FAILED", JSON.stringify({ reason: `Live scan failed: ${msg.slice(0, 200)}` })]).catch(() => undefined);
-      throw scanErr;
+
+    // Idempotent: if a scan is already in flight, acknowledge without re-spawning
+    if (p7InFlight) {
+      res.json({ started: true, status: "ALREADY_RUNNING" });
+      return;
     }
+
+    // ── Kick off scan in background ──────────────────────────────────────────
+    lastScanRunTs = now;
+    p7Cache       = null;   // Phase 7 cache — must refresh
+    marketScanCache = null; // Phase 19B: Market Scanner view
+    scanStatusCache = null; // Phase 19C: freshness bar
+
+    eventBus.publish("scan.started", { ts: new Date().toISOString() });
+    void runPython(["system_event", "SCAN_STARTED",
+      JSON.stringify({ reason: "Fresh live scan started." })]).catch(() => undefined);
+
+    void getP7Scan(true)
+      .then((result) => {
+        const r = result as Record<string, unknown>;
+        eventBus.publish("scan.completed", {
+          scan_id:      r?.["scan_id"],
+          snapshot_ts:  r?.["snapshot_ts"],
+          summary:      r?.["summary"],
+        });
+        void runPython(["system_event", "SCAN_COMPLETED", JSON.stringify({
+          reason: `Live scan completed (scan ${String(r?.["scan_id"] ?? "unknown")}).`,
+        })]).catch(() => undefined);
+        // Push advisory notifications — never blocks the scan response chain.
+        void dispatchSignalPushNotifications().catch(() => undefined);
+      })
+      .catch((scanErr: unknown) => {
+        const msg = scanErr instanceof Error ? scanErr.message : String(scanErr);
+        eventBus.publish("scan.failed", { error: msg });
+        void runPython(["system_event", "SCAN_FAILED",
+          JSON.stringify({ reason: `Live scan failed: ${msg.slice(0, 200)}` })]).catch(() => undefined);
+      });
+
+    // Respond immediately — client polls GET /live-data/scan/status for completion
+    res.json({ started: true, status: "RUNNING" });
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
   }

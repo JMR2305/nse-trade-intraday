@@ -725,32 +725,62 @@ function S3AIStatus({ portfolio, recs }: { portfolio?: Portfolio; recs?: RecsDat
     refetchInterval: 20_000, staleTime: 10_000, retry: 1,
   });
 
-  // ── Scan-and-trade mutation ────────────────────────────────────────────────
-  // Calls the existing POST /live-data/scan/run endpoint (30 s rate-limit on
-  // the server, idempotent under concurrency). On success we bust every "apt"
-  // cache so holdings, recs, portfolio, activity feed all update at once.
-  const [lastScanAt, setLastScanAt]       = useState<string | null>(null);
-  const [scanError,  setScanError]        = useState<string | null>(null);
-  const [cooldownSec, setCooldownSec]     = useState(0);
+  // ── Scan-and-trade mutation (fire-and-forget) ─────────────────────────────
+  // POST /live-data/scan/run now responds immediately with { started: true }.
+  // The actual scan runs in background on the server (90–120 s). We detect
+  // completion by polling GET /live-data/scan/status every 5 s and watching
+  // for snapshot_ts to advance past the moment we pressed "Run Scan".
+  const [lastScanAt,    setLastScanAt]    = useState<string | null>(null);
+  const [scanError,     setScanError]     = useState<string | null>(null);
+  const [cooldownSec,   setCooldownSec]   = useState(0);
+  const [scanRunning,   setScanRunning]   = useState(false);
+  const [scanStartedAt, setScanStartedAt] = useState<number>(0);  // epoch ms
+
+  // Lightweight status poll — only fires while scan is in flight.
+  // Busts the scan-status cache (15 s server-side), so we see the new
+  // snapshot_ts as soon as it arrives.
+  const scanStatusPoll = useQuery<{ snapshot_ts?: string; scan_id?: string }>({
+    queryKey: ["apt", "scan-status-poll"],
+    queryFn:  () => apiJson("live-data/scan/status"),
+    enabled:  scanRunning,
+    refetchInterval: scanRunning ? 5_000 : false,
+    staleTime: 0,
+  });
+
+  // Detect completion: snapshot_ts newer than when we clicked "Run Scan"
+  useEffect(() => {
+    if (!scanRunning || !scanStatusPoll.data?.snapshot_ts) return;
+    const serverTs = new Date(scanStatusPoll.data.snapshot_ts).getTime();
+    if (serverTs > scanStartedAt) {
+      // Scan finished — bust every "apt" cache so all sections refresh at once
+      setScanRunning(false);
+      setLastScanAt(istNow());
+      setScanError(null);
+      qc.invalidateQueries({ queryKey: ["apt"] });
+      qc.invalidateQueries({ queryKey: ["apt", "hv2"] });
+      refetchTl();
+    }
+  }, [scanStatusPoll.data, scanRunning, scanStartedAt, qc, refetchTl]);
 
   const scanMut = useMutation({
     mutationFn: () =>
-      // A 50-stock live scan can take 30–90 s; use 120 s to match the
-      // server-side timeout so normal scans never abort client-side first.
-      apiJson("/live-data/scan/run", { method: "POST" }, 120_000),
-    onSuccess: () => {
-      setLastScanAt(istNow());
+      // Server responds in <1 s now; no need for a long timeout.
+      apiJson("/live-data/scan/run", { method: "POST" }),
+    onSuccess: (resp: unknown) => {
+      const r = resp as { started?: boolean; status?: string; error?: string };
+      if (r?.status === "RATE_LIMITED") {
+        setScanError(r.error?.slice(0, 160) ?? "Rate limited");
+        return;
+      }
       setScanError(null);
-      // Invalidate every "apt" query — holdings, portfolio, recs, timeline, …
-      qc.invalidateQueries({ queryKey: ["apt"] });
-      // Also bust the health snapshot so scan_id updates in S1
-      qc.invalidateQueries({ queryKey: ["apt", "hv2"] });
-      // Start a 30-second client-side cooldown matching the server rate-limit
+      // Record when the scan kicked off so we can detect completion via poll.
+      // Subtract 5 s to tolerate minor clock skew between client and server.
+      setScanStartedAt(Date.now() - 5_000);
+      setScanRunning(true);
+      // Start 30-second cooldown (server-side rate-limit gap)
       setCooldownSec(30);
-      refetchTl();
     },
     onError: (err: Error) => {
-      // Preserve 429 rate-limit messages verbatim for the operator
       setScanError(err.message.slice(0, 160));
     },
   });
@@ -765,7 +795,7 @@ function S3AIStatus({ portfolio, recs }: { portfolio?: Portfolio; recs?: RecsDat
   // Market state derived from the shared health cache
   const mktState     = hv2?.market?.state ?? "";
   const isMarketOpen = mktState === "OPEN" || mktState === "PRE_OPEN";
-  const scanning     = scanMut.isPending;
+  const scanning     = scanMut.isPending || scanRunning;
   const canScan      = isMarketOpen && !scanning && cooldownSec === 0;
 
   // Tooltip text for the disabled states
