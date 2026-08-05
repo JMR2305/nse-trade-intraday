@@ -14,6 +14,8 @@ from __future__ import annotations
 import csv
 import io
 import os
+import sys
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone, timedelta
 from typing import Any
 
@@ -32,6 +34,33 @@ def _safe(fn, default=None):
         return fn()
     except Exception:
         return default
+
+
+# ── Module pre-warmer (must run in main thread before ThreadPoolExecutor) ──────
+
+_SUMMARY_MODULES = [
+    "market_intelligence_hub.shared_services",
+    "paper_analytics.shared_services",
+    "executive_dashboard.shared_services",
+    "ai_performance.shared_services",
+    "risk_validation.shared_services",
+    "data_quality.shared_services",
+    "observability_center.shared_services",
+    "operations_center.shared_services",
+    "security_center.shared_services",
+    "performance_center.shared_services",
+    "deployment_center.shared_services",
+    "phase20_store",
+]
+
+def _preload_summary_modules() -> None:
+    """Import all heavy modules in the main thread so workers only do dict lookups."""
+    for mod in _SUMMARY_MODULES:
+        if mod not in sys.modules:
+            try:
+                __import__(mod)
+            except Exception:
+                pass
 
 
 # ── Upstream snapshot loaders — zero recalculation ────────────────────────────
@@ -643,24 +672,52 @@ def get_summary() -> dict:
     GET /api/command-center/summary
     Aggregates ALL module snapshots into one response.
     ZERO recalculation — snapshot data only.
+    Loaders run in parallel (pre-warmed imports, I/O-bound workers).
     """
     if not is_enabled():
         return disabled_response()
 
-    # Load all snapshots
-    market_snap = _load_market_snapshot()
-    overview    = _load_market_overview()
-    paper       = _load_paper_analytics()
-    executive   = _load_executive()
-    ai          = _load_ai_snapshot()
-    risk        = _load_risk_snapshot()
-    dq          = _load_data_quality()
-    obs         = _load_observability()
-    ops         = _load_operations()
-    sec         = _load_security()
-    perf        = _load_performance()
-    deploy      = _load_deployment()
-    sched       = _load_scheduler_health()
+    # Pre-warm all imports in main thread to avoid import-lock contention in workers
+    _preload_summary_modules()
+
+    # Run all 13 loaders concurrently — each is I/O-bound (DB / cache reads)
+    _loader_map = {
+        "market_snap": _load_market_snapshot,
+        "overview":    _load_market_overview,
+        "paper":       _load_paper_analytics,
+        "executive":   _load_executive,
+        "ai":          _load_ai_snapshot,
+        "risk":        _load_risk_snapshot,
+        "dq":          _load_data_quality,
+        "obs":         _load_observability,
+        "ops":         _load_operations,
+        "sec":         _load_security,
+        "perf":        _load_performance,
+        "deploy":      _load_deployment,
+        "sched":       _load_scheduler_health,
+    }
+    _results: dict = {}
+    with ThreadPoolExecutor(max_workers=13) as _ex:
+        _futures = {k: _ex.submit(fn) for k, fn in _loader_map.items()}
+        for k, fut in _futures.items():
+            try:
+                _results[k] = fut.result(timeout=15)
+            except Exception:
+                _results[k] = {}
+
+    market_snap = _results["market_snap"] or {"available": False, "market_health_score": 0.0, "grade": "D"}
+    overview    = _results["overview"]    or {"available": False}
+    paper       = _results["paper"]       or {"available": False, "analytics_score": 0.0, "total_trades": 0}
+    executive   = _results["executive"]   or {"available": False, "portfolio_value": 0.0}
+    ai          = _results["ai"]          or {"available": False, "health_score": 0.0}
+    risk        = _results["risk"]        or {"advisory_only": True, "risk_score": 0.0}
+    dq          = _results["dq"]          or {"available": False, "quality_score": 0.0}
+    obs         = _results["obs"]         or {"available": False, "observability_score": 0.0}
+    ops         = _results["ops"]         or {"available": False, "operations_score": 0.0}
+    sec         = _results["sec"]         or {"available": False, "security_score": 0.0}
+    perf        = _results["perf"]        or {"available": False, "performance_score": 0.0}
+    deploy      = _results["deploy"]      or {"available": False, "dr_score": 0.0}
+    sched       = _results["sched"]       or {"status": "UNKNOWN"}
 
     platform_score = _compute_platform_score(obs, ops, dq, sec, perf, deploy)
 

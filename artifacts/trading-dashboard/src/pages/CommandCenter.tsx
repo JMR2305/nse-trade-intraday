@@ -23,7 +23,8 @@ const q = (path: string) => ({
   queryKey:  ["cc", path],
   queryFn:   () => apiJson("command-center/" + path),
   refetchInterval: REFETCH,
-  retry: 1,
+  retry: 3,
+  retryDelay: (attempt: number) => Math.min(2000 * 2 ** attempt, 15_000),
   staleTime: 15_000,
 });
 
@@ -577,8 +578,17 @@ export default function CommandCenter() {
       {error && !isLoading && (
         <Alert className="border-red-500/40 bg-red-500/5">
           <AlertTriangle className="w-4 h-4 text-red-400" />
-          <AlertDescription className="text-sm text-red-200">
-            Failed to load Command Centre data. Ensure COMMAND_CENTER_ENABLED=true and the API server is running.
+          <AlertDescription className="text-sm text-red-200 flex items-center justify-between gap-4 flex-wrap">
+            <span>
+              Command Centre data failed to load — the API server may still be warming up.
+              This usually resolves in 10–20 seconds.
+            </span>
+            <button
+              onClick={() => window.location.reload()}
+              className="shrink-0 px-3 py-1 rounded-md text-xs font-medium bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-200 transition-colors"
+            >
+              Retry
+            </button>
           </AlertDescription>
         </Alert>
       )}

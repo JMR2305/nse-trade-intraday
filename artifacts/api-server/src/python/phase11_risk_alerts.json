@@ -39,6 +39,22 @@
       "message": "WIPRO holds 5 vs recommended 2 at current limits",
       "ts": "2026-07-16T12:05:48.069268",
       "acknowledged": false
+    },
+    {
+      "key": "POSITION_OVERSIZED|2026-08-05|TRENT",
+      "type": "POSITION_OVERSIZED",
+      "severity": "WARNING",
+      "message": "TRENT holds 3 vs recommended 1 at current limits",
+      "ts": "2026-08-05T03:22:50.528433",
+      "acknowledged": false
+    },
+    {
+      "key": "POSITION_OVERSIZED|2026-08-05|DIVISLAB",
+      "type": "POSITION_OVERSIZED",
+      "severity": "WARNING",
+      "message": "DIVISLAB holds 1 vs recommended 0 at current limits",
+      "ts": "2026-08-05T03:22:50.532681",
+      "acknowledged": false
     }
   ]
 }

@@ -1,115 +1,11 @@
 {
-  "cash": 32382.699999999997,
-  "positions": {
-    "TRENT": {
-      "quantity": 3,
-      "avg_price": 3082.42
-    },
-    "DIVISLAB": {
-      "quantity": 1,
-      "avg_price": 8370.04
-    }
-  },
+  "cash": 50000.0,
+  "positions": {},
+  "trades": [],
   "pnl_history": [
     {
-      "value": 50000.0,
-      "timestamp": "2026-08-04T04:18:08.927990"
-    },
-    {
-      "value": 50000.0,
-      "timestamp": "2026-08-04T08:27:43.444621"
-    },
-    {
-      "timestamp": "2026-08-04T08:27:43.888272",
+      "timestamp": "2026-08-05T03:30:43.350388",
       "value": 50000.0
-    }
-  ],
-  "trades": [
-    {
-      "id": "7bff255e",
-      "symbol": "TRENT",
-      "action": "BUY",
-      "quantity": 3,
-      "price": 3082.42,
-      "total": 9247.26,
-      "timestamp": "2026-08-04T08:27:43.001758+00:00",
-      "reason": "Phase 20 AUTO paper entry (trade P20-acad172b74)",
-      "regime": "Trending (momentum)",
-      "target": 3370.34,
-      "risk_pct": 4.9,
-      "rr_ratio": 2.0,
-      "stop_loss": 2931.53,
-      "reward_pct": 9.34,
-      "ai_decision": "BUY",
-      "strategy_id": "ema_cross",
-      "est_slippage": 4.62,
-      "plain_english": "Automated Phase 20 paper entry (AUTO)",
-      "strategy_name": "EMA Cross",
-      "trade_quality": 66.0,
-      "trailing_stop": null,
-      "opportunity_score": 69.0,
-      "signal_confidence": 72.5,
-      "est_broker_charges": 10.97,
-      "indicators_at_entry": {
-        "adx": 18.74,
-        "atr": 73.13,
-        "rsi": 60.96,
-        "ema9": 2981.72,
-        "macd": 0.2921,
-        "vwap": 2941.52,
-        "ema20": 2973.71,
-        "ema50": 2949.27,
-        "ema200": 3280.85,
-        "supertrend": 3085.42,
-        "macd_signal": -16.2569,
-        "volume_ratio": 0.85
-      },
-      "position_size_value": 9247.26,
-      "volatility_at_entry": 12.03,
-      "market_regime_at_entry": "Bullish"
-    },
-    {
-      "id": "2513be2f",
-      "symbol": "DIVISLAB",
-      "action": "BUY",
-      "quantity": 1,
-      "price": 8370.04,
-      "total": 8370.04,
-      "timestamp": "2026-08-04T08:27:43.700211",
-      "reason": "Phase 20 AUTO paper entry (trade P20-a205b1ef09)",
-      "signal_confidence": 64.5,
-      "regime": "Strong uptrend",
-      "ai_decision": "BUY",
-      "rr_ratio": 3.0,
-      "target": 9482.77,
-      "stop_loss": 7982.41,
-      "plain_english": "Automated Phase 20 paper entry (AUTO)",
-      "strategy_id": "trend_rider",
-      "strategy_name": "Trend Rider",
-      "opportunity_score": 64.3,
-      "trade_quality": 66.0,
-      "est_broker_charges": 9.93,
-      "est_slippage": 4.19,
-      "risk_pct": 4.63,
-      "reward_pct": 13.29,
-      "position_size_value": 8370.04,
-      "trailing_stop": null,
-      "indicators_at_entry": {
-        "ema9": 7743.93,
-        "ema20": 7417.09,
-        "ema50": 7040.02,
-        "ema200": 6584.77,
-        "rsi": 86.96,
-        "macd": 323.2777,
-        "macd_signal": 225.5457,
-        "vwap": 7403.67,
-        "atr": 187.54,
-        "adx": 47.31,
-        "supertrend": 7744.63,
-        "volume_ratio": 1.49
-      },
-      "market_regime_at_entry": "Bullish",
-      "volatility_at_entry": 12.03
     }
   ]
 }
