@@ -352,6 +352,23 @@ def evaluate_entries(candidate_symbols: Optional[List[str]] = None) -> Dict[str,
         counters["passed"] = int(counters.get("passed", 0)) + evaluation["eligible_count"]
         counters["blocked"] = int(counters.get("blocked", 0)) + evaluation["blocked_count"]
         store.kv_set("entry_eval_counters", counters)
+        # Append lightweight summary to evaluation_history (dedup by scan_id, max 60)
+        _gate_blocked: Dict[str, int] = {}
+        for _c in candidates:
+            for _g in _c.get("gates", []):
+                if not _g["passed"]:
+                    _gate_blocked[_g["gate"]] = _gate_blocked.get(_g["gate"], 0) + 1
+        _hist: List[Dict[str, Any]] = store.kv_get("evaluation_history") or []
+        _scan_id = evaluation.get("scan_id")
+        if not _hist or _hist[-1].get("scan_id") != _scan_id:
+            _hist.append({
+                "evaluated_at": evaluation["evaluated_at"],
+                "scan_id": _scan_id,
+                "total_count": len(candidates),
+                "blocked_count": evaluation["blocked_count"],
+                "gate_blocked_counts": _gate_blocked,
+            })
+            store.kv_set("evaluation_history", _hist[-60:])
     except Exception:
         pass
     return evaluation
@@ -444,6 +461,74 @@ def risk_decision_report() -> Dict[str, Any]:
             g["label"] = _GATE_META.get(g["gate"], g["gate"].replace("_", " ").title())
             g["is_global"] = g["gate"] in _GLOBAL_GATES
 
+    # ── History enrichment (Sections 5, 10, 11) ──────────────────────────────
+    raw_hist: List[Dict[str, Any]] = store.kv_get("evaluation_history") or []
+
+    # Compute 7-day / 30-day blocked counts + trend per gate
+    from datetime import datetime, timedelta, timezone
+    now_utc = datetime.now(timezone.utc)
+    cutoff_7d  = now_utc - timedelta(days=7)
+    cutoff_30d = now_utc - timedelta(days=30)
+
+    def _parse_dt(s: Optional[str]) -> Optional[datetime]:
+        if not s:
+            return None
+        try:
+            return datetime.fromisoformat(s.replace("Z", "+00:00"))
+        except Exception:
+            return None
+
+    for gp in gate_pressure:
+        gid = gp["gate_id"]
+        cnt_7d, cnt_30d = 0, 0
+        recent: List[int] = []  # blocked counts ordered old→new for trend
+        for entry in raw_hist:
+            dt = _parse_dt(entry.get("evaluated_at"))
+            bc = entry.get("gate_blocked_counts", {}).get(gid, 0)
+            if dt and dt >= cutoff_30d:
+                cnt_30d += bc
+                recent.append(bc)
+            if dt and dt >= cutoff_7d:
+                cnt_7d += bc
+        gp["blocked_7d"]  = cnt_7d
+        gp["blocked_30d"] = cnt_30d
+        # Trend: compare first vs second half of recent entries
+        if len(recent) < 4:
+            gp["trend"] = "insufficient_data"
+        else:
+            mid    = len(recent) // 2
+            first  = sum(recent[:mid])
+            second = sum(recent[mid:])
+            if second > first * 1.1:
+                gp["trend"] = "increasing"
+            elif second < first * 0.9:
+                gp["trend"] = "decreasing"
+            else:
+                gp["trend"] = "stable"
+
+    # Build history timeline for Section 11
+    timeline: List[Dict[str, Any]] = []
+    seen_dates: set = set()
+    for entry in raw_hist:
+        dt = _parse_dt(entry.get("evaluated_at"))
+        if not dt:
+            continue
+        date_str = dt.date().isoformat()
+        total = int(entry.get("total_count", 0))
+        blocked = int(entry.get("blocked_count", 0))
+        eligible = total - blocked
+        timeline.append({
+            "date":           date_str,
+            "evaluated_at":   entry.get("evaluated_at"),
+            "total_count":    total,
+            "blocked_count":  blocked,
+            "eligible_count": eligible,
+            "pass_rate":      round(eligible / total * 100, 1) if total else 0.0,
+        })
+        seen_dates.add(date_str)
+
+    history_days = len(seen_dates)
+
     return {
         "available": True,
         "evaluated_at": evaluation.get("evaluated_at"),
@@ -461,5 +546,8 @@ def risk_decision_report() -> Dict[str, Any]:
         "blocked_count": evaluation.get("blocked_count", len(candidates)),
         "gate_pressure": gate_pressure,
         "top_blockers": top_blockers,
+        "history_timeline": timeline,
+        "history_days": history_days,
+        "history_entries": len(raw_hist),
         "label": "PAPER / RESEARCH ONLY",
     }
