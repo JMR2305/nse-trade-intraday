@@ -437,12 +437,47 @@ def get_history(limit: int = 30) -> dict:
     }
 
 
+def _derive_trend(runs: list[dict]) -> str:
+    """
+    Derive a trend label from the last 3 validation runs (most-recent first).
+
+    Rules:
+    - Fewer than 2 runs  → "Stable"   (not enough history)
+    - Score rose > 2 pts  → "Improving"
+    - Score fell > 2 pts  → "Declining"
+    - Otherwise           → "Stable"
+
+    The threshold of 2 points avoids flip-flopping on tiny random noise.
+    """
+    if len(runs) < 2:
+        return "Stable"
+    # runs[0] is most recent, runs[-1] is oldest of the window
+    recent_score = float(runs[0].get("quality_score", 0))
+    oldest_score = float(runs[-1].get("quality_score", 0))
+    delta = recent_score - oldest_score
+    if delta > 2:
+        return "Improving"
+    if delta < -2:
+        return "Declining"
+    return "Stable"
+
+
 def get_data_quality_snapshot() -> dict:
     """Flat KPI dict for Executive Dashboard integration (Phase 8.5+)."""
     if not is_enabled():
         return {"available": False, "advisory_only": True, "quality_score": 0}
 
     summary = get_summary()
+
+    # Derive trend from the last 3 history runs (non-blocking fallback to Stable).
+    trend = "Stable"
+    try:
+        from .history_store import get_history as _get_history
+        recent_runs = _get_history(limit=3)
+        trend = _derive_trend(recent_runs)
+    except Exception:
+        pass
+
     return {
         "available":      True,
         "advisory_only":  True,
@@ -452,4 +487,5 @@ def get_data_quality_snapshot() -> dict:
         "warning_count":  summary.get("warning_count", 0),
         "total_issues":   summary.get("total_issues", 0),
         "generated_at":   summary.get("generated_at", _now_iso()),
+        "trend":          trend,
     }

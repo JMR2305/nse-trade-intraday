@@ -201,6 +201,8 @@ interface DataQualitySnapshot {
   warning_count?:  number;
   total_issues?:   number;
   generated_at?:   string;
+  /** "Improving" | "Stable" | "Declining" — derived from last 3 history runs */
+  trend?:          string;
 }
 
 /** Shape of GET /api/research-lab/snapshot */
@@ -1100,6 +1102,12 @@ function DataQualityTile({ d }: { d: DataQualitySnapshot | undefined }) {
   const grade    = d.grade ?? "D";
   const critical = d.critical_count ?? 0;
   const warnings = d.warning_count  ?? 0;
+  const trend    = d.trend ?? "Stable";
+
+  const isImproving = trend === "Improving";
+  const isDeclining = trend === "Declining";
+  const DqTrendIcon  = isImproving ? TrendingUp : isDeclining ? TrendingDown : Activity;
+  const dqTrendColor = isImproving ? "text-emerald-400" : isDeclining ? "text-red-400" : "text-slate-400";
 
   const ringColor = score >= 80 ? "#34d399" : score >= 60 ? "#fbbf24" : "#f87171";
   const gradeBg   =
@@ -1140,6 +1148,14 @@ function DataQualityTile({ d }: { d: DataQualitySnapshot | undefined }) {
             <span className={cn("px-2 py-0.5 rounded-full border text-xs font-bold", gradeBg)}
                   data-testid="dq-grade-badge">
               Grade {grade}
+            </span>
+            {/* Trend chip — coloured arrow next to the grade */}
+            <span
+              data-testid="dq-trend-chip"
+              className={cn("flex items-center gap-1 text-xs font-semibold", dqTrendColor)}
+            >
+              <DqTrendIcon className="w-3.5 h-3.5" />
+              {trend}
             </span>
             {critical > 0 && (
               <span
