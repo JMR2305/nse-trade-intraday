@@ -568,6 +568,135 @@ function renderExport(qc: unknown) {
   );
 }
 
+// ── History tab — domain label maps ──────────────────────────────────────────
+
+const DOMAIN_LABELS_FULL: Record<string, string> = {
+  market:    "Market",
+  preopen:   "Pre-Open",
+  paper:     "Paper",
+  portfolio: "Portfolio",
+  ai:        "AI",
+  signals:   "Signals",
+  config:    "Config",
+};
+
+const DOMAIN_TAB_MAP: Record<string, TabId> = {
+  market:    "market",
+  preopen:   "preopen",
+  paper:     "paper",
+  portfolio: "portfolio",
+  ai:        "ai",
+  signals:   "signals",
+  config:    "config",
+};
+
+// ── History tab — per-domain mini-sparkline ───────────────────────────────────
+
+function DomainMiniSparkline({
+  domain, label, runs, onClick,
+}: {
+  domain:  string;
+  label:   string;
+  runs:    HistoryRun[];
+  onClick: () => void;
+}) {
+  // runs are most-recent first; reverse so oldest is on the left
+  const ordered = [...runs].reverse();
+  const n = ordered.length;
+  const latestScore = runs[0]?.domain_scores?.[domain] ?? 0;
+  const color = latestScore >= 90 ? "#34d399"
+              : latestScore >= 75 ? "#60a5fa"
+              : latestScore >= 60 ? "#fbbf24"
+              : "#f87171";
+
+  const W = 120, H = 40, PAD_X = 4, PAD_Y = 4;
+  const innerW = W - PAD_X * 2;
+  const innerH = H - PAD_Y * 2;
+
+  const xOf = (i: number) => PAD_X + (i / Math.max(n - 1, 1)) * innerW;
+  const yOf = (s: number) => PAD_Y + (1 - Math.min(s, 100) / 100) * innerH;
+
+  const validPts = ordered
+    .map((r, i) => {
+      const s = r.domain_scores?.[domain];
+      return s != null ? `${xOf(i).toFixed(1)},${yOf(s).toFixed(1)}` : null;
+    })
+    .filter(Boolean)
+    .join(" ");
+
+  const hasEnough = ordered.filter(r => r.domain_scores?.[domain] != null).length >= 2;
+
+  return (
+    <button
+      onClick={onClick}
+      className="bg-slate-700/30 hover:bg-slate-700/50 rounded-lg p-2 flex flex-col gap-1 transition-colors text-left w-full"
+      data-testid={`dq-domain-sparkline-${domain}`}
+    >
+      <div className="flex items-center justify-between gap-1">
+        <span className="text-xs text-slate-400 font-medium truncate">{label}</span>
+        <span className={`text-xs font-bold shrink-0 ${scoreColor(latestScore)}`}>
+          {fmt(latestScore)}%
+        </span>
+      </div>
+      {hasEnough ? (
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-8" preserveAspectRatio="none">
+          <polyline
+            points={validPts}
+            fill="none"
+            stroke={color}
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+          {/* Latest data point dot */}
+          {(() => {
+            const last = ordered[ordered.length - 1]?.domain_scores?.[domain];
+            if (last == null) return null;
+            return (
+              <circle cx={xOf(n - 1)} cy={yOf(last)} r="2.5" fill={color} />
+            );
+          })()}
+        </svg>
+      ) : (
+        <p className="text-xs text-slate-600 py-2 text-center">—</p>
+      )}
+    </button>
+  );
+}
+
+// ── History tab — 2×4 domain sparkline grid ───────────────────────────────────
+
+const DOMAIN_ORDER = ["market", "preopen", "paper", "portfolio", "ai", "signals", "config"] as const;
+
+function DomainSparklineGrid({
+  runs, onDomainClick,
+}: {
+  runs:          HistoryRun[];
+  onDomainClick: (domain: string) => void;
+}) {
+  return (
+    <Card>
+      <p className="text-xs font-semibold text-slate-400 mb-3">
+        Per-Domain Trends — click to view live domain tab
+      </p>
+      <div
+        className="grid grid-cols-2 sm:grid-cols-4 gap-2"
+        data-testid="dq-domain-sparkline-grid"
+      >
+        {DOMAIN_ORDER.map(domain => (
+          <DomainMiniSparkline
+            key={domain}
+            domain={domain}
+            label={DOMAIN_LABELS_FULL[domain]}
+            runs={runs}
+            onClick={() => onDomainClick(domain)}
+          />
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 // ── History tab — Sparkline ───────────────────────────────────────────────────
 
 function QualitySparkline({ runs }: { runs: HistoryRun[] }) {
@@ -642,16 +771,26 @@ function QualitySparkline({ runs }: { runs: HistoryRun[] }) {
 
 // ── History tab ───────────────────────────────────────────────────────────────
 
-const DOMAIN_SHORT: Record<string, string> = {
-  market: "Mkt", preopen: "Pre", paper: "Ppr",
-  portfolio: "Port", ai: "AI", signals: "Sig", config: "Cfg",
-};
+function HistoryTab({
+  H, setTab,
+}: {
+  H:      HistoryData | undefined;
+  setTab: (tab: TabId) => void;
+}) {
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
 
-function renderHistory(H: HistoryData | undefined) {
   if (!H) return <LoadingView />;
-  if (H.status === "DISABLED") return <DisabledView msg="Set DATA_QUALITY_ENABLED=true to record history" />;
+  if (H.status === "DISABLED")
+    return <DisabledView msg="Set DATA_QUALITY_ENABLED=true to record history" />;
 
   const runs = H.runs ?? [];
+
+  const toggleRow = (i: number) =>
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      next.has(i) ? next.delete(i) : next.add(i);
+      return next;
+    });
 
   return (
     <div className="space-y-5">
@@ -672,13 +811,21 @@ function renderHistory(H: HistoryData | undefined) {
         </Card>
       ) : (
         <>
-          {/* Sparkline */}
+          {/* Overall score sparkline */}
           <Card>
             <p className="text-xs font-semibold text-slate-400 mb-3">
               Quality Score Trend ({runs.length} run{runs.length !== 1 ? "s" : ""})
             </p>
             <QualitySparkline runs={runs} />
           </Card>
+
+          {/* Per-domain mini-sparkline grid */}
+          {runs.length >= 1 && (
+            <DomainSparklineGrid
+              runs={runs}
+              onDomainClick={(domain) => setTab(DOMAIN_TAB_MAP[domain] ?? "overview")}
+            />
+          )}
 
           {/* KPI row for latest vs earliest */}
           {runs.length >= 2 && (() => {
@@ -700,15 +847,14 @@ function renderHistory(H: HistoryData | undefined) {
             );
           })()}
 
-          {/* Run table */}
+          {/* Run table with expandable domain-score rows */}
           <Card>
             <p className="text-xs font-semibold text-slate-400 mb-3">Recent Runs</p>
             <div className="overflow-x-auto">
               <table className="w-full text-xs" data-testid="dq-history-table">
                 <thead>
                   <tr className="border-b border-slate-700/50">
-                    {["Run Time (UTC)", "Score", "Grade", "Critical", "Warnings",
-                      ...Object.keys(DOMAIN_SHORT).map(k => DOMAIN_SHORT[k])].map(h => (
+                    {["", "Run Time (UTC)", "Score", "Grade", "Critical", "Warnings"].map(h => (
                       <th key={h} className="pb-2 px-2 text-left text-slate-500 font-medium whitespace-nowrap">
                         {h}
                       </th>
@@ -716,34 +862,75 @@ function renderHistory(H: HistoryData | undefined) {
                   </tr>
                 </thead>
                 <tbody>
-                  {runs.map((r, i) => (
-                    <tr key={i} className="border-b border-slate-700/20 hover:bg-slate-700/10">
-                      <td className="py-2 px-2 text-slate-400 whitespace-nowrap font-mono text-xs">
-                        {r.run_ts?.slice(0, 16).replace("T", " ") ?? "—"}
-                      </td>
-                      <td className={`py-2 px-2 font-semibold ${scoreColor(r.quality_score)}`}>
-                        {fmt(r.quality_score)}%
-                      </td>
-                      <td className={`py-2 px-2 font-bold ${gradeColor(r.grade)}`}>
-                        {r.grade}
-                      </td>
-                      <td className={`py-2 px-2 ${r.critical_count > 0 ? "text-red-400" : "text-slate-500"}`}>
-                        {r.critical_count}
-                      </td>
-                      <td className={`py-2 px-2 ${r.warning_count > 0 ? "text-yellow-400" : "text-slate-500"}`}>
-                        {r.warning_count}
-                      </td>
-                      {Object.keys(DOMAIN_SHORT).map(domain => (
-                        <td key={domain} className={`py-2 px-2 ${
-                          scoreColor(r.domain_scores?.[domain] ?? 0)
-                        }`}>
-                          {r.domain_scores?.[domain] != null
-                            ? `${fmt(r.domain_scores[domain])}%`
-                            : "—"}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
+                  {runs.map((r, i) => {
+                    const isExpanded = expandedRows.has(i);
+                    return (
+                      <React.Fragment key={i}>
+                        <tr className="border-b border-slate-700/20 hover:bg-slate-700/10">
+                          {/* Expand toggle */}
+                          <td className="py-2 px-1">
+                            <button
+                              onClick={() => toggleRow(i)}
+                              className="text-slate-500 hover:text-teal-400 transition-colors"
+                              aria-label={isExpanded ? "Collapse domain scores" : "Expand domain scores"}
+                              data-testid={`dq-row-toggle-${i}`}
+                            >
+                              {isExpanded
+                                ? <ChevronUp   className="w-3.5 h-3.5" />
+                                : <ChevronDown className="w-3.5 h-3.5" />}
+                            </button>
+                          </td>
+                          <td className="py-2 px-2 text-slate-400 whitespace-nowrap font-mono text-xs">
+                            {r.run_ts?.slice(0, 16).replace("T", " ") ?? "—"}
+                          </td>
+                          <td className={`py-2 px-2 font-semibold ${scoreColor(r.quality_score)}`}>
+                            {fmt(r.quality_score)}%
+                          </td>
+                          <td className={`py-2 px-2 font-bold ${gradeColor(r.grade)}`}>
+                            {r.grade}
+                          </td>
+                          <td className={`py-2 px-2 ${r.critical_count > 0 ? "text-red-400" : "text-slate-500"}`}>
+                            {r.critical_count}
+                          </td>
+                          <td className={`py-2 px-2 ${r.warning_count > 0 ? "text-yellow-400" : "text-slate-500"}`}>
+                            {r.warning_count}
+                          </td>
+                        </tr>
+
+                        {/* Expandable domain-score row */}
+                        {isExpanded && (
+                          <tr
+                            className="border-b border-slate-700/30 bg-slate-800/40"
+                            data-testid={`dq-row-domain-scores-${i}`}
+                          >
+                            <td />
+                            <td colSpan={5} className="py-3 px-2">
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                {DOMAIN_ORDER.map(domain => {
+                                  const s = r.domain_scores?.[domain];
+                                  return (
+                                    <button
+                                      key={domain}
+                                      onClick={() => setTab(DOMAIN_TAB_MAP[domain] ?? "overview")}
+                                      className="flex items-center justify-between px-2 py-1.5 rounded bg-slate-700/40 hover:bg-slate-700/70 transition-colors"
+                                      data-testid={`dq-expanded-domain-${domain}-${i}`}
+                                    >
+                                      <span className="text-xs text-slate-400">
+                                        {DOMAIN_LABELS_FULL[domain]}
+                                      </span>
+                                      <span className={`text-xs font-semibold ${scoreColor(s ?? 0)}`}>
+                                        {s != null ? `${fmt(s)}%` : "—"}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -872,7 +1059,7 @@ export default function DataQuality() {
       />
     ),
     alerts:    () => renderAlerts(alerts.data),
-    history:   () => renderHistory(history.data),
+    history:   () => <HistoryTab H={history.data} setTab={setTab} />,
     export:    () => renderExport(null),
   };
 

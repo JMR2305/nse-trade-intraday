@@ -555,6 +555,223 @@ describe("DataQuality page — History tab (Task #257)", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// History tab — per-domain sparkline grid (Task #258)
+// ═══════════════════════════════════════════════════════════════════════════════
+describe("DataQuality page — History tab per-domain sparkline grid (Task #258)", () => {
+  it("renders the domain sparkline grid when runs exist", async () => {
+    const qc = mkQc();
+    wireApi(mockApi, { summary: SUMMARY_ENABLED, history: HISTORY_WITH_RUNS });
+    renderPage(qc);
+    clickTab("History");
+    await waitFor(() =>
+      expect(screen.queryByTestId("dq-domain-sparkline-grid")).toBeTruthy()
+    );
+  });
+
+  it("renders a mini-sparkline button for each of the 7 domains", async () => {
+    const qc = mkQc();
+    wireApi(mockApi, { summary: SUMMARY_ENABLED, history: HISTORY_WITH_RUNS });
+    renderPage(qc);
+    clickTab("History");
+    const domains = ["market", "preopen", "paper", "portfolio", "ai", "signals", "config"];
+    await waitFor(() => {
+      domains.forEach(domain =>
+        expect(screen.queryByTestId(`dq-domain-sparkline-${domain}`)).toBeTruthy()
+      );
+    });
+  });
+
+  it("shows domain label inside the mini-sparkline card", async () => {
+    const qc = mkQc();
+    wireApi(mockApi, { summary: SUMMARY_ENABLED, history: HISTORY_WITH_RUNS });
+    renderPage(qc);
+    clickTab("History");
+    await waitFor(() => {
+      expect(screen.queryByText("Pre-Open")).toBeTruthy();
+      expect(screen.queryByText("Portfolio")).toBeTruthy();
+    });
+  });
+
+  it("shows latest domain score inside each mini-sparkline card", async () => {
+    const qc = mkQc();
+    wireApi(mockApi, { summary: SUMMARY_ENABLED, history: HISTORY_WITH_RUNS });
+    renderPage(qc);
+    clickTab("History");
+    // market domain latest score = 90 in makeRun
+    await waitFor(() =>
+      expect(screen.queryAllByText("90.0%").length).toBeGreaterThan(0)
+    );
+  });
+
+  it("clicking a domain mini-sparkline navigates to that domain tab", async () => {
+    const qc = mkQc();
+    wireApi(mockApi, {
+      summary: SUMMARY_ENABLED,
+      history: HISTORY_WITH_RUNS,
+      market: { status: "ENABLED", available: true, domain: "market", score: 90, grade: "A+",
+                checks_run: 10, checks_passed: 10, checks_failed: 0, critical_count: 0,
+                warning_count: 0, issues: [], generated_at: "2026-07-30T09:15:00Z" },
+    });
+    renderPage(qc);
+    clickTab("History");
+    await waitFor(() => expect(screen.queryByTestId("dq-domain-sparkline-market")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("dq-domain-sparkline-market"));
+    await waitFor(() =>
+      expect(screen.queryByText(/Market Data Validation/i)).toBeTruthy()
+    );
+  });
+
+  it("clicking pre-open mini-sparkline navigates to Pre-Open tab", async () => {
+    const qc = mkQc();
+    wireApi(mockApi, {
+      summary: SUMMARY_ENABLED,
+      history: HISTORY_WITH_RUNS,
+      preopen: { status: "ENABLED", available: true, domain: "preopen", score: 85, grade: "A",
+                 checks_run: 10, checks_passed: 9, checks_failed: 1, critical_count: 0,
+                 warning_count: 1, issues: [], generated_at: "2026-07-30T09:15:00Z" },
+    });
+    renderPage(qc);
+    clickTab("History");
+    await waitFor(() => expect(screen.queryByTestId("dq-domain-sparkline-preopen")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("dq-domain-sparkline-preopen"));
+    await waitFor(() =>
+      expect(screen.queryByText(/Pre-Open Data Validation/i)).toBeTruthy()
+    );
+  });
+
+  it("renders 'Per-Domain Trends' label above the sparkline grid", async () => {
+    const qc = mkQc();
+    wireApi(mockApi, { summary: SUMMARY_ENABLED, history: HISTORY_WITH_RUNS });
+    renderPage(qc);
+    clickTab("History");
+    await waitFor(() =>
+      expect(screen.queryByText(/Per-Domain Trends/i)).toBeTruthy()
+    );
+  });
+
+  it("domain sparkline grid appears even with only 1 run", async () => {
+    const qc = mkQc();
+    wireApi(mockApi, { summary: SUMMARY_ENABLED, history: HISTORY_ONE_RUN });
+    renderPage(qc);
+    clickTab("History");
+    await waitFor(() =>
+      expect(screen.queryByTestId("dq-domain-sparkline-grid")).toBeTruthy()
+    );
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// History tab — expandable table rows (Task #258)
+// ═══════════════════════════════════════════════════════════════════════════════
+describe("DataQuality page — History tab expandable rows (Task #258)", () => {
+  it("each run row has an expand toggle button", async () => {
+    const qc = mkQc();
+    wireApi(mockApi, { summary: SUMMARY_ENABLED, history: HISTORY_WITH_RUNS });
+    renderPage(qc);
+    clickTab("History");
+    await waitFor(() =>
+      expect(screen.queryByTestId("dq-row-toggle-0")).toBeTruthy()
+    );
+  });
+
+  it("domain score breakdown is hidden by default", async () => {
+    const qc = mkQc();
+    wireApi(mockApi, { summary: SUMMARY_ENABLED, history: HISTORY_WITH_RUNS });
+    renderPage(qc);
+    clickTab("History");
+    await waitFor(() => screen.queryByTestId("dq-row-toggle-0"));
+    expect(screen.queryByTestId("dq-row-domain-scores-0")).toBeFalsy();
+  });
+
+  it("clicking the toggle expands domain score breakdown for that row", async () => {
+    const qc = mkQc();
+    wireApi(mockApi, { summary: SUMMARY_ENABLED, history: HISTORY_WITH_RUNS });
+    renderPage(qc);
+    clickTab("History");
+    await waitFor(() => expect(screen.queryByTestId("dq-row-toggle-0")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("dq-row-toggle-0"));
+    await waitFor(() =>
+      expect(screen.queryByTestId("dq-row-domain-scores-0")).toBeTruthy()
+    );
+  });
+
+  it("expanded row shows all 7 domain score cells", async () => {
+    const qc = mkQc();
+    wireApi(mockApi, { summary: SUMMARY_ENABLED, history: HISTORY_WITH_RUNS });
+    renderPage(qc);
+    clickTab("History");
+    await waitFor(() => expect(screen.queryByTestId("dq-row-toggle-0")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("dq-row-toggle-0"));
+    const domains = ["market", "preopen", "paper", "portfolio", "ai", "signals", "config"];
+    await waitFor(() => {
+      domains.forEach(domain =>
+        expect(screen.queryByTestId(`dq-expanded-domain-${domain}-0`)).toBeTruthy()
+      );
+    });
+  });
+
+  it("expanded row shows the correct domain scores from the run", async () => {
+    const qc = mkQc();
+    wireApi(mockApi, { summary: SUMMARY_ENABLED, history: HISTORY_WITH_RUNS });
+    renderPage(qc);
+    clickTab("History");
+    await waitFor(() => expect(screen.queryByTestId("dq-row-toggle-0")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("dq-row-toggle-0"));
+    // makeRun has market: 90
+    await waitFor(() => {
+      const cell = screen.queryByTestId("dq-expanded-domain-market-0");
+      expect(cell?.textContent).toContain("90");
+    });
+  });
+
+  it("clicking toggle again collapses the expanded row", async () => {
+    const qc = mkQc();
+    wireApi(mockApi, { summary: SUMMARY_ENABLED, history: HISTORY_WITH_RUNS });
+    renderPage(qc);
+    clickTab("History");
+    await waitFor(() => expect(screen.queryByTestId("dq-row-toggle-0")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("dq-row-toggle-0")); // expand
+    await waitFor(() => expect(screen.queryByTestId("dq-row-domain-scores-0")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("dq-row-toggle-0")); // collapse
+    await waitFor(() =>
+      expect(screen.queryByTestId("dq-row-domain-scores-0")).toBeFalsy()
+    );
+  });
+
+  it("expanding one row does not expand other rows", async () => {
+    const qc = mkQc();
+    wireApi(mockApi, { summary: SUMMARY_ENABLED, history: HISTORY_WITH_RUNS });
+    renderPage(qc);
+    clickTab("History");
+    await waitFor(() => expect(screen.queryByTestId("dq-row-toggle-0")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("dq-row-toggle-0")); // expand row 0 only
+    await waitFor(() => expect(screen.queryByTestId("dq-row-domain-scores-0")).toBeTruthy());
+    expect(screen.queryByTestId("dq-row-domain-scores-1")).toBeFalsy();
+    expect(screen.queryByTestId("dq-row-domain-scores-2")).toBeFalsy();
+  });
+
+  it("clicking a domain score in an expanded row navigates to that domain tab", async () => {
+    const qc = mkQc();
+    wireApi(mockApi, {
+      summary: SUMMARY_ENABLED,
+      history: HISTORY_WITH_RUNS,
+      signals: { status: "ENABLED", available: true, domain: "signals", score: 92, grade: "A+",
+                 checks_run: 10, checks_passed: 10, checks_failed: 0, critical_count: 0,
+                 warning_count: 0, issues: [], generated_at: "2026-07-30T09:15:00Z" },
+    });
+    renderPage(qc);
+    clickTab("History");
+    await waitFor(() => expect(screen.queryByTestId("dq-row-toggle-0")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("dq-row-toggle-0"));
+    await waitFor(() => expect(screen.queryByTestId("dq-expanded-domain-signals-0")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("dq-expanded-domain-signals-0"));
+    await waitFor(() =>
+      expect(screen.queryByText(/Signals Validation/i)).toBeTruthy()
+    );
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Export tab
 // ═══════════════════════════════════════════════════════════════════════════════
 describe("DataQuality page — Export tab", () => {
