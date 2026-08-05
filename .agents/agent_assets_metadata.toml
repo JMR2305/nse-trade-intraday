@@ -264,3 +264,10 @@ uri = "file://AI_OPERATIONS_CENTRE_SUMMARY.md"
 type = "text"
 title = "AI Operations Centre — Final Summary"
 description = "Complete summary of all AI Operations Centre work: web dashboard, mobile Pipeline tab, fast platform endpoint, Risk Agent fix, file changes, and pending follow-up tasks."
+
+[[outputs]]
+id = "A-6PmG4ln4ahCJE5z-Jv9"
+uri = "file://risk-decision-report-summary.md"
+type = "text"
+title = "Risk Decision Report — Feature Summary"
+description = "Full summary of what was built: backend function, API route, frontend page, all gates covered, and design notes."
