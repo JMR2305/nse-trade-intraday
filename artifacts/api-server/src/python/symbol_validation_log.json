@@ -1,12 +1,5 @@
 [
  {
-  "ts": "2026-07-26T17:48:32.211945+00:00",
-  "input": "HDFCLIFE",
-  "context": "scan",
-  "accepted": true,
-  "reason": "ok"
- },
- {
   "ts": "2026-07-26T17:48:32.216601+00:00",
   "input": "SBILIFE",
   "context": "scan",
@@ -3495,6 +3488,13 @@
  {
   "ts": "2026-08-04T08:27:43.683860+00:00",
   "input": "DIVISLAB",
+  "context": "portfolio",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-08-05T05:36:46.801383+00:00",
+  "input": "GRASIM",
   "context": "portfolio",
   "accepted": true,
   "reason": "ok"
