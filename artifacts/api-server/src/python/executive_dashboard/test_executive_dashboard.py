@@ -1480,6 +1480,129 @@ class TestPaperAnalyticsNeutralFallback(unittest.TestCase):
         score = compute_executive_score(widgets)
         self.assertGreaterEqual(score.paper_analytics, 0.0)
 
+    # ── 5. ImportError at startup → neutral 50.0 throughout the pipeline ─────
+
+    def test_import_error_in_load_paper_analytics_yields_enabled_status(self):
+        """
+        When _load_paper_analytics() catches an ImportError at startup it returns
+        {"available": False, "error": "..."}. This test simulates that result
+        propagating through the full pipeline and confirms get_executive_summary()
+        still returns status="ENABLED", not "ERROR".
+
+        shared_services.load_all is patched (not dashboard_engine.load_all) because
+        shared_services.py binds `load_all` at import time via
+        `from .dashboard_engine import load_all`, so patching the engine alone
+        would not affect the already-bound name.
+        """
+        import_error_pa = {
+            "available": False,
+            "error": "No module named 'paper_analytics.shared_services'",
+        }
+        full_data = {
+            "strategy":          _make_strategy_data(),
+            "ai":                _make_ai_data(),
+            "execution_quality": _make_eq_data(),
+            "portfolio":         _make_portfolio_data(),
+            "preopen":           _make_preopen_data(),
+            "risk":              _make_risk_data(),
+            "signals":           {"available": True, "status": {}, "summary": {}},
+            "system":            _make_system_data(),
+            "readiness":         {"available": True, "readiness_score": 80.0, "grade": "B",
+                                  "verdict": "READY", "verdict_short": "GO"},
+            "paper_analytics":   import_error_pa,
+        }
+        os.environ["EXECUTIVE_DASHBOARD_ENABLED"] = "true"
+        try:
+            with patch("executive_dashboard.shared_services.load_all", return_value=full_data):
+                from executive_dashboard.shared_services import get_executive_summary
+                r = get_executive_summary()
+        finally:
+            os.environ.pop("EXECUTIVE_DASHBOARD_ENABLED", None)
+
+        self.assertEqual(r.get("status"), "ENABLED",
+                         f"Expected status=ENABLED, got: {r.get('status')} error={r.get('error')}")
+
+    def test_import_error_in_load_paper_analytics_widget_is_disabled(self):
+        """
+        The paper_analytics widget built from the ImportError result must have
+        available=False and disabled=True — it must never surface a partial or
+        incorrect widget to the frontend.
+        """
+        import_error_pa = {
+            "available": False,
+            "error": "No module named 'paper_analytics.shared_services'",
+        }
+        full_data = {
+            "strategy":          _make_strategy_data(),
+            "ai":                _make_ai_data(),
+            "execution_quality": _make_eq_data(),
+            "portfolio":         _make_portfolio_data(),
+            "preopen":           _make_preopen_data(),
+            "risk":              _make_risk_data(),
+            "signals":           {"available": True, "status": {}, "summary": {}},
+            "system":            _make_system_data(),
+            "readiness":         {"available": True, "readiness_score": 80.0, "grade": "B",
+                                  "verdict": "READY", "verdict_short": "GO"},
+            "paper_analytics":   import_error_pa,
+        }
+        os.environ["EXECUTIVE_DASHBOARD_ENABLED"] = "true"
+        try:
+            with patch("executive_dashboard.shared_services.load_all", return_value=full_data):
+                from executive_dashboard.shared_services import get_executive_summary
+                r = get_executive_summary()
+        finally:
+            os.environ.pop("EXECUTIVE_DASHBOARD_ENABLED", None)
+
+        pa_widget = r.get("paper_analytics", {})
+        self.assertFalse(pa_widget.get("available"),
+                         "paper_analytics widget must have available=False after ImportError")
+        self.assertTrue(pa_widget.get("disabled"),
+                        "paper_analytics widget must have disabled=True after ImportError")
+
+    def test_import_error_in_load_paper_analytics_score_component_is_neutral(self):
+        """
+        The executive_score.components["paper_analytics"] must be 50.0 (the
+        neutral fallback) when _load_paper_analytics returns the ImportError
+        error dict — never 0.0, which would silently penalise the operator's
+        score on any deployment where the paper_analytics module is not yet
+        initialised.
+        """
+        import_error_pa = {
+            "available": False,
+            "error": "No module named 'paper_analytics.shared_services'",
+        }
+        full_data = {
+            "strategy":          _make_strategy_data(),
+            "ai":                _make_ai_data(),
+            "execution_quality": _make_eq_data(),
+            "portfolio":         _make_portfolio_data(),
+            "preopen":           _make_preopen_data(),
+            "risk":              _make_risk_data(),
+            "signals":           {"available": True, "status": {}, "summary": {}},
+            "system":            _make_system_data(),
+            "readiness":         {"available": True, "readiness_score": 80.0, "grade": "B",
+                                  "verdict": "READY", "verdict_short": "GO"},
+            "paper_analytics":   import_error_pa,
+        }
+        os.environ["EXECUTIVE_DASHBOARD_ENABLED"] = "true"
+        try:
+            with patch("executive_dashboard.shared_services.load_all", return_value=full_data):
+                from executive_dashboard.shared_services import get_executive_summary
+                r = get_executive_summary()
+        finally:
+            os.environ.pop("EXECUTIVE_DASHBOARD_ENABLED", None)
+
+        components = r.get("executive_score", {}).get("components", {})
+        self.assertIn("paper_analytics", components,
+                      "executive_score.components must contain paper_analytics key")
+        self.assertAlmostEqual(
+            components["paper_analytics"], 50.0, places=1,
+            msg=(
+                f"paper_analytics component must be 50.0 (neutral) after ImportError, "
+                f"got {components.get('paper_analytics')}"
+            ),
+        )
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Paper Analytics score impact on Executive Score composite — regression guard
