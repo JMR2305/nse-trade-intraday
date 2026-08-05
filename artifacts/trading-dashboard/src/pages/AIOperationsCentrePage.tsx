@@ -128,6 +128,9 @@ interface FastPlatformStatus {
   generated_at: string;
   fast: boolean;
   advisory_only: boolean;
+  /** ISO timestamp of the full snapshot that last wrote health_pct to the KV cache.
+   *  null when no full snapshot has run yet (health_pct is a provisional estimate). */
+  cache_ts?: string | null;
   platform: OpsSnapshot["platform"];
   pipeline_nodes: PipelineNode[];
 }
@@ -205,9 +208,48 @@ function fmtMs(ms: number) {
 
 // ── Platform Status Bar ───────────────────────────────────────────────────────
 
-function PlatformStatusBar({ data, loading }: { data?: OpsSnapshot; loading: boolean }) {
+function PlatformStatusBar({
+  data,
+  loading,
+  fast,
+  generatedAt,
+  cacheTs,
+}: {
+  data?: OpsSnapshot;
+  loading: boolean;
+  /** true  = health_pct came from last-scan cache (fast endpoint) */
+  fast?: boolean;
+  /** ISO timestamp when the fast response was generated (wall-clock request time) */
+  generatedAt?: string;
+  /** ISO timestamp of the full snapshot that wrote health_pct to the KV cache.
+   *  null/undefined = no full snapshot yet; health_pct is a provisional estimate. */
+  cacheTs?: string | null;
+}) {
   const p = data?.platform;
   const health = p?.health_pct ?? 0;
+
+  // When fast=true, age the badge against cache_ts (when health was actually computed).
+  // When fast=false (full snapshot), age against generated_at.
+  // Falls back to generated_at when cache_ts is absent (provisional estimate path).
+  const isCached = fast === true;
+  const ageSource = isCached ? (cacheTs ?? generatedAt) : generatedAt;
+
+  // Live "N seconds ago" ticker — updates every second
+  const [ageSecs, setAgeSecs] = useState(0);
+  useEffect(() => {
+    if (!ageSource) { setAgeSecs(0); return; }
+    const tick = () => {
+      const diff = Math.round((Date.now() - new Date(ageSource).getTime()) / 1000);
+      setAgeSecs(Math.max(0, diff));
+    };
+    tick();
+    const id = setInterval(tick, 1_000);
+    return () => clearInterval(id);
+  }, [ageSource]);
+
+  const ageLabel = ageSecs < 60
+    ? `${ageSecs}s ago`
+    : `${Math.round(ageSecs / 60)}m ago`;
 
   const kpis = [
     { label: "Platform Health",  value: loading ? "—" : `${health}%`,
@@ -230,7 +272,7 @@ function PlatformStatusBar({ data, loading }: { data?: OpsSnapshot; loading: boo
 
   return (
     <div className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-4">
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
         <Activity className="w-4 h-4 text-teal-400" />
         <h2 className="font-semibold text-xs tracking-widest uppercase text-slate-400">
           Platform Status
@@ -241,6 +283,26 @@ function PlatformStatusBar({ data, loading }: { data?: OpsSnapshot; loading: boo
             : "bg-amber-950 border-amber-700/50 text-amber-300"}`}>
             {health >= 80 ? "OPERATIONAL" : "DEGRADED"}
           </Badge>
+        )}
+        {/* Cache-vs-live badge — shown once we have a generatedAt timestamp */}
+        {!loading && generatedAt && (
+          isCached ? (
+            <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5
+              text-[10px] font-medium
+              bg-amber-950/60 border border-amber-700/40 text-amber-300"
+              title="Health % is from the last full scan, not freshly computed">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+              Cached snapshot · {ageLabel}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5
+              text-[10px] font-medium
+              bg-emerald-950/60 border border-emerald-700/40 text-emerald-300"
+              title="Health % was freshly computed from this snapshot">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse" />
+              Live · {ageLabel}
+            </span>
+          )
         )}
       </div>
 
@@ -903,7 +965,13 @@ export default function AIOperationsCentrePage() {
         <AutoAlertsBar data={snapshotData as unknown as OpsSnapshotV2} />
 
         {/* ── V1: Platform Status — fast data, visible within ~1 s ── */}
-        <PlatformStatusBar data={effectivePlatform as unknown as OpsSnapshot} loading={platformLoading && !effectivePlatform} />
+        <PlatformStatusBar
+          data={effectivePlatform as unknown as OpsSnapshot}
+          loading={platformLoading && !effectivePlatform}
+          fast={effectivePlatform?.fast}
+          generatedAt={effectivePlatform?.generated_at}
+          cacheTs={effectivePlatform?.cache_ts}
+        />
 
         {/* ── V2 §11: Pipeline Explanation + §8: Bottleneck ── */}
         {(snapshotData || snapshotLoading) && (

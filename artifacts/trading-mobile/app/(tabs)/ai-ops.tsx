@@ -149,6 +149,27 @@ function PlatformHealthCard({
   const marketColor =
     marketState === "OPEN" ? "#10B981" : isDark ? "#F6C453" : "#8A4B00";
 
+  // Live "N seconds ago" ticker derived from server-side generated_at
+  const [ageSecs, setAgeSecs] = useState(0);
+  const generatedAt = data?.generated_at;
+  useEffect(() => {
+    if (!generatedAt) { setAgeSecs(0); return; }
+    const tick = () => {
+      const diff = Math.round((Date.now() - new Date(generatedAt).getTime()) / 1000);
+      setAgeSecs(Math.max(0, diff));
+    };
+    tick();
+    const id = setInterval(tick, 1_000);
+    return () => clearInterval(id);
+  }, [generatedAt]);
+
+  // The mobile app only calls the full snapshot (always freshly computed).
+  // Treat data older than 2 minutes as a cached/stale snapshot.
+  const isCached = ageSecs >= 120;
+  const ageLabel = ageSecs < 60 ? `${ageSecs}s ago` : `${Math.round(ageSecs / 60)}m ago`;
+  const snapshotColor  = isCached ? "#F6C453" : "#10B981";   // amber or emerald
+  const snapshotBadge  = isCached ? "Cached snapshot" : "Live";
+
   return (
     <Section title="Platform Health">
       {loading && !data ? (
@@ -178,6 +199,28 @@ function PlatformHealthCard({
               style={[s.barFill, { width: `${health}%` as `${number}%`, backgroundColor: barColor }]}
             />
           </View>
+
+          {/* Cache vs live badge */}
+          {generatedAt ? (
+            <View style={[s.row, { borderBottomColor: colors.border }]}>
+              <Text style={[s.rowLabel, { color: colors.mutedForeground }]}>Snapshot</Text>
+              <View style={{
+                flexDirection: "row", alignItems: "center", gap: 5,
+                paddingHorizontal: 8, paddingVertical: 3,
+                borderRadius: 99, borderWidth: 1,
+                backgroundColor: snapshotColor + "18",
+                borderColor: snapshotColor + "55",
+              }}>
+                <View style={{
+                  width: 6, height: 6, borderRadius: 3,
+                  backgroundColor: snapshotColor,
+                }} />
+                <Text style={{ fontSize: 11, fontWeight: "600", color: snapshotColor }}>
+                  {snapshotBadge} · {ageLabel}
+                </Text>
+              </View>
+            </View>
+          ) : null}
 
           {/* Market state */}
           <Row
