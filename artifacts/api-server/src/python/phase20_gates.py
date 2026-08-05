@@ -369,6 +369,12 @@ def evaluate_entries(candidate_symbols: Optional[List[str]] = None) -> Dict[str,
                 "gate_blocked_counts": _gate_blocked,
             })
             store.kv_set("evaluation_history", _hist[-60:])
+        # Track rejected candidates for V3 analytics
+        try:
+            from phase20_v3_analytics import record_rejections
+            record_rejections(evaluation)
+        except Exception:
+            pass
     except Exception:
         pass
     return evaluation

@@ -116,4 +116,12 @@ router.get("/phase15/risk-decision-report", wrap(async (_req, res) => {
   res.json(await runPython(["phase15_risk_decision_report"], 60_000));
 }));
 
+router.get("/phase15/v3-analytics", wrap(async (_req, res) => {
+  res.json(await runPython(["phase15_v3_analytics"], 120_000));
+}));
+
+router.post("/phase15/v3-analytics/refresh", wrap(async (_req, res) => {
+  res.json(await runPython(["phase15_v3_analytics_refresh"], 120_000));
+}));
+
 export default router;

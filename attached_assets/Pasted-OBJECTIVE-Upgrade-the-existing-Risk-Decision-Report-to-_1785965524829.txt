@@ -1,0 +1,485 @@
+OBJECTIVE
+
+Upgrade the existing Risk Decision Report to Version 3.
+
+Version 3 transforms the page into an AI Risk Intelligence & Optimization Center.
+
+The purpose is not only to explain why trades were rejected, but to continuously learn from historical paper trading and help optimize the trading system.
+
+Maintain all V1 and V2 functionality.
+
+Do NOT redesign the page.
+
+Enhance the existing implementation.
+
+The page remains
+
+READ ONLY
+
+ADVISORY ONLY
+
+PAPER TRADING ONLY
+
+No automatic threshold changes.
+
+==================================================
+
+SECTION 1
+
+FALSE REJECTION ANALYSIS
+
+Track every rejected trade for configurable periods
+
+1 Day
+
+3 Days
+
+5 Days
+
+10 Days
+
+30 Days
+
+For every rejected stock display
+
+Symbol
+
+Rejected Date
+
+Rejection Reason
+
+Confidence
+
+Risk Score
+
+Price at Rejection
+
+Highest Price After Rejection
+
+Lowest Price After Rejection
+
+Current Price
+
+Maximum Gain %
+
+Maximum Loss %
+
+Classification
+
+Correct Rejection
+
+False Rejection
+
+Still Monitoring
+
+==================================================
+
+SECTION 2
+
+RISK GATE ACCURACY
+
+Measure how effective every gate actually is.
+
+Display
+
+Trades Blocked
+
+Trades Later Became Losses
+
+Trades Later Became Winners
+
+Correct Decisions
+
+Incorrect Decisions
+
+Accuracy %
+
+Examples
+
+Minimum Confidence
+
+Risk Reward
+
+Trade Quality
+
+Sector Exposure
+
+Capital Limit
+
+==================================================
+
+SECTION 3
+
+OPPORTUNITY LEAKAGE
+
+Display
+
+Rejected Today
+
+Rejected This Week
+
+Rejected This Month
+
+Potential Winners Missed
+
+Potential Profit Missed
+
+Potential Loss Avoided
+
+Estimated Alpha Lost
+
+Visualize trends.
+
+==================================================
+
+SECTION 4
+
+AI THRESHOLD OPTIMIZER
+
+For every configurable threshold display
+
+Current Value
+
+Suggested Value
+
+Expected Approved Trades
+
+Expected Win Rate
+
+Expected Drawdown
+
+Expected Return
+
+Reason
+
+Examples
+
+Confidence
+
+Opportunity Score
+
+Risk Reward
+
+Trade Quality
+
+Sector Cap
+
+Per Stock Cap
+
+Suggestions only.
+
+Never modify production settings.
+
+==================================================
+
+SECTION 5
+
+MARKET REGIME OPTIMIZATION
+
+Analyse performance separately for
+
+Bull Market
+
+Bear Market
+
+Sideways
+
+High Volatility
+
+Low Volatility
+
+Display suggested thresholds for each regime.
+
+==================================================
+
+SECTION 6
+
+STRATEGY EFFECTIVENESS
+
+Compare
+
+Breakout
+
+Momentum
+
+VWAP
+
+ORB
+
+Gap
+
+Mean Reversion
+
+For each display
+
+Trades
+
+Win Rate
+
+Average Return
+
+Average Confidence
+
+Average Holding Time
+
+Risk Score
+
+False Rejection %
+
+==================================================
+
+SECTION 7
+
+TRADE OUTCOME PREDICTOR
+
+For every candidate display
+
+Probability of Success
+
+Probability of Failure
+
+Expected Return
+
+Expected Drawdown
+
+Expected Holding Period
+
+Prediction Confidence
+
+Later compare
+
+Predicted
+
+vs
+
+Actual
+
+==================================================
+
+SECTION 8
+
+LEARNING FEEDBACK LOOP
+
+Display
+
+Completed Trade
+
+↓
+
+Learning Generated
+
+↓
+
+Knowledge Updated
+
+↓
+
+Threshold Impact
+
+↓
+
+Future Recommendation
+
+Show the complete learning chain.
+
+==================================================
+
+SECTION 9
+
+THRESHOLD IMPACT REPORT
+
+For every gate show
+
+Rejected Trades
+
+Would Have Been Winners
+
+Would Have Been Losers
+
+Estimated Profit Missed
+
+Estimated Loss Avoided
+
+Operator Recommendation
+
+Keep
+
+Review
+
+Relax
+
+Tighten
+
+==================================================
+
+SECTION 10
+
+AI COACH
+
+Generate a plain-English advisory.
+
+Examples
+
+"The confidence threshold appears conservative during bullish market conditions."
+
+"The Risk Reward gate prevented 82% of losing trades."
+
+"The Sector Exposure gate may be too restrictive for Banking stocks."
+
+Never recommend automatic changes.
+
+==================================================
+
+SECTION 11
+
+WEEKLY OPTIMIZATION REPORT
+
+Generate automatically every week
+
+Summary
+
+Most restrictive gate
+
+Most accurate gate
+
+Worst performing strategy
+
+Best performing strategy
+
+Largest missed opportunity
+
+Largest avoided loss
+
+Suggested review items
+
+==================================================
+
+SECTION 12
+
+MONTHLY OPTIMIZATION REPORT
+
+Display
+
+Gate trends
+
+Strategy trends
+
+Market regime trends
+
+Threshold trends
+
+Learning trends
+
+Portfolio impact
+
+==================================================
+
+SECTION 13
+
+AI CONFIDENCE CALIBRATION
+
+Display
+
+Predicted Confidence
+
+Actual Success Rate
+
+Confidence Drift
+
+Calibration Error
+
+Highlight if confidence is systematically too optimistic or too conservative.
+
+==================================================
+
+SECTION 14
+
+DECISION SANDBOX
+
+Allow operators to simulate
+
+Different thresholds
+
+Different capital
+
+Different sector caps
+
+Different risk limits
+
+Show historical impact.
+
+Simulation only.
+
+==================================================
+
+SECTION 15
+
+OPTIMIZATION DASHBOARD
+
+At the top display
+
+Overall Risk Accuracy
+
+False Rejection Rate
+
+Correct Rejection Rate
+
+Opportunity Leakage
+
+Threshold Stability
+
+Learning Progress
+
+Optimization Score
+
+==================================================
+
+PERFORMANCE
+
+Reuse existing API where possible.
+
+No extra scans.
+
+No increased polling.
+
+Historical calculations should use cached evaluation history.
+
+==================================================
+
+SAFETY
+
+Read Only
+
+Advisory Only
+
+Paper Trading Only
+
+No live execution changes.
+
+No threshold changes.
+
+==================================================
+
+DELIVERABLES
+
+Provide
+
+1. Files Created
+
+2. Files Modified
+
+3. Screenshots
+
+4. Mobile Screenshots
+
+5. Performance Impact
+
+6. Test Results
+
+7. Final Verdict
+
+RISK DECISION REPORT V3 COMPLETE
+
+or
+
+NOT COMPLETE

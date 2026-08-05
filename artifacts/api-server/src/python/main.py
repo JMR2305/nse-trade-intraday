@@ -1778,6 +1778,14 @@ def main():
         elif command == "phase15_risk_decision_report":
             from phase20_gates import risk_decision_report
             result = {"success": True, **risk_decision_report()}
+        elif command == "phase15_v3_analytics":
+            from phase20_v3_analytics import get_v3_analytics
+            result = {"success": True, **get_v3_analytics()}
+        elif command == "phase15_v3_analytics_refresh":
+            import phase20_store as _s
+            _s.kv_set("v3_analytics_cache", None)
+            from phase20_v3_analytics import get_v3_analytics
+            result = {"success": True, **get_v3_analytics()}
         elif command == "phase15_audit_record":
             from phase15_audit import record_scan_audit
             result = record_scan_audit()

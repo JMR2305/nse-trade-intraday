@@ -7,7 +7,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   RefreshCw, AlertTriangle, ShieldAlert, BarChart3,
-  Sliders, GitCompare, Download, FileBarChart2,
+  Sliders, GitCompare, Download, FileBarChart2, Brain,
 } from "lucide-react";
 import { apiJson } from "@/lib/api";
 import type { Report, Candidate } from "../components/riskReport/types";
@@ -17,11 +17,12 @@ import { SimulatorPanel }          from "../components/riskReport/SimulatorPanel
 import { ComparePanel }            from "../components/riskReport/ComparePanel";
 import { ExportPanel }             from "../components/riskReport/ExportPanel";
 import { tsLabel }                 from "../components/riskReport/helpers";
+import { IntelligenceTab }         from "../components/riskReport/v3/IntelligenceTab";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tabs
 // ─────────────────────────────────────────────────────────────────────────────
-type Tab = "candidates" | "gate-analysis" | "simulator" | "compare" | "export";
+type Tab = "candidates" | "gate-analysis" | "simulator" | "compare" | "export" | "intelligence";
 
 const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
   { key: "candidates",    label: "Candidates",    icon: <FileBarChart2 className="w-3.5 h-3.5" /> },
@@ -29,6 +30,7 @@ const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
   { key: "simulator",     label: "Simulator",     icon: <Sliders       className="w-3.5 h-3.5" /> },
   { key: "compare",       label: "Compare",       icon: <GitCompare    className="w-3.5 h-3.5" /> },
   { key: "export",        label: "Export",        icon: <Download      className="w-3.5 h-3.5" /> },
+  { key: "intelligence",  label: "Intelligence",  icon: <Brain         className="w-3.5 h-3.5" /> },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -277,6 +279,9 @@ export default function RiskDecisionReportPage() {
           )}
           {tab === "export" && (
             <ExportPanel report={data} />
+          )}
+          {tab === "intelligence" && (
+            <IntelligenceTab candidates={candidates} />
           )}
         </div>
       </div>
