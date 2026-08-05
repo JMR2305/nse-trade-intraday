@@ -1216,7 +1216,7 @@ function S3AIStatus({ portfolio, recs }: { portfolio?: Portfolio; recs?: RecsDat
  * If fewer than 2 points are available a "no data" dash is shown instead of
  * a broken chart.
  */
-function PnlSparkline({
+export function PnlSparkline({
   points, buyPrice, target, stopLoss,
 }: {
   points: number[];
@@ -1322,7 +1322,7 @@ function PnlSparkline({
  * anchor point and current_price is always appended as the final point,
  * so even a single intraday price event produces a meaningful 3-point line.
  */
-function buildSparkPoints(
+export function buildSparkPoints(
   symbol: string,
   buyPrice: number,
   currentPrice: number,
