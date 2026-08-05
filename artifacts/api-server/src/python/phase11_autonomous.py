@@ -59,6 +59,43 @@ def _ensure_topup_table(conn) -> None:
     conn.commit()
 
 
+def _ensure_price_snapshots_table(conn) -> None:
+    """
+    Ensure the intraday price snapshot table and indexes exist.
+
+    Idempotency guarantee:
+      A PARTIAL unique index on (scan_id, symbol) WHERE scan_id != ''
+      lets the INSERT use ON CONFLICT … DO NOTHING, making concurrent
+      recording calls race-safe at the database level.  Rows recorded
+      without a scan_id (empty string) are unconstrained — they represent
+      manual / ad-hoc snapshots and may legitimately repeat.
+    """
+    with conn.cursor() as cur:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS phase11_price_snapshots (
+                id          SERIAL PRIMARY KEY,
+                symbol      TEXT NOT NULL,
+                price       DOUBLE PRECISION NOT NULL,
+                scan_id     TEXT NOT NULL DEFAULT '',
+                recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
+        # Fast lookup by symbol + date (read path)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_phase11_price_snaps_sym_ts
+            ON phase11_price_snapshots (symbol, recorded_at DESC)
+        """)
+        # Partial unique index — enforces one row per (scan_id, symbol)
+        # for scans that supply a non-empty scan_id.  This is the key
+        # constraint that makes ON CONFLICT DO NOTHING race-safe.
+        cur.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS uidx_phase11_price_snaps_scan_sym
+            ON phase11_price_snapshots (scan_id, symbol)
+            WHERE scan_id != ''
+        """)
+    conn.commit()
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -1301,6 +1338,171 @@ def _notification_events(session_date: str) -> List[Dict]:
         ]
     except Exception:
         return []
+
+
+# ── Price Snapshot Functions ───────────────────────────────────────────────────
+
+def record_price_snapshots(scan_id: str = "") -> Dict[str, Any]:
+    """
+    Record current_price for every open position.
+    Call post-scan to build intraday price history for sparklines.
+    Idempotent per scan_id+symbol — duplicate rows are skipped when
+    a non-empty scan_id is supplied.
+    """
+    if not _db_available():
+        return {"recorded": 0, "skipped": 0, "reason": "no_db"}
+
+    try:
+        from portfolio_store import load_state
+        state = load_state()
+    except Exception as exc:
+        return {"recorded": 0, "skipped": 0, "reason": str(exc)}
+
+    positions = state.get("positions", {})
+    if not positions:
+        return {"recorded": 0, "skipped": 0, "reason": "no_open_positions"}
+
+    rows: List[tuple] = []
+    for sym, pos in positions.items():
+        if not isinstance(pos, dict):
+            continue
+        qty = int(pos.get("qty", pos.get("quantity", 0)))
+        if qty <= 0:
+            continue
+        price = float(pos.get("current_price", pos.get("avg_price", 0)))
+        if price <= 0:
+            continue
+        rows.append((sym, price, scan_id or ""))
+
+    if not rows:
+        return {"recorded": 0, "skipped": 0, "reason": "no_valid_positions"}
+
+    recorded = 0
+    skipped  = 0
+    try:
+        conn = _connect()
+        try:
+            _ensure_price_snapshots_table(conn)
+            with conn.cursor() as cur:
+                for sym, price, sid in rows:
+                    if sid:
+                        # Partial-unique-index path: ON CONFLICT DO NOTHING is
+                        # race-safe — the DB enforces (scan_id, symbol) uniqueness.
+                        cur.execute(
+                            """
+                            INSERT INTO phase11_price_snapshots (symbol, price, scan_id)
+                            VALUES (%s, %s, %s)
+                            ON CONFLICT (scan_id, symbol) WHERE scan_id != ''
+                            DO NOTHING
+                            """,
+                            (sym, price, sid)
+                        )
+                        # rowcount == 0 means conflict (already recorded)
+                        if cur.rowcount == 0:
+                            skipped += 1
+                        else:
+                            recorded += 1
+                    else:
+                        # No scan_id — unconstrained; always insert
+                        cur.execute(
+                            "INSERT INTO phase11_price_snapshots (symbol, price, scan_id) "
+                            "VALUES (%s, %s, %s)",
+                            (sym, price, sid)
+                        )
+                        recorded += 1
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception as exc:
+        logger.warning("record_price_snapshots failed: %s", exc)
+        return {"recorded": 0, "skipped": skipped, "reason": str(exc)}
+
+    return {
+        "recorded":  recorded,
+        "skipped":   skipped,
+        "symbols":   [r[0] for r in rows],
+        "scan_id":   scan_id,
+        "as_of":     _now_iso(),
+    }
+
+
+def get_price_history(symbol: str = "", limit: int = 50) -> Dict[str, Any]:
+    """
+    Return intraday price snapshots for sparklines.
+    - symbol given  → { symbol, prices[], timestamps[], count, as_of }
+    - symbol absent → { snapshots: { sym: prices[] }, as_of }   (all open positions)
+    Prices are ordered oldest-first (left→right for sparklines).
+    """
+    if not _db_available():
+        return {"snapshots": {}, "as_of": _now_iso()}
+
+    ist_tz = timezone(timedelta(hours=5, minutes=30))
+    today_ist = datetime.now(ist_tz).strftime("%Y-%m-%d")
+    limit = max(1, min(limit, 200))
+
+    try:
+        conn = _connect()
+        try:
+            _ensure_price_snapshots_table(conn)
+
+            if symbol:
+                sym_upper = symbol.upper()
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT price, recorded_at
+                        FROM phase11_price_snapshots
+                        WHERE symbol = %s
+                          AND DATE(recorded_at AT TIME ZONE 'Asia/Kolkata') = %s
+                        ORDER BY recorded_at ASC
+                        LIMIT %s
+                    """, (sym_upper, today_ist, limit))
+                    rows = cur.fetchall()
+                return {
+                    "symbol":      sym_upper,
+                    "prices":      [float(r[0]) for r in rows],
+                    "timestamps":  [
+                        r[1].strftime("%Y-%m-%dT%H:%M:%SZ") if r[1] else None
+                        for r in rows
+                    ],
+                    "count":       len(rows),
+                    "as_of":       _now_iso(),
+                }
+
+            # All open symbols — single query
+            try:
+                from portfolio_store import load_state
+                state = load_state()
+            except Exception:
+                state = {}
+
+            open_syms = [
+                s for s, pos in (state.get("positions") or {}).items()
+                if isinstance(pos, dict)
+                and int(pos.get("qty", pos.get("quantity", 0))) > 0
+            ]
+            if not open_syms:
+                return {"snapshots": {}, "as_of": _now_iso()}
+
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT symbol, price, recorded_at
+                    FROM phase11_price_snapshots
+                    WHERE symbol = ANY(%s)
+                      AND DATE(recorded_at AT TIME ZONE 'Asia/Kolkata') = %s
+                    ORDER BY symbol, recorded_at ASC
+                """, (open_syms, today_ist))
+                rows = cur.fetchall()
+
+            snapshots: Dict[str, List[float]] = {}
+            for sym, price, _ts in rows:
+                snapshots.setdefault(sym, []).append(float(price))
+
+            return {"snapshots": snapshots, "as_of": _now_iso()}
+        finally:
+            conn.close()
+    except Exception as exc:
+        logger.warning("get_price_history failed: %s", exc)
+        return {"snapshots": {}, "as_of": _now_iso()}
 
 
 def _get_market_summary(trade_date: str) -> Dict:

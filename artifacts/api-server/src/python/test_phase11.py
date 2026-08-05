@@ -749,5 +749,168 @@ class TestCapitalModeB(unittest.TestCase):
         self.assertIsNone(result)
 
 
+# ── Test: Price Snapshots ─────────────────────────────────────────────────────
+
+class TestPriceSnapshots(unittest.TestCase):
+    """
+    Tests for record_price_snapshots() and get_price_history().
+    All DB calls are mocked — no live Postgres required.
+    """
+
+    def _make_cursor(self, inserted_count=1, existing_syms=None):
+        """Return a mock cursor whose rowcount tracks INSERT … ON CONFLICT."""
+        existing_syms = existing_syms or set()
+        cur = MagicMock()
+
+        def _execute(sql, params=None):
+            # Simulate ON CONFLICT DO NOTHING: rowcount = 0 if already present.
+            # INSERT params order: (symbol, price, scan_id) → params[0] = symbol
+            if "ON CONFLICT" in sql and params:
+                sym = params[0] if len(params) > 0 else ""
+                cur.rowcount = 0 if sym in existing_syms else 1
+            else:
+                cur.rowcount = inserted_count
+
+        cur.execute.side_effect = _execute
+        cur.fetchall.return_value = []
+        cur.__enter__ = lambda s: s
+        cur.__exit__ = MagicMock(return_value=False)
+        return cur
+
+    def _make_conn(self, cur):
+        conn = MagicMock()
+        conn.cursor.return_value = cur
+        conn.__enter__ = lambda s: s
+        conn.__exit__ = MagicMock(return_value=False)
+        return conn
+
+    @patch("phase11_autonomous._db_available", return_value=False)
+    def test_no_db_returns_gracefully(self, _mock_db):
+        import phase11_autonomous as m
+        result = m.record_price_snapshots("scan-abc")
+        self.assertEqual(result["recorded"], 0)
+        self.assertEqual(result["reason"], "no_db")
+
+    @patch("phase11_autonomous._db_available", return_value=True)
+    @patch("portfolio_store.load_state", return_value={"positions": {}})
+    def test_no_open_positions_returns_gracefully(self, _mock_state, _mock_db):
+        import phase11_autonomous as m
+        result = m.record_price_snapshots("scan-abc")
+        self.assertEqual(result["recorded"], 0)
+        self.assertIn("no_open_positions", result.get("reason", ""))
+
+    @patch("phase11_autonomous._db_available", return_value=True)
+    @patch("phase11_autonomous._ensure_price_snapshots_table")
+    @patch("phase11_autonomous._connect")
+    @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
+    def test_records_one_row_per_open_position(
+        self, _mock_state, mock_connect, mock_ensure, _mock_db
+    ):
+        import phase11_autonomous as m
+        cur = self._make_cursor(inserted_count=1)
+        mock_connect.return_value = self._make_conn(cur)
+
+        result = m.record_price_snapshots("scan-001")
+
+        self.assertEqual(result["scan_id"], "scan-001")
+        # SAMPLE_STATE has RELIANCE + INFY open
+        self.assertEqual(result["recorded"], 2)
+        self.assertEqual(result["skipped"], 0)
+        self.assertIn("RELIANCE", result["symbols"])
+        self.assertIn("INFY", result["symbols"])
+
+    @patch("phase11_autonomous._db_available", return_value=True)
+    @patch("phase11_autonomous._ensure_price_snapshots_table")
+    @patch("phase11_autonomous._connect")
+    @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
+    def test_concurrent_call_with_same_scan_id_skips_duplicates(
+        self, _mock_state, mock_connect, mock_ensure, _mock_db
+    ):
+        """
+        Simulates ON CONFLICT DO NOTHING returning rowcount=0 for already-
+        recorded symbols (e.g. from a concurrent call with the same scan_id).
+        """
+        import phase11_autonomous as m
+        # Both RELIANCE and INFY already recorded → rowcount=0 for both
+        cur = self._make_cursor(existing_syms={"RELIANCE", "INFY"})
+        mock_connect.return_value = self._make_conn(cur)
+
+        result = m.record_price_snapshots("scan-001")
+
+        self.assertEqual(result["recorded"], 0)
+        self.assertEqual(result["skipped"], 2)
+
+    @patch("phase11_autonomous._db_available", return_value=True)
+    @patch("phase11_autonomous._ensure_price_snapshots_table")
+    @patch("phase11_autonomous._connect")
+    @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
+    def test_second_scan_id_records_fresh_rows(
+        self, _mock_state, mock_connect, mock_ensure, _mock_db
+    ):
+        """A different scan_id should produce new rows, not collide."""
+        import phase11_autonomous as m
+        cur = self._make_cursor(inserted_count=1)
+        mock_connect.return_value = self._make_conn(cur)
+
+        result = m.record_price_snapshots("scan-002")
+
+        self.assertEqual(result["recorded"], 2)
+        self.assertEqual(result["skipped"], 0)
+
+    @patch("phase11_autonomous._db_available", return_value=True)
+    @patch("phase11_autonomous._ensure_price_snapshots_table")
+    @patch("phase11_autonomous._connect")
+    @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
+    def test_get_price_history_all_symbols(
+        self, _mock_state, mock_connect, mock_ensure, _mock_db
+    ):
+        """get_price_history() with no symbol returns snapshots dict."""
+        import phase11_autonomous as m
+        from datetime import datetime, timezone as tz
+        now = datetime.now(tz.utc)
+        cur = MagicMock()
+        cur.fetchall.return_value = [
+            ("RELIANCE", 2870.0, now),
+            ("RELIANCE", 2875.0, now),
+            ("INFY", 1480.0, now),
+        ]
+        cur.__enter__ = lambda s: s
+        cur.__exit__ = MagicMock(return_value=False)
+        mock_connect.return_value = self._make_conn(cur)
+
+        result = m.get_price_history()
+
+        self.assertIn("snapshots", result)
+        self.assertIn("RELIANCE", result["snapshots"])
+        self.assertEqual(len(result["snapshots"]["RELIANCE"]), 2)
+        self.assertIn("INFY", result["snapshots"])
+
+    @patch("phase11_autonomous._db_available", return_value=True)
+    @patch("phase11_autonomous._ensure_price_snapshots_table")
+    @patch("phase11_autonomous._connect")
+    def test_get_price_history_single_symbol(
+        self, mock_connect, mock_ensure, _mock_db
+    ):
+        """get_price_history(symbol=X) returns prices list."""
+        import phase11_autonomous as m
+        from datetime import datetime, timezone as tz
+        now = datetime.now(tz.utc)
+        cur = MagicMock()
+        cur.fetchall.return_value = [
+            (2870.0, now),
+            (2880.0, now),
+            (2875.0, now),
+        ]
+        cur.__enter__ = lambda s: s
+        cur.__exit__ = MagicMock(return_value=False)
+        mock_connect.return_value = self._make_conn(cur)
+
+        result = m.get_price_history("RELIANCE", limit=50)
+
+        self.assertEqual(result["symbol"], "RELIANCE")
+        self.assertEqual(result["prices"], [2870.0, 2880.0, 2875.0])
+        self.assertEqual(result["count"], 3)
+
+
 if __name__ == "__main__":
     unittest.main()

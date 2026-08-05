@@ -188,4 +188,35 @@ router.post("/session/disable-autonomous", handle(["daily_session_disable_autono
 // GET  /phase11/session/agents  — verify / warm-start all 11 agents
 router.get("/session/agents", handle(["daily_session_verify_agents"], TIMEOUT_MEDIUM));
 
+// ── Price Snapshots ────────────────────────────────────────────────────────
+// POST /api/phase11/price-snapshots/record
+// Record current_price for every open position (call this post-scan).
+router.post("/price-snapshots/record", async (req: any, res: any) => {
+  try {
+    const scan_id = String(req.body?.scan_id ?? "");
+    res.json(await runPython(
+      ["phase11_record_price_snapshots", JSON.stringify({ scan_id })],
+      TIMEOUT_FAST,
+    ));
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/phase11/price-history
+// ?symbol=RELIANCE  → { symbol, prices[], timestamps[], count, as_of }
+// (no param)        → { snapshots: { [symbol]: number[] }, as_of }
+router.get("/price-history", async (req: any, res: any) => {
+  try {
+    const symbol = String(req.query.symbol ?? "");
+    const limit  = Number(req.query.limit  ?? 50);
+    res.json(await runPython(
+      ["phase11_price_history", JSON.stringify({ symbol, limit })],
+      TIMEOUT_FAST,
+    ));
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 export default router;

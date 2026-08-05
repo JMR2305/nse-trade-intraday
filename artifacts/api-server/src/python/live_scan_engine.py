@@ -673,6 +673,15 @@ def run_live_scan(
     except Exception:
         pass
 
+    # ── Phase 11 price snapshots — persist current_price per open position ────
+    # Gives sparklines 6-16 intraday data points instead of 2 (sparse events).
+    # Failures are non-fatal and do not affect the scan result.
+    try:
+        from phase11_autonomous import record_price_snapshots as _rps
+        _rps(scan_id=scan_id)
+    except Exception:
+        pass
+
     return result
 
 

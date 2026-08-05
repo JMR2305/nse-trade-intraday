@@ -1313,28 +1313,31 @@ export function PnlSparkline({
 // ══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Build a symbol → price-point array from timeline events.
- * Each event that carries a non-zero price for a known symbol contributes
- * one point. The array is capped at 20 points (most recent first → reversed
- * so sparkline reads left-to-right chronologically).
+ * Build a symbol → price-point array for sparklines.
  *
- * Additionally the position's buy_price is always prepended as the first
- * anchor point and current_price is always appended as the final point,
- * so even a single intraday price event produces a meaningful 3-point line.
+ * Priority:
+ *   1. `snapshotPrices` — persisted DB snapshots recorded post-scan
+ *      (up to 6–16 intraday points, oldest-first). Preferred when available.
+ *   2. Inline prices from `events` (sparse — only BUY/SELL events).
+ *
+ * buy_price is always prepended as the entry anchor and current_price is
+ * always appended so the line is grounded even when snapshots are scarce.
  */
 export function buildSparkPoints(
   symbol: string,
   buyPrice: number,
   currentPrice: number,
   events: TimelineEvent[],
+  snapshotPrices?: number[],
 ): number[] {
-  const priceEvents = events
-    .filter(e => e.symbol === symbol && typeof e.price === "number" && e.price > 0)
-    .map(e => e.price as number);
-
-  // Keep up to 18 intermediate price snapshots (timeline is ascending,
-  // so they're already in chronological order)
-  const mid = priceEvents.slice(-18);
+  // Prefer richer DB snapshots; fall back to sparse timeline event prices
+  const mid: number[] =
+    snapshotPrices && snapshotPrices.length > 0
+      ? snapshotPrices.slice(-18)
+      : events
+          .filter(e => e.symbol === symbol && typeof e.price === "number" && e.price > 0)
+          .map(e => e.price as number)
+          .slice(-18);
 
   // Build: entry → intermediate snapshots → current
   const pts = [buyPrice, ...mid, currentPrice];
@@ -1365,6 +1368,16 @@ function S4Holdings() {
     refetchInterval: 30_000, staleTime: 15_000, retry: 1,
   });
   const tlEvents = tlData?.events ?? [];
+
+  // Fetch persisted intraday price snapshots (all open symbols in one request).
+  // Refreshed every 60 s — snapshots are only written post-scan, so polling
+  // faster than that adds no value.
+  const { data: phData } = useQuery<{ snapshots: Record<string, number[]>; as_of?: string }>({
+    queryKey: ["apt", "price-history"],
+    queryFn:  () => apiJson("/phase11/price-history"),
+    refetchInterval: 60_000, staleTime: 30_000, retry: 1,
+  });
+  const priceSnapshots: Record<string, number[]> = phData?.snapshots ?? {};
 
   return (
     <div className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-4">
@@ -1404,13 +1417,14 @@ function S4Holdings() {
               {list.map((p) => {
                 const sparkPts = buildSparkPoints(
                   p.stock, p.buy_price, p.current_price, tlEvents,
+                  priceSnapshots[p.stock],
                 );
                 return (
                   <tr key={p.stock} className="border-b border-slate-800/30 hover:bg-slate-800/20 transition-colors">
                     <td className="py-2 pr-3 font-bold text-slate-100">{p.stock}</td>
                     {/* ── Sparkline cell ── */}
                     <td className="py-2 pr-4">
-                      <div title={`${p.stock} price trend — ${sparkPts.length} points. Entry ₹${p.buy_price.toFixed(2)} → Current ₹${p.current_price.toFixed(2)}`}>
+                      <div title={`${p.stock} price trend — ${sparkPts.length} pts${priceSnapshots[p.stock]?.length ? ` (${priceSnapshots[p.stock].length} intraday snapshots)` : ""}. Entry ₹${p.buy_price.toFixed(2)} → Current ₹${p.current_price.toFixed(2)}`}>
                         <PnlSparkline
                           points={sparkPts}
                           buyPrice={p.buy_price}

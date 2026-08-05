@@ -3156,6 +3156,15 @@ def main():
             from phase11_autonomous import get_learning_summary as _f; result = _f()
         elif command == "phase11_snapshot":
             from phase11_autonomous import get_phase11_snapshot as _f; result = _f()
+        elif command == "phase11_record_price_snapshots":
+            _payload = json.loads(args[1]) if len(args) > 1 else {}
+            _scan_id = str(_payload.get("scan_id", "") or "")
+            from phase11_autonomous import record_price_snapshots as _f; result = _f(_scan_id)
+        elif command == "phase11_price_history":
+            _payload = json.loads(args[1]) if len(args) > 1 else {}
+            _sym   = str(_payload.get("symbol", "") or "")
+            _limit = int(_payload.get("limit", 50) or 50)
+            from phase11_autonomous import get_price_history as _f; result = _f(_sym, _limit)
 
         # ── Daily session management ───────────────────────────────────────────
         elif command == "daily_session_status":
