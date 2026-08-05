@@ -254,7 +254,8 @@ class TestFullData(unittest.TestCase):
             r = get_executive_summary()
         components = r["executive_score"]["components"]
         for key in ["portfolio_health", "ai_health", "strategy_health",
-                    "execution_quality", "risk", "system_health", "paper_analytics"]:
+                    "execution_quality", "risk", "system_health", "paper_analytics",
+                    "data_quality"]:
             self.assertIn(key, components)
 
     def test_ai_health_widget_fields(self):
@@ -331,13 +332,13 @@ class TestFullData(unittest.TestCase):
 class TestExecutiveScoreModel(unittest.TestCase):
     def test_perfect_score(self):
         from executive_dashboard.dashboard_models import ExecutiveScore
-        s = ExecutiveScore(100, 100, 100, 100, 100, 100, 100)
+        s = ExecutiveScore(100, 100, 100, 100, 100, 100, 100, 100)
         self.assertAlmostEqual(s.total, 100.0)
         self.assertEqual(s.label, "Excellent")
 
     def test_zero_score(self):
         from executive_dashboard.dashboard_models import ExecutiveScore
-        s = ExecutiveScore(0, 0, 0, 0, 0, 0, 0)
+        s = ExecutiveScore(0, 0, 0, 0, 0, 0, 0, 0)
         self.assertAlmostEqual(s.total, 0.0)
         self.assertEqual(s.label, "Critical")
 
@@ -345,14 +346,19 @@ class TestExecutiveScoreModel(unittest.TestCase):
         from executive_dashboard.dashboard_models import SCORE_WEIGHTS
         self.assertAlmostEqual(sum(SCORE_WEIGHTS.values()), 1.0)
 
-    def test_seven_components_in_weights(self):
+    def test_eight_components_in_weights(self):
         from executive_dashboard.dashboard_models import SCORE_WEIGHTS
         self.assertIn("paper_analytics", SCORE_WEIGHTS)
-        self.assertEqual(len(SCORE_WEIGHTS), 7)
+        self.assertIn("data_quality", SCORE_WEIGHTS)
+        self.assertEqual(len(SCORE_WEIGHTS), 8)
 
-    def test_paper_analytics_weight_is_ten_percent(self):
+    def test_paper_analytics_weight_is_nine_percent(self):
         from executive_dashboard.dashboard_models import SCORE_WEIGHTS
-        self.assertAlmostEqual(SCORE_WEIGHTS["paper_analytics"], 0.10, places=3)
+        self.assertAlmostEqual(SCORE_WEIGHTS["paper_analytics"], 0.09, places=3)
+
+    def test_data_quality_weight_is_ten_percent(self):
+        from executive_dashboard.dashboard_models import SCORE_WEIGHTS
+        self.assertAlmostEqual(SCORE_WEIGHTS["data_quality"], 0.10, places=3)
 
     def test_mixed_score(self):
         from executive_dashboard.dashboard_models import ExecutiveScore
@@ -364,11 +370,13 @@ class TestExecutiveScoreModel(unittest.TestCase):
             risk              = 90,
             system_health     = 100,
             paper_analytics   = 75,
+            data_quality      = 50,
         )
-        # Expected (Phase 8.2 weights):
-        #   0.225*80 + 0.18*82 + 0.18*70 + 0.135*78 + 0.09*90 + 0.09*100 + 0.10*75
-        # = 18.0 + 14.76 + 12.60 + 10.53 + 8.10 + 9.00 + 7.50 = 80.49 → 80.5
-        self.assertAlmostEqual(s.total, 80.5, places=0)
+        # Expected (Task 259 weights — all prior weights × 0.9, data_quality = 0.10):
+        #   0.2025*80 + 0.162*82 + 0.162*70 + 0.1215*78 + 0.081*90 + 0.081*100
+        #   + 0.09*75 + 0.10*50
+        # = 16.20 + 13.284 + 11.34 + 9.477 + 7.29 + 8.10 + 6.75 + 5.00 = 77.441 → 77.4
+        self.assertAlmostEqual(s.total, 77.4, places=0)
         self.assertEqual(s.label, "Good")
 
     def test_paper_analytics_field_in_to_dict(self):

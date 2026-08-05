@@ -356,6 +356,7 @@ function ScoreBreakdown({ score }: { score: NonNullable<ExecSummary["executive_s
     risk:              "Risk",
     system_health:     "System",
     paper_analytics:   "Analytics",
+    data_quality:      "Data Quality",
   };
   return (
     <div className="grid grid-cols-4 md:grid-cols-7 gap-2">

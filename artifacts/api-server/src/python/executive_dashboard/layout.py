@@ -78,7 +78,7 @@ def compute_executive_score(widgets: dict) -> ExecutiveScore:
         + (25.0 if sched_up else 0.0)
     )
 
-    # ── Paper Analytics (10%) ─────────────────────────────────────────────────
+    # ── Paper Analytics (9%) ──────────────────────────────────────────────────
     # Reads from the paper_analytics widget (Phase 8.2).  Falls back to 50.0
     # when the feature flag is off so the composite is never deflated by a
     # disabled module.
@@ -88,6 +88,21 @@ def compute_executive_score(widgets: dict) -> ExecutiveScore:
     else:
         pa_analytics_score = 50.0  # neutral default — disabled modules don't penalise
 
+    # ── Data Quality (10%) — Task 259 ─────────────────────────────────────────
+    # Reads from get_data_quality_snapshot() so the executive score naturally
+    # reflects the same value as the Data Quality widget.  Falls back to 50.0
+    # (neutral) when the module is disabled to avoid penalising the score for
+    # a feature flag that is off.
+    try:
+        from data_quality.shared_services import get_data_quality_snapshot as _dq_snap
+        dq = _dq_snap()
+        if dq.get("available", False):
+            dq_score = _clamp(float(dq.get("quality_score", 50.0)))
+        else:
+            dq_score = 50.0
+    except Exception:
+        dq_score = 50.0
+
     return ExecutiveScore(
         portfolio_health  = portfolio_score,
         ai_health         = ai_score,
@@ -96,6 +111,7 @@ def compute_executive_score(widgets: dict) -> ExecutiveScore:
         risk              = risk_score,
         system_health     = system_score,
         paper_analytics   = pa_analytics_score,
+        data_quality      = dq_score,
     )
 
 
