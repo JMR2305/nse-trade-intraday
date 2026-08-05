@@ -5,6 +5,7 @@ import {
   dispatchSignalPushNotifications,
   dispatchHealthAlertPushNotifications,
   ensurePushSubscriptionsTable,
+  _resetPlatformDegradedStateForTests,
   type OpsHealthSnapshot,
 } from "./pushNotifier";
 import { ensureAlertDeliveriesTable } from "./alertQueue";
@@ -535,5 +536,58 @@ describe("dispatchHealthAlertPushNotifications", () => {
     )[0] as Record<string, unknown>;
     expect(String(msg["title"])).toContain("agent");
     expect(String(msg["title"])).toContain("error");
+  });
+
+  it("schedules a retry (does not lose the health alert) when the push service is down", async () => {
+    _resetPlatformDegradedStateForTests();
+    await insertHealthSub(1);
+
+    // Expo is down — every push attempt gets a 500.
+    const fetchMock = vi.fn(async () => ({ ok: false, status: 500, json: async () => ({}) }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      dispatchHealthAlertPushNotifications(degradedSnapshot(40, [], "scan-retry-down")),
+    ).resolves.toBeUndefined();
+
+    // One attempt was made before the 500 was recorded.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // The delivery row must be retained as RETRY_SCHEDULED — not dropped.
+    const [row] = await db
+      .select()
+      .from(alertDeliveriesTable)
+      .where(eq(alertDeliveriesTable.destination, healthToken(1)));
+    expect(row?.status).toBe("RETRY_SCHEDULED");
+    expect(row?.attempts).toBe(1);
+    expect(row?.lastError).toBeTruthy();
+    expect(row!.nextAttemptAt!.getTime()).toBeGreaterThan(Date.now());
+
+    // An immediate re-dispatch must NOT hammer the provider (backoff not elapsed).
+    await dispatchHealthAlertPushNotifications(degradedSnapshot(40, [], "scan-retry-down-2"));
+    // The first scan's row is still in backoff; the second scan enqueues a new
+    // row but the first one is not retried yet — fetch call count stays at 2
+    // (one new enqueue attempt for scan-retry-down-2 fired, original still gated).
+    const callCountAfterSecondDispatch = fetchMock.mock.calls.length;
+    expect(callCountAfterSecondDispatch).toBeLessThanOrEqual(2);
+
+    // Once the backoff window elapses, re-running the queue delivers successfully.
+    await db
+      .update(alertDeliveriesTable)
+      .set({ nextAttemptAt: new Date(Date.now() - 1000) })
+      .where(eq(alertDeliveriesTable.id, row!.id));
+
+    const okMock = mockFetchOk();
+    await dispatchHealthAlertPushNotifications(degradedSnapshot(40, [], "scan-retry-down-3"));
+
+    // The overdue row is now retried and delivered.
+    expect(okMock).toHaveBeenCalled();
+    const [after] = await db
+      .select()
+      .from(alertDeliveriesTable)
+      .where(eq(alertDeliveriesTable.id, row!.id));
+    expect(after?.status).toBe("DELIVERED");
+    expect(after?.attempts).toBe(2);
+    expect(after?.deliveredAt).toBeTruthy();
   });
 });
