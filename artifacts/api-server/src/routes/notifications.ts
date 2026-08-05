@@ -18,10 +18,17 @@ function parseMinConfidence(value: unknown): number | null {
   return n;
 }
 
+function parseMinHealthPct(value: unknown): number | null {
+  if (value === undefined || value === null) return null;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 50 || n > 90) return null;
+  return n;
+}
+
 // Register (or re-register) a device token.
 router.post("/notifications/push/register", async (req: Request, res: Response) => {
   try {
-    const { token, minConfidence } = (req.body ?? {}) as Record<string, unknown>;
+    const { token, minConfidence, minHealthPct } = (req.body ?? {}) as Record<string, unknown>;
     if (!isValidExpoPushToken(token)) {
       res.status(400).json({ error: "A valid Expo push token is required" });
       return;
@@ -31,12 +38,18 @@ router.post("/notifications/push/register", async (req: Request, res: Response) 
       res.status(400).json({ error: "minConfidence must be a number between 0 and 100" });
       return;
     }
+    const minHp = parseMinHealthPct(minHealthPct);
+    if (minHealthPct !== undefined && minHp === null) {
+      res.status(400).json({ error: "minHealthPct must be a number between 50 and 90" });
+      return;
+    }
     await ensurePushSubscriptionsTable();
     await db
       .insert(pushSubscriptionsTable)
       .values({
         token,
         minConfidence: min ?? 70,
+        minHealthPct: minHp ?? 70,
         enabled: true,
         updatedAt: new Date(),
       })
@@ -45,6 +58,7 @@ router.post("/notifications/push/register", async (req: Request, res: Response) 
         set: {
           enabled: true,
           ...(min !== null ? { minConfidence: min } : {}),
+          ...(minHp !== null ? { minHealthPct: minHp } : {}),
           updatedAt: new Date(),
         },
       });
@@ -56,6 +70,7 @@ router.post("/notifications/push/register", async (req: Request, res: Response) 
       registered: true,
       enabled: row?.enabled ?? true,
       minConfidence: row?.minConfidence ?? 70,
+      minHealthPct: row?.minHealthPct ?? 70,
     });
   } catch (err) {
     logger.error({ err: err instanceof Error ? err.message : String(err) },
@@ -67,7 +82,7 @@ router.post("/notifications/push/register", async (req: Request, res: Response) 
 // Update preferences (threshold and/or enabled) for an existing token.
 router.post("/notifications/push/preferences", async (req: Request, res: Response) => {
   try {
-    const { token, minConfidence, enabled } = (req.body ?? {}) as Record<string, unknown>;
+    const { token, minConfidence, minHealthPct, enabled } = (req.body ?? {}) as Record<string, unknown>;
     if (!isValidExpoPushToken(token)) {
       res.status(400).json({ error: "A valid Expo push token is required" });
       return;
@@ -77,6 +92,11 @@ router.post("/notifications/push/preferences", async (req: Request, res: Respons
       res.status(400).json({ error: "minConfidence must be a number between 0 and 100" });
       return;
     }
+    const minHp = parseMinHealthPct(minHealthPct);
+    if (minHealthPct !== undefined && minHp === null) {
+      res.status(400).json({ error: "minHealthPct must be a number between 50 and 90" });
+      return;
+    }
     if (enabled !== undefined && typeof enabled !== "boolean") {
       res.status(400).json({ error: "enabled must be a boolean" });
       return;
@@ -84,6 +104,7 @@ router.post("/notifications/push/preferences", async (req: Request, res: Respons
     await ensurePushSubscriptionsTable();
     const updates: Record<string, unknown> = { updatedAt: new Date() };
     if (min !== null) updates["minConfidence"] = min;
+    if (minHp !== null) updates["minHealthPct"] = minHp;
     if (typeof enabled === "boolean") updates["enabled"] = enabled;
     const result = await db
       .update(pushSubscriptionsTable)
@@ -95,7 +116,12 @@ router.post("/notifications/push/preferences", async (req: Request, res: Respons
       return;
     }
     const row = result[0]!;
-    res.json({ registered: true, enabled: row.enabled, minConfidence: row.minConfidence });
+    res.json({
+      registered: true,
+      enabled: row.enabled,
+      minConfidence: row.minConfidence,
+      minHealthPct: row.minHealthPct,
+    });
   } catch (err) {
     logger.error({ err: err instanceof Error ? err.message : String(err) },
       "push preferences update failed");
@@ -120,7 +146,12 @@ router.get("/notifications/push/status", async (req: Request, res: Response) => 
       res.json({ registered: false });
       return;
     }
-    res.json({ registered: true, enabled: row.enabled, minConfidence: row.minConfidence });
+    res.json({
+      registered: true,
+      enabled: row.enabled,
+      minConfidence: row.minConfidence,
+      minHealthPct: row.minHealthPct,
+    });
   } catch (err) {
     logger.error({ err: err instanceof Error ? err.message : String(err) },
       "push status lookup failed");

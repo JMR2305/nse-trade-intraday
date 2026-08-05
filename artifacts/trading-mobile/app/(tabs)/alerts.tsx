@@ -28,10 +28,12 @@ import {
 import { useOfflineSnapshot } from "@/lib/offlineCache";
 import {
   DEFAULT_MIN_CONFIDENCE,
+  DEFAULT_MIN_HEALTH_PCT,
   disablePushAlerts,
   enablePushAlerts,
   getStoredPushPrefs,
   updateMinConfidence,
+  updateMinHealthPct,
 } from "@/lib/pushNotifications";
 
 function iconForType(type?: string): { name: keyof typeof Ionicons.glyphMap; tone: "good" | "bad" | "info" } {
@@ -82,6 +84,7 @@ function NotificationRow({ item }: { item: MonitorNotification }) {
 }
 
 const CONFIDENCE_OPTIONS = [60, 70, 80, 90];
+const HEALTH_OPTIONS = [50, 60, 70, 80, 90];
 
 function PushAlertsCard() {
   const colors = useColors();
@@ -89,6 +92,7 @@ function PushAlertsCard() {
   const [loaded, setLoaded] = React.useState(false);
   const [enabled, setEnabled] = React.useState(false);
   const [minConfidence, setMinConfidence] = React.useState(DEFAULT_MIN_CONFIDENCE);
+  const [minHealthPct, setMinHealthPct] = React.useState(DEFAULT_MIN_HEALTH_PCT);
   const [busy, setBusy] = React.useState(false);
 
   React.useEffect(() => {
@@ -96,6 +100,7 @@ function PushAlertsCard() {
       .then((prefs) => {
         setEnabled(prefs.enabled);
         setMinConfidence(prefs.minConfidence);
+        setMinHealthPct(prefs.minHealthPct);
       })
       .finally(() => setLoaded(true));
   }, []);
@@ -106,7 +111,7 @@ function PushAlertsCard() {
     setBusy(true);
     try {
       if (next) {
-        await enablePushAlerts(minConfidence);
+        await enablePushAlerts(minConfidence, minHealthPct);
         setEnabled(true);
       } else {
         await disablePushAlerts();
@@ -128,6 +133,17 @@ function PushAlertsCard() {
       await updateMinConfidence(value);
     } catch {
       Alert.alert("Push alerts", "Could not save the confidence threshold on the server. It will be applied next time you re-enable alerts.");
+    }
+  };
+
+  const handleHealthThreshold = async (value: number) => {
+    if (busy || value === minHealthPct) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setMinHealthPct(value);
+    try {
+      await updateMinHealthPct(value);
+    } catch {
+      Alert.alert("Push alerts", "Could not save the health threshold on the server. It will be applied next time you re-enable alerts.");
     }
   };
 
@@ -155,30 +171,59 @@ function PushAlertsCard() {
         Get notified on this phone when a scan finds a high-confidence signal. Research alerts only — nothing is traded automatically.
       </Text>
       {enabled && (
-        <View style={styles.confRow}>
-          <Text style={[styles.confLabel, { color: colors.mutedForeground }]}>Minimum confidence</Text>
-          <View style={styles.confChips}>
-            {CONFIDENCE_OPTIONS.map((opt) => {
-              const active = opt === minConfidence;
-              return (
-                <Pressable
-                  key={opt}
-                  onPress={() => handleConfidence(opt)}
-                  style={[
-                    styles.confChip,
-                    { borderColor: active ? colors.primary : colors.border },
-                    active && { backgroundColor: colors.primary + "18" },
-                  ]}
-                  testID={`push-conf-${opt}`}
-                >
-                  <Text style={[styles.confChipText, { color: active ? colors.primary : colors.mutedForeground }]}>
-                    {opt}%
-                  </Text>
-                </Pressable>
-              );
-            })}
+        <>
+          <View style={styles.confRow}>
+            <Text style={[styles.confLabel, { color: colors.mutedForeground }]}>Minimum confidence</Text>
+            <View style={styles.confChips}>
+              {CONFIDENCE_OPTIONS.map((opt) => {
+                const active = opt === minConfidence;
+                return (
+                  <Pressable
+                    key={opt}
+                    onPress={() => handleConfidence(opt)}
+                    style={[
+                      styles.confChip,
+                      { borderColor: active ? colors.primary : colors.border },
+                      active && { backgroundColor: colors.primary + "18" },
+                    ]}
+                    testID={`push-conf-${opt}`}
+                  >
+                    <Text style={[styles.confChipText, { color: active ? colors.primary : colors.mutedForeground }]}>
+                      {opt}%
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
-        </View>
+          <View style={styles.confRow}>
+            <Text style={[styles.confLabel, { color: colors.mutedForeground }]}>Health alert threshold</Text>
+            <Text style={[styles.confHint, { color: colors.mutedForeground }]}>
+              Alert me when platform health drops below this level
+            </Text>
+            <View style={styles.confChips}>
+              {HEALTH_OPTIONS.map((opt) => {
+                const active = opt === minHealthPct;
+                return (
+                  <Pressable
+                    key={opt}
+                    onPress={() => handleHealthThreshold(opt)}
+                    style={[
+                      styles.confChip,
+                      { borderColor: active ? colors.primary : colors.border },
+                      active && { backgroundColor: colors.primary + "18" },
+                    ]}
+                    testID={`push-health-${opt}`}
+                  >
+                    <Text style={[styles.confChipText, { color: active ? colors.primary : colors.mutedForeground }]}>
+                      {opt}%
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        </>
       )}
     </View>
   );
@@ -344,7 +389,8 @@ const styles = StyleSheet.create({
   pushSub: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
   confRow: { gap: 8, marginTop: 4 },
   confLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  confChips: { flexDirection: "row", gap: 8 },
+  confHint: { fontSize: 11, fontFamily: "Inter_400Regular", lineHeight: 15, marginTop: -4 },
+  confChips: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   confChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16, borderWidth: 1 },
   confChipText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
 });

@@ -14,8 +14,10 @@ import { apiJson } from "@/lib/monitorApi";
 const ENABLED_KEY = "pushAlertsEnabled";
 const TOKEN_KEY = "pushAlertsToken";
 const MIN_CONF_KEY = "pushAlertsMinConfidence";
+const MIN_HEALTH_KEY = "pushAlertsMinHealthPct";
 
 export const DEFAULT_MIN_CONFIDENCE = 70;
+export const DEFAULT_MIN_HEALTH_PCT = 70;
 
 export interface PushStatus {
   registered: boolean;
@@ -38,17 +40,21 @@ export async function getStoredPushPrefs(): Promise<{
   enabled: boolean;
   token: string | null;
   minConfidence: number;
+  minHealthPct: number;
 }> {
-  const [enabled, token, minConf] = await Promise.all([
+  const [enabled, token, minConf, minHealth] = await Promise.all([
     AsyncStorage.getItem(ENABLED_KEY),
     AsyncStorage.getItem(TOKEN_KEY),
     AsyncStorage.getItem(MIN_CONF_KEY),
+    AsyncStorage.getItem(MIN_HEALTH_KEY),
   ]);
-  const parsed = Number(minConf);
+  const parsedConf = Number(minConf);
+  const parsedHealth = Number(minHealth);
   return {
     enabled: enabled === "true",
     token,
-    minConfidence: Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_MIN_CONFIDENCE,
+    minConfidence: Number.isFinite(parsedConf) && parsedConf > 0 ? parsedConf : DEFAULT_MIN_CONFIDENCE,
+    minHealthPct: Number.isFinite(parsedHealth) && parsedHealth >= 50 ? parsedHealth : DEFAULT_MIN_HEALTH_PCT,
   };
 }
 
@@ -74,7 +80,10 @@ async function fetchExpoPushToken(): Promise<string> {
 }
 
 // User-initiated enable: asks for permission, gets a token, registers it.
-export async function enablePushAlerts(minConfidence: number): Promise<string> {
+export async function enablePushAlerts(
+  minConfidence: number,
+  minHealthPct?: number,
+): Promise<string> {
   const existing = await Notifications.getPermissionsAsync();
   let status = existing.status;
   if (status !== "granted") {
@@ -87,14 +96,17 @@ export async function enablePushAlerts(minConfidence: number): Promise<string> {
     );
   }
   const token = await fetchExpoPushToken();
+  const prefs = await getStoredPushPrefs();
+  const resolvedHealthPct = minHealthPct ?? prefs.minHealthPct;
   await apiJson("/notifications/push/register", {
     method: "POST",
-    body: JSON.stringify({ token, minConfidence }),
+    body: JSON.stringify({ token, minConfidence, minHealthPct: resolvedHealthPct }),
   });
   await Promise.all([
     AsyncStorage.setItem(ENABLED_KEY, "true"),
     AsyncStorage.setItem(TOKEN_KEY, token),
     AsyncStorage.setItem(MIN_CONF_KEY, String(minConfidence)),
+    AsyncStorage.setItem(MIN_HEALTH_KEY, String(resolvedHealthPct)),
   ]);
   return token;
 }
@@ -125,6 +137,17 @@ export async function updateMinConfidence(minConfidence: number): Promise<void> 
   }
 }
 
+export async function updateMinHealthPct(minHealthPct: number): Promise<void> {
+  await AsyncStorage.setItem(MIN_HEALTH_KEY, String(minHealthPct));
+  const { enabled, token } = await getStoredPushPrefs();
+  if (enabled && token) {
+    await apiJson("/notifications/push/preferences", {
+      method: "POST",
+      body: JSON.stringify({ token, minHealthPct }),
+    });
+  }
+}
+
 // Launch-time registration. Never prompts for permission on launch; it
 // registers (or refreshes) the device token whenever OS notification
 // permission is already granted and the user has not explicitly turned
@@ -136,11 +159,11 @@ export async function registerOnLaunch(): Promise<void> {
     if (explicitlyDisabled) return;
     const perms = await Notifications.getPermissionsAsync();
     if (perms.status !== "granted") return;
-    const { minConfidence } = await getStoredPushPrefs();
+    const { minConfidence, minHealthPct } = await getStoredPushPrefs();
     const token = await fetchExpoPushToken();
     await apiJson("/notifications/push/register", {
       method: "POST",
-      body: JSON.stringify({ token, minConfidence }),
+      body: JSON.stringify({ token, minConfidence, minHealthPct }),
     });
     await Promise.all([
       AsyncStorage.setItem(ENABLED_KEY, "true"),

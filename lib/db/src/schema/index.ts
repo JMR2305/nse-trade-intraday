@@ -65,6 +65,7 @@ export const signalSnapshotsTable = pgTable("signal_snapshots", {
 export const pushSubscriptionsTable = pgTable("push_subscriptions", {
   token:           text("token").primaryKey(),
   minConfidence:   doublePrecision("min_confidence").notNull().default(70),
+  minHealthPct:    doublePrecision("min_health_pct").notNull().default(70),
   enabled:         boolean("enabled").notNull().default(true),
   lastNotifiedKey: text("last_notified_key"),
   createdAt:       timestamp("created_at", { withTimezone: true }).defaultNow(),

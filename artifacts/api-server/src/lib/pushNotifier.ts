@@ -90,12 +90,19 @@ export function ensurePushSubscriptionsTable(): Promise<void> {
         CREATE TABLE IF NOT EXISTS push_subscriptions (
           token text PRIMARY KEY,
           min_confidence double precision NOT NULL DEFAULT 70,
+          min_health_pct double precision NOT NULL DEFAULT 70,
           enabled boolean NOT NULL DEFAULT true,
           last_notified_key text,
           created_at timestamptz DEFAULT now(),
           updated_at timestamptz DEFAULT now()
         )
       `)
+      .then(() =>
+        db.execute(sql`
+          ALTER TABLE push_subscriptions
+          ADD COLUMN IF NOT EXISTS min_health_pct double precision NOT NULL DEFAULT 70
+        `)
+      )
       .then(() => undefined)
       .catch((err: unknown) => {
         tableEnsured = null; // retry on next call
@@ -256,16 +263,21 @@ export async function processPushDeliveryQueue(): Promise<void> {
 
 // ── Health-alert push notifications (Task 316) ────────────────────────────────
 //
-// Called after each ops-centre snapshot collection. If platform health drops
-// below 70% or any enabled agent is in ERROR state, every subscribed device
-// gets one advisory push per scan_id — deduplicated by
-// `health_alert:<token>:<scanId>` in the alert_deliveries idempotency key.
+// Called after each ops-centre snapshot collection. Each subscribed device is
+// evaluated independently against its own `min_health_pct` threshold:
 //
-// Recovery tracking: once the platform was degraded in the current process
-// session, `platformWasDegraded` is set to true. The next snapshot that shows
-// health_pct ≥ 70 with no ERROR agents sends a single "platform recovered"
-// push per device, deduped by `health_recovery:<token>:<scanId>`, and resets
-// the flag. No recovery push fires if the system was never degraded.
+//   • If health_pct < sub.minHealthPct OR any agent is in ERROR → send alert.
+//   • If the device was previously alerted AND is now healthy (health_pct >=
+//     sub.minHealthPct AND no ERROR agents) → send one recovery notification
+//     and remove the token from the degraded set.
+//
+// Degradation state is tracked per-token in `degradedSubscriberTokens` so that
+// high-threshold subscribers (e.g. 90%) correctly alert at 85%, while
+// low-threshold subscribers (e.g. 70%) do not receive a spurious recovery push
+// until health climbs above their own threshold.
+//
+// All pushes are deduplicated by their idempotency key in alert_deliveries, so
+// re-dispatch of the same scan_id never double-notifies a device.
 //
 // Feature-flagged behind OPS_HEALTH_ALERTS_ENABLED (default: true).
 // Purely advisory — never triggers any trading action.
@@ -280,10 +292,9 @@ export interface OpsHealthSnapshot {
 
 let healthAlertInFlight = false;
 
-// Tracks whether the platform was degraded (health < 70 or agent ERROR) at
-// any point in the current server session. Persists across snapshots so a
-// recovery notification can be issued exactly once when health climbs back.
-let platformWasDegraded = false;
+// Per-token degradation state: tracks which device tokens have received a
+// health degradation alert this server session. Cleared per-token on recovery.
+const degradedSubscriberTokens = new Set<string>();
 
 export async function dispatchHealthAlertPushNotifications(
   snapshot: OpsHealthSnapshot,
@@ -297,40 +308,74 @@ export async function dispatchHealthAlertPushNotifications(
   const healthPct = snapshot.platform?.health_pct ?? 100;
   const scanId = (snapshot.platform?.scan_id ?? "").trim() || "unknown";
 
-  // Collect ERROR agents
+  // Collect ERROR agents (global — same for every subscriber)
   const errorAgents = Object.entries(snapshot.agents ?? {})
     .filter(([, a]) => a.status === "ERROR")
     .map(([, a]) => a.name ?? "Unknown agent");
-
-  const healthDegraded = healthPct < 70;
   const hasErrors = errorAgents.length > 0;
-  const platformHealthy = !healthDegraded && !hasErrors;
 
-  // ── Recovery path ─────────────────────────────────────────────────────────
-  // Platform is healthy now. If it was previously degraded, send one
-  // "all-clear" push per subscribed device and reset the degraded flag.
-  if (platformHealthy) {
-    if (!platformWasDegraded) return; // never degraded this session — nothing to send
+  healthAlertInFlight = true;
+  try {
+    await ensurePushSubscriptionsTable();
+    const subs = await db
+      .select()
+      .from(pushSubscriptionsTable)
+      .where(eq(pushSubscriptionsTable.enabled, true));
+    if (subs.length === 0) return;
 
-    healthAlertInFlight = true;
-    try {
-      await ensurePushSubscriptionsTable();
-      const subs = await db
-        .select()
-        .from(pushSubscriptionsTable)
-        .where(eq(pushSubscriptionsTable.enabled, true));
+    let enqueued = 0;
 
-      // Reset regardless of whether anyone is subscribed so a later alert
-      // cycle starts fresh.
-      platformWasDegraded = false;
+    for (const sub of subs) {
+      const threshold = sub.minHealthPct ?? 70;
+      const subDegraded = healthPct < threshold;
+      const shouldAlert = subDegraded || hasErrors;
+      const wasAlerted = degradedSubscriberTokens.has(sub.token);
 
-      if (subs.length === 0) return;
+      if (shouldAlert) {
+        // Mark this subscriber as having received a degradation alert.
+        degradedSubscriberTokens.add(sub.token);
 
-      const title = `Platform recovered — health now ${healthPct}%`;
-      const body = `All agents are active. Pipeline is operating normally.`;
+        let title: string;
+        let body: string;
+        if (subDegraded && hasErrors) {
+          title = `Platform health ${healthPct}% — ${errorAgents.length} agent${errorAgents.length === 1 ? "" : "s"} in error`;
+          body = `Agents in error: ${errorAgents.slice(0, 3).join(", ")}${errorAgents.length > 3 ? ` +${errorAgents.length - 3} more` : ""}. Check the Pipeline tab.`;
+        } else if (subDegraded) {
+          title = `Platform health degraded — ${healthPct}%`;
+          body = `Overall pipeline health has dropped below ${threshold}%. Open Pipeline for details.`;
+        } else {
+          // hasErrors only
+          title = `${errorAgents.length} agent${errorAgents.length === 1 ? "" : "s"} in error`;
+          body = `${errorAgents.slice(0, 3).join(", ")}${errorAgents.length > 3 ? ` +${errorAgents.length - 3} more` : ""}. Open Pipeline to investigate.`;
+        }
 
-      let enqueued = 0;
-      for (const sub of subs) {
+        const idempotencyKey = `health_alert:${sub.token}:${scanId}`;
+        const ok = await enqueueAlert({
+          channel: "push",
+          kind: "health_alert",
+          severity: "WARN",
+          title,
+          body,
+          destination: sub.token,
+          payload: {
+            to: sub.token,
+            sound: "default",
+            title,
+            body,
+            // Deep-links to the Pipeline tab in the mobile app
+            data: { screen: "ai-ops", scanId, healthPct, errorAgents },
+          },
+          idempotencyKey,
+          critical: false,
+        });
+        if (ok) enqueued++;
+      } else if (wasAlerted) {
+        // Platform has recovered above this subscriber's personal threshold
+        // and all agents are healthy — send a one-time "all-clear" push.
+        degradedSubscriberTokens.delete(sub.token);
+
+        const title = `Platform recovered — health now ${healthPct}%`;
+        const body = `All agents are active. Pipeline is operating normally.`;
         const idempotencyKey = `health_recovery:${sub.token}:${scanId}`;
         const ok = await enqueueAlert({
           channel: "push",
@@ -351,84 +396,13 @@ export async function dispatchHealthAlertPushNotifications(
         });
         if (ok) enqueued++;
       }
-
-      if (enqueued > 0) {
-        logger.info(
-          { enqueued, scanId, healthPct },
-          "Platform recovery push notifications queued",
-        );
-      }
-
-      // Drain due deliveries so alerts go out promptly
-      await processPushDeliveryQueue();
-    } catch (err) {
-      logger.error(
-        { err: err instanceof Error ? err.message : String(err) },
-        "Platform recovery push dispatch failed",
-      );
-    } finally {
-      healthAlertInFlight = false;
-    }
-    return;
-  }
-
-  // ── Degraded path ─────────────────────────────────────────────────────────
-  // Mark that we have seen a degraded state so a recovery push can fire later.
-  platformWasDegraded = true;
-
-  healthAlertInFlight = true;
-  try {
-    await ensurePushSubscriptionsTable();
-    const subs = await db
-      .select()
-      .from(pushSubscriptionsTable)
-      .where(eq(pushSubscriptionsTable.enabled, true));
-    if (subs.length === 0) return;
-
-    // Build notification content
-    let title: string;
-    let body: string;
-
-    if (healthDegraded && hasErrors) {
-      title = `Platform health ${healthPct}% — ${errorAgents.length} agent${errorAgents.length === 1 ? "" : "s"} in error`;
-      body = `Agents in error: ${errorAgents.slice(0, 3).join(", ")}${errorAgents.length > 3 ? ` +${errorAgents.length - 3} more` : ""}. Check the Pipeline tab.`;
-    } else if (healthDegraded) {
-      title = `Platform health degraded — ${healthPct}%`;
-      body = `Overall pipeline health has dropped below 70%. Open Pipeline for details.`;
-    } else {
-      // hasErrors only
-      title = `${errorAgents.length} agent${errorAgents.length === 1 ? "" : "s"} in error`;
-      body = `${errorAgents.slice(0, 3).join(", ")}${errorAgents.length > 3 ? ` +${errorAgents.length - 3} more` : ""}. Open Pipeline to investigate.`;
-    }
-
-    let enqueued = 0;
-    for (const sub of subs) {
-      const idempotencyKey = `health_alert:${sub.token}:${scanId}`;
-      const ok = await enqueueAlert({
-        channel: "push",
-        kind: "health_alert",
-        severity: "WARN",
-        title,
-        body,
-        destination: sub.token,
-        payload: {
-          to: sub.token,
-          sound: "default",
-          title,
-          body,
-          // Deep-links to the Pipeline tab in the mobile app
-          data: { screen: "ai-ops", scanId, healthPct, errorAgents },
-        },
-        idempotencyKey,
-        critical: false,
-      });
-      if (ok) enqueued++;
+      // else: platform healthy for this subscriber and was never degraded — nothing to send
     }
 
     if (enqueued > 0) {
       logger.info(
         { enqueued, scanId, healthPct, errorAgents: errorAgents.length },
-        "Health alert push notifications queued",
+        "Health alert/recovery push notifications queued",
       );
     }
 
@@ -444,8 +418,8 @@ export async function dispatchHealthAlertPushNotifications(
   }
 }
 
-// Exported for tests only — allows resetting the in-process degraded flag
-// between test cases without restarting the process.
+// Exported for tests only — allows resetting the in-process per-token
+// degradation state between test cases without restarting the process.
 export function _resetPlatformDegradedStateForTests(): void {
-  platformWasDegraded = false;
+  degradedSubscriberTokens.clear();
 }
