@@ -73,6 +73,7 @@ import ObservabilityCenter  from "@/pages/ObservabilityCenter";
 import PaperAnalytics       from "@/pages/PaperAnalytics";
 import DataQuality          from "@/pages/DataQuality";
 import RiskValidation       from "@/pages/RiskValidation";
+import RiskDecisionReportPage from "@/pages/RiskDecisionReportPage";
 import OperationsCenter     from "@/pages/OperationsCenter";
 import SecurityCenter       from "@/pages/SecurityCenter";
 import PerformanceCenter    from "@/pages/PerformanceCenter";
@@ -194,6 +195,7 @@ function Router() {
         <Route path="/paper-analytics"  component={PaperAnalytics} />
         <Route path="/data-quality"       component={DataQuality} />
         <Route path="/risk-validation"      component={RiskValidation} />
+        <Route path="/risk-decision-report" component={RiskDecisionReportPage} />
         <Route path="/operations-center"    component={OperationsCenter} />
         <Route path="/security-center"      component={SecurityCenter} />
         <Route path="/performance-center"   component={PerformanceCenter} />

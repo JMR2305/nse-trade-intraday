@@ -359,3 +359,107 @@ def evaluate_entries(candidate_symbols: Optional[List[str]] = None) -> Dict[str,
 
 def get_last_evaluation() -> Optional[Dict[str, Any]]:
     return store.kv_get("last_entry_evaluation")
+
+
+# ── Human-readable gate metadata ─────────────────────────────────────────────
+
+_GATE_META: Dict[str, str] = {
+    "scan_fresh":               "Scan Freshness",
+    "snapshot_consistency":     "Snapshot Consistency",
+    "provider_zerodha":         "Data Provider",
+    "no_fallback_data":         "No Fallback/Mock Data",
+    "market_open":              "Market Open",
+    "entry_circuit_breaker":    "Circuit Breaker",
+    "quote_available":          "Quote Available",
+    "strategy_regime_eligible": "Strategy / Regime",
+    "recommendation_buy":       "BUY Recommendation",
+    "min_confidence":           "Minimum Confidence",
+    "min_opportunity_score":    "Minimum Opportunity Score",
+    "min_trade_quality":        "Minimum Trade Quality",
+    "min_risk_reward":          "Minimum Risk / Reward",
+    "valid_stop_loss":          "Valid Stop-Loss",
+    "position_size":            "Position Sizing",
+    "sufficient_cash":          "Sufficient Cash",
+    "per_stock_cap":            "Per-Stock Exposure Cap",
+    "sector_cap":               "Sector Exposure Cap",
+    "portfolio_deployed_cap":   "Portfolio Deployed Cap",
+    "daily_loss_limit":         "Daily Loss Limit",
+    "daily_trade_limit":        "Daily Trade Limit",
+    "no_open_duplicate":        "No Duplicate Open Trade",
+    "cooldown":                 "Symbol Cooldown",
+}
+
+_GLOBAL_GATES = frozenset({
+    "scan_fresh", "snapshot_consistency", "provider_zerodha",
+    "no_fallback_data", "market_open", "entry_circuit_breaker",
+})
+
+
+def risk_decision_report() -> Dict[str, Any]:
+    """
+    Return the last Risk Agent entry evaluation, enriched with:
+      • gate_pressure  — per-gate count of blocked candidates, sorted desc
+      • top_blockers   — top-3 gates by block count (human labels)
+
+    Falls back to running a fresh evaluate_entries() if no cached evaluation
+    exists yet.  Read-only: never modifies positions or triggers a scan.
+    """
+    evaluation = get_last_evaluation()
+    if not evaluation:
+        # No prior evaluation — run one now so the page has something to show.
+        try:
+            evaluation = evaluate_entries()
+        except Exception as exc:
+            return {
+                "available": False,
+                "reason": f"No entry evaluation available and fresh run failed: {exc}",
+            }
+
+    candidates: List[Dict[str, Any]] = evaluation.get("candidates") or []
+
+    # Count how many candidates each gate blocked (failed).
+    pressure: Dict[str, int] = {}
+    for c in candidates:
+        for g in c.get("gates", []):
+            if not g["passed"]:
+                gate_id = g["gate"]
+                pressure[gate_id] = pressure.get(gate_id, 0) + 1
+
+    gate_pressure = [
+        {
+            "gate_id":    gid,
+            "label":      _GATE_META.get(gid, gid.replace("_", " ").title()),
+            "is_global":  gid in _GLOBAL_GATES,
+            "blocked":    cnt,
+            "blocked_pct": round(cnt / len(candidates) * 100, 1) if candidates else 0,
+        }
+        for gid, cnt in sorted(pressure.items(), key=lambda x: x[1], reverse=True)
+    ]
+
+    top_blockers = [g["label"] for g in gate_pressure[:3]]
+
+    # Annotate each gate in each candidate with its human label.
+    for c in candidates:
+        for g in c.get("gates", []):
+            g["label"] = _GATE_META.get(g["gate"], g["gate"].replace("_", " ").title())
+            g["is_global"] = g["gate"] in _GLOBAL_GATES
+
+    return {
+        "available": True,
+        "evaluated_at": evaluation.get("evaluated_at"),
+        "scan_id": evaluation.get("scan_id"),
+        "snapshot_ts": evaluation.get("snapshot_ts"),
+        "market_state": evaluation.get("market_state"),
+        "global_gates": [
+            {**g, "label": _GATE_META.get(g["gate"], g["gate"])}
+            for g in (evaluation.get("global_gates") or [])
+        ],
+        "global_pass": evaluation.get("global_pass"),
+        "candidates": candidates,
+        "total_count": len(candidates),
+        "eligible_count": evaluation.get("eligible_count", 0),
+        "blocked_count": evaluation.get("blocked_count", len(candidates)),
+        "gate_pressure": gate_pressure,
+        "top_blockers": top_blockers,
+        "label": "PAPER / RESEARCH ONLY",
+    }

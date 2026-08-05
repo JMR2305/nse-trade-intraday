@@ -1775,6 +1775,9 @@ def main():
         elif command == "phase15_risk_gate" and len(args) >= 2:
             from phase15_risk_gate import risk_gate
             result = {"success": True, **risk_gate(args[1])}
+        elif command == "phase15_risk_decision_report":
+            from phase20_gates import risk_decision_report
+            result = {"success": True, **risk_decision_report()}
         elif command == "phase15_audit_record":
             from phase15_audit import record_scan_audit
             result = record_scan_audit()

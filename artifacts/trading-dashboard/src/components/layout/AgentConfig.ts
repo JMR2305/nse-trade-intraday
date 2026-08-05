@@ -133,10 +133,11 @@ export const AGENTS: Agent[] = [
     description: "Portfolio risk, sector risk, correlation, stress testing",
     color: "#F59E0B",      // amber-500
     pages: [
-      { href: "/portfolio-risk",   label: "Portfolio Risk",   icon: ShieldCheck, tags: ["risk", "portfolio"] },
-      { href: "/risk-optimisation",label: "Risk Optimisation",icon: Shield,      tags: ["optimise", "risk"] },
-      { href: "/risk-validation",  label: "Risk Validation",  icon: ShieldAlert, tags: ["validate", "risk"] },
-      { href: "/risk",             label: "Risk Management",  icon: Shield,      tags: ["management", "risk"] },
+      { href: "/risk-decision-report", label: "Risk Decision Report", icon: FileBarChart2, tags: ["risk", "decision", "rejected", "gates", "report"] },
+      { href: "/portfolio-risk",       label: "Portfolio Risk",       icon: ShieldCheck,   tags: ["risk", "portfolio"] },
+      { href: "/risk-optimisation",    label: "Risk Optimisation",    icon: Shield,        tags: ["optimise", "risk"] },
+      { href: "/risk-validation",      label: "Risk Validation",      icon: ShieldAlert,   tags: ["validate", "risk"] },
+      { href: "/risk",                 label: "Risk Management",      icon: Shield,        tags: ["management", "risk"] },
     ],
   },
 
