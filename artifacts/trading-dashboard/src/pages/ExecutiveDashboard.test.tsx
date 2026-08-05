@@ -314,6 +314,27 @@ function mountDashboard() {
   );
 }
 
+/** Same as mountDashboard but also returns the QueryClient so tests can
+ *  invalidate individual queries to simulate a server restart / fresh poll. */
+function mountDashboardWithClient() {
+  const qc = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        refetchOnWindowFocus: false,
+        staleTime: Infinity,
+      },
+    },
+  });
+  const utils = render(
+    React.createElement(
+      QueryClientProvider, { client: qc },
+      React.createElement(ExecutiveDashboard),
+    ),
+  );
+  return { ...utils, qc };
+}
+
 /**
  * Build a standard mock that routes the four queries correctly.
  *   executive/summary       → execSummary
@@ -1323,6 +1344,65 @@ describe("ExecutiveDashboard — Data Quality widget", () => {
     // (multiple tiles may show it, so use queryAllByText)
     await waitFor(() =>
       expect(screen.queryAllByText("Loading…").length).toBeGreaterThan(0)
+    );
+  });
+
+  // ── Task #261: API server restart recovery ────────────────────────────────
+
+  it("reverts to Loading… when query errors (server down), then re-renders with fresh grade after recovery", async () => {
+    // Phase 1: DQ snapshot endpoint is down (simulates API server restart)
+    vi.mocked(apiJson).mockImplementation((path: string) => {
+      if (path === "executive/summary")     return Promise.resolve(FULL_EXEC_SUMMARY);
+      if (path === "research-lab/snapshot") return Promise.resolve(FULL_RESEARCH_SNAP);
+      if (path === "ai/summary")            return Promise.resolve(FULL_AI_SUMMARY);
+      if (path === "data-quality/snapshot") return Promise.reject(new Error("Network error"));
+      return Promise.resolve({});
+    });
+
+    const { qc } = mountDashboardWithClient();
+
+    // DQ tile renders "Loading…" because dqSnap is undefined while query is in error state
+    await waitFor(() =>
+      expect(screen.queryAllByText("Loading…").length).toBeGreaterThan(0)
+    );
+
+    // Phase 2: server has recovered — next poll returns the fresh snapshot
+    vi.mocked(apiJson).mockImplementation(makeMock());
+
+    // Invalidating the query forces a fresh fetch (mirrors the 60 s poll recovering)
+    await qc.invalidateQueries({ queryKey: ["dq-snapshot-exec"] });
+
+    // Grade badge and score ring should now be visible
+    await waitFor(() => expect(screen.queryByTestId("dq-grade-badge")).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.queryByTestId("dq-grade-badge")?.textContent).toContain("A")
+    );
+  });
+
+  it("critical-count badge disappears (not stays red) when next poll returns critical_count: 0", async () => {
+    // Phase 1: FULL_DQ_SNAPSHOT has critical_count: 1 — badge should be visible
+    vi.mocked(apiJson).mockImplementation(makeMock());
+    const { qc } = mountDashboardWithClient();
+
+    await waitFor(() => expect(screen.queryByTestId("dq-critical-badge")).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.queryByTestId("dq-critical-badge")?.textContent).toContain("1 Critical")
+    );
+
+    // Phase 2: next poll brings a clean snapshot (critical_count: 0)
+    vi.mocked(apiJson).mockImplementation(
+      makeMock(FULL_EXEC_SUMMARY, FULL_RESEARCH_SNAP, FULL_AI_SUMMARY, CLEAN_DQ_SNAPSHOT)
+    );
+
+    // Invalidating the query mirrors the automatic 60 s refetch
+    await qc.invalidateQueries({ queryKey: ["dq-snapshot-exec"] });
+
+    // Critical badge must vanish — it must not stay red on stale data
+    await waitFor(() => expect(screen.queryByTestId("dq-critical-badge")).toBeNull());
+
+    // Grade badge for clean snapshot should be visible (A+)
+    await waitFor(() =>
+      expect(screen.queryByTestId("dq-grade-badge")?.textContent).toContain("A+")
     );
   });
 });
