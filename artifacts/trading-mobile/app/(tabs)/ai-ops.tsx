@@ -27,8 +27,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppHeader } from "@/components/AppHeader";
 import { Skeleton } from "@/components/Skeleton";
+import { StaleBanner } from "@/components/StaleBanner";
 import { useColors } from "@/hooks/useColors";
 import { useOpsSnapshot, type AgentState, type OpsSnapshot } from "@/lib/monitorApi";
+import { useOfflineSnapshot } from "@/lib/offlineCache";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -544,7 +546,20 @@ export default function AiOpsScreen() {
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === "web";
 
-  const { data, isLoading, isFetching, isError, refetch, dataUpdatedAt } = useOpsSnapshot();
+  const { data: liveData, isLoading, isFetching, isError, refetch, dataUpdatedAt } = useOpsSnapshot();
+
+  // Persist each successful fetch to AsyncStorage; serve it immediately on next
+  // cold-start so the screen never shows a blank spinner when offline.
+  const { data, isStale, staleTs } = useOfflineSnapshot<OpsSnapshot>(
+    "ops-centre-snapshot",
+    liveData,
+    isError,
+    dataUpdatedAt,
+  );
+
+  // Show the StaleBanner only when the cached data is more than 5 minutes old.
+  const STALE_THRESHOLD_MS = 5 * 60 * 1_000;
+  const showStaleBanner = isStale && staleTs != null && Date.now() - staleTs > STALE_THRESHOLD_MS;
 
   // Countdown to next auto-refresh (30 s)
   const [countdown, setCountdown] = useState(30);
@@ -596,6 +611,11 @@ export default function AiOpsScreen() {
           <View style={[s.pill, { backgroundColor: colors.border + "44" }]}>
             <Text style={[s.pillText, { color: colors.mutedForeground }]}>READ-ONLY</Text>
           </View>
+          {isStale && (
+            <View style={[s.pill, { backgroundColor: "#F6C45322", borderWidth: 1, borderColor: "#F6C45366" }]}>
+              <Text style={[s.pillText, { color: isDark ? "#F6C453" : "#8A4B00" }]}>CACHED</Text>
+            </View>
+          )}
         </View>
 
         {/* Agent status summary row */}
@@ -654,7 +674,12 @@ export default function AiOpsScreen() {
           </Pressable>
         </View>
 
-        {/* Error state */}
+        {/* Stale cache banner — shown when offline data is > 5 minutes old */}
+        {showStaleBanner && (
+          <StaleBanner staleTs={staleTs} onRetry={refetch} />
+        )}
+
+        {/* Error state — only shown when there is no cached fallback */}
         {isError && !data && (
           <View style={[s.errorBanner, { backgroundColor: "#F43F5E18", borderColor: "#F43F5E" }]}>
             <Ionicons name="warning-outline" size={16} color="#F43F5E" />
@@ -664,7 +689,7 @@ export default function AiOpsScreen() {
           </View>
         )}
 
-        {/* Initial loading */}
+        {/* Initial loading — suppressed when cached data is already available */}
         {isLoading && !data && (
           <View style={[s.loadingCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <ActivityIndicator size="large" color={colors.primary} />

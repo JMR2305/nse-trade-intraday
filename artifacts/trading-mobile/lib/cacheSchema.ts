@@ -45,6 +45,19 @@ const PAYLOAD_VALIDATORS: Record<string, PayloadValidator> = {
   "health-kite": isPlainObject,
   "health-kill": isPlainObject,
   "health-broker": isPlainObject,
+  "ops-centre-snapshot": (d) => {
+    if (!isPlainObject(d)) return false;
+    const obj = d as Record<string, unknown>;
+    // Validate all fields the Pipeline tab screen renders.
+    return (
+      typeof obj.generated_at === "string" &&
+      isPlainObject(obj.platform) &&
+      typeof (obj.platform as Record<string, unknown>).health_pct === "number" &&
+      isPlainObject(obj.agents) &&
+      isPlainObject(obj.pipeline) &&
+      Array.isArray(obj.pipeline_nodes)
+    );
+  },
 };
 
 function payloadValid(key: string, data: unknown): boolean {

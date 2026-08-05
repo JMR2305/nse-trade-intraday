@@ -94,7 +94,12 @@ export function useOfflineSnapshot<T>(
     return { data: undefined, isStale: true, staleTs: null, source: "none", dataTs: null };
   }
 
-  return { data: liveData, isStale: false, staleTs: null, source: liveData !== undefined ? "live" : "none", dataTs: null };
+  // Loading state (liveData === undefined, !isError): serve the persisted snapshot immediately
+  // so screens never show a blank spinner on cold-start when the server is slow or offline.
+  if (snapshot) {
+    return { data: snapshot.data, isStale: true, staleTs: snapshot.ts, source: "offline-cache", dataTs: snapshot.ts };
+  }
+  return { data: undefined, isStale: false, staleTs: null, source: "none", dataTs: null };
 }
 
 export function formatAge(ts: number | null): string {
