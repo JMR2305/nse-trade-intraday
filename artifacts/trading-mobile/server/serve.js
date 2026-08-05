@@ -130,6 +130,18 @@ const server = http.createServer((req, res) => {
 });
 
 const port = parseInt(process.env.PORT || "3000", 10);
+server.on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
+    console.error(
+      `[serve.js] FATAL: Port ${port} is already in use. ` +
+      `If running inside Replit deployment, check that no dev ` +
+      `workflow (e.g. Expo dev) is holding this port. Exiting.`
+    );
+  } else {
+    console.error(`[serve.js] FATAL: Server error — ${err.message}`);
+  }
+  process.exit(1);
+});
 server.listen(port, "0.0.0.0", () => {
   console.log(`Serving static Expo build on port ${port}`);
 });
