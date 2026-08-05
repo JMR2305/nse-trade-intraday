@@ -83,13 +83,16 @@ def _snapshot_from_phase20() -> Optional[Dict[str, Any]]:
     blocked    = int(ev.get("blocked_count", 0))
     total      = len(candidates)
 
-    # Collect rejection reasons from blocked candidates
+    # Collect rejection reasons and per-gate block counts from blocked candidates
     reasons: set = set()
+    gate_counts: dict = {}
     rr_values: list = []
     for c in candidates:
         if not c.get("eligible"):
             for fg in (c.get("failed_gates") or [])[:4]:
-                reasons.add(fg.replace("_", " ").title())
+                label = fg.replace("_", " ").title()
+                reasons.add(label)
+                gate_counts[label] = gate_counts.get(label, 0) + 1
         sizing = c.get("sizing") or {}
         rr = sizing.get("rr_ratio") or c.get("rr_ratio") or 0
         if rr:
@@ -97,6 +100,13 @@ def _snapshot_from_phase20() -> Optional[Dict[str, Any]]:
                 rr_values.append(float(rr))
             except (TypeError, ValueError):
                 pass
+
+    # gate_breakdown: sorted by count desc, e.g. [{"gate": "Sector Cap", "blocked": 3}, ...]
+    gate_breakdown = sorted(
+        [{"gate": g, "blocked": cnt} for g, cnt in gate_counts.items()],
+        key=lambda x: x["blocked"],
+        reverse=True,
+    )
 
     avg_rr = round(sum(rr_values) / len(rr_values), 2) if rr_values else 0.0
     approval_rate = (eligible / total * 100) if total > 0 else 100.0
@@ -148,6 +158,7 @@ def _snapshot_from_phase20() -> Optional[Dict[str, Any]]:
         "eligible_count":        eligible,
         "blocked_count":         blocked,
         "rejection_reasons":     sorted(reasons)[:6],
+        "gate_breakdown":        gate_breakdown,
 
         # Capital / position data
         "capital_used":          round(capital_used, 2),
@@ -205,6 +216,7 @@ def get_risk_snapshot() -> Dict[str, Any]:
                 bus_result.setdefault("approved",             p20.get("approved", 0))
                 bus_result.setdefault("rejected",             p20.get("rejected", 0))
                 bus_result.setdefault("rejection_reasons",    p20.get("rejection_reasons", []))
+                bus_result.setdefault("gate_breakdown",       p20.get("gate_breakdown", []))
                 bus_result.setdefault("global_pass",          p20.get("global_pass"))
                 bus_result.setdefault("global_gates",         p20.get("global_gates", []))
         return bus_result
@@ -224,6 +236,7 @@ def get_risk_snapshot() -> Dict[str, Any]:
                 payload.setdefault("approved",             p20.get("approved", 0))
                 payload.setdefault("rejected",             p20.get("rejected", 0))
                 payload.setdefault("rejection_reasons",    p20.get("rejection_reasons", []))
+                payload.setdefault("gate_breakdown",       p20.get("gate_breakdown", []))
                 payload.setdefault("global_pass",          p20.get("global_pass"))
                 payload.setdefault("global_gates",         p20.get("global_gates", []))
         return payload

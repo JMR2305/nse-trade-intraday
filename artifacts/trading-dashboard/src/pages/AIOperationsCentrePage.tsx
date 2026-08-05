@@ -432,6 +432,7 @@ function AgentCard({ agent, agentKey }: { agent?: AgentState; agentKey: string }
     if (!d) return null;
 
     const rows: Array<[string, string | number | boolean | null | undefined]> = [];
+    let gateBreakdown: Array<{ gate: string; blocked: number }> | null = null;
 
     // Common overrides per agent
     if (agentKey === "supervisor") {
@@ -502,9 +503,9 @@ function AgentCard({ agent, agentKey }: { agent?: AgentState; agentKey: string }
         ["Risk Score",           d.risk_score ? `${(d.risk_score as number).toFixed(1)}` : "—"],
         ["R:R",                  d.reward_risk ? `${(d.reward_risk as number).toFixed(2)}×` : "—"],
       );
-      if (Array.isArray(d.rejection_reasons) && (d.rejection_reasons as string[]).length > 0) {
-        (d.rejection_reasons as string[]).forEach((r, i) =>
-          rows.push([`Rejection ${i + 1}`, r]));
+      // Capture per-gate breakdown for dedicated table below
+      if (Array.isArray(d.gate_breakdown) && (d.gate_breakdown as Array<{ gate: string; blocked: number }>).length > 0) {
+        gateBreakdown = d.gate_breakdown as Array<{ gate: string; blocked: number }>;
       }
     } else if (agentKey === "ai_decision") {
       rows.push(
@@ -558,19 +559,48 @@ function AgentCard({ agent, agentKey }: { agent?: AgentState; agentKey: string }
       );
     }
 
-    if (rows.length === 0) return null;
+    if (rows.length === 0 && !gateBreakdown) return null;
 
     return (
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5 mt-3">
-        {rows.map(([label, value]) => (
-          <div key={label}>
-            <p className="text-[10px] text-slate-500">{label}</p>
-            <p className="text-xs text-slate-300 font-mono truncate">
-              {value == null ? "—" : String(value) || "—"}
-            </p>
+      <>
+        {rows.length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5 mt-3">
+            {rows.map(([label, value]) => (
+              <div key={label}>
+                <p className="text-[10px] text-slate-500">{label}</p>
+                <p className="text-xs text-slate-300 font-mono truncate">
+                  {value == null ? "—" : String(value) || "—"}
+                </p>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        )}
+        {gateBreakdown && gateBreakdown.length > 0 && (
+          <div className="mt-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1">
+              <Shield className="w-3 h-3" /> Rejection Breakdown by Gate
+            </p>
+            <div className="rounded-lg overflow-hidden border border-slate-700/40">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-slate-800/60">
+                    <th className="text-left px-2.5 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Gate</th>
+                    <th className="text-right px-2.5 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Blocked</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {gateBreakdown.map((row, i) => (
+                    <tr key={row.gate} className={i % 2 === 0 ? "bg-slate-900/40" : "bg-slate-800/20"}>
+                      <td className="px-2.5 py-1.5 text-slate-300">{row.gate}</td>
+                      <td className="px-2.5 py-1.5 text-right font-mono text-rose-300 font-semibold">{row.blocked}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </>
     );
   };
 
