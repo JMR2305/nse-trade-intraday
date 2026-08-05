@@ -1,5 +1,5 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { useGetSignals, useGetTradeDecisions, useRunScan } from "@workspace/api-client-react";
+import { useGetSignals, useGetTradeDecisions, useRunLiveDataScan } from "@workspace/api-client-react";
 import { apiJson } from "@/lib/monitorApi";
 import * as Haptics from "expo-haptics";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -152,13 +152,27 @@ export default function SignalsScreen() {
     decisions.isError,
     decisions.dataUpdatedAt,
   );
-  const { mutateAsync: runScan, isPending: isScanning } = useRunScan();
+  const { mutateAsync: runLiveDataScan } = useRunLiveDataScan();
+  // scanRunning stays true from button press until the poll confirms completion —
+  // much longer than the mutation's isPending (which resolves in < 1 s).
+  const [scanRunning, setScanRunning] = useState(false);
+  // baselineScanId: the scan_id present in the DB *before* we triggered a scan.
+  // Completion is detected by seeing a different scan_id in the poll.
+  // Using scan_id (not snapshot_ts) because snapshot_ts is set at scan START,
+  // not completion, so it cannot reliably detect ALREADY_RUNNING completion.
+  const [baselineScanId, setBaselineScanId] = useState<string | null>(null);
   const [scanElapsed, setScanElapsed] = useState(0);
   const [aborting, setAborting] = useState(false);
   const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Stable reference to decisions.refetch to avoid re-creating the poll interval
+  // on every render (react-query returns a stable refetch but the containing
+  // object is recreated each render).
+  const refetchDecisions = decisions.refetch;
+
+  // Drive the elapsed counter off scanRunning, not mutation isPending.
   useEffect(() => {
-    if (isScanning) {
+    if (scanRunning) {
       setScanElapsed(0);
       elapsedRef.current = setInterval(() => setScanElapsed((s) => s + 1), 1000);
     } else {
@@ -174,12 +188,37 @@ export default function SignalsScreen() {
         elapsedRef.current = null;
       }
     };
-  }, [isScanning]);
+  }, [scanRunning]);
+
+  // Poll /live-data/scan/status every 5 s while a scan is in flight.
+  // Completion is detected when latest_scan.scan_id differs from the baseline
+  // captured just before the POST.  This works correctly for both:
+  //   RUNNING       — server started a fresh scan (new scan_id expected)
+  //   ALREADY_RUNNING — joined an in-flight scan (scan_id changes on completion)
+  // We do NOT compare snapshot_ts because it is set at scan start, not finish.
+  useEffect(() => {
+    if (!scanRunning) return;
+    const poll = setInterval(async () => {
+      try {
+        const resp = await apiJson<{ latest_scan?: { scan_id?: string } }>("/live-data/scan/status");
+        const currentScanId = resp?.latest_scan?.scan_id ?? null;
+        // null baseline: no previous scan existed — any scan_id is a new completion.
+        if (currentScanId !== null && currentScanId !== baselineScanId) {
+          setScanRunning(false);
+          await Promise.all([refetch(), refetchDecisions()]);
+        }
+      } catch {
+        // ignore transient poll errors; keep waiting
+      }
+    }, 5_000);
+    return () => clearInterval(poll);
+  }, [scanRunning, baselineScanId, refetch, refetchDecisions]);
 
   const handleAbort = useCallback(async () => {
     setAborting(true);
     try {
       await apiJson("/live-data/scan/abort", { method: "POST" });
+      setScanRunning(false);
     } catch {
       // best-effort; scan may have already completed
     } finally {
@@ -190,14 +229,40 @@ export default function SignalsScreen() {
   const handleScan = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setScanError(false);
+
+    // Fetch the current scan_id BEFORE triggering so we have a reliable baseline.
+    // We MUST have a confirmed baseline before enabling the poll: without it we
+    // cannot distinguish a pre-existing scan_id from a newly completed one, which
+    // would cause the spinner to stop after 5 s while the real scan is still running.
+    // If the status fetch fails, surface an error and abort rather than proceeding
+    // with an unknown baseline.
+    let baseline: string | null = null;
     try {
-      await runScan();
-      await Promise.all([refetch(), decisions.refetch()]);
+      const pre = await apiJson<{ latest_scan?: { scan_id?: string } }>("/live-data/scan/status");
+      // `null` is a valid baseline (no scan has run yet); undefined scan_id also maps to null.
+      baseline = pre?.latest_scan?.scan_id ?? null;
+    } catch {
+      // Status endpoint unreachable — we cannot poll safely.  Show an error.
+      setScanError(true);
+      return;
+    }
+    setBaselineScanId(baseline);
+    setScanRunning(true);
+
+    try {
+      const resp = await runLiveDataScan();
+      if (resp?.status === "RATE_LIMITED") {
+        setScanRunning(false);
+        setScanError(true);
+        return;
+      }
+      // Scan kicked off in background; polling effect detects completion via scan_id change.
     } catch (err) {
+      setScanRunning(false);
       const msg = err instanceof Error ? err.message : String(err);
       if (!msg.includes("aborted")) setScanError(true);
     }
-  }, [runScan, refetch, decisions]);
+  }, [runLiveDataScan]);
 
   const topPadding = isWeb ? 67 : insets.top;
 
@@ -229,21 +294,21 @@ export default function SignalsScreen() {
         </View>
         <View style={{ alignItems: "flex-end", gap: 6 }}>
           <Pressable
-            style={[styles.scanBtn, { backgroundColor: colors.primary }, (isScanning || isFetching) && { opacity: 0.6 }]}
+            style={[styles.scanBtn, { backgroundColor: colors.primary }, (scanRunning || isFetching) && { opacity: 0.6 }]}
             onPress={handleScan}
-            disabled={isScanning || isFetching}
+            disabled={scanRunning || isFetching}
             testID="run-scan-btn"
           >
-            {isScanning || isFetching ? (
+            {scanRunning || isFetching ? (
               <ActivityIndicator size="small" color={colors.primaryForeground} />
             ) : (
               <Feather name="refresh-cw" size={16} color={colors.primaryForeground} />
             )}
             <Text style={[styles.scanBtnText, { color: colors.primaryForeground }]}>
-              {isScanning ? `Scanning… ${scanElapsed}s` : "Scan"}
+              {scanRunning ? `Scanning… ${scanElapsed}s` : "Scan"}
             </Text>
           </Pressable>
-          {isScanning && scanElapsed >= 30 && (
+          {scanRunning && scanElapsed >= 30 && (
             <Pressable
               style={[styles.cancelBtn, { borderColor: colors.destructive }, aborting && { opacity: 0.5 }]}
               onPress={handleAbort}
@@ -256,7 +321,7 @@ export default function SignalsScreen() {
               </Text>
             </Pressable>
           )}
-          {isScanning && (
+          {scanRunning && (
             <Text style={{ fontSize: 10, color: colors.mutedForeground }}>
               ~30–90s · do not close{scanElapsed >= 30 ? " · or cancel" : ""}
             </Text>

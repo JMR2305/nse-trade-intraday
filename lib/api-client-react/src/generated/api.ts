@@ -495,6 +495,55 @@ export const useRunScan = <TError = ErrorType<ErrorResponse>,
       return useMutation(getRunScanMutationOptions(options));
     }
 
+// ── POST /api/live-data/scan/run (Phase 7 canonical scan) ────────────────────
+// Fire-and-forget: responds immediately; caller polls /live-data/scan/status
+// to detect completion (snapshot_ts advances past the moment scan was kicked off).
+
+export interface LiveDataScanRunResult {
+  started: boolean;
+  status: 'RUNNING' | 'ALREADY_RUNNING' | 'RATE_LIMITED';
+  retry_in_s?: number;
+  error?: string;
+}
+
+export const getRunLiveDataScanUrl = () => `/api/live-data/scan/run`;
+
+export const runLiveDataScan = async (options?: RequestInit): Promise<LiveDataScanRunResult> => {
+  return customFetch<LiveDataScanRunResult>(getRunLiveDataScanUrl(), {
+    ...options,
+    method: 'POST',
+  });
+};
+
+export const getRunLiveDataScanMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof runLiveDataScan>>, TError, void, TContext>; request?: SecondParameter<typeof customFetch> }
+): UseMutationOptions<Awaited<ReturnType<typeof runLiveDataScan>>, TError, void, TContext> => {
+  const mutationKey = ['runLiveDataScan'];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof runLiveDataScan>>, void> = () => {
+    return runLiveDataScan(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RunLiveDataScanMutationResult = NonNullable<Awaited<ReturnType<typeof runLiveDataScan>>>;
+export type RunLiveDataScanMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Run Phase 7 canonical live-data scan (fire-and-forget; poll /live-data/scan/status for completion)
+ */
+export const useRunLiveDataScan = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof runLiveDataScan>>, TError, void, TContext>; request?: SecondParameter<typeof customFetch> }
+): UseMutationResult<Awaited<ReturnType<typeof runLiveDataScan>>, TError, void, TContext> => {
+  return useMutation(getRunLiveDataScanMutationOptions(options));
+};
+
 export const getGetSymbolsUrl = () => {
 
 

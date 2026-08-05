@@ -12,10 +12,11 @@ import { API_BASE_URL } from "./apiConfig";
 export const BASE: string = API_BASE_URL;
 
 // Per-request fetch timeout (ms) for standard data endpoints.
-// NOTE: The mobile Scan button (signals tab) calls useRunScan which uses
-// customFetch — that path has no AbortController timeout, so scans that
-// take 30–90 s will complete without being aborted.  This constant applies
-// only to the apiJson() calls in this file (health probes, settings, etc).
+// NOTE: The mobile Scan button (signals tab) calls useRunLiveDataScan which
+// POSTs to /live-data/scan/run (fire-and-forget, returns in < 1 s) then polls
+// /live-data/scan/status via apiJson() every 5 s until latest_scan.scan_id
+// changes — indicating the new scan has completed and been saved to the DB.
+// The per-poll timeout below applies to those status calls.
 const FETCH_TIMEOUT_MS = 15_000;
 
 // React Query hook defaults (applied per-hook where relevant):
