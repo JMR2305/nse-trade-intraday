@@ -82,10 +82,16 @@ const SNAPSHOT_PAYLOAD = {
   platform: { health_pct: 98, market_state: "PRE_OPEN" },
 };
 
-// ── Default spawn mock — platform returns PLATFORM_PAYLOAD, snapshot returns SNAPSHOT_PAYLOAD
+const OPPORTUNITY_SCAN_PAYLOAD = {
+  opportunities: [{ symbol: "RELIANCE", confidence: 87, decision_type: "BUY" }],
+  generated_at: "2026-08-05T09:02:00.000Z",
+};
+
+// ── Default spawn mock — routes requests to their matching fixture payload
 function defaultSpawnImpl(_bin: string, spawnArgs: string[]) {
   const cmd = spawnArgs[1] ?? "";
   if (cmd === "ops_centre_snapshot") return makePyProc(SNAPSHOT_PAYLOAD);
+  if (cmd === "opportunity_scan")    return makePyProc(OPPORTUNITY_SCAN_PAYLOAD);
   return makePyProc(PLATFORM_PAYLOAD);
 }
 
@@ -261,7 +267,41 @@ describe("Platform cache — Node.js cache invalidation (Task #325)", () => {
     expect(spawnCount("ops_centre_snapshot")).toBe(2);
   });
 
-  // ── 8. Snapshot failure does NOT clear the cache ───────────────────────────
+  // ── 8. Opportunity-scan concurrent coalescing (Task #327) ────────────────
+
+  it("coalesces concurrent /opportunity-scan requests into a single Python spawn", async () => {
+    // Three operators click Refresh at the same time — only one Python process
+    // should be spawned regardless of concurrency.
+    const [r1, r2, r3] = await Promise.all([
+      get("/api/opportunity-scan"),
+      get("/api/opportunity-scan"),
+      get("/api/opportunity-scan"),
+    ]);
+
+    expect(r1.status).toBe(200);
+    expect(r2.status).toBe(200);
+    expect(r3.status).toBe(200);
+
+    // All three callers receive the same response
+    expect(r2.body).toEqual(r1.body);
+    expect(r3.body).toEqual(r1.body);
+
+    // Despite 3 concurrent requests, Python spawned exactly once
+    expect(spawnCount("opportunity_scan")).toBe(1);
+  });
+
+  // ── 9. Sequential opportunity-scan requests each get their own spawn ───────
+
+  it("spawns Python for each sequential opportunity-scan request (no result cache)", async () => {
+    // Sequential requests arrive after the prior one resolves — not coalesced,
+    // each is a fresh spawn (in-flight dedup only, no persistent result cache).
+    await get("/api/opportunity-scan");
+    await get("/api/opportunity-scan");
+
+    expect(spawnCount("opportunity_scan")).toBe(2);
+  });
+
+  // ── 10. Snapshot failure does NOT clear the cache ──────────────────────────
 
   it("does not clear the platform cache when /ops-centre/snapshot fails", async () => {
     // Populate the platform cache

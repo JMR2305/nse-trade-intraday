@@ -112,7 +112,7 @@ const AGENT_COLUMNS: TableColumn<AgentRow>[] = [
         </span>
         {row.heartbeat_elapsed_s != null && (
           <span className="text-xs text-muted-foreground">
-            {(row.heartbeat_elapsed_s as number).toFixed(0)}s ago
+            {((row.heartbeat_elapsed_s ?? 0) as number).toFixed(0)}s ago
           </span>
         )}
       </div>
@@ -126,7 +126,7 @@ const AGENT_COLUMNS: TableColumn<AgentRow>[] = [
     key: "processing_time_ms", label: "Latency", sortable: true,
     render: (_v, row) => (
       <span className={`text-sm ${row.processing_time_ms > 5000 ? "text-amber-400" : ""}`}>
-        {row.processing_time_ms.toFixed(0)} ms
+        {(row.processing_time_ms ?? 0).toFixed(0)} ms
       </span>
     ),
   },
@@ -289,11 +289,14 @@ function SnapshotInfoCard({ title, icon: Icon, data, fields }: {
 
 // ── Agent registry table ──────────────────────────────────────────────────────
 function AgentRegistryTable() {
+  // The canonical agent_list backend calls 12 agents in parallel — cold-start ~25 s.
+  // Without an explicit timeout, apiJson's 15 s default kills the first call.
   const { data, isLoading } = useQuery({
     queryKey:        ["agent-fw", "agents"],
-    queryFn:         () => apiJson("agent-framework/agents"),
+    queryFn:         () => apiJson("agent-framework/agents", undefined, 45_000),
     refetchInterval: REFETCH,
-    retry: 1,
+    retry: 2,
+    retryDelay:      (n) => Math.min(2000 * 2 ** n, 10_000),
     staleTime: 15_000,
   });
   const r      = data as any;
@@ -332,6 +335,19 @@ export default function AgentOperations() {
   const { data: mdSnap,    isLoading: mdLoading    } = useQuery(q("market-data/snapshot"));
   const { data: resSnap,   isLoading: resLoading   } = useQuery(q("research/snapshot"));
 
+  // Canonical agent count — same source as AI Operations Centre & AI Paper Trader
+  const { data: canonical } = useQuery({
+    queryKey:        ["ops-centre", "agents"],
+    queryFn:         () => apiJson("/ops-centre/agents", undefined, 30_000),
+    refetchInterval: 30_000,
+    staleTime:       20_000,
+    retry: 1,
+  });
+  const ca = canonical as any;
+  const canonicalSubtitle = ca?.agent_count
+    ? `${ca.agent_count.active}/${ca.agent_count.total} agents ACTIVE · ${ca.health_pct ?? 0}% health · canonical snapshot`
+    : "Multi-agent framework — status, health, snapshot bus, scalability";
+
   const snap   = snapData  as any;
   const alerts = alertData as any;
   const scal   = scalData  as any;
@@ -343,7 +359,7 @@ export default function AgentOperations() {
       <PageHeader
         icon={Bot}
         title="Agent Operations"
-        subtitle="Multi-agent framework — status, health, snapshot bus, scalability"
+        subtitle={canonicalSubtitle}
         agentId="operations"
         agentName="Operations Agent"
         status="live"

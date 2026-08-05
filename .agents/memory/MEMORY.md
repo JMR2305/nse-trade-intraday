@@ -71,3 +71,4 @@
 - [Phase 10E Collab & Autonomous Ops](phase10e-collab-ops.md) — CollaborationEngine + AutonomousOpsAgent; 11-node graph 10 edges; all agent imports are LOCAL inside functions so mock at module.ClassName; inline runPython per-route (never import runPython from python-env); 110/110 tests.
 - [AI Ops Centre import pattern](ops-centre-import-pattern.md) — parallel agent snapshot aggregators must pre-load modules in main thread + use sys.modules dict lookup in workers; never __import__() in threads.
 - [Ops Centre snapshot timeout](ops-centre-snapshot-timeout.md) — snapshot takes 22-30s; apiJson default 15s kills it; pass 60_000 as third arg; all blank sections were this one bug.
+- [Endpoint timeout patterns](endpoint-timeout-patterns.md) — apiJson 15s default kills slow aggregate endpoints; fix = Node.js in-process coalescing cache + explicit timeout in queryFn; 5 known slow endpoints documented.

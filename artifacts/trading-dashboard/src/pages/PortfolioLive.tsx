@@ -413,24 +413,34 @@ interface PerfEquity {
 }
 
 function PerformanceSnapshot() {
-  const { data: summary } = useQuery<PerfSummary>({
-    queryKey: ["perf-summary-inline"],
-    queryFn: () => apiJson("/performance/summary") as Promise<PerfSummary>,
+  // Use phase11/snapshot (always available) instead of the Performance Centre
+  // endpoint which requires PERFORMANCE_CENTER_ENABLED=true (Task #208 fix).
+  const { data: ph11 } = useQuery({
+    queryKey: ["perf-snapshot-phase11"],
+    queryFn: () => apiJson("phase11/snapshot"),
     staleTime: 60_000,
     refetchInterval: 60_000,
   });
+  const ph = ph11 as any;
 
-  const { data: equity } = useQuery<PerfEquity>({
-    queryKey: ["perf-equity-inline"],
-    queryFn: () => apiJson("/performance/equity?period=daily") as Promise<PerfEquity>,
-    staleTime: 60_000,
-    refetchInterval: 60_000,
-  });
+  const summary: PerfSummary | undefined = ph && !ph.error ? {
+    status:         "OK",
+    today_pnl:      ph.today_pnl       ?? 0,
+    total_net_pnl:  ph.realised_pnl    ?? 0,
+    win_rate:       ph.win_rate        ?? 0,
+    profit_factor:  ph.profit_factor   ?? 0,
+    total_trades:   ph.total_trades    ?? 0,
+    expectancy:     ph.expectancy      ?? 0,
+    advisory_only:  true,
+    paper_only:     true,
+  } as unknown as PerfSummary : undefined;
 
-  // Stay invisible when disabled or not yet loaded
-  if (!summary || summary.status === "DISABLED") return null;
+  const equity: PerfEquity | undefined = undefined;   // no sparkline without dedicated endpoint
 
-  const sparkValues = (equity?.daily_pnl ?? []).slice(-14).map((d) => Number(d.equity));
+  // Stay invisible when not yet loaded
+  if (!summary) return null;
+
+  const sparkValues: number[] = [];   // sparkline requires dedicated equity endpoint
 
   const todayPnl    = Number(summary.today_pnl    ?? 0);
   const netPnl      = Number(summary.total_net_pnl ?? summary.realised_pnl ?? 0);

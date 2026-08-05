@@ -1,0 +1,143 @@
+PRIORITY IMPLEMENTATION
+
+Do NOT add any new features.
+
+Our priority is platform stability and backend consistency.
+
+Implement the following tasks in this exact order.
+
+--------------------------------------------------
+
+PRIORITY 1
+
+Task #328
+
+Fix Agent Framework Cross-Page Consistency.
+
+Requirements
+
+• AI Paper Trader
+• AI Operations Centre
+• Agent Operations
+• Command Centre
+
+must all consume the SAME canonical scan snapshot.
+
+No page may compute its own derived agent state.
+
+Verify all 11 agents register correctly.
+
+Verify Snapshot Bus publishes correctly.
+
+Verify Agent Registry is active.
+
+Verify feature flags are enabled.
+
+Remove duplicate or mock status providers.
+
+--------------------------------------------------
+
+PRIORITY 2
+
+Backend Diagnostics
+
+Add diagnostics showing
+
+• Agent Registry Status
+• Snapshot Bus Status
+• Registered Agents
+• Active Agents
+• Last Snapshot
+• Snapshot Version
+• Feature Flags
+• Connected Pages
+
+--------------------------------------------------
+
+PRIORITY 3
+
+Task #322
+
+Validate Cached → Live transition.
+
+After a scan completes
+
+Cached badge must automatically become Live
+
+without page refresh.
+
+--------------------------------------------------
+
+PRIORITY 4
+
+Task #208
+
+Validate Performance Snapshot.
+
+Ensure
+
+Portfolio
+
+P/L
+
+Trades
+
+Returns
+
+Win Rate
+
+Drawdown
+
+all populate from live paper trading.
+
+No placeholder zeros.
+
+--------------------------------------------------
+
+PRIORITY 5
+
+Task #313
+
+Verify Risk Agent remains ACTIVE after restart.
+
+--------------------------------------------------
+
+PRIORITY 6
+
+Task #314
+
+Display accurate rejection breakdown.
+
+Show
+
+Rejected Stock
+
+Rejected By
+
+Reason
+
+Timestamp
+
+--------------------------------------------------
+
+FINAL VERIFICATION
+
+After implementation verify
+
+1. AI Paper Trader
+
+2. AI Operations Centre
+
+3. Agent Operations
+
+4. Command Centre
+
+all display identical agent counts,
+identical health,
+identical timestamps,
+identical pipeline state,
+and identical snapshot versions.
+
+Provide screenshots proving all four pages are synchronized.
+
+Only after this stability work is complete should we continue with new features.

@@ -1332,11 +1332,267 @@ def get_stock_journey(symbol: str) -> Dict[str, Any]:
     }
 
 
+def get_ops_centre_agents() -> Dict[str, Any]:
+    """
+    Lightweight canonical agent status — runs the same 12 parallel collectors
+    as the full snapshot but skips V3 enrichment (smart_insights, heatmap, etc.).
+    Wall time ≈ 5-8 s (vs 22-30 s for the full snapshot).
+    All four dashboard pages consume this endpoint for consistent agent counts.
+    """
+    _preload_modules()
+
+    collectors = {
+        "supervisor":          _collect_supervisor,
+        "market_data":         _collect_market_data,
+        "research":            _collect_research,
+        "market_intelligence": _collect_market_intelligence,
+        "monitoring":          _collect_monitoring,
+        "strategy":            _collect_strategy,
+        "risk":                _collect_risk,
+        "ai_decision":         _collect_ai_decision,
+        "execution":           _collect_execution,
+        "learning":            _collect_learning,
+        "knowledge":           _collect_knowledge,
+        "operations":          _collect_operations,
+    }
+
+    agents: Dict[str, Any] = {}
+    with ThreadPoolExecutor(max_workers=12) as ex:
+        futures = {name: ex.submit(fn) for name, fn in collectors.items()}
+        for name, fut in futures.items():
+            try:
+                agents[name] = fut.result(timeout=20)
+            except Exception as exc:
+                agents[name] = _agent_base(
+                    {"available": False, "error": f"Worker timed out: {exc}"},
+                    name.replace("_", " ").title(), name, "UNKNOWN_ENABLED",
+                    current_activity="Snapshot collection timed out",
+                )
+
+    statuses   = [a.get("status", "UNKNOWN") for a in agents.values()]
+    total      = len(agents)
+    active     = sum(1 for s in statuses if s == "ACTIVE")
+    error      = sum(1 for s in statuses if s == "ERROR")
+    disabled   = sum(1 for s in statuses if s == "DISABLED")
+
+    health_scores = [a["health_pct"] for a in agents.values()
+                     if a.get("enabled", True) and a.get("status") != "DISABLED"]
+    health_pct = round(sum(health_scores) / len(health_scores)) if health_scores else 0
+
+    generated_at = _now_iso()
+
+    # Persist to KV so platform bar reflects updated health without a full snapshot
+    try:
+        from phase20_store import kv_set as _kv_set
+        _kv_set("ops_last_health_pct", str(health_pct))
+        _kv_set("ops_agents_ts", generated_at)
+    except Exception:
+        pass
+
+    return {
+        "generated_at":  generated_at,
+        "advisory_only": True,
+        "paper_only":    True,
+        "agents":        agents,
+        "agent_count": {
+            "total":    total,
+            "active":   active,
+            "error":    error,
+            "disabled": disabled,
+        },
+        "health_pct": health_pct,
+    }
+
+
+def get_agent_list_canonical() -> Dict[str, Any]:
+    """
+    Agent list in supervisor format sourced from the canonical ops_centre
+    collectors — not AgentRegistry (which requires lazy-init per subprocess).
+    Used by /api/agent-framework/agents so Agent Operations shows live data.
+    """
+    result = get_ops_centre_agents()
+    agents_raw = result.get("agents", {})
+
+    def _to_row(key: str, a: Dict[str, Any]) -> Dict[str, Any]:
+        status    = a.get("status", "UNKNOWN")
+        health    = a.get("health_pct", 0)
+        enabled   = a.get("enabled", True)
+        errors    = list(a.get("errors") or [])
+
+        if not enabled or status == "DISABLED":
+            state, hb = "STOPPED", "NEVER"
+        elif status == "ACTIVE":
+            state, hb = "RUNNING", "OK"
+        elif status == "ERROR":
+            state, hb = "ERROR", "MISSED"
+        else:
+            state, hb = "UNKNOWN", "NEVER"
+
+        overall_status = (
+            "healthy"  if health >= 70  else
+            "degraded" if health >= 40  else
+            "critical" if health > 0    else
+            "unknown"
+        )
+
+        return {
+            "agent_id":              a.get("agent_id", key),
+            "name":                  a.get("name", key.replace("_", " ").title()),
+            "state":                 state,
+            "health_score":          float(health),
+            "heartbeat_status":      hb,
+            "heartbeat_elapsed_s":   0,
+            "current_activity":      a.get("current_activity", ""),
+            "registered":            enabled and status != "DISABLED",
+            "enabled":               enabled,
+            "last_error":            errors[0] if errors else None,
+            "stocks_in":             a.get("stocks_in", 0),
+            "stocks_out":            a.get("stocks_out", 0),
+            "stocks_rejected":       a.get("stocks_rejected", 0),
+            "rejection_reason":      a.get("rejection_reason", ""),
+            # Fields expected by AgentOperations.tsx DataTable columns
+            "queue_depth":           a.get("queue_depth", 0),
+            "processing_time_ms":    a.get("processing_time_ms", 0.0),
+            "snapshots_published":   a.get("snapshots_published", 0),
+            "dependencies":          a.get("dependencies", []),
+            "overall_health": {
+                "status": overall_status,
+                "score":  float(health),
+            },
+        }
+
+    rows = [_to_row(k, v) for k, v in agents_raw.items()]
+    active = sum(1 for r in rows if r["state"] == "RUNNING")
+
+    return {
+        "available":     True,
+        "advisory_only": True,
+        "agents":        rows,
+        "count":         len(rows),
+        "healthy_count": active,
+        "overall_health": {
+            "status": "healthy" if active == len(rows) else "degraded" if active > 0 else "critical",
+            "score":  float(result.get("health_pct", 0)),
+        },
+    }
+
+
+def get_ops_centre_diagnostics() -> Dict[str, Any]:
+    """
+    Backend diagnostics: Agent Registry, Snapshot Bus, feature flags, last snapshot.
+    Priority 2 — read-only, never blocks or spawns.
+    """
+    import os as _os
+
+    # ── Agent Registry ────────────────────────────────────────────────────────
+    registry_error: Optional[str] = None
+    registered: List[Dict[str, Any]] = []
+    try:
+        from agent_framework.agent_registry import AgentRegistry as _AR
+        _reg = _AR.instance()
+        for _a in _reg.all():
+            registered.append({
+                "id":    getattr(_a, "agent_id", str(_a)),
+                "name":  getattr(_a, "name", str(_a)),
+                "state": str(getattr(_a, "state", "UNKNOWN")),
+            })
+    except Exception as _e:
+        registry_error = f"{type(_e).__name__}: {_e}"
+
+    # ── Snapshot Bus ──────────────────────────────────────────────────────────
+    bus_error: Optional[str] = None
+    bus_topics: List[str] = []
+    bus_count = 0
+    try:
+        from agent_framework.snapshot_bus import SnapshotBus as _SB
+        _bus = _SB.instance()
+        _snaps = getattr(_bus, "_snapshots", {})
+        bus_topics = list(_snaps.keys())
+        bus_count  = len(bus_topics)
+    except Exception as _e:
+        bus_error = f"{type(_e).__name__}: {_e}"
+
+    # ── Last snapshot from KV ─────────────────────────────────────────────────
+    last_ts     = None
+    last_health = None
+    try:
+        from phase20_store import kv_get as _kv_get
+        last_ts     = _kv_get("ops_last_snapshot_ts") or _kv_get("ops_agents_ts")
+        last_health = _kv_get("ops_last_health_pct")
+    except Exception:
+        pass
+
+    # ── Feature flags ─────────────────────────────────────────────────────────
+    flag_names = [
+        "AGENT_FRAMEWORK_ENABLED", "SUPERVISOR_AGENT_ENABLED",
+        "MARKET_DATA_AGENT_ENABLED", "RESEARCH_AGENT_ENABLED",
+        "MARKET_INTELLIGENCE_AGENT_ENABLED", "RISK_AGENT_ENABLED",
+        "STRATEGY_AGENT_ENABLED", "AI_DECISION_AGENT_ENABLED",
+        "EXECUTION_AGENT_ENABLED", "LEARNING_AGENT_ENABLED",
+        "KNOWLEDGE_AGENT_ENABLED", "OPERATIONS_AGENT_ENABLED",
+        "OPERATIONS_CENTER_ENABLED", "COMMAND_CENTER_ENABLED",
+        "PAPER_EXECUTION_ENABLED", "LIVE_EXECUTION_ENABLED",
+        "AUTO_PAPER_ENTRIES_ENABLED",
+    ]
+    flags: Dict[str, bool] = {}
+    for _fn in flag_names:
+        _default = "true"  # agent flags default ON; execution safety defaults OFF
+        if _fn in ("LIVE_EXECUTION_ENABLED", "AUTO_PAPER_ENTRIES_ENABLED"):
+            _default = "false"
+        flags[_fn] = _os.environ.get(_fn, _default).lower() in ("1", "true", "yes")
+
+    # Active = any non-STOPPED, non-ERROR state in the registry
+    _active_ids = [a["id"] for a in registered
+                   if not any(s in a["state"] for s in ("STOPPED", "ERROR", "UNKNOWN"))]
+
+    # Note: AgentRegistry and SnapshotBus are per-process singletons.
+    # This diagnostics command runs in a fresh subprocess, so registered_count
+    # will be 0 here — agents self-register lazily in the running API process.
+    # Use /ops-centre/agents for live agent status (calls each agent's snapshot fn).
+    return {
+        "generated_at": _now_iso(),
+        "note": (
+            "agent_registry and snapshot_bus reflect this diagnostics subprocess only. "
+            "Agents self-register lazily in the API server process. "
+            "See /ops-centre/agents for live status."
+        ),
+        "agent_registry": {
+            "status":             "OK" if registry_error is None else "ERROR",
+            "error":              registry_error,
+            "registered_count":   len(registered),
+            "registered_agents":  registered,
+            "runtime_note":       "0 in diagnostics subprocess — agents register in the API server process",
+        },
+        "snapshot_bus": {
+            "status":       "OK" if bus_error is None else "ERROR",
+            "error":        bus_error,
+            "topic_count":  bus_count,
+            "topics":       bus_topics,
+            "runtime_note": "0 topics in diagnostics subprocess — topics exist in the API server process",
+        },
+        "active_agents":  _active_ids,
+        "active_count":   len(_active_ids),
+        "last_snapshot": {
+            "timestamp":  last_ts,
+            "health_pct": (int(last_health) if last_health else None),
+            "scan_id":    None,   # populated by scan_state_store in future
+        },
+        "snapshot_version": last_ts,
+        "feature_flags": flags,
+        "connected_pages": [
+            "AI Operations Centre (/ai-operations-centre)",
+            "AI Paper Trader (/ai-paper-trader)",
+            "Agent Operations (/agent-operations)",
+            "Command Centre (/command-centre)",
+        ],
+    }
+
+
 def get_ops_centre_snapshot() -> Dict[str, Any]:
     """
-    Collect all 12 agent snapshots sequentially (avoids Python import-lock
-    contention that occurs when multiple threads call __import__ concurrently).
-    Total wall time is typically 5-10 s; comfortably within the 30 s route timeout.
+    Collect all 12 agent snapshots in parallel plus full V3 enrichment.
+    Total wall time is typically 22-30 s. Use get_ops_centre_agents() for
+    fast canonical status; this full snapshot is for the AI Operations Centre.
     """
     # Pre-warm all module imports so repeated calls are instant.
     _preload_modules()

@@ -2824,6 +2824,10 @@ def main():
             from pipeline_stats import get_pipeline_stats as _f; result = _f()
         elif command == "ops_centre_snapshot":
             from ops_centre import get_ops_centre_snapshot as _f; result = _f()
+        elif command == "ops_centre_agents":
+            from ops_centre import get_ops_centre_agents as _f; result = _f()
+        elif command == "ops_centre_diagnostics":
+            from ops_centre import get_ops_centre_diagnostics as _f; result = _f()
         elif command == "ops_centre_platform":
             from ops_centre import get_fast_platform_status as _f; result = _f()
         elif command == "ops_v3_stock_journey":
@@ -3073,7 +3077,9 @@ def main():
         elif command == "agent_supervisor_snapshot":
             from supervisor_agent.shared_services import get_supervisor_snapshot as _f; result = _f()
         elif command == "agent_list":
-            from supervisor_agent.shared_services import get_agent_list as _f; result = _f()
+            # Use canonical ops_centre collectors so agents show correctly even
+            # before lazy-init has populated the AgentRegistry in this subprocess.
+            from ops_centre import get_agent_list_canonical as _f; result = _f()
         elif command == "agent_detail":
             agent_id_arg = args[0] if args else ""
             from supervisor_agent.shared_services import get_agent_detail as _f; result = _f(agent_id_arg)

@@ -889,7 +889,19 @@ export default function AIOperationsCentrePage() {
     retry: 1,
   });
 
-  // ── Slow query: agent cards + pipeline funnel (~10-40 s, 30 s refresh) ─────
+  // ── Mid-speed query: canonical agent counts (~5-8 s, shared across all pages) ──
+  // Same source as AI Paper Trader, Agent Operations, and Command Centre.
+  // Populates agent counts before the slow snapshot lands.
+  const { data: canonicalAgents } = useQuery({
+    queryKey:        ["ops-centre", "agents"],
+    queryFn:         () => apiJson("/ops-centre/agents", undefined, 30_000),
+    refetchInterval: 30_000,
+    staleTime:       20_000,
+    retry: 1,
+  });
+  const ca = canonicalAgents as any;
+
+  // ── Slow query: agent cards + pipeline funnel (~22-30 s, 30 s refresh) ────
   // IMPORTANT: snapshot takes 22–30 s; apiJson default timeout is 15 s which
   // killed every request. Extended to 60 s so the response can land in time.
   const {

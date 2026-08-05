@@ -16,7 +16,12 @@
       "ts": "2026-08-05T09:46:34.412961+05:30",
       "checkpointed": 0,
       "note": "no_active_records"
+    },
+    "checkpoint_60m": {
+      "ts": "2026-08-05T10:16:14.803014+05:30",
+      "checkpointed": 0,
+      "note": "no_active_records"
     }
   },
-  "ingest_count": 25
+  "ingest_count": 33
 }

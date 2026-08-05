@@ -4,6 +4,7 @@ import type { ChildProcess } from "child_process";
 import path from "path";
 import fs from "fs";
 import { eventBus } from "../lib/events";
+import { clearCommandCenterCache } from "./command-center";
 
 const router: IRouter = Router();
 
@@ -302,9 +303,17 @@ router.post("/session-archives/:id/restore", async (req, res) => {
 });
 
 // GET /api/opportunity-scan
+// Idempotent: concurrent callers (e.g. two operators clicking Refresh at the
+// same time) share a single Python spawn instead of duplicating expensive work.
+let opportunityScanInFlight: Promise<unknown> | null = null;
+
 router.get("/opportunity-scan", async (_req, res) => {
   try {
-    const data = await runPython(["opportunity_scan"]);
+    if (!opportunityScanInFlight) {
+      opportunityScanInFlight = runPython(["opportunity_scan"])
+        .finally(() => { opportunityScanInFlight = null; });
+    }
+    const data = await opportunityScanInFlight;
     res.json(data);
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
@@ -2938,6 +2947,54 @@ router.get("/ops-centre/platform", async (_req, res) => {
     }
     const data = await platformInFlight;
     platformCache = { data, ts: Date.now() };
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/ops-centre/agents — canonical agent status for all four dashboard pages
+// Same 12 parallel collectors as the full snapshot; skips V3 enrichment so it
+// returns in ~5-8 s instead of 22-30 s. 10 s Node.js cache + in-flight coalescing.
+// Cleared on scan.completed so all four pages get fresh data after every scan.
+const AGENTS_CACHE_MS = 10_000;
+let agentsCache: { data: unknown; ts: number } | null = null;
+let agentsInFlight: Promise<unknown> | null = null;
+
+export function clearAgentsCache(): void { agentsCache = null; }
+
+eventBus.on("event", (evt: { event: string }) => {
+  if (evt.event === "scan.completed") clearAgentsCache();
+});
+
+// Command Centre summary cache is cleared on scan so it picks up fresh market + portfolio data.
+eventBus.on("event", (evt: { event: string }) => {
+  if (evt.event === "scan.completed") clearCommandCenterCache();
+});
+
+router.get("/ops-centre/agents", async (_req, res) => {
+  try {
+    if (agentsCache && Date.now() - agentsCache.ts < AGENTS_CACHE_MS) {
+      res.json(agentsCache.data);
+      return;
+    }
+    if (!agentsInFlight) {
+      agentsInFlight = runPython(["ops_centre_agents"])
+        .finally(() => { agentsInFlight = null; });
+    }
+    const data = await agentsInFlight;
+    agentsCache = { data, ts: Date.now() };
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/ops-centre/diagnostics — Agent Registry + Snapshot Bus + feature flags
+// Read-only, no cache — always reflects live state of the running Python process.
+router.get("/ops-centre/diagnostics", async (_req, res) => {
+  try {
+    const data = await runPython(["ops_centre_diagnostics"]);
     res.json(data);
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });

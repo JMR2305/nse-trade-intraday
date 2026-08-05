@@ -174,10 +174,13 @@ interface SessionStatus {
   advisory_only: boolean;
   no_live_orders: boolean;
 }
-interface AgentHealth {
-  agents: Record<string, string>;
-  healthy: number;
-  total: number;
+/** Canonical agent status — served by /ops-centre/agents (same source as AI Operations Centre) */
+interface CanonicalAgentStatus {
+  agents: Record<string, { status: string; health_pct: number; name: string; enabled: boolean }>;
+  agent_count: { total: number; active: number; error: number; disabled: number };
+  health_pct: number;
+  generated_at: string;
+  advisory_only: boolean;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -332,12 +335,12 @@ function S0AutonomousSession() {
       refetchInterval: 30_000, staleTime: 15_000, retry: 1,
     });
 
+  // Canonical agent status — same source as AI Operations Centre (/ops-centre/agents)
   const { data: agents, isLoading: agentsLoad, refetch: refetchAgents } =
-    useQuery<AgentHealth>({
+    useQuery<CanonicalAgentStatus>({
       queryKey: ["apt", "session-agents"],
-      queryFn:  () => apiJson("/phase11/session/agents"),
+      queryFn:  () => apiJson("/ops-centre/agents", undefined, 30_000),
       staleTime: 60_000, retry: 1,
-      // Don't auto-refetch agents every tick — expensive
       refetchInterval: 120_000,
     });
 
@@ -368,9 +371,9 @@ function S0AutonomousSession() {
   const initialized = sess?.initialized_today ?? false;
   const autoEntries = sess?.auto_paper_entries ?? false;
   const crmMode     = (sess?.capital_mode ?? "A") === "B";
-  const healthy     = agents?.healthy ?? 0;
-  const total       = agents?.total   ?? 11;
-  const agentOk     = healthy === total;
+  const healthy     = agents?.agent_count?.active ?? 0;
+  const total       = agents?.agent_count?.total  ?? 12;
+  const agentOk     = healthy > 0 && healthy === total;
 
   const statusCls = initialized
     ? "bg-emerald-950/30 border-emerald-700/40"

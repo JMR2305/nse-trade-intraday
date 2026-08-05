@@ -19,9 +19,12 @@ import {
 
 // ── query helpers ──────────────────────────────────────────────────────────────
 const REFETCH = 30_000;
+// command-center/* endpoints aggregate many subsystems and can take 10-22 s
+// on cold start. Pass an explicit 30 s timeout so they don't race the default
+// 15 s limit; the backend 30 s Node.js cache makes all subsequent calls instant.
 const q = (path: string) => ({
   queryKey:  ["cc", path],
-  queryFn:   () => apiJson("command-center/" + path),
+  queryFn:   () => apiJson("command-center/" + path, undefined, 30_000),
   refetchInterval: REFETCH,
   retry: 3,
   retryDelay: (attempt: number) => Math.min(2000 * 2 ** attempt, 15_000),
@@ -806,6 +809,17 @@ function MultiAgentOpsCard() {
     retry: 1,
     staleTime: 30_000,
   });
+
+  // Canonical agent status — same source as AI Operations Centre
+  const { data: canonical } = useQuery({
+    queryKey:  ["ops-centre", "agents"],
+    queryFn:   () => apiJson("/ops-centre/agents", undefined, 30_000),
+    refetchInterval: 30_000,
+    staleTime: 20_000,
+    retry: 1,
+  });
+  const ca = canonical as any;
+
   const d = data as any;
 
   if (isLoading) {
@@ -829,12 +843,13 @@ function MultiAgentOpsCard() {
   const overallHealth: string = (d.overall_health        as string) ?? "UNKNOWN";
   const graphPct:      number = (d.graph_health_pct      as number) ?? 0;
   const tracePct:      number = (d.traceability_pct      as number) ?? 0;
-  const registered:    number = (d.registered_agents     as number) ?? 0;
-  const healthy:       number = (d.healthy_agents        as number) ?? 0;
+  // Prefer canonical counts (same source as AI Operations Centre & AI Paper Trader)
+  const registered:    number = ca?.agent_count?.total  ?? (d.registered_agents as number) ?? 0;
+  const healthy:       number = ca?.agent_count?.active ?? (d.healthy_agents    as number) ?? 0;
   const alertCount:    number = (d.alert_count           as number) ?? 0;
   const critAlerts:    number = (d.critical_alerts       as number) ?? 0;
   const snapThru:      number = (d.snapshot_throughput   as number) ?? 0;
-  const healthScore:   number = (d.overall_health_score  as number) ?? 0;
+  const healthScore:   number = ca?.health_pct ?? (d.overall_health_score as number) ?? 0;
 
   const collabCls = collabHealth === "HEALTHY" ? "bg-emerald-600" :
                     collabHealth === "DEGRADED" ? "bg-amber-500"  :
