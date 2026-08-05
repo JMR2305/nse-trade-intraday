@@ -9,7 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiJson } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2,
   Activity, Shield, Zap, Rocket, BarChart2, Brain, Monitor,
@@ -102,11 +102,33 @@ function DisabledBanner() {
 }
 
 // ── Section 1 — Platform Header ────────────────────────────────────────────────
-function PlatformHeader({ summary }: { summary: any }) {
+function PlatformHeader({ summary, dataUpdatedAt }: { summary: any; dataUpdatedAt?: number }) {
   const ps = summary?.platform_score ?? 0;
   const pg = summary?.platform_grade ?? "D";
   const pst = summary?.platform_status ?? "UNKNOWN";
   const sched = summary?.scheduler_status ?? "UNKNOWN";
+
+  // Staleness badge — amber when React Query cache is > 60 s old, emerald otherwise
+  const generatedAt: string | undefined = summary?.generated_at;
+  const isCached = dataUpdatedAt != null && (Date.now() - dataUpdatedAt) > 60_000;
+  const ageSource = generatedAt;
+
+  const [ageSecs, setAgeSecs] = useState(0);
+  useEffect(() => {
+    if (!ageSource) { setAgeSecs(0); return; }
+    const tick = () => {
+      const diff = Math.round((Date.now() - new Date(ageSource).getTime()) / 1000);
+      setAgeSecs(Math.max(0, diff));
+    };
+    tick();
+    const id = setInterval(tick, 1_000);
+    return () => clearInterval(id);
+  }, [ageSource]);
+
+  const ageLabel = ageSecs < 60
+    ? `${ageSecs}s ago`
+    : `${Math.round(ageSecs / 60)}m ago`;
+
   return (
     <div className="bg-card border border-border rounded-xl p-4 flex flex-wrap items-center gap-4">
       <div className="flex items-center gap-3">
@@ -124,6 +146,26 @@ function PlatformHeader({ summary }: { summary: any }) {
       <Badge variant="outline" className="text-xs border-amber-500/40 text-amber-300">
         📋 {summary?.execution_mode ?? "PAPER_TRADING"}
       </Badge>
+      {/* Cache-vs-live staleness pill */}
+      {generatedAt && (
+        isCached ? (
+          <span
+            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-amber-950/60 border border-amber-700/40 text-amber-300"
+            title="Showing cached data — last fetched over 60 s ago"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+            Cached · {ageLabel}
+          </span>
+        ) : (
+          <span
+            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-emerald-950/60 border border-emerald-700/40 text-emerald-300"
+            title="Data freshly computed from this snapshot"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse" />
+            Live · {ageLabel}
+          </span>
+        )
+      )}
       <span className="text-xs text-muted-foreground ml-auto">
         {summary?.generated_at?.slice(0, 19)?.replace("T", " ")} UTC
       </span>
@@ -539,7 +581,7 @@ function ExportButton() {
 
 // ── Main page ──────────────────────────────────────────────────────────────────
 export default function CommandCenter() {
-  const { data: d, isLoading, error } = useQuery({ ...q("summary") });
+  const { data: d, isLoading, error, dataUpdatedAt } = useQuery({ ...q("summary") });
   const r = d as any;
   const isDisabled = r?.available === false && !isLoading;
 
@@ -600,7 +642,7 @@ export default function CommandCenter() {
       {!isLoading && r && (
         <>
           {/* Platform header bar */}
-          <PlatformHeader summary={r} />
+          <PlatformHeader summary={r} dataUpdatedAt={dataUpdatedAt} />
 
           {/* Primary 2-col grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
