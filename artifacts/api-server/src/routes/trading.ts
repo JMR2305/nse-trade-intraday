@@ -2906,9 +2906,39 @@ router.post("/risk/config", async (req, res) => {
 // GET /api/ops-centre/platform — fast platform status (< 1 s, reads only cached KV + market hours)
 // Returns platform health %, scan metadata, market state, and last-known pipeline node statuses.
 // Populated from the KV cache written by /ops-centre/snapshot after each full agent collection.
+//
+// Node.js-level cache (10 s TTL) avoids a Python spawn (~600 ms) on every platform-bar poll.
+// Coalesces concurrent misses into a single subprocess.
+// Explicitly cleared when a full scan completes (scan.completed event) and when the
+// /ops-centre/snapshot route returns successfully — both events mean fresh KV data was written.
+const PLATFORM_CACHE_MS = 10_000;
+let platformCache: { data: unknown; ts: number } | null = null;
+let platformInFlight: Promise<unknown> | null = null;
+
+/** Exported so the snapshot route and tests can invalidate the cache on demand. */
+export function clearPlatformCache(): void { platformCache = null; }
+
+// Invalidate whenever a scan completes — the scan writes new health_pct + cache_ts to KV.
+// eventBus extends EventEmitter; "event" is the single channel, filter by evt.event name.
+eventBus.on("event", (evt: { event: string }) => {
+  if (evt.event === "scan.completed") clearPlatformCache();
+});
+
 router.get("/ops-centre/platform", async (_req, res) => {
   try {
-    res.json(await runPython(["ops_centre_platform"]));
+    // Serve from Node.js cache if still fresh (skips Python spawn entirely)
+    if (platformCache && Date.now() - platformCache.ts < PLATFORM_CACHE_MS) {
+      res.json(platformCache.data);
+      return;
+    }
+    // Coalesce concurrent requests into a single subprocess
+    if (!platformInFlight) {
+      platformInFlight = runPython(["ops_centre_platform"])
+        .finally(() => { platformInFlight = null; });
+    }
+    const data = await platformInFlight;
+    platformCache = { data, ts: Date.now() };
+    res.json(data);
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
   }
@@ -2922,9 +2952,13 @@ router.get("/ops-centre/journey/:symbol", async (req, res) => {
 });
 
 // GET /api/ops-centre/snapshot — AI Operations Centre full snapshot (all 12 agents, parallel)
+// Clears the platform cache on success: the snapshot writes fresh health_pct + cache_ts to KV,
+// so the next /ops-centre/platform hit should read the new values, not the stale 10s window.
 router.get("/ops-centre/snapshot", async (_req, res) => {
   try {
-    res.json(await runPython(["ops_centre_snapshot"]));
+    const data = await runPython(["ops_centre_snapshot"]);
+    clearPlatformCache();   // fresh KV written — next platform poll gets new cache_ts
+    res.json(data);
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
   }

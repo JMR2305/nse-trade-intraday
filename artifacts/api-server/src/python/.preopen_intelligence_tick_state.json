@@ -22,6 +22,32 @@
       "ready": true,
       "provider_status": "LIVE",
       "session_status": "INITIALISING"
+    },
+    "freeze": {
+      "ts": "2026-08-05T09:16:05.416201+05:30",
+      "success": true,
+      "phase": "FROZEN",
+      "log": [
+        {
+          "phase": "FROZEN",
+          "ts": "2026-08-05T09:16:05.423845+05:30"
+        },
+        {
+          "phase": "FROZEN",
+          "ts": "2026-08-05T09:16:05.657096+05:30",
+          "watchlists_generated": [
+            "top_gap_up",
+            "top_gap_down",
+            "buy_imbalance",
+            "sell_imbalance",
+            "highest_executed_qty",
+            "sector_leaders",
+            "sector_laggards",
+            "overall_ranked"
+          ],
+          "symbols": 10
+        }
+      ]
     }
   },
   "collect_count": 14

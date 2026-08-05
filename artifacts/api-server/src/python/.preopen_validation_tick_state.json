@@ -1,21 +1,12 @@
 {
-  "trading_date": "2026-08-04",
-  "session_id": "val-2026-08-04-8a9bca",
+  "trading_date": "2026-08-05",
+  "session_id": "val-2026-08-05-46fc0e",
   "checkpoints_done": {
-    "price_1000": {
-      "ts": "2026-08-04T09:58:33.981113+05:30",
-      "symbols": 0,
-      "skipped": "no_candidates"
-    },
-    "price_1030": {
-      "ts": "2026-08-04T10:28:29.063616+05:30",
-      "symbols": 0,
-      "skipped": "no_candidates"
-    },
-    "eod_classify": {
-      "ts": "2026-08-04T15:28:08.001812+05:30",
-      "symbols": 0,
-      "skipped": "no_candidates"
+    "open_0920": {
+      "ts": "2026-08-05T09:18:38.595542+05:30",
+      "fetched": 10,
+      "symbols": 10,
+      "updated": 10
     }
   }
 }
