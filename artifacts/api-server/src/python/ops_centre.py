@@ -1386,6 +1386,7 @@ def get_ops_centre_agents() -> Dict[str, Any]:
         from phase20_store import kv_set as _kv_set
         _kv_set("ops_last_health_pct", str(health_pct))
         _kv_set("ops_agents_ts", generated_at)
+        _kv_set("ops_active_agents", str(active))   # read by get_framework_diagnostics()
     except Exception:
         pass
 

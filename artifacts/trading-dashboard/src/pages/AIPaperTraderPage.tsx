@@ -372,7 +372,7 @@ function S0AutonomousSession() {
   const autoEntries = sess?.auto_paper_entries ?? false;
   const crmMode     = (sess?.capital_mode ?? "A") === "B";
   const healthy     = agents?.agent_count?.active ?? 0;
-  const total       = agents?.agent_count?.total  ?? 12;
+  const total       = agents?.agent_count?.total  ?? 0;
   const agentOk     = healthy > 0 && healthy === total;
 
   const statusCls = initialized

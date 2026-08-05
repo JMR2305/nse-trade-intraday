@@ -44,6 +44,11 @@ router.get("/agent-framework/supervisor/snapshot", handle("agent_supervisor_snap
 router.get("/agent-framework/supervisor/alerts",   handle("agent_supervisor_alerts",   30_000));
 router.get("/agent-framework/scalability",         handle("agent_scalability",         30_000));
 
+// ── Framework Diagnostics ─────────────────────────────────────────────────────
+// Explains the subprocess-per-request model; never blocks or spawns workers.
+// Always returns available=true (registry count 0 is expected, not an error).
+router.get("/agent-framework/diagnostics", handle("agent_framework_diagnostics", 15_000));
+
 // ── Agent registry (slow ~5-8 s — canonical ops_centre backend) ──────────────
 // get_agent_list_canonical() calls all 12 agent snapshot functions in parallel.
 // Without coalescing, every tab on Agent Operations spawns its own subprocess.

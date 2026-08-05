@@ -3095,6 +3095,8 @@ def main():
             from research_agent.shared_services import get_research_metrics as _f; result = _f()
         elif command == "agent_scalability":
             from supervisor_agent.shared_services import get_scalability_estimate as _f; result = _f()
+        elif command == "agent_framework_diagnostics":
+            from supervisor_agent.shared_services import get_framework_diagnostics as _f; result = _f()
 
         # ── Phase 11: Autonomous Paper Trading ─────────────────────────────────
         elif command == "phase11_capital_config":

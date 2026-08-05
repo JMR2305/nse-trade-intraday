@@ -8,6 +8,7 @@
  * READ-ONLY · ADVISORY-ONLY
  * No orders, no portfolio modification, no agent restart from this page.
  */
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiJson } from "@/lib/api";
 import {
@@ -327,6 +328,125 @@ function AgentRegistryTable() {
   );
 }
 
+// ── Backend Diagnostics panel ─────────────────────────────────────────────────
+function BackendDiagnosticsPanel() {
+  const [open, setOpen] = useState(false);
+  const { data, isLoading } = useQuery({
+    queryKey:        ["agent-fw", "diagnostics"],
+    queryFn:         () => apiJson("agent-framework/diagnostics", undefined, 15_000),
+    refetchInterval: 60_000,
+    staleTime:       30_000,
+    retry: 1,
+  });
+  const d = data as any;
+
+  return (
+    <div className="bg-card border border-border rounded-xl overflow-hidden">
+      <button
+        onClick={() => setOpen((o: boolean) => !o)}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors text-left"
+      >
+        <div className="flex items-center gap-2">
+          <Database className="w-4 h-4 text-teal-400" />
+          <span className="text-sm font-medium">Backend Diagnostics</span>
+          <span className="text-xs text-muted-foreground">— subprocess model · registry · snapshot bus</span>
+        </div>
+        <span className="text-xs text-muted-foreground">{open ? "▲ hide" : "▼ show"}</span>
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4 space-y-4">
+          {/* Subprocess model explanation */}
+          <div className="rounded-lg bg-amber-950/20 border border-amber-700/30 p-3 text-xs text-amber-200/80">
+            <p className="font-semibold mb-1">ℹ️ Why is Agent Registry count 0?</p>
+            <p>
+              Each API call spawns a fresh Python subprocess. <code className="font-mono text-amber-300">AgentRegistry</code> is
+              an in-process singleton that starts <em>empty</em> on every call. A count of 0 is <strong>expected
+              behaviour</strong> — it is NOT a configuration error. Active agent count is derived from live
+              snapshot data, not the registry.
+            </p>
+          </div>
+
+          {isLoading ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="bg-muted/30 rounded-lg p-3 animate-pulse h-14" />
+              ))}
+            </div>
+          ) : d ? (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                {/* Registry status */}
+                <div className="bg-muted/30 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground">Agent Registry</p>
+                  <p className={`text-sm font-semibold ${d.registry_connected ? "text-emerald-400" : "text-red-400"}`}>
+                    {d.registry_connected ? "Connected" : "Error"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Model: subprocess</p>
+                </div>
+                {/* Registry count */}
+                <div className="bg-muted/30 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground">Registered (in-process)</p>
+                  <p className="text-sm font-semibold text-amber-400">{d.registry_count ?? 0}</p>
+                  <p className="text-xs text-muted-foreground">Expected: 0</p>
+                </div>
+                {/* Active from snapshots */}
+                <div className="bg-muted/30 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground">Active (from snapshot)</p>
+                  <p className="text-sm font-semibold text-emerald-400">
+                    {d.active_agents_from_snapshot > 0 ? d.active_agents_from_snapshot : "—"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">KV cache derived</p>
+                </div>
+                {/* Snapshot Bus */}
+                <div className="bg-muted/30 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground">Snapshot Bus</p>
+                  <p className={`text-sm font-semibold ${d.bus_connected ? "text-emerald-400" : "text-red-400"}`}>
+                    {d.bus_connected ? "Connected" : "Error"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{d.bus_topic_count ?? 0} topics</p>
+                </div>
+                {/* Last snapshot */}
+                <div className="bg-muted/30 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground">Last Snapshot</p>
+                  <p className="text-sm font-semibold font-mono">
+                    {d.last_snapshot_ts ? String(d.last_snapshot_ts).slice(11, 19) + " UTC" : "—"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {d.last_health_pct ? `${d.last_health_pct}% health` : "No scan yet"}
+                  </p>
+                </div>
+                {/* Scan ID */}
+                <div className="bg-muted/30 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground">Scan ID / Version</p>
+                  <p className="text-xs font-semibold font-mono text-teal-400 truncate">
+                    {d.scan_id ? String(d.scan_id).slice(0, 12) + "…" : "—"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {d.flags_enabled ?? 0}/{d.flags_total ?? 0} flags enabled
+                  </p>
+                </div>
+              </div>
+
+              {/* Connected pages */}
+              <div className="flex flex-wrap gap-2">
+                <span className="text-xs text-muted-foreground">Pages reading canonical source:</span>
+                {(d.connected_pages ?? []).map((pg: string) => (
+                  <span key={pg} className="text-xs px-2 py-0.5 rounded-full bg-teal-950/40 border border-teal-700/40 text-teal-300">
+                    {pg}
+                  </span>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground">Diagnostics unavailable.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 export default function AgentOperations() {
   const { data: snapData,  isLoading: snapLoading  } = useQuery(q("supervisor/snapshot"));
@@ -388,19 +508,53 @@ export default function AgentOperations() {
       />
 
       {/* Loading skeleton */}
-      {snapLoading && <KpiCardSkeleton count={8} />}
+      {snapLoading && !ca && <KpiCardSkeleton count={8} />}
 
-      {/* Overall health + summary strip */}
-      {!snapLoading && snap && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-1">
-            <OverallHealthCard health={snap.overall_health} />
+      {/* Overall health + summary strip
+          Prefer canonical agent counts (from ops-centre) when the supervisor
+          snapshot shows 0 agents — that happens whenever AgentRegistry is
+          empty in the fresh subprocess, which is always. The supervisor's
+          overall_health object is also overridden so the HealthCard shows
+          the real score rather than "Unknown 0/100". */}
+      {(snap || ca) && (() => {
+        // Build a synthetic supervisor view from canonical data
+        const canonicalAgents = ca?.agent_count;
+        const useCa = canonicalAgents && (snap?.framework_metrics?.agent_count ?? 0) === 0;
+        const displayHealth = useCa
+          ? {
+              score:          ca.health_pct ?? 0,
+              status:         ca.health_pct >= 80 ? "healthy" : ca.health_pct >= 50 ? "degraded" : "critical",
+              critical_agents: canonicalAgents.error ?? 0,
+              warning_agents:  0,
+            }
+          : snap?.overall_health;
+        const displaySnap = useCa
+          ? {
+              ...snap,
+              available:       true,
+              framework_metrics: {
+                ...(snap?.framework_metrics ?? {}),
+                agent_count:     canonicalAgents.total,
+                active_agents:   canonicalAgents.active,
+                error_agents:    canonicalAgents.error ?? 0,
+                warning_agents:  0,
+                total_snapshots_published: snap?.framework_metrics?.total_snapshots_published ?? 0,
+              },
+              heartbeat_summary: snap?.heartbeat_summary ?? { ok: canonicalAgents.active, missed: 0 },
+              snapshot_bus:      snap?.snapshot_bus ?? { topic_count: 0 },
+            }
+          : snap;
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-1">
+              <OverallHealthCard health={displayHealth} />
+            </div>
+            <div className="lg:col-span-2 flex flex-col justify-center">
+              {displaySnap && <SupervisorSummary snap={displaySnap} />}
+            </div>
           </div>
-          <div className="lg:col-span-2 flex flex-col justify-center">
-            <SupervisorSummary snap={snap} />
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Agent registry table */}
       <div>
@@ -498,6 +652,12 @@ export default function AgentOperations() {
           </div>
         </div>
       )}
+
+      {/* Backend Diagnostics — subprocess model explanation + registry / bus stats */}
+      <div>
+        <SectionHeader icon={Database} title="Backend Diagnostics" />
+        <BackendDiagnosticsPanel />
+      </div>
 
       {/* ── Phase 10B: Analysis Layer ─────────────────────────────────────── */}
       <AnalysisLayerSection />
