@@ -45,7 +45,7 @@ export default defineConfig({
   webServer: {
     command: `PORT=${E2E_PORT} BASE_PATH=${BASE_PATH} pnpm exec vite --config vite.config.ts --host 0.0.0.0`,
     port: E2E_PORT,
-    reuseExistingServer: false,
+    reuseExistingServer: true,
     timeout: 60_000,
     env: {
       PORT: String(E2E_PORT),
