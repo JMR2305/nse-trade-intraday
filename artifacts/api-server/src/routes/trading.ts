@@ -2954,9 +2954,20 @@ router.get("/ops-centre/journey/:symbol", async (req, res) => {
 // GET /api/ops-centre/snapshot — AI Operations Centre full snapshot (all 12 agents, parallel)
 // Clears the platform cache on success: the snapshot writes fresh health_pct + cache_ts to KV,
 // so the next /ops-centre/platform hit should read the new values, not the stale 10s window.
+//
+// In-flight coalescing: the snapshot is expensive (10–30 s, 12 parallel agent threads).
+// Concurrent callers (e.g. two browser tabs opening simultaneously) share one Python process
+// instead of each spawning their own. No result cache — the 30 s React Query refetch interval
+// already limits frequency; we only deduplicate simultaneous spawns.
+let snapshotInFlight: Promise<unknown> | null = null;
+
 router.get("/ops-centre/snapshot", async (_req, res) => {
   try {
-    const data = await runPython(["ops_centre_snapshot"]);
+    if (!snapshotInFlight) {
+      snapshotInFlight = runPython(["ops_centre_snapshot"])
+        .finally(() => { snapshotInFlight = null; });
+    }
+    const data = await snapshotInFlight;
     clearPlatformCache();   // fresh KV written — next platform poll gets new cache_ts
     res.json(data);
   } catch (err: unknown) {

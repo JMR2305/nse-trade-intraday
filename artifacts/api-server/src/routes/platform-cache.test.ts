@@ -228,7 +228,40 @@ describe("Platform cache — Node.js cache invalidation (Task #325)", () => {
     expect(r4.body).toEqual(r1.body);
   });
 
-  // ── 6. Snapshot failure does NOT clear the cache ──────────────────────────
+  // ── 6. Snapshot in-flight coalescing ─────────────────────────────────────
+
+  it("coalesces concurrent /ops-centre/snapshot requests into a single Python spawn", async () => {
+    // Fire 3 concurrent snapshot requests; only one Python process should be spawned.
+    const [r1, r2, r3] = await Promise.all([
+      get("/api/ops-centre/snapshot"),
+      get("/api/ops-centre/snapshot"),
+      get("/api/ops-centre/snapshot"),
+    ]);
+
+    expect(r1.status).toBe(200);
+    expect(r2.status).toBe(200);
+    expect(r3.status).toBe(200);
+
+    // Despite 3 concurrent requests, Python spawned exactly once for the snapshot
+    expect(spawnCount("ops_centre_snapshot")).toBe(1);
+
+    // All three callers receive the same data
+    expect(r2.body).toEqual(r1.body);
+    expect(r3.body).toEqual(r1.body);
+  });
+
+  // ── 7. Sequential snapshot requests each get their own spawn ──────────────
+
+  it("spawns Python for each sequential (non-concurrent) snapshot request", async () => {
+    // Requests that arrive after the previous one resolves are NOT coalesced —
+    // each is a fresh spawn (no result cache, only in-flight dedup).
+    await get("/api/ops-centre/snapshot");
+    await get("/api/ops-centre/snapshot");
+
+    expect(spawnCount("ops_centre_snapshot")).toBe(2);
+  });
+
+  // ── 8. Snapshot failure does NOT clear the cache ───────────────────────────
 
   it("does not clear the platform cache when /ops-centre/snapshot fails", async () => {
     // Populate the platform cache

@@ -13,7 +13,7 @@
  * 5. Live Event Log
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiJson } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
@@ -890,18 +890,21 @@ export default function AIOperationsCentrePage() {
   });
 
   // ── Slow query: agent cards + pipeline funnel (~10-40 s, 30 s refresh) ─────
+  // IMPORTANT: snapshot takes 22–30 s; apiJson default timeout is 15 s which
+  // killed every request. Extended to 60 s so the response can land in time.
   const {
     data: snapshotData,
     isLoading: snapshotLoading,
     isFetching: snapshotFetching,
+    isError: snapshotError,
     dataUpdatedAt: snapshotUpdatedAt,
     refetch: refetchSnapshot,
   } = useQuery<OpsSnapshot>({
     queryKey: ["ops-centre", "snapshot"],
-    queryFn:  () => apiJson("/ops-centre/snapshot"),
+    queryFn:  () => apiJson("/ops-centre/snapshot", undefined, 60_000),
     refetchInterval: 30_000,
     staleTime: 20_000,
-    retry: 1,
+    retry: 2,
   });
 
   // After a full snapshot lands, its platform section supersedes the fast one
@@ -925,6 +928,12 @@ export default function AIOperationsCentrePage() {
 
   const secsAgo = Math.round((Date.now() - lastUpdated) / 1000);
   const isFetching = platformFetching || snapshotFetching;
+
+  // Debug mode: add ?debug to the URL to reveal the debug panel
+  const debugMode = useMemo(
+    () => typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug"),
+    [],
+  );
 
   function refetchAll() {
     void refetchPlatform();
@@ -973,6 +982,34 @@ export default function AIOperationsCentrePage() {
           cacheTs={effectivePlatform?.cache_ts}
         />
 
+        {/* ── Snapshot loading / error banner ── */}
+        {snapshotLoading && !snapshotData && (
+          <div className="flex items-center gap-3 rounded-xl border border-teal-800/40 bg-teal-950/20 px-4 py-3">
+            <RefreshCcw className="w-4 h-4 text-teal-400 animate-spin flex-shrink-0" />
+            <div>
+              <p className="text-xs font-semibold text-teal-300">Fetching agent snapshot — takes ~25 seconds</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                All 12 agents are queried in parallel. Platform status above is live while this loads.
+              </p>
+            </div>
+          </div>
+        )}
+        {snapshotError && !snapshotData && !snapshotLoading && (
+          <div className="flex items-center gap-3 rounded-xl border border-rose-800/40 bg-rose-950/20 px-4 py-3">
+            <XCircle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-rose-300">Agent snapshot failed to load</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                The snapshot request timed out or the API server returned an error. Use the Refresh button to retry.
+              </p>
+            </div>
+            <button onClick={refetchAll}
+              className="flex-shrink-0 px-3 py-1.5 text-xs rounded-lg bg-rose-900/40 border border-rose-700/40 text-rose-300 hover:bg-rose-800/40 transition-colors">
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* ── V2 §11: Pipeline Explanation + §8: Bottleneck ── */}
         {(snapshotData || snapshotLoading) && (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -1002,9 +1039,13 @@ export default function AIOperationsCentrePage() {
               <Badge className="ml-auto text-[10px] bg-slate-800 border-slate-700 text-slate-400">
                 {AGENT_ORDER.length} agents
               </Badge>
+            ) : snapshotError ? (
+              <Badge className="ml-auto text-[10px] bg-rose-950 border-rose-800 text-rose-400">
+                Snapshot failed — retry above
+              </Badge>
             ) : (
               <Badge className="ml-auto text-[10px] bg-amber-950 border-amber-800 text-amber-400">
-                Loading agent details…
+                Fetching (~25s)…
               </Badge>
             )}
           </div>
@@ -1085,10 +1126,46 @@ export default function AIOperationsCentrePage() {
           <HistoricalAgentPerf data={snapshotData as unknown as OpsSnapshotV3} loading={snapshotLoading} />
         </div>
 
+        {/* ── Debug Panel — visible only with ?debug in the URL ── */}
+        {debugMode && (
+          <div className="rounded-xl border border-violet-800/40 bg-violet-950/20 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Eye className="w-4 h-4 text-violet-400" />
+              <h2 className="font-semibold text-xs tracking-widest uppercase text-violet-400">Debug Panel</h2>
+              <Badge className="ml-auto text-[10px] bg-violet-900/40 border-violet-700/40 text-violet-300">Developer Mode</Badge>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+              {[
+                { label: "Snapshot Status",  value: snapshotLoading ? "⏳ Loading" : snapshotError ? "❌ Error" : snapshotData ? "✅ Loaded" : "— No data" },
+                { label: "Snapshot Loaded",  value: snapshotUpdatedAt ? new Date(snapshotUpdatedAt).toLocaleTimeString() : "—" },
+                { label: "Platform Status",  value: platformLoading ? "⏳ Loading" : platformData ? "✅ Loaded" : "— No data" },
+                { label: "Platform Loaded",  value: platformUpdatedAt ? new Date(platformUpdatedAt).toLocaleTimeString() : "—" },
+                { label: "agents keys",      value: snapshotData ? Object.keys(snapshotData.agents ?? {}).join(", ") || "none" : "—" },
+                { label: "performance_metrics", value: snapshotData?.performance_metrics ? `healthy=${snapshotData.performance_metrics.healthy_count} err=${snapshotData.performance_metrics.error_count}` : "—" },
+                { label: "smart_insights",   value: snapshotData ? `${(snapshotData.smart_insights ?? []).length} items` : "—" },
+                { label: "confidence_dist",  value: snapshotData ? JSON.stringify(snapshotData.confidence_distribution ?? {}) : "—" },
+                { label: "missed_opps",      value: snapshotData ? `${(snapshotData.missed_opportunities ?? []).length} items` : "—" },
+                { label: "top_buy",          value: snapshotData ? `${(snapshotData.recommendation_leaderboard?.top_buy ?? []).length} items` : "—" },
+                { label: "pipeline_heatmap", value: snapshotData ? `${(snapshotData.pipeline_heatmap ?? []).length} stages` : "—" },
+                { label: "agent_load_monitor", value: snapshotData ? `${Object.keys(snapshotData.agent_load_monitor ?? {}).length} agents` : "—" },
+                { label: "snapshot timeout", value: "60 000 ms (extended from 15 000)" },
+                { label: "refetch interval", value: "30 000 ms" },
+                { label: "generated_at",     value: snapshotData?.generated_at ?? "—" },
+                { label: "Tip",              value: "Remove ?debug from the URL to hide this panel" },
+              ].map(({ label, value }) => (
+                <div key={label} className="bg-slate-900/60 rounded-lg p-2 border border-slate-800/40">
+                  <p className="text-[9px] text-slate-500 mb-0.5">{label}</p>
+                  <p className="text-[10px] font-mono text-violet-200 break-all leading-tight">{String(value)}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Footer */}
         <p className="text-center text-xs text-slate-700 pb-4">
           🧠 ApexQuant AI Operations Centre V3 · Read-only · Advisory only · No live orders ·
-          Platform 10s · Agents 30s · Stock Journey on-demand only
+          Platform 10s · Agents 30s (60s timeout) · Stock Journey on-demand · Add ?debug for developer panel
         </p>
       </div>
     </div>
