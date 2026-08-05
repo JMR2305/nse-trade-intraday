@@ -8,7 +8,8 @@ import {
 import { setBaseUrl } from "@workspace/api-client-react";
 import { API_BASE_URL } from "@/lib/apiConfig";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
+import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -43,6 +44,21 @@ const queryClient = new QueryClient({
 });
 
 function RootLayoutNav() {
+  const router = useRouter();
+
+  // Deep-link: when the operator taps a health-alert push notification
+  // (data.screen === "ai-ops"), navigate to the Pipeline tab.
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as Record<string, unknown> | undefined;
+      if (data?.["screen"] === "ai-ops") {
+        // Navigate to the Pipeline tab (ai-ops)
+        router.push("/(tabs)/ai-ops");
+      }
+    });
+    return () => sub.remove();
+  }, [router]);
+
   return (
     <Stack screenOptions={{ headerBackTitle: "Back" }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

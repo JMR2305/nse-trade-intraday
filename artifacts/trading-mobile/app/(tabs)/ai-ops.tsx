@@ -25,6 +25,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import * as Notifications from "expo-notifications";
+
 import { AppHeader } from "@/components/AppHeader";
 import { Skeleton } from "@/components/Skeleton";
 import { StaleBanner } from "@/components/StaleBanner";
@@ -547,6 +549,21 @@ export default function AiOpsScreen() {
   const isWeb = Platform.OS === "web";
 
   const { data: liveData, isLoading, isFetching, isError, refetch, dataUpdatedAt } = useOpsSnapshot();
+
+  // Deep-link: when the operator taps a health-alert push notification,
+  // the app navigates here (screen = "ai-ops"). Trigger an immediate
+  // refetch so the screen reflects the latest pipeline state.
+  const lastNotificationResponse = Notifications.useLastNotificationResponse();
+  useEffect(() => {
+    const data = lastNotificationResponse?.notification.request.content.data as
+      | Record<string, unknown>
+      | undefined;
+    if (data?.["screen"] === "ai-ops") {
+      void refetch();
+    }
+    // Intentionally only react to the specific notification response reference changing
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastNotificationResponse]);
 
   // Persist each successful fetch to AsyncStorage; serve it immediately on next
   // cold-start so the screen never shows a blank spinner when offline.

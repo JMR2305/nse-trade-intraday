@@ -3,7 +3,9 @@ import { alertDeliveriesTable, db, pool, pushSubscriptionsTable, signalsCacheTab
 import { eq, like } from "drizzle-orm";
 import {
   dispatchSignalPushNotifications,
+  dispatchHealthAlertPushNotifications,
   ensurePushSubscriptionsTable,
+  type OpsHealthSnapshot,
 } from "./pushNotifier";
 import { ensureAlertDeliveriesTable } from "./alertQueue";
 
@@ -367,5 +369,171 @@ describe("dispatchSignalPushNotifications", () => {
     expect(after?.status).toBe("DELIVERED");
     expect(after?.attempts).toBe(2);
     expect(after?.deliveredAt).toBeTruthy();
+  });
+});
+
+// ── dispatchHealthAlertPushNotifications ──────────────────────────────────────
+
+const HEALTH_TOKEN_PREFIX = "ExponentPushToken[vitest-health-";
+const HEALTH_TOKEN_LIKE = "ExponentPushToken[vitest-health-%";
+
+function healthToken(n: number): string {
+  return `${HEALTH_TOKEN_PREFIX}${n}]`;
+}
+
+function degradedSnapshot(
+  healthPct: number,
+  errorAgentNames: string[] = [],
+  scanId = "scan-abc-123",
+): OpsHealthSnapshot {
+  const agents: Record<string, { status: string; name: string }> = {};
+  const allNames = [
+    "supervisor", "market_data", "research", "market_intelligence",
+    "monitoring", "strategy", "risk", "ai_decision",
+    "execution", "learning", "knowledge", "operations",
+  ];
+  for (const key of allNames) {
+    const isError = errorAgentNames.some(
+      (n) => n.toLowerCase() === key.toLowerCase() || n.toLowerCase().replace(/ /g, "_") === key,
+    );
+    agents[key] = {
+      status: isError ? "ERROR" : "ACTIVE",
+      name: key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+    };
+  }
+  return { platform: { health_pct: healthPct, scan_id: scanId }, agents };
+}
+
+async function insertHealthSub(
+  n: number,
+  opts: { enabled?: boolean } = {},
+): Promise<void> {
+  await insertSub(healthToken(n), { enabled: opts.enabled ?? true });
+}
+
+describe("dispatchHealthAlertPushNotifications", () => {
+  beforeEach(async () => {
+    // Clear health-alert test tokens in addition to the standard cleanup.
+    await db
+      .delete(alertDeliveriesTable)
+      .where(like(alertDeliveriesTable.destination, HEALTH_TOKEN_LIKE));
+    await db.delete(pushSubscriptionsTable);
+  });
+
+  afterEach(async () => {
+    // Ensure health token rows are removed after each test.
+    await db
+      .delete(alertDeliveriesTable)
+      .where(like(alertDeliveriesTable.destination, HEALTH_TOKEN_LIKE));
+    vi.unstubAllEnvs();
+  });
+
+  it("does nothing when platform health is ≥ 70 and no agents are in ERROR", async () => {
+    const fetchMock = mockFetchOk();
+    await insertHealthSub(1);
+
+    await dispatchHealthAlertPushNotifications(
+      degradedSnapshot(85),  // healthy
+    );
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("does nothing when OPS_HEALTH_ALERTS_ENABLED=false", async () => {
+    const fetchMock = mockFetchOk();
+    vi.stubEnv("OPS_HEALTH_ALERTS_ENABLED", "false");
+    await insertHealthSub(1);
+
+    await dispatchHealthAlertPushNotifications(degradedSnapshot(40));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("does nothing when there are no enabled subscriptions", async () => {
+    const fetchMock = mockFetchOk();
+    await insertHealthSub(1, { enabled: false });
+
+    await dispatchHealthAlertPushNotifications(degradedSnapshot(50));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("sends one alert per enabled subscriber when health_pct < 70", async () => {
+    const fetchMock = mockFetchOk();
+    await insertHealthSub(1);
+    await insertHealthSub(2);
+
+    await dispatchHealthAlertPushNotifications(degradedSnapshot(55, [], "scan-001"));
+
+    // One fetch call per queued delivery (two subscribers)
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const sentBody = JSON.parse(
+      (fetchMock.mock.calls[0]![1] as { body: string }).body,
+    ) as Array<Record<string, unknown>>;
+    expect(sentBody).toHaveLength(1);
+    const msg = sentBody[0]!;
+    expect(String(msg["title"])).toContain("55%");
+    const data = msg["data"] as Record<string, unknown>;
+    expect(data["screen"]).toBe("ai-ops");
+    expect(data["healthPct"]).toBe(55);
+  });
+
+  it("includes ERROR agent names in the notification body", async () => {
+    const fetchMock = mockFetchOk();
+    await insertHealthSub(1);
+
+    await dispatchHealthAlertPushNotifications(
+      degradedSnapshot(80, ["risk", "strategy"], "scan-002"),
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(
+      (fetchMock.mock.calls[0]![1] as { body: string }).body,
+    ) as Array<Record<string, unknown>>;
+    const msg = body[0]!;
+    expect(String(msg["title"])).toContain("2 agent");
+    expect(String(msg["body"])).toMatch(/risk|strategy/i);
+    const data = msg["data"] as Record<string, unknown>;
+    expect(data["screen"]).toBe("ai-ops");
+  });
+
+  it("is idempotent: same scan_id is never sent twice (deduped by idempotency key)", async () => {
+    const fetchMock = mockFetchOk();
+    await insertHealthSub(1);
+    const snap = degradedSnapshot(40, [], "scan-dedupe");
+
+    await dispatchHealthAlertPushNotifications(snap);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // Second call with the same scan_id — idempotency key prevents a second row.
+    await dispatchHealthAlertPushNotifications(snap);
+    expect(fetchMock).toHaveBeenCalledTimes(1);  // no additional send
+  });
+
+  it("sends again for a different scan_id", async () => {
+    const fetchMock = mockFetchOk();
+    await insertHealthSub(1);
+
+    await dispatchHealthAlertPushNotifications(degradedSnapshot(40, [], "scan-A"));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await dispatchHealthAlertPushNotifications(degradedSnapshot(40, [], "scan-B"));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("fires even when health_pct ≥ 70 but an agent is in ERROR", async () => {
+    const fetchMock = mockFetchOk();
+    await insertHealthSub(1);
+
+    await dispatchHealthAlertPushNotifications(
+      degradedSnapshot(75, ["risk"], "scan-error-only"),
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const msg = JSON.parse(
+      (fetchMock.mock.calls[0]![1] as { body: string }).body,
+    )[0] as Record<string, unknown>;
+    expect(String(msg["title"])).toContain("agent");
+    expect(String(msg["title"])).toContain("error");
   });
 });

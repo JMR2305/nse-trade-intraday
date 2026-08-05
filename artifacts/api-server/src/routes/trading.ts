@@ -3027,6 +3027,20 @@ router.get("/ops-centre/snapshot", async (_req, res) => {
     const data = await snapshotInFlight;
     clearPlatformCache();   // fresh KV written — next platform poll gets new cache_ts
     res.json(data);
+
+    // Fire-and-forget health alert push notifications (Task 316).
+    // Runs after res.json() so it never delays the response.
+    // dispatchHealthAlertPushNotifications() is idempotent per scan_id.
+    void (async () => {
+      try {
+        const { dispatchHealthAlertPushNotifications } = await import("../lib/pushNotifier");
+        await dispatchHealthAlertPushNotifications(
+          data as import("../lib/pushNotifier").OpsHealthSnapshot,
+        );
+      } catch {
+        // Advisory only — never surface push errors to the caller
+      }
+    })();
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
   }

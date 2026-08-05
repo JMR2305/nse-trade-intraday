@@ -253,3 +253,113 @@ export async function processPushDeliveryQueue(): Promise<void> {
     queueProcessing = false;
   }
 }
+
+// ── Health-alert push notifications (Task 316) ────────────────────────────────
+//
+// Called after each ops-centre snapshot collection. If platform health drops
+// below 70% or any enabled agent is in ERROR state, every subscribed device
+// gets one advisory push per scan_id — deduplicated by
+// `health_alert:<token>:<scanId>` in the alert_deliveries idempotency key.
+//
+// Feature-flagged behind OPS_HEALTH_ALERTS_ENABLED (default: true).
+// Purely advisory — never triggers any trading action.
+
+export interface OpsHealthSnapshot {
+  platform?: {
+    health_pct?: number;
+    scan_id?: string;
+  };
+  agents?: Record<string, { status?: string; name?: string }>;
+}
+
+let healthAlertInFlight = false;
+
+export async function dispatchHealthAlertPushNotifications(
+  snapshot: OpsHealthSnapshot,
+): Promise<void> {
+  if (healthAlertInFlight) return;
+
+  // Feature flag — default enabled
+  const flagVal = (process.env["OPS_HEALTH_ALERTS_ENABLED"] ?? "true").toLowerCase();
+  if (flagVal === "false" || flagVal === "0" || flagVal === "no") return;
+
+  const healthPct = snapshot.platform?.health_pct ?? 100;
+  const scanId = (snapshot.platform?.scan_id ?? "").trim() || "unknown";
+
+  // Collect ERROR agents
+  const errorAgents = Object.entries(snapshot.agents ?? {})
+    .filter(([, a]) => a.status === "ERROR")
+    .map(([, a]) => a.name ?? "Unknown agent");
+
+  const healthDegraded = healthPct < 70;
+  const hasErrors = errorAgents.length > 0;
+
+  if (!healthDegraded && !hasErrors) return; // platform is healthy — nothing to alert
+
+  healthAlertInFlight = true;
+  try {
+    await ensurePushSubscriptionsTable();
+    const subs = await db
+      .select()
+      .from(pushSubscriptionsTable)
+      .where(eq(pushSubscriptionsTable.enabled, true));
+    if (subs.length === 0) return;
+
+    // Build notification content
+    let title: string;
+    let body: string;
+
+    if (healthDegraded && hasErrors) {
+      title = `Platform health ${healthPct}% — ${errorAgents.length} agent${errorAgents.length === 1 ? "" : "s"} in error`;
+      body = `Agents in error: ${errorAgents.slice(0, 3).join(", ")}${errorAgents.length > 3 ? ` +${errorAgents.length - 3} more` : ""}. Check the Pipeline tab.`;
+    } else if (healthDegraded) {
+      title = `Platform health degraded — ${healthPct}%`;
+      body = `Overall pipeline health has dropped below 70%. Open Pipeline for details.`;
+    } else {
+      // hasErrors only
+      title = `${errorAgents.length} agent${errorAgents.length === 1 ? "" : "s"} in error`;
+      body = `${errorAgents.slice(0, 3).join(", ")}${errorAgents.length > 3 ? ` +${errorAgents.length - 3} more` : ""}. Open Pipeline to investigate.`;
+    }
+
+    let enqueued = 0;
+    for (const sub of subs) {
+      const idempotencyKey = `health_alert:${sub.token}:${scanId}`;
+      const ok = await enqueueAlert({
+        channel: "push",
+        kind: "health_alert",
+        severity: "WARN",
+        title,
+        body,
+        destination: sub.token,
+        payload: {
+          to: sub.token,
+          sound: "default",
+          title,
+          body,
+          // Deep-links to the Pipeline tab in the mobile app
+          data: { screen: "ai-ops", scanId, healthPct, errorAgents },
+        },
+        idempotencyKey,
+        critical: false,
+      });
+      if (ok) enqueued++;
+    }
+
+    if (enqueued > 0) {
+      logger.info(
+        { enqueued, scanId, healthPct, errorAgents: errorAgents.length },
+        "Health alert push notifications queued",
+      );
+    }
+
+    // Drain due deliveries so alerts go out promptly
+    await processPushDeliveryQueue();
+  } catch (err) {
+    logger.error(
+      { err: err instanceof Error ? err.message : String(err) },
+      "Health alert push dispatch failed",
+    );
+  } finally {
+    healthAlertInFlight = false;
+  }
+}
