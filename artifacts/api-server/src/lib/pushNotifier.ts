@@ -261,6 +261,12 @@ export async function processPushDeliveryQueue(): Promise<void> {
 // gets one advisory push per scan_id — deduplicated by
 // `health_alert:<token>:<scanId>` in the alert_deliveries idempotency key.
 //
+// Recovery tracking: once the platform was degraded in the current process
+// session, `platformWasDegraded` is set to true. The next snapshot that shows
+// health_pct ≥ 70 with no ERROR agents sends a single "platform recovered"
+// push per device, deduped by `health_recovery:<token>:<scanId>`, and resets
+// the flag. No recovery push fires if the system was never degraded.
+//
 // Feature-flagged behind OPS_HEALTH_ALERTS_ENABLED (default: true).
 // Purely advisory — never triggers any trading action.
 
@@ -273,6 +279,11 @@ export interface OpsHealthSnapshot {
 }
 
 let healthAlertInFlight = false;
+
+// Tracks whether the platform was degraded (health < 70 or agent ERROR) at
+// any point in the current server session. Persists across snapshots so a
+// recovery notification can be issued exactly once when health climbs back.
+let platformWasDegraded = false;
 
 export async function dispatchHealthAlertPushNotifications(
   snapshot: OpsHealthSnapshot,
@@ -293,8 +304,77 @@ export async function dispatchHealthAlertPushNotifications(
 
   const healthDegraded = healthPct < 70;
   const hasErrors = errorAgents.length > 0;
+  const platformHealthy = !healthDegraded && !hasErrors;
 
-  if (!healthDegraded && !hasErrors) return; // platform is healthy — nothing to alert
+  // ── Recovery path ─────────────────────────────────────────────────────────
+  // Platform is healthy now. If it was previously degraded, send one
+  // "all-clear" push per subscribed device and reset the degraded flag.
+  if (platformHealthy) {
+    if (!platformWasDegraded) return; // never degraded this session — nothing to send
+
+    healthAlertInFlight = true;
+    try {
+      await ensurePushSubscriptionsTable();
+      const subs = await db
+        .select()
+        .from(pushSubscriptionsTable)
+        .where(eq(pushSubscriptionsTable.enabled, true));
+
+      // Reset regardless of whether anyone is subscribed so a later alert
+      // cycle starts fresh.
+      platformWasDegraded = false;
+
+      if (subs.length === 0) return;
+
+      const title = `Platform recovered — health now ${healthPct}%`;
+      const body = `All agents are active. Pipeline is operating normally.`;
+
+      let enqueued = 0;
+      for (const sub of subs) {
+        const idempotencyKey = `health_recovery:${sub.token}:${scanId}`;
+        const ok = await enqueueAlert({
+          channel: "push",
+          kind: "health_alert",
+          severity: "INFO",
+          title,
+          body,
+          destination: sub.token,
+          payload: {
+            to: sub.token,
+            sound: "default",
+            title,
+            body,
+            data: { screen: "ai-ops", scanId, healthPct },
+          },
+          idempotencyKey,
+          critical: false,
+        });
+        if (ok) enqueued++;
+      }
+
+      if (enqueued > 0) {
+        logger.info(
+          { enqueued, scanId, healthPct },
+          "Platform recovery push notifications queued",
+        );
+      }
+
+      // Drain due deliveries so alerts go out promptly
+      await processPushDeliveryQueue();
+    } catch (err) {
+      logger.error(
+        { err: err instanceof Error ? err.message : String(err) },
+        "Platform recovery push dispatch failed",
+      );
+    } finally {
+      healthAlertInFlight = false;
+    }
+    return;
+  }
+
+  // ── Degraded path ─────────────────────────────────────────────────────────
+  // Mark that we have seen a degraded state so a recovery push can fire later.
+  platformWasDegraded = true;
 
   healthAlertInFlight = true;
   try {
@@ -362,4 +442,10 @@ export async function dispatchHealthAlertPushNotifications(
   } finally {
     healthAlertInFlight = false;
   }
+}
+
+// Exported for tests only — allows resetting the in-process degraded flag
+// between test cases without restarting the process.
+export function _resetPlatformDegradedStateForTests(): void {
+  platformWasDegraded = false;
 }
