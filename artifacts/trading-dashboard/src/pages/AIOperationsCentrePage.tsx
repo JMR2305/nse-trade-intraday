@@ -1027,7 +1027,13 @@ export default function AIOperationsCentrePage() {
 
   // After a full snapshot lands, its platform section supersedes the fast one
   // (it has the freshly-computed health_pct, not the cached value).
-  const effectivePlatform: FastPlatformStatus | undefined = snapshotData
+  //
+  // IMPORTANT: also gate on !snapshotError.  React Query preserves the last
+  // successful snapshotData even when the query subsequently errors, so without
+  // the error check the badge would remain "Live" after a mid-session failure.
+  // When the snapshot errors we fall back to the fast/cached platform data so
+  // the badge correctly reverts to amber "Cached snapshot".
+  const effectivePlatform: FastPlatformStatus | undefined = (snapshotData && !snapshotError)
     ? {
         generated_at:  snapshotData.generated_at,
         fast:          false,
