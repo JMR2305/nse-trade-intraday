@@ -1781,5 +1781,199 @@ class TestPaperAnalyticsScoreImpact(unittest.TestCase):
         )
 
 
+# ---------------------------------------------------------------------------
+# Test: None-safe numeric coercion in widget functions (Task #407)
+# ---------------------------------------------------------------------------
+
+class TestNoneNumericFieldsInWidgets(unittest.TestCase):
+    """
+    Regression guard: each widget function must not raise TypeError when
+    every numeric field in the upstream dict is explicitly set to None
+    (i.e. the key exists but carries a None value — dict.get returns None,
+    not the fallback default).
+
+    Confirms _sf coercion is wired for all focus-area numeric reads.
+    """
+
+    # ── widget_portfolio_overview ─────────────────────────────────────────
+
+    def test_portfolio_overview_all_numerics_none(self):
+        from executive_dashboard.widgets import widget_portfolio_overview
+        data = {
+            "portfolio": {
+                "summary": {
+                    "total_portfolio_value": None,
+                    "today_pnl":             None,
+                    "total_net_pnl":         None,
+                    "cash_available":        None,
+                    "invested_capital":      None,
+                    "win_rate_pct":          None,
+                    "profit_factor":         None,
+                    "max_drawdown_pct":      None,
+                    "current_drawdown_pct":  None,
+                    "total_return_pct":      None,
+                    "portfolio_utilisation_pct": None,
+                    "initial_capital":       None,
+                },
+                "portfolio": {"position_count": None},
+            }
+        }
+        # Must not raise; all numerics fall back to 0.0 / 0
+        r = widget_portfolio_overview(data)
+        self.assertIsInstance(r, dict)
+        for field in ("net_pnl", "win_rate", "profit_factor", "drawdown"):
+            self.assertEqual(r[field], 0.0, f"{field} should be 0.0 when None")
+        self.assertEqual(r["open_positions"], 0)
+        # Values must be numeric, not None
+        for field in ("portfolio_value", "today_pnl", "net_pnl", "cash_available",
+                      "invested_capital", "win_rate", "profit_factor", "drawdown",
+                      "current_drawdown", "total_return_pct", "portfolio_utilisation_pct"):
+            self.assertIsNotNone(r[field], f"{field} must not be None")
+            self.assertIsInstance(r[field], (int, float), f"{field} must be numeric")
+
+    # ── widget_strategy_overview ──────────────────────────────────────────
+
+    def test_strategy_overview_all_numerics_none(self):
+        from executive_dashboard.widgets import widget_strategy_overview
+        data = {
+            "strategy": {
+                "snapshot": {
+                    "total_strategies":  None,
+                    "best_strategy":     "MACD",
+                    "best_regime":       "BULL",
+                    "best_sector":       "IT",
+                    "total_net_pnl":     None,
+                    "overall_win_rate":  None,
+                },
+                "criterion": {},
+                "recs": [],
+            }
+        }
+        # Must not raise
+        r = widget_strategy_overview(data)
+        self.assertIsInstance(r, dict)
+        self.assertEqual(r["total_strategies"],  0)
+        self.assertEqual(r["total_net_pnl"],    0.0)
+        self.assertEqual(r["overall_win_rate"], 0.0)
+        self.assertEqual(r["strong_buy_count"], 0)
+        self.assertIsInstance(r["total_strategies"], int)
+        self.assertIsInstance(r["total_net_pnl"],    float)
+        self.assertIsInstance(r["overall_win_rate"], float)
+
+    # ── widget_portfolio_risk ─────────────────────────────────────────────
+
+    def test_portfolio_risk_all_numerics_none(self):
+        from executive_dashboard.widgets import widget_portfolio_risk
+        data = {
+            "risk": {
+                "risk": {
+                    "sector_allocation":     [],
+                    "diversification_score": None,
+                    "portfolio_heat":        None,
+                    "kill_switch":           {"active": False},
+                    "utilization_pct":       None,
+                    "largest_position_pct":  None,
+                    "daily_risk":            None,
+                },
+                "alerts": {"alerts": []},
+            }
+        }
+        # Must not raise
+        r = widget_portfolio_risk(data)
+        self.assertIsInstance(r, dict)
+        self.assertEqual(r["utilisation"],           0.0)
+        self.assertEqual(r["alert_count"],           0)
+        self.assertEqual(r["diversification_score"], 0.0)
+        self.assertEqual(r["portfolio_heat"],        0.0)
+        # All returned numerics must be numeric, not None
+        for field in ("utilisation", "largest_position", "maximum_risk",
+                      "sector_concentration", "diversification_score", "portfolio_heat"):
+            self.assertIsNotNone(r[field], f"{field} must not be None")
+            self.assertIsInstance(r[field], (int, float), f"{field} must be numeric")
+
+    def test_portfolio_risk_utilisation_falls_back_to_portfolio_heat(self):
+        """When utilization_pct is absent, utilisation falls back to portfolio_heat."""
+        from executive_dashboard.widgets import widget_portfolio_risk
+        data = {
+            "risk": {
+                "risk": {
+                    "sector_allocation": [],
+                    "portfolio_heat":    42.0,
+                    "kill_switch":       {"active": False},
+                    # utilization_pct omitted entirely
+                },
+                "alerts": {"alerts": []},
+            }
+        }
+        r = widget_portfolio_risk(data)
+        self.assertAlmostEqual(r["utilisation"], 42.0)
+
+    def test_portfolio_risk_utilisation_non_numeric_falls_back(self):
+        """Non-numeric utilization_pct (e.g. a string) must not raise and must fall back."""
+        from executive_dashboard.widgets import widget_portfolio_risk
+        data = {
+            "risk": {
+                "risk": {
+                    "sector_allocation": [],
+                    "portfolio_heat":    15.0,
+                    "kill_switch":       {"active": False},
+                    "utilization_pct":   "bad-value",   # non-numeric string
+                },
+                "alerts": {"alerts": []},
+            }
+        }
+        # Must not raise ValueError/TypeError
+        r = widget_portfolio_risk(data)
+        # Falls back to portfolio_heat
+        self.assertAlmostEqual(r["utilisation"], 15.0)
+        self.assertIsInstance(r["utilisation"], float)
+
+    # ── widget_execution_quality ──────────────────────────────────────────
+
+    def test_execution_quality_all_numerics_none(self):
+        from executive_dashboard.widgets import widget_execution_quality
+        data = {
+            "execution_quality": {
+                "avg_execution_score":      None,
+                "avg_entry_slippage_pct":   None,
+                "avg_fill_delay_seconds":   None,
+                "total_trades":             None,
+                "best_execution_score":     None,
+                "worst_execution_score":    None,
+                "avg_exit_slippage_pct":    None,
+            }
+        }
+        # Must not raise
+        r = widget_execution_quality(data)
+        self.assertIsInstance(r, dict)
+        self.assertEqual(r["execution_score"], 0.0)
+        self.assertEqual(r["total_trades"],    0)
+        for field in ("execution_score", "avg_slippage", "avg_fill_delay",
+                      "best_execution", "worst_execution", "exit_slippage"):
+            self.assertIsNotNone(r[field], f"{field} must not be None")
+            self.assertIsInstance(r[field], (int, float), f"{field} must be numeric")
+
+    # ── widget_ai_health calibration_quality arithmetic ───────────────────
+
+    def test_ai_health_calibration_ece_none_no_crash(self):
+        """calibration_quality arithmetic must not crash when calibration_ece is None."""
+        from executive_dashboard.widgets import widget_ai_health
+        data = {
+            "ai": {
+                "snapshot": {
+                    "health_score": 75.0,
+                    "calibration_ece": None,   # key present, value None
+                },
+                "components": {},
+                "learning": {},
+            }
+        }
+        r = widget_ai_health(data)
+        self.assertIsInstance(r, dict)
+        # calibration_ece=None → treated as 0.0 → calibration_quality = 100.0
+        self.assertAlmostEqual(r["calibration_quality"], 100.0)
+        self.assertIsInstance(r["calibration_quality"], float)
+
+
 if __name__ == "__main__":
     unittest.main()

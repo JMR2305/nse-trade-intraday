@@ -29,6 +29,21 @@ def _as_str(v: Any, fallback: str = "N/A") -> str:
     return fallback
 
 
+def _sf(d: dict, key: str, default: float = 0.0) -> float:
+    """Return d[key] as a float, substituting *default* when the value is
+    absent, None, or non-numeric.  Mirrors layout._sf — prevents
+    'NoneType < float' / 'NoneType + float' crashes when a stale scan
+    returns a key with a None value rather than omitting the key entirely.
+    """
+    v = d.get(key)
+    if v is None:
+        return default
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return default
+
+
 # ---------------------------------------------------------------------------
 # Section 1 — System Health
 # ---------------------------------------------------------------------------
@@ -56,19 +71,19 @@ def widget_portfolio_overview(data: dict) -> dict:
     summ = _g(pf, "summary") or {}
     port = _g(pf, "portfolio") or {}
     return {
-        "portfolio_value":    _g(summ, "total_portfolio_value", default=0.0),
-        "today_pnl":          _g(summ, "today_pnl", default=0.0),
-        "net_pnl":            _g(summ, "total_net_pnl", default=0.0),
-        "cash_available":     _g(summ, "cash_available", default=0.0),
-        "invested_capital":   _g(summ, "invested_capital", default=0.0),
-        "open_positions":     _g(port, "position_count", default=0),
-        "win_rate":           _g(summ, "win_rate_pct", default=0.0),
-        "profit_factor":      _g(summ, "profit_factor", default=0.0),
-        "drawdown":           _g(summ, "max_drawdown_pct", default=0.0),
-        "current_drawdown":   _g(summ, "current_drawdown_pct", default=0.0),
-        "total_return_pct":   _g(summ, "total_return_pct", default=0.0),
-        "portfolio_utilisation_pct": _g(summ, "portfolio_utilisation_pct", default=0.0),
-        "initial_capital":    _g(summ, "initial_capital", default=500000.0),
+        "portfolio_value":    _sf(summ, "total_portfolio_value", 0.0),
+        "today_pnl":          _sf(summ, "today_pnl", 0.0),
+        "net_pnl":            _sf(summ, "total_net_pnl", 0.0),
+        "cash_available":     _sf(summ, "cash_available", 0.0),
+        "invested_capital":   _sf(summ, "invested_capital", 0.0),
+        "open_positions":     int(_sf(port, "position_count", 0.0)),
+        "win_rate":           _sf(summ, "win_rate_pct", 0.0),
+        "profit_factor":      _sf(summ, "profit_factor", 0.0),
+        "drawdown":           _sf(summ, "max_drawdown_pct", 0.0),
+        "current_drawdown":   _sf(summ, "current_drawdown_pct", 0.0),
+        "total_return_pct":   _sf(summ, "total_return_pct", 0.0),
+        "portfolio_utilisation_pct": _sf(summ, "portfolio_utilisation_pct", 0.0),
+        "initial_capital":    _sf(summ, "initial_capital", 500000.0),
     }
 
 
@@ -91,7 +106,7 @@ def widget_ai_health(data: dict) -> dict:
         "trend_direction":      _as_str(_g(snap, "trend_direction",  default="Stable"), fallback="Stable"),
         "accuracy_delta":       _g(snap, "accuracy_delta", default=0.0),
         "calibration_ece":      _g(snap, "calibration_ece", default=0.0),
-        "calibration_quality":  round((1 - _g(snap, "calibration_ece", default=0.0)) * 100, 1),
+        "calibration_quality":  round((1 - _sf(snap, "calibration_ece", 0.0)) * 100, 1),
         "total_signals":        _g(snap, "total_signals", default=0),
         "components":           comp,
         "recent_accuracy":      _g(learn, "recent_accuracy", default=0.0),
@@ -112,15 +127,15 @@ def widget_strategy_overview(data: dict) -> dict:
     best_pnl = _g(crit, "best_net_pnl") or {}
     worst    = _g(crit, "worst_net_pnl") or {}
     return {
-        "total_strategies":    _g(snap, "total_strategies", default=0),
+        "total_strategies":    int(_sf(snap, "total_strategies", 0.0)),
         "best_strategy":       _as_str(_g(snap,    "best_strategy", default="N/A")),
         "worst_strategy":      _as_str(_g(worst,   "name",          default="N/A")),
         "highest_win_rate":    _as_str(_g(best_wr, "name",          default="N/A")),
         "best_profit_factor":  _as_str(_g(best_pf, "name",          default="N/A")),
         "best_regime":         _as_str(_g(snap,    "best_regime",   default="N/A")),
         "best_sector":         _as_str(_g(snap,    "best_sector",   default="N/A")),
-        "total_net_pnl":       _g(snap, "total_net_pnl", default=0.0),
-        "overall_win_rate":    _g(snap, "overall_win_rate", default=0.0),
+        "total_net_pnl":       _sf(snap, "total_net_pnl", 0.0),
+        "overall_win_rate":    _sf(snap, "overall_win_rate", 0.0),
         "recommendation_count": len(recs),
         "strong_buy_count":    sum(1 for r in recs if isinstance(r, dict) and _g(r, "verdict", default="").upper() == "STRONG_BUY"),
         "recommendations":     recs[:5],  # top 5 for executive view
@@ -134,13 +149,13 @@ def widget_strategy_overview(data: dict) -> dict:
 def widget_execution_quality(data: dict) -> dict:
     eq = data.get("execution_quality", {})
     return {
-        "execution_score":   _g(eq, "avg_execution_score", default=0.0),
-        "avg_slippage":      _g(eq, "avg_entry_slippage_pct", default=0.0),
-        "avg_fill_delay":    _g(eq, "avg_fill_delay_seconds", default=0.0),
-        "total_trades":      _g(eq, "total_trades", default=0),
-        "best_execution":    _g(eq, "best_execution_score", default=0.0),
-        "worst_execution":   _g(eq, "worst_execution_score", default=0.0),
-        "exit_slippage":     _g(eq, "avg_exit_slippage_pct", default=0.0),
+        "execution_score":   _sf(eq, "avg_execution_score", 0.0),
+        "avg_slippage":      _sf(eq, "avg_entry_slippage_pct", 0.0),
+        "avg_fill_delay":    _sf(eq, "avg_fill_delay_seconds", 0.0),
+        "total_trades":      int(_sf(eq, "total_trades", 0.0)),
+        "best_execution":    _sf(eq, "best_execution_score", 0.0),
+        "worst_execution":   _sf(eq, "worst_execution_score", 0.0),
+        "exit_slippage":     _sf(eq, "avg_exit_slippage_pct", 0.0),
     }
 
 
@@ -186,16 +201,16 @@ def widget_portfolio_risk(data: dict) -> dict:
     top_sector = max(salloc, key=lambda x: _g(x, "weight_pct", default=0.0), default={})
     ral = _g(alerts, "alerts") or []
     return {
-        "utilisation":           _g(risk, "utilization_pct", default=_g(risk, "portfolio_heat", default=0.0)),
-        "largest_position":      _g(risk, "largest_position_pct", default=0.0),
-        "maximum_risk":          _g(risk, "daily_risk", default=0.0),
-        "sector_concentration":  _g(top_sector, "weight_pct", default=0.0),
+        "utilisation":           _sf(risk, "utilization_pct", _sf(risk, "portfolio_heat", 0.0)),
+        "largest_position":      _sf(risk, "largest_position_pct", 0.0),
+        "maximum_risk":          _sf(risk, "daily_risk", 0.0),
+        "sector_concentration":  _sf(top_sector, "weight_pct", 0.0),
         "top_sector":            _as_str(_g(top_sector, "sector", default="N/A")),
         "kill_switch_active":    _g(risk, "kill_switch", "active", default=False),
         "risk_alerts":           ral[:5],
         "alert_count":           len(ral),
-        "diversification_score": _g(risk, "diversification_score", default=0.0),
-        "portfolio_heat":        _g(risk, "portfolio_heat", default=0.0),
+        "diversification_score": _sf(risk, "diversification_score", 0.0),
+        "portfolio_heat":        _sf(risk, "portfolio_heat", 0.0),
     }
 
 
