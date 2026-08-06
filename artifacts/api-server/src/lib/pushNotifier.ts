@@ -276,6 +276,11 @@ export async function processPushDeliveryQueue(): Promise<void> {
 // low-threshold subscribers (e.g. 70%) do not receive a spurious recovery push
 // until health climbs above their own threshold.
 //
+// State is persisted to `signals_cache` under key "ops_health_state" so that
+// a recovery push is never silently lost when the API server restarts while
+// the platform is degraded. On startup the set is re-populated from the DB;
+// every add/remove is written back atomically.
+//
 // All pushes are deduplicated by their idempotency key in alert_deliveries, so
 // re-dispatch of the same scan_id never double-notifies a device.
 //
@@ -290,11 +295,75 @@ export interface OpsHealthSnapshot {
   agents?: Record<string, { status?: string; name?: string }>;
 }
 
+const OPS_HEALTH_STATE_KEY = "ops_health_state";
+
 let healthAlertInFlight = false;
 
 // Per-token degradation state: tracks which device tokens have received a
-// health degradation alert this server session. Cleared per-token on recovery.
+// health degradation alert. Persisted in signals_cache so the flag survives
+// API server restarts — a mid-incident restart no longer silently loses the
+// recovery push.
 const degradedSubscriberTokens = new Set<string>();
+
+// Lazy-load flag: true once we have read the initial state from the DB.
+let healthStateLoaded = false;
+let healthStateLoadPromise: Promise<void> | null = null;
+
+async function loadHealthStateFromDb(): Promise<void> {
+  if (healthStateLoaded) return;
+  if (healthStateLoadPromise) return healthStateLoadPromise;
+  healthStateLoadPromise = (async () => {
+    try {
+      const [row] = await db
+        .select()
+        .from(signalsCacheTable)
+        .where(eq(signalsCacheTable.key, OPS_HEALTH_STATE_KEY));
+      if (row?.payload) {
+        const payload = row.payload as { degraded_tokens?: unknown };
+        if (Array.isArray(payload.degraded_tokens)) {
+          for (const token of payload.degraded_tokens) {
+            if (typeof token === "string") {
+              degradedSubscriberTokens.add(token);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      logger.warn(
+        { err: err instanceof Error ? err.message : String(err) },
+        "Failed to load ops health state from DB — starting with empty degraded set",
+      );
+    } finally {
+      healthStateLoaded = true;
+    }
+  })();
+  return healthStateLoadPromise;
+}
+
+async function persistHealthStateToDb(): Promise<void> {
+  const degradedTokens = [...degradedSubscriberTokens];
+  try {
+    await db
+      .insert(signalsCacheTable)
+      .values({
+        key: OPS_HEALTH_STATE_KEY,
+        payload: { degraded_tokens: degradedTokens },
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: signalsCacheTable.key,
+        set: {
+          payload: { degraded_tokens: degradedTokens },
+          updatedAt: new Date(),
+        },
+      });
+  } catch (err) {
+    logger.warn(
+      { err: err instanceof Error ? err.message : String(err) },
+      "Failed to persist ops health state to DB",
+    );
+  }
+}
 
 export async function dispatchHealthAlertPushNotifications(
   snapshot: OpsHealthSnapshot,
@@ -317,6 +386,10 @@ export async function dispatchHealthAlertPushNotifications(
   healthAlertInFlight = true;
   try {
     await ensurePushSubscriptionsTable();
+    // Restore persisted degraded-token state if this is the first call after
+    // a server restart (idempotent: no-op on subsequent calls).
+    await loadHealthStateFromDb();
+
     const subs = await db
       .select()
       .from(pushSubscriptionsTable)
@@ -332,8 +405,10 @@ export async function dispatchHealthAlertPushNotifications(
       const wasAlerted = degradedSubscriberTokens.has(sub.token);
 
       if (shouldAlert) {
-        // Mark this subscriber as having received a degradation alert.
+        // Mark this subscriber as having received a degradation alert and
+        // persist so the flag survives a server restart.
         degradedSubscriberTokens.add(sub.token);
+        await persistHealthStateToDb();
 
         let title: string;
         let body: string;
@@ -373,6 +448,7 @@ export async function dispatchHealthAlertPushNotifications(
         // Platform has recovered above this subscriber's personal threshold
         // and all agents are healthy — send a one-time "all-clear" push.
         degradedSubscriberTokens.delete(sub.token);
+        await persistHealthStateToDb();
 
         const title = `Platform recovered — health now ${healthPct}%`;
         const body = `All agents are active. Pipeline is operating normally.`;
@@ -418,8 +494,26 @@ export async function dispatchHealthAlertPushNotifications(
   }
 }
 
-// Exported for tests only — allows resetting the in-process per-token
-// degradation state between test cases without restarting the process.
-export function _resetPlatformDegradedStateForTests(): void {
+// Exported for tests only — resets both the in-process degraded-token set
+// and the persisted DB record so each test case starts from a clean slate.
+export async function _resetPlatformDegradedStateForTests(): Promise<void> {
   degradedSubscriberTokens.clear();
+  healthStateLoaded = false;
+  healthStateLoadPromise = null;
+  try {
+    await db
+      .delete(signalsCacheTable)
+      .where(eq(signalsCacheTable.key, OPS_HEALTH_STATE_KEY));
+  } catch {
+    // Best-effort — ignore failures during test teardown.
+  }
+}
+
+// Exported for tests only — resets only the in-process state (the Set and
+// the load flags) WITHOUT touching the DB. Used to simulate a server restart:
+// the DB record is intact so the next dispatch re-loads it from storage.
+export function _resetInMemoryHealthStateOnlyForTests(): void {
+  degradedSubscriberTokens.clear();
+  healthStateLoaded = false;
+  healthStateLoadPromise = null;
 }

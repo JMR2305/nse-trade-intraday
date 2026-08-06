@@ -6,6 +6,7 @@ import {
   dispatchHealthAlertPushNotifications,
   ensurePushSubscriptionsTable,
   _resetPlatformDegradedStateForTests,
+  _resetInMemoryHealthStateOnlyForTests,
   type OpsHealthSnapshot,
 } from "./pushNotifier";
 import { ensureAlertDeliveriesTable } from "./alertQueue";
@@ -419,6 +420,9 @@ describe("dispatchHealthAlertPushNotifications", () => {
       .delete(alertDeliveriesTable)
       .where(like(alertDeliveriesTable.destination, HEALTH_TOKEN_LIKE));
     await db.delete(pushSubscriptionsTable);
+    // Reset in-process degraded-token set AND the persisted ops_health_state
+    // key so tests that write to DB don't leak state into subsequent tests.
+    await _resetPlatformDegradedStateForTests();
   });
 
   afterEach(async () => {
@@ -541,7 +545,7 @@ describe("dispatchHealthAlertPushNotifications", () => {
   // ── Recovery-push precision tests (Task 371) ─────────────────────────────
 
   it("recovery: skips the recovery push when the platform was never degraded", async () => {
-    _resetPlatformDegradedStateForTests();
+    await _resetPlatformDegradedStateForTests();
     const fetchMock = mockFetchOk();
     await insertHealthSub(1);
 
@@ -561,7 +565,7 @@ describe("dispatchHealthAlertPushNotifications", () => {
   });
 
   it("recovery: fires exactly one recovery push per device when health climbs back above the threshold", async () => {
-    _resetPlatformDegradedStateForTests();
+    await _resetPlatformDegradedStateForTests();
     await insertHealthSub(1);
     await insertHealthSub(2);
 
@@ -603,7 +607,7 @@ describe("dispatchHealthAlertPushNotifications", () => {
   });
 
   it("recovery: a second healthy snapshot after recovery does not re-fire the recovery push", async () => {
-    _resetPlatformDegradedStateForTests();
+    await _resetPlatformDegradedStateForTests();
     await insertHealthSub(1);
 
     const fetchMock = mockFetchOk();
@@ -640,8 +644,54 @@ describe("dispatchHealthAlertPushNotifications", () => {
     expect(recoveryRows).toHaveLength(1);
   });
 
+  it("recovery: fires the recovery push when the server restarts mid-incident (DB state survives)", async () => {
+    await insertHealthSub(1);
+    await insertHealthSub(2);
+
+    const fetchMock = mockFetchOk();
+
+    // Step 1 — degrade: both tokens are written to degradedSubscriberTokens
+    // and persisted to signals_cache key "ops_health_state".
+    await dispatchHealthAlertPushNotifications(
+      degradedSnapshot(50, [], "scan-pre-restart"),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    // Step 2 — simulate a server restart: wipe only the in-process Set and
+    // load flags (DB record is intentionally left intact).
+    _resetInMemoryHealthStateOnlyForTests();
+
+    // Step 3 — recovery snapshot arrives after the simulated restart.
+    // loadHealthStateFromDb() re-populates degradedSubscriberTokens from DB,
+    // so both tokens are still considered "was alerted" and each receives a
+    // recovery push.
+    fetchMock.mockClear();
+    await dispatchHealthAlertPushNotifications(
+      degradedSnapshot(92, [], "scan-post-restart"),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    // Verify recovery message content.
+    const msg = JSON.parse(
+      (fetchMock.mock.calls[0]![1] as { body: string }).body,
+    )[0] as Record<string, unknown>;
+    expect(String(msg["title"])).toMatch(/recover/i);
+    expect(String(msg["title"])).toContain("92%");
+
+    // Both tokens must have a recovery delivery row in the DB.
+    const rows = await db
+      .select()
+      .from(alertDeliveriesTable)
+      .where(like(alertDeliveriesTable.destination, HEALTH_TOKEN_LIKE));
+    const recoveryRows = rows.filter((r) =>
+      r.idempotencyKey?.startsWith("health_recovery:"),
+    );
+    expect(recoveryRows).toHaveLength(2);
+    expect(recoveryRows.every((r) => r.status === "DELIVERED")).toBe(true);
+  });
+
   it("schedules a retry (does not lose the health alert) when the push service is down", async () => {
-    _resetPlatformDegradedStateForTests();
+    await _resetPlatformDegradedStateForTests();
     await insertHealthSub(1);
 
     // Expo is down — every push attempt gets a 500.
