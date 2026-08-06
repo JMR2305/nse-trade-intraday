@@ -20,6 +20,7 @@ import {
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+  ReferenceArea, ReferenceLine,
 } from "recharts";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -842,6 +843,36 @@ function TradeSimulationTab({ latestRunId }: { latestRunId: string | null }) {
     eqCurve.push({ pos: (i + 1) * 2,     equity: exitEquity,  event: "EXIT",  ...meta });
   });
 
+  // ── Max-drawdown region ───────────────────────────────────────────────────
+  // Scan eqCurve once to find the (peakPos, troughPos) pair that produces
+  // the deepest drawdown in portfolio value.
+  const ddRegion = (() => {
+    if (eqCurve.length < 2) return null;
+    let runPeakEq  = eqCurve[0].equity;
+    let runPeakPos = eqCurve[0].pos;
+    let bestDd     = 0;
+    let peakEq     = runPeakEq;
+    let peakPos    = runPeakPos;
+    let troughEq   = runPeakEq;
+    let troughPos  = runPeakPos;
+    for (const pt of eqCurve) {
+      if (pt.equity > runPeakEq) {
+        runPeakEq  = pt.equity;
+        runPeakPos = pt.pos;
+      }
+      const dd = (runPeakEq - pt.equity) / runPeakEq;
+      if (dd > bestDd) {
+        bestDd    = dd;
+        peakEq    = runPeakEq;
+        peakPos   = runPeakPos;
+        troughEq  = pt.equity;
+        troughPos = pt.pos;
+      }
+    }
+    if (bestDd === 0) return null;
+    return { peakPos, peakEq, troughPos, troughEq, ddPct: bestDd * 100 };
+  })();
+
   /** Color for a result value */
   const resultCol = (r: string | null) =>
     r === "WIN" ? "#10b981" : r === "LOSS" ? "#ef4444" : "#f59e0b";
@@ -973,8 +1004,8 @@ function TradeSimulationTab({ latestRunId }: { latestRunId: string | null }) {
                 <h3 className="text-sm font-semibold text-white flex items-center gap-2">
                   <TrendingUp size={14} className="text-teal-400" /> Equity Curve (₹10,000 start)
                 </h3>
-                {/* Legend — entry shape + exit shape + result colors */}
-                <div className="flex items-center gap-4 text-xs text-slate-400">
+                {/* Legend — entry shape + exit shape + result colors + drawdown band */}
+                <div className="flex items-center gap-4 text-xs text-slate-400 flex-wrap">
                   <span className="flex items-center gap-1.5">
                     <svg width="14" height="12" viewBox="0 0 14 12">
                       <polygon points="7,0 0,12 14,12" fill="none" stroke="#94a3b8" strokeWidth="1.8" />
@@ -997,6 +1028,12 @@ function TradeSimulationTab({ latestRunId }: { latestRunId: string | null }) {
                     <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-500" />
                     BE
                   </span>
+                  {ddRegion && (
+                    <span className="flex items-center gap-1.5 text-red-400">
+                      <span className="inline-block w-5 h-2.5 rounded-sm" style={{ background: "rgba(239,68,68,0.18)", border: "1px solid rgba(239,68,68,0.45)" }} />
+                      Max DD {ddRegion.ddPct.toFixed(1)}%
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="h-52">
@@ -1022,6 +1059,47 @@ function TradeSimulationTab({ latestRunId }: { latestRunId: string | null }) {
                       tickFormatter={(v: number) => `₹${(v / 1000).toFixed(1)}k`}
                     />
                     <Tooltip content={<TradeTooltip />} />
+                    {/* Max-drawdown shaded band — rendered before the line so it sits behind */}
+                    {ddRegion && (
+                      <ReferenceArea
+                        x1={ddRegion.peakPos}
+                        x2={ddRegion.troughPos}
+                        fill="rgba(239,68,68,0.13)"
+                        stroke="rgba(239,68,68,0.40)"
+                        strokeDasharray="4 3"
+                        ifOverflow="visible"
+                      />
+                    )}
+                    {/* Peak label */}
+                    {ddRegion && (
+                      <ReferenceLine
+                        x={ddRegion.peakPos}
+                        stroke="rgba(239,68,68,0.55)"
+                        strokeDasharray="3 3"
+                        label={{
+                          value: `Peak ₹${ddRegion.peakEq.toLocaleString()}`,
+                          position: "insideTopRight",
+                          fontSize: 9,
+                          fill: "#fca5a5",
+                          dy: -4,
+                        }}
+                      />
+                    )}
+                    {/* Trough label */}
+                    {ddRegion && (
+                      <ReferenceLine
+                        x={ddRegion.troughPos}
+                        stroke="rgba(239,68,68,0.55)"
+                        strokeDasharray="3 3"
+                        label={{
+                          value: `Trough ₹${ddRegion.troughEq.toLocaleString()}`,
+                          position: "insideBottomLeft",
+                          fontSize: 9,
+                          fill: "#fca5a5",
+                          dy: 4,
+                        }}
+                      />
+                    )}
                     <Line
                       type="linear"
                       dataKey="equity"
