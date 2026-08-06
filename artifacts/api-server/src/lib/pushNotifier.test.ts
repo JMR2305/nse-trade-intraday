@@ -62,11 +62,12 @@ async function setSignalsSnapshot(payload: unknown, updatedAt: Date): Promise<vo
 
 async function insertSub(
   token: string,
-  opts: { minConfidence?: number; enabled?: boolean; lastNotifiedKey?: string | null } = {},
+  opts: { minConfidence?: number; minHealthPct?: number; enabled?: boolean; lastNotifiedKey?: string | null } = {},
 ): Promise<void> {
   await db.insert(pushSubscriptionsTable).values({
     token,
     minConfidence: opts.minConfidence ?? 70,
+    minHealthPct: opts.minHealthPct ?? 70,
     enabled: opts.enabled ?? true,
     lastNotifiedKey: opts.lastNotifiedKey ?? null,
   });
@@ -408,9 +409,12 @@ function degradedSnapshot(
 
 async function insertHealthSub(
   n: number,
-  opts: { enabled?: boolean } = {},
+  opts: { enabled?: boolean; minHealthPct?: number } = {},
 ): Promise<void> {
-  await insertSub(healthToken(n), { enabled: opts.enabled ?? true });
+  await insertSub(healthToken(n), {
+    enabled: opts.enabled ?? true,
+    minHealthPct: opts.minHealthPct,
+  });
 }
 
 describe("dispatchHealthAlertPushNotifications", () => {
@@ -688,6 +692,62 @@ describe("dispatchHealthAlertPushNotifications", () => {
     );
     expect(recoveryRows).toHaveLength(2);
     expect(recoveryRows.every((r) => r.status === "DELIVERED")).toBe(true);
+  });
+
+  // ── Per-subscriber minHealthPct threshold tests (Task 373) ──────────────────
+
+  it("skips a subscriber when healthPct >= their minHealthPct and no agent errors", async () => {
+    const fetchMock = mockFetchOk();
+    // minHealthPct=70, healthPct=75 → 75 >= 70 → subDegraded=false, hasErrors=false → skip
+    await insertHealthSub(1, { minHealthPct: 70 });
+
+    await dispatchHealthAlertPushNotifications(
+      degradedSnapshot(75, [], "scan-thresh-skip"),
+    );
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("alerts a subscriber when healthPct < their minHealthPct even when health is above the default 70% floor", async () => {
+    const fetchMock = mockFetchOk();
+    // minHealthPct=90, healthPct=75 → 75 < 90 → subDegraded=true → alert sent
+    await insertHealthSub(1, { minHealthPct: 90 });
+
+    await dispatchHealthAlertPushNotifications(
+      degradedSnapshot(75, [], "scan-thresh-alert"),
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const msg = JSON.parse(
+      (fetchMock.mock.calls[0]![1] as { body: string }).body,
+    )[0] as Record<string, unknown>;
+    expect(String(msg["title"])).toContain("75%");
+    const data = msg["data"] as Record<string, unknown>;
+    expect(data["screen"]).toBe("ai-ops");
+    expect(data["healthPct"]).toBe(75);
+  });
+
+  it("alerts ALL subscribers when agents are in ERROR regardless of their minHealthPct threshold", async () => {
+    const fetchMock = mockFetchOk();
+    // Both subscribers have 70% threshold — health at 75 is above their floor
+    // so without errors neither would receive an alert. Agent errors force shouldAlert for all.
+    await insertHealthSub(1, { minHealthPct: 70 });
+    await insertHealthSub(2, { minHealthPct: 70 });
+
+    await dispatchHealthAlertPushNotifications(
+      degradedSnapshot(75, ["risk"], "scan-errors-override-thresh"),
+    );
+
+    // Both subscribers must be alerted even though healthPct (75) >= minHealthPct (70)
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const msg = JSON.parse(
+      (fetchMock.mock.calls[0]![1] as { body: string }).body,
+    )[0] as Record<string, unknown>;
+    // Title reflects error-only path (health not degraded below their threshold)
+    expect(String(msg["title"])).toMatch(/agent|error/i);
+    const data = msg["data"] as Record<string, unknown>;
+    expect(data["screen"]).toBe("ai-ops");
+    expect((data["errorAgents"] as string[]).length).toBeGreaterThan(0);
   });
 
   it("schedules a retry (does not lose the health alert) when the push service is down", async () => {
