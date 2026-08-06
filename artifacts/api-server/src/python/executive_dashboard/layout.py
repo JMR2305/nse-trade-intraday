@@ -10,7 +10,20 @@ from .dashboard_models import ExecutiveScore
 # ---------------------------------------------------------------------------
 
 def _clamp(v: float, lo: float = 0.0, hi: float = 100.0) -> float:
-    return max(lo, min(hi, v))
+    return max(lo, min(hi, float(v)))
+
+
+def _sf(d: dict, key: str, default: float = 0.0) -> float:
+    """Return d[key] as a float, substituting *default* when the value is
+    absent, None, or non-numeric.  Prevents 'NoneType < float' crashes when
+    a widget field is present but carries a None value."""
+    v = d.get(key)
+    if v is None:
+        return default
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return default
 
 
 def compute_executive_score(widgets: dict) -> ExecutiveScore:
@@ -19,11 +32,11 @@ def compute_executive_score(widgets: dict) -> ExecutiveScore:
     All inputs are already computed by existing modules — no recalculation here.
     """
     # ── Portfolio Health (25%) ─────────────────────────────────────────────
-    port = widgets.get("portfolio_overview", {})
-    net_pnl      = port.get("net_pnl", 0.0)
-    drawdown     = abs(port.get("drawdown", 0.0))
-    win_rate     = port.get("win_rate", 50.0)
-    profit_factor = port.get("profit_factor", 1.0)
+    port = widgets.get("portfolio_overview", {}) or {}
+    net_pnl       = _sf(port, "net_pnl",       0.0)
+    drawdown      = abs(_sf(port, "drawdown",   0.0))
+    win_rate      = _sf(port, "win_rate",       50.0)
+    profit_factor = _sf(port, "profit_factor",  1.0)
     # Score = 60 (base) + win_rate delta from 50 + profit_factor bonus - drawdown penalty
     portfolio_score = _clamp(
         60.0
@@ -34,14 +47,14 @@ def compute_executive_score(widgets: dict) -> ExecutiveScore:
     )
 
     # ── AI Health (20%) ───────────────────────────────────────────────────
-    ai = widgets.get("ai_health", {})
-    ai_score = _clamp(ai.get("health_score", 50.0))
+    ai = widgets.get("ai_health", {}) or {}
+    ai_score = _clamp(_sf(ai, "health_score", 50.0))
 
     # ── Strategy Health (20%) ─────────────────────────────────────────────
-    strat = widgets.get("strategy_overview", {})
-    strat_wr  = strat.get("overall_win_rate", 50.0)
-    strat_pnl = strat.get("total_net_pnl", 0.0)
-    strong_buy = strat.get("strong_buy_count", 0)
+    strat = widgets.get("strategy_overview", {}) or {}
+    strat_wr   = _sf(strat, "overall_win_rate", 50.0)
+    strat_pnl  = _sf(strat, "total_net_pnl",    0.0)
+    strong_buy = int(_sf(strat, "strong_buy_count", 0))
     strategy_score = _clamp(
         55.0
         + (strat_wr - 50.0) * 0.6
@@ -50,14 +63,14 @@ def compute_executive_score(widgets: dict) -> ExecutiveScore:
     )
 
     # ── Execution Quality (15%) ───────────────────────────────────────────
-    eq = widgets.get("execution_quality", {})
-    execution_score = _clamp(eq.get("execution_score", 50.0))
+    eq = widgets.get("execution_quality", {}) or {}
+    execution_score = _clamp(_sf(eq, "execution_score", 50.0))
 
     # ── Risk (10%) — inverse of alert count and kill-switch ───────────────
-    rk = widgets.get("portfolio_risk", {})
-    alert_count     = rk.get("alert_count", 0)
-    kill_active     = rk.get("kill_switch_active", False)
-    utilisation     = rk.get("utilisation", 0.0)
+    rk = widgets.get("portfolio_risk", {}) or {}
+    alert_count = int(_sf(rk, "alert_count", 0))
+    kill_active = bool(rk.get("kill_switch_active", False))
+    utilisation = _sf(rk, "utilisation", 0.0)
     risk_score = _clamp(
         90.0
         - alert_count * 5.0
