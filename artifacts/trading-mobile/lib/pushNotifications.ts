@@ -151,7 +151,15 @@ export async function updateMinHealthPct(minHealthPct: number): Promise<void> {
 // Launch-time registration. Never prompts for permission on launch; it
 // registers (or refreshes) the device token whenever OS notification
 // permission is already granted and the user has not explicitly turned
-// push alerts off. All failures are swallowed (e.g. Expo Go on Android).
+// push alerts off.
+//
+// Before re-registering the token we probe GET /notifications/push/status
+// to retrieve the operator's last-saved minHealthPct from the server and
+// write it into AsyncStorage. The subsequent POST to /register deliberately
+// omits preference fields so the server's stored value is never overwritten
+// by a local default (the onConflictDoUpdate only updates fields that are
+// explicitly included in the request).
+// All failures are swallowed (e.g. Expo Go on Android).
 export async function registerOnLaunch(): Promise<void> {
   try {
     if (Platform.OS === "web" || !Device.isDevice) return;
@@ -159,16 +167,42 @@ export async function registerOnLaunch(): Promise<void> {
     if (explicitlyDisabled) return;
     const perms = await Notifications.getPermissionsAsync();
     if (perms.status !== "granted") return;
-    const { minConfidence, minHealthPct } = await getStoredPushPrefs();
     const token = await fetchExpoPushToken();
-    await apiJson("/notifications/push/register", {
-      method: "POST",
-      body: JSON.stringify({ token, minConfidence, minHealthPct }),
-    });
-    await Promise.all([
+
+    // Step 1: fetch server-side preferences for this token before registering,
+    // so we never overwrite the operator's saved value with a local default.
+    const writes: Promise<void>[] = [
       AsyncStorage.setItem(ENABLED_KEY, "true"),
       AsyncStorage.setItem(TOKEN_KEY, token),
-    ]);
+    ];
+    try {
+      const status = await apiJson<{
+        registered?: boolean;
+        minHealthPct?: number;
+      }>(`/notifications/push/status?token=${encodeURIComponent(token)}`);
+      if (
+        status?.registered &&
+        typeof status.minHealthPct === "number" &&
+        Number.isFinite(status.minHealthPct) &&
+        status.minHealthPct >= 50
+      ) {
+        // Sync the operator's last-saved threshold to local storage so the
+        // PushAlertsCard slider reflects the correct value after reinstall.
+        writes.push(AsyncStorage.setItem(MIN_HEALTH_KEY, String(status.minHealthPct)));
+      }
+    } catch {
+      // Status probe is best-effort; proceed with registration regardless.
+    }
+
+    // Step 2: re-register to refresh the token on the server. Omit preference
+    // fields so existing server values are not overwritten by local defaults.
+    const { minConfidence } = await getStoredPushPrefs();
+    await apiJson("/notifications/push/register", {
+      method: "POST",
+      body: JSON.stringify({ token, minConfidence }),
+    });
+
+    await Promise.all(writes);
   } catch {
     // Best-effort only.
   }
