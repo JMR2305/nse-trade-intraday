@@ -108,6 +108,7 @@ import Phase11RecommendationQueuePage from "@/pages/Phase11RecommendationQueuePa
 import Phase11ReplayPage           from "@/pages/Phase11ReplayPage";
 import Phase11ReportsPage          from "@/pages/Phase11ReportsPage";
 import Phase11TimelinePage         from "@/pages/Phase11TimelinePage";
+import AIValidationV2Page          from "@/pages/AIValidationV2Page";
 import { ConnectivityPanel } from "@/components/ConnectivityPanel";
 
 const queryClient = new QueryClient({
@@ -234,6 +235,7 @@ function Router() {
         <Route path="/ai-paper-trader"            component={AIPaperTraderPage} />
         <Route path="/replay"                      component={ReplayModePage} />
         <Route path="/ai-operations-centre"       component={AIOperationsCentrePage} />
+        <Route path="/validation-v2"              component={AIValidationV2Page} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

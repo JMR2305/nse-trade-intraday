@@ -149,6 +149,7 @@ export const AGENTS: Agent[] = [
     color: "#6366F1",      // indigo-500
     pages: [
       { href: "/agent-ai-decision",  label: "AI Decision Agent",   icon: Brain,         tags: ["decision", "agent", "phase10c"] },
+      { href: "/validation-v2",      label: "AI Validation V2",    icon: Microscope,    tags: ["validation", "v2", "backtest", "walk-forward", "optimizer", "explainability"] },
       { href: "/ai-performance",     label: "AI Performance",      icon: Brain,         tags: ["ai", "performance"] },
       { href: "/ai-optimisation",    label: "AI Optimisation",     icon: Zap,           tags: ["ai", "optimise"] },
       { href: "/explainable-ai",     label: "Explainable AI",      icon: Lightbulb,     tags: ["xai", "explain"] },
