@@ -699,12 +699,142 @@ function TradeSimulationTab({ latestRunId }: { latestRunId: string | null }) {
   const run = runQ.data;
   const trades = run?.trades ?? [];
 
-  // Build equity curve from trade P&L
+  // ── Equity curve — expanded timeline ──────────────────────────────────────
+  // Each trade contributes TWO events: ENTRY (equity unchanged) + EXIT
+  // (equity updated by PnL). Distinct X positions let us render different
+  // marker shapes for each event type:
+  //   ENTRY → hollow upward triangle ▲  (colored by result)
+  //   EXIT  → filled circle            ●  (colored by result)
+  // A START anchor at x=0 initialises the line at ₹10,000.
+  type EqEvent = {
+    pos: number;           // sequential X position in the chart
+    equity: number;        // portfolio value at this event
+    event: "START" | "ENTRY" | "EXIT";
+    tradeNum: number;
+    result: string | null;
+    symbol: string;
+    entry_price: number | null;
+    exit_price: number | null;
+    pnl_pct: number | null;
+    exit_reason: string | null;
+    entry_date: string;
+    exit_date: string | null;
+  };
+
   let equity = 10000;
-  const eqCurve = trades.map((t, i) => {
+  const eqCurve: EqEvent[] = [
+    {
+      pos: 0, equity: 10000, event: "START", tradeNum: 0,
+      result: null, symbol: "", entry_price: null, exit_price: null,
+      pnl_pct: null, exit_reason: null, entry_date: "", exit_date: null,
+    },
+  ];
+  trades.forEach((t, i) => {
+    const entryEquity = Math.round(equity);   // portfolio at entry (unchanged)
     equity += equity * (t.pnl_pct ?? 0) / 100;
-    return { trade: i + 1, equity: Math.round(equity), date: t.entry_date };
+    const exitEquity = Math.round(equity);    // portfolio at exit (after PnL)
+    const meta = {
+      tradeNum: i + 1,
+      result: t.result ?? null,
+      symbol: t.symbol,
+      entry_price: t.entry_price,
+      exit_price: t.exit_price,
+      pnl_pct: t.pnl_pct,
+      exit_reason: t.exit_reason,
+      entry_date: t.entry_date ?? "",
+      exit_date: t.exit_date ?? null,
+    };
+    eqCurve.push({ pos: (i + 1) * 2 - 1, equity: entryEquity, event: "ENTRY", ...meta });
+    eqCurve.push({ pos: (i + 1) * 2,     equity: exitEquity,  event: "EXIT",  ...meta });
   });
+
+  /** Color for a result value */
+  const resultCol = (r: string | null) =>
+    r === "WIN" ? "#10b981" : r === "LOSS" ? "#ef4444" : "#f59e0b";
+
+  /**
+   * Custom dot renderer:
+   *   START → nothing
+   *   ENTRY → hollow upward-pointing triangle ▲
+   *   EXIT  → filled circle ●  (colored by result)
+   */
+  const TradeDot = (props: any) => {
+    const { cx, cy, payload } = props;
+    if (!payload || payload.event === "START") return null;
+    const col = resultCol(payload.result);
+    if (payload.event === "ENTRY") {
+      // Hollow upward triangle — visually distinct from the exit circle
+      const s = 8; // half-width / height scaling
+      return (
+        <polygon
+          key={`entry-${payload.tradeNum}`}
+          points={`${cx},${cy - s} ${cx - s},${cy + s} ${cx + s},${cy + s}`}
+          fill="none"
+          stroke={col}
+          strokeWidth={2}
+        />
+      );
+    }
+    // EXIT — filled circle
+    return (
+      <circle
+        key={`exit-${payload.tradeNum}`}
+        cx={cx} cy={cy} r={5}
+        fill={col} stroke="#0f172a" strokeWidth={1.5}
+      />
+    );
+  };
+
+  /**
+   * Tooltip content differs by event type:
+   *   ENTRY → entry date + entry price + portfolio at entry
+   *   EXIT  → exit date + exit price + exit reason + P&L + portfolio after
+   */
+  const TradeTooltip = ({ active, payload }: any) => {
+    if (!active || !payload?.length) return null;
+    const d: EqEvent = payload[0].payload;
+    if (d.event === "START") return null;
+    const col = resultCol(d.result);
+    const isEntry = d.event === "ENTRY";
+    return (
+      <div style={{
+        background: "#0f172a", border: "1px solid #334155",
+        borderRadius: 8, padding: "8px 12px", fontSize: 11, lineHeight: 1.8,
+      }}>
+        <div style={{ fontWeight: 700, color: col, marginBottom: 2 }}>
+          {isEntry ? "▲ Entry" : "● Exit"} — T{d.tradeNum} {d.symbol}
+          {d.result ? <span style={{ marginLeft: 6, opacity: 0.8 }}>({d.result})</span> : null}
+        </div>
+        {isEntry ? (
+          <>
+            <div style={{ color: "#94a3b8" }}>Date: <span style={{ color: "#e2e8f0" }}>{d.entry_date?.slice(0, 10) || "—"}</span></div>
+            {d.entry_price != null && (
+              <div>Entry price: <span style={{ color: "#e2e8f0" }}>₹{d.entry_price.toFixed(2)}</span></div>
+            )}
+            <div style={{ color: "#94a3b8" }}>Portfolio at entry: <span style={{ color: "#e2e8f0" }}>₹{d.equity.toLocaleString()}</span></div>
+          </>
+        ) : (
+          <>
+            {d.exit_date && (
+              <div style={{ color: "#94a3b8" }}>Exit date: <span style={{ color: "#e2e8f0" }}>{d.exit_date.slice(0, 10)}</span></div>
+            )}
+            {d.exit_price != null && (
+              <div>Exit price: <span style={{ color: "#e2e8f0" }}>₹{d.exit_price.toFixed(2)}</span></div>
+            )}
+            {d.exit_reason && (
+              <div>Exit reason: <span style={{ color: "#94a3b8" }}>{d.exit_reason}</span></div>
+            )}
+            {d.pnl_pct != null && (
+              <div style={{ fontWeight: 700, color: col }}>
+                P&amp;L: {d.pnl_pct >= 0 ? "+" : ""}{d.pnl_pct.toFixed(2)}%
+              </div>
+            )}
+            <div style={{ color: "#94a3b8" }}>Portfolio after: <span style={{ color: "#e2e8f0" }}>₹{d.equity.toLocaleString()}</span></div>
+          </>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -742,24 +872,79 @@ function TradeSimulationTab({ latestRunId }: { latestRunId: string | null }) {
               accent={run.stats?.profit_factor != null ? (run.stats.profit_factor >= 1.5 ? "green" : run.stats.profit_factor >= 1 ? "amber" : "red") : "neutral"} />
           </div>
 
-          {/* Equity curve */}
-          {eqCurve.length > 1 && (
+          {/* Equity curve with trade entry/exit markers */}
+          {trades.length > 0 && (
             <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4">
-              <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-                <TrendingUp size={14} className="text-teal-400" /> Equity Curve (₹10,000 start)
-              </h3>
-              <div className="h-40">
+              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                  <TrendingUp size={14} className="text-teal-400" /> Equity Curve (₹10,000 start)
+                </h3>
+                {/* Legend — entry shape + exit shape + result colors */}
+                <div className="flex items-center gap-4 text-xs text-slate-400">
+                  <span className="flex items-center gap-1.5">
+                    <svg width="14" height="12" viewBox="0 0 14 12">
+                      <polygon points="7,0 0,12 14,12" fill="none" stroke="#94a3b8" strokeWidth="1.8" />
+                    </svg>
+                    Entry
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-block w-2.5 h-2.5 rounded-full bg-slate-400" />
+                    Exit
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                    WIN
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500" />
+                    LOSS
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-500" />
+                    BE
+                  </span>
+                </div>
+              </div>
+              <div className="h-52">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={eqCurve}>
+                  <LineChart data={eqCurve} margin={{ top: 10, right: 10, bottom: 4, left: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                    <XAxis dataKey="trade" tick={{ fontSize: 10, fill: "#94a3b8" }} />
-                    <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} domain={["auto", "auto"]} />
-                    <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid #334155", fontSize: 11 }}
-                      formatter={(v: any) => [`₹${Number(v).toLocaleString()}`, "Equity"]} />
-                    <Line type="monotone" dataKey="equity" stroke="#14b8a6" dot={false} strokeWidth={2} />
+                    <XAxis
+                      dataKey="pos"
+                      type="number"
+                      domain={[0, trades.length * 2]}
+                      tickCount={trades.length + 1}
+                      tickFormatter={(pos: number) => {
+                        if (pos === 0) return "Start";
+                        // Show label only at exit positions (even numbers)
+                        if (pos % 2 === 0) return `T${pos / 2}`;
+                        return "";
+                      }}
+                      tick={{ fontSize: 10, fill: "#94a3b8" }}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 10, fill: "#94a3b8" }}
+                      domain={["auto", "auto"]}
+                      tickFormatter={(v: number) => `₹${(v / 1000).toFixed(1)}k`}
+                    />
+                    <Tooltip content={<TradeTooltip />} />
+                    <Line
+                      type="linear"
+                      dataKey="equity"
+                      stroke="#14b8a6"
+                      strokeWidth={2}
+                      dot={<TradeDot />}
+                      activeDot={{ r: 7, strokeWidth: 2, stroke: "#0f172a" }}
+                      isAnimationActive={false}
+                      connectNulls
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
+              <p className="text-xs text-slate-500 mt-2">
+                ▲ Hover an entry marker to see entry price &amp; portfolio value.
+                ● Hover an exit marker to see P&amp;L, exit reason, and portfolio after.
+              </p>
             </div>
           )}
 
