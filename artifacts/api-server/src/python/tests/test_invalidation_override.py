@@ -170,39 +170,74 @@ check("1d. rr=1.5 at fc=87: conditions mention R:R",
       any("r:r" in c.lower() or "risk" in c.lower() for c in d["invalidation_override_conditions"]),
       str(d["invalidation_override_conditions"]))
 
-# ── 2. AVOID overrides for fc >= 75 ──────────────────────────────────────────
-print("2. fc >= 75 → AVOID due to non-confidence gate")
+# ── 2. AVOID overrides and high-confidence safety valve ──────────────────────
+print("2. filter gate behaviour — AVOID override and high-confidence safety valve")
 
-# 2a. filter_passed=False with custom reason
+# 2a. Single filter failure at fc=87 → safety valve fires → WATCH not AVOID.
+#     The operator still sees the setup via the OVERRIDDEN-BY-GATE badge.
 d = _decide(_item(filter_passed=False, filter_reasons=["volume_ratio 0.35× < 0.75× threshold"]))
-check("2a. filter_fail: recommendation=AVOID",
-      d["recommendation"] == "AVOID")
-check("2a. filter_fail: invalidation_override=True",
-      d["invalidation_override"] is True)
-check("2a. filter_fail: conditions contain filter reason",
-      any("volume" in c.lower() for c in d["invalidation_override_conditions"]),
-      str(d["invalidation_override_conditions"]))
-check("2a. filter_fail: conditions NOT generic",
-      d["invalidation_override_conditions"] != ["blocking condition met"],
+check("2a. single filter fail at fc=87: recommendation=WATCH (safety valve)",
+      d["recommendation"] == "WATCH",
+      f"got {d['recommendation']}")
+check("2a. single filter fail at fc=87: invalidation_override=True",
+      d["invalidation_override"] is True, str(d.get("invalidation_override")))
+check("2a. single filter fail at fc=87: conditions contain filter reason",
+      any("volume" in c.lower() or "filter" in c.lower()
+          for c in d["invalidation_override_conditions"]),
       str(d["invalidation_override_conditions"]))
 
-# 2b. negative expectancy
+# 2b. Negative expectancy at fc=87 is always AVOID (no safety valve for fundamentals).
 d = _decide(_item(historical_expectancy=-0.5))
-check("2b. exp=-0.5%: recommendation=AVOID",
-      d["recommendation"] == "AVOID")
+check("2b. exp=-0.5%: recommendation=AVOID (no safety valve for negative expectancy)",
+      d["recommendation"] == "AVOID",
+      f"got {d['recommendation']}")
 check("2b. exp=-0.5%: invalidation_override=True",
       d["invalidation_override"] is True)
 check("2b. exp=-0.5%: conditions mention negative expectancy",
       any("expectancy" in c.lower() for c in d["invalidation_override_conditions"]),
       str(d["invalidation_override_conditions"]))
 
-# 2c. filter_passed=False without filter_reasons (fallback label)
+# 2c. Empty filter_reasons with filter_passed=False at fc=87 → still safety valve
+#     (failure count = max(1, 0) = 1 < HIGH_CONF_AVOID_GATE_MIN_FAILURES=2).
 d = _decide(_item(filter_passed=False, filter_reasons=[]))
-check("2c. filter_fail no reasons: invalidation_override=True",
+check("2c. filter_fail no reasons at fc=87: recommendation=WATCH (safety valve)",
+      d["recommendation"] == "WATCH",
+      f"got {d['recommendation']}")
+check("2c. filter_fail no reasons at fc=87: invalidation_override=True",
+      d["invalidation_override"] is True, str(d.get("invalidation_override")))
+
+# 2d. Two simultaneous filter failures at fc=87 → threshold met → AVOID.
+d = _decide(_item(filter_passed=False,
+                  filter_reasons=["volume_ratio 0.25× < 0.75× threshold",
+                                  "opportunity_score 42 < 50 floor"]))
+check("2d. two filter fails at fc=87: recommendation=AVOID (gate justified)",
+      d["recommendation"] == "AVOID",
+      f"got {d['recommendation']}")
+check("2d. two filter fails at fc=87: invalidation_override=True",
       d["invalidation_override"] is True)
-check("2c. filter_fail no reasons: conditions non-empty",
+check("2d. two filter fails at fc=87: conditions list non-empty",
       len(d["invalidation_override_conditions"]) >= 1,
       str(d["invalidation_override_conditions"]))
+
+# 2e. Single filter failure at fc=80 (below STRONG_BUY_CONF) → strict gate → AVOID.
+d = _decide(_item(final_confidence=80.0, base_confidence=80.0, confidence=80.0,
+                  filter_passed=False,
+                  filter_reasons=["volume_ratio 0.35× < 0.75× threshold"]))
+check("2e. single filter fail at fc=80: recommendation=AVOID (strict gate below 85)",
+      d["recommendation"] == "AVOID",
+      f"got {d['recommendation']}")
+check("2e. single filter fail at fc=80: invalidation_override=True",
+      d["invalidation_override"] is True)
+
+# 2f. Exactly STRONG_BUY_CONF boundary (fc=85.0): safety valve applies at >=85.
+d = _decide(_item(final_confidence=85.0, base_confidence=85.0, confidence=85.0,
+                  filter_passed=False,
+                  filter_reasons=["volume_ratio 0.35× < 0.75× threshold"]))
+check("2f. single filter fail at fc=85.0 (boundary): recommendation=WATCH (safety valve)",
+      d["recommendation"] == "WATCH",
+      f"got {d['recommendation']}")
+check("2f. fc=85.0 boundary: invalidation_override=True",
+      d["invalidation_override"] is True)
 
 # ── 3. Genuine low-confidence AVOID (NOT an override) ────────────────────────
 print("3. fc < 75 → AVOID (low confidence, not an override)")

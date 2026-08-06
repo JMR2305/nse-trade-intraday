@@ -51,6 +51,16 @@ WATCH_CONF         = 55.0
 TIME_EXIT_FACTOR   = 2.0    # exit when held > factor × expected holding days
 TIME_EXIT_MIN_DAYS = 30.0   # ... but never earlier than this many days
 
+# ── High-confidence filter gate calibration ───────────────────────────────────
+# When fc >= STRONG_BUY_CONF, how many simultaneous filter conditions must fail
+# before the risk gate forces AVOID.  A value of 2 means a single minor
+# condition (e.g. volume_ratio 0.35× on one day) is NOT enough to override a
+# high-conviction setup — the stock is demoted to WATCH instead so operators
+# still see it (and the OVERRIDDEN-BY-GATE badge from the invalidation layer).
+# Two or more simultaneous failures still force AVOID regardless of confidence.
+# For fc < STRONG_BUY_CONF the gate remains strict (1 failure → AVOID).
+HIGH_CONF_AVOID_GATE_MIN_FAILURES = 2
+
 _ORDER = {"STRONG_BUY": 0, "BUY": 1, "EXIT": 2, "WATCH": 3, "AVOID": 4}
 
 # Decision Breakdown display weights — how much of the final confidence is
@@ -396,15 +406,34 @@ def _decide(item: dict, positions: dict, trades: list,
         recommendation = "WATCH"
         reason = "Data unavailable — live NSE data could not be fetched" if err is None \
             else f"Data unavailable — {err}"
-    # ── 3. AVOID ─────────────────────────────────────────────────────────────
-    elif fc < WATCH_CONF or exp < 0 or not filter_passed:
+    # ── 3. AVOID / high-confidence safety valve ──────────────────────────────
+    # Three separate gates so calibration for each can be tuned independently.
+    elif fc < WATCH_CONF:
         recommendation = "AVOID"
-        if not filter_passed:
-            reason = "Risk filter failed" + (f": {filter_reasons[0]}" if filter_reasons else "")
-        elif exp < 0:
-            reason = f"Negative historical expectancy ({exp:+.2f}%)"
+        reason = f"Low confidence ({fc:.0f} < {WATCH_CONF:.0f})"
+    elif exp < 0:
+        # Negative expectancy is a fundamental structural issue and always
+        # forces AVOID regardless of confidence level.
+        recommendation = "AVOID"
+        reason = f"Negative historical expectancy ({exp:+.2f}%)"
+    elif not filter_passed:
+        # High-confidence safety valve: when fc >= STRONG_BUY_CONF a single
+        # minor filter failure is demoted to WATCH so operators still see the
+        # setup (and the OVERRIDDEN-BY-GATE badge from the invalidation layer).
+        # Two or more simultaneous filter failures still force AVOID — a stock
+        # with multiple structural issues warrants the gate regardless of
+        # confidence.  For fc < STRONG_BUY_CONF the strict rule applies (any
+        # single failure → AVOID) because there is less conviction to protect.
+        filter_failure_count = max(1, len(filter_reasons))
+        if (fc >= STRONG_BUY_CONF
+                and filter_failure_count < HIGH_CONF_AVOID_GATE_MIN_FAILURES):
+            recommendation = "WATCH"
+            reason = ("Risk filter caution — " + filter_reasons[0]
+                      if filter_reasons
+                      else "Risk filter caution — single condition check")
         else:
-            reason = f"Low confidence ({fc:.0f} < {WATCH_CONF:.0f})"
+            recommendation = "AVOID"
+            reason = "Risk filter failed" + (f": {filter_reasons[0]}" if filter_reasons else "")
     else:
         # ── 4. STRONG_BUY / BUY / WATCH ──────────────────────────────────────
         if fc < STRONG_BUY_CONF:
