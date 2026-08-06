@@ -98,7 +98,15 @@ interface OpsSnapshot {
     passed_monitoring: number;
     passed_strategy: number;
     passed_risk: number;
-    buy_recommendations: number;
+    /** Raw scanner-level BUY/STRONG BUY count (opportunity_score ≥ ~62).
+     *  Always ≥ buy_recommendations. Shown separately so operators understand
+     *  why Ops Centre and Trade Decisions can show different numbers. */
+    scanner_candidates?: number;
+    /** Confirmed BUY + STRONG_BUY from the decision service — same source as Trade
+     *  Decisions page. null when the decision summary has not been written yet.
+     *  BUY: confidence 75–84, exp > 0, PF > 1.2, R:R ≥ 2.
+     *  STRONG_BUY: confidence ≥ 85, exp > 1%, PF ≥ 1.5, R:R ≥ 2, ≥ 20 trades. */
+    buy_recommendations: number | null;
     paper_orders_executed: number;
     open_positions: number;
   };
@@ -742,21 +750,42 @@ function AgentCard({ agent, agentKey }: { agent?: AgentState; agentKey: string }
 function PipelineFunnel({ pipeline, loading }: {
   pipeline?: OpsSnapshot["pipeline"]; loading: boolean;
 }) {
-  const stages = pipeline ? [
-    { label: "Universe Loaded",        count: pipeline.universe_loaded },
-    { label: "Stocks Reviewed",        count: pipeline.stocks_reviewed },
-    { label: "Passed Market Data",     count: pipeline.passed_market_data },
-    { label: "Passed Research",        count: pipeline.passed_research },
-    { label: "Passed Intelligence",    count: pipeline.passed_intelligence },
-    { label: "Passed Monitoring",      count: pipeline.passed_monitoring },
-    { label: "Passed Strategy",        count: pipeline.passed_strategy },
-    { label: "Passed Risk",            count: pipeline.passed_risk },
-    { label: "BUY Recommendations",   count: pipeline.buy_recommendations },
-    { label: "Paper Orders Executed", count: pipeline.paper_orders_executed },
-    { label: "Open Positions",        count: pipeline.open_positions },
+  // scanner_candidates uses the scanner's opportunity_score threshold (~62).
+  // buy_recommendations uses the decision service's stricter threshold (confidence ≥75,
+  // expectancy >0, PF >1.2, R:R ≥2) — the same gate as the Trade Decisions page.
+  // Both are shown so operators understand why the two pages may show different numbers.
+  const hasScanner = pipeline != null && pipeline.scanner_candidates != null;
+
+  // count is number | null; null means "not yet available" (Confirmed BUY row only)
+  type FunnelStage = { label: string; count: number | null; note: string | null };
+  const stages: FunnelStage[] = pipeline ? [
+    { label: "Universe Loaded",        count: pipeline.universe_loaded,        note: null },
+    { label: "Stocks Reviewed",        count: pipeline.stocks_reviewed,        note: null },
+    { label: "Passed Market Data",     count: pipeline.passed_market_data,     note: null },
+    { label: "Passed Research",        count: pipeline.passed_research,        note: null },
+    { label: "Passed Intelligence",    count: pipeline.passed_intelligence,    note: null },
+    { label: "Passed Monitoring",      count: pipeline.passed_monitoring,      note: null },
+    { label: "Passed Strategy",        count: pipeline.passed_strategy,        note: null },
+    { label: "Passed Risk",            count: pipeline.passed_risk,            note: null },
+    // Scanner-level BUY candidates (shown only when the field is present)
+    ...(hasScanner ? [{
+      label: "Scanner Candidates",
+      count: pipeline.scanner_candidates as number,
+      note: "opportunity_score ≥ ~62 (pre-decision)",
+    }] : []),
+    // Decision-service confirmed BUY — null when not yet available.
+    // BUY: confidence 75–84, exp>0, PF>1.2, R:R≥2
+    // STRONG_BUY: confidence ≥85, exp>1%, PF≥1.5, R:R≥2, ≥20 trades
+    {
+      label: "Confirmed BUY",
+      count: pipeline.buy_recommendations,    // number | null
+      note: "BUY: conf 75–84, exp>0, PF>1.2, R:R≥2 · STRONG_BUY: conf≥85, exp>1%, PF≥1.5, ≥20 trades",
+    },
+    { label: "Paper Orders Executed",  count: pipeline.paper_orders_executed,  note: null },
+    { label: "Open Positions",         count: pipeline.open_positions,         note: null },
   ] : [];
 
-  const maxCount = Math.max(...stages.map(s => s.count), 1);
+  const maxCount = Math.max(...stages.map(s => s.count ?? 0), 1);
 
   return (
     <div className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-4">
@@ -774,35 +803,82 @@ function PipelineFunnel({ pipeline, loading }: {
       ) : (
         <div className="space-y-1.5">
           {stages.map((s, idx) => {
-            const prev = idx > 0 ? stages[idx - 1].count : s.count;
-            const drop = prev > 0 ? Math.round(((prev - s.count) / prev) * 100) : 0;
-            const barPct = (s.count / maxCount) * 100;
-            const isBottleneck = drop > 50 && idx > 0;
+            const countKnown = s.count !== null;
+            const prevCount  = idx > 0 ? stages[idx - 1].count : s.count;
+            const prevKnown  = prevCount !== null;
+            const drop = (countKnown && prevKnown && (prevCount as number) > 0)
+              ? Math.round((((prevCount as number) - (s.count as number)) / (prevCount as number)) * 100)
+              : 0;
+            const barPct = countKnown ? ((s.count as number) / maxCount) * 100 : 0;
+            const isBottleneck   = drop > 50 && idx > 0 && countKnown;
+            const isConfirmedBuy = s.label === "Confirmed BUY";
+            const isScannerCand  = s.label === "Scanner Candidates";
+            const isUnavailable  = isConfirmedBuy && !countKnown;
             return (
               <div key={s.label}>
+                {/* Separator before the scanner→decision block for clarity */}
+                {isScannerCand && (
+                  <div className="flex items-center gap-2 my-1">
+                    <div className="w-40" />
+                    <div className="flex-1 border-t border-dashed border-slate-700/50" />
+                    <span className="text-[9px] text-slate-600 flex-shrink-0 w-12">decision</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-2">
                   <div className="w-40 flex-shrink-0 text-right">
-                    <span className="text-[10px] text-slate-400">{s.label}</span>
-                  </div>
-                  <div className="flex-1 h-5 bg-slate-800/60 rounded relative overflow-hidden">
-                    <div
-                      className={`h-full rounded transition-all duration-500 ${
-                        isBottleneck ? "bg-amber-600/60" :
-                        idx >= stages.length - 2 ? "bg-emerald-600/60" :
-                        "bg-teal-700/50"
-                      }`}
-                      style={{ width: `${barPct}%` }}
-                    />
-                    <span className="absolute right-2 top-0 bottom-0 flex items-center text-[10px] font-mono font-bold text-slate-300">
-                      {s.count}
+                    <span className={`text-[10px] ${
+                      isConfirmedBuy && !isUnavailable ? "text-emerald-400 font-semibold" :
+                      isUnavailable  ? "text-slate-500 font-semibold" :
+                      isScannerCand  ? "text-amber-400" : "text-slate-400"
+                    }`}>
+                      {s.label}
                     </span>
                   </div>
-                  {drop > 0 && idx > 0 && (
+                  {isUnavailable ? (
+                    <div className="flex-1 h-5 bg-slate-800/30 rounded ring-1 ring-dashed
+                                    ring-slate-700/40 flex items-center px-2">
+                      <span className="text-[10px] text-slate-600 italic">
+                        open Trade Decisions page to populate
+                      </span>
+                    </div>
+                  ) : (
+                    <div className={`flex-1 h-5 rounded relative overflow-hidden ${
+                      isConfirmedBuy ? "bg-emerald-950/40 ring-1 ring-emerald-700/30" :
+                      isScannerCand  ? "bg-amber-950/30" :
+                      "bg-slate-800/60"
+                    }`}>
+                      <div
+                        className={`h-full rounded transition-all duration-500 ${
+                          isConfirmedBuy ? "bg-emerald-600/70" :
+                          isScannerCand  ? "bg-amber-600/40" :
+                          isBottleneck   ? "bg-amber-600/60" :
+                          idx >= stages.length - 2 ? "bg-emerald-600/60" :
+                          "bg-teal-700/50"
+                        }`}
+                        style={{ width: `${barPct}%` }}
+                      />
+                      <span className={`absolute right-2 top-0 bottom-0 flex items-center text-[10px] font-mono font-bold ${
+                        isConfirmedBuy ? "text-emerald-300" : "text-slate-300"
+                      }`}>
+                        {s.count}
+                      </span>
+                    </div>
+                  )}
+                  {!isUnavailable && drop > 0 && idx > 0 && (
                     <span className={`text-[9px] w-12 flex-shrink-0 ${drop > 50 ? "text-amber-400" : "text-slate-600"}`}>
                       -{drop}%
                     </span>
                   )}
                 </div>
+                {/* Inline note for scanner/confirmed rows */}
+                {s.note && !isUnavailable && (
+                  <div className="flex items-start gap-2 mt-0.5 mb-0.5">
+                    <div className="w-40 flex-shrink-0" />
+                    <p className={`text-[9px] leading-tight ${isConfirmedBuy ? "text-emerald-600" : "text-slate-600"}`}>
+                      {s.note}
+                    </p>
+                  </div>
+                )}
               </div>
             );
           })}

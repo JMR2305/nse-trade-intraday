@@ -27,20 +27,31 @@ All heavy calculations stay in the existing engines; this module only
 combines their outputs.
 """
 
+import json
+import os
 from datetime import datetime, timezone
 from typing import TypedDict
 
 from config import INITIAL_CAPITAL
 
-RELIABLE_SAMPLE   = 20     # min historical trades for a reliable sample
-STRONG_BUY_CONF   = 85.0
-BUY_CONF          = 75.0
-WATCH_CONF        = 55.0
-TIME_EXIT_FACTOR  = 2.0    # exit when held > factor × expected holding days
-TIME_EXIT_MIN_DAYS = 30.0  # ... but never earlier than this many days
+# ── Decision summary cache ────────────────────────────────────────────────────
+# A tiny JSON file written at the end of every get_trade_decisions() call.
+# ops_centre.py reads this to show the confirmed BUY count without triggering
+# a fresh market scan. The file is best-effort (write failures are silent).
+
+_SUMMARY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                              "decision_summary_cache.json")
+
+# ── Decision thresholds ───────────────────────────────────────────────────────
+
+RELIABLE_SAMPLE    = 20     # min historical trades for a reliable sample
+STRONG_BUY_CONF    = 85.0
+BUY_CONF           = 75.0
+WATCH_CONF         = 55.0
+TIME_EXIT_FACTOR   = 2.0    # exit when held > factor × expected holding days
+TIME_EXIT_MIN_DAYS = 30.0   # ... but never earlier than this many days
 
 _ORDER = {"STRONG_BUY": 0, "BUY": 1, "EXIT": 2, "WATCH": 3, "AVOID": 4}
-
 
 # Decision Breakdown display weights — how much of the final confidence is
 # attributed to each factor (explanatory only; never changes the decision).
@@ -807,7 +818,7 @@ def get_trade_decisions() -> dict:
     for d in decisions:
         counts[d["recommendation"]] = counts.get(d["recommendation"], 0) + 1
 
-    return {
+    result = {
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "market_regime": regime_now,
         "model_version": model_version,
@@ -821,3 +832,87 @@ def get_trade_decisions() -> dict:
         "decisions": decisions,
         "warning": "Paper trading only — research tool, not investment advice.",
     }
+    # Persist a lightweight summary so ops_centre can show the confirmed BUY
+    # count without triggering a new market scan.
+    _write_decision_summary(result)
+    return result
+
+import tempfile as _tempfile
+
+# Required keys + expected integer-typed count fields for schema validation.
+_REQUIRED_SUMMARY_KEYS: frozenset[str] = frozenset({
+    "generated_at", "confirmed_buy_count", "strong_buy_count",
+    "buy_count", "universe_size",
+})
+_SUMMARY_INT_KEYS: tuple[str, ...] = (
+    "confirmed_buy_count", "strong_buy_count", "buy_count", "universe_size",
+)
+
+
+def _write_decision_summary(result: dict) -> None:
+    """
+    Atomically persist a lightweight summary of the last get_trade_decisions()
+    result. Uses write-to-temp + os.replace() so a concurrent reader never sees
+    a partial file. Write failures are silent — never crash a scan.
+    """
+    try:
+        summary = {
+            "generated_at":      result.get("generated_at"),
+            "strong_buy_count":  int(result.get("strong_buy_count", 0)),
+            "buy_count":         int(result.get("buy_count", 0)),
+            "confirmed_buy_count": (int(result.get("strong_buy_count", 0))
+                                    + int(result.get("buy_count", 0))),
+            "watch_count":       int(result.get("watch_count", 0)),
+            "avoid_count":       int(result.get("avoid_count", 0)),
+            "universe_size":     int(result.get("universe_size", 0)),
+            "market_regime":     result.get("market_regime", ""),
+        }
+        _dir = os.path.dirname(_SUMMARY_FILE)
+        # Write to a sibling temp file, then atomically replace the target.
+        fd, tmp_path = _tempfile.mkstemp(
+            dir=_dir, suffix=".json.tmp", prefix=".dec_sum_")
+        try:
+            with os.fdopen(fd, "w") as fh:
+                json.dump(summary, fh)
+            os.replace(tmp_path, _SUMMARY_FILE)   # atomic on POSIX
+        except Exception:
+            try:
+                os.unlink(tmp_path)               # clean up orphan on failure
+            except OSError:
+                pass
+            raise
+    except Exception:
+        pass  # best-effort — never crash a scan
+
+
+def load_decision_summary() -> dict | None:
+    """
+    Return the summary written by the last get_trade_decisions() call, or None
+    when:
+      - the file does not exist (Trade Decisions page never loaded), or
+      - the file is corrupt / unreadable, or
+      - the schema is incomplete or contains wrong types.
+
+    Callers MUST treat None as "not yet available" and must NOT substitute a
+    proxy value (e.g. scanner_candidates) in its place — doing so recreates the
+    original bug where scanner-level counts masquerade as confirmed BUY counts.
+
+    Keys guaranteed present when not None:
+        generated_at (str), confirmed_buy_count (int), strong_buy_count (int),
+        buy_count (int), universe_size (int)
+    """
+    try:
+        if not os.path.exists(_SUMMARY_FILE):
+            return None
+        with open(_SUMMARY_FILE) as fh:
+            data = json.load(fh)
+        if not isinstance(data, dict):
+            return None
+        if not _REQUIRED_SUMMARY_KEYS.issubset(data.keys()):
+            return None
+        for key in _SUMMARY_INT_KEYS:
+            if not isinstance(data[key], (int, float)):
+                return None
+        return data
+    except Exception:
+        return None

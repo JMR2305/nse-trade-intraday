@@ -746,22 +746,25 @@ def _pipeline_summary() -> Dict[str, Any]:
     pipeline_cycle = "—"
     avg_strategy_confidence = 0.0
     stale_reason = ""
-    total = live_count = intel_count = buy_count = 0
+    total = live_count = intel_count = scanner_candidates = 0
 
     try:
         from phase15_scan_context import build_scan_context
         ctx = build_scan_context()
         symbols = ctx.get("symbols") or {}
-        total       = len(symbols)
-        live_count  = sum(1 for r in symbols.values()
-                         if str(r.get("data_quality","")).upper() in ("LIVE","NEAR_LIVE"))
-        intel_count = sum(1 for r in symbols.values()
-                         if str(r.get("final_action","")).upper() != "IGNORE")
-        buy_count   = sum(1 for r in symbols.values()
-                         if str(r.get("final_action","")).upper() in ("BUY","STRONG BUY"))
-        scan_id     = str(ctx.get("scan_id") or "—")
-        snapshot_ts = str(ctx.get("snapshot_ts") or "—")
-        pipeline_cycle = scan_id
+        total             = len(symbols)
+        live_count        = sum(1 for r in symbols.values()
+                               if str(r.get("data_quality","")).upper() in ("LIVE","NEAR_LIVE"))
+        intel_count       = sum(1 for r in symbols.values()
+                               if str(r.get("final_action","")).upper() != "IGNORE")
+        # scanner_candidates: stocks the scanner scores as BUY/STRONG BUY
+        # (uses opportunity_score threshold, ~62). These are NOT yet confirmed
+        # by the decision service's stricter final_confidence + expectancy + PF + R:R checks.
+        scanner_candidates = sum(1 for r in symbols.values()
+                                if str(r.get("final_action","")).upper() in ("BUY","STRONG BUY"))
+        scan_id            = str(ctx.get("scan_id") or "—")
+        snapshot_ts        = str(ctx.get("snapshot_ts") or "—")
+        pipeline_cycle     = scan_id
         # Strategy confidence exists in the scan even when Risk blocks all candidates
         conf_vals = [
             _f(r.get("confidence", 0)) * 100
@@ -806,34 +809,93 @@ def _pipeline_summary() -> Dict[str, Any]:
     except Exception:
         eligible = paper_today
 
-    # Snapshot consistency: both stages must reference the same scan_id
+    # ── Confirmed BUY count from the decision service (matches Trade Decisions page) ──
+    # decision_service.load_decision_summary() returns the validated counts written
+    # by the last get_trade_decisions() call (the same API used by Trade Decisions).
+    # BUY:        final_confidence 75–84, exp > 0, PF > 1.2, R:R ≥ 2
+    # STRONG_BUY: final_confidence ≥ 85, exp > 1%, PF ≥ 1.5, R:R ≥ 2,
+    #             ≥ 20 historical trades (reliable sample)
+    # When no valid summary exists yet, confirmed_buy_count stays None —
+    # callers MUST NOT substitute scanner_candidates in its place.
+    confirmed_buy_count: Optional[int] = None   # None = not yet available
+    decision_summary_ts  = ""
+    decision_summary_ok  = False
+    try:
+        from decision_service import load_decision_summary as _load_dec_summary
+        _summary = _load_dec_summary()
+        if _summary is not None:
+            confirmed_buy_count = int(_summary.get("confirmed_buy_count", 0))
+            decision_summary_ts  = str(_summary.get("generated_at", "") or "")
+            decision_summary_ok  = True
+        # If summary is None (Trade Decisions page never loaded or file corrupt),
+        # leave confirmed_buy_count as None — the UI renders it as "—".
+    except Exception:
+        pass   # leave as None — never substitute a proxy value
+
+    # Snapshot consistency: scan context and risk evaluation must reference the
+    # same scan_id so the funnel counts are coherent.
     consistency_ok = (not ev_scan_id) or (ev_scan_id == scan_id) or (scan_id == "—")
     consistency_note = "" if consistency_ok else (
         f"Scan context scan_id ({scan_id[:8]}) differs from Risk evaluation "
         f"scan_id ({ev_scan_id[:8]}) — widgets may reflect different pipeline cycles"
     )
+    # Decision-layer freshness note — show when summary pre-dates the current scan.
+    # We compare ISO timestamps: if decision_summary_ts is older than snapshot_ts,
+    # the confirmed BUY count comes from a previous Trade Decisions page load.
+    if decision_summary_ok and decision_summary_ts and snapshot_ts not in ("—", ""):
+        try:
+            _ds_dt = datetime.fromisoformat(decision_summary_ts.replace("Z", "+00:00"))
+            _sc_dt = datetime.fromisoformat(snapshot_ts.replace("Z", "+00:00"))
+            if (_sc_dt - _ds_dt).total_seconds() > 120:   # >2 min lag is notable
+                _lag_min = int((_sc_dt - _ds_dt).total_seconds() / 60)
+                if not consistency_note:
+                    consistency_note = (
+                        f"Confirmed BUY count is from a Trade Decisions result "
+                        f"{_lag_min}m before the current scan — it will update "
+                        f"on the next Trade Decisions page load."
+                    )
+        except Exception:
+            pass
+    elif not decision_summary_ok:
+        # No Trade Decisions page has ever been loaded; confirmed count is not yet
+        # authoritative. The funnel shows scanner_candidates as a proxy.
+        if not consistency_note:
+            consistency_note = (
+                "Confirmed BUY count is not yet available — load the Trade "
+                "Decisions page once to calibrate this figure."
+            )
 
-    # Pipeline trace — per-stage symbol counts for the Operations Centre flow diagram
+    # Pipeline trace — per-stage symbol counts for the Operations Centre flow diagram.
+    # confirmed_buy_count may be None (no decision summary yet); use a sentinel of -1
+    # inside the trace so arithmetic works, then strip it from the serialised stage.
+    _cbc_int = confirmed_buy_count if confirmed_buy_count is not None else -1
     pipeline_trace = [
-        {"stage": "Universe Loaded",     "input": total,       "output": total,
+        {"stage": "Universe Loaded",     "input": total,              "output": total,
          "dropped": 0},
-        {"stage": "Market Data",         "input": total,       "output": live_count,
+        {"stage": "Market Data",         "input": total,              "output": live_count,
          "dropped": max(0, total - live_count)},
-        {"stage": "Research",            "input": live_count,  "output": live_count,
+        {"stage": "Research",            "input": live_count,         "output": live_count,
          "dropped": 0},
-        {"stage": "Market Intelligence", "input": live_count,  "output": intel_count,
+        {"stage": "Market Intelligence", "input": live_count,         "output": intel_count,
          "dropped": max(0, live_count - intel_count)},
-        {"stage": "Stock Monitoring",    "input": intel_count, "output": intel_count,
+        {"stage": "Stock Monitoring",    "input": intel_count,        "output": intel_count,
          "dropped": 0},
-        {"stage": "Strategy",            "input": intel_count, "output": buy_count,
-         "dropped": max(0, intel_count - buy_count)},
-        {"stage": "Risk",                "input": buy_count,   "output": eligible,
-         "dropped": max(0, buy_count - eligible)},
-        {"stage": "AI Decision",         "input": eligible,    "output": eligible,
-         "dropped": 0},
-        {"stage": "Execution",           "input": eligible,    "output": paper_today,
-         "dropped": max(0, eligible - paper_today)},
-        {"stage": "Learning",            "input": paper_today, "output": paper_today,
+        {"stage": "Strategy",            "input": intel_count,        "output": scanner_candidates,
+         "dropped": max(0, intel_count - scanner_candidates)},
+        {"stage": "Risk",                "input": scanner_candidates, "output": eligible,
+         "dropped": max(0, scanner_candidates - eligible)},
+        # AI Decision: BUY confidence 75–84 (exp>0, PF>1.2, R:R≥2) or
+        #              STRONG_BUY confidence ≥85 (exp>1%, PF≥1.5, R:R≥2, ≥20 trades)
+        # output is None when the decision summary has not been written yet.
+        {"stage": "AI Decision",
+         "input": eligible,
+         "output": confirmed_buy_count,      # None serialises as null in JSON
+         "dropped": max(0, eligible - _cbc_int) if _cbc_int >= 0 else None},
+        {"stage": "Execution",
+         "input": confirmed_buy_count,       # None when not yet available
+         "output": paper_today,
+         "dropped": max(0, _cbc_int - paper_today) if _cbc_int >= 0 else None},
+        {"stage": "Learning",            "input": paper_today,        "output": paper_today,
          "dropped": 0},
     ]
 
@@ -844,9 +906,14 @@ def _pipeline_summary() -> Dict[str, Any]:
         "passed_research":            live_count,
         "passed_intelligence":        intel_count,
         "passed_monitoring":          intel_count,
-        "passed_strategy":            buy_count,
-        "passed_risk":                eligible or buy_count,
-        "buy_recommendations":        buy_count,
+        "passed_strategy":            scanner_candidates,
+        "passed_risk":                eligible or scanner_candidates,
+        # scanner_candidates: raw scanner BUY/STRONG BUY count (opportunity_score ≥ ~62)
+        "scanner_candidates":         scanner_candidates,
+        # buy_recommendations: confirmed by decision service — null when not yet available.
+        # BUY: confidence 75–84, exp>0, PF>1.2, R:R≥2
+        # STRONG_BUY: confidence ≥85, exp>1%, PF≥1.5, R:R≥2, ≥20 historical trades
+        "buy_recommendations":        confirmed_buy_count,   # int or null
         "paper_orders_executed":      paper_today,
         "open_positions":             open_pos,
         # Traceability (P4, P6)
@@ -861,6 +928,9 @@ def _pipeline_summary() -> Dict[str, Any]:
         "stale_reason":               stale_reason,
         # Pipeline trace (P6)
         "pipeline_trace":             pipeline_trace,
+        # Decision summary freshness metadata
+        "decision_summary_ok":        decision_summary_ok,
+        "decision_summary_ts":        decision_summary_ts,
     }
 
 
