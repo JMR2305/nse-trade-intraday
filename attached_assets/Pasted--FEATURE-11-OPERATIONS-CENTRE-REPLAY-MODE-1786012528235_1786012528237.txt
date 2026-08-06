@@ -1,0 +1,286 @@
+=========================================================
+FEATURE 11 – OPERATIONS CENTRE REPLAY MODE
+=========================================================
+
+Integrate Replay Mode directly into the AI Operations Centre.
+
+When replay starts:
+
+• Animate every agent in sequence.
+• Highlight the currently executing agent.
+• Show stocks moving from one agent to the next.
+• Show the number of stocks entering and exiting each agent.
+
+Example
+
+Supervisor
+IN: 50
+OUT: 50
+
+↓
+
+Market Data
+IN: 50
+OUT: 48
+
+↓
+
+Research
+IN: 48
+OUT: 42
+
+↓
+
+Strategy
+IN: 42
+OUT: 6 BUY
+
+↓
+
+Risk
+IN: 6
+OUT: 4 Approved
+Rejected: 2
+
+↓
+
+AI Decision
+BUY: 4
+
+↓
+
+Execution
+Paper Orders: 4
+
+Users should literally watch the AI thinking in real time.
+
+=========================================================
+FEATURE 12 – CLICK ANY STOCK
+=========================================================
+
+Clicking any stock should open a complete timeline.
+
+Example
+
+RELIANCE
+
+09:15
+Market Data
+PASS
+
+09:16
+Research
+PASS
+
+09:17
+Market Intelligence
+Score 77
+
+09:18
+Strategy
+Score 82
+Breakout Strategy
+PASS
+
+09:18
+Risk
+PASS
+
+09:19
+AI Decision
+BUY
+
+09:20
+Execution
+Paper BUY
+
+If rejected:
+
+Show
+
+Agent
+
+Reason
+
+Rule
+
+Threshold
+
+Actual Value
+
+Confidence
+
+Supporting indicators
+
+=========================================================
+FEATURE 13 – AGENT THINKING PANEL
+=========================================================
+
+Every agent must explain WHY.
+
+Example
+
+Strategy Agent
+
+Detected:
+
+Higher High
+
+Higher Low
+
+VWAP Breakout
+
+Volume Expansion
+
+RSI 63
+
+Confidence:
+82%
+
+Decision:
+BUY
+
+------------------------------------------------
+
+Risk Agent
+
+Position Size:
+₹5,000
+
+Risk:
+0.72%
+
+Sector Exposure:
+18%
+
+Max Daily Loss:
+OK
+
+Decision:
+APPROVED
+
+------------------------------------------------
+
+AI Decision Agent
+
+BUY
+
+Confidence:
+81%
+
+Reason
+
+Strong Trend
+
+High Liquidity
+
+Sector Strong
+
+Risk Approved
+
+=========================================================
+FEATURE 14 – DECISION COMPARISON
+=========================================================
+
+Allow comparison between
+
+Original AI Decision
+
+vs
+
+Actual Market Outcome
+
+Example
+
+RELIANCE
+
+AI
+
+ACCUMULATE
+
+Actual
+
++3.3%
+
+Status
+
+Missed Opportunity
+
+Reason
+
+Strategy Score Incorrect
+
+=========================================================
+FEATURE 15 – TIME TRAVEL DEBUGGER
+=========================================================
+
+Allow pausing replay at any second.
+
+At the paused timestamp display:
+
+Market snapshot
+
+Indicators
+
+Order Book (if available)
+
+Volume
+
+VWAP
+
+AI Scores
+
+Every Agent Decision
+
+Every Threshold
+
+Every Rule Evaluation
+
+This allows complete debugging of any missed trade.
+
+=========================================================
+FEATURE 16 – REPLAY SUMMARY
+=========================================================
+
+At the end of replay generate an Executive Summary.
+
+Example
+
+50 Stocks Scanned
+
+48 Passed Market Data
+
+42 Passed Research
+
+31 Passed Strategy
+
+6 BUY Candidates
+
+4 Risk Approved
+
+4 Paper Trades
+
+Win Rate
+
+Average Return
+
+Best Trade
+
+Worst Trade
+
+Missed Opportunities
+
+False BUY Signals
+
+False SELL Signals
+
+Agent Responsible for Most Rejections
+
+Fastest Agent
+
+Slowest Agent
+
+Overall AI Score
+
+Recommendation:
+Ready for Production / Needs Investigation
