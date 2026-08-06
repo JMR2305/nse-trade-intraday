@@ -13,8 +13,8 @@
  *   8. A filter with zero matches shows the empty message instead of cards.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, act, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 
@@ -40,6 +40,8 @@ vi.mock("recharts", () => {
     ResponsiveContainer: ({ children }: any) =>
       React.createElement("div", { "data-testid": "recharts-ResponsiveContainer" }, children),
     CartesianGrid: stub("CartesianGrid"),
+    ReferenceArea: stub("ReferenceArea"),
+    ReferenceLine: stub("ReferenceLine"),
   };
 });
 
@@ -141,6 +143,7 @@ describe("Trade Simulation result filter", () => {
     vi.clearAllMocks();
     mockApiJson.mockResolvedValue({});
   });
+  afterEach(cleanup);
 
   it("renders all four filter buttons with correct count badges", async () => {
     await renderAndNavigateToSimulation();
@@ -261,5 +264,161 @@ describe("Trade Simulation result filter", () => {
     expect(text).toMatch(/LOSS.*1|1.*LOSS/);
     // BREAKEVEN badge = 1
     expect(text).toMatch(/BREAKEVEN.*1|1.*BREAKEVEN/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// null / unknown result values are bucketed as BREAKEVEN (#405)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("Trade Simulation filter — null/unknown result values", () => {
+  // Run with 1 WIN, 1 LOSS, 1 null-result, 1 "CANCELLED" (unknown enum)
+  const NULL_RUN_ID = "run-null-result-test-001";
+
+  const NULL_TRADES = [
+    {
+      id: 10, run_id: NULL_RUN_ID, symbol: "WIPRO", strategy: "trend_rider",
+      entry_date: "2025-02-01", entry_price: 450, exit_date: "2025-02-05",
+      exit_price: 472.5, pnl_pct: 5.0, result: "WIN", exit_reason: "TARGET_HIT",
+      stop_loss: 436.5, target_price: 472.5, holding_days: 4,
+      mfe_pct: 5.1, mad_pct: -0.3, confidence: 70,
+    },
+    {
+      id: 11, run_id: NULL_RUN_ID, symbol: "HCLTECH", strategy: "trend_rider",
+      entry_date: "2025-02-02", entry_price: 1500, exit_date: "2025-02-06",
+      exit_price: 1455, pnl_pct: -3.0, result: "LOSS", exit_reason: "STOP_LOSS",
+      stop_loss: 1455, target_price: 1575, holding_days: 4,
+      mfe_pct: 0.5, mad_pct: -3.1, confidence: 52,
+    },
+    // null result — open trade or run produced no result field
+    {
+      id: 12, run_id: NULL_RUN_ID, symbol: "SUNPHARMA", strategy: "trend_rider",
+      entry_date: "2025-02-03", entry_price: 1200, exit_date: null,
+      exit_price: null, pnl_pct: null, result: null, exit_reason: null,
+      stop_loss: 1164, target_price: 1260, holding_days: null,
+      mfe_pct: null, mad_pct: null, confidence: 60,
+    },
+    // unknown enum value "CANCELLED" — not in the "WIN"/"LOSS" set
+    {
+      id: 13, run_id: NULL_RUN_ID, symbol: "ITC", strategy: "trend_rider",
+      entry_date: "2025-02-04", entry_price: 450, exit_date: "2025-02-05",
+      exit_price: 450, pnl_pct: 0, result: "CANCELLED", exit_reason: "MANUAL",
+      stop_loss: 436.5, target_price: 472.5, holding_days: 1,
+      mfe_pct: 0, mad_pct: -0.1, confidence: 55,
+    },
+  ];
+
+  const NULL_RUN_DETAIL = {
+    run_id: NULL_RUN_ID, status: "COMPLETED",
+    config: {}, symbols: ["WIPRO", "HCLTECH", "SUNPHARMA", "ITC"],
+    strategies: ["trend_rider"], interval: "1d",
+    total_decisions: 40, total_trades: 4,
+    stats: {
+      total_trades: 4, winning_trades: 1, losing_trades: 1, breakeven_trades: 2,
+      win_rate_pct: 25, loss_rate_pct: 25, avg_pnl_pct: 0.5,
+      best_trade_pct: 5, worst_trade_pct: -3, max_drawdown_pct: -3,
+      profit_factor: 1, expectancy_pct: 0.5, sharpe_ratio: 0.5,
+      avg_holding_days: 3, avg_confidence: 59.25, sufficient_data: true,
+    },
+    recommendation_distribution: { BUY: 4 },
+    most_common_rejection: "LOW_CONFIDENCE",
+    decisions_sample: [], trades: NULL_TRADES, missed_opportunities: [],
+    generated_at: "2025-02-06T10:00:00Z",
+  };
+
+  async function renderNullRun() {
+    const qc = makeQC();
+    qc.setQueryData(["v2-runs"], {
+      runs: [{
+        run_id: NULL_RUN_ID, status: "COMPLETED", total_decisions: 40, total_trades: 4,
+        start_date: "2025-02-01", end_date: "2025-02-06",
+        interval: "1d", created_at: "2025-02-06T00:00:00Z", completed_at: null,
+      }],
+    });
+    qc.setQueryData(["v2-run", NULL_RUN_ID], NULL_RUN_DETAIL);
+
+    const { default: AIValidationV2Page } = await import("../AIValidationV2Page");
+    render(
+      <QueryClientProvider client={qc}>
+        <AIValidationV2Page />
+      </QueryClientProvider>
+    );
+
+    const simTabs = screen.getAllByRole("button", { name: /Trade Simulation/i });
+    await act(async () => { simTabs[0].click(); });
+    await new Promise(r => setTimeout(r, 30));
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockApiJson.mockResolvedValue({});
+  });
+  afterEach(cleanup);
+
+  it("counts null-result and unknown-enum trades under BREAKEVEN, not WIN or LOSS", async () => {
+    await renderNullRun();
+
+    const group = screen.getByRole("group", { name: /Filter trades by result/i });
+    const text = group.textContent ?? "";
+
+    // 1 WIN, 1 LOSS, 2 BREAKEVEN (null + CANCELLED)
+    expect(text).toMatch(/WIN.*1|1.*WIN/);
+    expect(text).toMatch(/LOSS.*1|1.*LOSS/);
+    expect(text).toMatch(/BREAKEVEN.*2|2.*BREAKEVEN/);
+  });
+
+  it("clicking BREAKEVEN filter shows the null-result trade card", async () => {
+    await renderNullRun();
+
+    const beBtn = screen.getByRole("button", { name: /^BREAKEVEN/ });
+    await act(async () => { fireEvent.click(beBtn); });
+
+    // SUNPHARMA has result: null — must appear under BREAKEVEN
+    expect(screen.getByText("SUNPHARMA")).toBeTruthy();
+  });
+
+  it("clicking BREAKEVEN filter shows the unknown-enum (CANCELLED) trade card", async () => {
+    await renderNullRun();
+
+    const beBtn = screen.getByRole("button", { name: /^BREAKEVEN/ });
+    await act(async () => { fireEvent.click(beBtn); });
+
+    // ITC has result: "CANCELLED" — must appear under BREAKEVEN
+    expect(screen.getByText("ITC")).toBeTruthy();
+  });
+
+  it("clicking BREAKEVEN filter hides WIN and LOSS cards", async () => {
+    await renderNullRun();
+
+    const beBtn = screen.getByRole("button", { name: /^BREAKEVEN/ });
+    await act(async () => { fireEvent.click(beBtn); });
+
+    expect(screen.queryByText("WIPRO")).toBeNull();   // WIN trade hidden
+    expect(screen.queryByText("HCLTECH")).toBeNull(); // LOSS trade hidden
+  });
+
+  it("the count heading reflects 2 of 4 when BREAKEVEN filter is active", async () => {
+    await renderNullRun();
+
+    const beBtn = screen.getByRole("button", { name: /^BREAKEVEN/ });
+    await act(async () => { fireEvent.click(beBtn); });
+
+    expect(screen.getByText("2 of 4 Trades")).toBeTruthy();
+  });
+
+  it("null-result trades do NOT appear under WIN or LOSS filters", async () => {
+    await renderNullRun();
+
+    const winBtn = screen.getByRole("button", { name: /^WIN/ });
+    await act(async () => { fireEvent.click(winBtn); });
+
+    expect(screen.queryByText("SUNPHARMA")).toBeNull();
+    expect(screen.queryByText("ITC")).toBeNull();
+
+    const lossBtn = screen.getByRole("button", { name: /^LOSS/ });
+    await act(async () => { fireEvent.click(lossBtn); });
+
+    expect(screen.queryByText("SUNPHARMA")).toBeNull();
+    expect(screen.queryByText("ITC")).toBeNull();
   });
 });
