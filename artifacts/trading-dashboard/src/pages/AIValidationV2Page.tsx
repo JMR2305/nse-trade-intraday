@@ -1294,12 +1294,30 @@ function TradeCard({ trade: t }: { trade: TradeRow }) {
 // GET /validation-v2/missed-opportunities → { missed: MissedRow[], count, ... }
 // ─────────────────────────────────────────────────────────────────────────────
 
-function MissedOpportunitiesTab() {
+function MissedOpportunitiesTab({
+  latestRunId,
+  onNavigateToRun,
+}: {
+  latestRunId: string | null;
+  /** Navigate to a tab, optionally pre-selecting a run (sets latestRunId in parent). */
+  onNavigateToRun: (tab: number, runId: string) => void;
+}) {
   const q = useQuery<{ missed: MissedRow[]; count: number; total_potential_profit_pct: number }>({
     queryKey: ["v2-missed"],
     queryFn:  () => apiJson("validation-v2/missed-opportunities"),
     staleTime: 60_000,
   });
+
+  // Reuse the shared runs cache to learn which run_id is the most recently completed.
+  const runsQ = useQuery<{ runs: RunListItem[] }>({
+    queryKey: ["v2-runs"],
+    queryFn:  () => apiJson("validation-v2/backtest"),
+    staleTime: 30_000,
+  });
+
+  // "Newest" run: prefer latestRunId set by BacktestRunnerTab in this session,
+  // else fall back to the first entry in the list (most recently created).
+  const newestRunId: string | null = latestRunId ?? runsQ.data?.runs?.[0]?.run_id ?? null;
 
   const opps = [...(q.data?.missed ?? [])].sort((a, b) => (b.potential_profit_pct ?? 0) - (a.potential_profit_pct ?? 0));
 
@@ -1308,9 +1326,12 @@ function MissedOpportunitiesTab() {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-white">Missed Opportunities</h3>
-          <p className="text-xs text-slate-400 mt-0.5">Rejected stocks that moved ≥+2% afterward — sorted by potential profit</p>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Rejected stocks that moved ≥+2% afterward — sorted by potential profit.{" "}
+            <span className="text-teal-500">Click a Run ID to open that run in Trade Simulation.</span>
+          </p>
         </div>
-        {q.isLoading && <RefreshCw size={14} className="text-slate-400 animate-spin" />}
+        {(q.isLoading || runsQ.isLoading) && <RefreshCw size={14} className="text-slate-400 animate-spin" />}
       </div>
 
       {q.isError && (
@@ -1339,32 +1360,62 @@ function MissedOpportunitiesTab() {
               <table className="w-full text-xs font-mono">
                 <thead>
                   <tr className="border-b border-slate-700/50 text-slate-400 bg-slate-900/50">
-                    {["Symbol", "Strategy", "Date", "AI Decision", "Actual Move", "Potential Profit", "Rejection Reason", "Suggestion"].map(h => (
+                    {["Run ID", "Symbol", "Strategy", "Date", "AI Decision", "Actual Move", "Potential Profit", "Rejection Reason", "Suggestion"].map(h => (
                       <th key={h} className="px-3 py-2 text-left font-normal uppercase tracking-widest text-[10px]">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {opps.map((o, i) => (
-                    <tr key={i} className={`border-b border-slate-700/30 hover:bg-slate-700/20 ${o.potential_profit_pct >= 3 ? "bg-amber-900/10" : ""}`}>
-                      <td className="px-3 py-2.5 font-bold text-white">{o.symbol}</td>
-                      <td className="px-3 py-2.5 text-slate-400">{o.strategy}</td>
-                      <td className="px-3 py-2.5 text-slate-400">{o.bar_date?.slice(0, 10)}</td>
-                      <td className="px-3 py-2.5"><DecisionBadge rec={o.ai_decision} /></td>
-                      <td className={`px-3 py-2.5 font-bold ${o.actual_move_pct >= 3 ? "text-amber-300" : "text-emerald-400"}`}>
-                        +{o.actual_move_pct?.toFixed(2)}%
-                      </td>
-                      <td className={`px-3 py-2.5 font-bold ${o.potential_profit_pct >= 3 ? "text-amber-300" : "text-emerald-400"}`}>
-                        +{o.potential_profit_pct?.toFixed(2)}%
-                      </td>
-                      <td className="px-3 py-2.5 text-slate-300 max-w-[200px] truncate">{o.rejection_reason}</td>
-                      <td className="px-3 py-2.5">
-                        <span className="inline-block px-2 py-0.5 text-xs bg-blue-900/30 border border-blue-700/40 text-blue-300 rounded-full max-w-[200px] truncate">
-                          {o.improvement_suggestion}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {opps.map((o, i) => {
+                    const isNewest = !!newestRunId && o.run_id === newestRunId;
+                    return (
+                      <tr
+                        key={i}
+                        className={`border-b border-slate-700/30 hover:bg-slate-700/20 transition-colors
+                          ${isNewest ? "bg-teal-900/10" : o.potential_profit_pct >= 3 ? "bg-amber-900/10" : ""}`}
+                      >
+                        {/* ── Run ID chip ── */}
+                        <td className="px-3 py-2.5 whitespace-nowrap">
+                          <button
+                            onClick={() => onNavigateToRun(2, o.run_id)}
+                            title={`Open run ${o.run_id} in Trade Simulation`}
+                            className="inline-flex items-center gap-1.5 group"
+                          >
+                            <span className={`px-2 py-0.5 rounded border text-[10px] font-mono font-semibold transition-colors
+                              ${isNewest
+                                ? "bg-teal-900/40 border-teal-600/60 text-teal-300 group-hover:border-teal-400"
+                                : "bg-slate-700/50 border-slate-600/50 text-slate-400 group-hover:border-slate-400 group-hover:text-slate-300"
+                              }`}
+                            >
+                              {o.run_id.slice(0, 8)}
+                            </span>
+                            {isNewest && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide bg-teal-500/20 border border-teal-500/50 text-teal-300">
+                                NEW
+                              </span>
+                            )}
+                            <ExternalLink size={9} className="text-slate-600 group-hover:text-slate-400 transition-colors flex-shrink-0" />
+                          </button>
+                        </td>
+                        <td className="px-3 py-2.5 font-bold text-white">{o.symbol}</td>
+                        <td className="px-3 py-2.5 text-slate-400">{o.strategy}</td>
+                        <td className="px-3 py-2.5 text-slate-400">{o.bar_date?.slice(0, 10)}</td>
+                        <td className="px-3 py-2.5"><DecisionBadge rec={o.ai_decision} /></td>
+                        <td className={`px-3 py-2.5 font-bold ${o.actual_move_pct >= 3 ? "text-amber-300" : "text-emerald-400"}`}>
+                          +{o.actual_move_pct?.toFixed(2)}%
+                        </td>
+                        <td className={`px-3 py-2.5 font-bold ${o.potential_profit_pct >= 3 ? "text-amber-300" : "text-emerald-400"}`}>
+                          +{o.potential_profit_pct?.toFixed(2)}%
+                        </td>
+                        <td className="px-3 py-2.5 text-slate-300 max-w-[200px] truncate">{o.rejection_reason}</td>
+                        <td className="px-3 py-2.5">
+                          <span className="inline-block px-2 py-0.5 text-xs bg-blue-900/30 border border-blue-700/40 text-blue-300 rounded-full max-w-[200px] truncate">
+                            {o.improvement_suggestion}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -2302,7 +2353,12 @@ export default function AIValidationV2Page() {
         {activeTab === 0 && <OverviewTab onNavigate={setActiveTab} />}
         {activeTab === 1 && <BacktestRunnerTab onRunComplete={(run) => setLatestRunId(run.run_id)} />}
         {activeTab === 2 && <TradeSimulationTab latestRunId={latestRunId} />}
-        {activeTab === 3 && <MissedOpportunitiesTab />}
+        {activeTab === 3 && (
+          <MissedOpportunitiesTab
+            latestRunId={latestRunId}
+            onNavigateToRun={(tab, runId) => { setLatestRunId(runId); setActiveTab(tab); }}
+          />
+        )}
         {activeTab === 4 && <AIvsMarketTab latestRunId={latestRunId} />}
         {activeTab === 5 && <ParameterOptimizerTab />}
         {activeTab === 6 && <AgentExplainabilityTab latestRunId={latestRunId} />}
