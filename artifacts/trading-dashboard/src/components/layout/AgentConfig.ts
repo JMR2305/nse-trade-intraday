@@ -223,6 +223,7 @@ export const AGENTS: Agent[] = [
       { href: "/executive-reports",  label: "Executive Reports",         icon: FileBarChart2,   tags: ["reports", "briefing", "executive", "summary", "eod"] },
       { href: "/design-system",      label: "Design System",              icon: Palette,         tags: ["design", "system", "components", "tokens", "ui"] },
       { href: "/ai-operations-centre", label: "AI Operations Centre",       icon: Activity,        tags: ["ai", "ops", "pipeline", "agents", "monitor", "operations"] },
+      { href: "/ai-investigation",   label: "AI Investigation Centre",    icon: Microscope,      tags: ["investigation", "replay", "digital twin", "pipeline", "debug", "ai", "missed opportunities", "why bought", "why rejected"] },
       { href: "/replay",             label: "Replay Mode",                icon: PlayCircle,      tags: ["replay", "pipeline", "debug", "ai", "thinking", "journey", "time travel", "feature 11"] },
       { href: "/agent-operations",   label: "Agent Operations",           icon: Bot,             tags: ["agents", "framework", "multi-agent", "supervisor", "bus"] },
       { href: "/operations-center",  label: "Operations Centre",         icon: Monitor,    tags: ["ops"] },

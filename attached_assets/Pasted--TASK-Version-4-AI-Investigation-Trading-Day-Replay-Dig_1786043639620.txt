@@ -1,0 +1,667 @@
+# TASK: Version 4 – AI Investigation & Trading Day Replay (Digital Twin)
+
+This is a NEW FEATURE.
+
+Do NOT modify the existing Trading Timeline page.
+
+Create a completely new page called:
+
+AI Investigation Centre
+OR
+Trading Day Replay
+
+accessible from the Operations menu.
+
+=========================================================
+OBJECTIVE
+=========================================================
+
+The purpose is NOT to show logs.
+
+The purpose is to replay an entire trading day exactly as every AI agent experienced it.
+
+The replay must visually animate the complete pipeline.
+
+Users should be able to investigate:
+
+• Why a stock was bought
+• Why a stock was rejected
+• Which agent rejected it
+• Which score caused rejection
+• When the BUY happened
+• When the SELL happened
+• Whether the AI missed an opportunity
+• Whether the stop-loss should have changed
+• Whether another exit would have been better
+
+Think of it as a "digital twin" of the trading engine.
+
+=========================================================
+TOP SECTION
+=========================================================
+
+Create a Replay Control Panel.
+
+Include:
+
+Replay Date
+
+Date Picker
+
+Replay Mode
+
+○ Full Trading Day
+
+○ Custom Time
+
+Start Time
+
+End Time
+
+Replay Source
+
+○ Historical Scan Replay
+
+○ Tick Replay
+
+○ AI Decision Replay
+
+○ Paper Trade Replay
+
+Playback Speed
+
+0.25x
+
+0.5x
+
+1x
+
+2x
+
+4x
+
+8x
+
+Controls
+
+Play
+
+Pause
+
+Stop
+
+Restart
+
+Jump To Time
+
+Jump To Event Number
+
+=========================================================
+SESSION SUMMARY
+=========================================================
+
+Show:
+
+Market
+
+Date
+
+Session
+
+Symbols Scanned
+
+BUY Generated
+
+BUY Executed
+
+SELL Executed
+
+Rejected
+
+Missed Opportunities
+
+Win Rate
+
+P&L
+
+=========================================================
+VISUAL AI PIPELINE
+=========================================================
+
+Create an animated pipeline.
+
+Supervisor
+
+↓
+
+Market Scanner
+
+↓
+
+Research
+
+↓
+
+Market Intelligence
+
+↓
+
+Monitoring
+
+↓
+
+Strategy
+
+↓
+
+Risk
+
+↓
+
+Decision
+
+↓
+
+Execution
+
+↓
+
+Learning
+
+Each agent should animate when replay reaches it.
+
+Use green for success.
+
+Red for rejection.
+
+Orange for waiting.
+
+=========================================================
+MARKET SCANNER
+=========================================================
+
+Animate:
+
+Universe Loaded
+
+Example
+
+Nifty50
+
+Symbols Loaded
+
+50
+
+Passed
+
+48
+
+Rejected
+
+2
+
+Reasons
+
+Low Volume
+
+Circuit Filter
+
+No Live Data
+
+Then animate
+
+48
+
+↓
+
+Research
+
+=========================================================
+RESEARCH AGENT
+=========================================================
+
+Animate
+
+48 received
+
+↓
+
+News Analysed
+
+Corporate Actions
+
+Results
+
+Positive
+
+Negative
+
+Neutral
+
+Rejected
+
+Passed
+
+Then
+
+↓
+
+Market Intelligence
+
+=========================================================
+MARKET INTELLIGENCE
+=========================================================
+
+Animate
+
+Regime
+
+Bull
+
+Bear
+
+Sideways
+
+Sector Strength
+
+Liquidity
+
+Volatility
+
+Trend
+
+Passed
+
+Rejected
+
+=========================================================
+MONITORING
+=========================================================
+
+Animate
+
+VWAP
+
+EMA
+
+MACD
+
+RSI
+
+Volume Spike
+
+ATR
+
+Opening Range
+
+Passed
+
+Rejected
+
+=========================================================
+STRATEGY AGENT
+=========================================================
+
+For EACH stock show
+
+EMA Alignment
+
+VWAP
+
+Momentum
+
+Volume
+
+Breakout
+
+Pullback
+
+Risk Reward
+
+Strategy Score
+
+PASS
+
+FAIL
+
+=========================================================
+RISK AGENT
+=========================================================
+
+This page must explain EXACTLY why a stock was rejected.
+
+Display
+
+Capital Available
+
+Sector Exposure
+
+Portfolio Exposure
+
+Daily Loss
+
+Max Position
+
+Risk Reward
+
+Confidence
+
+Stop Distance
+
+Expected Drawdown
+
+Decision
+
+APPROVED
+
+or
+
+REJECTED
+
+If rejected
+
+highlight the failed rules in red.
+
+=========================================================
+DECISION AGENT
+=========================================================
+
+Display
+
+BUY
+
+SELL
+
+WATCH
+
+HOLD
+
+AVOID
+
+Confidence
+
+Order Size
+
+Stop
+
+Target
+
+Reason
+
+=========================================================
+EXECUTION AGENT
+=========================================================
+
+Replay
+
+BUY placed
+
+BUY filled
+
+Partial fill
+
+Rejected
+
+SELL
+
+Target
+
+Stop Loss
+
+Time Exit
+
+EOD Exit
+
+=========================================================
+LIVE TRADE TIMELINE
+=========================================================
+
+Replay candle-by-candle.
+
+Example
+
+09:20
+
+BUY
+
+↓
+
+09:35
+
++0.8%
+
+↓
+
+09:50
+
+Trail Stop Updated
+
+↓
+
+10:20
+
++2.4%
+
+↓
+
+11:05
+
+SELL
+
+↓
+
+Trade Closed
+
+=========================================================
+PIPELINE STATISTICS
+=========================================================
+
+At every replay step show
+
+Scanner
+
+50
+
+↓
+
+Research
+
+48
+
+↓
+
+Market Intelligence
+
+44
+
+↓
+
+Monitoring
+
+31
+
+↓
+
+Strategy
+
+18
+
+↓
+
+Risk
+
+6
+
+↓
+
+Decision
+
+2
+
+↓
+
+Execution
+
+2
+
+=========================================================
+INVESTIGATION MODE
+=========================================================
+
+User clicks
+
+RELIANCE
+
+Replay ONLY that stock.
+
+Replay
+
+Scanner
+
+↓
+
+Research
+
+↓
+
+Market Intelligence
+
+↓
+
+Monitoring
+
+↓
+
+Strategy
+
+↓
+
+Risk
+
+↓
+
+Decision
+
+↓
+
+Execution
+
+↓
+
+Exit
+
+Show timestamps.
+
+=========================================================
+MISSED OPPORTUNITIES
+=========================================================
+
+New tab
+
+Missed Opportunities
+
+Display
+
+Rejected Stock
+
+Rejected By
+
+Reason
+
+Actual Move After Rejection
+
+Potential Profit
+
+Would Current Rules Reject Again?
+
+YES
+
+NO
+
+=========================================================
+FILTERS
+=========================================================
+
+All
+
+Bought
+
+Rejected
+
+Missed Opportunities
+
+Late Entries
+
+Early Exits
+
+False Signals
+
+Winning Trades
+
+Losing Trades
+
+=========================================================
+DATE PICKER
+=========================================================
+
+Replay must support any historical trading day.
+
+User selects
+
+Date
+
+↓
+
+Replay starts from saved historical snapshots.
+
+=========================================================
+BACKEND
+=========================================================
+
+Replay MUST use
+
+Historical scan snapshots
+
+Historical AI decisions
+
+Historical agent outputs
+
+Historical paper orders
+
+Historical market data
+
+Historical execution logs
+
+No fake data.
+
+No simulations.
+
+=========================================================
+DESIGN
+=========================================================
+
+Keep consistent with ApexQuant AI.
+
+Dark theme.
+
+Agent animations.
+
+Smooth transitions.
+
+Progress bars.
+
+Pipeline arrows.
+
+Animated counters.
+
+=========================================================
+IMPORTANT
+=========================================================
+
+This replay is intended to become the PRIMARY debugging and AI validation tool.
+
+Every agent decision must be transparent.
+
+Users should be able to understand exactly WHY every stock passed or failed.
+
+Future enhancements such as counterfactual replay, parameter tuning, and what-if analysis should be easy to add without redesigning the page.

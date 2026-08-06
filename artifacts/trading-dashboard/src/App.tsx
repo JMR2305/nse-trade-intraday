@@ -102,6 +102,7 @@ import ScalabilityDashboardPage  from "@/pages/ScalabilityDashboardPage";
 import SupervisorExtendedPage    from "@/pages/SupervisorExtendedPage";
 import AIOperationsCentrePage      from "@/pages/AIOperationsCentrePage";
 import ReplayModePage             from "@/pages/ReplayModePage";
+import AIInvestigationCentre      from "@/pages/AIInvestigationCentre";
 import Phase11SummaryPage          from "@/pages/Phase11SummaryPage";
 import Phase11PortfolioPage        from "@/pages/Phase11PortfolioPage";
 import Phase11RecommendationQueuePage from "@/pages/Phase11RecommendationQueuePage";
@@ -234,6 +235,7 @@ function Router() {
         <Route path="/paper-trading-timeline"      component={Phase11TimelinePage} />
         <Route path="/ai-paper-trader"            component={AIPaperTraderPage} />
         <Route path="/replay"                      component={ReplayModePage} />
+        <Route path="/ai-investigation"            component={AIInvestigationCentre} />
         <Route path="/ai-operations-centre"       component={AIOperationsCentrePage} />
         <Route path="/validation-v2"              component={AIValidationV2Page} />
         <Route component={NotFound} />
