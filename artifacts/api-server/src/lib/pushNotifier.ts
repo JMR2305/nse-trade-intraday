@@ -103,6 +103,13 @@ export function ensurePushSubscriptionsTable(): Promise<void> {
           ADD COLUMN IF NOT EXISTS min_health_pct double precision NOT NULL DEFAULT 70
         `)
       )
+      .then(() =>
+        db.execute(sql`
+          UPDATE push_subscriptions
+          SET min_health_pct = 70
+          WHERE min_health_pct IS NULL
+        `)
+      )
       .then(() => undefined)
       .catch((err: unknown) => {
         tableEnsured = null; // retry on next call
@@ -399,7 +406,10 @@ export async function dispatchHealthAlertPushNotifications(
     let enqueued = 0;
 
     for (const sub of subs) {
-      const threshold = sub.minHealthPct ?? 70;
+      const rawThreshold = sub.minHealthPct ?? 70;
+      const threshold = Number.isFinite(rawThreshold)
+        ? Math.min(90, Math.max(50, rawThreshold))
+        : 70;
       const subDegraded = healthPct < threshold;
       const shouldAlert = subDegraded || hasErrors;
       const wasAlerted = degradedSubscriberTokens.has(sub.token);
