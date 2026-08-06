@@ -53,17 +53,23 @@ export function clearCommandCenterCache() {
 }
 
 async function getSummaryCoalesced(): Promise<unknown> {
-  // Serve cached result if fresh
+  // Serve cached result if fresh — overlay cache_created_at so browsers can
+  // compute the true data age (not the synthesized Python-side generated_at).
   if (summaryCache && Date.now() - summaryCache.ts < SUMMARY_TTL_MS) {
-    return summaryCache.data;
+    return {
+      ...(summaryCache.data as Record<string, unknown>),
+      cache_created_at: new Date(summaryCache.ts).toISOString(),
+    };
   }
   // Coalesce concurrent callers onto one in-flight request
   if (summaryInFlight) return summaryInFlight;
 
   summaryInFlight = runPython(["cmd_center_summary"], 90_000).then((data) => {
-    summaryCache    = { data, ts: Date.now() };
+    const ts = Date.now();
+    summaryCache    = { data, ts };
     summaryInFlight = null;
-    return data;
+    // Return with cache_created_at so fresh (non-cached) responses also carry it
+    return { ...(data as Record<string, unknown>), cache_created_at: new Date(ts).toISOString() };
   }).catch((err) => {
     summaryInFlight = null;
     throw err;

@@ -9,7 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiJson } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import {
   TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2,
   Activity, Shield, Zap, Rocket, BarChart2, Brain, Monitor,
@@ -72,11 +72,12 @@ function KpiCard({ label, value, unit = "", sub, color = "" }: { label: string; 
   );
 }
 
-function SectionHeader({ icon: Icon, title, sub }: { icon: any; title: string; sub?: string }) {
+function SectionHeader({ icon: Icon, title, sub, tag }: { icon: any; title: string; sub?: string; tag?: ReactNode }) {
   return (
     <div className="flex items-center gap-2 mb-3">
       <Icon className="w-4 h-4 text-teal-400" />
       <h2 className="font-semibold text-sm tracking-wide uppercase text-muted-foreground">{title}</h2>
+      {tag}
       {sub && <span className="text-xs text-muted-foreground ml-auto">{sub}</span>}
     </div>
   );
@@ -91,6 +92,60 @@ function ScoreBar({ score }: { score: number }) {
   );
 }
 
+/**
+ * StalenessTag — shared Live/Cached freshness pill.
+ * Shows amber "Cached" when the source timestamp is > 60 s old, emerald "Live" otherwise.
+ *
+ * Precedence: `generatedAt` (real scan/snapshot ISO timestamp) › `dataUpdatedAt`
+ * (React Query epoch ms — use this for cards whose `generated_at` is synthesized
+ * at response construction and therefore always appears fresh).
+ */
+function StalenessTag({ generatedAt, dataUpdatedAt }: {
+  generatedAt?: string;
+  dataUpdatedAt?: number;
+}) {
+  // Resolve a stable epoch-ms source. Prefer generatedAt (actual snapshot time)
+  // when it's a real scan timestamp; fall back to React Query's dataUpdatedAt.
+  const sourceMs = generatedAt
+    ? new Date(generatedAt).getTime()
+    : (dataUpdatedAt ?? 0);
+
+  const [ageSecs, setAgeSecs] = useState(() =>
+    sourceMs > 0 ? Math.max(0, Math.round((Date.now() - sourceMs) / 1000)) : 0
+  );
+
+  useEffect(() => {
+    if (!sourceMs) { setAgeSecs(0); return; }
+    const tick = () => setAgeSecs(Math.max(0, Math.round((Date.now() - sourceMs) / 1000)));
+    tick();
+    const id = setInterval(tick, 1_000);
+    return () => clearInterval(id);
+  }, [sourceMs]);
+
+  if (!sourceMs) return null;
+
+  const ageLabel = ageSecs < 60 ? `${ageSecs}s ago` : `${Math.round(ageSecs / 60)}m ago`;
+  const isCached = ageSecs > 60;
+
+  return isCached ? (
+    <span
+      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-amber-950/60 border border-amber-700/40 text-amber-300"
+      title="Showing cached data — snapshot is over 60 s old"
+    >
+      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+      Cached · {ageLabel}
+    </span>
+  ) : (
+    <span
+      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-emerald-950/60 border border-emerald-700/40 text-emerald-300"
+      title="Data freshly fetched from the server"
+    >
+      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse" />
+      Live · {ageLabel}
+    </span>
+  );
+}
+
 function DisabledBanner() {
   return (
     <Alert className="border-teal-500/30 bg-teal-500/5 mb-6">
@@ -102,32 +157,14 @@ function DisabledBanner() {
 }
 
 // ── Section 1 — Platform Header ────────────────────────────────────────────────
-function PlatformHeader({ summary, dataUpdatedAt }: { summary: any; dataUpdatedAt?: number }) {
+function PlatformHeader({ summary, dataUpdatedAt: _dataUpdatedAt }: { summary: any; dataUpdatedAt?: number }) {
   const ps = summary?.platform_score ?? 0;
   const pg = summary?.platform_grade ?? "D";
   const pst = summary?.platform_status ?? "UNKNOWN";
   const sched = summary?.scheduler_status ?? "UNKNOWN";
-
-  // Staleness badge — amber when React Query cache is > 60 s old, emerald otherwise
-  const generatedAt: string | undefined = summary?.generated_at;
-  const isCached = dataUpdatedAt != null && (Date.now() - dataUpdatedAt) > 60_000;
-  const ageSource = generatedAt;
-
-  const [ageSecs, setAgeSecs] = useState(0);
-  useEffect(() => {
-    if (!ageSource) { setAgeSecs(0); return; }
-    const tick = () => {
-      const diff = Math.round((Date.now() - new Date(ageSource).getTime()) / 1000);
-      setAgeSecs(Math.max(0, diff));
-    };
-    tick();
-    const id = setInterval(tick, 1_000);
-    return () => clearInterval(id);
-  }, [ageSource]);
-
-  const ageLabel = ageSecs < 60
-    ? `${ageSecs}s ago`
-    : `${Math.round(ageSecs / 60)}m ago`;
+  // Use cache_created_at (Node.js cache slot time) — a real source timestamp
+  // that stays constant across cache hits, accurately reflecting data age.
+  const generatedAt: string | undefined = summary?.cache_created_at ?? summary?.generated_at;
 
   return (
     <div className="bg-card border border-border rounded-xl p-4 flex flex-wrap items-center gap-4">
@@ -146,26 +183,7 @@ function PlatformHeader({ summary, dataUpdatedAt }: { summary: any; dataUpdatedA
       <Badge variant="outline" className="text-xs border-amber-500/40 text-amber-300">
         📋 {summary?.execution_mode ?? "PAPER_TRADING"}
       </Badge>
-      {/* Cache-vs-live staleness pill */}
-      {generatedAt && (
-        isCached ? (
-          <span
-            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-amber-950/60 border border-amber-700/40 text-amber-300"
-            title="Showing cached data — last fetched over 60 s ago"
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
-            Cached · {ageLabel}
-          </span>
-        ) : (
-          <span
-            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-emerald-950/60 border border-emerald-700/40 text-emerald-300"
-            title="Data freshly computed from this snapshot"
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse" />
-            Live · {ageLabel}
-          </span>
-        )
-      )}
+      <StalenessTag generatedAt={generatedAt} />
       <span className="text-xs text-muted-foreground ml-auto">
         {summary?.generated_at?.slice(0, 19)?.replace("T", " ")} UTC
       </span>
@@ -174,7 +192,7 @@ function PlatformHeader({ summary, dataUpdatedAt }: { summary: any; dataUpdatedA
 }
 
 // ── Section 2 — Market Overview ────────────────────────────────────────────────
-function MarketOverviewSection({ market }: { market: any }) {
+function MarketOverviewSection({ market, generatedAt }: { market: any; generatedAt?: string }) {
   if (!market) return null;
   const { nifty50, bank_nifty, india_vix } = market;
   const sentimentColor = (market.regime ?? "").includes("BULL") ? "text-emerald-400"
@@ -182,6 +200,7 @@ function MarketOverviewSection({ market }: { market: any }) {
   return (
     <div className="bg-card border border-border rounded-xl p-4">
       <SectionHeader icon={TrendingUp} title="Market Overview"
+        tag={<StalenessTag generatedAt={generatedAt} />}
         sub={`Regime: ${market.regime ?? "UNKNOWN"} · Trend: ${market.strongest_sector ?? "—"} leads`} />
 
       {/* Index cards */}
@@ -238,12 +257,13 @@ function MarketOverviewSection({ market }: { market: any }) {
 }
 
 // ── Section 3 — Portfolio Snapshot ─────────────────────────────────────────────
-function PortfolioSection({ portfolio }: { portfolio: any }) {
+function PortfolioSection({ portfolio, generatedAt }: { portfolio: any; generatedAt?: string }) {
   if (!portfolio) return null;
   const pnlColor = (portfolio.net_pnl ?? 0) >= 0 ? "text-emerald-400" : "text-red-400";
   return (
     <div className="bg-card border border-border rounded-xl p-4">
       <SectionHeader icon={BarChart2} title="Portfolio Snapshot"
+        tag={<StalenessTag generatedAt={generatedAt} />}
         sub={portfolio.analytics_grade ? `Grade ${portfolio.analytics_grade}` : undefined} />
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <KpiCard label="Portfolio Value" value={`₹${(portfolio.portfolio_value ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`} />
@@ -258,11 +278,13 @@ function PortfolioSection({ portfolio }: { portfolio: any }) {
 }
 
 // ── Section 4 — Today's Trading ────────────────────────────────────────────────
-function TradingSection({ trading }: { trading: any }) {
+function TradingSection({ trading, generatedAt }: { trading: any; generatedAt?: string }) {
   if (!trading) return null;
   return (
     <div className="bg-card border border-border rounded-xl p-4">
-      <SectionHeader icon={Activity} title="Today's Trading" sub="Paper mode" />
+      <SectionHeader icon={Activity} title="Today's Trading"
+        tag={<StalenessTag generatedAt={generatedAt} />}
+        sub="Paper mode" />
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <KpiCard label="Trades" value={trading.total_trades ?? 0} />
         <KpiCard label="Win Rate" value={(trading.win_rate ?? 0).toFixed(1)} unit="%" color={(trading.win_rate ?? 0) >= 55 ? "text-emerald-400" : "text-amber-400"} />
@@ -274,12 +296,13 @@ function TradingSection({ trading }: { trading: any }) {
 }
 
 // ── Section 5 — AI Summary ─────────────────────────────────────────────────────
-function AiSection({ ai }: { ai: any }) {
+function AiSection({ ai, generatedAt }: { ai: any; generatedAt?: string }) {
   if (!ai) return null;
   const healthColor = (ai.health_score ?? 0) >= 70 ? "text-emerald-400" : (ai.health_score ?? 0) >= 50 ? "text-amber-400" : "text-red-400";
   return (
     <div className="bg-card border border-border rounded-xl p-4">
-      <SectionHeader icon={Brain} title="AI Summary" />
+      <SectionHeader icon={Brain} title="AI Summary"
+        tag={<StalenessTag generatedAt={generatedAt} />} />
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
         <KpiCard label="AI Health" value={(ai.health_score ?? 0).toFixed(1)} unit="/100" color={healthColor} />
         <KpiCard label="Accuracy" value={(ai.prediction_accuracy ?? 0).toFixed(1)} unit="%" />
@@ -296,12 +319,13 @@ function AiSection({ ai }: { ai: any }) {
 }
 
 // ── Section 6 — Risk Summary ───────────────────────────────────────────────────
-function RiskSection({ risk }: { risk: any }) {
+function RiskSection({ risk, generatedAt }: { risk: any; generatedAt?: string }) {
   if (!risk) return null;
   const riskColor = (risk.risk_score ?? 0) >= 65 ? "text-emerald-400" : (risk.risk_score ?? 0) >= 45 ? "text-amber-400" : "text-red-400";
   return (
     <div className="bg-card border border-border rounded-xl p-4">
       <SectionHeader icon={Shield} title="Risk Summary"
+        tag={<StalenessTag generatedAt={generatedAt} />}
         sub={`Grade ${risk.grade ?? "D"}`} />
       <div className="flex items-center gap-4 mb-4">
         <div>
@@ -333,12 +357,13 @@ function RiskSection({ risk }: { risk: any }) {
 }
 
 // ── Section 7 — System Health ──────────────────────────────────────────────────
-function SystemHealthSection({ systemHealth }: { systemHealth: any }) {
+function SystemHealthSection({ systemHealth, generatedAt }: { systemHealth: any; generatedAt?: string }) {
   if (!systemHealth) return null;
   const { modules = [], platform_score = 0, platform_grade: pg = "D", platform_status: ps = "UNKNOWN" } = systemHealth;
   return (
     <div className="bg-card border border-border rounded-xl p-4">
-      <SectionHeader icon={Monitor} title="System Health" />
+      <SectionHeader icon={Monitor} title="System Health"
+        tag={<StalenessTag generatedAt={generatedAt} />} />
       <div className="flex items-center gap-4 mb-4">
         <div>
           <p className="text-xs text-muted-foreground mb-1">Platform Health</p>
@@ -365,11 +390,12 @@ function SystemHealthSection({ systemHealth }: { systemHealth: any }) {
 }
 
 // ── Section 8 — Market Intelligence ───────────────────────────────────────────
-function MarketIntelSection({ mi }: { mi: any }) {
+function MarketIntelSection({ mi, generatedAt }: { mi: any; generatedAt?: string }) {
   if (!mi) return null;
   return (
     <div className="bg-card border border-border rounded-xl p-4">
-      <SectionHeader icon={TrendingUp} title="Market Intelligence" />
+      <SectionHeader icon={TrendingUp} title="Market Intelligence"
+        tag={<StalenessTag generatedAt={generatedAt} />} />
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <KpiCard label="Market Health" value={(mi.market_health_score ?? 0).toFixed(1)} unit="/100" />
         <KpiCard label="Grade" value={mi.grade ?? "—"} />
@@ -385,7 +411,7 @@ function MarketIntelSection({ mi }: { mi: any }) {
 
 // ── Section 9 — Alert Centre ───────────────────────────────────────────────────
 function AlertCentreSection() {
-  const { data: d, isLoading } = useQuery({ ...q("alerts"), staleTime: 10_000 });
+  const { data: d, isLoading, dataUpdatedAt } = useQuery({ ...q("alerts"), staleTime: 10_000 });
   if (isLoading) return <div className="bg-card border border-border rounded-xl p-4 animate-pulse h-32" />;
   const r = d as any;
   if (!r?.available) return null;
@@ -398,6 +424,7 @@ function AlertCentreSection() {
   return (
     <div className="bg-card border border-border rounded-xl p-4">
       <SectionHeader icon={AlertTriangle} title="Alert Centre"
+        tag={<StalenessTag dataUpdatedAt={dataUpdatedAt} />}
         sub={`${r.critical_count ?? 0} critical · ${r.warning_count ?? 0} warnings`} />
       {alerts.length === 0 ? (
         <div className="flex items-center gap-2 text-sm text-emerald-400">
@@ -423,13 +450,14 @@ function AlertCentreSection() {
 
 // ── Section 10 — AI Daily Briefing ────────────────────────────────────────────
 function BriefingSection() {
-  const { data: d, isLoading } = useQuery({ ...q("briefing"), staleTime: 60_000, refetchInterval: 60_000 });
+  const { data: d, isLoading, dataUpdatedAt } = useQuery({ ...q("briefing"), staleTime: 60_000, refetchInterval: 60_000 });
   if (isLoading) return <div className="bg-card border border-border rounded-xl p-4 animate-pulse h-28" />;
   const r = d as any;
   if (!r?.available) return null;
   return (
     <div className="bg-card border border-border rounded-xl p-4">
       <SectionHeader icon={Brain} title="AI Daily Briefing"
+        tag={<StalenessTag dataUpdatedAt={dataUpdatedAt} />}
         sub={r.generated_at?.slice(0, 16)?.replace("T", " ")} />
       <div className="space-y-2">
         {(r.briefing_lines ?? []).map((line: string, i: number) => (
@@ -444,7 +472,7 @@ function BriefingSection() {
 }
 
 // ── Section 11 — Quick Actions ─────────────────────────────────────────────────
-function QuickActionsSection({ actions }: { actions: any[] }) {
+function QuickActionsSection({ actions, generatedAt }: { actions: any[]; generatedAt?: string }) {
   const iconMap: Record<string, any> = {
     TrendingUp: TrendingUp, BarChart2: BarChart2, Shield: Shield,
     Brain: Brain, FlaskConical: FlaskConical, Monitor: Monitor,
@@ -453,7 +481,8 @@ function QuickActionsSection({ actions }: { actions: any[] }) {
   if (!actions?.length) return null;
   return (
     <div className="bg-card border border-border rounded-xl p-4">
-      <SectionHeader icon={Zap} title="Quick Actions" />
+      <SectionHeader icon={Zap} title="Quick Actions"
+        tag={<StalenessTag generatedAt={generatedAt} />} />
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {actions.map((a: any) => {
           const Icon = iconMap[a.icon] ?? Activity;
@@ -472,7 +501,7 @@ function QuickActionsSection({ actions }: { actions: any[] }) {
 
 // ── Section 12 — Session Timeline ─────────────────────────────────────────────
 function TimelineSection() {
-  const { data: d, isLoading } = useQuery({ ...q("timeline") });
+  const { data: d, isLoading, dataUpdatedAt } = useQuery({ ...q("timeline") });
   if (isLoading) return <div className="bg-card border border-border rounded-xl p-4 animate-pulse h-40" />;
   const r = d as any;
   if (!r?.available) return null;
@@ -484,6 +513,7 @@ function TimelineSection() {
   return (
     <div className="bg-card border border-border rounded-xl p-4">
       <SectionHeader icon={Clock} title="Session Timeline"
+        tag={<StalenessTag dataUpdatedAt={dataUpdatedAt} />}
         sub={`${r.event_count ?? 0} events`} />
       <div className="relative pl-4">
         <div className="absolute left-0 top-0 bottom-0 w-px bg-border" />
@@ -508,7 +538,7 @@ function TimelineSection() {
 }
 
 // ── Section 13 — Watchlist ────────────────────────────────────────────────────
-function WatchlistSection({ watchlist }: { watchlist: any }) {
+function WatchlistSection({ watchlist, generatedAt }: { watchlist: any; generatedAt?: string }) {
   if (!watchlist) return null;
   const topPicks: any[]  = watchlist.top_ai_picks    ?? [];
   const momentum: any[]  = watchlist.momentum         ?? [];
@@ -525,7 +555,9 @@ function WatchlistSection({ watchlist }: { watchlist: any }) {
     ));
   return (
     <div className="bg-card border border-border rounded-xl p-4">
-      <SectionHeader icon={TrendingUp} title="Watchlist" sub={`${watchlist.total_symbols ?? 0} symbols`} />
+      <SectionHeader icon={TrendingUp} title="Watchlist"
+        tag={<StalenessTag generatedAt={generatedAt} />}
+        sub={`${watchlist.total_symbols ?? 0} symbols`} />
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {topPicks.length > 0 && (
           <div>
@@ -644,14 +676,16 @@ export default function CommandCenter() {
           {/* Platform header bar */}
           <PlatformHeader summary={r} dataUpdatedAt={dataUpdatedAt} />
 
-          {/* Primary 2-col grid */}
+          {/* Primary 2-col grid — all summary-backed sections share cache_created_at
+              so the badge reflects when the server cache slot was populated, not
+              the synthesized Python-side generated_at that resets on every hit. */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <MarketOverviewSection market={r.market} />
-            <PortfolioSection portfolio={r.portfolio} />
-            <TradingSection trading={r.trading} />
-            <AiSection ai={r.ai} />
-            <RiskSection risk={r.risk} />
-            <MarketIntelSection mi={r.market_intelligence} />
+            <MarketOverviewSection market={r.market} generatedAt={r.cache_created_at} />
+            <PortfolioSection portfolio={r.portfolio} generatedAt={r.cache_created_at} />
+            <TradingSection trading={r.trading} generatedAt={r.cache_created_at} />
+            <AiSection ai={r.ai} generatedAt={r.cache_created_at} />
+            <RiskSection risk={r.risk} generatedAt={r.cache_created_at} />
+            <MarketIntelSection mi={r.market_intelligence} generatedAt={r.cache_created_at} />
           </div>
 
           {/* Analysis Layer (Phase 10B) — full width */}
@@ -673,10 +707,10 @@ export default function CommandCenter() {
           <PaperTradingCentreCard />
 
           {/* System Health — full width */}
-          <SystemHealthSection systemHealth={r.system_health} />
+          <SystemHealthSection systemHealth={r.system_health} generatedAt={r.cache_created_at} />
 
           {/* Watchlist */}
-          <WatchlistSection watchlist={r.watchlist} />
+          <WatchlistSection watchlist={r.watchlist} generatedAt={r.cache_created_at} />
 
           {/* Alerts + Briefing side-by-side */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -686,7 +720,7 @@ export default function CommandCenter() {
 
           {/* Quick Actions + Timeline */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <QuickActionsSection actions={r.quick_actions ?? []} />
+            <QuickActionsSection actions={r.quick_actions ?? []} generatedAt={r.cache_created_at} />
             <TimelineSection />
           </div>
 
@@ -709,7 +743,7 @@ const DT_CLR: Record<string, string> = {
 };
 
 function DecisionLayerCard() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, dataUpdatedAt } = useQuery({
     queryKey:  ["cc", "decision-summary"],
     queryFn:   () => apiJson("decision-layer/summary"),
     refetchInterval: 60_000,
@@ -747,6 +781,7 @@ function DecisionLayerCard() {
   return (
     <div className="bg-card border border-border rounded-xl p-4">
       <SectionHeader icon={Brain} title="Phase 10C — Decision Layer"
+        tag={<StalenessTag dataUpdatedAt={dataUpdatedAt} />}
         sub={`${d.total_candidates ?? 0} candidates · ${d.total_recommendations ?? 0} recommendations`} />
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <KpiCard label="Top Opportunity"
@@ -777,7 +812,7 @@ function DecisionLayerCard() {
 // ── Learning Layer Card (Phase 10D) ──────────────────────────────────────────
 
 function LearningLayerCard() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, dataUpdatedAt } = useQuery({
     queryKey:  ["cc", "learning-summary"],
     queryFn:   () => apiJson("learning-layer/summary"),
     refetchInterval: 60_000,
@@ -817,6 +852,7 @@ function LearningLayerCard() {
   return (
     <div className="bg-card border border-border rounded-xl p-4">
       <SectionHeader icon={BookOpen} title="Phase 10D — Learning Layer"
+        tag={<StalenessTag dataUpdatedAt={dataUpdatedAt} />}
         sub={`${tradesLearned} trades learned · ${kbSize} knowledge records`} />
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <KpiCard label="Trades Learned"   value={tradesLearned}            color="text-cyan-400" />
@@ -844,7 +880,7 @@ function LearningLayerCard() {
 // ── Multi-Agent Operations Card (Phase 10E) ──────────────────────────────────
 
 function MultiAgentOpsCard() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, dataUpdatedAt } = useQuery({
     queryKey:  ["cc", "collab-summary"],
     queryFn:   () => apiJson("collab/summary"),
     refetchInterval: 60_000,
@@ -901,6 +937,7 @@ function MultiAgentOpsCard() {
   return (
     <div className="bg-card border border-border rounded-xl p-4">
       <SectionHeader icon={Bot} title="Phase 10E — Multi-Agent Operations"
+        tag={<StalenessTag dataUpdatedAt={dataUpdatedAt} />}
         sub={`${registered} agents · ${graphPct.toFixed(0)}% graph health · ${snapThru} snapshots published`} />
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <KpiCard label="Registered"     value={registered}              color="text-slate-300" />
@@ -958,7 +995,7 @@ interface Phase11Snapshot {
 }
 
 function PaperTradingCentreCard() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, dataUpdatedAt } = useQuery({
     queryKey:  ["cc", "phase11-snapshot"],
     queryFn:   () => apiJson<Phase11Snapshot>("phase11/snapshot"),
     refetchInterval: 60_000,
@@ -990,6 +1027,7 @@ function PaperTradingCentreCard() {
   return (
     <div className="bg-card border border-border rounded-xl p-4">
       <SectionHeader icon={Rocket} title="Phase 11 — Paper Trading Centre"
+        tag={<StalenessTag dataUpdatedAt={dataUpdatedAt} />}
         sub={`Mode ${d.capital_mode} · Starting ₹${(d.starting_capital / 1000).toFixed(0)}k · Paper only`} />
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
         <KpiCard label="Portfolio Value"   value={`₹${(d.portfolio_value / 1000).toFixed(1)}k`} color="text-teal-300" />
@@ -1020,7 +1058,7 @@ const RISK_CHIP: Record<string, string> = {
 };
 
 function AnalysisLayerCard() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, dataUpdatedAt } = useQuery({
     queryKey:  ["cc", "analysis-summary"],
     queryFn:   () => apiJson("analysis-agents/summary"),
     refetchInterval: 45_000,
@@ -1058,6 +1096,7 @@ function AnalysisLayerCard() {
   return (
     <div className="bg-card border border-border rounded-xl p-4">
       <SectionHeader icon={Bot} title="Phase 10B — Analysis Layer"
+        tag={<StalenessTag dataUpdatedAt={dataUpdatedAt} />}
         sub={`${symbolsMonitored} symbols monitored`} />
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <KpiCard label="Market Regime"  value={regime}       color="text-teal-400" />
