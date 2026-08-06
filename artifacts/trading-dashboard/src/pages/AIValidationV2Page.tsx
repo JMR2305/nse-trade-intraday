@@ -770,6 +770,8 @@ function RunResultsPanel({ run }: { run: RunDetail }) {
 // Uses run.trades from GET /validation-v2/backtest/:runId
 // ─────────────────────────────────────────────────────────────────────────────
 
+type TradeResultFilter = "ALL" | "WIN" | "LOSS" | "BREAKEVEN";
+
 function TradeSimulationTab({ latestRunId }: { latestRunId: string | null }) {
   const runsQ = useQuery<{ runs: RunListItem[] }>({
     queryKey: ["v2-runs"],
@@ -778,6 +780,7 @@ function TradeSimulationTab({ latestRunId }: { latestRunId: string | null }) {
   });
   const runs = runsQ.data?.runs ?? [];
   const [selectedRunId, setSelectedRunId] = useState<string>("");
+  const [tradeFilter, setTradeFilter] = useState<TradeResultFilter>("ALL");
   const activeRunId = selectedRunId || latestRunId || runs[0]?.run_id || "";
 
   // Fetch full run detail for trades
@@ -1039,11 +1042,91 @@ function TradeSimulationTab({ latestRunId }: { latestRunId: string | null }) {
             </div>
           )}
 
-          {/* Trade cards */}
-          <div className="space-y-2">
-            <h3 className="text-sm font-semibold text-white">{trades.length} Trades</h3>
-            {trades.map((t, i) => <TradeCard key={i} trade={t} />)}
-          </div>
+          {/* Trade cards — filterable by result */}
+          {(() => {
+            // Count per bucket (null / unknown → treated as BREAKEVEN for counting)
+            const counts: Record<TradeResultFilter, number> = {
+              ALL: trades.length,
+              WIN: trades.filter(t => t.result === "WIN").length,
+              LOSS: trades.filter(t => t.result === "LOSS").length,
+              BREAKEVEN: trades.filter(t => t.result !== "WIN" && t.result !== "LOSS").length,
+            };
+            const visibleTrades = tradeFilter === "ALL"
+              ? trades
+              : tradeFilter === "BREAKEVEN"
+                ? trades.filter(t => t.result !== "WIN" && t.result !== "LOSS")
+                : trades.filter(t => t.result === tradeFilter);
+
+            const filterBtns: { key: TradeResultFilter; label: string; active: string; inactive: string }[] = [
+              {
+                key: "ALL",
+                label: "All",
+                active: "bg-slate-600 border-slate-500 text-white",
+                inactive: "bg-slate-800/60 border-slate-700/50 text-slate-400 hover:border-slate-600 hover:text-slate-300",
+              },
+              {
+                key: "WIN",
+                label: "WIN",
+                active: "bg-emerald-500/20 border-emerald-500/60 text-emerald-300",
+                inactive: "bg-slate-800/60 border-slate-700/50 text-slate-400 hover:border-emerald-700/50 hover:text-emerald-400",
+              },
+              {
+                key: "LOSS",
+                label: "LOSS",
+                active: "bg-red-500/20 border-red-500/60 text-red-300",
+                inactive: "bg-slate-800/60 border-slate-700/50 text-slate-400 hover:border-red-700/50 hover:text-red-400",
+              },
+              {
+                key: "BREAKEVEN",
+                label: "BREAKEVEN",
+                active: "bg-amber-500/20 border-amber-500/60 text-amber-300",
+                inactive: "bg-slate-800/60 border-slate-700/50 text-slate-400 hover:border-amber-700/50 hover:text-amber-400",
+              },
+            ];
+
+            return (
+              <div className="space-y-3">
+                {/* Filter toggles */}
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <h3 className="text-sm font-semibold text-white">
+                    {visibleTrades.length === trades.length
+                      ? `${trades.length} Trades`
+                      : `${visibleTrades.length} of ${trades.length} Trades`}
+                  </h3>
+                  <div className="flex items-center gap-1.5" role="group" aria-label="Filter trades by result">
+                    {filterBtns.map(({ key, label, active, inactive }) => (
+                      <button
+                        key={key}
+                        onClick={() => setTradeFilter(key)}
+                        aria-pressed={tradeFilter === key}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all flex items-center gap-1.5 ${
+                          tradeFilter === key ? active : inactive
+                        }`}
+                      >
+                        {label}
+                        <span className={`text-[10px] font-mono rounded px-1 py-0.5 ${
+                          tradeFilter === key
+                            ? "bg-white/10"
+                            : "bg-slate-700/60 text-slate-500"
+                        }`}>
+                          {counts[key]}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Trade list */}
+                {visibleTrades.length === 0 ? (
+                  <div className="py-8 text-center text-slate-500 text-sm">
+                    No {tradeFilter.toLowerCase()} trades in this run.
+                  </div>
+                ) : (
+                  visibleTrades.map((t, i) => <TradeCard key={`${t.symbol}-${t.entry_date}-${i}`} trade={t} />)
+                )}
+              </div>
+            );
+          })()}
         </>
       )}
     </div>
