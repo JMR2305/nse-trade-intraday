@@ -538,6 +538,108 @@ describe("dispatchHealthAlertPushNotifications", () => {
     expect(String(msg["title"])).toContain("error");
   });
 
+  // ── Recovery-push precision tests (Task 371) ─────────────────────────────
+
+  it("recovery: skips the recovery push when the platform was never degraded", async () => {
+    _resetPlatformDegradedStateForTests();
+    const fetchMock = mockFetchOk();
+    await insertHealthSub(1);
+
+    // Healthy snapshot on a session that was never degraded — no alert,
+    // no recovery, nothing should be enqueued or delivered.
+    await dispatchHealthAlertPushNotifications(
+      degradedSnapshot(85, [], "scan-healthy-only"),
+    );
+
+    // Nothing should have been enqueued (no delivery row) and fetch untouched.
+    expect(fetchMock).not.toHaveBeenCalled();
+    const rows = await db
+      .select()
+      .from(alertDeliveriesTable)
+      .where(eq(alertDeliveriesTable.destination, healthToken(1)));
+    expect(rows).toHaveLength(0);
+  });
+
+  it("recovery: fires exactly one recovery push per device when health climbs back above the threshold", async () => {
+    _resetPlatformDegradedStateForTests();
+    await insertHealthSub(1);
+    await insertHealthSub(2);
+
+    const fetchMock = mockFetchOk();
+
+    // Step 1 — degrade: both subscribers are alerted.
+    await dispatchHealthAlertPushNotifications(
+      degradedSnapshot(50, [], "scan-degrade-r1"),
+    );
+    // Two degradation deliveries were enqueued and processed.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    // Step 2 — recover: health climbs above the threshold.
+    fetchMock.mockClear();
+    await dispatchHealthAlertPushNotifications(
+      degradedSnapshot(90, [], "scan-recover-r1"),
+    );
+
+    // Exactly one recovery push per device (two devices total).
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    // Verify the recovery message content for the first call.
+    const msg = JSON.parse(
+      (fetchMock.mock.calls[0]![1] as { body: string }).body,
+    )[0] as Record<string, unknown>;
+    expect(String(msg["title"])).toMatch(/recover/i);
+    expect(String(msg["title"])).toContain("90%");
+
+    // Both tokens have a recovery delivery row in the DB.
+    const rows = await db
+      .select()
+      .from(alertDeliveriesTable)
+      .where(like(alertDeliveriesTable.destination, HEALTH_TOKEN_LIKE));
+    const recoveryRows = rows.filter((r) =>
+      r.idempotencyKey?.startsWith("health_recovery:"),
+    );
+    expect(recoveryRows).toHaveLength(2);
+    expect(recoveryRows.every((r) => r.status === "DELIVERED")).toBe(true);
+  });
+
+  it("recovery: a second healthy snapshot after recovery does not re-fire the recovery push", async () => {
+    _resetPlatformDegradedStateForTests();
+    await insertHealthSub(1);
+
+    const fetchMock = mockFetchOk();
+
+    // Step 1 — degrade.
+    await dispatchHealthAlertPushNotifications(
+      degradedSnapshot(45, [], "scan-degrade-r2"),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // Step 2 — first recovery snapshot: exactly one recovery push.
+    fetchMock.mockClear();
+    await dispatchHealthAlertPushNotifications(
+      degradedSnapshot(88, [], "scan-recover-r2"),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // Step 3 — second healthy snapshot: token is no longer in degraded set,
+    // so no degradation alert and no further recovery push should be sent.
+    fetchMock.mockClear();
+    await dispatchHealthAlertPushNotifications(
+      degradedSnapshot(95, [], "scan-healthy-again-r2"),
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    // Confirm there is still only one recovery row in the DB.
+    const rows = await db
+      .select()
+      .from(alertDeliveriesTable)
+      .where(like(alertDeliveriesTable.destination, HEALTH_TOKEN_LIKE));
+    const recoveryRows = rows.filter((r) =>
+      r.idempotencyKey?.startsWith("health_recovery:"),
+    );
+    expect(recoveryRows).toHaveLength(1);
+  });
+
   it("schedules a retry (does not lose the health alert) when the push service is down", async () => {
     _resetPlatformDegradedStateForTests();
     await insertHealthSub(1);
