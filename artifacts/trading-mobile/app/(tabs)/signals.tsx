@@ -1,6 +1,7 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useGetSignals, useGetTradeDecisions, useRunLiveDataScan } from "@workspace/api-client-react";
 import { apiJson } from "@/lib/monitorApi";
+import { applyRunResponse, applyRunError } from "@/lib/scanLogic";
 import * as Haptics from "expo-haptics";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -251,16 +252,19 @@ export default function SignalsScreen() {
 
     try {
       const resp = await runLiveDataScan();
-      if (resp?.status === "RATE_LIMITED") {
+      const next = { scanRunning: true, scanError: false };
+      applyRunResponse(resp, next);
+      if (!next.scanRunning) {
         setScanRunning(false);
-        setScanError(true);
+        setScanError(next.scanError);
         return;
       }
       // Scan kicked off in background; polling effect detects completion via scan_id change.
     } catch (err) {
+      const next = { scanRunning: true, scanError: false };
+      applyRunError(err, next);
       setScanRunning(false);
-      const msg = err instanceof Error ? err.message : String(err);
-      if (!msg.includes("aborted")) setScanError(true);
+      setScanError(next.scanError);
     }
   }, [runLiveDataScan]);
 
