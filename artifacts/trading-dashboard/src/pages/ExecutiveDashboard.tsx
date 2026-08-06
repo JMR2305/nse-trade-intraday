@@ -70,7 +70,7 @@ interface ExecSummary {
     avg_confidence: number;
     trend_direction: string;
     accuracy_delta: number;
-    calibration_quality: number;
+    calibration_quality: number | null;
     total_signals: number;
   };
   strategy_overview?: {

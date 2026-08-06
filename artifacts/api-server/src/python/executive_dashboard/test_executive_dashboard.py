@@ -1955,8 +1955,13 @@ class TestNoneNumericFieldsInWidgets(unittest.TestCase):
 
     # ── widget_ai_health calibration_quality arithmetic ───────────────────
 
-    def test_ai_health_calibration_ece_none_no_crash(self):
-        """calibration_quality arithmetic must not crash when calibration_ece is None."""
+    def test_ai_health_calibration_ece_none_key_present(self):
+        """calibration_quality must be None when calibration_ece key exists but is None.
+
+        Regression guard: before the fix, _sf(snap, 'calibration_ece', 0.0) silently
+        fell back to 0.0, making (1 - 0.0) * 100 = 100.0 — a misleading perfect score
+        for a model that has never been calibration-evaluated.
+        """
         from executive_dashboard.widgets import widget_ai_health
         data = {
             "ai": {
@@ -1970,9 +1975,65 @@ class TestNoneNumericFieldsInWidgets(unittest.TestCase):
         }
         r = widget_ai_health(data)
         self.assertIsInstance(r, dict)
-        # calibration_ece=None → treated as 0.0 → calibration_quality = 100.0
-        self.assertAlmostEqual(r["calibration_quality"], 100.0)
-        self.assertIsInstance(r["calibration_quality"], float)
+        # calibration_ece=None (never evaluated) → quality must be None, NOT 100.0
+        self.assertIsNone(
+            r["calibration_quality"],
+            "calibration_quality must be None when ECE was never measured, not 100.0",
+        )
+
+    def test_ai_health_calibration_ece_key_absent(self):
+        """calibration_quality must be None when calibration_ece key is entirely absent."""
+        from executive_dashboard.widgets import widget_ai_health
+        data = {
+            "ai": {
+                "snapshot": {"health_score": 70.0},  # no calibration_ece key at all
+                "components": {},
+                "learning": {},
+            }
+        }
+        r = widget_ai_health(data)
+        self.assertIsNone(
+            r["calibration_quality"],
+            "calibration_quality must be None when calibration_ece key is absent",
+        )
+        # calibration_ece itself should also be None (not 0.0)
+        self.assertIsNone(r["calibration_ece"])
+
+    def test_ai_health_calibration_ece_measured_value(self):
+        """calibration_quality is correctly derived when ECE has a real measurement."""
+        from executive_dashboard.widgets import widget_ai_health
+        data = {
+            "ai": {
+                "snapshot": {
+                    "health_score": 82.0,
+                    "calibration_ece": 0.05,   # measured: 5% error
+                },
+                "components": {},
+                "learning": {},
+            }
+        }
+        r = widget_ai_health(data)
+        # (1 - 0.05) * 100 = 95.0
+        self.assertIsNotNone(r["calibration_quality"])
+        self.assertAlmostEqual(r["calibration_quality"], 95.0, places=1)
+
+    def test_ai_health_calibration_ece_zero_measured(self):
+        """ECE=0.0 that was actually measured must yield quality=100.0, not None."""
+        from executive_dashboard.widgets import widget_ai_health
+        data = {
+            "ai": {
+                "snapshot": {
+                    "health_score": 90.0,
+                    "calibration_ece": 0.0,   # measured perfect calibration
+                },
+                "components": {},
+                "learning": {},
+            }
+        }
+        r = widget_ai_health(data)
+        # key is present and value is 0.0 — this IS a measurement, so quality=100.0
+        self.assertIsNotNone(r["calibration_quality"])
+        self.assertAlmostEqual(r["calibration_quality"], 100.0, places=1)
 
 
 if __name__ == "__main__":

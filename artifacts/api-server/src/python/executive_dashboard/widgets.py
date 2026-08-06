@@ -29,6 +29,26 @@ def _as_str(v: Any, fallback: str = "N/A") -> str:
     return fallback
 
 
+def _calibration_quality(snap: dict) -> "float | None":
+    """Return calibration quality 0–100, or **None** when ECE has never been measured.
+
+    Distinguishes two distinct states:
+    - Key absent or value None  →  None   (model never evaluated; do NOT display 100%)
+    - ECE = 0.05 (measured)    →  95.0
+    - ECE = 0.0  (perfect)     →  100.0  (actually measured as zero error)
+
+    Prevents the misleading "100% calibration" badge that appeared after the
+    _sf None-safety fix caused calibration_ece=None to fall back to 0.0.
+    """
+    v = snap.get("calibration_ece")
+    if v is None:
+        return None
+    try:
+        return round((1.0 - float(v)) * 100.0, 1)
+    except (TypeError, ValueError):
+        return None
+
+
 def _sf(d: dict, key: str, default: float = 0.0) -> float:
     """Return d[key] as a float, substituting *default* when the value is
     absent, None, or non-numeric.  Mirrors layout._sf — prevents
@@ -105,8 +125,8 @@ def widget_ai_health(data: dict) -> dict:
         "avg_confidence":       _g(snap, "avg_confidence", default=0.0),
         "trend_direction":      _as_str(_g(snap, "trend_direction",  default="Stable"), fallback="Stable"),
         "accuracy_delta":       _g(snap, "accuracy_delta", default=0.0),
-        "calibration_ece":      _g(snap, "calibration_ece", default=0.0),
-        "calibration_quality":  round((1 - _sf(snap, "calibration_ece", 0.0)) * 100, 1),
+        "calibration_ece":      _g(snap, "calibration_ece", default=None),
+        "calibration_quality":  _calibration_quality(snap),
         "total_signals":        _g(snap, "total_signals", default=0),
         "components":           comp,
         "recent_accuracy":      _g(learn, "recent_accuracy", default=0.0),
