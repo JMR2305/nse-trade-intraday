@@ -11,8 +11,8 @@
  *   6. The legend labels ("Entry", "EXIT", "WIN", "LOSS") are present in the DOM.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 
@@ -37,6 +37,8 @@ vi.mock("recharts", () => {
     Tooltip: stub("Tooltip"),
     ResponsiveContainer: ({ children }: any) => React.createElement("div", { "data-testid": "recharts-ResponsiveContainer" }, children),
     CartesianGrid: stub("CartesianGrid"),
+    ReferenceArea: stub("ReferenceArea"),
+    ReferenceLine: stub("ReferenceLine"),
   };
 });
 
@@ -222,6 +224,7 @@ describe("eqCurve expanded timeline (unit)", () => {
 // ── Integration: component renders legend and trade cards ─────────────────────
 
 describe("TradeSimulationTab rendering (integration)", () => {
+  afterEach(cleanup);
   beforeEach(() => {
     vi.clearAllMocks();
     mockApiJson.mockImplementation((path: string) => {

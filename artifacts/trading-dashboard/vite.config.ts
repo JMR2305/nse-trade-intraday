@@ -73,6 +73,9 @@ export default defineConfig({
     allowedHosts: true,
   },
   test: {
+    // globals:true exposes afterEach/beforeEach on globalThis so that
+    // @testing-library/react v16 auto-cleanup fires correctly in every test file.
+    globals: true,
     // Exclude Playwright E2E specs — those run via `pnpm test:e2e`, not Vitest.
     exclude: ["**/e2e/**", "**/node_modules/**", "**/dist/**"],
   },
