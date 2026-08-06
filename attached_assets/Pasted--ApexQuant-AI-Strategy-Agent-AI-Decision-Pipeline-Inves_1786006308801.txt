@@ -1,0 +1,320 @@
+# ApexQuant AI – Strategy Agent & AI Decision Pipeline Investigation (Priority P1)
+
+Do NOT change any thresholds or logic yet.
+
+Your task is to investigate why strong stocks (example: RELIANCE) are not becoming BUY candidates even when market conditions are bullish.
+
+=========================================================
+OBJECTIVE
+=========================================================
+
+Find the ROOT CAUSE before making any code changes.
+
+The investigation should determine whether the issue is in:
+
+1. Strategy Agent
+2. Risk Agent
+3. AI Decision Agent
+4. Recommendation mapping
+5. Dashboard/API inconsistencies
+
+=========================================================
+OBSERVATIONS
+=========================================================
+
+Current system behaviour:
+
+• Market Intelligence score = 77/100
+• Risk score = 85/100
+• Research score = 50/100
+• Monitoring = OK
+
+BUT
+
+Strategy score = 0/100
+
+Result:
+
+Overall confidence = 34%
+
+Decision = ACCUMULATE
+
+instead of BUY.
+
+Operations Centre also reports:
+
+"4 BUY recommendations generated"
+
+while Recommendation page shows:
+
+BUY Candidates = 0
+
+ACCUMULATE = 20
+
+These two pages disagree.
+
+=========================================================
+TASK 1 – STRATEGY AGENT AUDIT
+=========================================================
+
+Trace the entire Strategy Agent execution.
+
+For every stock processed:
+
+Log:
+
+Stock Symbol
+
+Strategy Name
+
+Entry conditions evaluated
+
+Each rule result (TRUE/FALSE)
+
+Individual rule scores
+
+Final strategy score
+
+Reason for failure
+
+Final recommendation
+
+For RELIANCE specifically provide:
+
+Which strategy executed?
+
+Did every rule execute?
+
+Which rule failed?
+
+Why was Strategy Score = 0?
+
+Was Strategy Agent skipped?
+
+Was Strategy Agent disabled?
+
+Was Strategy Agent timing out?
+
+=========================================================
+TASK 2 – BUY RULE VALIDATION
+=========================================================
+
+Verify that BUY logic is actually running.
+
+Check:
+
+Breakout strategy
+
+Momentum strategy
+
+Pullback strategy
+
+Trend continuation
+
+Opening range breakout
+
+Any custom strategies
+
+Confirm they are:
+
+Loaded
+
+Registered
+
+Executed
+
+Returning scores
+
+If no BUY strategy executes,
+identify why.
+
+=========================================================
+TASK 3 – SCORE CALCULATION
+=========================================================
+
+Print full score calculation.
+
+Example:
+
+Market Intelligence
+Research
+Strategy
+Monitoring
+Risk
+Execution
+
+Show:
+
+Raw score
+
+Weight
+
+Weighted score
+
+Final confidence
+
+Show why:
+
+77
+
+85
+
+50
+
+became
+
+34%
+
+=========================================================
+TASK 4 – AI DECISION AGENT
+=========================================================
+
+Verify AI Decision Agent.
+
+Check:
+
+Did it receive BUY candidates?
+
+Did it downgrade BUY to ACCUMULATE?
+
+If yes,
+
+which rule caused downgrade?
+
+minimum confidence?
+
+risk?
+
+position sizing?
+
+portfolio limits?
+
+regime filter?
+
+=========================================================
+TASK 5 – DASHBOARD CONSISTENCY
+=========================================================
+
+Operations Centre says:
+
+4 BUY recommendations.
+
+Recommendation page says:
+
+BUY = 0
+
+ACCUMULATE = 20
+
+Find why.
+
+Check:
+
+Different API endpoints?
+
+Different snapshot IDs?
+
+Cache?
+
+Old scan?
+
+Different filtering?
+
+Incorrect recommendation mapping?
+
+=========================================================
+TASK 6 – PIPELINE TRACE
+=========================================================
+
+Trace RELIANCE end-to-end.
+
+Supervisor
+
+↓
+
+Market Data
+
+↓
+
+Research
+
+↓
+
+Market Intelligence
+
+↓
+
+Monitoring
+
+↓
+
+Strategy
+
+↓
+
+Risk
+
+↓
+
+AI Decision
+
+↓
+
+Execution
+
+For each stage show:
+
+Input
+
+Output
+
+Score
+
+Reason
+
+Decision
+
+=========================================================
+TASK 7 – VERIFY NO FALSE REJECTION
+=========================================================
+
+Using today's market data,
+
+verify whether RELIANCE should have been:
+
+BUY
+
+ACCUMULATE
+
+WATCH
+
+AVOID
+
+Do NOT guess.
+
+Explain exactly why.
+
+=========================================================
+DELIVERABLE
+=========================================================
+
+Provide a report containing:
+
+1. Root cause(s)
+
+2. Evidence
+
+3. Exact file names
+
+4. Exact functions
+
+5. Screenshots/logs if applicable
+
+6. Recommended fixes
+
+IMPORTANT:
+
+DO NOT modify any logic yet.
+
+Only investigate and produce the root-cause analysis.
+
+Once the investigation is complete, wait for approval before implementing any fixes.

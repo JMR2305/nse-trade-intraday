@@ -13,6 +13,12 @@
       "fetched": 10,
       "symbols": 10,
       "updated": 10
+    },
+    "price_1000": {
+      "ts": "2026-08-06T09:58:42.855695+05:30",
+      "fetched": 10,
+      "symbols": 10,
+      "updated": 10
     }
   }
 }
