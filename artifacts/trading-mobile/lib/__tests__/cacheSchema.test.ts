@@ -89,3 +89,131 @@ describe("offline cache schema (Priority 7 / #37)", () => {
     expect(nullRes).toEqual({ ok: false, reason: "invalid-payload" });
   });
 });
+
+// ── ops-centre-snapshot payload validator ─────────────────────────────────────
+//
+// The Pipeline tab in the mobile app reads from this key. The validator must
+// accept the real OpsSnapshot shape and reject every partial/wrong-type variant
+// so the tab never renders wrong data silently.
+
+describe("ops-centre-snapshot payload validator", () => {
+  const TS = 1_754_000_000_000;
+
+  // Minimal valid OpsSnapshot matching cacheSchema.ts validator requirements
+  const VALID: Record<string, unknown> = {
+    generated_at: "2026-08-06T10:00:00Z",
+    platform: { health_pct: 92, market_state: "OPEN" },
+    agents: { supervisor: { status: "ACTIVE", health_pct: 100 } },
+    pipeline: { universe_loaded: 200, buy_recommendations: 5 },
+    pipeline_nodes: [],
+  };
+
+  function encode(data: unknown) {
+    return JSON.stringify({ v: CACHE_SCHEMA_VERSION, data, ts: TS });
+  }
+
+  it("accepts a valid OpsSnapshot envelope", () => {
+    const res = decodeSnapshot("ops-centre-snapshot", encode(VALID));
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.ts).toBe(TS);
+      expect(res.migrated).toBe(false);
+    }
+  });
+
+  it("accepts when pipeline_nodes is an empty array", () => {
+    const res = decodeSnapshot("ops-centre-snapshot", encode({ ...VALID, pipeline_nodes: [] }));
+    expect(res.ok).toBe(true);
+  });
+
+  it("accepts when pipeline_nodes contains items", () => {
+    const res = decodeSnapshot(
+      "ops-centre-snapshot",
+      encode({ ...VALID, pipeline_nodes: [{ label: "Universe", count: 200 }] }),
+    );
+    expect(res.ok).toBe(true);
+  });
+
+  it("rejects when generated_at is missing", () => {
+    const { generated_at: _omit, ...noGeneratedAt } = VALID;
+    const res = decodeSnapshot("ops-centre-snapshot", encode(noGeneratedAt));
+    expect(res).toEqual({ ok: false, reason: "invalid-payload" });
+  });
+
+  it("rejects when generated_at is not a string (e.g. a number)", () => {
+    const res = decodeSnapshot("ops-centre-snapshot", encode({ ...VALID, generated_at: 1_700_000_000 }));
+    expect(res).toEqual({ ok: false, reason: "invalid-payload" });
+  });
+
+  it("rejects when platform is missing", () => {
+    const { platform: _omit, ...noPlatform } = VALID;
+    const res = decodeSnapshot("ops-centre-snapshot", encode(noPlatform));
+    expect(res).toEqual({ ok: false, reason: "invalid-payload" });
+  });
+
+  it("rejects when platform.health_pct is absent (not a number)", () => {
+    const res = decodeSnapshot(
+      "ops-centre-snapshot",
+      encode({ ...VALID, platform: { market_state: "OPEN" } }),
+    );
+    expect(res).toEqual({ ok: false, reason: "invalid-payload" });
+  });
+
+  it("rejects when platform is an array instead of an object", () => {
+    const res = decodeSnapshot("ops-centre-snapshot", encode({ ...VALID, platform: [92] }));
+    expect(res).toEqual({ ok: false, reason: "invalid-payload" });
+  });
+
+  it("rejects when agents is missing", () => {
+    const { agents: _omit, ...noAgents } = VALID;
+    const res = decodeSnapshot("ops-centre-snapshot", encode(noAgents));
+    expect(res).toEqual({ ok: false, reason: "invalid-payload" });
+  });
+
+  it("rejects when agents is an array", () => {
+    const res = decodeSnapshot("ops-centre-snapshot", encode({ ...VALID, agents: [] }));
+    expect(res).toEqual({ ok: false, reason: "invalid-payload" });
+  });
+
+  it("rejects when pipeline is missing", () => {
+    const { pipeline: _omit, ...noPipeline } = VALID;
+    const res = decodeSnapshot("ops-centre-snapshot", encode(noPipeline));
+    expect(res).toEqual({ ok: false, reason: "invalid-payload" });
+  });
+
+  it("rejects when pipeline is a string", () => {
+    const res = decodeSnapshot("ops-centre-snapshot", encode({ ...VALID, pipeline: "ok" }));
+    expect(res).toEqual({ ok: false, reason: "invalid-payload" });
+  });
+
+  it("rejects when pipeline_nodes is missing", () => {
+    const { pipeline_nodes: _omit, ...noNodes } = VALID;
+    const res = decodeSnapshot("ops-centre-snapshot", encode(noNodes));
+    expect(res).toEqual({ ok: false, reason: "invalid-payload" });
+  });
+
+  it("rejects when pipeline_nodes is an object instead of an array", () => {
+    const res = decodeSnapshot("ops-centre-snapshot", encode({ ...VALID, pipeline_nodes: {} }));
+    expect(res).toEqual({ ok: false, reason: "invalid-payload" });
+  });
+
+  it("rejects a completely empty object", () => {
+    const res = decodeSnapshot("ops-centre-snapshot", encode({}));
+    expect(res).toEqual({ ok: false, reason: "invalid-payload" });
+  });
+
+  it("rejects a plain array at the top level", () => {
+    const res = decodeSnapshot("ops-centre-snapshot", encode([]));
+    expect(res).toEqual({ ok: false, reason: "invalid-payload" });
+  });
+
+  it("round-trips correctly: encode then decode produces identical data", () => {
+    const encoded = encodeSnapshot(VALID, TS);
+    const res = decodeSnapshot("ops-centre-snapshot", encoded);
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.data).toEqual(VALID);
+      expect(res.ts).toBe(TS);
+    }
+  });
+});
