@@ -116,20 +116,30 @@ def widget_ai_health(data: dict) -> dict:
     snap = _g(ai, "snapshot") or {}
     comp = _g(ai, "components") or {}
     learn = _g(ai, "learning") or {}
+    # calibration_ece is intentionally nullable: None means "never measured";
+    # a valid numeric value is coerced to float; non-numeric garbage → None.
+    raw_ece = snap.get("calibration_ece")
+    if raw_ece is None:
+        safe_ece: "float | None" = None
+    else:
+        try:
+            safe_ece = float(raw_ece)
+        except (TypeError, ValueError):
+            safe_ece = None
     return {
-        "health_score":         _g(snap, "health_score", default=0.0),
+        "health_score":         _sf(snap, "health_score", 0.0),
         "health_label":         _as_str(_g(snap, "health_label",     default="N/A"),   fallback="N/A"),
-        "prediction_accuracy":  _g(snap, "prediction_accuracy", default=0.0),
-        "precision":            _g(snap, "precision", default=0.0),
-        "recall":               _g(snap, "recall", default=0.0),
-        "avg_confidence":       _g(snap, "avg_confidence", default=0.0),
+        "prediction_accuracy":  _sf(snap, "prediction_accuracy", 0.0),
+        "precision":            _sf(snap, "precision", 0.0),
+        "recall":               _sf(snap, "recall", 0.0),
+        "avg_confidence":       _sf(snap, "avg_confidence", 0.0),
         "trend_direction":      _as_str(_g(snap, "trend_direction",  default="Stable"), fallback="Stable"),
-        "accuracy_delta":       _g(snap, "accuracy_delta", default=0.0),
-        "calibration_ece":      _g(snap, "calibration_ece", default=None),
+        "accuracy_delta":       _sf(snap, "accuracy_delta", 0.0),
+        "calibration_ece":      safe_ece,
         "calibration_quality":  _calibration_quality(snap),
-        "total_signals":        _g(snap, "total_signals", default=0),
+        "total_signals":        int(_sf(snap, "total_signals", 0.0)),
         "components":           comp,
-        "recent_accuracy":      _g(learn, "recent_accuracy", default=0.0),
+        "recent_accuracy":      _sf(learn, "recent_accuracy", 0.0),
     }
 
 

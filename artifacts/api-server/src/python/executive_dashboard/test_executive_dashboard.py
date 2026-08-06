@@ -2182,6 +2182,185 @@ class TestReadinessNoneScore(unittest.TestCase):
         self.assertTrue(r["available"])
         self.assertFalse(r["disabled"])
 
+class TestWidgetAiHealthNoneSafety(unittest.TestCase):
+    """
+    Confirm widget_ai_health never crashes and always returns float fallbacks
+    when numeric score fields carry None (key present, value None) from a
+    stale scan snapshot.  Covers health_score, prediction_accuracy,
+    precision, recall, avg_confidence, accuracy_delta, recent_accuracy,
+    and the calibration_quality arithmetic when calibration_ece is None.
+    """
+
+    def _run(self, snap_overrides: dict = None, learn_overrides: dict = None) -> dict:
+        from executive_dashboard.widgets import widget_ai_health
+        snap = {
+            "health_score": 80.0, "health_label": "Good",
+            "prediction_accuracy": 70.0, "precision": 72.0, "recall": 68.0,
+            "avg_confidence": 74.0, "trend_direction": "Stable",
+            "accuracy_delta": 2.0, "calibration_ece": 0.05, "total_signals": 40,
+        }
+        learn = {"recent_accuracy": 71.0}
+        if snap_overrides:
+            snap.update(snap_overrides)
+        if learn_overrides:
+            learn.update(learn_overrides)
+        return widget_ai_health({"ai": {
+            "available": True,
+            "snapshot": snap,
+            "components": {},
+            "learning": learn,
+        }})
+
+    # ── simultaneous None on the three key numeric fields ────────────────────
+
+    def test_health_score_prediction_accuracy_avg_confidence_all_none_no_crash(self):
+        """No exception when health_score, prediction_accuracy, avg_confidence are all None."""
+        try:
+            r = self._run({
+                "health_score": None,
+                "prediction_accuracy": None,
+                "avg_confidence": None,
+            })
+        except (TypeError, AttributeError) as exc:
+            self.fail(f"widget_ai_health raised {type(exc).__name__}: {exc}")
+        self.assertIsNotNone(r)
+
+    def test_health_score_none_returns_float_zero(self):
+        r = self._run({"health_score": None})
+        self.assertIsInstance(r["health_score"], float)
+        self.assertAlmostEqual(r["health_score"], 0.0)
+
+    def test_prediction_accuracy_none_returns_float_zero(self):
+        r = self._run({"prediction_accuracy": None})
+        self.assertIsInstance(r["prediction_accuracy"], float)
+        self.assertAlmostEqual(r["prediction_accuracy"], 0.0)
+
+    def test_precision_none_returns_float_zero(self):
+        r = self._run({"precision": None})
+        self.assertIsInstance(r["precision"], float)
+        self.assertAlmostEqual(r["precision"], 0.0)
+
+    def test_recall_none_returns_float_zero(self):
+        r = self._run({"recall": None})
+        self.assertIsInstance(r["recall"], float)
+        self.assertAlmostEqual(r["recall"], 0.0)
+
+    def test_avg_confidence_none_returns_float_zero(self):
+        r = self._run({"avg_confidence": None})
+        self.assertIsInstance(r["avg_confidence"], float)
+        self.assertAlmostEqual(r["avg_confidence"], 0.0)
+
+    def test_accuracy_delta_none_returns_float_zero(self):
+        r = self._run({"accuracy_delta": None})
+        self.assertIsInstance(r["accuracy_delta"], float)
+        self.assertAlmostEqual(r["accuracy_delta"], 0.0)
+
+    def test_recent_accuracy_none_returns_float_zero(self):
+        r = self._run(learn_overrides={"recent_accuracy": None})
+        self.assertIsInstance(r["recent_accuracy"], float)
+        self.assertAlmostEqual(r["recent_accuracy"], 0.0)
+
+    # ── calibration_ece None → calibration_quality must be None, not 100.0 ──
+
+    def test_calibration_ece_none_yields_calibration_quality_none(self):
+        """When calibration_ece is None (never measured), calibration_quality
+        must be None — not 100.0 (which would be a misleading perfect score)."""
+        r = self._run({"calibration_ece": None})
+        self.assertIsNone(r["calibration_quality"],
+                          "calibration_quality should be None when ECE has never been measured")
+
+    def test_calibration_ece_none_no_arithmetic_crash(self):
+        """No TypeError/ValueError when calibration_ece is None."""
+        try:
+            self._run({"calibration_ece": None})
+        except (TypeError, ValueError) as exc:
+            self.fail(f"calibration arithmetic raised {type(exc).__name__}: {exc}")
+
+    def test_calibration_ece_measured_zero_yields_100(self):
+        """ECE=0.0 (measured perfect calibration) must yield 100.0, not None."""
+        r = self._run({"calibration_ece": 0.0})
+        self.assertIsNotNone(r["calibration_quality"])
+        self.assertAlmostEqual(r["calibration_quality"], 100.0)
+
+    def test_calibration_ece_measured_nonzero_correct(self):
+        """ECE=0.05 must yield (1 - 0.05) * 100 = 95.0."""
+        r = self._run({"calibration_ece": 0.05})
+        self.assertAlmostEqual(r["calibration_quality"], 95.0)
+
+    # ── total_signals: int-safe, None-safe ───────────────────────────────────
+
+    def test_total_signals_none_returns_int_zero(self):
+        """total_signals=None must yield integer 0, not None."""
+        r = self._run({"total_signals": None})
+        self.assertIsInstance(r["total_signals"], int)
+        self.assertEqual(r["total_signals"], 0)
+
+    def test_total_signals_numeric_string_coerced_to_int(self):
+        """total_signals='42' (numeric string) must yield integer 42."""
+        r = self._run({"total_signals": "42"})
+        self.assertIsInstance(r["total_signals"], int)
+        self.assertEqual(r["total_signals"], 42)
+
+    def test_total_signals_float_coerced_to_int(self):
+        """total_signals=30.9 (float) must yield integer 30."""
+        r = self._run({"total_signals": 30.9})
+        self.assertIsInstance(r["total_signals"], int)
+        self.assertEqual(r["total_signals"], 30)
+
+    def test_total_signals_non_numeric_string_returns_zero(self):
+        """Non-numeric total_signals must fall back to 0."""
+        r = self._run({"total_signals": "n/a"})
+        self.assertIsInstance(r["total_signals"], int)
+        self.assertEqual(r["total_signals"], 0)
+
+    def test_total_signals_valid_int_passes_through(self):
+        r = self._run({"total_signals": 50})
+        self.assertEqual(r["total_signals"], 50)
+
+    # ── calibration_ece: optional-safe float contract ────────────────────────
+
+    def test_calibration_ece_none_preserved_as_none(self):
+        """None (never measured) must pass through as None — not coerced to 0.0."""
+        r = self._run({"calibration_ece": None})
+        self.assertIsNone(r["calibration_ece"])
+
+    def test_calibration_ece_valid_float_coerced(self):
+        """A numeric calibration_ece must be returned as float."""
+        r = self._run({"calibration_ece": 0.08})
+        self.assertIsInstance(r["calibration_ece"], float)
+        self.assertAlmostEqual(r["calibration_ece"], 0.08)
+
+    def test_calibration_ece_non_numeric_string_yields_none(self):
+        """Non-numeric garbage (e.g. 'n/a') must yield None, not crash."""
+        try:
+            r = self._run({"calibration_ece": "n/a"})
+        except (TypeError, ValueError) as exc:
+            self.fail(f"calibration_ece non-numeric raised {type(exc).__name__}: {exc}")
+        self.assertIsNone(r["calibration_ece"])
+
+    def test_calibration_ece_integer_coerced_to_float(self):
+        """An integer calibration_ece must be returned as float."""
+        r = self._run({"calibration_ece": 0})
+        self.assertIsInstance(r["calibration_ece"], float)
+        self.assertAlmostEqual(r["calibration_ece"], 0.0)
+
+    # ── valid numeric values still pass through unchanged ────────────────────
+
+    def test_health_score_valid_passes_through(self):
+        r = self._run({"health_score": 82.5})
+        self.assertAlmostEqual(r["health_score"], 82.5)
+
+    def test_prediction_accuracy_valid_passes_through(self):
+        r = self._run({"prediction_accuracy": 71.0})
+        self.assertAlmostEqual(r["prediction_accuracy"], 71.0)
+
+    def test_avg_confidence_valid_passes_through(self):
+        r = self._run({"avg_confidence": 74.0})
+        self.assertAlmostEqual(r["avg_confidence"], 74.0)
+
+    def test_recent_accuracy_valid_passes_through(self):
+        r = self._run(learn_overrides={"recent_accuracy": 69.5})
+        self.assertAlmostEqual(r["recent_accuracy"], 69.5)
 
 
 # ---------------------------------------------------------------------------
