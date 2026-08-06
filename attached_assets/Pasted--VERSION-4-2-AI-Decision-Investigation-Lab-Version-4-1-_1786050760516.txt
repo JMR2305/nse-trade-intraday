@@ -1,0 +1,520 @@
+# VERSION 4.2 – AI Decision Investigation Lab
+
+Version 4.1 is complete.
+
+DO NOT replace any existing replay functionality.
+
+This is an enhancement that transforms the replay engine into a complete AI investigation tool.
+
+=========================================================
+OBJECTIVE
+=========================================================
+
+The replay must allow investigation from TWO perspectives.
+
+1. Trading Day Replay
+   (entire market)
+
+2. Stock Investigation Replay
+   (one individual stock)
+
+Users should be able to understand exactly WHY every stock was:
+
+• Bought
+• Sold
+• Rejected
+• Missed
+• Held
+• Exited
+
+=========================================================
+NEW MODE SELECTOR
+=========================================================
+
+At the top of the page add:
+
+Replay Mode
+
+○ Trading Day Replay
+
+○ Single Stock Investigation
+
+When Single Stock Investigation is selected:
+
+Display
+
+Stock Search
+
+or
+
+Dropdown
+
+Search by
+
+Symbol
+
+Company Name
+
+Sector
+
+=========================================================
+SINGLE STOCK REPLAY
+=========================================================
+
+After selecting a stock, replay ONLY that stock.
+
+Example
+
+RELIANCE
+
+09:15:02
+
+Supervisor
+
+↓
+
+Accepted
+
+09:15:05
+
+Market Scanner
+
+↓
+
+Passed
+
+09:15:08
+
+Research
+
+↓
+
+News
+
+Corporate Events
+
+Sentiment
+
+↓
+
+Passed
+
+09:15:16
+
+Market Intelligence
+
+↓
+
+Bull Regime
+
+Sector Strong
+
+Liquidity Good
+
+↓
+
+Passed
+
+09:15:24
+
+Monitoring
+
+↓
+
+VWAP
+
+EMA
+
+Volume
+
+Momentum
+
+↓
+
+Passed
+
+09:15:35
+
+Strategy
+
+↓
+
+EMA Breakout
+
+Volume Confirmation
+
+ATR
+
+Risk Reward
+
+Strategy Score
+
+↓
+
+Passed
+
+09:15:41
+
+Risk
+
+↓
+
+Capital Check
+
+Sector Exposure
+
+Confidence
+
+Daily Loss
+
+↓
+
+Approved
+
+09:15:45
+
+AI Decision
+
+↓
+
+BUY
+
+Confidence
+
+86%
+
+09:15:46
+
+Execution
+
+↓
+
+BUY Filled
+
+1321.20
+
+Qty
+
+15
+
+09:16 onward
+
+Portfolio
+
+↓
+
+Open Position
+
+↓
+
+Stop Updates
+
+↓
+
+Target Updates
+
+↓
+
+Trailing Stop
+
+↓
+
+SELL
+
+↓
+
+Profit
+
+=========================================================
+ANIMATED AGENT FLOW
+=========================================================
+
+Animate every stage.
+
+Inactive
+
+Grey
+
+Running
+
+Blue
+
+Passed
+
+Green
+
+Rejected
+
+Red
+
+Waiting
+
+Orange
+
+=========================================================
+AGENT EXPLANATION PANEL
+=========================================================
+
+Clicking any stage opens
+
+Inputs
+
+Outputs
+
+Decision
+
+Score
+
+Threshold
+
+Reason
+
+Processing Time
+
+Data Used
+
+Dependencies
+
+=========================================================
+WHY REJECTED?
+=========================================================
+
+If any stage rejects a stock
+
+Highlight that stage.
+
+Example
+
+Risk Agent
+
+Rejected
+
+Reason
+
+Confidence 64%
+
+Minimum Required
+
+70%
+
+Display
+
+Rules Passed
+
+Rules Failed
+
+Suggested Improvement
+
+=========================================================
+MISSED OPPORTUNITY MODE
+=========================================================
+
+Add a dedicated tab
+
+Missed Opportunities
+
+Display
+
+Stock
+
+Rejected By
+
+Reason
+
+Future Price Movement
+
+Potential Profit
+
+Would Current Rules Reject Again?
+
+YES
+
+NO
+
+If NO
+
+Highlight
+
+Candidate for AI Improvement
+
+=========================================================
+BUY/SELL TIMELINE
+=========================================================
+
+For approved trades
+
+Display
+
+BUY
+
+Entry Price
+
+Entry Time
+
+Capital Used
+
+Running P&L
+
+Highest Price
+
+Lowest Price
+
+Stop Adjustments
+
+Target Adjustments
+
+SELL
+
+Exit Price
+
+Exit Time
+
+Exit Reason
+
+Net P&L
+
+Holding Duration
+
+=========================================================
+AI THINKING PANEL
+=========================================================
+
+Every agent should explain
+
+Why it accepted
+
+or
+
+Why it rejected
+
+Example
+
+Strategy Agent
+
+Accepted because
+
+EMA Alignment
+
+Volume Spike
+
+Momentum
+
+VWAP Breakout
+
+Example
+
+Risk Agent
+
+Rejected because
+
+Confidence
+
+62%
+
+Minimum
+
+70%
+
+=========================================================
+TIME MACHINE
+=========================================================
+
+Allow pausing replay
+
+Click any stage
+
+Inspect pipeline
+
+Continue replay
+
+Step Forward
+
+Step Backward
+
+Jump To Agent
+
+Jump To Time
+
+=========================================================
+COMPARE TWO STOCKS
+=========================================================
+
+Allow selecting
+
+Stock A
+
+Stock B
+
+Compare
+
+Agent Scores
+
+Decision Path
+
+Risk
+
+Execution
+
+Final Result
+
+=========================================================
+END OF REPLAY REPORT
+=========================================================
+
+Generate
+
+AI Verdict
+
+Decision Quality
+
+Risk Quality
+
+Execution Quality
+
+Missed Opportunities
+
+False Positives
+
+False Negatives
+
+Pipeline Bottleneck
+
+Best Performing Agent
+
+Worst Performing Agent
+
+Overall AI Rating
+
+=========================================================
+DESIGN
+=========================================================
+
+Keep current ApexQuant AI design.
+
+Do not replace existing replay.
+
+Enhance it.
+
+Use animations.
+
+Smooth transitions.
+
+Timeline effects.
+
+Agent highlighting.
+
+Professional investigation dashboard.
+
+=========================================================
+IMPORTANT
+=========================================================
+
+This page should become the primary debugging and AI validation tool.
+
+Every AI decision must be explainable.
+
+Every rejection must be transparent.
+
+Every BUY and SELL must be traceable.
+
+Users should feel like they are replaying the AI's thought process exactly as it happened.

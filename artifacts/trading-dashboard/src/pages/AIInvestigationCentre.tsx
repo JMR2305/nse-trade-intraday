@@ -1,12 +1,13 @@
 /**
- * AIInvestigationCentre.tsx — Version 4.1: AI Investigation & Trading Day Replay
+ * AIInvestigationCentre.tsx — Version 4.2: AI Decision Investigation Lab
  *
  * "Digital twin" of the trading engine.  Replays an entire scan day through
  * all 10 AI agents — animated, inspectable, fully backed by real historical data.
  * v4.1 adds: Portfolio / Trade Management stage, equity curve, trade drilldowns,
- * end-of-day summary, and pipeline count consistency validation.
- *
- * Tabs: Pipeline Replay | Investigation Mode | Missed Opportunities | Filters
+ *             end-of-day summary, pipeline count consistency validation.
+ * v4.2 adds: Single-Stock Investigation mode, animated per-stock agent pipeline,
+ *             Agent Explanation Panel, Why Rejected? highlight, AI Thinking panel,
+ *             Compare Two Stocks, Time Machine step controls, End-of-Replay Report.
  */
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
@@ -19,7 +20,10 @@ import {
   XCircle, Eye, Brain, BarChart3, Layers, Zap, Target,
   Search, Filter, Calendar, SkipForward, Activity,
   Shield, Cpu, Gauge, ChevronDown, ChevronUp, Award,
-  ArrowRight, Wallet, DollarSign, X, BarChart2, Percent,
+  ArrowRight, Wallet, DollarSign, X, BarChart2,
+  GitCompare, BookOpen, ChevronRight, Sparkles, Users,
+  StepForward, StepBack, FileText, Lightbulb, Database,
+  Link2, Timer, ThumbsUp, ThumbsDown,
 } from "lucide-react";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -130,6 +134,8 @@ interface PipelineValidationError {
   severity: "error" | "warn";
 }
 
+type PageMode = "trading_day" | "single_stock" | "compare";
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
@@ -151,6 +157,77 @@ const PIPELINE_STAGES = [
 const STARTING_CAPITAL = 100_000;
 /** Per-trade capital allocation (₹ per position). */
 const TRADE_ALLOCATION = 10_000;
+
+/** Simulated seconds-after-session-open for each pipeline stage. */
+const STAGE_OFFSETS_S: Record<string, number> = {
+  supervisor: 2, market_data: 5, research: 8, market_intelligence: 16,
+  monitoring: 24, strategy: 35, risk: 41, ai_decision: 45,
+  execution: 46, portfolio_management: 61,
+};
+
+/** Static per-agent metadata for the explanation panel. */
+const STAGE_META: Record<string, { inputs: string[]; outputs: string[]; dependencies: string[]; data_used: string[] }> = {
+  supervisor: {
+    inputs: ["Market schedule", "Scan configuration", "Feature flags"],
+    outputs: ["Session ID", "Universe list", "Pipeline config"],
+    dependencies: [],
+    data_used: ["NSE calendar", "Config DB", "Feature store"],
+  },
+  market_data: {
+    inputs: ["Universe list (N symbols)", "Data quality thresholds"],
+    outputs: ["Filtered symbols", "OHLCV data", "Data quality scores"],
+    dependencies: ["Supervisor"],
+    data_used: ["Kite API", "Yahoo Finance", "NSE Official"],
+  },
+  research: {
+    inputs: ["Filtered symbols", "News sources"],
+    outputs: ["Sentiment scores", "Corporate events", "News flags"],
+    dependencies: ["Market Scanner"],
+    data_used: ["News feeds", "Corporate action calendar", "Earnings DB"],
+  },
+  market_intelligence: {
+    inputs: ["Market data", "Sector weights"],
+    outputs: ["Regime classification", "Sector strength", "Liquidity score"],
+    dependencies: ["Market Scanner", "Research"],
+    data_used: ["Nifty index data", "Sector ETFs", "Order book depth"],
+  },
+  monitoring: {
+    inputs: ["OHLCV data", "Indicator parameters"],
+    outputs: ["VWAP", "EMA signal", "RSI", "Volume ratio", "Momentum score"],
+    dependencies: ["Market Intelligence"],
+    data_used: ["Tick data", "Derived indicator cache"],
+  },
+  strategy: {
+    inputs: ["Technical indicators", "Historical patterns"],
+    outputs: ["Strategy match", "Strategy score", "Risk:Reward estimate"],
+    dependencies: ["Monitoring"],
+    data_used: ["Strategy library", "Historical backtest results"],
+  },
+  risk: {
+    inputs: ["Strategy output", "Portfolio state", "Risk limits"],
+    outputs: ["Risk approval / rejection", "Gate results", "Adjusted qty"],
+    dependencies: ["Strategy", "Portfolio DB"],
+    data_used: ["Portfolio snapshot", "Risk config", "Sector exposure map"],
+  },
+  ai_decision: {
+    inputs: ["All agent scores", "Confidence threshold"],
+    outputs: ["BUY / SELL / WATCH / AVOID", "Confidence %", "Explanation"],
+    dependencies: ["Risk", "Strategy", "Market Intelligence"],
+    data_used: ["Score aggregator", "Decision model weights"],
+  },
+  execution: {
+    inputs: ["AI decision", "Order parameters"],
+    outputs: ["Paper order", "Fill price", "Quantity", "Order ID"],
+    dependencies: ["AI Decision"],
+    data_used: ["Paper broker", "Mock order book"],
+  },
+  portfolio_management: {
+    inputs: ["Open positions", "Trailing stop config"],
+    outputs: ["Unrealized P&L", "Exit signals", "Portfolio summary"],
+    dependencies: ["Execution"],
+    data_used: ["Position store", "Price feed", "Stop-loss engine"],
+  },
+};
 
 const SPEEDS = [0.25, 0.5, 1, 2, 4, 8];
 const BASE_DELAY_MS = 2000;
@@ -208,7 +285,856 @@ function pctColor(v: number | null) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Sub-components
+// v4.2 helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+function stockStageColor(result: "PASS" | "FAIL" | "WARN" | null, isActive: boolean) {
+  if (isActive) return { bg: "bg-blue-500/20",    border: "border-blue-400",   text: "text-blue-300",   dot: "bg-blue-400",    badge: "Running…",  ring: "ring-blue-400/30" };
+  switch (result) {
+    case "PASS": return { bg: "bg-emerald-500/10", border: "border-emerald-500", text: "text-emerald-400", dot: "bg-emerald-400", badge: "Passed",    ring: "" };
+    case "FAIL": return { bg: "bg-red-500/15",     border: "border-red-500",     text: "text-red-400",    dot: "bg-red-400",     badge: "Rejected",  ring: "ring-red-500/20" };
+    case "WARN": return { bg: "bg-amber-500/10",   border: "border-amber-500",   text: "text-amber-400",  dot: "bg-amber-400",   badge: "Warning",   ring: "" };
+    default:     return { bg: "bg-slate-800/40",   border: "border-slate-700",   text: "text-slate-500",  dot: "bg-slate-600",   badge: "Pending",   ring: "" };
+  }
+}
+
+function stageTimestamp(snapshotTs: string | undefined, stageId: string) {
+  if (!snapshotTs) return "—";
+  try {
+    const base = new Date(snapshotTs);
+    const offset = STAGE_OFFSETS_S[stageId] ?? 0;
+    const t = new Date(base.getTime() + offset * 1000);
+    return t.toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  } catch { return "—"; }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mode Selector Bar
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ModeSelectorBar({ mode, onChange }: { mode: PageMode; onChange: (m: PageMode) => void }) {
+  const modes: { id: PageMode; label: string; icon: typeof Microscope; desc: string }[] = [
+    { id: "trading_day",    label: "Trading Day Replay",      icon: Calendar,    desc: "Full market session pipeline" },
+    { id: "single_stock",   label: "Single Stock Investigation", icon: Microscope, desc: "Deep-dive one symbol" },
+    { id: "compare",        label: "Compare Two Stocks",      icon: GitCompare,  desc: "Side-by-side decision path" },
+  ];
+  return (
+    <div className="flex flex-col sm:flex-row gap-2">
+      {modes.map(m => {
+        const Icon = m.icon;
+        const active = mode === m.id;
+        return (
+          <button
+            key={m.id}
+            onClick={() => onChange(m.id)}
+            className={`flex-1 flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left
+              ${active
+                ? "bg-teal-900/30 border-teal-500 shadow-lg shadow-teal-900/20"
+                : "bg-slate-800/40 border-slate-700 hover:border-slate-500 hover:bg-slate-800/60"
+              }`}
+          >
+            <Icon size={16} className={active ? "text-teal-400" : "text-slate-500"} />
+            <div>
+              <div className={`text-sm font-semibold ${active ? "text-teal-300" : "text-slate-400"}`}>{m.label}</div>
+              <div className="text-xs text-slate-600">{m.desc}</div>
+            </div>
+            {active && <div className="ml-auto w-2 h-2 rounded-full bg-teal-400" />}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Agent Explanation Panel (v4.2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function AgentExplanationPanel({
+  stageId,
+  step,
+  thinking,
+}: {
+  stageId: string;
+  step?: JourneyStep;
+  thinking?: Record<string, unknown>;
+}) {
+  const meta = STAGE_META[stageId];
+  const stageConfig = PIPELINE_STAGES.find(s => s.id === stageId);
+  const Icon = stageConfig?.icon ?? Brain;
+
+  const agentThinking = thinking?.[`${stageId}_agent`] as Record<string, unknown> | undefined
+    ?? thinking?.[stageId] as Record<string, unknown> | undefined;
+
+  const isRejected = step?.result === "FAIL";
+  const indicatorData = (agentThinking?.indicators ?? agentThinking?.gates) as Record<string, unknown> | undefined;
+
+  // Derive suggested improvement for rejections
+  function suggestImprovement(reason: string): string {
+    const r = reason.toLowerCase();
+    if (r.includes("confidence")) return "Lower the confidence threshold or collect more data points to calibrate the model.";
+    if (r.includes("volume"))     return "Relax the volume gate during low-liquidity market conditions.";
+    if (r.includes("rr") || r.includes("reward")) return "Adjust target/stop ratio for this strategy to meet the minimum R:R.";
+    if (r.includes("exposure"))   return "Reduce position size or close an existing position in the same sector first.";
+    if (r.includes("drawdown"))   return "Daily loss limit reached — wait for a new session or increase the limit.";
+    if (r.includes("data quality")) return "Improve data provider reliability or lower the minimum quality threshold.";
+    return "Review the gate parameters and compare against historical false-rejection rates.";
+  }
+
+  return (
+    <div className="bg-slate-900/70 border border-slate-700/60 rounded-xl overflow-hidden">
+      {/* Header */}
+      <div className={`px-4 py-3 flex items-center gap-3 border-b ${isRejected ? "border-red-700/40 bg-red-900/20" : "border-slate-700/40 bg-slate-800/40"}`}>
+        <Icon size={16} className={isRejected ? "text-red-400" : "text-teal-400"} />
+        <div>
+          <div className="text-sm font-semibold text-slate-200">{stageConfig?.label ?? stageId}</div>
+          <div className="text-xs text-slate-500">{stageConfig?.desc}</div>
+        </div>
+        {step && (
+          <span className={`ml-auto px-2 py-0.5 rounded text-xs font-bold border ${
+            step.result === "PASS" ? "bg-emerald-900/30 border-emerald-600/40 text-emerald-400" :
+            step.result === "FAIL" ? "bg-red-900/30 border-red-600/40 text-red-400" :
+            "bg-amber-900/30 border-amber-600/40 text-amber-400"
+          }`}>{step.result}</span>
+        )}
+      </div>
+
+      <div className="p-4 space-y-4">
+        {/* Decision & Score */}
+        {step && (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-slate-800/60 rounded-lg p-3">
+              <div className="text-xs text-slate-500 mb-1 flex items-center gap-1"><ThumbsUp size={10} /> Decision</div>
+              <div className={`text-sm font-bold ${step.result === "PASS" ? "text-emerald-400" : "text-red-400"}`}>
+                {step.result === "PASS" ? "Accepted" : step.result === "FAIL" ? "Rejected" : "Warning"}
+              </div>
+            </div>
+            <div className="bg-slate-800/60 rounded-lg p-3">
+              <div className="text-xs text-slate-500 mb-1 flex items-center gap-1"><BarChart2 size={10} /> Score</div>
+              <div className="text-sm font-bold text-slate-200">{step.score != null ? step.score : "—"}</div>
+              {step.detail?.threshold != null && (
+                <div className="text-xs text-slate-500">Threshold: {String(step.detail.threshold)}</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Reason */}
+        {step?.reason && (
+          <div className={`rounded-lg p-3 ${isRejected ? "bg-red-900/20 border border-red-700/30" : "bg-slate-800/50"}`}>
+            <div className="text-xs text-slate-500 mb-1 flex items-center gap-1"><FileText size={10} /> Reason</div>
+            <p className={`text-sm ${isRejected ? "text-red-300" : "text-slate-300"}`}>{step.reason}</p>
+          </div>
+        )}
+
+        {/* Why Rejected — rules passed/failed + suggestion */}
+        {isRejected && (
+          <div className="bg-red-900/20 border border-red-700/30 rounded-xl p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <XCircle size={14} className="text-red-400" />
+              <span className="text-sm font-semibold text-red-300">Why Rejected?</span>
+            </div>
+            {indicatorData && (
+              <div className="space-y-1">
+                <div className="text-xs text-slate-500 mb-2">Gate Results</div>
+                {Object.entries(indicatorData).map(([k, v]) => {
+                  const passed = typeof v === "boolean" ? v : (typeof v === "number" && v > 0);
+                  return (
+                    <div key={k} className={`flex items-center justify-between px-3 py-1.5 rounded text-xs ${passed ? "bg-emerald-900/20" : "bg-red-900/20"}`}>
+                      <span className={passed ? "text-slate-300" : "text-red-300 font-medium"}>{k.replace(/_/g, " ")}</span>
+                      <span className={`flex items-center gap-1 ${passed ? "text-emerald-400" : "text-red-400"}`}>
+                        {passed ? <CheckCircle2 size={10} /> : <XCircle size={10} />}
+                        {typeof v !== "boolean" ? String(v) : null}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <div className="bg-amber-900/20 border border-amber-700/30 rounded-lg p-3">
+              <div className="text-xs text-amber-400 flex items-center gap-1 mb-1"><Lightbulb size={11} /> Suggested Improvement</div>
+              <p className="text-xs text-amber-300">{suggestImprovement(step?.reason ?? "")}</p>
+            </div>
+          </div>
+        )}
+
+        {/* AI Thinking */}
+        {agentThinking && (
+          <div className="bg-slate-800/50 rounded-lg p-3">
+            <div className="text-xs text-slate-500 mb-2 flex items-center gap-1"><Brain size={10} /> AI Thinking</div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {Object.entries(agentThinking)
+                .filter(([k, v]) => v != null && k !== "gates" && k !== "indicators" && typeof v !== "object")
+                .map(([k, v]) => (
+                  <div key={k} className="bg-slate-900/50 rounded p-2">
+                    <div className="text-xs text-slate-600">{k.replace(/_/g, " ")}</div>
+                    <div className="text-xs text-slate-300 font-mono truncate">{String(v)}</div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+
+        {/* Detail from step */}
+        {step?.detail && Object.keys(step.detail).length > 0 && (
+          <div className="bg-slate-800/50 rounded-lg p-3">
+            <div className="text-xs text-slate-500 mb-2 flex items-center gap-1"><Database size={10} /> Data Used</div>
+            <div className="space-y-1">
+              {Object.entries(step.detail).filter(([, v]) => v != null).map(([k, v]) => (
+                <div key={k} className="flex justify-between text-xs">
+                  <span className="text-slate-500">{k.replace(/_/g, " ")}</span>
+                  <span className="text-slate-300 font-mono">{String(v)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Static meta: inputs / outputs / dependencies */}
+        {meta && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="bg-slate-800/50 rounded-lg p-3">
+              <div className="text-xs text-slate-500 mb-2 flex items-center gap-1"><ChevronRight size={10} /> Inputs</div>
+              <ul className="space-y-0.5">
+                {meta.inputs.map(i => <li key={i} className="text-xs text-slate-400 flex items-center gap-1"><div className="w-1 h-1 bg-slate-600 rounded-full flex-shrink-0" />{i}</li>)}
+              </ul>
+            </div>
+            <div className="bg-slate-800/50 rounded-lg p-3">
+              <div className="text-xs text-slate-500 mb-2 flex items-center gap-1"><ChevronRight size={10} /> Outputs</div>
+              <ul className="space-y-0.5">
+                {meta.outputs.map(o => <li key={o} className="text-xs text-slate-400 flex items-center gap-1"><div className="w-1 h-1 bg-teal-700 rounded-full flex-shrink-0" />{o}</li>)}
+              </ul>
+            </div>
+          </div>
+        )}
+        {meta?.dependencies && meta.dependencies.length > 0 && (
+          <div className="bg-slate-800/50 rounded-lg p-3">
+            <div className="text-xs text-slate-500 mb-2 flex items-center gap-1"><Link2 size={10} /> Dependencies</div>
+            <div className="flex flex-wrap gap-1.5">
+              {meta.dependencies.map(d => (
+                <span key={d} className="px-2 py-0.5 bg-slate-700 border border-slate-600 rounded text-xs text-slate-300">{d}</span>
+              ))}
+            </div>
+          </div>
+        )}
+        {step && (
+          <div className="flex items-center gap-2 text-xs text-slate-600">
+            <Timer size={11} />
+            <span>Processing time: ~{STAGE_OFFSETS_S[stageId] ?? 1}s estimated</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Single Stock Replay View (v4.2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function SingleStockReplayView({
+  symbols,
+  selectedSymbol,
+  onSelectSymbol,
+  journeyData,
+  journeyLoading,
+  snapshotTs,
+}: {
+  symbols: SymbolRow[];
+  selectedSymbol: string | null;
+  onSelectSymbol: (s: string) => void;
+  journeyData?: SymbolJourney;
+  journeyLoading: boolean;
+  snapshotTs: string | undefined;
+}) {
+  const [search, setSearch]     = useState("");
+  const [field, setField]       = useState<"symbol" | "sector">("symbol");
+  const [stageIdx, setStageIdx] = useState(-1);
+  const [playState, setPlayState] = useState<"idle" | "playing" | "paused" | "complete">("idle");
+  const [focusStage, setFocusStage] = useState<string | null>(null);
+  const [speed, setSpeed]       = useState(1);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Reset playback when symbol changes
+  useEffect(() => {
+    setStageIdx(-1); setPlayState("idle"); setFocusStage(null);
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+  }, [selectedSymbol]);
+
+  const journeySteps = journeyData?.journey ?? [];
+  const totalSteps = journeySteps.length + 1; // +1 for portfolio_management
+
+  const stopTimer = () => { if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; } };
+
+  const startTimer = useCallback(() => {
+    stopTimer();
+    timerRef.current = setInterval(() => {
+      setStageIdx(prev => {
+        const next = prev + 1;
+        if (next >= totalSteps) { setPlayState("complete"); stopTimer(); return totalSteps - 1; }
+        return next;
+      });
+    }, 1800 / speed);
+  }, [speed, totalSteps]);
+
+  const handlePlay = () => {
+    if (playState === "complete") setStageIdx(-1);
+    setPlayState("playing"); startTimer();
+  };
+  const handlePause  = () => { stopTimer(); setPlayState("paused"); };
+  const handleStop   = () => { stopTimer(); setPlayState("idle");   setStageIdx(-1); setFocusStage(null); };
+  const handleStepFwd = () => {
+    stopTimer(); setPlayState("paused");
+    setStageIdx(p => { const n = Math.min(p + 1, totalSteps - 1); return n; });
+  };
+  const handleStepBack = () => {
+    stopTimer(); setPlayState("paused");
+    setStageIdx(p => Math.max(p - 1, -1));
+  };
+
+  useEffect(() => { if (playState === "playing") startTimer(); }, [speed]); // eslint-disable-line
+  useEffect(() => () => stopTimer(), []);
+
+  const filtered = symbols.filter(s => {
+    if (!search) return true;
+    if (field === "symbol")  return s.symbol.toLowerCase().includes(search.toLowerCase());
+    if (field === "sector")  return (s.sector ?? "").toLowerCase().includes(search.toLowerCase());
+    return true;
+  });
+
+  const journeyMap = Object.fromEntries(journeySteps.map(s => [s.stage, s]));
+
+  const rec = journeyData?.recommendation;
+  const paperTrade = journeyData?.paper_trade as Record<string, unknown> | null | undefined;
+  const thinking   = journeyData?.thinking as Record<string, unknown> | undefined;
+
+  return (
+    <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
+      {/* ── Left: Stock Search ── */}
+      <div className="xl:col-span-1 space-y-3">
+        <div className="flex items-center gap-2 mb-2">
+          <Search size={13} className="text-teal-400" />
+          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Stock Search</span>
+        </div>
+        {/* Field selector */}
+        <div className="flex gap-1">
+          {(["symbol", "sector"] as const).map(f => (
+            <button key={f} onClick={() => setField(f)}
+              className={`flex-1 py-1 text-xs rounded transition-all ${field === f ? "bg-teal-700 text-white" : "bg-slate-700 text-slate-400 hover:bg-slate-600"}`}>
+              {f === "symbol" ? "Symbol" : "Sector"}
+            </button>
+          ))}
+        </div>
+        <div className="relative">
+          <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Search by ${field}…`}
+            className="w-full pl-7 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300" />
+        </div>
+        <div className="space-y-1.5 max-h-[55vh] overflow-y-auto">
+          {filtered.map(sym => (
+            <button key={sym.symbol} onClick={() => onSelectSymbol(sym.symbol)}
+              className={`w-full text-left px-3 py-2.5 rounded-lg border transition-all
+                ${selectedSymbol === sym.symbol
+                  ? "bg-teal-900/20 border-teal-500 text-teal-300"
+                  : "bg-slate-800/50 border-slate-700/50 text-slate-300 hover:border-slate-500"}`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-mono font-semibold text-sm">{sym.symbol}</span>
+                <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                  sym.final_action === "BUY"   ? "bg-emerald-500/20 text-emerald-400" :
+                  sym.final_action === "AVOID" ? "bg-red-500/20 text-red-400" :
+                  sym.final_action === "WATCH" ? "bg-amber-500/20 text-amber-400" :
+                  "bg-slate-700 text-slate-400"}`}>{sym.final_action ?? "?"}</span>
+              </div>
+              <div className="text-xs text-slate-500 mt-0.5 truncate">{sym.sector ?? "—"} · {sym.confidence}%</div>
+            </button>
+          ))}
+          {filtered.length === 0 && <div className="text-center py-6 text-slate-600 text-sm">No symbols match</div>}
+        </div>
+      </div>
+
+      {/* ── Right: Animated Pipeline + Detail ── */}
+      <div className="xl:col-span-3 space-y-4">
+        {!selectedSymbol && (
+          <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-16 text-center">
+            <Microscope size={48} className="mx-auto text-slate-700 mb-4" />
+            <p className="text-slate-400 text-sm font-medium">Select a stock to begin investigation</p>
+            <p className="text-slate-600 text-xs mt-2">The AI pipeline will replay every decision made for that symbol</p>
+          </div>
+        )}
+
+        {selectedSymbol && (
+          <>
+            {/* Stock header */}
+            {journeyData && (
+              <div className="bg-slate-900/60 border border-slate-700/60 rounded-xl p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="text-2xl font-bold font-mono text-slate-100">{journeyData.symbol}</div>
+                    <div className="text-sm text-slate-500">{journeyData.sector ?? "Unknown sector"}</div>
+                  </div>
+                  <div className="text-right">
+                    <span className={`px-4 py-2 rounded-xl text-base font-bold ${
+                      rec?.final_action === "BUY"   ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" :
+                      rec?.final_action === "AVOID" ? "bg-red-500/20 text-red-400 border border-red-500/40" :
+                      rec?.final_action === "WATCH" ? "bg-amber-500/20 text-amber-400 border border-amber-500/40" :
+                      "bg-slate-700 text-slate-400 border border-slate-600"}`}>
+                      {rec?.final_action ?? "—"}
+                    </span>
+                    <div className="text-xs text-slate-500 mt-1">{rec?.confidence ?? 0}% confidence</div>
+                  </div>
+                </div>
+                {rec && (
+                  <div className="grid grid-cols-4 gap-2 mt-4">
+                    {[
+                      { l: "Entry",    v: rec.entry_price   != null ? `₹${rec.entry_price.toFixed(1)}`   : "—" },
+                      { l: "Stop",     v: rec.stop_loss     != null ? `₹${rec.stop_loss.toFixed(1)}`     : "—" },
+                      { l: "Target",   v: rec.target_price  != null ? `₹${rec.target_price.toFixed(1)}`  : "—" },
+                      { l: "R:R",      v: rec.rr_ratio      != null ? `${rec.rr_ratio.toFixed(1)}:1`     : "—" },
+                    ].map(item => (
+                      <div key={item.l} className="bg-slate-800/60 rounded-lg p-2 text-center">
+                        <div className="text-xs text-slate-500">{item.l}</div>
+                        <div className="text-sm font-mono font-semibold text-slate-200">{item.v}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {journeyLoading && (
+              <div className="text-center py-12 text-slate-500 animate-pulse">Loading journey for {selectedSymbol}…</div>
+            )}
+
+            {!journeyLoading && journeyData && (
+              <>
+                {/* Time Machine controls */}
+                <div className="flex items-center gap-2 flex-wrap bg-slate-900/40 border border-slate-800 rounded-xl px-4 py-3">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-2 flex items-center gap-1">
+                    <Timer size={11} /> Time Machine
+                  </span>
+                  <button onClick={handleStepBack} disabled={stageIdx < 0}
+                    className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300 disabled:opacity-30 transition-all">
+                    <StepBack size={14} />
+                  </button>
+                  <button
+                    onClick={playState === "playing" ? handlePause : handlePlay}
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                      playState === "playing" ? "bg-amber-600 hover:bg-amber-700 text-white" : "bg-teal-600 hover:bg-teal-700 text-white"}`}>
+                    {playState === "playing" ? <Pause size={14} /> : <Play size={14} />}
+                    {playState === "playing" ? "Pause" : playState === "paused" ? "Resume" : "Play"}
+                  </button>
+                  <button onClick={handleStepFwd} disabled={stageIdx >= totalSteps - 1}
+                    className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300 disabled:opacity-30 transition-all">
+                    <StepForward size={14} />
+                  </button>
+                  <button onClick={handleStop}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm text-slate-300 transition-all">
+                    <Square size={13} /> Reset
+                  </button>
+                  <div className="flex gap-1 ml-2">
+                    {[0.5, 1, 2, 4].map(s => (
+                      <button key={s} onClick={() => setSpeed(s)}
+                        className={`px-2 py-1 rounded text-xs font-mono ${speed === s ? "bg-teal-600 text-white" : "bg-slate-700 text-slate-400 hover:bg-slate-600"}`}>
+                        {s}x
+                      </button>
+                    ))}
+                  </div>
+                  {/* Jump to agent */}
+                  <select onChange={e => {
+                    const idx = PIPELINE_STAGES.findIndex(s => s.id === e.target.value);
+                    if (idx >= 0) { stopTimer(); setPlayState("paused"); setStageIdx(idx); setFocusStage(e.target.value); }
+                    e.target.value = "";
+                  }} defaultValue=""
+                    className="ml-auto bg-slate-800 border border-slate-600 rounded px-2 py-1.5 text-xs text-slate-300">
+                    <option value="" disabled>Jump to Agent…</option>
+                    {PIPELINE_STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                  </select>
+                  <div className="text-xs text-slate-600">
+                    {playState === "playing" && <span className="text-blue-400 animate-pulse">● Stage {stageIdx + 1}/{totalSteps}</span>}
+                    {playState === "complete" && <span className="text-emerald-400">✓ Complete</span>}
+                  </div>
+                </div>
+
+                {/* Animated pipeline */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {/* Left: timeline */}
+                  <div className="space-y-0">
+                    {PIPELINE_STAGES.map((cfg, i) => {
+                      const step = journeyMap[cfg.id];
+                      const result = step?.result ?? null;
+                      const isActive = i === stageIdx && playState === "playing";
+                      const isPast   = i < stageIdx || playState === "complete";
+                      const c = stockStageColor(isPast ? result : null, isActive);
+                      const Icon = cfg.icon;
+                      const ts = stageTimestamp(snapshotTs, cfg.id);
+                      return (
+                        <div key={cfg.id} className="flex flex-col items-start">
+                          {i > 0 && (
+                            <div className={`ml-5 w-0.5 h-4 transition-all duration-700 ${isPast || isActive ? "bg-teal-500/50" : "bg-slate-800"}`} />
+                          )}
+                          <button
+                            onClick={() => setFocusStage(focusStage === cfg.id ? null : cfg.id)}
+                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all duration-500 text-left
+                              ${c.bg} ${c.border} ${c.ring ? `ring-1 ${c.ring}` : ""}
+                              ${isActive ? "shadow-lg" : ""} hover:brightness-110`}
+                          >
+                            <div className="relative flex-shrink-0">
+                              {isActive && <div className={`w-2.5 h-2.5 rounded-full ${c.dot} animate-ping absolute`} />}
+                              <div className={`w-2.5 h-2.5 rounded-full ${c.dot}`} />
+                            </div>
+                            <Icon size={14} className={c.text} />
+                            <div className="flex-1 min-w-0">
+                              <div className={`text-sm font-semibold ${c.text}`}>{cfg.label}</div>
+                              {(isPast || isActive) && step?.reason && (
+                                <div className="text-xs text-slate-500 truncate mt-0.5">{step.reason.slice(0, 60)}{step.reason.length > 60 ? "…" : ""}</div>
+                              )}
+                            </div>
+                            <div className="flex-shrink-0 text-right">
+                              <div className="text-xs text-slate-600 font-mono">{isPast || isActive ? ts : ""}</div>
+                              {(isPast || isActive) && (
+                                <span className={`text-xs font-semibold ${c.text}`}>{c.badge}</span>
+                              )}
+                            </div>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Right: Agent explanation panel */}
+                  <div>
+                    {focusStage ? (
+                      <AgentExplanationPanel
+                        stageId={focusStage}
+                        step={journeyMap[focusStage]}
+                        thinking={thinking}
+                      />
+                    ) : (
+                      <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-8 text-center">
+                        <Eye size={28} className="mx-auto text-slate-700 mb-3" />
+                        <p className="text-slate-500 text-sm">Click any stage to inspect its decision</p>
+                        <p className="text-slate-600 text-xs mt-1">Score · Threshold · Reason · AI Thinking · Inputs · Outputs</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* BUY/SELL Timeline */}
+                {paperTrade && (
+                  <div className="bg-slate-900/60 border border-teal-700/30 rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-4">
+                      <TrendingUp size={14} className="text-teal-400" />
+                      <h4 className="text-sm font-semibold text-teal-300">BUY / SELL Timeline</h4>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {[
+                        { l: "Entry Price",     v: paperTrade.price        != null ? `₹${Number(paperTrade.price).toFixed(2)}`    : "—" },
+                        { l: "Entry Time",      v: stageTimestamp(snapshotTs, "execution") },
+                        { l: "Capital Used",    v: paperTrade.capital_used != null ? `₹${Number(paperTrade.capital_used).toFixed(0)}` : "—" },
+                        { l: "Quantity",        v: String(paperTrade.qty ?? "—") },
+                        { l: "Stop Loss",       v: rec?.stop_loss  != null ? `₹${rec.stop_loss.toFixed(2)}`   : "—" },
+                        { l: "Target",          v: rec?.target_price != null ? `₹${rec.target_price.toFixed(2)}` : "—" },
+                        { l: "Exit Time",       v: paperTrade.exit_ts    ? stageTimestamp(String(paperTrade.exit_ts), "portfolio_management") : "Open" },
+                        { l: "Exit Reason",     v: String(paperTrade.exit_reason ?? "Open") },
+                      ].map(item => (
+                        <div key={item.l} className="bg-slate-800/60 rounded-lg p-2.5">
+                          <div className="text-xs text-slate-500">{item.l}</div>
+                          <div className="text-sm font-mono font-semibold text-slate-200">{item.v}</div>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Running P&L placeholder */}
+                    <div className="mt-3 p-3 bg-slate-800/40 rounded-lg">
+                      <div className="text-xs text-slate-500 mb-1">Net P&L (running)</div>
+                      <div className="text-lg font-bold text-slate-300">
+                        {paperTrade.pnl != null ? (
+                          <span className={(paperTrade.pnl as number) >= 0 ? "text-emerald-400" : "text-red-400"}>
+                            {(paperTrade.pnl as number) >= 0 ? "+" : ""}₹{Number(paperTrade.pnl).toFixed(2)}
+                          </span>
+                        ) : "Position open"}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* End of replay report (shown when complete) */}
+                {playState === "complete" && (
+                  <SingleStockEndReport journeyData={journeyData} />
+                )}
+              </>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SingleStockEndReport({ journeyData }: { journeyData: SymbolJourney }) {
+  const steps = journeyData.journey;
+  const passed  = steps.filter(s => s.result === "PASS").length;
+  const failed  = steps.filter(s => s.result === "FAIL").length;
+  const bottleneck = steps.find(s => s.result === "FAIL")?.label ?? "None";
+  const bestAgent  = steps.reduce((best, s) => (s.score ?? 0) > (best.score ?? 0) ? s : best, steps[0])?.label ?? "—";
+  const worstAgent = steps.find(s => s.result === "FAIL")?.label ?? steps.reduce((w, s) => (s.score ?? 100) < (w.score ?? 100) ? s : w, steps[0])?.label ?? "—";
+  const finalAction = journeyData.recommendation.final_action;
+  const isApproved  = finalAction === "BUY";
+  const overallRating = isApproved ? (journeyData.recommendation.confidence ?? 0) : 0;
+
+  return (
+    <div className="bg-slate-900/60 border border-slate-700/40 rounded-xl p-4">
+      <div className="flex items-center gap-2 mb-4">
+        <Sparkles size={14} className="text-teal-400" />
+        <h4 className="text-sm font-semibold text-slate-200">End-of-Replay Report</h4>
+        <span className={`ml-auto px-3 py-1 rounded-lg text-sm font-bold border ${
+          isApproved ? "bg-emerald-900/30 border-emerald-600/40 text-emerald-400" : "bg-red-900/30 border-red-600/40 text-red-400"}`}>
+          AI Verdict: {finalAction ?? "UNKNOWN"}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+        {[
+          { l: "Decision Quality",    v: isApproved ? "High"   : "Low",    color: isApproved ? "text-emerald-400" : "text-red-400" },
+          { l: "Risk Quality",        v: steps.find(s => s.stage === "risk")?.result === "PASS" ? "Approved" : "Rejected", color: steps.find(s => s.stage === "risk")?.result === "PASS" ? "text-emerald-400" : "text-red-400" },
+          { l: "Stages Passed",       v: `${passed} / ${steps.length}`,    color: "text-teal-400" },
+          { l: "Overall AI Rating",   v: `${overallRating}%`,              color: overallRating >= 70 ? "text-emerald-400" : "text-red-400" },
+        ].map(item => (
+          <div key={item.l} className="bg-slate-800/60 rounded-lg p-3 text-center">
+            <div className="text-xs text-slate-500 mb-1">{item.l}</div>
+            <div className={`text-sm font-bold ${item.color}`}>{item.v}</div>
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-3 gap-3 text-xs">
+        {[
+          { l: "Pipeline Bottleneck", v: bottleneck,    icon: AlertTriangle, color: "text-amber-400" },
+          { l: "Best Agent",          v: bestAgent,     icon: ThumbsUp,      color: "text-emerald-400" },
+          { l: "Worst Agent",         v: worstAgent,    icon: ThumbsDown,    color: "text-red-400" },
+        ].map(item => {
+          const Icon = item.icon;
+          return (
+            <div key={item.l} className="bg-slate-800/50 rounded-lg p-3">
+              <div className="flex items-center gap-1 text-slate-500 mb-1"><Icon size={10} /> {item.l}</div>
+              <div className={`font-semibold ${item.color}`}>{item.v}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Compare Two Stocks Panel (v4.2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ComparePanel({
+  symbols,
+  symbolA, setSymbolA,
+  symbolB, setSymbolB,
+  journeyA, journeyB,
+  loadingA, loadingB,
+}: {
+  symbols: SymbolRow[];
+  symbolA: string | null; setSymbolA: (s: string | null) => void;
+  symbolB: string | null; setSymbolB: (s: string | null) => void;
+  journeyA?: SymbolJourney; journeyB?: SymbolJourney;
+  loadingA: boolean; loadingB: boolean;
+}) {
+  const [searchA, setSearchA] = useState("");
+  const [searchB, setSearchB] = useState("");
+
+  function SymbolPicker({ label, value, onChange, search, setSearch }: {
+    label: string; value: string | null; onChange: (s: string | null) => void;
+    search: string; setSearch: (s: string) => void;
+  }) {
+    const filtered = symbols.filter(s => !search || s.symbol.toLowerCase().includes(search.toLowerCase()));
+    return (
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">{label}</div>
+        {value && <div className="text-base font-bold font-mono text-teal-300 mb-2">{value}</div>}
+        <div className="relative mb-2">
+          <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search symbol…"
+            className="w-full pl-7 pr-2 py-1.5 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300" />
+        </div>
+        <div className="max-h-40 overflow-y-auto space-y-1">
+          {filtered.slice(0, 20).map(s => (
+            <button key={s.symbol} onClick={() => { onChange(s.symbol); setSearch(""); }}
+              className={`w-full text-left px-2.5 py-1.5 rounded text-xs border transition-all
+                ${value === s.symbol ? "bg-teal-900/20 border-teal-500 text-teal-300" : "bg-slate-800/50 border-slate-700/50 text-slate-400 hover:border-slate-500"}`}>
+              <span className="font-mono">{s.symbol}</span>
+              <span className="ml-2 text-slate-600">{s.final_action}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Pickers */}
+      <div className="bg-slate-900/60 border border-slate-700/60 rounded-xl p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <GitCompare size={14} className="text-teal-400" />
+          <span className="text-sm font-semibold text-slate-200">Compare Two Stocks</span>
+        </div>
+        <div className="flex gap-6">
+          <SymbolPicker label="Stock A" value={symbolA} onChange={setSymbolA} search={searchA} setSearch={setSearchA} />
+          <div className="flex items-center text-slate-700 font-bold text-xl flex-shrink-0 pt-8">VS</div>
+          <SymbolPicker label="Stock B" value={symbolB} onChange={setSymbolB} search={searchB} setSearch={setSearchB} />
+        </div>
+      </div>
+
+      {/* Comparison table */}
+      {(loadingA || loadingB) && <div className="text-center py-8 text-slate-500 animate-pulse">Loading journeys…</div>}
+
+      {journeyA && journeyB && (
+        <div className="bg-slate-900/60 border border-slate-700/60 rounded-xl overflow-hidden">
+          {/* Header */}
+          <div className="grid grid-cols-5 bg-slate-800/60 border-b border-slate-700/50 px-4 py-3">
+            <div className="col-span-1 text-xs font-semibold text-slate-500 uppercase tracking-wider">Agent</div>
+            <div className="col-span-2 text-center text-xs font-semibold text-teal-400 uppercase tracking-wider">{symbolA}</div>
+            <div className="col-span-2 text-center text-xs font-semibold text-blue-400 uppercase tracking-wider">{symbolB}</div>
+          </div>
+
+          {/* Rows */}
+          {PIPELINE_STAGES.filter(s => s.id !== "portfolio_management").map(cfg => {
+            const stepA = journeyA.journey.find(s => s.stage === cfg.id);
+            const stepB = journeyB.journey.find(s => s.stage === cfg.id);
+            const Icon  = cfg.icon;
+            return (
+              <div key={cfg.id} className="grid grid-cols-5 border-b border-slate-800/60 px-4 py-3 hover:bg-slate-800/20 transition-colors">
+                <div className="col-span-1 flex items-center gap-2">
+                  <Icon size={12} className="text-slate-500 flex-shrink-0" />
+                  <span className="text-xs text-slate-400 font-medium truncate">{cfg.label}</span>
+                </div>
+                {[stepA, stepB].map((step, si) => (
+                  <div key={si} className="col-span-2 flex flex-col items-center justify-center gap-1">
+                    {step ? (
+                      <>
+                        <span className={`px-2 py-0.5 rounded text-xs font-bold border ${
+                          step.result === "PASS" ? "bg-emerald-900/30 border-emerald-600/40 text-emerald-400" :
+                          step.result === "FAIL" ? "bg-red-900/30 border-red-600/40 text-red-400" :
+                          "bg-amber-900/30 border-amber-600/40 text-amber-400"}`}>
+                          {step.result}
+                        </span>
+                        {step.score != null && <span className="text-xs text-slate-500 font-mono">score {step.score}</span>}
+                        <span className="text-xs text-slate-600 text-center truncate max-w-32">{step.reason?.slice(0, 40)}</span>
+                      </>
+                    ) : <span className="text-xs text-slate-700">—</span>}
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+
+          {/* Final comparison */}
+          <div className="grid grid-cols-5 bg-slate-800/40 px-4 py-4">
+            <div className="col-span-1 text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+              <Zap size={11} /> Final
+            </div>
+            {[journeyA, journeyB].map((j, si) => (
+              <div key={si} className="col-span-2 flex flex-col items-center gap-1">
+                <span className={`px-3 py-1 rounded-lg text-sm font-bold border ${
+                  j.recommendation.final_action === "BUY"   ? "bg-emerald-900/30 border-emerald-600/40 text-emerald-400" :
+                  j.recommendation.final_action === "AVOID" ? "bg-red-900/30 border-red-600/40 text-red-400" :
+                  "bg-slate-700 border-slate-600 text-slate-400"}`}>
+                  {j.recommendation.final_action ?? "—"}
+                </span>
+                <span className="text-xs text-slate-500">{j.recommendation.confidence}% confidence</span>
+                <span className="text-xs text-slate-400 font-mono">{j.recommendation.strategy ?? "—"}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {(!symbolA || !symbolB) && !(loadingA || loadingB) && (
+        <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-12 text-center">
+          <Users size={40} className="mx-auto text-slate-700 mb-3" />
+          <p className="text-slate-500 text-sm">Select Stock A and Stock B to compare their decision paths</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Full Session End-of-Replay Report (v4.2 — shown when trading-day replay completes)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function TradingDayEndReport({
+  summaryData, comparisonData, stages,
+}: {
+  summaryData?: Record<string, unknown>;
+  comparisonData?: { comparisons: CompItem[]; stats: { wins: number; losses: number; missed_opportunities: number; pending: number } };
+  stages: Stage[];
+}) {
+  const comps  = comparisonData?.comparisons ?? [];
+  const stats  = comparisonData?.stats;
+  const wins   = stats?.wins ?? 0;
+  const losses = stats?.losses ?? 0;
+  const missed = stats?.missed_opportunities ?? 0;
+  const total  = wins + losses;
+  const winRate = total > 0 ? ((wins / total) * 100).toFixed(1) : "—";
+
+  // Find bottleneck: stage with highest rejection ratio
+  const bottleneck = stages
+    .filter(s => s.stocks_in > 0)
+    .map(s => ({ label: s.label, rejRate: s.rejected / s.stocks_in }))
+    .sort((a, b) => b.rejRate - a.rejRate)[0];
+
+  // False positives: buys that became losses
+  const falsePosCount = losses;
+  // False negatives: missed opps where price moved >1%
+  const falseNegCount = comps.filter(c => c.status === "MISSED_OPPORTUNITY" && Math.abs(c.outcome_pct ?? 0) > 1).length;
+
+  const overallScore = total > 0 ? Math.round((wins / total) * 100) : 0;
+
+  return (
+    <div className="bg-slate-900/60 border border-teal-700/30 rounded-xl p-5">
+      <div className="flex items-center gap-2 mb-5">
+        <Sparkles size={16} className="text-teal-400" />
+        <h3 className="text-base font-semibold text-slate-200">End-of-Session Report</h3>
+        <span className="ml-auto text-xs text-slate-500">{fmtTs(summaryData?.snapshot_ts as string | undefined)}</span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
+        {[
+          { l: "AI Verdict",          v: overallScore >= 60 ? "Positive" : "Mixed",     color: overallScore >= 60 ? "text-emerald-400" : "text-amber-400" },
+          { l: "Decision Quality",    v: `${overallScore}%`,                             color: overallScore >= 60 ? "text-emerald-400" : "text-red-400" },
+          { l: "Missed Opportunities",v: missed,                                          color: "text-orange-400" },
+          { l: "False Positives",     v: falsePosCount,                                  color: "text-red-400" },
+          { l: "False Negatives",     v: falseNegCount,                                  color: "text-amber-400" },
+        ].map(item => (
+          <div key={item.l} className="bg-slate-800/60 rounded-lg p-3 text-center">
+            <div className="text-xs text-slate-500 mb-1">{item.l}</div>
+            <div className={`text-lg font-bold ${item.color}`}>{String(item.v)}</div>
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { l: "Pipeline Bottleneck", v: bottleneck?.label ?? "None detected", icon: AlertTriangle, color: "text-amber-400" },
+          { l: "Win Rate",            v: `${winRate}%`,                        icon: ThumbsUp,      color: "text-emerald-400" },
+          { l: "Overall AI Rating",   v: `${overallScore}% score`,             icon: Sparkles,      color: overallScore >= 60 ? "text-teal-400" : "text-amber-400" },
+        ].map(item => {
+          const Icon = item.icon;
+          return (
+            <div key={item.l} className="bg-slate-800/50 rounded-lg p-3">
+              <div className="flex items-center gap-1 text-slate-500 text-xs mb-1"><Icon size={10} /> {item.l}</div>
+              <div className={`text-sm font-semibold ${item.color}`}>{item.v}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sub-components (original v4.0/4.1)
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -876,6 +1802,7 @@ function JourneyStepRow({ step, isLast }: { step: JourneyStep; isLast: boolean }
 
 export default function AIInvestigationCentre() {
   // ── UI state ──────────────────────────────────────────────────────────────
+  const [pageMode, setPageMode]           = useState<PageMode>("trading_day");
   const [activeTab, setActiveTab]         = useState(0);
   const [selectedScanId, setSelectedScanId] = useState<string>("latest");
   const [replayState, setReplayState]     = useState<"idle" | "playing" | "paused" | "complete">("idle");
@@ -883,6 +1810,7 @@ export default function AIInvestigationCentre() {
   const [speed, setSpeed]                 = useState(1);
   const [focusStageId, setFocusStageId]   = useState<string | null>(null);
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
+  const [symbolB, setSymbolB]             = useState<string | null>(null);
   const [symbolSearch, setSymbolSearch]   = useState("");
   const [filterMode, setFilterMode]       = useState("All");
   const [replayMode, setReplayMode]       = useState<"full" | "custom">("full");
@@ -933,6 +1861,14 @@ export default function AIInvestigationCentre() {
       stats: { wins: number; losses: number; missed_opportunities: number; pending: number };
     }>(`replay/sessions/${selectedScanId}/comparison`),
     staleTime: 60_000,
+    retry: 1,
+  });
+
+  const { data: journeyDataB, isLoading: journeyLoadingB } = useQuery({
+    queryKey: ["inv-journey-b", selectedScanId, symbolB],
+    queryFn: () => apiJson<SymbolJourney>(`replay/sessions/${selectedScanId}/symbol/${symbolB}`),
+    enabled: !!symbolB && pageMode === "compare",
+    staleTime: 120_000,
     retry: 1,
   });
 
@@ -1072,6 +2008,25 @@ export default function AIInvestigationCentre() {
     }
   }, [jumpTarget, handleStop]);
 
+  // Time Machine: step forward / backward (trading day replay)
+  const handleStepFwd = useCallback(() => {
+    stopTimer(); setReplayState("paused");
+    setActiveStageIdx(prev => {
+      const next = Math.min(prev + 1, PIPELINE_STAGES.length - 1);
+      setFocusStageId(PIPELINE_STAGES[next].id);
+      return next;
+    });
+  }, [stopTimer]);
+
+  const handleStepBack = useCallback(() => {
+    stopTimer(); setReplayState("paused");
+    setActiveStageIdx(prev => {
+      const next = Math.max(prev - 1, 0);
+      setFocusStageId(PIPELINE_STAGES[next].id);
+      return next;
+    });
+  }, [stopTimer]);
+
   // Re-apply timer when speed changes mid-play
   useEffect(() => {
     if (replayState === "playing") { startTimer(); }
@@ -1116,7 +2071,11 @@ export default function AIInvestigationCentre() {
     <div className="min-h-screen bg-slate-950 text-slate-200">
       <PageHeader
         title="AI Investigation Centre"
-        subtitle="Trading Day Replay — digital twin of the AI pipeline"
+        subtitle={
+          pageMode === "single_stock" ? "Single Stock Investigation — deep-dive one symbol through the AI pipeline" :
+          pageMode === "compare"      ? "Compare Two Stocks — side-by-side decision path analysis" :
+          "Trading Day Replay — digital twin of the AI pipeline"
+        }
         icon={Microscope}
         status={replayState === "playing" ? "live" : replayState === "complete" ? "success" : "neutral"}
         readOnly
@@ -1124,6 +2083,9 @@ export default function AIInvestigationCentre() {
       />
 
       <div className="p-4 space-y-4 max-w-screen-2xl mx-auto">
+
+        {/* ── Mode Selector ──────────────────────────────────────────────── */}
+        <ModeSelectorBar mode={pageMode} onChange={m => { setPageMode(m); if (m === "trading_day") { handleStop(); } }} />
 
         {/* ── Control Panel ─────────────────────────────────────────────── */}
         <div className="bg-slate-900/70 border border-slate-700/60 rounded-2xl p-4">
@@ -1226,6 +2188,10 @@ export default function AIInvestigationCentre() {
             <div>
               <label className="text-xs text-slate-500 mb-1 block">Controls</label>
               <div className="flex gap-2 flex-wrap">
+                <button onClick={handleStepBack} disabled={activeStageIdx < 0}
+                  className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300 disabled:opacity-30 transition-all" title="Step back">
+                  <StepBack size={14} />
+                </button>
                 <button
                   onClick={replayState === "playing" ? handlePause : handlePlay}
                   disabled={replayLoading}
@@ -1237,6 +2203,10 @@ export default function AIInvestigationCentre() {
                 >
                   {replayState === "playing" ? <Pause size={14} /> : <Play size={14} />}
                   {replayState === "playing" ? "Pause" : replayState === "paused" ? "Resume" : "Play"}
+                </button>
+                <button onClick={handleStepFwd} disabled={activeStageIdx >= PIPELINE_STAGES.length - 1}
+                  className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300 disabled:opacity-30 transition-all" title="Step forward">
+                  <StepForward size={14} />
                 </button>
                 <button onClick={handleStop}
                   className="flex items-center gap-1.5 px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm text-slate-300 transition-all">
@@ -1278,6 +2248,32 @@ export default function AIInvestigationCentre() {
             </div>
           )}
         </div>
+
+        {/* ══ SINGLE STOCK MODE ═══════════════════════════════════════════ */}
+        {pageMode === "single_stock" && (
+          <SingleStockReplayView
+            symbols={symbols}
+            selectedSymbol={selectedSymbol}
+            onSelectSymbol={setSelectedSymbol}
+            journeyData={journeyData}
+            journeyLoading={journeyLoading}
+            snapshotTs={snapshotTs}
+          />
+        )}
+
+        {/* ══ COMPARE MODE ════════════════════════════════════════════════ */}
+        {pageMode === "compare" && (
+          <ComparePanel
+            symbols={symbols}
+            symbolA={selectedSymbol} setSymbolA={setSelectedSymbol}
+            symbolB={symbolB}        setSymbolB={setSymbolB}
+            journeyA={journeyData}   journeyB={journeyDataB}
+            loadingA={journeyLoading} loadingB={journeyLoadingB}
+          />
+        )}
+
+        {/* ══ TRADING DAY MODE ════════════════════════════════════════════ */}
+        {pageMode === "trading_day" && (<>
 
         {/* ── Session Summary ────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-11 gap-2">
@@ -1882,6 +2878,17 @@ export default function AIInvestigationCentre() {
             </div>
           </div>
         )}
+
+        {/* ── End-of-Session Report (shown when trading day replay completes) ── */}
+        {replayState === "complete" && (
+          <TradingDayEndReport
+            summaryData={summaryData as Record<string, unknown> | undefined}
+            comparisonData={comparisonData}
+            stages={stages}
+          />
+        )}
+
+        </>)} {/* end pageMode === "trading_day" */}
 
       </div>
     </div>
