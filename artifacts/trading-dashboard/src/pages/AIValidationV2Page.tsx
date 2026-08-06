@@ -781,8 +781,18 @@ function TradeSimulationTab({ latestRunId }: { latestRunId: string | null }) {
   });
   const runs = runsQ.data?.runs ?? [];
   const [selectedRunId, setSelectedRunId] = useState<string>("");
-  const [tradeFilter, setTradeFilter] = useState<TradeResultFilter>("ALL");
+  const [tradeFilter, setTradeFilter] = useState<TradeResultFilter>(() => {
+    const saved = localStorage.getItem("v2-sim-filter");
+    return (["ALL", "WIN", "LOSS", "BREAKEVEN"] as TradeResultFilter[]).includes(saved as TradeResultFilter)
+      ? (saved as TradeResultFilter)
+      : "ALL";
+  });
   const activeRunId = selectedRunId || latestRunId || runs[0]?.run_id || "";
+
+  // Persist filter across tab navigation
+  useEffect(() => {
+    localStorage.setItem("v2-sim-filter", tradeFilter);
+  }, [tradeFilter]);
 
   // Fetch full run detail for trades
   const runQ = useQuery<RunDetail>({
@@ -965,7 +975,7 @@ function TradeSimulationTab({ latestRunId }: { latestRunId: string | null }) {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <label className="text-xs text-slate-400 uppercase tracking-widest">Run</label>
-        <select value={selectedRunId} onChange={e => setSelectedRunId(e.target.value)}
+        <select value={selectedRunId} onChange={e => { setSelectedRunId(e.target.value); setTradeFilter("ALL"); }}
           className="bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-teal-500">
           <option value="">{latestRunId ? "Latest run" : "Select a run…"}</option>
           {runs.map(r => (
