@@ -100,7 +100,7 @@ function ScoreBar({ score }: { score: number }) {
  * (React Query epoch ms — use this for cards whose `generated_at` is synthesized
  * at response construction and therefore always appears fresh).
  */
-function StalenessTag({ generatedAt, dataUpdatedAt }: {
+export function StalenessTag({ generatedAt, dataUpdatedAt }: {
   generatedAt?: string;
   dataUpdatedAt?: number;
 }) {
