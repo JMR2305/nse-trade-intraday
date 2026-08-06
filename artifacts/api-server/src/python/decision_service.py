@@ -69,6 +69,8 @@ class TradeDecision(TypedDict):
     low_reliability: bool
     low_evidence: bool           # True when scanner total_trades < 5 (insufficient backtest)
     total_trades: int            # 6-month backtest trade count from the scanner
+    invalidation_override: bool        # True when fc >= BUY_CONF but a gate (filter/expectancy) forced WATCH/AVOID
+    invalidation_override_conditions: list  # human-readable list of the blocking conditions
     # Confidence
     base_confidence: float
     learning_adjustment: float
@@ -430,6 +432,64 @@ def _decide(item: dict, positions: dict, trades: list,
             recommendation = "AVOID"
             reason = f"Low confidence ({fc:.0f})"
 
+    # ── Invalidation override detection ──────────────────────────────────────
+    # Flag when high confidence (≥ BUY_CONF) is silently blocked to WATCH/AVOID
+    # by a gate other than confidence itself, so operators are never in the dark.
+    invalidation_override = False
+    invalidation_override_conditions: list[str] = []
+    if data_ok and fc >= BUY_CONF and recommendation not in ("EXIT", "STRONG_BUY", "BUY"):
+        if recommendation == "AVOID":
+            invalidation_override = True
+            if not filter_passed:
+                invalidation_override_conditions.extend(
+                    filter_reasons if filter_reasons else ["risk filter failed"])
+            if exp < 0:
+                invalidation_override_conditions.append(
+                    f"negative expectancy ({exp:+.2f}%)")
+        elif recommendation == "WATCH":
+            invalidation_override = True
+            if fc >= STRONG_BUY_CONF:
+                # fc >= 85 but STRONG_BUY conditions failed — report STRONG_BUY gates.
+                # Note: BUY is not reachable when fc >= STRONG_BUY_CONF, so only
+                # STRONG_BUY conditions matter here.
+                if not (exp > 1.0):
+                    invalidation_override_conditions.append(
+                        f"expectancy {exp:+.2f}% (must be > 1% for STRONG BUY)")
+                if not (pf >= 1.5):
+                    invalidation_override_conditions.append(
+                        f"profit factor {pf:.2f} (must be ≥ 1.5 for STRONG BUY)")
+                if low_reliability:
+                    invalidation_override_conditions.append(
+                        f"thin historical sample ({n_hist} trades < {RELIABLE_SAMPLE} "
+                        f"required for STRONG BUY)")
+                if not (rr >= 2.0):
+                    invalidation_override_conditions.append(
+                        f"R:R {rr:.1f}:1 (must be ≥ 2:1 for STRONG BUY)")
+                if not filter_passed:
+                    invalidation_override_conditions.extend(
+                        filter_reasons if filter_reasons else ["risk filter failed"])
+                if fc_raw < STRONG_BUY_CONF:
+                    invalidation_override_conditions.append(
+                        f"unadjusted confidence {fc_raw:.0f} < {STRONG_BUY_CONF:.0f} "
+                        f"(model/similarity adjustment cannot create STRONG BUY on its own)")
+            else:
+                # fc in [BUY_CONF, STRONG_BUY_CONF) but BUY sub-conditions failed
+                if not (exp > 0):
+                    invalidation_override_conditions.append(
+                        f"expectancy {exp:+.2f}% (must be > 0 for BUY)")
+                if not (pf > 1.2):
+                    invalidation_override_conditions.append(
+                        f"profit factor {pf:.2f} (must be > 1.2 for BUY)")
+                if not (rr >= 2.0):
+                    invalidation_override_conditions.append(
+                        f"R:R {rr:.1f}:1 (must be ≥ 2:1 for BUY)")
+                if fc_raw < BUY_CONF:
+                    invalidation_override_conditions.append(
+                        f"unadjusted confidence {fc_raw:.0f} < {BUY_CONF:.0f} "
+                        f"(model/similarity adjustment cannot create a BUY on its own)")
+        if invalidation_override and not invalidation_override_conditions:
+            invalidation_override_conditions = ["blocking condition met"]
+
     # ── Structured explanation: every statement references exactly ONE
     #    evidence source. Three labelled sections + a final summary.
     sim_expl = str(item.get("similarity_explanation", "") or "")
@@ -574,6 +634,8 @@ def _decide(item: dict, positions: dict, trades: list,
         low_reliability=low_reliability,
         low_evidence=low_evidence,
         total_trades=n_scan_trades,
+        invalidation_override=invalidation_override,
+        invalidation_override_conditions=invalidation_override_conditions,
         base_confidence=round(base, 1),
         learning_adjustment=round(adj, 1),
         final_confidence=round(fc, 1),

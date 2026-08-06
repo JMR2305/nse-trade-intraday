@@ -1548,6 +1548,8 @@ export const GetTradeDecisionsResponse = zod.object({
   "low_reliability": zod.boolean(),
   "low_evidence": zod.boolean(),
   "total_trades": zod.number(),
+  "invalidation_override": zod.boolean(),
+  "invalidation_override_conditions": zod.array(zod.string()),
   "base_confidence": zod.number(),
   "learning_adjustment": zod.number(),
   "final_confidence": zod.number(),

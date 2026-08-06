@@ -2200,6 +2200,8 @@ export interface TradeDecision {
   low_reliability: boolean;
   low_evidence: boolean;
   total_trades: number;
+  invalidation_override: boolean;
+  invalidation_override_conditions: string[];
   base_confidence: number;
   learning_adjustment: number;
   final_confidence: number;

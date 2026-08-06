@@ -4298,6 +4298,10 @@ components:
         low_reliability:          { type: boolean }
         low_evidence:             { type: boolean }
         total_trades:             { type: integer }
+        invalidation_override:    { type: boolean }
+        invalidation_override_conditions:
+          type: array
+          items: { type: string }
         base_confidence:          { type: number }
         learning_adjustment:      { type: number }
         final_confidence:         { type: number }
@@ -4373,6 +4377,7 @@ components:
       required:
         [stock, sector, recommendation, data_status, low_reliability,
          low_evidence, total_trades,
+         invalidation_override, invalidation_override_conditions,
          base_confidence, learning_adjustment, final_confidence,
          model_version, model_adjustment,
          similarity_adjustment, evidence_reliability,

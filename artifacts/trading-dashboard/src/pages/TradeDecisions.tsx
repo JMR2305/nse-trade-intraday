@@ -1224,6 +1224,18 @@ export default function TradeDecisions() {
                               LOW EVIDENCE ({d.total_trades ?? 0} trades)
                             </span>
                           )}
+                          {d.invalidation_override && (
+                            <span
+                              className="rounded border border-amber-500/50 bg-amber-500/10 px-1 py-0.5 text-[9px] font-mono text-amber-400 whitespace-nowrap"
+                              title={
+                                `Confidence ${d.final_confidence?.toFixed(0)} ≥ ${75} but blocked: ` +
+                                (d.invalidation_override_conditions?.join("; ") ?? "see details")
+                              }
+                              data-testid={`badge-invalidation-override-${d.stock}`}
+                            >
+                              OVERRIDDEN BY GATE
+                            </span>
+                          )}
                           {d.data_status !== "OK" && (
                             <span className="rounded border border-slate-500/30 bg-slate-500/10 px-1 py-0.5 text-[9px] font-mono text-slate-400 whitespace-nowrap">
                               DATA UNAVAILABLE
