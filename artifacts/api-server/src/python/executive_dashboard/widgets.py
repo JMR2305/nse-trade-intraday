@@ -189,22 +189,24 @@ def widget_preopen(data: dict) -> dict:
     ranks  = _g(po, "rankings") or {}
     sects  = _g(po, "sectors") or {}
     top_symbols = _g(ranks, "top_symbols") or []
-    top_gapup   = next((s for s in top_symbols if _g(s, "gap_pct", default=0) > 0), {})
-    top_gapdown = next((s for s in reversed(top_symbols) if _g(s, "gap_pct", default=0) < 0), {})
+    # Use _sf to coerce gap_pct to float before comparison — guards against None values
+    # that would raise TypeError on > / < comparisons.
+    top_gapup   = next((s for s in top_symbols if _sf(s, "gap_pct") > 0), {})
+    top_gapdown = next((s for s in reversed(top_symbols) if _sf(s, "gap_pct") < 0), {})
     buy_imbals  = [s for s in top_symbols if _g(s, "imbalance_type", default="") == "BUY"]
     sell_imbals = [s for s in top_symbols if _g(s, "imbalance_type", default="") == "SELL"]
     return {
         "top_gap_up":            _as_str(_g(top_gapup,  "symbol", default="N/A")),
-        "top_gap_up_pct":        _g(top_gapup,  "gap_pct", default=0.0),
+        "top_gap_up_pct":        _sf(top_gapup,  "gap_pct"),
         "top_gap_down":          _as_str(_g(top_gapdown, "symbol", default="N/A")),
-        "top_gap_down_pct":      _g(top_gapdown, "gap_pct", default=0.0),
+        "top_gap_down_pct":      _sf(top_gapdown, "gap_pct"),
         "buy_imbalance":         _as_str(_g(buy_imbals[0],  "symbol", default="N/A") if buy_imbals else "N/A"),
         "sell_imbalance":        _as_str(_g(sell_imbals[0], "symbol", default="N/A") if sell_imbals else "N/A"),
         "leading_sector":        _as_str(_g(sects,  "leading_sector", default="N/A")),
-        "highest_exec_qty":      _g(ranks, "highest_exec_qty", default=0),
+        "highest_exec_qty":      _sf(ranks, "highest_exec_qty"),
         "provider":              _as_str(_g(status, "provider_label", default="N/A")),
         "last_refresh":          _as_str(_g(status, "last_updated",   default="N/A")),
-        "symbols_analysed":      _g(status, "symbols_analysed", default=0),
+        "symbols_analysed":      _sf(status, "symbols_analysed"),
         "trading_date":          _as_str(_g(status, "trading_date",   default="N/A")),
     }
 
@@ -297,7 +299,7 @@ def widget_readiness(data: dict) -> dict:
     return {
         "available":       True,
         "disabled":        False,
-        "readiness_score": rd.get("readiness_score", 0.0),
+        "readiness_score": _sf(rd, "readiness_score"),
         "grade":           _as_str(rd.get("grade",         "N/A"),       fallback="N/A"),
         "verdict":         _as_str(rd.get("verdict",       "NOT READY"), fallback="NOT READY"),
         "verdict_short":   _as_str(rd.get("verdict_short", "NOT READY"), fallback="NOT READY"),

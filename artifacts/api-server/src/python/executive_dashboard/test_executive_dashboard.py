@@ -2036,5 +2036,152 @@ class TestNoneNumericFieldsInWidgets(unittest.TestCase):
         self.assertAlmostEqual(r["calibration_quality"], 100.0, places=1)
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# widget_preopen — None numeric fields (Task #408)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestPreopenNoneNumericFields(unittest.TestCase):
+    """
+    Guard: widget_preopen() must never raise TypeError when numeric fields
+    (gap_pct, symbols_analysed, highest_exec_qty) are present in the upstream
+    snapshot but carry a None value instead of a number.
+    """
+
+    def _run(self, status_overrides=None, symbol_overrides=None, ranks_overrides=None) -> dict:
+        from executive_dashboard.widgets import widget_preopen
+        symbol = {
+            "symbol": "INFY",
+            "gap_pct": 2.1,
+            "imbalance_type": "BUY",
+        }
+        if symbol_overrides:
+            symbol.update(symbol_overrides)
+        ranks = {
+            "top_symbols": [symbol],
+            "highest_exec_qty": 5000,
+        }
+        if ranks_overrides:
+            ranks.update(ranks_overrides)
+        status = {
+            "provider_label": "NSE Official",
+            "last_updated": "09:00",
+            "symbols_analysed": 45,
+            "trading_date": "2026-08-06",
+        }
+        if status_overrides:
+            status.update(status_overrides)
+        data = {"preopen": {
+            "available": True,
+            "status": status,
+            "rankings": ranks,
+            "sectors": {"leading_sector": "IT"},
+        }}
+        return widget_preopen(data)
+
+    def test_gap_pct_none_no_type_error(self):
+        """gap_pct=None must not raise TypeError during > / < comparison."""
+        r = self._run(symbol_overrides={"gap_pct": None})
+        self.assertIsInstance(r, dict)
+
+    def test_gap_pct_none_top_gap_up_pct_is_zero(self):
+        """When the only symbol has gap_pct=None it is treated as 0.0, so no gap-up is found."""
+        r = self._run(symbol_overrides={"gap_pct": None})
+        self.assertIsInstance(r["top_gap_up_pct"], float)
+        # Symbol with gap_pct=None is filtered out; top_gap_up falls back to empty dict → 0.0
+        self.assertAlmostEqual(r["top_gap_up_pct"], 0.0)
+
+    def test_gap_pct_none_top_gap_down_pct_is_zero(self):
+        r = self._run(symbol_overrides={"gap_pct": None})
+        self.assertIsInstance(r["top_gap_down_pct"], float)
+        self.assertAlmostEqual(r["top_gap_down_pct"], 0.0)
+
+    def test_symbols_analysed_none_returns_float_zero(self):
+        """symbols_analysed=None (key present) must yield 0.0, not None."""
+        r = self._run(status_overrides={"symbols_analysed": None})
+        self.assertIsNotNone(r["symbols_analysed"])
+        self.assertIsInstance(r["symbols_analysed"], float)
+        self.assertAlmostEqual(r["symbols_analysed"], 0.0)
+
+    def test_highest_exec_qty_none_returns_float_zero(self):
+        """highest_exec_qty=None (key present) must yield 0.0, not None."""
+        r = self._run(ranks_overrides={"highest_exec_qty": None})
+        self.assertIsNotNone(r["highest_exec_qty"])
+        self.assertIsInstance(r["highest_exec_qty"], float)
+        self.assertAlmostEqual(r["highest_exec_qty"], 0.0)
+
+    def test_all_three_none_no_crash(self):
+        """All three numeric fields None simultaneously must not crash."""
+        r = self._run(
+            status_overrides={"symbols_analysed": None},
+            symbol_overrides={"gap_pct": None},
+            ranks_overrides={"highest_exec_qty": None},
+        )
+        self.assertIsInstance(r, dict)
+        self.assertAlmostEqual(r["top_gap_up_pct"],   0.0)
+        self.assertAlmostEqual(r["top_gap_down_pct"],  0.0)
+        self.assertAlmostEqual(r["symbols_analysed"],  0.0)
+        self.assertAlmostEqual(r["highest_exec_qty"],  0.0)
+
+    def test_normal_gap_pct_still_works(self):
+        """Regression: positive gap_pct must still be found correctly after the fix."""
+        r = self._run()
+        self.assertAlmostEqual(r["top_gap_up_pct"], 2.1)
+        self.assertEqual(r["top_gap_up"], "INFY")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# widget_readiness — None readiness_score (Task #408)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestReadinessNoneScore(unittest.TestCase):
+    """
+    Guard: widget_readiness() must return readiness_score=0.0 when the
+    upstream snapshot delivers readiness_score=None (key present, value None),
+    rather than propagating None into downstream arithmetic.
+    """
+
+    def _run(self, overrides: dict) -> dict:
+        from executive_dashboard.widgets import widget_readiness
+        base = {
+            "available": True,
+            "readiness_score": 75.0,
+            "grade": "B",
+            "verdict": "READY",
+            "verdict_short": "GO",
+        }
+        base.update(overrides)
+        return widget_readiness({"readiness": base})
+
+    def test_readiness_score_none_returns_zero(self):
+        """readiness_score=None (key present) must yield 0.0, not None."""
+        r = self._run({"readiness_score": None})
+        self.assertIsNotNone(r["readiness_score"])
+        self.assertIsInstance(r["readiness_score"], float)
+        self.assertAlmostEqual(r["readiness_score"], 0.0)
+
+    def test_readiness_score_none_no_type_error(self):
+        """widget_readiness must not raise any exception when readiness_score is None."""
+        try:
+            r = self._run({"readiness_score": None})
+        except TypeError as exc:
+            self.fail(f"widget_readiness raised TypeError: {exc}")
+
+    def test_readiness_score_normal_passes_through(self):
+        """Regression: a valid float score must still pass through unchanged."""
+        r = self._run({"readiness_score": 84.5})
+        self.assertAlmostEqual(r["readiness_score"], 84.5)
+
+    def test_readiness_score_zero_explicit_is_zero(self):
+        """Explicit 0.0 must not be replaced by a different default."""
+        r = self._run({"readiness_score": 0.0})
+        self.assertAlmostEqual(r["readiness_score"], 0.0)
+
+    def test_readiness_available_preserved_when_score_is_none(self):
+        """available must remain True even when score is None."""
+        r = self._run({"readiness_score": None})
+        self.assertTrue(r["available"])
+        self.assertFalse(r["disabled"])
+
+
 if __name__ == "__main__":
     unittest.main()
