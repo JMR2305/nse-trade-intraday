@@ -111,6 +111,37 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /live-data/scan/run:
+    post:
+      operationId: runLiveDataScan
+      tags: [trading]
+      summary: Run Phase 7 canonical live-data scan (fire-and-forget; poll /live-data/scan/status for completion)
+      description: >
+        Triggers a fresh Phase 7 canonical scan over the full watchlist.
+        Responds immediately — the caller should poll GET /live-data/scan/status
+        to detect completion (snapshot_ts advances when the scan finishes).
+        Idempotent under concurrency (ALREADY_RUNNING if a scan is in flight)
+        and rate-limited to one trigger per 30 s (RATE_LIMITED otherwise).
+      responses:
+        "200":
+          description: Scan acknowledged (RUNNING or ALREADY_RUNNING)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LiveDataScanRunResult"
+        "429":
+          description: Rate limited — scan triggered too recently
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LiveDataScanRunResult"
+        "500":
+          description: Engine error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /symbols:
     get:
       operationId: getSymbols
@@ -5085,6 +5116,31 @@ components:
           additionalProperties: true
           nullable: true
       required: [success, message]
+
+    LiveDataScanRunResult:
+      type: object
+      description: >
+        Response from POST /live-data/scan/run.
+        RUNNING = scan kicked off in background;
+        ALREADY_RUNNING = scan already in flight (idempotent);
+        RATE_LIMITED = scan triggered too recently (check retry_in_s).
+      properties:
+        started:
+          type: boolean
+          description: True when the scan was initiated or is already running
+        status:
+          type: string
+          enum: [RUNNING, ALREADY_RUNNING, RATE_LIMITED]
+          description: Current disposition of the scan request
+        retry_in_s:
+          type: number
+          description: Seconds to wait before retrying (only present when RATE_LIMITED)
+        error:
+          type: string
+          description: Human-readable error detail (only present on failure responses)
+      required:
+        - started
+        - status
 
     ErrorResponse:
       type: object

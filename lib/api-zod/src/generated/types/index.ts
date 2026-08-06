@@ -100,6 +100,8 @@ export * from './learningReviewCommonFailureCausesItem';
 export * from './learningReviewStrongestSuccessFactorsItem';
 export * from './learningReviewTrade';
 export * from './learningSummary';
+export * from './liveDataScanRunResult';
+export * from './liveDataScanRunResultStatus';
 export * from './marketContext';
 export * from './marketContextBias';
 export * from './marketContextSectorStrength';

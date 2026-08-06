@@ -138,6 +138,18 @@ export const RunScanResponse = zod.object({
 
 
 /**
+ * Triggers a fresh Phase 7 canonical scan over the full watchlist. Responds immediately — the caller should poll GET /live-data/scan/status to detect completion (snapshot_ts advances when the scan finishes). Idempotent under concurrency (ALREADY_RUNNING if a scan is in flight) and rate-limited to one trigger per 30 s (RATE_LIMITED otherwise).
+ * @summary Run Phase 7 canonical live-data scan (fire-and-forget; poll /live-data/scan/status for completion)
+ */
+export const RunLiveDataScanResponse = zod.object({
+  "started": zod.boolean().describe('True when the scan was initiated or is already running'),
+  "status": zod.enum(['RUNNING', 'ALREADY_RUNNING', 'RATE_LIMITED']).describe('Current disposition of the scan request'),
+  "retry_in_s": zod.number().optional().describe('Seconds to wait before retrying (only present when RATE_LIMITED)'),
+  "error": zod.string().optional().describe('Human-readable error detail (only present on failure responses)')
+}).describe('Response from POST \/live-data\/scan\/run. RUNNING = scan kicked off in background; ALREADY_RUNNING = scan already in flight (idempotent); RATE_LIMITED = scan triggered too recently (check retry_in_s).\n')
+
+
+/**
  * Returns the known NSE symbols (NIFTY 50 universe) with sector labels, for watchlist autocomplete
  * @summary Get known NSE symbol universe
  */

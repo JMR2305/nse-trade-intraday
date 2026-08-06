@@ -2719,6 +2719,32 @@ export interface LearningActionResult {
   [key: string]: unknown;
  }
 
+/**
+ * Current disposition of the scan request
+ */
+export type LiveDataScanRunResultStatus = typeof LiveDataScanRunResultStatus[keyof typeof LiveDataScanRunResultStatus];
+
+
+export const LiveDataScanRunResultStatus = {
+  RUNNING: 'RUNNING',
+  ALREADY_RUNNING: 'ALREADY_RUNNING',
+  RATE_LIMITED: 'RATE_LIMITED',
+} as const;
+
+/**
+ * Response from POST /live-data/scan/run. RUNNING = scan kicked off in background; ALREADY_RUNNING = scan already in flight (idempotent); RATE_LIMITED = scan triggered too recently (check retry_in_s).
+ */
+export interface LiveDataScanRunResult {
+  /** True when the scan was initiated or is already running */
+  started: boolean;
+  /** Current disposition of the scan request */
+  status: LiveDataScanRunResultStatus;
+  /** Seconds to wait before retrying (only present when RATE_LIMITED) */
+  retry_in_s?: number;
+  /** Human-readable error detail (only present on failure responses) */
+  error?: string;
+}
+
 export interface ErrorResponse {
   error: string;
 }
