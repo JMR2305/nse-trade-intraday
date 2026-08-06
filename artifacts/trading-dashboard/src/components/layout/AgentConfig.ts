@@ -14,7 +14,7 @@ import {
   ShieldAlert, Briefcase, PieChart, History, RotateCcw, LayoutDashboard,
   Monitor, Rocket, Settings2, Radio, Dna, Microscope, GitCompare,
   Route, Layers, ChevronRight, Bot, Bell, FileBarChart2, Palette,
-  GitBranch, GitCommit,
+  GitBranch, GitCommit, PlayCircle,
 } from "lucide-react";
 
 // Re-export LucideIcon type alias for consumers
@@ -222,6 +222,7 @@ export const AGENTS: Agent[] = [
       { href: "/executive-reports",  label: "Executive Reports",         icon: FileBarChart2,   tags: ["reports", "briefing", "executive", "summary", "eod"] },
       { href: "/design-system",      label: "Design System",              icon: Palette,         tags: ["design", "system", "components", "tokens", "ui"] },
       { href: "/ai-operations-centre", label: "AI Operations Centre",       icon: Activity,        tags: ["ai", "ops", "pipeline", "agents", "monitor", "operations"] },
+      { href: "/replay",             label: "Replay Mode",                icon: PlayCircle,      tags: ["replay", "pipeline", "debug", "ai", "thinking", "journey", "time travel", "feature 11"] },
       { href: "/agent-operations",   label: "Agent Operations",           icon: Bot,             tags: ["agents", "framework", "multi-agent", "supervisor", "bus"] },
       { href: "/operations-center",  label: "Operations Centre",         icon: Monitor,    tags: ["ops"] },
       { href: "/observability",      label: "Observability",             icon: Activity,   tags: ["observe"] },

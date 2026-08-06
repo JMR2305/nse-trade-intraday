@@ -1086,6 +1086,24 @@ def main():
             from phase20_executor import run_auto_entries
             result = run_auto_entries(_p20gs())
             result["success"] = True
+        elif command == "replay_sessions":
+            from replay_engine import get_replay_sessions
+            result = get_replay_sessions()
+        elif command == "replay_build":
+            from replay_engine import build_replay
+            result = build_replay(args[1] if len(args) > 1 else "latest")
+        elif command == "replay_symbol":
+            from replay_engine import get_symbol_journey
+            result = get_symbol_journey(
+                args[1] if len(args) > 1 else "latest",
+                args[2] if len(args) > 2 else "",
+            )
+        elif command == "replay_comparison":
+            from replay_engine import get_decision_comparison
+            result = get_decision_comparison(args[1] if len(args) > 1 else "latest")
+        elif command == "replay_summary":
+            from replay_engine import get_replay_summary
+            result = get_replay_summary(args[1] if len(args) > 1 else "latest")
         elif command == "phase20_replay":
             from phase20_executor import replay_trade
             result = replay_trade(args[1] if len(args) > 1 else "")
