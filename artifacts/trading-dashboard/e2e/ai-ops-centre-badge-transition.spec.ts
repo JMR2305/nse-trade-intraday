@@ -311,4 +311,115 @@ test.describe("AI Operations Centre — cache-vs-live badge transition", () => {
       await expect(cachedBadge).not.toBeVisible();
     },
   );
+
+  /**
+   * Task 368 — confirms the "N seconds ago" age label on the platform status
+   * badge advances in real time without requiring a page reload.
+   *
+   * If the setInterval is accidentally cleared (wrong deps in useEffect,
+   * premature clearInterval, etc.) the counter would freeze at "0s ago" and
+   * operators would be misled about data staleness.
+   *
+   * Approach
+   * ────────
+   * 1. Build a fast-platform payload whose generated_at / cache_ts is 10
+   *    seconds in the past so the badge starts with an age ≥ 10 s.
+   * 2. Navigate, wait for the cached badge to appear, and capture its initial
+   *    age text.
+   * 3. page.waitForTimeout(3_000) lets the real setInterval tick three times.
+   * 4. Read the badge text again — the age must be strictly greater than the
+   *    initial reading, proving the interval is live.
+   */
+  test(
+    "'N seconds ago' ticker on the cached-snapshot badge advances without a page reload",
+    async ({ page }) => {
+      // Build a generated_at that is 10 seconds in the past so the initial
+      // age shown by the badge is already ≥ 10 s.
+      const TEN_SECS_AGO = new Date(Date.now() - 10_000).toISOString();
+
+      const fastPayload = {
+        generated_at: TEN_SECS_AGO,
+        fast: true,
+        advisory_only: true,
+        cache_ts: TEN_SECS_AGO,
+        platform: {
+          health_pct: 85,
+          status: "OPERATIONAL",
+          scan_id: "scan-ticker-test",
+          scan_number: 1,
+          scan_status: "COMPLETE",
+          market_state: "OPEN",
+          trading_session: "REGULAR",
+          current_time_ist: "10:30:00",
+          last_refresh_ist: "10:25:00",
+          next_refresh_est: "10:35:00",
+          scan_interval_min: 10,
+        },
+        pipeline_nodes: [],
+      };
+
+      // ── Register intercepts ────────────────────────────────────────────────
+
+      // Catch-all — satisfies any /api/* requests not explicitly intercepted.
+      await page.route("**/api/**", (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: "{}",
+        }),
+      );
+
+      // Agents endpoint — minimal valid shape so the page doesn't error.
+      await page.route("**/api/ops-centre/agents", (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ agents: {}, generated_at: TEN_SECS_AGO }),
+        }),
+      );
+
+      // Snapshot endpoint — hangs so the fast:true path is the only one active
+      // and the amber "Cached snapshot" badge stays visible throughout the test.
+      await page.route("**/api/ops-centre/snapshot", (_route) => {
+        // Intentionally do NOT fulfill — keeps snapshot in-flight.
+      });
+
+      // Fast platform endpoint — returns the payload with the stale timestamp.
+      await page.route("**/api/ops-centre/platform", (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(fastPayload),
+        }),
+      );
+
+      // ── Navigate ───────────────────────────────────────────────────────────
+      await page.goto(AI_OPS_URL);
+
+      // ── Phase 1: badge must be visible and show age ≥ 10 s ────────────────
+      const cachedBadge = page.locator(
+        '[title="Health % is from the last full scan, not freshly computed"]',
+      );
+      await expect(cachedBadge).toBeVisible({ timeout: 10_000 });
+
+      // Extract the numeric seconds from the label text, e.g. "Cached snapshot · 11s ago".
+      const extractSecs = async (): Promise<number> => {
+        const text = await cachedBadge.textContent();
+        const match = text?.match(/(\d+)s ago/);
+        return match ? parseInt(match[1], 10) : 0;
+      };
+
+      const initialAge = await extractSecs();
+      expect(initialAge).toBeGreaterThanOrEqual(10);
+
+      // ── Phase 2: wait 3 real seconds and confirm the ticker has advanced ──
+      // page.waitForTimeout lets the real setInterval fire ~3 times.
+      await page.waitForTimeout(3_000);
+
+      const laterAge = await extractSecs();
+      // The age must have increased — if the interval were frozen laterAge
+      // would equal initialAge and this assertion would fail.
+      expect(laterAge).toBeGreaterThan(initialAge);
+    },
+  );
 });
