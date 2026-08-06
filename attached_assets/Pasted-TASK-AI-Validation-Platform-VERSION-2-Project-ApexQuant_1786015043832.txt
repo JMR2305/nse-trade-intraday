@@ -1,0 +1,555 @@
+TASK: AI Validation Platform - VERSION 2
+Project: ApexQuant AI (Paper Trading Only)
+Mode: READ-ONLY / ADVISORY ONLY
+DO NOT modify any trading logic or execution engine.
+This is an analytics and validation module only.
+
+===========================================================
+OBJECTIVE
+===========================================================
+
+Implement Version 2 of the AI Validation Platform.
+
+The goal is to replay historical market sessions using the CURRENT AI agents and verify whether the AI would have generated profitable BUY/SELL decisions.
+
+This is NOT a replay animation.
+
+This is a full historical AI simulation engine.
+
+===========================================================
+MODULE 1
+Historical Backtest Engine
+===========================================================
+
+Create a backtest engine capable of:
+
+• Loading historical NSE minute candles
+• Reconstructing the market candle-by-candle
+• Feeding every candle into the CURRENT AI pipeline
+• Running every agent exactly as production does
+
+Supervisor
+↓
+
+Market Data
+
+↓
+
+Research
+
+↓
+
+Market Intelligence
+
+↓
+
+Monitoring
+
+↓
+
+Strategy
+
+↓
+
+Risk
+
+↓
+
+AI Decision
+
+↓
+
+Execution (Paper)
+
+↓
+
+Learning
+
+Every agent must execute exactly the same logic currently used in production.
+
+NO simplified logic.
+
+===========================================================
+MODULE 2
+Historical AI Decision Validation
+===========================================================
+
+For every recommendation store:
+
+Time
+
+Symbol
+
+Entry Price
+
+Stop Loss
+
+Target
+
+Confidence
+
+Strategy Score
+
+Risk Score
+
+Research Score
+
+Market Score
+
+Decision
+
+BUY
+
+SELL
+
+WATCH
+
+AVOID
+
+ACCUMULATE
+
+NO ACTION
+
+Store why the decision was made.
+
+===========================================================
+MODULE 3
+Trade Simulation
+===========================================================
+
+If AI generates BUY
+
+simulate:
+
+Entry
+
+Stop
+
+Target
+
+Trailing stop
+
+Exit
+
+P/L
+
+Holding time
+
+Maximum Drawdown
+
+Maximum Favourable Excursion
+
+Result:
+
+Win
+
+Loss
+
+Breakeven
+
+===========================================================
+MODULE 4
+Missed Opportunity Detection
+===========================================================
+
+If AI rejected a stock that later moved strongly
+
+record
+
+Example
+
+RELIANCE
+
+AI Decision
+
+ACCUMULATE
+
+Actual Move
+
++3.30%
+
+Potential Profit
+
++3.1%
+
+Reason Missed
+
+Confidence too low
+
+Strategy score below threshold
+
+Research timeout
+
+Risk threshold
+
+Sector exposure
+
+etc
+
+Every missed opportunity must include
+
+Suggested Improvement
+
+===========================================================
+MODULE 5
+AI vs Actual Market
+===========================================================
+
+Create a comparison page
+
+Example
+
+AI BUY
+
+Market +4.2%
+
+Result
+
+Correct
+
+--------------
+
+AI BUY
+
+Market -2.1%
+
+Result
+
+Wrong
+
+--------------
+
+AI AVOID
+
+Market +5%
+
+Result
+
+Missed Opportunity
+
+--------------
+
+AI SELL
+
+Market -3%
+
+Result
+
+Correct
+
+===========================================================
+MODULE 6
+Parameter Optimizer
+===========================================================
+
+DO NOT modify parameters automatically.
+
+Simulate different values.
+
+Examples
+
+Confidence
+
+50
+
+55
+
+60
+
+65
+
+70
+
+75
+
+Risk Threshold
+
+Opportunity Threshold
+
+Volume Threshold
+
+ATR Multiplier
+
+Stop Loss %
+
+Target %
+
+Position Size %
+
+Sector Exposure %
+
+For every configuration calculate
+
+Win Rate
+
+Average Profit
+
+Total Return
+
+Drawdown
+
+Sharpe Ratio
+
+Profit Factor
+
+Expectancy
+
+Recommend the best configuration
+
+This remains ADVISORY ONLY.
+
+===========================================================
+MODULE 7
+Agent Explainability
+===========================================================
+
+For every rejected stock show
+
+Agent
+
+Score
+
+Reason
+
+Threshold
+
+Recommendation
+
+Example
+
+Research
+
+82
+
+PASS
+
+Strategy
+
+48
+
+FAILED
+
+Needed 60
+
+Risk
+
+91
+
+PASS
+
+Decision
+
+Rejected
+
+Reason
+
+Strategy confidence below threshold
+
+===========================================================
+MODULE 8
+Historical Session Playback
+===========================================================
+
+Create a timeline
+
+09:15
+
+Market Opens
+
+↓
+
+09:18
+
+Supervisor selects 50 stocks
+
+↓
+
+09:19
+
+Market Data validates 48
+
+↓
+
+09:21
+
+Research rejects 2
+
+↓
+
+09:24
+
+Strategy BUY RELIANCE
+
+↓
+
+09:26
+
+Risk approves
+
+↓
+
+09:27
+
+Execution buys
+
+↓
+
+09:48
+
+Target Hit
+
+Allow
+
+Play
+
+Pause
+
+Fast Forward
+
+Rewind
+
+Jump to time
+
+===========================================================
+MODULE 9
+Performance Analytics
+===========================================================
+
+Daily
+
+Weekly
+
+Monthly
+
+Display
+
+Win Rate
+
+Loss Rate
+
+Average Holding Time
+
+Best Trade
+
+Worst Trade
+
+Largest Drawdown
+
+Expectancy
+
+Profit Factor
+
+Average Confidence
+
+Average Risk
+
+Most Accurate Agent
+
+Weakest Agent
+
+Most Common Rejection Reason
+
+===========================================================
+MODULE 10
+AI Model Comparison
+===========================================================
+
+Allow comparing
+
+Current AI
+
+vs
+
+Candidate AI
+
+Display
+
+Win Rate
+
+Return
+
+Drawdown
+
+Profit Factor
+
+Expectancy
+
+Alpha Generated
+
+Recommendation
+
+Keep Current
+
+or
+
+Promote New Version
+
+===========================================================
+MODULE 11
+Dashboard
+===========================================================
+
+Create a dedicated page
+
+AI Validation Centre V2
+
+Include
+
+Historical Backtests
+
+Missed Opportunities
+
+AI Accuracy
+
+Agent Accuracy
+
+Decision Distribution
+
+Replay Timeline
+
+Parameter Optimizer
+
+Performance Charts
+
+Model Comparison
+
+Trade Journal
+
+===========================================================
+DATA SOURCE
+===========================================================
+
+Use REAL historical data already stored in the production database wherever available.
+
+If additional historical candles are needed, use the existing historical market-data infrastructure.
+
+DO NOT generate synthetic market data unless no historical data exists, and clearly label any simulated data.
+
+===========================================================
+SAFETY
+===========================================================
+
+Paper Trading Only
+
+Read Only
+
+Never place live orders
+
+Never modify strategy parameters automatically
+
+Recommendations only
+
+===========================================================
+SUCCESS CRITERIA
+===========================================================
+
+✓ Historical replay executes the full AI pipeline
+✓ Every agent decision is recorded
+✓ Every rejection has an explanation
+✓ Missed opportunities are identified
+✓ Historical profitability can be measured
+✓ Parameter optimisation is advisory only
+✓ Complete replay timeline works
+✓ Production trading remains unchanged
+✓ All existing tests continue to pass
+✓ Add new unit/integration tests for the validation engine
