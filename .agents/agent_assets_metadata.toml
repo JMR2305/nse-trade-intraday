@@ -271,3 +271,10 @@ uri = "file://risk-decision-report-summary.md"
 type = "text"
 title = "Risk Decision Report — Feature Summary"
 description = "Full summary of what was built: backend function, API route, frontend page, all gates covered, and design notes."
+
+[[outputs]]
+id = "jj--RYFaVGEACKSEKasfr"
+uri = "file://AI_INVESTIGATION_CENTRE_V5_SUMMARY.md"
+type = "text"
+title = "AI Investigation Centre — V5.0 Summary"
+description = "Full breakdown of the four new replay components: TradingDaySelector, StockFlowViz, BottomTimeline, LivePositions — wiring, design decisions, and no-new-endpoints note."
