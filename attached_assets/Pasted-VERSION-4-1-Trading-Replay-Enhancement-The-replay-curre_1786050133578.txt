@@ -1,0 +1,82 @@
+VERSION 4.1 - Trading Replay Enhancement
+
+The replay currently ends at the Execution Agent.
+
+This is incomplete.
+
+Add a new stage immediately after Execution called:
+
+PORTFOLIO / TRADE MANAGEMENT
+
+The replay must continue after BUY execution and show the complete trade lifecycle.
+
+Requirements:
+
+1. Show BUY timestamp.
+2. Show BUY price.
+3. Show quantity purchased.
+4. Show capital used.
+5. Update available cash after every BUY.
+6. Display all currently open positions.
+7. Continuously update unrealized P&L while replay progresses.
+8. Animate trailing stop updates whenever they occur.
+9. Display target price and stop-loss for every position.
+10. Show the reason for exit:
+   - Target Hit
+   - Stop Loss
+   - Trailing Stop
+   - AI Exit
+   - End of Day
+11. Show SELL timestamp.
+12. Show SELL price.
+13. Calculate realized P&L.
+14. Update available cash after every SELL.
+15. Maintain a running portfolio summary:
+    - Starting Capital
+    - Available Cash
+    - Invested Capital
+    - Open Positions
+    - Closed Positions
+    - Unrealized P&L
+    - Realized P&L
+    - Total Portfolio Value
+16. Draw a live equity curve during replay that updates after every completed trade.
+17. Allow clicking any completed trade to display:
+    - Entry Time
+    - Entry Price
+    - Quantity
+    - Stop Loss
+    - Target
+    - Highest Price Reached
+    - Lowest Price Reached
+    - Exit Time
+    - Exit Price
+    - Exit Reason
+    - Net Profit/Loss
+18. Add an End-of-Day Summary with:
+    - Starting Capital
+    - Ending Capital
+    - Total Return
+    - Number of Trades
+    - Win Rate
+    - Largest Winner
+    - Largest Loser
+    - Max Drawdown
+    - Average Holding Time
+
+Also fix the replay data consistency issue:
+
+Current replay shows:
+- AI Decision BUY Signals = 4
+- Execution Orders = 5
+- Rejected = -1
+
+This is mathematically impossible.
+
+The replay engine must validate that every stage satisfies:
+
+Input = Passed + Rejected + Pending + Cancelled
+
+Execution must never create additional trades that were not approved by the AI Decision Agent, and negative counts must never be displayed.
+
+The replay should fail validation and display an error if pipeline counts become inconsistent.
