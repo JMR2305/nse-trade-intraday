@@ -26,6 +26,12 @@ import {
   Link2, Timer, ThumbsUp, ThumbsDown,
 } from "lucide-react";
 
+// v5.0 replay components
+import { TradingDaySelector } from "@/components/replay/TradingDaySelector";
+import { StockFlowViz }       from "@/components/replay/StockFlowViz";
+import { BottomTimeline }     from "@/components/replay/BottomTimeline";
+import { LivePositions }      from "@/components/replay/LivePositions";
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1820,7 +1826,7 @@ export default function AIInvestigationCentre() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Queries ───────────────────────────────────────────────────────────────
-  const { data: sessionsData } = useQuery({
+  const { data: sessionsData, refetch: refetchSessions } = useQuery({
     queryKey: ["inv-sessions"],
     queryFn: () => apiJson<{ sessions: Session[]; count: number }>("replay/sessions"),
     staleTime: 30_000,
@@ -2086,6 +2092,24 @@ export default function AIInvestigationCentre() {
 
         {/* ── Mode Selector ──────────────────────────────────────────────── */}
         <ModeSelectorBar mode={pageMode} onChange={m => { setPageMode(m); if (m === "trading_day") { handleStop(); } }} />
+
+        {/* ── v5.0 Trading Day Selector ──────────────────────────────────── */}
+        {pageMode === "trading_day" && (
+          <div className="bg-slate-900/70 border border-slate-700/60 rounded-2xl p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Calendar size={14} className="text-teal-400" />
+              <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Trading Day</span>
+            </div>
+            <TradingDaySelector
+              sessions={sessions}
+              selectedScanId={selectedScanId}
+              onSelect={id => { setSelectedScanId(id); handleStop(); }}
+              onRefresh={() => void refetchSessions()}
+              durationS={replayData?.duration_s}
+              universeSize={replayData?.universe_size}
+            />
+          </div>
+        )}
 
         {/* ── Control Panel ─────────────────────────────────────────────── */}
         <div className="bg-slate-900/70 border border-slate-700/60 rounded-2xl p-4">
@@ -2380,6 +2404,14 @@ export default function AIInvestigationCentre() {
                   );
                 })}
               </div>
+
+              {/* v5.0 Stock Flow Visualisation */}
+              <StockFlowViz
+                pipelineCfg={PIPELINE_STAGES}
+                stageById={stageById}
+                activeStageIdx={activeStageIdx}
+                replayState={replayState}
+              />
             </div>
 
             {/* Right: Stage Detail + Symbol List */}
@@ -2465,6 +2497,13 @@ export default function AIInvestigationCentre() {
                   )}
                 </div>
               </div>
+
+              {/* v5.0 Live Position Tracker */}
+              <LivePositions
+                portfolioTrades={portfolioTrades}
+                activeStageIdx={activeStageIdx}
+                comparisonData={comparisonData}
+              />
             </div>
           </div>
         )}
@@ -2878,6 +2917,21 @@ export default function AIInvestigationCentre() {
             </div>
           </div>
         )}
+
+        {/* ── v5.0 Bottom Event Timeline ──────────────────────────────── */}
+        <BottomTimeline
+          snapshotTs={snapshotTs}
+          comparisonData={comparisonData}
+          stages={stages}
+          pipelineCfg={PIPELINE_STAGES}
+          activeStageIdx={activeStageIdx}
+          onJumpToStage={idx => {
+            stopTimer();
+            setReplayState("paused");
+            setActiveStageIdx(idx);
+            setFocusStageId(PIPELINE_STAGES[idx]?.id ?? null);
+          }}
+        />
 
         {/* ── End-of-Session Report (shown when trading day replay completes) ── */}
         {replayState === "complete" && (
