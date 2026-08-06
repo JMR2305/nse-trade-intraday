@@ -47,3 +47,55 @@ export function applyRunError(err: unknown, state: ScanState): void {
     state.scanError = true;
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Polling helpers — extracted from the useEffect in signals.tsx so they can
+// be unit-tested without mounting a React component.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type StatusResponse = { latest_scan?: { scan_id?: string } };
+
+/**
+ * One polling tick: fetch the current scan status and call `onComplete` when
+ * the returned scan_id differs from `baselineScanId`.
+ *
+ * Rules (mirror the useEffect in signals.tsx verbatim):
+ *   - currentScanId === null         → still running (baseline was null too)
+ *   - currentScanId === baselineScanId → still the same scan, keep waiting
+ *   - currentScanId !== baselineScanId → new scan id detected → completion
+ * Transient fetch errors are swallowed so the interval keeps running.
+ */
+export async function runScanPollTick(
+  fetchStatus: () => Promise<StatusResponse>,
+  baselineScanId: string | null,
+  onComplete: () => void | Promise<void>,
+): Promise<void> {
+  try {
+    const resp = await fetchStatus();
+    const currentScanId = resp?.latest_scan?.scan_id ?? null;
+    if (currentScanId !== null && currentScanId !== baselineScanId) {
+      await onComplete();
+    }
+  } catch {
+    // ignore transient poll errors; keep waiting
+  }
+}
+
+/**
+ * Start the 5-second polling loop.  Returns a `stop` function that clears
+ * the interval — call it from the useEffect cleanup or on unmount.
+ *
+ * The `intervalMs` parameter exists purely for tests so they can use fake
+ * timers with a shorter tick; production code always passes 5_000.
+ */
+export function startScanPoller(
+  fetchStatus: () => Promise<StatusResponse>,
+  baselineScanId: string | null,
+  onComplete: () => void | Promise<void>,
+  intervalMs = 5_000,
+): { stop: () => void } {
+  const id = setInterval(() => {
+    void runScanPollTick(fetchStatus, baselineScanId, onComplete);
+  }, intervalMs);
+  return { stop: () => clearInterval(id) };
+}
