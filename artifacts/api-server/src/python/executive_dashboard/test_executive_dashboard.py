@@ -2183,5 +2183,125 @@ class TestReadinessNoneScore(unittest.TestCase):
         self.assertFalse(r["disabled"])
 
 
+
+# ---------------------------------------------------------------------------
+# Test: widget_paper_analytics — None numeric fields must not propagate as None
+# ---------------------------------------------------------------------------
+
+class TestPaperAnalyticsNoneNumericFields(unittest.TestCase):
+    """Regression guard: widget_paper_analytics must return float 0.0 (not None)
+    for every numeric field when the upstream snapshot delivers None values.
+
+    Before the fix, bare _g() calls returned None for analytics_score, win_rate,
+    profit_factor, total_pnl, and sharpe_ratio when those keys existed with None
+    values — silently corrupting the executive score computation downstream.
+    """
+
+    def _run(self, pa_dict: dict) -> dict:
+        from executive_dashboard.widgets import widget_paper_analytics
+        return widget_paper_analytics({"paper_analytics": {"available": True, **pa_dict}})
+
+    # ── all five numeric fields None simultaneously ────────────────────────
+
+    def test_all_numerics_none_no_crash(self):
+        """Must not raise TypeError when all five numeric fields are None."""
+        r = self._run({
+            "analytics_score": None,
+            "win_rate":        None,
+            "profit_factor":   None,
+            "total_pnl":       None,
+            "sharpe_ratio":    None,
+            "total_trades":    None,
+        })
+        self.assertIsInstance(r, dict)
+
+    def test_all_numerics_none_are_floats(self):
+        """Every numeric field must fall back to a float, not None."""
+        r = self._run({
+            "analytics_score": None,
+            "win_rate":        None,
+            "profit_factor":   None,
+            "total_pnl":       None,
+            "sharpe_ratio":    None,
+            "total_trades":    None,
+        })
+        for field in ("analytics_score", "win_rate", "profit_factor",
+                      "total_pnl", "sharpe_ratio"):
+            self.assertIsNotNone(r[field], f"{field} must not be None")
+            self.assertIsInstance(r[field], float, f"{field} must be float, got {type(r[field])}")
+
+    def test_all_numerics_none_default_to_zero(self):
+        """Every numeric field falls back to exactly 0.0."""
+        r = self._run({
+            "analytics_score": None,
+            "win_rate":        None,
+            "profit_factor":   None,
+            "total_pnl":       None,
+            "sharpe_ratio":    None,
+        })
+        self.assertEqual(r["analytics_score"], 0.0)
+        self.assertEqual(r["win_rate"],        0.0)
+        self.assertEqual(r["profit_factor"],   0.0)
+        self.assertEqual(r["total_pnl"],       0.0)
+        self.assertEqual(r["sharpe_ratio"],    0.0)
+
+    def test_total_trades_none_becomes_zero_int(self):
+        """total_trades=None must become integer 0, not None."""
+        r = self._run({"total_trades": None})
+        self.assertIsNotNone(r["total_trades"])
+        self.assertIsInstance(r["total_trades"], int)
+        self.assertEqual(r["total_trades"], 0)
+
+    # ── individual field coverage ─────────────────────────────────────────
+
+    def test_analytics_score_none(self):
+        r = self._run({"analytics_score": None, "win_rate": 55.0})
+        self.assertEqual(r["analytics_score"], 0.0)
+        self.assertAlmostEqual(r["win_rate"], 55.0)
+
+    def test_win_rate_none(self):
+        r = self._run({"win_rate": None, "analytics_score": 72.0})
+        self.assertEqual(r["win_rate"], 0.0)
+        self.assertAlmostEqual(r["analytics_score"], 72.0)
+
+    def test_profit_factor_none(self):
+        r = self._run({"profit_factor": None})
+        self.assertEqual(r["profit_factor"], 0.0)
+
+    def test_total_pnl_none(self):
+        r = self._run({"total_pnl": None})
+        self.assertEqual(r["total_pnl"], 0.0)
+
+    def test_sharpe_ratio_none(self):
+        r = self._run({"sharpe_ratio": None})
+        self.assertEqual(r["sharpe_ratio"], 0.0)
+
+    # ── real values pass through unchanged ────────────────────────────────
+
+    def test_real_values_pass_through(self):
+        """Measured values must not be clobbered by the None guard."""
+        r = self._run({
+            "analytics_score": 81.5,
+            "win_rate":        63.2,
+            "profit_factor":   1.9,
+            "total_pnl":       4200.0,
+            "sharpe_ratio":    1.3,
+            "total_trades":    42,
+        })
+        self.assertAlmostEqual(r["analytics_score"], 81.5)
+        self.assertAlmostEqual(r["win_rate"],        63.2)
+        self.assertAlmostEqual(r["profit_factor"],   1.9)
+        self.assertAlmostEqual(r["total_pnl"],       4200.0)
+        self.assertAlmostEqual(r["sharpe_ratio"],    1.3)
+        self.assertEqual(r["total_trades"],          42)
+
+    # ── available=True is preserved ───────────────────────────────────────
+
+    def test_available_flag_preserved(self):
+        r = self._run({"analytics_score": None})
+        self.assertTrue(r["available"])
+        self.assertFalse(r["disabled"])
+
+
 if __name__ == "__main__":
     unittest.main()
