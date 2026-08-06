@@ -87,6 +87,10 @@ def _ensure_tables(conn):
         interval    TEXT DEFAULT '1h',
         total_decisions INTEGER DEFAULT 0,
         total_trades    INTEGER DEFAULT 0,
+        symbols_done    INTEGER DEFAULT 0,
+        symbols_total   INTEGER DEFAULT 0,
+        current_symbol  TEXT DEFAULT '',
+        symbol_errors   JSONB DEFAULT '[]',
         created_at  TIMESTAMPTZ DEFAULT NOW(),
         completed_at TIMESTAMPTZ
     );
@@ -156,9 +160,17 @@ def _ensure_tables(conn):
         created_at   TIMESTAMPTZ DEFAULT NOW()
     );
     """
+    migration = """
+    ALTER TABLE IF EXISTS validation_v2_runs
+        ADD COLUMN IF NOT EXISTS symbols_done  INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS symbols_total INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS current_symbol TEXT DEFAULT '',
+        ADD COLUMN IF NOT EXISTS symbol_errors JSONB DEFAULT '[]';
+    """
     try:
         with conn.cursor() as cur:
             cur.execute(ddl)
+            cur.execute(migration)
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -1239,6 +1251,277 @@ def _common_rejection(decisions: List[dict]) -> str:
 
 # ── Core backtest pipeline ────────────────────────────────────────────────────
 
+def start_backtest_pipeline(config_json: str) -> dict:
+    """
+    Phase 1 of the async backtest flow.
+
+    Validates config, creates a RUNNING run record in the DB, and returns
+    {run_id, symbols_total, label} immediately.  The caller is responsible for
+    launching execute_backtest_pipeline(run_id, config_json) in a background
+    process so that the frontend can poll for live progress.
+    """
+    try:
+        config = json.loads(config_json) if isinstance(config_json, str) else config_json
+    except Exception:
+        config = {}
+
+    symbols: List[str] = _cap_symbols(config.get("symbols") or [])
+    if not symbols:
+        from config import DEFAULT_WATCHLIST
+        symbols = list(DEFAULT_WATCHLIST)[:15]
+
+    start_date, end_date, date_err = _validate_and_normalize_dates(
+        config.get("start_date", ""), config.get("end_date", "")
+    )
+    if date_err:
+        return {"error": date_err, "label": LABEL}
+
+    interval = str(config.get("interval", "1h"))
+    run_id = str(uuid.uuid4())[:12]
+
+    from strategies import list_strategies
+    all_strategy_names = [s["id"] for s in list_strategies()]
+    strategy_names: List[str] = config.get("strategies") or all_strategy_names
+
+    conn = _get_conn()
+    if conn:
+        try:
+            _ensure_tables(conn)
+            _exec(conn, """
+                INSERT INTO validation_v2_runs
+                (run_id, config, status, symbols, strategies, start_date, end_date,
+                 interval, symbols_total, symbols_done, current_symbol, symbol_errors)
+                VALUES (%s, %s, 'RUNNING', %s, %s, %s, %s, %s, %s, 0, '', '[]')
+            """, (run_id, json.dumps(config), json.dumps(symbols),
+                  json.dumps(strategy_names), start_date, end_date, interval,
+                  len(symbols)))
+        except Exception:
+            pass
+        finally:
+            conn.close()
+    else:
+        # No DB — fall back to synchronous run so the caller still gets results
+        return run_backtest_pipeline(config_json)
+
+    return {
+        "run_id": run_id,
+        "status": "RUNNING",
+        "symbols_total": len(symbols),
+        "label": LABEL,
+    }
+
+
+def execute_backtest_pipeline(run_id: str, config_json: str) -> dict:
+    """
+    Phase 2 of the async backtest flow.  Processes symbols one-by-one and
+    writes progress + results to DB after each symbol.  Designed to run as a
+    background subprocess; callers should not wait for it.
+    """
+    try:
+        config = json.loads(config_json) if isinstance(config_json, str) else config_json
+    except Exception:
+        config = {}
+
+    conn = _get_conn()
+    if not conn:
+        return {"error": "DB unavailable"}
+
+    try:
+        _ensure_tables(conn)
+        # Load the run record so we know what to process
+        run = _q1(conn, "SELECT * FROM validation_v2_runs WHERE run_id = %s", (run_id,))
+        if not run:
+            return {"error": f"Run {run_id} not found"}
+
+        symbols_json = run.get("symbols", "[]")
+        symbols: List[str] = json.loads(symbols_json) if isinstance(symbols_json, str) else list(symbols_json or [])
+        strategies_json = run.get("strategies", "[]")
+        strategy_names: List[str] = json.loads(strategies_json) if isinstance(strategies_json, str) else list(strategies_json or [])
+        interval = str(run.get("interval", "1h"))
+        start_date = str(run.get("start_date") or "")
+        end_date = str(run.get("end_date") or "")
+        initial_capital = float(config.get("initial_capital", 100_000))
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return {"error": str(e)}
+
+    from market_data_engine import fetch_candles_df
+    from indicator_engine import compute_indicators_df
+
+    all_decisions: List[dict] = []
+    all_trades: List[dict] = []
+    all_missed: List[dict] = []
+    errors: List[str] = []
+
+    for sym_idx, symbol in enumerate(symbols):
+        # ── Update progress: announce which symbol we're starting ────────────
+        try:
+            _exec(conn, """
+                UPDATE validation_v2_runs
+                SET current_symbol = %s, symbols_done = %s
+                WHERE run_id = %s
+            """, (symbol, sym_idx, run_id))
+        except Exception:
+            pass
+
+        sym_decisions: List[dict] = []
+        sym_trades: List[dict] = []
+        sym_missed: List[dict] = []
+
+        try:
+            kwargs: dict = {"interval": interval}
+            if start_date:
+                kwargs["start"] = start_date
+                kwargs["end"] = end_date
+            else:
+                kwargs["period"] = "6mo" if interval == "1d" else "3mo"
+            df_raw = fetch_candles_df(symbol, **kwargs)
+            if df_raw.empty or len(df_raw) < 60:
+                msg = f"{symbol}: insufficient data ({len(df_raw)} bars)"
+                errors.append(msg)
+                # Persist error immediately so the frontend can surface it
+                try:
+                    _exec(conn, """
+                        UPDATE validation_v2_runs
+                        SET symbol_errors = symbol_errors || %s::jsonb,
+                            symbols_done = %s
+                        WHERE run_id = %s
+                    """, (json.dumps([msg]), sym_idx + 1, run_id))
+                except Exception:
+                    pass
+                continue
+            df = compute_indicators_df(df_raw)
+        except Exception as e:
+            msg = f"{symbol}: candle fetch failed — {str(e)[:60]}"
+            errors.append(msg)
+            try:
+                _exec(conn, """
+                    UPDATE validation_v2_runs
+                    SET symbol_errors = symbol_errors || %s::jsonb,
+                        symbols_done = %s
+                    WHERE run_id = %s
+                """, (json.dumps([msg]), sym_idx + 1, run_id))
+            except Exception:
+                pass
+            continue
+
+        for strategy_name in strategy_names:
+            try:
+                bootstrap_trades: list = []
+                try:
+                    from backtesting_engine import run_backtest as _run_bt
+                    _bs_days = int(config.get("bootstrap_days", 90))
+                    if start_date:
+                        _bs_end = start_date
+                        _bs_start = (
+                            _date_cls.fromisoformat(start_date) - timedelta(days=_bs_days)
+                        ).isoformat()
+                    else:
+                        _bs_end = _date_cls.today().isoformat()
+                        _bs_start = (_date_cls.today() - timedelta(days=_bs_days + 90)).isoformat()
+                    _bt = _run_bt(symbol, strategy_name, _bs_start, _bs_end,
+                                  interval=interval, initial_capital=initial_capital)
+                    bootstrap_trades = _bt.get("trades", [])
+                except Exception:
+                    pass
+
+                bar_decisions, sim_trades = _run_symbol_replay(
+                    symbol, df, config, bootstrap_trades, strategy_name
+                )
+                sym_decisions.extend(bar_decisions)
+
+                for t in sim_trades:
+                    _enhance_trade_with_mfe_mad(t, df)
+                sym_trades.extend(sim_trades)
+
+                missed = _detect_missed(symbol, strategy_name, bar_decisions, df)
+                sym_missed.extend(missed)
+
+            except Exception as e:
+                errors.append(f"{symbol}/{strategy_name}: {str(e)[:80]}")
+
+        all_decisions.extend(sym_decisions)
+        all_trades.extend(sym_trades)
+        all_missed.extend(sym_missed)
+
+        # ── Flush this symbol's results to DB and mark it done ───────────────
+        try:
+            for d in sym_decisions[:500]:  # cap per-symbol flush
+                _exec(conn, """
+                    INSERT INTO validation_v2_decisions
+                    (run_id, symbol, strategy, bar_date, bar_close, recommendation,
+                     final_confidence, reason, threshold, entry_signal, filter_passed,
+                     rr_ratio, detail)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (run_id, d["symbol"], d["strategy"], d["bar_date"], d["bar_close"],
+                      d["recommendation"], d["final_confidence"], d["reason"],
+                      d["threshold"], d["entry_signal"], d["filter_passed"],
+                      d["rr_ratio"], json.dumps(d.get("detail", {}))))
+
+            for t in sym_trades:
+                _exec(conn, """
+                    INSERT INTO validation_v2_trades
+                    (run_id, symbol, strategy, entry_date, entry_price, stop_loss,
+                     target_price, trailing_stop, exit_date, exit_price, exit_reason,
+                     pnl_pct, pnl_abs, holding_days, mfe_pct, mad_pct, result,
+                     confidence, recommendation, agent_scores)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (run_id, t["symbol"], t["strategy"], t.get("entry_date"),
+                      _sf(t.get("entry_price", 0)), _sf(t.get("stop_loss", 0)),
+                      _sf(t.get("target_price", 0)), _sf(t.get("trailing_stop", 0)),
+                      t.get("exit_date"), _sf(t.get("exit_price", 0)),
+                      t.get("exit_reason"), _sf(t.get("pnl_pct", 0)),
+                      _sf(t.get("pnl_abs", 0)), int(t.get("holding_days", 0)),
+                      _sf(t.get("mfe_pct", 0)), _sf(t.get("mad_pct", 0)),
+                      t.get("result", "UNKNOWN"), _sf(t.get("confidence", 0)),
+                      t.get("recommendation", "BUY"),
+                      json.dumps(t.get("agent_scores", {}))))
+
+            for m in sym_missed:
+                _exec(conn, """
+                    INSERT INTO validation_v2_missed
+                    (run_id, symbol, strategy, bar_date, ai_decision, ai_confidence,
+                     actual_move_pct, potential_profit_pct, rejection_reason,
+                     improvement_suggestion)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (run_id, m["symbol"], m["strategy"], m["bar_date"],
+                      m["ai_decision"], m["ai_confidence"], m["actual_move_pct"],
+                      m["potential_profit_pct"], m["rejection_reason"],
+                      m["improvement_suggestion"]))
+
+            # Advance symbols_done counter and clear current_symbol
+            _exec(conn, """
+                UPDATE validation_v2_runs
+                SET symbols_done = %s, current_symbol = %s
+                WHERE run_id = %s
+            """, (sym_idx + 1, "" if sym_idx + 1 < len(symbols) else "", run_id))
+
+        except Exception as e:
+            errors.append(f"{symbol} DB flush: {str(e)[:80]}")
+
+    # ── Final DB update: mark COMPLETED ─────────────────────────────────────
+    try:
+        _exec(conn, """
+            UPDATE validation_v2_runs
+            SET status = 'COMPLETED',
+                total_decisions = %s, total_trades = %s,
+                symbols_done = %s, current_symbol = '',
+                symbol_errors = %s,
+                completed_at = NOW()
+            WHERE run_id = %s
+        """, (len(all_decisions), len(all_trades), len(symbols),
+              json.dumps(errors[:20]), run_id))
+    except Exception as e:
+        errors.append(f"final DB update: {str(e)[:80]}")
+    finally:
+        conn.close()
+
+    return {"success": True, "run_id": run_id, "errors": errors[:10]}
+
+
 def run_backtest_pipeline(config_json: str) -> dict:
     """
     Run the full AI validation pipeline backtest.
@@ -1469,6 +1752,25 @@ def get_backtest_run(run_id: str) -> dict:
         for d in decisions:
             rec_dist[d.get("recommendation", "UNKNOWN")] += 1
 
+        syms_total = int(run.get("symbols_total") or 0)
+        syms_done = int(run.get("symbols_done") or 0)
+        current_sym = str(run.get("current_symbol") or "")
+        sym_errors_raw = run.get("symbol_errors") or "[]"
+        try:
+            sym_errors: list = (
+                json.loads(sym_errors_raw)
+                if isinstance(sym_errors_raw, str)
+                else list(sym_errors_raw)
+            )
+        except Exception:
+            sym_errors = []
+
+        progress = {
+            "symbols_done": syms_done,
+            "symbols_total": syms_total or len(json.loads(run.get("symbols") or "[]")),
+            "current_symbol": current_sym,
+        }
+
         return {
             "success": True, "run_id": run_id, "label": LABEL,
             "status": run.get("status"),
@@ -1484,6 +1786,8 @@ def get_backtest_run(run_id: str) -> dict:
             "decisions_sample": decisions[:200],
             "trades": trades,
             "missed_opportunities": missed,
+            "progress": progress,
+            "symbol_errors": sym_errors,
             "generated_at": _now(),
         }
     finally:

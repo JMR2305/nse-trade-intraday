@@ -17,7 +17,7 @@
  */
 
 import { Router } from "express";
-import { spawn } from "child_process";
+import { spawn, SpawnOptions } from "child_process";
 import { PYTHON_DIR, PYTHON_BIN } from "../lib/python-env";
 
 const router = Router();
@@ -162,6 +162,20 @@ function validateOptimizerBody(body: Record<string, unknown>): string | null {
   return null;
 }
 
+/** Spawn a Python process in the background (fire-and-forget). */
+function spawnBackground(args: string[]): void {
+  const opts: SpawnOptions = {
+    cwd: PYTHON_DIR,
+    env: { ...process.env },
+    stdio: "ignore",
+    detached: false,
+  };
+  try {
+    const child = spawn(PYTHON_BIN, ["-u", "main.py", ...args], opts);
+    child.on("error", () => { /* background process — ignore errors */ });
+  } catch (_) { /* ignore */ }
+}
+
 /** POST /validation-v2/backtest/run — kick off a full backtest */
 router.post("/validation-v2/backtest/run", async (req, res) => {
   try {
@@ -173,11 +187,25 @@ router.post("/validation-v2/backtest/run", async (req, res) => {
     if (Array.isArray(body.symbols)) {
       body.symbols = (body.symbols as string[]).slice(0, MAX_SYMBOLS);
     }
-    const result = await runPython(
-      ["validation_v2_backtest_run", JSON.stringify(body)],
-      180_000   // 3 min: allows up to 20 symbols × 6mo candles
-    );
-    res.json(result);
+    const configJson = JSON.stringify(body);
+    // Phase 1: create the run record synchronously (fast, < 1 s)
+    const startResult = await runPython(
+      ["validation_v2_backtest_start", configJson],
+      15_000
+    ) as Record<string, unknown>;
+
+    if ((startResult as any).error) {
+      res.status(400).json(startResult);
+      return;
+    }
+
+    // Phase 2: execute backtest asynchronously — frontend polls GET /:runId for progress
+    const runId = String((startResult as any).run_id ?? "");
+    if (runId) {
+      spawnBackground(["validation_v2_backtest_execute", runId, configJson]);
+    }
+
+    res.json(startResult);
   } catch (e: unknown) {
     res.status(500).json({ error: String(e), label: "PAPER / RESEARCH ONLY" });
   }

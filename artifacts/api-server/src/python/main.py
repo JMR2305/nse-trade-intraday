@@ -3225,6 +3225,15 @@ def main():
             from validation_v2_engine import run_backtest_pipeline as _f
             _cfg_json = sys.argv[2] if len(sys.argv) > 2 else "{}"
             result = _f(_cfg_json)
+        elif command == "validation_v2_backtest_start":
+            from validation_v2_engine import start_backtest_pipeline as _f
+            _cfg_json = sys.argv[2] if len(sys.argv) > 2 else "{}"
+            result = _f(_cfg_json)
+        elif command == "validation_v2_backtest_execute":
+            from validation_v2_engine import execute_backtest_pipeline as _f
+            _run_id = sys.argv[2] if len(sys.argv) > 2 else ""
+            _cfg_json = sys.argv[3] if len(sys.argv) > 3 else "{}"
+            result = _f(_run_id, _cfg_json)
         elif command == "validation_v2_backtest_list":
             from validation_v2_engine import list_backtest_runs as _f
             result = _f()

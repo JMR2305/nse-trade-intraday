@@ -115,6 +115,13 @@ interface MissedRow {
   run_id: string;
 }
 
+/** Live progress info from a RUNNING run */
+interface RunProgress {
+  symbols_done: number;
+  symbols_total: number;
+  current_symbol: string;
+}
+
 /** Full run detail from GET /validation-v2/backtest/:runId */
 interface RunDetail {
   success?: boolean;
@@ -132,6 +139,8 @@ interface RunDetail {
   decisions_sample: DecisionRow[];
   trades: TradeRow[];
   missed_opportunities: MissedRow[];
+  progress?: RunProgress;
+  symbol_errors?: string[];
   generated_at: string;
 }
 
@@ -543,18 +552,30 @@ function BacktestRunnerTab({ onRunComplete }: { onRunComplete: (run: RunDetail) 
             {running ? <RefreshCw size={14} className="animate-spin" /> : <Play size={14} />}
             {running ? "Running…" : "Run Backtest"}
           </button>
-          {running && <span className="text-xs text-amber-400 animate-pulse">Processing {selectedSymbols.length} symbol{selectedSymbols.length > 1 ? "s" : ""}…</span>}
+          {running && (() => {
+            const prog = currentRun?.progress;
+            if (prog && prog.symbols_total > 0) {
+              const pct = Math.round((prog.symbols_done / prog.symbols_total) * 100);
+              const label = prog.current_symbol
+                ? `Processing ${prog.current_symbol} (${prog.symbols_done + 1} / ${prog.symbols_total})…`
+                : prog.symbols_done >= prog.symbols_total
+                  ? "Finalising…"
+                  : `Starting symbol ${prog.symbols_done + 1} / ${prog.symbols_total}…`;
+              return (
+                <span className="flex items-center gap-2 text-xs text-amber-400">
+                  <span className="animate-pulse">{label}</span>
+                  <span className="font-mono text-slate-500">{pct}%</span>
+                </span>
+              );
+            }
+            return <span className="text-xs text-amber-400 animate-pulse">Processing {selectedSymbols.length} symbol{selectedSymbols.length > 1 ? "s" : ""}…</span>;
+          })()}
           {error && <span className="text-xs text-red-400 flex items-center gap-1"><AlertTriangle size={12} /> {error}</span>}
         </div>
       </div>
 
       {currentRun && (currentRun.status === "RUNNING" || currentRun.status === "PENDING") && (
-        <div className="bg-slate-800/60 border border-teal-700/40 rounded-xl p-4">
-          <div className="flex items-center gap-2 text-teal-300 text-sm font-semibold mb-2">
-            <Activity size={14} className="animate-pulse" /> Run in progress…
-          </div>
-          <div className="text-xs text-slate-400">Run ID: <span className="text-slate-200 font-mono">{currentRun.run_id}</span></div>
-        </div>
+        <BacktestProgressPanel run={currentRun} />
       )}
 
       {currentRun && currentRun.status === "COMPLETED" && <RunResultsPanel run={currentRun} />}
@@ -604,6 +625,62 @@ function BacktestRunnerTab({ onRunComplete }: { onRunComplete: (run: RunDetail) 
   );
 }
 
+function BacktestProgressPanel({ run }: { run: RunDetail }) {
+  const prog = run.progress;
+  const total = prog?.symbols_total ?? run.symbols?.length ?? 0;
+  const done = prog?.symbols_done ?? 0;
+  const current = prog?.current_symbol ?? "";
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  const errors = run.symbol_errors ?? [];
+
+  const label = current
+    ? `Processing ${current} (${done + 1} / ${total})…`
+    : done >= total && total > 0
+      ? "Finalising results…"
+      : `Starting (${done} / ${total} done)…`;
+
+  return (
+    <div className="bg-slate-800/60 border border-teal-700/40 rounded-xl p-4 space-y-3">
+      <div className="flex items-center gap-2 text-teal-300 text-sm font-semibold">
+        <Activity size={14} className="animate-pulse" /> {label}
+      </div>
+
+      {/* Progress bar */}
+      <div className="relative h-2 bg-slate-700/60 rounded-full overflow-hidden">
+        <div
+          className="absolute inset-y-0 left-0 bg-teal-500 rounded-full transition-all duration-500"
+          style={{ width: `${Math.max(2, pct)}%` }}
+        />
+      </div>
+      <div className="flex items-center justify-between text-xs text-slate-500">
+        <span>{done} of {total} symbol{total !== 1 ? "s" : ""} done</span>
+        <span className="font-mono">{pct}%</span>
+      </div>
+
+      {/* Run ID */}
+      <div className="text-xs text-slate-500">
+        Run ID: <span className="text-slate-300 font-mono">{run.run_id}</span>
+      </div>
+
+      {/* Inline symbol errors */}
+      {errors.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-xs text-amber-400 font-medium flex items-center gap-1">
+            <AlertTriangle size={11} /> {errors.length} symbol{errors.length > 1 ? "s" : ""} had errors (run continues)
+          </p>
+          <ul className="space-y-0.5">
+            {errors.map((e, i) => (
+              <li key={i} className="text-xs text-red-400 font-mono bg-red-900/10 border border-red-800/30 rounded px-2 py-1 truncate">
+                {e}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function RunResultsPanel({ run }: { run: RunDetail }) {
   const s = run.stats;
   return (
@@ -629,6 +706,20 @@ function RunResultsPanel({ run }: { run: RunDetail }) {
           <p className="mt-2 text-xs text-slate-500">
             Most common rejection: <span className="text-slate-300">{run.most_common_rejection}</span>
           </p>
+        )}
+        {run.symbol_errors && run.symbol_errors.length > 0 && (
+          <div className="mt-3 space-y-1">
+            <p className="text-xs text-amber-400 font-medium flex items-center gap-1">
+              <AlertTriangle size={11} /> {run.symbol_errors.length} symbol error{run.symbol_errors.length > 1 ? "s" : ""}
+            </p>
+            <ul className="space-y-0.5">
+              {run.symbol_errors.map((e: string, i: number) => (
+                <li key={i} className="text-xs text-red-400 font-mono bg-red-900/10 border border-red-800/30 rounded px-2 py-1 truncate">
+                  {e}
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </div>
 
