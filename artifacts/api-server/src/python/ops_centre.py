@@ -2119,6 +2119,40 @@ def get_pipeline_integrity_check() -> Dict[str, Any]:
         _chk("Circuit Breaker", "WARN", str(exc),
              "Check phase20_store module")
 
+    # 10. Evidence Coverage — warns when too many symbols have fewer than
+    #     5 backtest trades, since this structurally caps their confidence
+    #     below the BUY threshold and operators may mistake IGNORE for a fault.
+    try:
+        from scan_state_store import load_latest_snapshot
+        _snap = load_latest_snapshot()
+        if _snap:
+            _recs = _snap.get("recommendations") or []
+            _valid = [r for r in _recs if not r.get("error")]
+            if _valid:
+                _low_ev = sum(1 for r in _valid if int(r.get("total_trades", 0) or 0) < 5)
+                _low_pct = _low_ev / len(_valid) * 100
+                if _low_pct > 30:
+                    _chk("Evidence Coverage", "WARN",
+                         f"{_low_ev}/{len(_valid)} symbols ({_low_pct:.0f}%) have <5 backtest trades — "
+                         f"confidence scores are capped; IGNORE is expected for thin-evidence stocks",
+                         "Continue running paper trades to accumulate evidence; "
+                         "BUY recommendations will appear naturally as sample size grows")
+                else:
+                    _chk("Evidence Coverage", "PASS",
+                         f"{_low_ev}/{len(_valid)} symbols ({_low_pct:.0f}%) low-evidence — "
+                         f"within acceptable range")
+            else:
+                _chk("Evidence Coverage", "WARN",
+                     "No valid scan items to assess evidence coverage",
+                     "Trigger a manual scan")
+        else:
+            _chk("Evidence Coverage", "WARN",
+                 "No scan snapshot available to check evidence coverage",
+                 "Trigger a manual scan")
+    except Exception as exc:
+        _chk("Evidence Coverage", "WARN", str(exc),
+             "Check scan_state_store module")
+
     overall = (
         "PASS" if all(c["status"] == "PASS" for c in checks)
         else "WARN" if all(c["status"] in ("PASS", "WARN") for c in checks)

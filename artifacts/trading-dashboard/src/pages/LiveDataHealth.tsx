@@ -547,7 +547,15 @@ export default function LiveDataHealth() {
                       r.final_action === "STRONG BUY" ? "text-emerald-400"
                         : r.final_action === "BUY" ? "text-sky-400"
                         : r.final_action === "WATCH" ? "text-amber-400" : "text-zinc-500")}>
-                      {r.final_action}
+                      <span>{r.final_action}</span>
+                      {r.low_evidence && (
+                        <span
+                          className="ml-1 rounded border border-slate-600 bg-slate-500/10 px-1 py-0.5 text-[8px] font-mono text-slate-500 whitespace-nowrap align-middle"
+                          title={`Low evidence: only ${r.total_trades ?? 0} backtest trade(s)`}
+                        >
+                          {r.total_trades ?? 0}t
+                        </span>
+                      )}
                     </td>
                     {(["gate_price", "gate_data_quality", "gate_rr", "gate_volume"] as const).map(gk => (
                       <td key={gk} className="px-2 py-1" title={(r[gk] as any)?.reason ?? ""}>

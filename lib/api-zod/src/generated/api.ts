@@ -1546,6 +1546,8 @@ export const GetTradeDecisionsResponse = zod.object({
   "recommendation": zod.enum(['STRONG_BUY', 'BUY', 'WATCH', 'EXIT', 'AVOID']),
   "data_status": zod.enum(['OK', 'DATA_UNAVAILABLE']),
   "low_reliability": zod.boolean(),
+  "low_evidence": zod.boolean(),
+  "total_trades": zod.number(),
   "base_confidence": zod.number(),
   "learning_adjustment": zod.number(),
   "final_confidence": zod.number(),

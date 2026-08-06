@@ -4296,6 +4296,8 @@ components:
           type: string
           enum: [OK, DATA_UNAVAILABLE]
         low_reliability:          { type: boolean }
+        low_evidence:             { type: boolean }
+        total_trades:             { type: integer }
         base_confidence:          { type: number }
         learning_adjustment:      { type: number }
         final_confidence:         { type: number }
@@ -4370,6 +4372,7 @@ components:
           items: { type: string }
       required:
         [stock, sector, recommendation, data_status, low_reliability,
+         low_evidence, total_trades,
          base_confidence, learning_adjustment, final_confidence,
          model_version, model_adjustment,
          similarity_adjustment, evidence_reliability,

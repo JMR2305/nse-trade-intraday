@@ -1215,6 +1215,15 @@ export default function TradeDecisions() {
                               LOW RELIABILITY
                             </span>
                           )}
+                          {d.low_evidence && (
+                            <span
+                              className="rounded border border-slate-500/50 bg-slate-500/10 px-1 py-0.5 text-[9px] font-mono text-slate-400 whitespace-nowrap"
+                              title={`Only ${d.total_trades ?? 0} backtest trade(s) — score improves as more paper trades accumulate`}
+                              data-testid={`badge-low-evidence-${d.stock}`}
+                            >
+                              LOW EVIDENCE ({d.total_trades ?? 0} trades)
+                            </span>
+                          )}
                           {d.data_status !== "OK" && (
                             <span className="rounded border border-slate-500/30 bg-slate-500/10 px-1 py-0.5 text-[9px] font-mono text-slate-400 whitespace-nowrap">
                               DATA UNAVAILABLE

@@ -160,6 +160,7 @@ class Phase7Recommendation:
     profit_factor: float
     net_pnl_pct: float
     total_trades: int
+    low_evidence: bool          # True when total_trades < 5 (insufficient backtest evidence)
     adx: float
     rsi: float
     volume_ratio: float
@@ -226,6 +227,7 @@ def _scan_one(
             paper_eligible=False, paper_order_id=None,
             paper_order_note=reason,
             win_rate=0.0, profit_factor=0.0, net_pnl_pct=0.0, total_trades=0,
+            low_evidence=True,  # zero trades → definitely low evidence
             adx=0.0, rsi=0.0, volume_ratio=0.0,
             above_ema20=False, above_ema50=False, error=reason,
         )
@@ -388,6 +390,7 @@ def _scan_one(
         profit_factor=min(metrics.get("profit_factor", 0.0), 999.0),
         net_pnl_pct=metrics.get("net_pnl_pct", 0.0),
         total_trades=metrics.get("total_trades", 0),
+        low_evidence=metrics.get("total_trades", 0) < 5,
         adx=round(float(last_row.get("adx", 0.0) or 0.0), 1),
         rsi=round(float(last_row.get("rsi", 0.0) or 0.0), 1),
         volume_ratio=round(vol_ratio, 2),

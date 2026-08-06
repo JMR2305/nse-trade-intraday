@@ -72,6 +72,7 @@ class ScanItem(TypedDict):
     net_pnl_pct:        float
     total_trades:       int
     sharpe_ratio:       float
+    low_evidence:       bool     # True when total_trades < 5 (too few to be reliable)
     # Trade levels (paper only — indicative)
     entry_price:        float
     stop_loss:          float
@@ -247,6 +248,7 @@ def _empty_scan_item(symbol: str, error: str) -> ScanItem:
         ema9=0.0, ema20=0.0, ema50=0.0, ema200=0.0,
         macd_line=0.0, macd_signal=0.0, vwap=0.0, atr=0.0,
         supertrend=0.0, supertrend_dir="",
+        low_evidence=True,  # zero trades → definitely low evidence
         error=error,
     )
 
@@ -344,6 +346,7 @@ def scan_stock(symbol: str, capital: float = INITIAL_CAPITAL) -> ScanItem:
         net_pnl_pct=metrics.get("net_pnl_pct", 0.0),
         total_trades=metrics.get("total_trades", 0),
         sharpe_ratio=metrics.get("sharpe_ratio", 0.0),
+        low_evidence=metrics.get("total_trades", 0) < 5,
         entry_price=round(price, 2),
         stop_loss=stop_loss,
         target=target,

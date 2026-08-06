@@ -2198,6 +2198,8 @@ export interface TradeDecision {
   recommendation: TradeDecisionRecommendation;
   data_status: TradeDecisionDataStatus;
   low_reliability: boolean;
+  low_evidence: boolean;
+  total_trades: number;
   base_confidence: number;
   learning_adjustment: number;
   final_confidence: number;

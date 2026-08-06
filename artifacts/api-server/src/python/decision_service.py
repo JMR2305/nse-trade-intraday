@@ -67,6 +67,8 @@ class TradeDecision(TypedDict):
     recommendation: str          # STRONG_BUY | BUY | WATCH | EXIT | AVOID
     data_status: str             # OK | DATA_UNAVAILABLE
     low_reliability: bool
+    low_evidence: bool           # True when scanner total_trades < 5 (insufficient backtest)
+    total_trades: int            # 6-month backtest trade count from the scanner
     # Confidence
     base_confidence: float
     learning_adjustment: float
@@ -284,8 +286,9 @@ def _decide(item: dict, positions: dict, trades: list,
     exp    = float(item.get("historical_expectancy", 0.0) or 0.0)
     pf     = float(item.get("historical_profit_factor", 0.0) or 0.0)
     wr     = float(item.get("historical_win_rate", 0.0) or 0.0)
-    n_hist = int(item.get("historical_trades", 0) or 0)
-    rr     = float(item.get("rr_ratio", 0.0) or 0.0)
+    n_hist       = int(item.get("historical_trades", 0) or 0)
+    n_scan_trades = int(item.get("total_trades", 0) or 0)
+    rr           = float(item.get("rr_ratio", 0.0) or 0.0)
     price  = float(item.get("price", 0.0) or 0.0)
     filter_passed = bool(item.get("filter_passed", False))
     filter_reasons = list(item.get("filter_reasons", []) or [])
@@ -356,6 +359,7 @@ def _decide(item: dict, positions: dict, trades: list,
         fc = round(max(5.0, min(95.0, fc + sim_adj)), 1)
 
     low_reliability = n_hist < RELIABLE_SAMPLE
+    low_evidence    = n_scan_trades < 5   # scanner backtest has too few trades for reliable scoring
 
     pos = positions.get(sym) or {}
     position_open = bool(pos)
@@ -568,6 +572,8 @@ def _decide(item: dict, positions: dict, trades: list,
         recommendation=recommendation,
         data_status="OK" if data_ok else "DATA_UNAVAILABLE",
         low_reliability=low_reliability,
+        low_evidence=low_evidence,
+        total_trades=n_scan_trades,
         base_confidence=round(base, 1),
         learning_adjustment=round(adj, 1),
         final_confidence=round(fc, 1),
