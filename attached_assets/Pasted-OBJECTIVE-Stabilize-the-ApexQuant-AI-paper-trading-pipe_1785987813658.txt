@@ -1,0 +1,338 @@
+OBJECTIVE
+
+Stabilize the ApexQuant AI paper trading pipeline before implementing any additional features.
+
+The UI is now populated with live operational data, but there are several inconsistencies that must be resolved before the system can be considered production-ready for paper trading.
+
+Do NOT redesign the UI.
+
+Fix the backend logic and ensure every widget is reading from the same live pipeline snapshot.
+
+==================================================
+PRIORITY 1 – RESEARCH AGENT TIMEOUT
+==================================================
+
+The Research Agent is failing with:
+
+"Snapshot collection timed out"
+
+Tasks:
+
+• Identify the exact timeout location.
+• Determine whether the failure is caused by:
+  - News API latency
+  - API rate limiting
+  - Too many symbols
+  - Database queries
+  - Threading / async issues
+• Add retry logic with exponential backoff.
+• If external data is unavailable, continue using cached research instead of failing the pipeline.
+• Research Agent must never stop the entire trading pipeline.
+• Record the failure reason in logs.
+
+Display in UI:
+
+Research Agent
+
+Status
+
+Last successful refresh
+
+Last failure
+
+Failure reason
+
+Recovery action taken
+
+==================================================
+PRIORITY 2 – RISK AGENT DIAGNOSTICS
+==================================================
+
+Currently:
+
+Risk evaluated 6 candidates
+
+Approved 0
+
+Rejected 100%
+
+Need complete transparency.
+
+For every rejected candidate display:
+
+Stock
+
+Confidence Score
+
+Opportunity Score
+
+Risk Score
+
+Sector Exposure
+
+Capital Check
+
+Portfolio Check
+
+Position Size
+
+Exact rule(s) that failed
+
+Example
+
+Rejected because:
+
+Confidence 71%
+
+Required 75%
+
+Opportunity 68%
+
+Required 70%
+
+Sector exposure exceeded
+
+This information should appear in both:
+
+Risk Decision Report
+
+AI Operations Centre
+
+==================================================
+PRIORITY 3 – AI DECISION AGENT
+==================================================
+
+Dashboard currently reports
+
+Average Confidence = 0%
+
+Verify:
+
+Is confidence being generated?
+
+Is confidence passed from Strategy → Risk → AI Decision?
+
+Is UI showing default values?
+
+If confidence exists, display it correctly.
+
+If confidence is missing, identify where it is lost.
+
+==================================================
+PRIORITY 4 – SNAPSHOT CONSISTENCY
+==================================================
+
+Different widgets currently show conflicting numbers.
+
+Example:
+
+Risk blocked 100%
+
+but
+
+BUY recommendations = 6
+
+All widgets must use ONE common pipeline snapshot.
+
+Every dashboard component should display data from the same execution cycle.
+
+Add
+
+Snapshot ID
+
+Pipeline Cycle
+
+Timestamp
+
+to every API response.
+
+==================================================
+PRIORITY 5 – STALE DATA
+==================================================
+
+Banner shows
+
+Scan data stale
+
+Verify:
+
+Scheduler
+
+Auto scan
+
+Market open trigger
+
+Pre-open trigger
+
+Cache invalidation
+
+Automatic refresh after successful scan
+
+Banner must disappear immediately after a successful scan.
+
+==================================================
+PRIORITY 6 – PIPELINE TRACE
+==================================================
+
+For every scan generate a trace.
+
+Example
+
+Pipeline ID
+
+Market Data
+50 → 48
+
+Research
+48 → 48
+
+Market Intelligence
+48 → 31
+
+Monitoring
+31 → 31
+
+Strategy
+31 → 6
+
+Risk
+6 → 0
+
+AI Decision
+0 → 0
+
+Execution
+0
+
+Learning
+0
+
+Knowledge Updated
+
+Display this trace in:
+
+Operations Centre
+
+Risk Report
+
+Paper Trading Dashboard
+
+==================================================
+PRIORITY 7 – EXECUTION VERIFICATION
+==================================================
+
+Verify that BUY recommendations actually reach the Execution Agent.
+
+Display
+
+Candidates received
+
+Orders created
+
+Orders rejected
+
+Reason
+
+If zero orders were created, display the exact blocking condition.
+
+==================================================
+PRIORITY 8 – LOGGING
+==================================================
+
+Create structured logs for every pipeline cycle.
+
+Include:
+
+Pipeline ID
+
+Start Time
+
+End Time
+
+Duration
+
+Agent
+
+Input Count
+
+Output Count
+
+Reject Count
+
+Execution Time
+
+Status
+
+==================================================
+PRIORITY 9 – HEALTH CHECK
+==================================================
+
+Create an automatic integrity check.
+
+Verify:
+
+Research Agent healthy
+
+Risk Agent healthy
+
+AI Decision healthy
+
+Execution healthy
+
+Scheduler healthy
+
+Market Data healthy
+
+If any component fails, show:
+
+Component
+
+Failure reason
+
+Suggested action
+
+==================================================
+FINAL VALIDATION
+==================================================
+
+Run a complete paper-trading cycle.
+
+Verify:
+
+✓ Research completes successfully
+
+✓ Strategy generates candidates
+
+✓ Risk evaluates correctly
+
+✓ AI Decision receives confidence values
+
+✓ BUY recommendations are internally consistent
+
+✓ Execution receives approved trades
+
+✓ Dashboard values match backend
+
+✓ No stale data after successful scans
+
+==================================================
+DELIVERABLES
+
+Provide:
+
+1. Root cause of each issue
+2. Files modified
+3. Backend fixes implemented
+4. API changes
+5. Screenshots
+6. Test results
+7. One complete pipeline trace
+8. Confirmation whether autonomous paper trading is now fully operational
+
+Final status must be one of:
+
+"PAPER TRADING PIPELINE VERIFIED"
+
+or
+
+"ADDITIONAL ISSUES REMAIN"

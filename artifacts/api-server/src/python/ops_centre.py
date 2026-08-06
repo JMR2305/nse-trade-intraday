@@ -240,6 +240,21 @@ def _collect_research() -> Dict[str, Any]:
         else:
             reason = f"{rejected} did not meet research quality threshold"
 
+    # Failure diagnostics from KV (P1 — shown in UI even when agent recovers)
+    fail_info: Dict[str, Any] = {}
+    try:
+        from phase20_store import kv_get as _kv_get_research
+        fail_info = _kv_get_research("research_agent_failure") or {}
+    except Exception:
+        pass
+
+    last_success = (raw or {}).get("last_success_at") or fail_info.get("last_success_at")
+    last_failure = (raw or {}).get("last_failure_at") or fail_info.get("last_failure_at")
+    failure_reason  = str(
+        (raw or {}).get("last_failure_reason") or fail_info.get("failure_reason") or "")
+    recovery_action = str(
+        (raw or {}).get("recovery_action") or fail_info.get("recovery_action") or "")
+
     return _agent_base(
         raw, "Research Agent", "research", "RESEARCH_AGENT_ENABLED",
         stocks_in=received, stocks_out=forwarded,
@@ -252,6 +267,11 @@ def _collect_research() -> Dict[str, Any]:
             "sentiment_positive":    _i(sentiment.get("positive", 0)),
             "sentiment_neutral":     _i(sentiment.get("neutral", 0)),
             "sentiment_negative":    _i(sentiment.get("negative", 0)),
+            # P1 failure diagnostics
+            "last_success_at":       last_success,
+            "last_failure_at":       last_failure,
+            "failure_reason":        failure_reason,
+            "recovery_action":       recovery_action,
         },
     )
 
@@ -511,6 +531,29 @@ def _collect_execution() -> Dict[str, Any]:
     except Exception:
         pass
 
+    # P7 — Execution verification: cross-reference with risk-approved candidate count
+    candidates_received  = 0
+    blocking_condition   = ""
+    try:
+        from phase20_gates import get_last_evaluation
+        ev = get_last_evaluation() or {}
+        candidates_received = int(ev.get("eligible_count", 0))
+        if candidates_received > 0 and paper_buy == 0:
+            if not ev.get("global_pass", True):
+                failed_global = [
+                    g["gate"] for g in ev.get("global_gates", []) if not g["passed"]
+                ]
+                blocking_condition = (
+                    f"Global risk gates failing: {', '.join(failed_global[:3])}"
+                )
+            else:
+                blocking_condition = (
+                    "Risk-approved candidates present but no paper orders created — "
+                    "check auto-paper trading is enabled in settings"
+                )
+    except Exception:
+        pass
+
     gen_at = (raw or {}).get("generated_at")
     base = _agent_base(
         raw or {"available": True, "generated_at": gen_at},
@@ -521,13 +564,18 @@ def _collect_execution() -> Dict[str, Any]:
                           f"{open_pos} open"),
         rejection_reason="; ".join(exec_errors[:3]) if exec_errors else "",
         details={
-            "paper_buy_orders":  paper_buy,
-            "paper_sell_orders": paper_sell,
-            "open_positions":    open_pos,
-            "closed_positions":  closed_pos,
-            "capital_used":      round(capital_used, 2),
-            "capital_available": round(capital_avail, 2),
-            "execution_errors":  exec_errors[:5],
+            "paper_buy_orders":    paper_buy,
+            "paper_sell_orders":   paper_sell,
+            "open_positions":      open_pos,
+            "closed_positions":    closed_pos,
+            "capital_used":        round(capital_used, 2),
+            "capital_available":   round(capital_avail, 2),
+            "execution_errors":    exec_errors[:5],
+            # P7 execution verification
+            "candidates_received": candidates_received,
+            "orders_created":      paper_buy,
+            "orders_rejected":     max(0, candidates_received - paper_buy),
+            "blocking_condition":  blocking_condition,
         },
     )
     return base
@@ -692,19 +740,47 @@ def _operator_summary(
 
 
 def _pipeline_summary() -> Dict[str, Any]:
+    # ── Phase-15 canonical scan context (single source of truth) ─────────────
+    scan_id = "—"
+    snapshot_ts = "—"
+    pipeline_cycle = "—"
+    avg_strategy_confidence = 0.0
+    stale_reason = ""
+    total = live_count = intel_count = buy_count = 0
+
     try:
         from phase15_scan_context import build_scan_context
         ctx = build_scan_context()
         symbols = ctx.get("symbols") or {}
-        total = len(symbols)
+        total       = len(symbols)
         live_count  = sum(1 for r in symbols.values()
                          if str(r.get("data_quality","")).upper() in ("LIVE","NEAR_LIVE"))
         intel_count = sum(1 for r in symbols.values()
                          if str(r.get("final_action","")).upper() != "IGNORE")
         buy_count   = sum(1 for r in symbols.values()
                          if str(r.get("final_action","")).upper() in ("BUY","STRONG BUY"))
+        scan_id     = str(ctx.get("scan_id") or "—")
+        snapshot_ts = str(ctx.get("snapshot_ts") or "—")
+        pipeline_cycle = scan_id
+        # Strategy confidence exists in the scan even when Risk blocks all candidates
+        conf_vals = [
+            _f(r.get("confidence", 0)) * 100
+            for r in symbols.values()
+            if str(r.get("final_action","")).upper() in ("BUY","STRONG BUY","WATCH")
+        ]
+        avg_strategy_confidence = round(
+            sum(conf_vals) / len(conf_vals), 1
+        ) if conf_vals else 0.0
+        if ctx.get("stale"):
+            age_s      = _i(ctx.get("scan_age_seconds", 0))
+            stale_secs = _i(ctx.get("stale_after_seconds", 5400))
+            stale_reason = (
+                f"Scan {age_s // 60}m {age_s % 60}s old "
+                f"(stale after {stale_secs // 60}m) — "
+                f"auto-scan may not be running or market is closed"
+            )
     except Exception:
-        total = live_count = intel_count = buy_count = 0
+        pass
 
     open_pos = 0
     paper_today = 0
@@ -719,25 +795,72 @@ def _pipeline_summary() -> Dict[str, Any]:
     except Exception:
         pass
 
+    # Phase-20 risk evaluation (uses same scan_id when pipeline is aligned)
+    eligible   = 0
+    ev_scan_id = ""
     try:
         from phase20_gates import get_last_evaluation
         ev = get_last_evaluation() or {}
-        eligible = int(ev.get("eligible_count", 0))
+        eligible   = int(ev.get("eligible_count", 0))
+        ev_scan_id = str(ev.get("scan_id") or "")
     except Exception:
         eligible = paper_today
 
+    # Snapshot consistency: both stages must reference the same scan_id
+    consistency_ok = (not ev_scan_id) or (ev_scan_id == scan_id) or (scan_id == "—")
+    consistency_note = "" if consistency_ok else (
+        f"Scan context scan_id ({scan_id[:8]}) differs from Risk evaluation "
+        f"scan_id ({ev_scan_id[:8]}) — widgets may reflect different pipeline cycles"
+    )
+
+    # Pipeline trace — per-stage symbol counts for the Operations Centre flow diagram
+    pipeline_trace = [
+        {"stage": "Universe Loaded",     "input": total,       "output": total,
+         "dropped": 0},
+        {"stage": "Market Data",         "input": total,       "output": live_count,
+         "dropped": max(0, total - live_count)},
+        {"stage": "Research",            "input": live_count,  "output": live_count,
+         "dropped": 0},
+        {"stage": "Market Intelligence", "input": live_count,  "output": intel_count,
+         "dropped": max(0, live_count - intel_count)},
+        {"stage": "Stock Monitoring",    "input": intel_count, "output": intel_count,
+         "dropped": 0},
+        {"stage": "Strategy",            "input": intel_count, "output": buy_count,
+         "dropped": max(0, intel_count - buy_count)},
+        {"stage": "Risk",                "input": buy_count,   "output": eligible,
+         "dropped": max(0, buy_count - eligible)},
+        {"stage": "AI Decision",         "input": eligible,    "output": eligible,
+         "dropped": 0},
+        {"stage": "Execution",           "input": eligible,    "output": paper_today,
+         "dropped": max(0, eligible - paper_today)},
+        {"stage": "Learning",            "input": paper_today, "output": paper_today,
+         "dropped": 0},
+    ]
+
     return {
-        "universe_loaded":        total,
-        "stocks_reviewed":        total,
-        "passed_market_data":     live_count,
-        "passed_research":        live_count,        # proxy (research = live data filter)
-        "passed_intelligence":    intel_count,
-        "passed_monitoring":      intel_count,       # proxy
-        "passed_strategy":        buy_count,
-        "passed_risk":            eligible or buy_count,
-        "buy_recommendations":    buy_count,
-        "paper_orders_executed":  paper_today,
-        "open_positions":         open_pos,
+        "universe_loaded":            total,
+        "stocks_reviewed":            total,
+        "passed_market_data":         live_count,
+        "passed_research":            live_count,
+        "passed_intelligence":        intel_count,
+        "passed_monitoring":          intel_count,
+        "passed_strategy":            buy_count,
+        "passed_risk":                eligible or buy_count,
+        "buy_recommendations":        buy_count,
+        "paper_orders_executed":      paper_today,
+        "open_positions":             open_pos,
+        # Traceability (P4, P6)
+        "scan_id":                    scan_id,
+        "snapshot_ts":                snapshot_ts,
+        "pipeline_cycle":             pipeline_cycle,
+        "consistency_ok":             consistency_ok,
+        "consistency_note":           consistency_note,
+        # Confidence (P3) — strategy confidence is present even when Risk blocks all
+        "avg_strategy_confidence":    avg_strategy_confidence,
+        # Stale diagnosis (P5)
+        "stale_reason":               stale_reason,
+        # Pipeline trace (P6)
+        "pipeline_trace":             pipeline_trace,
     }
 
 
@@ -1771,6 +1894,15 @@ def get_ops_centre_snapshot() -> Dict[str, Any]:
         "pipeline":          pipeline,
         "pipeline_nodes":    pipeline_nodes,
         "agents":            agents,
+        # P4/P6 — pipeline trace and consistency at top level for easy UI access
+        "pipeline_trace":        pipeline.get("pipeline_trace", []),
+        "pipeline_cycle":        pipeline.get("pipeline_cycle", "—"),
+        "scan_id":               pipeline.get("scan_id", "—"),
+        "snapshot_ts":           pipeline.get("snapshot_ts", "—"),
+        "consistency_ok":        pipeline.get("consistency_ok", True),
+        "consistency_note":      pipeline.get("consistency_note", ""),
+        "avg_strategy_confidence": pipeline.get("avg_strategy_confidence", 0.0),
+        "stale_reason":          pipeline.get("stale_reason", ""),
         # V2 additions
         "rejection_summary":   rejection_summary,
         "performance_metrics": performance_metrics,
@@ -1784,4 +1916,244 @@ def get_ops_centre_snapshot() -> Dict[str, Any]:
         "smart_insights":             v3["smart_insights"],
         "executive_summary":          v3["executive_summary"],
         "agent_load_monitor":         v3["agent_load_monitor"],
+    }
+
+
+# ── P9: Pipeline Integrity Check ─────────────────────────────────────────────
+
+def get_pipeline_integrity_check() -> Dict[str, Any]:
+    """
+    9-component automatic integrity check.
+    Returns per-component status (PASS / WARN / FAIL), failure reasons,
+    and suggested operator actions for any degraded component.
+    READ-ONLY · ADVISORY-ONLY
+    """
+    checks: List[Dict[str, Any]] = []
+
+    def _chk(name: str, status: str, reason: str, action: str = "") -> None:
+        checks.append({
+            "component":        name,
+            "status":           status,
+            "reason":           reason,
+            "suggested_action": action,
+        })
+
+    # 1. Research Agent
+    try:
+        fn = _get_fn("research_agent.shared_services", "get_research_snapshot")
+        snap = fn() if fn else None
+        if snap and snap.get("available"):
+            last_fail = snap.get("last_failure_at")
+            if last_fail:
+                _chk("Research Agent", "WARN",
+                     f"Active (last failure at {last_fail}): "
+                     f"{snap.get('last_failure_reason', '')}",
+                     "Previous failures recovered — monitor for recurrence")
+            else:
+                _chk("Research Agent", "PASS", "Snapshot available and healthy")
+        else:
+            err = (snap or {}).get("error", "Unavailable")
+            _chk("Research Agent", "FAIL", err,
+                 "Research data is falling back to cache; restart may help")
+    except Exception as exc:
+        _chk("Research Agent", "FAIL", str(exc), "Check server logs")
+
+    # 2. Risk Agent
+    try:
+        from phase20_gates import get_last_evaluation
+        ev = get_last_evaluation()
+        if ev:
+            gc    = bool(ev.get("global_pass", False))
+            cands = len(ev.get("candidates", []))
+            elig  = int(ev.get("eligible_count", 0))
+            if not gc:
+                failed_g = [g["gate"] for g in ev.get("global_gates", [])
+                            if not g["passed"]]
+                _chk("Risk Agent", "WARN",
+                     f"Global gates failing: {', '.join(failed_g)}",
+                     "Check scan freshness, market open status, and Kite connection")
+            else:
+                _chk("Risk Agent", "PASS",
+                     f"Evaluated {cands} candidates · {elig} approved")
+        else:
+            _chk("Risk Agent", "WARN",
+                 "No entry evaluation available yet",
+                 "Wait for first scan or trigger a manual scan")
+    except Exception as exc:
+        _chk("Risk Agent", "FAIL", str(exc), "Check phase20_gates module")
+
+    # 3. AI Decision Agent
+    try:
+        fn = _get_fn("ai_decision_agent.shared_services", "get_ai_decision_snapshot")
+        snap = fn() if fn else None
+        avg_conf = _f((snap or {}).get("avg_confidence", 0)) * 100
+        if snap and snap.get("available") and avg_conf > 0:
+            _chk("AI Decision Agent", "PASS",
+                 f"Active · avg confidence {avg_conf:.0f}%")
+        elif snap and snap.get("available"):
+            _chk("AI Decision Agent", "WARN",
+                 "Active but avg confidence 0% — no BUY candidates reaching this stage",
+                 "Check Risk Agent approval rate and strategy confidence thresholds")
+        else:
+            _chk("AI Decision Agent", "WARN",
+                 "No AI decision snapshot (normal when Risk blocks all candidates)",
+                 "Ensure Risk Agent is approving candidates")
+    except Exception as exc:
+        _chk("AI Decision Agent", "FAIL", str(exc), "Check ai_decision_agent module")
+
+    # 4. Execution Agent (paper portfolio)
+    try:
+        from paper_trader import get_portfolio
+        pf   = get_portfolio()
+        cash = float(pf.get("cash", 0))
+        pos  = len(pf.get("positions") or [])
+        _chk("Execution Agent", "PASS",
+             f"Portfolio active · ₹{cash:,.0f} cash · {pos} open positions")
+    except Exception as exc:
+        _chk("Execution Agent", "FAIL", str(exc),
+             "Check paper_trader module and DB connection")
+
+    # 5. Scheduler / Auto-scan
+    try:
+        from scan_state_store import load_latest_meta
+        meta    = load_latest_meta() or {}
+        snap_ts = meta.get("snapshot_ts")
+        if snap_ts:
+            try:
+                dt      = datetime.fromisoformat(str(snap_ts).replace("Z", "+00:00"))
+                age_min = (datetime.now(timezone.utc) - dt).total_seconds() / 60
+                if age_min <= 90:
+                    _chk("Scheduler", "PASS", f"Last scan {age_min:.0f}m ago")
+                elif age_min <= 480:
+                    _chk("Scheduler", "WARN",
+                         f"Last scan {age_min:.0f}m ago (stale after 90m)",
+                         "Market may be closed; verify auto-scan is enabled in settings")
+                else:
+                    _chk("Scheduler", "FAIL",
+                         f"No scan in {age_min:.0f}m — scheduler likely not running",
+                         "Enable auto-scan in settings or trigger a manual scan now")
+            except Exception:
+                _chk("Scheduler", "WARN",
+                     "Cannot parse last scan timestamp", "")
+        else:
+            _chk("Scheduler", "WARN",
+                 "No scan has run yet",
+                 "Trigger a manual scan from the Scanner page")
+    except Exception as exc:
+        _chk("Scheduler", "FAIL", str(exc),
+             "Check scan_state_store and DB connection")
+
+    # 6. Market Data
+    try:
+        fn   = _get_fn("market_data_agent.shared_services", "get_market_data_snapshot")
+        snap = fn() if fn else None
+        cov  = _f((snap or {}).get("coverage_pct", 0))
+        if snap and snap.get("available") and cov >= 50:
+            _chk("Market Data", "PASS", f"Coverage {cov:.0f}%")
+        elif snap and snap.get("available"):
+            _chk("Market Data", "WARN", f"Low coverage {cov:.0f}%",
+                 "Check Kite session; it may have expired")
+        else:
+            _chk("Market Data", "FAIL",
+                 "Market data snapshot unavailable",
+                 "Check Kite session and data provider configuration")
+    except Exception as exc:
+        _chk("Market Data", "FAIL", str(exc),
+             "Check market_data_agent module")
+
+    # 7. Snapshot Consistency
+    try:
+        from phase15_scan_context import build_scan_context
+        ctx     = build_scan_context()
+        from phase20_gates import get_last_evaluation
+        ev      = get_last_evaluation() or {}
+        ctx_sid = str(ctx.get("scan_id") or "")
+        ev_sid  = str(ev.get("scan_id") or "")
+        if ctx_sid and ev_sid and ctx_sid != ev_sid:
+            _chk("Snapshot Consistency", "WARN",
+                 f"Scan context scan_id ({ctx_sid[:8]}) ≠ "
+                 f"Risk evaluation scan_id ({ev_sid[:8]})",
+                 "Trigger a fresh scan to re-align all pipeline stages")
+        elif not ctx_sid:
+            _chk("Snapshot Consistency", "WARN",
+                 "No canonical scan_id found — scan may not have run",
+                 "Trigger a manual scan")
+        else:
+            _chk("Snapshot Consistency", "PASS",
+                 "All pipeline stages using the same scan_id")
+    except Exception as exc:
+        _chk("Snapshot Consistency", "WARN", str(exc), "")
+
+    # 8. Confidence Flow
+    try:
+        from phase15_scan_context import build_scan_context
+        ctx      = build_scan_context()
+        symbols  = ctx.get("symbols") or {}
+        buy_recs = [r for r in symbols.values()
+                    if str(r.get("final_action", "")).upper() in ("BUY", "STRONG BUY")]
+        if buy_recs:
+            avg_c = sum(_f(r.get("confidence", 0)) * 100 for r in buy_recs) / len(buy_recs)
+            _chk("Confidence Flow", "PASS",
+                 f"Strategy generating BUY confidence · "
+                 f"avg {avg_c:.0f}% across {len(buy_recs)} candidates")
+        else:
+            _chk("Confidence Flow", "WARN",
+                 "No BUY recommendations — confidence not flowing to AI Decision",
+                 "Check strategy thresholds and current market regime conditions")
+    except Exception as exc:
+        _chk("Confidence Flow", "WARN", str(exc),
+             "Check phase15_scan_context module")
+
+    # 9. Circuit Breaker
+    try:
+        from phase20_store import kv_get as _cb_kv
+        cb      = _cb_kv("circuit_breaker_state") or {}
+        tripped = bool(cb.get("tripped"))
+        if tripped:
+            _chk("Circuit Breaker", "FAIL",
+                 f"TRIPPED: {cb.get('reason', 'unknown reason')}",
+                 "Manual review required before entries can resume")
+        else:
+            _chk("Circuit Breaker", "PASS", "Circuit breaker clear — entries permitted")
+    except Exception as exc:
+        _chk("Circuit Breaker", "WARN", str(exc),
+             "Check phase20_store module")
+
+    overall = (
+        "PASS" if all(c["status"] == "PASS" for c in checks)
+        else "WARN" if all(c["status"] in ("PASS", "WARN") for c in checks)
+        else "FAIL"
+    )
+
+    return {
+        "generated_at":  _now_iso(),
+        "advisory_only": True,
+        "paper_only":    True,
+        "overall":       overall,
+        "checks":        checks,
+        "pass_count":    sum(1 for c in checks if c["status"] == "PASS"),
+        "warn_count":    sum(1 for c in checks if c["status"] == "WARN"),
+        "fail_count":    sum(1 for c in checks if c["status"] == "FAIL"),
+    }
+
+
+# ── P8: Pipeline Cycle Log ────────────────────────────────────────────────────
+
+def get_pipeline_cycle_log() -> Dict[str, Any]:
+    """
+    Returns structured per-pipeline-cycle logs written to KV by phase20_gates
+    after each evaluation.  Keeps the last 50 cycles.
+    READ-ONLY · ADVISORY-ONLY
+    """
+    try:
+        from phase20_store import kv_get
+        cycles = kv_get("pipeline_cycle_log") or []
+    except Exception:
+        cycles = []
+
+    return {
+        "generated_at":  _now_iso(),
+        "advisory_only": True,
+        "cycles":        list(reversed(cycles)),   # newest first
+        "total_cycles":  len(cycles),
     }

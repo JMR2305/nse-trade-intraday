@@ -68,12 +68,34 @@ def get_research_snapshot() -> Dict[str, Any]:
 
     result = _safe(_f)
     if result is None:
+        # Try failure diagnostics from KV so the UI can show last_failure_reason
+        fail_info: Dict[str, Any] = {}
+        try:
+            from phase20_store import kv_get
+            fail_info = kv_get("research_agent_failure") or {}
+        except Exception:
+            pass
         return {
-            "available":     False,
-            "advisory_only": True,
-            "error":         "Research snapshot unavailable",
+            "available":         False,
+            "advisory_only":     True,
+            "error":             "Research snapshot unavailable",
+            "last_failure_at":   fail_info.get("last_failure_at"),
+            "last_failure_reason": fail_info.get("failure_reason", ""),
+            "last_success_at":   fail_info.get("last_success_at"),
+            "recovery_action":   fail_info.get("recovery_action",
+                                               "Continuing with cached data"),
         }
     result["available"] = True
+    # Enrich with persisted failure info (populated even when the latest call succeeded)
+    try:
+        from phase20_store import kv_get
+        fail_info = kv_get("research_agent_failure") or {}
+        if fail_info.get("last_failure_at") and not result.get("last_failure_at"):
+            result["last_failure_at"]    = fail_info["last_failure_at"]
+            result["last_failure_reason"]= fail_info.get("failure_reason", "")
+            result["recovery_action"]    = fail_info.get("recovery_action", "")
+    except Exception:
+        pass
     return result
 
 

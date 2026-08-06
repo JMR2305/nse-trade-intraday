@@ -1,64 +1,11 @@
 {
-  "cash": 40329.11,
-  "positions": {
-    "GRASIM": {
-      "quantity": 3,
-      "avg_price": 3223.63
-    }
-  },
+  "cash": 50000.0,
+  "positions": {},
+  "trades": [],
   "pnl_history": [
     {
-      "value": 50000.0,
-      "timestamp": "2026-08-05T03:30:43.350388"
-    },
-    {
-      "timestamp": "2026-08-05T05:36:47.154136",
+      "timestamp": "2026-08-06T03:43:53.244225",
       "value": 50000.0
-    }
-  ],
-  "trades": [
-    {
-      "id": "d0c2d440",
-      "symbol": "GRASIM",
-      "action": "BUY",
-      "quantity": 3,
-      "price": 3223.63,
-      "total": 9670.89,
-      "timestamp": "2026-08-05T05:36:46.822390",
-      "reason": "Phase 20 AUTO paper entry (trade P20-83aa1be8f9)",
-      "signal_confidence": 62.8,
-      "regime": "Strong uptrend",
-      "ai_decision": "BUY",
-      "rr_ratio": 3.0,
-      "target": 3618.58,
-      "stop_loss": 3085.54,
-      "plain_english": "Automated Phase 20 paper entry (AUTO)",
-      "strategy_id": "trend_rider",
-      "strategy_name": "Trend Rider",
-      "opportunity_score": 63.9,
-      "trade_quality": 53.0,
-      "est_broker_charges": 11.47,
-      "est_slippage": 4.84,
-      "risk_pct": 4.28,
-      "reward_pct": 12.25,
-      "position_size_value": 9670.89,
-      "trailing_stop": null,
-      "indicators_at_entry": {
-        "ema9": 3158.55,
-        "ema20": 3144.66,
-        "ema50": 3104.25,
-        "ema200": 2938.43,
-        "rsi": 57.59,
-        "macd": 13.0623,
-        "macd_signal": 5.9323,
-        "vwap": 3139.96,
-        "atr": 66.69,
-        "adx": 13.86,
-        "supertrend": 3055.38,
-        "volume_ratio": 0.38
-      },
-      "market_regime_at_entry": "Bullish",
-      "volatility_at_entry": 10.83
     }
   ]
 }

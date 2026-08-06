@@ -30,11 +30,62 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+# ── Module-level failure tracking (persists across calls within a process) ────
+_last_failure_at: Optional[str] = None
+_last_success_at: Optional[str] = None
+_last_failure_reason: str = ""
+_last_recovery_action: str = ""
+
+
 def _safe(fn, default=None):
     try:
         return fn()
     except Exception:
         return default
+
+
+def _retry_safe(
+    fn,
+    default=None,
+    max_attempts: int = 3,
+    label: str = "loader",
+):
+    """
+    Call fn() with exponential back-off on failure.
+    On all attempts exhausted, records the failure in module-level state
+    AND in the phase20 KV store so the UI can show diagnostics.
+    Returns *default* — never raises.
+    """
+    global _last_failure_at, _last_success_at, _last_failure_reason, _last_recovery_action
+
+    last_exc: Optional[Exception] = None
+    for attempt in range(max_attempts):
+        try:
+            result = fn()
+            _last_success_at = _now_iso()
+            return result
+        except Exception as exc:
+            last_exc = exc
+            if attempt < max_attempts - 1:
+                time.sleep(0.4 * (2 ** attempt))   # 0.4 s, 0.8 s
+
+    # All attempts failed — record failure
+    _last_failure_at     = _now_iso()
+    _last_failure_reason = f"{label}: {type(last_exc).__name__}: {last_exc}"
+    _last_recovery_action = "Continuing with cached / default research data (pipeline unblocked)"
+
+    try:
+        from phase20_store import kv_set
+        kv_set("research_agent_failure", {
+            "last_failure_at":  _last_failure_at,
+            "failure_reason":   _last_failure_reason,
+            "recovery_action":  _last_recovery_action,
+            "last_success_at":  _last_success_at,
+        })
+    except Exception:
+        pass
+
+    return default
 
 
 class ResearchAgent(BaseAgent):
@@ -69,17 +120,36 @@ class ResearchAgent(BaseAgent):
         return "research"
 
     def execute_task(self) -> Optional[Dict[str, Any]]:
-        """Collect, normalise, and return the ResearchSnapshot payload."""
+        """
+        Collect, normalise, and return the ResearchSnapshot payload.
+        Uses _retry_safe() for each loader so a single slow data source
+        cannot block the entire pipeline — cached data is served instead.
+        """
         start_ms = time.monotonic() * 1000
 
-        events = _safe(self._load_events) or {}
-        macro  = _safe(self._load_macro)  or {}
-        lab    = _safe(self._load_research_lab) or {}
+        events = _retry_safe(
+            self._load_events, default={},
+            max_attempts=3, label="event_intelligence"
+        )
+        macro  = _retry_safe(
+            self._load_macro, default={},
+            max_attempts=3, label="macro_intelligence"
+        )
+        lab    = _retry_safe(
+            self._load_research_lab, default={},
+            max_attempts=3, label="research_lab"
+        )
 
         payload = self._normalise(events, macro, lab)
         payload["collection_latency_ms"] = round(
             (time.monotonic() * 1000) - start_ms, 1
         )
+
+        # Include failure diagnostics so the UI can display them
+        payload["last_failure_at"]     = _last_failure_at
+        payload["last_failure_reason"] = _last_failure_reason
+        payload["last_success_at"]     = _last_success_at or _now_iso()
+        payload["recovery_action"]     = _last_recovery_action or "None required"
 
         self._last_snapshot = payload
         return payload

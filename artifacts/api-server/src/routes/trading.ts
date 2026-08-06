@@ -3046,6 +3046,24 @@ router.get("/ops-centre/snapshot", async (_req, res) => {
   }
 });
 
+// GET /api/ops-centre/integrity-check — 9-component pipeline health check (P9)
+router.get("/ops-centre/integrity-check", async (_req, res) => {
+  try {
+    res.json(await runPython(["ops_centre_integrity_check"]));
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/ops-centre/cycle-log — last 50 per-cycle pipeline log entries (P8)
+router.get("/ops-centre/cycle-log", async (_req, res) => {
+  try {
+    res.json(await runPython(["ops_centre_cycle_log"]));
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/phase20/pipeline — execution pipeline funnel diagnostics
 router.get("/phase20/pipeline", async (_req, res) => {
   try {

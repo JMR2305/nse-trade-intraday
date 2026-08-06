@@ -369,6 +369,41 @@ def evaluate_entries(candidate_symbols: Optional[List[str]] = None) -> Dict[str,
                 "gate_blocked_counts": _gate_blocked,
             })
             store.kv_set("evaluation_history", _hist[-60:])
+        # Structured pipeline cycle log (P8 — per-cycle structured audit trail)
+        try:
+            _cycle_log: List[Dict[str, Any]] = store.kv_get("pipeline_cycle_log") or []
+            _cycle_entry: Dict[str, Any] = {
+                "pipeline_id":          evaluation.get("scan_id") or "—",
+                "scan_id":              evaluation.get("scan_id"),
+                "snapshot_ts":          evaluation.get("snapshot_ts"),
+                "start_time":           evaluation["evaluated_at"],
+                "end_time":             _now_iso(),
+                "market_state":         evaluation["market_state"],
+                "global_pass":          evaluation["global_pass"],
+                "global_gate_failures": [
+                    g["gate"] for g in evaluation.get("global_gates", [])
+                    if not g["passed"]
+                ],
+                "agents": {
+                    "risk": {
+                        "status":        "OK" if evaluation["global_pass"] else "BLOCKED",
+                        "input_count":   len(candidates),
+                        "output_count":  evaluation["eligible_count"],
+                        "reject_count":  evaluation["blocked_count"],
+                        "execution_time_ms": None,
+                    },
+                },
+                "candidates_total":    len(candidates),
+                "candidates_eligible": evaluation["eligible_count"],
+                "candidates_blocked":  evaluation["blocked_count"],
+                "top_blockers": sorted(
+                    _gate_blocked.items(), key=lambda x: x[1], reverse=True
+                )[:5],
+            }
+            _cycle_log.append(_cycle_entry)
+            store.kv_set("pipeline_cycle_log", _cycle_log[-50:])  # keep last 50
+        except Exception:
+            pass
         # Track rejected candidates for V3 analytics
         try:
             from phase20_v3_analytics import record_rejections
