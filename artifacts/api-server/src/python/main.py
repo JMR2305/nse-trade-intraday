@@ -3220,6 +3220,43 @@ def main():
             from phase20_store import update_settings
             result = update_settings({"auto_paper_entries": False})
 
+        # ── AI Validation Platform V2 ────────────────────────────────────────
+        elif command == "validation_v2_backtest_run":
+            from validation_v2_engine import run_backtest_pipeline as _f
+            _cfg_json = sys.argv[2] if len(sys.argv) > 2 else "{}"
+            result = _f(_cfg_json)
+        elif command == "validation_v2_backtest_list":
+            from validation_v2_engine import list_backtest_runs as _f
+            result = _f()
+        elif command == "validation_v2_backtest_get":
+            from validation_v2_engine import get_backtest_run as _f
+            _run_id = sys.argv[2] if len(sys.argv) > 2 else ""
+            result = _f(_run_id)
+        elif command == "validation_v2_missed":
+            from validation_v2_engine import get_missed_opportunities as _f
+            _run_id = sys.argv[2] if len(sys.argv) > 2 else None
+            result = _f(_run_id or None)
+        elif command == "validation_v2_optimizer_run":
+            from validation_v2_engine import run_parameter_optimizer as _f
+            _cfg_json = sys.argv[2] if len(sys.argv) > 2 else "{}"
+            result = _f(_cfg_json)
+        elif command == "validation_v2_optimizer_recommendation":
+            from validation_v2_engine import get_optimizer_recommendation as _f
+            _run_id = sys.argv[2] if len(sys.argv) > 2 else None
+            result = _f(_run_id or None)
+        elif command == "validation_v2_model_comparison":
+            from validation_v2_engine import run_model_comparison as _f
+            _cfg_json = sys.argv[2] if len(sys.argv) > 2 else "{}"
+            result = _f(_cfg_json)
+        elif command == "validation_v2_performance":
+            from validation_v2_engine import get_performance_analytics as _f
+            _period = sys.argv[2] if len(sys.argv) > 2 else "monthly"
+            result = _f(_period)
+        elif command == "validation_v2_timeline":
+            from validation_v2_engine import get_session_timeline as _f
+            _run_id = sys.argv[2] if len(sys.argv) > 2 else ""
+            result = _f(_run_id)
+
         else:
             error_msg = f"Unknown command: {command}"
 

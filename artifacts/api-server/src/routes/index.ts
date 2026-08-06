@@ -52,6 +52,7 @@ import { collaborationEngineRouter } from "./collaborationEngine";
 import { autonomousOpsRouter }      from "./autonomousOps";
 import phase11Router                from "./phase11";
 import replayRouter                 from "./replay";
+import validationV2Router           from "./validation-v2";
 
 const router: IRouter = Router();
 
@@ -106,6 +107,7 @@ router.use(collaborationEngineRouter);
 router.use(autonomousOpsRouter);
 router.use("/phase11", phase11Router);
 router.use(replayRouter);
+router.use(validationV2Router);
 router.use(tradingRouter);
 router.use(downloadRouter);
 
