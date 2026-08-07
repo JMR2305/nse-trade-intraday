@@ -1,12 +1,5 @@
 [
  {
-  "ts": "2026-07-28T04:17:25.073950+00:00",
-  "input": "SBILIFE",
-  "context": "scan",
-  "accepted": true,
-  "reason": "ok"
- },
- {
   "ts": "2026-07-28T04:17:25.077358+00:00",
   "input": "SHRIRAMFIN",
   "context": "scan",
@@ -3496,6 +3489,13 @@
   "ts": "2026-08-06T22:44:21.995590+00:00",
   "input": "BHARTIARTL",
   "context": "scan",
+  "accepted": true,
+  "reason": "ok"
+ },
+ {
+  "ts": "2026-08-07T04:17:06.280737+00:00",
+  "input": "BAJFINANCE",
+  "context": "portfolio",
   "accepted": true,
   "reason": "ok"
  }

@@ -1,0 +1,472 @@
+# ApexQuant AI - Replay Engine V4.2 (Data Integrity + Portfolio Flow)
+
+The replay engine is working well visually, but there are still backend data consistency problems. This phase is NOT a UI redesign. It is a data integrity and replay engine enhancement.
+
+====================================================
+PART 1 - FIX PIPELINE COUNT CONSISTENCY
+====================================================
+
+The replay must behave like a real processing pipeline.
+
+For EVERY stage enforce:
+
+Input = Passed + Rejected + Cancelled + Pending
+
+No stage may create or destroy records.
+
+Current incorrect example:
+
+Decision
+48 -> 6
+
+Execution
+6 -> 7
+
+Rejected = -1
+
+This is mathematically impossible.
+
+Negative rejected counts must never exist.
+
+Execution cannot output more symbols than it received.
+
+The replay validator should automatically detect and highlight any inconsistency.
+
+====================================================
+PART 2 - SINGLE SOURCE OF TRUTH
+====================================================
+
+Every replay page must use the same replay dataset.
+
+Do NOT calculate counts separately.
+
+Every stage must read from the same ReplaySession object.
+
+Example:
+
+ReplaySession
+
+Market Scanner
+
+Research
+
+Market Intelligence
+
+Monitoring
+
+Strategy
+
+Risk
+
+Decision
+
+Execution
+
+Portfolio
+
+The UI should simply display ReplaySession values.
+
+====================================================
+PART 3 - CONNECT EXECUTION TO PORTFOLIO
+====================================================
+
+Currently:
+
+Execution shows paper orders
+
+Portfolio shows zero positions
+
+This indicates Portfolio is not receiving execution output.
+
+Execution must emit actual replay trades.
+
+Portfolio must consume those trades.
+
+Pipeline becomes:
+
+Decision
+
+↓
+
+Execution
+
+↓
+
+Portfolio
+
+↓
+
+Position Monitoring
+
+↓
+
+Exit
+
+↓
+
+Closed Trade
+
+====================================================
+PART 4 - PORTFOLIO REPLAY
+====================================================
+
+When a BUY occurs
+
+Immediately show
+
+Available Cash decreases
+
+Invested Capital increases
+
+Open Positions +1
+
+Average Cost
+
+Quantity
+
+Current Price
+
+Unrealized P&L
+
+When SELL occurs
+
+Open Positions decreases
+
+Cash increases
+
+Realized P&L updates
+
+Equity Curve updates
+
+Trade History updates
+
+Portfolio Value updates
+
+====================================================
+PART 5 - COMPLETE TRADE LIFECYCLE
+====================================================
+
+Every executed trade should replay like this
+
+AI BUY
+
+↓
+
+Order Sent
+
+↓
+
+Order Filled
+
+↓
+
+Position Open
+
+↓
+
+Price Changes
+
+↓
+
+Target Hit
+or
+Stop Loss
+or
+Trailing Stop
+or
+AI Exit
+or
+End Of Day Exit
+
+↓
+
+Position Closed
+
+↓
+
+Portfolio Updated
+
+This entire lifecycle should be visible inside replay.
+
+====================================================
+PART 6 - IMPROVE TIMELINE
+====================================================
+
+Current timeline overlaps.
+
+Events are unreadable.
+
+Replace with a zoomable chronological timeline.
+
+Separate sections:
+
+PRE MARKET
+
+SCAN
+
+DECISION
+
+BUY
+
+MONITOR
+
+SELL
+
+POST MARKET
+
+Each event should have:
+
+Time
+
+Agent
+
+Stock
+
+Decision
+
+Price
+
+Reason
+
+Allow zoom
+
+Allow horizontal scroll
+
+Allow selecting a specific event.
+
+====================================================
+PART 7 - TRADE EVENT CARDS
+====================================================
+
+Every BUY event should show
+
+Stock
+
+Buy Time
+
+Buy Price
+
+Quantity
+
+Capital Used
+
+Stop Loss
+
+Target
+
+Confidence
+
+Strategy
+
+Risk Score
+
+Portfolio after BUY
+
+Every SELL event should show
+
+Sell Time
+
+Sell Price
+
+Exit Reason
+
+Holding Time
+
+Profit/Loss ₹
+
+Profit %
+
+Portfolio after SELL
+
+====================================================
+PART 8 - LIVE PORTFOLIO ANIMATION
+====================================================
+
+During replay animate
+
+Cash
+
+↓
+
+Investment
+
+↓
+
+Open Position
+
+↓
+
+Profit grows
+
+↓
+
+Exit
+
+↓
+
+Cash Returns
+
+↓
+
+Equity Curve updates
+
+This should feel like watching an actual trading session.
+
+====================================================
+PART 9 - STOCK FLOW VISUALIZATION
+====================================================
+
+Each stage should display
+
+Stocks In
+
+Passed
+
+Rejected
+
+Cancelled
+
+Pending
+
+Rejected stocks should remain visible with rejection reason.
+
+Example
+
+Market Scanner
+
+50 scanned
+
+↓
+
+48 passed
+
+↓
+
+2 rejected
+
+Reason
+
+Low Volume
+
+Insufficient Liquidity
+
+====================================================
+PART 10 - VALIDATION PANEL
+====================================================
+
+Add a replay integrity panel.
+
+Automatically verify
+
+No negative counts
+
+No duplicate symbols
+
+No stage creates symbols
+
+Execution equals Decision output
+
+Portfolio positions equal executed BUY orders minus exited positions
+
+Cash never negative
+
+Position sizing valid
+
+Display
+
+PASS
+
+WARNING
+
+ERROR
+
+====================================================
+PART 11 - END OF DAY SUMMARY
+====================================================
+
+After replay completes show
+
+Starting Capital
+
+Ending Capital
+
+Realized P&L
+
+Unrealized P&L
+
+Total Return %
+
+Trades
+
+Wins
+
+Losses
+
+Win Rate
+
+Profit Factor
+
+Largest Winner
+
+Largest Loser
+
+Maximum Drawdown
+
+Average Hold Time
+
+AI Decision Accuracy
+
+False Positives
+
+False Negatives
+
+Pipeline Bottleneck
+
+====================================================
+PART 12 - ACCEPTANCE CRITERIA
+====================================================
+
+The replay must allow a user to visually follow an entire trading day from:
+
+Market Scan
+↓
+
+Research
+↓
+
+Market Intelligence
+↓
+
+Monitoring
+↓
+
+Strategy
+↓
+
+Risk
+↓
+
+AI Decision
+↓
+
+Execution
+↓
+
+Portfolio Management
+↓
+
+Live Position Monitoring
+↓
+
+Sell Decision
+↓
+
+Trade Exit
+↓
+
+Portfolio Update
+↓
+
+End Of Day Summary
+
+There must be no count inconsistencies, no impossible values, no negative counts, and the portfolio must exactly match the executed trades throughout the replay.
