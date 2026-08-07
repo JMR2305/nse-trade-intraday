@@ -917,19 +917,153 @@ def build_replay(scan_id: str) -> Dict:
         finally:
             conn2.close()
 
-    return {
-        "scan_id": snapshot.get("scan_id", scan_id),
-        "snapshot_ts": snapshot.get("snapshot_ts", ""),
-        "starting_capital": _configured_capital(),
+    resolved_scan_id = str(snapshot.get("scan_id", scan_id) or scan_id)
+    snapshot_ts = str(snapshot.get("snapshot_ts", "") or "")
+    starting_capital = _configured_capital()
+
+    # ── Reconcile the Execution stage with the actual ledger ────────────────
+    # The snapshot marks symbols "paper eligible", but an order only exists if
+    # a phase20_paper_trades row was persisted for THIS scan (e.g. duplicates
+    # against an already-open position are blocked and create no row).
+    # Execution `out` must equal actual ledger orders; blocked eligibles are
+    # reported as `cancelled` so conservation still holds exactly and every
+    # page shows the same number.
+    exec_stage = next((s for s in stages if s["id"] == "execution"), None)
+    if exec_stage is not None:
+        ledger_symbols = [t.get("symbol") for t in execution_trades if t.get("symbol")]
+        eligible_out = int(exec_stage.get("stocks_out", 0))
+        actual_out = len(ledger_symbols)
+        if actual_out != eligible_out:
+            blocked = max(0, eligible_out - actual_out)
+            exec_stage["stocks_out"] = actual_out
+            exec_stage["cancelled"] = blocked
+            exec_stage["stocks"] = ledger_symbols[:50]
+            exec_stage["paper_orders"] = actual_out
+            exec_stage["description"] = (
+                f"{actual_out} paper orders placed"
+                + (f" · {blocked} eligible entr{'y' if blocked == 1 else 'ies'} blocked "
+                   f"(no ledger row — e.g. open position already exists)" if blocked else "")
+            )
+            if actual_out > eligible_out:
+                # Ledger overage (rows beyond snapshot eligibility): keep
+                # conservation exact by raising stage input, and surface the
+                # anomaly explicitly instead of producing an impossible count.
+                overage = actual_out - eligible_out
+                exec_stage["stocks_in"] = int(exec_stage.get("stocks_in", 0)) + overage
+                exec_stage.setdefault("anomalies", []).append(
+                    f"{overage} ledger order(s) without matching paper-eligible snapshot rows"
+                )
+                exec_stage["anomaly_count"] = len(exec_stage["anomalies"])
+
+    # ── Unified Replay Snapshot (single source of truth) ─────────────────────
+    # Every consumer (Replay page, Operations Centre, Portfolio, Timeline,
+    # Integrity, AI Explanation) must read from THIS payload only.
+
+    # Decisions — one record per evaluated symbol, from the canonical scan.
+    decisions = [
+        {
+            "symbol": s["symbol"],
+            "final_action": s.get("final_action"),
+            "confidence": s.get("confidence"),
+            "paper_eligible": bool(s.get("paper_eligible")),
+            "all_gates_passed": bool(s.get("all_gates_passed")),
+        }
+        for s in symbols_list
+    ]
+
+    # Portfolio state — derived ONLY from the phase20_paper_trades ledger rows
+    # (execution_trades) scoped to this scan. Never fabricated.
+    open_trades = [t for t in execution_trades if t.get("exit_price") is None]
+    closed_trades = [t for t in execution_trades if t.get("exit_price") is not None]
+    deployed = sum(float(t.get("capital_used") or 0) for t in open_trades)
+    realized_pnl = sum(float(t.get("pnl") or 0) for t in closed_trades)
+    portfolio_state = {
+        "source": "phase20_paper_trades",
+        "starting_capital": starting_capital,
+        "open_positions": len(open_trades),
+        "closed_positions": len(closed_trades),
+        "total_trades": len(execution_trades),
+        "capital_deployed": round(deployed, 2),
+        "realized_pnl": round(realized_pnl, 2),
+        "cash": round(starting_capital - deployed + realized_pnl, 2),
+        "equity": round(starting_capital + realized_pnl, 2),  # open positions at cost
+    }
+
+    # Pipeline counts — the ONLY count table any page may display.
+    pipeline_counts = {
+        s["id"]: {
+            "label": s["label"],
+            "in": s.get("stocks_in", 0),
+            "out": s.get("stocks_out", 0),
+            "rejected": max(0, s.get("rejected", 0)),
+            "pending": max(0, s.get("pending", 0)),
+            "cancelled": max(0, s.get("cancelled", 0)),
+        }
+        for s in stages
+    }
+    pipeline_counts["portfolio"] = {
+        "label": "Portfolio",
+        "in": len(execution_trades),
+        "out": len(open_trades),
+        "rejected": 0,
+        "pending": 0,
+        "cancelled": len(closed_trades),  # exited positions
+    }
+
+    # Timeline events — server-built so the Timeline shows the same facts.
+    timeline_events: List[Dict] = []
+    for s in stages:
+        timeline_events.append({
+            "type": "stage",
+            "stage_id": s["id"],
+            "label": s["label"],
+            "order": s.get("order", 0),
+            "in": s.get("stocks_in", 0),
+            "out": s.get("stocks_out", 0),
+            "duration_ms": s.get("duration_ms"),
+        })
+    for t in execution_trades:
+        timeline_events.append({
+            "type": "trade_entry",
+            "symbol": t.get("symbol"),
+            "ts": t.get("entry_ts"),
+            "price": t.get("entry_price"),
+            "qty": t.get("qty"),
+            "strategy": t.get("strategy"),
+        })
+        if t.get("exit_price") is not None:
+            timeline_events.append({
+                "type": "trade_exit",
+                "symbol": t.get("symbol"),
+                "ts": t.get("exit_ts"),
+                "price": t.get("exit_price"),
+                "pnl": t.get("pnl"),
+            })
+
+    payload = {
+        "replay_id": f"RP-{resolved_scan_id}",
+        "session_id": resolved_scan_id,
+        "scan_id": resolved_scan_id,
+        "snapshot_ts": snapshot_ts,
+        "starting_capital": starting_capital,
         "stages": stages,
+        "pipeline_counts": pipeline_counts,
         "symbols": symbols_list,
+        "decisions": decisions,
         "total_symbols": len(symbols_list),
         "universe_size": int(snapshot.get("universe_size") or 0),
         "duration_s": snapshot.get("duration_s"),
         "regime": (snapshot.get("summary") or {}).get("regime"),
         "provider_health": snapshot.get("provider_health") or {},
         "execution_trades": execution_trades,
+        # paper_trades is an alias of execution_trades: both come from the
+        # phase20_paper_trades ledger scoped to this scan — one dataset.
+        "paper_trades": execution_trades,
+        "portfolio_state": portfolio_state,
+        "timeline_events": timeline_events,
     }
+    payload["integrity"] = _compute_integrity(payload, resolved_scan_id)
+    return payload
 
 
 _INTEGRITY_ERROR_DEFAULTS = {
@@ -945,6 +1079,10 @@ def get_replay_integrity(scan_id: str) -> Dict:
     Run pipeline integrity checks and return a structured PASS/WARNING/ERROR report.
     Always returns all required fields regardless of error state so the frontend
     can render a consistent error banner without crashing.
+
+    Note: build_replay() embeds this same report under `integrity` — this
+    endpoint stays for direct access, but both derive from _compute_integrity()
+    on the SAME replay payload so numbers can never diverge.
     """
     try:
         replay = build_replay(scan_id)
@@ -962,6 +1100,15 @@ def get_replay_integrity(scan_id: str) -> Dict:
             **_INTEGRITY_ERROR_DEFAULTS,
         }
 
+    # build_replay already embeds the computed report.
+    embedded = replay.get("integrity")
+    if isinstance(embedded, dict) and embedded.get("checks"):
+        return embedded
+    return _compute_integrity(replay, scan_id)
+
+
+def _compute_integrity(replay: Dict, scan_id: str = "") -> Dict:
+    """Compute the integrity report from an already-built replay payload."""
     stages: List[Dict] = replay.get("stages") or []
     execution_trades: List[Dict] = replay.get("execution_trades") or []
     checks = []
@@ -1101,7 +1248,7 @@ def get_replay_integrity(scan_id: str) -> Dict:
         overall = "WARNING"
 
     return {
-        "scan_id": replay.get("scan_id", scan_id),
+        "scan_id": replay.get("scan_id") or scan_id,
         "snapshot_ts": replay.get("snapshot_ts", ""),
         "overall": overall,
         "checks": checks,
@@ -1120,19 +1267,41 @@ def get_symbol_journey(scan_id: str, symbol: str) -> Dict:
 
     if conn:
         try:
-            row = _q1(conn, "SELECT snapshot FROM scan_state WHERE id = 1")
-            if row:
+            # Resolve the snapshot for the REQUESTED scan — never silently
+            # substitute the current scan_state for a historical scan_id.
+            row = _q1(conn, "SELECT snapshot, scan_id FROM scan_state WHERE id = 1")
+            current_sid = (row or {}).get("scan_id")
+            if row and scan_id in ("latest", current_sid, ""):
                 snap = row.get("snapshot") or {}
                 if isinstance(snap, str):
                     snap = json.loads(snap)
                 snapshot = snap
+            else:
+                sig_row = _q1(conn, """
+                    SELECT signals, snapshot_ts
+                    FROM signal_snapshots WHERE scan_id = %s LIMIT 1
+                """, (scan_id,))
+                if sig_row:
+                    signals = sig_row.get("signals") or []
+                    if isinstance(signals, str):
+                        signals = json.loads(signals)
+                    snapshot = {
+                        "scan_id": scan_id,
+                        "snapshot_ts": str(sig_row.get("snapshot_ts") or ""),
+                        "recommendations": signals,
+                    }
 
-            # Check paper trades for this symbol
+            # Paper trade for this symbol from the canonical phase20 ledger,
+            # scoped to the resolved scan (same source as the Replay Snapshot).
+            resolved_sid = snapshot.get("scan_id") or (current_sid if scan_id in ("latest", "") else scan_id)
             trade_row = _q1(conn, """
-                SELECT symbol, action, price, total, trade_ts, reason, metadata
-                FROM paper_trades WHERE symbol = %s
-                ORDER BY created_at DESC LIMIT 1
-            """, (symbol.upper(),))
+                SELECT symbol, side AS action, fill_price AS price,
+                       (fill_price * quantity) AS total, fill_ts AS trade_ts,
+                       trigger_source AS reason, status, exit_price, realized_pnl
+                FROM phase20_paper_trades
+                WHERE symbol = %s AND scan_id = %s
+                ORDER BY entry_ts DESC LIMIT 1
+            """, (symbol.upper(), resolved_sid))
             if trade_row:
                 paper_trade = dict(trade_row)
         finally:

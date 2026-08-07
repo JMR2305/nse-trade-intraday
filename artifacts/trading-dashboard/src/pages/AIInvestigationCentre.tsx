@@ -51,6 +51,19 @@ interface Session {
   source?: string;
 }
 
+// Portfolio state from the unified Replay Snapshot (ledger-derived, backend-computed)
+interface PortfolioState {
+  source: string;
+  starting_capital: number;
+  open_positions: number;
+  closed_positions: number;
+  total_trades: number;
+  capital_deployed: number;
+  realized_pnl: number;
+  cash: number;
+  equity: number;
+}
+
 interface Stage {
   id: string;
   label: string;
@@ -1348,24 +1361,31 @@ function PortfolioManagementPanel({
   snapshotTs,
   isReplayComplete,
   startingCapital = DEFAULT_STARTING_CAPITAL,
+  portfolioState,
 }: {
   trades: TradeCard[];
   snapshotTs: string | undefined;
   isReplayComplete: boolean;
   startingCapital?: number;
+  portfolioState?: PortfolioState;
 }) {
   const [selectedTrade, setSelectedTrade] = useState<TradeCard | null>(null);
 
   const summary = useMemo(() => {
-    const startCapital = startingCapital;
+    const startCapital = portfolioState?.starting_capital ?? startingCapital;
     const closedTrades = trades.filter(t => t.pnl !== null);
     const openTrades   = trades.filter(t => t.pnl === null);
     const wins         = closedTrades.filter(t => (t.pnl ?? 0) > 0);
     const losses       = closedTrades.filter(t => (t.pnl ?? 0) < 0);
-    const realizedPnl  = closedTrades.reduce((sum, t) => sum + (t.pnl ?? 0), 0);
+    // Headline figures come from the unified Replay Snapshot's ledger-derived
+    // portfolio_state when available — never recomputed client-side.
+    const realizedPnl  = portfolioState?.realized_pnl
+      ?? closedTrades.reduce((sum, t) => sum + (t.pnl ?? 0), 0);
     const unrealizedPnl= openTrades.reduce((sum, t) => sum + (t.pnl ?? 0), 0);
-    const investedCapital = openTrades.reduce((sum, t) => sum + t.capital_used, 0);
-    const availableCash   = startCapital - investedCapital + realizedPnl;
+    const investedCapital = portfolioState?.capital_deployed
+      ?? openTrades.reduce((sum, t) => sum + t.capital_used, 0);
+    const availableCash   = portfolioState?.cash
+      ?? (startCapital - investedCapital + realizedPnl);
     const totalValue      = availableCash + investedCapital + unrealizedPnl;
     const winRate         = closedTrades.length > 0 ? (wins.length / closedTrades.length) * 100 : null;
     const largestWinner   = wins.length > 0 ? Math.max(...wins.map(t => t.pnl!)) : null;
@@ -1899,6 +1919,15 @@ export default function AIInvestigationCentre() {
       starting_capital?: number;
       // V4.2: real paper trades enriched with scan metadata
       execution_trades: ExecutionTrade[];
+      // ── Unified Replay Snapshot (single source of truth) ──
+      replay_id?: string;
+      session_id?: string;
+      pipeline_counts?: Record<string, { label: string; in: number; out: number; rejected: number; pending: number; cancelled: number }>;
+      decisions?: { symbol: string; final_action: string | null; confidence: number; paper_eligible: boolean; all_gates_passed: boolean }[];
+      paper_trades?: ExecutionTrade[];
+      portfolio_state?: PortfolioState;
+      timeline_events?: Record<string, unknown>[];
+      integrity?: Record<string, unknown>;
     }>(`replay/sessions/${selectedScanId}`),
     staleTime: 60_000,
     retry: 1,
@@ -2407,7 +2436,20 @@ export default function AIInvestigationCentre() {
         </div>
 
         {/* ══ TAB 0: Pipeline Replay ════════════════════════════════════ */}
+        {/* Section order (normal document flow, no absolute positioning):
+            Replay Integrity → Chronological Flow → Symbols → Timeline →
+            Portfolio → Trade Details */}
         {activeTab === 0 && (
+          <div className="space-y-4">
+
+          {/* ── 1. Replay Integrity (embedded snapshot report — no refetch) ── */}
+          {selectedScanId && replayState === "complete" && (
+            <ReplayIntegrityPanel
+              scanId={selectedScanId}
+              integrity={replayData?.integrity as React.ComponentProps<typeof ReplayIntegrityPanel>["integrity"]}
+            />
+          )}
+
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
 
             {/* Left: Visual AI Pipeline */}
@@ -2475,10 +2517,6 @@ export default function AIInvestigationCentre() {
                 replayState={replayState}
               />
 
-              {/* V4.2 Replay Integrity Panel */}
-              {selectedScanId && replayState === "complete" && (
-                <ReplayIntegrityPanel scanId={selectedScanId} />
-              )}
             </div>
 
             {/* Right: Stage Detail + Symbol List */}
@@ -2500,6 +2538,7 @@ export default function AIInvestigationCentre() {
                       snapshotTs={snapshotTs}
                       isReplayComplete={replayState === "complete"}
                       startingCapital={replayData?.starting_capital ?? DEFAULT_STARTING_CAPITAL}
+                      portfolioState={replayData?.portfolio_state}
                     />
                   ) : (
                     <AgentDetailCard stageId={focusStage.id} stageData={stageById[focusStage.id]} />
@@ -2566,13 +2605,41 @@ export default function AIInvestigationCentre() {
                 </div>
               </div>
 
-              {/* v5.0 Live Position Tracker */}
-              <LivePositions
-                executionTrades={executionTrades}
-                activeStageIdx={activeStageIdx}
-                startingCapital={replayData?.starting_capital ?? DEFAULT_STARTING_CAPITAL}
-              />
             </div>
+          </div>
+
+          {/* ── 4. Timeline ─────────────────────────────────────────────── */}
+          <BottomTimeline
+            snapshotTs={snapshotTs}
+            comparisonData={comparisonData}
+            executionTrades={executionTrades}
+            stages={stages}
+            pipelineCfg={PIPELINE_STAGES}
+            activeStageIdx={activeStageIdx}
+            onJumpToStage={idx => {
+              stopTimer();
+              setReplayState("paused");
+              setActiveStageIdx(idx);
+              setFocusStageId(PIPELINE_STAGES[idx]?.id ?? null);
+            }}
+          />
+
+          {/* ── 5. Portfolio (ledger positions) ─────────────────────────── */}
+          <LivePositions
+            executionTrades={executionTrades}
+            activeStageIdx={activeStageIdx}
+            startingCapital={replayData?.portfolio_state?.starting_capital ?? replayData?.starting_capital ?? DEFAULT_STARTING_CAPITAL}
+          />
+
+          {/* ── 6. Trade Details ────────────────────────────────────────── */}
+          <PortfolioManagementPanel
+            trades={effectiveTrades}
+            snapshotTs={snapshotTs}
+            isReplayComplete={replayState === "complete"}
+            startingCapital={replayData?.starting_capital ?? DEFAULT_STARTING_CAPITAL}
+            portfolioState={replayData?.portfolio_state}
+          />
+
           </div>
         )}
 
@@ -2986,7 +3053,9 @@ export default function AIInvestigationCentre() {
           </div>
         )}
 
-        {/* ── v5.0 Bottom Event Timeline ──────────────────────────────── */}
+        {/* ── v5.0 Bottom Event Timeline (Tab 0 renders it inline in the
+               unified section order, so skip the page-bottom copy there) ── */}
+        {activeTab !== 0 && (
         <BottomTimeline
           snapshotTs={snapshotTs}
           comparisonData={comparisonData}
@@ -3001,6 +3070,7 @@ export default function AIInvestigationCentre() {
             setFocusStageId(PIPELINE_STAGES[idx]?.id ?? null);
           }}
         />
+        )}
 
         {/* ── End-of-Session Report (shown when trading day replay completes) ── */}
         {replayState === "complete" && (

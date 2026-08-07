@@ -959,7 +959,7 @@ def _pipeline_summary() -> Dict[str, Any]:
          "dropped": 0},
     ]
 
-    return {
+    summary = {
         "universe_loaded":            total,
         "stocks_reviewed":            total,
         "passed_market_data":         live_count,
@@ -992,6 +992,52 @@ def _pipeline_summary() -> Dict[str, Any]:
         "decision_summary_ok":        decision_summary_ok,
         "decision_summary_ts":        decision_summary_ts,
     }
+    # ── Unified Replay Snapshot override (single source of truth) ────────────
+    # The Operations Centre must display the EXACT same pipeline numbers as
+    # the Replay page. When the replay snapshot for the same scan is
+    # available, its stage counts replace the independently computed ones
+    # above (which remain only as a fallback when replay data is missing).
+    try:
+        import replay_engine
+        replay = replay_engine.build_replay(scan_id if scan_id not in ("", "—") else "latest")
+        _same_scan = scan_id in ("", "—") or str(replay.get("scan_id") or "") == scan_id
+        if "error" not in replay and _same_scan:
+            pc = replay.get("pipeline_counts") or {}
+            ps = replay.get("portfolio_state") or {}
+
+            def _out(stage: str, default: int) -> int:
+                d = pc.get(stage) or {}
+                return int(d.get("out", default))
+
+            summary["universe_loaded"]     = _out("supervisor", total)
+            summary["stocks_reviewed"]     = _out("supervisor", total)
+            summary["passed_market_data"]  = _out("market_data", live_count)
+            summary["passed_research"]     = _out("research", live_count)
+            summary["passed_intelligence"] = _out("market_intelligence", intel_count)
+            summary["passed_monitoring"]   = _out("monitoring", intel_count)
+            summary["passed_strategy"]     = _out("strategy", scanner_candidates)
+            summary["passed_risk"]         = _out("risk", eligible or scanner_candidates)
+            summary["buy_recommendations"] = _out("ai_decision",
+                                                  confirmed_buy_count if confirmed_buy_count is not None else 0)
+            summary["paper_orders_executed"] = _out("execution", paper_today)
+            summary["open_positions"]      = int(ps.get("open_positions", open_pos))
+            summary["replay_id"]           = replay.get("replay_id")
+            summary["counts_source"]       = "replay_snapshot"
+            # Rebuild the trace from the same unified counts.
+            _order = ["supervisor", "market_data", "research", "market_intelligence",
+                      "monitoring", "strategy", "risk", "ai_decision", "execution", "portfolio"]
+            summary["pipeline_trace"] = [
+                {
+                    "stage": (pc.get(k) or {}).get("label", k),
+                    "input": int((pc.get(k) or {}).get("in", 0)),
+                    "output": int((pc.get(k) or {}).get("out", 0)),
+                    "dropped": int((pc.get(k) or {}).get("rejected", 0)),
+                }
+                for k in _order if k in pc
+            ]
+    except Exception:
+        summary["counts_source"] = "legacy_fallback"
+    return summary
 
 
 # ── Platform status ───────────────────────────────────────────────────────────

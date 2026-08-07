@@ -1,0 +1,172 @@
+STABILIZATION PHASE – UNIFY REPLAY, OPERATIONS CENTRE AND PORTFOLIO
+
+Do not add new features.
+
+The objective is to make the Replay page, AI Operations Centre, Portfolio/Trade Management, Timeline, Integrity Report and AI Explanation all consume the EXACT SAME replay dataset.
+
+========================================================================
+1. SINGLE SOURCE OF TRUTH
+========================================================================
+
+Create one Replay Snapshot object for every replay.
+
+Every component must read ONLY from this object.
+
+Replay Snapshot must contain:
+
+- replay_id
+- scan_id
+- session_id
+- pipeline counts
+- stage counts
+- decisions
+- execution records
+- paper trades
+- portfolio state
+- integrity results
+- timeline events
+
+No page may calculate its own counts.
+
+========================================================================
+2. OPERATIONS CENTRE
+========================================================================
+
+Remove all independent counting.
+
+Operations Centre must display the same numbers as Replay.
+
+Verify:
+
+Replay Decision == Operations Decision
+
+Replay Execution == Operations Execution
+
+Replay Risk == Operations Risk
+
+Replay Portfolio == Operations Portfolio
+
+========================================================================
+3. PORTFOLIO
+========================================================================
+
+Portfolio must read ONLY from:
+
+phase20_paper_trades
+
+filtered by replay scan_id.
+
+Never fabricate trades.
+
+Never reconstruct trades.
+
+Never use fallback data.
+
+If Execution created six BUY orders then Portfolio must contain six positions unless those positions were exited.
+
+========================================================================
+4. EXECUTION
+========================================================================
+
+Verify every BUY creates exactly one ledger entry.
+
+Verify every SELL updates the same trade.
+
+No duplicate trades.
+
+No missing trades.
+
+========================================================================
+5. REPLAY INTEGRITY UI
+========================================================================
+
+Replay Integrity must NOT overlap any component.
+
+Use normal document flow.
+
+Order should be:
+
+Replay Integrity
+
+↓
+
+Chronological Flow
+
+↓
+
+Symbols
+
+↓
+
+Timeline
+
+↓
+
+Portfolio
+
+↓
+
+Trade Details
+
+No absolute positioning.
+
+========================================================================
+6. AI EXPLANATION
+========================================================================
+
+Generate explanation only from Replay Snapshot.
+
+Never recalculate independently.
+
+========================================================================
+7. VALIDATION
+========================================================================
+
+Produce a comparison table showing:
+
+Replay
+Operations
+Portfolio
+Timeline
+
+for:
+
+Supervisor
+
+Market Scanner
+
+Research
+
+Market Intelligence
+
+Monitoring
+
+Strategy
+
+Risk
+
+Decision
+
+Execution
+
+Portfolio
+
+Every value must match exactly.
+
+========================================================================
+8. FINAL ACCEPTANCE
+========================================================================
+
+Do not consider this complete until:
+
+✓ Replay numbers equal Operations numbers
+
+✓ Execution equals Ledger
+
+✓ Ledger equals Portfolio
+
+✓ Portfolio equals Timeline
+
+✓ Replay Integrity has zero layout overlap
+
+✓ Every page displays identical pipeline counts for the same replay.

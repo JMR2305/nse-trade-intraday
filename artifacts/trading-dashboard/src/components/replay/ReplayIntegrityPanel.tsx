@@ -28,6 +28,10 @@ interface IntegrityData {
 
 interface Props {
   scanId: string;
+  /** Embedded integrity report from the unified Replay Snapshot. When
+   *  provided, the panel renders it directly (single dataset — no second
+   *  fetch that could disagree with the already-rendered replay). */
+  integrity?: IntegrityData;
 }
 
 function statusIcon(status: IntegrityCheck["status"]) {
@@ -54,13 +58,15 @@ function overallBadge(overall: IntegrityData["overall"]) {
   }
 }
 
-export function ReplayIntegrityPanel({ scanId }: Props) {
-  const { data, isLoading, error, refetch } = useQuery({
+export function ReplayIntegrityPanel({ scanId, integrity }: Props) {
+  const { data: fetched, isLoading, error, refetch } = useQuery({
     queryKey: ["replay-integrity", scanId],
     queryFn: () => apiJson<IntegrityData>(`replay/sessions/${scanId}/integrity`),
     staleTime: 60_000,
     retry: 1,
+    enabled: !integrity, // embedded snapshot report wins; fetch is fallback only
   });
+  const data = integrity ?? fetched;
 
   if (isLoading) {
     return (
