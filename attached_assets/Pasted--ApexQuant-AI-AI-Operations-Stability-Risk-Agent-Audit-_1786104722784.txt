@@ -1,0 +1,423 @@
+# ApexQuant AI - AI Operations Stability & Risk Agent Audit (Version 4.3)
+
+The AI Operations Centre has exposed several backend inconsistencies. This phase is NOT about adding new UI. It is about making the entire AI pipeline reliable, explainable, and internally consistent.
+
+====================================================
+PART 1 - RESEARCH AGENT FAILURE
+====================================================
+
+The Research Agent is currently entering ERROR state with messages such as:
+
+- Snapshot collection timed out
+- Worker timed out
+- No refresh timestamp
+- No news processed
+- No sentiment
+- No corporate actions
+
+This is unacceptable for production.
+
+Investigate and fix:
+
+• API timeout handling
+• Worker timeout configuration
+• Queue deadlocks
+• Missing retry logic
+• Database lock/contention
+• Thread starvation
+• Network timeout
+• Scheduler overlap
+
+Implement automatic retry.
+
+Retry 3 times using exponential backoff.
+
+If Research still fails:
+
+Supervisor must decide ONE of two modes.
+
+Option A (Fail Open)
+
+Continue pipeline using market-only analysis.
+
+Mark every downstream decision:
+
+"Research unavailable - Market-only mode"
+
+Option B (Fail Closed)
+
+Stop downstream pipeline.
+
+Show clear reason.
+
+Do NOT allow inconsistent partial execution.
+
+====================================================
+PART 2 - PIPELINE CONSISTENCY
+====================================================
+
+Every stage must consume ONLY the previous stage output.
+
+No stage may bypass another stage.
+
+Correct pipeline:
+
+Supervisor
+
+↓
+
+Market Data
+
+↓
+
+Research
+
+↓
+
+Market Intelligence
+
+↓
+
+Monitoring
+
+↓
+
+Strategy
+
+↓
+
+Risk
+
+↓
+
+AI Decision
+
+↓
+
+Execution
+
+↓
+
+Portfolio
+
+↓
+
+Trade Management
+
+↓
+
+End of Day
+
+No stage should continue if its required upstream dependency failed.
+
+====================================================
+PART 3 - SINGLE SOURCE OF TRUTH
+====================================================
+
+All pages must read from one ReplaySession / PipelineSession object.
+
+Current pages display conflicting values.
+
+Fix this.
+
+Every dashboard must display identical numbers.
+
+====================================================
+PART 4 - RISK AGENT AUDIT
+====================================================
+
+Current behaviour is overly conservative.
+
+Almost every candidate is rejected.
+
+Perform a complete audit.
+
+Display every rule.
+
+Example
+
+Minimum confidence
+
+Minimum Risk Reward
+
+Sector exposure
+
+Capital utilisation
+
+Daily loss limit
+
+Maximum position size
+
+Volatility filter
+
+Liquidity filter
+
+Gap filter
+
+Correlation filter
+
+Open positions limit
+
+Every rule must report
+
+Current value
+
+Required value
+
+Pass / Fail
+
+====================================================
+PART 5 - RISK EXPLAINABILITY
+====================================================
+
+Every rejected stock must include full reasoning.
+
+Example
+
+INDUSINDBK
+
+Passed
+
+✓ Market Data
+
+✓ Research
+
+✓ Intelligence
+
+✓ Monitoring
+
+✓ Strategy
+
+Risk Evaluation
+
+Confidence
+
+74%
+
+PASS
+
+Risk Reward
+
+1.5
+
+FAIL
+
+Minimum required
+
+2.0
+
+Sector Exposure
+
+34%
+
+FAIL
+
+Limit
+
+30%
+
+Daily Risk
+
+0.8%
+
+PASS
+
+Final Decision
+
+REJECTED
+
+Reasons
+
+Risk Reward below threshold
+
+Sector exposure exceeded
+
+The user must know exactly why a stock was rejected.
+
+====================================================
+PART 6 - DECISION EXPLAINABILITY
+====================================================
+
+Every BUY candidate should show
+
+Overall Score
+
+Confidence
+
+Risk
+
+Strategy
+
+Supporting Signals
+
+Conflicting Signals
+
+Why BUY
+
+Every NO BUY should show
+
+Rejected because
+
+with exact thresholds.
+
+Never display only
+
+"Rejected"
+
+====================================================
+PART 7 - PIPELINE HEALTH
+====================================================
+
+Supervisor should continuously verify
+
+All agents alive
+
+Queue healthy
+
+No timeout
+
+No duplicate processing
+
+No skipped stages
+
+No orphan records
+
+If any issue occurs
+
+Raise warning immediately.
+
+====================================================
+PART 8 - DATA CONSISTENCY VALIDATION
+====================================================
+
+Validate
+
+Input = Passed + Rejected + Pending + Cancelled
+
+at every stage.
+
+Reject impossible values
+
+Examples
+
+Negative rejected count
+
+Output greater than input
+
+Missing records
+
+Duplicate records
+
+Pipeline split
+
+Every validation failure should show
+
+Cause
+
+Agent
+
+Timestamp
+
+Suggested Fix
+
+====================================================
+PART 9 - PIPELINE METRICS
+====================================================
+
+Each agent should display
+
+Stocks Received
+
+Stocks Passed
+
+Stocks Rejected
+
+Average Processing Time
+
+Maximum Processing Time
+
+Queue Size
+
+Retry Count
+
+Timeout Count
+
+Worker Status
+
+Last Refresh
+
+Health Score
+
+====================================================
+PART 10 - RISK TUNING PANEL
+====================================================
+
+Create a tuning panel for paper trading.
+
+Allow adjusting
+
+Minimum confidence
+
+Minimum Risk Reward
+
+Maximum sector exposure
+
+Maximum position size
+
+Daily portfolio risk
+
+Maximum concurrent positions
+
+Minimum liquidity
+
+Maximum volatility
+
+All changes remain paper-mode only.
+
+====================================================
+PART 11 - SUPERVISOR INTELLIGENCE
+====================================================
+
+Supervisor should automatically identify bottlenecks.
+
+Example
+
+Research timeout
+
+Risk rejecting too many candidates
+
+Execution latency
+
+Market Data delay
+
+Decision confidence too low
+
+Generate recommendations instead of generic errors.
+
+====================================================
+PART 12 - ACCEPTANCE CRITERIA
+====================================================
+
+The system is complete only if:
+
+✓ Research Agent no longer randomly times out.
+
+✓ Pipeline remains internally consistent.
+
+✓ All dashboards display identical counts.
+
+✓ Every rejected stock has complete reasoning.
+
+✓ Every BUY recommendation has complete reasoning.
+
+✓ Risk thresholds are fully explainable.
+
+✓ Supervisor automatically detects unhealthy agents.
+
+✓ No negative counts exist.
+
+✓ No impossible pipeline states exist.
+
+✓ Every stage uses a single shared data source.
+
+The AI Operations Centre should become a production-grade monitoring dashboard where every AI decision is traceable, every rejection is explainable, and every pipeline issue is immediately diagnosable.
