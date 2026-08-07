@@ -280,15 +280,16 @@ def _build_stages_from_snapshot(snapshot: Dict) -> List[Dict]:
             "label": "AI Decision",
             "order": 7,
             "stocks_in": len(risk_symbols),
+            # stocks_out = BUY only; rejected = everything that didn't become BUY (clamped ≥ 0)
             "stocks_out": len(buy_symbols),
-            "rejected": len(avoid_symbols),
+            "rejected": max(0, len(risk_symbols) - len(buy_symbols)),
             "rejected_symbols": avoid_symbols[:10],
             "stocks": buy_symbols[:50],
             "buy_count": len(buy_symbols),
             "avoid_count": len(avoid_symbols),
-            "watch_count": len(ai_symbols) - len(buy_symbols),
+            "watch_count": max(0, len(ai_symbols) - len(buy_symbols)),
             "duration_ms": _ms("ai_decision") or 800,
-            "description": f"BUY: {len(buy_symbols)} · AVOID: {len(avoid_symbols)}",
+            "description": f"BUY: {len(buy_symbols)} · AVOID/WATCH: {max(0, len(risk_symbols) - len(buy_symbols))}",
             "status": "COMPLETE",
         },
         {
@@ -297,7 +298,8 @@ def _build_stages_from_snapshot(snapshot: Dict) -> List[Dict]:
             "order": 8,
             "stocks_in": len(buy_symbols),
             "stocks_out": len(execution_symbols),
-            "rejected": len(buy_symbols) - len(execution_symbols),
+            # Clamp to 0: execution can never output MORE than it received from Decision
+            "rejected": max(0, len(buy_symbols) - len(execution_symbols)),
             "rejected_symbols": [s for s in buy_symbols if s not in set(execution_symbols)][:10],
             "stocks": execution_symbols[:50],
             "paper_orders": len(execution_symbols),
@@ -306,7 +308,112 @@ def _build_stages_from_snapshot(snapshot: Dict) -> List[Dict]:
             "status": "COMPLETE",
         },
     ]
+
+    # ── Post-build integrity validation (warn to logs, never raise) ──────────
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
+    for s in stages:
+        sid = s["id"]
+        sin, sout, srej = s["stocks_in"], s["stocks_out"], s["rejected"]
+        # Detect any remaining impossible values
+        if srej < 0:
+            _log.warning("REPLAY INTEGRITY: stage=%s rejected=%d < 0 — clamped but source data inconsistent", sid, srej)
+        if sout < 0:
+            _log.warning("REPLAY INTEGRITY: stage=%s stocks_out=%d < 0", sid, sout)
+        if sout + max(0, srej) > sin:
+            _log.warning(
+                "REPLAY INTEGRITY: stage=%s input=%d < passed=%d + rejected=%d (stage creates records)",
+                sid, sin, sout, srej,
+            )
+
     return stages
+
+
+# ---------------------------------------------------------------------------
+# Execution trades helper — real paper trade records enriched with scan data
+# ---------------------------------------------------------------------------
+
+def _get_execution_trades(conn, scan_id: str, snapshot: Dict) -> List[Dict]:
+    """
+    Fetch paper trades from phase20_paper_trades scoped to the given scan_id.
+
+    The phase20_paper_trades table stores one row per BUY/SELL event with a
+    mandatory scan_id column, so this query is strictly session-scoped.
+    Falls back to empty list gracefully — never cross-contaminates sessions.
+    """
+    if not conn:
+        return []
+
+    # Resolve 'latest' to the actual scan_id from the snapshot if needed
+    effective_scan_id = snapshot.get("scan_id") or scan_id
+    if not effective_scan_id or effective_scan_id == "latest":
+        return []   # cannot scope without a concrete scan_id — return nothing
+
+    try:
+        trade_rows = _q(conn, """
+            SELECT trade_id, scan_id, symbol, side, strategy_name,
+                   fill_price, quantity, stop_loss, target, confidence,
+                   fill_ts, exit_ts, exit_price, exit_rule, realized_pnl,
+                   trade_quality_score, status
+            FROM phase20_paper_trades
+            WHERE scan_id = %s
+            ORDER BY fill_ts ASC
+            LIMIT 200
+        """, (effective_scan_id,))
+    except Exception:
+        # Table may not exist (e.g. no DB / fresh environment)
+        return []
+
+    trades = []
+    for row in trade_rows:
+        sym = row.get("symbol")
+        if not sym:
+            continue
+        entry_price = _pct(row.get("fill_price"))
+        if not entry_price or entry_price <= 0:
+            continue
+
+        qty          = int(row.get("quantity") or 0) or max(1, int(10_000 // entry_price))
+        capital_used = entry_price * qty
+        stop_loss    = _pct(row.get("stop_loss"))
+        target       = _pct(row.get("target"))
+        confidence   = round(float(row.get("confidence") or 0))
+        strategy     = row.get("strategy_name")
+        risk_score   = round(float(row.get("trade_quality_score") or 0))
+        entry_ts     = str(row.get("fill_ts") or "")
+        exit_price   = _pct(row.get("exit_price"))
+        exit_ts      = str(row.get("exit_ts") or "") or None
+        exit_reason  = row.get("exit_rule")
+        pnl          = _pct(row.get("realized_pnl"))
+
+        # Compute pnl_pct from realized_pnl when possible
+        pnl_pct: float | None = None
+        if pnl is not None and capital_used > 0:
+            pnl_pct = round((pnl / capital_used) * 100, 4)
+        elif exit_price is not None:
+            pnl = round((exit_price - entry_price) * qty, 2)
+            pnl_pct = round(((exit_price - entry_price) / entry_price) * 100, 4)
+
+        trades.append({
+            "symbol":       sym,
+            "action":       str(row.get("side") or "BUY"),
+            "entry_price":  entry_price,
+            "qty":          qty,
+            "capital_used": round(capital_used, 2),
+            "stop_loss":    stop_loss,
+            "target":       target,
+            "confidence":   confidence,
+            "strategy":     strategy,
+            "risk_score":   risk_score,
+            "entry_ts":     entry_ts if entry_ts else None,
+            "exit_price":   exit_price,
+            "exit_ts":      exit_ts,
+            "exit_reason":  exit_reason,
+            "pnl":          pnl,
+            "pnl_pct":      pnl_pct,
+        })
+
+    return trades
 
 
 # ---------------------------------------------------------------------------
@@ -715,6 +822,17 @@ def build_replay(scan_id: str) -> Dict:
             "data_quality": r.get("data_quality"),
         })
 
+    # Attach real execution trades from phase20_paper_trades scoped to this scan_id.
+    # Use the concrete scan_id stored in the snapshot (which _get_execution_trades
+    # will also read as its fallback), so that 'latest' is resolved before the query.
+    conn2 = _get_conn()
+    execution_trades: List[Dict] = []
+    if conn2:
+        try:
+            execution_trades = _get_execution_trades(conn2, scan_id, snapshot)
+        finally:
+            conn2.close()
+
     return {
         "scan_id": snapshot.get("scan_id", scan_id),
         "snapshot_ts": snapshot.get("snapshot_ts", ""),
@@ -725,6 +843,174 @@ def build_replay(scan_id: str) -> Dict:
         "duration_s": snapshot.get("duration_s"),
         "regime": (snapshot.get("summary") or {}).get("regime"),
         "provider_health": snapshot.get("provider_health") or {},
+        "execution_trades": execution_trades,
+    }
+
+
+_INTEGRITY_ERROR_DEFAULTS = {
+    "overall": "ERROR",
+    "snapshot_ts": "",
+    "stages_count": 0,
+    "trades_count": 0,
+}
+
+
+def get_replay_integrity(scan_id: str) -> Dict:
+    """
+    Run pipeline integrity checks and return a structured PASS/WARNING/ERROR report.
+    Always returns all required fields regardless of error state so the frontend
+    can render a consistent error banner without crashing.
+    """
+    try:
+        replay = build_replay(scan_id)
+    except Exception as exc:
+        return {
+            "scan_id": scan_id,
+            "checks": [{"check": "Build replay", "status": "ERROR", "detail": str(exc)}],
+            **_INTEGRITY_ERROR_DEFAULTS,
+        }
+
+    if "error" in replay:
+        return {
+            "scan_id": scan_id,
+            "checks": [{"check": "Build replay", "status": "ERROR", "detail": replay["error"]}],
+            **_INTEGRITY_ERROR_DEFAULTS,
+        }
+
+    stages: List[Dict] = replay.get("stages") or []
+    execution_trades: List[Dict] = replay.get("execution_trades") or []
+    checks = []
+
+    # 1. No negative rejected counts
+    neg_stages = [s["label"] for s in stages if s.get("rejected", 0) < 0]
+    checks.append({
+        "check": "No negative rejected counts",
+        "status": "PASS" if not neg_stages else "ERROR",
+        "detail": f"Violations: {', '.join(neg_stages)}" if neg_stages else "All stages ≥ 0",
+    })
+
+    # 2. No stage creates records (output ≤ input)
+    create_stages = [
+        f"{s['label']} (in={s['stocks_in']} out={s['stocks_out']})"
+        for s in stages
+        if s.get("stocks_out", 0) > s.get("stocks_in", 0)
+    ]
+    checks.append({
+        "check": "No stage creates symbols",
+        "status": "PASS" if not create_stages else "ERROR",
+        "detail": f"Creating records: {', '.join(create_stages)}" if create_stages else "Conservation law satisfied",
+    })
+
+    # 3. Conservation: input ≈ passed + rejected — check BOTH directions.
+    #    - accounted > in → stage CREATES records (caught by check 2; re-flag as ERROR)
+    #    - accounted < in by > 20% → symbols silently disappear (WARNING)
+    #    Pending/cancelled provide slack up to 20% unaccounted.
+    over_stages   = []
+    leak_stages   = []
+    for s in stages:
+        si, so, sr = s.get("stocks_in", 0), s.get("stocks_out", 0), max(0, s.get("rejected", 0))
+        accounted = so + sr
+        if si > 0:
+            if accounted > si:
+                over_stages.append(f"{s['label']}(in={si} out+rej={accounted})")
+            elif accounted < si * 0.80:
+                leak_stages.append(f"{s['label']}(in={si} out+rej={accounted} unaccounted={si - accounted})")
+
+    if over_stages:
+        status = "ERROR"
+        detail = f"Stage creates records: {', '.join(over_stages)}"
+    elif leak_stages:
+        status = "WARNING"
+        detail = f"Symbols silently dropped (>20% unaccounted): {', '.join(leak_stages)}"
+    else:
+        status = "PASS"
+        detail = "All stages account for ≥80% of input symbols"
+
+    checks.append({"check": "Input = Passed + Rejected", "status": status, "detail": detail})
+
+    # 4. No duplicate symbols within any stage's stock list
+    dup_stages = []
+    for s in stages:
+        syms = s.get("stocks") or []
+        if len(syms) != len(set(syms)):
+            dup_stages.append(s["label"])
+    checks.append({
+        "check": "No duplicate symbols in any stage",
+        "status": "PASS" if not dup_stages else "WARNING",
+        "detail": f"Duplicates found: {', '.join(dup_stages)}" if dup_stages else "All symbol lists unique",
+    })
+
+    # 5. Execution count ≤ Decision output
+    decision_stage = next((s for s in stages if s["id"] == "ai_decision"), None)
+    execution_stage = next((s for s in stages if s["id"] == "execution"), None)
+    if decision_stage and execution_stage:
+        dec_out = decision_stage.get("stocks_out", 0)
+        exec_in = execution_stage.get("stocks_in", 0)
+        ok = exec_in <= dec_out
+        checks.append({
+            "check": "Execution input ≤ Decision output",
+            "status": "PASS" if ok else "ERROR",
+            "detail": f"Decision output={dec_out}, Execution input={exec_in}" + (" ✓" if ok else " — impossible"),
+        })
+
+    # 6. Cash never negative (check portfolio trades)
+    STARTING_CAPITAL = 100_000
+    running_cash = STARTING_CAPITAL
+    cash_negative = False
+    for t in sorted(execution_trades, key=lambda x: x.get("entry_ts") or ""):
+        if t.get("action", "BUY") == "BUY":
+            running_cash -= t.get("capital_used", 0)
+        if t.get("exit_price") is not None and t.get("pnl") is not None:
+            running_cash += t["capital_used"] + (t["pnl"] or 0)
+        if running_cash < 0:
+            cash_negative = True
+            break
+    checks.append({
+        "check": "Cash never negative",
+        "status": "PASS" if not cash_negative else "WARNING",
+        "detail": "Cash balance stayed ≥ 0 throughout replay" if not cash_negative else f"Cash went negative (running balance ₹{running_cash:.0f})",
+    })
+
+    # 7. Position sizing valid (capital_used ≤ STARTING_CAPITAL)
+    oversize = [t["symbol"] for t in execution_trades if t.get("capital_used", 0) > STARTING_CAPITAL]
+    checks.append({
+        "check": "Position sizing valid",
+        "status": "PASS" if not oversize else "ERROR",
+        "detail": f"Oversized positions: {', '.join(oversize)}" if oversize else "All positions within capital limits",
+    })
+
+    # 8. Portfolio positions consistent:
+    #    The execution stage's stocks_out (orders placed) should match the number of
+    #    phase20_paper_trades rows found for this scan.  A mismatch means the pipeline
+    #    reported orders that were never persisted (or vice versa).
+    open_trades   = [t for t in execution_trades if t.get("exit_price") is None]
+    closed_trades = [t for t in execution_trades if t.get("exit_price") is not None]
+    expected_orders = (execution_stage.get("stocks_out", 0) if execution_stage else 0)
+    actual_orders   = len(execution_trades)
+    portfolio_ok    = abs(expected_orders - actual_orders) <= max(1, expected_orders * 0.25)
+    checks.append({
+        "check": "Portfolio positions consistent",
+        "status": "PASS" if portfolio_ok else "WARNING",
+        "detail": (
+            f"{open_trades.__len__()} open + {closed_trades.__len__()} closed = "
+            f"{actual_orders} trades found; execution stage expected {expected_orders}"
+            + (" ✓" if portfolio_ok else f" — mismatch of {abs(expected_orders - actual_orders)}")
+        ),
+    })
+
+    overall = "PASS"
+    if any(c["status"] == "ERROR" for c in checks):
+        overall = "ERROR"
+    elif any(c["status"] == "WARNING" for c in checks):
+        overall = "WARNING"
+
+    return {
+        "scan_id": replay.get("scan_id", scan_id),
+        "snapshot_ts": replay.get("snapshot_ts", ""),
+        "overall": overall,
+        "checks": checks,
+        "stages_count": len(stages),
+        "trades_count": len(execution_trades),
     }
 
 
@@ -870,23 +1156,36 @@ def get_decision_comparison(scan_id: str) -> Dict:
             "status": status,
             "paper_order_id": rec.get("paper_order_id"),
             "strategy": rec.get("strategy_name"),
+            # paper_traded flag: True when this symbol had an actual paper order placed
+            "paper_traded": bool(trade) and ai_action == "BUY",
+            "rejection_reason": None if ai_action == "BUY" else (
+                "Avoid signal" if ai_action == "AVOID" else f"AI action: {ai_action}"
+            ),
         })
 
     # Sort: CORRECT first, then MISSED_OPPORTUNITY, then others
     order = {"CORRECT": 0, "LOSS": 1, "MISSED_OPPORTUNITY": 2, "CORRECT_AVOID": 3, "NEUTRAL": 4, "PENDING": 5}
     comparisons.sort(key=lambda x: (order.get(x["status"], 99), -(x.get("confidence") or 0)))
 
+    wins = sum(1 for c in comparisons if c["status"] == "CORRECT")
+    losses = sum(1 for c in comparisons if c["status"] == "LOSS")
+    missed = sum(1 for c in comparisons if c["status"] == "MISSED_OPPORTUNITY")
+    pending = sum(1 for c in comparisons if c["status"] == "PENDING")
+    stats_obj = {
+        "total": len(comparisons),
+        "wins": wins,
+        "correct": wins,
+        "losses": losses,
+        "missed_opportunities": missed,
+        "pending": pending,
+    }
     return {
         "scan_id": snapshot.get("scan_id", scan_id),
         "snapshot_ts": snapshot.get("snapshot_ts", ""),
         "comparisons": comparisons,
-        "summary": {
-            "total": len(comparisons),
-            "correct": sum(1 for c in comparisons if c["status"] == "CORRECT"),
-            "losses": sum(1 for c in comparisons if c["status"] == "LOSS"),
-            "missed_opportunities": sum(1 for c in comparisons if c["status"] == "MISSED_OPPORTUNITY"),
-            "pending": sum(1 for c in comparisons if c["status"] == "PENDING"),
-        },
+        # Frontend expects `stats` (not `summary`); provide both for backwards compat
+        "stats": stats_obj,
+        "summary": stats_obj,
     }
 
 

@@ -1,49 +1,21 @@
 /**
- * BottomTimeline — V5.0
- * Horizontal event timeline: Market Open → scan stages → BUY events → SELL events → Market Close.
- * Clicking any pin jumps the replay to the nearest stage.
+ * BottomTimeline — V4.2
  *
- * Two-zone scale so scan-stage pins (2–61 s) are never compressed into the first 2 px:
- *   Zone A  0–35 %  → scan-session offsets   0–120 s (pre-market pipeline)
- *   Zone B 35–100 % → intraday market time 0–22,500 s (09:15–15:30 IST trades)
+ * Zoomable, horizontally-scrollable chronological event timeline with
+ * 7 clearly-labelled sections:
+ *   PRE MARKET → SCAN → DECISION → BUY → MONITOR → SELL → POST MARKET
+ *
+ * Events within a section cannot overlap: simultaneous events are
+ * stacked in sub-rows.  Each chip shows: time, agent/section, stock,
+ * action/status, price. Clicking a chip jumps the replay to that stage.
+ *
+ * Zoom: pinch or Ctrl+wheel on the track.
+ * Scroll: native horizontal scroll on the container.
  */
-import React, { useMemo, useRef, useEffect } from "react";
-import { TrendingUp, TrendingDown, Zap, Clock, Activity } from "lucide-react";
+import React, { useMemo, useRef, useCallback } from "react";
+import { TrendingUp, TrendingDown, Zap, Clock, Activity, Brain, BarChart3 } from "lucide-react";
 
-// Approximate per-stage second-offsets from session start (mirrors STAGE_OFFSETS_S in main file)
-const LOCAL_STAGE_OFFSETS: Record<string, number> = {
-  supervisor:           2,
-  market_data:          5,
-  research:             8,
-  market_intelligence: 16,
-  monitoring:          24,
-  strategy:            35,
-  risk:                41,
-  ai_decision:         45,
-  execution:           46,
-  portfolio_management: 61,
-};
-
-// Zone boundaries
-const SCAN_ZONE_MAX_S   = 120;   // seconds — all stage offsets must be < this
-const SCAN_ZONE_PCT     = 35;    // % of track width dedicated to scan zone
-
-// Total NSE trading window in seconds: 09:15 → 15:30 = 6h 15m
-const TRADING_WINDOW_S  = 6.25 * 3600; // 22,500 s
-
-/**
- * Two-zone piecewise percentage mapping:
- *   [0, SCAN_ZONE_MAX_S]   → [0, SCAN_ZONE_PCT]%
- *   [SCAN_ZONE_MAX_S, TRADING_WINDOW_S] → [SCAN_ZONE_PCT, 100]%
- */
-function twoZonePct(secondsAfterSessionOpen: number): number {
-  const s = Math.max(0, secondsAfterSessionOpen);
-  if (s <= SCAN_ZONE_MAX_S) {
-    return (s / SCAN_ZONE_MAX_S) * SCAN_ZONE_PCT;
-  }
-  const tradeFraction = (s - SCAN_ZONE_MAX_S) / (TRADING_WINDOW_S - SCAN_ZONE_MAX_S);
-  return SCAN_ZONE_PCT + Math.min(tradeFraction, 1) * (100 - SCAN_ZONE_PCT);
-}
+// ── Types ────────────────────────────────────────────────────────────────────
 
 interface ComparisonItem {
   symbol: string;
@@ -53,19 +25,19 @@ interface ComparisonItem {
   outcome_pct: number | null;
 }
 
-interface StageData {
-  id: string;
+interface ExecutionTrade {
+  symbol: string;
+  action: string;       // "BUY" | "SELL" — determines which section the chip appears in
+  entry_ts: string | null;
+  exit_ts: string | null;
+  entry_price: number;
+  exit_price: number | null;
+  pnl: number | null;
+  exit_reason: string | null;
 }
 
-type PinKind = "open" | "scan" | "buy" | "sell" | "close" | "stage";
-
-interface TimelinePin {
+interface StageData {
   id: string;
-  kind: PinKind;
-  label: string;
-  sublabel?: string;
-  pct: number;       // 0–100 horizontal %
-  stageIdx?: number; // which PIPELINE_STAGES index to jump to
 }
 
 interface Props {
@@ -74,127 +46,241 @@ interface Props {
     comparisons: ComparisonItem[];
     stats: { wins: number; losses: number; missed_opportunities: number; pending: number };
   };
+  executionTrades?: ExecutionTrade[];
   stages: StageData[];
   pipelineCfg: { id: string; label: string }[];
   activeStageIdx: number;
   onJumpToStage: (idx: number) => void;
 }
 
-function fmtTime(ts: string | undefined, extraS = 0): string {
-  if (!ts) return "";
-  try {
-    const d = new Date(new Date(ts).getTime() + extraS * 1000);
-    return d.toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" });
-  } catch { return ""; }
+// ── Section definitions ───────────────────────────────────────────────────────
+
+const SECTIONS = [
+  { id: "pre_market", label: "PRE MARKET", icon: Clock,      color: "text-slate-400",   bg: "bg-slate-800/30",   border: "border-slate-700/40",   dot: "bg-slate-500" },
+  { id: "scan",       label: "SCAN",       icon: Activity,    color: "text-teal-400",    bg: "bg-teal-900/10",    border: "border-teal-700/30",    dot: "bg-teal-500"  },
+  { id: "decision",   label: "DECISION",   icon: Brain,       color: "text-blue-400",    bg: "bg-blue-900/10",    border: "border-blue-700/30",    dot: "bg-blue-500"  },
+  { id: "buy",        label: "BUY",        icon: TrendingUp,  color: "text-emerald-400", bg: "bg-emerald-900/10", border: "border-emerald-700/30", dot: "bg-emerald-500" },
+  { id: "monitor",    label: "MONITOR",    icon: BarChart3,   color: "text-amber-400",   bg: "bg-amber-900/10",   border: "border-amber-700/30",   dot: "bg-amber-500" },
+  { id: "sell",       label: "SELL",       icon: TrendingDown,color: "text-red-400",     bg: "bg-red-900/10",     border: "border-red-700/30",     dot: "bg-red-500"   },
+  { id: "post_market",label: "POST MARKET",icon: Zap,         color: "text-purple-400",  bg: "bg-purple-900/10",  border: "border-purple-700/30",  dot: "bg-purple-500"},
+] as const;
+
+// Stage ID → section
+const STAGE_SECTION: Record<string, typeof SECTIONS[number]["id"]> = {
+  supervisor:          "scan",
+  market_data:         "scan",
+  research:            "scan",
+  market_intelligence: "scan",
+  monitoring:          "scan",
+  strategy:            "scan",
+  risk:                "scan",
+  ai_decision:         "decision",
+  execution:           "decision",
+  portfolio_management:"monitor",
+};
+
+// Approximate seconds-after-session-open for each stage (mirrors main file)
+const STAGE_OFFSETS_S: Record<string, number> = {
+  supervisor: 2, market_data: 5, research: 8, market_intelligence: 16,
+  monitoring: 24, strategy: 35, risk: 41, ai_decision: 45,
+  execution: 46, portfolio_management: 61,
+};
+
+// NSE market hours in seconds after 09:15
+const MARKET_OPEN_S  = 0;         // 09:15
+const MARKET_CLOSE_S = 22_500;    // 15:30 (6h 15m)
+
+// ── Event model ──────────────────────────────────────────────────────────────
+
+interface TimelineEvent {
+  id: string;
+  sectionId: typeof SECTIONS[number]["id"];
+  label: string;
+  sublabel: string;
+  secondsFromOpen: number;   // 0 = market open (09:15)
+  stageIdx?: number;
+  kind: "open" | "close" | "stage" | "buy" | "sell" | "monitor";
 }
 
-const PIN_STYLE: Record<PinKind, { dot: string; line: string; label: string }> = {
-  open:  { dot: "bg-slate-400 border-slate-300",    line: "bg-slate-500",   label: "text-slate-400" },
-  scan:  { dot: "bg-teal-400 border-teal-300",       line: "bg-teal-500",    label: "text-teal-400" },
-  stage: { dot: "bg-blue-400 border-blue-300",       line: "bg-blue-500",    label: "text-blue-400" },
-  buy:   { dot: "bg-emerald-400 border-emerald-300", line: "bg-emerald-500", label: "text-emerald-400" },
-  sell:  { dot: "bg-red-400 border-red-300",         line: "bg-red-500",     label: "text-red-400" },
-  close: { dot: "bg-slate-400 border-slate-300",     line: "bg-slate-500",   label: "text-slate-400" },
-};
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
-const PIN_ICON: Record<PinKind, React.FC<{ size: number; className?: string }>> = {
-  open:  Activity,
-  scan:  Zap,
-  stage: Zap,
-  buy:   TrendingUp,
-  sell:  TrendingDown,
-  close: Clock,
-};
+function fmtTime(ts: string | undefined | null, addS = 0): string {
+  if (!ts) return "—";
+  try {
+    const d = new Date(new Date(ts).getTime() + addS * 1000);
+    return d.toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" });
+  } catch { return "—"; }
+}
 
-// Zone A divider — shows "| Intraday →" separator on the track
-const ZONE_DIVIDER_PCT = SCAN_ZONE_PCT;
+function tsToSecondsFromOpen(ts: string | null, snapshotTs: string | undefined): number | null {
+  if (!ts || !snapshotTs) return null;
+  try {
+    const snap = new Date(snapshotTs);
+    const baseOpen = new Date(snap);
+    baseOpen.setHours(9, 15, 0, 0);
+    const diff = (new Date(ts).getTime() - baseOpen.getTime()) / 1000;
+    return Math.max(0, diff);
+  } catch { return null; }
+}
+
+// ── Component ────────────────────────────────────────────────────────────────
 
 export function BottomTimeline({
   snapshotTs,
   comparisonData,
+  executionTrades = [],
   pipelineCfg,
   activeStageIdx,
   onJumpToStage,
 }: Props) {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollRef  = useRef<HTMLDivElement>(null);
+  const scaleRef   = useRef(1);
 
-  const pins = useMemo<TimelinePin[]>(() => {
-    const result: TimelinePin[] = [];
+  // ── Build event list ───────────────────────────────────────────────────────
+  const events = useMemo<TimelineEvent[]>(() => {
+    const result: TimelineEvent[] = [];
 
-    // Market Open — left edge
-    result.push({ id: "open", kind: "open", label: "Market Open", sublabel: "09:15 IST", pct: 0 });
+    // Pre-market marker
+    result.push({
+      id: "pre-open", sectionId: "pre_market",
+      label: "Market Open", sublabel: "09:15 IST",
+      secondsFromOpen: 0, kind: "open",
+    });
 
-    // Pipeline scan stages — Zone A (0–35%)
+    // Scan / Decision pipeline stages
     pipelineCfg.forEach((stage, i) => {
-      const offsetS = LOCAL_STAGE_OFFSETS[stage.id] ?? (i * 10);
+      const offsetS = STAGE_OFFSETS_S[stage.id] ?? (i * 6);
+      const sectionId = STAGE_SECTION[stage.id] ?? "scan";
       result.push({
         id: `stage-${stage.id}`,
-        kind: "scan",
+        sectionId,
         label: stage.label,
         sublabel: fmtTime(snapshotTs, offsetS),
-        pct: twoZonePct(offsetS),
+        secondsFromOpen: offsetS,
         stageIdx: i,
+        kind: "stage",
       });
     });
 
-    // BUY events — Zone B, staggered from 15 min after open
-    const paperItems = (comparisonData?.comparisons ?? []).filter(
-      c => c.paper_traded && c.entry_price != null,
-    );
-    const executionStageIdx = pipelineCfg.findIndex(s => s.id === "execution");
-    paperItems.forEach((item, i) => {
-      // Stagger buys: 900s (15 min), 1200s (20 min), … after market open
-      const offsetS = 900 + i * 300;
-      result.push({
-        id: `buy-${item.symbol}`,
-        kind: "buy",
-        label: `BUY ${item.symbol}`,
-        sublabel: item.entry_price != null ? `₹${item.entry_price.toFixed(1)}` : undefined,
-        pct: twoZonePct(offsetS),
-        stageIdx: executionStageIdx >= 0 ? executionStageIdx : undefined,
+    // BUY events from real execution trades first, then comparison fallback.
+    // Filter by action so SELL-side ledger rows don't appear as BUY chips.
+    const isBuyRow = (t: ExecutionTrade) => (t.action ?? "BUY").toUpperCase() !== "SELL";
+    const executionBuys = executionTrades.filter(t => isBuyRow(t) && t.entry_price != null);
+    if (executionBuys.length > 0) {
+      const execIdx = pipelineCfg.findIndex(s => s.id === "execution");
+      executionBuys.forEach((t, i) => {
+        const sFromOpen = tsToSecondsFromOpen(t.entry_ts, snapshotTs) ?? (900 + i * 300);
+        result.push({
+          id: `buy-${t.symbol}-${i}`,
+          sectionId: "buy",
+          label: `BUY ${t.symbol}`,
+          sublabel: `₹${t.entry_price.toFixed(1)}`,
+          secondsFromOpen: sFromOpen,
+          stageIdx: execIdx >= 0 ? execIdx : undefined,
+          kind: "buy",
+        });
       });
+
+      // SELL events: BUY rows that already have an exit price recorded,
+      // plus any explicit SELL-side ledger rows.
+      const portIdx = pipelineCfg.findIndex(s => s.id === "portfolio_management");
+      const sellCandidates = [
+        ...executionTrades.filter(t => isBuyRow(t) && t.exit_price != null),  // closed BUY rows
+        ...executionTrades.filter(t => !isBuyRow(t)),                          // SELL-side rows
+      ];
+      sellCandidates.forEach((t, i) => {
+        const ts = !isBuyRow(t) ? t.entry_ts : t.exit_ts;
+        const sFromOpen = tsToSecondsFromOpen(ts, snapshotTs) ?? (3600 + i * 600);
+        const isWin = (t.pnl ?? 0) >= 0;
+        result.push({
+          id: `sell-${t.symbol}-${i}`,
+          sectionId: "sell",
+          label: `${isWin ? "WIN" : "LOSS"} ${t.symbol}`,
+          sublabel: t.pnl != null ? `${t.pnl >= 0 ? "+" : ""}₹${Math.abs(t.pnl).toFixed(0)}` : "",
+          secondsFromOpen: sFromOpen,
+          stageIdx: portIdx >= 0 ? portIdx : undefined,
+          kind: "sell",
+        });
+      });
+    } else {
+      // Fallback to comparison data (staggered synthetic timestamps)
+      const paperItems = (comparisonData?.comparisons ?? []).filter(c => c.paper_traded && c.entry_price != null);
+      const execIdx = pipelineCfg.findIndex(s => s.id === "execution");
+      paperItems.forEach((item, i) => {
+        result.push({
+          id: `buy-${item.symbol}`,
+          sectionId: "buy",
+          label: `BUY ${item.symbol}`,
+          sublabel: item.entry_price != null ? `₹${item.entry_price.toFixed(1)}` : "",
+          secondsFromOpen: 900 + i * 300,
+          stageIdx: execIdx >= 0 ? execIdx : undefined,
+          kind: "buy",
+        });
+      });
+
+      const closedItems = (comparisonData?.comparisons ?? []).filter(c => c.paper_traded && (c.status === "WIN" || c.status === "LOSS"));
+      const portIdx = pipelineCfg.findIndex(s => s.id === "portfolio_management");
+      closedItems.forEach((item, i) => {
+        result.push({
+          id: `sell-${item.symbol}`,
+          sectionId: "sell",
+          label: `${item.status} ${item.symbol}`,
+          sublabel: item.outcome_pct != null ? `${item.outcome_pct >= 0 ? "+" : ""}${item.outcome_pct.toFixed(1)}%` : "",
+          secondsFromOpen: 3600 + i * 600,
+          stageIdx: portIdx >= 0 ? portIdx : undefined,
+          kind: "sell",
+        });
+      });
+    }
+
+    // Monitor / post-market
+    result.push({
+      id: "market-close", sectionId: "post_market",
+      label: "Market Close", sublabel: "15:30 IST",
+      secondsFromOpen: MARKET_CLOSE_S, kind: "close",
     });
 
-    // SELL / exit events — Zone B, staggered from 1 hr after open
-    const closedItems = (comparisonData?.comparisons ?? []).filter(
-      c => c.paper_traded && (c.status === "WIN" || c.status === "LOSS"),
-    );
-    const portStageIdx = pipelineCfg.findIndex(s => s.id === "portfolio_management");
-    closedItems.forEach((item, i) => {
-      const offsetS = 3600 + i * 600; // exits 1 hr after open, 10-min apart
-      result.push({
-        id: `sell-${item.symbol}`,
-        kind: "sell",
-        label: `${item.status} ${item.symbol}`,
-        sublabel: item.outcome_pct != null
-          ? `${item.outcome_pct >= 0 ? "+" : ""}${item.outcome_pct.toFixed(1)}%`
-          : undefined,
-        pct: twoZonePct(offsetS),
-        stageIdx: portStageIdx >= 0 ? portStageIdx : undefined,
-      });
+    return result.sort((a, b) => a.secondsFromOpen - b.secondsFromOpen);
+  }, [snapshotTs, comparisonData, executionTrades, pipelineCfg]);
+
+  // ── Group events by section ───────────────────────────────────────────────
+  const eventsBySection = useMemo(() => {
+    const map = new Map<string, TimelineEvent[]>();
+    for (const sec of SECTIONS) map.set(sec.id, []);
+    for (const ev of events) {
+      const arr = map.get(ev.sectionId);
+      if (arr) arr.push(ev);
+    }
+    return map;
+  }, [events]);
+
+  // ── Zoom via Ctrl+wheel ───────────────────────────────────────────────────
+  const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? 0.85 : 1.18;
+    scaleRef.current = Math.min(4, Math.max(0.5, scaleRef.current * delta));
+    if (scrollRef.current) {
+      scrollRef.current.style.minWidth = `${Math.round(1200 * scaleRef.current)}px`;
+    }
+  }, []);
+
+  // ── Horizontal position for an event within its section row ──────────────
+  function xPct(secondsFromOpen: number): number {
+    return Math.min(99, Math.max(1, (secondsFromOpen / MARKET_CLOSE_S) * 100));
+  }
+
+  // ── De-overlap: assign sub-row index so chips don't stack on same pixel ──
+  function deOverlap(evs: TimelineEvent[]): { ev: TimelineEvent; row: number }[] {
+    // Bucket by integer-percent position; each bucket picks next available row
+    const rowByBucket: Record<number, number> = {};
+    return evs.map(ev => {
+      const bucket = Math.round(xPct(ev.secondsFromOpen));
+      const row = rowByBucket[bucket] ?? 0;
+      rowByBucket[bucket] = row + 1;
+      return { ev, row };
     });
-
-    // Market Close — right edge
-    result.push({ id: "close", kind: "close", label: "Market Close", sublabel: "15:30 IST", pct: 100 });
-
-    return result.sort((a, b) => a.pct - b.pct);
-  }, [comparisonData, snapshotTs, pipelineCfg]);
-
-  // Current replay progress % on the two-zone scale
-  const progressPct = useMemo(() => {
-    if (activeStageIdx < 0) return 0;
-    const stageId = pipelineCfg[activeStageIdx]?.id ?? "";
-    const offsetS = LOCAL_STAGE_OFFSETS[stageId] ?? 0;
-    return twoZonePct(offsetS);
-  }, [activeStageIdx, pipelineCfg]);
-
-  // Auto-scroll the cursor into view
-  useEffect(() => {
-    if (!scrollRef.current || activeStageIdx < 0) return;
-    const el = scrollRef.current;
-    const targetPx = (progressPct / 100) * el.scrollWidth;
-    el.scrollTo({ left: Math.max(0, targetPx - el.clientWidth / 2), behavior: "smooth" });
-  }, [activeStageIdx, progressPct]);
+  }
 
   return (
     <div className="bg-slate-900/60 border border-slate-700/40 rounded-xl overflow-hidden">
@@ -202,95 +288,103 @@ export function BottomTimeline({
       <div className="px-4 py-2.5 border-b border-slate-800/60 flex items-center gap-3 flex-wrap">
         <Clock size={13} className="text-teal-400" />
         <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Event Timeline</span>
+        <span className="text-xs text-slate-600 ml-2">Ctrl+scroll to zoom · scroll to pan</span>
         <div className="ml-auto flex gap-4 text-xs text-slate-600">
-          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-teal-500 inline-block" />Scan stage</span>
+          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-teal-500 inline-block" />Scan</span>
+          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />Decision</span>
           <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />BUY</span>
-          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" />SELL/EXIT</span>
+          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" />SELL</span>
         </div>
       </div>
 
       {/* Scrollable track */}
-      <div ref={scrollRef} className="overflow-x-auto px-4 py-4">
-        {/* min-width=1100px: 10 scan stages at 35%=385px ≈ 38px apart, plenty of room */}
-        <div className="relative" style={{ minWidth: "1100px", height: "80px" }}>
+      <div
+        ref={scrollRef}
+        className="overflow-x-auto"
+        onWheel={handleWheel}
+        style={{ WebkitOverflowScrolling: "touch" }}
+      >
+        <div style={{ minWidth: "1200px" }} className="px-2 py-2 space-y-0.5">
+          {SECTIONS.map(sec => {
+            const secEvents = eventsBySection.get(sec.id) ?? [];
+            const deOverlapped = deOverlap(secEvents);
+            const maxRow = Math.max(0, ...deOverlapped.map(d => d.row));
+            const rowH = 26; // px per sub-row
+            const sectionH = Math.max(rowH, (maxRow + 1) * rowH);
+            const Icon = sec.icon;
 
-          {/* Zone A background shading (scan zone) */}
-          <div
-            className="absolute top-0 bottom-0 bg-teal-900/10 border-r border-teal-800/30"
-            style={{ left: 0, width: `${ZONE_DIVIDER_PCT}%` }}
-          />
-
-          {/* Zone label */}
-          <div
-            className="absolute top-0 text-xs text-teal-800 font-semibold px-1 leading-tight select-none"
-            style={{ left: "1%" }}
-          >
-            ← Scan Pipeline →
-          </div>
-          <div
-            className="absolute top-0 text-xs text-slate-700 font-semibold px-1 leading-tight select-none"
-            style={{ left: `${ZONE_DIVIDER_PCT + 1}%` }}
-          >
-            ← Intraday (09:15–15:30) →
-          </div>
-
-          {/* Track line */}
-          <div className="absolute left-0 right-0 h-0.5 bg-slate-700" style={{ top: "34px" }} />
-
-          {/* Progress fill */}
-          {activeStageIdx >= 0 && (
-            <div
-              className="absolute h-0.5 bg-gradient-to-r from-teal-600 to-teal-400 transition-all duration-700"
-              style={{ top: "34px", left: 0, width: `${progressPct}%` }}
-            />
-          )}
-
-          {/* Progress cursor */}
-          {activeStageIdx >= 0 && (
-            <div
-              className="absolute w-3 h-3 rounded-full bg-teal-400 border-2 border-slate-950 shadow-lg shadow-teal-900/50 transition-all duration-700 z-20"
-              style={{ top: "28px", left: `calc(${progressPct}% - 6px)` }}
-            />
-          )}
-
-          {/* Pins */}
-          {pins.map(pin => {
-            const style = PIN_STYLE[pin.kind];
-            const Icon  = PIN_ICON[pin.kind];
-            const isActive = pin.stageIdx != null && pin.stageIdx === activeStageIdx;
             return (
-              <button
-                key={pin.id}
-                onClick={() => pin.stageIdx != null && onJumpToStage(pin.stageIdx)}
-                disabled={pin.stageIdx == null}
-                title={`${pin.label}${pin.sublabel ? ` — ${pin.sublabel}` : ""} (click to jump)`}
-                className={`absolute -translate-x-1/2 flex flex-col items-center gap-0 group cursor-pointer disabled:cursor-default
-                  ${isActive ? "scale-110" : "hover:scale-110"} transition-transform`}
-                style={{ top: "16px", left: `${pin.pct}%` }}
-              >
-                {/* Icon dot */}
-                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center
-                  ${style.dot} ${isActive ? "ring-2 ring-offset-1 ring-offset-slate-900 ring-teal-400" : ""}
-                  group-hover:scale-110 transition-transform z-10`}
-                >
-                  <Icon size={8} className="opacity-80" />
-                </div>
-                {/* Label below */}
-                <div className="flex flex-col items-center mt-1">
-                  <div className={`text-xs font-medium whitespace-nowrap ${style.label}
-                    group-hover:text-white transition-colors max-w-[70px] truncate`}
-                  >
-                    {pin.label}
+              <div key={sec.id} className={`flex border ${sec.border} rounded-lg overflow-hidden`}>
+                {/* Section label */}
+                <div className={`${sec.bg} flex-shrink-0 flex items-center justify-center w-24 border-r ${sec.border}`}>
+                  <div className="flex flex-col items-center gap-0.5 px-1">
+                    <Icon size={10} className={sec.color} />
+                    <span className={`text-xs font-bold tracking-wider ${sec.color}`} style={{ fontSize: "9px" }}>
+                      {sec.label}
+                    </span>
                   </div>
-                  {pin.sublabel && (
-                    <div className="text-xs text-slate-600 font-mono whitespace-nowrap">{pin.sublabel}</div>
-                  )}
                 </div>
-              </button>
+
+                {/* Event track */}
+                <div className={`flex-1 relative ${sec.bg}`} style={{ height: `${sectionH}px` }}>
+                  {/* Track line */}
+                  <div className="absolute left-0 right-0 h-px bg-slate-700/30" style={{ top: "50%" }} />
+
+                  {/* Events */}
+                  {deOverlapped.map(({ ev, row }) => {
+                    const isActive = ev.stageIdx != null && ev.stageIdx === activeStageIdx;
+                    const topPx = row * rowH + 4;
+
+                    const chipStyle = ev.kind === "buy"
+                      ? "bg-emerald-900/60 border-emerald-600/60 text-emerald-300 hover:bg-emerald-800/60"
+                      : ev.kind === "sell"
+                      ? "bg-red-900/60 border-red-600/60 text-red-300 hover:bg-red-800/60"
+                      : ev.kind === "stage" || ev.kind === "open" || ev.kind === "close"
+                      ? `${sec.bg} border-current ${sec.color} hover:brightness-125`
+                      : "bg-slate-800/60 border-slate-600 text-slate-400";
+
+                    return (
+                      <button
+                        key={ev.id}
+                        onClick={() => ev.stageIdx != null && onJumpToStage(ev.stageIdx)}
+                        disabled={ev.stageIdx == null}
+                        title={`${ev.label}${ev.sublabel ? " — " + ev.sublabel : ""}${ev.stageIdx != null ? " (click to jump)" : ""}`}
+                        className={`absolute flex items-center gap-1 px-1.5 py-0.5 rounded border text-xs font-mono font-medium
+                          transition-all cursor-pointer disabled:cursor-default select-none whitespace-nowrap
+                          -translate-x-1/2 ${chipStyle}
+                          ${isActive ? "ring-2 ring-offset-1 ring-offset-slate-900 ring-teal-400 z-20" : "z-10"}
+                          hover:z-30 hover:scale-105`}
+                        style={{
+                          left: `${xPct(ev.secondsFromOpen)}%`,
+                          top:  `${topPx}px`,
+                          fontSize: "10px",
+                          maxWidth: "120px",
+                        }}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${sec.dot}`} />
+                        <span className="truncate">{ev.label}</span>
+                        {ev.sublabel && (
+                          <span className="text-slate-500 font-normal ml-0.5 truncate hidden sm:inline">
+                            {ev.sublabel}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
         </div>
       </div>
+
+      {/* Progress indicator */}
+      {activeStageIdx >= 0 && (
+        <div className="px-4 pb-2 text-xs text-slate-600 flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse inline-block" />
+          Replay at: {pipelineCfg[activeStageIdx]?.label ?? "—"}
+        </div>
+      )}
     </div>
   );
 }

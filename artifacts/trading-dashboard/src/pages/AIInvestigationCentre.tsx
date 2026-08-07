@@ -27,10 +27,12 @@ import {
 } from "lucide-react";
 
 // v5.0 replay components
-import { TradingDaySelector } from "@/components/replay/TradingDaySelector";
-import { StockFlowViz }       from "@/components/replay/StockFlowViz";
-import { BottomTimeline }     from "@/components/replay/BottomTimeline";
-import { LivePositions }      from "@/components/replay/LivePositions";
+import { TradingDaySelector }     from "@/components/replay/TradingDaySelector";
+import { StockFlowViz }           from "@/components/replay/StockFlowViz";
+import { BottomTimeline }         from "@/components/replay/BottomTimeline";
+import { LivePositions }          from "@/components/replay/LivePositions";
+import { ReplayIntegrityPanel }   from "@/components/replay/ReplayIntegrityPanel";
+import type { ExecutionTrade }    from "@/components/replay/TradeEventCard";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -1840,10 +1842,15 @@ export default function AIInvestigationCentre() {
       symbols: SymbolRow[]; total_symbols: number; universe_size: number;
       regime: string | null; provider_health: Record<string, number>;
       duration_s: number | null;
+      // V4.2: real paper trades enriched with scan metadata
+      execution_trades: ExecutionTrade[];
     }>(`replay/sessions/${selectedScanId}`),
     staleTime: 60_000,
     retry: 1,
   });
+
+  // Note: integrity data is fetched directly by <ReplayIntegrityPanel> to avoid
+  // a redundant query at the page level. No page-level inv-integrity query here.
 
   const { data: summaryData } = useQuery({
     queryKey: ["inv-summary", selectedScanId],
@@ -1886,7 +1893,15 @@ export default function AIInvestigationCentre() {
   // ── Playback engine ───────────────────────────────────────────────────────
   const stages = replayData?.stages ?? [];
 
-  // Build the portfolio trade cards from comparison data (paper_traded items)
+  // V4.2: real execution trades from backend (preferred)
+  const executionTrades: ExecutionTrade[] = useMemo(
+    () => replayData?.execution_trades ?? [],
+    [replayData],
+  );
+
+  // Build the legacy portfolio trade cards from comparison data (paper_traded items).
+  // Used as fallback by <LivePositions> and <PortfolioManagementPanel> when no
+  // real execution trades exist.
   const portfolioTrades: TradeCard[] = useMemo(() => {
     const compItems = comparisonData?.comparisons ?? [];
     const paperItems = compItems.filter(c => c.paper_traded && c.entry_price != null);
@@ -1897,12 +1912,9 @@ export default function AIInvestigationCentre() {
       const exit    = c.current_price ?? null;
       const pnl     = exit != null ? (exit - entry) * qty : null;
       const pnlPct  = exit != null ? ((exit - entry) / entry) * 100 : null;
-      // Derive exit reason from status
       let exitReason: TradeCard["exit_reason"] = null;
       if (c.status === "WIN")  exitReason = "Target Hit";
       if (c.status === "LOSS") exitReason = "Stop Loss";
-      if (c.status === "PENDING") exitReason = null;
-      // Derive simulated timestamps from session snapshot_ts
       const base = snapshotTs ? new Date(snapshotTs) : null;
       const entryTime = base ? new Date(base.getTime() + 30 * 60_000).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" }) : null;
       const exitTime  = exit != null && base ? new Date(base.getTime() + 3 * 3600_000).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" }) : null;
@@ -1913,7 +1925,7 @@ export default function AIInvestigationCentre() {
         exit_price: exit,
         qty,
         capital_used: capital,
-        stop_loss: null,  // not available in comparison data — shown as — in detail modal
+        stop_loss: null,
         target: null,
         pnl,
         pnl_pct: pnlPct,
@@ -1925,24 +1937,51 @@ export default function AIInvestigationCentre() {
     });
   }, [comparisonData, snapshotTs]);
 
-  // Synthetic stage data for portfolio_management (derived, not from backend)
+  // When we have real execution trades use those for the PortfolioManagementPanel;
+  // otherwise fall back to the legacy comparison-derived list.
+  const effectiveTrades: TradeCard[] = useMemo(() => {
+    if (executionTrades.length === 0) return portfolioTrades;
+    return executionTrades.map(t => {
+      const isWin  = (t.pnl ?? 0) > 0;
+      const isLoss = (t.pnl ?? 0) < 0;
+      const status: TradeCard["status"] =
+        t.exit_price != null ? (isWin ? "WIN" : isLoss ? "LOSS" : "PENDING") : "OPEN";
+      return {
+        symbol:       t.symbol,
+        entry_price:  t.entry_price,
+        exit_price:   t.exit_price,
+        qty:          t.qty,
+        capital_used: t.capital_used,
+        stop_loss:    t.stop_loss,
+        target:       t.target,
+        pnl:          t.pnl,
+        pnl_pct:      t.pnl_pct,
+        status,
+        exit_reason: (t.exit_reason as TradeCard["exit_reason"]) ?? null,
+        entry_time:  t.entry_ts,
+        exit_time:   t.exit_ts,
+      };
+    });
+  }, [executionTrades, portfolioTrades]);
+
+  // Synthetic stage data for portfolio_management (derived from effective trades)
   const portfolioStageSynthetic: Stage | undefined = useMemo(() => {
-    if (!comparisonData) return undefined;
-    const closed = portfolioTrades.filter(t => t.pnl !== null).length;
+    if (!comparisonData && effectiveTrades.length === 0) return undefined;
+    const closed = effectiveTrades.filter(t => t.pnl !== null).length;
     return {
       id: "portfolio_management",
       label: "Portfolio / Trade Management",
       order: 10,
-      stocks_in: portfolioTrades.length,
+      stocks_in: effectiveTrades.length,
       stocks_out: closed,
       rejected: 0,
       rejected_symbols: [],
-      stocks: portfolioTrades.map(t => t.symbol),
+      stocks: effectiveTrades.map(t => t.symbol),
       duration_ms: null,
-      description: `${portfolioTrades.length} positions managed · ${closed} exits processed`,
-      paper_orders: portfolioTrades.length,
+      description: `${effectiveTrades.length} positions managed · ${closed} exits processed`,
+      paper_orders: effectiveTrades.length,
     };
-  }, [portfolioTrades, comparisonData]);
+  }, [effectiveTrades, comparisonData]);
 
   const stageById = useMemo(() => {
     const base = Object.fromEntries(stages.map(s => [s.id, s]));
@@ -2412,6 +2451,11 @@ export default function AIInvestigationCentre() {
                 activeStageIdx={activeStageIdx}
                 replayState={replayState}
               />
+
+              {/* V4.2 Replay Integrity Panel */}
+              {selectedScanId && (
+                <ReplayIntegrityPanel scanId={selectedScanId} />
+              )}
             </div>
 
             {/* Right: Stage Detail + Symbol List */}
@@ -2429,7 +2473,7 @@ export default function AIInvestigationCentre() {
                   {/* Portfolio Management stage gets its own rich panel */}
                   {focusStage.id === "portfolio_management" ? (
                     <PortfolioManagementPanel
-                      trades={portfolioTrades}
+                      trades={effectiveTrades}
                       snapshotTs={snapshotTs}
                       isReplayComplete={replayState === "complete"}
                     />
@@ -2500,6 +2544,7 @@ export default function AIInvestigationCentre() {
 
               {/* v5.0 Live Position Tracker */}
               <LivePositions
+                executionTrades={executionTrades}
                 portfolioTrades={portfolioTrades}
                 activeStageIdx={activeStageIdx}
                 comparisonData={comparisonData}
@@ -2922,6 +2967,7 @@ export default function AIInvestigationCentre() {
         <BottomTimeline
           snapshotTs={snapshotTs}
           comparisonData={comparisonData}
+          executionTrades={executionTrades}
           stages={stages}
           pipelineCfg={PIPELINE_STAGES}
           activeStageIdx={activeStageIdx}

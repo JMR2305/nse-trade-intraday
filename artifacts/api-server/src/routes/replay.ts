@@ -96,4 +96,14 @@ router.get("/replay/sessions/:scanId/summary", async (req, res) => {
   }
 });
 
+// GET /api/replay/sessions/:scanId/integrity — V4.2 pipeline integrity check
+router.get("/replay/sessions/:scanId/integrity", async (req, res) => {
+  try {
+    const scanId = String(req.params.scanId || "latest");
+    res.json(await runPython(["replay_integrity", scanId]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 export default router;

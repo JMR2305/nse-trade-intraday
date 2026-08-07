@@ -1104,6 +1104,9 @@ def main():
         elif command == "replay_summary":
             from replay_engine import get_replay_summary
             result = get_replay_summary(args[1] if len(args) > 1 else "latest")
+        elif command == "replay_integrity":
+            from replay_engine import get_replay_integrity
+            result = get_replay_integrity(args[1] if len(args) > 1 else "latest")
         elif command == "phase20_replay":
             from phase20_executor import replay_trade
             result = replay_trade(args[1] if len(args) > 1 else "")
