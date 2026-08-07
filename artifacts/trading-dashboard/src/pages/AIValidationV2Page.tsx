@@ -436,6 +436,8 @@ function BacktestRunnerTab({ onRunComplete }: { onRunComplete: (run: RunDetail) 
       setRunning(false);
       qc.invalidateQueries({ queryKey: ["v2-runs"] });
       qc.invalidateQueries({ queryKey: ["v2-missed"] });
+      qc.invalidateQueries({ queryKey: ["v2-performance"] });
+      qc.invalidateQueries({ queryKey: ["v2-opt-rec"] });
       onRunComplete(currentRun);
     } else if (currentRun?.status === "ERROR") {
       setRunning(false);

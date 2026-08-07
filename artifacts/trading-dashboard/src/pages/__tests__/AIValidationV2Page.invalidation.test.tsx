@@ -1,15 +1,13 @@
 // @vitest-environment jsdom
 /**
- * Task #399 — Missed Opportunities cache-invalidation tests
+ * Task #399/#400 — Cache-invalidation tests for BacktestRunnerTab
  *
  * Confirms that when a backtest run transitions to COMPLETED the
- * BacktestRunnerTab calls `queryClient.invalidateQueries(["v2-missed"])`,
- * causing the Missed Opportunities query to re-fetch without a full page
- * reload.
- *
- * Relevant code: AIValidationV2Page.tsx — useEffect on currentRun?.status
- *   qc.invalidateQueries({ queryKey: ["v2-runs"]  });
- *   qc.invalidateQueries({ queryKey: ["v2-missed"] });
+ * BacktestRunnerTab invalidates all four dependent query keys:
+ *   qc.invalidateQueries({ queryKey: ["v2-runs"]        });
+ *   qc.invalidateQueries({ queryKey: ["v2-missed"]      });
+ *   qc.invalidateQueries({ queryKey: ["v2-performance"] });
+ *   qc.invalidateQueries({ queryKey: ["v2-opt-rec"]     });
  *
  * Timing note: the mock returns COMPLETED on the first detail poll so we
  * avoid waiting 3 s for the refetchInterval. React Query's state update +
@@ -110,15 +108,15 @@ function buildMock(missedFetches: { count: number }) {
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-describe("AIValidationV2Page — Missed Opportunities invalidation (Task #399)", () => {
+describe("AIValidationV2Page — cache invalidation on backtest completion (Task #399/#400)", () => {
   beforeEach(() => { mockApiJson.mockReset(); });
   afterEach(() => { vi.clearAllMocks(); cleanup(); });
 
-  // ── Test 1: invalidateQueries is called on the right key ──────────────────
-  it("calls invalidateQueries([v2-missed]) when a backtest completes", async () => {
+  // ── Test 1: all four query keys are invalidated ───────────────────────────
+  it("invalidates v2-runs, v2-missed, v2-performance, and v2-opt-rec when a backtest completes", async () => {
     /**
      * A spy is placed on the real QueryClient's invalidateQueries method so
-     * we can assert the exact key without relying on downstream refetch timing.
+     * we can assert the exact keys without relying on downstream refetch timing.
      */
     const missedFetches = { count: 0 };
     mockApiJson.mockImplementation(buildMock(missedFetches));
@@ -138,23 +136,20 @@ describe("AIValidationV2Page — Missed Opportunities invalidation (Task #399)",
     const runBtn = await screen.findByRole("button", { name: /Run Backtest/i });
     await userEvent.click(runBtn);
 
-    // Wait for the COMPLETED detail to trigger the useEffect
+    const expectKey = (key: string) =>
+      JSON.stringify({ queryKey: [key] });
+
+    // Wait for all four invalidations to fire from the COMPLETED useEffect
     await waitFor(
       () => {
-        const calls = invalidateSpy.mock.calls;
-        const missedCall = calls.find(
-          (args) => JSON.stringify(args[0]) === JSON.stringify({ queryKey: ["v2-missed"] })
-        );
-        expect(missedCall).toBeDefined();
+        const serialized = invalidateSpy.mock.calls.map((args) => JSON.stringify(args[0]));
+        expect(serialized).toContain(expectKey("v2-runs"));
+        expect(serialized).toContain(expectKey("v2-missed"));
+        expect(serialized).toContain(expectKey("v2-performance"));
+        expect(serialized).toContain(expectKey("v2-opt-rec"));
       },
       { timeout: 10_000 }
     );
-
-    // Also confirm v2-runs is invalidated in the same effect
-    const runsCalls = invalidateSpy.mock.calls.filter(
-      (args) => JSON.stringify(args[0]) === JSON.stringify({ queryKey: ["v2-runs"] })
-    );
-    expect(runsCalls.length).toBeGreaterThan(0);
   }, 15_000);
 
   // ── Test 2: Missed Opps tab shows fresh data after a new backtest ─────────
