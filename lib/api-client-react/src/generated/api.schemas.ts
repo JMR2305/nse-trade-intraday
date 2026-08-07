@@ -2213,6 +2213,7 @@ export interface TradeDecision {
   historical_expectancy: number;
   historical_profit_factor: number;
   historical_win_rate: number;
+  historical_sharpe: number;
   pattern_match_pct: number;
   historical_trades: number;
   best_pattern: string;
