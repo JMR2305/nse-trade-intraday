@@ -216,6 +216,91 @@ class TestGates(unittest.TestCase):
         ev = self._evaluate(state=st)
         self.assertIn("daily_loss_limit", ev["candidates"][0]["failed_gates"])
 
+    def test_research_fail_open_passes_when_halted(self):
+        # fail_open (default) — gate must PASS even when research mode is
+        # PIPELINE_HALTED so that the pipeline continues on market-only data.
+        import phase20_gates as g
+
+        def _kv_get(key, *args, **kwargs):
+            if key == "research_agent_mode":
+                return {"mode": "PIPELINE_HALTED"}
+            return {}
+
+        ctx = self._ctx()
+        settings = dict(DEFAULT_SETTINGS)
+        settings["config_hash"] = "h"
+        settings["research_failure_mode"] = "fail_open"
+        pf = {"cash": 5000.0, "total_value": 5000.0,
+              "invested_value": 0.0, "positions": []}
+        st = {"trades": [], "positions": {}}
+        with patch.object(g.store, "get_settings", return_value=settings), \
+             patch.object(g.store, "kv_set", lambda *a, **k: None), \
+             patch.object(g.store, "kv_get", side_effect=_kv_get), \
+             patch("phase15_scan_context.build_scan_context", return_value=ctx), \
+             patch("market_hours.market_status", return_value={"state": "OPEN"}), \
+             patch("scan_state_store.load_latest_meta",
+                   return_value={"scan_id": ctx["scan_id"],
+                                 "provider": "Zerodha Kite Connect"}), \
+             patch("scan_state_store.load_latest_snapshot",
+                   return_value={"scan_id": ctx["scan_id"],
+                                 "safety": {"kite_connected": True,
+                                            "data_provider": "Zerodha Kite Connect"}}), \
+             patch("paper_trader._load_state", return_value=st), \
+             patch("paper_trader.get_portfolio", return_value=pf), \
+             patch("phase20_executor.get_ledger", return_value=[]):
+            ev = g.evaluate_entries()
+
+        global_gate_ids = {gg["gate"]: gg for gg in ev["global_gates"]}
+        self.assertIn("research_available", global_gate_ids,
+                      "research_available must be present in global_gates")
+        self.assertTrue(global_gate_ids["research_available"]["passed"],
+                        "fail_open: gate must PASS even when PIPELINE_HALTED")
+        self.assertNotIn("research_available", ev["candidates"][0]["failed_gates"])
+
+    def test_research_fail_closed_blocks_when_halted(self):
+        # fail_closed — gate must FAIL when research mode is PIPELINE_HALTED,
+        # blocking every BUY candidate until research recovers.
+        import phase20_gates as g
+
+        def _kv_get(key, *args, **kwargs):
+            if key == "research_agent_mode":
+                return {"mode": "PIPELINE_HALTED"}
+            return {}
+
+        ctx = self._ctx()
+        settings = dict(DEFAULT_SETTINGS)
+        settings["config_hash"] = "h"
+        settings["research_failure_mode"] = "fail_closed"
+        pf = {"cash": 5000.0, "total_value": 5000.0,
+              "invested_value": 0.0, "positions": []}
+        st = {"trades": [], "positions": {}}
+        with patch.object(g.store, "get_settings", return_value=settings), \
+             patch.object(g.store, "kv_set", lambda *a, **k: None), \
+             patch.object(g.store, "kv_get", side_effect=_kv_get), \
+             patch("phase15_scan_context.build_scan_context", return_value=ctx), \
+             patch("market_hours.market_status", return_value={"state": "OPEN"}), \
+             patch("scan_state_store.load_latest_meta",
+                   return_value={"scan_id": ctx["scan_id"],
+                                 "provider": "Zerodha Kite Connect"}), \
+             patch("scan_state_store.load_latest_snapshot",
+                   return_value={"scan_id": ctx["scan_id"],
+                                 "safety": {"kite_connected": True,
+                                            "data_provider": "Zerodha Kite Connect"}}), \
+             patch("paper_trader._load_state", return_value=st), \
+             patch("paper_trader.get_portfolio", return_value=pf), \
+             patch("phase20_executor.get_ledger", return_value=[]):
+            ev = g.evaluate_entries()
+
+        global_gate_ids = {gg["gate"]: gg for gg in ev["global_gates"]}
+        self.assertIn("research_available", global_gate_ids,
+                      "research_available must be present in global_gates")
+        self.assertFalse(global_gate_ids["research_available"]["passed"],
+                         "fail_closed: gate must FAIL when PIPELINE_HALTED")
+        self.assertIn("research_available", ev["candidates"][0]["failed_gates"],
+                      "fail_closed: candidate must be blocked by research_available")
+        self.assertEqual(ev["eligible_count"], 0,
+                         "fail_closed: no candidates should be eligible when halted")
+
 
 class TestAutoEntriesSafety(unittest.TestCase):
     def test_off_by_default_never_runs(self):
