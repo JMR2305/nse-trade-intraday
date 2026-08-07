@@ -763,10 +763,33 @@ function AgentCard({ agent, agentKey }: { agent?: AgentState; agentKey: string }
 
           {/* V4.3 — Supervisor: dependency violations + recommendations */}
           {agentKey === "supervisor" && (() => {
-            const violations = agent.details?.dependency_violations as string[] | undefined;
-            const recs = agent.details?.recommendations as Array<{
+            const violations     = agent.details?.dependency_violations as string[] | undefined;
+            const recs           = agent.details?.recommendations as Array<{
               priority: string; category: string; message: string; action: string;
             }> | undefined;
+            const coldStart      = agent.details?.pipeline_cold_start as boolean | undefined;
+
+            // Cold-start: no pipeline topic has published yet this session.
+            // Show a friendly "awaiting first scan" notice instead of alarming
+            // operators with empty or spurious violation banners.
+            if (coldStart) {
+              return (
+                <div className="mt-3 rounded-lg border border-teal-800/40 bg-teal-950/20 px-3 py-2 flex items-start gap-2">
+                  <Clock className="w-3.5 h-3.5 text-teal-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-[11px] font-semibold text-teal-300">
+                      Awaiting first scan
+                    </p>
+                    <p className="text-[10px] text-teal-400/70 mt-0.5">
+                      No pipeline data has been published yet this session.
+                      Pipeline health and dependency checks will appear after
+                      the first scan completes.
+                    </p>
+                  </div>
+                </div>
+              );
+            }
+
             if ((!violations || violations.length === 0) && (!recs || recs.length === 0)) return null;
             return (
               <div className="mt-3 space-y-2">

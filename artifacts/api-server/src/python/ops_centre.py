@@ -168,9 +168,22 @@ def _collect_supervisor() -> Dict[str, Any]:
     pipeline_health       = (raw or {}).get("pipeline_health") or {}
     dependency_violations = _lst((raw or {}).get("dependency_violations"))
     recommendations       = _lst((raw or {}).get("recommendations"))
+    # pipeline_cold_start: True when no pipeline topic has ever published in this
+    # process instance.  Forwarded to the UI so it can show "awaiting first scan"
+    # instead of red violation banners.
+    pipeline_cold_start   = bool((raw or {}).get("pipeline_cold_start", False))
 
-    stale_topics = [t for t, h in pipeline_health.items()
-                    if isinstance(h, dict) and h.get("stale")]
+    # Stale topics: only topics that were previously publishing but are now stale
+    # (exclude never-published topics so cold-start doesn't flood the UI).
+    # The supervisor now computes this correctly; prefer the pre-computed list
+    # if present, otherwise fall back to local filtering.
+    if "stale_topics" in (raw or {}):
+        stale_topics = list((raw or {}).get("stale_topics") or [])
+    else:
+        stale_topics = [
+            t for t, h in pipeline_health.items()
+            if isinstance(h, dict) and h.get("stale") and not h.get("never_published")
+        ]
 
     return _agent_base(
         raw, "Supervisor Agent", "supervisor", "SUPERVISOR_AGENT_ENABLED",
@@ -189,6 +202,7 @@ def _collect_supervisor() -> Dict[str, Any]:
             "health_status":     str(health.get("status", "UNKNOWN")),
             # V4.3 pipeline integrity
             "pipeline_health":          pipeline_health,
+            "pipeline_cold_start":      pipeline_cold_start,
             "dependency_violations":    dependency_violations,
             "dependency_violation_count": len(dependency_violations),
             "stale_topics":             stale_topics,

@@ -68,9 +68,12 @@ class SupervisorAgent:
 
         # Determine system capacity
         current_symbols = 0
-        md_env = self._bus.latest("market_data")
-        if md_env:
-            current_symbols = md_env.payload.get("symbols_count", 0)
+        try:
+            md_env = self._bus.latest("market_data")
+            if md_env:
+                current_symbols = md_env.payload.get("symbols_count", 0)
+        except Exception:
+            pass  # bus read failure handled in pipeline_health loop below
         scalability = ScalabilityEstimator.estimate(
             records,
             current_symbols=current_symbols,
@@ -84,35 +87,89 @@ class SupervisorAgent:
         ]
         pipeline_health: Dict[str, Any] = {}
         for topic in pipeline_topics:
+            # Distinguish three states per topic:
+            #
+            # 1. latest() returns an envelope  → available=True, never_published=False
+            # 2. latest() returns None          → available=False, never_published=True
+            #    (topic has never published in this process instance)
+            # 3. latest() raises an exception   → available=False, never_published=False,
+            #    error=True (bus-read failure; unknown state — NOT the same as
+            #    never_published; must not contribute to cold-start suppression)
+            env = None
             try:
                 env = self._bus.latest(topic)
-                if env is not None:
-                    try:
-                        from datetime import timezone as _tz
-                        age_s = round(
-                            (datetime.now(_tz.utc) - env.received_at).total_seconds()
-                        )
-                    except Exception:
-                        age_s = None
-                    pipeline_health[topic] = {
-                        "available":   True,
-                        "age_seconds": age_s,
-                        "stale":       age_s is not None and age_s > 600,
-                    }
-                else:
-                    pipeline_health[topic] = {
-                        "available":   False,
-                        "age_seconds": None,
-                        "stale":       True,
-                    }
-            except Exception:
+            except Exception as _exc:
+                # Bus read failure: classify as error, not as never_published.
+                # This prevents a transient bus fault from silently setting
+                # pipeline_cold_start=True and suppressing violation banners.
                 pipeline_health[topic] = {
-                    "available":   False,
-                    "age_seconds": None,
-                    "stale":       True,
+                    "available":      False,
+                    "age_seconds":    None,
+                    "stale":          False,
+                    "never_published": False,  # unknown — do not treat as cold-start
+                    "error":          True,
+                }
+                continue
+
+            if env is not None:
+                # Topic has published at least once in this process instance.
+                try:
+                    from datetime import timezone as _tz
+                    age_s = round(
+                        (datetime.now(_tz.utc) - env.received_at).total_seconds()
+                    )
+                except Exception:
+                    age_s = None
+                pipeline_health[topic] = {
+                    "available":      True,
+                    "age_seconds":    age_s,
+                    "stale":          age_s is not None and age_s > 600,
+                    "never_published": False,
+                    "error":          False,
+                }
+            else:
+                # latest() returned None: topic has genuinely never published
+                # in this bus singleton instance.  Expected during cold start;
+                # NOT the same as stale data.
+                pipeline_health[topic] = {
+                    "available":      False,
+                    "age_seconds":    None,
+                    "stale":          False,   # not stale — just not yet published
+                    "never_published": True,
+                    "error":          False,
                 }
 
-        # Dependency violation check: each stage requires its upstream topic.
+        # Cold-start flag: True only when EVERY topic has never_published=True
+        # (no errors, no data at all).  A single error or published topic prevents
+        # cold-start mode so operators are not left without pipeline health signals.
+        pipeline_cold_start: bool = all(
+            h.get("never_published", False) and not h.get("error", False)
+            for h in pipeline_health.values()
+        )
+
+        # Dependency violation check.
+        #
+        # The current SnapshotBus holds envelopes for the process lifetime and
+        # provides no eviction path.  Therefore in normal operation a topic can
+        # only be in one of two states reachable via bus.latest():
+        #   • available=True  (envelope present)
+        #   • available=False, never_published=True  (envelope absent)
+        #
+        # The third state (available=False, never_published=False) arises only
+        # from bus-read exceptions (error=True above).
+        #
+        # Violation type 1: child has data but upstream is unavailable.
+        #   This is always a real violation — something produced downstream
+        #   results without valid upstream input.
+        #
+        # Violation type 2 (error path): child is in error state (available=False,
+        #   never_published=False, error=True) while parent is healthy.
+        #   Surface this so operators know a bus-read failure is blocking a
+        #   downstream topic.
+        #
+        # No violation for never_published children: during initialization the
+        #   downstream agents simply haven't run yet — this is expected and must
+        #   not alarm operators every time the server restarts.
         _deps = {
             "market_intelligence": "market_data",
             "monitoring":          "market_intelligence",
@@ -126,14 +183,25 @@ class SupervisorAgent:
             child_h  = pipeline_health.get(child, {})
             parent_h = pipeline_health.get(parent, {})
             if child_h.get("available") and not parent_h.get("available"):
+                # Type 1: child has data but upstream is unavailable
                 dependency_violations.append(
                     f"{child} has data but upstream {parent} is unavailable"
                 )
-            elif not child_h.get("available") and parent_h.get("available") and \
-                    not parent_h.get("stale"):
+            elif (not child_h.get("available")
+                  and child_h.get("error")           # bus-read failure for child
+                  and parent_h.get("available")
+                  and not parent_h.get("stale")):
+                # Type 2 (error path): child bus-read failed; parent is healthy
                 dependency_violations.append(
-                    f"{child} is missing data despite {parent} being healthy"
+                    f"{child} is unavailable (bus read error) despite {parent} being healthy"
                 )
+
+        # Stale topics — exclude never-published topics so cold-start does not
+        # flood the recommendations with meaningless "stale" warnings.
+        stale_topics = [
+            t for t, h in pipeline_health.items()
+            if h.get("stale") and not h.get("never_published")
+        ]
 
         # Structured operator recommendations from framework health
         recommendations: List[Dict[str, Any]] = []
@@ -152,7 +220,6 @@ class SupervisorAgent:
                 "message":  f"{len(dependency_violations)} pipeline dependency violation(s) detected.",
                 "action":   "; ".join(dependency_violations),
             })
-        stale_topics = [t for t, h in pipeline_health.items() if h.get("stale")]
         if stale_topics:
             recommendations.append({
                 "priority": "MEDIUM",
@@ -186,7 +253,9 @@ class SupervisorAgent:
             "scalability":      scalability,
             # V4.3 additions
             "pipeline_health":          pipeline_health,
+            "pipeline_cold_start":      pipeline_cold_start,
             "dependency_violations":    dependency_violations,
+            "stale_topics":             stale_topics,
             "recommendations":          recommendations,
             "generated_at":     _now_iso(),
         }
