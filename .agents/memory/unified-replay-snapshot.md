@@ -14,3 +14,5 @@ Rule: `build_replay()` output is the ONLY source of pipeline counts, decisions, 
 - Frontend integrity panel renders the snapshot's embedded `integrity` report (fetch is fallback only) — a second fetch can disagree if the ledger changed in between.
 - `get_symbol_journey` must resolve the REQUESTED scan_id (scan_state only if current, else signal_snapshots) and read trades from phase20 ledger scoped by scan — never legacy `paper_trades` or the current scan unconditionally.
 - Portfolio state is ledger-only and scan-scoped: a position opened by an earlier scan shows 0 open for the latest scan — by design, not a bug.
+- "Executed" counts must NEVER come from the snapshot's `paper_eligible` flag — eligibility is intent, not execution (automation OFF or entry gates can block after eligibility). Three past offenders: sessions list `paper_orders`, `get_replay_summary` (read legacy unscoped `paper_trades`), `get_decision_comparison` (same). All now read phase20 ledger scoped by scan.
+- Per-symbol block reasons for eligible-but-not-executed BUYs come from `phase22_evidence` (recorded from the exact executor payload) — never re-run gate evaluation at replay time (drift).

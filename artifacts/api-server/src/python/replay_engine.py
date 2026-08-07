@@ -776,7 +776,18 @@ def get_replay_sessions() -> Dict:
                     snap = json.loads(snap)
                 recs = snap.get("recommendations") or []
                 buy_count = sum(1 for r in recs if r.get("final_action") == "BUY")
-                paper_count = sum(1 for r in recs if r.get("paper_eligible"))
+                # Executed count comes from the ACTUAL ledger, not the
+                # paper_eligible flag — eligibility does not guarantee a
+                # persisted order (duplicate/circuit-breaker blocks etc.).
+                paper_count = 0
+                try:
+                    led = _q1(conn, """
+                        SELECT COUNT(*) AS n FROM phase20_paper_trades
+                        WHERE scan_id = %s AND side = 'BUY'
+                    """, (row.get("scan_id"),))
+                    paper_count = int((led or {}).get("n") or 0)
+                except Exception:
+                    pass
                 dur = snap.get("duration_s")
                 sessions.append({
                     "scan_id": row["scan_id"] or "latest",
@@ -929,20 +940,54 @@ def build_replay(scan_id: str) -> Dict:
     # reported as `cancelled` so conservation still holds exactly and every
     # page shows the same number.
     exec_stage = next((s for s in stages if s["id"] == "execution"), None)
+    execution_blocks: List[Dict] = []
     if exec_stage is not None:
         ledger_symbols = [t.get("symbol") for t in execution_trades if t.get("symbol")]
         eligible_out = int(exec_stage.get("stocks_out", 0))
         actual_out = len(ledger_symbols)
         if actual_out != eligible_out:
+            # Per-symbol block reasons from the phase22 evidence dataset —
+            # recorded from the EXACT evaluation payload the executor used
+            # (never re-evaluated here).
+            try:
+                conn2 = _get_conn()
+                if conn2:
+                    try:
+                        ev_rows = _q(conn2, """
+                            SELECT symbol, eligibility_result, blocking_reasons, trade_opened
+                            FROM phase22_evidence
+                            WHERE scan_id = %s AND decision = 'BUY'
+                        """, (resolved_scan_id,))
+                        ledger_set = set(ledger_symbols)
+                        for er in ev_rows:
+                            if er.get("symbol") in ledger_set:
+                                continue
+                            reasons = er.get("blocking_reasons") or []
+                            if isinstance(reasons, str):
+                                reasons = json.loads(reasons)
+                            if not reasons and not er.get("trade_opened"):
+                                reasons = ["automation_off_or_gate_blocked"]
+                            execution_blocks.append({
+                                "symbol": er.get("symbol"),
+                                "eligibility_result": er.get("eligibility_result"),
+                                "reasons": reasons,
+                            })
+                    finally:
+                        conn2.close()
+            except Exception:
+                pass
             blocked = max(0, eligible_out - actual_out)
             exec_stage["stocks_out"] = actual_out
             exec_stage["cancelled"] = blocked
             exec_stage["stocks"] = ledger_symbols[:50]
             exec_stage["paper_orders"] = actual_out
+            exec_stage["blocked_entries"] = execution_blocks[:20]
             exec_stage["description"] = (
                 f"{actual_out} paper orders placed"
                 + (f" · {blocked} eligible entr{'y' if blocked == 1 else 'ies'} blocked "
-                   f"(no ledger row — e.g. open position already exists)" if blocked else "")
+                   + (f"({'; '.join(f'{b['symbol']}: {', '.join(b['reasons'][:3])}' for b in execution_blocks[:4])})"
+                      if execution_blocks else "(no ledger row — e.g. open position already exists)")
+                   if blocked else "")
             )
             if actual_out > eligible_out:
                 # Ledger overage (rows beyond snapshot eligibility): keep
@@ -1360,11 +1405,18 @@ def get_decision_comparison(scan_id: str) -> Dict:
                     snap = json.loads(snap)
                 snapshot = snap
 
-            trade_rows = _q(conn, """
-                SELECT symbol, action, price, total, trade_ts, metadata
-                FROM paper_trades ORDER BY created_at DESC LIMIT 100
-            """)
-            trades = [dict(r) for r in trade_rows]
+            # Scan-scoped trades from the canonical phase20 ledger — the
+            # legacy unscoped paper_trades table cross-contaminates sessions.
+            _cmp_sid = snapshot.get("scan_id")
+            if _cmp_sid:
+                trade_rows = _q(conn, """
+                    SELECT symbol, side AS action, fill_price AS price,
+                           (fill_price * quantity) AS total, fill_ts AS trade_ts
+                    FROM phase20_paper_trades
+                    WHERE scan_id = %s
+                    ORDER BY fill_ts DESC LIMIT 100
+                """, (_cmp_sid,))
+                trades = [dict(r) for r in trade_rows]
 
             price_rows = _q(conn, """
                 SELECT symbol, price FROM phase11_price_snapshots
@@ -1471,10 +1523,18 @@ def get_replay_summary(scan_id: str) -> Dict:
                     snap = json.loads(snap)
                 snapshot = snap
 
-            trades = [dict(r) for r in _q(conn, """
-                SELECT symbol, action, price, total, trade_ts, metadata
-                FROM paper_trades ORDER BY created_at DESC LIMIT 200
-            """)]
+            # Trades from the canonical phase20 ledger, scoped to THIS scan —
+            # never the legacy unscoped paper_trades table.
+            _sid = snapshot.get("scan_id") or (scan_id if scan_id not in ("latest", "") else None)
+            if _sid:
+                trades = [dict(r) for r in _q(conn, """
+                    SELECT symbol, side AS action, fill_price AS price,
+                           (fill_price * quantity) AS total, fill_ts AS trade_ts,
+                           realized_pnl, status
+                    FROM phase20_paper_trades
+                    WHERE scan_id = %s
+                    ORDER BY fill_ts DESC LIMIT 200
+                """, (_sid,))]
         finally:
             conn.close()
 
@@ -1488,7 +1548,9 @@ def get_replay_summary(scan_id: str) -> Dict:
     passed_strategy = sum(1 for r in recs if r.get("strategy_id") or r.get("strategy_name"))
     passed_risk = sum(1 for r in recs if r.get("all_gates_passed"))
     buy_candidates = sum(1 for r in recs if r.get("final_action") == "BUY")
-    paper_orders = sum(1 for r in recs if r.get("paper_eligible"))
+    # Executed = actual ledger rows for this scan (trades list is already
+    # scan-scoped above); paper_eligible is only an intent flag.
+    paper_orders = sum(1 for t in trades if str(t.get("action") or "").upper() == "BUY")
     avoid_count = sum(1 for r in recs if r.get("final_action") == "AVOID")
 
     # Agent timing
@@ -1514,7 +1576,7 @@ def get_replay_summary(scan_id: str) -> Dict:
     agent_most_rejections = "Risk" if (passed_strategy - passed_risk) > (passed_risk - buy_candidates) else "AI Decision"
 
     # Win rate estimate from paper trades
-    profitable = sum(1 for t in trades if float((t.get("metadata") or {}).get("pnl_pct", 0) or 0) > 0) if trades else 0
+    profitable = sum(1 for t in trades if float(t.get("realized_pnl") or 0) > 0) if trades else 0
     win_rate = round((profitable / len(trades)) * 100, 1) if trades else None
 
     # Readiness verdict

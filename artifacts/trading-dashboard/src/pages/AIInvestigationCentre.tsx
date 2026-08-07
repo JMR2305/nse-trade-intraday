@@ -2396,8 +2396,8 @@ export default function AIInvestigationCentre() {
           <KpiCard label="Date" value={snapshotTs ? new Date(snapshotTs).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata" }) : "—"} />
           <KpiCard label="Session" value={selectedSession?.status ?? "—"} />
           <KpiCard label="Symbols Scanned" value={replayData?.universe_size ?? "—"} color="text-teal-300" />
-          <KpiCard label="BUY Generated" value={selectedSession?.buy_signals ?? (summ?.buy_candidates as number | undefined) ?? "—"} color="text-emerald-400" />
-          <KpiCard label="BUY Executed" value={selectedSession?.paper_orders ?? "—"} color="text-emerald-300" />
+          <KpiCard label="BUY Generated" value={replayData?.pipeline_counts?.ai_decision?.out ?? selectedSession?.buy_signals ?? (summ?.buy_candidates as number | undefined) ?? "—"} color="text-emerald-400" />
+          <KpiCard label="BUY Executed" value={replayData?.pipeline_counts?.execution?.out ?? selectedSession?.paper_orders ?? "—"} color="text-emerald-300" />
           <KpiCard label="SELL Executed" value={(summ?.completed_trades as number | undefined) ?? "—"} color="text-amber-300" />
           <KpiCard label="Rejected" value={symbols.filter(s => !s.all_gates_passed).length || "—"} color="text-red-400" />
           <KpiCard label="Missed Opps" value={missedOpps.length || "—"} color="text-orange-400" />
