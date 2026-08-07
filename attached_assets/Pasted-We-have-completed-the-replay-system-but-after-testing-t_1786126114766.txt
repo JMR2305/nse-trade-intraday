@@ -1,0 +1,395 @@
+We have completed the replay system, but after testing there are still several critical issues that must be fixed before this feature can be considered complete.
+
+=====================================================================
+PHASE 1 - PIPELINE DATA INTEGRITY (HIGHEST PRIORITY)
+=====================================================================
+
+The replay engine must enforce a strict conservation rule:
+
+Output = Passed + Rejected + Pending + Cancelled
+
+No stage is allowed to create additional records.
+
+Current example:
+
+Decision:
+48 -> 6
+
+Execution:
+6 -> 7
+
+This is impossible.
+
+Execution can NEVER output more records than it receives.
+
+Implement validation that verifies:
+
+• Execution OUT <= Execution IN
+• No negative rejected counts
+• No duplicate symbols
+• No stage creates additional symbols
+• Every rejected symbol is traceable
+• Every forwarded symbol has a parent stage
+• Every BUY originates from an approved Decision
+
+If validation fails, display the reason, but NEVER fabricate data.
+
+=====================================================================
+PHASE 2 - PORTFOLIO SYNCHRONIZATION
+=====================================================================
+
+Portfolio is currently showing:
+
+Starting Capital ₹100000
+Available Cash ₹100000
+Trades 0
+
+This is incorrect.
+
+Execution reports paper orders but Portfolio shows no trades.
+
+Portfolio must read from the SAME executed paper trade records.
+
+Workflow:
+
+Execution
+↓
+
+Paper Order
+
+↓
+
+Order Fill
+
+↓
+
+Open Position
+
+↓
+
+Position Monitor
+
+↓
+
+Exit (Target / Stop Loss / AI Exit / EOD)
+
+↓
+
+Portfolio Update
+
+↓
+
+Equity Curve
+
+↓
+
+End Of Day Summary
+
+Every BUY must create a portfolio position.
+
+Every SELL must close it.
+
+Every closed trade must update:
+
+• Cash
+• Invested Capital
+• Unrealized P&L
+• Realized P&L
+• Equity Curve
+• Win Rate
+• Drawdown
+• Total Return
+
+There must be ONE source of truth.
+
+=====================================================================
+PHASE 3 - INITIAL CAPITAL
+=====================================================================
+
+Portfolio currently uses ₹100000.
+
+Our configured paper trading capital is ₹50000.
+
+Remove every hardcoded ₹100000.
+
+Use ONLY the configured paper trading capital.
+
+Running Portfolio Summary
+
+End of Day Summary
+
+Replay
+
+Risk calculations
+
+Dashboard
+
+Portfolio Analytics
+
+Trade Replay
+
+must all read the SAME value.
+
+If no trades occurred:
+
+Starting Capital = ₹50000
+
+Available Cash = ₹50000
+
+Invested = ₹0
+
+Portfolio Value = ₹50000
+
+=====================================================================
+PHASE 4 - SYMBOL LIST
+=====================================================================
+
+The Symbols section is broken.
+
+Cards overlap.
+
+Replay integrity overlaps.
+
+Timeline overlaps.
+
+Portfolio overlaps.
+
+Fix layout:
+
+• Proper container heights
+• Correct z-index
+• No overlapping panels
+• Responsive spacing
+• Scroll independently
+• Cards render cleanly
+
+=====================================================================
+PHASE 5 - REPLAY TIMELINE
+=====================================================================
+
+The timeline is unreadable.
+
+Improve it significantly.
+
+Each event should appear as a chronological flow:
+
+08:45
+Supervisor
+
+↓
+
+Market Scanner
+
+↓
+
+Research
+
+↓
+
+Market Intelligence
+
+↓
+
+Monitoring
+
+↓
+
+Strategy
+
+↓
+
+Risk
+
+↓
+
+Decision
+
+↓
+
+Execution
+
+↓
+
+BUY
+
+↓
+
+Position Monitoring
+
+↓
+
+Trailing Stop updates
+
+↓
+
+Target Hit / Stop Loss / AI Exit
+
+↓
+
+SELL
+
+↓
+
+Portfolio Update
+
+↓
+
+End Of Day
+
+Each event must have:
+
+• Timestamp
+• Agent
+• Symbol
+• Price
+• Quantity
+• Confidence
+• Processing time
+• Decision reason
+
+Zoom and horizontal scrolling should work.
+
+=====================================================================
+PHASE 6 - PIPELINE COUNTS
+=====================================================================
+
+Display:
+
+Stocks Received
+
+Passed
+
+Rejected
+
+Pending
+
+Cancelled
+
+for EVERY stage.
+
+The counts must match exactly.
+
+No mismatches.
+
+No fabricated values.
+
+=====================================================================
+PHASE 7 - TRADE MANAGEMENT
+=====================================================================
+
+When BUY happens display:
+
+BUY
+
+Time
+
+Price
+
+Quantity
+
+Capital Used
+
+Stop Loss
+
+Target
+
+Risk %
+
+When SELL happens display:
+
+SELL
+
+Exit Price
+
+Exit Time
+
+Holding Time
+
+Reason
+
+Target Hit
+
+Stop Loss
+
+AI Exit
+
+End Of Day Exit
+
+Profit/Loss
+
+Running P&L
+
+Portfolio Balance
+
+=====================================================================
+PHASE 8 - REPLAY VALIDATION
+=====================================================================
+
+At replay completion automatically validate:
+
+✓ Pipeline counts
+
+✓ Execution records
+
+✓ Portfolio positions
+
+✓ Closed trades
+
+✓ Equity curve
+
+✓ Timeline events
+
+✓ End-of-day report
+
+✓ P&L
+
+✓ Capital
+
+✓ Symbol counts
+
+If anything differs, identify the exact stage where the inconsistency originated.
+
+=====================================================================
+PHASE 9 - RISK AGENT REVIEW
+=====================================================================
+
+The Risk Agent currently passes almost no stocks.
+
+Review the existing Risk Agent logic.
+
+Do NOT simply lower thresholds.
+
+Audit:
+
+• Confidence threshold
+• Position sizing
+• Sector exposure
+• Capital allocation
+• Daily loss limits
+• Max concurrent positions
+• Liquidity filters
+• Reward:Risk ratio
+• ATR stop calculations
+• Market regime filters
+
+Determine whether valid opportunities are being incorrectly rejected.
+
+If the rules are too restrictive, recalibrate them using realistic paper trading behaviour while maintaining proper risk management.
+
+=====================================================================
+FINAL REQUIREMENT
+=====================================================================
+
+Do not patch individual pages.
+
+Perform an end-to-end audit of the Replay Engine, AI Pipeline, Execution Engine, Paper Trading Engine, Portfolio Management, and Replay UI.
+
+The goal is that every page (Dashboard, AI Operations, Replay, Trade Management, Portfolio, Timeline, and Analytics) reads from the same underlying data model and produces mathematically consistent results.
+
+Deliver a verification report confirming:
+1. Pipeline counts are internally consistent.
+2. Execution and Portfolio are synchronized.
+3. Initial capital is ₹50,000 everywhere.
+4. Replay timeline is fully readable.
+5. No UI overlap remains.
+6. Every BUY and SELL is visible in the replay with accurate P&L.

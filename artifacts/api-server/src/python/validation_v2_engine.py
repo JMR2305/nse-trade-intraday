@@ -177,6 +177,15 @@ def _ensure_tables(conn):
         raise
 
 
+def _paper_capital() -> float:
+    """Configured paper-trading starting capital (single source of truth)."""
+    try:
+        from portfolio_store import INITIAL_CAPITAL
+        return float(INITIAL_CAPITAL)
+    except Exception:
+        return 50_000.0
+
+
 def _sf(v, default: float = 0.0) -> float:
     try:
         f = float(v)
@@ -1340,7 +1349,7 @@ def execute_backtest_pipeline(run_id: str, config_json: str) -> dict:
         interval = str(run.get("interval", "1h"))
         start_date = str(run.get("start_date") or "")
         end_date = str(run.get("end_date") or "")
-        initial_capital = float(config.get("initial_capital", 100_000))
+        initial_capital = float(config.get("initial_capital", _paper_capital()))
     except Exception as e:
         try:
             conn.close()
@@ -1553,7 +1562,7 @@ def run_backtest_pipeline(config_json: str) -> dict:
         return {"error": date_err, "label": LABEL}
 
     interval = str(config.get("interval", "1h"))
-    initial_capital = float(config.get("initial_capital", 100_000))
+    initial_capital = float(config.get("initial_capital", _paper_capital()))
     run_id = str(uuid.uuid4())[:12]
 
     from strategies import list_strategies, get_strategy

@@ -157,8 +157,15 @@ def sector_score(sector_rank: int, total_sectors: int) -> float:
 
 
 def reliability_score(perf_score: float, total_trades: int) -> float:
-    """Historical strategy reliability — perf score dampened by sample size."""
-    sample = min(1.0, total_trades / 8.0)
+    """
+    Historical strategy reliability — perf score dampened by sample size.
+
+    Full sample weight is reached at 4+ trades, matching the calibrated
+    convention in market_scanner.py (reliability = min(1, trades/4)).
+    A /8 denominator here previously halved composite scores for young
+    strategies and silently suppressed BUY signals.
+    """
+    sample = min(1.0, total_trades / 4.0)
     return round(max(0.0, min(100.0, perf_score * (0.5 + 0.5 * sample))), 1)
 
 

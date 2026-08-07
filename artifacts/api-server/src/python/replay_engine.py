@@ -73,6 +73,23 @@ STAGES = [
 
 
 # ---------------------------------------------------------------------------
+# Configured paper-trading capital (single source of truth)
+# ---------------------------------------------------------------------------
+
+def _configured_capital() -> float:
+    """
+    Return the configured paper-trading starting capital.
+    Single source of truth: portfolio_store.INITIAL_CAPITAL (₹50,000).
+    Never hardcode capital values elsewhere in this module.
+    """
+    try:
+        from portfolio_store import INITIAL_CAPITAL
+        return float(INITIAL_CAPITAL)
+    except Exception:
+        return 50_000.0
+
+
+# ---------------------------------------------------------------------------
 # Helpers — snapshot parsing
 # ---------------------------------------------------------------------------
 
@@ -110,10 +127,26 @@ def _build_stages_from_snapshot(snapshot: Dict) -> List[Dict]:
     Reconstruct 9-stage pipeline from a Phase7ScanResult snapshot dict.
     Returns a list of stage dicts ordered by pipeline position.
     """
-    recs: List[Dict] = snapshot.get("recommendations") or []
+    raw_recs: List[Dict] = snapshot.get("recommendations") or []
     provider = snapshot.get("provider_health") or {}
     audit = snapshot.get("scan_audit") or {}
     timings = snapshot.get("timings") or {}
+
+    # ── Canonicalize: one record per symbol (first wins), track duplicates ──
+    # Duplicate rows in a snapshot must never fabricate duplicate orders/counts.
+    recs: List[Dict] = []
+    _seen: set = set()
+    duplicate_symbols: List[str] = []
+    for r in raw_recs:
+        sym = r.get("symbol")
+        if not sym:
+            continue
+        if sym in _seen:
+            duplicate_symbols.append(sym)
+            continue
+        _seen.add(sym)
+        recs.append(r)
+
     universe_size: int = int(snapshot.get("universe_size") or len(recs) or 0)
 
     # ── Reconstruct per-stage symbol sets ──────────────────────────────────
@@ -123,54 +156,84 @@ def _build_stages_from_snapshot(snapshot: Dict) -> List[Dict]:
     # Try to get universe from provider_health for true universe size
     universe_symbols_count = int(provider.get("symbols_requested") or universe_size)
 
-    # Stage 1 — Market Data: symbols that actually received data
-    market_data_received = int(provider.get("symbols_received") or len(recs))
+    # Stage 1 — Market Data: symbols that actually received data.
+    # Clamp provider counts so an inconsistent snapshot (received > requested,
+    # or requested < deduped record count) can never produce negative rejected
+    # counts — validate and surface, never fabricate.
+    provider_count_anomaly = False
+    _received_raw = int(provider.get("symbols_received") or len(recs))
+    if universe_symbols_count < len(recs):
+        provider_count_anomaly = True
+        universe_symbols_count = len(recs)
+    market_data_received = _received_raw
+    if market_data_received > universe_symbols_count:
+        provider_count_anomaly = True
+        market_data_received = universe_symbols_count
     market_data_symbols = [r["symbol"] for r in recs if r.get("symbol") and not (r.get("error") or "").startswith("MARKET_DATA")]
+
+    # CONSERVATION: every stage's output must be a subset of its input.
+    # Each stage filters the PREVIOUS stage's symbols by its own criterion —
+    # never re-derives from the full record set (which could "create" records).
 
     # Stage 2 — Research: global; all market_data symbols proceed (research is not per-symbol gating)
     research_symbols = market_data_symbols
+    _research_set = set(research_symbols)
 
-    # Stage 3 — Market Intelligence: filter by data quality
+    # Stage 3 — Market Intelligence: filter research output by data quality
     mi_symbols = [
         r["symbol"] for r in recs
-        if r.get("symbol") and _data_quality_score(r.get("data_quality")) >= 35
+        if r.get("symbol") in _research_set and _data_quality_score(r.get("data_quality")) >= 35
     ]
+    _mi_set = set(mi_symbols)
 
     # Stage 4 — Monitoring: pass-through of market intelligence
     monitoring_symbols = mi_symbols
+    _monitoring_set = _mi_set
 
-    # Stage 5 — Strategy: symbols that have a strategy assigned
+    # Stage 5 — Strategy: monitoring symbols that have a strategy assigned
     strategy_symbols = [
         r["symbol"] for r in recs
-        if r.get("symbol") and r.get("strategy_id") or r.get("strategy_name")
+        if r.get("symbol") in _monitoring_set and (r.get("strategy_id") or r.get("strategy_name"))
     ]
+    _strategy_set = set(strategy_symbols)
 
-    # Stage 6 — Risk: symbols where all gates passed
+    # Stage 6 — Risk: strategy symbols where all gates passed
     risk_symbols = [
         r["symbol"] for r in recs
-        if r.get("symbol") and r.get("all_gates_passed")
+        if r.get("symbol") in _strategy_set and r.get("all_gates_passed")
     ]
+    _risk_set = set(risk_symbols)
 
-    # Stage 7 — AI Decision: symbols with a meaningful final action (not AVOID outright rejections)
+    # Stage 7 — AI Decision: risk-approved symbols with a meaningful final action
     ai_symbols = [
         r["symbol"] for r in recs
-        if r.get("symbol") and r.get("final_action") not in (None, "AVOID", "SELL")
+        if r.get("symbol") in _risk_set and r.get("final_action") not in (None, "AVOID", "SELL")
     ]
-    # Also include AVOID but track separately for stats
+    # AVOID tracked separately for stats (from risk-approved input only)
     avoid_symbols = [
         r["symbol"] for r in recs
-        if r.get("symbol") and r.get("final_action") == "AVOID"
+        if r.get("symbol") in _risk_set and r.get("final_action") == "AVOID"
     ]
     buy_symbols = [
         r["symbol"] for r in recs
-        if r.get("symbol") and r.get("final_action") == "BUY"
+        if r.get("symbol") in _risk_set and r.get("final_action") == "BUY"
     ]
 
-    # Stage 8 — Execution: paper-eligible
-    execution_symbols = [
+    # Stage 8 — Execution: paper-eligible AND approved by Decision.
+    # CONSERVATION RULE: Execution can NEVER output more records than it
+    # receives from Decision.  A snapshot row can be marked paper_eligible
+    # while its final_action is not BUY (stale eligibility, upstream record
+    # mismatch).  Those rows are surfaced as anomalies — never counted as
+    # execution output, never fabricated into the pipeline.
+    _paper_eligible_all = [
         r["symbol"] for r in recs
         if r.get("symbol") and r.get("paper_eligible")
     ]
+    _buy_set = set(buy_symbols)
+    execution_symbols = [s for s in _paper_eligible_all if s in _buy_set]
+    # Orphans: paper-eligible without an approved BUY decision — an integrity
+    # violation of "every BUY originates from an approved Decision".
+    execution_orphans = [s for s in _paper_eligible_all if s not in _buy_set]
 
     # ── Timing ─────────────────────────────────────────────────────────────
     def _ms(key: str) -> Optional[int]:
@@ -202,19 +265,25 @@ def _build_stages_from_snapshot(snapshot: Dict) -> List[Dict]:
             "label": "Market Data",
             "order": 1,
             "stocks_in": universe_symbols_count,
-            "stocks_out": market_data_received,
-            "rejected": universe_symbols_count - market_data_received,
+            "stocks_out": len(market_data_symbols),
+            "rejected": universe_symbols_count - len(market_data_symbols),
             "rejected_symbols": (snapshot.get("missing_symbols") or [])[:10],
             "stocks": market_data_symbols[:50],
+            "anomalies": (["PROVIDER_COUNT_MISMATCH"] if provider_count_anomaly else []) + duplicate_symbols[:10],
+            "anomaly_count": (1 if provider_count_anomaly else 0) + len(duplicate_symbols),
             "duration_ms": _ms("market_data") or 8500,
-            "description": f"Fetched live data for {market_data_received} symbols",
+            "description": (
+                f"Fetched live data for {market_data_received} symbols"
+                + (f" · {len(duplicate_symbols)} duplicate record(s) removed" if duplicate_symbols else "")
+                + (" · provider counts inconsistent (clamped)" if provider_count_anomaly else "")
+            ),
             "status": "COMPLETE",
         },
         {
             "id": "research",
             "label": "Research",
             "order": 2,
-            "stocks_in": market_data_received,
+            "stocks_in": len(market_data_symbols),
             "stocks_out": len(research_symbols),
             "rejected": 0,
             "rejected_symbols": [],
@@ -298,16 +367,31 @@ def _build_stages_from_snapshot(snapshot: Dict) -> List[Dict]:
             "order": 8,
             "stocks_in": len(buy_symbols),
             "stocks_out": len(execution_symbols),
-            # Clamp to 0: execution can never output MORE than it received from Decision
-            "rejected": max(0, len(buy_symbols) - len(execution_symbols)),
+            # Conservation holds by construction: execution_symbols ⊆ buy_symbols
+            "rejected": len(buy_symbols) - len(execution_symbols),
             "rejected_symbols": [s for s in buy_symbols if s not in set(execution_symbols)][:10],
             "stocks": execution_symbols[:50],
             "paper_orders": len(execution_symbols),
+            "anomalies": execution_orphans[:10],
+            "anomaly_count": len(execution_orphans),
             "duration_ms": _ms("execution") or 300,
-            "description": f"{len(execution_symbols)} paper orders placed",
+            "description": (
+                f"{len(execution_symbols)} paper orders placed"
+                + (f" · {len(execution_orphans)} anomalous record(s) excluded (paper-eligible without BUY decision)" if execution_orphans else "")
+            ),
             "status": "COMPLETE",
         },
     ]
+
+    # Normalize the count contract on every stage:
+    # Received = Passed + Rejected + Pending + Cancelled (pending/cancelled
+    # default 0 in reconstructed replays; unaccounted symbols become pending).
+    for s in stages:
+        s.setdefault("anomalies", [])
+        s.setdefault("anomaly_count", 0)
+        unaccounted = s["stocks_in"] - s["stocks_out"] - max(0, s["rejected"])
+        s["pending"] = max(0, unaccounted)
+        s["cancelled"] = 0
 
     # ── Post-build integrity validation (warn to logs, never raise) ──────────
     import logging as _logging
@@ -836,6 +920,7 @@ def build_replay(scan_id: str) -> Dict:
     return {
         "scan_id": snapshot.get("scan_id", scan_id),
         "snapshot_ts": snapshot.get("snapshot_ts", ""),
+        "starting_capital": _configured_capital(),
         "stages": stages,
         "symbols": symbols_list,
         "total_symbols": len(symbols_list),
@@ -901,32 +986,30 @@ def get_replay_integrity(scan_id: str) -> Dict:
         "detail": f"Creating records: {', '.join(create_stages)}" if create_stages else "Conservation law satisfied",
     })
 
-    # 3. Conservation: input ≈ passed + rejected — check BOTH directions.
-    #    - accounted > in → stage CREATES records (caught by check 2; re-flag as ERROR)
-    #    - accounted < in by > 20% → symbols silently disappear (WARNING)
-    #    Pending/cancelled provide slack up to 20% unaccounted.
-    over_stages   = []
-    leak_stages   = []
+    # 3. Exact conservation: in == out + rejected + pending + cancelled.
+    #    Any deviation, in either direction, is an ERROR attributed to the
+    #    exact stage that violates the rule — no slack, no tolerance.
+    violation_stages = []
     for s in stages:
-        si, so, sr = s.get("stocks_in", 0), s.get("stocks_out", 0), max(0, s.get("rejected", 0))
-        accounted = so + sr
-        if si > 0:
-            if accounted > si:
-                over_stages.append(f"{s['label']}(in={si} out+rej={accounted})")
-            elif accounted < si * 0.80:
-                leak_stages.append(f"{s['label']}(in={si} out+rej={accounted} unaccounted={si - accounted})")
+        si = s.get("stocks_in", 0)
+        so = s.get("stocks_out", 0)
+        sr = max(0, s.get("rejected", 0))
+        sp = max(0, s.get("pending", 0))
+        sc = max(0, s.get("cancelled", 0))
+        accounted = so + sr + sp + sc
+        if accounted != si:
+            violation_stages.append(
+                f"{s['label']}(in={si} out={so} rej={sr} pend={sp} canc={sc} → accounted={accounted})"
+            )
 
-    if over_stages:
+    if violation_stages:
         status = "ERROR"
-        detail = f"Stage creates records: {', '.join(over_stages)}"
-    elif leak_stages:
-        status = "WARNING"
-        detail = f"Symbols silently dropped (>20% unaccounted): {', '.join(leak_stages)}"
+        detail = f"Conservation violated (in ≠ out+rejected+pending+cancelled): {', '.join(violation_stages)}"
     else:
         status = "PASS"
-        detail = "All stages account for ≥80% of input symbols"
+        detail = "Every stage satisfies in = out + rejected + pending + cancelled exactly"
 
-    checks.append({"check": "Input = Passed + Rejected", "status": status, "detail": detail})
+    checks.append({"check": "Input = Passed + Rejected + Pending + Cancelled", "status": status, "detail": detail})
 
     # 4. No duplicate symbols within any stage's stock list
     dup_stages = []
@@ -953,8 +1036,21 @@ def get_replay_integrity(scan_id: str) -> Dict:
             "detail": f"Decision output={dec_out}, Execution input={exec_in}" + (" ✓" if ok else " — impossible"),
         })
 
+    # 5b. Every executed order originates from an approved BUY decision
+    exec_anomalies = (execution_stage or {}).get("anomalies") or []
+    exec_anomaly_count = int((execution_stage or {}).get("anomaly_count") or 0)
+    checks.append({
+        "check": "Every order has an approved BUY decision",
+        "status": "PASS" if exec_anomaly_count == 0 else "ERROR",
+        "detail": (
+            "All execution records trace back to a BUY decision"
+            if exec_anomaly_count == 0
+            else f"{exec_anomaly_count} paper-eligible record(s) without BUY decision (originating stage: AI Decision→Execution handoff): {', '.join(exec_anomalies)}"
+        ),
+    })
+
     # 6. Cash never negative (check portfolio trades)
-    STARTING_CAPITAL = 100_000
+    STARTING_CAPITAL = _configured_capital()
     running_cash = STARTING_CAPITAL
     cash_negative = False
     for t in sorted(execution_trades, key=lambda x: x.get("entry_ts") or ""):

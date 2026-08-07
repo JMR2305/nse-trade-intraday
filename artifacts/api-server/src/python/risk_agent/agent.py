@@ -28,6 +28,15 @@ from typing import Any, Dict, List, Optional
 
 from agent_framework.base_agent import BaseAgent
 
+def _default_capital() -> float:
+    """Configured paper capital — single source of truth (portfolio_store)."""
+    try:
+        from portfolio_store import INITIAL_CAPITAL
+        return float(INITIAL_CAPITAL)
+    except Exception:
+        return 50_000.0
+
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -187,7 +196,7 @@ class RiskAgent(BaseAgent):
     @staticmethod
     def _calc_exposure(portfolio: Dict) -> Dict[str, Any]:
         positions = portfolio.get("positions") or []
-        capital = _f(portfolio.get("capital")) or 100000.0
+        capital = _f(portfolio.get("capital")) or _default_capital()
         invested = sum(
             (_f(p.get("current_value")) or (_f(p.get("qty")) or 0) * (_f(p.get("avg_price")) or 0))
             for p in positions
@@ -205,7 +214,7 @@ class RiskAgent(BaseAgent):
     @staticmethod
     def _calc_sizing(portfolio: Dict) -> Dict[str, Any]:
         positions = portfolio.get("positions") or []
-        capital = _f(portfolio.get("capital")) or 100000.0
+        capital = _f(portfolio.get("capital")) or _default_capital()
         sizes = []
         oversized = []
         for p in positions:
@@ -228,7 +237,7 @@ class RiskAgent(BaseAgent):
     @staticmethod
     def _calc_sector_concentration(portfolio: Dict) -> Dict[str, Any]:
         positions = portfolio.get("positions") or []
-        capital = _f(portfolio.get("capital")) or 100000.0
+        capital = _f(portfolio.get("capital")) or _default_capital()
         sector_map: Dict[str, float] = {}
         for p in positions:
             sector = p.get("sector") or "Unknown"
@@ -271,7 +280,7 @@ class RiskAgent(BaseAgent):
     def _calc_portfolio_heat(portfolio: Dict, exposure: Dict) -> Dict[str, Any]:
         positions = portfolio.get("positions") or []
         total_pnl = sum(_f(p.get("pnl")) or 0.0 for p in positions)
-        capital = exposure.get("capital") or 100000.0
+        capital = exposure.get("capital") or _default_capital()
         heat_pct = round((abs(total_pnl) / capital * 100), 2) if capital > 0 else 0.0
         return {
             "total_unrealised_pnl": round(total_pnl, 2),
@@ -283,7 +292,7 @@ class RiskAgent(BaseAgent):
 
     @staticmethod
     def _calc_daily_risk(trades: List[Dict], portfolio: Dict) -> Dict[str, Any]:
-        capital = _f(portfolio.get("capital")) or 100000.0
+        capital = _f(portfolio.get("capital")) or _default_capital()
         today_pnl = sum(_f(t.get("pnl")) or 0.0 for t in trades if t.get("status") == "CLOSED")
         daily_risk_pct = round(abs(today_pnl) / capital * 100, 2) if capital > 0 else 0.0
         return {
@@ -296,7 +305,7 @@ class RiskAgent(BaseAgent):
 
     @staticmethod
     def _calc_capital_utilisation(portfolio: Dict) -> Dict[str, Any]:
-        capital = _f(portfolio.get("capital")) or 100000.0
+        capital = _f(portfolio.get("capital")) or _default_capital()
         available = _f(portfolio.get("available_capital")) or capital
         utilised = capital - available
         util_pct = round(utilised / capital * 100, 1) if capital > 0 else 0.0
@@ -323,7 +332,7 @@ class RiskAgent(BaseAgent):
         peak = max(cumulative) if cumulative else 0.0
         trough_after_peak = min(cumulative[cumulative.index(peak):]) if peak > 0 else 0.0
         max_dd = round(peak - trough_after_peak, 2)
-        capital_proxy = abs(sum(pnls)) or 100000.0
+        capital_proxy = abs(sum(pnls)) or _default_capital()
         max_dd_pct = round(max_dd / capital_proxy * 100, 2) if capital_proxy > 0 else 0.0
         return {
             "max_drawdown_value": max_dd,

@@ -14,6 +14,7 @@ interface IntegrityCheck {
   check: string;
   status: "PASS" | "WARNING" | "ERROR";
   detail: string;
+  stage?: string;
 }
 
 interface IntegrityData {
@@ -86,8 +87,11 @@ export function ReplayIntegrityPanel({ scanId }: Props) {
               Replay Integrity Errors ({errors.length})
             </div>
             <ul className="text-xs text-red-400/80 space-y-0.5">
-              {errors.map(e => (
-                <li key={e.check} className="truncate">• {e.check}: {e.detail}</li>
+              {errors.map((e, i) => (
+                <li key={i} className="truncate" title={e.detail}>
+                  • {e.check}: {e.detail}
+                  {e.stage && <span className="ml-1 text-red-500/80">[{e.stage}]</span>}
+                </li>
               ))}
             </ul>
           </div>
@@ -117,9 +121,9 @@ export function ReplayIntegrityPanel({ scanId }: Props) {
 
         {/* Checks table */}
         <div className="divide-y divide-slate-800/40">
-          {data.checks.map(check => (
+          {data.checks.map((check, i) => (
             <div
-              key={check.check}
+              key={i}
               className={`flex items-start gap-3 px-4 py-2 border-l-2 ${
                 check.status === "ERROR"   ? "border-l-red-500" :
                 check.status === "WARNING" ? "border-l-amber-500" :
@@ -128,8 +132,15 @@ export function ReplayIntegrityPanel({ scanId }: Props) {
             >
               {statusIcon(check.status)}
               <div className="flex-1 min-w-0">
-                <div className="text-xs font-medium text-slate-300">{check.check}</div>
-                <div className="text-xs text-slate-500 truncate">{check.detail}</div>
+                <div className="text-xs font-medium text-slate-300">
+                  {check.check}
+                  {check.stage && (
+                    <span className="ml-2 px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] text-slate-400">
+                      {check.stage}
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-slate-500 truncate" title={check.detail}>{check.detail}</div>
               </div>
             </div>
           ))}

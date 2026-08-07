@@ -42,6 +42,7 @@ interface Props {
   trade: ExecutionTrade;
   portfolioAfter?: PortfolioSnapshot;
   defaultExpanded?: boolean;
+  startingCapital?: number;
 }
 
 function fmtRs(v: number) {
@@ -74,7 +75,7 @@ const exitReasonColor: Record<string, string> = {
   "End of Day":    "bg-slate-800 text-slate-400 border-slate-600",
 };
 
-export function TradeEventCard({ trade, portfolioAfter, defaultExpanded = false }: Props) {
+export function TradeEventCard({ trade, portfolioAfter, defaultExpanded = false, startingCapital = 50000 }: Props) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const isClosed = trade.exit_price != null;
   const isWin    = (trade.pnl ?? 0) > 0;
@@ -205,7 +206,7 @@ export function TradeEventCard({ trade, portfolioAfter, defaultExpanded = false 
                 </div>
                 <div className="text-center">
                   <div className="text-slate-600">Total</div>
-                  <div className={`font-mono font-semibold ${portfolioAfter.equity >= 100_000 ? "text-emerald-400" : "text-red-400"}`}>
+                  <div className={`font-mono font-semibold ${portfolioAfter.equity >= startingCapital ? "text-emerald-400" : "text-red-400"}`}>
                     {fmtRs(portfolioAfter.equity)}
                   </div>
                 </div>

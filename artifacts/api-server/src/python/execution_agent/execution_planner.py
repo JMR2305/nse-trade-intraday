@@ -20,6 +20,15 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
+def _default_capital() -> float:
+    """Configured paper capital — single source of truth (portfolio_store)."""
+    try:
+        from portfolio_store import INITIAL_CAPITAL
+        return float(INITIAL_CAPITAL)
+    except Exception:
+        return 50_000.0
+
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -97,7 +106,7 @@ class PreExecutionChecklist:
         positions = portfolio.get("positions") or {}
         n_pos     = len(positions) if isinstance(positions, dict) else len(positions)
         order_val = qty * price
-        capital_base = _f(portfolio.get("capital")) or max(capital, 100_000.0)
+        capital_base = _f(portfolio.get("capital")) or max(capital, _default_capital())
 
         risk_lv     = risk_snap.get("risk_level", "UNKNOWN")
         session     = mi_snap.get("session_info") or {}
@@ -238,7 +247,7 @@ class ExecutionPlan:
         entry_price = price_hint or 100.0  # advisory placeholder
 
         # Position sizing (Kelly-lite, capped at 10% of capital)
-        capital = _f(portfolio.get("cash")) or _f(portfolio.get("capital")) or 100_000.0
+        capital = _f(portfolio.get("cash")) or _f(portfolio.get("capital")) or _default_capital()
         kelly_fraction = confidence * (overall / 100.0) * 0.5  # half-Kelly
         position_value = min(capital * kelly_fraction, capital * 0.10)
         suggested_qty  = max(1, int(position_value / max(entry_price, 1.0)))

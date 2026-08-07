@@ -58,10 +58,15 @@ interface Stage {
   stocks_in: number;
   stocks_out: number;
   rejected: number;
+  pending: number;
+  cancelled: number;
   rejected_symbols: string[];
+  anomalies?: string[];
+  anomaly_count?: number;
   stocks: string[];
   duration_ms: number | null;
   description: string;
+  status: string;
   buy_count?: number;
   avoid_count?: number;
   paper_orders?: number;
@@ -133,6 +138,8 @@ interface TradeCard {
   // simulated timestamps (derived from session snapshot_ts)
   entry_time: string | null;
   exit_time: string | null;
+  confidence?: number;
+  strategy?: string | null;
 }
 
 interface PipelineValidationError {
@@ -161,8 +168,10 @@ const PIPELINE_STAGES = [
   { id: "portfolio_management", label: "Portfolio / Trade Management",  icon: Wallet,      desc: "Position lifecycle, P&L & equity curve" },
 ];
 
-/** Default simulated starting capital used for portfolio lifecycle calculations. */
-const STARTING_CAPITAL = 100_000;
+/** Fallback starting capital — the canonical value comes from the replay API
+ *  (`starting_capital`, sourced from portfolio_store.INITIAL_CAPITAL = ₹50,000).
+ *  Never hardcode ₹100,000 anywhere. */
+const DEFAULT_STARTING_CAPITAL = 50_000;
 /** Per-trade capital allocation (₹ per position). */
 const TRADE_ALLOCATION = 10_000;
 
@@ -1277,10 +1286,11 @@ function TradeDetailModal({ trade, onClose }: { trade: TradeCard; onClose: () =>
     { label: "Entry Time",          value: trade.entry_time ?? "—" },
     { label: "Entry Price",         value: trade.entry_price != null ? `₹${trade.entry_price.toFixed(2)}` : "—" },
     { label: "Quantity",            value: trade.qty },
+    { label: "Capital Used",        value: `₹${trade.capital_used.toFixed(2)}` },
+    { label: "Confidence",          value: trade.confidence != null ? `${trade.confidence}%` : "—" },
+    { label: "Strategy",            value: trade.strategy ?? "—" },
     { label: "Stop Loss",           value: trade.stop_loss != null ? `₹${trade.stop_loss.toFixed(2)}` : "—" },
     { label: "Target",              value: trade.target != null ? `₹${trade.target.toFixed(2)}` : "—" },
-    { label: "Highest Price",       value: trade.exit_price != null && trade.pnl != null && trade.pnl > 0 ? `₹${trade.exit_price.toFixed(2)}` : "—" },
-    { label: "Lowest Price",        value: trade.exit_price != null && trade.pnl != null && trade.pnl < 0 ? `₹${trade.exit_price.toFixed(2)}` : "—" },
     { label: "Exit Time",           value: trade.exit_time ?? "—" },
     { label: "Exit Price",          value: trade.exit_price != null ? `₹${trade.exit_price.toFixed(2)}` : "Open" },
     { label: "Exit Reason",         value: trade.exit_reason ?? "Open" },
@@ -1337,15 +1347,17 @@ function PortfolioManagementPanel({
   trades,
   snapshotTs,
   isReplayComplete,
+  startingCapital = DEFAULT_STARTING_CAPITAL,
 }: {
   trades: TradeCard[];
   snapshotTs: string | undefined;
   isReplayComplete: boolean;
+  startingCapital?: number;
 }) {
   const [selectedTrade, setSelectedTrade] = useState<TradeCard | null>(null);
 
   const summary = useMemo(() => {
-    const startCapital = STARTING_CAPITAL;
+    const startCapital = startingCapital;
     const closedTrades = trades.filter(t => t.pnl !== null);
     const openTrades   = trades.filter(t => t.pnl === null);
     const wins         = closedTrades.filter(t => (t.pnl ?? 0) > 0);
@@ -1373,7 +1385,7 @@ function PortfolioManagementPanel({
       winRate, wins: wins.length, losses: losses.length, totalTrades: closedTrades.length,
       largestWinner, largestLoser, maxDrawdown: maxDd,
     };
-  }, [trades]);
+  }, [trades, startingCapital]);
 
   const rs = (v: number) => `₹${v.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
   const pnlColor = (v: number | null) => v === null ? "text-slate-400" : v >= 0 ? "text-emerald-400" : "text-red-400";
@@ -1425,7 +1437,7 @@ function PortfolioManagementPanel({
           </div>
           <span className="text-xs text-slate-500">{trades.filter(t => t.pnl !== null).length} trades plotted</span>
         </div>
-        <EquityCurve trades={trades} startingCapital={STARTING_CAPITAL} />
+        <EquityCurve trades={trades} startingCapital={startingCapital} />
       </div>
 
       {/* Individual positions */}
@@ -1465,9 +1477,13 @@ function PortfolioManagementPanel({
                   <span>SL: <span className="text-red-400 font-mono">{t.stop_loss ? `₹${t.stop_loss.toFixed(1)}` : "—"}</span></span>
                   <span>Tgt: <span className="text-emerald-400 font-mono">{t.target ? `₹${t.target.toFixed(1)}` : "—"}</span></span>
                 </div>
-                <div className="grid grid-cols-3 gap-2 text-xs text-slate-600 mt-1">
+                <div className="grid grid-cols-5 gap-2 text-xs text-slate-600 mt-1">
                   <span>Qty: <span className="text-slate-400">{t.qty}</span></span>
                   <span>Capital: <span className="text-slate-400">{rs(t.capital_used)}</span></span>
+                  <span>Conf: <span className="text-slate-400">{t.confidence ?? "—"}%</span></span>
+                  <span className="col-span-2 truncate">Strat: <span className="text-slate-400">{t.strategy ?? "—"}</span></span>
+                </div>
+                <div className="text-xs mt-1 text-right">
                   {t.pnl_pct != null && (
                     <span className={pnlColor(t.pnl_pct)}>{t.pnl_pct >= 0 ? "+" : ""}{t.pnl_pct.toFixed(2)}%</span>
                   )}
@@ -1644,12 +1660,23 @@ function StageNode({
           <div className="flex-shrink-0 text-right">
             <div className="text-xs font-mono text-slate-300">{inCount} <ArrowRight size={9} className="inline text-slate-500" /> {outCount}</div>
             {rejected != null && rejected > 0 && (
-              <div className="text-xs text-red-400 font-mono">−{rejected}</div>
+              <div className="text-[10px] text-red-400 font-mono">−{rejected}</div>
+            )}
+            {stageData?.pending != null && stageData.pending > 0 && (
+              <div className="text-[10px] text-amber-400 font-mono">{stageData.pending} PND</div>
+            )}
+            {stageData?.cancelled != null && stageData.cancelled > 0 && (
+              <div className="text-[10px] text-slate-400 font-mono">{stageData.cancelled} CAN</div>
             )}
           </div>
         )}
         {isActive && (
           <div className="flex-shrink-0 text-xs text-amber-300 animate-pulse font-medium">Running…</div>
+        )}
+        {(stageData?.anomaly_count ?? 0) > 0 && (
+          <div className="absolute -top-1 -right-1 bg-red-900 border border-red-500 rounded-full w-5 h-5 flex items-center justify-center text-[9px] font-bold text-red-100 shadow-sm" title={`Anomalies: ${(stageData?.anomalies ?? []).join(", ")}`}>
+            !{stageData?.anomaly_count}
+          </div>
         )}
       </button>
     </div>
@@ -1665,7 +1692,7 @@ function AgentDetailCard({ stageId, stageData }: { stageId: string; stageData?: 
     );
   }
 
-  const { stocks_in, stocks_out, rejected, rejected_symbols, stocks, duration_ms, description, buy_count, avoid_count, paper_orders } = stageData;
+  const { stocks_in, stocks_out, rejected, pending, cancelled, rejected_symbols, anomalies, anomaly_count, stocks, duration_ms, description, buy_count, avoid_count, paper_orders } = stageData;
 
   return (
     <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-4 space-y-4">
@@ -1680,19 +1707,45 @@ function AgentDetailCard({ stageId, stageData }: { stageId: string; stageData?: 
 
       {description && <p className="text-xs text-slate-400">{description}</p>}
 
+      {/* Anomaly Badge */}
+      {(anomaly_count ?? 0) > 0 && (
+        <div className="bg-red-950/50 border border-red-800/50 rounded-lg p-3">
+          <div className="flex items-center gap-2 mb-1.5">
+            <AlertTriangle size={14} className="text-red-400" />
+            <span className="text-xs font-bold text-red-400">Anomalies Detected ({anomaly_count})</span>
+          </div>
+          <p className="text-xs text-red-300/80 mb-2">These records were excluded (no BUY decision).</p>
+          <div className="flex flex-wrap gap-1.5">
+            {(anomalies ?? []).map(sym => (
+              <span key={sym} className="text-[10px] font-mono bg-red-900/40 text-red-300 px-1.5 py-0.5 rounded border border-red-800/50">
+                {sym}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Funnel */}
-      <div className="grid grid-cols-3 gap-2">
-        <div className="bg-slate-900/50 rounded-lg p-3 text-center">
-          <div className="text-lg font-bold text-slate-200">{stocks_in}</div>
-          <div className="text-xs text-slate-500">In</div>
+      <div className="grid grid-cols-5 gap-2">
+        <div className="bg-slate-900/50 rounded-lg p-2 text-center flex flex-col justify-center">
+          <div className="text-sm font-bold text-slate-200">{stocks_in}</div>
+          <div className="text-[10px] text-slate-500 uppercase">Received</div>
         </div>
-        <div className="bg-emerald-900/20 rounded-lg p-3 text-center">
-          <div className="text-lg font-bold text-emerald-400">{stocks_out}</div>
-          <div className="text-xs text-slate-500">Passed</div>
+        <div className="bg-emerald-900/20 rounded-lg p-2 text-center flex flex-col justify-center">
+          <div className="text-sm font-bold text-emerald-400">{stocks_out}</div>
+          <div className="text-[10px] text-emerald-500/70 uppercase">Passed</div>
         </div>
-        <div className="bg-red-900/20 rounded-lg p-3 text-center">
-          <div className="text-lg font-bold text-red-400">{rejected}</div>
-          <div className="text-xs text-slate-500">Rejected</div>
+        <div className="bg-red-900/20 rounded-lg p-2 text-center flex flex-col justify-center">
+          <div className="text-sm font-bold text-red-400">{rejected}</div>
+          <div className="text-[10px] text-red-500/70 uppercase">Rejected</div>
+        </div>
+        <div className="bg-amber-900/20 rounded-lg p-2 text-center flex flex-col justify-center">
+          <div className="text-sm font-bold text-amber-400">{pending ?? 0}</div>
+          <div className="text-[10px] text-amber-500/70 uppercase">Pending</div>
+        </div>
+        <div className="bg-slate-800/40 rounded-lg p-2 text-center flex flex-col justify-center border border-slate-700/50">
+          <div className="text-sm font-bold text-slate-400">{cancelled ?? 0}</div>
+          <div className="text-[10px] text-slate-500 uppercase">Cancelled</div>
         </div>
       </div>
 
@@ -1842,6 +1895,8 @@ export default function AIInvestigationCentre() {
       symbols: SymbolRow[]; total_symbols: number; universe_size: number;
       regime: string | null; provider_health: Record<string, number>;
       duration_s: number | null;
+      // Canonical configured paper-trading capital from the backend
+      starting_capital?: number;
       // V4.2: real paper trades enriched with scan metadata
       execution_trades: ExecutionTrade[];
     }>(`replay/sessions/${selectedScanId}`),
@@ -1899,48 +1954,11 @@ export default function AIInvestigationCentre() {
     [replayData],
   );
 
-  // Build the legacy portfolio trade cards from comparison data (paper_traded items).
-  // Used as fallback by <LivePositions> and <PortfolioManagementPanel> when no
-  // real execution trades exist.
-  const portfolioTrades: TradeCard[] = useMemo(() => {
-    const compItems = comparisonData?.comparisons ?? [];
-    const paperItems = compItems.filter(c => c.paper_traded && c.entry_price != null);
-    return paperItems.map(c => {
-      const entry   = c.entry_price!;
-      const qty     = Math.max(1, Math.floor(TRADE_ALLOCATION / entry));
-      const capital = entry * qty;
-      const exit    = c.current_price ?? null;
-      const pnl     = exit != null ? (exit - entry) * qty : null;
-      const pnlPct  = exit != null ? ((exit - entry) / entry) * 100 : null;
-      let exitReason: TradeCard["exit_reason"] = null;
-      if (c.status === "WIN")  exitReason = "Target Hit";
-      if (c.status === "LOSS") exitReason = "Stop Loss";
-      const base = snapshotTs ? new Date(snapshotTs) : null;
-      const entryTime = base ? new Date(base.getTime() + 30 * 60_000).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" }) : null;
-      const exitTime  = exit != null && base ? new Date(base.getTime() + 3 * 3600_000).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" }) : null;
-      const status: TradeCard["status"] = c.status === "WIN" ? "WIN" : c.status === "LOSS" ? "LOSS" : exit ? "PENDING" : "OPEN";
-      return {
-        symbol: c.symbol,
-        entry_price: entry,
-        exit_price: exit,
-        qty,
-        capital_used: capital,
-        stop_loss: null,
-        target: null,
-        pnl,
-        pnl_pct: pnlPct,
-        status,
-        exit_reason: exitReason,
-        entry_time: entryTime,
-        exit_time: exitTime,
-      };
-    });
-  }, [comparisonData, snapshotTs]);
-
-  // When we have real execution trades use those for the PortfolioManagementPanel;
-  // otherwise fall back to the legacy comparison-derived list.
+  // Trade cards come EXCLUSIVELY from the real execution ledger
+  // (phase20_paper_trades). No synthesized fallback: when the ledger is
+  // empty the panels report that honestly instead of fabricating trades
+  // from comparison data.
   const effectiveTrades: TradeCard[] = useMemo(() => {
-    if (executionTrades.length === 0) return portfolioTrades;
     return executionTrades.map(t => {
       const isWin  = (t.pnl ?? 0) > 0;
       const isLoss = (t.pnl ?? 0) < 0;
@@ -1960,13 +1978,15 @@ export default function AIInvestigationCentre() {
         exit_reason: (t.exit_reason as TradeCard["exit_reason"]) ?? null,
         entry_time:  t.entry_ts,
         exit_time:   t.exit_ts,
+        confidence:   t.confidence,
+        strategy:     t.strategy,
       };
     });
-  }, [executionTrades, portfolioTrades]);
+  }, [executionTrades]);
 
   // Synthetic stage data for portfolio_management (derived from effective trades)
   const portfolioStageSynthetic: Stage | undefined = useMemo(() => {
-    if (!comparisonData && effectiveTrades.length === 0) return undefined;
+    if (effectiveTrades.length === 0) return undefined;
     const closed = effectiveTrades.filter(t => t.pnl !== null).length;
     return {
       id: "portfolio_management",
@@ -1975,6 +1995,9 @@ export default function AIInvestigationCentre() {
       stocks_in: effectiveTrades.length,
       stocks_out: closed,
       rejected: 0,
+      pending: 0,
+      cancelled: 0,
+      status: "PASS",
       rejected_symbols: [],
       stocks: effectiveTrades.map(t => t.symbol),
       duration_ms: null,
@@ -2453,7 +2476,7 @@ export default function AIInvestigationCentre() {
               />
 
               {/* V4.2 Replay Integrity Panel */}
-              {selectedScanId && (
+              {selectedScanId && replayState === "complete" && (
                 <ReplayIntegrityPanel scanId={selectedScanId} />
               )}
             </div>
@@ -2476,6 +2499,7 @@ export default function AIInvestigationCentre() {
                       trades={effectiveTrades}
                       snapshotTs={snapshotTs}
                       isReplayComplete={replayState === "complete"}
+                      startingCapital={replayData?.starting_capital ?? DEFAULT_STARTING_CAPITAL}
                     />
                   ) : (
                     <AgentDetailCard stageId={focusStage.id} stageData={stageById[focusStage.id]} />
@@ -2545,9 +2569,8 @@ export default function AIInvestigationCentre() {
               {/* v5.0 Live Position Tracker */}
               <LivePositions
                 executionTrades={executionTrades}
-                portfolioTrades={portfolioTrades}
                 activeStageIdx={activeStageIdx}
-                comparisonData={comparisonData}
+                startingCapital={replayData?.starting_capital ?? DEFAULT_STARTING_CAPITAL}
               />
             </div>
           </div>

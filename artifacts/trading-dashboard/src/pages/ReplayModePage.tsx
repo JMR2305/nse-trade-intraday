@@ -42,10 +42,15 @@ interface Stage {
   stocks_in: number;
   stocks_out: number;
   rejected: number;
+  pending: number;
+  cancelled: number;
   rejected_symbols: string[];
+  anomalies?: string[];
+  anomaly_count?: number;
   stocks: string[];
   duration_ms: number | null;
   description: string;
+  status: string;
   buy_count?: number;
   avoid_count?: number;
   paper_orders?: number;
@@ -282,20 +287,21 @@ function PipelineReplay({ stages, onSelectStage }: {
                     {stage.label}
                   </p>
                   {done && (
-                    <div className="space-y-0.5 mt-1">
-                      <p className="text-xs text-slate-400">IN: <span className="text-white font-medium">{stage.stocks_in}</span></p>
-                      <p className="text-xs text-slate-400">OUT: <span className={`font-medium ${stage.id === "ai_decision" ? "text-emerald-400" : "text-white"}`}>
-                        {stage.stocks_out}
-                        {stage.id === "ai_decision" && stage.buy_count != null ? ` BUY` : ""}
-                        {stage.id === "execution" && stage.paper_orders != null ? ` orders` : ""}
-                      </span></p>
-                      {stage.rejected > 0 && (
-                        <p className="text-xs text-red-400">−{stage.rejected} rejected</p>
-                      )}
+                    <div className="space-y-0.5 mt-1 text-left w-full">
+                      <div className="flex justify-between"><span className="text-xs text-slate-400">IN</span> <span className="text-xs text-white font-medium">{stage.stocks_in}</span></div>
+                      <div className="flex justify-between"><span className="text-xs text-slate-400">OUT</span> <span className={`text-xs font-medium ${stage.id === "ai_decision" ? "text-emerald-400" : "text-white"}`}>{stage.stocks_out}</span></div>
+                      {stage.rejected > 0 && <div className="flex justify-between"><span className="text-xs text-red-400/80">REJ</span> <span className="text-xs text-red-400">{stage.rejected}</span></div>}
+                      {stage.pending > 0 && <div className="flex justify-between"><span className="text-xs text-amber-400/80">PND</span> <span className="text-xs text-amber-400">{stage.pending}</span></div>}
+                      {stage.cancelled > 0 && <div className="flex justify-between"><span className="text-xs text-slate-500">CAN</span> <span className="text-xs text-slate-400">{stage.cancelled}</span></div>}
                     </div>
                   )}
                   {done && stage.duration_ms && (
                     <p className="text-xs text-slate-500 mt-1">{stage.duration_ms > 1000 ? `${(stage.duration_ms / 1000).toFixed(1)}s` : `${stage.duration_ms}ms`}</p>
+                  )}
+                  {done && (stage.anomaly_count ?? 0) > 0 && (
+                    <div className="absolute -top-2 -left-2 bg-red-900 border border-red-500 rounded-full w-6 h-6 flex items-center justify-center text-[10px] font-bold text-red-100 shadow-sm" title={`Anomalies: ${(stage.anomalies ?? []).join(", ")}`}>
+                      !{stage.anomaly_count}
+                    </div>
                   )}
                 </button>
                 {/* Connector */}
@@ -667,10 +673,10 @@ function DecisionComparison({ scanId }: { scanId: string }) {
       </div>
 
       {/* Table */}
-      <div className="bg-slate-800/60 border border-slate-700 rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="bg-slate-800/60 border border-slate-700 rounded-xl overflow-hidden flex flex-col max-h-96">
+        <div className="overflow-x-auto overflow-y-auto flex-1">
           <table className="w-full text-xs">
-            <thead>
+            <thead className="sticky top-0 bg-slate-900 z-10">
               <tr className="border-b border-slate-700 text-slate-400">
                 <th className="text-left p-3">Symbol</th>
                 <th className="text-left p-3">AI Action</th>
@@ -726,7 +732,7 @@ function ReplaySummary({ scanId }: { scanId: string }) {
     { label: "Passed Strategy", value: f.passed_strategy ?? 0, icon: "📈" },
     { label: "BUY Candidates", value: f.buy_candidates ?? 0, icon: "✅" },
     { label: "Risk Approved", value: f.risk_approved ?? 0, icon: "🛡️" },
-    { label: "Paper Trades", value: f.paper_trades ?? 0, icon: "📝" },
+    { label: "Paper Trades", value: f.paper_trades ?? 0, icon: "FileText" },
   ];
   const total = f.scanned || 1;
   const perf = data.performance ?? {};
@@ -737,7 +743,9 @@ function ReplaySummary({ scanId }: { scanId: string }) {
     <div className="space-y-6">
       {/* Verdict */}
       <div className={`rounded-2xl border p-5 flex items-center gap-4 ${isReady ? "bg-emerald-900/20 border-emerald-600/40" : "bg-amber-900/20 border-amber-600/40"}`}>
-        <span className="text-3xl">{isReady ? "🚀" : "🔍"}</span>
+        <div className={`p-3 rounded-full ${isReady ? "bg-emerald-900/40 text-emerald-400" : "bg-amber-900/40 text-amber-400"}`}>
+          {isReady ? <CheckCircle2 size={24} /> : <AlertTriangle size={24} />}
+        </div>
         <div>
           <p className={`text-lg font-bold ${isReady ? "text-emerald-300" : "text-amber-300"}`}>{data.verdict}</p>
           <p className="text-sm text-slate-400">AI Score: <strong className="text-white">{data.overall_ai_score ?? "—"}/100</strong>
@@ -853,7 +861,7 @@ function StockList({ symbols, onSelect }: { symbols: SymbolRow[]; onSelect: (sym
             <div className="text-right space-y-1">
               {sym.final_action && <Badge label={sym.final_action} />}
               <p className="text-xs text-slate-400">{sym.confidence}%</p>
-              {sym.paper_eligible && <p className="text-xs text-teal-400">📝 Paper</p>}
+              {sym.paper_eligible && <p className="text-xs text-teal-400">Paper Eligible</p>}
             </div>
           </button>
         ))}
