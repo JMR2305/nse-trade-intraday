@@ -1799,6 +1799,9 @@ def main():
         elif command == "phase15_risk_decision_report":
             from phase20_gates import risk_decision_report
             result = {"success": True, **risk_decision_report()}
+        elif command == "risk_audit":
+            from phase20_gates import build_risk_audit
+            result = {"success": True, **build_risk_audit()}
         elif command == "phase15_v3_analytics":
             from phase20_v3_analytics import get_v3_analytics
             result = {"success": True, **get_v3_analytics()}

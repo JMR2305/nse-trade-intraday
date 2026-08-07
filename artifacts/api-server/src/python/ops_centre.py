@@ -164,6 +164,14 @@ def _collect_supervisor() -> Dict[str, Any]:
     errors  = int(summary.get("error", 0))
     alerts  = int((raw or {}).get("alert_count", 0))
 
+    # V4.3 — pipeline health, dependency violations, structured recommendations
+    pipeline_health       = (raw or {}).get("pipeline_health") or {}
+    dependency_violations = _lst((raw or {}).get("dependency_violations"))
+    recommendations       = _lst((raw or {}).get("recommendations"))
+
+    stale_topics = [t for t, h in pipeline_health.items()
+                    if isinstance(h, dict) and h.get("stale")]
+
     return _agent_base(
         raw, "Supervisor Agent", "supervisor", "SUPERVISOR_AGENT_ENABLED",
         stocks_in=total, stocks_out=running,
@@ -179,6 +187,13 @@ def _collect_supervisor() -> Dict[str, Any]:
             "alert_count":       alerts,
             "health_score":      float(health.get("score", 0)),
             "health_status":     str(health.get("status", "UNKNOWN")),
+            # V4.3 pipeline integrity
+            "pipeline_health":          pipeline_health,
+            "dependency_violations":    dependency_violations,
+            "dependency_violation_count": len(dependency_violations),
+            "stale_topics":             stale_topics,
+            "stale_topic_count":        len(stale_topics),
+            "recommendations":          recommendations,
         },
     )
 
@@ -255,6 +270,32 @@ def _collect_research() -> Dict[str, Any]:
     recovery_action = str(
         (raw or {}).get("recovery_action") or fail_info.get("recovery_action") or "")
 
+    # V4.3 — timeout/retry telemetry from the live snapshot OR KV cache
+    timeout_count = _i((raw or {}).get("timeout_count",
+                        fail_info.get("timeout_count", 0)))
+    retry_count   = _i((raw or {}).get("retry_count",
+                        fail_info.get("retry_count", 0)))
+
+    # V4.3 — research_mode: NORMAL | MARKET_ONLY | PIPELINE_HALTED
+    research_mode = str((raw or {}).get("research_mode", ""))
+    if not research_mode:
+        try:
+            from phase20_store import kv_get as _kv_get_mode
+            _mode_info = _kv_get_mode("research_agent_mode") or {}
+            research_mode = str(_mode_info.get("mode", "NORMAL"))
+        except Exception:
+            research_mode = "NORMAL"
+
+    # worker_status: derived from mode + telemetry
+    if research_mode == "PIPELINE_HALTED":
+        worker_status = "HALTED"
+    elif research_mode == "MARKET_ONLY" or timeout_count > 0:
+        worker_status = "DEGRADED"
+    elif last_failure and not last_success:
+        worker_status = "RECOVERING"
+    else:
+        worker_status = "OK"
+
     return _agent_base(
         raw, "Research Agent", "research", "RESEARCH_AGENT_ENABLED",
         stocks_in=received, stocks_out=forwarded,
@@ -272,6 +313,11 @@ def _collect_research() -> Dict[str, Any]:
             "last_failure_at":       last_failure,
             "failure_reason":        failure_reason,
             "recovery_action":       recovery_action,
+            # V4.3 telemetry
+            "timeout_count":         timeout_count,
+            "retry_count":           retry_count,
+            "research_mode":         research_mode,
+            "worker_status":         worker_status,
         },
     )
 

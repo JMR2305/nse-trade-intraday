@@ -79,12 +79,27 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     # failure → AVOID). Raise this value for illiquid / mid-cap sectors where
     # individual filter noise is higher; lower it to 1 for maximum strictness.
     "high_conf_avoid_gate_min_failures": 2,
+    # ── V4.3 Risk Tuning ────────────────────────────────────────────────────────
+    # Maximum number of OPEN paper positions at any time.  0 = disabled (no cap).
+    "max_concurrent_positions": 5,
+    # Minimum average daily traded volume (thousands of shares).  0 = disabled.
+    # Stocks below this threshold are filtered at the entry gate.
+    "min_liquidity_filter": 0,
+    # Maximum allowed ATR as a percentage of the current price.  0.0 = disabled.
+    # Stocks above this volatility level are filtered at the entry gate.
+    "max_volatility_filter": 0.0,
+    # Research failure mode: "fail_open" lets the pipeline continue with
+    # market-only data when all research sources are unavailable;
+    # "fail_closed" halts new paper entries until research recovers.
+    "research_failure_mode": "fail_open",
 }
 
 # Keys excluded from the reproducibility config hash (meta, not behaviour).
 _HASH_EXCLUDE = {"auto_paper_entries_confirmed_at",
                  "email_alerts_enabled", "email_alert_address",
-                 "daily_summary_email_enabled"}
+                 "daily_summary_email_enabled",
+                 # research_failure_mode is operational meta, not a signal gate
+                 "research_failure_mode"}
 
 
 def _now() -> datetime:
@@ -266,6 +281,50 @@ def _validate_patch(patch: Dict[str, Any], current: Dict[str, Any]) -> Dict[str,
                 raise ValueError(
                     "high_conf_avoid_gate_min_failures must be between 1 and 10")
             clean[key] = iv
+        # ── V4.3 risk-tuning settings with explicit validation ─────────────
+        elif key == "max_concurrent_positions":
+            # Must be a whole-number integer; fractional values (e.g. 1.5) are
+            # rejected to prevent int("1.5") crashes in evaluate_entries().
+            try:
+                fv = float(value)
+                if fv != int(fv):
+                    raise ValueError
+                iv = int(fv)
+            except (TypeError, ValueError):
+                raise ValueError(
+                    "max_concurrent_positions must be a whole number (integer)")
+            if iv < 0 or iv > 50:
+                raise ValueError(
+                    "max_concurrent_positions must be between 0 and 50 "
+                    "(0 = disabled)")
+            clean[key] = iv
+        elif key == "min_liquidity_filter":
+            try:
+                fv = float(value)
+            except (TypeError, ValueError):
+                raise ValueError("min_liquidity_filter must be a number")
+            if fv < 0 or fv > 10_000:
+                raise ValueError(
+                    "min_liquidity_filter must be between 0 and 10000 "
+                    "(thousands of shares; 0 = disabled)")
+            clean[key] = fv
+        elif key == "max_volatility_filter":
+            try:
+                fv = float(value)
+            except (TypeError, ValueError):
+                raise ValueError("max_volatility_filter must be a number")
+            if fv < 0 or fv > 100:
+                raise ValueError(
+                    "max_volatility_filter must be between 0 and 100 "
+                    "(ATR as % of price; 0 = disabled)")
+            clean[key] = fv
+        elif key == "research_failure_mode":
+            _VALID_FAILURE_MODES = ("fail_open", "fail_closed")
+            if value not in _VALID_FAILURE_MODES:
+                raise ValueError(
+                    f"research_failure_mode must be one of "
+                    f"{_VALID_FAILURE_MODES}; got '{value}'")
+            clean[key] = value
         elif isinstance(default, (int, float)) and not isinstance(default, bool):
             num = float(value)
             if num < 0:
@@ -295,6 +354,42 @@ def get_settings() -> Dict[str, Any]:
     # Safety invariant: auto entries require a stored confirmation.
     if merged.get("auto_paper_entries") and not merged.get("auto_paper_entries_confirmed_at"):
         merged["auto_paper_entries"] = False
+
+    # V4.3 normalization — coerce persisted V4.3 settings to their correct
+    # types.  Persisted JSON may predate validation (legacy values like
+    # "1.5" for an integer field, or an unexpected string for failure mode)
+    # and must never cause a runtime crash in evaluate_entries().
+    def _coerce_whole_int(v, default: int = 0, lo: int = 0, hi: int = 50) -> int:
+        try:
+            fv = float(v)
+            iv = int(fv)
+            # Reject fractional values (e.g. "1.5" → fv=1.5, iv=1, 1 != 1.5)
+            if fv != iv:
+                return default
+            return iv if lo <= iv <= hi else default
+        except (TypeError, ValueError):
+            return default
+
+    def _coerce_bounded_float(v, default: float = 0.0,
+                              lo: float = 0.0, hi: float = 10_000.0) -> float:
+        try:
+            fv = float(v)
+            return fv if lo <= fv <= hi else default
+        except (TypeError, ValueError):
+            return default
+
+    merged["max_concurrent_positions"] = _coerce_whole_int(
+        merged.get("max_concurrent_positions"), default=0, lo=0, hi=50
+    )
+    merged["min_liquidity_filter"] = _coerce_bounded_float(
+        merged.get("min_liquidity_filter"), default=0.0, lo=0.0, hi=10_000.0
+    )
+    merged["max_volatility_filter"] = _coerce_bounded_float(
+        merged.get("max_volatility_filter"), default=0.0, lo=0.0, hi=100.0
+    )
+    if merged.get("research_failure_mode") not in ("fail_open", "fail_closed"):
+        merged["research_failure_mode"] = "fail_open"  # safe default
+
     merged["config_hash"] = config_hash(merged)
     merged["confirmation_text"] = CONFIRMATION_TEXT
     return merged

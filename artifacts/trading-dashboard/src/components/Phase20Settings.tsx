@@ -59,6 +59,11 @@ interface Phase20SettingsData {
   email_alert_address: string;
   daily_summary_email_enabled: boolean;
   high_conf_avoid_gate_min_failures: number;
+  // V4.3 Risk Tuning
+  max_concurrent_positions: number;
+  min_liquidity_filter: number;
+  max_volatility_filter: number;
+  research_failure_mode: "fail_open" | "fail_closed";
   config_hash: string;
   confirmation_text: string;
 }
@@ -514,6 +519,69 @@ export default function Phase20Settings() {
             </Label>
             <Switch id="square_off_before_close" checked={draft.square_off_before_close}
               onCheckedChange={(v) => setField("square_off_before_close", v)} />
+          </div>
+        </section>
+
+        {/* ── 3a. V4.3 Risk Tuning Panel ── */}
+        <section className="space-y-3 border-t border-zinc-800 pt-4">
+          <h3 className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-zinc-400">
+            <ShieldCheck className="h-3.5 w-3.5 text-teal-500" />
+            Risk tuning
+            <span className="ml-auto flex items-center gap-1 text-[10px] font-normal normal-case tracking-normal text-teal-400 bg-teal-950/40 border border-teal-800/40 px-2 py-0.5 rounded">
+              <Lock className="h-2.5 w-2.5" />Paper mode only
+            </span>
+          </h3>
+          <p className="text-[11px] text-zinc-500">
+            Extended risk filters applied at the entry gate. 0&nbsp;/&nbsp;0.0 disables the filter.
+            All changes take effect on the next scan cycle — no restart required.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-1.5">
+              <Label className="text-zinc-400">Max concurrent open positions</Label>
+              <Input type="number" step="1" min="0" className="text-xs"
+                value={String(draft.max_concurrent_positions ?? 5)}
+                onChange={(e) => setNumberField("max_concurrent_positions", e.target.value)} />
+              <p className="text-[10px] text-zinc-600">0 = no cap</p>
+            </div>
+            <div className="grid gap-1.5">
+              <Label className="text-zinc-400">Min avg daily volume (thousands)</Label>
+              <Input type="number" step="100" min="0" className="text-xs"
+                value={String(draft.min_liquidity_filter ?? 0)}
+                onChange={(e) => setNumberField("min_liquidity_filter", e.target.value)} />
+              <p className="text-[10px] text-zinc-600">0 = disabled</p>
+            </div>
+            <div className="grid gap-1.5">
+              <Label className="text-zinc-400">Max volatility (ATR % of price)</Label>
+              <Input type="number" step="0.1" min="0" className="text-xs"
+                value={String(draft.max_volatility_filter ?? 0)}
+                onChange={(e) => setNumberField("max_volatility_filter", e.target.value)} />
+              <p className="text-[10px] text-zinc-600">0.0 = disabled</p>
+            </div>
+          </div>
+          {/* Research failure mode */}
+          <div className="grid gap-1.5 sm:max-w-sm">
+            <Label className="text-zinc-400">Research failure mode</Label>
+            <Select
+              value={draft.research_failure_mode ?? "fail_open"}
+              onValueChange={(v) => setField("research_failure_mode", v as Phase20SettingsData["research_failure_mode"])}
+            >
+              <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="fail_open" className="text-xs">
+                  Fail Open — continue with market-only data
+                </SelectItem>
+                <SelectItem value="fail_closed" className="text-xs">
+                  Fail Closed — pause new entries until research recovers
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-zinc-500">
+              When all research sources (news / macros / lab) time out or fail,{" "}
+              <span className="text-teal-400">fail open</span> lets the pipeline
+              continue using market-data signals only.{" "}
+              <span className="text-amber-400">Fail closed</span> pauses new paper
+              entries until research recovers — more conservative but may miss setups.
+            </p>
           </div>
         </section>
 

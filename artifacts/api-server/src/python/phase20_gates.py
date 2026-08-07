@@ -156,6 +156,30 @@ def evaluate_entries(candidate_symbols: Optional[List[str]] = None) -> Dict[str,
             "entry_circuit_breaker", False,
             "Circuit breaker state unavailable — entries blocked (fail-safe)"))
 
+    # V4.3 — Research availability gate (fail-closed mode enforcement).
+    # This gate only fails when the operator has chosen "fail_closed" AND every
+    # research source failed in the most recent Research Agent cycle.
+    # Under "fail_open" (default) the gate always passes — the pipeline
+    # continues on market-data signals regardless of research health.
+    _research_halted = False
+    _research_mode_str = "NORMAL"
+    try:
+        _mode_info = store.kv_get("research_agent_mode") or {}
+        _research_mode_str = str(_mode_info.get("mode", "NORMAL"))
+        _failure_mode = str(settings.get("research_failure_mode", "fail_open"))
+        _research_halted = (
+            _research_mode_str == "PIPELINE_HALTED"
+            and _failure_mode == "fail_closed"
+        )
+    except Exception:
+        pass  # KV unavailable → gate passes (fail-open is the safe default)
+    global_gates.append(_gate(
+        "research_available",
+        not _research_halted,
+        f"Research mode: {_research_mode_str}"
+        + (" — all sources failed, entries paused (fail-closed)" if _research_halted
+           else " (pipeline continues)")))
+
     global_pass = all(g["passed"] for g in global_gates)
 
     # ── Portfolio state ──────────────────────────────────────────────────────
@@ -306,6 +330,78 @@ def evaluate_entries(candidate_symbols: Optional[List[str]] = None) -> Dict[str,
             f"Last {sym} paper entry at {last_ts or 'never'} "
             f"(cooldown {cooldown_min:.0f}m)"))
 
+        # ── V4.3 risk-tuning gates ────────────────────────────────────────────
+        # All setting reads use safe_int() / safe_float() helpers to guard
+        # against malformed or legacy persisted values that predate validation.
+        # On any conversion error the gate is silently disabled (conservative
+        # fail-safe: skip the gate rather than crash entry evaluation).
+
+        def _safe_int(raw, default: int = 0) -> int:
+            """Convert raw to int; return default on any error."""
+            try:
+                fv = float(raw)
+                return int(fv) if fv == int(fv) else default
+            except (TypeError, ValueError):
+                return default
+
+        def _safe_float(raw, default: float = 0.0) -> float:
+            """Convert raw to float; return default on any error."""
+            try:
+                return float(raw)
+            except (TypeError, ValueError):
+                return default
+
+        # max_concurrent_positions: cap how many open paper positions may exist
+        # across the portfolio at once.  0 = feature disabled.
+        max_conc = _safe_int(settings.get("max_concurrent_positions"), default=0)
+        open_count = len(positions)
+        if max_conc > 0:
+            # A candidate that would open a new position fails when we are
+            # already AT the limit (not strictly over it).
+            conc_ok = sym in positions or open_count < max_conc
+            gates.append(_gate(
+                "max_concurrent_positions",
+                conc_ok,
+                f"Open positions: {open_count} vs max {max_conc}"
+                + (" (adding to existing position)" if sym in positions else "")))
+
+        # min_liquidity_filter: minimum average daily volume (thousands of
+        # shares).  Reads the 'avg_volume' or 'volume' field from the scan
+        # record.  If neither is present, the gate passes — data unavailable
+        # is not the same as data failing the threshold.
+        min_liq = _safe_float(settings.get("min_liquidity_filter"), default=0.0)
+        if min_liq > 0:
+            # avg_volume is shares/day, min_liquidity_filter is in thousands
+            raw_vol = _safe_float(
+                rec.get("avg_volume") or rec.get("avg_daily_volume") or
+                rec.get("volume") or 0
+            )
+            if raw_vol > 0:
+                vol_k = raw_vol / 1_000.0
+                gates.append(_gate(
+                    "min_liquidity",
+                    vol_k >= min_liq,
+                    f"Avg volume {vol_k:.0f}k vs min {min_liq:.0f}k"))
+            # When the scanner did not supply volume data the gate is skipped
+            # (no false positives on data absence).
+
+        # max_volatility_filter: maximum acceptable ATR as a percentage of
+        # current price.  Reads 'atr_pct', 'atr_percent', or computes from
+        # 'atr_abs' / entry_price when available.  0 = feature disabled.
+        max_vol_f = _safe_float(settings.get("max_volatility_filter"), default=0.0)
+        if max_vol_f > 0:
+            atr_pct = _safe_float(rec.get("atr_pct") or rec.get("atr_percent") or 0)
+            if atr_pct == 0 and entry > 0:
+                atr_abs = _safe_float(rec.get("atr_abs") or rec.get("atr") or 0)
+                if atr_abs > 0:
+                    atr_pct = (atr_abs / entry) * 100.0
+            if atr_pct > 0:
+                gates.append(_gate(
+                    "max_volatility",
+                    atr_pct <= max_vol_f,
+                    f"ATR {atr_pct:.2f}% vs max {max_vol_f:.2f}%"))
+            # When ATR is not in the scan record, the gate is skipped.
+
         failed = [g["gate"] for g in gates if not g["passed"]]
         candidates.append({
             "symbol": sym,
@@ -419,6 +515,255 @@ def get_last_evaluation() -> Optional[Dict[str, Any]]:
     return store.kv_get("last_entry_evaluation")
 
 
+# ── V4.3 Risk Audit ───────────────────────────────────────────────────────────
+
+def build_risk_audit() -> Dict[str, Any]:
+    """
+    Return a structured risk-rule manifest for every BUY/STRONG BUY candidate
+    in the current scan.  Each rule record shows:
+
+        rule_id   — gate identifier
+        label     — human-readable gate name
+        scope     — "global" (applies to all) or "per_symbol"
+        required  — threshold / expected value (string, for display)
+        actual    — the value observed for this candidate
+        unit      — "%", "×", "₹", "mins", "bool", …
+        passed    — True / False
+
+    Falls back to ``risk_decision_report()`` so that existing cached
+    evaluation data is re-used without re-running the scan.
+
+    READ-ONLY · ADVISORY ONLY · PAPER TRADING
+    """
+    settings = store.get_settings()
+
+    # Reuse the enriched report (avoids a redundant evaluate_entries() call).
+    report = risk_decision_report()
+    if not report.get("available"):
+        return {
+            "available": False,
+            "reason": report.get("reason", "No evaluation data"),
+            "generated_at": _now_iso(),
+        }
+
+    candidates: List[Dict[str, Any]] = report.get("candidates") or []
+    global_gates: List[Dict[str, Any]] = report.get("global_gates") or []
+
+    # ── Global rule manifest ─────────────────────────────────────────────────
+    # The following rules apply identically to all candidates.
+    global_rule_meta = [
+        ("scan_fresh",            "Scan Freshness",        "bool",  "fresh",     "global"),
+        ("snapshot_consistency",  "Snapshot Consistency",  "bool",  "match",     "global"),
+        ("provider_zerodha",      "Data Provider OK",      "bool",  "live",      "global"),
+        ("no_fallback_data",      "No Fallback Data",      "bool",  "live",      "global"),
+        ("market_open",           "Market Open",           "bool",  "OPEN",      "global"),
+        ("entry_circuit_breaker", "Circuit Breaker",       "bool",  "clear",     "global"),
+        ("research_available",    "Research Pipeline",     "bool",  "available", "global"),
+    ]
+
+    # Build a lookup for actual gate outcomes from the first candidate
+    # (global gates are identical for all candidates).
+    _global_lookup: Dict[str, Dict[str, Any]] = {}
+    if candidates:
+        for g in candidates[0].get("gates", []):
+            if g.get("gate") in {r[0] for r in global_rule_meta}:
+                _global_lookup[g["gate"]] = g
+    # Also use global_gates list from the report directly
+    for g in global_gates:
+        _global_lookup[g["gate"]] = g
+
+    global_manifest: List[Dict[str, Any]] = []
+    for rule_id, label, unit, required, scope in global_rule_meta:
+        gate_data = _global_lookup.get(rule_id, {})
+        global_manifest.append({
+            "rule_id":  rule_id,
+            "label":    label,
+            "scope":    scope,
+            "required": required,
+            "actual":   gate_data.get("reason", "—"),
+            "unit":     unit,
+            "passed":   gate_data.get("passed", False),
+        })
+
+    # ── Per-symbol threshold manifest ────────────────────────────────────────
+    # Build from settings so operators can compare required vs actual for each
+    # candidate at a glance.
+    per_symbol_rules = [
+        # (gate_id, label, unit, setting_key, always_applicable)
+        # always_applicable=True  → gate always runs; missing from gate_lookup is a bug.
+        # always_applicable=False → gate is conditional (disabled when setting=0 or
+        #                           data absent); missing from gate_lookup is expected
+        #                           and must not default to failed.
+        ("min_confidence",          "Min Confidence",          "%",      "min_confidence",             True),
+        ("min_opportunity_score",   "Min Opportunity",         "score",  "min_opportunity_score",      True),
+        ("min_trade_quality",       "Min Trade Quality",       "score",  "min_trade_quality_score",    True),
+        ("min_risk_reward",         "Min Risk/Reward",         "×",      "min_risk_reward",            True),
+        ("valid_stop_loss",         "Valid Stop-Loss",         "bool",   None,                         True),
+        ("position_size",           "Position Sizing",         "qty",    None,                         True),
+        ("sufficient_cash",         "Sufficient Cash",         "₹",      None,                         True),
+        ("per_stock_cap",           "Per-Stock Cap",           "%",      "per_stock_exposure_cap_pct", True),
+        ("sector_cap",              "Sector Cap",              "%",      "sector_exposure_cap_pct",    True),
+        ("portfolio_deployed_cap",  "Portfolio Cap",           "%",      "portfolio_deployed_cap_pct", True),
+        ("daily_loss_limit",        "Daily Loss Limit",        "%",      "daily_loss_limit_pct",       True),
+        ("daily_trade_limit",       "Daily Trade Limit",       "count",  "max_trades_per_day",         True),
+        ("no_open_duplicate",       "No Duplicate Trade",      "bool",   None,                         True),
+        ("cooldown",                "Symbol Cooldown",         "mins",   "cooldown_minutes",           True),
+        # V4.3 risk-tuning — conditional: only evaluated when setting > 0 AND
+        # the required scan data is available.  always_applicable=False.
+        ("max_concurrent_positions","Max Concurrent Positions","count",  "max_concurrent_positions",   False),
+        ("min_liquidity",           "Min Liquidity (vol/day)", "k-shr",  "min_liquidity_filter",       False),
+        ("max_volatility",          "Max Volatility (ATR%)",   "%",      "max_volatility_filter",      False),
+    ]
+
+    # Determine which V4.3 gates could possibly be active given current settings.
+    # Use safe conversions in case persisted values predate validation.
+    def _safe_pos_int(raw, default=0) -> int:
+        try:
+            fv = float(raw)
+            return max(0, int(fv))
+        except (TypeError, ValueError):
+            return default
+
+    def _safe_pos_float(raw, default=0.0) -> float:
+        try:
+            return max(0.0, float(raw))
+        except (TypeError, ValueError):
+            return default
+
+    _conc_enabled = _safe_pos_int(settings.get("max_concurrent_positions")) > 0
+    _liq_enabled  = _safe_pos_float(settings.get("min_liquidity_filter")) > 0
+    _vol_enabled  = _safe_pos_float(settings.get("max_volatility_filter")) > 0.0
+
+    # For each candidate, attach a structured rule_manifest.
+    # Rules that are not applicable (disabled by setting OR conditionally skipped
+    # due to absent scan data) are included in the manifest with
+    # ``applicable: false`` so the UI can render them visually distinct, but they
+    # are EXCLUDED from total_checks and failed_rule_checks so they cannot corrupt
+    # the pass_rate or verdict.
+    enriched_candidates: List[Dict[str, Any]] = []
+    for c in candidates:
+        gate_lookup: Dict[str, Dict[str, Any]] = {
+            g["gate"]: g for g in c.get("gates", [])
+        }
+        candidate_rules: List[Dict[str, Any]] = []
+        for rule_id, label, unit, setting_key, always_applicable in per_symbol_rules:
+            gate_data = gate_lookup.get(rule_id)
+            required_val = (
+                str(settings.get(setting_key, "—"))
+                if setting_key and setting_key in settings
+                else "—"
+            )
+
+            if gate_data is not None:
+                # Gate was evaluated — applicable regardless of always_applicable flag.
+                candidate_rules.append({
+                    "rule_id":    rule_id,
+                    "label":      label,
+                    "scope":      "per_symbol",
+                    "required":   required_val,
+                    "actual":     gate_data.get("reason", "—"),
+                    "unit":       unit,
+                    "passed":     gate_data.get("passed", False),
+                    "applicable": True,
+                })
+            elif always_applicable:
+                # Gate should always be present but isn't — treat as failed (data
+                # issue or evaluation gap) so it surfaces in the audit.
+                candidate_rules.append({
+                    "rule_id":    rule_id,
+                    "label":      label,
+                    "scope":      "per_symbol",
+                    "required":   required_val,
+                    "actual":     "not evaluated",
+                    "unit":       unit,
+                    "passed":     False,
+                    "applicable": True,
+                })
+            else:
+                # Conditional gate that was legitimately skipped.
+                # Determine the reason so the UI can explain it clearly.
+                if rule_id == "max_concurrent_positions" and not _conc_enabled:
+                    skip_reason = "disabled (setting = 0)"
+                elif rule_id == "min_liquidity" and not _liq_enabled:
+                    skip_reason = "disabled (setting = 0)"
+                elif rule_id == "max_volatility" and not _vol_enabled:
+                    skip_reason = "disabled (setting = 0.0)"
+                else:
+                    skip_reason = "skipped — required data not in scan record"
+                candidate_rules.append({
+                    "rule_id":    rule_id,
+                    "label":      label,
+                    "scope":      "per_symbol",
+                    "required":   required_val,
+                    "actual":     skip_reason,
+                    "unit":       unit,
+                    "passed":     True,   # not-applicable is not a failure
+                    "applicable": False,
+                })
+        enriched_candidates.append({
+            **c,
+            "rule_manifest": candidate_rules,
+        })
+
+    # ── Summary metrics — applicable rules only ───────────────────────────────
+    # Disabled / data-absent gates are excluded so they cannot inflate
+    # failed_rule_checks or deflate pass_rate.
+    total_checks   = (
+        sum(1 for r in global_manifest if r.get("applicable", True))
+        + sum(
+            1 for c in enriched_candidates
+            for r in c.get("rule_manifest", []) if r.get("applicable", True)
+        )
+    )
+    failed_checks  = (
+        sum(1 for r in global_manifest if r.get("applicable", True) and not r["passed"])
+        + sum(
+            1 for c in enriched_candidates
+            for r in c.get("rule_manifest", [])
+            if r.get("applicable", True) and not r["passed"]
+        )
+    )
+
+    return {
+        "available":         True,
+        "generated_at":      _now_iso(),
+        "evaluated_at":      report.get("evaluated_at"),
+        "scan_id":           report.get("scan_id"),
+        "snapshot_ts":       report.get("snapshot_ts"),
+        "market_state":      report.get("market_state"),
+        "label":             "PAPER / RESEARCH ONLY",
+        "global_manifest":   global_manifest,
+        "global_pass":       report.get("global_pass", False),
+        "candidates":        enriched_candidates,
+        "total_count":       len(enriched_candidates),
+        "eligible_count":    report.get("eligible_count", 0),
+        "blocked_count":     report.get("blocked_count", 0),
+        "gate_pressure":     report.get("gate_pressure", []),
+        "top_blockers":      report.get("top_blockers", []),
+        "total_rule_checks": total_checks,
+        "failed_rule_checks": failed_checks,
+        "pass_rate":         round(
+            (total_checks - failed_checks) / total_checks * 100, 1
+        ) if total_checks else 100.0,
+        # Current threshold snapshot so the UI can render a compact rule legend
+        "thresholds": {
+            "min_confidence":          settings.get("min_confidence", 60),
+            "min_opportunity_score":   settings.get("min_opportunity_score", 60),
+            "min_trade_quality_score": settings.get("min_trade_quality_score", 50),
+            "min_risk_reward":         settings.get("min_risk_reward", 2.0),
+            "per_stock_exposure_cap_pct": settings.get("per_stock_exposure_cap_pct", 25),
+            "sector_exposure_cap_pct":    settings.get("sector_exposure_cap_pct", 40),
+            "portfolio_deployed_cap_pct": settings.get("portfolio_deployed_cap_pct", 80),
+            "daily_loss_limit_pct":       settings.get("daily_loss_limit_pct", 3.0),
+            "max_trades_per_day":         settings.get("max_trades_per_day", 3),
+            "cooldown_minutes":           settings.get("cooldown_minutes", 30),
+            "max_concurrent_positions":   settings.get("max_concurrent_positions", 5),
+            "min_liquidity_filter":       settings.get("min_liquidity_filter", 0),
+            "max_volatility_filter":      settings.get("max_volatility_filter", 0.0),
+        },
+    }
+
+
 # ── Human-readable gate metadata ─────────────────────────────────────────────
 
 _GATE_META: Dict[str, str] = {
@@ -428,6 +773,7 @@ _GATE_META: Dict[str, str] = {
     "no_fallback_data":         "No Fallback/Mock Data",
     "market_open":              "Market Open",
     "entry_circuit_breaker":    "Circuit Breaker",
+    "research_available":       "Research Pipeline",       # V4.3
     "quote_available":          "Quote Available",
     "strategy_regime_eligible": "Strategy / Regime",
     "recommendation_buy":       "BUY Recommendation",
@@ -445,11 +791,15 @@ _GATE_META: Dict[str, str] = {
     "daily_trade_limit":        "Daily Trade Limit",
     "no_open_duplicate":        "No Duplicate Open Trade",
     "cooldown":                 "Symbol Cooldown",
+    "max_concurrent_positions": "Max Concurrent Positions",  # V4.3
+    "min_liquidity":            "Min Liquidity",              # V4.3
+    "max_volatility":           "Max Volatility (ATR%)",      # V4.3
 }
 
 _GLOBAL_GATES = frozenset({
     "scan_fresh", "snapshot_consistency", "provider_zerodha",
     "no_fallback_data", "market_open", "entry_circuit_breaker",
+    "research_available",  # V4.3
 })
 
 

@@ -451,6 +451,9 @@ function AgentCard({ agent, agentKey }: { agent?: AgentState; agentKey: string }
         ["Health Score",      `${(d.health_score as number ?? 0).toFixed(0)}%`],
         ["Snapshots Published", d.snapshots_published as number],
         ["Alerts",            d.alert_count as number],
+        // V4.3 pipeline integrity
+        ["Dependency Violations", (d.dependency_violation_count as number) ?? 0],
+        ["Stale Topics",      (d.stale_topic_count as number) ?? 0],
       );
     } else if (agentKey === "market_data") {
       rows.push(
@@ -464,13 +467,28 @@ function AgentCard({ agent, agentKey }: { agent?: AgentState; agentKey: string }
         ["Failed Symbols",    (d.failed_symbols as string[])?.join(", ") || "None"],
       );
     } else if (agentKey === "research") {
+      const researchMode = d.research_mode as string || "NORMAL";
+      const workerStatus = d.worker_status as string || "OK";
       rows.push(
         ["News Processed",    d.news_processed as number],
         ["Corporate Actions", d.corporate_actions as number],
         ["Sentiment +ve",     d.sentiment_positive as number],
         ["Sentiment neutral", d.sentiment_neutral as number],
         ["Sentiment -ve",     d.sentiment_negative as number],
+        // V4.3 telemetry
+        ["Timeouts (cycle)",  d.timeout_count as number ?? 0],
+        ["Retries (cycle)",   d.retry_count as number ?? 0],
+        ["Worker Status",     workerStatus],
+        ["Research Mode",     researchMode],
       );
+      if (d.last_failure_at) {
+        rows.push(["Last Failure", d.last_failure_at as string]);
+        rows.push(["Failure Reason", (d.failure_reason as string || "").slice(0, 60) + ((d.failure_reason as string || "").length > 60 ? "…" : "")]);
+      }
+      if (researchMode !== "NORMAL") {
+        // surface the mode badge prominently below — handled in JSX
+        void researchMode; // used in JSX below
+      }
     } else if (agentKey === "market_intelligence") {
       rows.push(
         ["Market Regime",     d.market_regime as string],
@@ -719,6 +737,78 @@ function AgentCard({ agent, agentKey }: { agent?: AgentState; agentKey: string }
           {/* Agent-specific details */}
           {renderDetails()}
 
+          {/* V4.3 — Research Agent: mode banner */}
+          {agentKey === "research" && (() => {
+            const mode = agent.details?.research_mode as string | undefined;
+            if (!mode || mode === "NORMAL") return null;
+            const isHalted = mode === "PIPELINE_HALTED";
+            return (
+              <div className={`mt-2 rounded-lg border px-2.5 py-1.5 flex items-center gap-2 ${
+                isHalted
+                  ? "border-rose-800/50 bg-rose-950/30 text-rose-300"
+                  : "border-amber-800/50 bg-amber-950/30 text-amber-300"
+              }`}>
+                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                <div>
+                  <p className="text-[11px] font-semibold">{mode.replace("_", " ")}</p>
+                  <p className="text-[10px] opacity-80">
+                    {isHalted
+                      ? "All research sources failed — new paper entries are paused until research recovers (fail-closed mode)."
+                      : "Research sources are unavailable; pipeline is running on market-data signals only (fail-open mode)."}
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* V4.3 — Supervisor: dependency violations + recommendations */}
+          {agentKey === "supervisor" && (() => {
+            const violations = agent.details?.dependency_violations as string[] | undefined;
+            const recs = agent.details?.recommendations as Array<{
+              priority: string; category: string; message: string; action: string;
+            }> | undefined;
+            if ((!violations || violations.length === 0) && (!recs || recs.length === 0)) return null;
+            return (
+              <div className="mt-3 space-y-2">
+                {violations && violations.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-400 mb-1.5 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" /> Dependency Violations
+                    </p>
+                    <div className="space-y-1">
+                      {violations.map((v, i) => (
+                        <div key={i} className="rounded-lg bg-rose-950/20 border border-rose-800/30 px-2.5 py-1.5">
+                          <p className="text-[10px] text-rose-300">{v}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {recs && recs.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-teal-400 mb-1.5 flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> Supervisor Recommendations
+                    </p>
+                    <div className="space-y-1.5">
+                      {recs.map((r, i) => (
+                        <div key={i} className={`rounded-lg border px-2.5 py-1.5 ${
+                          r.priority === "HIGH"
+                            ? "border-rose-800/40 bg-rose-950/20"
+                            : "border-amber-800/30 bg-amber-950/10"
+                        }`}>
+                          <p className={`text-[10px] font-semibold ${
+                            r.priority === "HIGH" ? "text-rose-300" : "text-amber-300"
+                          }`}>{r.message}</p>
+                          <p className="text-[9px] text-slate-500 mt-0.5">{r.action}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Errors */}
           {agent.errors.length > 0 && (
             <div className="mt-2 space-y-1">
@@ -953,6 +1043,248 @@ function LiveEventLog() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── V4.3 Risk Audit Panel ─────────────────────────────────────────────────────
+
+interface RiskAuditRule {
+  rule_id: string;
+  label: string;
+  scope: string;
+  required: string;
+  actual: string;
+  unit: string;
+  passed: boolean;
+}
+
+interface RiskAuditCandidate {
+  symbol: string;
+  eligible: boolean;
+  confidence: number;
+  recommendation: string;
+  rule_manifest: RiskAuditRule[];
+  failed_gates: string[];
+}
+
+interface RiskAuditData {
+  available: boolean;
+  generated_at: string;
+  scan_id?: string;
+  market_state?: string;
+  global_pass: boolean;
+  global_manifest: RiskAuditRule[];
+  candidates: RiskAuditCandidate[];
+  total_count: number;
+  eligible_count: number;
+  blocked_count: number;
+  total_rule_checks: number;
+  failed_rule_checks: number;
+  pass_rate: number;
+  top_blockers: string[];
+  thresholds: Record<string, number>;
+}
+
+function RiskAuditPanel() {
+  const [expanded, setExpanded] = useState(false);
+  const [selectedCandidate, setSelectedCandidate] = useState<string | null>(null);
+
+  const { data, isLoading, isError, refetch } = useQuery<RiskAuditData>({
+    queryKey: ["risk-audit"],
+    queryFn: () => apiJson("/risk/audit"),
+    staleTime: 60_000,
+    retry: 1,
+    enabled: expanded,   // only load when the panel is opened
+  });
+
+  return (
+    <div className="bg-slate-900/60 border border-slate-800/50 rounded-xl overflow-hidden">
+      {/* Header — always visible */}
+      <button
+        className="w-full flex items-center gap-3 p-4 hover:bg-white/5 transition-colors text-left"
+        onClick={() => setExpanded(e => !e)}
+      >
+        <Shield className="w-4 h-4 text-rose-400 flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold text-slate-200">Risk Agent Rule Audit</p>
+          <p className="text-[10px] text-slate-500">
+            Full rule manifest: required vs actual for every BUY candidate · Paper only · Advisory only
+          </p>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {data && (
+            <Badge className={`text-[10px] ${
+              data.pass_rate >= 90
+                ? "bg-emerald-950 border-emerald-800 text-emerald-300"
+                : data.pass_rate >= 70
+                ? "bg-amber-950 border-amber-800 text-amber-300"
+                : "bg-rose-950 border-rose-800 text-rose-300"
+            }`}>
+              {data.pass_rate.toFixed(0)}% pass
+            </Badge>
+          )}
+          <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform ${expanded ? "rotate-180" : ""}`} />
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-slate-800/40 p-4 space-y-4">
+          {isLoading && (
+            <div className="space-y-2">
+              {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
+            </div>
+          )}
+          {isError && (
+            <div className="flex items-center gap-3 rounded-xl border border-rose-800/40 bg-rose-950/20 px-4 py-3">
+              <XCircle className="w-4 h-4 text-rose-400" />
+              <div className="flex-1">
+                <p className="text-xs font-semibold text-rose-300">Risk audit failed to load</p>
+                <p className="text-[10px] text-slate-500">No scan candidates may exist, or the scan has not run yet.</p>
+              </div>
+              <button onClick={() => void refetch()}
+                className="px-2.5 py-1 text-xs rounded-lg bg-rose-900/40 border border-rose-700/40 text-rose-300 hover:bg-rose-800/40 transition-colors">
+                Retry
+              </button>
+            </div>
+          )}
+          {data && !data.available && (
+            <p className="text-xs text-slate-500 text-center py-4">No entry evaluation data available yet — run a scan first.</p>
+          )}
+          {data?.available && (
+            <>
+              {/* Summary bar */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { label: "Candidates", value: data.total_count, cls: "text-slate-200" },
+                  { label: "Eligible",   value: data.eligible_count, cls: "text-emerald-300" },
+                  { label: "Blocked",    value: data.blocked_count, cls: "text-rose-300" },
+                  { label: "Pass Rate",  value: `${data.pass_rate.toFixed(0)}%`, cls: data.pass_rate >= 90 ? "text-emerald-300" : data.pass_rate >= 70 ? "text-amber-300" : "text-rose-300" },
+                ].map(({ label, value, cls }) => (
+                  <div key={label} className="bg-slate-800/40 rounded-lg p-3 border border-slate-700/30">
+                    <p className="text-[10px] text-slate-500">{label}</p>
+                    <p className={`text-lg font-bold font-mono ${cls}`}>{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Global gates */}
+              {data.global_manifest.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1">
+                    <Globe className="w-3 h-3" /> Global Gates (apply to all candidates)
+                  </p>
+                  <div className="rounded-lg overflow-hidden border border-slate-700/40">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-slate-800/60">
+                          <th className="text-left px-2.5 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Gate</th>
+                          <th className="text-left px-2.5 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Required</th>
+                          <th className="text-left px-2.5 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Actual</th>
+                          <th className="text-center px-2.5 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.global_manifest.map((rule, i) => (
+                          <tr key={rule.rule_id} className={i % 2 === 0 ? "bg-slate-900/40" : "bg-slate-800/20"}>
+                            <td className="px-2.5 py-1.5 text-slate-300">{rule.label}</td>
+                            <td className="px-2.5 py-1.5 font-mono text-slate-400">{rule.required}</td>
+                            <td className="px-2.5 py-1.5 font-mono text-[10px] text-slate-500 max-w-[160px] truncate" title={rule.actual}>{rule.actual}</td>
+                            <td className="px-2.5 py-1.5 text-center">
+                              {rule.passed
+                                ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 inline" />
+                                : <XCircle className="w-3.5 h-3.5 text-rose-400 inline" />}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Per-candidate rule breakdown */}
+              {data.candidates.length > 0 ? (
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1">
+                    <Layers className="w-3 h-3" /> Per-Candidate Rule Manifest
+                    <span className="ml-auto text-[9px] text-slate-600 font-normal normal-case tracking-normal">
+                      Click a symbol to expand
+                    </span>
+                  </p>
+                  <div className="space-y-2">
+                    {data.candidates.map(c => (
+                      <div key={c.symbol} className={`rounded-lg border overflow-hidden ${c.eligible ? "border-emerald-800/40" : "border-rose-800/30"}`}>
+                        <button
+                          className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/5 transition-colors"
+                          onClick={() => setSelectedCandidate(p => p === c.symbol ? null : c.symbol)}
+                        >
+                          <span className="text-xs font-mono font-bold text-slate-200">{c.symbol}</span>
+                          <Badge className={`text-[9px] ${c.eligible ? "bg-emerald-950 border-emerald-800 text-emerald-300" : "bg-rose-950 border-rose-800 text-rose-300"}`}>
+                            {c.eligible ? "ELIGIBLE" : "BLOCKED"}
+                          </Badge>
+                          <span className="text-[10px] text-slate-500">{c.recommendation}</span>
+                          <span className="text-[10px] text-slate-500">conf {c.confidence.toFixed(0)}%</span>
+                          {c.failed_gates.length > 0 && (
+                            <span className="text-[9px] text-rose-400 ml-auto">
+                              {c.failed_gates.length} gate{c.failed_gates.length > 1 ? "s" : ""} failed
+                            </span>
+                          )}
+                          <ChevronDown className={`w-3 h-3 text-slate-600 transition-transform ml-1 ${selectedCandidate === c.symbol ? "rotate-180" : ""}`} />
+                        </button>
+                        {selectedCandidate === c.symbol && (
+                          <div className="border-t border-slate-800/40">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="bg-slate-800/50">
+                                  <th className="text-left px-2.5 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Rule</th>
+                                  <th className="text-left px-2.5 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Required</th>
+                                  <th className="text-left px-2.5 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Actual</th>
+                                  <th className="text-center px-2.5 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider w-10">✓</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {c.rule_manifest.map((rule, i) => (
+                                  <tr key={rule.rule_id} className={`${i % 2 === 0 ? "bg-slate-900/40" : "bg-slate-800/20"} ${!rule.passed ? "bg-rose-950/10" : ""}`}>
+                                    <td className={`px-2.5 py-1 ${rule.passed ? "text-slate-300" : "text-rose-300 font-semibold"}`}>{rule.label}</td>
+                                    <td className="px-2.5 py-1 font-mono text-slate-400">{rule.required} {rule.unit !== "bool" ? rule.unit : ""}</td>
+                                    <td className="px-2.5 py-1 font-mono text-[10px] text-slate-500 max-w-[140px] truncate" title={rule.actual}>{rule.actual}</td>
+                                    <td className="px-2.5 py-1 text-center">
+                                      {rule.passed
+                                        ? <CheckCircle2 className="w-3 h-3 text-emerald-400 inline" />
+                                        : <XCircle className="w-3 h-3 text-rose-400 inline" />}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500 text-center py-4">
+                  No BUY / STRONG BUY candidates in the current scan. Run a fresh scan to populate the audit.
+                </p>
+              )}
+
+              {/* Top blockers */}
+              {data.top_blockers.length > 0 && (
+                <div className="rounded-lg bg-amber-950/20 border border-amber-800/30 px-3 py-2">
+                  <p className="text-[10px] font-semibold text-amber-300 mb-1">
+                    Top blockers: {data.top_blockers.join(" · ")}
+                  </p>
+                  <p className="text-[10px] text-slate-500">
+                    These gates are blocking the most candidates. Review the relevant settings to tune thresholds.
+                  </p>
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
     </div>
@@ -1249,6 +1581,18 @@ export default function AIOperationsCentrePage() {
           <AgentLoadMonitor    data={snapshotData as unknown as OpsSnapshotV3} loading={snapshotLoading} />
           <HistoricalAgentPerf data={snapshotData as unknown as OpsSnapshotV3} loading={snapshotLoading} />
         </div>
+
+        {/* ════════════════════ V4.3 — RISK AUDIT & PIPELINE INTEGRITY ══════════ */}
+
+        {/* V4.3 divider */}
+        <div className="flex items-center gap-3 py-2">
+          <div className="flex-1 h-px bg-rose-800/30" />
+          <span className="text-[10px] tracking-widest uppercase text-rose-600 font-semibold">Risk Agent Audit — V4.3</span>
+          <div className="flex-1 h-px bg-rose-800/30" />
+        </div>
+
+        {/* ── V4.3: Risk Audit Panel ── */}
+        <RiskAuditPanel />
 
         {/* ── Debug Panel — visible only with ?debug in the URL ── */}
         {debugMode && (

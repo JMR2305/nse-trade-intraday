@@ -37,6 +37,7 @@
 - [RC-9 strategy engine](rc9-strategy-engine.md) — Batch 9A/B: coordinator deregister deadlock, async FillEventBus API, _on_signal must schedule task, error propagation via lifecycle not pytest.raises.
 - [RC-10B Final Patch](rc10b-final-patch.md) — 25-feature schema, stateful FeatureGenerator, async gate, ORM rename, double-import guard, REGISTERED→STARTING→ACTIVE transition, SQLAlchemy result methods are sync.
 - [Command Centre cold-start fix](command-centre-perf.md) — sequential→parallel loaders (13 workers); retry:3+backoff; Retry button on error state.
+- [V4.3 research loader stability](phase43-ai-ops-stability.md) — concurrent loaders share one 30s deadline; None=failure; in-flight guards bound threads per source; audit applicable semantics; fail-closed enforced at entry gate.
 - [ApexQuant AI brand](apexquant-ai-brand.md) — brand = "ApexQuant AI"; navy A-frame + teal chart mark; BrandMark/BrandLogo/BrandHeader/PaperTradingBadge components; Logo.tsx re-exports for compat.
 - [Phase 3 completion](phase3-completion.md) — Phase 3A–3G all done; 50/50 phase3g_validate.py; key test pitfalls documented.
 - [Phase 5D.1 execution quality](phase5d1-execution-quality.md) — read-only EQ module; `@/lib/api` import; apiJson paths omit /api/ prefix; FIFO BUY→SELL matching; AST safety test included.

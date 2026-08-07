@@ -3330,4 +3330,17 @@ router.get("/phase20/reconciliation/probe", async (_req, res) => {
   }
 });
 
+// GET /api/risk/audit — V4.3 Risk Agent audit panel
+// Returns the full structured rule manifest for every BUY/STRONG_BUY candidate
+// in the current canonical scan, with per-gate required / actual / pass-fail
+// entries so operators can see exactly which thresholds are being applied.
+// READ-ONLY · ADVISORY ONLY · PAPER TRADING
+router.get("/risk/audit", async (_req, res) => {
+  try {
+    res.json(await runPython(["risk_audit"]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 export default router;
