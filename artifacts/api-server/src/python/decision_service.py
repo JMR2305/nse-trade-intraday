@@ -425,8 +425,19 @@ def _decide(item: dict, positions: dict, trades: list,
         # confidence.  For fc < STRONG_BUY_CONF the strict rule applies (any
         # single failure → AVOID) because there is less conviction to protect.
         filter_failure_count = max(1, len(filter_reasons))
+        # Read the gate threshold from the operator config store at decision
+        # time so changes take effect on the next Trade Decisions refresh
+        # without a restart.  Fall back to the module-level constant (2) when
+        # the store is unavailable or the key is absent.
+        try:
+            from phase20_store import get_settings as _get_p20_settings
+            _p20 = _get_p20_settings()
+            _gate_min = int(_p20.get("high_conf_avoid_gate_min_failures",
+                                     HIGH_CONF_AVOID_GATE_MIN_FAILURES))
+        except Exception:
+            _gate_min = HIGH_CONF_AVOID_GATE_MIN_FAILURES
         if (fc >= STRONG_BUY_CONF
-                and filter_failure_count < HIGH_CONF_AVOID_GATE_MIN_FAILURES):
+                and filter_failure_count < _gate_min):
             recommendation = "WATCH"
             reason = ("Risk filter caution — " + filter_reasons[0]
                       if filter_reasons

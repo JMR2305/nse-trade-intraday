@@ -70,6 +70,15 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "email_alert_address": "",
     # Daily performance summary email at market close (opt-in, same address).
     "daily_summary_email_enabled": False,
+    # ── Decision engine gate calibration ────────────────────────────────────
+    # When final_confidence >= STRONG_BUY_CONF (85), how many simultaneous
+    # filter conditions must fail before the risk gate forces AVOID.
+    # Default 2: a single minor failure is demoted to WATCH so operators still
+    # see the setup; 2+ failures always force AVOID regardless of confidence.
+    # For final_confidence < STRONG_BUY_CONF the gate is always strict (1
+    # failure → AVOID). Raise this value for illiquid / mid-cap sectors where
+    # individual filter noise is higher; lower it to 1 for maximum strictness.
+    "high_conf_avoid_gate_min_failures": 2,
 }
 
 # Keys excluded from the reproducibility config hash (meta, not behaviour).
@@ -250,6 +259,12 @@ def _validate_patch(patch: Dict[str, Any], current: Dict[str, Any]) -> Dict[str,
             if iv < 3 or iv > 100:
                 raise ValueError(
                     "perf_alert_window_trades must be between 3 and 100")
+            clean[key] = iv
+        elif key == "high_conf_avoid_gate_min_failures":
+            iv = int(float(value))
+            if iv < 1 or iv > 10:
+                raise ValueError(
+                    "high_conf_avoid_gate_min_failures must be between 1 and 10")
             clean[key] = iv
         elif isinstance(default, (int, float)) and not isinstance(default, bool):
             num = float(value)

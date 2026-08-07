@@ -58,6 +58,7 @@ interface Phase20SettingsData {
   email_alerts_enabled: boolean;
   email_alert_address: string;
   daily_summary_email_enabled: boolean;
+  high_conf_avoid_gate_min_failures: number;
   config_hash: string;
   confirmation_text: string;
 }
@@ -457,6 +458,38 @@ export default function Phase20Settings() {
                   onChange={(e) => setNumberField(f.key, e.target.value)} />
               </div>
             ))}
+          </div>
+        </section>
+
+        {/* ── 2b. Decision engine gate calibration ── */}
+        <section className="space-y-3 border-t border-zinc-800 pt-4">
+          <h3 className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-zinc-400">
+            <Sliders className="h-3.5 w-3.5 text-primary" />Decision engine gate calibration
+          </h3>
+          <div className="grid gap-1.5 sm:max-w-xs">
+            <Label className="text-zinc-400">
+              High-confidence filter gate — min failures to force AVOID
+            </Label>
+            <Input
+              type="number"
+              step="1"
+              min="1"
+              max="10"
+              className="text-xs"
+              value={String(draft.high_conf_avoid_gate_min_failures ?? 2)}
+              onChange={(e) => setNumberField("high_conf_avoid_gate_min_failures", e.target.value)}
+            />
+            <p className="text-[11px] text-zinc-500">
+              When a stock's confidence is ≥ 85 (STRONG_BUY range), this is how many
+              filter conditions must fail simultaneously before the risk gate forces{" "}
+              <span className="font-semibold text-red-400">AVOID</span>.
+              Below this count the stock is demoted to{" "}
+              <span className="font-semibold text-amber-400">WATCH</span> so operators
+              still see it. Raise for illiquid or mid-cap sectors where individual
+              filter noise is higher; set to&nbsp;1 for maximum strictness (any single
+              failure forces AVOID). Takes effect on the next Trade Decisions refresh —
+              no restart required. Default:&nbsp;2.
+            </p>
           </div>
         </section>
 
