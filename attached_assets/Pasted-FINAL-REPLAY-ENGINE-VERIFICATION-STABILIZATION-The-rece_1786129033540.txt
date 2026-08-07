@@ -1,0 +1,232 @@
+FINAL REPLAY ENGINE VERIFICATION & STABILIZATION
+
+The recent fixes are a significant improvement, but before we consider the Replay Engine complete, I want a final end-to-end verification and stabilization pass.
+
+=====================================================================
+1. END-TO-END PIPELINE VERIFICATION
+=====================================================================
+
+Execute a complete replay using the latest trading session and verify that every stage processes the exact same scan_id.
+
+Pipeline:
+
+Supervisor
+↓
+
+Market Scanner
+↓
+
+Research
+↓
+
+Market Intelligence
+↓
+
+Monitoring
+↓
+
+Strategy
+↓
+
+Risk
+↓
+
+AI Decision
+↓
+
+Execution
+↓
+
+Portfolio / Trade Management
+
+For every stage report:
+
+• Input count
+• Passed count
+• Rejected count
+• Pending count
+• Cancelled count
+• Output count
+
+Verify mathematically that:
+
+Input = Passed + Rejected + Pending + Cancelled
+
+No stage may create new symbols.
+
+No stage may lose symbols without recording the reason.
+
+No duplicate symbols are allowed.
+
+=====================================================================
+2. EXECUTION → PORTFOLIO VERIFICATION
+=====================================================================
+
+Execution must only execute BUY decisions.
+
+Verify every executed BUY creates a record inside:
+
+phase20_paper_trades
+
+For every BUY verify:
+
+• Symbol
+• Entry Time
+• Entry Price
+• Quantity
+• Capital Used
+• Stop Loss
+• Target
+• Strategy
+• Scan ID
+
+Portfolio must read ONLY from the trade ledger.
+
+No synthetic or fabricated trades.
+
+If execution places N BUY orders then Portfolio must contain exactly N open positions unless they have already been exited.
+
+=====================================================================
+3. TRADE LIFECYCLE VERIFICATION
+=====================================================================
+
+For every executed trade verify the full lifecycle:
+
+BUY Created
+↓
+
+BUY Filled
+↓
+
+Open Position
+↓
+
+Monitoring
+↓
+
+Target Hit / Stop Loss / Trailing Stop / AI Exit / End of Day Exit
+↓
+
+Position Closed
+↓
+
+Portfolio Updated
+↓
+
+Equity Curve Updated
+↓
+
+P&L Updated
+
+Confirm no stage is skipped.
+
+=====================================================================
+4. REPLAY UI VERIFICATION
+=====================================================================
+
+Verify:
+
+• No overlapping cards
+• No overlapping integrity panels
+• Timeline fits inside its container
+• Symbol cards scroll independently
+• Responsive layout on desktop and mobile
+• No clipping
+• No z-index issues
+
+=====================================================================
+5. CAPITAL VERIFICATION
+=====================================================================
+
+Confirm there is ONE source of truth for paper trading capital.
+
+Expected:
+
+INITIAL_CAPITAL = ₹50,000
+
+Verify the following pages all display the same value:
+
+• Dashboard
+• Portfolio Analytics
+• Trade Replay
+• Portfolio / Trade Management
+• Risk Agent
+• Execution Planner
+• End-of-Day Summary
+
+Remove every remaining fallback or hardcoded value.
+
+=====================================================================
+6. RISK AGENT AUDIT
+=====================================================================
+
+Do NOT lower thresholds blindly.
+
+Instrument the Risk Agent and produce rejection statistics for every gate:
+
+• Confidence
+• Liquidity
+• Volume
+• ATR
+• Sector Exposure
+• Portfolio Exposure
+• Position Size
+• Market Regime
+• Reward:Risk
+• Capital Availability
+
+Produce a report showing:
+
+Candidates Entering
+
+↓
+
+Rejected by each rule
+
+↓
+
+Candidates Remaining
+
+Identify which rule is the primary bottleneck.
+
+If calibration is required, recommend adjustments with justification rather than simply lowering thresholds.
+
+=====================================================================
+7. CONFIDENCE CALIBRATION
+=====================================================================
+
+Resolve the remaining:
+
+test_confidence_calibration
+
+import error.
+
+Run the full test suite.
+
+Confirm:
+
+• All replay tests pass.
+• All execution tests pass.
+• All portfolio tests pass.
+• All risk tests pass.
+• All confidence calibration tests pass.
+
+=====================================================================
+8. FINAL ACCEPTANCE REPORT
+=====================================================================
+
+Provide a final verification report containing:
+
+1. Pipeline conservation results.
+2. Stage-by-stage symbol counts.
+3. Trade ledger verification.
+4. Portfolio synchronization verification.
+5. Equity curve verification.
+6. P&L verification.
+7. Capital verification.
+8. Risk Agent audit summary.
+9. Confidence calibration results.
+10. Test suite summary.
+11. Any remaining known limitations.
+
+Do not mark the Replay Engine as complete until every stage is internally consistent, all BUY/SELL events are reflected in the trade ledger and portfolio, all pages use the same ₹50,000 starting capital, and the full test suite passes successfully.

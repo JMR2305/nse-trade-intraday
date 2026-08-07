@@ -17,6 +17,7 @@ from walk_forward_validator import (
     export_csv_path, _audit_decision,
 )
 from datetime import datetime
+from config import INITIAL_CAPITAL
 
 
 # ── Window generation ────────────────────────────────────────────────────────
@@ -55,7 +56,7 @@ def test_windows_too_short_period():
 def test_config_defaults_and_sanitization():
     cfg = ValidationConfig.from_dict(None)
     assert cfg.train_years == 1 and cfg.test_months == 3 and cfg.step_months == 3
-    assert cfg.initial_capital == 5000.0
+    assert cfg.initial_capital == INITIAL_CAPITAL
     cfg2 = ValidationConfig.from_dict({
         "train_years": 7,               # invalid → fall back to 1
         "test_months": 6,
