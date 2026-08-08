@@ -1,0 +1,455 @@
+PHASE 4A DASHBOARD & PAPER TRADING VALIDATION - COMPLETE AUDIT AND FIX
+
+Do NOT add mock data.
+Do NOT use placeholder values.
+Everything must be driven from the live paper trading backend.
+
+====================================================
+GOAL
+====================================================
+
+The following pages are only partially complete:
+
+1. Phase 4A – Controlled Paper Trading Operations
+2. Paper Trading Validation
+
+Both pages must become complete operational dashboards for the paper trading system.
+
+====================================================
+PART 1 - PHASE 4A DASHBOARD
+====================================================
+
+Scanner tile must display:
+
+- Universe Source
+- Symbols Loaded
+- Symbols Scanned
+- Symbols Passed
+- Symbols Rejected
+- Scan Duration
+- Scan Timestamp
+- Data Freshness
+
+----------------------------------------------------
+
+Market Data tile must display:
+
+- Zerodha Status
+- Yahoo Status
+- NSE Status
+- Missing Symbols
+- Failed Requests
+- Last Tick Age
+- Data Latency
+
+----------------------------------------------------
+
+Risk Engine tile must display:
+
+- Candidates Received
+- Candidates Approved
+- Candidates Rejected
+- Top Rejection Reason
+- Average Risk Score
+- Risk Processing Time
+
+----------------------------------------------------
+
+Open Positions tile
+
+Display
+
+Open Positions
+
+Exposure
+
+Capital Used
+
+Largest Position
+
+Current Unrealized P&L
+
+Sector Exposure
+
+----------------------------------------------------
+
+Pending Trades tile
+
+Display
+
+BUY Pending
+
+SELL Pending
+
+Cancelled
+
+Expired
+
+Rejected
+
+----------------------------------------------------
+
+Previous Session tile
+
+Display
+
+Yesterday
+
+Trades
+
+Win Rate
+
+Net P&L
+
+Largest Winner
+
+Largest Loser
+
+Average Hold Time
+
+----------------------------------------------------
+
+Live Session Monitor
+
+Currently several fields are blank.
+
+Populate
+
+Freshness
+
+Scanner Latency
+
+Realized P&L
+
+CPU Usage
+
+Memory Usage
+
+Queue Depth
+
+API Response Time
+
+Paper Orders
+
+Risk Blocks
+
+Decision Time
+
+Execution Time
+
+----------------------------------------------------
+
+BUY/WATCH section
+
+Replace
+
+4 / 6
+
+with
+
+BUY
+
+WATCH
+
+SELL
+
+AVOID
+
+TOTAL
+
+====================================================
+PART 2 - PIPELINE SUMMARY
+====================================================
+
+Add a pipeline summary card
+
+Universe
+
+↓
+
+Research
+
+↓
+
+Market Intelligence
+
+↓
+
+Monitoring
+
+↓
+
+Strategy
+
+↓
+
+Risk
+
+↓
+
+Decision
+
+↓
+
+Execution
+
+↓
+
+Portfolio
+
+↓
+
+Trade History
+
+↓
+
+Performance
+
+Display
+
+Input
+
+Passed
+
+Rejected
+
+Pending
+
+Cancelled
+
+Processing Time
+
+====================================================
+PART 3 - PAPER TRADING VALIDATION PAGE
+====================================================
+
+Today's Session
+
+Populate from backend
+
+Market Status
+
+Market Regime
+
+Nifty
+
+Bank Nifty
+
+India VIX
+
+Top Sector
+
+Worst Sector
+
+Advance/Decline
+
+Market Breadth
+
+Gap %
+
+Leading Theme
+
+====================================================
+
+Trading Statistics
+
+Display
+
+Trades
+
+BUY Orders
+
+SELL Orders
+
+Cancelled
+
+Rejected
+
+Risk Blocks
+
+Net P&L
+
+Gross P&L
+
+Average R:R
+
+Average Hold Time
+
+Largest Winner
+
+Largest Loser
+
+Average Winner
+
+Average Loser
+
+====================================================
+
+Historical Performance
+
+Calculate
+
+7 Days
+
+30 Days
+
+90 Days
+
+180 Days
+
+All Time
+
+For each period show
+
+Trades
+
+Win Rate
+
+Profit Factor
+
+Expectancy
+
+Sharpe
+
+Sortino
+
+Recovery
+
+Max Drawdown
+
+Average Return
+
+====================================================
+
+Data Quality
+
+Expand validation
+
+Duplicate Orders
+
+Duplicate Trades
+
+Duplicate Symbols
+
+Missing Candles
+
+Missing Ticks
+
+API Errors
+
+Replay Integrity
+
+Execution Integrity
+
+Portfolio Integrity
+
+Database Consistency
+
+====================================================
+
+Validation Pipeline
+
+Add a complete validation checklist
+
+Market Data
+
+Research
+
+Strategy
+
+Risk
+
+Decision
+
+Execution
+
+Paper Trader
+
+Portfolio
+
+Trade History
+
+Performance
+
+Replay
+
+Every stage must show
+
+PASS
+
+WARNING
+
+FAIL
+
+and a reason.
+
+====================================================
+
+AI Validation
+
+Display
+
+Average Confidence
+
+Highest Confidence
+
+Lowest Confidence
+
+Confidence Distribution
+
+Strategy Distribution
+
+Sector Distribution
+
+Top Performing Strategy
+
+Worst Performing Strategy
+
+====================================================
+PART 4 - SOURCE OF TRUTH
+====================================================
+
+Every value shown on these pages must originate from:
+
+Paper Trade Ledger
+
+Portfolio Store
+
+Replay Store
+
+Pipeline Snapshot
+
+Risk Snapshot
+
+Decision Snapshot
+
+No duplicated calculations.
+
+No hardcoded values.
+
+No placeholder text.
+
+====================================================
+PART 5 - ACCEPTANCE CRITERIA
+====================================================
+
+✓ Every card populated from backend.
+
+✓ No "Unknown".
+
+✓ No "Unavailable".
+
+✓ No "undefined".
+
+✓ No placeholder values.
+
+✓ All statistics consistent with Portfolio, Replay, Trade History and AI Operations pages.
+
+✓ Every displayed metric can be traced to its backend API and database source.
+
+Finally produce a verification report listing:
+
+- Every API endpoint used.
+- Every database table queried.
+- Every metric formula.
+- Any remaining missing backend data required for future enhancements.

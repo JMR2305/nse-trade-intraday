@@ -556,6 +556,12 @@ def main():
             result = cmd_opportunity_scan()
         elif command == "market_context":
             result = cmd_market_context()
+        elif command == "phase4a_dashboard":
+            from phase4a_dashboard import build_phase4a_dashboard
+            result = build_phase4a_dashboard()
+        elif command == "validation_dashboard":
+            from phase4a_dashboard import build_validation_dashboard
+            result = build_validation_dashboard()
         elif command == "signal_history":
             import signals_store as _ss
             limit = int(args[1]) if len(args) > 1 and args[1] not in ("", "-") else 30

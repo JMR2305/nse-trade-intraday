@@ -19,7 +19,7 @@ import { PYTHON_DIR, PYTHON_BIN } from "../lib/python-env";
 
 const router = Router();
 
-function runPython(args: string[]): Promise<unknown> {
+function runPython(args: string[], timeoutMs = 90_000): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const child = spawn(PYTHON_BIN, [path.join(PYTHON_DIR, "main.py"), ...args], {
       cwd: PYTHON_DIR,
@@ -27,9 +27,14 @@ function runPython(args: string[]): Promise<unknown> {
     });
     let out = "";
     let err = "";
+    const timer = setTimeout(() => {
+      child.kill("SIGTERM");
+      reject(new Error(`python ${args[0]} timed out after ${timeoutMs / 1000}s`));
+    }, timeoutMs);
     child.stdout.on("data", (d: Buffer) => { out += d.toString(); });
     child.stderr.on("data", (d: Buffer) => { err += d.toString(); });
     child.on("close", (code) => {
+      clearTimeout(timer);
       if (code !== 0) {
         try { resolve(JSON.parse(out)); } catch { reject(new Error(err || `exit ${code}`)); }
         return;
@@ -38,6 +43,28 @@ function runPython(args: string[]): Promise<unknown> {
     });
   });
 }
+
+/** GET /api/validation/dashboard — aggregated validation dashboard:
+ *  session context, trading statistics, historical windows, data quality,
+ *  validation pipeline checklist, AI validation (phase4a_dashboard.py). */
+let vDashCache: { at: number; data: unknown } | null = null;
+let vDashInflight: Promise<unknown> | null = null;
+
+router.get("/validation/dashboard", async (_req, res) => {
+  try {
+    if (vDashCache && Date.now() - vDashCache.at < 30_000) {
+      res.json(vDashCache.data);
+      return;
+    }
+    if (!vDashInflight) {
+      vDashInflight = runPython(["validation_dashboard"], 60_000)
+        .finally(() => { vDashInflight = null; });
+    }
+    const data = await vDashInflight;
+    vDashCache = { at: Date.now(), data };
+    res.json(data);
+  } catch (e) { res.status(500).json({ error: String(e) }); }
+});
 
 /** GET /api/validation/session — today's session + trades + daily metrics */
 router.get("/validation/session", async (_req, res) => {

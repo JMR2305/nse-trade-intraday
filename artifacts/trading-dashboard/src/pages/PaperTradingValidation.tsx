@@ -117,6 +117,213 @@ async function fetchSection(path: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Aggregated validation dashboard (GET /validation/dashboard)
+// All values derive from the scan snapshot, phase20 ledger, replay store,
+// portfolio store and AI decision cache — see phase4a_dashboard.py.
+// ---------------------------------------------------------------------------
+
+function StatusBadge({ status }: { status: string }) {
+  const cls = status === "PASS" ? "text-emerald-400 border-emerald-700"
+    : status === "WARNING" ? "text-amber-400 border-amber-700"
+    : "text-red-400 border-red-700";
+  const Icon = status === "PASS" ? CheckCircle2 : status === "WARNING" ? AlertTriangle : XCircle;
+  return (
+    <Badge variant="outline" className={cn("text-[10px] gap-1", cls)}>
+      <Icon className="h-3 w-3" /> {status}
+    </Badge>
+  );
+}
+
+function ValidationDashboardSections() {
+  const dashQ = useQuery<any>({
+    queryKey: ["validation-dashboard"],
+    queryFn: () => fetchSection("/validation/dashboard"),
+    refetchInterval: 60_000,
+    staleTime: 55_000,
+  });
+
+  if (dashQ.isLoading) {
+    return (
+      <div className="flex items-center gap-2 text-zinc-400 py-6 justify-center">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading validation dashboard…
+      </div>
+    );
+  }
+  if (dashQ.isError || !dashQ.data) {
+    return (
+      <div className="text-red-400 text-[11px] flex gap-1 rounded border border-red-800/40 bg-red-950/20 p-3">
+        <AlertTriangle className="h-4 w-4 shrink-0" /> Validation dashboard failed: {String(dashQ.error ?? "no data")}
+      </div>
+    );
+  }
+  const d = dashQ.data;
+  const s = d.session ?? {};
+  const t = d.trading_statistics ?? {};
+  const hist = d.historical_performance ?? {};
+  const q = d.data_quality ?? {};
+  const pipeline: any[] = d.validation_pipeline ?? [];
+  const ai = d.ai_validation ?? {};
+  const money = (v: any) => (v === null || v === undefined || !isFinite(+v) ? "—" : `₹${(+v).toFixed(2)}`);
+  const idx = (price: any, chg: any) =>
+    price == null || !isFinite(+price) ? null
+      : `${(+price).toLocaleString()}${chg != null && isFinite(+chg) ? ` (${+chg > 0 ? "+" : ""}${chg}%)` : ""}`;
+  const periods: [string, string][] = [["7d", "7 Days"], ["30d", "30 Days"], ["90d", "90 Days"], ["180d", "180 Days"], ["all", "All Time"]];
+
+  return (
+    <>
+      {/* Today's Session */}
+      <SectionCard title="Today's Session" icon={Calendar}>
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+          <Stat label="Market Status" value={s.market_status}
+            cls={s.market_status === "OPEN" ? "text-emerald-400" : "text-amber-400"} />
+          <Stat label="Market Regime" value={s.market_regime} />
+          <Stat label="Nifty" value={idx(s.nifty, s.nifty_change_pct)} />
+          <Stat label="Bank Nifty" value={idx(s.bank_nifty, s.bank_nifty_change_pct)} />
+          <Stat label="India VIX" value={s.india_vix != null ? `${s.india_vix}${s.vix_category ? ` (${s.vix_category})` : ""}` : null} />
+          <Stat label="Bias" value={s.market_bias} />
+          <Stat label="Top Sector" value={s.top_sector} cls="text-emerald-400" />
+          <Stat label="Worst Sector" value={s.worst_sector} cls="text-red-400" />
+          <Stat label="Advance/Decline" value={s.advance_decline} />
+          <Stat label="Market Breadth" value={s.market_breadth != null ? `${s.market_breadth}${s.breadth_label ? ` (${s.breadth_label})` : ""}` : null} />
+          <Stat label="Gap %" value={s.gap_pct != null ? `${s.gap_pct}%` : null} />
+          <Stat label="Leading Theme" value={s.leading_theme} />
+        </div>
+        <div className="text-[10px] text-zinc-600">
+          context computed {s.context_computed_at} · advance/decline = {s.advance_decline_note} · gap = {s.gap_note}
+        </div>
+      </SectionCard>
+
+      {/* Trading Statistics */}
+      <SectionCard title="Trading Statistics (Today)" icon={BarChart3}>
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+          <Stat label="Trades" value={t.trades} />
+          <Stat label="BUY Orders" value={t.buy_orders} cls="text-emerald-400" />
+          <Stat label="SELL Orders" value={t.sell_orders} cls="text-amber-400" />
+          <Stat label="Cancelled" value={t.cancelled} />
+          <Stat label="Rejected" value={t.rejected} cls={t.rejected ? "text-red-400" : undefined} />
+          <Stat label="Risk Blocks" value={t.risk_blocks} cls={t.risk_blocks ? "text-red-400" : undefined} />
+          <Stat label="Net P&L" value={money(t.net_pnl)} cls={t.net_pnl >= 0 ? "text-emerald-400" : "text-red-400"} />
+          <Stat label="Gross P&L" value={money(t.gross_pnl)} />
+          <Stat label="Average R:R" value={t.avg_rr ?? (t.buy_orders === 0 ? "no entries today" : null)} />
+          <Stat label="Avg Hold Time" value={t.avg_hold_minutes != null ? `${t.avg_hold_minutes}m` : t.sell_orders === 0 ? "no exits today" : null} />
+          <Stat label="Largest Winner" value={t.largest_winner != null ? money(t.largest_winner) : "none closed"} cls="text-emerald-400" />
+          <Stat label="Largest Loser" value={t.largest_loser != null ? money(t.largest_loser) : "none closed"} cls="text-red-400" />
+          <Stat label="Average Winner" value={t.avg_winner != null ? money(t.avg_winner) : "none closed"} />
+          <Stat label="Average Loser" value={t.avg_loser != null ? money(t.avg_loser) : "none closed"} />
+        </div>
+      </SectionCard>
+
+      {/* Historical Performance */}
+      <SectionCard title="Historical Performance" icon={TrendingUp}>
+        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+          {periods.map(([key, label]) => {
+            const p = hist[key] ?? {};
+            const none = !p.trades;
+            return (
+              <div key={key} className="rounded border border-zinc-800 bg-zinc-900/50 p-2 space-y-1">
+                <div className="text-[10px] uppercase tracking-wide text-zinc-400 font-semibold">{label}</div>
+                <div className="grid grid-cols-2 gap-1 text-[11px] font-mono">
+                  <span className="text-zinc-500">Trades</span><span className="text-zinc-200">{p.trades ?? 0}</span>
+                  <span className="text-zinc-500">Win Rate</span>
+                  <span className={cn(none ? "text-zinc-500" : (p.win_rate_pct ?? 0) >= 50 ? "text-emerald-400" : "text-red-400")}>
+                    {none ? "n/a" : `${p.win_rate_pct}%`}
+                  </span>
+                  <span className="text-zinc-500">Profit Factor</span><span className="text-zinc-200">{p.profit_factor ?? (none ? "n/a" : "∞")}</span>
+                  <span className="text-zinc-500">Expectancy</span><span className="text-zinc-200">{p.expectancy != null ? `₹${p.expectancy}` : "n/a"}</span>
+                  <span className="text-zinc-500">Sharpe</span><span className="text-zinc-200">{p.sharpe ?? "n/a"}</span>
+                  <span className="text-zinc-500">Sortino</span><span className="text-zinc-200">{p.sortino ?? "n/a"}</span>
+                  <span className="text-zinc-500">Recovery</span><span className="text-zinc-200">{p.recovery_factor ?? "n/a"}</span>
+                  <span className="text-zinc-500">Max DD</span>
+                  <span className={cn(p.max_drawdown ? "text-amber-400" : "text-zinc-200")}>{p.max_drawdown != null ? `₹${p.max_drawdown}` : "n/a"}</span>
+                  <span className="text-zinc-500">Avg Return</span><span className="text-zinc-200">{p.avg_return_pct != null ? `${p.avg_return_pct}%` : "n/a"}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {hist.note && <div className="text-[10px] text-amber-400/80">{hist.note}</div>}
+      </SectionCard>
+
+      {/* Data Quality */}
+      <SectionCard title="Data Quality — Ledger & Pipeline Integrity" icon={ShieldCheck}>
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+          <Stat label="Duplicate Orders" value={q.duplicate_orders} cls={q.duplicate_orders ? "text-red-400" : "text-emerald-400"} />
+          <Stat label="Duplicate Trades" value={q.duplicate_trades} cls={q.duplicate_trades ? "text-red-400" : "text-emerald-400"} />
+          <Stat label="Duplicate Open Symbols" value={q.duplicate_open_symbols} cls={q.duplicate_open_symbols ? "text-red-400" : "text-emerald-400"} />
+          <Stat label="Missing Candles" value={q.missing_candles} cls={q.missing_candles ? "text-amber-400" : "text-emerald-400"} />
+          <Stat label="Missing Ticks (Stale)" value={q.missing_ticks} cls={q.missing_ticks ? "text-amber-400" : "text-emerald-400"} />
+          <Stat label="API Errors" value={q.api_errors} cls={q.api_errors ? "text-amber-400" : "text-emerald-400"} />
+          <Stat label="Replay Integrity" value={q.replay_integrity} cls={q.replay_integrity === "PASS" ? "text-emerald-400" : "text-amber-400"} />
+          <Stat label="Execution Integrity" value={q.execution_integrity} cls={String(q.execution_integrity).startsWith("PASS") ? "text-emerald-400" : "text-red-400"} />
+          <Stat label="Portfolio Integrity" value={q.portfolio_integrity} cls={String(q.portfolio_integrity).startsWith("PASS") ? "text-emerald-400" : "text-red-400"} />
+          <Stat label="Database Consistency" value={q.database_consistency} cls={String(q.database_consistency).startsWith("PASS") ? "text-emerald-400" : "text-red-400"} />
+        </div>
+        {q.missing_candle_symbols?.length > 0 && (
+          <div className="text-[10px] text-amber-400/80">missing candles: {q.missing_candle_symbols.join(", ")}</div>
+        )}
+        {q.portfolio_cash_check && (
+          <div className="text-[10px] text-zinc-600">
+            {q.portfolio_cash_check.formula} → ₹{q.portfolio_cash_check.initial} − ₹{q.portfolio_cash_check.deployed} + ₹{q.portfolio_cash_check.realized} = ₹{q.portfolio_cash_check.cash}
+          </div>
+        )}
+      </SectionCard>
+
+      {/* Validation Pipeline */}
+      <SectionCard title="Validation Pipeline" icon={Activity}>
+        <div className="space-y-1">
+          {pipeline.map((st: any) => (
+            <div key={st.stage} className="flex items-center gap-3 rounded border border-zinc-800 bg-zinc-900/40 px-2 py-1.5">
+              <span className="w-28 shrink-0 text-[11px] font-semibold text-zinc-200">{st.stage}</span>
+              <StatusBadge status={st.status} />
+              <span className="text-[11px] text-zinc-400 font-mono truncate">{st.reason}</span>
+            </div>
+          ))}
+        </div>
+      </SectionCard>
+
+      {/* AI Validation */}
+      <SectionCard title="AI Validation" icon={FileText}>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <Stat label="Decisions Analysed" value={ai.decisions_analysed} />
+          <Stat label="Average Confidence" value={ai.avg_confidence != null ? `${ai.avg_confidence}%` : null} cls="text-sky-400" />
+          <Stat label="Highest Confidence" value={ai.highest_confidence != null ? `${ai.highest_confidence}%` : null} cls="text-emerald-400" />
+          <Stat label="Lowest Confidence" value={ai.lowest_confidence != null ? `${ai.lowest_confidence}%` : null} cls="text-amber-400" />
+        </div>
+        <div className="grid gap-3 lg:grid-cols-3 mt-2">
+          <div>
+            <div className="text-[10px] text-zinc-500 uppercase tracking-wide mb-1">Confidence Distribution ({ai.confidence_source})</div>
+            {Object.entries(ai.confidence_distribution ?? {}).map(([bucket, count]: any) => (
+              <div key={bucket} className="flex items-center gap-2 text-[11px] font-mono py-0.5">
+                <span className="w-14 text-zinc-500">{bucket}</span>
+                <div className="h-2 bg-sky-500/60 rounded" style={{ width: `${Math.min(100, count * 12)}px` }} />
+                <span className="text-zinc-300">{count}</span>
+              </div>
+            ))}
+          </div>
+          <div>
+            <div className="text-[10px] text-zinc-500 uppercase tracking-wide mb-1">Strategy Distribution (latest scan)</div>
+            <MiniTable headers={["Strategy", "Count"]}
+              rows={Object.entries(ai.strategy_distribution ?? {}).map(([k, v]: any) => [k, v])} />
+          </div>
+          <div>
+            <div className="text-[10px] text-zinc-500 uppercase tracking-wide mb-1">Sector Distribution (latest scan)</div>
+            <MiniTable headers={["Sector", "Count"]}
+              rows={Object.entries(ai.sector_distribution ?? {}).map(([k, v]: any) => [k, v])} />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2 mt-2">
+          <Stat label="Top Performing Strategy" value={ai.top_strategy} cls="text-emerald-400" />
+          <Stat label="Worst Performing Strategy" value={ai.worst_strategy} cls="text-red-400" />
+        </div>
+        {ai.strategy_performance_source && (
+          <div className="text-[10px] text-zinc-600">strategy performance source: {ai.strategy_performance_source}</div>
+        )}
+      </SectionCard>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
@@ -198,6 +405,10 @@ export default function PaperTradingValidation() {
           </Button>
         </div>
       </div>
+
+      {/* Aggregated dashboard — always available (canonical stores, not the
+          optional validation collector) */}
+      <ValidationDashboardSections />
 
       {isDisabled && <DisabledBanner message={session?.message} />}
 

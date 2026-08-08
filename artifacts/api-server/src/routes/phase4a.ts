@@ -96,6 +96,47 @@ const wrap = (fn: (req: any, res: any) => Promise<void>) =>
     }
   };
 
+// ── Section 0: Aggregated dashboard ──────────────────────────────────────────
+
+/** GET /phase4a/dashboard — scanner/market-data/risk/positions/pending/
+ *  previous-session tiles + monitor extras + decision distribution + pipeline.
+ *  All values derive from the scan snapshot, phase20 ledger, replay store and
+ *  portfolio store (see phase4a_dashboard.py). */
+let dashCache: { at: number; data: unknown } | null = null;
+let dashInflight: Promise<unknown> | null = null;
+const DASH_TTL_MS = 30_000;
+
+router.get("/phase4a/dashboard", wrap(async (_req, res) => {
+  if (dashCache && Date.now() - dashCache.at < DASH_TTL_MS) {
+    return res.json(dashCache.data);
+  }
+  if (dashInflight) {
+    return res.json(await dashInflight);
+  }
+  dashInflight = new Promise((resolve, reject) => {
+    const proc = spawn(PYTHON_BIN, [path.join(PYTHON_DIR, "main.py"), "phase4a_dashboard"], {
+      cwd: PYTHON_DIR, env: process.env,
+    });
+    let out = ""; let err = "";
+    const timer = setTimeout(() => { proc.kill("SIGTERM"); reject(new Error("dashboard timed out")); }, 60_000);
+    proc.stdout.on("data", (d: Buffer) => { out += d.toString(); });
+    proc.stderr.on("data", (d: Buffer) => { err += d.toString(); });
+    proc.on("close", () => {
+      clearTimeout(timer);
+      try { resolve(JSON.parse(out)); }
+      catch { reject(new Error(err.slice(0, 400) || "invalid dashboard JSON")); }
+    });
+    proc.on("error", (e) => { clearTimeout(timer); reject(e); });
+  });
+  try {
+    const data = await dashInflight;
+    dashCache = { at: Date.now(), data };
+    res.json(data);
+  } finally {
+    dashInflight = null;
+  }
+}));
+
 // ── Section 1: Pre-Market ─────────────────────────────────────────────────────
 
 /** GET /phase4a/premarket

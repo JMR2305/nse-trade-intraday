@@ -181,8 +181,19 @@ function MonitorPanel() {
     staleTime: 25_000,
   });
   const stream = useLiveStream();
+  const { data: dash } = useOpsDashboard();
+  const mon = dash?.monitor ?? {};
   const ts = dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString("en-IN") : "—";
   const recs = data?.ai_recommendations ?? {};
+  const freshness = data?.market_data_freshness_s ?? mon.freshness_s;
+  const scannerLatencyMs = data?.scanner_latency_ms ??
+    (mon.scanner_latency_s != null ? Math.round(mon.scanner_latency_s * 1000) : null);
+  const realisedPnl = data?.realised_pnl ?? mon.realized_pnl_today;
+  const apiMs = data?.api_latency_ms ?? (mon.api_response_ms != null ? Math.round(mon.api_response_ms) : null);
+  const paperOrders = data?.paper_orders ?? mon.paper_orders_today;
+  const riskBlocks = data?.risk_blocks ?? mon.risk_blocks;
+  const memMb = data?.memory_rss_mb ?? mon.memory_used_mb;
+  const cpuPct = data?.cpu_pct ?? mon.cpu_pct;
 
   return (
     <Card className="bg-[#0d1829] border-slate-700">
@@ -213,28 +224,28 @@ function MonitorPanel() {
         <div className="grid grid-cols-2 gap-2 mt-3 sm:grid-cols-4 lg:grid-cols-7">
           <MetricCard
             label="Freshness"
-            value={data?.market_data_freshness_s !== null ? `${data?.market_data_freshness_s ?? "—"}s` : "—"}
+            value={freshness != null ? `${freshness}s` : null}
             icon={<Clock className="h-3 w-3" />}
             color={
-              data?.market_data_freshness_s != null
-                ? data.market_data_freshness_s < 300 ? "text-emerald-400" : "text-amber-400"
+              freshness != null
+                ? freshness < 300 ? "text-emerald-400" : "text-amber-400"
                 : "text-slate-400"
             }
           />
           <MetricCard
             label="Scanner Latency"
-            value={data?.scanner_latency_ms}
+            value={scannerLatencyMs}
             unit="ms"
             icon={<Zap className="h-3 w-3" />}
             color={
-              data?.scanner_latency_ms != null
-                ? data.scanner_latency_ms < 30000 ? "text-emerald-400" : "text-amber-400"
+              scannerLatencyMs != null
+                ? scannerLatencyMs < 30000 ? "text-emerald-400" : "text-amber-400"
                 : "text-slate-400"
             }
           />
           <MetricCard
             label="Signals"
-            value={data?.signals_generated}
+            value={data?.signals_generated ?? mon.signals_generated}
             icon={<BarChart2 className="h-3 w-3" />}
             color="text-sky-400"
           />
@@ -243,7 +254,9 @@ function MonitorPanel() {
             value={
               data?.ai_recommendations
                 ? `${recs.BUY ?? 0} / ${recs.WATCH ?? 0}`
-                : "—"
+                : dash?.decision_distribution
+                ? `${dash.decision_distribution.buy ?? 0} / ${dash.decision_distribution.watch ?? 0}`
+                : null
             }
             icon={<Brain className="h-3 w-3" />}
             color="text-violet-400"
@@ -251,43 +264,44 @@ function MonitorPanel() {
           <MetricCard
             label="Portfolio ₹"
             value={
-              data?.portfolio_value != null
-                ? `₹${Number(data.portfolio_value).toFixed(0)}`
-                : "—"
+              (data?.portfolio_value ?? mon.portfolio_value) != null
+                ? `₹${Number(data?.portfolio_value ?? mon.portfolio_value).toFixed(0)}`
+                : null
             }
             icon={<TrendingUp className="h-3 w-3" />}
             color="text-teal-400"
           />
           <MetricCard
             label="Realised P&L"
-            value={
-              data?.realised_pnl != null ? `₹${Number(data.realised_pnl).toFixed(2)}` : "—"
-            }
+            value={realisedPnl != null ? `₹${Number(realisedPnl).toFixed(2)}` : null}
             icon={<BarChart2 className="h-3 w-3" />}
             color={
-              data?.realised_pnl != null
-                ? data.realised_pnl >= 0 ? "text-emerald-400" : "text-red-400"
+              realisedPnl != null
+                ? realisedPnl >= 0 ? "text-emerald-400" : "text-red-400"
                 : "text-slate-400"
             }
           />
           <MetricCard
-            label="API p95"
-            value={data?.api_latency_ms}
+            label="API Response"
+            value={apiMs}
             unit="ms"
             icon={<Activity className="h-3 w-3" />}
             color={
-              data?.api_latency_ms != null
-                ? data.api_latency_ms < 200 ? "text-emerald-400" : "text-amber-400"
+              apiMs != null
+                ? apiMs < 200 ? "text-emerald-400" : "text-amber-400"
                 : "text-slate-400"
             }
           />
         </div>
-        <div className="grid grid-cols-2 gap-2 mt-2 sm:grid-cols-4">
-          <MetricCard label="Paper Orders" value={data?.paper_orders} icon={<BookOpen className="h-3 w-3" />} />
-          <MetricCard label="Risk Blocks" value={data?.risk_blocks}
-            color={data?.risk_blocks ? "text-red-400" : "text-emerald-400"} />
-          <MetricCard label="Memory" value={data?.memory_rss_mb} unit="MB" />
-          <MetricCard label="CPU" value={data?.cpu_pct} unit="%" />
+        <div className="grid grid-cols-2 gap-2 mt-2 sm:grid-cols-4 lg:grid-cols-7">
+          <MetricCard label="Paper Orders" value={paperOrders} icon={<BookOpen className="h-3 w-3" />} />
+          <MetricCard label="Risk Blocks" value={riskBlocks}
+            color={riskBlocks ? "text-red-400" : "text-emerald-400"} />
+          <MetricCard label="Memory" value={memMb} unit="MB" />
+          <MetricCard label="CPU" value={cpuPct} unit="%" />
+          <MetricCard label="Queue Depth" value={mon.queue_depth} />
+          <MetricCard label="Decision Time" value={mon.decision_time_s} unit="s" />
+          <MetricCard label="Execution Time" value={mon.execution_time_s} unit="s" />
         </div>
         {data && (
           <div className="mt-2 text-xs text-slate-500 flex gap-4">
@@ -808,6 +822,212 @@ function SafetyValidationStrip() {
   );
 }
 
+// ── Operations Dashboard (scanner / market data / risk / positions / pending /
+//    previous session tiles + pipeline summary) — GET /phase4a/dashboard ───────
+
+function useOpsDashboard() {
+  return useQuery<any>({
+    queryKey: ["phase4a", "dashboard"],
+    queryFn: () => apiJson("/phase4a/dashboard"),
+    refetchInterval: 60_000,
+    staleTime: 55_000,
+  });
+}
+
+function TileRow({ label, value, cls }: { label: string; value: any; cls?: string }) {
+  const display = value === null || value === undefined || value === "" ? "—" : String(value);
+  return (
+    <div className="flex justify-between gap-2 text-xs py-0.5">
+      <span className="text-slate-500">{label}</span>
+      <span className={`font-mono text-right ${cls ?? "text-slate-200"}`}>{display}</span>
+    </div>
+  );
+}
+
+function Tile({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <Card className="bg-[#0d1829] border-slate-700">
+      <CardHeader className="py-2.5">
+        <CardTitle className="text-slate-200 text-sm flex items-center gap-2">
+          {icon} {title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pb-3">{children}</CardContent>
+    </Card>
+  );
+}
+
+function OperationsDashboard() {
+  const { data, isLoading, error } = useOpsDashboard();
+  if (isLoading) {
+    return <div className="text-slate-500 text-sm p-2">Loading operations dashboard…</div>;
+  }
+  if (error || !data) {
+    return (
+      <div className="text-red-400 text-sm p-2 border border-red-800/40 rounded bg-red-950/20">
+        Operations dashboard failed to load: {(error as any)?.message ?? "no data"}
+      </div>
+    );
+  }
+  const sc = data.scanner ?? {};
+  const md = data.market_data ?? {};
+  const re = data.risk_engine ?? {};
+  const op = data.open_positions ?? {};
+  const pt = data.pending_trades ?? {};
+  const ps = data.previous_session ?? {};
+  const dd = data.decision_distribution ?? {};
+  const pipeline: any[] = data.pipeline ?? [];
+  const rupee = (v: any) => (v === null || v === undefined ? "—" : `₹${Number(v).toFixed(0)}`);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <Tile title="Scanner" icon={<Zap className="h-4 w-4 text-teal-400" />}>
+          <TileRow label="Universe Source" value={sc.universe_source} />
+          <TileRow label="Symbols Loaded" value={sc.symbols_loaded} />
+          <TileRow label="Symbols Scanned" value={sc.symbols_scanned} />
+          <TileRow label="Symbols Passed" value={sc.symbols_passed} cls="text-emerald-400" />
+          <TileRow label="Symbols Rejected" value={sc.symbols_rejected} cls="text-amber-400" />
+          <TileRow label="Scan Duration" value={sc.scan_duration_s != null ? `${sc.scan_duration_s}s` : null} />
+          <TileRow label="Scan Timestamp" value={sc.scan_timestamp} />
+          <TileRow label="Data Freshness" value={sc.data_freshness_s != null ? `${Math.round(sc.data_freshness_s / 60)}m ago` : null}
+            cls={sc.data_freshness_s != null && sc.data_freshness_s < 3600 ? "text-emerald-400" : "text-amber-400"} />
+        </Tile>
+
+        <Tile title="Market Data" icon={<Activity className="h-4 w-4 text-teal-400" />}>
+          <TileRow label="Zerodha Status" value={md.zerodha_status}
+            cls={md.zerodha_status === "CONNECTED" ? "text-emerald-400" : "text-amber-400"} />
+          <TileRow label="Yahoo Status" value={md.yahoo_status}
+            cls={md.yahoo_status === "OK" ? "text-emerald-400" : "text-amber-400"} />
+          <TileRow label="NSE Status" value={md.nse_status} />
+          <TileRow label="Missing Symbols" value={md.missing_symbols}
+            cls={md.missing_symbols ? "text-amber-400" : "text-emerald-400"} />
+          <TileRow label="Failed Requests" value={md.failed_requests}
+            cls={md.failed_requests ? "text-amber-400" : "text-emerald-400"} />
+          <TileRow label="Last Tick Age" value={md.last_tick_age_s != null ? `${Math.round(md.last_tick_age_s / 60)}m` : null} />
+          <TileRow label="Data Latency" value={md.data_latency_ms != null ? `${Math.round(md.data_latency_ms)}ms avg` : null} />
+          <TileRow label="Coverage" value={md.symbol_coverage_pct != null ? `${md.symbol_coverage_pct}%` : null} />
+        </Tile>
+
+        <Tile title="Risk Engine" icon={<Shield className="h-4 w-4 text-teal-400" />}>
+          <TileRow label="Candidates Received" value={re.candidates_received} />
+          <TileRow label="Candidates Approved" value={re.candidates_approved} cls="text-emerald-400" />
+          <TileRow label="Candidates Rejected" value={re.candidates_rejected} cls="text-amber-400" />
+          <TileRow label="Top Rejection Reason" value={re.top_rejection_reason} />
+          <TileRow label="Avg R:R Ratio" value={re.avg_rr_ratio} />
+          <TileRow label="Avg Opportunity Score" value={re.avg_opportunity_score} />
+          <TileRow label="Risk Processing Time" value={re.processing_time_s != null ? `${re.processing_time_s}s` : null} />
+        </Tile>
+
+        <Tile title="Open Positions" icon={<BookOpen className="h-4 w-4 text-teal-400" />}>
+          <TileRow label="Open Positions" value={op.count} />
+          <TileRow label="Exposure" value={rupee(op.exposure)} />
+          <TileRow label="Capital Used" value={op.capital_used_pct != null ? `${op.capital_used_pct}%` : null} />
+          <TileRow label="Largest Position" value={op.largest_position} />
+          <TileRow label="Unrealized P&L" value={op.unrealized_pnl != null ? `₹${Number(op.unrealized_pnl).toFixed(2)}` : op.unrealized_note}
+            cls={op.unrealized_pnl != null ? (op.unrealized_pnl >= 0 ? "text-emerald-400" : "text-red-400") : "text-amber-400"} />
+          {op.sector_exposure && Object.keys(op.sector_exposure).length > 0 && (
+            <div className="mt-1 pt-1 border-t border-slate-800">
+              <div className="text-[10px] text-slate-500 uppercase mb-0.5">Sector Exposure</div>
+              {Object.entries(op.sector_exposure).map(([k, v]: any) => (
+                <TileRow key={k} label={k} value={rupee(v)} />
+              ))}
+            </div>
+          )}
+          {op.mark_source && <div className="text-[10px] text-slate-600 mt-1">marks: {op.mark_source}</div>}
+        </Tile>
+
+        <Tile title="Pending Trades" icon={<Clock className="h-4 w-4 text-teal-400" />}>
+          <TileRow label="BUY Pending" value={pt.buy_pending} cls={pt.buy_pending ? "text-sky-400" : undefined} />
+          <TileRow label="SELL Pending" value={pt.sell_pending} cls={pt.sell_pending ? "text-amber-400" : undefined} />
+          <TileRow label="Cancelled" value={pt.cancelled} />
+          <TileRow label="Expired" value={pt.expired} />
+          <TileRow label="Rejected" value={pt.rejected} cls={pt.rejected ? "text-red-400" : undefined} />
+          {pt.buy_pending_note && <div className="text-[10px] text-slate-600 mt-1">{pt.buy_pending_note}</div>}
+          {(pt.rejected_detail ?? []).slice(0, 3).map((b: any) => (
+            <div key={b.symbol} className="text-[10px] text-red-400/80 mt-0.5">
+              {b.symbol}: {(b.reasons ?? []).join(", ")}
+            </div>
+          ))}
+        </Tile>
+
+        <Tile title="Previous Session" icon={<BarChart2 className="h-4 w-4 text-teal-400" />}>
+          <TileRow label="Yesterday" value={ps.date ?? ps.note} />
+          <TileRow label="Trades" value={ps.trades} />
+          <TileRow label="Win Rate" value={ps.win_rate_pct != null ? `${ps.win_rate_pct}%` : ps.exits === 0 ? "no exits" : null} />
+          <TileRow label="Net P&L" value={ps.net_pnl != null ? `₹${Number(ps.net_pnl).toFixed(2)}` : null}
+            cls={ps.net_pnl > 0 ? "text-emerald-400" : ps.net_pnl < 0 ? "text-red-400" : undefined} />
+          <TileRow label="Largest Winner" value={ps.largest_winner != null ? `₹${ps.largest_winner}` : "none closed"} />
+          <TileRow label="Largest Loser" value={ps.largest_loser != null ? `₹${ps.largest_loser}` : "none closed"} />
+          <TileRow label="Average Hold Time" value={ps.avg_hold_minutes != null ? `${ps.avg_hold_minutes}m` : "no exits"} />
+        </Tile>
+      </div>
+
+      {/* Decision distribution */}
+      <Card className="bg-[#0d1829] border-slate-700">
+        <CardHeader className="py-2.5">
+          <CardTitle className="text-slate-200 text-sm flex items-center gap-2">
+            <Brain className="h-4 w-4 text-violet-400" /> Decision Distribution — scan {data.scan_id}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pb-3">
+          <div className="grid grid-cols-5 gap-2">
+            <MetricCard label="BUY" value={dd.buy} color="text-emerald-400" />
+            <MetricCard label="WATCH" value={dd.watch} color="text-sky-400" />
+            <MetricCard label="SELL" value={dd.sell} color="text-amber-400" />
+            <MetricCard label="AVOID" value={dd.avoid} color="text-red-400" />
+            <MetricCard label="TOTAL" value={dd.total} color="text-slate-200" />
+          </div>
+          {dd.sell_note && <div className="text-[10px] text-slate-600 mt-1">SELL = {dd.sell_note}</div>}
+        </CardContent>
+      </Card>
+
+      {/* Pipeline summary */}
+      <Card className="bg-[#0d1829] border-slate-700">
+        <CardHeader className="py-2.5">
+          <CardTitle className="text-slate-200 text-sm flex items-center gap-2">
+            <Zap className="h-4 w-4 text-teal-400" /> Pipeline Summary
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pb-3 overflow-x-auto">
+          {pipeline.length === 0 ? (
+            <div className="text-slate-500 text-xs">No replay snapshot available for the current scan.</div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="border-slate-800">
+                  <TableHead className="text-slate-400 text-xs">Stage</TableHead>
+                  <TableHead className="text-slate-400 text-xs text-right">Input</TableHead>
+                  <TableHead className="text-slate-400 text-xs text-right">Passed</TableHead>
+                  <TableHead className="text-slate-400 text-xs text-right">Rejected</TableHead>
+                  <TableHead className="text-slate-400 text-xs text-right">Pending</TableHead>
+                  <TableHead className="text-slate-400 text-xs text-right">Cancelled</TableHead>
+                  <TableHead className="text-slate-400 text-xs text-right">Processing Time</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pipeline.map((s) => (
+                  <TableRow key={s.id} className="border-slate-800/60">
+                    <TableCell className="text-slate-200 text-xs py-1.5">{s.label}</TableCell>
+                    <TableCell className="text-right font-mono text-xs py-1.5 text-slate-300">{s.input}</TableCell>
+                    <TableCell className="text-right font-mono text-xs py-1.5 text-emerald-400">{s.passed}</TableCell>
+                    <TableCell className="text-right font-mono text-xs py-1.5 text-amber-400">{s.rejected}</TableCell>
+                    <TableCell className="text-right font-mono text-xs py-1.5 text-slate-300">{s.pending}</TableCell>
+                    <TableCell className="text-right font-mono text-xs py-1.5 text-slate-300">{s.cancelled}</TableCell>
+                    <TableCell className="text-right font-mono text-xs py-1.5 text-slate-400">
+                      {s.processing_time_s != null ? `${s.processing_time_s}s` : "—"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function Phase4ASession() {
@@ -835,6 +1055,9 @@ export default function Phase4ASession() {
 
       {/* Section 2: Live Monitor */}
       <MonitorPanel />
+
+      {/* Section 2b: Operations Dashboard tiles + decision distribution + pipeline */}
+      <OperationsDashboard />
 
       {/* Section 3: Trade Journal */}
       <TradeJournalTable />
