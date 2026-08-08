@@ -12,6 +12,13 @@
  * GET  /api/backtest/candles             — cached candles (chart/replay)
  * GET  /api/backtest/cache               — candle cache stats
  *
+ * Phase 23 Parts 4/5 (read-only over the canonical event store):
+ * GET  /api/backtest/run/:id/replay      — synchronized replay bundle
+ * GET  /api/backtest/run/:id/story/:tradeId — trade story timeline
+ * GET  /api/backtest/run/:id/explain/:symbol — why BUY / why REJECT
+ * GET  /api/backtest/run/:id/search?q=   — global search (trades + events)
+ * GET  /api/backtest/run/:id/replay-verify — replay integrity verification
+ *
  * Backtest events are served by the existing /api/pipeline/events with
  * mode=BACKTEST&run_id=... — one canonical event store for both modes.
  */
@@ -135,6 +142,59 @@ router.get("/backtest/run/:id/decision/:symbol", async (req, res) => {
         JSON.stringify({ id: req.params.id, symbol: req.params.symbol, mode: "BACKTEST" }),
       ]),
     );
+  } catch (err) {
+    fail(res, err);
+  }
+});
+
+router.get("/backtest/run/:id/replay", async (req, res) => {
+  try {
+    res.json(await runPython(["backtest_replay_bundle", JSON.stringify({ run_id: req.params.id })], 180_000));
+  } catch (err) {
+    fail(res, err);
+  }
+});
+
+router.get("/backtest/run/:id/story/:tradeId", async (req, res) => {
+  try {
+    res.json(
+      await runPython(["backtest_trade_story", JSON.stringify({ run_id: req.params.id, trade_id: req.params.tradeId })]),
+    );
+  } catch (err) {
+    fail(res, err);
+  }
+});
+
+router.get("/backtest/run/:id/explain/:symbol", async (req, res) => {
+  try {
+    res.json(
+      await runPython([
+        "backtest_explain",
+        JSON.stringify({
+          run_id: req.params.id,
+          symbol: req.params.symbol,
+          scan_id: req.query.scan_id ? String(req.query.scan_id) : undefined,
+        }),
+      ]),
+    );
+  } catch (err) {
+    fail(res, err);
+  }
+});
+
+router.get("/backtest/run/:id/search", async (req, res) => {
+  try {
+    res.json(
+      await runPython(["backtest_search", JSON.stringify({ run_id: req.params.id, q: String(req.query.q || "") })]),
+    );
+  } catch (err) {
+    fail(res, err);
+  }
+});
+
+router.get("/backtest/run/:id/replay-verify", async (req, res) => {
+  try {
+    res.json(await runPython(["backtest_replay_verify", JSON.stringify({ run_id: req.params.id })], 180_000));
   } catch (err) {
     fail(res, err);
   }

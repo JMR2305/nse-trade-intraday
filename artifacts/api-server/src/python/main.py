@@ -2166,6 +2166,27 @@ def main():
             result = decision_tree(str(p.get("id") or ""),
                                    str(p.get("symbol") or ""),
                                    mode=str(p.get("mode") or "BACKTEST"))
+        elif command == "backtest_replay_bundle":
+            from backtest_replay import replay_bundle
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = replay_bundle(str(p.get("run_id")))
+        elif command == "backtest_trade_story":
+            from backtest_replay import trade_story
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = trade_story(str(p.get("run_id")), str(p.get("trade_id")))
+        elif command == "backtest_explain":
+            from backtest_replay import explain
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = explain(str(p.get("run_id")), str(p.get("symbol") or ""),
+                             scan_id=p.get("scan_id") or None)
+        elif command == "backtest_search":
+            from backtest_replay import search
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = search(str(p.get("run_id")), str(p.get("q") or ""))
+        elif command == "backtest_replay_verify":
+            from backtest_replay import replay_verify
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = replay_verify(str(p.get("run_id")))
         elif command == "backtest_validate":
             from backtest_runner import validate_run
             p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}

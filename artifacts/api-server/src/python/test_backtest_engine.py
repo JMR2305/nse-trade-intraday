@@ -262,5 +262,192 @@ class TestEndToEndRun(BacktestEngineTestBase):
                 self.assertIn("failed_gates", e["payload"])  # exact rules
 
 
+class TestReplayExplorer(BacktestEngineTestBase):
+    """Phase 23 Parts 4/5 — replay bundle, trade story, explain, search,
+    replay integrity. The explorer layer is READ-ONLY over the canonical
+    stores, so these tests build a deterministic synthetic run (events +
+    ledger + candles) instead of depending on live pipeline thresholds.
+    Pipeline equivalence itself is proven by validate_run above."""
+
+    def _seed_store_run(self):
+        candles = _make_candles("2026-02-02", 3, base=100.0, drift=2.0)
+        hde._store_candles("SYN", "1d", candles)
+        hde._store_candles("REJ", "1d",
+                           _make_candles("2026-02-02", 3, base=50.0,
+                                         drift=1.0))
+        tl = [c["ts"] for c in candles]
+        rid = bp.create_run({"interval": "1d", "start": tl[0][:10],
+                             "end": tl[-1][:10], "capital": 100000.0,
+                             "symbols": ["SYN", "REJ"]})
+        sid = [f"{rid}-T{i:05d}" for i in range(3)]
+
+        def ev(et, stage, i, sym=None, payload=None):
+            pe.emit(et, stage, scan_id=sid[i], mode="BACKTEST", run_id=rid,
+                    symbol=sym, payload=payload or {})
+
+        # tick 0: full BUY chain for SYN + rejection for REJ
+        ev("SCAN_STARTED", "SUPERVISOR", 0)
+        ev("SYMBOL_SCANNED", "SCANNER", 0, "SYN",
+           {"rsi": 61.0, "adx": 28.0, "volume_ratio": 1.4,
+            "data_quality": "LIVE", "bars": 200})
+        ev("RESEARCH_COMPLETED", "RESEARCH", 0, "SYN",
+           {"win_rate": 60.0, "profit_factor": 2.0, "total_trades": 10,
+            "low_evidence": False})
+        ev("MARKET_INTELLIGENCE_COMPLETED", "MARKET_INTELLIGENCE", 0, "SYN",
+           {"regime": "TRENDING", "sector": "IT"})
+        ev("MONITORING_COMPLETED", "MONITORING", 0, "SYN",
+           {"above_ema20": True, "above_ema50": True})
+        ev("STRATEGY_SELECTED", "STRATEGY", 0, "SYN",
+           {"strategy_id": "trend", "strategy_name": "Trend Rider",
+            "technical_score": 72.0})
+        ev("RISK_APPROVED", "RISK", 0, "SYN",
+           {"gates": {"rr": {"passed": True, "reason": "RR 2.0 ok"}},
+            "rr_ratio": 2.0})
+        ev("BUY_GENERATED", "AI_DECISION", 0, "SYN",
+           {"action": "BUY", "confidence": 71.0, "opportunity_score": 68.0,
+            "paper_eligible": True})
+        tid = bp.open_trade({
+            "run_id": rid, "scan_id": sid[0], "symbol": "SYN",
+            "strategy_id": "trend", "strategy_name": "Trend Rider",
+            "signal_ts": tl[0], "fill_ts": tl[0], "signal_price": 100.0,
+            "fill_price": 100.2, "quantity": 10, "stop_loss": 96.0,
+            "target": 108.0, "est_charges": 1.2, "slippage": 0.2,
+            "confidence": 71.0, "opportunity_score": 68.0,
+            "regime": "TRENDING"})
+        ev("ORDER_SUBMITTED", "EXECUTION", 0, "SYN",
+           {"qty": 10, "signal_price": 100.0, "fill_model": "next_open"})
+        ev("ORDER_EXECUTED", "EXECUTION", 0, "SYN",
+           {"trade_id": tid, "fill_price": 100.2, "qty": 10,
+            "charges": 1.2, "slippage": 0.2})
+        ev("POSITION_OPENED", "PORTFOLIO", 0, "SYN",
+           {"trade_id": tid, "stop_loss": 96.0, "target": 108.0,
+            "strategy": "Trend Rider"})
+        ev("SYMBOL_SCANNED", "SCANNER", 0, "REJ",
+           {"rsi": 40.0, "adx": 12.0, "volume_ratio": 0.4,
+            "data_quality": "LIVE", "bars": 200})
+        ev("RISK_REJECTED", "RISK", 0, "REJ",
+           {"failed_gates": {"volume": {"passed": False,
+                                        "reason": "Volume ratio 0.4 < 0.75",
+                                        "threshold": 0.75, "value": 0.4}},
+            "rr_ratio": 1.1, "confidence": 44.0})
+        ev("PORTFOLIO_UPDATED", "PORTFOLIO", 0, None,
+           {"cash": 98996.8, "portfolio_value": 99998.8,
+            "open_positions": 1, "realized_pnl": 0.0})
+        # tick 1: quiet tick
+        ev("SYMBOL_SCANNED", "SCANNER", 1, "SYN",
+           {"rsi": 60.0, "adx": 27.0, "volume_ratio": 1.2,
+            "data_quality": "LIVE", "bars": 201})
+        ev("PORTFOLIO_UPDATED", "PORTFOLIO", 1, None,
+           {"cash": 98996.8, "portfolio_value": 100016.8,
+            "open_positions": 1, "realized_pnl": 0.0})
+        # tick 2: exit
+        bp.close_trade(tid, tl[2], 108.0, "TARGET")
+        ev("SELL_GENERATED", "AI_DECISION", 2, "SYN",
+           {"reason": "TARGET", "trade_id": tid})
+        ev("POSITION_CLOSED", "PORTFOLIO", 2, "SYN",
+           {"trade_id": tid, "exit_rule": "TARGET", "exit_price": 108.0,
+            "realized_pnl": 76.8})
+        ev("PORTFOLIO_UPDATED", "PORTFOLIO", 2, None,
+           {"cash": 100076.8, "portfolio_value": 100076.8,
+            "open_positions": 0, "realized_pnl": 76.8})
+        bp.update_run(
+            rid, status="COMPLETED",
+            metrics={"ticks": 3, "symbols": 2, "cash": 100076.8,
+                     "portfolio_value": 100076.8, "realized_pnl": 76.8,
+                     "total_trades": 1, "wins": 1, "losses": 0},
+            validation={"verdict": "MATCH", "checked": 1, "mismatches": []})
+        return rid, tid
+
+    def test_replay_bundle_synchronized(self):
+        import backtest_replay as brp
+        rid, tid = self._seed_store_run()
+        b = brp.replay_bundle(rid)
+        self.assertTrue(b["ok"], b)
+        self.assertEqual(len(b["timeline"]), 3)
+        self.assertEqual(b["stage_order"], pe.STAGES)
+        for row in b["ticks"]:
+            self.assertLess(row["tick"], len(b["timeline"]))
+            self.assertEqual(row["ts"], b["timeline"][row["tick"]])
+            self.assertTrue(row["stages"])
+        t0 = next(r for r in b["ticks"] if r["tick"] == 0)
+        self.assertEqual(len(t0["buys"]), 1)
+        self.assertEqual(t0["stages"]["RISK"]["rejected"], 1)
+        self.assertEqual(t0["portfolio"]["open_positions"], 1)
+        t2 = next(r for r in b["ticks"] if r["tick"] == 2)
+        self.assertEqual(len(t2["sells"]), 1)
+        self.assertEqual(len(b["trade_markers"]), 1)
+        self.assertEqual(b["trade_markers"][0]["entry_tick"], 0)
+        self.assertEqual(b["trade_markers"][0]["exit_tick"], 2)
+
+    def test_trade_story_narrative(self):
+        import backtest_replay as brp
+        rid, tid = self._seed_store_run()
+        s = brp.trade_story(rid, tid)
+        self.assertTrue(s["ok"], s)
+        types = [st["event_type"] for st in s["steps"]]
+        for et in ("SYMBOL_SCANNED", "STRATEGY_SELECTED", "RISK_APPROVED",
+                   "BUY_GENERATED", "ORDER_EXECUTED", "POSITION_OPENED",
+                   "POSITION_CLOSED"):
+            self.assertIn(et, types)
+        self.assertEqual(s["entry_tick"], 0)
+        self.assertEqual(s["exit_tick"], 2)
+        ticks = [st["tick"] for st in s["steps"]]
+        self.assertEqual(ticks, sorted(ticks))
+        self.assertFalse(brp.trade_story(rid, "NOPE")["ok"])
+
+    def test_explain_buy_and_reject(self):
+        import backtest_replay as brp
+        rid, tid = self._seed_store_run()
+        ex = brp.explain(rid, "SYN")
+        self.assertTrue(ex["ok"], ex)
+        self.assertEqual(ex["verdict"], "BUY")
+        self.assertEqual(ex["indicators"]["rsi"], 61.0)
+        self.assertEqual(ex["confidence_breakdown"]["final_confidence"], 71.0)
+        self.assertEqual(ex["target"], 108.0)
+        self.assertEqual(ex["stop_loss"], 96.0)
+        self.assertAlmostEqual(ex["expected_reward_pct"], 7.78, places=2)
+        self.assertEqual(ex["position_size_calc"]["qty"], 10)
+        rej = brp.explain(rid, "REJ")
+        self.assertTrue(rej["ok"], rej)
+        self.assertEqual(rej["verdict"], "REJECTED")
+        gate = rej["rejection"]["failed_gates"]["volume"]
+        self.assertEqual(gate["threshold"], 0.75)   # exact rule preserved
+        self.assertEqual(gate["value"], 0.4)
+        self.assertTrue(rej["relax_analysis"]["available"])
+        self.assertIn("would_relaxing_have_helped", rej["relax_analysis"])
+        # unknown symbol fails loudly, never fabricates
+        self.assertFalse(brp.explain(rid, "GHOST")["ok"])
+
+    def test_search_finds_trades_and_events(self):
+        import backtest_replay as brp
+        rid, tid = self._seed_store_run()
+        r = brp.search(rid, tid)
+        self.assertEqual(len(r["trades"]), 1)
+        self.assertTrue(r["events"])          # events carry the trade_id too
+        r2 = brp.search(rid, "trend rider")
+        self.assertTrue(r2["trades"])
+        self.assertEqual(brp.search(rid, "")["trades"], [])
+
+    def test_replay_verify_pass_and_fail(self):
+        import backtest_replay as brp
+        rid, tid = self._seed_store_run()
+        v = brp.replay_verify(rid)
+        self.assertTrue(v["ok"], v)
+        self.assertEqual(v["verdict"], "PASS",
+                         [c for c in v["checks"] if c["status"] != "PASS"])
+        names = {c["check"] for c in v["checks"]}
+        for n in ("no_duplicate_events", "ticks_within_timeline",
+                  "execution_matches_ledger", "fill_prices_match_ledger",
+                  "portfolio_matches_replay", "decision_matches_backtest"):
+            self.assertIn(n, names)
+        # tamper with the ledger copy → verification must FAIL, not mask it
+        rows = bp._load(bp._TRADES_FILE)
+        rows[0]["fill_price"] = float(rows[0]["fill_price"]) + 50.0
+        with open(bp._TRADES_FILE, "w") as f:
+            json.dump(rows, f)
+        v2 = brp.replay_verify(rid)
+        self.assertEqual(v2["verdict"], "FAIL")
+
+
 if __name__ == "__main__":
     unittest.main()

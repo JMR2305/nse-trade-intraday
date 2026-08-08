@@ -1,15 +1,17 @@
 /**
- * InvestigationCenter.tsx — Phase 23 Parts 2/3: Historical Backtest Engine +
- * AI Investigation Center (the AI debugger).
+ * InvestigationCenter.tsx — Phase 23 Parts 2–5: Historical Backtest Engine +
+ * AI Investigation Center + Advanced Replay Engine + AI Decision Explorer.
  *
  * Everything renders from the canonical stores:
  *   * /api/backtest/*          — runs, isolated backtest portfolio, trades,
- *                                missed opportunities, validation, candles
+ *                                missed opportunities, validation, candles,
+ *                                replay bundle, trade stories, explanations,
+ *                                search, replay-integrity verification
  *   * /api/pipeline/events     — BACKTEST-mode events (same store as LIVE)
  *
- * Replay is client-side over the run's candle timeline: play/pause,
- * prev/next candle, 1x/5x/20x speeds and jump-to-time. The decision tree,
- * event timeline and chart marker all follow the replay cursor.
+ * The replay cursor is a TICK index over the run's union timeline (from the
+ * replay bundle) — chart, animated pipeline, portfolio, trade list, event
+ * feed and decision tree are all synchronized to the same tick.
  *
  * BACKTEST — SIMULATED, ISOLATED FROM LIVE. No live ledger data on this page.
  */
@@ -21,9 +23,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  AlertTriangle, Ban, CheckCircle2, ChevronLeft, ChevronRight, Clock,
-  FlaskConical, History, Pause, Play, ShieldCheck, ShieldX, SkipBack,
-  SkipForward, Wallet, XCircle,
+  AlertTriangle, Ban, BookOpen, CheckCircle2, ChevronLeft, ChevronRight,
+  Clock, FlaskConical, History, Pause, Play, Search, ShieldCheck, ShieldX,
+  Square, SkipBack, SkipForward, Wallet, XCircle, Zap,
 } from "lucide-react";
 
 const LABEL = "BACKTEST — SIMULATED, ISOLATED FROM LIVE";
@@ -73,7 +75,8 @@ interface MissedOpp {
 }
 
 interface ValidationResult {
-  ok: boolean; checked: number; verdict?: string;
+  ok: boolean; checked: number; skipped?: number; verdict?: string;
+  learning_state_changed?: boolean;
   mismatches: Array<{ symbol: string; time: string; expected_decision: string; actual_decision: string; reason: string }>;
 }
 
@@ -84,12 +87,66 @@ interface DecisionTree {
   total_events: number;
 }
 
+interface StageCounter { in: number; out: number; rejected: number; cancelled: number; events: number }
+
+interface ReplayTick {
+  tick: number; ts: string | null;
+  stages: Record<string, StageCounter>;
+  portfolio: { cash?: number; portfolio_value?: number; open_positions?: number; realized_pnl?: number } | null;
+  decisions: Array<{ symbol: string | null; action?: string; confidence?: number }>;
+  buys: Array<{ symbol: string | null; trade_id?: string; fill_price?: number; qty?: number }>;
+  sells: Array<{ symbol: string | null; trade_id?: string; exit_rule?: string; exit_price?: number; realized_pnl?: number }>;
+  rejected: Array<{ symbol: string; type: string }>;
+  processing_ms: number | null;
+}
+
+interface ReplayBundle {
+  ok: boolean; run_id: string; timeline: string[]; stage_order: string[];
+  ticks: ReplayTick[];
+  trade_markers: Array<{ trade_id: string; symbol: string; strategy?: string | null; entry_tick: number | null; exit_tick: number | null; realized_pnl?: number | null; status?: string }>;
+  total_events: number;
+}
+
+interface TradeStory {
+  ok: boolean; trade: BacktestTrade; entry_tick: number | null; exit_tick: number | null;
+  steps: Array<{ tick: number; ts: string; event_type: string; stage: string; label: string; detail: Record<string, unknown> }>;
+}
+
+interface Explanation {
+  ok: boolean; error?: string; symbol: string; scan_id?: string; ts?: string; verdict: string;
+  indicators?: Record<string, unknown>; research_summary?: Record<string, unknown>;
+  market_context?: Record<string, unknown>; monitoring?: Record<string, unknown>;
+  strategy_explanation?: Record<string, unknown>; risk_explanation?: Record<string, unknown>;
+  confidence_breakdown?: Record<string, unknown>;
+  execution?: Record<string, unknown>; position_size_calc?: Record<string, unknown>;
+  target?: number; stop_loss?: number; expected_risk_pct?: number; expected_reward_pct?: number;
+  exit_logic?: string;
+  rejection?: { failed_gates?: Record<string, unknown>; strategy_reason?: string; order_reason?: string; confidence?: number };
+  relax_analysis?: { available: boolean; would_relaxing_have_helped?: boolean; gates_failed?: string[]; expected_outcome_pct?: number; highest_gain_pct?: number; horizon_bars?: number; note?: string };
+}
+
+interface ReplayVerify {
+  ok: boolean; verdict?: string;
+  checks?: Array<{ check: string; status: string; detail: string }>;
+  error?: string;
+}
+
+interface SearchResult { ok: boolean; query: string; trades: BacktestTrade[]; events: PipelineEvent[] }
+
 const STAGE_LABELS: Record<string, string> = {
   SUPERVISOR: "Supervisor", SCANNER: "Scanner", RESEARCH: "Research",
   MARKET_INTELLIGENCE: "Market Intel", MONITORING: "Monitoring",
   STRATEGY: "Strategy", RISK: "Risk", AI_DECISION: "AI Decision",
   EXECUTION: "Execution", PORTFOLIO: "Portfolio",
 };
+
+type ReplayMode = "candle" | "trade" | "decision" | "day" | "week" | "month";
+const MODES: Array<{ id: ReplayMode; label: string }> = [
+  { id: "candle", label: "Candle" }, { id: "trade", label: "Trade" },
+  { id: "decision", label: "AI Decision" }, { id: "day", label: "Day" },
+  { id: "week", label: "Week" }, { id: "month", label: "Month" },
+];
+const SPEEDS = [1, 2, 5, 10, 20, 0] as const; // 0 = Max
 
 function fmtINR(v: unknown): string {
   const n = typeof v === "number" ? v : null;
@@ -102,18 +159,32 @@ function tsShort(ts?: string | null): string {
   return ts.slice(0, 16).replace("T", " ");
 }
 
+function tickOf(scanId?: string | null): number | null {
+  const m = /-T(\d+)$/.exec(scanId ?? "");
+  return m ? Number(m[1]) : null;
+}
+
 function rangePreset(days: number): { start: string; end: string } {
   const end = new Date();
   const start = new Date(end.getTime() - days * 86400_000);
   return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
 }
 
-// ── Candle chart (dependency-light SVG) ──────────────────────────────────────
+function kv(obj: Record<string, unknown> | undefined | null): string {
+  if (!obj) return "—";
+  return Object.entries(obj)
+    .filter(([, v]) => v !== null && v !== undefined && typeof v !== "object")
+    .map(([k, v]) => `${k}: ${String(v)}`)
+    .join(" · ") || JSON.stringify(obj).slice(0, 160);
+}
 
-function CandleChart({ candles, cursor, trades }: {
-  candles: Candle[]; cursor: number; trades: BacktestTrade[];
+// ── Candle chart with overlays (Part I) ──────────────────────────────────────
+
+function CandleChart({ candles, cursorIdx, trades, rejectedIdx, missedIdx }: {
+  candles: Candle[]; cursorIdx: number; trades: BacktestTrade[];
+  rejectedIdx: number[]; missedIdx: number[];
 }) {
-  const W = 860, H = 260, PAD = 8;
+  const W = 860, H = 280, PAD = 8;
   if (!candles.length) {
     return <div className="text-sm text-muted-foreground py-10 text-center">No candles cached for this selection.</div>;
   }
@@ -127,7 +198,7 @@ function CandleChart({ candles, cursor, trades }: {
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full" data-testid="chart-candles">
       {candles.map((c, i) => {
         const up = c.close >= c.open;
-        const seen = i <= cursor;
+        const seen = i <= cursorIdx;
         const color = !seen ? "hsl(var(--muted-foreground) / 0.25)" : up ? "#22c55e" : "#ef4444";
         return (
           <g key={c.ts}>
@@ -137,27 +208,88 @@ function CandleChart({ candles, cursor, trades }: {
           </g>
         );
       })}
+      {/* stop-loss / target lines per trade, drawn from entry to exit */}
+      {trades.map((t) => {
+        const ei = t.fill_ts ? tsToIdx.get(t.fill_ts) : undefined;
+        if (ei === undefined || ei > cursorIdx) return null;
+        const xiRaw = t.exit_ts ? tsToIdx.get(t.exit_ts) : undefined;
+        const xi = Math.min(xiRaw ?? candles.length - 1, cursorIdx);
+        return (
+          <g key={`levels-${t.trade_id}`}>
+            {typeof t.stop_loss === "number" && (
+              <line x1={x(ei)} x2={x(xi) + bw} y1={y(t.stop_loss)} y2={y(t.stop_loss)}
+                stroke="#ef4444" strokeDasharray="3 3" strokeWidth={1} opacity={0.8} data-testid={`line-stop-${t.trade_id}`} />
+            )}
+            {typeof t.target === "number" && (
+              <line x1={x(ei)} x2={x(xi) + bw} y1={y(t.target)} y2={y(t.target)}
+                stroke="#22c55e" strokeDasharray="3 3" strokeWidth={1} opacity={0.8} data-testid={`line-target-${t.trade_id}`} />
+            )}
+          </g>
+        );
+      })}
+      {/* rejected BUY opportunities (red ×) + missed opportunities (amber ◆) */}
+      {rejectedIdx.filter((i) => i <= cursorIdx).map((i) => (
+        <text key={`rej-${i}`} x={x(i) + bw / 2} y={y(candles[i].high) - 4} fontSize={9}
+          textAnchor="middle" fill="#ef4444" data-testid={`marker-rejected-${i}`}>×</text>
+      ))}
+      {missedIdx.filter((i) => i <= cursorIdx).map((i) => (
+        <text key={`miss-${i}`} x={x(i) + bw / 2} y={y(candles[i].low) + 12} fontSize={9}
+          textAnchor="middle" fill="#f59e0b" data-testid={`marker-missed-${i}`}>◆</text>
+      ))}
       {trades.map((t) => {
         const ei = t.fill_ts ? tsToIdx.get(t.fill_ts) : undefined;
         const xi = t.exit_ts ? tsToIdx.get(t.exit_ts) : undefined;
         return (
           <g key={t.trade_id}>
-            {ei !== undefined && ei <= cursor && (
+            {ei !== undefined && ei <= cursorIdx && (
               <polygon points={`${x(ei) + bw / 2},${y(t.fill_price) - 10} ${x(ei) - 2},${y(t.fill_price)} ${x(ei) + bw + 2},${y(t.fill_price)}`}
                 fill="#3b82f6" data-testid={`marker-entry-${t.trade_id}`} />
             )}
-            {xi !== undefined && xi <= cursor && typeof t.exit_price === "number" && (
+            {xi !== undefined && xi <= cursorIdx && typeof t.exit_price === "number" && (
               <polygon points={`${x(xi) + bw / 2},${y(t.exit_price) + 10} ${x(xi) - 2},${y(t.exit_price)} ${x(xi) + bw + 2},${y(t.exit_price)}`}
                 fill={(t.realized_pnl ?? 0) >= 0 ? "#22c55e" : "#ef4444"} />
             )}
           </g>
         );
       })}
-      {cursor >= 0 && cursor < candles.length && (
-        <line x1={x(cursor) + bw / 2} x2={x(cursor) + bw / 2} y1={PAD} y2={H - PAD}
+      {cursorIdx >= 0 && cursorIdx < candles.length && (
+        <line x1={x(cursorIdx) + bw / 2} x2={x(cursorIdx) + bw / 2} y1={PAD} y2={H - PAD}
           stroke="hsl(var(--primary))" strokeDasharray="4 3" strokeWidth={1.2} />
       )}
     </svg>
+  );
+}
+
+// ── Visual AI pipeline replay (Part B) ───────────────────────────────────────
+
+function PipelineFlow({ order, tick }: { order: string[]; tick: ReplayTick | null }) {
+  return (
+    <div className="flex flex-wrap items-stretch gap-1" data-testid="pipeline-flow">
+      {order.map((stage, i) => {
+        const c = tick?.stages?.[stage];
+        const active = !!c && c.events > 0;
+        const hasReject = !!c && c.rejected > 0;
+        return (
+          <div key={stage} className="flex items-center gap-1">
+            <div className={`rounded border px-2 py-1 text-center min-w-20 transition-colors ${
+              hasReject ? "border-red-500 bg-red-500/10"
+                : active ? "border-green-500 bg-green-500/10"
+                  : "border-border bg-muted/30 opacity-60"}`}
+              data-testid={`stage-${stage}`}>
+              <div className="text-[10px] font-semibold">{STAGE_LABELS[stage] ?? stage}</div>
+              <div className="text-[10px] text-muted-foreground">
+                {c ? <>
+                  <span className="text-green-500">{c.out}✓</span>
+                  {c.rejected > 0 && <span className="text-red-500"> {c.rejected}✗</span>}
+                  {c.cancelled > 0 && <span className="text-amber-500"> {c.cancelled}⊘</span>}
+                </> : "idle"}
+              </div>
+            </div>
+            {i < order.length - 1 && <span className="text-muted-foreground text-xs">→</span>}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -233,6 +365,21 @@ export default function InvestigationCenter() {
   });
   const pf = portfolioQ.data;
 
+  // synchronized replay bundle (Parts A/B/H) — canonical union timeline
+  const bundleQ = useQuery({
+    queryKey: ["bt-bundle", runId],
+    queryFn: () => apiJson<ReplayBundle>(`/backtest/run/${runId}/replay`, undefined, 180_000),
+    enabled: !!runId && !running,
+    staleTime: 60_000,
+  });
+  const bundle = bundleQ.data?.ok ? bundleQ.data : null;
+  const timeline = bundle?.timeline ?? [];
+  const ticksByIdx = useMemo(() => {
+    const m = new Map<number, ReplayTick>();
+    for (const t of bundle?.ticks ?? []) m.set(t.tick, t);
+    return m;
+  }, [bundle]);
+
   // replay symbol + candles
   const symbols = useMemo(() => {
     const s = new Set<string>();
@@ -250,47 +397,133 @@ export default function InvestigationCenter() {
   });
   const candles = candlesQ.data?.candles ?? [];
 
-  // ── Replay engine (Part H) ────────────────────────────────────────────────
-  const [cursor, setCursor] = useState(-1);
+  // ── Advanced replay engine (Parts A + H): tick cursor over union timeline ──
+  const [cursor, setCursor] = useState(-1);       // tick index into timeline
   const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(1);
+  const [speed, setSpeed] = useState<number>(1);  // 0 = Max
+  const [mode, setMode] = useState<ReplayMode>("candle");
   const timerRef = useRef<ReturnType<typeof window.setInterval> | null>(null);
-  useEffect(() => { setCursor(candles.length ? candles.length - 1 : -1); setPlaying(false); }, [runId, sym, candles.length]);
+  const total = timeline.length || candles.length;
+
+  useEffect(() => { setCursor(total ? total - 1 : -1); setPlaying(false); }, [runId, total]);
+
+  // mode-aware step targets
+  const stepTargets = useMemo(() => {
+    if (!total) return [] as number[];
+    const all = Array.from({ length: total }, (_, i) => i);
+    const tsAt = (i: number) => timeline[i] ?? candles[i]?.ts ?? "";
+    if (mode === "candle") return all;
+    if (mode === "trade") {
+      const s = new Set<number>();
+      for (const tm of bundle?.trade_markers ?? []) {
+        if (tm.entry_tick !== null) s.add(tm.entry_tick);
+        if (tm.exit_tick !== null) s.add(tm.exit_tick);
+      }
+      return Array.from(s).sort((a, b) => a - b);
+    }
+    if (mode === "decision") {
+      return all.filter((i) => (ticksByIdx.get(i)?.decisions.length ?? 0) > 0);
+    }
+    // day / week / month: last tick of each calendar bucket
+    const bucket = (iso: string) => {
+      const d = new Date(iso);
+      if (mode === "day") return iso.slice(0, 10);
+      if (mode === "month") return iso.slice(0, 7);
+      const wk = new Date(d); wk.setDate(d.getDate() - d.getDay());
+      return wk.toISOString().slice(0, 10);
+    };
+    const lastOf = new Map<string, number>();
+    for (const i of all) lastOf.set(bucket(tsAt(i)), i);
+    return Array.from(lastOf.values()).sort((a, b) => a - b);
+  }, [mode, total, timeline, candles, bundle, ticksByIdx]);
+
+  const stepNext = (from: number) => stepTargets.find((i) => i > from) ?? from;
+  const stepPrev = (from: number) => [...stepTargets].reverse().find((i) => i < from) ?? from;
+
   useEffect(() => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-    if (playing && candles.length) {
+    if (playing && total) {
+      const period = speed === 0 ? 40 : 900 / speed;
       timerRef.current = setInterval(() => {
         setCursor((c) => {
-          if (c >= candles.length - 1) { setPlaying(false); return c; }
-          return c + 1;
+          const nxt = stepNext(c);
+          if (nxt === c || c >= total - 1) { setPlaying(false); return c; }
+          return nxt;
         });
-      }, 900 / speed);
+      }, period);
     }
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [playing, speed, candles.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing, speed, total, stepTargets]);
 
-  const cursorTs = cursor >= 0 && cursor < candles.length ? candles[cursor].ts : null;
+  const cursorTs = cursor >= 0 && cursor < timeline.length ? timeline[cursor]
+    : cursor >= 0 && cursor < candles.length ? candles[cursor].ts : null;
+
+  // chart cursor: last candle of the selected symbol at or before the tick ts
+  const candleCursorIdx = useMemo(() => {
+    if (!candles.length) return -1;
+    if (!cursorTs) return candles.length - 1;
+    let idx = -1;
+    for (let i = 0; i < candles.length; i++) {
+      if (candles[i].ts <= cursorTs) idx = i; else break;
+    }
+    return idx;
+  }, [candles, cursorTs]);
+
+  // jump helpers (Part A)
+  const jumpToNext = (pred: (t: ReplayTick) => boolean) => {
+    for (let i = cursor + 1; i < total; i++) {
+      const t = ticksByIdx.get(i);
+      if (t && pred(t)) { setCursor(i); return; }
+    }
+    for (let i = 0; i <= cursor; i++) {
+      const t = ticksByIdx.get(i);
+      if (t && pred(t)) { setCursor(i); return; }
+    }
+  };
+
+  const currentTick = ticksByIdx.get(cursor) ?? null;
+
+  // portfolio at cursor (synchronized, from PORTFOLIO_UPDATED events)
+  const portfolioAtCursor = useMemo(() => {
+    for (let i = cursor; i >= 0; i--) {
+      const p = ticksByIdx.get(i)?.portfolio;
+      if (p) return p;
+    }
+    return null;
+  }, [cursor, ticksByIdx]);
+
+  // ── Filters (Part J) ──────────────────────────────────────────────────────
+  const [typeFilter, setTypeFilter] = useState<"all" | "buy" | "sell" | "rejected" | "cancelled">("all");
+  const [minConf, setMinConf] = useState(0);
+
   const visibleEvents = useMemo(() => {
-    const tickOf = (e: PipelineEvent): number | null => {
-      const m = /-T(\d+)$/.exec(e.scan_id ?? "");
-      return m ? Number(m[1]) : null;
-    };
-    const list = events.filter((e) => !sym || !e.symbol || e.symbol === sym);
-    if (!cursorTs || cursor >= candles.length - 1) return list.slice().reverse().slice(0, 80);
-    // The symbol is only scanned on ticks where it has a candle, so the
-    // ordered distinct ticks of ITS events map 1:1 onto its candles —
-    // correct even when symbols have gaps in the union timeline.
-    const symTicks = Array.from(new Set(
-      events.filter((e) => e.symbol === sym).map(tickOf).filter((t): t is number => t !== null),
-    )).sort((a, b) => a - b);
-    const cursorTick = symTicks.length
-      ? symTicks[Math.min(cursor, symTicks.length - 1)]
-      : Number.MAX_SAFE_INTEGER;
-    return list.filter((e) => {
-      const t = tickOf(e);
-      return t === null || t <= cursorTick;
-    }).slice().reverse().slice(0, 80);
-  }, [events, sym, cursorTs, cursor, candles.length]);
+    let list = events.filter((e) => !sym || !e.symbol || e.symbol === sym);
+    if (cursorTs && cursor < total - 1) {
+      list = list.filter((e) => {
+        // Tickless events (END_OF_BACKTEST closes carry a run-level scan_id)
+        // belong to the final tick — never leak them into earlier positions.
+        const t = tickOf(e.scan_id);
+        return t !== null && t <= cursor;
+      });
+    }
+    if (typeFilter !== "all") {
+      const match: Record<string, (t: string) => boolean> = {
+        buy: (t) => t.includes("BUY") || t === "ORDER_EXECUTED" || t === "POSITION_OPENED",
+        sell: (t) => t.includes("SELL") || t === "POSITION_CLOSED",
+        rejected: (t) => t.includes("REJECTED"),
+        cancelled: (t) => t.includes("CANCELLED"),
+      };
+      list = list.filter((e) => match[typeFilter](e.event_type));
+    }
+    if (minConf > 0) {
+      list = list.filter((e) => {
+        const c = e.payload?.confidence;
+        return typeof c !== "number" || c >= minConf;
+      });
+    }
+    return list.slice().reverse().slice(0, 80);
+  }, [events, sym, cursorTs, cursor, total, typeFilter, minConf]);
 
   const treeQ = useQuery({
     queryKey: ["bt-tree", runId, sym],
@@ -300,6 +533,36 @@ export default function InvestigationCenter() {
   });
   const tree = treeQ.data;
 
+  // Why BUY / Why REJECT (Parts D + E)
+  const explainQ = useQuery({
+    queryKey: ["bt-explain", runId, sym],
+    queryFn: () => apiJson<Explanation>(`/backtest/run/${runId}/explain/${sym}`, undefined, 120_000),
+    enabled: !!runId && !!sym && !running,
+    staleTime: 60_000,
+  });
+  const explain = explainQ.data?.ok ? explainQ.data : null;
+
+  // Trade story (Part G)
+  const [storyTradeId, setStoryTradeId] = useState<string | null>(null);
+  const storyQ = useQuery({
+    queryKey: ["bt-story", runId, storyTradeId],
+    queryFn: () => apiJson<TradeStory>(`/backtest/run/${runId}/story/${storyTradeId}`, undefined, 120_000),
+    enabled: !!runId && !!storyTradeId,
+    staleTime: 300_000,
+  });
+  const story = storyQ.data?.ok ? storyQ.data : null;
+
+  // Global search (Part K)
+  const [searchText, setSearchText] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const searchQ = useQuery({
+    queryKey: ["bt-search", runId, searchTerm],
+    queryFn: () => apiJson<SearchResult>(`/backtest/run/${runId}/search?q=${encodeURIComponent(searchTerm)}`, undefined, 120_000),
+    enabled: !!runId && searchTerm.length >= 2,
+    staleTime: 60_000,
+  });
+  const searchRes = searchQ.data;
+
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const validate = useMutation({
     mutationFn: () => apiJson<ValidationResult>(`/backtest/run/${runId}/validate?sample=25`, undefined, 240_000),
@@ -307,12 +570,59 @@ export default function InvestigationCenter() {
   });
   const storedValidation = validation ?? run?.validation ?? null;
 
+  // Replay integrity verification (Part L)
+  const [verify, setVerify] = useState<ReplayVerify | null>(null);
+  const verifyM = useMutation({
+    mutationFn: () => apiJson<ReplayVerify>(`/backtest/run/${runId}/replay-verify`, undefined, 180_000),
+    onSuccess: setVerify,
+  });
+  useEffect(() => { setVerify(null); setValidation(null); setStoryTradeId(null); }, [runId]);
+
   const missed: MissedOpp[] = (run?.missed as MissedOpp[]) ?? [];
   const rejections = useMemo(
     () => events.filter((e) => e.event_type.includes("REJECTED")).slice().reverse(),
     [events]);
 
+  // chart overlay indexes for the selected symbol (Part I)
+  const symTickToCandleIdx = useMemo(() => {
+    const m = new Map<number, number>();
+    if (!candles.length || !timeline.length) return m;
+    const tsIdx = new Map(candles.map((c, i) => [c.ts, i]));
+    timeline.forEach((ts, tick) => {
+      const ci = tsIdx.get(ts);
+      if (ci !== undefined) m.set(tick, ci);
+    });
+    return m;
+  }, [candles, timeline]);
+
+  const rejectedIdx = useMemo(() => {
+    const out: number[] = [];
+    for (const e of events) {
+      if (e.symbol !== sym || !e.event_type.includes("REJECTED")) continue;
+      const t = tickOf(e.scan_id);
+      const ci = t !== null ? symTickToCandleIdx.get(t) : undefined;
+      if (ci !== undefined) out.push(ci);
+    }
+    return Array.from(new Set(out));
+  }, [events, sym, symTickToCandleIdx]);
+
+  const missedIdx = useMemo(() => {
+    const out: number[] = [];
+    for (const mo of missed) {
+      if (mo.symbol !== sym) continue;
+      const t = tickOf(mo.scan_id);
+      const ci = t !== null ? symTickToCandleIdx.get(t) : undefined;
+      if (ci !== undefined) out.push(ci);
+    }
+    return Array.from(new Set(out));
+  }, [missed, sym, symTickToCandleIdx]);
+
   const m = run?.metrics as Record<string, number> | undefined;
+  const decisionCount = useMemo(() => {
+    let n = 0;
+    for (let i = 0; i <= cursor; i++) n += ticksByIdx.get(i)?.decisions.length ?? 0;
+    return n;
+  }, [cursor, ticksByIdx]);
 
   return (
     <div className="p-4 md:p-6 space-y-4" data-testid="page-investigation-center">
@@ -434,7 +744,7 @@ export default function InvestigationCenter() {
           </CardContent>
         </Card>
 
-        {/* Backtest portfolio */}
+        {/* Backtest portfolio — synchronized to the replay cursor when scrubbing */}
         <Card data-testid="card-bt-portfolio">
           <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Wallet className="h-4 w-4" />Backtest Portfolio</CardTitle></CardHeader>
           <CardContent className="text-sm space-y-1">
@@ -447,40 +757,159 @@ export default function InvestigationCenter() {
                 <span>{fmtINR(pf.realized_pnl)} / {fmtINR(pf.unrealized_pnl)}</span></div>
               <div className="flex justify-between"><span>Open / Closed</span>
                 <span>{pf.open_positions_count} / {pf.closed_positions_count}</span></div>
+              {portfolioAtCursor && cursor < total - 1 && (
+                <div className="mt-2 border-t pt-1 text-xs text-muted-foreground" data-testid="text-portfolio-at-cursor">
+                  At replay cursor: cash {fmtINR(portfolioAtCursor.cash)} · value {fmtINR(portfolioAtCursor.portfolio_value)} · open {portfolioAtCursor.open_positions}
+                </div>
+              )}
             </>)}
           </CardContent>
         </Card>
       </div>
 
-      {/* Chart + replay controls */}
+      {/* Advanced replay: chart + controls (Parts A, H, I) */}
       <Card data-testid="card-replay">
-        <CardHeader className="pb-2 flex flex-row flex-wrap items-center gap-3">
-          <CardTitle className="text-sm">Historical Chart & Timeline Replay</CardTitle>
-          <select className="bg-background border rounded px-2 py-1 text-xs" value={sym ?? ""}
-            onChange={(e) => setSymbol(e.target.value)} data-testid="select-symbol">
-            {symbols.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <div className="ml-auto flex items-center gap-1">
-            <Button size="icon" variant="ghost" onClick={() => setCursor(0)} data-testid="button-jump-start"><SkipBack className="h-4 w-4" /></Button>
-            <Button size="icon" variant="ghost" onClick={() => setCursor((c) => Math.max(0, c - 1))} data-testid="button-prev"><ChevronLeft className="h-4 w-4" /></Button>
-            <Button size="icon" variant={playing ? "default" : "outline"} onClick={() => setPlaying((p) => !p)} data-testid="button-play">
-              {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-            </Button>
-            <Button size="icon" variant="ghost" onClick={() => setCursor((c) => Math.min(candles.length - 1, c + 1))} data-testid="button-next"><ChevronRight className="h-4 w-4" /></Button>
-            <Button size="icon" variant="ghost" onClick={() => setCursor(candles.length - 1)} data-testid="button-jump-end"><SkipForward className="h-4 w-4" /></Button>
-            {[1, 5, 20].map((s) => (
-              <Button key={s} size="sm" variant={speed === s ? "default" : "ghost"} onClick={() => setSpeed(s)} data-testid={`button-speed-${s}`}>{s}x</Button>
-            ))}
-            <input type="range" min={0} max={Math.max(0, candles.length - 1)} value={Math.max(0, cursor)}
-              onChange={(e) => setCursor(Number(e.target.value))} className="w-40" data-testid="slider-jump" />
+        <CardHeader className="pb-2 space-y-2">
+          <div className="flex flex-row flex-wrap items-center gap-3">
+            <CardTitle className="text-sm">Advanced Replay — Chart & Timeline</CardTitle>
+            <select className="bg-background border rounded px-2 py-1 text-xs" value={sym ?? ""}
+              onChange={(e) => setSymbol(e.target.value)} data-testid="select-symbol">
+              {symbols.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select className="bg-background border rounded px-2 py-1 text-xs" value={mode}
+              onChange={(e) => setMode(e.target.value as ReplayMode)} data-testid="select-replay-mode">
+              {MODES.map((md) => <option key={md.id} value={md.id}>Step: {md.label}</option>)}
+            </select>
+            <div className="ml-auto flex items-center gap-1 flex-wrap">
+              <Button size="icon" variant="ghost" onClick={() => setCursor(0)} data-testid="button-jump-start"><SkipBack className="h-4 w-4" /></Button>
+              <Button size="icon" variant="ghost" onClick={() => setCursor((c) => stepPrev(c))} data-testid="button-prev"><ChevronLeft className="h-4 w-4" /></Button>
+              <Button size="icon" variant={playing ? "default" : "outline"} onClick={() => setPlaying((p) => !p)} data-testid="button-play">
+                {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+              </Button>
+              <Button size="icon" variant="ghost" onClick={() => { setPlaying(false); setCursor(0); }} data-testid="button-stop"><Square className="h-4 w-4" /></Button>
+              <Button size="icon" variant="ghost" onClick={() => setCursor((c) => stepNext(c))} data-testid="button-next"><ChevronRight className="h-4 w-4" /></Button>
+              <Button size="icon" variant="ghost" onClick={() => setCursor(total - 1)} data-testid="button-jump-end"><SkipForward className="h-4 w-4" /></Button>
+              {SPEEDS.map((s) => (
+                <Button key={s} size="sm" variant={speed === s ? "default" : "ghost"} onClick={() => setSpeed(s)} data-testid={`button-speed-${s || "max"}`}>
+                  {s === 0 ? "Max" : `${s}x`}
+                </Button>
+              ))}
+              <input type="range" min={0} max={Math.max(0, total - 1)} value={Math.max(0, cursor)}
+                onChange={(e) => setCursor(Number(e.target.value))} className="w-40" data-testid="slider-jump" />
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-1 text-xs">
+            <span className="text-muted-foreground mr-1">Jump to:</span>
+            <Button size="sm" variant="outline" onClick={() => jumpToNext((t) => t.buys.length > 0)} data-testid="button-jump-buy">Next BUY</Button>
+            <Button size="sm" variant="outline" onClick={() => jumpToNext((t) => t.sells.length > 0)} data-testid="button-jump-sell">Next SELL</Button>
+            <Button size="sm" variant="outline" onClick={() => jumpToNext((t) => t.buys.length > 0 || t.sells.length > 0)} data-testid="button-jump-trade">Next Trade</Button>
+            <Button size="sm" variant="outline" onClick={() => jumpToNext((t) => t.rejected.length > 0)} data-testid="button-jump-rejection">Next Rejection</Button>
+            <input type="datetime-local" className="bg-background border rounded px-2 py-1 ml-2"
+              onChange={(e) => {
+                if (!e.target.value || !timeline.length) return;
+                const target = new Date(e.target.value).toISOString();
+                let best = 0;
+                for (let i = 0; i < timeline.length; i++) if (timeline[i] <= target) best = i;
+                setCursor(best);
+              }} data-testid="input-jump-timestamp" />
           </div>
         </CardHeader>
         <CardContent>
-          <CandleChart candles={candles} cursor={cursor} trades={trades.filter((t) => t.symbol === sym)} />
-          <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
-            <Clock className="h-3 w-3" />
-            {cursorTs ? `Replay position: ${tsShort(cursorTs)} (candle ${cursor + 1}/${candles.length})` : "No replay data"}
+          <CandleChart candles={candles} cursorIdx={candleCursorIdx}
+            trades={trades.filter((t) => t.symbol === sym)}
+            rejectedIdx={rejectedIdx} missedIdx={missedIdx} />
+          <div className="text-xs text-muted-foreground mt-1 flex items-center gap-3 flex-wrap">
+            <span className="flex items-center gap-1"><Clock className="h-3 w-3" />
+              {cursorTs ? `Tick ${cursor + 1}/${total} · ${tsShort(cursorTs)}` : "No replay data"}</span>
+            <span>Decisions so far: {decisionCount}</span>
+            {currentTick?.processing_ms !== null && currentTick?.processing_ms !== undefined && (
+              <span className="flex items-center gap-1"><Zap className="h-3 w-3" />tick processed in {currentTick.processing_ms}ms</span>
+            )}
+            <span className="ml-auto">Overlays: <span className="text-blue-400">▲ entry</span> · ▼ exit · <span className="text-green-500">- - target</span> · <span className="text-red-500">- - stop</span> · <span className="text-red-500">× rejected</span> · <span className="text-amber-500">◆ missed</span></span>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Visual AI pipeline replay (Part B) */}
+      <Card data-testid="card-pipeline-replay">
+        <CardHeader className="pb-2"><CardTitle className="text-sm">Visual AI Pipeline Replay (at replay cursor)</CardTitle></CardHeader>
+        <CardContent className="space-y-2">
+          {!bundle && <div className="text-xs text-muted-foreground">{running ? "Available when the run completes." : bundleQ.isLoading ? "Building replay bundle from the canonical event store…" : "Select a completed run."}</div>}
+          {bundle && (<>
+            <PipelineFlow order={bundle.stage_order} tick={currentTick} />
+            {currentTick && currentTick.decisions.length > 0 && (
+              <div className="text-xs flex flex-wrap gap-2" data-testid="tick-decisions">
+                {currentTick.decisions.map((d, i) => (
+                  <Badge key={i} variant="outline" className={
+                    d.action === "BUY" ? "border-green-500 text-green-500"
+                      : d.action === "SELL" ? "border-blue-400 text-blue-400"
+                        : d.action === "WATCH" ? "border-yellow-500 text-yellow-500" : "border-muted-foreground"}>
+                    {d.symbol} {d.action}{typeof d.confidence === "number" ? ` · ${d.confidence}%` : ""}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </>)}
+        </CardContent>
+      </Card>
+
+      {/* Why did the AI buy/reject? (Parts D + E) */}
+      <Card data-testid="card-explain">
+        <CardHeader className="pb-2"><CardTitle className="text-sm">
+          {explain?.verdict === "BUY" ? `Why did the AI BUY ${sym}?`
+            : explain?.verdict === "REJECTED" ? `Why did the AI REJECT ${sym}?`
+              : `AI Decision Explanation — ${sym ?? "—"}`}
+        </CardTitle></CardHeader>
+        <CardContent className="text-xs space-y-2">
+          {!explain && <div className="text-muted-foreground">{explainQ.isLoading ? "Assembling explanation from the event store…" : "Select a completed run and symbol."}</div>}
+          {explain && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className={
+                    explain.verdict === "BUY" ? "border-green-500 text-green-500"
+                      : explain.verdict === "REJECTED" ? "border-red-500 text-red-500" : "border-yellow-500 text-yellow-500"}
+                    data-testid="badge-explain-verdict">{explain.verdict}</Badge>
+                  <span className="text-muted-foreground">{explain.scan_id} · {tsShort(explain.ts)}</span>
+                </div>
+                <div><span className="font-semibold">Indicators:</span> {kv(explain.indicators)}</div>
+                <div><span className="font-semibold">Research:</span> {kv(explain.research_summary)}</div>
+                <div><span className="font-semibold">Market:</span> {kv(explain.market_context)}</div>
+                <div><span className="font-semibold">Monitoring:</span> {kv(explain.monitoring)}</div>
+                <div><span className="font-semibold">Strategy:</span> {kv(explain.strategy_explanation)}</div>
+                <div><span className="font-semibold">Confidence breakdown:</span> {kv(explain.confidence_breakdown)}</div>
+              </div>
+              <div className="space-y-1.5">
+                {explain.verdict === "BUY" && (<>
+                  <div><span className="font-semibold">Position size:</span> {kv(explain.position_size_calc)}</div>
+                  <div><span className="font-semibold">Execution:</span> {kv(explain.execution)}</div>
+                  <div className="flex gap-3">
+                    <span><span className="font-semibold">Target:</span> {fmtINR(explain.target)} (<span className="text-green-500">+{explain.expected_reward_pct}%</span>)</span>
+                    <span><span className="font-semibold">Stop:</span> {fmtINR(explain.stop_loss)} (<span className="text-red-500">-{explain.expected_risk_pct}%</span>)</span>
+                  </div>
+                  <div><span className="font-semibold">Exit logic:</span> {explain.exit_logic}</div>
+                </>)}
+                {explain.verdict === "REJECTED" && explain.rejection && (<>
+                  <div className="font-semibold text-red-500">Exact rejection rules:</div>
+                  {Object.entries(explain.rejection.failed_gates ?? {}).map(([g, v]) => (
+                    <div key={g} className="border border-red-500/40 rounded p-1.5" data-testid={`gate-${g}`}>
+                      <span className="font-mono">{g}</span>: {kv(v as Record<string, unknown>)}
+                    </div>
+                  ))}
+                  {explain.rejection.strategy_reason && <div>Strategy: {explain.rejection.strategy_reason}</div>}
+                  {explain.rejection.order_reason && <div>Order: {explain.rejection.order_reason}</div>}
+                  {explain.relax_analysis?.available && (
+                    <div className="border border-amber-500/40 rounded p-1.5 text-amber-500" data-testid="relax-analysis">
+                      Would relaxing have helped? <b>{explain.relax_analysis.would_relaxing_have_helped ? "YES" : "NO"}</b> —
+                      outcome {explain.relax_analysis.expected_outcome_pct}% over {explain.relax_analysis.horizon_bars} bars
+                      (peak +{explain.relax_analysis.highest_gain_pct}%). {explain.relax_analysis.note}
+                    </div>
+                  )}
+                </>)}
+                <div><span className="font-semibold">Risk gates:</span> {kv((explain.risk_explanation?.gates ?? explain.risk_explanation) as Record<string, unknown>)}</div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -515,9 +944,23 @@ export default function InvestigationCenter() {
         </Card>
 
         <Card data-testid="card-event-timeline">
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Event Timeline (follows replay cursor)</CardTitle></CardHeader>
+          <CardHeader className="pb-2 flex flex-row flex-wrap items-center gap-2">
+            <CardTitle className="text-sm">Event Timeline (follows replay cursor)</CardTitle>
+            <div className="ml-auto flex items-center gap-1 text-xs">
+              {(["all", "buy", "sell", "rejected", "cancelled"] as const).map((f) => (
+                <Button key={f} size="sm" variant={typeFilter === f ? "default" : "ghost"}
+                  onClick={() => setTypeFilter(f)} data-testid={`filter-${f}`}>{f}</Button>
+              ))}
+              <select className="bg-background border rounded px-1 py-0.5" value={minConf}
+                onChange={(e) => setMinConf(Number(e.target.value))} data-testid="select-min-confidence">
+                <option value={0}>conf ≥ 0</option>
+                <option value={50}>conf ≥ 50</option>
+                <option value={70}>conf ≥ 70</option>
+              </select>
+            </div>
+          </CardHeader>
           <CardContent className="space-y-1 max-h-96 overflow-auto">
-            {visibleEvents.length === 0 && <div className="text-xs text-muted-foreground">No events for this position.</div>}
+            {visibleEvents.length === 0 && <div className="text-xs text-muted-foreground">No events match the filter at this position.</div>}
             {visibleEvents.map((e) => (
               <div key={e.id} className="text-xs flex items-center gap-2 border-b border-border/40 pb-1" data-testid={`event-${e.id}`}>
                 {e.event_type.includes("REJECTED") || e.event_type.includes("FAILED") ? <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
@@ -532,10 +975,45 @@ export default function InvestigationCenter() {
         </Card>
       </div>
 
-      {/* Trades + missed + rejections + validation */}
+      {/* Global search (Part K) */}
+      <Card data-testid="card-search">
+        <CardHeader className="pb-2 flex flex-row items-center gap-2">
+          <CardTitle className="text-sm flex items-center gap-2"><Search className="h-4 w-4" />Global Search</CardTitle>
+          <form className="ml-auto flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); setSearchTerm(searchText.trim()); }}>
+            <input className="bg-background border rounded px-2 py-1 text-xs w-64" placeholder="trade id, symbol, strategy, reason, confidence…"
+              value={searchText} onChange={(e) => setSearchText(e.target.value)} data-testid="input-search" />
+            <Button type="submit" size="sm" variant="outline" data-testid="button-search">Search</Button>
+          </form>
+        </CardHeader>
+        {searchTerm.length >= 2 && (
+          <CardContent className="text-xs space-y-2 max-h-64 overflow-auto">
+            {searchQ.isLoading && <div className="text-muted-foreground">Searching…</div>}
+            {searchRes && (<>
+              <div className="text-muted-foreground">{searchRes.trades.length} trades · {searchRes.events.length} events for “{searchRes.query}”</div>
+              {searchRes.trades.map((t) => (
+                <div key={t.trade_id} className="border rounded p-1.5 flex items-center gap-2" data-testid={`search-trade-${t.trade_id}`}>
+                  <Badge variant="outline">TRADE</Badge>
+                  <span className="font-medium">{t.symbol}</span> {t.strategy_name} · {t.trade_id} ·
+                  <span className={(t.realized_pnl ?? 0) >= 0 ? "text-green-500" : "text-red-500"}>{fmtINR(t.realized_pnl)}</span>
+                  <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setStoryTradeId(t.trade_id)}>Story</Button>
+                </div>
+              ))}
+              {searchRes.events.slice(0, 30).map((e) => (
+                <div key={e.id} className="border-b border-border/40 pb-1 flex items-center gap-2">
+                  <span className="font-mono">{e.event_type}</span>
+                  <span className="text-muted-foreground">{e.symbol} · {e.scan_id}</span>
+                  <span className="text-muted-foreground ml-auto truncate max-w-64">{JSON.stringify(e.payload).slice(0, 100)}</span>
+                </div>
+              ))}
+            </>)}
+          </CardContent>
+        )}
+      </Card>
+
+      {/* Trades + trade story */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card data-testid="card-trade-list">
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Trade List</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">Trade List (click a trade for its story)</CardTitle></CardHeader>
           <CardContent className="max-h-80 overflow-auto">
             {trades.length === 0 && <div className="text-xs text-muted-foreground">No backtest trades in this run.</div>}
             {trades.length > 0 && (
@@ -545,7 +1023,10 @@ export default function InvestigationCenter() {
                 </tr></thead>
                 <tbody>
                   {trades.map((t) => (
-                    <tr key={t.trade_id} className="border-t border-border/40" data-testid={`row-trade-${t.trade_id}`}>
+                    <tr key={t.trade_id}
+                      className={`border-t border-border/40 cursor-pointer hover:bg-muted/60 ${storyTradeId === t.trade_id ? "bg-primary/10" : ""}`}
+                      onClick={() => setStoryTradeId(t.trade_id)}
+                      data-testid={`row-trade-${t.trade_id}`}>
                       <td className="py-1 font-medium">{t.symbol}</td>
                       <td>{t.strategy_name ?? "—"}</td>
                       <td>{t.quantity}</td>
@@ -563,6 +1044,44 @@ export default function InvestigationCenter() {
           </CardContent>
         </Card>
 
+        {/* Trade story (Part G) */}
+        <Card data-testid="card-trade-story">
+          <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><BookOpen className="h-4 w-4" />Trade Story</CardTitle></CardHeader>
+          <CardContent className="text-xs space-y-1 max-h-80 overflow-auto">
+            {!storyTradeId && <div className="text-muted-foreground">Click a trade in the list to read its full story.</div>}
+            {storyTradeId && storyQ.isLoading && <div className="text-muted-foreground">Assembling story from the event store…</div>}
+            {story && (<>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="font-semibold">{story.trade.symbol}</span>
+                <span className="text-muted-foreground">{story.trade.strategy_name} · {story.trade.trade_id}</span>
+                <span className={`ml-auto font-semibold ${(story.trade.realized_pnl ?? 0) >= 0 ? "text-green-500" : "text-red-500"}`}>
+                  {fmtINR(story.trade.realized_pnl)}
+                </span>
+              </div>
+              {story.steps.map((s, i) => (
+                <div key={i} className="flex items-start gap-2" data-testid={`story-step-${i}`}>
+                  <div className="flex flex-col items-center">
+                    <div className={`h-2 w-2 rounded-full mt-1 ${
+                      s.event_type.includes("REJECTED") ? "bg-red-500"
+                        : s.event_type.includes("EXECUTED") || s.event_type.includes("CLOSED") ? "bg-green-500"
+                          : "bg-primary"}`} />
+                    {i < story.steps.length - 1 && <div className="w-px h-4 bg-border" />}
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground mr-2">tick {s.tick} · {tsShort(s.ts)}</span>
+                    <span>{s.label}</span>
+                    <Button size="sm" variant="ghost" className="h-5 px-1 ml-1 text-[10px]"
+                      onClick={() => setCursor(Math.min(s.tick, Math.max(0, total - 1)))}>jump</Button>
+                  </div>
+                </div>
+              ))}
+            </>)}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Missed opportunities + rejection analysis */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card data-testid="card-missed">
           <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-amber-500" />Missed Opportunities (advisory only)</CardTitle></CardHeader>
           <CardContent className="space-y-2 max-h-80 overflow-auto">
@@ -577,17 +1096,18 @@ export default function InvestigationCenter() {
                   </span>
                 </div>
                 <div className="text-muted-foreground mt-1">{mo.reason}</div>
+                <div className="mt-0.5">
+                  Would the AI have made money? <b className={mo.would_have_been_profitable ? "text-green-500" : "text-red-500"}>{mo.would_have_been_profitable ? "YES" : "NO"}</b>
+                </div>
                 {mo.single_rule_relax_hint && <div className="text-amber-500 mt-0.5">{mo.single_rule_relax_hint}</div>}
               </div>
             ))}
           </CardContent>
         </Card>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card data-testid="card-rejection-analysis">
           <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Ban className="h-4 w-4 text-red-500" />Rejection Analysis</CardTitle></CardHeader>
-          <CardContent className="space-y-1 max-h-72 overflow-auto">
+          <CardContent className="space-y-1 max-h-80 overflow-auto">
             {rejections.length === 0 && <div className="text-xs text-muted-foreground">No rejections recorded in this run.</div>}
             {rejections.slice(0, 40).map((e) => (
               <div key={e.id} className="text-xs border-b border-border/40 pb-1">
@@ -598,7 +1118,10 @@ export default function InvestigationCenter() {
             ))}
           </CardContent>
         </Card>
+      </div>
 
+      {/* Validation (pipeline ≡ replay) + replay integrity (Part L) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card data-testid="card-validation">
           <CardHeader className="pb-2 flex flex-row items-center gap-2">
             <CardTitle className="text-sm flex items-center gap-2"><ShieldCheck className="h-4 w-4" />Historical Validation (replay ≡ pipeline)</CardTitle>
@@ -609,20 +1132,52 @@ export default function InvestigationCenter() {
           </CardHeader>
           <CardContent className="text-sm space-y-2">
             {!storedValidation && <div className="text-xs text-muted-foreground">
-              Re-runs the production pipeline on the exact as-of candles the replay used and compares every sampled decision.
+              Re-runs the production pipeline on the exact as-of candles and recorded cash the replay used and compares every sampled decision.
             </div>}
             {storedValidation && (<>
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className={storedValidation.mismatches?.length ? "border-red-500 text-red-500" : "border-green-500 text-green-500"} data-testid="badge-validation-verdict">
-                  {storedValidation.mismatches?.length ? "MISMATCH" : "MATCH"}
+                <Badge variant="outline" className={
+                  storedValidation.verdict === "MATCH" || storedValidation.verdict === "NO_DECISIONS" ? "border-green-500 text-green-500"
+                    : storedValidation.verdict === "INDETERMINATE" ? "border-amber-500 text-amber-500"
+                      : "border-red-500 text-red-500"} data-testid="badge-validation-verdict">
+                  {storedValidation.verdict ?? (storedValidation.mismatches?.length ? "MISMATCH" : "MATCH")}
                 </Badge>
-                <span className="text-xs text-muted-foreground">{storedValidation.checked} decisions re-checked</span>
+                <span className="text-xs text-muted-foreground">
+                  {storedValidation.checked} re-checked{typeof storedValidation.skipped === "number" ? ` · ${storedValidation.skipped} skipped` : ""}
+                  {storedValidation.learning_state_changed ? " · learning state changed since run" : ""}
+                </span>
               </div>
               {(storedValidation.mismatches ?? []).map((mm, i) => (
                 <div key={i} className="text-xs border rounded p-2 text-red-500">
                   {mm.symbol} @ {tsShort(mm.time)} — expected {mm.expected_decision}, got {mm.actual_decision}: {mm.reason}
                 </div>
               ))}
+            </>)}
+          </CardContent>
+        </Card>
+
+        <Card data-testid="card-replay-verify">
+          <CardHeader className="pb-2 flex flex-row items-center gap-2">
+            <CardTitle className="text-sm flex items-center gap-2"><ShieldCheck className="h-4 w-4" />Replay Integrity (events ≡ ledger ≡ portfolio)</CardTitle>
+            <Button size="sm" variant="outline" className="ml-auto" disabled={!runId || verifyM.isPending || running}
+              onClick={() => verifyM.mutate()} data-testid="button-replay-verify">
+              {verifyM.isPending ? "Verifying…" : "Verify Replay"}
+            </Button>
+          </CardHeader>
+          <CardContent className="text-xs space-y-1.5">
+            {!verify && <div className="text-muted-foreground">
+              Proves the replay layer is faithful: no missing/duplicate events, execution events match the isolated ledger, portfolio trail matches the run result.
+            </div>}
+            {verify && (<>
+              <Badge variant="outline" className={verify.verdict === "PASS" ? "border-green-500 text-green-500" : "border-red-500 text-red-500"}
+                data-testid="badge-replay-verify">{verify.verdict ?? "ERROR"}</Badge>
+              {(verify.checks ?? []).map((c) => (
+                <div key={c.check} className="flex items-start gap-2" data-testid={`verify-${c.check}`}>
+                  {c.status === "PASS" ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 mt-0.5 shrink-0" /> : <XCircle className="h-3.5 w-3.5 text-red-500 mt-0.5 shrink-0" />}
+                  <div><span className="font-mono">{c.check}</span> — <span className="text-muted-foreground">{c.detail}</span></div>
+                </div>
+              ))}
+              {verify.error && <div className="text-red-500">{verify.error}</div>}
             </>)}
           </CardContent>
         </Card>

@@ -31,3 +31,10 @@ description: Historical backtest engine + Investigation Center — same-pipeline
 - Backtest scan_ids index the UNION timeline; a symbol's own event ticks map
   1:1 to its candles — always map replay cursors via the symbol's distinct
   event ticks, never via raw union tick index.
+
+## Parts 4/5 — Replay Explorer lessons
+- END_OF_BACKTEST POSITION_CLOSED events are emitted with scan_id=run_id (no -T tick suffix); exit tick must fall back to mapping ledger exit_ts onto the timeline.
+- Run metrics key is `portfolio_value` (not final_value); trades columns are scan_id/fill_ts/fill_price/exit_ts/exit_rule/strategy_name (no entry_* variants).
+- UI replay cursor must be a TICK index over the bundle's union timeline, mapped to candles via last-candle-ts ≤ tick-ts — per-symbol candle indices desync the pipeline/portfolio views.
+- Explorer tests must seed a deterministic synthetic run directly into the stores (events+ledger+candles); pipeline-driven fixtures are fragile because confidence calibration state can turn all decisions to IGNORE.
+- portfolio↔replay verify: END_OF_BACKTEST closes happen after the last PORTFOLIO_UPDATED, so compare last portfolio event OR metrics cash against metrics portfolio_value.

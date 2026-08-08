@@ -1,0 +1,697 @@
+PHASE 25 – APEXQUANT AI MISSION CONTROL
+
+OBJECTIVE
+
+The project now contains multiple powerful modules:
+
+• AI Live Trading Command Center
+• AI Investigation Center
+• Historical Backtesting Engine
+• Replay Center
+• AI Operations Center
+• Portfolio
+• Trade History
+• Portfolio Performance
+• Broker
+• Validation
+• AI Learning Center
+
+These currently exist as separate pages.
+
+Phase 25 unifies them into ONE integrated Mission Control.
+
+This becomes the default landing page during market hours.
+
+===============================================================================
+MISSION CONTROL ARCHITECTURE
+===============================================================================
+
+Mission Control is NOT another backend.
+
+It is a unified dashboard built entirely on the canonical Event Store,
+Portfolio Ledger, Replay Snapshot and Learning Engine.
+
+Mission Control MUST NOT calculate any business logic.
+
+Every widget subscribes to the same backend event stream.
+
+===============================================================================
+LAYOUT
+===============================================================================
+
+Top Navigation
+
+----------------------------------------------------
+
+Market Status
+
+Current Time
+
+Trading Session
+
+Nifty
+
+Bank Nifty
+
+India VIX
+
+Portfolio Value
+
+Today's P&L
+
+Open Positions
+
+System Health
+
+----------------------------------------------------
+
+Left Sidebar
+
+AI Agent Pipeline
+
+----------------------------------------------------
+
+Center
+
+Live Trading Command Center
+
+----------------------------------------------------
+
+Right Sidebar
+
+Portfolio
+
+Notifications
+
+AI Alerts
+
+Learning
+
+----------------------------------------------------
+
+Bottom
+
+Replay Timeline
+
+Trade History
+
+Event Feed
+
+===============================================================================
+PANEL 1
+LIVE AI PIPELINE
+===============================================================================
+
+Display
+
+Supervisor
+
+↓
+
+Scanner
+
+↓
+
+Research
+
+↓
+
+Market Intelligence
+
+↓
+
+Monitoring
+
+↓
+
+Strategy
+
+↓
+
+Risk
+
+↓
+
+AI Decision
+
+↓
+
+Execution
+
+↓
+
+Portfolio
+
+Each stage should display
+
+Status
+
+Input
+
+Output
+
+Rejected
+
+Pending
+
+Cancelled
+
+Latency
+
+Errors
+
+Last Updated
+
+Processing Queue
+
+Animate every stage live.
+
+===============================================================================
+PANEL 2
+LIVE MARKET SCANNER
+===============================================================================
+
+Display
+
+Universe Loaded
+
+Symbols Scanned
+
+Current Symbol
+
+Progress
+
+Remaining
+
+API Calls
+
+Scan Duration
+
+Data Freshness
+
+Display currently scanning symbol.
+
+Example
+
+Scanning
+
+RELIANCE
+
+Indicators
+
+VWAP
+
+EMA
+
+RSI
+
+MACD
+
+ADX
+
+Volume
+
+Research
+
+Market Intelligence
+
+Monitoring
+
+Strategy
+
+Risk
+
+===============================================================================
+PANEL 3
+LIVE PAPER TRADING
+===============================================================================
+
+Show
+
+Pending Orders
+
+Filled Orders
+
+Rejected Orders
+
+Cancelled Orders
+
+Open Positions
+
+Closed Positions
+
+Current Portfolio
+
+Today's PnL
+
+Available Cash
+
+Capital Utilization
+
+Every BUY/SELL should appear instantly.
+
+===============================================================================
+PANEL 4
+LIVE EVENT STREAM
+===============================================================================
+
+Every backend event.
+
+Example
+
+09:15
+
+Scanner
+
+Scanning TCS
+
+09:15
+
+Research Complete
+
+09:15
+
+Risk Approved
+
+09:15
+
+BUY Generated
+
+09:15
+
+Paper BUY Executed
+
+09:16
+
+Portfolio Updated
+
+09:45
+
+Target Hit
+
+09:45
+
+SELL Executed
+
+===============================================================================
+PANEL 5
+LIVE PORTFOLIO
+===============================================================================
+
+Display
+
+Portfolio Value
+
+Cash
+
+Invested
+
+Exposure
+
+Open Positions
+
+Closed Positions
+
+Realized PnL
+
+Unrealized PnL
+
+Net Return
+
+Sector Allocation
+
+Largest Position
+
+===============================================================================
+PANEL 6
+MISSION MAP
+===============================================================================
+
+Visual flow.
+
+Universe
+
+↓
+
+Scanner
+
+↓
+
+Research
+
+↓
+
+Market Intelligence
+
+↓
+
+Monitoring
+
+↓
+
+Strategy
+
+↓
+
+Risk
+
+↓
+
+Decision
+
+↓
+
+Execution
+
+↓
+
+Portfolio
+
+Each stage lights green while processing.
+
+===============================================================================
+PANEL 7
+AI HEALTH
+===============================================================================
+
+For every agent
+
+Running
+
+Waiting
+
+Idle
+
+CPU
+
+Memory
+
+Latency
+
+Errors
+
+Recovery
+
+===============================================================================
+PANEL 8
+AI LEARNING
+===============================================================================
+
+Today's Lessons
+
+Best Strategy
+
+Worst Strategy
+
+Top Mistake
+
+Top Recommendation
+
+Confidence Calibration
+
+Daily AI Score
+
+Risk Learning
+
+===============================================================================
+PANEL 9
+ALERT CENTER
+===============================================================================
+
+Display
+
+Risk Alerts
+
+Execution Alerts
+
+API Failures
+
+Broker Issues
+
+Portfolio Alerts
+
+System Warnings
+
+Market Alerts
+
+===============================================================================
+PANEL 10
+REPLAY
+===============================================================================
+
+Integrated replay controls.
+
+Play
+
+Pause
+
+Jump
+
+Historical
+
+Today's Replay
+
+Every replay uses the canonical Event Store.
+
+===============================================================================
+PANEL 11
+BACKTEST
+===============================================================================
+
+Run
+
+One Day
+
+One Week
+
+One Month
+
+Custom
+
+Display
+
+Performance
+
+PnL
+
+Win Rate
+
+Drawdown
+
+Sharpe
+
+Strategy Ranking
+
+===============================================================================
+PANEL 12
+MISSION TIMELINE
+===============================================================================
+
+Display complete day.
+
+Market Open
+
+↓
+
+Scans
+
+↓
+
+Research
+
+↓
+
+BUY
+
+↓
+
+Execution
+
+↓
+
+Portfolio
+
+↓
+
+SELL
+
+↓
+
+Market Close
+
+Click any point to inspect AI state.
+
+===============================================================================
+PANEL 13
+BROKER
+===============================================================================
+
+Broker Status
+
+Connection
+
+Execution Queue
+
+Pending Orders
+
+Completed Orders
+
+Paper Orders
+
+Portfolio Sync
+
+===============================================================================
+PANEL 14
+SYSTEM HEALTH
+===============================================================================
+
+CPU
+
+RAM
+
+Database
+
+Redis
+
+Yahoo
+
+Zerodha
+
+NSE Feed
+
+API Latency
+
+Queue Depth
+
+Event Throughput
+
+===============================================================================
+PANEL 15
+COMMAND BAR
+===============================================================================
+
+Actions
+
+Start Scan
+
+Pause AI
+
+Resume AI
+
+Emergency Stop
+
+Replay Today
+
+Run Backtest
+
+Generate Report
+
+Open Investigation
+
+Open Learning Center
+
+===============================================================================
+PANEL 16
+SEARCH
+===============================================================================
+
+Global search.
+
+Search
+
+Trade
+
+Order
+
+Symbol
+
+Strategy
+
+Recommendation
+
+Replay
+
+Event
+
+Agent
+
+===============================================================================
+UNIFIED DATA MODEL
+===============================================================================
+
+Everything must read from
+
+Pipeline Event Store
+
+Portfolio Ledger
+
+Execution Ledger
+
+Replay Snapshot
+
+Learning Engine
+
+Validation Store
+
+No duplicate calculations.
+
+No duplicate APIs.
+
+No page-specific business logic.
+
+===============================================================================
+PERFORMANCE
+===============================================================================
+
+Mission Control must load in under 2 seconds.
+
+Widgets update independently.
+
+Large tables virtualized.
+
+Charts lazy loaded.
+
+SSE/WebSocket driven.
+
+===============================================================================
+MOBILE
+===============================================================================
+
+Responsive Mission Control.
+
+Tablet support.
+
+Mobile quick dashboard.
+
+===============================================================================
+FINAL ACCEPTANCE
+===============================================================================
+
+Mission Control becomes the primary operational screen.
+
+During market hours, the user should never need to open multiple pages.
+
+Everything should be visible from Mission Control.
+
+===============================================================================
+DELIVERABLES
+===============================================================================
+
+1. Mission Control Dashboard
+2. Unified Widget Framework
+3. Live AI Pipeline Visualization
+4. Live Scanner
+5. Live Paper Trading Monitor
+6. Portfolio Widget
+7. Event Stream
+8. AI Learning Widget
+9. Replay Widget
+10. Backtest Widget
+11. Broker Widget
+12. System Health Widget
+13. Alert Center
+14. Global Search
+15. Responsive Layout
+16. Performance Optimization
+17. Automated UI and Integration Tests
+18. Final Mission Control Verification Report

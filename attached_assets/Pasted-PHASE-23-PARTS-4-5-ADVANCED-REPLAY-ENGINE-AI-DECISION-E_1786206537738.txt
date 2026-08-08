@@ -1,0 +1,504 @@
+PHASE 23 – PARTS 4 & 5
+ADVANCED REPLAY ENGINE + AI DECISION EXPLORER
+
+OBJECTIVE
+
+Parts 1, 2 and 3 are complete.
+
+We now have:
+
+• Canonical Event Store
+• Live Trading Command Center
+• Historical Backtest Engine
+• Investigation Center
+
+Now implement Parts 4 and 5.
+
+The objective is to make ApexQuant AI completely explainable.
+
+Every BUY, SELL, WATCH, REJECT and EXECUTION decision must be traceable.
+
+===============================================================================
+ARCHITECTURE
+===============================================================================
+
+Do NOT introduce new business logic.
+
+Replay and Decision Explorer must consume the SAME canonical Event Store created in Phase 23.
+
+No duplicate calculations.
+
+No duplicate APIs.
+
+Everything must be read-only.
+
+===============================================================================
+PART A
+ADVANCED REPLAY ENGINE
+===============================================================================
+
+Upgrade the replay into a professional timeline.
+
+Replay Modes
+
+• Candle by Candle
+• Tick by Tick (future ready)
+• Trade by Trade
+• AI Decision Replay
+• Full Day Replay
+• Multi-Day Replay
+• One Week Replay
+• One Month Replay
+
+Replay Controls
+
+Play
+
+Pause
+
+Stop
+
+Previous Candle
+
+Next Candle
+
+Jump to Timestamp
+
+Jump to Trade
+
+Jump to BUY
+
+Jump to SELL
+
+Replay Speed
+
+1x
+
+2x
+
+5x
+
+10x
+
+20x
+
+Maximum
+
+===============================================================================
+PART B
+VISUAL AI PIPELINE REPLAY
+===============================================================================
+
+Animate the pipeline.
+
+Supervisor
+
+↓
+
+Scanner
+
+↓
+
+Research
+
+↓
+
+Market Intelligence
+
+↓
+
+Monitoring
+
+↓
+
+Strategy
+
+↓
+
+Risk
+
+↓
+
+AI Decision
+
+↓
+
+Execution
+
+↓
+
+Portfolio
+
+Each stage lights up while replay runs.
+
+Display
+
+Input
+
+Output
+
+Rejected
+
+Pending
+
+Cancelled
+
+Processing Time
+
+Latency
+
+Decision Count
+
+===============================================================================
+PART C
+DECISION EXPLORER
+===============================================================================
+
+Click any stock.
+
+Display complete decision tree.
+
+Scanner
+
+Research
+
+Market Intelligence
+
+Monitoring
+
+Strategy
+
+Risk
+
+Decision
+
+Execution
+
+Portfolio
+
+Exit
+
+PnL
+
+Every stage must include
+
+Timestamp
+
+Confidence
+
+Indicators
+
+Reason
+
+Evidence
+
+===============================================================================
+PART D
+WHY DID THE AI BUY?
+===============================================================================
+
+Display
+
+Indicators responsible
+
+Research summary
+
+Strategy explanation
+
+Risk explanation
+
+Confidence breakdown
+
+Expected Reward
+
+Expected Risk
+
+Position Size Calculation
+
+Target
+
+Stop Loss
+
+Exit Logic
+
+===============================================================================
+PART E
+WHY DID THE AI REJECT?
+===============================================================================
+
+Every rejection must include
+
+Exact rule
+
+Indicator values
+
+Threshold
+
+Current value
+
+Confidence
+
+Would relaxing the rule have helped?
+
+Expected outcome
+
+===============================================================================
+PART F
+MISSED OPPORTUNITY EXPLORER
+===============================================================================
+
+Display
+
+Rejected Symbol
+
+Reason
+
+Potential Profit
+
+Highest Gain
+
+Would AI have made money?
+
+Would current strategy change improve?
+
+===============================================================================
+PART G
+TRADE STORY
+===============================================================================
+
+Every completed trade should have a narrative.
+
+Example
+
+09:20
+
+Scanner found RELIANCE
+
+↓
+
+Research detected positive momentum
+
+↓
+
+Strategy selected Trend Rider
+
+↓
+
+Risk approved
+
+↓
+
+BUY executed
+
+↓
+
+Target updated
+
+↓
+
+Trailing Stop adjusted
+
+↓
+
+Target hit
+
+↓
+
+SELL executed
+
+↓
+
+Trade closed
+
+This should read like a timeline.
+
+===============================================================================
+PART H
+REPLAY SYNCHRONIZATION
+===============================================================================
+
+Synchronize
+
+Chart
+
+Timeline
+
+Pipeline
+
+Portfolio
+
+Trade List
+
+Event Feed
+
+Decision Tree
+
+When replay moves
+
+Everything moves together.
+
+===============================================================================
+PART I
+CHART INTEGRATION
+===============================================================================
+
+Display historical candles.
+
+Overlay
+
+BUY markers
+
+SELL markers
+
+Stop Loss
+
+Target
+
+Trailing Stop
+
+Rejected BUY opportunities
+
+Missed Opportunities
+
+===============================================================================
+PART J
+FILTERS
+===============================================================================
+
+Replay filters
+
+Symbol
+
+Strategy
+
+Sector
+
+Confidence
+
+Date
+
+Trade Result
+
+BUY
+
+SELL
+
+Rejected
+
+Cancelled
+
+===============================================================================
+PART K
+SEARCH
+===============================================================================
+
+Search
+
+Trade ID
+
+Symbol
+
+Strategy
+
+Agent
+
+Timestamp
+
+Confidence
+
+Reason
+
+===============================================================================
+PART L
+VALIDATION
+===============================================================================
+
+Replay should verify
+
+Pipeline matches Event Store
+
+Decision matches Backtest
+
+Execution matches Ledger
+
+Portfolio matches Replay
+
+No synchronization errors.
+
+===============================================================================
+PART M
+PERFORMANCE
+===============================================================================
+
+Virtual scrolling
+
+Lazy loading
+
+Background replay generation
+
+Incremental rendering
+
+Replay should support large datasets.
+
+===============================================================================
+PART N
+TESTING
+===============================================================================
+
+Run
+
+One Day
+
+One Week
+
+One Month
+
+Verify
+
+Replay integrity
+
+Decision integrity
+
+Portfolio integrity
+
+Execution integrity
+
+No missing events
+
+No duplicate events
+
+No replay drift
+
+===============================================================================
+DELIVERABLES
+===============================================================================
+
+1. Advanced Replay Engine
+
+2. Visual AI Pipeline Replay
+
+3. Decision Explorer
+
+4. Buy Explanation Engine
+
+5. Rejection Explanation Engine
+
+6. Missed Opportunity Explorer
+
+7. Trade Story Timeline
+
+8. Synchronized Replay
+
+9. Chart Overlay System
+
+10. Replay Filters
+
+11. Global Search
+
+12. Validation Engine
+
+13. Performance Optimizations
+
+14. Automated Tests
+
+15. Verification Report proving every replay event comes directly from the canonical Event Store.
