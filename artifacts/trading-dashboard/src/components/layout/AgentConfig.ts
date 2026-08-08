@@ -225,6 +225,7 @@ export const AGENTS: Agent[] = [
       { href: "/design-system",      label: "Design System",              icon: Palette,         tags: ["design", "system", "components", "tokens", "ui"] },
       { href: "/ai-operations-centre", label: "AI Operations Centre",       icon: Activity,        tags: ["ai", "ops", "pipeline", "agents", "monitor", "operations"] },
       { href: "/live-command-center",  label: "Live Command Center",        icon: Radio,           tags: ["live", "pipeline", "events", "mission", "control", "phase23"] },
+      { href: "/investigation-center", label: "Investigation Center",       icon: FlaskConical,    tags: ["backtest", "replay", "historical", "decision tree", "missed opportunities", "validation", "phase23"] },
       { href: "/ai-investigation",   label: "AI Investigation Centre",    icon: Microscope,      tags: ["investigation", "replay", "digital twin", "pipeline", "debug", "ai", "missed opportunities", "why bought", "why rejected"] },
       { href: "/replay",             label: "Replay Mode",                icon: PlayCircle,      tags: ["replay", "pipeline", "debug", "ai", "thinking", "journey", "time travel", "feature 11"] },
       { href: "/agent-operations",   label: "Agent Operations",           icon: Bot,             tags: ["agents", "framework", "multi-agent", "supervisor", "bus"] },

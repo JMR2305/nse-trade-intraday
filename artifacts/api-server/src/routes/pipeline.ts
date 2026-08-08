@@ -50,6 +50,12 @@ router.get("/pipeline/events", async (req, res) => {
       scan_id: q(req.query.scan_id),
       run_id: q(req.query.run_id),
       mode: q(req.query.mode) || "LIVE",
+      event_type: q(req.query.event_type),
+      stage: q(req.query.stage),
+      symbol: q(req.query.symbol),
+      since_id: Number(req.query.since_id) || 0,
+      limit: Number(req.query.limit) || 200,
+      newest_first: req.query.newest_first === "true",
     };
     res.json(await runPython(["pipeline_events", JSON.stringify(payload)]));
   } catch (err) {

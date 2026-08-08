@@ -425,6 +425,74 @@ def _set_progress(stage: Optional[str], scan_id: Optional[str] = None,
         pass
 
 
+def derive_symbol_events(recs: List[Phase7Recommendation], scan_id: str,
+                         mode: str = "LIVE",
+                         run_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """
+    Derive per-symbol pipeline events from authoritative recommendations.
+
+    Shared by LIVE scans and the Phase 23 Historical Backtest Engine so both
+    modes emit IDENTICAL event shapes from the same code path — counts can
+    never diverge from the scan by construction.
+    """
+    batch: List[Dict[str, Any]] = []
+    for r in recs:
+        base: Dict[str, Any] = {"scan_id": scan_id, "symbol": r.symbol,
+                                "mode": mode}
+        if run_id:
+            base["run_id"] = run_id
+        if r.error is not None:
+            batch.append({**base, "event_type": "SYMBOL_REJECTED",
+                          "stage": "SCANNER",
+                          "payload": {"error": r.error,
+                                      "data_quality": r.data_quality}})
+            continue
+        batch.append({**base, "event_type": "SYMBOL_SCANNED", "stage": "SCANNER",
+                      "payload": {"data_quality": r.data_quality,
+                                  "bars": r.bars_available,
+                                  "rsi": r.rsi, "adx": r.adx,
+                                  "volume_ratio": r.volume_ratio}})
+        batch.append({**base, "event_type": "RESEARCH_COMPLETED", "stage": "RESEARCH",
+                      "payload": {"win_rate": r.win_rate,
+                                  "profit_factor": r.profit_factor,
+                                  "total_trades": r.total_trades,
+                                  "low_evidence": r.low_evidence}})
+        batch.append({**base, "event_type": "MARKET_INTELLIGENCE_COMPLETED",
+                      "stage": "MARKET_INTELLIGENCE",
+                      "payload": {"regime": r.regime, "sector": r.sector}})
+        batch.append({**base, "event_type": "MONITORING_COMPLETED", "stage": "MONITORING",
+                      "payload": {"above_ema20": r.above_ema20,
+                                  "above_ema50": r.above_ema50}})
+        if r.strategy_id:
+            batch.append({**base, "event_type": "STRATEGY_SELECTED", "stage": "STRATEGY",
+                          "payload": {"strategy_id": r.strategy_id,
+                                      "strategy_name": r.strategy_name,
+                                      "technical_score": r.technical_score}})
+        else:
+            batch.append({**base, "event_type": "STRATEGY_REJECTED", "stage": "STRATEGY",
+                          "payload": {"reason": "No viable strategy"}})
+        gates = {"price": r.gate_price, "data_quality": r.gate_data_quality,
+                 "rr": r.gate_rr, "volume": r.gate_volume}
+        failed = {k: v for k, v in gates.items() if not (v or {}).get("passed")}
+        if r.all_gates_passed:
+            batch.append({**base, "event_type": "RISK_APPROVED", "stage": "RISK",
+                          "payload": {"gates": gates, "rr_ratio": r.rr_ratio}})
+        else:
+            batch.append({**base, "event_type": "RISK_REJECTED", "stage": "RISK",
+                          "payload": {"failed_gates": failed,
+                                      "rr_ratio": r.rr_ratio,
+                                      "confidence": r.calibrated_confidence}})
+        act = r.final_action
+        et = ("BUY_GENERATED" if act in ("BUY", "STRONG BUY")
+              else "WATCH_GENERATED" if act == "WATCH" else "IGNORE_GENERATED")
+        batch.append({**base, "event_type": et, "stage": "AI_DECISION",
+                      "payload": {"action": act,
+                                  "confidence": r.calibrated_confidence,
+                                  "opportunity_score": r.opportunity_score,
+                                  "paper_eligible": r.paper_eligible}})
+    return batch
+
+
 def run_live_scan(
     symbols: Optional[List[str]] = None,
     capital: float = INITIAL_CAPITAL,
@@ -526,59 +594,7 @@ def run_live_scan(
     # one batch insert (never 50 round-trips), emitted from the authoritative
     # scan result itself so counts can never diverge from the scan.
     try:
-        _pe_batch: List[Dict[str, Any]] = []
-        for r in recs:
-            base = {"scan_id": scan_id, "symbol": r.symbol}
-            if r.error is not None:
-                _pe_batch.append({**base, "event_type": "SYMBOL_REJECTED",
-                                  "stage": "SCANNER",
-                                  "payload": {"error": r.error,
-                                              "data_quality": r.data_quality}})
-                continue
-            _pe_batch.append({**base, "event_type": "SYMBOL_SCANNED", "stage": "SCANNER",
-                              "payload": {"data_quality": r.data_quality,
-                                          "bars": r.bars_available,
-                                          "rsi": r.rsi, "adx": r.adx,
-                                          "volume_ratio": r.volume_ratio}})
-            _pe_batch.append({**base, "event_type": "RESEARCH_COMPLETED", "stage": "RESEARCH",
-                              "payload": {"win_rate": r.win_rate,
-                                          "profit_factor": r.profit_factor,
-                                          "total_trades": r.total_trades,
-                                          "low_evidence": r.low_evidence}})
-            _pe_batch.append({**base, "event_type": "MARKET_INTELLIGENCE_COMPLETED",
-                              "stage": "MARKET_INTELLIGENCE",
-                              "payload": {"regime": r.regime, "sector": r.sector}})
-            _pe_batch.append({**base, "event_type": "MONITORING_COMPLETED", "stage": "MONITORING",
-                              "payload": {"above_ema20": r.above_ema20,
-                                          "above_ema50": r.above_ema50}})
-            if r.strategy_id:
-                _pe_batch.append({**base, "event_type": "STRATEGY_SELECTED", "stage": "STRATEGY",
-                                  "payload": {"strategy_id": r.strategy_id,
-                                              "strategy_name": r.strategy_name,
-                                              "technical_score": r.technical_score}})
-            else:
-                _pe_batch.append({**base, "event_type": "STRATEGY_REJECTED", "stage": "STRATEGY",
-                                  "payload": {"reason": "No viable strategy"}})
-            gates = {"price": r.gate_price, "data_quality": r.gate_data_quality,
-                     "rr": r.gate_rr, "volume": r.gate_volume}
-            failed = {k: v for k, v in gates.items() if not (v or {}).get("passed")}
-            if r.all_gates_passed:
-                _pe_batch.append({**base, "event_type": "RISK_APPROVED", "stage": "RISK",
-                                  "payload": {"gates": gates, "rr_ratio": r.rr_ratio}})
-            else:
-                _pe_batch.append({**base, "event_type": "RISK_REJECTED", "stage": "RISK",
-                                  "payload": {"failed_gates": failed,
-                                              "rr_ratio": r.rr_ratio,
-                                              "confidence": r.calibrated_confidence}})
-            act = r.final_action
-            et = ("BUY_GENERATED" if act in ("BUY", "STRONG BUY")
-                  else "WATCH_GENERATED" if act == "WATCH" else "IGNORE_GENERATED")
-            _pe_batch.append({**base, "event_type": et, "stage": "AI_DECISION",
-                              "payload": {"action": act,
-                                          "confidence": r.calibrated_confidence,
-                                          "opportunity_score": r.opportunity_score,
-                                          "paper_eligible": r.paper_eligible}})
-        _pe_emit_many(_pe_batch)
+        _pe_emit_many(derive_symbol_events(recs, scan_id))
     except Exception:
         pass
 

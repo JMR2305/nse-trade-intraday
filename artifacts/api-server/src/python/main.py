@@ -2092,6 +2092,86 @@ def main():
             result = stage_summary(scan_id=sid, run_id=p.get("run_id"),
                                    mode=str(p.get("mode") or "LIVE"))
 
+        # ── Phase 23 Parts 2/3: Historical Backtest Engine ────────────────
+        elif command == "backtest_start":
+            # Create a run and launch execution in a DETACHED process so the
+            # API request returns immediately; progress is polled via
+            # backtest_status.
+            import subprocess
+            import backtest_portfolio as _bp
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            cfg = {
+                "interval": str(p.get("interval") or "1d"),
+                "start": str(p.get("start") or ""),
+                "end": str(p.get("end") or ""),
+                "capital": float(p.get("capital") or 100000.0),
+                "symbols": p.get("symbols"),
+                "universe": p.get("universe") or "configured",
+            }
+            if not cfg["start"] or not cfg["end"]:
+                result = {"ok": False, "error": "start and end dates required"}
+            else:
+                rid = _bp.create_run(cfg)
+                log_path = f"/tmp/backtest_{rid}.log"
+                with open(log_path, "ab") as lf:
+                    subprocess.Popen(
+                        [sys.executable, os.path.abspath(__file__),
+                         "backtest_exec", json.dumps({"run_id": rid})],
+                        stdout=lf, stderr=lf,
+                        cwd=os.path.dirname(os.path.abspath(__file__)),
+                        start_new_session=True)
+                result = {"ok": True, "run_id": rid, "status": "PENDING",
+                          "log": log_path,
+                          "label": "BACKTEST — SIMULATED, ISOLATED FROM LIVE"}
+        elif command == "backtest_exec":
+            from backtest_runner import execute_run
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = execute_run(str(p.get("run_id")))
+        elif command == "backtest_status":
+            import backtest_portfolio as _bp
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = _bp.get_run(str(p.get("run_id"))) or \
+                {"ok": False, "error": "Unknown run"}
+        elif command == "backtest_runs":
+            import backtest_portfolio as _bp
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = {"runs": _bp.list_runs(int(p.get("limit") or 50)),
+                      "label": "BACKTEST — SIMULATED, ISOLATED FROM LIVE"}
+        elif command == "backtest_portfolio":
+            import backtest_portfolio as _bp
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = _bp.portfolio_snapshot(str(p.get("run_id")),
+                                            p.get("marks") or {})
+        elif command == "backtest_trades":
+            import backtest_portfolio as _bp
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = {"trades": _bp.trades(str(p.get("run_id")),
+                                           p.get("status"))}
+        elif command == "backtest_candles":
+            from historical_data_engine import get_candles
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = {"symbol": str(p.get("symbol") or "").upper(),
+                      "interval": str(p.get("interval") or "1d"),
+                      "candles": get_candles(
+                          str(p.get("symbol") or ""),
+                          str(p.get("interval") or "1d"),
+                          str(p.get("start") or ""),
+                          str(p.get("end") or ""))}
+        elif command == "backtest_cache_stats":
+            from historical_data_engine import cache_stats
+            result = cache_stats()
+        elif command == "backtest_decision_tree":
+            from backtest_runner import decision_tree
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = decision_tree(str(p.get("id") or ""),
+                                   str(p.get("symbol") or ""),
+                                   mode=str(p.get("mode") or "BACKTEST"))
+        elif command == "backtest_validate":
+            from backtest_runner import validate_run
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = validate_run(str(p.get("run_id")),
+                                  sample=int(p.get("sample") or 25))
+
         # ── Phase 17: Automated QA & Release Validation ──────────────────
         elif command == "phase17_build_info":
             from phase17_qa import build_info

@@ -1,0 +1,525 @@
+PHASE 23 – PARTS 2 & 3
+HISTORICAL BACKTEST ENGINE + AI INVESTIGATION CENTER
+
+OBJECTIVE
+
+Part 1 introduced the canonical Pipeline Event Store and AI Live Trading Command Center.
+
+Now implement Parts 2 and 3.
+
+The objective is to allow ApexQuant AI to replay historical market data through the EXACT SAME production pipeline used for live paper trading.
+
+This is NOT another strategy engine.
+
+The Historical Backtest Engine MUST use the existing production pipeline.
+
+The Investigation Center must become the primary debugging tool for understanding every AI decision.
+
+===============================================================================
+ARCHITECTURE RULE
+===============================================================================
+
+Historical replay MUST call the SAME production modules:
+
+Supervisor
+
+↓
+
+Scanner
+
+↓
+
+Research
+
+↓
+
+Market Intelligence
+
+↓
+
+Monitoring
+
+↓
+
+Strategy
+
+↓
+
+Risk
+
+↓
+
+AI Decision
+
+↓
+
+Execution
+
+↓
+
+Portfolio
+
+↓
+
+Performance
+
+↓
+
+Validation
+
+Do NOT duplicate strategy logic.
+
+Do NOT create a second decision engine.
+
+The ONLY difference between LIVE and BACKTEST is the market data source.
+
+===============================================================================
+PART A
+HISTORICAL DATA ENGINE
+===============================================================================
+
+Support
+
+5 Minute candles
+
+10 Minute candles
+
+15 Minute candles
+
+Daily candles
+
+Selectable time ranges
+
+One Day
+
+One Week
+
+One Month
+
+Three Months
+
+Six Months
+
+One Year
+
+Custom Range
+
+Download historical data from the configured NSE-compatible historical data provider.
+
+Cache all downloaded candles locally.
+
+Store
+
+OHLC
+
+Volume
+
+Corporate Actions
+
+Splits
+
+Dividends
+
+Do not repeatedly download identical data.
+
+===============================================================================
+PART B
+BACKTEST ENGINE
+===============================================================================
+
+Create a dedicated Backtest Engine.
+
+The engine should inject historical candles into the production pipeline exactly as if they were arriving live.
+
+Example
+
+09:15 Candle
+
+↓
+
+Scanner
+
+↓
+
+Research
+
+↓
+
+Strategy
+
+↓
+
+Risk
+
+↓
+
+BUY
+
+↓
+
+Paper Portfolio
+
+↓
+
+09:20 Candle
+
+↓
+
+Repeat
+
+Continue until end of selected period.
+
+===============================================================================
+PART C
+BACKTEST MODES
+===============================================================================
+
+Support
+
+Single Day Replay
+
+Weekly Replay
+
+Monthly Replay
+
+Custom Date Range
+
+Custom Symbol
+
+Nifty 50 Universe
+
+Configured Trading Universe
+
+Individual Stock Replay
+
+===============================================================================
+PART D
+AI INVESTIGATION CENTER
+===============================================================================
+
+This page becomes the AI debugger.
+
+User selects
+
+Date
+
+Time
+
+Symbol
+
+Strategy
+
+Replay Speed
+
+The page should replay every candle.
+
+For every candle display
+
+Current Price
+
+Volume
+
+Indicators
+
+Research
+
+Market Intelligence
+
+Monitoring
+
+Strategy
+
+Risk
+
+Confidence
+
+Decision
+
+Execution
+
+Portfolio Impact
+
+P&L
+
+===============================================================================
+PART E
+DECISION EXPLORER
+===============================================================================
+
+Click any stock.
+
+Display complete decision tree.
+
+Scanner
+
+Research
+
+Market Intelligence
+
+Monitoring
+
+Strategy
+
+Risk
+
+AI Decision
+
+Execution
+
+Portfolio
+
+Exit
+
+PnL
+
+Every rejection must display
+
+Exact Rule
+
+Confidence
+
+Indicator Values
+
+Reason
+
+No hidden logic.
+
+===============================================================================
+PART F
+MISSED OPPORTUNITY ANALYZER
+===============================================================================
+
+Identify stocks that were rejected.
+
+Display
+
+Rejected Symbol
+
+Reason
+
+Potential Return
+
+Would this have become profitable?
+
+Would relaxing one rule improve performance?
+
+Do NOT automatically change strategy.
+
+===============================================================================
+PART G
+BACKTEST PORTFOLIO
+===============================================================================
+
+Run the SAME paper trading engine.
+
+Display
+
+Starting Capital
+
+Cash
+
+Open Positions
+
+Closed Positions
+
+Realized PnL
+
+Unrealized PnL
+
+Net Return
+
+Win Rate
+
+Drawdown
+
+Portfolio Value
+
+===============================================================================
+PART H
+TIMELINE REPLAY
+===============================================================================
+
+Provide playback controls
+
+Play
+
+Pause
+
+Previous Candle
+
+Next Candle
+
+1x
+
+5x
+
+20x
+
+Jump To Time
+
+The replay should visually show
+
+Market
+
+↓
+
+Scanner
+
+↓
+
+Research
+
+↓
+
+Strategy
+
+↓
+
+Risk
+
+↓
+
+BUY
+
+↓
+
+Execution
+
+↓
+
+Portfolio
+
+↓
+
+SELL
+
+↓
+
+Portfolio Update
+
+===============================================================================
+PART I
+VALIDATION
+===============================================================================
+
+Historical replay must produce the SAME decisions that the production pipeline would have produced for those candles.
+
+If a mismatch exists
+
+Log
+
+Symbol
+
+Time
+
+Expected Decision
+
+Actual Decision
+
+Reason
+
+===============================================================================
+PART J
+DATABASE
+===============================================================================
+
+Create separate BACKTEST objects.
+
+Backtest Runs
+
+Backtest Events
+
+Backtest Portfolio
+
+Backtest Trades
+
+Backtest Metrics
+
+Use
+
+mode = BACKTEST
+
+to isolate from LIVE.
+
+Never pollute live data.
+
+===============================================================================
+PART K
+UI
+===============================================================================
+
+Create a professional Investigation Center.
+
+Sections
+
+Historical Chart
+
+Replay Controls
+
+AI Decision Tree
+
+Live Event Timeline
+
+Backtest Portfolio
+
+Trade List
+
+Missed Opportunities
+
+Performance Summary
+
+Rejection Analysis
+
+===============================================================================
+TESTING
+===============================================================================
+
+Run one complete month.
+
+Verify
+
+Historical candles loaded
+
+Pipeline executed
+
+Trades generated
+
+Portfolio updated
+
+Replay generated
+
+Performance calculated
+
+No look-ahead bias.
+
+No duplicate trades.
+
+No missing candles.
+
+===============================================================================
+DELIVERABLES
+===============================================================================
+
+1. Historical Data Engine
+
+2. Backtest Engine
+
+3. Investigation Center
+
+4. Decision Explorer
+
+5. Timeline Replay
+
+6. Missed Opportunity Analyzer
+
+7. Backtest Portfolio
+
+8. Replay Controls
+
+9. Historical Validation Engine
+
+10. BACKTEST database schema
+
+11. Comprehensive automated tests
+
+12. Verification report proving the historical engine uses the SAME production pipeline as LIVE mode.
