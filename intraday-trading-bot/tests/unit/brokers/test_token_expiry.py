@@ -612,3 +612,214 @@ class TestTokenExpiryMonitor:
 
         asyncio.get_event_loop().run_until_complete(_run())
         assert call_count >= 1  # monitor survived the error
+
+
+# ---------------------------------------------------------------------------
+# ZerodhaAdapter lifecycle — monitor auto-start / auto-stop
+# ---------------------------------------------------------------------------
+
+class TestAdapterMonitorLifecycle:
+    """initialize_live_session() must start the monitor; close() must stop it."""
+
+    def _make_adapter(self, *, lead_minutes: int = 30):
+        from src.brokers.zerodha.adapter import ZerodhaAdapter
+        config = ZerodhaBrokerConfig(
+            api_key="test_api_key",
+            api_secret="test_api_secret",
+            paper_trading=False,
+            enabled=True,
+            live_trading_enabled=True,
+            token_expiry_warning_lead_minutes=lead_minutes,
+        )
+        adapter = ZerodhaAdapter.__new__(ZerodhaAdapter)
+        adapter._config = config
+        adapter._session_expired_paper_fallback = False
+        adapter._expiry_monitor = None
+        adapter._health_tracker = BrokerHealthTracker(paper_mode=False)
+        adapter._ws_manager = MagicMock()
+        adapter._ws_manager.stop = AsyncMock()
+        # Stub session restore/validation
+        adapter.restore_session = AsyncMock(return_value=_session_expiring_in(120))
+        adapter.validate_session = AsyncMock(return_value=True)
+        return adapter
+
+    def test_initialize_live_session_starts_monitor(self):
+        adapter = self._make_adapter(lead_minutes=45)
+
+        async def _run():
+            await adapter.initialize_live_session()
+            monitor = adapter._expiry_monitor
+            assert monitor is not None
+            # Monitor task is scheduled and running
+            assert monitor._task is not None
+            assert not monitor._task.done()
+            # Configured lead time wired through from config
+            assert monitor._warning_lead == 45
+            await adapter.close()
+
+        asyncio.get_event_loop().run_until_complete(_run())
+
+    def test_close_stops_monitor(self):
+        adapter = self._make_adapter()
+
+        async def _run():
+            await adapter.initialize_live_session()
+            monitor = adapter._expiry_monitor
+            await adapter.close()
+            assert monitor._task.done()
+            assert monitor._running is False
+
+        asyncio.get_event_loop().run_until_complete(_run())
+
+    def test_initialize_twice_does_not_duplicate_monitor(self):
+        adapter = self._make_adapter()
+
+        async def _run():
+            await adapter.initialize_live_session()
+            first = adapter._expiry_monitor
+            first_task = first._task
+            await adapter.initialize_live_session()
+            assert adapter._expiry_monitor is first
+            assert first._task is first_task  # start() is idempotent
+            await adapter.close()
+
+        asyncio.get_event_loop().run_until_complete(_run())
+
+    def test_default_lead_minutes_is_30(self):
+        config = ZerodhaBrokerConfig(
+            api_key="k", api_secret="s", paper_trading=False,
+        )
+        assert config.token_expiry_warning_lead_minutes == 30
+
+
+# ---------------------------------------------------------------------------
+# FastAPI lifespan — shutdown stops the monitor via the live registry path
+# ---------------------------------------------------------------------------
+
+class TestLifespanStopsMonitor:
+    """The lifespan shutdown block must close the registered live adapter,
+    which cancels the auto-started expiry monitor (no leaked tasks)."""
+
+    def test_lifespan_shutdown_closes_live_adapter_and_stops_monitor(self):
+        from src.brokers import registry
+        from src.brokers.zerodha.adapter import ZerodhaAdapter
+        from src.brokers.zerodha.expiry_monitor import TokenExpiryMonitor
+
+        config = ZerodhaBrokerConfig(
+            api_key="test_api_key",
+            api_secret="test_api_secret",
+            paper_trading=False,
+            enabled=True,
+            live_trading_enabled=True,
+            token_expiry_warning_lead_minutes=30,
+        )
+        adapter = ZerodhaAdapter.__new__(ZerodhaAdapter)
+        adapter._config = config
+        adapter._session_expired_paper_fallback = False
+        adapter._expiry_monitor = None
+        adapter._health_tracker = BrokerHealthTracker(paper_mode=False)
+        adapter._ws_manager = MagicMock()
+        adapter._ws_manager.stop = AsyncMock()
+        adapter.restore_session = AsyncMock(return_value=_session_expiring_in(120))
+        adapter.validate_session = AsyncMock(return_value=True)
+
+        async def _run():
+            # Startup path: initialize and register in the process registry
+            await adapter.initialize_live_session()
+            registry.set_live_broker(adapter)
+            monitor = adapter._expiry_monitor
+            assert monitor is not None and not monitor._task.done()
+
+            # Shutdown path — mirror main.py lifespan teardown exactly
+            live_adapter = registry.get_live_broker()
+            assert live_adapter is adapter
+            await live_adapter.close()
+            registry.clear_live_broker()
+
+            # Monitor task is cancelled/finished; registry is empty
+            assert monitor._task.done()
+            assert monitor._running is False
+            assert registry.get_live_broker() is None
+            assert registry.is_live_mode() is False
+
+        asyncio.get_event_loop().run_until_complete(_run())
+
+    def test_startup_failure_cleanup_closes_adapter(self):
+        """If initialize_live_session raises, adapter.close() must be safe to
+        call (monitor may or may not have started) — the main.py startup path
+        relies on this for its best-effort cleanup."""
+        from src.brokers.zerodha.adapter import ZerodhaAdapter
+
+        config = ZerodhaBrokerConfig(
+            api_key="k", api_secret="s", paper_trading=False,
+            enabled=True, live_trading_enabled=True,
+        )
+        adapter = ZerodhaAdapter.__new__(ZerodhaAdapter)
+        adapter._config = config
+        adapter._session_expired_paper_fallback = False
+        adapter._expiry_monitor = None
+        adapter._health_tracker = BrokerHealthTracker(paper_mode=False)
+        adapter._ws_manager = MagicMock()
+        adapter._ws_manager.stop = AsyncMock()
+        adapter.restore_session = AsyncMock(
+            side_effect=RuntimeError("token restore failed")
+        )
+        adapter.validate_session = AsyncMock(return_value=False)
+
+        async def _run():
+            with pytest.raises(RuntimeError):
+                await adapter.initialize_live_session()
+            # No monitor was started; close() must not raise
+            assert adapter._expiry_monitor is None
+            await adapter.close()
+
+        asyncio.get_event_loop().run_until_complete(_run())
+
+    def test_real_lifespan_failure_after_registration_cleans_up(self):
+        """Run the actual main.py lifespan: force a startup failure AFTER
+        set_live_broker() and assert the monitor is cancelled and the registry
+        is empty (no leaked background tasks)."""
+        from src.brokers import registry
+        import src.main as main_mod
+        from src.brokers.zerodha.adapter import ZerodhaAdapter
+
+        config = ZerodhaBrokerConfig(
+            api_key="test_api_key",
+            api_secret="test_api_secret",
+            paper_trading=False,
+            enabled=True,
+            live_trading_enabled=True,
+            access_token="tok",
+        )
+        adapter = ZerodhaAdapter.__new__(ZerodhaAdapter)
+        adapter._config = config
+        adapter._session_expired_paper_fallback = False
+        adapter._expiry_monitor = None
+        adapter._health_tracker = BrokerHealthTracker(paper_mode=False)
+        adapter._ws_manager = MagicMock()
+        adapter._ws_manager.stop = AsyncMock()
+        adapter.restore_session = AsyncMock(return_value=_session_expiring_in(120))
+        adapter.validate_session = AsyncMock(return_value=True)
+
+        mock_settings = MagicMock()
+        mock_settings.is_paper_mode = False
+        mock_settings.database_url = ""  # forces failure AFTER set_live_broker()
+        mock_settings.trading.mode = "LIVE"
+
+        async def _run():
+            from src.core.exceptions import ConfigurationError
+            with patch.object(main_mod, "settings", mock_settings), \
+                 patch("src.brokers.zerodha.config.load_config_from_env", return_value=config), \
+                 patch("src.brokers.zerodha.adapter.ZerodhaAdapter", return_value=adapter):
+                with pytest.raises(ConfigurationError):
+                    async with main_mod.lifespan(MagicMock()):
+                        pass  # never reached — startup aborts before yield
+
+            monitor = adapter._expiry_monitor
+            assert monitor is not None  # was started by initialize_live_session
+            assert monitor._task.done()  # …and cancelled by cleanup
+            assert monitor._running is False
+            assert registry.get_live_broker() is None
+            assert registry.is_live_mode() is False
+
+        asyncio.get_event_loop().run_until_complete(_run())

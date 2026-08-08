@@ -17,6 +17,22 @@ from src.api.middleware.cors import setup_cors
 from src.api.routers import health, auth, sessions, orders, positions, risk
 
 
+async def _close_live_broker() -> None:
+    """Close and deregister the live broker adapter (stops expiry monitor +
+    websocket).  Best-effort: never raises.  Safe to call when not in live mode."""
+    from src.brokers.registry import clear_live_broker, get_live_broker
+    live_adapter = get_live_broker()
+    if live_adapter is not None:
+        try:
+            await live_adapter.close()
+        except Exception as exc:  # noqa: BLE001 — cleanup must not raise
+            logger.warning(
+                f"Live broker close failed during cleanup: {exc}",
+                extra={"event_type": "LIVE_BROKER_CLOSE_FAILED"},
+            )
+    clear_live_broker()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
@@ -49,26 +65,35 @@ async def lifespan(app: FastAPI):
         try:
             await adapter.initialize_live_session()
         except Exception as exc:
+            # Release any resources acquired before the failure (e.g. an
+            # already-started expiry monitor) so nothing leaks on startup abort.
+            try:
+                await adapter.close()
+            except Exception:  # noqa: BLE001 — best-effort cleanup
+                pass
             raise ConfigurationError(
                 f"LIVE mode startup failed: {exc}. "
                 "Check ZERODHA_ACCESS_TOKEN and re-run the OAuth flow if expired."
             ) from exc
         set_live_broker(adapter)
 
-    if not settings.database_url:
-        raise ConfigurationError("DATABASE_URL not configured")
-    if not settings.jwt_secret_key or len(settings.jwt_secret_key) < 32:
-        raise ConfigurationError("JWT_SECRET_KEY must be at least 32 characters")
-    now_ist = market_calendar.now_ist()
-    logger.info(f"Market status: open={market_calendar.is_market_open()}, pre_open={market_calendar.is_pre_open()}, current_ist={now_ist.isoformat()}", extra={"event_type": "MARKET_STATUS_CHECK"})
-    from src.services.operator_auth_service import operator_auth_service
-    operator_auth_service.register_user("admin", "admin123", is_admin=True)
-    logger.info("Default admin user registered (dev only)", extra={"event_type": "DEV_USER_REGISTERED"})
-    yield
-    if not settings.is_paper_mode:
-        from src.brokers.registry import clear_live_broker
-        clear_live_broker()
-    logger.info("Shutting down intraday trading bot", extra={"event_type": "APP_SHUTDOWN"})
+    # Everything after live-broker registration runs under try/finally so a
+    # failure in any later startup step (or normal shutdown) always closes the
+    # adapter — cancelling the auto-started TokenExpiryMonitor and websocket.
+    try:
+        if not settings.database_url:
+            raise ConfigurationError("DATABASE_URL not configured")
+        if not settings.jwt_secret_key or len(settings.jwt_secret_key) < 32:
+            raise ConfigurationError("JWT_SECRET_KEY must be at least 32 characters")
+        now_ist = market_calendar.now_ist()
+        logger.info(f"Market status: open={market_calendar.is_market_open()}, pre_open={market_calendar.is_pre_open()}, current_ist={now_ist.isoformat()}", extra={"event_type": "MARKET_STATUS_CHECK"})
+        from src.services.operator_auth_service import operator_auth_service
+        operator_auth_service.register_user("admin", "admin123", is_admin=True)
+        logger.info("Default admin user registered (dev only)", extra={"event_type": "DEV_USER_REGISTERED"})
+        yield
+    finally:
+        await _close_live_broker()
+        logger.info("Shutting down intraday trading bot", extra={"event_type": "APP_SHUTDOWN"})
 
 
 def create_app() -> FastAPI:

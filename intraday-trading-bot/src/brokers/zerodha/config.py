@@ -71,6 +71,10 @@ class ZerodhaBrokerConfig(BaseModel):
     # Separate explicit flag required in addition to paper_trading=False
     live_trading_enabled: bool = False
 
+    # ── token expiry monitoring ───────────────────────────────────────────
+    # Minutes before token expiry at which the proactive warning fires
+    token_expiry_warning_lead_minutes: int = Field(default=30, ge=1, le=720)
+
     # ── validators ────────────────────────────────────────────────────────
 
     @field_validator("environment")
@@ -173,4 +177,7 @@ def load_config_from_env() -> ZerodhaBrokerConfig:
         paper_trading=_bool("ZERODHA_PAPER_TRADING", True),
         enabled=_bool("ZERODHA_ENABLED", False),
         live_trading_enabled=_bool("ZERODHA_LIVE_TRADING_ENABLED", False),
+        token_expiry_warning_lead_minutes=_int(
+            "ZERODHA_TOKEN_EXPIRY_WARNING_LEAD_MINUTES", 30
+        ),
     )

@@ -31,6 +31,11 @@ def get_broker() -> object:
     return PaperBroker()
 
 
+def get_live_broker() -> Optional[object]:
+    """Return the registered live adapter, or None if not in live mode."""
+    return _live_broker
+
+
 def clear_live_broker() -> None:
     """Release the live adapter (called from lifespan shutdown)."""
     global _live_broker

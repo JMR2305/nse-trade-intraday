@@ -181,7 +181,10 @@ class ZerodhaAdapter(BrokerAdapter):
         # Start the background expiry monitor so operators get proactive warnings
         from src.brokers.zerodha.expiry_monitor import TokenExpiryMonitor
         if self._expiry_monitor is None:
-            self._expiry_monitor = TokenExpiryMonitor(self)
+            self._expiry_monitor = TokenExpiryMonitor(
+                self,
+                warning_lead_minutes=self._config.token_expiry_warning_lead_minutes,
+            )
         self._expiry_monitor.start()
 
         logger.info(
