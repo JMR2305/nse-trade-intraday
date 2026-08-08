@@ -859,6 +859,10 @@ function Tile({ title, icon, children }: { title: string; icon?: React.ReactNode
   );
 }
 
+function fmtAge(s: number) {
+  return s < 120 ? `${Math.round(s)}s` : `${Math.round(s / 60)}m`;
+}
+
 function OperationsDashboard() {
   const { data, isLoading, error } = useOpsDashboard();
   if (isLoading) {
@@ -936,7 +940,18 @@ function OperationsDashboard() {
               ))}
             </div>
           )}
-          {op.mark_source && <div className="text-[10px] text-slate-600 mt-1">marks: {op.mark_source}</div>}
+          {op.mark_source && (
+            <div className={`text-[10px] mt-1 ${op.mark_stale ? "text-amber-400" : "text-slate-600"}`}>
+              marks: {op.mark_source}
+              {op.live_mark_age_s != null && op.scan_mark_age_s != null && op.mark_source?.includes("+") ? (
+                <> · live {fmtAge(op.live_mark_age_s)} / scan {fmtAge(op.scan_mark_age_s)} old</>
+              ) : op.mark_age_s != null ? (
+                <> · {fmtAge(op.mark_age_s)} old</>
+              ) : null}
+              {op.mark_stale && <> · STALE</>}
+            </div>
+          )}
+          {op.mark_note && <div className="text-[10px] text-amber-400/80 mt-0.5">{op.mark_note}</div>}
         </Tile>
 
         <Tile title="Pending Trades" icon={<Clock className="h-4 w-4 text-teal-400" />}>

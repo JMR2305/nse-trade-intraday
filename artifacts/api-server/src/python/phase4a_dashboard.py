@@ -221,6 +221,58 @@ def _risk_windows(closed: List[Dict]) -> Dict[str, Any]:
 # PART 1 — Phase 4A dashboard
 # ---------------------------------------------------------------------------
 
+MARK_STALE_AFTER_S = 900  # scan marks older than one scan interval are stale
+
+
+def _mark_meta(open_rows: List[Dict], live_marks: Dict[str, float],
+               live_fetched_at: Optional[str], snap: Dict[str, Any],
+               scan_age_s: Optional[float], session_verified: bool = False,
+               quote_error: Optional[str] = None) -> Dict[str, Any]:
+    """Describe where open-position marks came from and how old they are.
+
+    Honesty rules: never claim "no session" when the session was verified
+    but the quote fetch failed; for mixed sources report the scan age too,
+    since some marks are that old.
+    """
+    open_syms = {r.get("symbol") for r in open_rows if r.get("symbol")}
+    live_dt = _parse_ts(live_fetched_at)
+    live_age = round((_now_utc() - live_dt).total_seconds()) if live_dt else None
+    scan_stale = bool(scan_age_s is not None and scan_age_s > MARK_STALE_AFTER_S)
+    base = {
+        "mark_session_verified": session_verified,
+        "mark_quote_error": quote_error,
+        "live_mark_age_s": live_age,
+        "scan_mark_age_s": scan_age_s,
+    }
+    if open_syms and live_marks and open_syms <= set(live_marks):
+        return {**base,
+                "mark_source": "live quotes (Zerodha Kite)",
+                "mark_age_s": live_age,
+                "mark_stale": False,
+                "mark_note": None}
+    if live_marks:
+        missing = sorted(open_syms - set(live_marks))
+        # Some marks are as old as the scan — report the older age honestly.
+        return {**base,
+                "mark_source": f"live quotes (Zerodha Kite) + latest scan {snap.get('scan_id')} for {', '.join(missing)}",
+                "mark_age_s": scan_age_s if scan_age_s is not None else live_age,
+                "mark_stale": scan_stale,
+                "mark_note": (f"live quote unavailable for {', '.join(missing)}; "
+                              "scan marks used for those (see scan mark age)")}
+    if session_verified:
+        return {**base,
+                "mark_source": f"latest scan {snap.get('scan_id')}",
+                "mark_age_s": scan_age_s,
+                "mark_stale": scan_stale,
+                "mark_note": ((f"broker session is active but {quote_error or 'live quotes were unavailable'}"
+                               " — falling back to last-scan prices, which may lag reality")
+                              if open_syms else None)}
+    return {**base,
+            "mark_source": f"latest scan {snap.get('scan_id')}",
+            "mark_age_s": scan_age_s,
+            "mark_stale": scan_stale,
+            "mark_note": ("no live broker session — marks are last-scan prices and may lag reality"
+                          if open_syms else None)}
 def build_phase4a_dashboard() -> Dict[str, Any]:
     snap = _load_snapshot() or {}
     summary = snap.get("summary") or {}
@@ -302,6 +354,34 @@ def build_phase4a_dashboard() -> Dict[str, Any]:
             mark[r.get("symbol")] = float(r["entry_price"])
         if r.get("sector"):
             sector_of[r.get("symbol")] = r["sector"]
+    # Live quote overlay: when a verified Zerodha session is available,
+    # mark open positions with live LTPs instead of last-scan entry prices.
+    live_marks: Dict[str, float] = {}
+    live_fetched_at: Optional[str] = None
+    session_verified = False
+    quote_error: Optional[str] = None
+    if open_rows:
+        try:
+            import kite_quote_provider as kqp
+            session_verified = bool(kqp.kite_session_verified())
+            if session_verified:
+                open_syms = sorted({r.get("symbol") for r in open_rows if r.get("symbol")})
+                quotes = kqp.get_quotes(open_syms) or {}
+                non_live_sources = set()
+                for s, q in quotes.items():
+                    if q.get("data_source") == "kite_live" and isinstance(q.get("ltp"), (int, float)):
+                        live_marks[s] = float(q["ltp"])
+                        live_fetched_at = q.get("fetched_at") or live_fetched_at
+                    else:
+                        non_live_sources.add(q.get("data_source") or "unknown")
+                if not live_marks:
+                    quote_error = ("live quote fetch returned no usable Kite quotes"
+                                   + (f" (provider fell back to: {', '.join(sorted(non_live_sources))})"
+                                      if non_live_sources else ""))
+        except Exception as exc:
+            live_marks = {}
+            quote_error = f"live quote fetch failed: {str(exc)[:200]}"
+
     positions = []
     exposure = 0.0
     unreal = 0.0
@@ -315,7 +395,12 @@ def build_phase4a_dashboard() -> Dict[str, Any]:
         sym = r.get("symbol")
         sector = r.get("sector") or sector_of.get(sym) or "UNKNOWN"
         sector_exp[sector] += cost
-        m = mark.get(sym)
+        if sym in live_marks:
+            m: Optional[float] = live_marks[sym]
+            m_src = "live"
+        else:
+            m = mark.get(sym)
+            m_src = "scan" if m is not None else None
         u = round((m - fp) * qty, 2) if m is not None else None
         if u is None:
             unreal_known = False
@@ -324,6 +409,7 @@ def build_phase4a_dashboard() -> Dict[str, Any]:
         positions.append({
             "trade_id": r.get("trade_id"), "symbol": sym, "qty": qty,
             "fill_price": fp, "cost": round(cost, 2), "mark_price": m,
+            "mark_source": m_src,
             "unrealized_pnl": u, "status": r.get("status"), "sector": sector,
         })
     largest = max(positions, key=lambda p: p["cost"]) if positions else None
@@ -334,7 +420,8 @@ def build_phase4a_dashboard() -> Dict[str, Any]:
         "largest_position": (f"{largest['symbol']} ₹{largest['cost']:.0f}" if largest else "none"),
         "unrealized_pnl": round(unreal, 2) if unreal_known else None,
         "unrealized_note": None if unreal_known else "mark price missing for some symbols in latest scan",
-        "mark_source": f"latest scan {snap.get('scan_id')}",
+        **_mark_meta(open_rows, live_marks, live_fetched_at, snap, freshness_s,
+                     session_verified=session_verified, quote_error=quote_error),
         "sector_exposure": {k: round(v, 2) for k, v in sorted(sector_exp.items(), key=lambda x: -x[1])},
         "positions": positions,
     }
