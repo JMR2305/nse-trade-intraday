@@ -21,22 +21,42 @@
  *
  * PAPER TRADING / RESEARCH ONLY.
  */
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLiveStream, type PipelineStreamEvent } from "@/hooks/useLiveStream";
+import { useIsMobile } from "@/hooks/use-mobile";
 import DataFreshnessBar from "@/components/DataFreshnessBar";
 import { Badge } from "@/components/ui/badge";
 import {
   Activity, AlertTriangle, CheckCircle2, ChevronRight, Clock, Cpu,
-  HeartPulse, PieChart, Radar, Radio, Rocket, Wallet, Wifi, WifiOff, XCircle,
+  HeartPulse, LayoutGrid, PieChart, Radar, Radio, Rocket, Smartphone,
+  Wallet, Wifi, WifiOff, XCircle,
 } from "lucide-react";
 import { Widget, useWidgetQuery, fmtINR, timeAgo, PnlText } from "@/components/mission/Widget";
-import {
-  MissionMapWidget, AiHealthWidget, AiLearningWidget, AlertCenterWidget,
-} from "@/components/mission/IntelWidgets";
-import {
-  ReplayWidget, BacktestWidget, MissionTimelineWidget, BrokerWidget, SystemHealthWidget,
-} from "@/components/mission/OpsWidgets";
+import { CommandBar } from "@/components/mission/CommandBar";
+import { MissionMapWidget, AlertCenterWidget } from "@/components/mission/IntelWidgets";
+
+// Below-the-fold widget rows are lazy-loaded so the page shell (status bar,
+// pipeline, scanner, portfolio) paints fast; charts/timeline code arrives in
+// separate chunks.
+const AiHealthWidget = lazy(() =>
+  import("@/components/mission/IntelWidgets").then((m) => ({ default: m.AiHealthWidget })));
+const AiLearningWidget = lazy(() =>
+  import("@/components/mission/IntelWidgets").then((m) => ({ default: m.AiLearningWidget })));
+const ReplayWidget = lazy(() =>
+  import("@/components/mission/OpsWidgets").then((m) => ({ default: m.ReplayWidget })));
+const BacktestWidget = lazy(() =>
+  import("@/components/mission/OpsWidgets").then((m) => ({ default: m.BacktestWidget })));
+const MissionTimelineWidget = lazy(() =>
+  import("@/components/mission/OpsWidgets").then((m) => ({ default: m.MissionTimelineWidget })));
+const BrokerWidget = lazy(() =>
+  import("@/components/mission/OpsWidgets").then((m) => ({ default: m.BrokerWidget })));
+const SystemHealthWidget = lazy(() =>
+  import("@/components/mission/OpsWidgets").then((m) => ({ default: m.SystemHealthWidget })));
+
+const WidgetFallback = ({ h = "h-40" }: { h?: string }) => (
+  <div className={`animate-pulse rounded-xl bg-muted/20 border border-border/40 ${h}`} />
+);
 
 const LABEL = "PAPER TRADING / RESEARCH ONLY";
 
@@ -523,31 +543,51 @@ function PortfolioSidebar({ q }: { q: ReturnType<typeof useWidgetQuery<Portfolio
 
 // ── Panel 4 — Live Event Stream (bottom strip) ───────────────────────────────
 
+const EVENT_ROW_H = 22; // px — fixed row height enables windowed rendering
+
 function EventStreamPanel({ streamEvents }: { streamEvents: PipelineStreamEvent[] }) {
   const feedQ = useWidgetQuery<{ events?: PipelineEvent[] }>({
     queryKey: ["mc", "event-feed"], path: "/pipeline/events?limit=80&newest_first=true", refetchInterval: R.events,
   });
   // Merge SSE-streamed events (rendered immediately) ahead of the REST feed,
   // deduped by event id, newest first.
-  const events = useMemo(() => {
+  const allEvents = useMemo(() => {
     const rest = feedQ.data?.events ?? [];
     const seen = new Set(rest.map((e) => e.id));
     const fresh = streamEvents.filter((e) => !seen.has(e.id));
-    return [...fresh, ...rest].sort((a, b) => b.id - a.id).slice(0, 100);
+    return [...fresh, ...rest].sort((a, b) => b.id - a.id).slice(0, 200);
   }, [feedQ.data, streamEvents]);
+
+  // Windowed (virtualized) rendering: only the visible slice + overscan is in
+  // the DOM, so the feed stays cheap even at the 200-event cap during scans.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const viewportH = 180;
+  const start = Math.max(0, Math.floor(scrollTop / EVENT_ROW_H) - 5);
+  const end = Math.min(allEvents.length, Math.ceil((scrollTop + viewportH) / EVENT_ROW_H) + 5);
+  const events = allEvents.slice(start, end);
+
   return (
     <Widget title="Live Event Stream" icon={Activity} query={feedQ} refreshMs={R.events} testId="mc-event-stream" skeletonClass="h-24"
-      headerExtra={<span className="text-[9px] text-muted-foreground">SSE + polling · pipeline event store</span>}
+      headerExtra={<span className="text-[9px] text-muted-foreground">SSE + polling · virtualized · pipeline event store</span>}
     >
-      {events.length === 0 ? (
+      {allEvents.length === 0 ? (
         <p className="text-xs text-muted-foreground">No events yet — the feed populates as the pipeline runs.</p>
       ) : (
-        <div className="max-h-[180px] overflow-y-auto font-mono text-[10px] space-y-0.5">
+        <div
+          ref={scrollRef}
+          onScroll={(e) => setScrollTop((e.target as HTMLDivElement).scrollTop)}
+          className="overflow-y-auto font-mono text-[10px]"
+          style={{ maxHeight: viewportH }}
+          data-testid="mc-event-viewport"
+        >
+          <div style={{ height: allEvents.length * EVENT_ROW_H, position: "relative" }}>
+            <div style={{ position: "absolute", top: start * EVENT_ROW_H, left: 0, right: 0 }}>
           {events.map((e) => {
             const tone = eventTone(e.event_type);
             const Icon = tone === "bad" ? XCircle : tone === "ok" ? CheckCircle2 : tone === "warn" ? AlertTriangle : ChevronRight;
             return (
-              <div key={e.id} className="flex items-center gap-2 border-b border-border/30 py-0.5 last:border-0">
+              <div key={e.id} style={{ height: EVENT_ROW_H }} className="flex items-center gap-2 border-b border-border/30 last:border-0">
                 <Icon className={`h-3 w-3 shrink-0 ${toneClass[tone]}`} />
                 <span className="text-muted-foreground w-14 shrink-0">{timeAgo(e.ts)}</span>
                 <span className="w-28 shrink-0 truncate text-muted-foreground/70">{e.stage}</span>
@@ -559,6 +599,8 @@ function EventStreamPanel({ streamEvents }: { streamEvents: PipelineStreamEvent[
               </div>
             );
           })}
+            </div>
+          </div>
         </div>
       )}
     </Widget>
@@ -607,6 +649,33 @@ export default function MissionControl() {
     refetchInterval: R.replay, timeoutMs: 45_000,
   });
 
+  // ── Responsive: compact mobile quick-dashboard by default on phones ───────
+  const isMobile = useIsMobile();
+  const [showFullOnMobile, setShowFullOnMobile] = useState(false);
+  const compact = isMobile && !showFullOnMobile;
+
+  if (compact) {
+    return (
+      <div className="p-3 space-y-3" data-testid="page-mission-control-mobile">
+        <div className="flex items-center gap-2">
+          <Radio className="h-4 w-4 text-primary" />
+          <h1 className="text-base font-semibold">Mission Control</h1>
+          <Badge variant="outline" className="text-[9px]">PAPER</Badge>
+          <button
+            onClick={() => setShowFullOnMobile(true)}
+            className="ml-auto inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[10px] text-muted-foreground"
+            data-testid="mc-mobile-full-toggle"
+          >
+            <LayoutGrid className="w-3 h-3" /> Full dashboard
+          </button>
+        </div>
+        <StatusBar portfolio={portfolioQ.data} portfolioErr={portfolioQ.isError} stream={stream} />
+        <PortfolioSidebar q={portfolioQ} />
+        <AlertCenterWidget />
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 space-y-3 max-w-[1700px] mx-auto" data-testid="page-mission-control">
       {/* Header */}
@@ -614,10 +683,22 @@ export default function MissionControl() {
         <Radio className="h-5 w-5 text-primary" />
         <h1 className="text-lg font-semibold">Mission Control</h1>
         <Badge variant="outline" className="text-[10px]">{LABEL}</Badge>
-        <span className="text-[10px] text-muted-foreground ml-auto">
+        <span className="text-[10px] text-muted-foreground ml-auto hidden md:inline">
           All data from the canonical pipeline event store, replay snapshot & phase20 ledger — no page-local calculations.
         </span>
+        {isMobile && showFullOnMobile && (
+          <button
+            onClick={() => setShowFullOnMobile(false)}
+            className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[10px] text-muted-foreground"
+            data-testid="mc-mobile-compact-toggle"
+          >
+            <Smartphone className="w-3 h-3" /> Compact view
+          </button>
+        )}
       </div>
+
+      {/* Operator command bar */}
+      <CommandBar />
 
       {/* Canonical data freshness indicator (scan snapshot + staleness) */}
       <DataFreshnessBar variant="scan" />
@@ -638,23 +719,37 @@ export default function MissionControl() {
         <PortfolioSidebar q={portfolioQ} />
       </div>
 
-      {/* Intelligence row: AI health · AI learning · alert center */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start">
-        <AiHealthWidget />
-        <AiLearningWidget />
+      {/* Intelligence row: AI health · AI learning · alert center (lazy chunks) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 items-start">
+        <Suspense fallback={<WidgetFallback />}>
+          <AiHealthWidget />
+        </Suspense>
+        <Suspense fallback={<WidgetFallback />}>
+          <AiLearningWidget />
+        </Suspense>
         <AlertCenterWidget />
       </div>
 
-      {/* Ops row: replay · backtest · broker · system health */}
+      {/* Ops row: replay · backtest · broker · system health (lazy chunks) */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 items-start">
-        <ReplayWidget replayQ={replayQ} />
-        <BacktestWidget />
-        <BrokerWidget />
-        <SystemHealthWidget />
+        <Suspense fallback={<WidgetFallback />}>
+          <ReplayWidget replayQ={replayQ} />
+        </Suspense>
+        <Suspense fallback={<WidgetFallback />}>
+          <BacktestWidget />
+        </Suspense>
+        <Suspense fallback={<WidgetFallback />}>
+          <BrokerWidget />
+        </Suspense>
+        <Suspense fallback={<WidgetFallback />}>
+          <SystemHealthWidget />
+        </Suspense>
       </div>
 
       {/* Mission Timeline — the trading day from open to close */}
-      <MissionTimelineWidget />
+      <Suspense fallback={<WidgetFallback h="h-28" />}>
+        <MissionTimelineWidget />
+      </Suspense>
 
       {/* Bottom event feed strip */}
       <EventStreamPanel streamEvents={stream.pipelineEvents} />

@@ -38,6 +38,7 @@ import {
   type Agent, type AgentPage,
 } from "./AgentConfig";
 import { QuickSwitcher } from "./QuickSwitcher";
+import { getHomeTarget, getHomePreference, setHomePreference, type HomePreference } from "@/lib/homeRoute";
 import {
   incrementVisit, getProfile, setProfile, getMostUsed, PROFILES, getProfileDef,
   type WorkspaceProfile,
@@ -91,6 +92,19 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [quickOpen,   setQuickOpen]   = useState(false);
   const [favourites,  setFavourites]  = useState<string[]>(() => readFavourites());
   const [activeProfile, setActiveProfile] = useState<WorkspaceProfile>(() => getProfile());
+
+  // Phase 25C — configurable pinned home: Mission Control during market hours
+  // (pref "auto", default), or always one of the two. Pure navigation metadata.
+  const [homePref, setHomePref] = useState<HomePreference>(() => getHomePreference());
+  const home = getHomeTarget(new Date(), homePref);
+  const cycleHomePref = useCallback(() => {
+    setHomePref((prev) => {
+      const next: HomePreference =
+        prev === "auto" ? "mission-control" : prev === "mission-control" ? "command-center" : "auto";
+      setHomePreference(next);
+      return next;
+    });
+  }, []);
 
   // Active agent derived from current route
   const activeAgent = getAgentForPath(location);
@@ -166,27 +180,40 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     return (
       <nav className="flex-1 overflow-y-auto min-h-0 px-2 py-2 space-y-0.5">
 
-        {/* ── Command Centre (pinned top) ── */}
-        <Link
-          href="/command-center"
-          onClick={onNav}
-          className={cn(
-            "group flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-semibold transition-all duration-150 mb-2",
-            collapsed ? "justify-center px-0" : "",
-            location === "/command-center"
-              ? "bg-primary/10 text-primary ring-1 ring-inset ring-primary/20"
-              : "text-muted-foreground/80 hover:bg-sidebar-accent/60 hover:text-foreground",
+        {/* ── Home (pinned top) — Mission Control during market hours, configurable ── */}
+        <div className={cn("flex items-center gap-1 mb-2", collapsed ? "justify-center" : "")}>
+          <Link
+            href={home.href}
+            onClick={onNav}
+            data-testid="nav-home-pinned"
+            className={cn(
+              "group flex flex-1 items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-semibold transition-all duration-150",
+              collapsed ? "justify-center px-0" : "",
+              location === home.href
+                ? "bg-primary/10 text-primary ring-1 ring-inset ring-primary/20"
+                : "text-muted-foreground/80 hover:bg-sidebar-accent/60 hover:text-foreground",
+            )}
+          >
+            <Home className={cn(
+              "h-4 w-4 shrink-0",
+              location === home.href ? "text-primary" : "text-muted-foreground/60 group-hover:text-foreground",
+            )} />
+            {!collapsed && <span className="flex-1 truncate">{home.label}</span>}
+            {!collapsed && location === home.href && (
+              <span className="text-[9px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full font-bold">HOME</span>
+            )}
+          </Link>
+          {!collapsed && (
+            <button
+              onClick={cycleHomePref}
+              data-testid="nav-home-pref"
+              title={`Home preference: ${homePref === "auto" ? "Auto (Mission Control during market hours)" : homePref === "mission-control" ? "Always Mission Control" : "Always Command Centre"} — click to change`}
+              className="shrink-0 rounded-lg px-1.5 py-1 text-[9px] font-bold uppercase text-muted-foreground/40 hover:text-muted-foreground hover:bg-sidebar-accent/60 transition"
+            >
+              {homePref === "auto" ? "AUTO" : homePref === "mission-control" ? "MC" : "CC"}
+            </button>
           )}
-        >
-          <Home className={cn(
-            "h-4 w-4 shrink-0",
-            location === "/command-center" ? "text-primary" : "text-muted-foreground/60 group-hover:text-foreground",
-          )} />
-          {!collapsed && <span className="flex-1 truncate">Command Centre</span>}
-          {!collapsed && location === "/command-center" && (
-            <span className="text-[9px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full font-bold">HOME</span>
-          )}
-        </Link>
+        </div>
 
         {/* ── Divider ── */}
         {!collapsed && <div className="border-t border-border/40 mx-2 my-2" />}

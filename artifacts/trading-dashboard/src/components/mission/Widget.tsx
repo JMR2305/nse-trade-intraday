@@ -30,6 +30,8 @@ export interface WidgetQueryOpts {
   /** Explicit request timeout (slow aggregate endpoints need > 15 s default) */
   timeoutMs?: number;
   enabled?: boolean;
+  /** Retry attempts (default 2). Tests set 0/false to assert error states fast. */
+  retry?: number | boolean;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -38,7 +40,7 @@ export function useWidgetQuery<T = any>(opts: WidgetQueryOpts): UseQueryResult<T
     queryKey: opts.queryKey,
     queryFn: () => apiJson<T>(opts.path, undefined, opts.timeoutMs),
     refetchInterval: opts.refetchInterval,
-    retry: 2,
+    retry: opts.retry ?? 2,
     retryDelay: (attempt: number) => Math.min(1500 * 2 ** attempt, 10_000),
     staleTime: Math.min(opts.refetchInterval / 2, 15_000),
     enabled: opts.enabled ?? true,

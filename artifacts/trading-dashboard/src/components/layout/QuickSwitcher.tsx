@@ -37,11 +37,20 @@ interface DynamicData {
   strategies: string[];
   positions:  { symbol: string; qty: number; side: string }[];
   alerts:     { message: string; kind: string; level?: string }[];
+  /** Phase 25C: paper trades / orders from the phase20 ledger */
+  trades:     { id: string; symbol: string; side: string; status: string; qty: number }[];
+  /** Phase 25C: replay sessions (scan snapshots) */
+  replays:    { scanId: string; ts: string }[];
+  /** Phase 25C: recent pipeline events */
+  events:     { id: number; label: string; stage: string; symbol: string | null }[];
+  /** Phase 25C: AI recommendations */
+  recos:      { symbol: string; action: string }[];
   loaded:     boolean;
 }
 
 let _dyn: DynamicData = {
-  stocks: [], strategies: [], positions: [], alerts: [], loaded: false,
+  stocks: [], strategies: [], positions: [], alerts: [],
+  trades: [], replays: [], events: [], recos: [], loaded: false,
 };
 let _fetching = false;
 
@@ -50,11 +59,15 @@ async function warmCache(): Promise<DynamicData> {
   if (_fetching) return _dyn;
   _fetching = true;
 
-  const [watchRes, stratRes, posRes, alertRes] = await Promise.allSettled([
+  const [watchRes, stratRes, posRes, alertRes, ledgerRes, replayRes, eventRes, recoRes] = await Promise.allSettled([
     apiJson("preopen/watchlist"),
     apiJson("strategy/rankings"),
     apiJson("phase20/positions"),
     apiJson("command-center/alerts"),
+    apiJson("phase20/ledger?limit=100"),
+    apiJson("replay/sessions"),
+    apiJson("pipeline/events?limit=60&newest_first=true"),
+    apiJson("phase11/recommendations", undefined, 30_000),
   ]);
 
   // Watchlist / stocks
@@ -100,7 +113,56 @@ async function warmCache(): Promise<DynamicData> {
     });
   }
 
-  _dyn = { stocks, strategies, positions, alerts, loaded: true };
+  // Trades / orders (phase20 ledger)
+  const trades: DynamicData["trades"] = [];
+  if (ledgerRes.status === "fulfilled" && ledgerRes.value) {
+    const v = ledgerRes.value as any;
+    const raw: any[] = Array.isArray(v) ? v : (v?.ledger ?? v?.trades ?? v?.data ?? []);
+    raw.forEach((t: any) => {
+      if (t?.symbol) trades.push({
+        id: String(t.trade_id ?? t.id ?? `${t.symbol}-${t.created_at ?? ""}`),
+        symbol: t.symbol, side: t.side ?? "BUY",
+        status: t.status ?? "UNKNOWN", qty: t.quantity ?? t.qty ?? 0,
+      });
+    });
+  }
+
+  // Replay sessions
+  const replays: DynamicData["replays"] = [];
+  if (replayRes.status === "fulfilled" && replayRes.value) {
+    const v = replayRes.value as any;
+    const raw: any[] = Array.isArray(v) ? v : (v?.sessions ?? v?.data ?? []);
+    raw.forEach((s: any) => {
+      const scanId = s?.scan_id ?? s?.scanId ?? (typeof s === "string" ? s : null);
+      if (scanId) replays.push({ scanId: String(scanId), ts: String(s?.snapshot_ts ?? s?.ts ?? "") });
+    });
+  }
+
+  // Pipeline events
+  const events: DynamicData["events"] = [];
+  if (eventRes.status === "fulfilled" && eventRes.value) {
+    const v = eventRes.value as any;
+    const raw: any[] = Array.isArray(v) ? v : (v?.events ?? v?.data ?? []);
+    raw.forEach((e: any) => {
+      if (e?.event_type) events.push({
+        id: e.id ?? 0, label: String(e.event_type),
+        stage: String(e.stage ?? ""), symbol: e.symbol ?? null,
+      });
+    });
+  }
+
+  // AI recommendations
+  const recos: DynamicData["recos"] = [];
+  if (recoRes.status === "fulfilled" && recoRes.value) {
+    const v = recoRes.value as any;
+    const raw: any[] = Array.isArray(v) ? v : (v?.recommendations ?? v?.queue ?? v?.data ?? []);
+    raw.forEach((r: any) => {
+      const symbol = r?.symbol ?? r?.ticker;
+      if (symbol) recos.push({ symbol: String(symbol), action: String(r?.action ?? r?.side ?? r?.recommendation ?? "") });
+    });
+  }
+
+  _dyn = { stocks, strategies, positions, alerts, trades, replays, events, recos, loaded: true };
   _fetching = false;
   return _dyn;
 }
@@ -166,6 +228,10 @@ interface CatResults {
   strategies: string[];
   alerts:     { message: string; kind: string }[];
   positions:  { symbol: string; qty: number; side: string }[];
+  trades:     DynamicData["trades"];
+  replays:    DynamicData["replays"];
+  events:     DynamicData["events"];
+  recos:      DynamicData["recos"];
 }
 
 function categorise(query: string, dyn: DynamicData): CatResults {
@@ -178,6 +244,19 @@ function categorise(query: string, dyn: DynamicData): CatResults {
     strategies: dyn.strategies.filter((s) => s.toLowerCase().includes(q)).slice(0, 4),
     alerts:     dyn.alerts.filter((a) => a.message.toLowerCase().includes(q)).slice(0, 3),
     positions:  dyn.positions.filter((p) => p.symbol.toLowerCase().includes(q)).slice(0, 3),
+    trades:     dyn.trades.filter((t) =>
+                  t.symbol.toLowerCase().includes(q) || t.status.toLowerCase().includes(q) || t.side.toLowerCase() === q,
+                ).slice(0, 4),
+    replays:    dyn.replays.filter((r) =>
+                  r.scanId.toLowerCase().includes(q) || r.ts.toLowerCase().includes(q) || "replay".includes(q),
+                ).slice(0, 3),
+    events:     dyn.events.filter((e) =>
+                  e.label.toLowerCase().includes(q) || e.stage.toLowerCase().includes(q) ||
+                  (e.symbol ?? "").toLowerCase().includes(q),
+                ).slice(0, 4),
+    recos:      dyn.recos.filter((r) =>
+                  r.symbol.toLowerCase().includes(q) || r.action.toLowerCase().includes(q),
+                ).slice(0, 3),
   };
 }
 
@@ -272,6 +351,18 @@ export function QuickSwitcher({ open, onClose, currentPath }: QuickSwitcherProps
     );
     catResults.positions.forEach((p) =>
       navItems.push({ href: "/portfolio-live", label: p.symbol, color: "#14B8A6" }),
+    );
+    catResults.trades.forEach((t) =>
+      navItems.push({ href: "/trades", label: `${t.side} ${t.symbol}`, color: "#14B8A6" }),
+    );
+    catResults.recos.forEach((r) =>
+      navItems.push({ href: "/paper-trading-recommendations", label: r.symbol, color: "#6366F1" }),
+    );
+    catResults.replays.forEach((r) =>
+      navItems.push({ href: "/replay", label: r.scanId, color: "#8B5CF6" }),
+    );
+    catResults.events.forEach((e) =>
+      navItems.push({ href: "/mission-control", label: e.label, color: "#06B6D4" }),
     );
   } else {
     recs.forEach((r) => navItems.push({ href: r.href, label: r.message, color: "#6366F1" }));
@@ -434,7 +525,9 @@ export function QuickSwitcher({ open, onClose, currentPath }: QuickSwitcherProps
     const totalCount =
       catResults.pages.length + catResults.agents.length +
       catResults.stocks.length + catResults.strategies.length +
-      catResults.alerts.length + catResults.positions.length;
+      catResults.alerts.length + catResults.positions.length +
+      catResults.trades.length + catResults.replays.length +
+      catResults.events.length + catResults.recos.length;
 
     if (totalCount === 0) {
       return (
@@ -498,6 +591,46 @@ export function QuickSwitcher({ open, onClose, currentPath }: QuickSwitcherProps
               <Row key={p.symbol} icon={Briefcase} label={p.symbol}
                 sub={`${p.side} · ${p.qty} shares`}
                 color="#14B8A6" href="/portfolio-live" />
+            ))}
+          </>
+        )}
+        {catResults.trades.length > 0 && (
+          <>
+            <SectionHeader label="Trades & Orders" icon={Briefcase} />
+            {catResults.trades.map((t) => (
+              <Row key={t.id} icon={Briefcase} label={`${t.side} ${t.symbol}`}
+                sub={`${t.qty} · ${t.status} — open in All Trades`}
+                color="#14B8A6" href="/trades" />
+            ))}
+          </>
+        )}
+        {catResults.recos.length > 0 && (
+          <>
+            <SectionHeader label="Recommendations" icon={Lightbulb} />
+            {catResults.recos.map((r, i) => (
+              <Row key={`${r.symbol}-${i}`} icon={Lightbulb} label={r.symbol}
+                sub={`${r.action || "recommendation"} — open queue`}
+                color="#6366F1" href="/paper-trading-recommendations" />
+            ))}
+          </>
+        )}
+        {catResults.replays.length > 0 && (
+          <>
+            <SectionHeader label="Replay Sessions" icon={Clock} />
+            {catResults.replays.map((r) => (
+              <Row key={r.scanId} icon={Clock} label={r.scanId}
+                sub={r.ts ? `Snapshot ${r.ts} — open Replay Mode` : "Open Replay Mode"}
+                color="#8B5CF6" href="/replay" />
+            ))}
+          </>
+        )}
+        {catResults.events.length > 0 && (
+          <>
+            <SectionHeader label="Pipeline Events" icon={Zap} />
+            {catResults.events.map((e) => (
+              <Row key={e.id} icon={Zap} label={e.label}
+                sub={`${e.stage}${e.symbol ? ` · ${e.symbol}` : ""} — Mission Control feed`}
+                color="#06B6D4" href="/mission-control" />
             ))}
           </>
         )}

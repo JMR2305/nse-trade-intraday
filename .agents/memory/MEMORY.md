@@ -84,4 +84,5 @@
 - [Phase 24 learning engine](phase24-learning-engine.md) — advisory-only, append-only intelligence over phase20 ledger; AST safety test list must include any new phase24 module; no mock-candle excursions.
 - [Mission Control 25A](mission-control-25a.md) — freshness-bar contract on every route; /replay/sessions/latest is the only pipeline-count source; useLiveStream pipelineEvents buffer for SSE-first feeds.
 - [Mission Control 25B widgets](mission-control-25b.md) — replay snapshot query shared page-level (never refetch counts); slow endpoints need explicit long timeouts; alert dedupe by severity|title.
+- [Mission Control 25C](mission-control-25c.md) — command bar reuses control endpoints w/ confirms; homeRoute auto pref; Vitest4: never mockReset an API mock in beforeEach or RQ rejections go unhandled.
 - [Portfolio performance routing](portfolio-performance-routing.md) — 5D.2 analytics live at /portfolio-performance/*, perf centre keeps /performance/*; positions key is avg_price; INITIAL_CAPITAL from portfolio_store.
