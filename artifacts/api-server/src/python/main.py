@@ -2349,6 +2349,17 @@ def main():
             result = cert.long_duration_validation(
                 window=str(p.get("window") or "1m"))
 
+        # ── Phase 23.9: Export Engine + Final Acceptance ──────────────────
+        elif command == "p239_export":
+            import phase239_reports as p239
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = p239.export_report(str(p.get("report") or ""),
+                                        str(p.get("format") or ""),
+                                        params=p)
+        elif command == "p239_acceptance":
+            import phase239_reports as p239
+            result = p239.acceptance_report()
+
         # ── Phase 17: Automated QA & Release Validation ──────────────────
         elif command == "phase17_build_info":
             from phase17_qa import build_info

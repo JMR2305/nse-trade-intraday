@@ -17,6 +17,7 @@ import Backtest from "@/pages/Backtest";
 import Validate from "@/pages/Validate";
 import StrategyLab from "@/pages/StrategyLab";
 import SimulationLab from "@/pages/SimulationLab";
+import ValidationDashboard from "@/pages/ValidationDashboard";
 import OptimizationLab from "@/pages/OptimizationLab";
 import Optimizer from "@/pages/Optimizer";
 import MarketScanner from "@/pages/MarketScanner";
@@ -156,6 +157,7 @@ function Router() {
         <Route path="/validate" component={Validate} />
         <Route path="/strategy-lab" component={StrategyLab} />
         <Route path="/simulation-lab" component={SimulationLab} />
+        <Route path="/validation-dashboard" component={ValidationDashboard} />
         <Route path="/optimization-lab" component={OptimizationLab} />
         <Route path="/optimizer" component={Optimizer} />
         <Route path="/paper-basket-test" component={PaperBasketTest} />
