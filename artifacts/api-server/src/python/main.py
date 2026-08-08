@@ -1231,9 +1231,34 @@ def main():
             from dataclasses import asdict as _dc_asdict
             _client = get_broker_client()
             _conn   = _client.test_connection()
+            # Token expiry countdown (mirrors BrokerHealth contract fields).
+            # None = no token stored / unknown; <= 0 = expired.
+            _tok_min = None
+            _tok_warn = False
+            try:
+                import kite_token_store
+                from datetime import datetime as _dt, timezone as _tz
+                _rec = kite_token_store.load(include_expired=True)
+                if _rec and _rec.get("access_token"):
+                    _exp = kite_token_store.token_expiry_utc(
+                        str(_rec.get("created_at") or ""))
+                    if _exp is not None:
+                        _tok_min = round(
+                            (_exp - _dt.now(_tz.utc)).total_seconds() / 60.0, 1)
+                        # Warning lead-time: within 30 minutes (or already expired)
+                        _tok_warn = _tok_min <= 30.0
+                    else:
+                        # Unparseable created_at → fail-safe: treat as expired
+                        _tok_min = 0.0
+                        _tok_warn = True
+            except Exception:
+                _tok_min = None
+                _tok_warn = False
             result  = {"success": True, "broker": _dc_asdict(_conn),
                        "credentials": masked_creds(),
                        "is_mock": _conn.is_mock,
+                       "token_expiry_minutes": _tok_min,
+                       "token_expiry_warning": _tok_warn,
                        "label": "PAPER / LIVE DATA VALIDATION"}
         elif command == "phase8_account":
             from broker_client import get_broker_client

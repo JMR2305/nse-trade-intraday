@@ -84,6 +84,7 @@ export default function AutomationHealth() {
   const [resumeText, setResumeText] = useState("");
   const [resuming, setResuming] = useState(false);
   const [recon, setRecon] = useState<any>(null);
+  const [brokerHealth, setBrokerHealth] = useState<any>(null);
 
   const load = useCallback(async () => {
     setRefreshing(true);
@@ -109,6 +110,11 @@ export default function AutomationHealth() {
       setRecon(d ?? null);
     }
     catch (e) { errs.push(`Reconciliation: ${e instanceof Error ? e.message : String(e)}`); }
+    try {
+      const d = await safeJson("/broker/health");
+      setBrokerHealth(d ?? null);
+    }
+    catch (e) { errs.push(`Broker health: ${e instanceof Error ? e.message : String(e)}`); }
     setErrors(errs);
     setLoading(false);
     setRefreshing(false);
@@ -139,12 +145,41 @@ export default function AutomationHealth() {
 
   useEffect(() => { void load(); }, [load]);
 
+  // Health polling — keeps the token expiry countdown (and the rest of the
+  // page) fresh without a manual refresh.
+  useEffect(() => {
+    const id = setInterval(() => { void load(); }, 60_000);
+    return () => clearInterval(id);
+  }, [load]);
+
   const refresh = async () => {
     await load();
     toast({ title: "Automation health refreshed" });
   };
 
   const health = scheduler?.health ?? "UNKNOWN";
+  const tokenMin: number | null =
+    typeof brokerHealth?.token_expiry_minutes === "number" ? brokerHealth.token_expiry_minutes : null;
+  const tokenWarn: boolean = brokerHealth?.token_expiry_warning === true;
+  const tokenExpired = tokenMin != null && tokenMin <= 0;
+  const tokenLabel =
+    tokenMin == null
+      ? "N/A"
+      : tokenExpired
+        ? "EXPIRED"
+        : tokenMin >= 90
+          ? `Token expires in ${Math.floor(tokenMin / 60)}h ${Math.round(tokenMin % 60)}m`
+          : `Token expires in ${Math.round(tokenMin)} min`;
+  const tokenCls =
+    tokenMin == null
+      ? undefined
+      : tokenExpired
+        ? "text-red-400"
+        : tokenMin <= 30
+          ? "text-amber-400"
+          : tokenMin > 60
+            ? "text-emerald-400"
+            : "text-zinc-200";
   const overall = validation?.overall_status ?? "NOT_READY";
   const metrics = validation?.metrics ?? {};
   const checks: any[] = validation?.checks ?? [];
@@ -192,6 +227,28 @@ export default function AutomationHealth() {
 
       <DataFreshnessBar variant="none" />
 
+      {(tokenWarn || tokenExpired) && (
+        <div
+          className={cn(
+            "flex flex-wrap items-center gap-2 rounded border px-3 py-2 text-[11px]",
+            tokenExpired
+              ? "border-red-700 bg-red-950/30 text-red-300"
+              : "border-amber-700 bg-amber-950/30 text-amber-300",
+          )}
+          data-testid="token-expiry-banner"
+        >
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          <span>
+            {tokenExpired
+              ? "Zerodha access token has EXPIRED — re-authenticate to restore live data."
+              : `Zerodha access token expires soon (${tokenLabel.toLowerCase()}) — re-authenticate before it lapses.`}
+          </span>
+          <Link href="/kite-connect" className="ml-auto underline underline-offset-2 hover:opacity-80">
+            Re-authenticate →
+          </Link>
+        </div>
+      )}
+
       {errors.map((e) => (
         <p key={e} className="text-[10px] text-red-400 bg-red-500/10 border border-red-500/30 rounded px-2 py-1.5">
           <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />{e}
@@ -230,6 +287,11 @@ export default function AutomationHealth() {
                   ? (activity.kite.session_active ? "ACTIVE" : (activity.kite.configured ? "LOGIN REQUIRED" : "NOT CONFIGURED"))
                   : "N/A"}
                 valueCls={activity?.kite?.session_active ? "text-emerald-400" : "text-amber-400"}
+              />
+              <Field
+                label="Kite token expiry"
+                value={tokenLabel}
+                valueCls={tokenCls}
               />
             </div>
           )}
