@@ -233,6 +233,23 @@ def execute_buy(
     # ── Phase 11: pre-trade risk enforcement (paper trading only) ────────
     risk_note = ""
     if not bypass_risk:
+        # ── RC-10C1: Portfolio Pre-Check (allocation + exposure/limit gates)
+        # Runs FIRST — before the RC-8-style risk gates — per the spec flow
+        # Strategy → SignalRouter → Portfolio Pre-Check → RC-8 → RC-7.
+        # Fails CLOSED inside pre_check(); an unimportable bridge falls back
+        # to legacy behavior.
+        try:
+            import portfolio_bridge
+            _pc = portfolio_bridge.pre_check(
+                symbol, quantity, price,
+                strategy_id=strategy_id or "ai_scan",
+            )
+            if not _pc.get("approved"):
+                return False, ("PORTFOLIO BLOCKED: "
+                               + "; ".join(_pc.get("reasons") or ["limit breach"]))
+        except ImportError:
+            pass  # bridge not present — legacy behavior
+
         try:
             from phase11_risk import pre_trade_check
             allowed, risk_msg = pre_trade_check(
@@ -359,6 +376,18 @@ def execute_buy(
     except Exception:
         pass  # snapshot must never block a buy order
 
+    # ── RC-10C1: forward the committed fill to the PortfolioService ─────
+    try:
+        import portfolio_bridge
+        portfolio_bridge.on_fill(
+            sym, "BUY", quantity, price,
+            trade_id=trade.get("phase20_trade_id") or trade["id"],
+            strategy_id=strategy_id or "ai_scan",
+            fees=trade.get("est_broker_charges") or 0.0,
+        )
+    except Exception:
+        pass  # portfolio mirroring must never break a committed buy
+
     msg = f"Bought {quantity} × {sym} @ ₹{price:.2f} = ₹{total_cost:.2f}{risk_note}"
     if _log:
         _log.info("order_filled", result="PAPER_SUBMITTED",
@@ -452,6 +481,17 @@ def execute_sell(
             evaluate_closed_trade(buy_trade, trade)
     except Exception:
         pass  # evaluation must never break a sell order
+
+    # ── RC-10C1: forward the committed fill to the PortfolioService ─────
+    try:
+        import portfolio_bridge
+        portfolio_bridge.on_fill(
+            sym, "SELL", quantity, price,
+            trade_id=trade.get("phase20_trade_id") or trade["id"],
+            fees=trade.get("est_broker_charges") or 0.0,
+        )
+    except Exception:
+        pass  # portfolio mirroring must never break a committed sell
 
     msg = f"Sold {quantity} × {sym} @ ₹{price:.2f} | P&L: ₹{realized_pnl:.2f}"
     if _log:

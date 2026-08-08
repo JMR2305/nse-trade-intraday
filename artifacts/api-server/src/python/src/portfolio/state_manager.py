@@ -424,7 +424,10 @@ class PortfolioStateManager:
             positions=positions,
             daily_pnl=self._daily_pnl,
             peak_equity=self._peak_equity,
-            current_equity=cash.total,
+            # Equity = cash + open-position market value. Using cash alone
+            # makes any deployed portfolio look like a massive drawdown and
+            # blocks every allocation via DRAWDOWN_LIMIT_BREACHED.
+            current_equity=cash.total + gross,
             state_version=self._version,
         )
 

@@ -23,5 +23,37 @@
   "status": "VALIDATION_FAILED",
   "ts": "2026-07-26T09:18:33Z",
   "audit_id": "1261781e1f"
+ },
+ {
+  "event": "PREVIEW_CREATED",
+  "symbol": "RELIANCE",
+  "side": "BUY",
+  "quantity": 1,
+  "entry_price": 1400.0,
+  "mode": "PAPER_TRADING",
+  "validation_passed": false,
+  "failure_reasons": [
+   "NSE CLOSED \u2014 03:39 IST Sun"
+  ],
+  "preview_id": "e212c5309b94",
+  "status": "VALIDATION_FAILED",
+  "ts": "2026-08-08T22:09:41Z",
+  "audit_id": "df25090f13"
+ },
+ {
+  "event": "PREVIEW_CREATED",
+  "symbol": "RELIANCE",
+  "side": "SELL",
+  "quantity": 1,
+  "entry_price": 1400.0,
+  "mode": "PAPER_TRADING",
+  "validation_passed": false,
+  "failure_reasons": [
+   "NSE CLOSED \u2014 03:39 IST Sun"
+  ],
+  "preview_id": "f2435bb7dbbb",
+  "status": "VALIDATION_FAILED",
+  "ts": "2026-08-08T22:09:41Z",
+  "audit_id": "50d42da422"
  }
 ]

@@ -208,6 +208,17 @@ def run_intelligence_scan(
     # 2. Signal engine (yfinance: all watchlist stocks with MTF)
     signals = scan_watchlist(watchlist, available_cash=available_cash, regime=regime_result)
 
+    # 2b. RC-10C1: forward fresh marks to the PortfolioService so exposure /
+    # limit checks and unrealised P&L use current scan prices (fail-open).
+    try:
+        import portfolio_bridge
+        portfolio_bridge.update_prices({
+            str(s.get("stock") or ""): float(s.get("price") or 0.0)
+            for s in signals if s.get("price")
+        })
+    except Exception:
+        pass  # price mirroring must never break a scan
+
     # 3. Market context (no extra yfinance — uses regime + breadth from signals)
     market_ctx = compute_market_context(regime_result, signals)
 

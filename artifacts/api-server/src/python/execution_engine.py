@@ -540,6 +540,28 @@ class ExecutionEngine:
             entry_price=entry_price, stop_loss=stop_loss, target=target,
             sector=sector, rr_ratio=rr,
         )
+
+        # ── RC-10C1: Portfolio Pre-Check runs BEFORE this RC-8-style gate in
+        # the signal flow. Surface its verdict as the first validation check so
+        # a portfolio limit breach fails the preview. BUY only — exits must
+        # never be blocked by entry limits. Fails CLOSED inside pre_check().
+        if side == "BUY":
+            try:
+                import portfolio_bridge
+                _pc = portfolio_bridge.pre_check(
+                    symbol, quantity, entry_price,
+                    strategy_id=strategy or "ai_scan", sector=sector,
+                )
+                _pc_ok = bool(_pc.get("approved"))
+                checks.insert(0, {
+                    "check": "portfolio_pre_check",
+                    "passed": _pc_ok,
+                    "reason": ("Portfolio allocation + limits approved" if _pc_ok
+                               else "; ".join(_pc.get("reasons") or ["portfolio limit breach"])),
+                })
+                all_passed = all_passed and _pc_ok
+            except ImportError:
+                pass  # bridge not present — legacy behavior
         failures = [c["reason"] for c in checks if not c["passed"]]
 
         preview_id = uuid.uuid4().hex[:12]

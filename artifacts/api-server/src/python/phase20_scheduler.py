@@ -303,6 +303,14 @@ def run_tick() -> Dict[str, Any]:
                 "failed_modules": pipeline.get("failed_modules"),
             }
         result["paper"] = _manage_paper(settings, ran_scan=ran)
+        # ── RC-10C1: scheduled portfolio reconciliation after each scan tick.
+        # Fail-open — reconcile_now() never raises; it returns an error dict.
+        if ran:
+            try:
+                import portfolio_bridge
+                result["portfolio_reconciliation"] = portfolio_bridge.reconcile_now()
+            except Exception as exc:
+                result["portfolio_reconciliation"] = {"error": str(exc)[:200]}
         return result
     except Exception as exc:  # failed scan: prior snapshot preserved by design
         duration = time.time() - t0

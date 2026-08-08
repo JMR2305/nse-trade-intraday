@@ -176,6 +176,14 @@ def cmd_market_overview() -> dict:
 
 def cmd_scan() -> dict:
     """Full intelligence pipeline scan."""
+    # RC-10C1: instantiate the PortfolioService at startup so the portfolio
+    # pre-check (allocation + exposure/limits) is active before any order is
+    # evaluated, and the startup reconciliation has run.
+    try:
+        import portfolio_bridge
+        portfolio_bridge.startup()
+    except Exception:
+        pass  # pre_check() itself fails closed if the service is unavailable
     from intelligence import run_intelligence_scan
     state = _load_state()
     cash = state.get("cash", 5000.0)
@@ -223,6 +231,13 @@ def cmd_watchlist_remove(symbol: str) -> dict:
 
 
 def cmd_buy(symbol: str, quantity: int, price: float, reason: str = "") -> dict:
+    # RC-10C1: ensure the PortfolioService is up so the pre-check inside
+    # execute_buy() evaluates against the seeded canonical book.
+    try:
+        import portfolio_bridge
+        portfolio_bridge.startup()
+    except Exception:
+        pass
     success, message = execute_buy(symbol, quantity, price, reason)
     return {"success": success, "message": message}
 
