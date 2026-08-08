@@ -327,3 +327,10 @@ uri = "file://artifacts/trading-dashboard/docs/PHASE25_SUMMARY.md"
 type = "text"
 title = "Phase 25 Summary — Mission Control"
 description = "25A shell & core panels, 25B intelligence/ops widgets, 25C command bar, search, responsive & verification."
+
+[[outputs]]
+id = "rQVl09cZ05RpXR73uPiaK"
+uri = "file://artifacts/api-server/reports/PHASE8_9_SUMMARY.md"
+type = "text"
+title = "Phase 8 & 9 Summary"
+description = "Summary of the Phase 8 operations/governance centres (8.1–8.8) and the Phase 9 unified workspace & UX layer (9.1–9.7)."
