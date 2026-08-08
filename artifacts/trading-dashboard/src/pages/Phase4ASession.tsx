@@ -189,7 +189,9 @@ function MonitorPanel() {
   const scannerLatencyMs = data?.scanner_latency_ms ??
     (mon.scanner_latency_s != null ? Math.round(mon.scanner_latency_s * 1000) : null);
   const realisedPnl = data?.realised_pnl ?? mon.realized_pnl_today;
-  const apiMs = data?.api_latency_ms ?? (mon.api_response_ms != null ? Math.round(mon.api_response_ms) : null);
+  // Prefer the API server's own rolling p95 (real request durations) over the
+  // tick's scan-provider latency, which measures data-provider fetch time.
+  const apiMs = mon.api_response_ms != null ? Math.round(mon.api_response_ms) : data?.api_latency_ms ?? null;
   const paperOrders = data?.paper_orders ?? mon.paper_orders_today;
   const riskBlocks = data?.risk_blocks ?? mon.risk_blocks;
   const memMb = data?.memory_rss_mb ?? mon.memory_used_mb;

@@ -11,6 +11,7 @@ import path from "path";
 import fs from "fs";
 
 import { PYTHON_DIR, PYTHON_BIN } from "../lib/python-env";
+import { getRequestMetrics } from "../lib/requestMetrics";
 
 const router: IRouter = Router();
 
@@ -106,12 +107,34 @@ let dashCache: { at: number; data: unknown } | null = null;
 let dashInflight: Promise<unknown> | null = null;
 const DASH_TTL_MS = 30_000;
 
+// Overlay the monitor's "API Response" with the API server's own rolling
+// request-duration stats (p95 over the last 1000 /api requests). The Python
+// builder only knows scan-provider latency, which measures something else.
+function withApiMetrics(data: unknown): unknown {
+  if (!data || typeof data !== "object") return data;
+  const m = getRequestMetrics();
+  const d = data as Record<string, unknown>;
+  const monitor = (d["monitor"] ?? {}) as Record<string, unknown>;
+  return {
+    ...d,
+    monitor: {
+      ...monitor,
+      api_response_ms: m.p95_ms ?? monitor["api_response_ms"] ?? null,
+      api_response_source: m.p95_ms != null
+        ? `api-server rolling p95 (${Math.min(m.sample_count, m.window_size)} samples)`
+        : "no requests sampled yet — scan provider latency shown",
+      api_p50_ms: m.p50_ms,
+      api_avg_ms: m.avg_ms,
+    },
+  };
+}
+
 router.get("/phase4a/dashboard", wrap(async (_req, res) => {
   if (dashCache && Date.now() - dashCache.at < DASH_TTL_MS) {
-    return res.json(dashCache.data);
+    return res.json(withApiMetrics(dashCache.data));
   }
   if (dashInflight) {
-    return res.json(await dashInflight);
+    return res.json(withApiMetrics(await dashInflight));
   }
   dashInflight = new Promise((resolve, reject) => {
     const proc = spawn(PYTHON_BIN, [path.join(PYTHON_DIR, "main.py"), "phase4a_dashboard"], {
@@ -131,7 +154,7 @@ router.get("/phase4a/dashboard", wrap(async (_req, res) => {
   try {
     const data = await dashInflight;
     dashCache = { at: Date.now(), data };
-    res.json(data);
+    res.json(withApiMetrics(data));
   } finally {
     dashInflight = null;
   }

@@ -4,6 +4,7 @@ import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { requestMetricsMiddleware } from "./lib/requestMetrics";
 
 const app: Express = express();
 
@@ -116,7 +117,7 @@ app.get("/", (_req, res) => {
   res.redirect(302, "/trading-dashboard/");
 });
 
-app.use("/api", router);
+app.use("/api", requestMetricsMiddleware, router);
 
 // Global error handler — honest JSON errors, no stack traces leaked.
 //
