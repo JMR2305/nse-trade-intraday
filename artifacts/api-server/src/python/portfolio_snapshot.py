@@ -32,18 +32,104 @@ def _safe_float(v: Any, default: float = 0.0) -> float:
         return default
 
 
+def _run_async(coro):
+    """Run *coro* on the portfolio bridge's loop when available (keeps all
+    PortfolioService awaitables on one loop); otherwise a fresh asyncio.run."""
+    try:
+        import portfolio_bridge as _pb
+        return _pb._run(coro)
+    except ImportError:
+        import asyncio
+        return asyncio.run(coro)
+
+
+def _positions_from_portfolio_service() -> tuple[List[Dict[str, Any]], Dict[str, float]]:
+    """Primary source: PortfolioService.get_snapshot() (Postgres-backed
+    snapshot repository → survives API-server restarts).
+
+    Returns ``(rows, aggregates)`` where *aggregates* carries the cash /
+    invested-cost / unrealised-P&L accounting from the SAME authoritative
+    snapshot the rows came from, so metrics never mix sources.
+
+    Raises on any failure so the caller can fall back to the legacy paths.
+    """
+    import portfolio_bridge
+
+    service = portfolio_bridge.get_service()
+    if service is None:
+        raise RuntimeError(
+            f"portfolio service unavailable: {getattr(portfolio_bridge, '_startup_error', None)}"
+        )
+    snap = _run_async(service.get_snapshot())
+
+    rows: List[Dict[str, Any]] = []
+    for p in snap.open_positions:
+        qty = int(p.open_quantity or 0)
+        if qty <= 0:
+            continue
+        avg = _safe_float(p.average_entry_price)
+        last = _safe_float(p.last_market_price) if p.last_market_price is not None else avg
+        market_val = qty * last
+        upnl = _safe_float(p.unrealised_pnl)
+        upnl_pct = (upnl / (avg * qty) * 100) if avg > 0 and qty > 0 else 0.0
+        rows.append({
+            "symbol":             p.instrument_symbol,
+            "quantity":           qty,
+            "avg_entry_price":    avg,
+            "last_price":         last,
+            "market_value":       round(market_val, 2),
+            "unrealised_pnl":     round(upnl, 2),
+            "unrealised_pnl_pct": round(upnl_pct, 2),
+            "side":               getattr(p.side, "value", str(p.side)),
+            "strategy_id":        p.strategy_id,
+            "sector":             p.sector,
+            "opened_at":          p.opened_at.isoformat() if p.opened_at else None,
+            "mark_source":        "portfolio_service",
+            "status":             getattr(p.status, "value", str(p.status)),
+        })
+
+    # Best-effort durability: persist the current state to the Postgres-backed
+    # snapshot repository so a restart can recover it (deduped by version).
+    try:
+        portfolio_bridge.persist_snapshot_if_changed()
+    except Exception as exc:
+        logger.debug("snapshot persist skipped: %s", exc)
+
+    aggregates = {
+        "cash": _safe_float(snap.cash.available),
+        "invested_cost": sum(r["avg_entry_price"] * r["quantity"] for r in rows),
+        "unrealised_pnl": sum(r["unrealised_pnl"] for r in rows),
+        "initial_capital": _safe_float(service.config.initial_capital),
+    }
+    return rows, aggregates
+
+
 def get_portfolio_snapshot() -> Dict[str, Any]:
     """Return a normalised portfolio snapshot suitable for the dashboard."""
-    # ── 1. Try Phase-20 durable open positions first ──────────────────────
+    # ── 0. Primary: PortfolioService (durable Postgres event ledger +
+    #        snapshot repository — resilient to API-server restarts) ────────
+    open_positions: List[Dict[str, Any]] = []
+    position_source = None
+    service_ok = False
+    service_aggregates: Dict[str, float] = {}
+    try:
+        open_positions, service_aggregates = _positions_from_portfolio_service()
+        service_ok = True  # a valid EMPTY book is a success, not a fallback cue
+        position_source = "portfolio_service"
+    except Exception as exc:
+        logger.debug("portfolio service snapshot unavailable: %s", exc)
+
+    # ── 1. Fallback: Phase-20 durable open positions ──────────────────────
     # get_open_positions_view() returns rows with keys:
     #   fill_price, current_price, unrealized_pnl (American spelling), quantity,
     #   symbol, sector, strategy_id, side, fill_ts, stop_loss, target, …
     # Canonical positions (phase20 ledger incl. EXIT_PENDING, canonical marks)
-    # adapted to this endpoint's legacy row shape.
-    open_positions: List[Dict[str, Any]] = []
+    # adapted to this endpoint's legacy row shape.  Only used when the
+    # PortfolioService call above failed (a valid empty book is authoritative
+    # and must NOT trigger fallback to possibly-stale sources).
     try:
         from canonical_portfolio import build_canonical_portfolio
-        for p in build_canonical_portfolio()["positions"]:
+        for p in (build_canonical_portfolio()["positions"] if not service_ok else []):
             qty = int(p.get("quantity") or 0)
             fill_price = _safe_float(p.get("avg_price"))           # avg entry
             mark = p.get("mark_price")
@@ -79,8 +165,8 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
     except Exception:
         _INITIAL_CAPITAL_local = _INITIAL_CAPITAL
 
-    # If phase20 gave us nothing, build from legacy positions
-    if not open_positions:
+    # If the service AND phase20 gave us nothing, build from legacy positions
+    if not service_ok and not open_positions:
         raw_positions_legacy = legacy_state.get("positions", {})
         if raw_positions_legacy:
             try:
@@ -117,20 +203,31 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
     except Exception:
         state = legacy_state
 
-    # Canonical cash/equity accounting (phase20 ledger — single source of truth):
-    #   cash = INITIAL_CAPITAL − Σ(open cost) + Σ(realized)
-    # Never mix legacy paper_trader cash with ledger positions (that double-counts).
-    try:
-        from canonical_portfolio import build_canonical_portfolio
-        _canon = build_canonical_portfolio()
-        cash = _canon["cash"]
-        total_invested = _canon["invested_value"]
-        unrealised_pnl = _safe_float(_canon["unrealized_pnl"])
-        _INITIAL_CAPITAL_local = _canon["initial_capital"] or _INITIAL_CAPITAL_local
-    except Exception:
-        cash = _safe_float(state.get("cash", _INITIAL_CAPITAL_local))
-        total_invested = sum(p["market_value"] for p in open_positions)
-        unrealised_pnl = sum(p["unrealised_pnl"] for p in open_positions)
+    # Accounting must come from the SAME source as the positions — mixing
+    # recovered service positions with canonical/legacy cash double-counts
+    # or presents stale metrics during a ledger outage.
+    if service_ok:
+        cash = service_aggregates["cash"]
+        total_invested = service_aggregates["invested_cost"]
+        unrealised_pnl = service_aggregates["unrealised_pnl"]
+        _INITIAL_CAPITAL_local = (
+            service_aggregates.get("initial_capital") or _INITIAL_CAPITAL_local
+        )
+    else:
+        # Canonical cash/equity accounting (phase20 ledger):
+        #   cash = INITIAL_CAPITAL − Σ(open cost) + Σ(realized)
+        # Never mix legacy paper_trader cash with ledger positions.
+        try:
+            from canonical_portfolio import build_canonical_portfolio
+            _canon = build_canonical_portfolio()
+            cash = _canon["cash"]
+            total_invested = _canon["invested_value"]
+            unrealised_pnl = _safe_float(_canon["unrealized_pnl"])
+            _INITIAL_CAPITAL_local = _canon["initial_capital"] or _INITIAL_CAPITAL_local
+        except Exception:
+            cash = _safe_float(state.get("cash", _INITIAL_CAPITAL_local))
+            total_invested = sum(p["market_value"] for p in open_positions)
+            unrealised_pnl = sum(p["unrealised_pnl"] for p in open_positions)
 
     # Realised P&L: sum of completed trades recorded today
     realised_pnl_today = 0.0
@@ -254,6 +351,7 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
 
     return {
         "status": status,
+        "position_source": position_source or ("canonical_ledger" if open_positions else "none"),
         "paper_mode": True,
         "snapshotted_at": _now_iso(),
         "equity": round(equity, 2),

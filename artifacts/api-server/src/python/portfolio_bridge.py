@@ -102,11 +102,17 @@ def _build_service():
         # operator explicitly raises it via env.
         min_order_value=Decimal(os.environ.get("PORTFOLIO_MIN_ORDER_VALUE", "50")),
     )
-    return PortfolioService(
-        config=cfg,
-        snapshot_repo=PortfolioSnapshotRepository(),
-        event_repo=PortfolioEventRepository(),
-        reconciliation_repo=ReconciliationRepository(),
+    # NOTE: snapshot_repo is attached AFTER startup seeding (see startup()).
+    # If it were attached here, every per-request initialise() would persist
+    # an empty v1 snapshot to Postgres, and recovery-after-restart would
+    # restore that empty book instead of the last real one.
+    return (
+        PortfolioService(
+            config=cfg,
+            event_repo=PortfolioEventRepository(),
+            reconciliation_repo=ReconciliationRepository(),
+        ),
+        PortfolioSnapshotRepository(),
     )
 
 
@@ -155,8 +161,35 @@ def startup(force: bool = False) -> bool:
         return _service is not None
     _started = True
     try:
-        _service = _build_service()
-        canon = _canonical_state()
+        _service, _snap_repo = _build_service()
+
+        # Canonical phase20 ledger is the authoritative seed.  If it cannot
+        # be read (DB outage, missing state after a restart), recover from
+        # the last persisted portfolio snapshot instead of starting empty —
+        # recover() restores from the Postgres-backed snapshot repository,
+        # replays any later events, and only then falls back to fresh init.
+        canon = None
+        try:
+            canon = _canonical_state()
+        except Exception as exc:
+            logger.warning(
+                "canonical ledger unavailable (%s) — recovering portfolio "
+                "state from persisted snapshot", exc)
+
+        # NOTE: the event repository is process-local, so recovery relies on
+        # the persisted snapshot alone.  That is sufficient because
+        # persist_snapshot_if_changed() writes a fresh snapshot after EVERY
+        # state-changing fill/mark — there are never durable events newer
+        # than the newest persisted snapshot.
+        if canon is None:
+            _service._snapshot_repo = _snap_repo
+            _run(_service.recover())
+            _startup_error = None
+            logger.info(
+                "portfolio_bridge started via snapshot recovery "
+                "(canonical ledger unavailable)")
+            return True
+
         _run(_service.initialise(Decimal(str(canon.get("initial_capital")
                                              or _service.config.initial_capital))))
 
@@ -196,6 +229,11 @@ def startup(force: bool = False) -> bool:
             _run(_service.reconcile(_broker_like_snapshot(canon), dry_run=True))
         except Exception as exc:
             logger.warning("startup reconciliation failed: %s", exc)
+
+        # Only now that the true book is seeded, enable durable snapshot
+        # persistence and record a restart-recovery point (best-effort).
+        _service._snapshot_repo = _snap_repo
+        persist_snapshot_if_changed()
 
         _startup_error = None
         logger.info("portfolio_bridge started (portfolio pre-check active)")
@@ -279,6 +317,29 @@ def pre_check(
                 "allocation_status": "ERROR", "limits_allowed": False}
 
 
+def persist_snapshot_if_changed() -> None:
+    """Persist the current service snapshot to the Postgres-backed repository
+    when the state version changed since the last persisted snapshot.
+
+    Called after every state-changing operation (fills, mark updates) so a
+    restart never loses positions opened/closed after the last dashboard
+    poll. Fail-open: persistence problems are logged, never raised."""
+    if _service is None or _service._snapshot_repo is None:
+        return
+    try:
+        cur = _run(_service.get_snapshot())
+        latest = _run(_service._snapshot_repo.get_latest(cur.portfolio_id))
+        changed = (
+            latest is None
+            or latest.version != cur.version
+            or (latest.checksum or None) != (cur.checksum or None)
+        )
+        if changed:
+            _run(_service.create_snapshot())
+    except Exception as exc:
+        logger.debug("snapshot persist skipped: %s", exc)
+
+
 # ── Fill + price forwarding (fail-open) ───────────────────────────────────────
 
 def on_fill(
@@ -311,6 +372,7 @@ def on_fill(
             strategy_id=strategy_id,
             sector=sector_for(symbol),
         ))
+        persist_snapshot_if_changed()
     except Exception as exc:
         logger.warning("portfolio on_fill failed for %s %s: %s", side, symbol, exc)
 
@@ -325,6 +387,7 @@ def update_price(symbol: str, price: float) -> None:
         _run(_service.update_market_price(
             instrument_token_for(symbol), Decimal(str(price)),
             datetime.now(timezone.utc)))
+        persist_snapshot_if_changed()
     except Exception as exc:
         logger.debug("portfolio update_price failed for %s: %s", symbol, exc)
 
