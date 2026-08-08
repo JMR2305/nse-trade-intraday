@@ -156,6 +156,9 @@ class BrokerOrderResponse(BaseModel):
     # reconciliation; None/0 for async live orders at placement time.
     filled_quantity: Decimal = Decimal("0")
     average_price: Optional[Decimal] = None
+    # Set when a live-mode order was rerouted to the paper broker as a
+    # degradation fallback (e.g. "token_expired").  None for normal orders.
+    paper_fallback_reason: Optional[str] = None
 
 
 class BrokerTrade(BaseModel):
@@ -396,6 +399,11 @@ class ReconciliationReport(BaseModel):
     orders_checked: int = 0
     clean: bool = True
     paper_mode: bool = True
+    # Orders that were rerouted to the paper broker mid-session (e.g. due to
+    # token expiry).  These are bucketed separately and excluded from the
+    # broker-vs-local discrepancy checks — they never reach the broker book.
+    paper_fallback_orders: int = 0
+    paper_fallback_reasons: dict = Field(default_factory=dict)
 
     @property
     def has_discrepancies(self) -> bool:

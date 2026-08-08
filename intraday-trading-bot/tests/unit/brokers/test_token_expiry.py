@@ -398,6 +398,42 @@ class TestPaperFallbackRouting:
         assert response.internal_order_id == "test-order-001"
         # A paper fill is synchronous; status should be COMPLETE or similar
         assert response.status is not None
+        # Fallback fills are tagged so reconciliation never mistakes them
+        # for live broker fills
+        assert response.paper_fallback_reason == "token_expired"
+
+    def test_normal_paper_order_has_no_fallback_tag(self):
+        """Orders placed via the ordinary paper path carry no fallback tag."""
+        from src.brokers.contracts import (
+            BrokerOrderRequest, BrokerSide, BrokerOrderType,
+            BrokerProduct, BrokerValidity, BrokerVariety, BrokerExchange,
+        )
+        from decimal import Decimal
+
+        adapter = self._make_live_adapter_with_expired_session()
+        adapter._session_expired_paper_fallback = False
+        adapter._config = _make_config(paper_trading=True)
+        adapter._order_gateway._config = adapter._config
+
+        request = BrokerOrderRequest(
+            internal_order_id="test-order-002",
+            idempotency_key="idem-002",
+            exchange=BrokerExchange.NSE,
+            trading_symbol="INFY",
+            transaction_type=BrokerSide.BUY,
+            quantity=Decimal("1"),
+            order_type=BrokerOrderType.MARKET,
+            product=BrokerProduct.MIS,
+            validity=BrokerValidity.DAY,
+            variety=BrokerVariety.REGULAR,
+            paper_mode=True,
+        )
+
+        response = asyncio.get_event_loop().run_until_complete(
+            adapter.place_broker_order(request)
+        )
+        assert response.paper_mode is True
+        assert response.paper_fallback_reason is None
 
     def test_fallback_path_blocked_by_kill_switch(self):
         """Kill switch must still block orders even when expiry fallback is active."""

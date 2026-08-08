@@ -412,7 +412,9 @@ class ZerodhaAdapter(BrokerAdapter):
             )
             # Call the public fallback path — kill-switch and idempotency guards
             # still run; only live-mode config gates are bypassed.
-            return await self._order_gateway.place_order_paper_fallback(request)
+            return await self._order_gateway.place_order_paper_fallback(
+                request, reason="token_expired"
+            )
         return await self._order_gateway.place_order(request)
 
     async def modify_broker_order(

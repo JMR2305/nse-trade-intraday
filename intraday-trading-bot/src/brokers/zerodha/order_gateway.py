@@ -139,6 +139,7 @@ class ZerodhaOrderGateway:
         exchange: Optional[str] = None,
         paper_mode: bool = True,
         error_message: Optional[str] = None,
+        paper_fallback_reason: Optional[str] = None,
     ) -> None:
         """Upsert a correlation row in broker_order_correlations.
 
@@ -161,6 +162,7 @@ class ZerodhaOrderGateway:
                 exchange=exchange,
                 paper_mode=paper_mode,
                 error_message=error_message,
+                paper_fallback_reason=paper_fallback_reason,
                 created_at=now,
                 updated_at=now,
             ).on_conflict_do_update(
@@ -169,6 +171,7 @@ class ZerodhaOrderGateway:
                     "status": status,
                     "broker_order_id": broker_order_id,
                     "error_message": error_message,
+                    "paper_fallback_reason": paper_fallback_reason,
                     "updated_at": now,
                 },
             )
@@ -186,7 +189,9 @@ class ZerodhaOrderGateway:
     # ── Order placement ────────────────────────────────────────────────────
 
     async def place_order_paper_fallback(
-        self, request: BrokerOrderRequest
+        self,
+        request: BrokerOrderRequest,
+        reason: str = "token_expired",
     ) -> BrokerOrderResponse:
         """Place an order through the paper path while retaining all safety guards.
 
@@ -230,8 +235,8 @@ class ZerodhaOrderGateway:
                     f"Idempotency key already processed: {request.idempotency_key!r}"
                 )
 
-        # ── Force paper execution ──────────────────────────────────────────
-        return await self._place_paper_order(request)
+        # ── Force paper execution — tagged so reconciliation can bucket it ─
+        return await self._place_paper_order(request, paper_fallback_reason=reason)
 
     async def place_order(self, request: BrokerOrderRequest) -> BrokerOrderResponse:
         """Place an order.  Idempotent via idempotency_key check.
@@ -391,8 +396,18 @@ class ZerodhaOrderGateway:
 
     # ── Private helpers ────────────────────────────────────────────────────
 
-    async def _place_paper_order(self, request: BrokerOrderRequest) -> BrokerOrderResponse:
-        """Route order to PaperBroker and normalise response."""
+    async def _place_paper_order(
+        self,
+        request: BrokerOrderRequest,
+        paper_fallback_reason: Optional[str] = None,
+    ) -> BrokerOrderResponse:
+        """Route order to PaperBroker and normalise response.
+
+        ``paper_fallback_reason`` is set when a live-mode order was rerouted
+        to paper as a degradation fallback (e.g. ``"token_expired"``).  It is
+        persisted on the correlation row so post-session reconciliation can
+        distinguish these fills from real broker fills.
+        """
         from src.brokers.interface import OrderRequest as LegacyRequest
 
         legacy = LegacyRequest(
@@ -416,6 +431,7 @@ class ZerodhaOrderGateway:
             trading_symbol=request.trading_symbol,
             exchange=request.exchange.value if hasattr(request.exchange, "value") else str(request.exchange),
             paper_mode=True,
+            paper_fallback_reason=paper_fallback_reason,
         )
 
         status_map = {
@@ -436,6 +452,7 @@ class ZerodhaOrderGateway:
                 "side": request.transaction_type.value,
                 "quantity": str(request.quantity),
                 "status": status.value,
+                "paper_fallback_reason": paper_fallback_reason,
             },
         )
         # Populate fill fields from the paper broker's synchronous response
@@ -451,6 +468,7 @@ class ZerodhaOrderGateway:
             placed_at=datetime.now(timezone.utc),
             filled_quantity=filled_qty,
             average_price=avg_price,
+            paper_fallback_reason=paper_fallback_reason,
         )
 
     async def _place_live_order(self, request: BrokerOrderRequest) -> BrokerOrderResponse:

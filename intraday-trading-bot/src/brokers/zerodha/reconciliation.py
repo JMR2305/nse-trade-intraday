@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
@@ -161,13 +162,36 @@ class ReconciliationEngine:
                 local_order_list = await self._load_local_orders_from_db(db_session)
             else:
                 local_order_list = []
+            # ── Bucket paper-fallback orders separately ───────────────────
+            # Orders rerouted to the paper broker mid-session (e.g. token
+            # expiry) never reach the broker order book.  Including them in
+            # the checks below would produce false LOCAL_ONLY/BROKER_ONLY
+            # discrepancies and inflate live P&L, so they are excluded from
+            # all broker-vs-local comparisons and reported as their own line.
+            fallback_reasons = await self._load_paper_fallback_reasons(
+                db_session,
+                [str(o.get("id", "")) for o in local_order_list if o.get("id") is not None],
+            )
+            paper_fallback_orders = [
+                o for o in local_order_list
+                if str(o.get("id", "")) in fallback_reasons
+            ]
+            local_order_list = [
+                o for o in local_order_list
+                if str(o.get("id", "")) not in fallback_reasons
+            ]
+            fallback_reason_counts: Dict[str, int] = {}
+            for o in paper_fallback_orders:
+                reason = fallback_reasons[str(o.get("id", ""))]
+                fallback_reason_counts[reason] = fallback_reason_counts.get(reason, 0) + 1
+
             local_by_broker_id: Dict[str, Dict] = {
                 o["broker_order_id"]: o
                 for o in local_order_list
                 if o.get("broker_order_id")
             }
 
-            orders_checked = len(local_order_list)
+            orders_checked = len(local_order_list) + len(paper_fallback_orders)
 
             # ── Check 1: LOCAL_ONLY ────────────────────────────────────────
             for local in local_order_list:
@@ -343,7 +367,23 @@ class ReconciliationEngine:
                 orders_checked=orders_checked,
                 clean=clean,
                 paper_mode=False,
+                paper_fallback_orders=len(paper_fallback_orders),
+                paper_fallback_reasons=fallback_reason_counts,
             )
+
+            if paper_fallback_orders:
+                token_expired_count = fallback_reason_counts.get("token_expired", 0)
+                logger.info(
+                    f"Reconciliation: {len(paper_fallback_orders)} paper-fallback "
+                    f"orders bucketed separately "
+                    f"(orders routed to paper due to token expiry: {token_expired_count})",
+                    extra={
+                        "event_type": "RECONCILIATION_PAPER_FALLBACK_BUCKET",
+                        "run_id": run_id,
+                        "paper_fallback_orders": len(paper_fallback_orders),
+                        "paper_fallback_reasons": fallback_reason_counts,
+                    },
+                )
 
             status_str = "CLEAN" if clean else f"DISCREPANCIES:{len(discrepancies)}"
             await self._health.set_reconciliation_status(status_str)
@@ -380,6 +420,46 @@ class ReconciliationEngine:
             raise BrokerReconciliationError(
                 f"Reconciliation failed: {type(exc).__name__}"
             ) from exc
+
+    async def _load_paper_fallback_reasons(
+        self, db_session, internal_order_ids: List[str]
+    ) -> Dict[str, str]:
+        """Load paper-fallback tags for the local orders being reconciled.
+
+        Matches broker_order_correlations rows by ``internal_order_id`` against
+        the exact set of local order ids in this run — never by creation date —
+        so post-session or delayed runs (including across the UTC midnight
+        boundary) always see the tags for the session's orders.
+
+        Returns a mapping of internal_order_id → paper_fallback_reason for
+        orders that were rerouted to the paper broker mid-session (e.g.
+        ``"token_expired"``).  Returns {} on any error or missing session so
+        a failed lookup never blocks reconciliation — orders then fall
+        through to the normal checks (fail-noisy, not fail-silent).
+        """
+        if db_session is None or not internal_order_ids:
+            return {}
+        try:
+            from sqlalchemy import bindparam, text
+            stmt = text("""
+                SELECT internal_order_id, paper_fallback_reason
+                FROM broker_order_correlations
+                WHERE paper_fallback_reason IS NOT NULL
+                  AND internal_order_id IN :order_ids
+            """).bindparams(bindparam("order_ids", expanding=True))
+            result = await db_session.execute(
+                stmt, {"order_ids": internal_order_ids}
+            )
+            return {
+                str(row.internal_order_id): str(row.paper_fallback_reason)
+                for row in result.fetchall()
+            }
+        except Exception as exc:
+            logger.warning(
+                f"Failed to load paper-fallback tags: {type(exc).__name__}",
+                extra={"event_type": "RECONCILIATION_FALLBACK_TAGS_LOAD_FAILED"},
+            )
+            return {}
 
     async def _load_local_orders_from_db(self, db_session) -> List[Dict[str, Any]]:
         """Fetch today's non-terminal orders from the local DB.
@@ -420,10 +500,10 @@ class ReconciliationEngine:
             await db_session.execute(text("""
                 INSERT INTO broker_reconciliation_runs
                     (run_id, trigger, started_at, completed_at, orders_checked,
-                     clean, discrepancy_count, paper_mode)
+                     clean, discrepancy_count, paper_mode, paper_fallback_count)
                 VALUES
                     (:run_id, :trigger, :started_at, :completed_at, :orders_checked,
-                     :clean, :count, :paper_mode)
+                     :clean, :count, :paper_mode, :paper_fallback_count)
                 ON CONFLICT (run_id) DO NOTHING
             """), {
                 "run_id": report.run_id,
@@ -434,6 +514,7 @@ class ReconciliationEngine:
                 "clean": report.clean,
                 "count": len(report.discrepancies),
                 "paper_mode": report.paper_mode,
+                "paper_fallback_count": report.paper_fallback_orders,
             })
 
             for d in report.discrepancies:

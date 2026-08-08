@@ -85,6 +85,10 @@ class BrokerOrderCorrelation(Base):
     trading_symbol: Mapped[Optional[str]] = mapped_column(String(50))
     exchange: Mapped[Optional[str]] = mapped_column(String(10))
     error_message: Mapped[Optional[str]] = mapped_column(Text)
+    # Non-null when the order was rerouted to the paper broker as a live-mode
+    # degradation fallback (e.g. "token_expired").  Reconciliation uses this
+    # to bucket paper-fallback fills separately from real broker fills.
+    paper_fallback_reason: Mapped[Optional[str]] = mapped_column(String(50))
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -154,6 +158,9 @@ class BrokerReconciliationRun(Base):
     clean: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     discrepancy_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     paper_mode: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Count of orders rerouted to the paper broker mid-session (e.g. token
+    # expiry) — bucketed separately, never counted as broker discrepancies.
+    paper_fallback_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

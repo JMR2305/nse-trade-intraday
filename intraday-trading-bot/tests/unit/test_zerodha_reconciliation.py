@@ -138,6 +138,77 @@ class TestLocalOnly:
         assert len(local_only) == 0
 
 
+class TestPaperFallbackBucketing:
+    @pytest.mark.asyncio
+    async def test_fallback_order_not_flagged_local_only(self):
+        """Paper-fallback orders never appear in the broker book — must not
+        produce a false LOCAL_ONLY discrepancy."""
+        config = _live_config()
+        gateway = MagicMock()
+        gateway.get_order_book = AsyncMock(return_value=[])
+        gateway.get_trades = AsyncMock(return_value=[])
+
+        engine = _make_engine(config, gateway)
+        engine._load_paper_fallback_reasons = AsyncMock(
+            return_value={"1": "token_expired"}
+        )
+        local_orders = [
+            {
+                "id": 1,
+                "broker_order_id": "PAPER-001",
+                "symbol": "RELIANCE",
+                "status": "COMPLETE",
+            },
+            {
+                "id": 2,
+                "broker_order_id": "BRK-MISSING",
+                "symbol": "INFY",
+                "status": "OPEN",
+            },
+        ]
+        report = await engine.run(trigger="eod", local_orders=local_orders)
+        # Fallback order bucketed separately
+        assert report.paper_fallback_orders == 1
+        assert report.paper_fallback_reasons == {"token_expired": 1}
+        # Both orders still counted as checked
+        assert report.orders_checked == 2
+        # Only the genuinely-missing live order is flagged
+        local_only = [d for d in report.discrepancies
+                      if d.discrepancy_type == ReconciliationDiscrepancyType.LOCAL_ONLY]
+        assert len(local_only) == 1
+        assert local_only[0].internal_order_id == "2"
+
+    @pytest.mark.asyncio
+    async def test_no_fallback_orders_reports_zero(self):
+        config = _live_config()
+        gateway = MagicMock()
+        gateway.get_order_book = AsyncMock(return_value=[])
+        gateway.get_trades = AsyncMock(return_value=[])
+
+        engine = _make_engine(config, gateway)
+        report = await engine.run(trigger="eod", local_orders=[])
+        assert report.paper_fallback_orders == 0
+        assert report.paper_fallback_reasons == {}
+
+    @pytest.mark.asyncio
+    async def test_fallback_tag_load_failure_falls_through_to_checks(self):
+        """If the tag lookup fails, orders go through normal checks (fail-noisy)."""
+        config = _live_config()
+        gateway = MagicMock()
+        gateway.get_order_book = AsyncMock(return_value=[])
+        gateway.get_trades = AsyncMock(return_value=[])
+
+        engine = _make_engine(config, gateway)
+        # No db_session → loader returns {} without error
+        local_orders = [
+            {"id": 1, "broker_order_id": "PAPER-001", "symbol": "RELIANCE", "status": "OPEN"},
+        ]
+        report = await engine.run(trigger="eod", local_orders=local_orders)
+        assert report.paper_fallback_orders == 0
+        types = [d.discrepancy_type for d in report.discrepancies]
+        assert ReconciliationDiscrepancyType.LOCAL_ONLY in types
+
+
 class TestBrokerOnly:
     @pytest.mark.asyncio
     async def test_broker_order_without_local_flagged(self):
