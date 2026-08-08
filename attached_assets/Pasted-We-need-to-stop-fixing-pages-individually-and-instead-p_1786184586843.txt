@@ -1,0 +1,430 @@
+We need to stop fixing pages individually and instead perform a COMPLETE DATA ARCHITECTURE CONSOLIDATION.
+
+The current issue is that multiple pages appear to calculate their own values independently instead of reading from one canonical source.
+
+Examples observed:
+
+• Replay shows different counts than AI Operations Centre.
+• Portfolio shows zero trades while execution shows BUYs.
+• Trade History is empty.
+• Portfolio Performance is empty.
+• Validation shows different statistics.
+• Phase 4A shows another set of values.
+• Broker page imports fail.
+• Some pages still use cached/demo/generated data.
+
+This entire architecture must be unified.
+
+====================================================
+GOAL
+====================================================
+
+There must be ONE SINGLE SOURCE OF TRUTH.
+
+Every page in the application must read from the same backend state.
+
+Pages must NEVER calculate their own numbers.
+
+====================================================
+CANONICAL DATA FLOW
+====================================================
+
+Market Scan
+
+↓
+
+Research
+
+↓
+
+Market Intelligence
+
+↓
+
+Monitoring
+
+↓
+
+Strategy
+
+↓
+
+Risk
+
+↓
+
+AI Decision
+
+↓
+
+Execution
+
+↓
+
+Paper Trade Ledger
+
+↓
+
+Portfolio Store
+
+↓
+
+Performance Engine
+
+↓
+
+Validation
+
+↓
+
+Replay
+
+↓
+
+Operations Centre
+
+Every page must consume this pipeline.
+
+No page may rebuild its own pipeline.
+
+====================================================
+CREATE CANONICAL STORES
+====================================================
+
+There should be exactly one canonical object/store for each.
+
+Scan Snapshot
+
+Decision Snapshot
+
+Execution Snapshot
+
+Paper Trade Ledger
+
+Portfolio Store
+
+Performance Store
+
+Replay Snapshot
+
+Validation Snapshot
+
+Operations Snapshot
+
+Every API must read from these stores.
+
+====================================================
+REMOVE DUPLICATE LOGIC
+====================================================
+
+Search entire project for:
+
+duplicate calculations
+
+mock portfolio
+
+demo trades
+
+generated positions
+
+fallback BUY counts
+
+hardcoded capital
+
+cached trade lists
+
+synthetic execution
+
+temporary replay objects
+
+Remove them.
+
+There should only be one implementation.
+
+====================================================
+EXECUTION FLOW
+====================================================
+
+Execution must be:
+
+BUY Decision
+
+↓
+
+Risk Approved
+
+↓
+
+Paper Order Created
+
+↓
+
+Ledger Entry
+
+↓
+
+Portfolio Update
+
+↓
+
+Trade History Update
+
+↓
+
+Performance Update
+
+↓
+
+Replay Update
+
+↓
+
+Operations Update
+
+↓
+
+Validation Update
+
+No page should skip this flow.
+
+====================================================
+AFTER EVERY BUY
+====================================================
+
+The following must happen automatically.
+
+Paper Trade created
+
+Portfolio updated
+
+Cash reduced
+
+Open position created
+
+Trade History updated
+
+Portfolio Performance updated
+
+Replay updated
+
+Operations Centre updated
+
+Validation updated
+
+Broker page updated
+
+EOD reconciliation updated
+
+====================================================
+PORTFOLIO PAGE
+====================================================
+
+Portfolio must ONLY read from Paper Trade Ledger.
+
+Show
+
+Open Positions
+
+Average Price
+
+Current Price
+
+Market Value
+
+Unrealized P&L
+
+Realized P&L
+
+Cash
+
+Equity
+
+Exposure
+
+Sector Allocation
+
+Position Sizing
+
+No synthetic positions.
+
+====================================================
+TRADE HISTORY
+====================================================
+
+Trade History must read ONLY from Paper Trade Ledger.
+
+Never from legacy/demo tables.
+
+Show
+
+Entry
+
+Exit
+
+Status
+
+PnL
+
+Qty
+
+Reason
+
+Confidence
+
+Strategy
+
+Scan ID
+
+Execution ID
+
+====================================================
+PORTFOLIO PERFORMANCE
+====================================================
+
+Read ONLY from Portfolio Store.
+
+Show
+
+Equity Curve
+
+Daily PnL
+
+Weekly
+
+Monthly
+
+Net Return
+
+Drawdown
+
+Win Rate
+
+Expectancy
+
+Profit Factor
+
+Sharpe
+
+Exposure
+
+====================================================
+REPLAY
+====================================================
+
+Replay must read ONLY from Replay Snapshot.
+
+No recalculation.
+
+Replay counts must exactly match
+
+Operations
+
+Validation
+
+Pipeline
+
+Trade History
+
+====================================================
+AI OPERATIONS CENTRE
+====================================================
+
+Must NEVER calculate independently.
+
+Read ONLY from Operations Snapshot.
+
+Counts must exactly equal Replay.
+
+====================================================
+VALIDATION
+====================================================
+
+Validation reads ONLY from Validation Snapshot.
+
+No recalculation.
+
+====================================================
+BROKER PAGE
+====================================================
+
+Fix
+
+cannot import name STATE_FILE
+
+Remove broken import.
+
+Broker page should load correctly.
+
+====================================================
+EOD RECONCILIATION
+====================================================
+
+Read Paper Trade Ledger.
+
+Not demo tables.
+
+====================================================
+CAPITAL
+====================================================
+
+Every page uses
+
+portfolio_store.INITIAL_CAPITAL
+
+No hardcoded values.
+
+====================================================
+API CONSOLIDATION
+====================================================
+
+Every endpoint returns identical Scan ID.
+
+Every endpoint returns identical Session ID.
+
+Every endpoint returns identical Portfolio Version.
+
+Reject stale cache.
+
+====================================================
+FINAL VERIFICATION
+====================================================
+
+Produce a verification report proving that all pages read from the same canonical stores.
+
+For each page list:
+
+Data source
+
+Store used
+
+API endpoint
+
+Scan ID
+
+Session ID
+
+Portfolio Version
+
+Verify that these pages all show identical information:
+
+Replay
+
+Operations Centre
+
+Portfolio
+
+Trade History
+
+Portfolio Performance
+
+Validation
+
+Phase 4A
+
+Broker
+
+Execution
+
+EOD Reconciliation
+
+No page should have independent calculations after this refactor.

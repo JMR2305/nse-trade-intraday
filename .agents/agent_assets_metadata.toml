@@ -292,3 +292,10 @@ uri = "file://reports/ops-agent/OPERATIONS_AGENT_REPORT.md"
 type = "text"
 title = "Operations Agent — Comprehensive Page Report"
 description = "All 23 Operations Agent pages: live screenshots, per-page status and purpose, plus readiness, observability, paper-trading and validation metrics at capture time."
+
+[[outputs]]
+id = "IsGLHbQ0jUscT7rwGtGmp"
+uri = "file://reports/data-consolidation/VERIFICATION.md"
+type = "text"
+title = "Data Consolidation — Verification Report"
+description = "Proof that all portfolio-facing pages now read the same canonical stores: per-page data sources, before/after divergences, and live parity figures."

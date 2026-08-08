@@ -825,9 +825,13 @@ def _pipeline_summary() -> Dict[str, Any]:
         scan_id            = str(ctx.get("scan_id") or "—")
         snapshot_ts        = str(ctx.get("snapshot_ts") or "—")
         pipeline_cycle     = scan_id
-        # Strategy confidence exists in the scan even when Risk blocks all candidates
+        # Strategy confidence exists in the scan even when Risk blocks all candidates.
+        # Scan confidences may be stored as fractions (0–1) or percents (0–100);
+        # normalise to percent WITHOUT double-scaling values already in percent.
         conf_vals = [
-            _f(r.get("confidence", 0)) * 100
+            (_f(r.get("confidence", 0)) * 100
+             if _f(r.get("confidence", 0)) <= 1.5
+             else _f(r.get("confidence", 0)))
             for r in symbols.values()
             if str(r.get("final_action","")).upper() in ("BUY","STRONG BUY","WATCH")
         ]

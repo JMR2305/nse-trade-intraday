@@ -258,40 +258,25 @@ def get_phase11_portfolio() -> Dict[str, Any]:
     cfg = get_capital_config()
     starting_capital = cfg["starting_capital"]
 
+    # Canonical portfolio (phase20 ledger) — single source of truth for
+    # positions, cash, realized and unrealized P&L across every page.
+    from canonical_portfolio import build_canonical_portfolio
+    canon = build_canonical_portfolio()
+
+    cash           = float(canon["cash"])
+    invested       = float(canon["invested_value"])
+    unrealised_pnl = float(canon["unrealized_pnl"] or 0.0)
+    realised_pnl   = float(canon["realized_pnl"] or 0.0)
+    open_count     = int(canon["open_position_count"])
+    starting_capital = float(canon["initial_capital"] or starting_capital)
+    current_value  = float(canon["equity"])
+
+    # Legacy state is retained only for pnl_history charting + daily_pnl memo.
     try:
         from portfolio_store import load_state
-        state = load_state()
+        state = load_state() or {}
     except Exception:
         state = {}
-
-    cash      = float(state.get("cash", starting_capital))
-    positions = state.get("positions", {})
-    trades    = state.get("trades", [])
-
-    # Invested amount = sum of current open position cost bases
-    invested = 0.0
-    unrealised_pnl = 0.0
-    current_value = cash
-    open_count = 0
-
-    for sym, pos in positions.items():
-        if not isinstance(pos, dict):
-            continue
-        qty = int(pos.get("qty", pos.get("quantity", 0)))
-        avg_price = float(pos.get("avg_price", pos.get("buy_price", 0)))
-        current_price = float(pos.get("current_price", avg_price))
-        cost = qty * avg_price
-        val  = qty * current_price
-        invested      += cost
-        unrealised_pnl += (val - cost)
-        current_value  += val
-        open_count     += 1
-
-    # Realised P/L from closed trades
-    realised_pnl = 0.0
-    for t in trades:
-        if isinstance(t, dict) and t.get("action", "").upper() in ("SELL", "EXIT", "CLOSE"):
-            realised_pnl += float(t.get("pnl", t.get("profit", 0)) or 0)
 
     portfolio_value   = current_value
     portfolio_return  = ((portfolio_value - starting_capital) / starting_capital * 100) if starting_capital > 0 else 0.0
@@ -331,14 +316,14 @@ def get_open_positions_detail() -> List[Dict[str, Any]]:
     Current P/L, Current %, AI Confidence, Expected Return, Target,
     Stop Loss, Strategy, Market Regime, Risk Level, Holding Duration.
     """
+    # Canonical positions (phase20 ledger) adapted to the legacy field names.
     try:
-        from portfolio_store import load_state
-        state = load_state()
+        from canonical_portfolio import build_canonical_portfolio
+        canon_positions = build_canonical_portfolio()["positions"]
     except Exception:
         return []
 
-    positions = state.get("positions", {})
-    if not positions:
+    if not canon_positions:
         return []
 
     # Try to get regime from latest scan
@@ -347,25 +332,27 @@ def get_open_positions_detail() -> List[Dict[str, Any]]:
     result = []
     now_ts = datetime.now(timezone.utc)
 
-    for sym, pos in positions.items():
-        if not isinstance(pos, dict):
-            continue
-        qty          = int(pos.get("qty", pos.get("quantity", 0)))
+    for pos in canon_positions:
+        sym          = pos.get("symbol")
+        qty          = int(pos.get("quantity") or 0)
         if qty <= 0:
             continue
-        avg_price    = float(pos.get("avg_price", pos.get("buy_price", 0)))
-        current_price= float(pos.get("current_price", avg_price))
-        stop_loss    = float(pos.get("stop_loss", avg_price * 0.97))
-        target       = float(pos.get("target", avg_price * 1.06))
-        buy_ts       = pos.get("buy_ts", pos.get("entry_time", pos.get("opened_at", "")))
-        strategy     = pos.get("strategy", pos.get("strategy_name", "UNKNOWN"))
-        confidence   = float(pos.get("confidence", pos.get("ai_confidence", 0)))
-        risk_level   = pos.get("risk_level", "MEDIUM")
-        exp_return   = pos.get("expected_return", pos.get("expected_return_pct", None))
+        avg_price    = float(pos.get("avg_price") or 0.0)
+        mark         = pos.get("mark_price")
+        current_price= float(mark) if mark is not None else avg_price
+        stop_loss    = float(pos.get("stop_loss") or avg_price * 0.97)
+        target       = float(pos.get("target") or avg_price * 1.06)
+        buy_ts       = pos.get("opened_at") or ""
+        strategy     = pos.get("strategy_id") or "UNKNOWN"
+        confidence   = 0.0
+        risk_level   = "MEDIUM"
+        exp_return   = None
 
         cost_basis   = qty * avg_price
-        cur_val      = qty * current_price
-        pnl          = cur_val - cost_basis
+        cur_val      = float(pos.get("market_value") or qty * current_price)
+        pnl          = (float(pos["unrealized_pnl"])
+                        if pos.get("unrealized_pnl") is not None
+                        else cur_val - cost_basis)
         pnl_pct      = (pnl / cost_basis * 100) if cost_basis > 0 else 0.0
 
         # Holding duration

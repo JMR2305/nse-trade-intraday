@@ -38,16 +38,18 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
     # get_open_positions_view() returns rows with keys:
     #   fill_price, current_price, unrealized_pnl (American spelling), quantity,
     #   symbol, sector, strategy_id, side, fill_ts, stop_loss, target, …
+    # Canonical positions (phase20 ledger incl. EXIT_PENDING, canonical marks)
+    # adapted to this endpoint's legacy row shape.
     open_positions: List[Dict[str, Any]] = []
     try:
-        from phase20_executor import get_open_positions_view
-        raw_positions = get_open_positions_view() or []
-        for p in raw_positions:
+        from canonical_portfolio import build_canonical_portfolio
+        for p in build_canonical_portfolio()["positions"]:
             qty = int(p.get("quantity") or 0)
-            fill_price = _safe_float(p.get("fill_price"))          # avg entry
-            cur_price = _safe_float(p.get("current_price") or fill_price)
-            market_val = round(cur_price * qty, 2)
-            upnl = _safe_float(p.get("unrealized_pnl", 0))        # American spelling
+            fill_price = _safe_float(p.get("avg_price"))           # avg entry
+            mark = p.get("mark_price")
+            cur_price = _safe_float(mark) if mark is not None else fill_price
+            market_val = _safe_float(p.get("market_value") or cur_price * qty)
+            upnl = _safe_float(p.get("unrealized_pnl", 0))
             upnl_pct = ((upnl / (fill_price * qty)) * 100
                         if fill_price > 0 and qty > 0 else 0.0)
             open_positions.append({
@@ -55,16 +57,18 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
                 "quantity":           qty,
                 "avg_entry_price":    fill_price,
                 "last_price":         cur_price,
-                "market_value":       market_val,
+                "market_value":       round(market_val, 2),
                 "unrealised_pnl":     round(upnl, 2),
                 "unrealised_pnl_pct": round(upnl_pct, 2),
-                "side":               p.get("side", "LONG"),
+                "side":               "LONG",
                 "strategy_id":        p.get("strategy_id"),
                 "sector":             p.get("sector"),
-                "opened_at":          p.get("fill_ts") or p.get("signal_ts"),
+                "opened_at":          p.get("opened_at"),
+                "mark_source":        p.get("mark_source"),
+                "status":             p.get("status"),
             })
     except Exception as exc:
-        logger.debug("phase20 positions unavailable: %s", exc)
+        logger.debug("canonical positions unavailable: %s", exc)
 
     # ── 2. Fall back to legacy paper_trader state ──────────────────────────
     legacy_state: Dict[str, Any] = {}
@@ -113,9 +117,20 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
     except Exception:
         state = legacy_state
 
-    cash = _safe_float(state.get("cash", _INITIAL_CAPITAL_local))
-    total_invested = sum(p["market_value"] for p in open_positions)
-    unrealised_pnl = sum(p["unrealised_pnl"] for p in open_positions)
+    # Canonical cash/equity accounting (phase20 ledger — single source of truth):
+    #   cash = INITIAL_CAPITAL − Σ(open cost) + Σ(realized)
+    # Never mix legacy paper_trader cash with ledger positions (that double-counts).
+    try:
+        from canonical_portfolio import build_canonical_portfolio
+        _canon = build_canonical_portfolio()
+        cash = _canon["cash"]
+        total_invested = _canon["invested_value"]
+        unrealised_pnl = _safe_float(_canon["unrealized_pnl"])
+        _INITIAL_CAPITAL_local = _canon["initial_capital"] or _INITIAL_CAPITAL_local
+    except Exception:
+        cash = _safe_float(state.get("cash", _INITIAL_CAPITAL_local))
+        total_invested = sum(p["market_value"] for p in open_positions)
+        unrealised_pnl = sum(p["unrealised_pnl"] for p in open_positions)
 
     # Realised P&L: sum of completed trades recorded today
     realised_pnl_today = 0.0
@@ -140,7 +155,9 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
         except Exception:
             pass
 
-    equity = cash + total_invested
+    # equity = capital + realized + unrealized MTM (canonical accounting);
+    # cash + cost-basis invested would silently drop unrealized P&L.
+    equity = cash + total_invested + unrealised_pnl
     initial_capital = _safe_float(state.get("initial_capital", _INITIAL_CAPITAL_local))
     if initial_capital <= 0:
         initial_capital = _INITIAL_CAPITAL_local

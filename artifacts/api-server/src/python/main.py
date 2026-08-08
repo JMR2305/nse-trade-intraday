@@ -97,7 +97,32 @@ def _load_portfolio_with_live_prices() -> dict:
 # ── Commands ──────────────────────────────────────────────────────────────────
 
 def cmd_portfolio() -> dict:
-    return _load_portfolio_with_live_prices()
+    """Canonical portfolio (phase20 ledger) mapped to the legacy response shape."""
+    from canonical_portfolio import build_canonical_portfolio
+    c = build_canonical_portfolio()
+    total_pnl = round((c["realized_pnl"] or 0.0) + (c["unrealized_pnl"] or 0.0), 2)
+    cap = c["initial_capital"] or 0.0
+    # pnl_history retained from the legacy state store for chart continuity
+    try:
+        from paper_trader import _load_state
+        pnl_history = (_load_state() or {}).get("pnl_history", [])
+    except Exception:
+        pnl_history = []
+    return {
+        "cash": c["cash"],
+        "total_value": c["equity"],
+        "invested_value": c["invested_value"],
+        "total_pnl": total_pnl,
+        "total_pnl_pct": round(100.0 * total_pnl / cap, 2) if cap else 0.0,
+        "positions": c["positions"],
+        "pnl_history": pnl_history,
+        "initial_capital": cap,
+        "realized_pnl": c["realized_pnl"],
+        "unrealized_pnl": c["unrealized_pnl"],
+        "scan_id": c["scan_id"],
+        "portfolio_version": c["portfolio_version"],
+        "source": c["source"],
+    }
 
 
 def cmd_signals() -> list:
@@ -125,12 +150,13 @@ def cmd_market_context() -> dict:
 
 
 def cmd_trades() -> list:
-    return list(get_trades())
+    from canonical_portfolio import canonical_trades
+    return canonical_trades(scope="session")
 
 
 def cmd_trades_all() -> list:
-    from paper_trader import get_all_trades
-    return list(get_all_trades())
+    from canonical_portfolio import canonical_trades
+    return canonical_trades(scope="all")
 
 
 def cmd_trade_replay() -> list:

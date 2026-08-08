@@ -148,10 +148,54 @@ class TestCapitalConfig(unittest.TestCase):
 
 # ── Test: Portfolio Summary ───────────────────────────────────────────────────
 
+# Canonical (phase20 ledger) portfolio fixture matching SAMPLE_STATE semantics:
+# invested = 5*2800 + 10*1500 = 29,000; unreal = 350 - 200 = 150; realized = 300
+SAMPLE_CANON = {
+    "source": "phase20_ledger",
+    "scan_id": "scan-test",
+    "portfolio_version": "4:2025-08-01T05:30:00Z",
+    "initial_capital": 64_000.0,
+    "cash": 35_000.0 + 300.0,  # cap − invested + realized
+    "invested_value": 29_000.0,
+    "equity": 64_000.0 + 300.0 + 150.0,
+    "equity_complete": True,
+    "realized_pnl": 300.0,
+    "unrealized_pnl": 150.0,
+    "unrealized_note": None,
+    "open_position_count": 2,
+    "closed_trade_count": 2,
+    "positions": [
+        {"trade_id": "T1", "symbol": "RELIANCE", "quantity": 5, "avg_price": 2800.0,
+         "cost": 14_000.0, "mark_price": 2870.0, "mark_source": "scan",
+         "market_value": 14_350.0, "unrealized_pnl": 350.0, "status": "OPEN",
+         "sector": "ENERGY", "strategy_id": "BREAKOUT",
+         "opened_at": "2025-08-01T04:25:00Z", "stop_loss": 2720.0, "target": 2980.0,
+         "scan_id": "scan-test"},
+        {"trade_id": "T2", "symbol": "INFY", "quantity": 10, "avg_price": 1500.0,
+         "cost": 15_000.0, "mark_price": 1480.0, "mark_source": "scan",
+         "market_value": 14_800.0, "unrealized_pnl": -200.0, "status": "OPEN",
+         "sector": "IT", "strategy_id": "MOMENTUM",
+         "opened_at": "2025-08-01T05:30:00Z", "stop_loss": 1450.0, "target": 1600.0,
+         "scan_id": "scan-test"},
+    ],
+    "sector_exposure": {"IT": 15_000.0, "ENERGY": 14_000.0},
+    "mark_basis": "scan",
+}
+
+EMPTY_CANON = {
+    **SAMPLE_CANON,
+    "cash": 64_000.0, "invested_value": 0.0, "equity": 64_000.0,
+    "realized_pnl": 0.0, "unrealized_pnl": 0.0,
+    "open_position_count": 0, "closed_trade_count": 0,
+    "positions": [], "sector_exposure": {}, "portfolio_version": "0:",
+}
+
+
 class TestPortfolioSummary(unittest.TestCase):
+    @patch("canonical_portfolio.build_canonical_portfolio", return_value=SAMPLE_CANON)
     @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
     @patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d))
-    def test_portfolio_has_required_fields(self, mock_kv, mock_load):
+    def test_portfolio_has_required_fields(self, mock_kv, mock_load, mock_canon):
         import phase11_autonomous as m
         p = m.get_phase11_portfolio()
         for field in [
@@ -162,37 +206,41 @@ class TestPortfolioSummary(unittest.TestCase):
         ]:
             self.assertIn(field, p, f"Missing field: {field}")
 
+    @patch("canonical_portfolio.build_canonical_portfolio", return_value=SAMPLE_CANON)
     @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
     @patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d))
-    def test_portfolio_values_correct(self, mock_kv, mock_load):
+    def test_portfolio_values_correct(self, mock_kv, mock_load, mock_canon):
         import phase11_autonomous as m
         p = m.get_phase11_portfolio()
-        self.assertEqual(p["cash"], 35_000.0)
+        self.assertEqual(p["cash"], 35_300.0)
         self.assertEqual(p["open_positions"], 2)
         # invested = 5*2800 + 10*1500 = 14000+15000=29000
         self.assertAlmostEqual(p["invested_amount"], 29_000.0, places=0)
         # unrealised = 5*(2870-2800) + 10*(1480-1500) = 350 - 200 = 150
         self.assertAlmostEqual(p["unrealised_pnl"], 150.0, places=0)
 
+    @patch("canonical_portfolio.build_canonical_portfolio", return_value=SAMPLE_CANON)
     @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
     @patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d))
-    def test_realised_pnl_from_sells(self, mock_kv, mock_load):
+    def test_realised_pnl_from_sells(self, mock_kv, mock_load, mock_canon):
         import phase11_autonomous as m
         p = m.get_phase11_portfolio()
         # TCS SELL pnl=600, WIPRO SELL pnl=-300 → total 300
         self.assertAlmostEqual(p["realised_pnl"], 300.0, places=0)
 
+    @patch("canonical_portfolio.build_canonical_portfolio", return_value=SAMPLE_CANON)
     @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
     @patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d))
-    def test_paper_only_flags(self, mock_kv, mock_load):
+    def test_paper_only_flags(self, mock_kv, mock_load, mock_canon):
         import phase11_autonomous as m
         p = m.get_phase11_portfolio()
         self.assertTrue(p["paper_only"])
         self.assertTrue(p["advisory_only"])
 
+    @patch("canonical_portfolio.build_canonical_portfolio", return_value=EMPTY_CANON)
     @patch("portfolio_store.load_state", return_value={})
     @patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d))
-    def test_portfolio_empty_state(self, mock_kv, mock_load):
+    def test_portfolio_empty_state(self, mock_kv, mock_load, mock_canon):
         import phase11_autonomous as m
         p = m.get_phase11_portfolio()
         self.assertGreaterEqual(p["cash"], 0)
@@ -202,10 +250,11 @@ class TestPortfolioSummary(unittest.TestCase):
 # ── Test: Open Positions Detail ───────────────────────────────────────────────
 
 class TestOpenPositions(unittest.TestCase):
+    @patch("canonical_portfolio.build_canonical_portfolio", return_value=SAMPLE_CANON)
     @patch("phase11_autonomous._get_current_regime", return_value="TRENDING")
     @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
     @patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d))
-    def test_open_positions_has_required_fields(self, mock_kv, mock_load, mock_regime):
+    def test_open_positions_has_required_fields(self, mock_kv, mock_load, mock_regime, mock_canon):
         import phase11_autonomous as m
         positions = m.get_open_positions_detail()
         self.assertEqual(len(positions), 2)
@@ -219,10 +268,11 @@ class TestOpenPositions(unittest.TestCase):
             for f in required:
                 self.assertIn(f, pos, f"Missing field {f} in position")
 
+    @patch("canonical_portfolio.build_canonical_portfolio", return_value=SAMPLE_CANON)
     @patch("phase11_autonomous._get_current_regime", return_value="TRENDING")
     @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
     @patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d))
-    def test_open_positions_pnl_values(self, mock_kv, mock_load, mock_regime):
+    def test_open_positions_pnl_values(self, mock_kv, mock_load, mock_regime, mock_canon):
         import phase11_autonomous as m
         positions = m.get_open_positions_detail()
         reliance = next((p for p in positions if p["stock"] == "RELIANCE"), None)
@@ -230,10 +280,11 @@ class TestOpenPositions(unittest.TestCase):
         # pnl = 5 * (2870 - 2800) = 350
         self.assertAlmostEqual(reliance["current_pnl"], 350.0, places=0)
 
+    @patch("canonical_portfolio.build_canonical_portfolio", return_value=EMPTY_CANON)
     @patch("phase11_autonomous._get_current_regime", return_value="TRENDING")
     @patch("portfolio_store.load_state", return_value={"positions": {}, "trades": []})
     @patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d))
-    def test_open_positions_empty(self, mock_kv, mock_load, mock_regime):
+    def test_open_positions_empty(self, mock_kv, mock_load, mock_regime, mock_canon):
         import phase11_autonomous as m
         positions = m.get_open_positions_detail()
         self.assertEqual(positions, [])
