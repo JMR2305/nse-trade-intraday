@@ -574,7 +574,7 @@ def build_validation_dashboard() -> Dict[str, Any]:
             sel = closed_dated
         else:
             # IST calendar-day windowing: include the last N calendar days incl. today.
-            cutoff_date = (datetime.now(IST).date() - timedelta(days=days - 1)).isoformat()
+            cutoff_date = (_now_utc().astimezone(IST).date() - timedelta(days=days - 1)).isoformat()
             sel = [r for r in closed_dated if _ist_date(_parse_ts(r["exit_ts"])) >= cutoff_date]
         st = _closed_stats(sel)
         st.update(_risk_windows(sel))
@@ -593,6 +593,7 @@ def build_validation_dashboard() -> Dict[str, Any]:
     exec_bad = [r for r in rows if r.get("status") in ("OPEN", "CLOSED", "EXIT_PENDING")
                 and not r.get("fill_price")]
     closed_no_pnl = [r for r in closed_all if r.get("realized_pnl") is None]
+    closed_no_exit_ts = [r for r in closed_all if _parse_ts(r.get("exit_ts")) is None]
     import portfolio_store
     cap = float(portfolio_store.INITIAL_CAPITAL)
     deployed = sum(int(r.get("quantity") or 0) * float(r.get("fill_price") or 0.0)
@@ -610,6 +611,9 @@ def build_validation_dashboard() -> Dict[str, Any]:
         "retry_events": ph.get("retry_events") or 0,
         "replay_integrity": audit.get("audit_verdict") or ("PASS" if rep else "NO SCAN"),
         "execution_integrity": "PASS" if not exec_bad else f"FAIL ({len(exec_bad)} filled rows missing fill price)",
+        "closed_missing_exit_ts": len(closed_no_exit_ts),
+        "closed_missing_exit_ts_note": ("CLOSED rows without exit_ts are excluded from historical windows"
+                                        if closed_no_exit_ts else None),
         "portfolio_integrity": ("PASS" if not closed_no_pnl else
                                 f"FAIL ({len(closed_no_pnl)} closed trades missing realized P&L)"),
         "portfolio_cash_check": {"initial": cap, "deployed": round(deployed, 2),
