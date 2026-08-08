@@ -320,3 +320,10 @@ uri = "file://artifacts/api-server/reports/phase23/PHASE23_PARTS6_7_SUMMARY.md"
 type = "text"
 title = "Phase 23 Parts 6 & 7 Summary"
 description = "Strategy Optimization Lab + Institutional Analytics — features, architecture, safety guarantees, verification."
+
+[[outputs]]
+id = "rLz9P5xNdjKVARuhgbi5G"
+uri = "file://artifacts/trading-dashboard/docs/PHASE25_SUMMARY.md"
+type = "text"
+title = "Phase 25 Summary — Mission Control"
+description = "25A shell & core panels, 25B intelligence/ops widgets, 25C command bar, search, responsive & verification."
