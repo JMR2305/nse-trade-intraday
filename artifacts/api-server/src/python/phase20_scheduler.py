@@ -190,6 +190,14 @@ def run_tick() -> Dict[str, Any]:
     if mstate != "OPEN":
         report = _maybe_generate_session_report(mstate)
         eod_recon = _maybe_run_eod_reconciliation() if mstate == "CLOSED" else None
+        # Phase 24: KV-guarded daily learning run (advisory only, never raises)
+        p24_learning = None
+        if mstate == "CLOSED":
+            try:
+                from phase24_recommendations import maybe_run_daily_learning
+                p24_learning = maybe_run_daily_learning()
+            except Exception as exc:
+                p24_learning = {"ran": False, "error": str(exc)[:200]}
         store.update_scheduler_state(
             last_attempt_at=now_iso, status="IDLE",
             detail=f"Market not open (state={mstate or 'UNKNOWN'})",
@@ -204,6 +212,8 @@ def run_tick() -> Dict[str, Any]:
             out["session_report"] = report
         if eod_recon is not None:
             out["eod_reconciliation"] = eod_recon
+        if p24_learning is not None:
+            out["phase24_learning"] = p24_learning
         return out
 
     from phase15_scan_context import scan_age_seconds

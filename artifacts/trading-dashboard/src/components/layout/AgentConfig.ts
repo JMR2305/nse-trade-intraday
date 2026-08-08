@@ -193,6 +193,7 @@ export const AGENTS: Agent[] = [
     description: "Learning metrics, knowledge base, patterns, lessons, trade memory",
     color: "#06B6D4",      // cyan-500
     pages: [
+      { href: "/ai-learning-center", label: "AI Learning Center",  icon: GraduationCap, tags: ["learning", "phase24", "lessons", "scorecard", "recommendations"] },
       { href: "/agent-learning",    label: "Learning Agent",       icon: Brain,        tags: ["learning", "agent", "phase10d"] },
       { href: "/agent-knowledge",   label: "Knowledge Agent",      icon: BookOpenText, tags: ["knowledge", "agent", "phase10d"] },
       { href: "/pattern-explorer",  label: "Pattern Explorer",     icon: Activity,     tags: ["patterns", "discovery"] },

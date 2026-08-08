@@ -3394,6 +3394,68 @@ def main():
             _run_id = sys.argv[2] if len(sys.argv) > 2 else ""
             result = _f(_run_id)
 
+        # ── Phase 24: AI Learning & Continuous Improvement Engine ──────────
+        elif command == "p24_overview":
+            from phase24_analytics import overview as _f
+            result = _f()
+        elif command == "p24_trades":
+            import phase24_store as _s
+            _limit = int(sys.argv[2]) if len(sys.argv) > 2 else 500
+            result = {"items": _s.list_trade_records(limit=_limit)}
+        elif command == "p24_capture":
+            from phase24_engine import capture_closed_trades as _f
+            result = _f()
+        elif command == "p24_missed":
+            import phase24_store as _s
+            result = {"items": _s.list_missed_opps(limit=500)}
+        elif command == "p24_missed_run":
+            from phase24_engine import run_missed_opportunity_analysis as _f
+            result = _f()
+        elif command == "p24_risk_learning":
+            from phase24_engine import risk_rule_learning as _f
+            result = _f()
+        elif command == "p24_strategy_ranking":
+            from phase24_analytics import strategy_ranking as _f
+            result = _f()
+        elif command == "p24_sector_ranking":
+            from phase24_analytics import sector_ranking as _f
+            result = _f()
+        elif command == "p24_time_analysis":
+            from phase24_analytics import time_analysis as _f
+            result = _f()
+        elif command == "p24_calibration":
+            from phase24_analytics import calibration as _f
+            result = _f()
+        elif command == "p24_scorecard":
+            from phase24_analytics import ai_scorecard as _f
+            result = _f()
+        elif command == "p24_recommendations":
+            import phase24_store as _s
+            _status = sys.argv[2] if len(sys.argv) > 2 else None
+            result = {"items": _s.list_recommendations(limit=200,
+                                                       status=_status or None)}
+        elif command == "p24_recommendations_generate":
+            from phase24_recommendations import generate_recommendations as _f
+            result = _f(force="--force" in sys.argv)
+        elif command == "p24_rec_decide":
+            import phase24_store as _s
+            _rid = sys.argv[2] if len(sys.argv) > 2 else ""
+            _dec = sys.argv[3] if len(sys.argv) > 3 else ""
+            _note = sys.argv[4] if len(sys.argv) > 4 else ""
+            _map = {"approve": "APPROVED", "dismiss": "DISMISSED"}
+            result = _s.decide_recommendation(_rid, _map.get(_dec, _dec), _note)
+        elif command == "p24_reports":
+            import phase24_store as _s
+            _period = sys.argv[2] if len(sys.argv) > 2 else None
+            result = {"items": _s.list_reports(period=_period or None)}
+        elif command == "p24_report_generate":
+            from phase24_recommendations import generate_report as _f
+            _period = sys.argv[2] if len(sys.argv) > 2 else "daily"
+            result = _f(_period, force="--force" in sys.argv)
+        elif command == "p24_daily_learning":
+            from phase24_recommendations import maybe_run_daily_learning as _f
+            result = _f(force="--force" in sys.argv)
+
         else:
             error_msg = f"Unknown command: {command}"
 

@@ -54,6 +54,7 @@ import { autonomousOpsRouter }      from "./autonomousOps";
 import phase11Router                from "./phase11";
 import replayRouter                 from "./replay";
 import validationV2Router           from "./validation-v2";
+import phase24Router from "./phase24";
 
 const router: IRouter = Router();
 
@@ -72,6 +73,7 @@ router.use(phase17Router);
 router.use(phase18Router);
 router.use(phase21Router);
 router.use(phase22Router);
+router.use(phase24Router);
 router.use(phase4aRouter);
 router.use(kiteRouter);
 router.use(notificationsRouter);
