@@ -158,6 +158,8 @@ class PortfolioService:
         )
 
         # Repositories (optional — omit for in-memory-only deployments)
+        # NOTE: any new config-holding collaborator must also be swapped in
+        # apply_config() below.
         self._snapshot_repo: PortfolioSnapshotRepository | None = snapshot_repo
         self._event_repo: PortfolioEventRepository | None = event_repo
         self._reconciliation_repo: ReconciliationRepository | None = reconciliation_repo
@@ -179,6 +181,27 @@ class PortfolioService:
     # ──────────────────────────────────────────────────────────────────────
     # Internal helpers
     # ──────────────────────────────────────────────────────────────────────
+
+    def apply_config(self, config: PortfolioConfig) -> None:
+        """Hot-swap a new (already-validated) configuration into the service
+        and EVERY config-holding collaborator.
+
+        This is the single supported mechanism for applying operator limit
+        edits to a running service; callers must never poke individual
+        engines — a missed collaborator would silently enforce stale limits.
+        """
+        self.config = config
+        for collaborator in (
+            self._state_manager,
+            self._capital_allocator,
+            self._position_sizer,
+            self._exposure_engine,
+            self._limits_engine,
+            self._health_monitor,
+            self._reconciliation_engine,
+        ):
+            if collaborator is not None and hasattr(collaborator, "config"):
+                collaborator.config = config
 
     def _emit_corrupt_snapshot_alert(
         self,

@@ -8,6 +8,7 @@ from pathlib import Path
 # Portfolio unit tests must stay hermetic — never read from or write to the
 # development Postgres database via the snapshot repository.
 os.environ["PORTFOLIO_SNAPSHOT_DB_DISABLED"] = "1"
+os.environ["PORTFOLIO_OVERRIDES_DISABLED"] = "1"
 
 # Ensure src is importable
 project_root = Path(__file__).resolve().parent.parent.parent

@@ -2618,6 +2618,16 @@ def main():
         elif command == "portfolio_config":
             from portfolio_snapshot import get_portfolio_config
             result = get_portfolio_config()
+        elif command == "portfolio_overrides_set":
+            from portfolio_config_overrides import set_overrides
+            patch = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            merged = set_overrides(patch)
+            result = {"ok": True, "overrides": merged,
+                      "overridden_fields": sorted(merged.keys())}
+        elif command == "portfolio_overrides_clear":
+            from portfolio_config_overrides import clear_overrides
+            clear_overrides()
+            result = {"ok": True, "overrides": {}, "overridden_fields": []}
 
         elif command == "preopen_intelligence_tick":
             from preopen_intelligence_tick import run_tick as _pi_tick

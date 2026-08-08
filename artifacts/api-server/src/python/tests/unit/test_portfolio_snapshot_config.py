@@ -10,8 +10,13 @@ Confirms that:
 """
 from __future__ import annotations
 
+import os
 import sys
 import types
+
+# Hermetic: these tests assert env-default config values, so persisted
+# operator overrides (real DB) must not leak in.
+os.environ["PORTFOLIO_OVERRIDES_DISABLED"] = "1"
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 

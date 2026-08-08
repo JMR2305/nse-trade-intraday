@@ -290,8 +290,8 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
     sector_limit_pct = _DEFAULT_SECTOR_LIMIT_PCT
     limits_from_config = False
     try:
-        from src.portfolio.config import PortfolioConfig
-        _cfg = PortfolioConfig()
+        from portfolio_config_overrides import merged_config
+        _cfg = merged_config()
         instrument_limit_pct = float(_cfg.max_instrument_exposure_pct) * 100.0
         sector_limit_pct = float(_cfg.max_sector_exposure_pct) * 100.0
         limits_from_config = True
@@ -426,10 +426,22 @@ def get_portfolio_config() -> Dict[str, Any]:
         error = str(exc)
         logger.debug("PortfolioConfig unavailable in get_portfolio_config: %s", exc)
 
+    # Merge persisted operator overrides (session limit edits) so every
+    # consumer — dashboard AND strategy pipeline — sees the active values.
+    overrides: Dict[str, Any] = {}
+    try:
+        from portfolio_config_overrides import effective_overrides
+        overrides = effective_overrides()
+        cfg_data.update(overrides)
+    except Exception as exc:
+        logger.debug("overrides unavailable in get_portfolio_config: %s", exc)
+
     return {
         "loaded": loaded,
         "limits_from_config": loaded,
         "config": cfg_data,
+        "overrides": overrides,
+        "overridden_fields": sorted(overrides.keys()),
         "error": error,
         "fetched_at": _now_iso(),
     }

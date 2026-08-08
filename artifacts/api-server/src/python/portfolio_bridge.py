@@ -93,7 +93,12 @@ def _build_service():
     except Exception:
         initial_capital = "50000"
 
-    cfg = PortfolioConfig(
+    # Merged config: env defaults < bridge kwargs < persisted operator
+    # overrides (session limit edits from the dashboard). Every fresh
+    # decision-cycle process therefore picks up limit edits immediately,
+    # without waiting for a restart or the next order.
+    from portfolio_config_overrides import merged_config
+    cfg = merged_config(
         initial_capital=Decimal(os.environ.get(
             "PORTFOLIO_INITIAL_CAPITAL", initial_capital)),
         # Paper orders on a ₹50k book are small; the library default of ₹5,000
@@ -272,6 +277,7 @@ def pre_check(
             return {"approved": False,
                     "reasons": [f"PORTFOLIO_PRECHECK_ERROR: startup failed: {_startup_error}"],
                     "allocation_status": "ERROR", "limits_allowed": False}
+        _refresh_config_if_stale()
 
         value = Decimal(str(price)) * Decimal(int(quantity))
         token = instrument_token_for(symbol)
@@ -315,6 +321,38 @@ def pre_check(
         return {"approved": False,
                 "reasons": [f"PORTFOLIO_PRECHECK_ERROR: {exc}"],
                 "allocation_status": "ERROR", "limits_allowed": False}
+
+
+_overrides_stamp: Optional[str] = None
+
+
+def _refresh_config_if_stale() -> None:
+    """Hot-reload operator limit overrides into a LONG-LIVED service.
+
+    Called at the top of every decision-cycle entry point (pre_check).
+    Compares the durable store's change stamp; when it moved, rebuilds the
+    merged config and swaps it into the service and every engine that holds
+    its own reference, so a PATCHed limit takes effect on the very next
+    decision without a restart. Fail-open: a store error keeps the current
+    config."""
+    global _overrides_stamp
+    if _service is None:
+        return
+    try:
+        from portfolio_config_overrides import get_overrides_stamp, merged_config
+        stamp = get_overrides_stamp(_service.config.portfolio_id)
+        if stamp == _overrides_stamp:
+            return
+        cfg = merged_config(
+            portfolio_id=_service.config.portfolio_id,
+            initial_capital=_service.config.initial_capital,
+            min_order_value=Decimal(os.environ.get("PORTFOLIO_MIN_ORDER_VALUE", "50")),
+        )
+        _service.apply_config(cfg)
+        _overrides_stamp = stamp
+        logger.info("portfolio config hot-reloaded (override stamp %s)", stamp)
+    except Exception as exc:
+        logger.warning("config hot-reload failed (keeping current): %s", exc)
 
 
 def persist_snapshot_if_changed() -> None:

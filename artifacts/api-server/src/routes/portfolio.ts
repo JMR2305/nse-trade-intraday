@@ -60,7 +60,6 @@ const MUTABLE_FIELDS: Record<MutableField, FieldDef> = {
   default_risk_per_trade_pct:   { kind: "pct" },
 };
 
-const sessionOverrides: Partial<Record<MutableField, number>> = {};
 
 /** Validate a single incoming field value. Returns an error string or null. */
 function validateField(field: MutableField, raw: unknown): string | null {
@@ -219,20 +218,10 @@ router.get(
   wrap(async (_req, res) => {
     const data = await runPython(["portfolio_config"]) as Record<string, unknown>;
 
-    // Merge session overrides into the config snapshot
-    const baseConfig = (data.config ?? {}) as Record<string, unknown>;
-    const overriddenFields = Object.keys(sessionOverrides) as MutableField[];
-    const mergedConfig = { ...baseConfig };
-    for (const field of overriddenFields) {
-      mergedConfig[field] = sessionOverrides[field];
-    }
-
-    res.json({
-      ...data,
-      config: mergedConfig,
-      overrides: { ...sessionOverrides },
-      overridden_fields: overriddenFields,
-    });
+    // The durable Python-side store is authoritative: Python merges it into
+    // `config` and reports `overrides`/`overridden_fields`. No in-memory
+    // overlay — memory can go stale relative to what strategies enforce.
+    res.json(data);
   }),
 );
 
@@ -300,16 +289,19 @@ router.patch(
     // 3. Cross-field consistency check against the merged state
     // Fetch base config from Python to get current env values for fields not being overridden
     let baseConfig: Record<string, unknown> = {};
+    let persistedOverrides: Record<string, number> = {};
     try {
       const cfgData = await runPython(["portfolio_config"]) as Record<string, unknown>;
       baseConfig = ((cfgData.config ?? {}) as Record<string, unknown>);
+      persistedOverrides = ((cfgData.overrides ?? {}) as Record<string, number>);
     } catch {
-      // If Python fails, use only the current overrides as base
-      baseConfig = { ...sessionOverrides };
+      // If Python fails, validate against the patch alone; the durable
+      // store re-validates the true merged state on write anyway.
+      baseConfig = {};
     }
 
     // Build the proposed merged state
-    const proposedMerge = { ...sessionOverrides, ...validated };
+    const proposedMerge = { ...persistedOverrides, ...validated };
     const consistencyResult = validateConsistency(baseConfig, proposedMerge);
     if (consistencyResult) {
       res.status(422).json({
@@ -321,16 +313,29 @@ router.patch(
       return;
     }
 
-    // 4. Apply validated overrides
-    for (const [k, v] of Object.entries(validated) as [MutableField, number][]) {
-      sessionOverrides[k] = v;
+    // 4. Persist the overrides to the durable Python-side store so RUNNING
+    // strategy/execution processes pick them up on their next decision
+    // cycle (the Python layer re-validates the merged config and rejects
+    // inconsistent combinations).
+    let merged: Record<string, number>;
+    try {
+      const persisted = await runPython([
+        "portfolio_overrides_set",
+        JSON.stringify(validated),
+      ]) as { overrides?: Record<string, number> };
+      merged = persisted.overrides ?? { ...persistedOverrides, ...validated };
+    } catch (e) {
+      res.status(422).json({
+        error: `Override rejected: ${(e as Error).message}`,
+        field_errors: {},
+      });
+      return;
     }
 
-    const overriddenFields = Object.keys(sessionOverrides) as MutableField[];
     res.json({
       ok: true,
-      overrides: { ...sessionOverrides },
-      overridden_fields: overriddenFields,
+      overrides: merged,
+      overridden_fields: Object.keys(merged),
       applied: Object.keys(validated),
     });
   }),
@@ -343,12 +348,12 @@ router.patch(
  */
 router.delete(
   "/portfolio/config/overrides",
-  (_req, res) => {
-    for (const key of Object.keys(sessionOverrides) as MutableField[]) {
-      delete sessionOverrides[key];
-    }
+  wrap(async (_req, res) => {
+    // Clear the durable store; if this fails, wrap() reports the error
+    // instead of falsely claiming the overrides are gone.
+    await runPython(["portfolio_overrides_clear"]);
     res.json({ ok: true, overrides: {}, overridden_fields: [] });
-  },
+  }),
 );
 
 export default router;

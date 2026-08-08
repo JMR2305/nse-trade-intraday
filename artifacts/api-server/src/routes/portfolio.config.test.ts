@@ -80,6 +80,8 @@ const VALID_PYTHON_RESPONSE = JSON.stringify({
     snapshot_interval_s: 60,
     allocation_ttl_s: 86400,
   },
+  overrides: {},
+  overridden_fields: [],
   error: null,
   fetched_at: new Date().toISOString(),
 });
@@ -174,15 +176,20 @@ describe("GET /api/portfolio/config — route integration", () => {
     }
   });
 
-  it("response body contains `overrides` and `overridden_fields` from the route layer", async () => {
-    spawnMock.mockImplementation(makeSpawnMock(VALID_PYTHON_RESPONSE, 0));
+  it("response body passes through Python-owned `overrides` and `overridden_fields`", async () => {
+    // The durable Python-side override store is authoritative; the route
+    // performs no in-memory overlay.
+    const pythonBody = JSON.parse(VALID_PYTHON_RESPONSE);
+    pythonBody.overrides = { max_open_positions: 15 };
+    pythonBody.overridden_fields = ["max_open_positions"];
+    pythonBody.config.max_open_positions = 15;
+    spawnMock.mockImplementation(makeSpawnMock(JSON.stringify(pythonBody), 0));
 
     const { body } = await getJson(server, "/api/portfolio/config");
 
-    // These fields are added by the route, not by Python.
-    expect(body).toHaveProperty("overrides");
-    expect(body).toHaveProperty("overridden_fields");
-    expect(Array.isArray(body["overridden_fields"])).toBe(true);
+    expect(body["overrides"]).toEqual({ max_open_positions: 15 });
+    expect(body["overridden_fields"]).toEqual(["max_open_positions"]);
+    expect((body["config"] as Record<string, unknown>)["max_open_positions"]).toBe(15);
   });
 
   it("invokes Python with the portfolio_config command argument", async () => {
@@ -396,5 +403,103 @@ describe("PATCH /api/portfolio/config — instrument/sector vs portfolio limit c
     });
 
     expect(status).not.toBe(422);
+  });
+});
+
+// ── PATCH/DELETE — durable persistence through the Python store ─────────────
+
+describe("PATCH/DELETE /api/portfolio/config — durable override persistence", () => {
+  let server: Server;
+  let spawnMock: ReturnType<typeof vi.fn>;
+
+  beforeAll(async () => {
+    const { default: app } = await import("../app.js");
+    const { spawn } = await import("node:child_process");
+    spawnMock = spawn as ReturnType<typeof vi.fn>;
+
+    await new Promise<void>((resolve) => {
+      server = app.listen(0, "127.0.0.1", () => resolve());
+    });
+  });
+
+  afterAll(() => {
+    server?.close();
+  });
+
+  afterEach(() => {
+    spawnMock.mockReset();
+  });
+
+  it("PATCH persists validated overrides via portfolio_overrides_set", async () => {
+    const setResponse = JSON.stringify({
+      ok: true,
+      overrides: { max_open_positions: 15 },
+      overridden_fields: ["max_open_positions"],
+    });
+    // 1st spawn: portfolio_config (consistency base); 2nd: portfolio_overrides_set
+    spawnMock
+      .mockImplementationOnce(makeSpawnMock(VALID_PYTHON_RESPONSE, 0))
+      .mockImplementationOnce(makeSpawnMock(setResponse, 0));
+
+    const { status, body } = await patchJson(server, "/api/portfolio/config", {
+      max_open_positions: 15,
+    });
+
+    expect(status).toBe(200);
+    expect(body["overrides"]).toEqual({ max_open_positions: 15 });
+    expect(body["overridden_fields"]).toEqual(["max_open_positions"]);
+
+    const setCall = spawnMock.mock.calls.find((c) =>
+      (c[1] as string[]).includes("portfolio_overrides_set"),
+    );
+    expect(setCall).toBeTruthy();
+    const args = setCall![1] as string[];
+    expect(JSON.parse(args.at(-1)!)).toEqual({ max_open_positions: 15 });
+  });
+
+  it("PATCH returns 422 when the Python store rejects the merged config", async () => {
+    spawnMock
+      .mockImplementationOnce(makeSpawnMock(VALID_PYTHON_RESPONSE, 0))
+      .mockImplementationOnce(
+        makeSpawnMock("", 1, "ValueError: min_order_value must be < max_order_value"),
+      );
+
+    const { status, body } = await patchJson(server, "/api/portfolio/config", {
+      max_open_positions: 15,
+    });
+
+    expect(status).toBe(422);
+    expect(typeof body["error"]).toBe("string");
+  });
+
+  it("DELETE clears the durable store via portfolio_overrides_clear", async () => {
+    const clearResponse = JSON.stringify({ ok: true, overrides: {}, overridden_fields: [] });
+    spawnMock.mockImplementation(makeSpawnMock(clearResponse, 0));
+
+    const addr = server.address();
+    if (!addr || typeof addr === "string") throw new Error("Server not bound");
+    const res = await fetch(
+      `http://127.0.0.1:${addr.port}/api/portfolio/config/overrides`,
+      { method: "DELETE" },
+    );
+    const body = (await res.json()) as Record<string, unknown>;
+
+    expect(res.status).toBe(200);
+    expect(body["ok"]).toBe(true);
+    const args = spawnMock.mock.calls[0]![1] as string[];
+    expect(args.at(-1)).toBe("portfolio_overrides_clear");
+  });
+
+  it("DELETE reports failure when the durable clear fails (no false success)", async () => {
+    spawnMock.mockImplementation(makeSpawnMock("", 1, "db unavailable"));
+
+    const addr = server.address();
+    if (!addr || typeof addr === "string") throw new Error("Server not bound");
+    const res = await fetch(
+      `http://127.0.0.1:${addr.port}/api/portfolio/config/overrides`,
+      { method: "DELETE" },
+    );
+
+    expect(res.status).toBe(500);
   });
 });
