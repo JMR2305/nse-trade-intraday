@@ -21,20 +21,25 @@
  *
  * PAPER TRADING / RESEARCH ONLY.
  */
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { useLiveStream, type PipelineStreamEvent } from "@/hooks/useLiveStream";
 import { useIsMobile } from "@/hooks/use-mobile";
 import DataFreshnessBar from "@/components/DataFreshnessBar";
 import { Badge } from "@/components/ui/badge";
 import {
   Activity, AlertTriangle, CheckCircle2, ChevronRight, Clock, Cpu,
-  HeartPulse, LayoutGrid, PieChart, Radar, Radio, Rocket, Smartphone,
+  HeartPulse, LayoutGrid, PieChart, Radar, Radio, Rocket, Search, Smartphone,
   Wallet, Wifi, WifiOff, XCircle,
 } from "lucide-react";
 import { Widget, useWidgetQuery, fmtINR, timeAgo, PnlText } from "@/components/mission/Widget";
 import { CommandBar } from "@/components/mission/CommandBar";
 import { MissionMapWidget, AlertCenterWidget } from "@/components/mission/IntelWidgets";
+import { useLedgerToday } from "@/components/mission/SessionWidgets";
+import {
+  useLayoutManager, SectionShell, CustomizeControls, type SectionDef,
+} from "@/components/mission/LayoutManager";
 
 // Below-the-fold widget rows are lazy-loaded so the page shell (status bar,
 // pipeline, scanner, portfolio) paints fast; charts/timeline code arrives in
@@ -51,8 +56,26 @@ const MissionTimelineWidget = lazy(() =>
   import("@/components/mission/OpsWidgets").then((m) => ({ default: m.MissionTimelineWidget })));
 const BrokerWidget = lazy(() =>
   import("@/components/mission/OpsWidgets").then((m) => ({ default: m.BrokerWidget })));
-const SystemHealthWidget = lazy(() =>
-  import("@/components/mission/OpsWidgets").then((m) => ({ default: m.SystemHealthWidget })));
+// SystemHealthWidget (OpsWidgets) export kept intact but replaced on-page by the
+// superset SystemHealth2Widget (below), so it is intentionally not imported here.
+
+// Phase 25.1 session/deep widgets — lazy chunks behind Suspense skeletons.
+const MarketSessionWidget = lazy(() =>
+  import("@/components/mission/SessionWidgets").then((m) => ({ default: m.MarketSessionWidget })));
+const ThroughputWidget = lazy(() =>
+  import("@/components/mission/SessionWidgets").then((m) => ({ default: m.ThroughputWidget })));
+const LivePerformanceWidget = lazy(() =>
+  import("@/components/mission/SessionWidgets").then((m) => ({ default: m.LivePerformanceWidget })));
+const MarketBreadthWidget = lazy(() =>
+  import("@/components/mission/SessionWidgets").then((m) => ({ default: m.MarketBreadthWidget })));
+const AgentMetricsWidget = lazy(() =>
+  import("@/components/mission/DeepWidgets").then((m) => ({ default: m.AgentMetricsWidget })));
+const StockWatchWidget = lazy(() =>
+  import("@/components/mission/DeepWidgets").then((m) => ({ default: m.StockWatchWidget })));
+const ExplainabilityWidget = lazy(() =>
+  import("@/components/mission/DeepWidgets").then((m) => ({ default: m.ExplainabilityWidget })));
+const SystemHealth2Widget = lazy(() =>
+  import("@/components/mission/DeepWidgets").then((m) => ({ default: m.SystemHealth2Widget })));
 
 const WidgetFallback = ({ h = "h-40" }: { h?: string }) => (
   <div className={`animate-pulse rounded-xl bg-muted/20 border border-border/40 ${h}`} />
@@ -140,6 +163,22 @@ function eventTone(et: string): "ok" | "warn" | "bad" | "info" {
   return "info";
 }
 const toneClass = { ok: "text-emerald-400", warn: "text-amber-400", bad: "text-red-400", info: "text-muted-foreground" } as const;
+
+/**
+ * Phase 25.1 Part 5 — Investigation Center deep-link for a pipeline event.
+ * InvestigationCenter parses ?run=&symbol=&trade=&ts=.
+ */
+function eventInvestigateHref(e: PipelineEvent | PipelineStreamEvent): string {
+  const p = new URLSearchParams();
+  if (e.symbol) p.set("symbol", e.symbol);
+  if (e.ts) p.set("ts", e.ts);
+  const payload = (e as { payload?: Record<string, unknown> }).payload ?? {};
+  const run = (e as { run_id?: string | null }).run_id ?? (payload.run_id as string | undefined);
+  if (run) p.set("run", String(run));
+  const trade = payload.trade_id as string | undefined;
+  if (trade) p.set("trade", String(trade));
+  return `/investigation-center?${p.toString()}`;
+}
 
 // ── IST clock ─────────────────────────────────────────────────────────────────
 
@@ -393,11 +432,11 @@ function ScannerPanel({ scanQ }: { scanQ: ReturnType<typeof useWidgetQuery<ScanS
 // ── Panel 3 — Live Paper Trading ─────────────────────────────────────────────
 
 function PaperTradingPanel({ portfolio }: { portfolio: PortfolioSnapshot | undefined }) {
-  const ledgerQ = useWidgetQuery<{ success?: boolean; ledger?: LedgerItem[] }>({
-    queryKey: ["mc", "ledger"], path: "/phase20/ledger?limit=200", refetchInterval: R.ledger, timeoutMs: 30_000,
-  });
+  // Single canonical ledger query shared with Throughput/LivePerformance
+  // (same key/path as useLedgerToday — React Query dedupes to one fetch).
+  const ledgerQ = useLedgerToday();
 
-  const ledger = ledgerQ.data?.ledger ?? [];
+  const ledger = (ledgerQ.data?.ledger ?? []) as LedgerItem[];
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
     for (const t of ledger) {
@@ -587,15 +626,23 @@ function EventStreamPanel({ streamEvents }: { streamEvents: PipelineStreamEvent[
             const tone = eventTone(e.event_type);
             const Icon = tone === "bad" ? XCircle : tone === "ok" ? CheckCircle2 : tone === "warn" ? AlertTriangle : ChevronRight;
             return (
-              <div key={e.id} style={{ height: EVENT_ROW_H }} className="flex items-center gap-2 border-b border-border/30 last:border-0">
+              <div key={e.id} style={{ height: EVENT_ROW_H }} className="flex items-center gap-2 border-b border-border/30 last:border-0 group">
                 <Icon className={`h-3 w-3 shrink-0 ${toneClass[tone]}`} />
                 <span className="text-muted-foreground w-14 shrink-0">{timeAgo(e.ts)}</span>
                 <span className="w-28 shrink-0 truncate text-muted-foreground/70">{e.stage}</span>
                 <span className={`w-44 shrink-0 truncate ${toneClass[tone]}`}>{e.event_type}</span>
                 <span className="w-24 shrink-0 font-semibold truncate">{e.symbol ?? ""}</span>
-                <span className="text-muted-foreground truncate">
+                <span className="text-muted-foreground truncate flex-1 min-w-0">
                   {String(e.payload?.reason ?? e.payload?.action ?? e.payload?.strategy_name ?? e.payload?.trade_id ?? "")}
                 </span>
+                <Link
+                  href={eventInvestigateHref(e)}
+                  title="Investigate in Investigation Center"
+                  className="shrink-0 text-muted-foreground/40 hover:text-teal-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                  data-testid={`mc-event-investigate-${e.id}`}
+                >
+                  <Search className="h-2.5 w-2.5" />
+                </Link>
               </div>
             );
           })}
@@ -609,6 +656,21 @@ function EventStreamPanel({ streamEvents }: { streamEvents: PipelineStreamEvent[
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
+// Stable section ids + labels for the customization layout (Part 11).
+// Order here is the default layout; SectionShell renders each in this order
+// unless the operator has pinned/reordered/hidden them.
+const MC_SECTIONS: SectionDef[] = [
+  { id: "market-session", label: "Market Session" },
+  { id: "mission-map",    label: "Mission Map" },
+  { id: "pipeline-row",   label: "Pipeline · Scanner · Portfolio" },
+  { id: "throughput-row", label: "Throughput · Performance · Breadth" },
+  { id: "stockwatch-row", label: "Stock Watch · Explainability" },
+  { id: "intel-row",      label: "AI Health · Learning · Alerts" },
+  { id: "ops-row",        label: "Replay · Backtest · Broker · Agents · Health" },
+  { id: "timeline",       label: "Mission Timeline" },
+  { id: "event-feed",     label: "Live Event Stream" },
+];
+
 export default function MissionControl() {
   const stream = useLiveStream(); // single SSE connection shared with the status bar
   const { pipelineEventId, scanEvent } = stream;
@@ -620,7 +682,7 @@ export default function MissionControl() {
     if (!pipelineEventId) return;
     void queryClient.invalidateQueries({ queryKey: ["mc", "event-feed"] });
     void queryClient.invalidateQueries({ queryKey: ["mc", "pipeline-summary"] });
-    void queryClient.invalidateQueries({ queryKey: ["mc", "ledger"] });
+    void queryClient.invalidateQueries({ queryKey: ["mc", "phase20-ledger-today"] });
     void queryClient.invalidateQueries({ queryKey: ["mc", "portfolio"] });
   }, [pipelineEventId, queryClient]);
 
@@ -654,6 +716,13 @@ export default function MissionControl() {
   const [showFullOnMobile, setShowFullOnMobile] = useState(false);
   const compact = isMobile && !showFullOnMobile;
 
+  // Shared /phase20/ledger query — fetched ONCE (desktop/full view only) and
+  // passed to Throughput + LivePerformance so the ledger is never fetched twice.
+  const ledgerToday = useLedgerToday();
+
+  // Dashboard customization (Phase 25.1 Part 11): ordered, pin/hide-able sections.
+  const layout = useLayoutManager(MC_SECTIONS);
+
   if (compact) {
     return (
       <div className="p-3 space-y-3" data-testid="page-mission-control-mobile">
@@ -670,11 +739,100 @@ export default function MissionControl() {
           </button>
         </div>
         <StatusBar portfolio={portfolioQ.data} portfolioErr={portfolioQ.isError} stream={stream} />
+        <Suspense fallback={<WidgetFallback />}>
+          <MarketSessionWidget market={stream.market ?? undefined} />
+        </Suspense>
         <PortfolioSidebar q={portfolioQ} />
         <AlertCenterWidget />
       </div>
     );
   }
+
+  // ── Section bodies (data-driven map so ordering is applied before render) ──
+  const SECTION_BODY: Record<string, () => ReactElement> = {
+    "market-session": () => (
+      <Suspense fallback={<WidgetFallback />}>
+        <MarketSessionWidget market={stream.market ?? undefined} />
+      </Suspense>
+    ),
+    "mission-map": () => (
+      <MissionMapWidget replayQ={replayQ} scanning={scanning} />
+    ),
+    "pipeline-row": () => (
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 items-start">
+        <PipelinePanel scanning={scanning} replayQ={replayQ} />
+        <div className="lg:col-span-2 space-y-3 min-w-0">
+          <ScannerPanel scanQ={scanQ} />
+          <PaperTradingPanel portfolio={portfolioQ.data} />
+        </div>
+        <PortfolioSidebar q={portfolioQ} />
+      </div>
+    ),
+    "throughput-row": () => (
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 items-start">
+        <Suspense fallback={<WidgetFallback />}>
+          <ThroughputWidget replay={replayQ.data} ledger={ledgerToday} />
+        </Suspense>
+        <Suspense fallback={<WidgetFallback />}>
+          <LivePerformanceWidget portfolio={portfolioQ.data} ledger={ledgerToday} />
+        </Suspense>
+        <Suspense fallback={<WidgetFallback />}>
+          <MarketBreadthWidget />
+        </Suspense>
+      </div>
+    ),
+    "stockwatch-row": () => (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
+        <Suspense fallback={<WidgetFallback />}>
+          <StockWatchWidget portfolio={portfolioQ.data} scan={scanQ.data} />
+        </Suspense>
+        <Suspense fallback={<WidgetFallback />}>
+          <ExplainabilityWidget />
+        </Suspense>
+      </div>
+    ),
+    "intel-row": () => (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 items-start">
+        <Suspense fallback={<WidgetFallback />}>
+          <AiHealthWidget />
+        </Suspense>
+        <Suspense fallback={<WidgetFallback />}>
+          <AiLearningWidget />
+        </Suspense>
+        <AlertCenterWidget />
+      </div>
+    ),
+    "ops-row": () => (
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 items-start">
+        <Suspense fallback={<WidgetFallback />}>
+          <ReplayWidget replayQ={replayQ} />
+        </Suspense>
+        <Suspense fallback={<WidgetFallback />}>
+          <BacktestWidget />
+        </Suspense>
+        <Suspense fallback={<WidgetFallback />}>
+          <BrokerWidget />
+        </Suspense>
+        <Suspense fallback={<WidgetFallback />}>
+          <AgentMetricsWidget />
+        </Suspense>
+        <div className="md:col-span-2 xl:col-span-2">
+          <Suspense fallback={<WidgetFallback />}>
+            {/* SystemHealth2Widget is a superset of the old SystemHealthWidget. */}
+            <SystemHealth2Widget portfolio={portfolioQ.data} replay={replayQ.data} />
+          </Suspense>
+        </div>
+      </div>
+    ),
+    "timeline": () => (
+      <Suspense fallback={<WidgetFallback h="h-28" />}>
+        <MissionTimelineWidget />
+      </Suspense>
+    ),
+    "event-feed": () => (
+      <EventStreamPanel streamEvents={stream.pipelineEvents} />
+    ),
+  };
 
   return (
     <div className="p-4 space-y-3 max-w-[1700px] mx-auto" data-testid="page-mission-control">
@@ -697,62 +855,35 @@ export default function MissionControl() {
         )}
       </div>
 
-      {/* Operator command bar */}
-      <CommandBar />
+      {/* Operator command bar + layout customization toggle */}
+      <div className="flex flex-wrap items-center gap-2">
+        <CommandBar />
+        <span className="ml-auto">
+          <CustomizeControls mgr={layout} />
+        </span>
+      </div>
 
       {/* Canonical data freshness indicator (scan snapshot + staleness) */}
       <DataFreshnessBar variant="scan" />
 
-      {/* Top status bar */}
+      {/* Top status bar (always rendered — not part of customizable sections) */}
       <StatusBar portfolio={portfolioQ.data} portfolioErr={portfolioQ.isError} stream={stream} />
 
-      {/* Mission Map — Universe → Portfolio stage flow (shared replay query) */}
-      <MissionMapWidget replayQ={replayQ} scanning={scanning} />
+      {layout.customizing && (
+        <p className="text-[10px] text-muted-foreground rounded-lg border border-teal-500/30 bg-teal-500/5 px-3 py-1.5" data-testid="mc-customize-hint">
+          Customize mode — pin sections to the top, hide the ones you don't need, or reorder with the ↑/↓ controls. Your layout is saved to this browser.
+        </p>
+      )}
 
-      {/* Main grid: left pipeline · center trading · right portfolio */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 items-start">
-        <PipelinePanel scanning={scanning} replayQ={replayQ} />
-        <div className="lg:col-span-2 space-y-3 min-w-0">
-          <ScannerPanel scanQ={scanQ} />
-          <PaperTradingPanel portfolio={portfolioQ.data} />
-        </div>
-        <PortfolioSidebar q={portfolioQ} />
-      </div>
-
-      {/* Intelligence row: AI health · AI learning · alert center (lazy chunks) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 items-start">
-        <Suspense fallback={<WidgetFallback />}>
-          <AiHealthWidget />
-        </Suspense>
-        <Suspense fallback={<WidgetFallback />}>
-          <AiLearningWidget />
-        </Suspense>
-        <AlertCenterWidget />
-      </div>
-
-      {/* Ops row: replay · backtest · broker · system health (lazy chunks) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 items-start">
-        <Suspense fallback={<WidgetFallback />}>
-          <ReplayWidget replayQ={replayQ} />
-        </Suspense>
-        <Suspense fallback={<WidgetFallback />}>
-          <BacktestWidget />
-        </Suspense>
-        <Suspense fallback={<WidgetFallback />}>
-          <BrokerWidget />
-        </Suspense>
-        <Suspense fallback={<WidgetFallback />}>
-          <SystemHealthWidget />
-        </Suspense>
-      </div>
-
-      {/* Mission Timeline — the trading day from open to close */}
-      <Suspense fallback={<WidgetFallback h="h-28" />}>
-        <MissionTimelineWidget />
-      </Suspense>
-
-      {/* Bottom event feed strip */}
-      <EventStreamPanel streamEvents={stream.pipelineEvents} />
+      {/* Sections render in the operator's saved order (pinned first). */}
+      {layout.order.map((id) => {
+        const label = MC_SECTIONS.find((s) => s.id === id)?.label ?? id;
+        return (
+          <SectionShell key={id} id={id} label={label} mgr={layout}>
+            {SECTION_BODY[id]?.()}
+          </SectionShell>
+        );
+      })}
     </div>
   );
 }

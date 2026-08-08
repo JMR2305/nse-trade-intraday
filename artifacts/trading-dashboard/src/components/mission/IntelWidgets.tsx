@@ -7,7 +7,7 @@
  * observability/operations alerts, notification deliveries). No business
  * logic or duplicate calculations here. ADVISORY-ONLY labelling preserved.
  */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -291,6 +291,17 @@ const sevTone: Record<string, string> = {
   INFO: "text-sky-400 border-sky-500/40",
 };
 
+// Ack/dismiss state is display-level only (Phase 25.1 Part 10) — persisted in
+// localStorage keyed by severity|title; no backend mutation exists for alerts.
+const ALERT_STATE_KEY = "mc-alert-state-v1";
+type AlertState = Record<string, "acked" | "dismissed">;
+function loadAlertState(): AlertState {
+  try {
+    const raw = JSON.parse(localStorage.getItem(ALERT_STATE_KEY) ?? "{}");
+    return raw && typeof raw === "object" ? raw : {};
+  } catch { return {}; }
+}
+
 export function AlertCenterWidget() {
   const obsQ = useWidgetQuery<ObsAlertsResp>({
     queryKey: ["mc", "obs-alerts"], path: "/observability/alerts",
@@ -334,7 +345,19 @@ export function AlertCenterWidget() {
     return out.sort((a, b) => (rank[a.severity] ?? 9) - (rank[b.severity] ?? 9)).slice(0, 20);
   }, [obsQ.data, opsQ.data, notifQ.data]);
 
-  const critCount = alerts.filter((a) => a.severity === "CRITICAL" || a.severity === "ERROR").length;
+  const [alertState, setAlertState] = useState<AlertState>(loadAlertState);
+  const setState = (key: string, v: "acked" | "dismissed" | null) => {
+    setAlertState((prev) => {
+      const next = { ...prev };
+      if (v === null) delete next[key]; else next[key] = v;
+      try { localStorage.setItem(ALERT_STATE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  };
+  const visible = alerts.filter((a) => alertState[a.key] !== "dismissed");
+  const dismissedCount = alerts.length - visible.length;
+  const critCount = visible.filter(
+    (a) => (a.severity === "CRITICAL" || a.severity === "ERROR") && alertState[a.key] !== "acked").length;
 
   return (
     <Widget
@@ -346,27 +369,48 @@ export function AlertCenterWidget() {
         </Badge>
       )}
     >
-      {alerts.length === 0 ? (
+      {visible.length === 0 ? (
         <p className="text-xs text-muted-foreground flex items-center gap-1.5">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> No active alerts.
         </p>
       ) : (
         <div className="space-y-1 max-h-[190px] overflow-y-auto">
-          {alerts.map((a) => (
-            <div key={a.key} className="flex items-start gap-2 text-[10px] rounded-lg border border-border/50 bg-muted/10 px-2 py-1">
-              <AlertTriangle className={`w-3 h-3 mt-0.5 shrink-0 ${(sevTone[a.severity] ?? "").split(" ")[0]}`} />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <span className={`font-semibold ${(sevTone[a.severity] ?? "").split(" ")[0]}`}>{a.severity}</span>
-                  <span className="text-muted-foreground uppercase text-[9px]">{a.source}</span>
-                  <span className="ml-auto text-muted-foreground text-[9px]">{a.ts ? timeAgo(a.ts) : ""}</span>
+          {visible.map((a) => {
+            const acked = alertState[a.key] === "acked";
+            return (
+              <div key={a.key}
+                className={`flex items-start gap-2 text-[10px] rounded-lg border border-border/50 bg-muted/10 px-2 py-1 ${acked ? "opacity-50" : ""}`}
+                data-testid={`mc-alert-${acked ? "acked" : "active"}`}>
+                <AlertTriangle className={`w-3 h-3 mt-0.5 shrink-0 ${(sevTone[a.severity] ?? "").split(" ")[0]}`} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className={`font-semibold ${(sevTone[a.severity] ?? "").split(" ")[0]}`}>{a.severity}</span>
+                    <span className="text-muted-foreground uppercase text-[9px]">{a.source}</span>
+                    {acked && <span className="text-[9px] text-emerald-400/80 uppercase">ack</span>}
+                    <span className="ml-auto text-muted-foreground text-[9px]">{a.ts ? timeAgo(a.ts) : ""}</span>
+                  </div>
+                  <p className="truncate font-medium">{a.title}</p>
+                  {a.detail && <p className="truncate text-muted-foreground">{a.detail}</p>}
                 </div>
-                <p className="truncate font-medium">{a.title}</p>
-                {a.detail && <p className="truncate text-muted-foreground">{a.detail}</p>}
+                <div className="flex flex-col gap-0.5 shrink-0">
+                  {!acked && (
+                    <button className="text-[9px] px-1 rounded border border-border/60 text-muted-foreground hover:text-emerald-300 hover:border-emerald-500/40"
+                      onClick={() => setState(a.key, "acked")} data-testid="mc-alert-ack">Ack</button>
+                  )}
+                  <button className="text-[9px] px-1 rounded border border-border/60 text-muted-foreground hover:text-red-300 hover:border-red-500/40"
+                    onClick={() => setState(a.key, "dismissed")} data-testid="mc-alert-dismiss">✕</button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
+      )}
+      {dismissedCount > 0 && (
+        <button className="text-[9px] text-muted-foreground underline pt-1"
+          onClick={() => { alerts.forEach((a) => alertState[a.key] === "dismissed" && setState(a.key, null)); }}
+          data-testid="mc-alert-restore">
+          {dismissedCount} dismissed — restore
+        </button>
       )}
       {(opsQ.data?.status === "DISABLED") && (
         <p className="text-[9px] text-muted-foreground pt-1">Operations Centre alerts disabled (OPERATIONS_CENTER_ENABLED=false).</p>

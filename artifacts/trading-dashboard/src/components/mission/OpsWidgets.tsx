@@ -263,6 +263,25 @@ export function BacktestWidget() {
 interface PipelineEvent {
   id: number; ts: string; event_type: string; stage: string;
   symbol: string | null; payload: Record<string, unknown>;
+  run_id?: string | null;
+}
+
+/**
+ * Phase 25.1 Part 5 — build an Investigation Center deep-link for a pipeline
+ * event. InvestigationCenter parses ?run=&symbol=&trade=&ts=.
+ */
+function investigateHref(e: {
+  symbol?: string | null; ts?: string; run_id?: string | null;
+  payload?: Record<string, unknown>;
+}): string {
+  const p = new URLSearchParams();
+  if (e.symbol) p.set("symbol", e.symbol);
+  if (e.ts) p.set("ts", e.ts);
+  const run = e.run_id ?? (e.payload?.run_id as string | undefined);
+  if (run) p.set("run", String(run));
+  const trade = e.payload?.trade_id as string | undefined;
+  if (trade) p.set("trade", String(trade));
+  return `/investigation-center?${p.toString()}`;
 }
 
 const TL_CATEGORIES: { match: (e: PipelineEvent) => boolean; label: string; color: string }[] = [
@@ -357,8 +376,9 @@ export function MissionTimelineWidget() {
                 {selected.symbol && <span className="font-mono">{selected.symbol}</span>}
                 <span className="text-muted-foreground">{selected.stage} · {timeAgo(selected.ts)}</span>
                 <Link
-                  href={`/investigation-center?symbol=${selected.symbol ?? ""}`}
+                  href={investigateHref(selected)}
                   className="ml-auto text-teal-400 hover:underline flex items-center gap-0.5"
+                  data-testid={`mc-timeline-investigate-${selected.id}`}
                 >Investigate <ExternalLink className="w-2.5 h-2.5" /></Link>
               </div>
               <p className="text-muted-foreground truncate mt-0.5">

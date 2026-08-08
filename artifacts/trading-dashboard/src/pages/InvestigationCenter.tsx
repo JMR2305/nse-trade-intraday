@@ -298,6 +298,19 @@ function PipelineFlow({ order, tick }: { order: string[]; tick: ReplayTick | nul
 export default function InvestigationCenter() {
   const qc = useQueryClient();
 
+  // Deep-link params (Phase 25.1 Part 5): ?run=&symbol=&trade=&ts=
+  // Parsed once on mount; applied progressively as data loads, then consumed.
+  const deepLink = useRef<{ run?: string; symbol?: string; trade?: string; ts?: string } | null>(null);
+  if (deepLink.current === null) {
+    const p = new URLSearchParams(window.location.search);
+    deepLink.current = {
+      run: p.get("run") ?? undefined,
+      symbol: p.get("symbol") ?? undefined,
+      trade: p.get("trade") ?? undefined,
+      ts: p.get("ts") ?? undefined,
+    };
+  }
+
   // run launcher form
   const [interval, setIntervalStr] = useState("1d");
   const [preset, setPreset] = useState<"1w" | "1m" | "3m" | "custom">("1m");
@@ -406,6 +419,50 @@ export default function InvestigationCenter() {
   const total = timeline.length || candles.length;
 
   useEffect(() => { setCursor(total ? total - 1 : -1); setPlaying(false); }, [runId, total]);
+
+  // Apply deep-link params (Part 5) in strict order: run selection must resolve
+  // BEFORE symbol/trade/ts are applied, or they would match against the default
+  // latest run and be consumed prematurely.
+  useEffect(() => {
+    const dl = deepLink.current;
+    if (!dl?.run || !runsQ.isSuccess) return;
+    if (runs.some((r) => r.run_id === dl.run)) setSelectedRunId(dl.run);
+    // Requested run not found in the list: drop it so the other params
+    // don't stay gated forever (they'll apply against the default run).
+    dl.run = undefined;
+  }, [runs, runsQ.isSuccess]);
+  useEffect(() => {
+    const dl = deepLink.current;
+    if (!dl?.symbol || dl.run) return; // wait until the run param is resolved
+    if (symbols.includes(dl.symbol)) {
+      setSymbol(dl.symbol);
+      dl.symbol = undefined;
+    }
+  }, [symbols, runId]);
+  useEffect(() => {
+    const dl = deepLink.current;
+    if (!dl || dl.run || !bundle || !timeline.length) return;
+    if (bundle.run_id && dl.trade && bundle.run_id !== runId) return; // stale bundle
+    if (dl.trade) {
+      const tm = (bundle.trade_markers ?? []).find((m) => m.trade_id === dl.trade);
+      if (tm && tm.entry_tick !== null) {
+        setCursor(tm.entry_tick);
+        if (tm.symbol) setSymbol(tm.symbol);
+        dl.trade = undefined;
+        dl.ts = undefined;
+        return;
+      }
+    }
+    if (dl.ts) {
+      // last tick at or before the requested timestamp (never guess forward)
+      let idx = -1;
+      for (let i = 0; i < timeline.length; i++) {
+        if (timeline[i] <= dl.ts) idx = i; else break;
+      }
+      if (idx >= 0) setCursor(idx);
+      dl.ts = undefined;
+    }
+  }, [bundle, timeline]);
 
   // mode-aware step targets
   const stepTargets = useMemo(() => {
