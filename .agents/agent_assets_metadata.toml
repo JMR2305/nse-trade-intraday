@@ -313,3 +313,10 @@ uri = "file://reports/phase23/PHASE23_SUMMARY.md"
 type = "text"
 title = "Phase 23 Summary"
 description = "Part 1 delivery summary — Pipeline Event Store + Live Command Center: architecture, emit points, verification results, and remaining Parts 2–9 scope."
+
+[[outputs]]
+id = "HDc0gpl4f2nAeKm7weEUa"
+uri = "file://artifacts/api-server/reports/phase23/PHASE23_PARTS6_7_SUMMARY.md"
+type = "text"
+title = "Phase 23 Parts 6 & 7 Summary"
+description = "Strategy Optimization Lab + Institutional Analytics — features, architecture, safety guarantees, verification."
