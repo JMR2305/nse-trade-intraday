@@ -452,6 +452,15 @@ def run_live_scan(
         _log.info("scan_start", scan_id=scan_id,
                   snapshot_ts=snapshot_ts, symbols_total=len(universe))
 
+    # Phase 23: canonical pipeline event stream (fail-safe, never breaks scan)
+    try:
+        from pipeline_events import emit as _pe_emit, emit_many as _pe_emit_many
+    except Exception:
+        _pe_emit = lambda *a, **k: None          # type: ignore
+        _pe_emit_many = lambda *a, **k: None     # type: ignore
+    _pe_emit("SCAN_STARTED", "SUPERVISOR", scan_id=scan_id,
+             payload={"snapshot_ts": snapshot_ts, "universe_size": len(universe)})
+
     # ── Phase 1: Fetch all data up-front (consistent snapshot) ────────────────
     _set_progress("FETCHING", scan_id, {"symbols_total": len(universe),
                                         "symbols_done": 0})
@@ -481,6 +490,12 @@ def run_live_scan(
     fetch_s = round(time.monotonic() - t_fetch0, 2)
 
     fetch_done_ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _pe_emit("SCAN_FETCH_COMPLETED", "SCANNER", scan_id=scan_id, payload={
+        "fetch_s": fetch_s,
+        "symbols_requested": len(universe),
+        "symbols_received": sum(1 for r in fetch_results.values() if r.success),
+        "symbols_failed": sum(1 for r in fetch_results.values() if not r.success),
+    })
 
     # ── Phase 2: Analyse each symbol ─────────────────────────────────────────
     _set_progress("ANALYZING", scan_id)
@@ -506,6 +521,66 @@ def run_live_scan(
         recs.append(_scan_one(sym, fr, scan_id, snapshot_ts, capital))
 
     analysis_s = round(time.monotonic() - t_analysis0, 2)
+
+    # Phase 23: per-symbol pipeline events derived from each recommendation —
+    # one batch insert (never 50 round-trips), emitted from the authoritative
+    # scan result itself so counts can never diverge from the scan.
+    try:
+        _pe_batch: List[Dict[str, Any]] = []
+        for r in recs:
+            base = {"scan_id": scan_id, "symbol": r.symbol}
+            if r.error is not None:
+                _pe_batch.append({**base, "event_type": "SYMBOL_REJECTED",
+                                  "stage": "SCANNER",
+                                  "payload": {"error": r.error,
+                                              "data_quality": r.data_quality}})
+                continue
+            _pe_batch.append({**base, "event_type": "SYMBOL_SCANNED", "stage": "SCANNER",
+                              "payload": {"data_quality": r.data_quality,
+                                          "bars": r.bars_available,
+                                          "rsi": r.rsi, "adx": r.adx,
+                                          "volume_ratio": r.volume_ratio}})
+            _pe_batch.append({**base, "event_type": "RESEARCH_COMPLETED", "stage": "RESEARCH",
+                              "payload": {"win_rate": r.win_rate,
+                                          "profit_factor": r.profit_factor,
+                                          "total_trades": r.total_trades,
+                                          "low_evidence": r.low_evidence}})
+            _pe_batch.append({**base, "event_type": "MARKET_INTELLIGENCE_COMPLETED",
+                              "stage": "MARKET_INTELLIGENCE",
+                              "payload": {"regime": r.regime, "sector": r.sector}})
+            _pe_batch.append({**base, "event_type": "MONITORING_COMPLETED", "stage": "MONITORING",
+                              "payload": {"above_ema20": r.above_ema20,
+                                          "above_ema50": r.above_ema50}})
+            if r.strategy_id:
+                _pe_batch.append({**base, "event_type": "STRATEGY_SELECTED", "stage": "STRATEGY",
+                                  "payload": {"strategy_id": r.strategy_id,
+                                              "strategy_name": r.strategy_name,
+                                              "technical_score": r.technical_score}})
+            else:
+                _pe_batch.append({**base, "event_type": "STRATEGY_REJECTED", "stage": "STRATEGY",
+                                  "payload": {"reason": "No viable strategy"}})
+            gates = {"price": r.gate_price, "data_quality": r.gate_data_quality,
+                     "rr": r.gate_rr, "volume": r.gate_volume}
+            failed = {k: v for k, v in gates.items() if not (v or {}).get("passed")}
+            if r.all_gates_passed:
+                _pe_batch.append({**base, "event_type": "RISK_APPROVED", "stage": "RISK",
+                                  "payload": {"gates": gates, "rr_ratio": r.rr_ratio}})
+            else:
+                _pe_batch.append({**base, "event_type": "RISK_REJECTED", "stage": "RISK",
+                                  "payload": {"failed_gates": failed,
+                                              "rr_ratio": r.rr_ratio,
+                                              "confidence": r.calibrated_confidence}})
+            act = r.final_action
+            et = ("BUY_GENERATED" if act in ("BUY", "STRONG BUY")
+                  else "WATCH_GENERATED" if act == "WATCH" else "IGNORE_GENERATED")
+            _pe_batch.append({**base, "event_type": et, "stage": "AI_DECISION",
+                              "payload": {"action": act,
+                                          "confidence": r.calibrated_confidence,
+                                          "opportunity_score": r.opportunity_score,
+                                          "paper_eligible": r.paper_eligible}})
+        _pe_emit_many(_pe_batch)
+    except Exception:
+        pass
 
     # Sort by opportunity_score desc (errors last)
     recs.sort(key=lambda r: (r.error is None, r.opportunity_score), reverse=True)
@@ -657,6 +732,20 @@ def run_live_scan(
         except Exception:
             pass
     result.timings["db_write_s"] = round(time.monotonic() - t_persist0, 2)
+
+    _pe_emit("SCAN_COMPLETED", "SUPERVISOR", scan_id=scan_id, payload={
+        "duration_s": duration_s, "universe_size": len(universe),
+        "buy_count": buy + strong_buy, "watch_count": watch,
+        "ignore_count": ignore, "paper_eligible_count": paper_elig,
+        "symbols_with_errors": summary["symbols_with_errors"],
+        "timings": timings,
+    })
+    # Retention: keep the event table bounded under continuous operation.
+    try:
+        from pipeline_events import prune_events
+        prune_events()
+    except Exception:
+        pass
 
     # ── Phase 15: sync derived caches to this canonical scan ─────────────────
     # AI Decision / Opportunity caches are overlaid with canonical values so

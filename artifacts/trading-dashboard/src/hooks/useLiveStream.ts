@@ -40,6 +40,8 @@ interface LiveStreamState {
   lastEventTs: string | null;
   lastError: string | null;
   scanEvent: { type: string; data: unknown; ts: string } | null;
+  /** Phase 23: id of the newest pipeline.event received (0 = none yet). */
+  pipelineEventId: number;
 }
 
 const MAX_RETRY_MS = 30_000;
@@ -52,6 +54,7 @@ export function useLiveStream(enabled = true): LiveStreamState {
     lastEventTs: null,
     lastError: null,
     scanEvent: null,
+    pipelineEventId: 0,
   });
   const retryRef = useRef(1000);
 
@@ -100,6 +103,17 @@ export function useLiveStream(enabled = true): LiveStreamState {
           } catch { /* ignore */ }
         });
       }
+      es.addEventListener("pipeline.event", (e: MessageEvent) => {
+        try {
+          const ev = JSON.parse(e.data);
+          const id = Number(ev?.id) || 0;
+          setState((s) => ({
+            ...s,
+            pipelineEventId: Math.max(s.pipelineEventId, id),
+            lastEventTs: new Date().toISOString(),
+          }));
+        } catch { /* ignore */ }
+      });
       es.addEventListener("market.health", (e: MessageEvent) => {
         try {
           const h = JSON.parse(e.data);

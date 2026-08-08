@@ -79,6 +79,7 @@ import SecurityCenter       from "@/pages/SecurityCenter";
 import PerformanceCenter    from "@/pages/PerformanceCenter";
 import DeploymentCenter     from "@/pages/DeploymentCenter";
 import CommandCenter        from "@/pages/CommandCenter";
+import LiveCommandCenter    from "@/pages/LiveCommandCenter";
 import Workspace            from "@/pages/Workspace";
 import TradingTimeline      from "@/pages/TradingTimeline";
 import ExecutiveReports     from "@/pages/ExecutiveReports";
@@ -204,6 +205,7 @@ function Router() {
         <Route path="/performance-center"   component={PerformanceCenter} />
         <Route path="/deployment-center"    component={DeploymentCenter} />
         <Route path="/command-center"       component={CommandCenter} />
+        <Route path="/live-command-center"  component={LiveCommandCenter} />
         <Route path="/workspace"            component={Workspace} />
         <Route path="/trading-timeline"    component={TradingTimeline} />
         <Route path="/executive-reports"   component={ExecutiveReports} />

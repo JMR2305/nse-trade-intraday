@@ -2070,6 +2070,28 @@ def main():
             day = sys.argv[2] if len(sys.argv) > 2 else None
             result = export_daily_report(day)
 
+        # ── Phase 23: canonical Pipeline Event Store ──────────────────────
+        elif command == "pipeline_events":
+            from pipeline_events import query_events
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = {"events": query_events(
+                since_id=int(p.get("since_id") or 0),
+                scan_id=p.get("scan_id"),
+                run_id=p.get("run_id"),
+                mode=str(p.get("mode") or "LIVE"),
+                event_type=p.get("event_type"),
+                stage=p.get("stage"),
+                symbol=p.get("symbol"),
+                limit=int(p.get("limit") or 200),
+                newest_first=bool(p.get("newest_first")),
+            ), "label": "PAPER / RESEARCH ONLY"}
+        elif command == "pipeline_summary":
+            from pipeline_events import stage_summary, latest_scan_id
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            sid = p.get("scan_id") or latest_scan_id(str(p.get("mode") or "LIVE"))
+            result = stage_summary(scan_id=sid, run_id=p.get("run_id"),
+                                   mode=str(p.get("mode") or "LIVE"))
+
         # ── Phase 17: Automated QA & Release Validation ──────────────────
         elif command == "phase17_build_info":
             from phase17_qa import build_info

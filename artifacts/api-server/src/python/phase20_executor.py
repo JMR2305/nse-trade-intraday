@@ -405,6 +405,14 @@ def create_paper_entry(candidate: Dict[str, Any], settings: Dict[str, Any],
         )
         _rv_result = rv.to_dict()
         if rv.verdict == "REJECTED":
+            try:
+                from pipeline_events import emit as _pe
+                _pe("ORDER_REJECTED", "EXECUTION", scan_id=scan_id, symbol=sym,
+                    payload={"reason": rv.reason, "verdict": "REJECTED",
+                             "stage_detail": "risk_agent_pre_trade",
+                             "qty": qty, "fill_price": fill_price})
+            except Exception:
+                pass
             store.add_notification(
                 "ENTRY_BLOCKED_RISK",
                 f"Risk Agent REJECTED {sym} paper BUY",
@@ -450,8 +458,20 @@ def create_paper_entry(candidate: Dict[str, Any], settings: Dict[str, Any],
         row.setdefault("evidence", {})["risk_validation"] = _rv_result
 
     try:
+        from pipeline_events import emit as _pe
+    except Exception:
+        _pe = lambda *a, **k: None  # type: ignore
+    _pe("ORDER_SUBMITTED", "EXECUTION", scan_id=scan_id, symbol=sym,
+        payload={"trade_id": trade_id, "qty": qty, "signal_price": signal_price,
+                 "fill_price": fill_price, "charges": charges,
+                 "trigger_source": trigger_source})
+
+    try:
         _insert_row(row)
     except DuplicateOpenTrade:
+        _pe("ORDER_CANCELLED", "EXECUTION", scan_id=scan_id, symbol=sym,
+            payload={"trade_id": trade_id,
+                     "reason": "Open Phase 20 trade already exists (concurrent claim)"})
         return {"created": False, "symbol": sym,
                 "reason": "Open Phase 20 trade already exists (concurrent claim)"}
 
@@ -472,12 +492,34 @@ def create_paper_entry(candidate: Dict[str, Any], settings: Dict[str, Any],
         trade_quality=float(candidate.get("trade_quality_score") or 0),
     )
     if not ok:
+        _pe("ORDER_REJECTED", "EXECUTION", scan_id=scan_id, symbol=sym,
+            payload={"trade_id": trade_id, "reason": msg,
+                     "stage_detail": "execute_buy"})
         store.add_notification("ENTRY_BLOCKED", f"{sym} paper entry blocked",
                                msg, severity="WARN",
                                context={"symbol": sym, "scan_id": scan_id})
         # Release the claimed ledger slot since no position was created.
         _delete_row(trade_id)
         return {"created": False, "symbol": sym, "reason": msg}
+
+    _pe("ORDER_EXECUTED", "EXECUTION", scan_id=scan_id, symbol=sym,
+        payload={"trade_id": trade_id, "qty": qty, "fill_price": fill_price,
+                 "slippage": fill.get("slippage"), "charges": charges})
+    _pe("POSITION_OPENED", "PORTFOLIO", scan_id=scan_id, symbol=sym,
+        payload={"trade_id": trade_id, "qty": qty, "fill_price": fill_price,
+                 "stop_loss": float(sizing.get("stop_loss") or 0),
+                 "target": float(sizing.get("target_price") or 0)})
+    try:
+        from canonical_portfolio import build_canonical_portfolio
+        _cp = build_canonical_portfolio()
+        _pe("PORTFOLIO_UPDATED", "PORTFOLIO", scan_id=scan_id, payload={
+            "cash": _cp.get("cash"), "equity": _cp.get("equity"),
+            "open_positions": len(_cp.get("positions") or []),
+            "realized_pnl": _cp.get("realized_pnl"),
+            "unrealized_pnl": _cp.get("unrealized_pnl"),
+            "trigger": f"POSITION_OPENED {sym}"})
+    except Exception:
+        pass
 
     store.add_notification(
         "ENTRY_CREATED", f"Paper BUY {sym} × {qty} @ ₹{fill_price}",
@@ -558,6 +600,34 @@ def record_exit(trade_id: str, exit_price: float, exit_rule: str,
         "exit_scan_id": exit_scan_id,
         "realized_pnl": pnl,
     })
+    # Phase 23: pipeline events (fail-safe)
+    try:
+        from pipeline_events import emit as _pe
+        sym = str(trade.get("symbol") or "")
+        if status == "CLOSED":
+            _pe("POSITION_CLOSED", "PORTFOLIO", scan_id=exit_scan_id, symbol=sym,
+                payload={"trade_id": trade_id, "exit_price": exit_price,
+                         "exit_rule": exit_rule, "realized_pnl": pnl})
+            _pe("SELL_GENERATED", "EXECUTION", scan_id=exit_scan_id, symbol=sym,
+                payload={"trade_id": trade_id, "exit_rule": exit_rule,
+                         "exit_price": exit_price})
+        else:
+            _pe("POSITION_UPDATED", "PORTFOLIO", scan_id=exit_scan_id, symbol=sym,
+                payload={"trade_id": trade_id, "status": status,
+                         "exit_rule": exit_rule})
+        try:
+            from canonical_portfolio import build_canonical_portfolio
+            _cp = build_canonical_portfolio()
+            _pe("PORTFOLIO_UPDATED", "PORTFOLIO", scan_id=exit_scan_id, payload={
+                "cash": _cp.get("cash"), "equity": _cp.get("equity"),
+                "open_positions": len(_cp.get("positions") or []),
+                "realized_pnl": _cp.get("realized_pnl"),
+                "unrealized_pnl": _cp.get("unrealized_pnl"),
+                "trigger": f"{status} {sym}"})
+        except Exception:
+            pass
+    except Exception:
+        pass
 
 
 # ── Deterministic replay ─────────────────────────────────────────────────────

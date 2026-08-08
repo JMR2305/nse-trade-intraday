@@ -1,0 +1,686 @@
+PHASE 23 – AI LIVE TRADING COMMAND CENTER + HISTORICAL BACKTESTING PLATFORM
+
+OBJECTIVE
+
+This phase is a MAJOR ARCHITECTURE UPGRADE.
+
+The goal is to eliminate the "black box" nature of ApexQuant AI.
+
+Today, the backend performs scanning, strategy selection, risk evaluation, AI decisions and paper execution, but the user cannot actually see what the AI is doing in real time. Different pages also show inconsistent numbers because they are sourcing data independently.
+
+This phase must create ONE SINGLE SOURCE OF TRUTH and TWO NEW MAJOR FEATURES:
+
+1. AI Live Trading Command Center
+2. Historical Backtesting & Investigation Center
+
+===============================================================================
+CRITICAL ARCHITECTURE RULE
+===============================================================================
+
+NO PAGE may calculate its own numbers.
+
+NO PAGE may maintain its own copy of pipeline state.
+
+NO PAGE may use demo data.
+
+NO PAGE may use synthetic calculations.
+
+Everything must read from ONE backend event stream.
+
+Create ONE canonical Pipeline Event Store.
+
+Every event emitted by the backend must be written once.
+
+Example events:
+
+SCAN_STARTED
+
+SYMBOL_SCANNED
+
+RESEARCH_COMPLETED
+
+MARKET_INTELLIGENCE_COMPLETED
+
+MONITORING_COMPLETED
+
+STRATEGY_SELECTED
+
+RISK_APPROVED
+
+RISK_REJECTED
+
+BUY_GENERATED
+
+SELL_GENERATED
+
+ORDER_SUBMITTED
+
+ORDER_EXECUTED
+
+ORDER_REJECTED
+
+POSITION_OPENED
+
+POSITION_UPDATED
+
+POSITION_CLOSED
+
+PORTFOLIO_UPDATED
+
+P&L_UPDATED
+
+These events become the ONLY data source for:
+
+• AI Pipeline page
+• Operations Center
+• Investigation Center
+• Replay
+• Execution
+• Trade History
+• Portfolio
+• Performance
+• Validation
+• New Live Command Center
+
+Every page must render from these events.
+
+===============================================================================
+PART 1
+AI LIVE TRADING COMMAND CENTER
+===============================================================================
+
+Create an entirely new dashboard.
+
+This becomes the default page during live market hours.
+
+The page must update continuously.
+
+It should feel like Bloomberg Terminal / Mission Control.
+
+===============================================================================
+1. LIVE PIPELINE
+===============================================================================
+
+Animated pipeline:
+
+Supervisor
+
+↓
+
+Scanner
+
+↓
+
+Research
+
+↓
+
+Market Intelligence
+
+↓
+
+Monitoring
+
+↓
+
+Strategy
+
+↓
+
+Risk
+
+↓
+
+AI Decision
+
+↓
+
+Execution
+
+↓
+
+Portfolio
+
+Each stage should animate while working.
+
+Display:
+
+Input count
+
+Output count
+
+Rejected
+
+Pending
+
+Cancelled
+
+Processing time
+
+Latency
+
+Errors
+
+===============================================================================
+2. LIVE STOCK SCANNER
+===============================================================================
+
+Display the exact stock currently being processed.
+
+Example
+
+Currently Processing
+
+RELIANCE
+
+Progress
+
+23 / 50
+
+Indicators
+
+VWAP ✓
+
+EMA ✓
+
+RSI ✓
+
+MACD ✓
+
+Volume ✓
+
+Research ✓
+
+Market Intelligence ✓
+
+Monitoring ✓
+
+Strategy Pending
+
+Risk Pending
+
+Decision Pending
+
+After completion immediately switch to next stock.
+
+===============================================================================
+3. LIVE EVENT FEED
+===============================================================================
+
+Chronological activity.
+
+Example
+
+09:15:01
+
+Scanner
+
+Scanning RELIANCE
+
+09:15:02
+
+Research
+
+Corporate actions complete
+
+09:15:03
+
+Monitoring
+
+EMA crossover
+
+09:15:04
+
+Strategy
+
+Trend Rider
+
+09:15:05
+
+Risk
+
+APPROVED
+
+09:15:06
+
+Decision
+
+BUY
+
+09:15:07
+
+Execution
+
+Paper BUY executed
+
+09:15:08
+
+Portfolio
+
+Position opened
+
+Every backend event must appear here.
+
+===============================================================================
+4. LIVE PAPER TRADING PANEL
+===============================================================================
+
+Show every paper trade.
+
+Pending Orders
+
+Filled Orders
+
+Cancelled Orders
+
+Rejected Orders
+
+Open Positions
+
+Closed Positions
+
+Running P&L
+
+Capital
+
+Cash
+
+Available Margin
+
+Portfolio Value
+
+Update instantly.
+
+===============================================================================
+5. LIVE PORTFOLIO
+===============================================================================
+
+Always visible.
+
+Starting Capital
+
+Available Cash
+
+Invested
+
+Open Positions
+
+Realized P&L
+
+Unrealized P&L
+
+Net P&L
+
+Today's Return
+
+Update from real portfolio ledger only.
+
+===============================================================================
+6. LIVE AGENT HEALTH
+===============================================================================
+
+For every AI agent show
+
+Running
+
+Waiting
+
+Idle
+
+Error
+
+CPU Time
+
+Latency
+
+Memory
+
+Queue
+
+Errors
+
+Recovery
+
+===============================================================================
+7. LIVE REJECTION ANALYZER
+===============================================================================
+
+For every rejection
+
+Show
+
+Symbol
+
+Stage
+
+Reason
+
+Confidence
+
+Indicator values
+
+Rule triggered
+
+No hidden rejection.
+
+===============================================================================
+8. RESOURCE MONITOR
+===============================================================================
+
+CPU
+
+Memory
+
+Database
+
+Redis
+
+Yahoo Finance
+
+Zerodha
+
+NSE Feed
+
+API Latency
+
+Queue Depth
+
+===============================================================================
+PART 2
+HISTORICAL BACKTEST ENGINE
+===============================================================================
+
+Create a Historical Replay Engine.
+
+Supported modes
+
+5 minute
+
+10 minute
+
+Daily
+
+1 day
+
+1 week
+
+1 month
+
+Custom Range
+
+The replay MUST use the SAME production pipeline.
+
+DO NOT create duplicate strategy logic.
+
+Historical candles must pass through
+
+Scanner
+
+Research
+
+Market Intelligence
+
+Monitoring
+
+Strategy
+
+Risk
+
+AI Decision
+
+Execution
+
+Portfolio
+
+Exactly like live trading.
+
+===============================================================================
+DATA SOURCE
+===============================================================================
+
+Download historical data from the configured NSE-compatible historical data provider.
+
+Cache data locally.
+
+Avoid downloading the same history repeatedly.
+
+Store
+
+OHLC
+
+Volume
+
+Corporate actions
+
+Splits
+
+Dividends
+
+===============================================================================
+PART 3
+AI INVESTIGATION CENTER
+===============================================================================
+
+Allow user to select
+
+Date
+
+Symbol
+
+Strategy
+
+Time
+
+Then replay candle-by-candle.
+
+For every candle display
+
+Indicators
+
+Research
+
+Strategy
+
+Risk
+
+Confidence
+
+Decision
+
+Execution
+
+Portfolio impact
+
+P&L
+
+===============================================================================
+PART 4
+TRADE REPLAY
+===============================================================================
+
+Controls
+
+Play
+
+Pause
+
+Previous Candle
+
+Next Candle
+
+1x
+
+5x
+
+20x
+
+Jump to Time
+
+Watch AI think exactly as it did.
+
+===============================================================================
+PART 5
+DECISION EXPLORER
+===============================================================================
+
+Click any stock.
+
+Display complete decision tree.
+
+Scanner
+
+Research
+
+Market Intelligence
+
+Monitoring
+
+Strategy
+
+Risk
+
+Decision
+
+Execution
+
+Portfolio
+
+Exit
+
+PnL
+
+Every rejection must show exact rule.
+
+===============================================================================
+PART 6
+MISSED OPPORTUNITIES
+===============================================================================
+
+Display
+
+Rejected stocks
+
+Potential return
+
+Reason rejected
+
+Would strategy change improve?
+
+===============================================================================
+PART 7
+STRATEGY OPTIMIZER
+===============================================================================
+
+Run same month repeatedly.
+
+Compare
+
+Confidence threshold
+
+Risk settings
+
+Sector limits
+
+Position sizing
+
+Maximum trades
+
+Generate
+
+Win rate
+
+PnL
+
+Sharpe
+
+Drawdown
+
+Profit factor
+
+Expectancy
+
+===============================================================================
+PART 8
+PERFORMANCE ANALYTICS
+===============================================================================
+
+Daily
+
+Weekly
+
+Monthly
+
+Strategy-wise
+
+Sector-wise
+
+Time-of-day
+
+Confidence bands
+
+Holding period
+
+Largest Winner
+
+Largest Loser
+
+Drawdown
+
+Expectancy
+
+===============================================================================
+PART 9
+LIVE VALIDATION
+===============================================================================
+
+Historical replay and live pipeline must produce identical decisions for the same candle.
+
+If not,
+
+Log mismatch.
+
+===============================================================================
+FINAL REQUIREMENTS
+===============================================================================
+
+1. NO duplicate business logic.
+
+2. ONE source of truth.
+
+3. ONE event stream.
+
+4. ONE portfolio ledger.
+
+5. ONE execution ledger.
+
+6. ONE decision engine.
+
+7. Every page must display identical counts.
+
+8. Every page must read from the same backend services.
+
+9. Remove all demo data.
+
+10. Remove all fallback calculations.
+
+11. Remove all synthetic portfolio generation.
+
+12. All dashboards must become read-only views over the canonical event store.
+
+===============================================================================
+DELIVERABLES
+===============================================================================
+
+1. AI Live Trading Command Center.
+2. Historical Backtesting Engine.
+3. Investigation Center.
+4. Trade Replay.
+5. Decision Explorer.
+6. Strategy Optimizer.
+7. Unified Event Store.
+8. Unified Portfolio Ledger.
+9. Unified Execution Ledger.
+10. Unified Dashboard Data Services.
+11. Database schema changes and migrations (if required).
+12. Comprehensive backend and frontend tests.
+13. Validation report proving every dashboard uses the same data source and displays identical counts.

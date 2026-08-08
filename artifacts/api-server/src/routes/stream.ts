@@ -82,6 +82,11 @@ export const refreshState: RefreshState = {
 
 let clients = 0;
 
+/** Phase 23: lets the pipeline tail poller run only while dashboards listen. */
+export function sseClientCount(): number {
+  return clients;
+}
+
 async function refreshOnce(force = false): Promise<void> {
   if (refreshState.running) return;
   refreshState.running = true;

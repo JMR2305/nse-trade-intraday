@@ -1,0 +1,492 @@
+PHASE 24 – AI LEARNING & CONTINUOUS IMPROVEMENT ENGINE
+
+OBJECTIVE
+
+ApexQuant AI should not only execute paper trades.
+
+It should continuously learn from every completed trading session.
+
+The system should identify:
+
+• Why trades succeeded.
+• Why trades failed.
+• Which strategies perform best.
+• Which strategies should be disabled.
+• Which Risk rules reject profitable trades.
+• Which Risk rules prevent losses.
+• Which indicators actually improve accuracy.
+
+This phase creates a complete AI Learning Engine.
+
+===============================================================================
+PART 1
+TRADE LEARNING DATABASE
+===============================================================================
+
+Create a permanent Trade Intelligence database.
+
+Every completed trade should store:
+
+Trade ID
+
+Session ID
+
+Scan ID
+
+Symbol
+
+Sector
+
+Date
+
+Entry Time
+
+Exit Time
+
+Holding Time
+
+Entry Price
+
+Exit Price
+
+Quantity
+
+Capital Used
+
+Strategy
+
+Confidence
+
+Risk Score
+
+Stop Loss
+
+Target
+
+Highest Price
+
+Lowest Price
+
+Maximum Favorable Excursion (MFE)
+
+Maximum Adverse Excursion (MAE)
+
+Realized P&L
+
+Exit Reason
+
+Market Regime
+
+Volatility
+
+Gap %
+
+Volume
+
+VWAP
+
+EMA
+
+RSI
+
+MACD
+
+ADX
+
+ATR
+
+Research Score
+
+Market Intelligence Score
+
+Monitoring Score
+
+Decision Score
+
+Execution Status
+
+Portfolio Snapshot
+
+===============================================================================
+PART 2
+POST TRADE ANALYSIS
+===============================================================================
+
+After every completed trade automatically calculate:
+
+Was entry early?
+
+Was entry late?
+
+Was stop too tight?
+
+Was stop too loose?
+
+Target too conservative?
+
+Target too aggressive?
+
+Exit too early?
+
+Exit too late?
+
+Did trailing stop help?
+
+Could AI have earned more?
+
+Would a different strategy have performed better?
+
+===============================================================================
+PART 3
+MISSED OPPORTUNITY ANALYSIS
+===============================================================================
+
+Every rejected stock should also be analysed.
+
+Example
+
+Rejected
+
+RELIANCE
+
+Reason
+
+Confidence 57
+
+Later moved
+
++3.6%
+
+Should Risk have allowed it?
+
+Store these permanently.
+
+===============================================================================
+PART 4
+RISK ENGINE LEARNING
+===============================================================================
+
+Analyse
+
+Confidence Threshold
+
+Risk Reward
+
+Sector Exposure
+
+Capital Allocation
+
+Position Size
+
+Market Regime
+
+Liquidity
+
+ATR
+
+Volatility
+
+Determine
+
+Which rules save money
+
+Which rules block profitable trades
+
+Generate recommendations.
+
+Do NOT automatically change thresholds.
+
+===============================================================================
+PART 5
+STRATEGY PERFORMANCE
+===============================================================================
+
+Rank every strategy.
+
+Example
+
+Trend Rider
+
+Trades
+
+Win %
+
+Average Return
+
+Drawdown
+
+Profit Factor
+
+Expectancy
+
+Recovery
+
+Sharpe
+
+Sortino
+
+Capital Efficiency
+
+Holding Time
+
+Confidence Accuracy
+
+Repeat for every strategy.
+
+===============================================================================
+PART 6
+AI SCORECARD
+===============================================================================
+
+Generate an AI scorecard every day.
+
+Example
+
+Scanner
+
+9.8
+
+Research
+
+8.6
+
+Market Intelligence
+
+9.2
+
+Monitoring
+
+9.0
+
+Strategy
+
+8.7
+
+Risk
+
+7.4
+
+Execution
+
+9.9
+
+Portfolio
+
+10
+
+Overall
+
+9.1
+
+Show strengths and weaknesses.
+
+===============================================================================
+PART 7
+CONFIDENCE CALIBRATION
+===============================================================================
+
+Verify whether confidence is meaningful.
+
+Example
+
+Confidence
+
+80+
+
+Actual Win Rate
+
+81%
+
+Confidence
+
+70
+
+Actual Win Rate
+
+62%
+
+Confidence
+
+60
+
+Actual Win Rate
+
+48%
+
+Produce calibration curves.
+
+===============================================================================
+PART 8
+SECTOR ANALYSIS
+===============================================================================
+
+Rank sectors.
+
+Technology
+
+Financial
+
+Auto
+
+FMCG
+
+Energy
+
+Pharma
+
+Metals
+
+Realty
+
+Determine
+
+Best sector
+
+Worst sector
+
+Most consistent
+
+Highest drawdown
+
+===============================================================================
+PART 9
+TIME ANALYSIS
+===============================================================================
+
+Determine
+
+Best hour
+
+Worst hour
+
+Best weekday
+
+Worst weekday
+
+Best market regime
+
+Worst market regime
+
+Best volatility
+
+===============================================================================
+PART 10
+AI IMPROVEMENT RECOMMENDATIONS
+===============================================================================
+
+Every day generate recommendations.
+
+Examples
+
+Reduce Confidence threshold to 55
+
+Increase ATR stop
+
+Reduce exposure in Banking
+
+Disable Strategy X
+
+Increase position size for Strategy Y
+
+Do NOT automatically implement changes.
+
+Recommendations only.
+
+===============================================================================
+PART 11
+LEARNING DASHBOARD
+===============================================================================
+
+Create a completely new page.
+
+AI Learning Center
+
+Include
+
+Daily Lessons
+
+Weekly Lessons
+
+Monthly Lessons
+
+Top Mistakes
+
+Top Improvements
+
+Best Trades
+
+Worst Trades
+
+Confidence Calibration
+
+Risk Learning
+
+Strategy Ranking
+
+Sector Ranking
+
+Market Regime Analysis
+
+Capital Efficiency
+
+Portfolio Efficiency
+
+===============================================================================
+PART 12
+REPORTS
+===============================================================================
+
+Automatically generate
+
+Daily AI Report
+
+Weekly AI Report
+
+Monthly AI Report
+
+Quarterly AI Report
+
+Each report should include:
+
+Performance
+
+Mistakes
+
+Recommendations
+
+Expected Improvements
+
+===============================================================================
+FINAL REQUIREMENTS
+===============================================================================
+
+The AI must NEVER automatically modify trading rules.
+
+It only learns and recommends.
+
+All recommendations require manual approval.
+
+The Learning Engine must read from the same canonical Paper Trade Ledger, Replay Snapshot, Portfolio Store and Event Store.
+
+No duplicate calculations.
+
+No separate databases.
+
+One source of truth.
+
+===============================================================================
+DELIVERABLES
+===============================================================================
+
+1. AI Learning Database
+2. Post Trade Analysis Engine
+3. Missed Opportunity Analyzer
+4. Risk Learning Engine
+5. Strategy Performance Engine
+6. Confidence Calibration
+7. Sector Analysis
+8. Time Analysis
+9. AI Recommendation Engine
+10. AI Learning Center Dashboard
+11. Automated Daily/Weekly/Monthly Reports
+12. Comprehensive validation tests
