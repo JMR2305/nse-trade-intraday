@@ -83,4 +83,5 @@
 - [Phase 23 pipeline events](phase23-pipeline-events.md) — one append-only event stream for all dashboards; fail-safe emits, batched per-symbol, SQL summaries, 14-day prune, listener-gated SSE tail.
 - [Phase 24 learning engine](phase24-learning-engine.md) — advisory-only, append-only intelligence over phase20 ledger; AST safety test list must include any new phase24 module; no mock-candle excursions.
 - [Mission Control 25A](mission-control-25a.md) — freshness-bar contract on every route; /replay/sessions/latest is the only pipeline-count source; useLiveStream pipelineEvents buffer for SSE-first feeds.
+- [Mission Control 25B widgets](mission-control-25b.md) — replay snapshot query shared page-level (never refetch counts); slow endpoints need explicit long timeouts; alert dedupe by severity|title.
 - [Portfolio performance routing](portfolio-performance-routing.md) — 5D.2 analytics live at /portfolio-performance/*, perf centre keeps /performance/*; positions key is avg_price; INITIAL_CAPITAL from portfolio_store.

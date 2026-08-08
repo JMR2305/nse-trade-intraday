@@ -31,6 +31,12 @@ import {
   HeartPulse, PieChart, Radar, Radio, Rocket, Wallet, Wifi, WifiOff, XCircle,
 } from "lucide-react";
 import { Widget, useWidgetQuery, fmtINR, timeAgo, PnlText } from "@/components/mission/Widget";
+import {
+  MissionMapWidget, AiHealthWidget, AiLearningWidget, AlertCenterWidget,
+} from "@/components/mission/IntelWidgets";
+import {
+  ReplayWidget, BacktestWidget, MissionTimelineWidget, BrokerWidget, SystemHealthWidget,
+} from "@/components/mission/OpsWidgets";
 
 const LABEL = "PAPER TRADING / RESEARCH ONLY";
 
@@ -215,14 +221,13 @@ function StatusBar({
 
 // ── Panel 1 — Live AI Pipeline ───────────────────────────────────────────────
 
-function PipelinePanel({ scanning }: { scanning: boolean }) {
+function PipelinePanel({ scanning, replayQ }: {
+  scanning: boolean;
+  /** Shared unified replay snapshot query — the ONLY source of in/out/rejected/pending/cancelled (also drives Mission Map & Replay widget). */
+  replayQ: ReturnType<typeof useWidgetQuery<ReplayResp>>;
+}) {
   const summaryQ = useWidgetQuery<PipelineSummary>({
     queryKey: ["mc", "pipeline-summary"], path: "/pipeline/summary", refetchInterval: R.pipeline,
-  });
-  // Unified replay snapshot — the ONLY source of in/out/rejected/pending/cancelled.
-  const replayQ = useWidgetQuery<ReplayResp>({
-    queryKey: ["mc", "replay-latest"], path: "/replay/sessions/latest",
-    refetchInterval: R.replay, timeoutMs: 45_000,
   });
 
   const replayByLabel = useMemo(() => {
@@ -595,6 +600,12 @@ export default function MissionControl() {
     queryKey: ["mc", "scan-status"], path: "/live-data/scan/status", refetchInterval: R.scan,
   });
   const scanning = !!scanQ.data?.progress?.stage;
+  // Unified replay snapshot — fetched ONCE and shared by the pipeline panel,
+  // Mission Map and Replay widget (no separate fetch of stage counts).
+  const replayQ = useWidgetQuery<ReplayResp>({
+    queryKey: ["mc", "replay-latest"], path: "/replay/sessions/latest",
+    refetchInterval: R.replay, timeoutMs: 45_000,
+  });
 
   return (
     <div className="p-4 space-y-3 max-w-[1700px] mx-auto" data-testid="page-mission-control">
@@ -614,15 +625,36 @@ export default function MissionControl() {
       {/* Top status bar */}
       <StatusBar portfolio={portfolioQ.data} portfolioErr={portfolioQ.isError} stream={stream} />
 
+      {/* Mission Map — Universe → Portfolio stage flow (shared replay query) */}
+      <MissionMapWidget replayQ={replayQ} scanning={scanning} />
+
       {/* Main grid: left pipeline · center trading · right portfolio */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 items-start">
-        <PipelinePanel scanning={scanning} />
+        <PipelinePanel scanning={scanning} replayQ={replayQ} />
         <div className="lg:col-span-2 space-y-3 min-w-0">
           <ScannerPanel scanQ={scanQ} />
           <PaperTradingPanel portfolio={portfolioQ.data} />
         </div>
         <PortfolioSidebar q={portfolioQ} />
       </div>
+
+      {/* Intelligence row: AI health · AI learning · alert center */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start">
+        <AiHealthWidget />
+        <AiLearningWidget />
+        <AlertCenterWidget />
+      </div>
+
+      {/* Ops row: replay · backtest · broker · system health */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 items-start">
+        <ReplayWidget replayQ={replayQ} />
+        <BacktestWidget />
+        <BrokerWidget />
+        <SystemHealthWidget />
+      </div>
+
+      {/* Mission Timeline — the trading day from open to close */}
+      <MissionTimelineWidget />
 
       {/* Bottom event feed strip */}
       <EventStreamPanel streamEvents={stream.pipelineEvents} />
