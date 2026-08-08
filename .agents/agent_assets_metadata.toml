@@ -306,3 +306,10 @@ uri = "file://reports/production-readiness/PRODUCTION_READINESS_REPORT.md"
 type = "text"
 title = "Production Readiness Report — GO for continuous paper trading"
 description = "Full sprint audit: canonical source mapping for every page, pipeline trace, UI audit, fixes, and remaining issues by severity."
+
+[[outputs]]
+id = "lf-tvle3mCymIt8Tn93_E"
+uri = "file://reports/phase23/PHASE23_SUMMARY.md"
+type = "text"
+title = "Phase 23 Summary"
+description = "Part 1 delivery summary — Pipeline Event Store + Live Command Center: architecture, emit points, verification results, and remaining Parts 2–9 scope."
