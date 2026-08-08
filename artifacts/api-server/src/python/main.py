@@ -2260,6 +2260,48 @@ def main():
             p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
             result = lab.lab_verify(run_id=p.get("run_id"))
 
+        # ── Phase 23.8A: AI Simulation Laboratory ────────────────────────
+        elif command == "sim_scenario_create":
+            import simulation_lab as sim
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = sim.create_scenario(str(p.get("name") or "Scenario"),
+                                         p.get("base_run_id"),
+                                         dict(p.get("params") or {}))
+        elif command == "sim_scenarios":
+            import simulation_lab as sim
+            result = sim.list_scenarios()
+        elif command == "sim_run":
+            import simulation_lab as sim
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = sim.run_scenario(scenario_id=p.get("scenario_id"),
+                                      run_id=p.get("run_id"),
+                                      params=p.get("params"),
+                                      label=p.get("label"))
+        elif command == "sim_runs":
+            import simulation_lab as sim
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = sim.list_sim_runs(limit=int(p.get("limit") or 100))
+        elif command == "sim_run_get":
+            import simulation_lab as sim
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = sim.get_sim_run(str(p.get("sim_id")))
+        elif command == "sim_compare":
+            import simulation_lab as sim
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = sim.compare_sim_runs(list(p.get("sim_ids") or []))
+        elif command == "sim_risk_compare":
+            import simulation_lab as sim
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = sim.risk_rule_compare(str(p.get("run_id")),
+                                           dict(p.get("rules_a") or {}),
+                                           dict(p.get("rules_b") or {}))
+        elif command == "sim_stress_portfolio":
+            import simulation_lab as sim
+            result = sim.portfolio_stress()
+        elif command == "sim_stress_execution":
+            import simulation_lab as sim
+            result = sim.execution_stress()
+
         # ── Phase 17: Automated QA & Release Validation ──────────────────
         elif command == "phase17_build_info":
             from phase17_qa import build_info

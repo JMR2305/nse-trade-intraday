@@ -86,3 +86,4 @@
 - [Mission Control 25B widgets](mission-control-25b.md) — replay snapshot query shared page-level (never refetch counts); slow endpoints need explicit long timeouts; alert dedupe by severity|title.
 - [Mission Control 25C](mission-control-25c.md) — command bar reuses control endpoints w/ confirms; homeRoute auto pref; Vitest4: never mockReset an API mock in beforeEach or RQ rejections go unhandled.
 - [Portfolio performance routing](portfolio-performance-routing.md) — 5D.2 analytics live at /portfolio-performance/*, perf centre keeps /performance/*; positions key is avg_price; INITIAL_CAPITAL from portfolio_store.
+- [Phase 23.8A Simulation Lab](phase238a-simulation-lab.md) — append-only sim runs; compare must fetch by id (no history-window/selection caps); stress tests on in-memory copies only.

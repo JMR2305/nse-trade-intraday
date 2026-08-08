@@ -117,6 +117,7 @@ export const AGENTS: Agent[] = [
       { href: "/strategy-optimisation", label: "Strategy Optimisation",  icon: Target,     tags: ["optimise"] },
       { href: "/strategy-lab",          label: "Strategy Lab",           icon: GitCompare, tags: ["lab", "compare"] },
       { href: "/optimization-lab",      label: "Optimization Lab",       icon: FlaskConical, tags: ["optimization", "lab", "what-if", "walk-forward", "monte-carlo", "phase23"] },
+      { href: "/simulation-lab",        label: "Simulation Lab",         icon: TestTubes,   tags: ["simulation", "what-if", "stress", "scenario", "phase23.8"] },
       { href: "/strategy-evolution",    label: "Strategy Evolution",     icon: Dna,        tags: ["evolution"] },
       { href: "/backtest",              label: "Backtest",               icon: FlaskConical,tags: ["test", "backtest"] },
       { href: "/optimizer",             label: "Optimizer",              icon: Settings2,  tags: ["optimise", "params"] },
