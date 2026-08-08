@@ -4,8 +4,9 @@
  * Routes:
  *   GET   /api/portfolio/snapshot  — equity, positions, P&L, drawdown
  *   GET   /api/portfolio/health    — readiness / degraded status
- *   GET   /api/portfolio/config    — active PortfolioConfig snapshot (with session overrides)
- *   PATCH /api/portfolio/config    — write session-level overrides (reset on server restart)
+ *   GET   /api/portfolio/config    — active PortfolioConfig snapshot (with operator overrides)
+ *   PATCH /api/portfolio/config    — persist operator overrides to the durable
+ *                                    Python-side store (survive restarts/hot-reloads)
  */
 import { Router, type IRouter } from "express";
 import { spawn } from "child_process";
@@ -15,9 +16,11 @@ import { PYTHON_DIR, PYTHON_BIN } from "../lib/python-env";
 
 const router: IRouter = Router();
 
-// ── Session-level overrides ─────────────────────────────────────────────────
-// These are held in process memory and are reset when the server restarts.
-// They overlay the environment-variable-based PortfolioConfig values without
+// ── Operator overrides ───────────────────────────────────────────────────────
+// Overrides are persisted in the durable Python-side store (Postgres with a
+// file fallback), so they survive Node hot-reloads and full server restarts
+// until explicitly cleared via DELETE /api/portfolio/config/overrides. They
+// overlay the environment-variable-based PortfolioConfig values without
 // modifying the actual config or environment.
 
 /** All field names that may be overridden by an operator at runtime. */
@@ -206,12 +209,12 @@ router.get(
 /**
  * GET /api/portfolio/config
  *
- * Returns the active PortfolioConfig values, with any session-level operator
+ * Returns the active PortfolioConfig values, with any persisted operator
  * overrides merged on top.  The response includes:
- *   - `overrides`         — the current session override values
+ *   - `overrides`         — the current override values (durable store)
  *   - `overridden_fields` — list of field names that are currently overridden
  *
- * Overrides are held in process memory and are cleared on server restart.
+ * Overrides persist across server restarts until cleared via DELETE.
  */
 router.get(
   "/portfolio/config",
@@ -229,11 +232,12 @@ router.get(
  * PATCH /api/portfolio/config
  *
  * Accepts a JSON body with a subset of mutable PortfolioConfig fields and
- * stores them as session-level overrides.  Only the fields listed in
- * MUTABLE_FIELDS are accepted; unknown or read-only fields are rejected.
+ * persists them as operator overrides in the durable store.  Only the fields
+ * listed in MUTABLE_FIELDS are accepted; unknown or read-only fields are
+ * rejected.
  *
- * Overrides are merged with existing ones (send an empty object to clear
- * specific fields is not supported; restart the server to reset all overrides).
+ * Overrides are merged with existing ones and survive restarts; use
+ * DELETE /api/portfolio/config/overrides to reset them all.
  *
  * Body: { [field: MutableField]: number }
  * Response: { ok: true, overrides: Record<MutableField, number>, overridden_fields: string[] }

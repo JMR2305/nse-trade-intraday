@@ -126,6 +126,25 @@ class TestOverridesFileFallback(unittest.TestCase):
             conn.rollback.assert_called_once()
             conn.commit.assert_not_called()
 
+    def test_overrides_survive_process_restart(self):
+        """Task #69: operator edits must survive an API-server hot-reload or
+        restart. The store is durable (Postgres / file), never process
+        memory, so a completely fresh module (≈ fresh process) still sees
+        the persisted values."""
+        import importlib
+        pco.set_overrides({"max_open_positions": 15, "cash_reserve_pct": 0.08})
+        fresh = importlib.reload(pco)  # wipes all module-level state
+        try:
+            with patch.object(fresh, "_db_available", return_value=False), \
+                    patch.object(fresh, "_FALLBACK_FILE", self.tmp.name):
+                self.assertEqual(
+                    fresh.get_overrides(),
+                    {"max_open_positions": 15, "cash_reserve_pct": 0.08},
+                )
+                self.assertEqual(fresh.merged_config().max_open_positions, 15)
+        finally:
+            importlib.reload(pco)
+
     def test_stamp_changes_on_write(self):
         self.assertIsNone(pco.get_overrides_stamp())
         pco.set_overrides({"max_open_positions": 12})

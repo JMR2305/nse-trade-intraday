@@ -831,7 +831,7 @@ function ConfigRow({
           <span
             className="inline-flex items-center gap-0.5 rounded border border-blue-500/50 bg-blue-500/10 px-1 py-px text-[9px] font-mono uppercase tracking-wide text-blue-400 leading-none"
             data-testid={`badge-override-${field}`}
-            title="Session override — resets when server restarts"
+            title="Operator override — persists across server restarts until cleared"
           >
             session
           </span>
@@ -1114,8 +1114,8 @@ function ActiveConfigSection({
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-mono text-blue-400">
                   {overriddenFields.size} field{overriddenFields.size !== 1 ? "s" : ""} overridden
-                  this session — resets when the server restarts.
-                  Values marked <span className="font-bold">session</span> are active in-memory overrides.
+                  by an operator — saved durably and survive server restarts until cleared here.
+                  Values marked <span className="font-bold">session</span> are active overrides.
                 </p>
               </div>
               <button
@@ -1139,7 +1139,7 @@ function ActiveConfigSection({
           {!editingField && !usingDefaults && (
             <p className="text-xs text-muted-foreground font-mono">
               <Pencil className="h-3 w-3 inline mr-1 opacity-60" />
-              Hover a limit row and click the pencil icon to edit it live. Overrides persist until the server restarts.
+              Hover a limit row and click the pencil icon to edit it live. Overrides are saved durably and persist across server restarts until cleared.
             </p>
           )}
 
