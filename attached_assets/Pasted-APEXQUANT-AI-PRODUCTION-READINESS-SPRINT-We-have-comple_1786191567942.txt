@@ -1,0 +1,402 @@
+APEXQUANT AI – PRODUCTION READINESS SPRINT
+
+We have completed the architecture consolidation.
+
+Do NOT add new features.
+
+The objective is to make every page work correctly using the canonical architecture.
+
+====================================================
+PHASE 1 – END-TO-END EXECUTION VERIFICATION
+====================================================
+
+Verify the complete lifecycle:
+
+Market Scan
+↓
+
+Research
+↓
+
+Market Intelligence
+↓
+
+Monitoring
+↓
+
+Strategy
+↓
+
+Risk
+↓
+
+AI Decision
+↓
+
+Execution
+↓
+
+Paper Order
+↓
+
+Paper Trade Ledger
+↓
+
+Portfolio
+↓
+
+Trade History
+↓
+
+Portfolio Performance
+↓
+
+Replay
+↓
+
+Operations Centre
+↓
+
+Validation
+↓
+
+Broker
+↓
+
+End of Day
+
+Verify every BUY recommendation reaches every downstream stage.
+
+====================================================
+PHASE 2 – PAPER TRADING ENGINE
+====================================================
+
+Investigate why BUY recommendations sometimes stop before Portfolio.
+
+Verify:
+
+• BUY Decision created
+• Execution Request created
+• Paper Order created
+• Paper Fill generated
+• Ledger entry written
+• Portfolio updated
+• Trade History updated
+• Performance updated
+
+If any step fails,
+
+log exactly where.
+
+====================================================
+PHASE 3 – PORTFOLIO
+====================================================
+
+Verify Portfolio updates immediately after every BUY.
+
+Display:
+
+Current Cash
+
+Invested Amount
+
+Open Positions
+
+Average Price
+
+Current Price
+
+Unrealized P&L
+
+Realized P&L
+
+Total Equity
+
+Sector Allocation
+
+Exposure
+
+Verify every SELL updates:
+
+Cash
+
+Equity
+
+Trade History
+
+Performance
+
+Replay
+
+====================================================
+PHASE 4 – TRADE HISTORY
+====================================================
+
+Verify every executed trade appears.
+
+Display:
+
+Trade ID
+
+Scan ID
+
+Session ID
+
+BUY Time
+
+SELL Time
+
+Entry
+
+Exit
+
+Qty
+
+Strategy
+
+Confidence
+
+Exit Reason
+
+PnL
+
+Holding Time
+
+====================================================
+PHASE 5 – PORTFOLIO PERFORMANCE
+====================================================
+
+Verify the page is populated.
+
+Display:
+
+Equity Curve
+
+Daily Return
+
+Weekly Return
+
+Monthly Return
+
+Total Return
+
+Win Rate
+
+Profit Factor
+
+Expectancy
+
+Average Winner
+
+Average Loser
+
+Sharpe
+
+Drawdown
+
+Recovery
+
+No placeholders.
+
+No undefined values.
+
+====================================================
+PHASE 6 – REPLAY
+====================================================
+
+Verify Replay exactly matches
+
+Operations Centre
+
+Portfolio
+
+Trade History
+
+Validation
+
+Pipeline
+
+No independent calculations.
+
+====================================================
+PHASE 7 – AI OPERATIONS CENTRE
+====================================================
+
+Every metric must come from Operations Snapshot.
+
+Verify:
+
+Scanner
+
+Research
+
+Market Intelligence
+
+Monitoring
+
+Strategy
+
+Risk
+
+Decision
+
+Execution
+
+Portfolio
+
+All counts identical to Replay.
+
+====================================================
+PHASE 8 – VALIDATION
+====================================================
+
+Validation should verify:
+
+Pipeline
+
+Portfolio
+
+Execution
+
+Trade History
+
+Replay
+
+Performance
+
+Broker
+
+No false warnings.
+
+====================================================
+PHASE 9 – BROKER
+====================================================
+
+Verify:
+
+Broker Status
+
+Paper Trader
+
+Execution Queue
+
+Pending Orders
+
+Filled Orders
+
+Open Positions
+
+Connection Status
+
+No startup errors.
+
+====================================================
+PHASE 10 – UI CONSISTENCY
+====================================================
+
+Audit every page.
+
+Remove:
+
+Overlapping panels
+
+Broken layouts
+
+Undefined values
+
+Empty cards
+
+Incorrect spacing
+
+Responsive issues
+
+Inconsistent colours
+
+Tables overflowing
+
+====================================================
+PHASE 11 – PERFORMANCE
+====================================================
+
+Reduce slow APIs.
+
+Cache summaries.
+
+Lazy load large tables.
+
+Optimize replay rendering.
+
+====================================================
+PHASE 12 – FINAL SYSTEM AUDIT
+====================================================
+
+Produce one final report showing:
+
+• All APIs
+• All canonical stores
+• All database tables
+• Every page
+• Every metric
+• Source of every metric
+
+Confirm that:
+
+Replay
+
+Operations Centre
+
+Portfolio
+
+Trade History
+
+Portfolio Performance
+
+Validation
+
+Broker
+
+Execution
+
+Phase 4A
+
+Paper Trading Validation
+
+all use the same Scan ID, Session ID and canonical data.
+
+====================================================
+FINAL ACCEPTANCE CRITERIA
+====================================================
+
+The platform is complete only if:
+
+✓ One source of truth.
+
+✓ One Scan ID.
+
+✓ One Session ID.
+
+✓ One Paper Trade Ledger.
+
+✓ One Portfolio Store.
+
+✓ No duplicate calculations.
+
+✓ Every BUY creates a paper trade.
+
+✓ Every paper trade updates Portfolio.
+
+✓ Portfolio updates Trade History.
+
+✓ Trade History updates Performance.
+
+✓ Replay matches Operations Centre.
+
+✓ Validation passes.
+
+✓ Broker matches Portfolio.
+
+✓ No UI issues remain.
+
+✓ No placeholder values remain.
+
+Finally provide a Production Readiness Report listing every remaining issue (if any), grouped by Critical, High, Medium and Low severity, with a recommendation on whether ApexQuant AI is ready for continuous paper trading.

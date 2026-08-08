@@ -136,12 +136,101 @@ def _apply_exit(rec: ExecutionRecord, sell: Dict[str, Any]) -> None:
         rec.exit_delay_seconds = max(0.0, (_aw(exit_dt) - _aw(entry_dt)).total_seconds())
 
 
+def _record_from_ledger_row(r: Dict[str, Any]) -> ExecutionRecord:
+    """One ExecutionRecord per phase20 ledger row (entry+exit on same row)."""
+    qty        = int(r.get("quantity") or 0)
+    signal_p   = float(r.get("signal_price") or 0.0)
+    fill_p     = float(r.get("fill_price") or signal_p)
+    slip_rs    = float(r.get("slippage") or 0.0)
+    total      = round(fill_p * qty, 2)
+    slip_pct   = (slip_rs / total * 100) if total > 0 else 0.0
+    stop_loss  = float(r.get("stop_loss") or 0.0)
+    target     = float(r.get("target") or 0.0)
+
+    rec = ExecutionRecord(
+        trade_id      = str(r.get("trade_id") or ""),
+        symbol        = str(r.get("symbol") or ""),
+        strategy_id   = str(r.get("strategy_id") or "ai_scan"),
+        strategy_name = str(r.get("strategy_name") or r.get("strategy_id") or "AI Scan"),
+        sector        = str(r.get("sector") or _sector_of(str(r.get("symbol") or ""))),
+        regime        = str(r.get("regime") or ""),
+        signal_ts     = r.get("signal_ts"),
+        entry_ts      = r.get("fill_ts"),
+        intended_entry_price = signal_p if signal_p > 0 else fill_p,
+        actual_entry_price   = fill_p,
+        entry_slippage_rs    = slip_rs,
+        entry_slippage_pct   = slip_pct,
+        fill_delay_seconds   = 0.0,
+        quantity    = qty,
+        entry_total = total,
+        stop_loss_set = stop_loss > 0,
+        target_set    = target > 0,
+        stop_loss     = stop_loss,
+        target        = target,
+    )
+    # Fill delay directly from ledger timestamps when available
+    sig_dt  = _parse_ts(r.get("signal_ts"))
+    fill_dt = _parse_ts(r.get("fill_ts"))
+    if sig_dt and fill_dt:
+        def _aw(dt: datetime) -> datetime:
+            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        rec.fill_delay_seconds = max(0.0, (_aw(fill_dt) - _aw(sig_dt)).total_seconds())
+
+    if str(r.get("status") or "") == "CLOSED" and r.get("exit_ts"):
+        exit_p = float(r.get("exit_price") or 0.0)
+        rec.exit_ts             = r.get("exit_ts")
+        rec.actual_exit_price   = exit_p
+        rec.intended_exit_price = exit_p          # paper fills at signal price
+        rec.exit_slippage_rs    = 0.0
+        rec.exit_slippage_pct   = 0.0
+        rec.exit_type           = str(r.get("exit_rule") or "SIGNAL_EXIT")
+        rec.pnl                 = float(r.get("realized_pnl") or 0.0)
+        cost = fill_p * qty
+        rec.pnl_pct             = (rec.pnl / cost * 100) if cost > 0 else 0.0
+        rec.is_complete         = True
+        entry_dt = _parse_ts(rec.entry_ts)
+        exit_dt  = _parse_ts(rec.exit_ts)
+        if entry_dt and exit_dt:
+            def _aw2(dt: datetime) -> datetime:
+                return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+            rec.exit_delay_seconds = max(0.0, (_aw2(exit_dt) - _aw2(entry_dt)).total_seconds())
+    return rec
+
+
 def build_execution_records() -> List[ExecutionRecord]:
     """
-    Build one ExecutionRecord per BUY trade.
-    Matches each BUY to the next SELL for the same symbol (FIFO).
-    Reads from portfolio_store only.
+    Build one ExecutionRecord per filled ledger trade.
+    Canonical source: phase20 paper trade ledger (entry+exit on one row).
     """
+    # Fallback to legacy portfolio_store is permitted ONLY when the canonical
+    # ledger itself is unavailable (pre-ledger installs / import failure).
+    # Once ledger rows are obtained, per-row processing errors are logged and
+    # the row skipped — we never silently swap the whole dataset to legacy.
+    ledger_rows = None
+    try:
+        from canonical_portfolio import _ledger_rows
+        ledger_rows = _ledger_rows()
+    except Exception as exc:
+        import sys
+        print(f"[execution_quality] canonical ledger unavailable, using legacy fallback: {exc}", file=sys.stderr)
+
+    if ledger_rows is not None:
+        records: List[ExecutionRecord] = []
+        for r in sorted(ledger_rows, key=lambda x: str(x.get("fill_ts") or "")):
+            if not r.get("fill_ts"):
+                continue  # never filled — not an execution
+            try:
+                rec = _record_from_ledger_row(r)
+                sv_delay = _sv_fill_delay(rec.trade_id)
+                if sv_delay is not None:
+                    rec.fill_delay_seconds = sv_delay
+                rec.quality_score, rec.quality_grade = score_trade(rec)
+                records.append(rec)
+            except Exception as exc:
+                import sys
+                print(f"[execution_quality] skipping malformed ledger row {r.get('trade_id')}: {exc}", file=sys.stderr)
+        return records
+
     from portfolio_store import load_all_trades_any
     trades = load_all_trades_any()
 

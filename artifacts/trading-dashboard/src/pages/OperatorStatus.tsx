@@ -166,7 +166,7 @@ function SystemStatusCard() {
 
   const scan = useQuery({
     queryKey: ["op-scan-status"],
-    queryFn: () => apiJson("/scan/status"),
+    queryFn: () => apiJson("/live-data/scan/status"),
     refetchInterval: 20_000,
   });
 

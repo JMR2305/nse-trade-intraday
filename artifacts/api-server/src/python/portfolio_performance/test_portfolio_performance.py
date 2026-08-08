@@ -38,6 +38,62 @@ os.environ.pop("PORTFOLIO_PERFORMANCE_ENABLED", None)
 # The engine shares one /tmp TTL cache across processes. In tests it would
 # (a) serve real dev data instead of the mocked store, and (b) leak one test's
 # mocked state into the next. Patch reads to always miss and writes to no-op.
+
+# ── Canonical-store test seam ─────────────────────────────────────────────────
+def _canon_from_state(state):
+    """Build a canonical_portfolio fixture equivalent to a legacy state mock."""
+    positions = []
+    invested = 0.0
+    unreal = 0.0
+    for sym, p in (state.get("positions") or {}).items():
+        qty = int(p.get("quantity", 0))
+        avg = float(p.get("avg_price", p.get("avg_cost", 0)))
+        cur = float(p.get("current_price", avg))
+        cost = avg * qty
+        mv = cur * qty
+        invested += cost
+        unreal += mv - cost
+        positions.append({
+            "trade_id": f"T-{sym}", "symbol": sym, "quantity": qty,
+            "avg_price": avg, "cost": cost, "mark_price": cur,
+            "mark_source": "scan", "market_value": mv,
+            "unrealized_pnl": mv - cost, "status": "OPEN",
+            "sector": p.get("sector"), "strategy_id": p.get("strategy"),
+            "opened_at": p.get("buy_ts"), "stop_loss": p.get("stop_loss"),
+            "target": p.get("target"), "scan_id": "scan-test",
+        })
+    cash = float(state.get("cash", 0.0))
+    return {
+        "source": "phase20_ledger", "scan_id": "scan-test",
+        "portfolio_version": f"{len(positions)}:", "initial_capital": cash + invested,
+        "cash": cash, "invested_value": invested,
+        "equity": cash + invested + unreal, "equity_complete": True,
+        "realized_pnl": 0.0, "unrealized_pnl": unreal, "unrealized_note": None,
+        "open_position_count": len(positions), "closed_trade_count": 0,
+        "positions": positions, "sector_exposure": {}, "mark_basis": "scan",
+    }
+
+
+def _state_patch(state):
+    """Patch legacy load_state AND the canonical portfolio in one context."""
+    from contextlib import ExitStack
+
+    class _Both:
+        def __enter__(self):
+            self._stack = ExitStack()
+            self._stack.enter_context(
+                patch("portfolio_store.load_state", return_value=state))
+            self._stack.enter_context(
+                patch("canonical_portfolio.build_canonical_portfolio",
+                      return_value=_canon_from_state(state)))
+            return self
+
+        def __exit__(self, *a):
+            return self._stack.__exit__(*a)
+
+    return _Both()
+
+
 _cache_patchers: list = []
 
 
@@ -165,8 +221,8 @@ class TestZeroTrades(unittest.TestCase):
 
     def _mock_store(self):
         return (
-            patch("portfolio_store.load_all_trades_any", return_value=[]),
-            patch("portfolio_store.load_state", return_value={
+            patch("canonical_portfolio.canonical_trades", return_value=[]),
+            _state_patch({
                 "cash": 500_000.0,
                 "positions": {},
                 "pnl_history": [{"timestamp": _ts(0), "value": 500_000.0}],
@@ -222,11 +278,11 @@ class TestSingleTrade(unittest.TestCase):
 
     def _mock_store(self, pnl=1000.0):
         return (
-            patch("portfolio_store.load_all_trades_any", return_value=[
+            patch("canonical_portfolio.canonical_trades", return_value=[
                 _buy("INFY", qty=10, price=1000.0, offset=0),
                 _sell("INFY", qty=10, price=1100.0, pnl=pnl, offset=2),
             ]),
-            patch("portfolio_store.load_state", return_value={
+            _state_patch({
                 "cash": 490_000.0,
                 "positions": {},
                 "pnl_history": _pnl_hist([(0, 500_000.0), (2, 501_000.0)]),
@@ -270,8 +326,8 @@ class TestMultipleTrades(unittest.TestCase):
         if hist is None:
             hist = _pnl_hist([(0, 500_000.0), (5, 502_000.0)])
         return (
-            patch("portfolio_store.load_all_trades_any", return_value=trades),
-            patch("portfolio_store.load_state", return_value={
+            patch("canonical_portfolio.canonical_trades", return_value=trades),
+            _state_patch({
                 "cash": cash, "positions": {}, "pnl_history": hist,
             }),
         )
@@ -350,8 +406,8 @@ class TestWinningPortfolio(unittest.TestCase):
             _buy("RELIANCE", 5,  2000.0, offset=2),
             _sell("RELIANCE",5,  2200.0, pnl=1000.0, offset=3),
         ]
-        with patch("portfolio_store.load_all_trades_any", return_value=trades), \
-             patch("portfolio_store.load_state", return_value={
+        with patch("canonical_portfolio.canonical_trades", return_value=trades), \
+             _state_patch({
                  "cash": 480_000.0, "positions": {},
                  "pnl_history": _pnl_hist([(0, 500_000.0), (4, 502_000.0)]),
              }):
@@ -374,8 +430,8 @@ class TestLosingPortfolio(unittest.TestCase):
             _buy("INFY", 10, 1000.0, offset=0),
             _sell("INFY", 10, 900.0, pnl=-1000.0, offset=1),
         ]
-        with patch("portfolio_store.load_all_trades_any", return_value=trades), \
-             patch("portfolio_store.load_state", return_value={
+        with patch("canonical_portfolio.canonical_trades", return_value=trades), \
+             _state_patch({
                  "cash": 499_000.0, "positions": {},
                  "pnl_history": _pnl_hist([(0, 500_000.0), (2, 499_000.0)]),
              }):
@@ -428,8 +484,8 @@ class TestDrawdownCalculations(unittest.TestCase):
 
     def test_drawdown_api_response(self):
         from portfolio_performance.api import get_drawdown
-        with patch("portfolio_store.load_all_trades_any", return_value=[]), \
-             patch("portfolio_store.load_state", return_value={
+        with patch("canonical_portfolio.canonical_trades", return_value=[]), \
+             _state_patch({
                  "cash": 490_000.0, "positions": {},
                  "pnl_history": _pnl_hist([(0, 500_000.0), (1, 510_000.0), (2, 495_000.0)]),
              }):
@@ -481,8 +537,8 @@ class TestEquityCurveCalculations(unittest.TestCase):
     def test_equity_api_response(self):
         from portfolio_performance.api import get_equity
         hist = _pnl_hist([(0, 500_000.0), (24, 501_000.0)])
-        with patch("portfolio_store.load_all_trades_any", return_value=[]), \
-             patch("portfolio_store.load_state", return_value={
+        with patch("canonical_portfolio.canonical_trades", return_value=[]), \
+             _state_patch({
                  "cash": 501_000.0, "positions": {}, "pnl_history": hist,
              }):
             r = get_equity("daily")
@@ -512,8 +568,8 @@ class TestRestartPersistence(unittest.TestCase):
             _buy("INFY", 10, 1000.0, offset=0),
             _sell("INFY", 10, 900.0, pnl=-1000.0, offset=1),
         ]
-        with patch("portfolio_store.load_all_trades_any", return_value=trades), \
-             patch("portfolio_store.load_state", return_value=state):
+        with patch("canonical_portfolio.canonical_trades", return_value=trades), \
+             _state_patch(state):
             r1 = get_summary()
             r2 = get_summary()
         self.assertEqual(r1["total_trades"], r2["total_trades"])

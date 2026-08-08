@@ -214,7 +214,7 @@ class TestExecutionRecord(unittest.TestCase):
 
 class TestBuildRecordsZeroTrades(unittest.TestCase):
     def test_empty_input(self):
-        with patch("portfolio_store.load_all_trades_any", return_value=[]):
+        with patch("canonical_portfolio._ledger_rows", side_effect=Exception("test: use legacy fallback")), patch("portfolio_store.load_all_trades_any", return_value=[]):
             with patch("execution_quality.metrics._sv_fill_delay", return_value=None):
                 with patch("execution_quality.metrics._sector_of", return_value="Unknown"):
                     from execution_quality.metrics import build_execution_records
@@ -227,7 +227,7 @@ class TestBuildRecordsZeroTrades(unittest.TestCase):
 class TestBuildRecordsSingle(unittest.TestCase):
     def test_single_complete_roundtrip(self):
         trades = [_buy(), _sell()]
-        with patch("portfolio_store.load_all_trades_any", return_value=trades):
+        with patch("canonical_portfolio._ledger_rows", side_effect=Exception("test: use legacy fallback")), patch("portfolio_store.load_all_trades_any", return_value=trades):
             with patch("execution_quality.metrics._sv_fill_delay", return_value=None):
                 with patch("execution_quality.metrics._sector_of", return_value="IT"):
                     from execution_quality.metrics import build_execution_records
@@ -241,13 +241,95 @@ class TestBuildRecordsSingle(unittest.TestCase):
 
     def test_open_position(self):
         trades = [_buy()]
-        with patch("portfolio_store.load_all_trades_any", return_value=trades):
+        with patch("canonical_portfolio._ledger_rows", side_effect=Exception("test: use legacy fallback")), patch("portfolio_store.load_all_trades_any", return_value=trades):
             with patch("execution_quality.metrics._sv_fill_delay", return_value=None):
                 with patch("execution_quality.metrics._sector_of", return_value="IT"):
                     from execution_quality.metrics import build_execution_records
                     records = build_execution_records()
         self.assertEqual(len(records), 1)
         self.assertFalse(records[0].is_complete)
+
+
+# ── Build execution records: canonical ledger path (primary) ─────────────────
+
+def _ledger_open_row(**over):
+    row = {
+        "trade_id": "P20-abc123", "symbol": "TCS", "quantity": 10,
+        "signal_price": 3500.0, "fill_price": 3502.5, "slippage": 25.0,
+        "signal_ts": "2026-08-07T04:17:00+00:00", "fill_ts": "2026-08-07T04:17:38+00:00",
+        "status": "OPEN", "strategy_id": "trend_rider", "strategy_name": "Trend Rider",
+        "sector": "IT", "regime": "LOW_VOLATILITY", "stop_loss": 3430.0, "target": 3640.0,
+    }
+    row.update(over)
+    return row
+
+
+def _ledger_closed_row(**over):
+    return _ledger_open_row(
+        status="CLOSED", exit_ts="2026-08-07T06:30:00+00:00", exit_price=3620.0,
+        exit_rule="TARGET_HIT", realized_pnl=1175.0, **over,
+    )
+
+
+class TestBuildRecordsCanonicalLedger(unittest.TestCase):
+    """The canonical ledger is the primary source — these tests exercise it
+    directly and prove legacy fallback is NOT used once rows are obtained."""
+
+    def _build(self, rows):
+        legacy = MagicMock(side_effect=AssertionError("legacy fallback must not be used"))
+        with patch("canonical_portfolio._ledger_rows", return_value=rows), \
+             patch("portfolio_store.load_all_trades_any", legacy), \
+             patch("execution_quality.metrics._sv_fill_delay", return_value=None), \
+             patch("execution_quality.metrics._sector_of", return_value="IT"):
+            from execution_quality.metrics import build_execution_records
+            records = build_execution_records()
+        legacy.assert_not_called()
+        return records
+
+    def test_open_row_maps_fields(self):
+        records = self._build([_ledger_open_row()])
+        self.assertEqual(len(records), 1)
+        r = records[0]
+        self.assertEqual(r.trade_id, "P20-abc123")
+        self.assertEqual(r.symbol, "TCS")
+        self.assertFalse(r.is_complete)
+        self.assertEqual(r.actual_entry_price, 3502.5)
+        self.assertEqual(r.intended_entry_price, 3500.0)
+        self.assertEqual(r.entry_slippage_rs, 25.0)
+        self.assertAlmostEqual(r.fill_delay_seconds, 38.0)
+        self.assertTrue(r.stop_loss_set)
+        self.assertTrue(r.target_set)
+        self.assertGreater(r.quality_score, 0)
+
+    def test_closed_row_maps_exit(self):
+        records = self._build([_ledger_closed_row()])
+        r = records[0]
+        self.assertTrue(r.is_complete)
+        self.assertEqual(r.exit_type, "TARGET_HIT")
+        self.assertEqual(r.actual_exit_price, 3620.0)
+        self.assertEqual(r.pnl, 1175.0)
+        self.assertAlmostEqual(r.pnl_pct, 1175.0 / (3502.5 * 10) * 100)
+        self.assertGreater(r.exit_delay_seconds, 0)
+
+    def test_unfilled_row_skipped(self):
+        records = self._build([_ledger_open_row(fill_ts=None)])
+        self.assertEqual(records, [])
+
+    def test_malformed_row_skipped_without_fallback(self):
+        # One bad row (quantity unparsable) must be skipped — never trigger
+        # a wholesale switch to legacy data.
+        rows = [_ledger_open_row(), _ledger_open_row(trade_id="BAD", quantity="not-a-number")]
+        records = self._build(rows)
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0].trade_id, "P20-abc123")
+
+    def test_rows_sorted_by_fill_ts(self):
+        rows = [
+            _ledger_open_row(trade_id="B", fill_ts="2026-08-07T05:00:00+00:00"),
+            _ledger_open_row(trade_id="A", fill_ts="2026-08-07T04:00:00+00:00"),
+        ]
+        records = self._build(rows)
+        self.assertEqual([r.trade_id for r in records], ["A", "B"])
 
 
 # ── Build execution records: multiple trades ──────────────────────────────────
@@ -260,7 +342,7 @@ class TestBuildRecordsMultiple(unittest.TestCase):
             _sell("TCS",  3700.0, trade_id="s1", buy_price=3500.0),
             _sell("INFY", 1900.0, trade_id="s2", buy_price=1800.0),
         ]
-        with patch("portfolio_store.load_all_trades_any", return_value=trades):
+        with patch("canonical_portfolio._ledger_rows", side_effect=Exception("test: use legacy fallback")), patch("portfolio_store.load_all_trades_any", return_value=trades):
             with patch("execution_quality.metrics._sv_fill_delay", return_value=None):
                 with patch("execution_quality.metrics._sector_of", return_value="IT"):
                     from execution_quality.metrics import build_execution_records
@@ -278,7 +360,7 @@ class TestBuildRecordsMultiple(unittest.TestCase):
             _sell("TCS", 3700.0, ts="2026-07-29T14:00:00", trade_id="s1", buy_price=3500.0),
             _sell("TCS", 3800.0, ts="2026-07-29T15:00:00", trade_id="s2", buy_price=3600.0),
         ]
-        with patch("portfolio_store.load_all_trades_any", return_value=trades):
+        with patch("canonical_portfolio._ledger_rows", side_effect=Exception("test: use legacy fallback")), patch("portfolio_store.load_all_trades_any", return_value=trades):
             with patch("execution_quality.metrics._sv_fill_delay", return_value=None):
                 with patch("execution_quality.metrics._sector_of", return_value="IT"):
                     from execution_quality.metrics import build_execution_records
@@ -293,7 +375,7 @@ class TestBuildRecordsMultiple(unittest.TestCase):
 class TestDelayedFills(unittest.TestCase):
     def test_sv_delay_applied(self):
         trades = [_buy()]
-        with patch("portfolio_store.load_all_trades_any", return_value=trades):
+        with patch("canonical_portfolio._ledger_rows", side_effect=Exception("test: use legacy fallback")), patch("portfolio_store.load_all_trades_any", return_value=trades):
             with patch("execution_quality.metrics._sv_fill_delay", return_value=45.0):
                 with patch("execution_quality.metrics._sector_of", return_value="IT"):
                     from execution_quality.metrics import build_execution_records
@@ -302,7 +384,7 @@ class TestDelayedFills(unittest.TestCase):
 
     def test_sv_delay_none_stays_zero(self):
         trades = [_buy()]
-        with patch("portfolio_store.load_all_trades_any", return_value=trades):
+        with patch("canonical_portfolio._ledger_rows", side_effect=Exception("test: use legacy fallback")), patch("portfolio_store.load_all_trades_any", return_value=trades):
             with patch("execution_quality.metrics._sv_fill_delay", return_value=None):
                 with patch("execution_quality.metrics._sector_of", return_value="IT"):
                     from execution_quality.metrics import build_execution_records
@@ -453,7 +535,7 @@ class TestRestartPersistence(unittest.TestCase):
     def test_deterministic_output(self):
         """build_execution_records() with same inputs returns same output."""
         trades = [_buy(), _sell()]
-        with patch("portfolio_store.load_all_trades_any", return_value=trades):
+        with patch("canonical_portfolio._ledger_rows", side_effect=Exception("test: use legacy fallback")), patch("portfolio_store.load_all_trades_any", return_value=trades):
             with patch("execution_quality.metrics._sv_fill_delay", return_value=None):
                 with patch("execution_quality.metrics._sector_of", return_value="IT"):
                     from execution_quality.metrics import build_execution_records

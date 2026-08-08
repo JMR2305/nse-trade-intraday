@@ -299,3 +299,10 @@ uri = "file://reports/data-consolidation/VERIFICATION.md"
 type = "text"
 title = "Data Consolidation — Verification Report"
 description = "Proof that all portfolio-facing pages now read the same canonical stores: per-page data sources, before/after divergences, and live parity figures."
+
+[[outputs]]
+id = "R834LJDi_03e5efma0Kbf"
+uri = "file://reports/production-readiness/PRODUCTION_READINESS_REPORT.md"
+type = "text"
+title = "Production Readiness Report — GO for continuous paper trading"
+description = "Full sprint audit: canonical source mapping for every page, pipeline trace, UI audit, fixes, and remaining issues by severity."

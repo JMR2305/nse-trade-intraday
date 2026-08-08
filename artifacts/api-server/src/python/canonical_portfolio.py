@@ -184,12 +184,18 @@ def canonical_trades(scope: str = "session") -> List[Dict[str, Any]]:
         qty = int(r.get("quantity") or 0)
         base = {
             "trade_id": r.get("trade_id"),
+            "id": r.get("trade_id"),               # legacy consumers
             "symbol": r.get("symbol"),
             "quantity": qty,
             "strategy": r.get("strategy_name") or r.get("strategy_id"),
+            "strategy_id": r.get("strategy_id"),
+            "strategy_name": r.get("strategy_name") or r.get("strategy_id"),
             "confidence": r.get("confidence"),
             "scan_id": r.get("scan_id"),
             "status": r.get("status"),
+            "stop_loss": r.get("stop_loss"),
+            "target": r.get("target"),
+            "sector": r.get("sector"),
             "source": "phase20_ledger",
         }
         fp = r.get("fill_price")
@@ -204,6 +210,8 @@ def canonical_trades(scope: str = "session") -> List[Dict[str, Any]]:
                         "total": round(float(ep) * qty, 2),
                         "timestamp": r.get("exit_ts"),
                         "reason": r.get("exit_rule") or "exit",
+                        "exit_type": r.get("exit_rule") or "SIGNAL_EXIT",
+                        "pnl": r.get("realized_pnl"),   # legacy consumers
                         "realized_pnl": r.get("realized_pnl")})
     out.sort(key=lambda t: str(t.get("timestamp") or ""), reverse=True)
     if scope != "all":

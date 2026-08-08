@@ -83,7 +83,7 @@ def _clear_perf_cache() -> None:
         pass
 
 
-def _write_raw_cache(raw_trades: List[Dict], state: Dict) -> None:
+def _write_raw_cache(raw_trades: List[Dict], state: Dict, canon: Optional[Dict] = None) -> None:
     """Write raw DB data to the TTL cache file.  Failures are non-fatal.
 
     Suppressed during pytest runs to prevent test isolation issues: a cached
@@ -97,6 +97,7 @@ def _write_raw_cache(raw_trades: List[Dict], state: Dict) -> None:
             "cached_at": datetime.now(timezone.utc).isoformat(),
             "raw_trades": raw_trades,
             "state": state,
+            "canon": canon,
         }
         tmp = _CACHE_FILE + ".tmp"
         with open(tmp, "w") as fh:
@@ -264,39 +265,52 @@ def load_performance_data() -> Dict[str, Any]:
           "realised_pnl":   float,
         }
     """
-    from portfolio_store import load_all_trades_any, load_state
+    # Canonical sources: phase20 ledger via canonical_portfolio (single source
+    # of truth). Legacy state is a TEMPORARY compatibility source used ONLY for
+    # the pnl_history equity-curve series (the ledger does not yet persist
+    # per-interval equity snapshots). It never feeds cash/equity/positions/
+    # trades, and within the cache TTL (30s) the curve may lag ledger writes.
+    from portfolio_store import load_state
+    from canonical_portfolio import build_canonical_portfolio, canonical_trades
 
     # ── Try cache (avoids DB round-trip within TTL) ───────────────────────────
     _cached = _read_raw_cache()
     if _cached is not None:
         raw_trades = _cached["raw_trades"]
         state      = _cached["state"]
+        canon      = _cached.get("canon") or build_canonical_portfolio()
         _log.debug("perf cache HIT (age < %ss)", _CACHE_TTL)
     else:
-        raw_trades = load_all_trades_any()
-        state      = load_state()
-        _write_raw_cache(raw_trades, state)
+        raw_trades = canonical_trades("all")
+        try:
+            state = load_state()
+        except Exception:
+            state = {}
+        canon = build_canonical_portfolio()
+        _write_raw_cache(raw_trades, state, canon)
         _log.debug("perf cache MISS — refreshed from DB")
 
-    cash         = float(state.get("cash", INITIAL_CAPITAL))
-    positions    = state.get("positions", {})
+    cash         = float(canon["cash"])
     pnl_history  = state.get("pnl_history", [])
 
-    # Portfolio value
-    # Positions persisted by paper_trader use key "avg_price" (state.json /
-    # paper_portfolio.positions); accept legacy "avg_cost" as a fallback.
-    invested    = sum(
-        float(p.get("avg_price", p.get("avg_cost", 0))) * int(p.get("quantity", 0))
-        for p in positions.values()
-        if isinstance(p, dict)
-    )
-    cur_pos_val = sum(
-        float(p.get("current_price", p.get("avg_price", p.get("avg_cost", 0)))) * int(p.get("quantity", 0))
-        for p in positions.values()
-        if isinstance(p, dict)
-    )
-    unrealised  = cur_pos_val - invested
-    total_value = cash + cur_pos_val
+    # Positions dict in legacy shape for downstream open-position builders
+    positions = {
+        p["symbol"]: {
+            "quantity":      p["quantity"],
+            "avg_price":     p["avg_price"],
+            "current_price": p["mark_price"] if p.get("mark_price") is not None else p["avg_price"],
+            "strategy":      p.get("strategy_id"),
+            "buy_ts":        p.get("opened_at"),
+            "stop_loss":     p.get("stop_loss"),
+            "target":        p.get("target"),
+        }
+        for p in canon["positions"]
+    }
+
+    invested    = float(canon["invested_value"])
+    unrealised  = float(canon["unrealized_pnl"] or 0.0)
+    cur_pos_val = invested + unrealised
+    total_value = float(canon["equity"])
 
     closed_trades  = _build_closed_trades(raw_trades)
     realised_pnl   = sum(t.pnl for t in closed_trades)
