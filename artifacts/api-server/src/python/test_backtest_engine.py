@@ -449,5 +449,135 @@ class TestReplayExplorer(BacktestEngineTestBase):
         self.assertEqual(v2["verdict"], "FAIL")
 
 
+class TestStrategyLab(BacktestEngineTestBase):
+    """Phase 23 Parts 6/7 — Strategy Lab is read-only + advisory; base runs
+    must remain byte-identical after every lab operation."""
+
+    def _seed_run(self, n_trades=8):
+        import strategy_lab as lab
+        lab._CACHE.clear()
+        candles = _make_candles("2026-01-05", 40, base=100.0, drift=1.0)
+        hde._store_candles("LAB", "1d", candles)
+        tl = [c["ts"] for c in candles]
+        rid = bp.create_run({"interval": "1d", "start": tl[0][:10],
+                             "end": tl[-1][:10], "capital": 100000.0,
+                             "symbols": ["LAB"]})
+        pnls = [120.0, -60.0, 200.0, -40.0, 90.0, -110.0, 150.0, 30.0]
+        regimes = ["TRENDING", "RANGING"] * 4
+        for i in range(n_trades):
+            tid = bp.open_trade({
+                "run_id": rid, "scan_id": f"{rid}-T{i * 4:05d}",
+                "symbol": "LAB", "strategy_id": f"s{i % 2}",
+                "strategy_name": f"Strat{i % 2}",
+                "signal_ts": tl[i * 4], "fill_ts": tl[i * 4],
+                "signal_price": 100.0 + i, "fill_price": 100.0 + i,
+                "quantity": 10, "stop_loss": 96.0 + i, "target": 110.0 + i,
+                "est_charges": 1.0, "slippage": 0.1,
+                "confidence": 45.0 + i * 5, "opportunity_score": 60.0,
+                "regime": regimes[i]})
+            bp.close_trade(tid, tl[i * 4 + 2],
+                           100.0 + i + pnls[i] / 10.0, "TARGET"
+                           if pnls[i] > 0 else "STOP")
+        bp.update_run(rid, status="COMPLETED",
+                      metrics={"ticks": len(tl), "portfolio_value": 100380.0,
+                               "cash": 100380.0,
+                               "equity_curve": [{"ts": tl[-1],
+                                                 "equity": 100380.0}]},
+                      validation={"verdict": "MATCH"})
+        return rid
+
+    def test_run_metrics_and_compare(self):
+        import strategy_lab as lab
+        rid = self._seed_run()
+        m = lab.run_metrics(rid)
+        self.assertTrue(m["ok"], m)
+        self.assertEqual(m["trades"], 8)
+        self.assertGreater(m["max_exposure"], 0)
+        self.assertIsNotNone(m["capital_growth_pct"])
+        cmp2 = lab.compare_runs([rid, "BT-NOPE"])
+        self.assertTrue(cmp2["rows"][0]["ok"])
+        self.assertFalse(cmp2["rows"][1]["ok"])   # unknown run fails loudly
+
+    def test_what_if_filters_and_immutability(self):
+        import strategy_lab as lab
+        rid = self._seed_run()
+        before = json.dumps(bp.trades(rid), sort_keys=True, default=str)
+        wf = lab.what_if(rid, {"min_confidence": 60})
+        self.assertTrue(wf["ok"], wf)
+        self.assertEqual(wf["trades_kept"] + wf["trades_dropped"], 8)
+        self.assertTrue(all("confidence" in d["reason"]
+                            for d in wf["dropped"]))
+        wf2 = lab.what_if(rid, {"stop_mult": 2.0, "target_mult": 1.5})
+        self.assertTrue(wf2["resimulated_exits"])
+        self.assertEqual(wf2["resim_failures"], 0)
+        # base ledger byte-identical — derived only
+        self.assertEqual(before, json.dumps(bp.trades(rid), sort_keys=True,
+                                            default=str))
+        self.assertFalse(wf.get("base_run_modified"))
+
+    def test_walk_forward_and_monte_carlo(self):
+        import strategy_lab as lab
+        rid = self._seed_run()
+        w = lab.walk_forward(rid, folds=3)
+        self.assertTrue(w["ok"])
+        self.assertEqual(w["verdict"], "OK")
+        self.assertTrue(w["folds"])
+        self.assertIn(w["overfitting_risk"], ("LOW", "MEDIUM", "HIGH"))
+        mc = lab.monte_carlo("backtest", rid, simulations=200)
+        self.assertEqual(mc["verdict"], "OK")
+        self.assertEqual(mc["simulations"], 200)
+        self.assertTrue(0 <= mc["probability_of_profit"] <= 100)
+        self.assertTrue(mc["return_histogram"])
+        # deterministic (seeded) — identical on rerun
+        mc2 = lab.monte_carlo("backtest", rid, simulations=200)
+        self.assertEqual(mc["expected_return_range_pct"],
+                         mc2["expected_return_range_pct"])
+
+    def test_buckets_leaderboard_calibration(self):
+        import strategy_lab as lab
+        rid = self._seed_run()
+        b = lab.bucket_analysis("backtest", rid)
+        self.assertEqual(b["verdict"], "OK")
+        self.assertEqual({r["bucket"] for r in b["regime"]},
+                         {"TRENDING", "RANGING"})
+        self.assertTrue(b["weekday"] and b["month"])
+        lb = lab.leaderboard("backtest", rid)
+        self.assertEqual(len(lb["rows"]), 2)     # Strat0 / Strat1
+        cal = lab.calibration("backtest", rid)
+        self.assertTrue(cal["reliability_curve"])
+        self.assertIsNotNone(cal["brier_score"])
+
+    def test_dashboard_recommendations_diff_export(self):
+        import strategy_lab as lab
+        rid = self._seed_run()
+        d = lab.dashboard("backtest", rid)
+        self.assertEqual(d["verdict"], "OK")
+        self.assertTrue(d["drawdown_curve"] and d["monthly_returns"])
+        self.assertTrue(d["risk_heatmap"])
+        r = lab.recommendations("backtest", rid)
+        self.assertTrue(r["ok"])
+        self.assertFalse(r["auto_apply"])        # advisory-only, always
+        rid2 = self._seed_run()
+        diff = lab.run_diff(rid, rid2)
+        self.assertTrue(diff["ok"])
+        ex = lab.export_report("backtest", rid, "markdown")
+        self.assertIn("Advisory only", ex["content"])
+        self.assertTrue(lab.export_report("backtest", rid, "csv")["content"])
+        self.assertTrue(lab.export_report("backtest", rid, "json")["content"])
+
+    def test_insufficient_evidence_never_extrapolates(self):
+        import strategy_lab as lab
+        rid = bp.create_run({"interval": "1d", "start": "2026-01-05",
+                             "end": "2026-01-09", "capital": 100000.0,
+                             "symbols": ["LAB"]})
+        bp.update_run(rid, status="COMPLETED", metrics={})
+        self.assertEqual(lab.monte_carlo("backtest", rid)["verdict"],
+                         "INSUFFICIENT_EVIDENCE")
+        self.assertEqual(lab.recommendations("backtest", rid)["verdict"],
+                         "INSUFFICIENT_EVIDENCE")
+        w = lab.walk_forward(rid)
+        self.assertEqual(w["verdict"], "INSUFFICIENT_EVIDENCE")
+
+
 if __name__ == "__main__":
     unittest.main()

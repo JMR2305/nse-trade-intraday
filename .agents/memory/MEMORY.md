@@ -78,6 +78,7 @@
 - [Aggregated ops dashboards](ops-dashboard-aggregators.md) — phase4a/validation dashboards use one Python aggregator over canonical stores; 30s route cache + single-flight; IST calendar-day windowing rules.
 - [Endpoint timeout patterns](endpoint-timeout-patterns.md) — apiJson 15s default kills slow aggregate endpoints; fix = Node.js in-process coalescing cache + explicit timeout in queryFn; 5 known slow endpoints documented.
 - [Canonical portfolio module](canonical-portfolio.md) — all positions/cash/equity/trades must derive from canonical_portfolio.py (phase20 ledger); never mix legacy state; don't ×100 already-percent confidences.
+- [Phase 23 strategy lab](phase23-strategy-lab.md) — what-if sims are derived-on-demand, never persisted; lab_verify byte-compares run+ledger; MIN_EVIDENCE=5, INSUFFICIENT_EVIDENCE over extrapolation.
 - [Phase 23 backtest engine](phase23-backtest-engine.md) — backtests call live _scan_one on as-of slices (never a second engine); isolated ledger; coverage-window candle cache; validate_run diffs replay vs pipeline.
 - [Phase 23 pipeline events](phase23-pipeline-events.md) — one append-only event stream for all dashboards; fail-safe emits, batched per-symbol, SQL summaries, 14-day prune, listener-gated SSE tail.
 - [Phase 24 learning engine](phase24-learning-engine.md) — advisory-only, append-only intelligence over phase20 ledger; AST safety test list must include any new phase24 module; no mock-candle excursions.

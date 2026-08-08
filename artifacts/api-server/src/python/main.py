@@ -2193,6 +2193,73 @@ def main():
             result = validate_run(str(p.get("run_id")),
                                   sample=int(p.get("sample") or 25))
 
+        # ── Phase 23 Parts 6/7: Strategy Lab + Institutional Analytics ────
+        elif command == "lab_compare_runs":
+            import strategy_lab as lab
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = lab.compare_runs(list(p.get("run_ids") or []))
+        elif command == "lab_what_if":
+            import strategy_lab as lab
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = lab.what_if(str(p.get("run_id")),
+                                 dict(p.get("params") or {}))
+        elif command == "lab_compare_configs":
+            import strategy_lab as lab
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = lab.compare_configs(str(p.get("run_id")),
+                                         list(p.get("configs") or []))
+        elif command == "lab_walk_forward":
+            import strategy_lab as lab
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = lab.walk_forward(str(p.get("run_id")),
+                                      folds=int(p.get("folds") or 4))
+        elif command == "lab_monte_carlo":
+            import strategy_lab as lab
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = lab.monte_carlo(str(p.get("source") or "backtest"),
+                                     run_id=p.get("run_id"),
+                                     simulations=int(p.get("simulations")
+                                                     or 500))
+        elif command == "lab_buckets":
+            import strategy_lab as lab
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = lab.bucket_analysis(str(p.get("source") or "backtest"),
+                                         run_id=p.get("run_id"))
+        elif command == "lab_leaderboard":
+            import strategy_lab as lab
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = lab.leaderboard(str(p.get("source") or "backtest"),
+                                     run_id=p.get("run_id"))
+        elif command == "lab_calibration":
+            import strategy_lab as lab
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = lab.calibration(str(p.get("source") or "backtest"),
+                                     run_id=p.get("run_id"))
+        elif command == "lab_dashboard":
+            import strategy_lab as lab
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = lab.dashboard(str(p.get("source") or "backtest"),
+                                   run_id=p.get("run_id"))
+        elif command == "lab_recommendations":
+            import strategy_lab as lab
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = lab.recommendations(str(p.get("source") or "backtest"),
+                                         run_id=p.get("run_id"))
+        elif command == "lab_run_diff":
+            import strategy_lab as lab
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = lab.run_diff(str(p.get("run_a")), str(p.get("run_b")))
+        elif command == "lab_export":
+            import strategy_lab as lab
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = lab.export_report(str(p.get("source") or "backtest"),
+                                       p.get("run_id"),
+                                       str(p.get("fmt") or "markdown"))
+        elif command == "lab_verify":
+            import strategy_lab as lab
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = lab.lab_verify(run_id=p.get("run_id"))
+
         # ── Phase 17: Automated QA & Release Validation ──────────────────
         elif command == "phase17_build_info":
             from phase17_qa import build_info

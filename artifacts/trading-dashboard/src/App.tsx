@@ -16,6 +16,7 @@ import TradeReplay from "@/pages/TradeReplay";
 import Backtest from "@/pages/Backtest";
 import Validate from "@/pages/Validate";
 import StrategyLab from "@/pages/StrategyLab";
+import OptimizationLab from "@/pages/OptimizationLab";
 import Optimizer from "@/pages/Optimizer";
 import MarketScanner from "@/pages/MarketScanner";
 import MarketReplay from "@/pages/MarketReplay";
@@ -115,6 +116,7 @@ import AIValidationV2Page          from "@/pages/AIValidationV2Page";
 import { ConnectivityPanel } from "@/components/ConnectivityPanel";
 import AILearningCenter            from "@/pages/AILearningCenter";
 import MissionControl              from "@/pages/MissionControl";
+import InstitutionalAnalytics      from "@/pages/InstitutionalAnalytics";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -152,6 +154,7 @@ function Router() {
         <Route path="/backtest" component={Backtest} />
         <Route path="/validate" component={Validate} />
         <Route path="/strategy-lab" component={StrategyLab} />
+        <Route path="/optimization-lab" component={OptimizationLab} />
         <Route path="/optimizer" component={Optimizer} />
         <Route path="/paper-basket-test" component={PaperBasketTest} />
         <Route path="/trade-intelligence" component={TradeIntelligence} />
@@ -246,6 +249,7 @@ function Router() {
         <Route path="/validation-v2"              component={AIValidationV2Page} />
         <Route path="/ai-learning-center"         component={AILearningCenter} />
         <Route path="/mission-control"            component={MissionControl} />
+        <Route path="/institutional-analytics"    component={InstitutionalAnalytics} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

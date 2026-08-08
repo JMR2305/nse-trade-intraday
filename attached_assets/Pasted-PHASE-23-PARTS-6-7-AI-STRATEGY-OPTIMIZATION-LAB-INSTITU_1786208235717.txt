@@ -1,0 +1,551 @@
+PHASE 23 – PARTS 6 & 7
+AI STRATEGY OPTIMIZATION LAB + INSTITUTIONAL PERFORMANCE ANALYTICS
+
+OBJECTIVE
+
+Parts 1–5 are complete.
+
+We now have:
+
+• Canonical Event Store
+• Live Trading Command Center
+• Historical Backtest Engine
+• Investigation Center
+• Replay Engine
+• Decision Explorer
+
+Now implement Parts 6 and 7.
+
+The objective is to transform ApexQuant AI into an institutional-grade strategy research and optimization platform.
+
+This phase MUST NOT modify live trading behaviour.
+
+Everything is advisory and analytical.
+
+===============================================================================
+ARCHITECTURE
+===============================================================================
+
+Read ONLY from
+
+Pipeline Event Store
+
+Backtest Store
+
+Paper Trade Ledger
+
+Portfolio Store
+
+Learning Engine
+
+Replay Store
+
+No duplicate calculations.
+
+No duplicate strategy logic.
+
+No automatic parameter modification.
+
+===============================================================================
+PART A
+STRATEGY OPTIMIZATION LAB
+===============================================================================
+
+Create a dedicated Strategy Optimization Lab.
+
+Allow comparison of multiple strategy configurations.
+
+Example
+
+Configuration A
+
+Confidence ≥60
+
+ATR 2x
+
+Risk 1%
+
+Configuration B
+
+Confidence ≥55
+
+ATR 2.5x
+
+Risk 1%
+
+Configuration C
+
+Confidence ≥50
+
+ATR 3x
+
+Risk 0.75%
+
+Display comparison.
+
+===============================================================================
+PART B
+MULTI-RUN COMPARISON
+===============================================================================
+
+Compare unlimited backtests.
+
+Display
+
+Run Name
+
+Period
+
+Universe
+
+Trades
+
+Win Rate
+
+PnL
+
+Sharpe
+
+Sortino
+
+Drawdown
+
+Profit Factor
+
+Expectancy
+
+Average Hold Time
+
+Recovery Factor
+
+Capital Growth
+
+Maximum Exposure
+
+===============================================================================
+PART C
+PARAMETER OPTIMIZER
+===============================================================================
+
+Support optimization for
+
+Confidence Threshold
+
+Risk Reward Ratio
+
+ATR Multiplier
+
+Trailing Stop
+
+Position Size
+
+Sector Exposure
+
+Maximum Open Trades
+
+Capital Allocation
+
+Market Regime Filter
+
+Volume Filter
+
+Liquidity Filter
+
+Every parameter change must produce a new isolated run.
+
+Never overwrite previous runs.
+
+===============================================================================
+PART D
+WALK-FORWARD TESTING
+===============================================================================
+
+Support
+
+Train
+
+↓
+
+Validate
+
+↓
+
+Roll Forward
+
+↓
+
+Repeat
+
+Display
+
+Training Performance
+
+Validation Performance
+
+Generalization Score
+
+Consistency
+
+Overfitting Risk
+
+===============================================================================
+PART E
+MONTE CARLO SIMULATION
+===============================================================================
+
+Run hundreds of randomized portfolio simulations using completed trade sequences.
+
+Calculate
+
+Probability of Profit
+
+Probability of Drawdown
+
+Expected Return Range
+
+Worst Expected Drawdown
+
+Best Expected Outcome
+
+Capital Survival Probability
+
+Risk of Ruin
+
+95% Confidence Interval
+
+Display graphs.
+
+===============================================================================
+PART F
+MARKET REGIME ANALYSIS
+===============================================================================
+
+Automatically classify trades.
+
+Trending
+
+Sideways
+
+High Volatility
+
+Low Volatility
+
+Gap Up
+
+Gap Down
+
+Bullish
+
+Bearish
+
+Display
+
+Trades
+
+Win Rate
+
+PnL
+
+Best Strategy
+
+Worst Strategy
+
+Average Hold
+
+===============================================================================
+PART G
+TIME ANALYSIS
+===============================================================================
+
+Analyse
+
+Hour
+
+Weekday
+
+Month
+
+Expiry Week
+
+Pre-market
+
+Opening Hour
+
+Closing Hour
+
+Display
+
+Best Time
+
+Worst Time
+
+Win Rate
+
+PnL
+
+===============================================================================
+PART H
+SECTOR ANALYSIS
+===============================================================================
+
+Analyse
+
+Technology
+
+Banking
+
+Auto
+
+Pharma
+
+FMCG
+
+Energy
+
+Metal
+
+Realty
+
+PSU
+
+Infrastructure
+
+Display
+
+Win Rate
+
+PnL
+
+Drawdown
+
+Expectancy
+
+Best Strategy
+
+Worst Strategy
+
+===============================================================================
+PART I
+STRATEGY LEADERBOARD
+===============================================================================
+
+Rank every strategy.
+
+Display
+
+Trades
+
+Win Rate
+
+PnL
+
+Drawdown
+
+Profit Factor
+
+Expectancy
+
+Sharpe
+
+Sortino
+
+Recovery
+
+Average Hold
+
+Confidence Accuracy
+
+Capital Efficiency
+
+===============================================================================
+PART J
+CONFIDENCE CALIBRATION
+===============================================================================
+
+Display
+
+Predicted Win Rate
+
+Observed Win Rate
+
+Calibration Error
+
+Confidence Distribution
+
+Reliability Curve
+
+Brier Score (if available)
+
+===============================================================================
+PART K
+INSTITUTIONAL ANALYTICS DASHBOARD
+===============================================================================
+
+Create a new dashboard.
+
+Sections
+
+Portfolio Growth
+
+Drawdown Curve
+
+Equity Curve
+
+Monthly Returns
+
+Rolling Sharpe
+
+Rolling Win Rate
+
+Rolling Profit Factor
+
+Strategy Comparison
+
+Sector Comparison
+
+Regime Comparison
+
+Confidence Calibration
+
+Risk Heatmap
+
+Capital Utilization
+
+===============================================================================
+PART L
+OPTIMIZATION RECOMMENDATIONS
+===============================================================================
+
+Generate recommendations.
+
+Examples
+
+Confidence threshold may be reduced to 56.
+
+Trailing stop should increase to 2.8 ATR.
+
+Technology allocation performing strongly.
+
+Banking allocation underperforming.
+
+Morning trades outperform afternoon.
+
+Do NOT automatically change anything.
+
+Recommendations only.
+
+===============================================================================
+PART M
+COMPARE ANY TWO RUNS
+===============================================================================
+
+User selects
+
+Run A
+
+Run B
+
+Display
+
+Trades Added
+
+Trades Removed
+
+PnL Difference
+
+Drawdown Difference
+
+Strategy Difference
+
+Confidence Difference
+
+Risk Difference
+
+===============================================================================
+PART N
+EXPORT
+===============================================================================
+
+Export
+
+PDF
+
+CSV
+
+JSON
+
+Markdown
+
+Include
+
+Charts
+
+Tables
+
+Metrics
+
+Recommendations
+
+===============================================================================
+PART O
+VALIDATION
+===============================================================================
+
+Verify
+
+Optimization never changes live strategy.
+
+Historical runs remain immutable.
+
+Learning Engine remains advisory.
+
+Replay integrity preserved.
+
+===============================================================================
+PART P
+PERFORMANCE
+===============================================================================
+
+Support thousands of trades.
+
+Background analytics.
+
+Caching.
+
+Incremental calculations.
+
+===============================================================================
+FINAL DELIVERABLES
+===============================================================================
+
+1. Strategy Optimization Lab
+
+2. Multi-run Comparison Engine
+
+3. Parameter Optimizer
+
+4. Walk-forward Testing
+
+5. Monte Carlo Simulator
+
+6. Market Regime Analytics
+
+7. Sector Analytics
+
+8. Time Analytics
+
+9. Strategy Leaderboard
+
+10. Institutional Analytics Dashboard
+
+11. Confidence Calibration Dashboard
+
+12. Recommendation Engine
+
+13. Run Comparison Tool
+
+14. Export Engine
+
+15. Automated Tests
+
+16. Verification Report proving all analytics are read-only and consume only the canonical Event Store, Backtest Store and Paper Trade Ledger.
