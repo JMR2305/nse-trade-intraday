@@ -1,0 +1,183 @@
+PHASE 26A – PORTFOLIO PRE-CHECK INTEGRATION
+
+OBJECTIVE
+
+Implement Open Task #15.
+
+The Portfolio Core Engine already exists.
+
+It must now become a mandatory gate in the live paper-trading pipeline.
+
+===============================================================================
+GOAL
+===============================================================================
+
+Before ANY BUY order reaches the Risk Agent or Execution pipeline,
+validate it against the Portfolio Core.
+
+No duplicate portfolio logic.
+
+Use the existing canonical Portfolio Engine.
+
+===============================================================================
+PIPELINE
+===============================================================================
+
+Current
+
+Scanner
+↓
+Research
+↓
+Market Intelligence
+↓
+Monitoring
+↓
+Strategy
+↓
+Risk
+↓
+Decision
+↓
+Execution
+
+New
+
+Scanner
+↓
+Research
+↓
+Market Intelligence
+↓
+Monitoring
+↓
+Strategy
+↓
+Portfolio Pre-Check
+↓
+Risk
+↓
+Decision
+↓
+Execution
+
+===============================================================================
+PORTFOLIO PRE-CHECK
+===============================================================================
+
+Validate:
+
+Available Cash
+
+Maximum Capital Allocation
+
+Maximum Open Positions
+
+Sector Exposure
+
+Single Position Exposure
+
+Daily Risk Budget
+
+Portfolio Concentration
+
+Duplicate Symbol
+
+Already Open Position
+
+Daily Loss Lock
+
+Maximum Drawdown Lock
+
+If any rule fails:
+
+Reject the trade.
+
+Store the exact rejection reason.
+
+Publish an event to the canonical Event Store.
+
+Expose the rejection in:
+
+• Mission Control
+• AI Operations Center
+• Investigation Center
+• Replay Engine
+
+===============================================================================
+UI
+===============================================================================
+
+Add a Portfolio Pre-Check stage to the AI pipeline.
+
+Display:
+
+Input Candidates
+
+Approved
+
+Rejected
+
+Reason
+
+Processing Time
+
+===============================================================================
+VALIDATION
+===============================================================================
+
+Verify:
+
+No duplicate calculations.
+
+Portfolio engine remains the single source of truth.
+
+Risk engine only evaluates candidates approved by Portfolio Pre-Check.
+
+Replay reflects Portfolio Pre-Check decisions.
+
+Mission Control displays correct counts.
+
+===============================================================================
+TESTS
+===============================================================================
+
+Add automated tests for:
+
+Insufficient Cash
+
+Sector Limit
+
+Duplicate Position
+
+Maximum Open Trades
+
+Capital Limit
+
+Daily Loss Lock
+
+Successful Approval
+
+Replay Consistency
+
+Mission Control Consistency
+
+===============================================================================
+DELIVERABLES
+===============================================================================
+
+1. Portfolio Pre-Check integrated into the live pipeline.
+
+2. Canonical event logging.
+
+3. UI integration.
+
+4. Replay integration.
+
+5. Mission Control integration.
+
+6. Investigation Center integration.
+
+7. Automated tests.
+
+8. Verification report confirming the Portfolio Engine is the only source of portfolio validation logic.

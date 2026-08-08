@@ -27,6 +27,7 @@ STRICTLY READ-ONLY. PAPER TRADING / RESEARCH ONLY.
 from __future__ import annotations
 
 import math
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
@@ -34,6 +35,12 @@ PASS, WARN, FAIL = "PASS", "WARN", "FAIL"
 INSUFFICIENT = "INSUFFICIENT_EVIDENCE"
 MIN_EVIDENCE = 5
 TOL = 0.01          # exact-balance tolerance (rupee rounding)
+
+# Freshness: a certification must never quietly rest on old evidence. A
+# backtest run older than this many days makes the replay/ai_decision
+# domains WARN (and WARN blocks READY). Configurable via env.
+DEFAULT_MAX_BACKTEST_AGE_DAYS = float(
+    os.getenv("CERT_MAX_BACKTEST_AGE_DAYS", "7"))
 
 ADVISORY = ("Read-only validation over canonical stores. Nothing is "
             "modified. PAPER TRADING / RESEARCH ONLY.")
@@ -75,6 +82,43 @@ def _parse_ts(ts: Any) -> Optional[datetime]:
         return datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
     except Exception:
         return None
+
+
+def _run_freshness_check(run: Optional[Dict[str, Any]],
+                         max_age_days: Optional[float] = None,
+                         now: Optional[datetime] = None) -> Dict[str, Any]:
+    """WARN when the backtest run this domain certifies against is older
+    than max_age_days (or its age cannot be established). A READY verdict
+    must never rest on week-old evidence without saying so."""
+    limit = float(max_age_days if max_age_days is not None
+                  else DEFAULT_MAX_BACKTEST_AGE_DAYS)
+    now = now or datetime.now(timezone.utc)
+    run = run or {}
+    ts = None
+    for key in ("completed_at", "started_at", "created_at"):
+        ts = _parse_ts(run.get(key))
+        if ts:
+            ts = ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
+            break
+    if ts is None:
+        return _check("backtest_run_fresh", WARN,
+                      "backtest run has no parseable timestamp — age "
+                      f"unknown (limit {limit:g} days); staleness cannot "
+                      "be ruled out")
+    age_days = (now - ts).total_seconds() / 86_400.0
+    if age_days < 0:  # future-dated evidence is never "fresh"
+        return _check("backtest_run_fresh", WARN,
+                      f"backtest run is timestamped {abs(age_days):.1f} "
+                      "days in the FUTURE — clock or data error; "
+                      "freshness cannot be established",
+                      age_days=round(age_days, 2), max_age_days=limit)
+    status = PASS if age_days <= limit else WARN
+    return _check("backtest_run_fresh", status,
+                  f"backtest evidence is {age_days:.1f} days old "
+                  f"(limit {limit:g} days)"
+                  + ("" if status == PASS else
+                     " — re-run the backtest before certifying"),
+                  age_days=round(age_days, 2), max_age_days=limit)
 
 
 # ── Part G: Data validation ──────────────────────────────────────────────────
@@ -439,11 +483,14 @@ def validate_portfolio(ledger_rows: Optional[List[Dict[str, Any]]] = None,
 # ── Part J: Replay validation ────────────────────────────────────────────────
 
 def validate_replay(run_id: Optional[str] = None,
-                    verify_result: Optional[Dict[str, Any]] = None
+                    verify_result: Optional[Dict[str, Any]] = None,
+                    run: Optional[Dict[str, Any]] = None,
+                    max_age_days: Optional[float] = None
                     ) -> Dict[str, Any]:
     """Orchestrates the existing replay integrity checker
     (backtest_replay.replay_verify) — replay ↔ ledger ↔ portfolio ↔ event
-    store must agree with no missing, duplicate, or drifted events."""
+    store must agree with no missing, duplicate, or drifted events.
+    Also WARNs when the run being certified against is stale."""
     checks: List[Dict[str, Any]] = []
     if verify_result is None:
         import backtest_portfolio as bp
@@ -455,8 +502,15 @@ def validate_replay(run_id: Optional[str] = None,
             checks.append(_check("completed_run_available", INSUFFICIENT,
                                  "no completed backtest runs to verify"))
             return _result("replay", checks, verdict=INSUFFICIENT)
+        if run is None:
+            run = bp.get_run(run_id) or {}
         from backtest_replay import replay_verify
         verify_result = replay_verify(run_id)
+    # Freshness: a READY certification must never rest on an old backtest.
+    # Only checkable when the run record is available (production path or
+    # injected fixture); injected verify_result without a run skips it.
+    if run is not None:
+        checks.append(_run_freshness_check(run, max_age_days))
 
     if not verify_result.get("ok"):
         checks.append(_check("replay_verify", FAIL,
@@ -481,11 +535,14 @@ def validate_replay(run_id: Optional[str] = None,
 
 def validate_ai_decisions(run_id: Optional[str] = None,
                           events: Optional[List[Dict[str, Any]]] = None,
-                          stored_validation: Optional[Dict[str, Any]] = None
+                          stored_validation: Optional[Dict[str, Any]] = None,
+                          run: Optional[Dict[str, Any]] = None,
+                          max_age_days: Optional[float] = None
                           ) -> Dict[str, Any]:
     """Decision determinism re-derived from STORED payloads only — never a
     live re-evaluation. The heavyweight pipeline re-execution proof is the
-    STORED validate_run verdict on the run record (orchestrated, not rerun)."""
+    STORED validate_run verdict on the run record (orchestrated, not rerun).
+    Also WARNs when the run being certified against is stale."""
     checks: List[Dict[str, Any]] = []
     if events is None:
         import backtest_portfolio as bp
@@ -501,8 +558,9 @@ def validate_ai_decisions(run_id: Optional[str] = None,
             return _result("ai_decision", checks, verdict=INSUFFICIENT)
         events = query_events(run_id=run_id, mode="BACKTEST",
                               stage="AI_DECISION", limit=5000)
-        if stored_validation is None:
+        if run is None:
             run = bp.get_run(run_id) or {}
+        if stored_validation is None:
             stored_validation = run.get("validation") or {}
 
     decisions = [e for e in events
@@ -556,6 +614,12 @@ def validate_ai_decisions(run_id: Optional[str] = None,
                              "no stored validate_run result — run the "
                              "backtest /validate endpoint to certify "
                              "decision ≡ pipeline"))
+
+    # 4. freshness: determinism proven against a week-old run is stale
+    # evidence. Only checkable when the run record is available
+    # (production path or injected fixture).
+    if run is not None:
+        checks.append(_run_freshness_check(run, max_age_days))
     return _result("ai_decision", checks, run_id=run_id,
                    decisions_checked=len(decisions))
 

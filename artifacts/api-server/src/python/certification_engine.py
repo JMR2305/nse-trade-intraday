@@ -201,10 +201,48 @@ def check_learning_engine() -> Dict[str, Any]:
     return ve._result("learning", checks)
 
 
-def check_mission_control(snapshot: Optional[Dict[str, Any]] = None
+IST = timezone(timedelta(hours=5, minutes=30))
+# Scans publish pre-open (08:45–09:15 IST); after this time on a weekday the
+# canonical snapshot is expected to be from TODAY's session.
+_SESSION_PUBLISH_CUTOFF = (9, 15)
+
+
+def _is_trading_day(day) -> bool:
+    """Canonical NSE calendar (weekends + holiday list) with a weekday-only
+    fallback if the calendar module is ever unavailable."""
+    try:
+        from market_hours import is_trading_day
+        return bool(is_trading_day(day))
+    except Exception:
+        return day.weekday() < 5
+
+
+def _latest_expected_session_date(now: Optional[datetime] = None):
+    """Most recent trading-session calendar day in IST, using the canonical
+    NSE trading calendar (weekends AND holidays). Before the pre-open
+    publish cutoff on a trading day, the previous session's snapshot is
+    still current."""
+    now = now or datetime.now(timezone.utc)
+    if now.tzinfo is None:  # naive input is UTC by contract, never host-local
+        now = now.replace(tzinfo=timezone.utc)
+    now_ist = now.astimezone(IST)
+    day = now_ist.date()
+    before_cutoff = (now_ist.hour, now_ist.minute) < _SESSION_PUBLISH_CUTOFF
+    if _is_trading_day(day) and not before_cutoff:
+        return day
+    day -= timedelta(days=1)
+    while not _is_trading_day(day):
+        day -= timedelta(days=1)
+    return day
+
+
+def check_mission_control(snapshot: Optional[Dict[str, Any]] = None,
+                          now: Optional[datetime] = None
                           ) -> Dict[str, Any]:
     """Mission-control integrity: the canonical scan snapshot the dashboards
-    hang off must exist and self-identify (scan_id + snapshot_ts)."""
+    hang off must exist, self-identify (scan_id + snapshot_ts), and be from
+    the current/most recent trading session — yesterday's scan must never
+    silently certify as READY."""
     checks: List[Dict[str, Any]] = []
     if snapshot is None:
         try:
@@ -225,6 +263,38 @@ def check_mission_control(snapshot: Optional[Dict[str, Any]] = None
         "snapshot_identity", PASS if sid and ts else FAIL,
         f"scan_id={sid or 'MISSING'}, snapshot_ts={ts or 'MISSING'} — "
         "every dashboard value must trace to one scan"))
+
+    # Freshness: snapshot must be from the current/most recent trading
+    # session (IST weekday rule) — WARN blocks READY, so a stale scan can
+    # never silently certify.
+    if ts:
+        expected = _latest_expected_session_date(now)
+        snap_dt = ve._parse_ts(ts)
+        if snap_dt is None:
+            checks.append(ve._check(
+                "snapshot_session_fresh", WARN,
+                f"snapshot_ts '{ts}' unparseable — staleness cannot be "
+                "ruled out"))
+        else:
+            if snap_dt.tzinfo is None:
+                snap_dt = snap_dt.replace(tzinfo=timezone.utc)
+            snap_day = snap_dt.astimezone(IST).date()
+            ref = now or datetime.now(timezone.utc)
+            if ref.tzinfo is None:
+                ref = ref.replace(tzinfo=timezone.utc)
+            future = snap_dt > ref
+            fresh = (snap_day >= expected) and not future
+            checks.append(ve._check(
+                "snapshot_session_fresh", PASS if fresh else WARN,
+                (f"snapshot_ts is in the FUTURE ({ts}) — clock or data "
+                 "error; freshness cannot be established" if future else
+                 f"snapshot IST date {snap_day.isoformat()} vs latest "
+                 f"expected session {expected.isoformat()} "
+                 "(NSE trading calendar)"
+                 + ("" if fresh else " — run a fresh scan before "
+                                     "certifying")),
+                snapshot_ist_date=snap_day.isoformat(),
+                expected_session_date=expected.isoformat()))
     return ve._result("mission_control", checks, scan_id=sid,
                       snapshot_ts=ts)
 
@@ -242,14 +312,15 @@ def run_certification(config: Optional[Dict[str, Any]] = None,
         results = dict(validator_results)
     else:
         run_id = cfg.get("run_id")
+        max_age = cfg.get("max_backtest_age_days")
         for name, fn in (("data", lambda: ve.validate_data()),
                          ("pipeline", lambda: ve.validate_pipeline(
                              run_id=run_id)),
                          ("portfolio", lambda: ve.validate_portfolio()),
                          ("replay", lambda: ve.validate_replay(
-                             run_id=run_id)),
+                             run_id=run_id, max_age_days=max_age)),
                          ("ai_decision", lambda: ve.validate_ai_decisions(
-                             run_id=run_id)),
+                             run_id=run_id, max_age_days=max_age)),
                          ("performance", lambda: ve.validate_performance(
                              source=str(cfg.get("source") or "paper")))):
             try:

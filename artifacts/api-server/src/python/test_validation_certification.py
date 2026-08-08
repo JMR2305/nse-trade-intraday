@@ -18,7 +18,7 @@ import shutil
 import sys
 import tempfile
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -426,13 +426,209 @@ class TestIntegritySpotChecks(unittest.TestCase):
         self.assertIn(r["verdict"], ("PASS", "FAIL"))
 
     def test_mission_control_snapshot_identity(self):
+        # Wed 2026-08-05 10:00 IST — snapshot from that morning is fresh
+        now = datetime(2026, 8, 5, 4, 30, tzinfo=timezone.utc)
         r = ce.check_mission_control(snapshot={
-            "scan_id": "S-1", "snapshot_ts": "2026-08-05T04:00:00Z"})
+            "scan_id": "S-1", "snapshot_ts": "2026-08-05T04:00:00Z"},
+            now=now)
         self.assertEqual(r["verdict"], "PASS")
 
     def test_mission_control_no_snapshot_insufficient(self):
         r = ce.check_mission_control(snapshot={})
         self.assertEqual(r["verdict"], "INSUFFICIENT_EVIDENCE")
+
+    def test_mission_control_stale_snapshot_warns(self):
+        # Sat 2026-08-08 → latest expected session Fri 2026-08-07; a
+        # Wednesday snapshot is stale and must WARN (blocks READY)
+        now = datetime(2026, 8, 8, 6, 0, tzinfo=timezone.utc)
+        r = ce.check_mission_control(snapshot={
+            "scan_id": "S-1", "snapshot_ts": "2026-08-05T04:00:00Z"},
+            now=now)
+        self.assertEqual(r["verdict"], "WARN")
+        c = [x for x in r["checks"]
+             if x["check"] == "snapshot_session_fresh"][0]
+        self.assertEqual(c["status"], "WARN")
+
+    def test_mission_control_friday_snapshot_fresh_on_weekend(self):
+        now = datetime(2026, 8, 8, 6, 0, tzinfo=timezone.utc)  # Sat
+        r = ce.check_mission_control(snapshot={
+            "scan_id": "S-1", "snapshot_ts": "2026-08-07T03:30:00Z"},
+            now=now)
+        self.assertEqual(r["verdict"], "PASS")
+
+    def test_mission_control_monday_pre_open_accepts_friday(self):
+        # Mon 08:00 IST (before the 09:15 publish cutoff) → Friday's
+        # snapshot is still the most recent session
+        now = datetime(2026, 8, 10, 2, 30, tzinfo=timezone.utc)
+        r = ce.check_mission_control(snapshot={
+            "scan_id": "S-1", "snapshot_ts": "2026-08-07T03:30:00Z"},
+            now=now)
+        self.assertEqual(r["verdict"], "PASS")
+
+    def test_mission_control_monday_post_open_warns_on_friday(self):
+        # Mon 10:00 IST → today's session snapshot is expected
+        now = datetime(2026, 8, 10, 4, 30, tzinfo=timezone.utc)
+        r = ce.check_mission_control(snapshot={
+            "scan_id": "S-1", "snapshot_ts": "2026-08-07T03:30:00Z"},
+            now=now)
+        self.assertEqual(r["verdict"], "WARN")
+
+    def test_mission_control_holiday_accepts_previous_session(self):
+        # Mon 2026-09-14 is Ganesh Chaturthi (NSE holiday). Midday on the
+        # holiday, Friday 2026-09-11's snapshot is the latest real session
+        # and must certify as fresh.
+        now = datetime(2026, 9, 14, 6, 30, tzinfo=timezone.utc)
+        r = ce.check_mission_control(snapshot={
+            "scan_id": "S-1", "snapshot_ts": "2026-09-11T03:30:00Z"},
+            now=now)
+        self.assertEqual(r["verdict"], "PASS")
+
+    def test_mission_control_holiday_still_warns_on_older_snapshot(self):
+        now = datetime(2026, 9, 14, 6, 30, tzinfo=timezone.utc)  # holiday
+        r = ce.check_mission_control(snapshot={
+            "scan_id": "S-1", "snapshot_ts": "2026-09-10T03:30:00Z"},
+            now=now)  # Thursday — one session too old
+        self.assertEqual(r["verdict"], "WARN")
+
+    def test_mission_control_day_after_holiday_pre_open(self):
+        # Tue 2026-09-15 08:00 IST (before publish cutoff, after Monday
+        # holiday) → Friday's snapshot is still the most recent session
+        now = datetime(2026, 9, 15, 2, 30, tzinfo=timezone.utc)
+        r = ce.check_mission_control(snapshot={
+            "scan_id": "S-1", "snapshot_ts": "2026-09-11T03:30:00Z"},
+            now=now)
+        self.assertEqual(r["verdict"], "PASS")
+
+    def test_mission_control_day_after_holiday_post_open(self):
+        # Tue 2026-09-15 10:00 IST → today's snapshot is expected
+        now = datetime(2026, 9, 15, 4, 30, tzinfo=timezone.utc)
+        r = ce.check_mission_control(snapshot={
+            "scan_id": "S-1", "snapshot_ts": "2026-09-11T03:30:00Z"},
+            now=now)
+        self.assertEqual(r["verdict"], "WARN")
+
+    def test_mission_control_unparseable_ts_warns(self):
+        r = ce.check_mission_control(snapshot={
+            "scan_id": "S-1", "snapshot_ts": "not-a-date"})
+        # identity check FAILs? no — ts is truthy so identity PASSes,
+        # freshness must WARN because age is unknowable
+        self.assertEqual(r["verdict"], "WARN")
+
+
+class TestBacktestFreshness(unittest.TestCase):
+    _VR = {"ok": True, "run_id": "BT-1", "verdict": "PASS",
+           "checks": [{"check": "no_duplicate_events", "status": "PASS",
+                       "detail": "ok"}]}
+
+    def test_replay_fresh_run_passes(self):
+        run = {"completed_at": (datetime.now(timezone.utc)
+                                - timedelta(days=1)).isoformat()}
+        r = ve.validate_replay(run_id="BT-1", verify_result=self._VR,
+                               run=run)
+        self.assertEqual(r["verdict"], "PASS")
+
+    def test_replay_stale_run_warns(self):
+        run = {"completed_at": (datetime.now(timezone.utc)
+                                - timedelta(days=30)).isoformat()}
+        r = ve.validate_replay(run_id="BT-1", verify_result=self._VR,
+                               run=run)
+        self.assertEqual(r["verdict"], "WARN")
+        c = [x for x in r["checks"]
+             if x["check"] == "backtest_run_fresh"][0]
+        self.assertEqual(c["status"], "WARN")
+
+    def test_replay_configurable_age(self):
+        run = {"completed_at": (datetime.now(timezone.utc)
+                                - timedelta(days=10)).isoformat()}
+        stale = ve.validate_replay(run_id="BT-1", verify_result=self._VR,
+                                   run=run, max_age_days=7)
+        fresh = ve.validate_replay(run_id="BT-1", verify_result=self._VR,
+                                   run=run, max_age_days=14)
+        self.assertEqual(stale["verdict"], "WARN")
+        self.assertEqual(fresh["verdict"], "PASS")
+
+    def test_replay_run_without_timestamp_warns(self):
+        r = ve.validate_replay(run_id="BT-1", verify_result=self._VR,
+                               run={})
+        self.assertEqual(r["verdict"], "WARN")
+
+    def test_replay_no_run_record_skips_freshness(self):
+        r = ve.validate_replay(run_id="BT-1", verify_result=self._VR)
+        self.assertEqual(r["verdict"], "PASS")
+        self.assertFalse([x for x in r["checks"]
+                          if x["check"] == "backtest_run_fresh"])
+
+    def test_ai_decisions_stale_run_warns(self):
+        events = [
+            {"id": 1, "event_type": "BUY_GENERATED", "stage": "AI_DECISION",
+             "scan_id": "S-1", "symbol": "RELIANCE",
+             "payload": {"confidence": 72.0}}]
+        run = {"completed_at": (datetime.now(timezone.utc)
+                                - timedelta(days=30)).isoformat()}
+        r = ve.validate_ai_decisions(events=events,
+                                     stored_validation={"verdict": "MATCH"},
+                                     run=run)
+        self.assertEqual(r["verdict"], "WARN")
+
+    def test_future_dated_run_warns(self):
+        run = {"completed_at": (datetime.now(timezone.utc)
+                                + timedelta(days=3)).isoformat()}
+        r = ve.validate_replay(run_id="BT-1", verify_result=self._VR,
+                               run=run)
+        self.assertEqual(r["verdict"], "WARN")
+
+    def test_sub_minute_future_run_warns(self):
+        run = {"completed_at": (datetime.now(timezone.utc)
+                                + timedelta(seconds=30)).isoformat()}
+        r = ve.validate_replay(run_id="BT-1", verify_result=self._VR,
+                               run=run)
+        self.assertEqual(r["verdict"], "WARN")
+
+    def test_sub_minute_future_snapshot_warns(self):
+        now = datetime(2026, 8, 5, 4, 30, tzinfo=timezone.utc)  # Wed
+        r = ce.check_mission_control(snapshot={
+            "scan_id": "S-1", "snapshot_ts": "2026-08-05T04:30:30Z"},
+            now=now)
+        self.assertEqual(r["verdict"], "WARN")
+
+    def test_future_dated_snapshot_warns(self):
+        now = datetime(2026, 8, 5, 4, 30, tzinfo=timezone.utc)  # Wed
+        r = ce.check_mission_control(snapshot={
+            "scan_id": "S-1", "snapshot_ts": "2026-08-06T04:00:00Z"},
+            now=now)
+        self.assertEqual(r["verdict"], "WARN")
+
+    def test_certification_blocks_ready_on_stale_run(self):
+        stale = {"run_id": "BT-1", "status": "COMPLETED",
+                 "completed_at": (datetime.now(timezone.utc)
+                                  - timedelta(days=30)).isoformat()}
+        vr = dict(self._VR)
+        events = [
+            {"id": 1, "event_type": "BUY_GENERATED", "stage": "AI_DECISION",
+             "scan_id": "S-1", "symbol": "RELIANCE",
+             "payload": {"confidence": 72.0}}]
+        results = _domain_results()
+        results["replay"] = ve.validate_replay(
+            run_id="BT-1", verify_result=vr, run=stale)
+        results["ai_decision"] = ve.validate_ai_decisions(
+            events=events, stored_validation={"verdict": "MATCH"},
+            run=stale)
+        r = ce.run_certification(validator_results=results, persist=False)
+        self.assertEqual(r["verdict"], "NOT_READY")
+        self.assertIn("replay: WARN", r["blockers"])
+        self.assertIn("ai_decision: WARN", r["blockers"])
+
+    def test_ai_decisions_fresh_run_passes(self):
+        events = [
+            {"id": 1, "event_type": "BUY_GENERATED", "stage": "AI_DECISION",
+             "scan_id": "S-1", "symbol": "RELIANCE",
+             "payload": {"confidence": 72.0}}]
+        run = {"completed_at": (datetime.now(timezone.utc)
+                                - timedelta(days=1)).isoformat()}
+        r = ve.validate_ai_decisions(events=events,
+                                     stored_validation={"verdict": "MATCH"},
+                                     run=run)
+        self.assertEqual(r["verdict"], "PASS")
 
 
 # ── Part P: long-duration validation ─────────────────────────────────────────
