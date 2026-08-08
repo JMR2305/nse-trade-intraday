@@ -341,3 +341,10 @@ uri = "file://artifacts/api-server/reports/PHASE23_8_9_SUMMARY.md"
 type = "text"
 title = "Phase 23.8 & 23.9 Summary"
 description = "Summary of the AI Simulation Lab (23.8A), Validation & Certification Engines (23.8B), and Validation Dashboard, Export & Final Acceptance (23.9)."
+
+[[outputs]]
+id = "id6U2gjgLCttYwwfMdBu6"
+uri = "file://artifacts/api-server/reports/OPEN_TASKS_REPORT.md"
+type = "text"
+title = "Open Tasks Report"
+description = "All 157 open project tasks with a brief description each, grouped by status."
