@@ -334,3 +334,10 @@ uri = "file://artifacts/api-server/reports/PHASE8_9_SUMMARY.md"
 type = "text"
 title = "Phase 8 & 9 Summary"
 description = "Summary of the Phase 8 operations/governance centres (8.1–8.8) and the Phase 9 unified workspace & UX layer (9.1–9.7)."
+
+[[outputs]]
+id = "dXWjs_2WmKWMed4pyQ4OI"
+uri = "file://artifacts/api-server/reports/PHASE23_8_9_SUMMARY.md"
+type = "text"
+title = "Phase 23.8 & 23.9 Summary"
+description = "Summary of the AI Simulation Lab (23.8A), Validation & Certification Engines (23.8B), and Validation Dashboard, Export & Final Acceptance (23.9)."
