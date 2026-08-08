@@ -2302,6 +2302,53 @@ def main():
             import simulation_lab as sim
             result = sim.execution_stress()
 
+        # ── Phase 23.8B: Validation & Certification Engines ──────────────
+        elif command == "cert_validate":
+            import validation_engines as vex
+            p = json.loads(sys.argv[3]) if len(sys.argv) > 3 else {}
+            _domain = sys.argv[2] if len(sys.argv) > 2 else ""
+            if _domain == "data":
+                result = vex.validate_data(symbols=p.get("symbols"),
+                                           interval=str(p.get("interval")
+                                                        or "1d"),
+                                           start=p.get("start"),
+                                           end=p.get("end"))
+            elif _domain == "pipeline":
+                result = vex.validate_pipeline(run_id=p.get("run_id"),
+                                               scan_id=p.get("scan_id"),
+                                               mode=str(p.get("mode")
+                                                        or "LIVE"))
+            elif _domain == "portfolio":
+                result = vex.validate_portfolio()
+            elif _domain == "replay":
+                result = vex.validate_replay(run_id=p.get("run_id"))
+            elif _domain == "ai_decision":
+                result = vex.validate_ai_decisions(run_id=p.get("run_id"))
+            elif _domain == "performance":
+                result = vex.validate_performance(
+                    source=str(p.get("source") or "paper"),
+                    run_id=p.get("run_id"))
+            else:
+                error_msg = f"Unknown validation domain: {_domain}"
+        elif command == "cert_run":
+            import certification_engine as cert
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = cert.run_certification(config=p)
+        elif command == "cert_history":
+            import certification_engine as cert
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = cert.list_certifications(limit=int(p.get("limit")
+                                                        or 50))
+        elif command == "cert_get":
+            import certification_engine as cert
+            _cid = sys.argv[2] if len(sys.argv) > 2 else ""
+            result = cert.get_certification(_cid)
+        elif command == "cert_long_duration":
+            import certification_engine as cert
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = cert.long_duration_validation(
+                window=str(p.get("window") or "1m"))
+
         # ── Phase 17: Automated QA & Release Validation ──────────────────
         elif command == "phase17_build_info":
             from phase17_qa import build_info

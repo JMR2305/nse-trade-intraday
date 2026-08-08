@@ -87,3 +87,4 @@
 - [Mission Control 25C](mission-control-25c.md) — command bar reuses control endpoints w/ confirms; homeRoute auto pref; Vitest4: never mockReset an API mock in beforeEach or RQ rejections go unhandled.
 - [Portfolio performance routing](portfolio-performance-routing.md) — 5D.2 analytics live at /portfolio-performance/*, perf centre keeps /performance/*; positions key is avg_price; INITIAL_CAPITAL from portfolio_store.
 - [Phase 23.8A Simulation Lab](phase238a-simulation-lab.md) — append-only sim runs; compare must fetch by id (no history-window/selection caps); stress tests on in-memory copies only.
+- [Phase 23.8B validation & certification](phase238b-validation-certification.md) — validators orchestrate existing checkers with injected fixtures; READY needs every domain PASS (WARN/INSUFFICIENT block); append-only cert runs.
