@@ -475,19 +475,89 @@ def run_eod_reconciliation(
     # ── Claim the day immediately (idempotency) ──────────────────────────────
     _kv_set("eod_reconcil_date", today)
 
-    # ── Paper mode fast path ─────────────────────────────────────────────────
+    # ── Paper mode: reconcile the paper ledger (phase20_paper_trades) ────────
+    # There is no external broker to compare against, but the internal ledger
+    # must still be verified: every simulated order today is counted and
+    # checked for structural integrity (fills present, closed rows carry P&L).
     if paper_mode:
+        paper_orders_checked = 0
+        paper_counts = {"open": 0, "filled": 0, "cancelled": 0, "closed": 0}
+        discrepancies_p: List[Dict[str, Any]] = []
+        try:
+            from scan_state_store import _connect
+            conn = _connect()
+            try:
+                _ensure_schema(conn)
+                # Bootstrap the ledger schema so a fresh DB (no trades yet)
+                # reconciles cleanly to zero instead of erroring.
+                try:
+                    from phase20_executor import _ensure_schema as _ensure_ledger
+                    _ensure_ledger(conn)
+                except Exception:
+                    pass
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT trade_id, symbol, status, quantity,
+                               fill_price, fill_ts, exit_ts, realized_pnl
+                        FROM phase20_paper_trades
+                        WHERE DATE(fill_ts::timestamptz AT TIME ZONE 'UTC') = CURRENT_DATE
+                           OR DATE(exit_ts::timestamptz AT TIME ZONE 'UTC') = CURRENT_DATE
+                        ORDER BY fill_ts
+                    """)
+                    cols = [d[0] for d in cur.description]
+                    rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+                paper_orders_checked = len(rows)
+                for r in rows:
+                    st = str(r.get("status") or "").upper()
+                    # Phase20 lifecycle: OPEN and EXIT_PENDING are both
+                    # already-filled positions (EXIT_PENDING = filled, exit
+                    # awaiting a quote); CLOSED was filled then exited.
+                    if st in ("OPEN", "EXIT_PENDING"):
+                        paper_counts["open"] += 1
+                        paper_counts["filled"] += 1
+                    elif st in ("CLOSED", "EXITED"):
+                        paper_counts["closed"] += 1
+                        paper_counts["filled"] += 1
+                    elif st == "CANCELLED":
+                        paper_counts["cancelled"] += 1
+                    # Structural integrity checks (status-aware: a cancelled
+                    # order may legitimately have no fill price).
+                    if st != "CANCELLED" and (not r.get("fill_price") or float(r.get("fill_price") or 0) <= 0):
+                        discrepancies_p.append({
+                            "discrepancy_type": "MISSING_FILL_PRICE",
+                            "internal_order_id": r.get("trade_id"),
+                            "trading_symbol": r.get("symbol"),
+                            "description": "Ledger row without a positive fill price",
+                            "requires_manual_review": True})
+                    if st == "CLOSED" and r.get("realized_pnl") is None:
+                        discrepancies_p.append({
+                            "discrepancy_type": "MISSING_REALIZED_PNL",
+                            "internal_order_id": r.get("trade_id"),
+                            "trading_symbol": r.get("symbol"),
+                            "description": "Closed trade without realized P&L",
+                            "requires_manual_review": True})
+            finally:
+                conn.close()
+        except Exception as exc:
+            _log(f"Paper ledger reconciliation failed: {exc}")
+            discrepancies_p.append({
+                "discrepancy_type": "LEDGER_UNREADABLE",
+                "description": f"Could not read phase20_paper_trades: {str(exc)[:200]}",
+                "requires_manual_review": True})
         completed_at = _now_utc()
+        clean_p = len(discrepancies_p) == 0
         report = {
             "success": True,
             "run_id": run_id,
             "trigger": trigger,
             "started_at": _iso(started_at),
             "completed_at": _iso(completed_at),
-            "orders_checked": 0,
-            "discrepancy_count": 0,
-            "requires_review_count": 0,
-            "clean": True,
+            "orders_checked": paper_orders_checked,
+            "paper_ledger": paper_counts,
+            "discrepancies": discrepancies_p,
+            "discrepancy_count": len(discrepancies_p),
+            "requires_review_count": sum(1 for d in discrepancies_p if d.get("requires_manual_review")),
+            "clean": clean_p,
             "paper_mode": True,
             "email": {"sent": False, "reason": "PAPER_MODE"},
         }
@@ -498,15 +568,20 @@ def run_eod_reconciliation(
             try:
                 _ensure_schema(conn)
                 _persist_run(conn, run_id, trigger, started_at, completed_at,
-                             0, [], True, None)
+                             paper_orders_checked, discrepancies_p, True, None)
             finally:
                 conn.close()
         except Exception as exc:
             _log(f"DB persist skipped (paper): {exc}")
         _kv_set("eod_reconcil_last", report)
-        _add_notification("RECONCILIATION_EOD", "EOD reconciliation: clean (paper mode)",
-                          f"Run {run_id}", severity="INFO",
-                          context={"run_id": run_id, "trigger": trigger})
+        _add_notification(
+            "RECONCILIATION_EOD",
+            f"EOD reconciliation ({'clean' if clean_p else 'issues found'}, paper mode)",
+            f"Run {run_id}: {paper_orders_checked} paper orders checked, "
+            f"{len(discrepancies_p)} discrepancies",
+            severity="INFO" if clean_p else "WARNING",
+            context={"run_id": run_id, "trigger": trigger,
+                     "orders_checked": paper_orders_checked})
         return report
 
     # ── Live mode: fetch broker orders and compare ───────────────────────────

@@ -1,0 +1,310 @@
+PORTFOLIO PERFORMANCE & TRADE HISTORY COMPLETE FIX
+
+The Trade History and Portfolio Performance pages are still not functioning correctly.
+
+DO NOT patch the UI.
+
+Find and fix the backend data flow so every page is driven by the same paper trading engine.
+
+====================================================
+1. TRADE HISTORY
+====================================================
+
+Current problem:
+
+Trade History shows
+
+- No trade history
+- No Phase 20 Auto Trades
+- Sample 0 trades
+
+even though BUY recommendations and execution pipeline have already run.
+
+Verify:
+
+AI Decision
+↓
+
+Execution
+↓
+
+Paper Trader
+↓
+
+Trade Ledger
+↓
+
+Trade History API
+↓
+
+Trade History UI
+
+Determine exactly where trades disappear.
+
+Trade History must load directly from the paper trade ledger/database.
+
+Remove every legacy/demo placeholder.
+
+====================================================
+2. PORTFOLIO PERFORMANCE
+====================================================
+
+Current page shows
+
+Portfolio Value ₹—
+
+Today's P&L ₹—
+
+Net P&L ₹—
+
+undefined Win Rate
+
+Empty Equity Curve
+
+Empty Sector Allocation
+
+These values must be calculated from executed paper trades.
+
+====================================================
+3. METRICS
+====================================================
+
+Calculate live values:
+
+Portfolio Value
+
+Starting Capital
+
+Current Cash
+
+Invested Amount
+
+Today's P&L
+
+Net P&L
+
+Realized P&L
+
+Unrealized P&L
+
+Return %
+
+Win Rate
+
+Loss Rate
+
+Profit Factor
+
+Average Winner
+
+Average Loser
+
+Largest Winner
+
+Largest Loser
+
+Max Drawdown
+
+Recovery Factor
+
+Sharpe Ratio (if available)
+
+Expectancy
+
+Average Holding Time
+
+====================================================
+4. EQUITY CURVE
+====================================================
+
+Generate equity curve from the paper trade ledger.
+
+NOT dummy values.
+
+NOT placeholders.
+
+NOT reconstructed values.
+
+The curve should update after every executed trade.
+
+====================================================
+5. SECTOR ALLOCATION
+====================================================
+
+Build allocation from current open positions.
+
+Display:
+
+Sector
+
+Capital
+
+%
+
+Number of positions
+
+If no open positions exist, display
+
+"No open positions"
+
+without errors.
+
+====================================================
+6. TRADE HISTORY DETAILS
+====================================================
+
+Each completed trade should display:
+
+Trade ID
+
+Scan ID
+
+Session ID
+
+Symbol
+
+BUY Time
+
+SELL Time
+
+Entry Price
+
+Exit Price
+
+Quantity
+
+Strategy
+
+Confidence
+
+Reason
+
+PnL
+
+Holding Time
+
+Status
+
+====================================================
+7. CURRENT SESSION vs ALL TIME
+====================================================
+
+Verify filtering.
+
+Current Session
+
+only today's trades.
+
+All Time
+
+entire paper trading history.
+
+====================================================
+8. API VALIDATION
+====================================================
+
+Verify every endpoint returns data.
+
+No endpoint should return
+
+null
+
+undefined
+
+empty object
+
+or demo values
+
+when paper trades exist.
+
+====================================================
+9. REMOVE PLACEHOLDERS
+====================================================
+
+Eliminate all legacy/demo fallback code that renders:
+
+₹—
+
+undefined
+
+Sample 0 trades
+
+No data
+
+when backend data exists.
+
+====================================================
+10. END-TO-END VALIDATION
+====================================================
+
+Trace one BUY completely:
+
+Strategy
+
+↓
+
+Risk
+
+↓
+
+Decision
+
+↓
+
+Execution
+
+↓
+
+Paper Order
+
+↓
+
+Paper Trade
+
+↓
+
+Portfolio
+
+↓
+
+Trade History
+
+↓
+
+Performance
+
+↓
+
+Replay
+
+↓
+
+EOD
+
+The SAME trade_id must exist across every stage.
+
+====================================================
+11. ACCEPTANCE CRITERIA
+====================================================
+
+✓ Trade History populated.
+
+✓ Portfolio Performance populated.
+
+✓ Equity Curve working.
+
+✓ Sector Allocation working.
+
+✓ Win Rate calculated.
+
+✓ P&L calculated.
+
+✓ Current Session filter working.
+
+✓ All Time filter working.
+
+✓ No placeholders.
+
+✓ Every metric sourced from the paper trading ledger.
+
+Produce a verification report showing every API, database table, and UI component validated.

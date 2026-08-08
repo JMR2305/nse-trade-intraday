@@ -1,0 +1,207 @@
+BROKER & EXECUTION STABILIZATION PHASE
+
+The Broker / Execution page is currently broken due to a backend import failure.
+
+Current runtime error:
+
+cannot import name 'STATE_FILE' from 'paper_trader'
+(/src/python/paper_trader.py)
+
+This indicates an API/interface mismatch after recent refactoring.
+
+====================================================
+TASK 1 – Fix Import Error
+====================================================
+
+Find every module importing:
+
+from paper_trader import STATE_FILE
+
+Determine whether:
+
+- STATE_FILE was renamed
+- moved
+- removed
+- replaced
+
+Update all imports to use the correct public API.
+
+If STATE_FILE is still required, restore it with backward compatibility.
+
+No page should fail because of missing imports.
+
+====================================================
+TASK 2 – Broker Initialization
+====================================================
+
+Verify the Broker service starts successfully.
+
+Check:
+
+PaperTrader initialization
+
+Broker state
+
+Execution service
+
+Portfolio service
+
+Replay service
+
+No ImportError or startup exceptions should remain.
+
+====================================================
+TASK 3 – Paper Trader State
+====================================================
+
+Verify Paper Trader correctly loads:
+
+Current positions
+
+Pending orders
+
+Completed orders
+
+Trade ledger
+
+Portfolio state
+
+Current balance
+
+These should come from ONE state source.
+
+====================================================
+TASK 4 – Execution Verification
+====================================================
+
+Trace an executed BUY:
+
+BUY Decision
+
+↓
+
+Execution
+
+↓
+
+Paper Order
+
+↓
+
+Paper Trade
+
+↓
+
+Portfolio
+
+↓
+
+Broker Dashboard
+
+↓
+
+Replay
+
+↓
+
+EOD Reconciliation
+
+Verify each stage receives the same Trade ID.
+
+====================================================
+TASK 5 – EOD Reconciliation
+====================================================
+
+Currently:
+
+Orders verified = 0
+
+History always shows 0 orders.
+
+Determine whether:
+
+there truly were no orders
+
+OR
+
+the reconciliation service cannot read the paper ledger.
+
+It should reconcile:
+
+Open orders
+
+Filled orders
+
+Cancelled orders
+
+Closed trades
+
+====================================================
+TASK 6 – Broker Dashboard
+====================================================
+
+Replace placeholder values with live backend data.
+
+Display:
+
+Current Paper Cash
+
+Buying Power
+
+Open Orders
+
+Filled Orders
+
+Open Positions
+
+Closed Trades
+
+Today's P&L
+
+Broker Connection Status
+
+Execution Queue
+
+====================================================
+TASK 7 – Replay Integration
+====================================================
+
+Broker Dashboard
+
+Replay
+
+Portfolio
+
+Execution
+
+must all use the same:
+
+scan_id
+
+session_id
+
+trade_id
+
+paper_trade_id
+
+====================================================
+TASK 8 – Acceptance Criteria
+====================================================
+
+✓ No ImportError.
+
+✓ Broker page loads.
+
+✓ Paper Trader initializes successfully.
+
+✓ Execution creates paper trades.
+
+✓ Broker page shows executed trades.
+
+✓ Portfolio matches Broker.
+
+✓ Replay matches Broker.
+
+✓ EOD reconciliation counts actual executed orders.
+
+Produce a verification report listing every stage and confirming the trade lifecycle from BUY decision through Broker, Portfolio, Replay and EOD reconciliation.

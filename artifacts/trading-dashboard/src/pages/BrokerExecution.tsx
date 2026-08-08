@@ -123,6 +123,7 @@ export default function BrokerExecution() {
   const [status, setStatus]         = useState<any>(null);
   const [readiness, setReadiness]   = useState<any>(null);
   const [account, setAccount]       = useState<any>(null);
+  const [paper, setPaper]           = useState<any>(null);
   const [audit, setAudit]           = useState<any[]>([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState<string | null>(null);
@@ -144,13 +145,14 @@ export default function BrokerExecution() {
   const loadAll = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const [s, r, ac, au] = await Promise.all([
+      const [s, r, ac, au, ps] = await Promise.all([
         api("/broker/status"),
         api("/broker/readiness"),
         api("/broker/account"),
         api("/broker/audit?limit=50"),
+        api("/broker/paper-summary").catch(() => null),
       ]);
-      setStatus(s); setReadiness(r); setAccount(ac);
+      setStatus(s); setReadiness(r); setAccount(ac); setPaper(ps);
       setAudit(au.audit_log ?? []);
     } catch (e: any) {
       setError(e.message ?? "Failed to load broker data");
@@ -508,6 +510,88 @@ export default function BrokerExecution() {
             <span>Advisory: {readiness?.advisory_passed}/{readiness?.advisory_total} passed</span>
             <span>Score: {readiness?.required_score?.toFixed(1)} req + {readiness?.advisory_score?.toFixed(1)} adv = {readinessScore.toFixed(1)}</span>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Section 4b: Paper Trading Dashboard (live ledger data) ────────── */}
+      <Card className="border-zinc-800 bg-zinc-900/60">
+        <CardHeader className="pb-2 pt-4 px-5">
+          <SectionTitle icon={<Activity className="h-4 w-4 text-primary" />}>
+            Paper Trading Dashboard{" "}
+            <span className="text-zinc-500 normal-case text-xs">
+              (live · source: {paper?.source ?? "unavailable"})
+            </span>
+          </SectionTitle>
+        </CardHeader>
+        <CardContent className="px-5 pb-5 space-y-4">
+          {!paper ? (
+            <div className="text-xs text-zinc-500">Paper summary unavailable — backend endpoint did not respond.</div>
+          ) : (
+            <>
+              <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
+                {[
+                  { label: "Paper Cash", value: `₹${na(paper.paper_cash)}` },
+                  { label: "Buying Power", value: `₹${na(paper.buying_power)}` },
+                  { label: "Capital Deployed", value: `₹${na(paper.capital_deployed)}` },
+                  { label: "Open Orders", value: String(paper.open_orders ?? 0) },
+                  { label: "Filled Orders", value: String(paper.filled_orders ?? 0) },
+                  { label: "Open Positions", value: String(paper.open_positions ?? 0) },
+                  { label: "Closed Trades", value: String(paper.closed_trades ?? 0) },
+                  { label: "Today's P&L", value: `₹${na(paper.todays_pnl)}` },
+                  { label: "Realized P&L", value: `₹${na(paper.realized_pnl)}` },
+                  { label: "Broker", value: paper.broker_connected ? (paper.is_mock ? "Connected (Mock)" : "Connected") : "Disconnected" },
+                ].map(({ label, value }) => (
+                  <div key={label} className="rounded border border-zinc-800 bg-zinc-950/50 px-3 py-2">
+                    <div className="text-[10px] uppercase tracking-wide text-zinc-500">{label}</div>
+                    <div className="text-sm font-semibold text-zinc-200">{value}</div>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1">Execution Queue</div>
+                {(paper.execution_queue ?? []).length === 0 ? (
+                  <div className="text-xs text-zinc-500">Empty — paper fills are immediate; pending exits appear here.</div>
+                ) : (
+                  <div className="space-y-1">
+                    {paper.execution_queue.map((q: any) => (
+                      <div key={q.trade_id} className="text-xs text-amber-400">
+                        {q.trade_id} · {q.symbol} · {q.status}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {(paper.positions ?? []).length > 0 && (
+                <div>
+                  <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1">Open Positions (ledger)</div>
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-zinc-500 text-left">
+                        <th className="py-1 pr-4 font-normal">Trade ID</th>
+                        <th className="py-1 pr-4 font-normal">Symbol</th>
+                        <th className="py-1 pr-4 font-normal">Qty</th>
+                        <th className="py-1 pr-4 font-normal">Fill Price</th>
+                        <th className="py-1 pr-4 font-normal">Fill Time</th>
+                        <th className="py-1 pr-4 font-normal">Scan ID</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paper.positions.map((p: any) => (
+                        <tr key={p.trade_id} className="border-t border-zinc-800/60">
+                          <td className="py-1.5 pr-4 text-sky-400 font-mono">{p.trade_id}</td>
+                          <td className="py-1.5 pr-4 text-zinc-200">{p.symbol}</td>
+                          <td className="py-1.5 pr-4 text-zinc-400">{p.quantity}</td>
+                          <td className="py-1.5 pr-4 text-zinc-400">₹{na(p.fill_price)}</td>
+                          <td className="py-1.5 pr-4 text-zinc-500">{p.fill_ts}</td>
+                          <td className="py-1.5 pr-4 text-zinc-500 font-mono">{p.scan_id}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
         </CardContent>
       </Card>
 

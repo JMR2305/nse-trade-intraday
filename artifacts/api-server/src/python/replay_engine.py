@@ -888,10 +888,18 @@ def build_replay(scan_id: str) -> Dict:
                             "scan_audit": {},
                             "summary": {},
                         }
-                    elif not snapshot:
-                        snapshot = snap  # fallback to latest
+                    else:
+                        # Requested scan is neither current nor archived —
+                        # never silently replay a DIFFERENT scan (trade IDs
+                        # and counts would belong to the wrong session).
+                        conn.close()
+                        return {"error": f"Scan {scan_id} not found (not current, not archived)",
+                                "scan_id": scan_id, "not_found": True}
         finally:
-            conn.close()
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     if not snapshot:
         return {"error": "No scan data found", "scan_id": scan_id}

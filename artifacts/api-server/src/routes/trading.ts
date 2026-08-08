@@ -2361,6 +2361,16 @@ router.get("/broker/health", async (_req, res) => {
   }
 });
 
+// GET /api/broker/paper-summary — live paper dashboard figures from the phase20 ledger
+router.get("/broker/paper-summary", async (_req, res) => {
+  try {
+    const data = await runPython(["phase8_paper_summary"]);
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/broker/account — profile, margins, holdings, positions, orders
 router.get("/broker/account", async (_req, res) => {
   try {

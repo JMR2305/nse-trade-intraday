@@ -74,4 +74,5 @@
 - [Ops Centre snapshot timeout](ops-centre-snapshot-timeout.md) — snapshot takes 22-30s; apiJson default 15s kills it; pass 60_000 as third arg; all blank sections were this one bug.
 - [Replay integrity & conservation](replay-integrity-conservation.md) — chained stage subsets, exact in=out+rej+pend+canc, dedupe/clamp snapshots, ledger-only portfolio, capital via portfolio_store.INITIAL_CAPITAL.
 - [Unified Replay Snapshot](unified-replay-snapshot.md) — build_replay() is the only source of counts; ops centre overrides from it; execution out = ledger rows, blocked = cancelled.
+- [Broker page & paper reconciliation](broker-paper-dashboard.md) — paper_trader state is DB-backed (no STATE_FILE); paper EOD reconciles the phase20 ledger; replay never falls back to a different scan.
 - [Endpoint timeout patterns](endpoint-timeout-patterns.md) — apiJson 15s default kills slow aggregate endpoints; fix = Node.js in-process coalescing cache + explicit timeout in queryFn; 5 known slow endpoints documented.

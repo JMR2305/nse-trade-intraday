@@ -1203,6 +1203,72 @@ def main():
                           "orders": _orders, "is_mock": _client.is_mock}
             except Exception as e:
                 result = {"success": False, "error": str(e)}
+        elif command == "phase8_paper_summary":
+            # Live paper-broker dashboard figures — single source: the
+            # phase20 paper ledger (same source Replay/Portfolio use).
+            from broker_client import get_broker_client
+            from execution_engine import get_execution_mode
+            from portfolio_store import INITIAL_CAPITAL as _init_cap
+            from scan_state_store import _connect as _ss_connect
+            _client = get_broker_client()
+            _conn8  = _client.test_connection()
+            _rows = []
+            _pconn = _ss_connect()
+            try:
+                # Bootstrap ledger schema so a fresh DB returns zeros, not a 500.
+                try:
+                    from phase20_executor import _ensure_schema as _ensure_ledger
+                    _ensure_ledger(_pconn)
+                except Exception:
+                    pass
+                with _pconn.cursor() as _cur:
+                    _cur.execute("""
+                        SELECT trade_id, symbol, status, quantity, fill_price,
+                               fill_ts, exit_ts, realized_pnl, scan_id
+                        FROM phase20_paper_trades ORDER BY fill_ts
+                    """)
+                    _cols = [d[0] for d in _cur.description]
+                    _rows = [dict(zip(_cols, r)) for r in _cur.fetchall()]
+            finally:
+                _pconn.close()
+            from datetime import datetime as _dt, timezone as _tz
+            _today = _dt.now(_tz.utc).date().isoformat()
+            _open  = [r for r in _rows if str(r.get("status")).upper() == "OPEN"]
+            _closed = [r for r in _rows if str(r.get("status")).upper() == "CLOSED"]
+            _queue  = [r for r in _rows if str(r.get("status")).upper() == "EXIT_PENDING"]
+            _deployed = sum(float(r.get("fill_price") or 0) * int(r.get("quantity") or 0)
+                            for r in _open + _queue)
+            _realized = sum(float(r.get("realized_pnl") or 0) for r in _closed)
+            _cash = round(_init_cap - _deployed + _realized, 2)
+            _pnl_today = sum(float(r.get("realized_pnl") or 0) for r in _closed
+                             if str(r.get("exit_ts") or "")[:10] == _today)
+            _fills_today = sum(1 for r in _rows if str(r.get("fill_ts") or "")[:10] == _today)
+            result = {
+                "success": True,
+                "source": "phase20_paper_trades",
+                "execution_mode": get_execution_mode(),
+                "broker_connected": _conn8.connected,
+                "is_mock": _conn8.is_mock,
+                "starting_capital": _init_cap,
+                "paper_cash": _cash,
+                "buying_power": _cash,
+                "capital_deployed": round(_deployed, 2),
+                "open_orders": 0,  # paper fills are immediate; queue below
+                "filled_orders": len(_rows),
+                "filled_today": _fills_today,
+                "open_positions": len(_open),
+                "closed_trades": len(_closed),
+                "realized_pnl": round(_realized, 2),
+                "todays_pnl": round(_pnl_today, 2),
+                "execution_queue": [{"trade_id": r.get("trade_id"),
+                                     "symbol": r.get("symbol"),
+                                     "status": "EXIT_PENDING"} for r in _queue],
+                "positions": [{"trade_id": r.get("trade_id"), "symbol": r.get("symbol"),
+                               "quantity": r.get("quantity"),
+                               "fill_price": float(r.get("fill_price") or 0),
+                               "fill_ts": r.get("fill_ts"),
+                               "scan_id": r.get("scan_id")} for r in _open],
+            }
         elif command == "phase8_mode_get":
             from execution_engine import get_execution_mode
             result = {"success": True, "execution_mode": get_execution_mode()}
@@ -1233,10 +1299,12 @@ def main():
                 _dq = next((q for q in ["LIVE","NEAR_LIVE","STALE","UNAVAILABLE"]
                              if _ph.get("quality_summary",{}).get(q,0) > 0), "UNKNOWN")
                 _scan_ts = _scan.get("snapshot_ts")
-            from paper_trader import STATE_FILE
+            # State moved to Postgres (portfolio_store) — STATE_FILE no longer
+            # exists; _load_state() is the single state source (DB w/ file fallback).
+            from paper_trader import _load_state as _pt_load_state
             _paper_count = 0
             try:
-                _state = _json.load(open(STATE_FILE))
+                _state = _pt_load_state()
                 _paper_count = len([t for t in _state.get("trades", []) if t.get("action") == "BUY"])
             except Exception:
                 pass

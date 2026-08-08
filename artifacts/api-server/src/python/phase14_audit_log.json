@@ -2953,5 +2953,23 @@
    "by": "dashboard_user",
    "reason": "test"
   }
+ },
+ {
+  "id": "3fe0ea185a",
+  "ts": "2026-08-08T08:19:37.225620+00:00",
+  "event_type": "phase22_readiness_probe",
+  "actor": "system",
+  "detail": {
+   "ts": "2026-08-08T08:19:37.225110+00:00"
+  }
+ },
+ {
+  "id": "5c9ff62805",
+  "ts": "2026-08-08T08:19:49.465187+00:00",
+  "event_type": "phase22_readiness_probe",
+  "actor": "system",
+  "detail": {
+   "ts": "2026-08-08T08:19:49.463723+00:00"
+  }
  }
 ]
