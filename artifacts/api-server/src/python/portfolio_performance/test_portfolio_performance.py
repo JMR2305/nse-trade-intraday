@@ -34,6 +34,26 @@ if _PYTHON_DIR not in sys.path:
 # ── Disable feature flag by default; tests opt in explicitly ──────────────────
 os.environ.pop("PORTFOLIO_PERFORMANCE_ENABLED", None)
 
+# ── Bypass the 30s raw-data file cache for the entire module ──────────────────
+# The engine shares one /tmp TTL cache across processes. In tests it would
+# (a) serve real dev data instead of the mocked store, and (b) leak one test's
+# mocked state into the next. Patch reads to always miss and writes to no-op.
+_cache_patchers: list = []
+
+
+def setUpModule():
+    import portfolio_performance.performance_engine as _pe
+    _cache_patchers.append(patch.object(_pe, "_read_raw_cache", lambda: None))
+    _cache_patchers.append(patch.object(_pe, "_write_raw_cache", lambda *a, **k: None))
+    for p in _cache_patchers:
+        p.start()
+
+
+def tearDownModule():
+    for p in _cache_patchers:
+        p.stop()
+    _cache_patchers.clear()
+
 # Stub heavy dependencies before imports
 _scanner_stub = types.ModuleType("market_scanner")
 _scanner_stub._sector_of = lambda sym: {"RELIANCE": "ENERGY", "INFY": "IT", "HDFCBANK": "BANKING"}.get(sym, "Unknown")
@@ -98,9 +118,13 @@ def _pnl_hist(values: list[tuple[float, float]]) -> list[dict]:
 # ══════════════════════════════════════════════════════════════════════════════
 
 class TestFeatureFlag(unittest.TestCase):
-    """Disabled feature flag tests."""
+    """Disabled feature flag tests (module is enabled by default; explicit
+    PORTFOLIO_PERFORMANCE_ENABLED=false disables it)."""
 
     def setUp(self):
+        os.environ["PORTFOLIO_PERFORMANCE_ENABLED"] = "false"
+
+    def tearDown(self):
         os.environ.pop("PORTFOLIO_PERFORMANCE_ENABLED", None)
 
     def test_disabled_summary(self):
@@ -569,7 +593,7 @@ class TestStringKpiCoercion(unittest.TestCase):
     # ── get_portfolio_performance_snapshot() disabled ─────────────────────────
 
     def test_disabled_returns_disabled_status(self):
-        os.environ.pop("PORTFOLIO_PERFORMANCE_ENABLED", None)
+        os.environ["PORTFOLIO_PERFORMANCE_ENABLED"] = "false"
         from portfolio_performance.shared_services import get_portfolio_performance_snapshot
         snap = get_portfolio_performance_snapshot()
         self.assertEqual(snap["status"], "DISABLED")

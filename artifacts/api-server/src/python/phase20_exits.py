@@ -185,6 +185,7 @@ def manage_open_positions(settings: Dict[str, Any]) -> Dict[str, Any]:
 
         ok, msg = execute_sell(
             sym, qty, quote,
+            ledger_trade_id=trade_id,
             reason=f"Phase 20 exit {rule} (trade {trade_id})",
             exit_type=("STOP_HIT" if rule == "STOP_LOSS_HIT"
                        else "TARGET_HIT" if rule == "TARGET_HIT"
@@ -232,7 +233,8 @@ def _retry_pending(symbols_ctx: Dict[str, Any], scan_ok: bool, stale: bool,
         rule = str(trade.get("exit_rule") or "PENDING_DATA_RESOLVED")
         ok, _msg = execute_sell(sym, qty, quote,
                                 reason=f"Phase 20 pending exit resolved ({rule})",
-                                exit_type="SIGNAL_EXIT")
+                                exit_type="SIGNAL_EXIT",
+                                ledger_trade_id=str(trade.get("trade_id") or ""))
         if not ok:
             continue
         record_exit(str(trade.get("trade_id")), quote, rule, exit_scan_id,

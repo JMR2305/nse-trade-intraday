@@ -106,7 +106,10 @@ def _write_raw_cache(raw_trades: List[Dict], state: Dict) -> None:
         _log.debug("perf cache write failed (non-fatal): %s", exc)
 
 
-INITIAL_CAPITAL: float = 500_000.0   # ₹5 lakh — keep in sync with portfolio_store
+try:
+    from portfolio_store import INITIAL_CAPITAL as INITIAL_CAPITAL  # single source of truth
+except Exception:  # pragma: no cover — portfolio_store must exist in this tree
+    INITIAL_CAPITAL = 50_000.0
 
 
 # ── Sector lookup (best-effort) ───────────────────────────────────────────────
@@ -216,7 +219,7 @@ def _build_open_positions(
         if not isinstance(pos, dict):
             continue
         qty      = int(pos.get("quantity", 0))
-        avg_cost = float(pos.get("avg_cost", 0.0))
+        avg_cost = float(pos.get("avg_price", pos.get("avg_cost", 0.0)))
         cur_price = float(pos.get("current_price", avg_cost))
 
         invested  = avg_cost * qty
@@ -280,13 +283,15 @@ def load_performance_data() -> Dict[str, Any]:
     pnl_history  = state.get("pnl_history", [])
 
     # Portfolio value
+    # Positions persisted by paper_trader use key "avg_price" (state.json /
+    # paper_portfolio.positions); accept legacy "avg_cost" as a fallback.
     invested    = sum(
-        float(p.get("avg_cost", 0)) * int(p.get("quantity", 0))
+        float(p.get("avg_price", p.get("avg_cost", 0))) * int(p.get("quantity", 0))
         for p in positions.values()
         if isinstance(p, dict)
     )
     cur_pos_val = sum(
-        float(p.get("current_price", p.get("avg_cost", 0))) * int(p.get("quantity", 0))
+        float(p.get("current_price", p.get("avg_price", p.get("avg_cost", 0)))) * int(p.get("quantity", 0))
         for p in positions.values()
         if isinstance(p, dict)
     )

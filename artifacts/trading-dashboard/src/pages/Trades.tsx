@@ -26,6 +26,8 @@ interface HistTrade {
   timestamp: string;
   reason?: string;
   archived_at?: string;
+  /** Phase 20 durable-ledger trade_id (same ID across the whole lifecycle). */
+  phase20_trade_id?: string | null;
 }
 
 export default function Trades() {
@@ -91,7 +93,7 @@ export default function Trades() {
       <Card className="flex-1 overflow-hidden flex flex-col bg-card/50 backdrop-blur border-border/50">
         <CardHeader className="border-b border-border/50 bg-muted/20">
           <CardTitle className="font-mono text-sm uppercase tracking-wider text-muted-foreground">
-            Executed Orders — Legacy / Demo Trades
+            Executed Orders — Paper Trade Ledger
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0 flex-1 overflow-auto">
@@ -101,6 +103,7 @@ export default function Trades() {
             <Table>
               <TableHeader className="bg-muted/50 sticky top-0 z-10 backdrop-blur">
                 <TableRow>
+                  <TableHead className="font-mono text-xs uppercase">Trade ID</TableHead>
                   <TableHead className="font-mono text-xs uppercase">Time</TableHead>
                   <TableHead className="font-mono text-xs uppercase">Symbol</TableHead>
                   <TableHead className="font-mono text-xs uppercase">Action</TableHead>
@@ -115,6 +118,9 @@ export default function Trades() {
                   const isBuy = trade.action === "BUY";
                   return (
                     <TableRow key={trade.id}>
+                      <TableCell className="text-muted-foreground font-mono whitespace-nowrap text-xs">
+                        {trade.phase20_trade_id ?? trade.id}
+                      </TableCell>
                       <TableCell className="text-muted-foreground font-mono whitespace-nowrap text-sm">
                         {formatDate(trade.timestamp)}
                       </TableCell>

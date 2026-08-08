@@ -457,6 +457,7 @@ def create_paper_entry(candidate: Dict[str, Any], settings: Dict[str, Any],
 
     ok, msg = execute_buy(
         sym, qty, fill_price,
+        ledger_trade_id=trade_id,
         reason=f"Phase 20 {trigger_source} paper entry (trade {trade_id})",
         signal_confidence=float(candidate.get("confidence") or 0),
         regime=str(candidate.get("regime") or "UNKNOWN"),

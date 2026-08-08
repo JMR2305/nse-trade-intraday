@@ -31,6 +31,43 @@ WARM_CACHE_FILE = os.path.join(_DIR, "state.json")
 
 _SCHEMA_READY = False
 
+# Matches the Phase 20 trade id embedded in legacy reason strings, e.g.
+# "Phase 20 AUTO paper entry (trade P20-4a5f909738)".
+_P20_REASON_RE = r"trade (P20-[A-Za-z0-9]+)"
+
+
+def extract_phase20_trade_id(reason: str) -> Optional[str]:
+    """Parse the Phase 20 trade_id out of a legacy reason string, or None."""
+    import re
+    m = re.search(_P20_REASON_RE, reason or "")
+    return m.group(1) if m else None
+
+
+def _backfill_phase20_trade_ids(conn) -> int:
+    """Idempotent migration: copy the Phase 20 trade_id from the reason string
+    into metadata.phase20_trade_id for historical rows.
+
+    - Only touches rows whose reason contains a P20 id AND whose metadata does
+      not already carry phase20_trade_id (never overwrites populated IDs).
+    - Safe to run on every schema bootstrap; matched set shrinks to zero.
+    Returns the number of rows updated.
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE paper_trades
+            SET metadata = jsonb_set(
+                COALESCE(metadata, '{}'::jsonb),
+                '{phase20_trade_id}',
+                to_jsonb(substring(reason from %s))
+            )
+            WHERE reason ~ %s
+              AND (metadata ->> 'phase20_trade_id') IS NULL
+            """,
+            (_P20_REASON_RE, _P20_REASON_RE),
+        )
+        return cur.rowcount
+
 INITIAL_CAPITAL = 50_000.0    # ₹50,000 — daily paper-trading session capital (resets every trading day)
 
 
@@ -86,6 +123,13 @@ def _ensure_schema(conn) -> None:
         cur.execute(
             "CREATE INDEX IF NOT EXISTS paper_trades_ts_idx ON paper_trades (trade_ts)"
         )
+    # One-time (idempotent) correlation backfill for historical rows.
+    try:
+        n = _backfill_phase20_trade_ids(conn)
+        if n:
+            logger.info("portfolio_store: backfilled phase20_trade_id on %d trades", n)
+    except Exception as exc:
+        logger.warning("portfolio_store: phase20_trade_id backfill skipped: %s", exc)
     conn.commit()
     _SCHEMA_READY = True
 
@@ -305,6 +349,12 @@ def _load_all_trades(conn, include_archived: bool = False) -> List[Dict[str, Any
                                     if hasattr(archived_at, "isoformat")
                                     else str(archived_at))
         trade.update(meta)
+        # Read-side safety net (also covers local-dev file mode via callers):
+        # derive the correlation id from the reason string when missing.
+        if not trade.get("phase20_trade_id"):
+            p20 = extract_phase20_trade_id(trade.get("reason", ""))
+            if p20:
+                trade["phase20_trade_id"] = p20
         trades.append(trade)
     return trades
 

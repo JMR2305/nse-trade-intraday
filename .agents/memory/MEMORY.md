@@ -77,3 +77,4 @@
 - [Broker page & paper reconciliation](broker-paper-dashboard.md) — paper_trader state is DB-backed (no STATE_FILE); paper EOD reconciles the phase20 ledger; replay never falls back to a different scan.
 - [Aggregated ops dashboards](ops-dashboard-aggregators.md) — phase4a/validation dashboards use one Python aggregator over canonical stores; 30s route cache + single-flight; IST calendar-day windowing rules.
 - [Endpoint timeout patterns](endpoint-timeout-patterns.md) — apiJson 15s default kills slow aggregate endpoints; fix = Node.js in-process coalescing cache + explicit timeout in queryFn; 5 known slow endpoints documented.
+- [Portfolio performance routing](portfolio-performance-routing.md) — 5D.2 analytics live at /portfolio-performance/*, perf centre keeps /performance/*; positions key is avg_price; INITIAL_CAPITAL from portfolio_store.

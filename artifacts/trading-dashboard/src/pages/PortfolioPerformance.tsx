@@ -275,31 +275,31 @@ export default function PortfolioPerformance() {
 
   const { data: summary, isLoading: sumLoading, refetch: refetchSum } = useQuery<Summary>({
     queryKey: ["performance-summary"],
-    queryFn: () => apiJson("performance/summary"),
+    queryFn: () => apiJson("portfolio-performance/summary"),
     refetchInterval: 60_000,
   });
 
   const { data: equity, isLoading: eqLoading } = useQuery<EquityResponse>({
     queryKey: ["performance-equity", equityPeriod],
-    queryFn: () => apiJson(`performance/equity?period=${equityPeriod}`),
+    queryFn: () => apiJson(`portfolio-performance/equity?period=${equityPeriod}`),
     refetchInterval: 60_000,
   });
 
   const { data: drawdown, isLoading: ddLoading } = useQuery<DrawdownResponse>({
     queryKey: ["performance-drawdown"],
-    queryFn: () => apiJson("performance/drawdown"),
+    queryFn: () => apiJson("portfolio-performance/drawdown"),
     refetchInterval: 60_000,
   });
 
   const { data: stats, isLoading: stLoading } = useQuery<StatisticsResponse>({
     queryKey: ["performance-statistics"],
-    queryFn: () => apiJson("performance/statistics"),
+    queryFn: () => apiJson("portfolio-performance/statistics"),
     refetchInterval: 60_000,
   });
 
   const { data: portfolio } = useQuery<PortfolioResponse>({
     queryKey: ["performance-portfolio"],
-    queryFn: () => apiJson("performance/portfolio"),
+    queryFn: () => apiJson("portfolio-performance/portfolio"),
     refetchInterval: 60_000,
   });
 

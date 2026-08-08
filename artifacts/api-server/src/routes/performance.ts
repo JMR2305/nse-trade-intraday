@@ -39,6 +39,23 @@ const handle = (cmd: string, timeout?: number) =>
     }
   };
 
+// ── Phase 5D.2 Portfolio Performance analytics (paper trade ledger) ──────────
+// Mounted at /portfolio-performance/* to avoid colliding with the Phase 8.7
+// Performance Optimisation Centre routes at /performance/* below.
+router.get("/portfolio-performance/summary",    handle("performance_summary"));
+router.get("/portfolio-performance/drawdown",   handle("performance_drawdown"));
+router.get("/portfolio-performance/statistics", handle("performance_statistics"));
+router.get("/portfolio-performance/portfolio",  handle("performance_portfolio"));
+router.get("/portfolio-performance/equity", async (req: any, res: any) => {
+  const period = (req.query.period ?? "daily") as string;
+  try {
+    res.json(await runPython(["performance_equity", period]));
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Phase 8.7 Performance Optimisation Centre ─────────────────────────────────
 router.get("/performance/summary",         handle("perf_summary"));
 router.get("/performance/api",             handle("perf_api"));
 router.get("/performance/database",        handle("perf_database"));

@@ -15,7 +15,9 @@ _LABEL = "PAPER TRADING / ADVISORY ONLY"
 
 
 def is_enabled() -> bool:
-    return _os.environ.get(_ENABLED_VAR, "false").lower() in ("1", "true", "yes")
+    # Enabled by default — portfolio performance analytics is a core read-only
+    # page. Set PORTFOLIO_PERFORMANCE_ENABLED=false to explicitly disable.
+    return _os.environ.get(_ENABLED_VAR, "true").lower() in ("1", "true", "yes")
 
 
 def disabled_response() -> dict:

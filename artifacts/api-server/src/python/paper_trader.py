@@ -206,6 +206,7 @@ def execute_buy(
     opportunity_score: float = 0.0,
     trade_quality: float = 0.0,
     bypass_risk: bool = False,
+    ledger_trade_id: str = "",
 ) -> tuple[bool, str]:
     """
     Execute a paper buy order.
@@ -305,6 +306,9 @@ def execute_buy(
                        if target > 0 and price > 0 else None),
         "position_size_value": round(total_cost, 2),
         "trailing_stop": None,  # trailing stops not used in this research phase
+        # Phase 20 durable-ledger correlation: same trade_id across every stage
+        # (decision → execution → paper trade → history → performance → replay).
+        "phase20_trade_id": ledger_trade_id or None,
     }
 
     # ── Trade Intelligence: freeze the entry snapshot (indicators + regime).
@@ -369,6 +373,7 @@ def execute_sell(
     price: float,
     reason: str = "",
     exit_type: str = "SIGNAL_EXIT",
+    ledger_trade_id: str = "",
 ) -> tuple[bool, str]:
     """
     Execute a paper sell order.
@@ -423,6 +428,8 @@ def execute_sell(
         # ── Phase 15: extended permanent trade metadata ──────────────────
         "est_broker_charges": estimate_broker_charges(total_proceeds, "SELL"),
         "est_slippage": estimate_slippage(total_proceeds),
+        # Phase 20 durable-ledger correlation (same ID as the matching BUY).
+        "phase20_trade_id": ledger_trade_id or None,
     }
     state["trades"].append(trade)
 
@@ -724,10 +731,39 @@ def get_strategy_performance() -> StrategyPerformance:
 
 # ── Public query helpers ──────────────────────────────────────────────────────
 
+def _ist_today() -> str:
+    """Current trading-day date (Asia/Kolkata) as YYYY-MM-DD."""
+    from datetime import timedelta as _td, timezone as _tz
+    _IST = _tz(_td(hours=5, minutes=30))
+    return datetime.now(_IST).date().isoformat()
+
+
+def _trade_ist_date(trade: dict) -> str:
+    """IST calendar date of a trade's timestamp ('' when unparseable)."""
+    from datetime import timedelta as _td, timezone as _tz
+    _IST = _tz(_td(hours=5, minutes=30))
+    try:
+        dt = datetime.fromisoformat(str(trade.get("timestamp", "")))
+        if dt.tzinfo is None:
+            # Naive timestamps are written by this process in local (IST) time.
+            return dt.date().isoformat()
+        return dt.astimezone(_IST).date().isoformat()
+    except (ValueError, TypeError):
+        return ""
+
+
 def get_trades() -> list[Trade]:
-    """Return all recorded trades, newest first."""
+    """Return current-session trades (today's IST trading day), newest first.
+
+    The session scope is defined server-side: only non-archived trades whose
+    timestamp falls on the current IST calendar day. This guarantees that
+    "Current Session" never leaks a previous day's trades even if the daily
+    portfolio reset (which archives trades) was missed.
+    """
     state = _load_state()
-    return list(reversed(state.get("trades", [])))
+    today = _ist_today()
+    return [t for t in reversed(state.get("trades", []))
+            if _trade_ist_date(t) == today]
 
 
 def get_portfolio(current_prices: Optional[dict[str, float]] = None) -> PortfolioState:
