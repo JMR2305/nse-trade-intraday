@@ -114,6 +114,7 @@ import Phase11TimelinePage         from "@/pages/Phase11TimelinePage";
 import AIValidationV2Page          from "@/pages/AIValidationV2Page";
 import { ConnectivityPanel } from "@/components/ConnectivityPanel";
 import AILearningCenter            from "@/pages/AILearningCenter";
+import MissionControl              from "@/pages/MissionControl";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -244,6 +245,7 @@ function Router() {
         <Route path="/ai-operations-centre"       component={AIOperationsCentrePage} />
         <Route path="/validation-v2"              component={AIValidationV2Page} />
         <Route path="/ai-learning-center"         component={AILearningCenter} />
+        <Route path="/mission-control"            component={MissionControl} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

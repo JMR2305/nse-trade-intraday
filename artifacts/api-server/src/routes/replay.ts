@@ -55,6 +55,19 @@ router.get("/replay/sessions", async (_req, res) => {
   }
 });
 
+// GET /api/replay/sessions/latest — full pipeline replay for the most recent
+// scan. Explicit handler (registered before :scanId) so the canonical
+// "latest" contract used by Mission Control is guaranteed regardless of
+// param-route ordering; replay_engine resolves "latest" to the newest
+// scan_id from the canonical snapshot.
+router.get("/replay/sessions/latest", async (_req, res) => {
+  try {
+    res.json(await runPython(["replay_build", "latest"]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/replay/sessions/:scanId — full pipeline replay
 router.get("/replay/sessions/:scanId", async (req, res) => {
   try {

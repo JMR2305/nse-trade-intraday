@@ -219,6 +219,7 @@ export const AGENTS: Agent[] = [
     description: "Infrastructure, observability, data quality, security, deployment",
     color: "#6B7280",      // slate-500
     pages: [
+      { href: "/mission-control",    label: "Mission Control",           icon: Radio,           tags: ["mission", "control", "live", "pipeline", "scanner", "paper", "events", "phase25"] },
       { href: "/workspace",          label: "My Workspace",              icon: LayoutDashboard, tags: ["workspace", "dashboard", "widgets", "personalise"] },
       { href: "/trading-timeline",   label: "Trading Day Timeline",      icon: Clock,           tags: ["timeline", "session", "playback", "review", "history"] },
       { href: "/executive-reports",  label: "Executive Reports",         icon: FileBarChart2,   tags: ["reports", "briefing", "executive", "summary", "eod"] },

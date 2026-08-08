@@ -33,6 +33,15 @@ export interface MarketStatus {
 
 export type StreamConnection = "connecting" | "connected" | "reconnecting" | "disconnected";
 
+export interface PipelineStreamEvent {
+  id: number;
+  ts: string;
+  event_type: string;
+  stage: string;
+  symbol: string | null;
+  payload: Record<string, unknown>;
+}
+
 interface LiveStreamState {
   connection: StreamConnection;
   quotes: Record<string, LiveQuote>;
@@ -42,6 +51,10 @@ interface LiveStreamState {
   scanEvent: { type: string; data: unknown; ts: string } | null;
   /** Phase 23: id of the newest pipeline.event received (0 = none yet). */
   pipelineEventId: number;
+  /** Phase 25A: rolling buffer (newest first, max 100) of streamed pipeline
+   *  events so consumers can render new events immediately without waiting
+   *  for a REST refetch. */
+  pipelineEvents: PipelineStreamEvent[];
 }
 
 const MAX_RETRY_MS = 30_000;
@@ -55,6 +68,7 @@ export function useLiveStream(enabled = true): LiveStreamState {
     lastError: null,
     scanEvent: null,
     pipelineEventId: 0,
+    pipelineEvents: [],
   });
   const retryRef = useRef(1000);
 
@@ -110,6 +124,20 @@ export function useLiveStream(enabled = true): LiveStreamState {
           setState((s) => ({
             ...s,
             pipelineEventId: Math.max(s.pipelineEventId, id),
+            pipelineEvents:
+              id > 0 && !s.pipelineEvents.some((p) => p.id === id)
+                ? [
+                    {
+                      id,
+                      ts: String(ev?.ts ?? ""),
+                      event_type: String(ev?.event_type ?? ""),
+                      stage: String(ev?.stage ?? ""),
+                      symbol: ev?.symbol != null ? String(ev.symbol) : null,
+                      payload: (ev?.payload ?? {}) as Record<string, unknown>,
+                    },
+                    ...s.pipelineEvents,
+                  ].slice(0, 100)
+                : s.pipelineEvents,
             lastEventTs: new Date().toISOString(),
           }));
         } catch { /* ignore */ }
