@@ -55,6 +55,14 @@
       "message": "DIVISLAB holds 1 vs recommended 0 at current limits",
       "ts": "2026-08-05T03:22:50.532681",
       "acknowledged": false
+    },
+    {
+      "key": "POSITION_OVERSIZED|2026-08-08|BAJFINANCE",
+      "type": "POSITION_OVERSIZED",
+      "severity": "WARNING",
+      "message": "BAJFINANCE holds 8 vs recommended 3 at current limits",
+      "ts": "2026-08-08T09:23:02.065414",
+      "acknowledged": false
     }
   ]
 }

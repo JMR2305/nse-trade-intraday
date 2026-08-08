@@ -1,6 +1,6 @@
 {
   "label": "PAPER TRADING / RESEARCH ONLY",
-  "generated_at": "2026-08-08T14:14:18.824923+05:30",
+  "generated_at": "2026-08-08T14:55:59.893317+05:30",
   "production_ready": true,
   "passed": 6,
   "warned": 2,
@@ -14,21 +14,21 @@
       "category": "safety",
       "verdict": "PASS",
       "detail": "paper_mode=True confirmed",
-      "latency_ms": 1701.4
+      "latency_ms": 4019.2
     },
     {
       "invariant": "AI advisory only",
       "category": "safety",
       "verdict": "WARN",
       "detail": "advisory_only not explicitly set in phase15 response",
-      "latency_ms": 194.9
+      "latency_ms": 207.7
     },
     {
       "invariant": "No live orders",
       "category": "safety",
       "verdict": "PASS",
       "detail": "GET /live-orders returns 404 (no live order route)",
-      "latency_ms": 2.7
+      "latency_ms": 11.0
     },
     {
       "invariant": "Duplicate order protection",
@@ -41,21 +41,21 @@
       "category": "data",
       "verdict": "PASS",
       "detail": "data appears fresh; staleness gate active (stale=False)",
-      "latency_ms": 958.6
+      "latency_ms": 1179.0
     },
     {
       "invariant": "Session recovery works",
       "category": "portfolio",
       "verdict": "WARN",
       "detail": "snapshot missing cash or positions fields",
-      "latency_ms": 373.1
+      "latency_ms": 711.0
     },
     {
       "invariant": "Portfolio consistent",
       "category": "portfolio",
       "verdict": "PASS",
       "detail": "equity=\u20b977288.19 cash=\u20b941199.60 invested=\u20b936088.59 diff=\u20b90.0000 < \u03b5=\u20b91.0",
-      "latency_ms": 385.2
+      "latency_ms": 690.3
     },
     {
       "invariant": "No API regressions",

@@ -285,3 +285,10 @@ uri = "file://Replay_Engine_V4.2_Summary.md"
 type = "text"
 title = "Replay Engine V4.2 Summary"
 description = "Full summary of data integrity fixes, new components, modified files, and deferred items from the V4.2 build."
+
+[[outputs]]
+id = "tUO6O_ro88U6kLeAzXNc_"
+uri = "file://reports/ops-agent/OPERATIONS_AGENT_REPORT.md"
+type = "text"
+title = "Operations Agent — Comprehensive Page Report"
+description = "All 23 Operations Agent pages: live screenshots, per-page status and purpose, plus readiness, observability, paper-trading and validation metrics at capture time."

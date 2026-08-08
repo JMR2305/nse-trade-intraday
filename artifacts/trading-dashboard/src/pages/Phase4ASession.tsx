@@ -932,6 +932,33 @@ function OperationsDashboard() {
           <TileRow label="Largest Position" value={op.largest_position} />
           <TileRow label="Unrealized P&L" value={op.unrealized_pnl != null ? `₹${Number(op.unrealized_pnl).toFixed(2)}` : op.unrealized_note}
             cls={op.unrealized_pnl != null ? (op.unrealized_pnl >= 0 ? "text-emerald-400" : "text-red-400") : "text-amber-400"} />
+          {Array.isArray(op.positions) && op.positions.length > 0 && (
+            <div className="mt-1 pt-1 border-t border-slate-800">
+              <div className="text-[10px] text-slate-500 uppercase mb-0.5">Positions · mark source</div>
+              {op.positions.map((p: any) => (
+                <div key={p.trade_id ?? p.symbol} className="flex items-center justify-between gap-2 py-0.5 text-[11px] font-mono">
+                  <span className="text-slate-300 truncate">{p.symbol} × {p.qty}</span>
+                  <span className="flex items-center gap-2 shrink-0">
+                    <span className={p.unrealized_pnl == null ? "text-slate-500" : p.unrealized_pnl >= 0 ? "text-emerald-400" : "text-red-400"}>
+                      {p.unrealized_pnl != null ? `₹${Number(p.unrealized_pnl).toFixed(2)}` : "no mark"}
+                    </span>
+                    <span
+                      title={p.mark_source === "live" ? "marked with a live quote" : p.mark_source === "scan" ? "marked with the last scan price — may be stale" : "no mark price available"}
+                      className={`rounded border px-1 py-[1px] text-[9px] uppercase tracking-wide ${
+                        p.mark_source === "live"
+                          ? "border-emerald-700 text-emerald-400"
+                          : p.mark_source === "scan"
+                          ? "border-amber-700 text-amber-400"
+                          : "border-red-800 text-red-400"
+                      }`}
+                    >
+                      {p.mark_source ?? "no mark"}
+                    </span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
           {op.sector_exposure && Object.keys(op.sector_exposure).length > 0 && (
             <div className="mt-1 pt-1 border-t border-slate-800">
               <div className="text-[10px] text-slate-500 uppercase mb-0.5">Sector Exposure</div>
