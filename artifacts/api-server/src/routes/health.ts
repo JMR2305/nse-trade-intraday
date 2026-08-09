@@ -44,12 +44,14 @@ router.get("/health/live", (_req, res) => {
   res.json({ status: "ok", uptime_s: Math.round((Date.now() - STARTED_AT) / 1000) });
 });
 
-// Readiness: python runtime + scan cache file reachable.
+// Readiness: python runtime + scan cache file reachable + portfolio config loaded.
 router.get("/health/ready", async (_req, res) => {
   const checks: Record<string, boolean> = {
     python_runtime: false,
     scan_cache_readable: false,
+    portfolio_config_loaded: false,
   };
+  const warnings: string[] = [];
   try {
     const ms = (await runPython(["market_status"])) as Record<string, unknown>;
     checks["python_runtime"] = Boolean(ms && ms["state"]);
@@ -58,8 +60,29 @@ router.get("/health/ready", async (_req, res) => {
     fs.accessSync(path.join(PYTHON_DIR, "phase7_scan_cache.json"), fs.constants.R_OK);
     checks["scan_cache_readable"] = true;
   } catch { /* stays false */ }
+  // Portfolio config: a load failure silently reverts risk limits to
+  // hardcoded defaults — surface it as an explicit warning, never silently.
+  try {
+    const cfg = (await runPython(["portfolio_config"])) as Record<string, unknown>;
+    checks["portfolio_config_loaded"] = cfg?.["loaded"] === true;
+    if (cfg?.["loaded"] !== true) {
+      warnings.push(
+        `Portfolio config failed to load (${String(cfg?.["error"] ?? "unknown error")}) — ` +
+        "risk limits are falling back to hardcoded defaults; operator-saved limits are NOT active."
+      );
+    }
+  } catch (err) {
+    warnings.push(
+      `Portfolio config check failed (${err instanceof Error ? err.message : String(err)}) — ` +
+      "risk limits may be falling back to hardcoded defaults."
+    );
+  }
   const ready = checks["python_runtime"] === true;
-  res.status(ready ? 200 : 503).json({ status: ready ? "ready" : "not_ready", checks });
+  res.status(ready ? 200 : 503).json({
+    status: ready ? "ready" : "not_ready",
+    checks,
+    ...(warnings.length > 0 ? { warnings } : {}),
+  });
 });
 
 // Details: full observability payload (honest nulls on failure).
