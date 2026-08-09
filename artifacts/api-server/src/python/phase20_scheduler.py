@@ -158,6 +158,108 @@ def _maybe_generate_session_report(mstate: str) -> Any:
         return {"generated": False, "error": str(exc)[:200]}
 
 
+COVERAGE_ALERT_GRACE_MIN = 15          # minutes after 09:15 IST open
+# Per-shortfall alert guard: kv_claim_once("coverage_alert:<day>:<sig>") —
+# atomic, so each shortfall signature alerts exactly once per session even
+# across concurrent Autoscale ticks, and A→B→A never re-alerts A.
+_COVERAGE_LAST_KV_KEY = "coverage_alert_last"   # most recent alert claim key
+
+
+def _maybe_alert_low_coverage(mstate: str) -> Any:
+    """Raise a deduplicated operator notification when scanner coverage is
+    still below the expected universe well into the session.
+
+    Rules (validation-of-recovery, all judged by scanner_coverage.coverage_probe):
+    * Only during the OPEN session, and only after a grace period
+      (COVERAGE_ALERT_GRACE_MIN minutes past 09:15 IST market open) so the
+      normal Monday self-recovery has a chance to happen first.
+    * At most ONE alert per session per shortfall signature (KV-guarded,
+      durable across process restarts). A DIFFERENT shortfall in the same
+      session (e.g. new missing symbols) may alert again.
+    * When a later scan reaches full coverage, a one-time INFO "recovered"
+      notification resolves the alert.
+    Never raises. Returns a small status dict (or None when idle).
+    """
+    if mstate != "OPEN":
+        return None
+    try:
+        import market_hours
+        from scanner_coverage import coverage_probe
+
+        now = market_hours.now_ist()
+        open_dt = now.replace(hour=market_hours.MARKET_OPEN.hour,
+                              minute=market_hours.MARKET_OPEN.minute,
+                              second=0, microsecond=0)
+        grace_end = open_dt + timedelta(minutes=COVERAGE_ALERT_GRACE_MIN)
+        if now < grace_end:
+            return {"checked": False, "reason": "within grace period"}
+
+        probe = coverage_probe()
+        if not probe.get("in_session"):
+            return {"checked": False, "reason": "not in session"}
+        today = now.strftime("%Y-%m-%d")
+
+        if probe.get("ok"):
+            # Coverage OK — resolve the most recent alert exactly once
+            # (atomic claim; a NEW alert later re-arms recovery because it
+            # rewrites the last-alert key).
+            prev = str(store.kv_get(_COVERAGE_LAST_KV_KEY) or "")
+            if prev.startswith(f"coverage_alert:{today}:") and \
+                    store.kv_claim_once("resolved:" + prev):
+                store.add_notification(
+                    kind="DATA_QUALITY_RECOVERED",
+                    title="Scanner coverage recovered",
+                    body=(f"Coverage is back to "
+                          f"{probe.get('coverage')}/"
+                          f"{probe.get('min_symbols_expected')} symbols "
+                          f"(scan {probe.get('scan_id') or 'unknown'})."),
+                    severity="INFO",
+                    context={"coverage": probe.get("coverage"),
+                             "scan_id": probe.get("scan_id")},
+                )
+                return {"checked": True, "ok": True, "resolved": True}
+            return {"checked": True, "ok": True}
+
+        # Shortfall signature: distinguishes "no fresh scan" from specific
+        # missing-symbol sets so each distinct problem alerts once.
+        missing = sorted(str(s) for s in probe.get("missing_symbols") or [])
+        if not probe.get("scan_fresh_for_session"):
+            sig = "no-fresh-scan"
+        elif missing:
+            sig = "missing:" + ",".join(missing)[:200]
+        else:
+            sig = f"coverage:{probe.get('coverage')}"
+        claim_key = f"coverage_alert:{today}:{sig}"
+
+        # Atomic once-per-session-per-shortfall claim (cross-process safe).
+        if not store.kv_claim_once(claim_key):
+            return {"checked": True, "ok": False, "alerted": False,
+                    "reason": "already alerted this session"}
+        store.kv_set(_COVERAGE_LAST_KV_KEY, claim_key)
+        store.add_notification(
+            kind="DATA_QUALITY_CRITICAL",
+            title=(f"Scanner coverage still "
+                   f"{probe.get('coverage') if probe.get('coverage') is not None else '?'}"
+                   f"/{probe.get('min_symbols_expected')} after market open"),
+            body=(str(probe.get("warning") or "Coverage below expected "
+                      "universe during market hours.")
+                  + f" (checked {COVERAGE_ALERT_GRACE_MIN}+ min after "
+                    "09:15 IST open)"),
+            severity="CRITICAL",
+            context={"coverage": probe.get("coverage"),
+                     "expected": probe.get("min_symbols_expected"),
+                     "missing_symbols": missing,
+                     "scan_id": probe.get("scan_id"),
+                     "scan_fresh_for_session":
+                         probe.get("scan_fresh_for_session"),
+                     "signature": sig},
+        )
+        return {"checked": True, "ok": False, "alerted": True,
+                "signature": sig}
+    except Exception as exc:            # never break the scheduler tick
+        return {"checked": False, "error": str(exc)[:200]}
+
+
 def run_tick() -> Dict[str, Any]:
     """One scheduler tick. Returns a JSON-safe result dict."""
     settings = store.get_settings()
@@ -216,6 +318,10 @@ def run_tick() -> Dict[str, Any]:
             out["phase24_learning"] = p24_learning
         return out
 
+    # Coverage watchdog: alert operators automatically (dedup per session)
+    # when coverage is still short well after open. Never raises.
+    coverage_alert = _maybe_alert_low_coverage(mstate)
+
     from phase15_scan_context import scan_age_seconds
     age = scan_age_seconds()
     if age is not None and age < interval_min * 60:
@@ -230,6 +336,8 @@ def run_tick() -> Dict[str, Any]:
             "reason": f"Snapshot fresh ({round(age)}s old, interval {interval_min}m)",
         }
         result["paper"] = _manage_paper(settings, ran_scan=False)
+        if coverage_alert is not None:
+            result["coverage_alert"] = coverage_alert
         return result
 
     store.update_scheduler_state(last_attempt_at=now_iso, status="SCANNING",
@@ -264,8 +372,12 @@ def run_tick() -> Dict[str, Any]:
                 owner=_OWNER, heartbeat_at=_iso_now(),
                 last_trigger="SCHEDULED",
             )
-            return {"success": True, "ran_scan": False,
-                    "reason": "SKIPPED_ACTIVE_SCAN — another scan in progress"}
+            busy_out: Dict[str, Any] = {
+                "success": True, "ran_scan": False,
+                "reason": "SKIPPED_ACTIVE_SCAN — another scan in progress"}
+            if coverage_alert is not None:
+                busy_out["coverage_alert"] = coverage_alert
+            return busy_out
 
         ran = not snap.get("_from_cache", False)
         pipeline = None
@@ -303,6 +415,8 @@ def run_tick() -> Dict[str, Any]:
                 "failed_modules": pipeline.get("failed_modules"),
             }
         result["paper"] = _manage_paper(settings, ran_scan=ran)
+        if coverage_alert is not None:
+            result["coverage_alert"] = coverage_alert
         # ── RC-10C1: scheduled portfolio reconciliation after each scan tick.
         # Fail-open — reconcile_now() never raises; it returns an error dict.
         if ran:
@@ -330,8 +444,12 @@ def run_tick() -> Dict[str, Any]:
             "SCAN_FAILED", "Scheduled scan failed",
             str(exc)[:500], severity="ERROR",
         )
-        return {"success": True, "ran_scan": False, "error": str(exc)[:300],
-                "reason": "Scan failed — previous snapshot preserved"}
+        fail_out: Dict[str, Any] = {
+            "success": True, "ran_scan": False, "error": str(exc)[:300],
+            "reason": "Scan failed — previous snapshot preserved"}
+        if coverage_alert is not None:
+            fail_out["coverage_alert"] = coverage_alert
+        return fail_out
 
 
 def _manage_paper(settings: Dict[str, Any], ran_scan: bool) -> Dict[str, Any]:

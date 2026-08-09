@@ -671,6 +671,29 @@ def get_scheduler_health() -> Dict[str, Any]:
 
 # ── Generic durable KV (evaluation snapshots, pending-data events, etc.) ─────
 
+def _kv_file_lock():
+    """Exclusive cross-process lock for ALL mutations of the KV fallback
+    file. Every file-backed KV write (kv_set, kv_claim_once) MUST hold it —
+    an unlocked read-modify-write can overwrite claims made concurrently."""
+    import fcntl
+    from contextlib import contextmanager
+
+    @contextmanager
+    def _lock():
+        path = os.path.join(_DIR, "phase20_kv.json.lock")
+        fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o644)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            yield
+        finally:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+            finally:
+                os.close(fd)
+
+    return _lock()
+
+
 def kv_set(key: str, value: Any) -> None:
     def to_db(conn):
         with conn.cursor() as cur:
@@ -695,11 +718,53 @@ def kv_set(key: str, value: Any) -> None:
         return True
 
     def to_file():
-        data = _read_json(os.path.join(_DIR, "phase20_kv.json"), {})
-        data[key] = value
-        _write_json(os.path.join(_DIR, "phase20_kv.json"), data)
+        with _kv_file_lock():
+            data = _read_json(os.path.join(_DIR, "phase20_kv.json"), {})
+            data[key] = value
+            _write_json(os.path.join(_DIR, "phase20_kv.json"), data)
 
     _with_db(to_db, to_file)
+
+
+def kv_claim_once(key: str) -> bool:
+    """Atomically claim a KV key. Returns True only for the FIRST claimant
+    (cross-process safe): DB path uses INSERT ... ON CONFLICT DO NOTHING in a
+    single statement; file fallback serialises with flock. Use for
+    exactly-once notification guards."""
+    def to_db(conn):
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS phase20_kv (
+                    key TEXT PRIMARY KEY,
+                    value JSONB,
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
+                """
+            )
+            cur.execute(
+                """
+                INSERT INTO phase20_kv (key, value, updated_at)
+                VALUES (%s, %s, NOW())
+                ON CONFLICT (key) DO NOTHING
+                """,
+                (key, json.dumps(True)),
+            )
+            claimed = cur.rowcount == 1
+        conn.commit()
+        return claimed
+
+    def to_file():
+        path = os.path.join(_DIR, "phase20_kv.json")
+        with _kv_file_lock():
+            data = _read_json(path, {})
+            if key in data:
+                return False
+            data[key] = True
+            _write_json(path, data)
+            return True
+
+    return bool(_with_db(to_db, to_file))
 
 
 def kv_get(key: str, default: Any = None) -> Any:
