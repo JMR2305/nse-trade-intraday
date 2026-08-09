@@ -494,18 +494,73 @@ def run_live_validation(persist: bool = True,
     try:
         import phase26_live_store as live_store
         if snap["in_session"]:
+            opened: List[Dict[str, Any]] = []
+            resolved: List[Dict[str, str]] = []
+
+            def _track(category: str, res: Dict[str, Any]) -> None:
+                opened.extend(res.get("opened") or [])
+                resolved.extend({"category": category, "key": k}
+                                for k in res.get("resolved_keys") or [])
+
             sub_issues = [i for i in snap["issues"]
                           if i["category"] == "SUBSYSTEM"]
             fully = not snap.get("collection_errors")
+            # The cycle counts as FULLY evaluated for verdict recovery only
+            # when the consistency validator actually ran too — an
+            # unavailable/errored consistency check is a partial cycle even
+            # if liveness collection succeeded.
+            cons_evaluated = (consistency is None
+                              or (consistency.get("available", True)
+                                  and not consistency.get("error")))
             if fully:
-                live_store.reconcile_category("SUBSYSTEM", sub_issues)
+                _track("SUBSYSTEM",
+                       live_store.reconcile_category("SUBSYSTEM", sub_issues))
             else:
+                # Partial cycle: upsert only — never auto-resolve.
                 for i in sub_issues:
-                    live_store.report_issue(**i)
+                    res = live_store.report_issue(**i)
+                    if res.get("transition") == "OPENED":
+                        opened.append(dict(i))
             if consistency is not None and consistency.get("available", True) \
                     and not consistency.get("error"):
-                live_store.reconcile_category(
-                    "CONSISTENCY", consistency.get("issues") or [])
+                _track("CONSISTENCY",
+                       live_store.reconcile_category(
+                           "CONSISTENCY", consistency.get("issues") or []))
+
+            # ── Overall verdict tracked through the same issue lifecycle ────
+            # (category VERDICT, key live_validation) so the FAIL alert fires
+            # exactly once on the PASS/WARN→FAIL transition and stays quiet
+            # while FAIL persists. Recovery follows the partial-cycle rule:
+            # the FAIL issue resolves (and the all-clear fires) ONLY on a
+            # FULLY evaluated cycle with a confirmed PASS verdict — a
+            # collection-error/WARN cycle never clears an open outage.
+            if snap["verdict"] == "FAIL":
+                down = [s["subsystem"] for s in snap["subsystems"]
+                        if s["status"] == DOWN]
+                cons_fail = (snap.get("consistency") or {}) \
+                    .get("verdict") == "FAIL"
+                parts = []
+                if down:
+                    parts.append(f"subsystems DOWN: {', '.join(down)}")
+                if cons_fail:
+                    parts.append("cross-page consistency FAIL")
+                res = live_store.report_issue(
+                    category="VERDICT", key="live_validation",
+                    severity="CRITICAL",
+                    title="Live validation verdict FAIL",
+                    detail="; ".join(parts) or "verdict FAIL",
+                    source="live_monitor")
+                if res.get("transition") == "OPENED":
+                    opened.append({"category": "VERDICT",
+                                   "key": "live_validation",
+                                   "severity": "CRITICAL",
+                                   "detail": "; ".join(parts)
+                                   or "verdict FAIL"})
+            elif fully and cons_evaluated and snap["verdict"] == "PASS":
+                _track("VERDICT",
+                       live_store.reconcile_category("VERDICT", []))
+
+            _raise_alerts(snap, opened, resolved)
     except Exception as exc:
         snap.setdefault("collection_errors", {})["issue_store"] = \
             str(exc)[:200]
@@ -522,6 +577,47 @@ def run_live_validation(persist: bool = True,
                 str(exc)[:200]
     snap["ran"] = True
     return snap
+
+
+def _raise_alerts(snap: Dict[str, Any], opened: List[Dict[str, Any]],
+                  resolved: List[Dict[str, str]]) -> None:
+    """Notify operators through the phase20 notification hook (which already
+    emails critical kinds). Called only for in-session cycles; alerts fire on
+    issue OPEN transitions only — a persisting FAIL stays quiet after the
+    first alert, and issue auto-resolution raises an all-clear info note.
+    Never raises."""
+    try:
+        import phase20_store as store
+
+        for iss in opened:
+            if iss.get("category") == "VERDICT":
+                store.add_notification(
+                    kind="LIVE_VALIDATION_FAIL", severity="CRITICAL",
+                    title="Live validation FAILED mid-session",
+                    body=str(iss.get("detail") or "verdict FAIL"),
+                    context={"scan_id": snap.get("scan_id"),
+                             "snapshot_generated_at": snap.get("generated_at"),
+                             "subsystem_counts": snap.get("subsystem_counts")})
+            elif str(iss.get("severity") or "").upper() == "CRITICAL":
+                store.add_notification(
+                    kind="LIVE_VALIDATION_ISSUE", severity="CRITICAL",
+                    title=str(iss.get("title") or
+                              f"Live validation issue: {iss.get('key')}"),
+                    body=str(iss.get("detail") or ""),
+                    context={"category": iss.get("category"),
+                             "key": iss.get("key"),
+                             "scan_id": snap.get("scan_id")})
+
+        if any(r.get("category") == "VERDICT" for r in resolved):
+            store.add_notification(
+                kind="LIVE_VALIDATION_RECOVERED", severity="INFO",
+                title="Live validation recovered",
+                body=f"Verdict is back to {snap.get('verdict')} — the "
+                     "previous mid-session FAIL condition has cleared.",
+                context={"scan_id": snap.get("scan_id"),
+                         "verdict": snap.get("verdict")})
+    except Exception:
+        pass
 
 
 def live_summary(limit: int = 20) -> Dict[str, Any]:

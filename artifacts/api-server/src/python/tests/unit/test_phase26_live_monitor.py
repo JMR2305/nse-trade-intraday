@@ -565,5 +565,179 @@ class TestIssueStore(unittest.TestCase):
         self.assertTrue(any(i["key"] == "scanner" for i in resolved))
 
 
+class TestFailAlerts(unittest.TestCase):
+    """Task: alert operators the moment live validation turns FAIL."""
+
+    def setUp(self):
+        import tempfile
+        from unittest import mock
+        self.tmp = tempfile.TemporaryDirectory()
+        self._old_issues = live_store.ISSUES_FILE
+        self._old_snaps = live_store.SNAPSHOTS_FILE
+        live_store.ISSUES_FILE = os.path.join(self.tmp.name, "issues.json")
+        live_store.SNAPSHOTS_FILE = os.path.join(self.tmp.name, "snaps.json")
+        import phase20_store
+        self.notifications = []
+        self._patch = mock.patch.object(
+            phase20_store, "add_notification",
+            side_effect=lambda kind, title, body="", severity="INFO",
+            context=None: self.notifications.append(
+                {"kind": kind, "title": title, "severity": severity}))
+        self._patch.start()
+        self.rn = datetime.now(timezone.utc)
+
+    def tearDown(self):
+        self._patch.stop()
+        live_store.ISSUES_FILE = self._old_issues
+        live_store.SNAPSHOTS_FILE = self._old_snaps
+        self.tmp.cleanup()
+
+    def _inputs(self, healthy=True):
+        inp = base_inputs()
+        fresh = iso(self.rn - timedelta(minutes=3))
+        inp["market"]["session_start_utc"] = iso(self.rn - timedelta(hours=2))
+        inp["scan_meta"] = {"scan_id": "scan-1",
+                            "completed_at": fresh if healthy
+                            else iso(self.rn - timedelta(minutes=45))}
+        for s in inp["stage_events"]["stages"]:
+            s["last_ts"] = fresh
+        inp["replay"]["snapshot_ts"] = fresh
+        return inp
+
+    _PASS_CONS = {"available": True, "verdict": "PASS",
+                  "mismatch_count": 0, "hard_mismatch_count": 0, "issues": []}
+
+    def _run(self, healthy=True):
+        return mon.run_live_validation(persist=True,
+                                       inputs=self._inputs(healthy),
+                                       consistency=self._PASS_CONS)
+
+    def kinds(self):
+        return [n["kind"] for n in self.notifications]
+
+    def test_fail_alerts_once_then_stays_quiet_then_all_clear(self):
+        snap = self._run(healthy=False)
+        self.assertEqual(snap["verdict"], "FAIL")
+        self.assertIn("LIVE_VALIDATION_FAIL", self.kinds())
+        # scanner DOWN is a CRITICAL issue → per-issue alert too
+        self.assertIn("LIVE_VALIDATION_ISSUE", self.kinds())
+        first_count = len(self.notifications)
+
+        # second FAIL cycle: same issues still open → NO new alerts
+        self._run(healthy=False)
+        self.assertEqual(len(self.notifications), first_count)
+
+        # recovery: issues auto-resolve → single all-clear info note
+        snap = self._run(healthy=True)
+        self.assertEqual(snap["verdict"], "PASS")
+        self.assertEqual(self.kinds().count("LIVE_VALIDATION_RECOVERED"), 1)
+        recovered = [n for n in self.notifications
+                     if n["kind"] == "LIVE_VALIDATION_RECOVERED"]
+        self.assertEqual(recovered[0]["severity"], "INFO")
+
+        # healthy again: quiet
+        n = len(self.notifications)
+        self._run(healthy=True)
+        self.assertEqual(len(self.notifications), n)
+
+    def test_partial_warn_cycle_never_clears_open_fail(self):
+        # FAIL → partial cycle (collection errors, WARN) → confirmed PASS.
+        # The partial cycle must neither resolve the open FAIL issue nor
+        # send a false all-clear; only the confirmed PASS recovers.
+        self._run(healthy=False)
+        n = len(self.notifications)
+
+        inp = self._inputs(healthy=True)
+        inp["scan_meta"] = {}
+        inp["collection_errors"] = {"scan_meta": "db timeout"}
+        snap = mon.run_live_validation(persist=True, inputs=inp,
+                                       consistency=self._PASS_CONS)
+        self.assertEqual(snap["verdict"], "WARN")
+        self.assertNotIn("LIVE_VALIDATION_RECOVERED", self.kinds())
+        self.assertEqual(len(self.notifications), n)
+        open_verdict = [i for i in live_store.list_issues(status="OPEN")
+                        if i["category"] == "VERDICT"]
+        self.assertEqual(len(open_verdict), 1)
+
+        snap = self._run(healthy=True)
+        self.assertEqual(snap["verdict"], "PASS")
+        self.assertEqual(self.kinds().count("LIVE_VALIDATION_RECOVERED"), 1)
+        self.assertEqual([i for i in live_store.list_issues(status="OPEN")
+                          if i["category"] == "VERDICT"], [])
+
+    def test_consistency_unavailable_never_clears_open_fail(self):
+        # FAIL → liveness-healthy cycle whose consistency validator is
+        # unavailable/errored → confirmed PASS. The unavailable-consistency
+        # cycle is PARTIAL: it must not resolve the open FAIL nor send an
+        # all-clear, even though the liveness verdict alone is PASS.
+        self._run(healthy=False)
+        n = len(self.notifications)
+
+        snap = mon.run_live_validation(
+            persist=True, inputs=self._inputs(healthy=True),
+            consistency={"available": False, "error": "consistency crashed"})
+        self.assertNotIn("LIVE_VALIDATION_RECOVERED", self.kinds())
+        self.assertEqual(len(self.notifications), n)
+        open_verdict = [i for i in live_store.list_issues(status="OPEN")
+                        if i["category"] == "VERDICT"]
+        self.assertEqual(len(open_verdict), 1, snap)
+
+        snap = self._run(healthy=True)
+        self.assertEqual(snap["verdict"], "PASS")
+        self.assertEqual(self.kinds().count("LIVE_VALIDATION_RECOVERED"), 1)
+        self.assertEqual([i for i in live_store.list_issues(status="OPEN")
+                          if i["category"] == "VERDICT"], [])
+
+    def test_refail_after_recovery_alerts_again(self):
+        self._run(healthy=False)
+        self._run(healthy=True)
+        n_fail = self.kinds().count("LIVE_VALIDATION_FAIL")
+        self._run(healthy=False)
+        self.assertEqual(self.kinds().count("LIVE_VALIDATION_FAIL"),
+                         n_fail + 1)
+
+    def test_healthy_pass_cycle_raises_nothing(self):
+        snap = self._run(healthy=True)
+        self.assertEqual(snap["verdict"], "PASS")
+        self.assertEqual(self.notifications, [])
+
+    def test_off_session_is_quiet_even_after_open_fail(self):
+        self._run(healthy=False)
+        n = len(self.notifications)
+        snap = mon.run_live_validation(
+            persist=True,
+            inputs=base_inputs(market={"state": "CLOSED",
+                                       "session_start_utc": None}))
+        self.assertFalse(snap["in_session"])
+        self.assertEqual(len(self.notifications), n)
+
+    def test_alert_kinds_are_emailed_critical_kinds(self):
+        import email_alerts
+        self.assertIn("LIVE_VALIDATION_FAIL", email_alerts.EMAIL_KINDS)
+        self.assertIn("LIVE_VALIDATION_ISSUE", email_alerts.EMAIL_KINDS)
+
+    def test_report_issue_transitions(self):
+        r = live_store.report_issue("SUBSYSTEM", "risk", "CRITICAL", "t", "d")
+        self.assertEqual(r["transition"], "OPENED")
+        r = live_store.report_issue("SUBSYSTEM", "risk", "CRITICAL", "t", "d")
+        self.assertEqual(r["transition"], "STILL_OPEN")
+        live_store.resolve_issue("SUBSYSTEM", "risk")
+        r = live_store.report_issue("SUBSYSTEM", "risk", "CRITICAL", "t", "d")
+        self.assertEqual(r["transition"], "OPENED")
+
+    def test_reconcile_returns_opened_and_resolved_keys(self):
+        out = live_store.reconcile_category("SUBSYSTEM", [
+            {"key": "scanner", "severity": "CRITICAL", "title": "t"}])
+        self.assertEqual([o["key"] for o in out["opened"]], ["scanner"])
+        self.assertEqual(out["resolved_keys"], [])
+        # same issue again → not opened again
+        out = live_store.reconcile_category("SUBSYSTEM", [
+            {"key": "scanner", "severity": "CRITICAL", "title": "t"}])
+        self.assertEqual(out["opened"], [])
+        # cycle without it → resolved_keys reports it
+        out = live_store.reconcile_category("SUBSYSTEM", [])
+        self.assertEqual(out["resolved_keys"], ["scanner"])
+
+
 if __name__ == "__main__":
     unittest.main()

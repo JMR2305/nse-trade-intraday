@@ -244,6 +244,10 @@ def report_issue(category: str, key: str, severity: str, title: str,
     - new → OPEN row with first_seen = last_seen = now, count 1
     - existing OPEN → bump last_seen/count; severity escalates only upward
     - existing RESOLVED → reopen (first_seen preserved, count continues)
+
+    Returns {"category", "key", "status", "transition"} where transition is
+    "OPENED" when the row transitioned to OPEN this call (new or reopened)
+    and "STILL_OPEN" when it was already open — callers alert on OPENED only.
     """
     category = str(category).strip().upper()
     key = str(key).strip()
@@ -252,6 +256,12 @@ def report_issue(category: str, key: str, severity: str, title: str,
 
     def in_db(conn):
         with conn.cursor() as cur:
+            cur.execute(
+                "SELECT status FROM phase26_issues"
+                " WHERE category=%s AND key=%s", (category, key))
+            row = cur.fetchone()
+            transition = "STILL_OPEN" if row and row[0] == "OPEN" \
+                else "OPENED"
             cur.execute(
                 """
                 INSERT INTO phase26_issues
@@ -279,7 +289,8 @@ def report_issue(category: str, key: str, severity: str, title: str,
                 (category, key, severity, str(title)[:300], str(detail)[:1000],
                  str(source)[:100], now, now),
             )
-        return {"category": category, "key": key, "status": "OPEN"}
+        return {"category": category, "key": key, "status": "OPEN",
+                "transition": transition}
 
     def in_file():
         with _file_lock(ISSUES_FILE):
@@ -295,7 +306,10 @@ def report_issue(category: str, key: str, severity: str, title: str,
                              count=int(r.get("count") or 0) + 1,
                              status="OPEN", resolved_at=None)
                     _write_json(ISSUES_FILE, rows)
-                    return {"category": category, "key": key, "status": "OPEN"}
+                    return {"category": category, "key": key,
+                            "status": "OPEN",
+                            "transition": "OPENED" if reopened
+                            else "STILL_OPEN"}
             rows.append({"category": category, "key": key,
                          "severity": severity, "title": str(title)[:300],
                          "detail": str(detail)[:1000],
@@ -303,7 +317,8 @@ def report_issue(category: str, key: str, severity: str, title: str,
                          "first_seen": now, "last_seen": now, "count": 1,
                          "status": "OPEN", "resolved_at": None})
             _write_json(ISSUES_FILE, rows[-_ISSUE_CAP:])
-        return {"category": category, "key": key, "status": "OPEN"}
+        return {"category": category, "key": key, "status": "OPEN",
+                "transition": "OPENED"}
 
     return _with_db(in_db, in_file)
 
@@ -387,7 +402,14 @@ def reconcile_category(category: str,
     cycle, as ONE unit. DB path holds a per-category advisory lock inside a
     single transaction; file path holds the flock across the whole cycle —
     so a concurrent run can never sweep away an issue another run just
-    reported (report+sweep interleave)."""
+    reported (report+sweep interleave).
+
+    Returns {"reported", "resolved", "opened", "resolved_keys"}:
+    - opened: the detected issues (dicts incl. category) that transitioned
+      to OPEN this cycle (new or reopened) — callers alert on these only,
+      never on issues that were already open.
+    - resolved_keys: keys of OPEN issues this cycle auto-resolved.
+    """
     category = str(category).strip().upper()
     now = _now()
     norm = []
@@ -405,6 +427,10 @@ def reconcile_category(category: str,
         with conn.cursor() as cur:
             cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))",
                         (f"phase26_issues:{category}",))
+            cur.execute(
+                "SELECT key FROM phase26_issues"
+                " WHERE category=%s AND status='OPEN'", (category,))
+            already_open = {r[0] for r in cur.fetchall()}
             for n in norm:
                 cur.execute(
                     """
@@ -437,21 +463,27 @@ def reconcile_category(category: str,
                 cur.execute(
                     "UPDATE phase26_issues SET status='RESOLVED',"
                     " resolved_at=%s WHERE category=%s AND status='OPEN'"
-                    " AND NOT (key = ANY(%s))",
+                    " AND NOT (key = ANY(%s)) RETURNING key",
                     (now, category, list(active_keys)))
             else:
                 cur.execute(
                     "UPDATE phase26_issues SET status='RESOLVED',"
-                    " resolved_at=%s WHERE category=%s AND status='OPEN'",
+                    " resolved_at=%s WHERE category=%s AND status='OPEN'"
+                    " RETURNING key",
                     (now, category))
-            resolved = cur.rowcount
-        return {"reported": len(norm), "resolved": resolved}
+            resolved_keys = [r[0] for r in cur.fetchall()]
+        opened = [{**n, "category": category} for n in norm
+                  if n["key"] not in already_open]
+        return {"reported": len(norm), "resolved": len(resolved_keys),
+                "opened": opened, "resolved_keys": resolved_keys}
 
     def in_file():
         with _file_lock(ISSUES_FILE):
             rows = _read_json(ISSUES_FILE, [])
             by_key = {r.get("key"): r for r in rows
                       if r.get("category") == category}
+            already_open = {k for k, r in by_key.items()
+                            if r.get("status") == "OPEN"}
             for n in norm:
                 r = by_key.get(n["key"])
                 if r is None:
@@ -468,16 +500,19 @@ def reconcile_category(category: str,
                              source=n["source"], last_seen=now,
                              count=int(r.get("count") or 0) + 1,
                              status="OPEN", resolved_at=None)
-            resolved = 0
+            resolved_keys = []
             for r in rows:
                 if r.get("category") == category and \
                         r.get("status") == "OPEN" and \
                         r.get("key") not in active_keys:
                     r["status"] = "RESOLVED"
                     r["resolved_at"] = now
-                    resolved += 1
+                    resolved_keys.append(r.get("key"))
             _write_json(ISSUES_FILE, rows[-_ISSUE_CAP:])
-            return {"reported": len(norm), "resolved": resolved}
+            opened = [{**n, "category": category} for n in norm
+                      if n["key"] not in already_open]
+            return {"reported": len(norm), "resolved": len(resolved_keys),
+                    "opened": opened, "resolved_keys": resolved_keys}
 
     return _with_db(in_db, in_file)
 
