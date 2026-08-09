@@ -109,6 +109,11 @@ SECTOR_MAP: dict[str, list[str]] = {
 # Market Scanner (Sprint 1.5) to scan the full index.
 NIFTY_50: list[str] = [sym for syms in SECTOR_MAP.values() for sym in syms]
 
+# Minimum scanner coverage expected during market hours. Weekend data gaps
+# (e.g. Yahoo returning 48/50) are expected to self-resolve at Monday open —
+# coverage below this DURING a live session is an operator-visible problem.
+MIN_SYMBOLS_EXPECTED: int = len(NIFTY_50)
+
 # ── Default watchlist ─────────────────────────────────────────────────────────
 
 DEFAULT_WATCHLIST: list[str] = [

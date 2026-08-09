@@ -920,6 +920,9 @@ def main():
                 "note": "Provider health probed with 3 symbols. Run /api/live-data/scan for full NIFTY 50 scan.",
             }
         # ── Phase 11 — Live Data Foundation ──────────────────────────────────
+        elif command == "scanner_coverage":
+            from scanner_coverage import coverage_probe
+            result = coverage_probe()
         elif command == "market_status":
             from market_hours import market_status
             result = {"success": True, **market_status()}

@@ -1123,6 +1123,36 @@ router.get("/live-data/scan", async (req, res) => {
   }
 });
 
+// GET /api/live-data/coverage — canonical market-hours coverage verdict for
+// the dashboard banner. All market-state / session-freshness / expected-universe
+// logic lives server-side in scanner_coverage.py — the browser only renders
+// ok/warning. Cached briefly; never triggers a scan.
+const COVERAGE_CACHE_MS = 30_000;
+let coverageCache: { data: unknown; ts: number } | null = null;
+let coverageInFlight: Promise<unknown> | null = null;
+
+router.get("/live-data/coverage", async (_req, res) => {
+  try {
+    if (coverageCache && Date.now() - coverageCache.ts < COVERAGE_CACHE_MS) {
+      res.json(coverageCache.data);
+      return;
+    }
+    if (!coverageInFlight) {
+      coverageInFlight = runPython(["scanner_coverage"])
+        .then((data) => {
+          coverageCache = { data, ts: Date.now() };
+          return data;
+        })
+        .finally(() => {
+          coverageInFlight = null;
+        });
+    }
+    res.json(await coverageInFlight);
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/live-data/scan/status — lightweight canonical scan metadata for the
 // DataFreshnessBar (scan_id, snapshot_ts, provider, coverage). Reads the
 // durable scan-state store only — never triggers a scan. Cached briefly to

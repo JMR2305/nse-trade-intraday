@@ -72,8 +72,21 @@ interface ScanStatusResponse {
   } | null;
 }
 
+interface CoverageResponse {
+  success?: boolean;
+  ok?: boolean;
+  in_session?: boolean;
+  market_state?: string;
+  coverage?: number | null;
+  min_symbols_expected?: number;
+  missing_symbols?: string[];
+  scan_fresh_for_session?: boolean;
+  warning?: string | null;
+}
+
 export const STALENESS_QUERY_KEY = ["/api/phase15/staleness"];
 export const SCAN_STATUS_QUERY_KEY = ["/api/live-data/scan/status"];
+export const COVERAGE_QUERY_KEY = ["/api/live-data/coverage"];
 
 function useFreshness(enabled: boolean) {
   const staleness = useQuery<StalenessResponse>({
@@ -90,7 +103,16 @@ function useFreshness(enabled: boolean) {
     staleTime: 30_000,
     enabled,
   });
-  return { staleness, scanStatus };
+  // Canonical market-hours coverage verdict — ALL session/holiday/universe
+  // logic is server-side (scanner_coverage.py); the browser only renders it.
+  const coverage = useQuery<CoverageResponse>({
+    queryKey: COVERAGE_QUERY_KEY,
+    queryFn: () => apiJson<CoverageResponse>("/live-data/coverage"),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+    enabled,
+  });
+  return { staleness, scanStatus, coverage };
 }
 
 function istTime(iso?: string | null): string {
@@ -205,7 +227,7 @@ export default function DataFreshnessBar({
 }: DataFreshnessBarProps) {
   const [open, setOpen] = useState(false);
   const isLive = variant === "scan" || variant === "quotes";
-  const { staleness, scanStatus } = useFreshness(isLive);
+  const { staleness, scanStatus, coverage } = useFreshness(isLive);
 
   // ── Static / config-only pages ──────────────────────────────────────────
   if (variant === "none") {
@@ -285,6 +307,13 @@ export default function DataFreshnessBar({
     : dataStatus === "STALE" || dataStatus === "DELAYED" || dataStatus === "CACHED" ? AlertTriangle
     : CheckCircle2;
 
+  // Market-hours coverage warning: a weekend data gap (e.g. 48/50) is
+  // expected to self-resolve at Monday open — if coverage is still below
+  // the expected universe DURING today's session (incl. pre-open, holiday
+  // aware), the server verdict flags it. Rendered verbatim from the server.
+  const cov = coverage.data;
+  const coverageWarning = !loading && cov?.ok === false && !!cov?.warning;
+
   const scanTs = meta?.completed_at ?? st?.last_scan_time;
   const provider = quoteProvider ?? meta?.provider ?? "yfinance";
   // Source label: "yfinance / NSE" style
@@ -343,6 +372,16 @@ export default function DataFreshnessBar({
         <span>ID: {shortId}</span>
         {open ? <ChevronUp className="ml-auto h-3.5 w-3.5" /> : <ChevronDown className="ml-auto h-3.5 w-3.5" />}
       </button>
+
+      {coverageWarning && (
+        <div
+          data-testid="warning-market-hours-coverage"
+          className="mt-1.5 flex items-start gap-1.5 rounded border border-warn/60 bg-warn-surface px-2 py-1 text-warn"
+        >
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+          <span>{cov?.warning}</span>
+        </div>
+      )}
 
       {open && (
         <div className="mt-2 space-y-1 border-t border-border/40 pt-2 text-muted-foreground">

@@ -77,6 +77,21 @@ router.get("/health/ready", async (_req, res) => {
       "risk limits may be falling back to hardcoded defaults."
     );
   }
+  // Market-hours scanner coverage: a weekend data gap (e.g. 48/50) must
+  // self-resolve at Monday open — flag loudly if it does NOT.
+  try {
+    const cov = (await runPython(["scanner_coverage"])) as Record<string, unknown>;
+    checks["scanner_coverage_ok"] = cov?.["ok"] !== false;
+    if (cov?.["ok"] === false && cov?.["warning"]) {
+      warnings.push(String(cov["warning"]));
+    }
+  } catch (err) {
+    // Probe failure is not a readiness blocker, but never fail silently.
+    checks["scanner_coverage_ok"] = false;
+    warnings.push(
+      `Scanner coverage probe failed (${err instanceof Error ? err.message : String(err)}).`
+    );
+  }
   const ready = checks["python_runtime"] === true;
   res.status(ready ? 200 : 503).json({
     status: ready ? "ready" : "not_ready",

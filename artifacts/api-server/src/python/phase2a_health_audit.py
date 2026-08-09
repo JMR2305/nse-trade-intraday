@@ -825,6 +825,49 @@ def probe_15_database() -> Dict[str, Any]:
     }
 
 
+def probe_16_market_hours_coverage() -> Dict[str, Any]:
+    """Market-Hours Coverage — scanner must recover to full coverage in session."""
+    t0 = time.monotonic()
+    try:
+        sys.path.insert(0, PYTHON_DIR)
+        from scanner_coverage import coverage_probe
+        cov = coverage_probe()
+    except Exception as exc:
+        return {
+            "subsystem": "Market-Hours Coverage",
+            "status": "DOWN",
+            "latency_ms": round((time.monotonic() - t0) * 1000, 1),
+            "fields_verified": [],
+            "notes": f"scanner_coverage probe failed: {exc}",
+        }
+    lat = round((time.monotonic() - t0) * 1000, 1)
+    fields = [f for f in ("market_state", "in_session", "coverage",
+                          "min_symbols_expected", "ok") if f in cov]
+    notes = [
+        f"state={cov.get('market_state', '?')}",
+        f"in_session={cov.get('in_session')}",
+        f"coverage={cov.get('coverage', '?')}/{cov.get('min_symbols_expected', '?')}",
+    ]
+    if cov.get("missing_symbols"):
+        notes.append(f"missing={cov['missing_symbols']}")
+    if cov.get("warning"):
+        notes.append(f"WARNING: {cov['warning']}")
+    if cov.get("note"):
+        notes.append(cov["note"])
+    # DEGRADED (not DOWN) — data gap in session is an operator alert, the
+    # subsystem itself is still serving; DOWN only if the probe cannot run.
+    status = "HEALTHY" if cov.get("ok") else "DEGRADED"
+    if not cov.get("success", True):
+        status = "DOWN"
+    return {
+        "subsystem": "Market-Hours Coverage",
+        "status": status,
+        "latency_ms": lat,
+        "fields_verified": fields,
+        "notes": "; ".join(str(n) for n in notes),
+    }
+
+
 # ── Main runner ───────────────────────────────────────────────────────────────
 
 PROBES = [
@@ -843,6 +886,7 @@ PROBES = [
     probe_13_dashboard,
     probe_14_api_server,
     probe_15_database,
+    probe_16_market_hours_coverage,
 ]
 
 
@@ -858,7 +902,7 @@ def run_audit() -> Dict[str, Any]:
 
     for probe_fn in PROBES:
         name = probe_fn.__doc__.split("—")[0].strip()
-        print(f"\n[{len(results)+1:02d}/15] {name} ...", end=" ", flush=True)
+        print(f"\n[{len(results)+1:02d}/{len(PROBES)}] {name} ...", end=" ", flush=True)
         try:
             result = probe_fn()
         except Exception as exc:
@@ -880,10 +924,10 @@ def run_audit() -> Dict[str, Any]:
     # Summary
     print("\n" + "=" * 60)
     print("SUMMARY")
-    print(f"  ✅ HEALTHY:  {counts['HEALTHY']:2d}/15")
-    print(f"  ⚠️  DEGRADED: {counts['DEGRADED']:2d}/15")
-    print(f"  ❌ DOWN:     {counts['DOWN']:2d}/15")
-    print(f"  ⏩ SKIPPED:  {counts['SKIPPED']:2d}/15")
+    print(f"  ✅ HEALTHY:  {counts['HEALTHY']:2d}/{len(PROBES)}")
+    print(f"  ⚠️  DEGRADED: {counts['DEGRADED']:2d}/{len(PROBES)}")
+    print(f"  ❌ DOWN:     {counts['DOWN']:2d}/{len(PROBES)}")
+    print(f"  ⏩ SKIPPED:  {counts['SKIPPED']:2d}/{len(PROBES)}")
     print("=" * 60)
 
     output = {

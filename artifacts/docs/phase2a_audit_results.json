@@ -1,9 +1,9 @@
 {
-  "audit_run_at": "2026-07-25T22:25:59.166995+00:00",
+  "audit_run_at": "2026-08-09T09:44:20.491252+00:00",
   "api_base": "http://localhost:8080/api",
   "summary": {
     "HEALTHY": 13,
-    "DEGRADED": 2,
+    "DEGRADED": 3,
     "DOWN": 0,
     "SKIPPED": 0
   },
@@ -11,7 +11,7 @@
     {
       "subsystem": "Market Data",
       "status": "HEALTHY",
-      "latency_ms": 863.0,
+      "latency_ms": 1092.9,
       "fields_verified": [
         "market.state",
         "market.now_ist",
@@ -25,7 +25,7 @@
     {
       "subsystem": "Scanner",
       "status": "HEALTHY",
-      "latency_ms": 1.8,
+      "latency_ms": 3.7,
       "fields_verified": [
         "scan_id",
         "status",
@@ -33,12 +33,12 @@
         "symbols_requested",
         "symbols_received"
       ],
-      "notes": "scan_id=d49e1ec37b7f; status=SUCCESS; symbols=48/50; missing_symbols=['LTIM', 'TATAMOTORS']; completed_at=2026-07-25T19:10:13Z"
+      "notes": "scan_id=4915c8df904f; status=SUCCESS; symbols=48/50; missing_symbols=['LTIM', 'TATAMOTORS']; completed_at=2026-08-08T20:46:18Z"
     },
     {
       "subsystem": "Signal Engine",
       "status": "HEALTHY",
-      "latency_ms": 788.0,
+      "latency_ms": 1087.8,
       "fields_verified": [
         "stock",
         "signal",
@@ -50,7 +50,7 @@
     {
       "subsystem": "AI Advisory",
       "status": "HEALTHY",
-      "latency_ms": 240.8,
+      "latency_ms": 167.0,
       "fields_verified": [
         "stock",
         "decision",
@@ -59,31 +59,36 @@
         "paper_label",
         "staleness"
       ],
-      "notes": "decisions_count=10; PAPER_label=OK; buy_disabled_when_stale=True; stale=3h 16m"
+      "notes": "decisions_count=10; PAPER_label=OK; buy_disabled_when_stale=True; stale=12h 58m"
     },
     {
       "subsystem": "Risk Engine",
       "status": "DEGRADED",
-      "latency_ms": 135.5,
+      "latency_ms": 371.6,
       "fields_verified": [
+        "loaded",
+        "config",
+        "max_portfolio_exposure_pct",
+        "max_instrument_exposure_pct",
+        "max_sector_exposure_pct",
         "portfolio/health"
       ],
-      "notes": "pydantic=MISSING \u2014 CRITICAL; config_load_failed=No module named 'pydantic'; health_degraded=Exposure limits using hardcoded defaults \u2014 check PortfolioConfig import; PortfolioConfig falls back to hardcoded defaults"
+      "notes": "pydantic=OK v2.13.4"
     },
     {
       "subsystem": "Paper Execution",
       "status": "HEALTHY",
-      "latency_ms": 215.2,
+      "latency_ms": 600.1,
       "fields_verified": [
         "paper_mode",
         "live_orders_absent"
       ],
-      "notes": "paper_mode=True; status=DISABLED; auto_paper_entries=ON \u2014 review; live-orders route=404 (correct \u2014 paper only)"
+      "notes": "paper_mode=True; status=READY; auto_paper_entries=ON \u2014 review; live-orders route=404 (correct \u2014 paper only)"
     },
     {
       "subsystem": "Portfolio",
       "status": "HEALTHY",
-      "latency_ms": 192.0,
+      "latency_ms": 498.7,
       "fields_verified": [
         "cash",
         "equity",
@@ -94,12 +99,12 @@
         "peak_equity",
         "drawdown_pct"
       ],
-      "notes": "equity=5000; cash=5000; open_positions=0; initial_capital=5000"
+      "notes": "equity=49770.41; cash=13911.41; open_positions=4; initial_capital=50000"
     },
     {
       "subsystem": "P&L",
       "status": "HEALTHY",
-      "latency_ms": 198.0,
+      "latency_ms": 516.5,
       "fields_verified": [
         "realised_pnl_today",
         "unrealised_pnl",
@@ -108,23 +113,23 @@
         "drawdown_pct",
         "pnl_history"
       ],
-      "notes": "realised_pnl_today=0; unrealised_pnl=0; total_pnl=0; drawdown_pct=0"
+      "notes": "realised_pnl_today=0; unrealised_pnl=-229.59; total_pnl=-229.59; drawdown_pct=0.46"
     },
     {
       "subsystem": "Trade Journal",
       "status": "HEALTHY",
-      "latency_ms": 127.3,
+      "latency_ms": 154.4,
       "fields_verified": [
         "endpoint_reachable",
         "returns_list",
         "scope=all"
       ],
-      "notes": "trade_count=0 (clean state \u2014 no trades yet); all_time_count=0"
+      "notes": "trade_count=0 (clean state \u2014 no trades yet); all_time_count=4"
     },
     {
       "subsystem": "Audit Logs",
       "status": "HEALTHY",
-      "latency_ms": 183.6,
+      "latency_ms": 145.7,
       "fields_verified": [
         "endpoint_reachable",
         "report",
@@ -137,7 +142,7 @@
     {
       "subsystem": "Recovery",
       "status": "HEALTHY",
-      "latency_ms": 45.0,
+      "latency_ms": 194.6,
       "fields_verified": [
         "healthz",
         "health/live",
@@ -145,28 +150,26 @@
         "python_runtime",
         "scan_cache"
       ],
-      "notes": "healthz=OK; uptime=764s; python_runtime=True; scan_cache=True"
+      "notes": "healthz=OK; uptime=77s; python_runtime=True; scan_cache=True"
     },
     {
       "subsystem": "Mobile App",
       "status": "DEGRADED",
-      "latency_ms": 43.7,
+      "latency_ms": 0,
       "fields_verified": [],
-      "notes": "expo_process=running; expo_port_21338=reachable"
+      "notes": "expo_process=NOT FOUND; expo_port_21338=not_responding; NOTE: Expo process stuck on port-conflict prompt \u2014 workflow needs restart"
     },
     {
       "subsystem": "Dashboard",
-      "status": "HEALTHY",
-      "latency_ms": 37.3,
-      "fields_verified": [
-        "port_24210_reachable"
-      ],
-      "notes": "vite_process=running; dashboard_port_24210=reachable: OK"
+      "status": "DEGRADED",
+      "latency_ms": 0.4,
+      "fields_verified": [],
+      "notes": "vite_process=NOT FOUND; dashboard_port_24210=not_responding: <urlopen error [Errno 111] Connection refused>"
     },
     {
       "subsystem": "API Server",
       "status": "HEALTHY",
-      "latency_ms": 1.3,
+      "latency_ms": 1.4,
       "fields_verified": [
         "route:health.ts",
         "route:trading.ts",
@@ -184,7 +187,7 @@
     {
       "subsystem": "Database",
       "status": "HEALTHY",
-      "latency_ms": 9.5,
+      "latency_ms": 7.7,
       "fields_verified": [
         "DATABASE_URL",
         "connection_ok",
@@ -196,6 +199,19 @@
         "table:phase20_paper_trades"
       ],
       "notes": "DATABASE_URL=SET (62 chars); connection=OK; tables_present=6/6"
+    },
+    {
+      "subsystem": "Market-Hours Coverage",
+      "status": "HEALTHY",
+      "latency_ms": 12.3,
+      "fields_verified": [
+        "market_state",
+        "in_session",
+        "coverage",
+        "min_symbols_expected",
+        "ok"
+      ],
+      "notes": "state=WEEKEND; in_session=False; coverage=48/50; missing=['LTIM', 'TATAMOTORS']; Coverage 48/50 outside market hours (WEEKEND) \u2014 expected to self-resolve at next open."
     }
   ],
   "overall_status": "DEGRADED"
