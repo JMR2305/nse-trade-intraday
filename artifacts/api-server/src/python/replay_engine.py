@@ -55,6 +55,12 @@ def _q1(conn, sql: str, params=()) -> Optional[Dict]:
     return rows[0] if rows else None
 
 
+def _is_buy_action(action) -> bool:
+    """Canonical BUY classification — the scanner emits both 'BUY' and
+    'STRONG BUY' (space) as buy decisions; normalise before comparing."""
+    return str(action or "").upper().replace("_", " ") in ("BUY", "STRONG BUY")
+
+
 # ---------------------------------------------------------------------------
 # Stage definitions — order matches the live pipeline
 # ---------------------------------------------------------------------------
@@ -270,7 +276,7 @@ def _build_stages_from_snapshot(snapshot: Dict,
     ]
     buy_symbols = [
         r["symbol"] for r in recs
-        if r.get("symbol") in _risk_set and r.get("final_action") == "BUY"
+        if r.get("symbol") in _risk_set and _is_buy_action(r.get("final_action"))
     ]
 
     # Stage 8 — Execution: paper-eligible AND approved by Decision.
@@ -718,11 +724,11 @@ def _build_symbol_journey(rec: Dict, snapshot: Dict,
         {
             "stage": "execution",
             "label": "Execution",
-            "result": "PAPER BUY" if paper_eligible else ("SKIPPED" if final_action != "BUY" else "REJECTED"),
+            "result": "PAPER BUY" if paper_eligible else ("SKIPPED" if not _is_buy_action(final_action) else "REJECTED"),
             # (may be overridden below when the pre-check blocked this symbol)
             "score": None,
             "reason": "Paper order placed" if paper_eligible else (
-                "Not paper-eligible" if final_action == "BUY" else f"Action: {final_action}"
+                "Not paper-eligible" if _is_buy_action(final_action) else f"Action: {final_action}"
             ),
             "detail": {
                 "paper_eligible": paper_eligible,
@@ -882,7 +888,7 @@ def get_replay_sessions() -> Dict:
                 if isinstance(snap, str):
                     snap = json.loads(snap)
                 recs = snap.get("recommendations") or []
-                buy_count = sum(1 for r in recs if r.get("final_action") == "BUY")
+                buy_count = sum(1 for r in recs if _is_buy_action(r.get("final_action")))
                 # Executed count comes from the ACTUAL ledger, not the
                 # paper_eligible flag — eligibility does not guarantee a
                 # persisted order (duplicate/circuit-breaker blocks etc.).
@@ -1671,7 +1677,7 @@ def get_replay_summary(scan_id: str) -> Dict:
     passed_mi = sum(1 for r in recs if _data_quality_score(r.get("data_quality")) >= 35)
     passed_strategy = sum(1 for r in recs if r.get("strategy_id") or r.get("strategy_name"))
     passed_risk = sum(1 for r in recs if r.get("all_gates_passed"))
-    buy_candidates = sum(1 for r in recs if r.get("final_action") == "BUY")
+    buy_candidates = sum(1 for r in recs if _is_buy_action(r.get("final_action")))
     # Executed = actual ledger rows for this scan (trades list is already
     # scan-scoped above); paper_eligible is only an intent flag.
     paper_orders = sum(1 for t in trades if str(t.get("action") or "").upper() == "BUY")

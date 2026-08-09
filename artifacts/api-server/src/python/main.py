@@ -2392,6 +2392,27 @@ def main():
             result = cert.long_duration_validation(
                 window=str(p.get("window") or "1m"))
 
+        # ── Phase 26A: End-to-End Validation Engine ───────────────────────
+        elif command == "e2e_run":
+            import phase26_validation as p26
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = p26.run_e2e_validation(scan_id=p.get("scan_id"))
+        elif command == "e2e_history":
+            import phase26_store
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = {"ok": True,
+                      "runs": phase26_store.list_runs(
+                          limit=int(p.get("limit") or 50))}
+        elif command == "e2e_get":
+            import phase26_store
+            _rid = sys.argv[2] if len(sys.argv) > 2 else ""
+            run = phase26_store.get_run(_rid)
+            result = ({"ok": True, "run": run} if run else
+                      {"ok": False, "error": f"run not found: {_rid}"})
+        elif command == "e2e_summary":
+            import phase26_validation as p26
+            result = p26.e2e_summary()
+
         # ── Phase 23.9: Export Engine + Final Acceptance ──────────────────
         elif command == "p239_export":
             import phase239_reports as p239

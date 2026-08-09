@@ -96,4 +96,5 @@
 - [Phase 23.8B validation & certification](phase238b-validation-certification.md) — validators orchestrate existing checkers with injected fixtures; READY needs every domain PASS (WARN/INSUFFICIENT block); append-only cert runs.
 - [Reconciliation publish bridge](recon-publish-bridge.md) — bot data reaches the dashboard only via authenticated publish endpoints into the API server's store; never read the bot DB directly.
 - [Scanner coverage probe](scanner-coverage-probe.md) — session-hours health checks must require a scan from TODAY's session and judge against the configured universe, all logic server-side.
+- [Phase 26A e2e validation](phase26a-e2e-validation.md) — eligible-no-ledger BUY = BLOCKED+WARN not ERROR; replay `_is_buy_action` normalises STRONG BUY; flock the run-store JSON fallback.
 - [Durable portfolio repos](portfolio-durable-repos.md) — recover-first startup w/ canonical-ledger cross-check; DB idempotency dedupe; serial id is the only cross-process sequence; unit tests must set all portfolio DB kill-switches.
