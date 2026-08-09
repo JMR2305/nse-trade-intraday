@@ -419,6 +419,78 @@ class TestCertificationPersistence(unittest.TestCase):
         r = ce.get_certification("CERT-nope")
         self.assertFalse(r["ok"])
 
+    def test_prune_keeps_newest_runs_regardless_of_age(self):
+        """Old rows beyond retention are deleted, but the newest keep_last
+        runs are NEVER touched even if they are older than the age cutoff."""
+        old_ts = "2020-01-01T00:00:00.000Z"
+        rows = [{"cert_id": f"CERT-old-{i}", "created_at": old_ts,
+                 "certification_pct": 50.0, "verdict": "NOT_READY",
+                 "domains": {}} for i in range(6)]
+        for r in rows:
+            ce._append_file(ce._CERT_FILE, r)
+        out = ce.prune_certifications(days=30, keep_last=3)
+        self.assertEqual(out["deleted"], 3)
+        remaining = ce._load_file(ce._CERT_FILE)
+        self.assertEqual(len(remaining), 3)
+        # the newest 3 survive despite being ancient
+        self.assertEqual({r["cert_id"] for r in remaining},
+                         {"CERT-old-3", "CERT-old-4", "CERT-old-5"})
+        # idempotent: a second prune deletes nothing more
+        self.assertEqual(ce.prune_certifications(days=30,
+                                                 keep_last=3)["deleted"], 0)
+
+    def test_prune_never_deletes_recent_runs(self):
+        r1 = ce.run_certification(validator_results=_domain_results())
+        out = ce.prune_certifications(days=30, keep_last=1)
+        self.assertEqual(out["deleted"], 0)
+        self.assertEqual(ce.get_certification(r1["cert_id"])["cert_id"],
+                         r1["cert_id"])
+
+    def test_persist_path_invokes_retention(self):
+        with mock.patch.object(ce, "prune_certifications") as prune:
+            ce.run_certification(validator_results=_domain_results())
+            prune.assert_called_once()
+        # persist=False must not prune (read-only preview runs)
+        with mock.patch.object(ce, "prune_certifications") as prune:
+            ce.run_certification(validator_results=_domain_results(),
+                                 persist=False)
+            prune.assert_not_called()
+
+    def test_prune_never_raises(self):
+        with mock.patch.object(ce, "_load_file",
+                               side_effect=RuntimeError("boom")):
+            out = ce.prune_certifications()
+            self.assertTrue(out.get("error"))
+
+    def test_file_fallback_append_prunes_old_but_keeps_fresh(self):
+        """Append-time retention uses the SAME rule as the DB path: old rows
+        beyond keep_last go, but fresh (within-retention) rows are never
+        discarded even when there are more than keep_last of them."""
+        fresh_ts = ce._now_iso()
+        with mock.patch.object(ce, "RETENTION_KEEP_LAST", 5):
+            # 9 ancient rows → capped to the protected newest 5
+            for i in range(9):
+                ce._append_file(ce._CERT_FILE,
+                                {"cert_id": f"OLD{i}",
+                                 "created_at": f"2020-01-0{i + 1}"})
+            self.assertEqual(len(ce._load_file(ce._CERT_FILE)), 5)
+            # 8 fresh rows all survive despite exceeding keep_last
+            for i in range(8):
+                ce._append_file(ce._CERT_FILE,
+                                {"cert_id": f"NEW{i}",
+                                 "created_at": fresh_ts})
+            rows = ce._load_file(ce._CERT_FILE)
+            self.assertEqual(
+                sum(1 for r in rows if r["cert_id"].startswith("NEW")), 8)
+
+    def test_env_retention_values_are_clamped(self):
+        with mock.patch.dict(os.environ, {"X_DAYS": "0", "X_KEEP": "-3",
+                                          "X_BAD": "banana"}):
+            self.assertEqual(ce._env_int("X_DAYS", 30), 1)
+            self.assertEqual(ce._env_int("X_KEEP", 50), 1)
+            self.assertEqual(ce._env_int("X_BAD", 50), 50)
+            self.assertEqual(ce._env_int("X_MISSING", 30), 30)
+
 
 class TestIntegritySpotChecks(unittest.TestCase):
     def test_learning_advisory_only(self):
@@ -735,13 +807,25 @@ class TestNoWritePathSafety(unittest.TestCase):
                         f" at line {node.lineno}")
 
     def test_sql_writes_limited_to_certification_table(self):
-        """Every INSERT targets certification_runs only; no UPDATE/DELETE —
-        certification history is append-only by construction."""
+        """Every INSERT targets certification_runs only; no UPDATE/DROP/
+        TRUNCATE anywhere. DELETE is permitted ONLY inside
+        prune_certifications (the single sanctioned retention path) and only
+        against certification_runs — everywhere else history stays
+        append-only by construction."""
         for fname in VALIDATION_FILES:
             path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 fname)
             with open(path) as f:
                 tree = ast.parse(f.read())
+            # Collect string constants inside the sanctioned prune function.
+            prune_strings = set()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.FunctionDef) \
+                        and node.name == "prune_certifications":
+                    for sub in ast.walk(node):
+                        if isinstance(sub, ast.Constant) \
+                                and isinstance(sub.value, str):
+                            prune_strings.add(sub.value)
             for node in ast.walk(tree):
                 if isinstance(node, ast.Constant) \
                         and isinstance(node.value, str):
@@ -750,9 +834,16 @@ class TestNoWritePathSafety(unittest.TestCase):
                         self.assertIn("CERTIFICATION_RUNS", s,
                                       f"{fname}: INSERT into non-cert "
                                       f"table: {node.value}")
+                    if "DELETE FROM" in s:
+                        self.assertIn(
+                            node.value, prune_strings,
+                            f"{fname}: DELETE outside prune_certifications: "
+                            f"{node.value[:80]}")
+                        self.assertIn("CERTIFICATION_RUNS", s,
+                                      f"{fname}: prune DELETE must target "
+                                      f"certification_runs: {node.value[:80]}")
                     if re.search(r"\bUPDATE\s+\w+\s+SET\b", s) \
-                            or "DELETE FROM" in s or "DROP TABLE" in s \
-                            or "TRUNCATE " in s:
+                            or "DROP TABLE" in s or "TRUNCATE " in s:
                         self.fail(f"forbidden SQL verb in {fname}:"
                                   f" {node.value[:80]}")
 

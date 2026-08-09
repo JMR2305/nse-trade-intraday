@@ -94,13 +94,64 @@ def _load_file(path: str) -> List[Dict[str, Any]]:
         return []
 
 
-def _append_file(path: str, row: Dict[str, Any]) -> None:
-    rows = _load_file(path)
-    rows.append(row)
+class _file_lock:
+    """flock around file-fallback read-modify-write (spawned-per-request
+    Python means concurrent processes may append/prune the same JSON)."""
+
+    def __init__(self, path: str):
+        self._path = path + ".lock"
+        self._fh = None
+
+    def __enter__(self):
+        try:
+            import fcntl
+            self._fh = open(self._path, "w")
+            fcntl.flock(self._fh, fcntl.LOCK_EX)
+        except Exception:
+            self._fh = None  # lock is best-effort; never block persistence
+        return self
+
+    def __exit__(self, *exc):
+        if self._fh is not None:
+            try:
+                import fcntl
+                fcntl.flock(self._fh, fcntl.LOCK_UN)
+            except Exception:
+                pass
+            self._fh.close()
+        return False
+
+
+def _apply_retention(rows: List[Dict[str, Any]], days: int, keep_last: int
+                     ) -> List[Dict[str, Any]]:
+    """Same rule as the DB path: drop rows older than `days`, but ALWAYS
+    keep the newest `keep_last` rows regardless of age. Returns rows sorted
+    oldest→newest."""
+    rows_sorted = sorted(rows, key=lambda r: str(r.get("created_at") or ""))
+    protected = set(id(r) for r in rows_sorted[-keep_last:])
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)) \
+        .strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+    return [r for r in rows_sorted
+            if id(r) in protected
+            or str(r.get("created_at") or "") >= cutoff]
+
+
+def _write_file(path: str, rows: List[Dict[str, Any]]) -> None:
     tmp = path + ".tmp"
     with open(tmp, "w") as f:
         json.dump(rows, f, default=str)
     os.replace(tmp, path)
+
+
+def _append_file(path: str, row: Dict[str, Any]) -> None:
+    with _file_lock(path):
+        rows = _load_file(path)
+        rows.append(row)
+        # Bound fallback growth with the SAME rule as the DB path: age-based
+        # prune that never touches the newest RETENTION_KEEP_LAST runs.
+        # Fresh (within-retention) rows are never discarded at append time.
+        rows = _apply_retention(rows, RETENTION_DAYS, RETENTION_KEEP_LAST)
+        _write_file(path, rows)
 
 
 def _insert_cert(row: Dict[str, Any]) -> None:
@@ -124,6 +175,73 @@ def _insert_cert(row: Dict[str, Any]) -> None:
         except Exception:
             pass
     _append_file(_CERT_FILE, row)
+
+
+# ── Retention ─────────────────────────────────────────────────────────────────
+# Consistent with the pipeline-events prune pattern: pruning is the ONLY
+# permitted delete path for certification history. Policy: delete runs older
+# than RETENTION_DAYS, but ALWAYS keep the newest RETENTION_KEEP_LAST runs
+# regardless of age — recent history stays auditable forever-fresh, and a
+# long idle gap can never wipe the whole audit trail. Env-overridable;
+# malformed or non-positive values clamp to safe minimums (never import-fail,
+# never allow a config typo to permit deleting the newest runs).
+
+
+def _env_int(name: str, default: int, minimum: int = 1) -> int:
+    try:
+        return max(minimum, int(os.getenv(name, str(default))))
+    except (TypeError, ValueError):
+        return default
+
+
+RETENTION_DAYS = _env_int("CERT_RETENTION_DAYS", 30)
+RETENTION_KEEP_LAST = _env_int("CERT_RETENTION_KEEP_LAST", 50)
+
+
+def prune_certifications(days: int = None, keep_last: int = None
+                         ) -> Dict[str, Any]:
+    """Delete certification runs older than `days`, always preserving the
+    newest `keep_last` runs. Called fail-safe after each persisted run so
+    the table stays bounded under scheduled/dashboard use. NEVER raises."""
+    days = RETENTION_DAYS if days is None else max(1, int(days))
+    keep_last = RETENTION_KEEP_LAST if keep_last is None \
+        else max(1, int(keep_last))
+    try:
+        if db_available():
+            conn = _connect()
+            try:
+                _ensure_schema(conn)
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        DELETE FROM certification_runs
+                        WHERE created_at < NOW() - (%s || ' days')::interval
+                          AND cert_id NOT IN (
+                              SELECT cert_id FROM certification_runs
+                              ORDER BY created_at DESC LIMIT %s)
+                        """,
+                        (days, keep_last))
+                    deleted = cur.rowcount
+                conn.commit()
+                return {"deleted": deleted, "days": days,
+                        "keep_last": keep_last}
+            finally:
+                conn.close()
+        # File fallback: same rule via _apply_retention, under the file lock.
+        with _file_lock(_CERT_FILE):
+            rows = _load_file(_CERT_FILE)
+            if not rows:
+                return {"deleted": 0, "days": days, "keep_last": keep_last,
+                        "fallback": True}
+            kept = _apply_retention(rows, days, keep_last)
+            deleted = len(rows) - len(kept)
+            if deleted:
+                _write_file(_CERT_FILE, kept)
+        return {"deleted": deleted, "days": days, "keep_last": keep_last,
+                "fallback": True}
+    except Exception:
+        return {"deleted": 0, "days": days, "keep_last": keep_last,
+                "error": True}
 
 
 def list_certifications(limit: int = 50) -> Dict[str, Any]:
@@ -393,6 +511,9 @@ def run_certification(config: Optional[Dict[str, Any]] = None,
         except Exception:
             pass  # certification result is still returned; persistence is
             #       best-effort and never blocks the read path
+        # Retention: bound history growth after every persisted run
+        # (fail-safe by construction; never raises, never blocks the result).
+        prune_certifications()
     return report
 
 
