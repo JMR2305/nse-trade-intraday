@@ -681,6 +681,22 @@ function Phase27DSection() {
                 Data fetch failed (excluded from per-filter counts): {d.filter_analysis.data_error_symbols.join(", ")}
               </div>
             )}
+            {Object.keys(d.filter_analysis?.entry_gate_outcomes ?? {}).length > 0 && (
+              <div className="mt-2">
+                <div className="text-[10px] text-zinc-400 uppercase tracking-widest mb-1">
+                  Entry-gate outcomes (phase24 missed-opportunity evidence)
+                </div>
+                <MiniTable
+                  headers={["Entry gate", "Rejections", "Good", "Bad"]}
+                  rows={Object.entries(d.filter_analysis.entry_gate_outcomes as Record<string, any>).map(([g, v]) => [
+                    g, v.rejections, v.good_rejections, v.bad_rejections,
+                  ])}
+                />
+                <div className="text-[10px] text-zinc-600 mt-1">
+                  Good/Bad stay 0 until phase24 outcome analysis (post-rejection price moves) completes for these rejections.
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-1 text-[10px] text-zinc-500">
               {Object.entries(d.filter_analysis?.threshold_domains ?? {}).map(([k, v]) => (
                 <div key={k}><span className="text-zinc-400">{k}:</span> {String(v)}</div>

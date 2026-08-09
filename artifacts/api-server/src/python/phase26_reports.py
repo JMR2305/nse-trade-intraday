@@ -613,9 +613,12 @@ def maybe_generate_daily_report(mstate: str) -> Optional[Dict[str, Any]]:
     """
     if str(mstate).upper() != "CLOSED":
         return None
+    # Compute the target day up front so a failure is always recorded under
+    # the day whose report we attempted — a tick that crosses midnight IST
+    # must not stamp yesterday's failure onto today's error key.
+    today_ist = datetime.now(IST).date().isoformat()
     try:
         import phase20_store as store
-        today_ist = datetime.now(IST).date().isoformat()
         if get_daily_report(today_ist) is not None:
             return None                      # already generated today
         report = build_daily_report(collect_daily_inputs(),
@@ -641,8 +644,7 @@ def maybe_generate_daily_report(mstate: str) -> Optional[Dict[str, Any]]:
     except Exception as exc:                 # never break the scheduler tick
         err = str(exc)[:200]
         try:
-            _record_generation_error(datetime.now(IST).date().isoformat(),
-                                     err)
+            _record_generation_error(today_ist, err)
         except Exception:
             pass
         return {"generated": False, "error": err}
@@ -734,12 +736,32 @@ def today_report_status(now: Optional[datetime] = None,
     except Exception:
         pass
     if isinstance(last_error, dict) and last_error.get("error"):
-        return {**base, "status": "ERROR",
-                "error": last_error.get("error"),
-                "error_at": last_error.get("at"),
-                "detail": ("last automatic generation attempt failed: "
-                           f"{last_error.get('error')} — the scheduler "
-                           "retries every tick")}
+        # Defensive freshness check: only surface an ERROR recorded TODAY
+        # (IST). A stale entry from an earlier day (e.g. a midnight-crossing
+        # tick under the old keying) must never mask today's real status.
+        err_day = None
+        try:
+            err_dt = datetime.fromisoformat(
+                str(last_error.get("at")).replace("Z", "+00:00"))
+            if err_dt.tzinfo is None:
+                err_dt = err_dt.replace(tzinfo=timezone.utc)
+            err_day = err_dt.astimezone(IST).date().isoformat()
+        except Exception:
+            pass
+        if err_day == today or err_day is None:
+            return {**base, "status": "ERROR",
+                    "error": last_error.get("error"),
+                    "error_at": last_error.get("at"),
+                    "detail": ("last automatic generation attempt failed: "
+                               f"{last_error.get('error')} — the scheduler "
+                               "retries every tick")}
+        return {**base, "status": "PENDING",
+                "stale_error": {"error": last_error.get("error"),
+                                "at": last_error.get("at"),
+                                "day": err_day},
+                "detail": ("post-close, report not generated yet — the "
+                           "scheduler retries every tick (a stale "
+                           f"generation error from {err_day} was ignored)")}
     return {**base, "status": "PENDING",
             "detail": "post-close, report not generated yet — the "
                       "scheduler retries every tick"}

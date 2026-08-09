@@ -1,4 +1,5 @@
 """Unit tests for Phase 27C/27D read-only aggregators."""
+import os
 import unittest
 from unittest.mock import patch
 
@@ -157,7 +158,7 @@ class TestStrategyOptimization(unittest.TestCase):
 
     def test_report_read_only_flags_and_empty_honesty(self):
         with patch.object(po, "_records", return_value=[]), \
-             patch.object(po, "_scan_rows", return_value=[]), \
+             patch.object(po, "_scan_snapshot", return_value=([], None)), \
              patch.object(po, "_missed_opps", return_value=[]), \
              patch.object(po, "_recommendations", return_value=[]):
             d = po.strategy_optimization_report()
@@ -165,6 +166,143 @@ class TestStrategyOptimization(unittest.TestCase):
         self.assertFalse(d["evidence"]["sufficient"])
         self.assertEqual(d["strategies"], [])
         self.assertEqual(d["distributions"]["confidence"], [])
+
+
+
+
+class TestFilterOutcomeCountsFromRealStore(unittest.TestCase):
+    """Task: good/bad rejection counts must populate from REAL phase24_store
+    rows (engine-shaped records through insert_missed_opp), not mocks."""
+
+    def _seed_store(self, tmpdir):
+        import phase24_store as store
+        self._store = store
+        self._orig = (store.MISSED_FILE, store.db_available)
+        store.MISSED_FILE = os.path.join(tmpdir, "missed.json")
+        store.db_available = lambda: False
+        # Engine-shaped entries (phase24_engine.analyse_missed_opportunities)
+        entries = [
+            # correct rejection by min_risk_reward → good for gate_rr
+            # matches current scan (scan_id s1) and AAA fails gate_rr now
+            ("s1", "AAA", {"scan_id": "s1",
+                           "rejected_by_gates": ["min_risk_reward"],
+                           "first_blocking_gate": "min_risk_reward",
+                           "later_max_move_pct": 0.2, "move_threshold_pct": 1.0,
+                           "rejection_correct": True,
+                           "should_have_allowed": False,
+                           "advisory_only": True}),
+            # missed opportunity blocked by no_fallback_data → bad for
+            # gate_data_quality
+            ("s1", "BBB", {"scan_id": "s1",
+                           "rejected_by_gates": ["no_fallback_data"],
+                           "first_blocking_gate": "no_fallback_data",
+                           "later_max_move_pct": 2.5, "move_threshold_pct": 1.0,
+                           "rejection_correct": False,
+                           "should_have_allowed": True,
+                           "advisory_only": True}),
+            # outcome unknown yet (rejection_correct None) → counted in
+            # neither good nor bad
+            ("s1", "CCC", {"scan_id": "s1",
+                           "rejected_by_gates": ["min_confidence"],
+                           "first_blocking_gate": "min_confidence",
+                           "later_max_move_pct": None,
+                           "move_threshold_pct": 1.0,
+                           "rejection_correct": None,
+                           "should_have_allowed": False,
+                           "advisory_only": True}),
+        ]
+        for scan_id, sym, rec in entries:
+            self.assertTrue(store.insert_missed_opp(scan_id, sym, rec))
+
+    def _restore(self):
+        self._store.MISSED_FILE, self._store.db_available = self._orig
+
+    def test_counts_populate_from_store_rows(self):
+        import tempfile
+        import phase27_strategy_optimization as so
+        with tempfile.TemporaryDirectory() as tmp:
+            self._seed_store(tmp)
+            try:
+                P = {"passed": True, "reason": "ok"}
+                F = {"passed": False, "reason": "fail"}
+                scan = [
+                    {"symbol": "AAA", "gate_price": P, "gate_rr": F,
+                     "gate_volume": P, "gate_data_quality": P},
+                    {"symbol": "BBB", "gate_price": P, "gate_rr": P,
+                     "gate_volume": P, "gate_data_quality": F},
+                ]
+                fa = so._filter_analysis(scan, current_scan_id="s1")
+                by = {f["filter"]: f for f in fa["filters"]}
+                rr = by["Risk/Reward gate"]
+                self.assertEqual(rr["good_rejections"], 1)
+                self.assertEqual(rr["bad_rejections"], 0)
+                self.assertEqual(rr["classification"], "EFFECTIVE")
+                dq = by["Data-quality gate"]
+                self.assertEqual(dq["good_rejections"], 0)
+                self.assertEqual(dq["bad_rejections"], 1)
+                self.assertEqual(dq["missed_opportunities"], 1)
+                # raw entry-gate breakdown surfaces unmapped gates honestly
+                eg = fa["entry_gate_outcomes"]
+                self.assertEqual(eg["min_risk_reward"]["good_rejections"], 1)
+                self.assertEqual(eg["no_fallback_data"]["bad_rejections"], 1)
+                self.assertIn("min_confidence", eg)
+                self.assertEqual(eg["min_confidence"]["good_rejections"], 0)
+                self.assertEqual(eg["min_confidence"]["bad_rejections"], 0)
+            finally:
+                self._restore()
+
+
+class TestFilterJoinIntegrity(unittest.TestCase):
+    """Historical evidence must never be attributed to current filters
+    unless scan_id matches AND the symbol fails that gate right now."""
+
+    P = {"passed": True, "reason": "ok"}
+    F = {"passed": False, "reason": "fail"}
+
+    def _run(self, missed, scan, scan_id="s2"):
+        import phase27_strategy_optimization as so
+        with patch.object(so, "_missed_opps", return_value=missed):
+            return so._filter_analysis(scan, current_scan_id=scan_id)
+
+    def test_old_scan_record_not_counted(self):
+        # Record from an OLD scan: raw breakdown only, no filter columns.
+        missed = [{"scan_id": "old", "symbol": "AAA",
+                   "rejected_by_gates": ["min_risk_reward"],
+                   "rejection_correct": True, "should_have_allowed": False}]
+        scan = [{"symbol": "AAA", "gate_price": self.P, "gate_rr": self.F,
+                 "gate_volume": self.P, "gate_data_quality": self.P}]
+        fa = self._run(missed, scan)
+        rr = next(f for f in fa["filters"] if f["filter"] == "Risk/Reward gate")
+        self.assertIsNone(rr["good_rejections"])
+        self.assertEqual(
+            fa["entry_gate_outcomes"]["min_risk_reward"]["good_rejections"], 1)
+
+    def test_gate_disagreement_not_counted(self):
+        # Same scan_id, but the symbol PASSES gate_rr on the current rows.
+        missed = [{"scan_id": "s2", "symbol": "AAA",
+                   "rejected_by_gates": ["min_risk_reward"],
+                   "rejection_correct": True, "should_have_allowed": False}]
+        scan = [{"symbol": "AAA", "gate_price": self.P, "gate_rr": self.P,
+                 "gate_volume": self.P, "gate_data_quality": self.P}]
+        fa = self._run(missed, scan)
+        rr = next(f for f in fa["filters"] if f["filter"] == "Risk/Reward gate")
+        self.assertIsNone(rr["good_rejections"])
+
+    def test_multi_gate_record_counts_each_matching_filter_once(self):
+        missed = [{"scan_id": "s2", "symbol": "AAA",
+                   "rejected_by_gates": ["min_risk_reward",
+                                         "no_fallback_data"],
+                   "rejection_correct": False, "should_have_allowed": True}]
+        scan = [{"symbol": "AAA", "gate_price": self.P, "gate_rr": self.F,
+                 "gate_volume": self.P, "gate_data_quality": self.F}]
+        fa = self._run(missed, scan)
+        by = {f["filter"]: f for f in fa["filters"]}
+        self.assertEqual(by["Risk/Reward gate"]["bad_rejections"], 1)
+        self.assertEqual(by["Data-quality gate"]["bad_rejections"], 1)
+        # raw breakdown: one rejection per raw gate, no double good/bad
+        eg = fa["entry_gate_outcomes"]
+        self.assertEqual(eg["min_risk_reward"]["rejections"], 1)
+        self.assertEqual(eg["no_fallback_data"]["rejections"], 1)
 
 
 if __name__ == "__main__":

@@ -102,12 +102,13 @@ def _strategy_metrics(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 # ── Filter / gate analysis ───────────────────────────────────────────────────
 
-def _scan_rows() -> List[Dict[str, Any]]:
+def _scan_snapshot() -> tuple[List[Dict[str, Any]], Any]:
     try:
         from scan_state_store import load_latest_snapshot
-        return list((load_latest_snapshot() or {}).get("recommendations") or [])
+        snap = load_latest_snapshot() or {}
+        return list(snap.get("recommendations") or []), snap.get("scan_id")
     except Exception:
-        return []
+        return [], None
 
 
 def _missed_opps() -> List[Dict[str, Any]]:
@@ -134,19 +135,58 @@ def _gate_failed(rec: Dict[str, Any], key: str) -> bool:
     return gate is False
 
 
-def _filter_analysis(scan_rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+# phase24 missed-opp records name the phase20 ENTRY gates that fired
+# (e.g. "min_risk_reward"), not the 4 scan-gate keys. Only defensible
+# mappings are aliased; unmapped entry gates surface honestly in the
+# separate entry_gate_outcomes breakdown instead of being force-fitted.
+GATE_ALIASES: Dict[str, frozenset] = {
+    "gate_price": frozenset({"valid_stop_loss"}),
+    "gate_rr": frozenset({"min_risk_reward"}),
+    "gate_volume": frozenset({"min_liquidity"}),
+    "gate_data_quality": frozenset({
+        "no_fallback_data", "quote_available", "scan_fresh",
+        "snapshot_consistency", "research_available"}),
+}
+
+
+def _filter_analysis(scan_rows: List[Dict[str, Any]],
+                     current_scan_id: Any = None) -> Dict[str, Any]:
     missed = _missed_opps()
     missed_by_gate: Dict[str, int] = defaultdict(int)
     good_by_gate: Dict[str, int] = defaultdict(int)
+    # Honest per-entry-gate outcome breakdown (raw phase20 gate names),
+    # over the WHOLE evidence store — clearly labelled as historical.
+    entry_gates: Dict[str, Dict[str, int]] = defaultdict(
+        lambda: {"rejections": 0, "good_rejections": 0, "bad_rejections": 0})
+    # Symbols each scan gate rejects on the CURRENT snapshot (for the join).
+    current_reject: Dict[str, set] = {
+        key: {str(r.get("symbol")) for r in scan_rows if _gate_failed(r, key)}
+        for key in GATES
+    }
     for m in missed:
         gates = m.get("rejected_by_gates") or []
         gates_l = [str(g).lower() for g in gates]
         good = m.get("rejection_correct") is True
         bad = m.get("should_have_allowed") is True
+        for g in gates_l:
+            eg = entry_gates[g]
+            eg["rejections"] += 1
+            if bad:
+                eg["bad_rejections"] += 1
+            elif good:
+                eg["good_rejections"] += 1
+        # The 4 scan-filter columns only count evidence that provably belongs
+        # to the current snapshot: same scan_id AND the symbol actually fails
+        # that scan gate on the current rows. Everything else stays visible
+        # in entry_gate_outcomes instead of being force-fitted.
+        if current_scan_id is None or m.get("scan_id") != current_scan_id:
+            continue
+        sym = str(m.get("symbol"))
         for key, label in GATES.items():
-            hit = any(key in g or key.replace("gate_", "") in g
-                      or label.lower() in g for g in gates_l)
-            if not hit:
+            aliases = GATE_ALIASES.get(key, frozenset())
+            hit = any(g in aliases or key == g or key.replace("gate_", "") == g
+                      or label.lower() == g for g in gates_l)
+            if not hit or sym not in current_reject[key]:
                 continue
             if bad:
                 missed_by_gate[key] += 1
@@ -205,6 +245,7 @@ def _filter_analysis(scan_rows: List[Dict[str, Any]]) -> Dict[str, Any]:
         "scan_universe": len(scan_rows),
         "data_error_symbols": data_error_symbols,
         "filters": filters,
+        "entry_gate_outcomes": dict(sorted(entry_gates.items())),
         "threshold_domains": {
             "confidence_thresholds": "see recommendations (phase21/phase24 advisory engines)",
             "risk_thresholds": "risk gate + heat, canonical scan",
@@ -319,7 +360,7 @@ def _distributions(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 def strategy_optimization_report() -> Dict[str, Any]:
     rows = _records()
-    scan_rows = _scan_rows()
+    scan_rows, scan_id = _scan_snapshot()
     return {
         "ok": True,
         "advisory_only": True,
@@ -331,7 +372,7 @@ def strategy_optimization_report() -> Dict[str, Any]:
             "sufficient": len(rows) >= MIN_EVIDENCE,
         },
         "strategies": _strategy_metrics(rows),
-        "filter_analysis": _filter_analysis(scan_rows),
+        "filter_analysis": _filter_analysis(scan_rows, scan_id),
         "recommendations": _recommendations(),
         "period_performance": _period_perf(rows),
         "heatmaps": _heatmaps(rows),

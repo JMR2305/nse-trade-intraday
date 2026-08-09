@@ -461,6 +461,76 @@ class TestDailyReportStore(unittest.TestCase):
             else:
                 _sys.modules.pop("phase20_store", None)
 
+    def test_status_stale_error_from_previous_day_never_masks_today(self):
+        """Task: a generation error recorded on an EARLIER IST day must not
+        surface as today's ERROR — status stays PENDING with a stale note."""
+        import sys as _sys
+        fake, kv = self._fake_store()
+        real = _sys.modules.get("phase20_store")
+        _sys.modules["phase20_store"] = fake
+        try:
+            today = NOW.astimezone(IST).date().isoformat()
+            # Stale entry under today's key, but timestamped YESTERDAY
+            # (e.g. written by a midnight-crossing tick under the old keying).
+            kv[pr._gen_error_key(today)] = {
+                "error": "old boom", "at": "2026-08-06T10:00:00+00:00"}
+            st = pr.today_report_status(now=NOW,
+                                        trading_day_fn=weekdays_only)
+            self.assertEqual(st["status"], "PENDING")
+            self.assertEqual(st["stale_error"]["error"], "old boom")
+            self.assertIn("stale", st["detail"])
+
+            # A fresh error from TODAY still surfaces as ERROR.
+            kv[pr._gen_error_key(today)] = {
+                "error": "fresh boom", "at": "2026-08-07T10:05:00+00:00"}
+            st = pr.today_report_status(now=NOW,
+                                        trading_day_fn=weekdays_only)
+            self.assertEqual(st["status"], "ERROR")
+            self.assertIn("fresh boom", st["detail"])
+
+            # IST midnight edge: a UTC timestamp late on the PREVIOUS UTC
+            # day that lands on TODAY in IST counts as fresh → ERROR.
+            kv[pr._gen_error_key(today)] = {
+                "error": "midnight boom", "at": "2026-08-06T19:30:00+00:00"}
+            st = pr.today_report_status(now=NOW,
+                                        trading_day_fn=weekdays_only)
+            self.assertEqual(st["status"], "ERROR")
+
+            # Unparseable timestamp → fail-safe: still surfaced as ERROR.
+            kv[pr._gen_error_key(today)] = {"error": "no ts", "at": None}
+            st = pr.today_report_status(now=NOW,
+                                        trading_day_fn=weekdays_only)
+            self.assertEqual(st["status"], "ERROR")
+        finally:
+            if real is not None:
+                _sys.modules["phase20_store"] = real
+            else:
+                _sys.modules.pop("phase20_store", None)
+
+    def test_generation_error_recorded_under_target_day(self):
+        """maybe_generate_daily_report must key failures by the day whose
+        report it attempted (computed once up front), never a later "now"."""
+        import sys as _sys
+        fake, kv = self._fake_store()
+        real = _sys.modules.get("phase20_store")
+        _sys.modules["phase20_store"] = fake
+        orig_collect = pr.collect_daily_inputs
+        try:
+            def boom():
+                raise RuntimeError("inputs unreadable")
+            pr.collect_daily_inputs = boom
+            out = pr.maybe_generate_daily_report("CLOSED")
+            self.assertFalse(out["generated"])
+            from datetime import datetime as _dt, timezone as _tz
+            real_today = _dt.now(_tz.utc).astimezone(IST).date().isoformat()
+            self.assertIn(pr._gen_error_key(real_today), kv)
+        finally:
+            pr.collect_daily_inputs = orig_collect
+            if real is not None:
+                _sys.modules["phase20_store"] = real
+            else:
+                _sys.modules.pop("phase20_store", None)
+
     def test_status_generated_manual_mode(self):
         import sys as _sys
         fake, _kv = self._fake_store()

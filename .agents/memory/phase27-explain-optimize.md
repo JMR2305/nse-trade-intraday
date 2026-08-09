@@ -12,5 +12,8 @@ description: Read-only aggregators over canonical stores; the store-shape pitfal
 - Symbols with `error` set trip ALL gates at once — exclude them from per-filter counts or every gate looks like a duplicate rejection set.
 - The ops journey can say "Not in universe" for a symbol present in the canonical scan; the scan is authoritative — hide the stale timeline with an explicit note, never display the conflict.
 
+- phase24 `rejected_by_gates` holds phase20 ENTRY gate names (`min_risk_reward`, `no_fallback_data`, `min_confidence`…), NOT scan-gate keys — map via explicit `GATE_ALIASES` only where defensible and surface the rest in `entry_gate_outcomes`; substring matching silently matches nothing.
+- Daily-report generation errors are keyed per IST day; record failures under the day whose report was attempted (computed up front), and the status endpoint ignores error entries whose `at` timestamp is from an earlier IST day (stale → PENDING + stale_error note; unparseable ts → fail-safe ERROR).
+
 **Why:** honesty rules — INSUFFICIENT_EVIDENCE over extrapolation; factors the pipeline doesn't compute (MACD/VWAP/ATR/news/corp actions) are `evaluated: false`, never fabricated.
 **How to apply:** any future consumer of scan gates, phase24 missed-opps, or the ops journey must use these shapes; curl/inspect real store rows before typing interfaces.
