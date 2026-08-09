@@ -8,7 +8,9 @@ from datetime import datetime, timezone, timedelta
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-os.environ.pop("DATABASE_URL", None)   # force file fallbacks everywhere
+# Captured for the DB-branch prune test below; popped so every other test
+# keeps using the file fallback and never touches the live database.
+_REAL_DATABASE_URL = os.environ.pop("DATABASE_URL", None)
 
 import phase26c_store as store                              # noqa: E402
 import phase26_live_store as live_store                     # noqa: E402
@@ -524,10 +526,6 @@ class TestPersistenceAndIssues(unittest.TestCase):
             store.append_result("BOGUS", {"verdict": "PASS"})
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestPhase26cRetention(unittest.TestCase):
     """Task: bound phase26c history — prune by age with a keep-min floor."""
 
@@ -593,4 +591,142 @@ class TestPhase26cRetention(unittest.TestCase):
         self._seed("QUALITY", store._FALLBACK_MAX_PER_AREA + 10, age_days=40)
         rows = store.list_results("QUALITY", limit=500)
         self.assertLessEqual(len(rows), store._FALLBACK_MAX_PER_AREA)
+
+
+# ── DB-branch prune (real Postgres, transaction rolled back) ─────────────────
+
+class _TxnConn:
+    """Wraps a real psycopg2 connection so the store's per-call
+    commit()/close() become no-ops: everything the test does stays inside
+    ONE transaction that tearDown rolls back — live rows are never touched."""
+
+    def __init__(self, real):
+        self._real = real
+
+    def cursor(self, *a, **k):
+        return self._real.cursor(*a, **k)
+
+    def commit(self):        # store commits are swallowed
+        pass
+
+    def close(self):         # store closes are swallowed
+        pass
+
+
+def _db_reachable():
+    if not _REAL_DATABASE_URL:
+        return False
+    try:
+        import psycopg2
+        conn = psycopg2.connect(_REAL_DATABASE_URL, connect_timeout=5)
+        conn.close()
+        return True
+    except Exception:
+        return False
+
+
+@unittest.skipUnless(_db_reachable(),
+                     "DATABASE_URL not set/reachable — DB prune branch "
+                     "needs a real Postgres")
+class TestPruneDbBranchLivePostgres(unittest.TestCase):
+    """Exercises the Postgres branch of prune_results() against the real
+    database. All inserts/deletes happen in a single uncommitted transaction
+    (see _TxnConn) that is rolled back in tearDown, so real validation
+    history is never modified."""
+
+    PREFIX = "t577test-"
+
+    def setUp(self):
+        import psycopg2
+        self._conn = psycopg2.connect(_REAL_DATABASE_URL, connect_timeout=10)
+        self._wrapper = _TxnConn(self._conn)
+        self._old_connect = store._connect
+        store._connect = lambda: self._wrapper
+        os.environ["DATABASE_URL"] = _REAL_DATABASE_URL
+        # Make sure the schema exists (idempotent, inside our txn is fine —
+        # table already exists in the live DB).
+        store._ensure_schema(self._wrapper)
+
+    def tearDown(self):
+        store._connect = self._old_connect
+        os.environ.pop("DATABASE_URL", None)
+        try:
+            self._conn.rollback()      # discard EVERYTHING the test did
+        finally:
+            self._conn.close()
+
+    def _insert(self, result_id, area, age_days):
+        with self._conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO phase26c_results
+                    (result_id, area, created_at, verdict, result)
+                VALUES (%s, %s, NOW() - (%s || ' days')::interval, 'PASS',
+                        %s::jsonb)
+                """,
+                (result_id, area, age_days,
+                 '{"result_id": "%s", "area": "%s"}' % (result_id, area)))
+
+    def _ids(self, area):
+        with self._conn.cursor() as cur:
+            cur.execute(
+                "SELECT result_id FROM phase26c_results"
+                " WHERE area = %s AND result_id LIKE %s",
+                (area, self.PREFIX + "%"))
+            return {r[0] for r in cur.fetchall()}
+
+    def test_old_rows_deleted_recent_and_latest_survive(self):
+        old_ids = [f"{self.PREFIX}rec-old-{i}" for i in range(5)]
+        recent_ids = [f"{self.PREFIX}rec-new-{i}" for i in range(2)]
+        for rid in old_ids:
+            self._insert(rid, "RECOVERY", age_days=90)
+        for rid in recent_ids:
+            self._insert(rid, "RECOVERY", age_days=0)
+
+        out = store.prune_results(days=30, keep_min=1)
+        self.assertNotIn("error", out)
+        self.assertGreaterEqual(out["deleted"], len(old_ids))
+
+        surviving = self._ids("RECOVERY")
+        for rid in old_ids:            # every old test row actually deleted
+            self.assertNotIn(rid, surviving)
+        for rid in recent_ids:         # recent rows untouched
+            self.assertIn(rid, surviving)
+        # latest_result still resolves to the newest surviving row
+        latest = store.latest_result("RECOVERY")
+        self.assertIsNotNone(latest)
+        self.assertIn(latest["result_id"], recent_ids)
+
+    def test_keep_min_protects_old_rows_in_db(self):
+        old_ids = [f"{self.PREFIX}perf-old-{i}" for i in range(3)]
+        for rid in old_ids:
+            self._insert(rid, "PERFORMANCE", age_days=365)
+        with self._conn.cursor() as cur:
+            cur.execute("SELECT count(*) FROM phase26c_results"
+                        " WHERE area = 'PERFORMANCE'")
+            total = cur.fetchone()[0]
+
+        # keep_min covers every PERFORMANCE row → nothing may be deleted
+        out = store.prune_results(days=30, keep_min=total)
+        self.assertNotIn("error", out)
+        surviving = self._ids("PERFORMANCE")
+        for rid in old_ids:
+            self.assertIn(rid, surviving)
+
+    def test_prune_is_per_area_in_db(self):
+        # A recent QUALITY row fills QUALITY's keep_min=1 slot, so all old
+        # QUALITY fixture rows must go — while RECOVERY's recent row is
+        # judged against RECOVERY's own floor, not QUALITY's.
+        for i in range(4):
+            self._insert(f"{self.PREFIX}q-old-{i}", "QUALITY", age_days=90)
+        self._insert(f"{self.PREFIX}q-new", "QUALITY", age_days=0)
+        self._insert(f"{self.PREFIX}r-new", "RECOVERY", age_days=0)
+
+        store.prune_results(days=30, keep_min=1)
+        self.assertEqual(self._ids("QUALITY"), {f"{self.PREFIX}q-new"})
+        self.assertEqual(self._ids("RECOVERY"), {f"{self.PREFIX}r-new"})
+
+
+if __name__ == "__main__":
+    unittest.main()
 
