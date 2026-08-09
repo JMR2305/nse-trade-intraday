@@ -348,3 +348,10 @@ uri = "file://artifacts/api-server/reports/OPEN_TASKS_REPORT.md"
 type = "text"
 title = "Open Tasks Report"
 description = "All 157 open project tasks with a brief description each, grouped by status."
+
+[[outputs]]
+id = "ePUT8-H6qlFcHVj74yYCN"
+uri = "file://PHASE26A_SUMMARY.md"
+type = "text"
+title = "Phase 26A Summary"
+description = "Summary of the Portfolio Pre-Check visibility implementation: events, pipeline stage, replay, honest counts, and test verification."
