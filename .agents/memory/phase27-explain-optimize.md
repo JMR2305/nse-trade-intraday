@@ -25,3 +25,8 @@ Phase 27E operator analytics additions:
 - JSX gotcha: `PRECHECK_*/` inside a block comment terminates the comment (`*/`).
 
 **27F system readiness lessons:** missing or malformed safety evidence must fold to UNKNOWN, never READY — require explicit booleans and guard int() conversions of persisted metadata so a corrupt record degrades instead of 500ing. Readiness/health polling must be side-effect-free: some health reads emit alerts by default, so read-only aggregators need the opt-out path. Freshness budgets always reuse existing platform thresholds, never redefined.
+
+## Stock journey symbol lookup (fixed Aug 2026)
+- ai_decisions cache rows key the symbol as `stock` (legacy rows used `symbol`) and the decision as `decision`; confidence is already 0-100. Any lookup must match both keys and normalise scale.
+- `get_stock_journey` now falls back to the canonical scan snapshot when the AI cache lacks the symbol, building stages from real gate `{passed,reason}` dicts (Scanner stage), regime, strategy/technical score, rr_ratio, paper_order fields. Never fabricate score-based stages when `scores` dict absent.
+- final_action "STRONG BUY" (space) must normalise to "STRONG_BUY" for decision_type consumers.

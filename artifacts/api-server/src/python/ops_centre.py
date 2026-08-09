@@ -1493,41 +1493,116 @@ def get_v3_enrichment(agents: Dict[str, Any], pipeline: Dict[str, Any]) -> Dict[
     }
 
 
+def _journey_conf_pct(value: Any) -> int:
+    """Normalise a confidence that may be 0-1 or already 0-100 into a percent."""
+    f = _f(value)
+    if 0 < f <= 1.5:
+        f *= 100
+    return round(f)
+
+
 def get_stock_journey(symbol: str) -> Dict[str, Any]:
     """
     On-demand only — traces a single symbol's journey through all agents.
     Called only when the operator searches, never polled.
+
+    Sources (in order of authority):
+      • the canonical scan snapshot (scan_state_store) — authoritative for
+        "was this symbol scanned" plus real gate reasons, and
+      • the ai_decisions cache — decision-layer detail when present. Rows in
+        that cache key the symbol as either `symbol` (legacy) or `stock`.
     """
     symbol = symbol.upper().strip()
     recs = _load_ai_decisions_safe()
-    rec = next((r for r in recs if str(r.get("symbol", "")).upper() == symbol), None)
+    rec = next((r for r in recs
+                if str(r.get("symbol") or r.get("stock") or "").upper() == symbol),
+               None)
 
+    canon: Optional[Dict[str, Any]] = None
+    try:
+        from scan_state_store import load_latest_snapshot
+        _snap = load_latest_snapshot() or {}
+        canon = next((r for r in (_snap.get("recommendations") or [])
+                      if str(r.get("symbol", "")).upper() == symbol), None)
+    except Exception:
+        canon = None
+
+    found = rec is not None or canon is not None
     stages: List[Dict[str, Any]] = []
 
     # Supervisor
     stages.append({
         "agent": "Supervisor", "agent_id": "supervisor",
-        "decision": "Selected" if rec else "Not in universe",
-        "reason": "Symbol included in scan universe" if rec else "Not in current watchlist or scan",
+        "decision": "Selected" if found else "Not in universe",
+        "reason": ("Symbol included in canonical scan" if canon else
+                   "Symbol present in AI decision cache" if rec else
+                   "Not in current watchlist or scan"),
         "timestamp": "—", "processing_ms": 0,
-        "status": "PASS" if rec else "INFO",
+        "status": "PASS" if found else "INFO",
     })
 
-    if rec:
-        sc = rec.get("scores", {}) or {}
-        exp = rec.get("explanation", {})
-        exp_str = exp.get("summary", "") if isinstance(exp, dict) else str(exp or "")
-        decision_type = str(rec.get("decision_type", "—"))
-        conf_pct = round(_f(rec.get("confidence", 0)) * 100)
+    if not found:
+        return {
+            "symbol": symbol, "found": False,
+            "decision_type": "NOT_IN_SCAN", "confidence": 0,
+            "stages": stages, "factor_breakdown": [],
+            "explanation": f"{symbol} was not found in the most recent scan results.",
+            "scores": {}, "why_not": None,
+        }
 
-        # Market Data
+    sc = (rec or {}).get("scores") if isinstance((rec or {}).get("scores"), dict) else {}
+    sc = sc or {}
+    exp = (rec or {}).get("explanation")
+    exp_str = (exp.get("summary", "") if isinstance(exp, dict) else str(exp or "")) \
+        or str((rec or {}).get("plain_english") or "")
+    canon_action = str((canon or {}).get("final_action") or "").replace(" ", "_")
+    decision_type = str((rec or {}).get("decision_type")
+                        or (rec or {}).get("decision")
+                        or canon_action or "—").replace(" ", "_")
+    conf_pct = _journey_conf_pct((rec or {}).get("confidence")
+                                 or (canon or {}).get("calibrated_confidence") or 0)
+
+    # Market Data — real quality/source from the canonical scan when available
+    if canon:
+        dq = str(canon.get("data_quality") or "—")
+        src_name = str(canon.get("data_source") or "—")
+        stages.append({
+            "agent": "Market Data", "agent_id": "market_data",
+            "decision": "Updated",
+            "reason": f"Data quality {dq} · source {src_name}",
+            "timestamp": "—", "processing_ms": 0,
+            "status": "PASS" if dq not in ("STALE", "UNAVAILABLE") else "WARN",
+        })
+        # Scanner gates — real reasons from the canonical scan
+        gate_labels = [("gate_price", "Price"), ("gate_rr", "Risk/Reward"),
+                       ("gate_volume", "Volume"), ("gate_data_quality", "Data quality")]
+        gate_bits, gates_ok = [], True
+        for key, label in gate_labels:
+            g = canon.get(key)
+            if isinstance(g, dict) and "passed" in g:
+                ok = bool(g.get("passed"))
+                gates_ok = gates_ok and ok
+                gate_bits.append(f"{label}: {g.get('reason') or ('pass' if ok else 'fail')}")
+        if gate_bits:
+            stages.append({
+                "agent": "Scanner", "agent_id": "scanner",
+                "decision": "All gates passed" if gates_ok else "Gate(s) failed",
+                "reason": " · ".join(gate_bits)[:300],
+                "timestamp": "—", "processing_ms": 0,
+                "status": "PASS" if gates_ok else "FAIL",
+            })
+    else:
         stages.append({
             "agent": "Market Data", "agent_id": "market_data",
             "decision": "Updated", "reason": "Live price data retrieved successfully",
             "timestamp": "—", "processing_ms": 0, "status": "PASS",
         })
-        # Research
-        rs = round(_f(sc.get("research", 0)) * 100)
+
+    # Score-derived stages — only when the decision cache carries real scores
+    rs = round(_f(sc.get("research", 0)) * 100)
+    regsc = round(_f(sc.get("regime", sc.get("market_intelligence", 0))) * 100)
+    momsc = round(_f(sc.get("momentum", 0)) * 100)
+    if sc:
         stages.append({
             "agent": "Research", "agent_id": "research",
             "decision": "Positive" if rs >= 50 else "Negative",
@@ -1535,8 +1610,6 @@ def get_stock_journey(symbol: str) -> Dict[str, Any]:
             "timestamp": "—", "processing_ms": 0,
             "status": "PASS" if rs >= 50 else "WARN",
         })
-        # Market Intelligence
-        regsc = round(_f(sc.get("regime", sc.get("market_intelligence", 0))) * 100)
         stages.append({
             "agent": "Market Intelligence", "agent_id": "market_intelligence",
             "decision": "Bullish" if regsc >= 60 else "Neutral" if regsc >= 40 else "Bearish",
@@ -1544,8 +1617,6 @@ def get_stock_journey(symbol: str) -> Dict[str, Any]:
             "timestamp": "—", "processing_ms": 0,
             "status": "PASS" if regsc >= 50 else "WARN",
         })
-        # Monitoring
-        momsc = round(_f(sc.get("momentum", 0)) * 100)
         stages.append({
             "agent": "Monitoring", "agent_id": "monitoring",
             "decision": "Signal detected" if momsc >= 50 else "No signal",
@@ -1553,53 +1624,94 @@ def get_stock_journey(symbol: str) -> Dict[str, Any]:
             "timestamp": "—", "processing_ms": 0,
             "status": "PASS" if momsc >= 50 else "WARN",
         })
-        # Strategy
-        ovsc = round(_f(sc.get("overall", 0)) * 100)
+    elif canon and canon.get("regime"):
         stages.append({
-            "agent": "Strategy", "agent_id": "strategy",
-            "decision": f"Confidence {conf_pct}%",
-            "reason": f"Overall score: {ovsc}% · Decision: {decision_type}",
-            "timestamp": "—", "processing_ms": 0,
-            "status": "PASS" if conf_pct >= 70 else "WARN",
-        })
-        # Risk
-        risksc = round(_f(sc.get("risk", 0)) * 100)
-        risk_pass_v3 = decision_type not in ("AVOID", "IGNORE", "NO_ACTION")
-        stages.append({
-            "agent": "Risk", "agent_id": "risk",
-            "decision": "Approved" if risk_pass_v3 else "Rejected",
-            "reason": str(rec.get("rejection_reason") or f"Risk score: {risksc}%"),
-            "timestamp": "—", "processing_ms": 0,
-            "status": "PASS" if risk_pass_v3 else "FAIL",
-        })
-        # AI Decision
-        stages.append({
-            "agent": "AI Decision", "agent_id": "ai_decision",
-            "decision": decision_type,
-            "reason": exp_str[:200] or "Decision generated",
-            "timestamp": "—", "processing_ms": 0,
-            "status": ("PASS" if decision_type in ("BUY", "STRONG_BUY")
-                       else "WARN" if decision_type in ("WATCH", "HOLD")
-                       else "FAIL"),
-        })
-        # Execution
-        executed = decision_type in ("BUY", "STRONG_BUY")
-        stages.append({
-            "agent": "Execution", "agent_id": "execution",
-            "decision": "Paper order placed" if executed else "Not executed",
-            "reason": "Paper trade entered" if executed else f"Decision was {decision_type}",
-            "timestamp": "—", "processing_ms": 0,
-            "status": "PASS" if executed else "INFO",
+            "agent": "Market Intelligence", "agent_id": "market_intelligence",
+            "decision": str(canon.get("regime")),
+            "reason": f"Regime from canonical scan: {canon.get('regime')}",
+            "timestamp": "—", "processing_ms": 0, "status": "PASS",
         })
 
-        # Factor Breakdown for Decision Breakdown (Section 2)
+    # Strategy
+    ovsc = round(_f(sc.get("overall", 0)) * 100)
+    if sc:
+        strat_reason = f"Overall score: {ovsc}% · Decision: {decision_type}"
+    else:
+        strat_name = (canon or {}).get("strategy_name") or (canon or {}).get("strategy_id") or "—"
+        tech = (canon or {}).get("technical_score")
+        strat_reason = f"Strategy: {strat_name}" + (
+            f" · Technical score: {round(_f(tech))}%" if tech is not None else "")
+    stages.append({
+        "agent": "Strategy", "agent_id": "strategy",
+        "decision": f"Confidence {conf_pct}%",
+        "reason": strat_reason,
+        "timestamp": "—", "processing_ms": 0,
+        "status": "PASS" if conf_pct >= 70 else "WARN",
+    })
+
+    # Risk
+    risksc = round(_f(sc.get("risk", 0)) * 100)
+    risk_pass_v3 = decision_type not in ("AVOID", "IGNORE", "NO_ACTION")
+    if sc:
+        risk_reason = str((rec or {}).get("rejection_reason") or f"Risk score: {risksc}%")
+    else:
+        rr = (canon or {}).get("rr_ratio")
+        risk_level = (rec or {}).get("risk_level")
+        bits = []
+        if rr is not None:
+            bits.append(f"RR ratio {rr}")
+        if risk_level:
+            bits.append(f"Risk level {risk_level}")
+        risk_reason = str((rec or {}).get("rejection_reason") or " · ".join(bits) or
+                          f"Decision: {decision_type}")
+    stages.append({
+        "agent": "Risk", "agent_id": "risk",
+        "decision": "Approved" if risk_pass_v3 else "Rejected",
+        "reason": risk_reason,
+        "timestamp": "—", "processing_ms": 0,
+        "status": "PASS" if risk_pass_v3 else "FAIL",
+    })
+
+    # AI Decision
+    stages.append({
+        "agent": "AI Decision", "agent_id": "ai_decision",
+        "decision": decision_type,
+        "reason": exp_str[:200] or "Decision generated",
+        "timestamp": "—", "processing_ms": 0,
+        "status": ("PASS" if decision_type in ("BUY", "STRONG_BUY")
+                   else "WARN" if decision_type in ("WATCH", "HOLD")
+                   else "FAIL"),
+    })
+
+    # Execution
+    executed = decision_type in ("BUY", "STRONG_BUY")
+    paper_order_id = (canon or {}).get("paper_order_id")
+    if paper_order_id:
+        exec_decision, exec_reason, exec_status = (
+            "Paper order placed", f"Paper order {paper_order_id}", "PASS")
+    elif executed:
+        note = (canon or {}).get("paper_order_note")
+        exec_decision = "Eligible" if (canon or {}).get("paper_eligible") else "Paper order placed"
+        exec_reason = str(note or "Paper trade entered")
+        exec_status = "PASS"
+    else:
+        exec_decision, exec_reason, exec_status = (
+            "Not executed", f"Decision was {decision_type}", "INFO")
+    stages.append({
+        "agent": "Execution", "agent_id": "execution",
+        "decision": exec_decision, "reason": exec_reason,
+        "timestamp": "—", "processing_ms": 0, "status": exec_status,
+    })
+
+    # Factor Breakdown for Decision Breakdown (Section 2)
+    if sc:
         factor_map = {
-            "Momentum":          sc.get("momentum", 0),
-            "Research":          sc.get("research", 0),
-            "Market Regime":     sc.get("regime", sc.get("market_intelligence", 0)),
-            "Volume":            sc.get("volume", 0),
-            "Risk":              sc.get("risk", 0),
-            "Technical":         sc.get("technical", 0),
+            "Momentum":      sc.get("momentum", 0),
+            "Research":      sc.get("research", 0),
+            "Market Regime": sc.get("regime", sc.get("market_intelligence", 0)),
+            "Volume":        sc.get("volume", 0),
+            "Risk":          sc.get("risk", 0),
+            "Technical":     sc.get("technical", 0),
         }
         total_w = sum(_f(v) for v in factor_map.values() if _f(v) > 0)
         factor_breakdown = [
@@ -1610,42 +1722,47 @@ def get_stock_journey(symbol: str) -> Dict[str, Any]:
             }
             for k, v in factor_map.items() if _f(v) > 0
         ]
+    else:
+        factor_breakdown = []
 
-        # Why Not This Trade — thresholds
-        why_not: Optional[Dict[str, Any]] = None
-        if decision_type not in ("BUY", "STRONG_BUY"):
-            failing = []
-            if conf_pct < 70:
-                failing.append({"field": "Confidence", "current": f"{conf_pct}%", "threshold": "≥ 70%"})
-            if momsc < 50:
-                failing.append({"field": "Momentum", "current": f"{momsc}%", "threshold": "≥ 50%"})
-            if regsc < 50:
-                failing.append({"field": "Regime", "current": f"{regsc}%", "threshold": "≥ 50%"})
-            if risksc < 50:
-                failing.append({"field": "Risk Score", "current": f"{risksc}%", "threshold": "≥ 50%"})
-            rejected_by = "Risk" if decision_type in ("AVOID",) else "AI Decision"
-            why_not = {
-                "rejected_by":      rejected_by,
-                "reason":           str(rec.get("rejection_reason") or exp_str or "Below threshold"),
-                "failing_criteria": failing,
-                "alternative":      "Increase confidence above 70% and ensure risk score above 50%.",
-            }
-
-        return {
-            "symbol": symbol, "found": True,
-            "decision_type": decision_type, "confidence": conf_pct,
-            "stages": stages, "factor_breakdown": factor_breakdown,
-            "explanation": exp_str[:300],
-            "scores": {k: round(_f(v) * 100) for k, v in sc.items()},
-            "why_not": why_not,
+    # Why Not This Trade — thresholds (score-based path only; canonical gate
+    # reasons already surface in the Scanner stage)
+    why_not: Optional[Dict[str, Any]] = None
+    if decision_type not in ("BUY", "STRONG_BUY") and sc:
+        failing = []
+        if conf_pct < 70:
+            failing.append({"field": "Confidence", "current": f"{conf_pct}%", "threshold": "≥ 70%"})
+        if momsc < 50:
+            failing.append({"field": "Momentum", "current": f"{momsc}%", "threshold": "≥ 50%"})
+        if regsc < 50:
+            failing.append({"field": "Regime", "current": f"{regsc}%", "threshold": "≥ 50%"})
+        if risksc < 50:
+            failing.append({"field": "Risk Score", "current": f"{risksc}%", "threshold": "≥ 50%"})
+        rejected_by = "Risk" if decision_type in ("AVOID",) else "AI Decision"
+        why_not = {
+            "rejected_by":      rejected_by,
+            "reason":           str((rec or {}).get("rejection_reason") or exp_str or "Below threshold"),
+            "failing_criteria": failing,
+            "alternative":      "Increase confidence above 70% and ensure risk score above 50%.",
+        }
+    elif decision_type not in ("BUY", "STRONG_BUY") and rec is not None:
+        reasons = (rec or {}).get("downgrade_reasons")
+        reason_str = "; ".join(str(x) for x in reasons) if isinstance(reasons, list) and reasons \
+            else str((rec or {}).get("rejection_reason") or exp_str or "Below threshold")
+        why_not = {
+            "rejected_by":      "AI Decision",
+            "reason":           reason_str,
+            "failing_criteria": [],
+            "alternative":      "Symbol is re-evaluated automatically on the next scan.",
         }
 
     return {
-        "symbol": symbol, "found": False,
-        "decision_type": "NOT_IN_SCAN", "confidence": 0,
-        "stages": stages, "factor_breakdown": [],
-        "explanation": f"{symbol} was not found in the most recent scan results.",
-        "scores": {}, "why_not": None,
+        "symbol": symbol, "found": True,
+        "decision_type": decision_type, "confidence": conf_pct,
+        "stages": stages, "factor_breakdown": factor_breakdown,
+        "explanation": exp_str[:300],
+        "scores": {k: round(_f(v) * 100) for k, v in sc.items()},
+        "why_not": why_not,
     }
 
 
