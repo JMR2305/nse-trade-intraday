@@ -66,6 +66,7 @@ import ExecutiveDashboard from "@/pages/ExecutiveDashboard";
 import StrategyOptimisation from "@/pages/StrategyOptimisation";
 import OperatorAnalytics from "@/pages/OperatorAnalytics";
 import SystemReadiness from "@/pages/SystemReadiness";
+import OperationalIntelligence from "@/pages/OperationalIntelligence";
 import AIOptimisation from "@/pages/AIOptimisation";
 import RiskOptimisation from "@/pages/RiskOptimisation";
 import LiveReadiness from "@/pages/LiveReadiness";
@@ -203,6 +204,7 @@ function Router() {
         <Route path="/strategy-optimisation" component={StrategyOptimisation} />
         <Route path="/operator-analytics" component={OperatorAnalytics} />
         <Route path="/system-readiness" component={SystemReadiness} />
+        <Route path="/operational-intelligence" component={OperationalIntelligence} />
         <Route path="/ai-optimisation" component={AIOptimisation} />
         <Route path="/risk-optimisation" component={RiskOptimisation} />
         <Route path="/market-intelligence" component={MarketIntelligenceHub} />

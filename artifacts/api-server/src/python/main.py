@@ -3439,6 +3439,9 @@ def main():
         elif command == "system_readiness_report":
             from phase27_readiness import system_readiness_report as _f
             result = _f()
+        elif command == "operational_intelligence_report":
+            from phase27_1_operational_intelligence import operational_intelligence_report as _f
+            result = _f()
         elif command == "system_readiness_history":
             from phase27_readiness import get_history as _f
             result = _f(int(args[1]) if len(args) > 1 and args[1] else 20)

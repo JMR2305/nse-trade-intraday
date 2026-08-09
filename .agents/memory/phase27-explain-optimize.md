@@ -30,3 +30,9 @@ Phase 27E operator analytics additions:
 - ai_decisions cache rows key the symbol as `stock` (legacy rows used `symbol`) and the decision as `decision`; confidence is already 0-100. Any lookup must match both keys and normalise scale.
 - `get_stock_journey` now falls back to the canonical scan snapshot when the AI cache lacks the symbol, building stages from real gate `{passed,reason}` dicts (Scanner stage), regime, strategy/technical score, rr_ratio, paper_order fields. Never fabricate score-based stages when `scores` dict absent.
 - final_action "STRONG BUY" (space) must normalise to "STRONG_BUY" for decision_type consumers.
+
+## Phase 27.1 operational intelligence lessons
+- `pipeline_events.stage_summary()` returns `stages` as a LIST of dicts (keyed by `stage` field), not a dict — normalise before lookup.
+- Composite health scores must emit UNKNOWN components for missing evidence; silently omitting absent stages inflates the score (review FAIL trigger).
+- Day-comparison labels must derive from actual IST calendar dates — never relabel the most recent observed day as "today"; keep an empty today row.
+- Readiness history entries now carry a compact `issues` list + cap 500 to power timelines/90-day stats; old entries lack it — show "no issue detail recorded".

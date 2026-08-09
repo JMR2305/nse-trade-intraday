@@ -36,7 +36,7 @@ BLOCKED = "BLOCKED"
 UNKNOWN = "UNKNOWN"
 
 READINESS_HISTORY_KEY = "system_readiness_history"
-HISTORY_CAP = 50
+HISTORY_CAP = 500  # compact entries; supports 27.1 history stats windows
 
 # Existing thresholds (imported with explicit fallbacks equal to the
 # canonical definitions — the import is authoritative when it succeeds).
@@ -838,14 +838,24 @@ def record_history(report: Dict[str, Any]) -> None:
         log = store.kv_get(READINESS_HISTORY_KEY) or []
         if not isinstance(log, list):
             log = []
+        all_checks = [c for d in report.get("domains") or []
+                      for c in d.get("checks") or []]
         log.append({"at": report.get("generated_at"),
                     "overall": report.get("overall"),
                     "counts": report.get("counts"),
                     "blocking_failures": [
-                        c["id"] for d in report.get("domains") or []
-                        for c in d.get("checks") or []
+                        c["id"] for c in all_checks
                         if c.get("blocking")
-                        and c.get("status") in (BLOCKED, UNKNOWN)]})
+                        and c.get("status") in (BLOCKED, UNKNOWN)],
+                    # Compact issue list for the 27.1 readiness timeline —
+                    # reason/component per non-READY check (capped).
+                    "issues": [{"id": c.get("id"),
+                                "domain": c.get("domain"),
+                                "status": c.get("status"),
+                                "blocking": bool(c.get("blocking")),
+                                "actual": str(c.get("actual") or "")[:140]}
+                               for c in all_checks
+                               if c.get("status") != READY][:10]})
         store.kv_set(READINESS_HISTORY_KEY, log[-HISTORY_CAP:])
     except Exception:
         pass

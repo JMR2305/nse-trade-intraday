@@ -118,4 +118,26 @@ router.get("/system-readiness/history", async (_req, res) => {
   }
 });
 
+// Phase 27.1: Operational Intelligence — 30s cache + single-flight
+let oiCache: { at: number; data: unknown } | null = null;
+let oiInFlight: Promise<unknown> | null = null;
+
+router.get("/operational-intelligence/report", async (req, res) => {
+  try {
+    const force = String(req.query.force ?? "") === "true";
+    if (!force && oiCache && Date.now() - oiCache.at < REPORT_TTL_MS) {
+      res.json(oiCache.data);
+      return;
+    }
+    if (!oiInFlight) {
+      oiInFlight = runPython(["operational_intelligence_report"])
+        .then((data) => { oiCache = { at: Date.now(), data }; return data; })
+        .finally(() => { oiInFlight = null; });
+    }
+    res.json(await oiInFlight);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 export default router;

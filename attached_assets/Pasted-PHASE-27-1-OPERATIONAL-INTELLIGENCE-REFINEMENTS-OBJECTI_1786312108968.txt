@@ -1,0 +1,329 @@
+PHASE 27.1 – OPERATIONAL INTELLIGENCE REFINEMENTS
+
+OBJECTIVE
+
+Phase 27 (A–F) is complete.
+
+This phase MUST NOT modify trading logic.
+
+This phase MUST NOT modify strategy logic.
+
+This phase MUST remain READ ONLY.
+
+Everything must consume the existing canonical:
+
+• Pipeline Event Store
+• Replay Store
+• Portfolio Store
+• Validation Store
+• Learning Store
+• Readiness Store
+• Operator Analytics Store
+
+No duplicate calculations.
+
+No duplicate API endpoints.
+
+===============================================================================
+PART 1 – SESSION READINESS TIMELINE
+===============================================================================
+
+Create a new timeline component.
+
+Display
+
+Current Session
+
+↓
+
+Readiness Changes
+
+↓
+
+Current Status
+
+Example
+
+09:00 READY
+
+09:18 WARNING
+
+09:26 READY
+
+10:11 BLOCKED
+
+10:14 READY
+
+Each event should display
+
+Timestamp
+
+Reason
+
+Affected Component
+
+Recovery Time
+
+Operator Action
+
+Allow clicking each event for details.
+
+===============================================================================
+PART 2 – READINESS HISTORY
+===============================================================================
+
+Create historical statistics.
+
+Display
+
+Last 7 Days
+
+Last 30 Days
+
+Last 90 Days
+
+Metrics
+
+READY Sessions
+
+WARNING Sessions
+
+BLOCKED Sessions
+
+UNKNOWN Sessions
+
+Average Readiness Score
+
+Longest READY streak
+
+Most common failure
+
+Average Recovery Time
+
+Visualize using trend charts.
+
+===============================================================================
+PART 3 – PRE-MARKET OPERATOR CHECKLIST
+===============================================================================
+
+Automatically generate a checklist before market open.
+
+Verify
+
+Market Data
+
+Scanner
+
+Research
+
+Market Intelligence
+
+Risk Engine
+
+Portfolio
+
+Replay
+
+Mission Control
+
+Learning Engine
+
+Paper Mode
+
+Broker Session
+
+Scheduler
+
+Background Workers
+
+Every item should display
+
+PASS
+
+WARNING
+
+FAIL
+
+Provide remediation guidance.
+
+===============================================================================
+PART 4 – SESSION COMPARISON
+===============================================================================
+
+Compare
+
+Today
+
+Yesterday
+
+Previous Trading Day
+
+Display
+
+Stocks Scanned
+
+Signals
+
+Trades
+
+Win Rate
+
+PnL
+
+Risk Rejections
+
+Execution Success
+
+Portfolio Growth
+
+Pipeline Latency
+
+===============================================================================
+PART 5 – OPERATOR INSIGHTS
+===============================================================================
+
+Generate advisory insights.
+
+Examples
+
+Scanner processed 18% fewer stocks.
+
+Risk Agent rejected 42% more symbols.
+
+Strategy confidence increased.
+
+Pipeline latency improved.
+
+Portfolio exposure reduced.
+
+Learning Engine confidence improving.
+
+Recommendations remain advisory only.
+
+===============================================================================
+PART 6 – PIPELINE HEALTH SCORE
+===============================================================================
+
+Create a composite score.
+
+Include
+
+Scanner
+
+Research
+
+Market Intelligence
+
+Monitoring
+
+Strategy
+
+Risk
+
+Decision
+
+Execution
+
+Portfolio
+
+Replay
+
+Mission Control
+
+Validation
+
+Learning
+
+Display
+
+Overall Health
+
+Trend
+
+Historical Trend
+
+Component Breakdown
+
+===============================================================================
+PART 7 – INVESTIGATION SHORTCUTS
+===============================================================================
+
+Every warning or failure should support
+
+Open Investigation
+
+Open Replay
+
+Open Explainability
+
+Open Strategy Optimization
+
+Open Mission Control
+
+Open Operator Analytics
+
+===============================================================================
+PART 8 – EXECUTIVE SUMMARY
+===============================================================================
+
+Create a one-page summary.
+
+Display
+
+Today's AI Health
+
+Trading Health
+
+Portfolio Health
+
+Readiness
+
+System Health
+
+Operator Alerts
+
+Recommendations
+
+Outstanding Issues
+
+===============================================================================
+VALIDATION
+===============================================================================
+
+Verify
+
+✓ Read-only
+
+✓ Uses canonical stores only
+
+✓ No duplicate calculations
+
+✓ No duplicate endpoints
+
+✓ Mobile responsive
+
+✓ Existing tests continue passing
+
+===============================================================================
+DELIVERABLES
+===============================================================================
+
+1. Session Readiness Timeline
+
+2. Readiness History
+
+3. Pre-Market Checklist
+
+4. Session Comparison Dashboard
+
+5. Operator Insights
+
+6. Pipeline Health Score
+
+7. Investigation Shortcuts
+
+8. Executive Summary
+
+9. Automated Tests
+
+10. Verification Report confirming all refinements consume only canonical services and introduce no new trading logic.
