@@ -455,13 +455,20 @@ class TestConsistency(unittest.TestCase):
 class TestIssueStore(unittest.TestCase):
     def setUp(self):
         import tempfile
+        from unittest import mock
+        import phase20_store
         self.tmp = tempfile.TemporaryDirectory()
         self._old_issues = live_store.ISSUES_FILE
         self._old_snaps = live_store.SNAPSHOTS_FILE
         live_store.ISSUES_FILE = os.path.join(self.tmp.name, "issues.json")
         live_store.SNAPSHOTS_FILE = os.path.join(self.tmp.name, "snaps.json")
+        # keep the opportunistic daily prune guard out of the repo KV file
+        self._kv_patch = mock.patch.object(phase20_store, "kv_claim_once",
+                                           return_value=False)
+        self._kv_patch.start()
 
     def tearDown(self):
+        self._kv_patch.stop()
         live_store.ISSUES_FILE = self._old_issues
         live_store.SNAPSHOTS_FILE = self._old_snaps
         self.tmp.cleanup()
@@ -565,6 +572,114 @@ class TestIssueStore(unittest.TestCase):
         self.assertTrue(any(i["key"] == "scanner" for i in resolved))
 
 
+class TestRetention(unittest.TestCase):
+    """Task: stop the live-validation snapshot and issue history from
+    growing forever — prune() ages out old snapshots and old RESOLVED
+    issues, never OPEN issues; maybe_prune() is daily-guarded + fail-safe."""
+
+    def setUp(self):
+        import tempfile
+        self.tmp = tempfile.TemporaryDirectory()
+        self._old_issues = live_store.ISSUES_FILE
+        self._old_snaps = live_store.SNAPSHOTS_FILE
+        live_store.ISSUES_FILE = os.path.join(self.tmp.name, "issues.json")
+        live_store.SNAPSHOTS_FILE = os.path.join(self.tmp.name, "snaps.json")
+
+    def tearDown(self):
+        live_store.ISSUES_FILE = self._old_issues
+        live_store.SNAPSHOTS_FILE = self._old_snaps
+        self.tmp.cleanup()
+
+    def _seed(self):
+        rn = datetime.now(timezone.utc)
+        old = iso(rn - timedelta(days=live_store.RETENTION_DAYS + 5))
+        fresh = iso(rn - timedelta(hours=1))
+        live_store._write_json(live_store.SNAPSHOTS_FILE, [
+            {"snapshot_id": "old", "created_at": old,
+             "in_session": True, "verdict": "PASS", "result": {}},
+            {"snapshot_id": "fresh", "created_at": fresh,
+             "in_session": True, "verdict": "PASS", "result": {}},
+        ])
+        live_store._write_json(live_store.ISSUES_FILE, [
+            {"category": "SUBSYSTEM", "key": "old_resolved",
+             "severity": "WARNING", "status": "RESOLVED",
+             "first_seen": old, "last_seen": old, "resolved_at": old,
+             "count": 1},
+            {"category": "SUBSYSTEM", "key": "fresh_resolved",
+             "severity": "WARNING", "status": "RESOLVED",
+             "first_seen": fresh, "last_seen": fresh, "resolved_at": fresh,
+             "count": 1},
+            {"category": "SUBSYSTEM", "key": "ancient_open",
+             "severity": "CRITICAL", "status": "OPEN",
+             "first_seen": old, "last_seen": old, "resolved_at": None,
+             "count": 1},
+        ])
+
+    def test_prune_removes_old_snapshots_and_old_resolved_issues_only(self):
+        self._seed()
+        out = live_store.prune()
+        self.assertEqual(out["snapshots_deleted"], 1)
+        self.assertEqual(out["issues_deleted"], 1)
+        snaps = live_store.list_snapshots()
+        self.assertEqual([s["snapshot_id"] for s in snaps], ["fresh"])
+        keys = {(i["key"], i["status"]) for i in live_store.list_issues()}
+        # OPEN issues are NEVER pruned, however old
+        self.assertIn(("ancient_open", "OPEN"), keys)
+        self.assertIn(("fresh_resolved", "RESOLVED"), keys)
+        self.assertNotIn(("old_resolved", "RESOLVED"), keys)
+
+    def test_prune_is_idempotent_and_keeps_unparsable_timestamps(self):
+        self._seed()
+        live_store.prune()
+        out = live_store.prune()
+        self.assertEqual(out["snapshots_deleted"], 0)
+        self.assertEqual(out["issues_deleted"], 0)
+        live_store._write_json(live_store.SNAPSHOTS_FILE, [
+            {"snapshot_id": "weird", "created_at": "not-a-timestamp",
+             "result": {}}])
+        out = live_store.prune()
+        self.assertEqual(out["snapshots_deleted"], 0)
+
+    def test_append_snapshot_triggers_daily_guarded_prune(self):
+        from unittest import mock
+        import phase20_store
+        self._seed()
+        with mock.patch.object(phase20_store, "kv_claim_once",
+                               return_value=True) as claim:
+            live_store.append_snapshot({"verdict": "PASS",
+                                        "in_session": True})
+        claim.assert_called_once()
+        self.assertTrue(claim.call_args[0][0]
+                        .startswith("phase26_live_prune:"))
+        ids = {s["snapshot_id"] for s in live_store.list_snapshots()}
+        self.assertNotIn("old", ids)
+        self.assertIn("fresh", ids)
+
+    def test_maybe_prune_skips_when_already_claimed_today(self):
+        from unittest import mock
+        import phase20_store
+        self._seed()
+        with mock.patch.object(phase20_store, "kv_claim_once",
+                               return_value=False):
+            out = live_store.maybe_prune()
+        self.assertEqual(out, {"skipped": True})
+        self.assertEqual(len(live_store.list_snapshots()), 2)
+
+    def test_maybe_prune_never_raises_when_guard_fails(self):
+        from unittest import mock
+        import phase20_store
+        self._seed()
+        with mock.patch.object(phase20_store, "kv_claim_once",
+                               side_effect=RuntimeError("kv down")):
+            out = live_store.maybe_prune()
+        self.assertTrue(out.get("skipped"))
+        # append still succeeds even if the prune guard blows up
+        with mock.patch.object(phase20_store, "kv_claim_once",
+                               side_effect=RuntimeError("kv down")):
+            rec = live_store.append_snapshot({"verdict": "PASS"})
+        self.assertTrue(rec["snapshot_id"])
+
+
 class TestFailAlerts(unittest.TestCase):
     """Task: alert operators the moment live validation turns FAIL."""
 
@@ -584,9 +699,13 @@ class TestFailAlerts(unittest.TestCase):
             context=None: self.notifications.append(
                 {"kind": kind, "title": title, "severity": severity}))
         self._patch.start()
+        self._kv_patch = mock.patch.object(phase20_store, "kv_claim_once",
+                                           return_value=False)
+        self._kv_patch.start()
         self.rn = datetime.now(timezone.utc)
 
     def tearDown(self):
+        self._kv_patch.stop()
         self._patch.stop()
         live_store.ISSUES_FILE = self._old_issues
         live_store.SNAPSHOTS_FILE = self._old_snaps

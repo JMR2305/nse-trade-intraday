@@ -176,7 +176,92 @@ def append_snapshot(result: Dict[str, Any]) -> Dict[str, Any]:
             _write_json(SNAPSHOTS_FILE, rows[-_SNAP_CAP:])
         return record
 
-    return _with_db(in_db, in_file)
+    out = _with_db(in_db, in_file)
+    maybe_prune()  # opportunistic, daily-guarded, never raises
+    return out
+
+
+# ── Retention ────────────────────────────────────────────────────────────────
+#
+# Mirrors the pipeline_events 14-day prune pattern: Postgres rows would
+# otherwise grow forever (~75 snapshots per session). The JSON fallbacks are
+# already capped (_SNAP_CAP / _ISSUE_CAP), but prune() also ages them out so
+# behaviour matches across backends. OPEN issues are NEVER pruned.
+
+RETENTION_DAYS = 14
+
+
+def prune(days: int = RETENTION_DAYS) -> Dict[str, Any]:
+    """Delete snapshots older than `days`, and RESOLVED issues whose
+    resolved_at is older than `days`. OPEN issues are never touched.
+    NEVER raises — retention must not break a validation cycle."""
+    days = int(days)
+    try:
+        def in_db(conn):
+            with conn.cursor() as cur:
+                cur.execute(
+                    "DELETE FROM phase26_live_snapshots"
+                    " WHERE created_at < NOW() - (%s || ' days')::interval",
+                    (days,))
+                snaps = cur.rowcount
+                cur.execute(
+                    "DELETE FROM phase26_issues"
+                    " WHERE status = 'RESOLVED' AND resolved_at IS NOT NULL"
+                    " AND resolved_at < NOW() - (%s || ' days')::interval",
+                    (days,))
+                issues = cur.rowcount
+            return {"snapshots_deleted": snaps, "issues_deleted": issues,
+                    "days": days}
+
+        def in_file():
+            from datetime import timedelta
+            cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+            def _older(ts: Any) -> bool:
+                try:
+                    d = datetime.fromisoformat(
+                        str(ts).replace("Z", "+00:00"))
+                    if d.tzinfo is None:
+                        d = d.replace(tzinfo=timezone.utc)
+                    return d < cutoff
+                except Exception:
+                    return False  # unparsable timestamps are kept
+
+            with _file_lock(SNAPSHOTS_FILE):
+                rows = _read_json(SNAPSHOTS_FILE, [])
+                kept = [r for r in rows if not _older(r.get("created_at"))]
+                snaps = len(rows) - len(kept)
+                if snaps:
+                    _write_json(SNAPSHOTS_FILE, kept)
+            with _file_lock(ISSUES_FILE):
+                rows = _read_json(ISSUES_FILE, [])
+                kept = [r for r in rows
+                        if not (r.get("status") == "RESOLVED"
+                                and r.get("resolved_at")
+                                and _older(r.get("resolved_at")))]
+                issues = len(rows) - len(kept)
+                if issues:
+                    _write_json(ISSUES_FILE, kept)
+            return {"snapshots_deleted": snaps, "issues_deleted": issues,
+                    "days": days}
+
+        return _with_db(in_db, in_file)
+    except Exception:
+        return {"snapshots_deleted": 0, "issues_deleted": 0,
+                "days": days, "error": True}
+
+
+def maybe_prune(days: int = RETENTION_DAYS) -> Dict[str, Any]:
+    """Opportunistic daily prune: runs at most once per UTC day across all
+    processes via the phase20 KV first-claimant guard. NEVER raises."""
+    try:
+        import phase20_store
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        if not phase20_store.kv_claim_once(f"phase26_live_prune:{today}"):
+            return {"skipped": True}
+        return prune(days)
+    except Exception:
+        return {"skipped": True, "error": True}
 
 
 def list_snapshots(limit: int = 50) -> List[Dict[str, Any]]:
