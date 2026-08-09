@@ -102,4 +102,5 @@
 - [Bot test suite conventions](bot-test-suite.md) — alias finder, isolated intraday_bot_test DB, NullPool per-loop, request-boundary commit contract, bcrypt<5 pin.
 - [Phase 26C scheduled validation](phase26c-scheduled-validation.md) — per-suite kv_claim_once at open/close milestones; ERROR releases claim for retry, FAIL keeps it; dedupe error alerts separately.
 - [Replay snapshot contract](replay-snapshot-contract.md) — stages use id/stocks_in/stocks_out, decisions use final_action; market_data↔SCANNER alias; curl real keys before typing interfaces.
+- [Phase 27C/27D explain & optimize](phase27-explain-optimize.md) — scan gates are `{passed,reason}` dicts; phase24 missed-opps wrap in `record`; error rows trip all gates; journey can lag the canonical scan.
 - [Durable portfolio repos](portfolio-durable-repos.md) — recover-first startup w/ canonical-ledger cross-check; DB idempotency dedupe; serial id is the only cross-process sequence; unit tests must set all portfolio DB kill-switches.

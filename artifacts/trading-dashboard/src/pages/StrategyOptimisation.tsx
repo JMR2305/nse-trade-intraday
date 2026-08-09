@@ -576,6 +576,164 @@ export default function StrategyOptimisation() {
           </SectionCard>
         </>
       )}
+
+      {/* Phase 27D — Historical optimization from canonical stores (always on) */}
+      <Phase27DSection />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Phase 27D — Historical Strategy Optimization (canonical, advisory-only)
+// ---------------------------------------------------------------------------
+
+function heatCls(pnl: number): string {
+  if (pnl > 0) return "bg-emerald-950/60 text-emerald-400 border-emerald-900";
+  if (pnl < 0) return "bg-red-950/60 text-red-400 border-red-900";
+  return "bg-zinc-900/50 text-zinc-500 border-zinc-800";
+}
+
+function HeatGrid({ cells, title }: {
+  cells: Array<{ x: string; y: string; trades: number; pnl: number }>; title: string;
+}) {
+  if (!cells.length) return <div className="text-zinc-500 font-mono text-[11px]">No closed trades yet — heatmap appears once history exists.</div>;
+  const xs = [...new Set(cells.map((c) => c.x))];
+  const ys = [...new Set(cells.map((c) => c.y))];
+  const by = new Map(cells.map((c) => [`${c.x}|${c.y}`, c]));
+  return (
+    <div className="overflow-x-auto">
+      <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1">{title}</div>
+      <table className="text-[10px] font-mono">
+        <thead><tr><th />{ys.map((y) => <th key={y} className="px-1 pb-1 text-zinc-500 font-normal">{y}</th>)}</tr></thead>
+        <tbody>
+          {xs.map((x) => (
+            <tr key={x}>
+              <td className="pr-2 text-zinc-400">{x}</td>
+              {ys.map((y) => {
+                const c = by.get(`${x}|${y}`);
+                return (
+                  <td key={y} className="p-0.5">
+                    <div className={cn("rounded border px-1.5 py-1 text-center min-w-14", heatCls(c?.pnl ?? 0))}
+                      title={c ? `${c.trades} trades` : "no trades"}>
+                      {c ? `₹${c.pnl}` : "—"}
+                    </div>
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function Phase27DSection() {
+  const q = useQuery<any>({
+    queryKey: ["strategy-optimization-report"],
+    queryFn: () => apiJson("/strategy-optimization/report", undefined, 60_000),
+    refetchInterval: 120_000, staleTime: 60_000, retry: 3,
+  });
+  const d = q.data;
+  const fmt = (v: any) => (v === null || v === undefined ? "—" : String(v));
+
+  return (
+    <div className="space-y-4" data-testid="section-phase27d">
+      <div className="flex items-center gap-2 pt-2 border-t border-zinc-800">
+        <BarChart3 className="h-4 w-4 text-sky-400" />
+        <h2 className="text-sm font-semibold text-zinc-100">Historical Optimization (canonical ledger + scan gates)</h2>
+        <Badge variant="outline" className="text-[10px] text-amber-400 border-amber-700">ADVISORY ONLY</Badge>
+      </div>
+      {q.isLoading && <div className="text-zinc-500 text-xs font-mono flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> Building report from canonical stores…</div>}
+      {q.isError && <div className="text-red-400 text-xs font-mono">Failed to load optimization report.</div>}
+      {d && (
+        <>
+          {!d.evidence?.sufficient && (
+            <div className="rounded border border-amber-800 bg-amber-950/30 p-2 text-[11px] text-amber-400 font-mono" data-testid="text-insufficient-evidence">
+              INSUFFICIENT EVIDENCE — {d.evidence?.closed_trades ?? 0} closed trades (need ≥{d.evidence?.min_evidence_per_strategy}). Metrics below reflect only real recorded history; nothing is extrapolated.
+            </div>
+          )}
+
+          <SectionCard title="Strategy Comparison — full metric contract" icon={Layers}>
+            <MiniTable
+              headers={["Strategy", "Trades", "Wins", "Losses", "Win %", "Avg Profit", "Avg Loss", "PF", "Max DD", "Sharpe", "Avg Hold (m)", "Cap Util %", "Net PnL"]}
+              rows={(d.strategies ?? []).map((s: any) => [
+                s.strategy + (s.low_evidence ? " ⚠" : ""), s.trades, s.wins, s.losses,
+                fmt(s.win_pct), fmt(s.avg_profit), fmt(s.avg_loss), fmt(s.profit_factor),
+                fmt(s.max_drawdown), fmt(s.sharpe), fmt(s.avg_hold_minutes),
+                fmt(s.capital_utilisation_pct), fmt(s.net_pnl),
+              ])}
+            />
+            <div className="text-[10px] text-zinc-600">⚠ = below evidence threshold ({d.evidence?.min_evidence_per_strategy} trades)</div>
+          </SectionCard>
+
+          <SectionCard title="Filter Analysis — gates on the latest canonical scan" icon={ShieldCheck}>
+            <MiniTable
+              headers={["Filter", "Triggered", "Rejected", "Good", "Bad", "Missed", "Classification"]}
+              rows={(d.filter_analysis?.filters ?? []).map((f: any) => [
+                f.filter, f.times_triggered, f.symbols_rejected?.length ?? 0,
+                fmt(f.good_rejections), fmt(f.bad_rejections), fmt(f.missed_opportunities),
+                f.classification + (f.duplicate_of?.length ? ` (dup of ${f.duplicate_of.join(", ")})` : ""),
+              ])}
+            />
+            {(d.filter_analysis?.data_error_symbols ?? []).length > 0 && (
+              <div className="text-[10px] text-amber-500 font-mono">
+                Data fetch failed (excluded from per-filter counts): {d.filter_analysis.data_error_symbols.join(", ")}
+              </div>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-1 text-[10px] text-zinc-500">
+              {Object.entries(d.filter_analysis?.threshold_domains ?? {}).map(([k, v]) => (
+                <div key={k}><span className="text-zinc-400">{k}:</span> {String(v)}</div>
+              ))}
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Aggregated Recommendations (advisory only — never auto-applied)" icon={Brain}>
+            {(d.recommendations ?? []).length === 0 && <div className="text-zinc-500 font-mono text-[11px]">No recommendations from the advisory engines yet.</div>}
+            {(d.recommendations ?? []).slice(0, 20).map((r: any, i: number) => (
+              <div key={i} className="rounded border border-zinc-800 bg-zinc-900/40 p-2 text-[11px]">
+                <span className="text-zinc-500">[{r.source}]</span>{" "}
+                <span className="text-zinc-200">{r.title ?? r.recommendation ?? r.action ?? r.summary ?? JSON.stringify(r).slice(0, 140)}</span>
+              </div>
+            ))}
+          </SectionCard>
+
+          <SectionCard title="Period Performance" icon={Clock}>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+              {(["daily", "weekly", "monthly"] as const).map((p) => (
+                <div key={p}>
+                  <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1">{p}</div>
+                  <MiniTable headers={["Period", "Trades", "PnL", "Win %"]}
+                    rows={(d.period_performance?.[p] ?? []).slice(-8).map((r: any) => [r.period, r.trades, r.pnl, r.win_pct])} />
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Heatmaps" icon={Activity}>
+            <div className="space-y-4">
+              <HeatGrid title="Strategy × Regime (PnL)" cells={d.heatmaps?.strategy_x_regime ?? []} />
+              <HeatGrid title="Sector × Regime (PnL)" cells={d.heatmaps?.sector_x_regime ?? []} />
+              <HeatGrid title="Weekday × Strategy (PnL)" cells={d.heatmaps?.weekday_x_strategy ?? []} />
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Confidence & Risk Distributions" icon={Target}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1">AI confidence buckets</div>
+                <MiniTable headers={["Range", "Trades", "Wins", "PnL"]}
+                  rows={(d.distributions?.confidence ?? []).map((b: any) => [b.range, b.trades, b.wins, b.pnl])} />
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1">Risk score buckets</div>
+                <MiniTable headers={["Range", "Trades", "Wins", "PnL"]}
+                  rows={(d.distributions?.risk_score ?? []).map((b: any) => [b.range, b.trades, b.wins, b.pnl])} />
+              </div>
+            </div>
+          </SectionCard>
+        </>
+      )}
     </div>
   );
 }

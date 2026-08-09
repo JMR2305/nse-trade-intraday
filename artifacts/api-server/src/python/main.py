@@ -3423,6 +3423,14 @@ def main():
         elif command == "ops_centre_cycle_log":
             from ops_centre import get_pipeline_cycle_log as _f; result = _f()
 
+        # ── Phase 27C/27D: explainability + strategy optimization ────────────
+        elif command == "explain_symbol":
+            from phase27_explainability import explain_symbol as _f
+            result = _f(args[1] if len(args) > 1 else "")
+        elif command == "strategy_optimization_report":
+            from phase27_strategy_optimization import strategy_optimization_report as _f
+            result = _f()
+
         # ── Phase 8.5: Operational Control Centre ─────────────────────────────
         elif command == "ops_summary":
             from operations_center.api import cmd_summary       as _f; result = _f()

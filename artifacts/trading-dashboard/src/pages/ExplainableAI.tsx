@@ -22,7 +22,7 @@ import {
 import {
   AlertTriangle, CheckCircle, TrendingUp, TrendingDown, Minus,
   Lightbulb, BarChart3, Shield, Globe2, Globe, CalendarDays, Brain,
-  RefreshCw,
+  RefreshCw, Loader2,
 } from "lucide-react";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -757,6 +757,7 @@ export default function ExplainableAI() {
         <TabsList className="flex flex-wrap h-auto gap-1 bg-slate-800/60 p-1">
           {[
             ["overview",      "Overview"],
+            ["why",           "Why (27C)"],
             ["summary",       "Summary"],
             ["decision",      "Decision"],
             ["contributions", "Contributions"],
@@ -776,6 +777,10 @@ export default function ExplainableAI() {
 
         <TabsContent value="overview" className="mt-4">
           {summaryQ.isLoading ? <Loading /> : <OverviewTab summary={summaryQ.data} />}
+        </TabsContent>
+
+        <TabsContent value="why" className="mt-4">
+          <WhyTab symbol={symbol} />
         </TabsContent>
 
         <TabsContent value="summary" className="mt-4">
@@ -830,6 +835,130 @@ export default function ExplainableAI() {
           <RiskTab data={d?.risk_context ?? { available: true, narrative: "Select a symbol with a live signal to view risk context.", dimensions: [] }} />
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+// ── Phase 27C — Why tab (canonical explain bundle) ───────────────────────────
+
+function useExplain(symbol: string) {
+  return useQuery<any>({
+    queryKey: ["explain-symbol", symbol],
+    queryFn: () => apiJson(`/explain/symbol/${symbol}`, undefined, 60_000),
+    enabled: !!symbol,
+    refetchInterval: 60_000,
+    retry: 3,
+  });
+}
+
+const DECISION_CLS: Record<string, string> = {
+  BUY: "text-emerald-400 border-emerald-700",
+  SELL: "text-red-400 border-red-700",
+  WATCH: "text-amber-400 border-amber-700",
+  HOLD: "text-sky-400 border-sky-700",
+  REJECTED: "text-zinc-400 border-zinc-600",
+  NOT_SCANNED: "text-zinc-500 border-zinc-700",
+};
+
+function WhyTab({ symbol }: { symbol: string }) {
+  const q = useExplain(symbol);
+  const d = q.data;
+  if (q.isLoading) {
+    return (
+      <div className="flex items-center gap-2 p-6 text-slate-400 text-xs font-mono">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading explainability bundle…
+      </div>
+    );
+  }
+  if (q.isError || !d?.ok) {
+    return <div className="text-red-400 text-xs font-mono p-4">Failed to load explainability bundle for {symbol}.</div>;
+  }
+  const fmtVal = (v: any): string => {
+    if (v === null || v === undefined || v === "") return "—";
+    if (typeof v === "object") {
+      return Object.entries(v).map(([k, x]) => `${k}: ${x ?? "—"}`).join(" · ");
+    }
+    return String(v);
+  };
+  return (
+    <div className="space-y-4" data-testid="tab-why-27c">
+      {/* Decision header */}
+      <div className="flex flex-wrap items-center gap-3 rounded border border-slate-700 bg-slate-800/40 p-3">
+        <span className="text-white font-semibold">{d.symbol}</span>
+        <Badge variant="outline" className={`text-xs ${DECISION_CLS[d.decision] ?? ""}`} data-testid="badge-why-decision">
+          {d.decision}
+        </Badge>
+        <span className="text-xs text-slate-400 font-mono">
+          Confidence: {d.confidence ?? "—"}{typeof d.confidence === "number" ? "%" : ""}
+        </span>
+        <span className="text-xs text-slate-400 font-mono">Stage: {d.current_stage ?? "—"}</span>
+        <span className="text-xs text-slate-400 font-mono">Status: {d.current_status ?? "—"}</span>
+        {d.strategy && <span className="text-xs text-slate-400 font-mono">Strategy: {d.strategy}</span>}
+        {d.scan_meta?.snapshot_ts && (
+          <span className="text-[10px] text-slate-500 font-mono ml-auto">scan {String(d.scan_meta.snapshot_ts).slice(0, 19)}</span>
+        )}
+      </div>
+
+      {d.note && <div className="rounded border border-amber-800 bg-amber-950/30 p-2 text-[11px] text-amber-400 font-mono">{d.note}</div>}
+      {d.explanation && <div className="text-xs text-slate-300">{d.explanation}</div>}
+
+      {/* Rejection detail — spec-labelled */}
+      {d.rejection?.rejections?.length > 0 && (
+        <div className="rounded border border-red-900 bg-red-950/20 p-3 space-y-2" data-testid="card-why-rejection">
+          <div className="text-xs font-semibold text-red-400">Rejection Details</div>
+          {d.rejection.rejections.map((r: any, i: number) => (
+            <div key={i} className="grid grid-cols-2 md:grid-cols-3 gap-2 text-[11px] font-mono border-t border-red-900/50 pt-2">
+              <div><span className="text-slate-500">Rejected by:</span> <span className="text-slate-200">{fmtVal(r.rejected_by)}</span></div>
+              <div><span className="text-slate-500">Rule:</span> <span className="text-slate-200">{fmtVal(r.rule)}</span></div>
+              <div><span className="text-slate-500">Threshold:</span> <span className="text-slate-200">{fmtVal(r.threshold)}</span></div>
+              <div><span className="text-slate-500">Actual:</span> <span className="text-slate-200">{fmtVal(r.actual)}</span></div>
+              <div className="col-span-2"><span className="text-slate-500">Reason:</span> <span className="text-slate-200">{fmtVal(r.reason)}</span></div>
+              <div className="col-span-2 md:col-span-3"><span className="text-slate-500">Recommendation:</span> <span className="text-slate-200">{fmtVal(r.recommendation)}</span></div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Factors */}
+      {d.factors?.length > 0 && (
+        <div className="rounded border border-slate-700 bg-slate-800/40 p-3">
+          <div className="text-xs font-semibold text-slate-200 mb-2">Why — factor evidence (canonical scan)</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+            {d.factors.map((f: any) => (
+              <div key={f.name} className={`rounded border p-2 ${f.evaluated ? "border-slate-700 bg-slate-900/40" : "border-slate-800 bg-slate-900/20 opacity-60"}`}>
+                <div className="text-[10px] uppercase tracking-wide text-slate-500 flex items-center gap-1">
+                  {f.name}
+                  {!f.evaluated && <Badge variant="outline" className="text-[9px] text-zinc-500 border-zinc-700">not evaluated</Badge>}
+                </div>
+                <div className="text-[11px] font-mono text-slate-200 break-words">
+                  {f.evaluated ? fmtVal(f.value) : (f.note || "—")}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Agents timeline */}
+      {d.agents_timeline?.length > 0 && (
+        <div className="rounded border border-slate-700 bg-slate-800/40 p-3" data-testid="timeline-why-agents">
+          <div className="text-xs font-semibold text-slate-200 mb-2">AI Reasoning Timeline — agent contributions</div>
+          <div className="space-y-1">
+            {d.agents_timeline.map((s: any, i: number) => (
+              <div key={i} className="flex flex-wrap items-center gap-2 text-[11px] font-mono border-l-2 border-slate-600 pl-2 py-0.5">
+                <span className="text-slate-200 w-40">{s.agent}</span>
+                <Badge variant="outline" className="text-[9px] text-slate-400 border-slate-600">{s.status ?? "—"}</Badge>
+                {s.decision && <span className="text-sky-400">{s.decision}</span>}
+                <span className="text-slate-500">{s.reason ?? ""}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="text-[10px] text-slate-600 font-mono">
+        READ-ONLY · advisory only · all values from the canonical scan snapshot, stage journey and portfolio — nothing recomputed or fabricated.
+      </div>
     </div>
   );
 }

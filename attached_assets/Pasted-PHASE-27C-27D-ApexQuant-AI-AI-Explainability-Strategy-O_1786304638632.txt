@@ -1,0 +1,316 @@
+PHASE 27C + 27D
+ApexQuant AI
+AI Explainability + Strategy Optimization
+
+OBJECTIVE
+
+Create a transparent AI decision engine and historical strategy optimization framework.
+
+IMPORTANT
+
+This phase MUST NOT modify trading decisions.
+
+This phase is READ-ONLY.
+
+It must consume ONLY the canonical pipeline outputs, replay engine data, paper trade ledger, portfolio store and event store.
+
+Do NOT duplicate business logic.
+
+=========================================================
+PART C
+AI EXPLAINABILITY
+=========================================================
+
+For every scanned symbol display:
+
+• Current Stage
+• Current Status
+• Final Decision
+• Decision Confidence
+
+Decision must clearly state
+
+BUY
+
+SELL
+
+WATCH
+
+HOLD
+
+REJECTED
+
+=========================================================
+
+Explain WHY.
+
+Display:
+
+Market regime
+
+Trend
+
+Momentum
+
+Volume
+
+VWAP
+
+EMA
+
+MACD
+
+RSI
+
+ATR
+
+Support
+
+Resistance
+
+Sector strength
+
+Liquidity
+
+News impact
+
+Corporate actions
+
+Risk score
+
+Position size
+
+Expected Reward
+
+Maximum Risk
+
+Risk/Reward ratio
+
+Confidence breakdown
+
+=========================================================
+
+Show which AI agent contributed.
+
+Market Scanner
+
+Research
+
+Market Intelligence
+
+Monitoring
+
+Strategy
+
+Risk
+
+AI Decision
+
+Execution
+
+=========================================================
+
+For every rejection display
+
+Rejected by
+
+Rule name
+
+Threshold
+
+Actual value
+
+Reason
+
+Recommendation
+
+=========================================================
+
+Create a visual AI reasoning timeline.
+
+Symbol
+
+↓
+
+Scanner
+
+↓
+
+Research
+
+↓
+
+Market Intelligence
+
+↓
+
+Monitoring
+
+↓
+
+Strategy
+
+↓
+
+Risk
+
+↓
+
+Decision
+
+↓
+
+Execution
+
+Each stage should explain exactly what happened.
+
+=========================================================
+PART D
+STRATEGY OPTIMIZATION
+=========================================================
+
+Build a historical optimization module using replay results.
+
+Compare:
+
+Trend Rider
+
+Mean Reversion
+
+Breakout
+
+Momentum
+
+Future strategies
+
+=========================================================
+
+For every strategy calculate
+
+Trades
+
+Wins
+
+Losses
+
+Win %
+
+Average Profit
+
+Average Loss
+
+Profit Factor
+
+Maximum Drawdown
+
+Sharpe Ratio
+
+Average Hold Time
+
+Capital Utilisation
+
+=========================================================
+
+Analyse every filter.
+
+Display
+
+Filter
+
+Times triggered
+
+Symbols rejected
+
+Good rejections
+
+Bad rejections
+
+Missed opportunities
+
+=========================================================
+
+Analyse
+
+Confidence thresholds
+
+Risk thresholds
+
+Sector exposure
+
+Liquidity filters
+
+News filters
+
+Volatility filters
+
+=========================================================
+
+Identify
+
+Overly conservative filters
+
+Overly aggressive filters
+
+Duplicate filters
+
+Unused filters
+
+=========================================================
+
+Generate recommendations only.
+
+Do NOT automatically modify thresholds.
+
+=========================================================
+
+Provide dashboards
+
+Strategy comparison
+
+Sector performance
+
+Market regime performance
+
+Monthly performance
+
+Weekly performance
+
+Daily performance
+
+Heatmaps
+
+Confidence distributions
+
+Risk distributions
+
+=========================================================
+
+Validation
+
+✓ Read-only
+
+✓ Uses canonical event store
+
+✓ No duplicated calculations
+
+✓ No trading logic changes
+
+✓ Mobile responsive
+
+✓ Existing tests pass
+
+Deliver
+
+• AI Explainability Dashboard
+
+• Strategy Optimization Dashboard
+
+• Historical Analysis
+
+• Recommendation Engine
+
+• Tests
+
+• Documentation
+
+• Verification Report
