@@ -223,6 +223,7 @@ export const AGENTS: Agent[] = [
     pages: [
       { href: "/mission-control",    label: "Mission Control",           icon: Radio,           tags: ["mission", "control", "live", "pipeline", "scanner", "paper", "events", "phase25"] },
       { href: "/operator-analytics", label: "Operator Analytics",        icon: Gauge,           tags: ["operator", "analytics", "funnel", "rejections", "decisions", "timing", "trends", "phase27"] },
+      { href: "/system-readiness",   label: "System Readiness",          icon: ShieldCheck,     tags: ["readiness", "ready", "go", "no-go", "health", "safety", "blocked", "phase27f"] },
       { href: "/workspace",          label: "My Workspace",              icon: LayoutDashboard, tags: ["workspace", "dashboard", "widgets", "personalise"] },
       { href: "/trading-timeline",   label: "Trading Day Timeline",      icon: Clock,           tags: ["timeline", "session", "playback", "review", "history"] },
       { href: "/executive-reports",  label: "Executive Reports",         icon: FileBarChart2,   tags: ["reports", "briefing", "executive", "summary", "eod"] },

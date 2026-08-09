@@ -87,4 +87,35 @@ router.get("/operator-analytics/report", async (_req, res) => {
   }
 });
 
+// Phase 27F: System Readiness — 30s cache + single-flight; ?force=true
+// bypasses the cache (safe read-only re-evaluation, never a new probe).
+let readyCache: { at: number; data: unknown } | null = null;
+let readyInFlight: Promise<unknown> | null = null;
+
+router.get("/system-readiness/report", async (req, res) => {
+  try {
+    const force = String(req.query.force ?? "") === "true";
+    if (!force && readyCache && Date.now() - readyCache.at < REPORT_TTL_MS) {
+      res.json(readyCache.data);
+      return;
+    }
+    if (!readyInFlight) {
+      readyInFlight = runPython(["system_readiness_report"])
+        .then((data) => { readyCache = { at: Date.now(), data }; return data; })
+        .finally(() => { readyInFlight = null; });
+    }
+    res.json(await readyInFlight);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+router.get("/system-readiness/history", async (_req, res) => {
+  try {
+    res.json(await runPython(["system_readiness_history"]));
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 export default router;

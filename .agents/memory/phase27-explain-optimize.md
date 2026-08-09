@@ -23,3 +23,5 @@ Phase 27E operator analytics additions:
 - Every canonical reader returns a source state (`available/error/truncated`); bounded fetches hitting the limit are PARTIAL evidence; distinguish SOURCE_UNAVAILABLE vs VERIFIED_EMPTY — a swallowed exception rendered as "no data" is a lie.
 - `get_replay_sessions()` fabricates a synthetic `demo` session when no DB scan exists — filter `source == "demo"` before treating sessions as evidence.
 - JSX gotcha: `PRECHECK_*/` inside a block comment terminates the comment (`*/`).
+
+**27F system readiness lessons:** missing or malformed safety evidence must fold to UNKNOWN, never READY — require explicit booleans and guard int() conversions of persisted metadata so a corrupt record degrades instead of 500ing. Readiness/health polling must be side-effect-free: some health reads emit alerts by default, so read-only aggregators need the opt-out path. Freshness budgets always reuse existing platform thresholds, never redefined.

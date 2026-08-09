@@ -3436,6 +3436,12 @@ def main():
         elif command == "operator_analytics_report":
             from phase27_operator_analytics import operator_analytics_report as _f
             result = _f(args[1] if len(args) > 1 and args[1] else None)
+        elif command == "system_readiness_report":
+            from phase27_readiness import system_readiness_report as _f
+            result = _f()
+        elif command == "system_readiness_history":
+            from phase27_readiness import get_history as _f
+            result = _f(int(args[1]) if len(args) > 1 and args[1] else 20)
 
         # ── Phase 8.5: Operational Control Centre ─────────────────────────────
         elif command == "ops_summary":

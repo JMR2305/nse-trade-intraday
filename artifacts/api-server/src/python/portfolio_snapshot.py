@@ -482,8 +482,13 @@ def get_portfolio_config() -> Dict[str, Any]:
     }
 
 
-def get_portfolio_health() -> Dict[str, Any]:
-    """Return a health/readiness summary for the portfolio service."""
+def get_portfolio_health(emit_alerts: bool = True) -> Dict[str, Any]:
+    """Return a health/readiness summary for the portfolio service.
+
+    emit_alerts=False makes the call strictly read-only (no notification /
+    KV dedup writes) — required by read-only aggregators such as the
+    Phase 27F system readiness report.
+    """
     now = _now_iso()
 
     # Check auto-paper activation via phase22_activation (paper_automation_active)
@@ -544,7 +549,7 @@ def get_portfolio_health() -> Dict[str, Any]:
     # defaults.  Uses kv_get/kv_set for durable deduplication so the alert
     # fires at most once per day even when the health endpoint is polled
     # repeatedly throughout the session.
-    if not limits_from_config:
+    if not limits_from_config and emit_alerts:
         _ALERT_KIND = "PERFORMANCE_ALERT"
         _ALERT_TITLE = "Portfolio config missing — exposure limits using defaults"
         _ALERT_BODY = (
