@@ -71,6 +71,15 @@ interface DailyReport {
   recommendations?: string[];
 }
 
+interface DailyStatus {
+  status: "NOT_EXPECTED" | "NOT_DUE" | "GENERATED" | "ERROR" | "PENDING" | string;
+  mode?: "scheduler" | "manual" | string;
+  detail?: string;
+  error?: string;
+  generated_at_ist?: string | null;
+  report_date?: string;
+}
+
 interface FiveDay {
   verdict: string;
   days: { date: string; status: string; verdict?: string;
@@ -179,6 +188,12 @@ export default function TradingQuality() {
     queryFn: () => apiJson("phase26d/daily-report/latest", undefined, 60_000),
     staleTime: 60_000,
   });
+  const dailyStatusQ = useQuery<DailyStatus>({
+    queryKey: ["p26d-daily-status"],
+    queryFn: () => apiJson("phase26d/daily-report/status", undefined, 60_000),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
   const fiveQ = useQuery<FiveDay>({
     queryKey: ["p26d-five-day"],
     queryFn: () => apiJson("phase26d/five-day", undefined, 60_000),
@@ -199,6 +214,7 @@ export default function TradingQuality() {
   const quality = qualityQ.data?.result;
   const perf = perfQ.data?.result;
   const daily = dailyQ.data?.report;
+  const dailyStatus = dailyStatusQ.data;
   const five = fiveQ.data;
   const ready = readyQ.data;
   const issues = issuesQ.data?.issues ?? [];
@@ -217,6 +233,7 @@ export default function TradingQuality() {
       }, 180_000);
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["p26d-daily"] }),
+        qc.invalidateQueries({ queryKey: ["p26d-daily-status"] }),
         qc.invalidateQueries({ queryKey: ["p26d-five-day"] }),
         qc.invalidateQueries({ queryKey: ["p26d-readiness"] }),
       ]);
@@ -436,6 +453,24 @@ export default function TradingQuality() {
         {/* Daily validation report */}
         <Card title="Daily Validation Report" icon={FileBarChart2}
           right={daily ? <Badge v={daily.verdict} /> : null}>
+          {dailyStatus && (
+            <div
+              data-testid="daily-report-status"
+              className={`px-4 py-2 text-xs border-b border-slate-700/40 flex items-center gap-2 ${
+                dailyStatus.status === "GENERATED" ? "text-emerald-300/90 bg-emerald-500/5"
+                  : dailyStatus.status === "ERROR" ? "text-red-300 bg-red-500/5"
+                  : dailyStatus.status === "PENDING" ? "text-amber-300/90 bg-amber-500/5"
+                  : "text-slate-400 bg-slate-900/30"
+              }`}>
+              {dailyStatus.status === "GENERATED" ? <CheckCircle2 size={12} className="flex-shrink-0" />
+                : dailyStatus.status === "ERROR" ? <XCircle size={12} className="flex-shrink-0" />
+                : dailyStatus.status === "PENDING" ? <Loader2 size={12} className="animate-spin flex-shrink-0" />
+                : <HelpCircle size={12} className="flex-shrink-0" />}
+              <span>
+                Today&rsquo;s report ({dailyStatus.report_date}): {dailyStatus.detail ?? dailyStatus.status}
+              </span>
+            </div>
+          )}
           {daily ? (
             <div className="p-4 space-y-3">
               <div className="flex items-center justify-between text-xs text-slate-400">

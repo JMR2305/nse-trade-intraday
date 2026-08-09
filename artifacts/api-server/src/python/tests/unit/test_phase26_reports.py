@@ -390,6 +390,96 @@ class TestDailyReportStore(unittest.TestCase):
             else:
                 _sys.modules.pop("phase20_store", None)
 
+    def _fake_store(self):
+        import types
+        kv: dict = {}
+        return types.SimpleNamespace(
+            kv_claim_once=lambda k: (False if k in kv
+                                     else kv.__setitem__(k, True) or True),
+            kv_release=lambda k: kv.pop(k, None),
+            kv_set=lambda k, v: kv.__setitem__(k, v),
+            kv_get=lambda k, d=None: kv.get(k, d),
+        ), kv
+
+    def test_status_not_expected_on_weekend(self):
+        # Saturday 2026-08-08
+        sat = datetime(2026, 8, 8, 12, 0, tzinfo=timezone.utc)
+        st = pr.today_report_status(now=sat, trading_day_fn=weekdays_only)
+        self.assertEqual(st["status"], "NOT_EXPECTED")
+
+    def test_status_not_due_before_close(self):
+        # Friday 2026-08-07 11:00 IST (pre-close)
+        pre = datetime(2026, 8, 7, 5, 30, tzinfo=timezone.utc)
+        st = pr.today_report_status(now=pre, trading_day_fn=weekdays_only)
+        self.assertEqual(st["status"], "NOT_DUE")
+
+    def test_status_pending_then_error_then_generated(self):
+        import sys as _sys
+        fake, kv = self._fake_store()
+        real = _sys.modules.get("phase20_store")
+        _sys.modules["phase20_store"] = fake
+        orig_collect = pr.collect_daily_inputs
+        try:
+            # Post-close, no report yet, no recorded error → PENDING
+            st = pr.today_report_status(now=NOW,
+                                        trading_day_fn=weekdays_only)
+            self.assertEqual(st["status"], "PENDING")
+
+            # A failed automatic attempt records an error → ERROR
+            def boom():
+                raise RuntimeError("inputs unreadable")
+            pr.collect_daily_inputs = boom
+            out = pr.maybe_generate_daily_report("CLOSED")
+            self.assertFalse(out["generated"])
+            # Simulate: the failure happened today (test NOW is a fixed
+            # past date, the error key is keyed by the real current day).
+            today_key = pr._gen_error_key(
+                NOW.astimezone(IST).date().isoformat())
+            kv[today_key] = {"error": "inputs unreadable",
+                             "at": "2026-08-07T10:01:00Z"}
+            st = pr.today_report_status(now=NOW,
+                                        trading_day_fn=weekdays_only)
+            self.assertEqual(st["status"], "ERROR")
+            self.assertIn("inputs unreadable", st["detail"])
+
+            # Scheduler success → GENERATED with mode "scheduler"
+            pr.collect_daily_inputs = lambda: dict(INPUTS_HEALTHY)
+            out = pr.maybe_generate_daily_report("CLOSED")
+            self.assertTrue(out["generated"])
+            today = datetime.now(IST).date().isoformat()
+            rep = pr.get_daily_report(today)
+            self.assertEqual(rep.get("generated_by"), "scheduler")
+            st = pr.today_report_status(
+                now=datetime.now(timezone.utc),
+                trading_day_fn=lambda d: True)
+            self.assertEqual(st["status"], "GENERATED")
+            self.assertEqual(st["mode"], "scheduler")
+        finally:
+            pr.collect_daily_inputs = orig_collect
+            if real is not None:
+                _sys.modules["phase20_store"] = real
+            else:
+                _sys.modules.pop("phase20_store", None)
+
+    def test_status_generated_manual_mode(self):
+        import sys as _sys
+        fake, _kv = self._fake_store()
+        real = _sys.modules.get("phase20_store")
+        _sys.modules["phase20_store"] = fake
+        try:
+            today = datetime.now(IST).date().isoformat()
+            pr.run_daily_report(persist=True, inputs=INPUTS_HEALTHY,
+                                report_date=today)
+            st = pr.today_report_status(now=datetime.now(timezone.utc),
+                                        trading_day_fn=lambda d: True)
+            self.assertEqual(st["status"], "GENERATED")
+            self.assertEqual(st["mode"], "manual")
+        finally:
+            if real is not None:
+                _sys.modules["phase20_store"] = real
+            else:
+                _sys.modules.pop("phase20_store", None)
+
     def _seed(self, report_date: str, created_at: str) -> str:
         rid = f"dr-{report_date}-{created_at[-8:].replace(':', '')}"
         with open(pr.REPORTS_FILE + ".seedless", "w"):

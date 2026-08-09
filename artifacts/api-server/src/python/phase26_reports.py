@@ -586,11 +586,13 @@ def build_daily_report(inputs: Dict[str, Any],
 
 def run_daily_report(persist: bool = True,
                      inputs: Optional[Dict[str, Any]] = None,
-                     report_date: Optional[str] = None) -> Dict[str, Any]:
+                     report_date: Optional[str] = None,
+                     generated_by: str = "manual") -> Dict[str, Any]:
     """Assemble (and by default persist) today's Daily Validation Report."""
     report = build_daily_report(inputs if inputs is not None
                                 else collect_daily_inputs(),
                                 report_date=report_date)
+    report["generated_by"] = str(generated_by or "manual")
     if persist:
         record = append_daily_report(report)
         report["report_id"] = record["report_id"]
@@ -618,6 +620,7 @@ def maybe_generate_daily_report(mstate: str) -> Optional[Dict[str, Any]]:
             return None                      # already generated today
         report = build_daily_report(collect_daily_inputs(),
                                     report_date=today_ist)
+        report["generated_by"] = "scheduler"
         claim_key = f"p26d_daily_report:{today_ist}"
         if not store.kv_claim_once(claim_key):
             return None                      # another process won the day
@@ -631,11 +634,115 @@ def maybe_generate_daily_report(mstate: str) -> Optional[Dict[str, Any]]:
             except Exception:
                 pass
             raise
+        _record_generation_error(today_ist, None)   # clear any prior error
         return {"generated": True, "report_date": today_ist,
                 "report_id": record["report_id"],
                 "verdict": report.get("verdict")}
     except Exception as exc:                 # never break the scheduler tick
-        return {"generated": False, "error": str(exc)[:200]}
+        err = str(exc)[:200]
+        try:
+            _record_generation_error(datetime.now(IST).date().isoformat(),
+                                     err)
+        except Exception:
+            pass
+        return {"generated": False, "error": err}
+
+
+def _gen_error_key(day: str) -> str:
+    return f"p26d_daily_report_error:{day}"
+
+
+def _record_generation_error(day: str, error: Optional[str]) -> None:
+    """Persist (or clear, when error is None) the last automatic-generation
+    failure for `day` in the phase20 KV store, so the status endpoint can
+    surface it. Never raises."""
+    try:
+        import phase20_store as store
+        if error is None:
+            store.kv_set(_gen_error_key(day), None)
+        else:
+            store.kv_set(_gen_error_key(day),
+                         {"error": error, "at": _now_iso()})
+    except Exception:
+        pass
+
+
+def today_report_status(now: Optional[datetime] = None,
+                        trading_day_fn=None) -> Dict[str, Any]:
+    """Lightweight status of TODAY's daily-report generation for operators.
+
+    status ∈:
+      NOT_EXPECTED — today is not an NSE trading day (weekend/holiday)
+      NOT_DUE      — trading day, but market has not closed yet (pre-15:30 IST)
+      GENERATED    — today's report exists (mode: scheduler | manual)
+      ERROR        — no report yet and the last automatic attempt failed
+      PENDING      — no report yet; scheduler retries every tick post-close
+    """
+    now = now or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    now_ist = now.astimezone(IST)
+    today = now_ist.date().isoformat()
+    is_td = trading_day_fn or _is_trading_day
+    base = {"ok": True, "kind": "daily_report_status", "report_date": today,
+            "checked_at": now.isoformat(), "note": ADVISORY}
+
+    if not is_td(now_ist.date()):
+        return {**base, "status": "NOT_EXPECTED",
+                "detail": "not an NSE trading day (weekend/holiday) — "
+                          "no daily report expected"}
+
+    report = get_daily_report(today)
+    if report is not None:
+        mode = str(report.get("generated_by") or "").lower()
+        if mode not in ("scheduler", "manual"):
+            # Older reports lack generated_by — the KV day-claim exists only
+            # for scheduler-generated reports.
+            try:
+                import phase20_store as store
+                claimed = bool(store.kv_get(f"p26d_daily_report:{today}"))
+            except Exception:
+                claimed = False
+            mode = "scheduler" if claimed else "manual"
+        gen_at_ist = None
+        try:
+            dt = datetime.fromisoformat(
+                str(report.get("generated_at")).replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            gen_at_ist = dt.astimezone(IST).strftime("%H:%M IST")
+        except Exception:
+            pass
+        return {**base, "status": "GENERATED", "mode": mode,
+                "report_id": report.get("report_id"),
+                "verdict": report.get("verdict"),
+                "generated_at": report.get("generated_at"),
+                "generated_at_ist": gen_at_ist,
+                "detail": (f"generated {gen_at_ist or 'today'} "
+                           + ("automatically by the scheduler"
+                              if mode == "scheduler" else "manually"))}
+
+    if (now_ist.hour, now_ist.minute) < (15, 30):
+        return {**base, "status": "NOT_DUE",
+                "detail": "market not closed yet — the daily report is "
+                          "generated automatically after 15:30 IST"}
+
+    last_error = None
+    try:
+        import phase20_store as store
+        last_error = store.kv_get(_gen_error_key(today))
+    except Exception:
+        pass
+    if isinstance(last_error, dict) and last_error.get("error"):
+        return {**base, "status": "ERROR",
+                "error": last_error.get("error"),
+                "error_at": last_error.get("at"),
+                "detail": ("last automatic generation attempt failed: "
+                           f"{last_error.get('error')} — the scheduler "
+                           "retries every tick")}
+    return {**base, "status": "PENDING",
+            "detail": "post-close, report not generated yet — the "
+                      "scheduler retries every tick"}
 
 
 # ── Five-Day Acceptance Tracker ──────────────────────────────────────────────

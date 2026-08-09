@@ -86,6 +86,7 @@ router.post("/phase26d/daily-report/run", async (req, res) => {
       180_000,
     );
     cache.delete("daily-latest");
+    cache.delete("daily-status");
     cache.delete("five-day");
     cache.delete("readiness");
     res.json(result);
@@ -100,6 +101,22 @@ router.get("/phase26d/daily-report/latest", async (_req, res) => {
     res.json(
       await cachedSingleFlight("daily-latest", () =>
         runPython(["p26d_daily_latest"], 60_000),
+      ),
+    );
+  } catch (err) {
+    fail(res, err);
+  }
+});
+
+// GET /api/phase26d/daily-report/status — today's generation status
+// (auto / manual / pending / error / not expected on weekends & holidays)
+router.get("/phase26d/daily-report/status", async (_req, res) => {
+  try {
+    res.json(
+      await cachedSingleFlight(
+        "daily-status",
+        () => runPython(["p26d_daily_status"], 60_000),
+        15_000,
       ),
     );
   } catch (err) {

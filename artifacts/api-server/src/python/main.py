@@ -2488,6 +2488,9 @@ def main():
             result = {"ok": True,
                       "reports": list_daily_reports(
                           limit=int(p.get("limit") or 30))}
+        elif command == "p26d_daily_status":
+            from phase26_reports import today_report_status
+            result = today_report_status()
         elif command == "p26d_five_day":
             from phase26_reports import build_five_day_acceptance
             result = build_five_day_acceptance()
