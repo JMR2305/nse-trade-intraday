@@ -318,9 +318,15 @@ class TestAutoEntriesSafety(unittest.TestCase):
 
 class TestExitsSafety(unittest.TestCase):
     def _trade(self, **over):
+        # fill_ts must stay well inside max_holding_days (default 10) or
+        # TIME_EXIT fires and masks the rule under test — use a dynamic
+        # recent timestamp instead of a hardcoded date that goes stale.
+        from datetime import datetime, timedelta, timezone
+        recent = (datetime.now(timezone.utc) - timedelta(days=2)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ")
         t = {"trade_id": "P20-x", "symbol": "TCS", "quantity": 5,
              "fill_price": 100.0, "stop_loss": 95.0, "target": 112.0,
-             "fill_ts": "2026-07-25T04:00:00Z", "status": "OPEN",
+             "fill_ts": recent, "status": "OPEN",
              "sector": "IT"}
         t.update(over)
         return t
