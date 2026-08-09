@@ -2413,6 +2413,38 @@ def main():
             import phase26_validation as p26
             result = p26.e2e_summary()
 
+        # ── Phase 26B: Live Validation & Consistency ──────────────────────
+        elif command == "live_validation_run":
+            from phase26_live_monitor import run_live_validation
+            result = run_live_validation(persist=True)
+        elif command == "live_validation_summary":
+            from phase26_live_monitor import live_summary
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = live_summary(limit=int(p.get("limit") or 20))
+        elif command == "live_validation_history":
+            import phase26_live_store
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = {"ok": True,
+                      "snapshots": phase26_live_store.list_snapshots(
+                          limit=int(p.get("limit") or 50))}
+        elif command == "consistency_run":
+            from phase26_consistency import run_cross_page_consistency
+            result = run_cross_page_consistency()
+        elif command == "issues_list":
+            import phase26_live_store
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = {"ok": True,
+                      "issues": phase26_live_store.list_issues(
+                          status=p.get("status"),
+                          category=p.get("category"),
+                          limit=int(p.get("limit") or 200))}
+        elif command == "issue_resolve":
+            import phase26_live_store
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            changed = phase26_live_store.resolve_issue(
+                str(p.get("category") or ""), str(p.get("key") or ""))
+            result = {"ok": True, "resolved": bool(changed)}
+
         # ── Phase 23.9: Export Engine + Final Acceptance ──────────────────
         elif command == "p239_export":
             import phase239_reports as p239

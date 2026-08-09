@@ -59,6 +59,7 @@ import { autonomousOpsRouter }      from "./autonomousOps";
 import phase11Router                from "./phase11";
 import replayRouter                 from "./replay";
 import e2eValidationRouter          from "./e2e-validation";
+import liveValidationRouter         from "./live-validation";
 import validationV2Router           from "./validation-v2";
 import phase24Router from "./phase24";
 
@@ -124,6 +125,7 @@ router.use(autonomousOpsRouter);
 router.use("/phase11", phase11Router);
 router.use(replayRouter);
 router.use(e2eValidationRouter);
+router.use(liveValidationRouter);
 router.use(validationV2Router);
 router.use(tradingRouter);
 router.use(downloadRouter);

@@ -260,6 +260,28 @@ def _maybe_alert_low_coverage(mstate: str) -> Any:
         return {"checked": False, "error": str(exc)[:200]}
 
 
+def _maybe_run_live_validation(mstate: str) -> Any:
+    """Phase 26B live validation, delegated to phase26_live_monitor (which
+    holds the 5-minute KV bucket guard). Never raises."""
+    try:
+        from phase26_live_monitor import maybe_run_live_validation
+        return maybe_run_live_validation(mstate)
+    except Exception as exc:
+        return {"ran": False, "error": str(exc)[:200]}
+
+
+def _live_validation_brief(lv: Any) -> Any:
+    """Keep the tick output small — full snapshot lives in the store."""
+    if not isinstance(lv, dict):
+        return lv
+    if not lv.get("ran"):
+        return lv
+    return {"ran": True, "verdict": lv.get("verdict"),
+            "snapshot_id": lv.get("snapshot_id"),
+            "subsystem_counts": lv.get("subsystem_counts"),
+            "issue_count": len(lv.get("issues") or [])}
+
+
 def run_tick() -> Dict[str, Any]:
     """One scheduler tick. Returns a JSON-safe result dict."""
     settings = store.get_settings()
@@ -322,6 +344,10 @@ def run_tick() -> Dict[str, Any]:
     # when coverage is still short well after open. Never raises.
     coverage_alert = _maybe_alert_low_coverage(mstate)
 
+    # Phase 26B: live subsystem + consistency validation snapshot, once per
+    # 5-minute bucket (atomic KV claim, cross-process safe). Never raises.
+    live_validation = _maybe_run_live_validation(mstate)
+
     from phase15_scan_context import scan_age_seconds
     age = scan_age_seconds()
     if age is not None and age < interval_min * 60:
@@ -338,6 +364,8 @@ def run_tick() -> Dict[str, Any]:
         result["paper"] = _manage_paper(settings, ran_scan=False)
         if coverage_alert is not None:
             result["coverage_alert"] = coverage_alert
+        if live_validation is not None:
+            result["live_validation"] = _live_validation_brief(live_validation)
         return result
 
     store.update_scheduler_state(last_attempt_at=now_iso, status="SCANNING",
@@ -377,6 +405,9 @@ def run_tick() -> Dict[str, Any]:
                 "reason": "SKIPPED_ACTIVE_SCAN — another scan in progress"}
             if coverage_alert is not None:
                 busy_out["coverage_alert"] = coverage_alert
+            if live_validation is not None:
+                busy_out["live_validation"] = \
+                    _live_validation_brief(live_validation)
             return busy_out
 
         ran = not snap.get("_from_cache", False)
@@ -417,6 +448,8 @@ def run_tick() -> Dict[str, Any]:
         result["paper"] = _manage_paper(settings, ran_scan=ran)
         if coverage_alert is not None:
             result["coverage_alert"] = coverage_alert
+        if live_validation is not None:
+            result["live_validation"] = _live_validation_brief(live_validation)
         # ── RC-10C1: scheduled portfolio reconciliation after each scan tick.
         # Fail-open — reconcile_now() never raises; it returns an error dict.
         if ran:
@@ -449,6 +482,9 @@ def run_tick() -> Dict[str, Any]:
             "reason": "Scan failed — previous snapshot preserved"}
         if coverage_alert is not None:
             fail_out["coverage_alert"] = coverage_alert
+        if live_validation is not None:
+            fail_out["live_validation"] = \
+                _live_validation_brief(live_validation)
         return fail_out
 
 
