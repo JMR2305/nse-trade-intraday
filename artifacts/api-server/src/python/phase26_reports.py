@@ -44,8 +44,15 @@ IST = timezone(timedelta(hours=5, minutes=30))
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
 REPORTS_FILE = os.path.join(_DIR, "phase26_daily_reports.json")
-_FILE_CAP = 400          # bound the local-dev fallback only (DB unbounded
-                         # growth is handled by ops retention tasks)
+_FILE_CAP = 400          # hard cap on the local-dev fallback file
+
+# Retention (mirrors the phase26c_store on-write prune pattern): delete
+# reports older than RETENTION_DAYS but always keep the newest
+# RETENTION_MIN_KEEP rows regardless of age, so latest_daily_report(),
+# the five-day acceptance tracker (needs only the last ~5 trading days)
+# and recent history are never affected.
+RETENTION_DAYS = 90
+RETENTION_MIN_KEEP = 30
 
 PASS, WARN, FAIL = "PASS", "WARN", "FAIL"
 INSUFFICIENT = "INSUFFICIENT_EVIDENCE"
@@ -176,7 +183,69 @@ def append_daily_report(report: Dict[str, Any]) -> Dict[str, Any]:
                 _write_json(REPORTS_FILE, rows)
         return record
 
-    return _with_db(in_db, in_file)
+    stored = _with_db(in_db, in_file)
+    # Retention: bound history after each write; fail-safe, never affects
+    # the append result.
+    prune_daily_reports()
+    return stored
+
+
+def prune_daily_reports(days: int = RETENTION_DAYS,
+                        keep_min: int = RETENTION_MIN_KEEP
+                        ) -> Dict[str, Any]:
+    """Bounded retention for phase26_daily_reports (DB and file fallback).
+
+    Deletes reports whose report_date is older than `days`, always keeping
+    the newest `keep_min` rows regardless of age. NEVER raises — retention
+    must not break report persistence. Returns
+    {"deleted": n, "days": days, "keep_min": k}."""
+    days = max(1, int(days))
+    keep_min = max(1, int(keep_min))
+    try:
+        def in_db(conn):
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    DELETE FROM phase26_daily_reports
+                    WHERE report_date <
+                          (NOW() - (%s || ' days')::interval)::date
+                      AND report_id NOT IN (
+                          SELECT report_id FROM phase26_daily_reports
+                          ORDER BY report_date DESC, created_at DESC
+                          LIMIT %s
+                      )
+                    """,
+                    (days, keep_min))
+                deleted = cur.rowcount
+            return {"deleted": deleted, "days": days, "keep_min": keep_min}
+
+        def in_file():
+            cutoff = (datetime.now(timezone.utc).astimezone(IST).date()
+                      - timedelta(days=days)).isoformat()
+            deleted = 0
+            with _file_lock(REPORTS_FILE):
+                rows = _read_json(REPORTS_FILE, [])
+                ordered = sorted(rows, key=lambda r: (
+                    str(r.get("report_date") or ""),
+                    str(r.get("created_at") or "")), reverse=True)
+                kept: List[Dict[str, Any]] = []
+                for i, r in enumerate(ordered):
+                    if i < keep_min or \
+                            str(r.get("report_date") or "") >= cutoff:
+                        kept.append(r)
+                    else:
+                        deleted += 1
+                if deleted:
+                    kept.sort(key=lambda r: (
+                        str(r.get("report_date") or ""),
+                        str(r.get("created_at") or "")))
+                    _write_json(REPORTS_FILE, kept)
+            return {"deleted": deleted, "days": days, "keep_min": keep_min}
+
+        return _with_db(in_db, in_file)
+    except Exception as exc:
+        return {"deleted": 0, "days": days, "keep_min": keep_min,
+                "error": str(exc)[:200]}
 
 
 def get_daily_report(report_date: str) -> Optional[Dict[str, Any]]:

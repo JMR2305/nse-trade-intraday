@@ -390,6 +390,97 @@ class TestDailyReportStore(unittest.TestCase):
             else:
                 _sys.modules.pop("phase20_store", None)
 
+    def _seed(self, report_date: str, created_at: str) -> str:
+        rid = f"dr-{report_date}-{created_at[-8:].replace(':', '')}"
+        with open(pr.REPORTS_FILE + ".seedless", "w"):
+            pass  # ensure tmp dir usable
+        rows = []
+        if os.path.exists(pr.REPORTS_FILE):
+            rows = json.load(open(pr.REPORTS_FILE))
+        rows.append({"report_id": rid, "report_date": report_date,
+                     "created_at": created_at, "verdict": "PASS",
+                     "report": {"report_id": rid,
+                                "report_date": report_date}})
+        json.dump(rows, open(pr.REPORTS_FILE, "w"))
+        return rid
+
+    def test_prune_removes_old_rows_only(self):
+        today = datetime.now(timezone.utc).astimezone(IST).date()
+        old = (today - timedelta(days=200)).isoformat()
+        recent = (today - timedelta(days=2)).isoformat()
+        for i in range(5):
+            self._seed(old, f"2026-01-01T00:00:0{i}Z")
+        self._seed(recent, "2026-08-07T10:00:00Z")
+        out = pr.prune_daily_reports(days=90, keep_min=2)
+        # keep_min=2 protects the recent row + newest old row; the other
+        # 4 old rows are pruned.
+        self.assertEqual(out["deleted"], 4)
+        rows = json.load(open(pr.REPORTS_FILE))
+        dates = sorted(r["report_date"] for r in rows)
+        self.assertEqual(len(rows), 2)
+        self.assertIn(recent, dates)
+
+    def test_prune_never_deletes_rows_inside_retention_window(self):
+        today = datetime.now(timezone.utc).astimezone(IST).date()
+        in_window = [(today - timedelta(days=d)).isoformat()
+                     for d in (0, 1, 30, 89)]
+        for i, d in enumerate(in_window):
+            self._seed(d, f"2026-08-07T10:00:0{i}Z")
+        out = pr.prune_daily_reports(days=90, keep_min=1)
+        self.assertEqual(out["deleted"], 0)
+        rows = json.load(open(pr.REPORTS_FILE))
+        self.assertEqual(sorted(r["report_date"] for r in rows),
+                         sorted(in_window))
+
+    def test_prune_keep_min_protects_old_rows(self):
+        today = datetime.now(timezone.utc).astimezone(IST).date()
+        old = (today - timedelta(days=300)).isoformat()
+        for i in range(4):
+            self._seed(old, f"2026-01-01T00:00:0{i}Z")
+        out = pr.prune_daily_reports(days=90, keep_min=10)
+        self.assertEqual(out["deleted"], 0)
+        self.assertEqual(len(json.load(open(pr.REPORTS_FILE))), 4)
+
+    def test_append_triggers_on_write_prune(self):
+        today = datetime.now(timezone.utc).astimezone(IST).date()
+        old = (today - timedelta(days=200)).isoformat()
+        for i in range(pr.RETENTION_MIN_KEEP + 5):
+            self._seed(old, f"2026-01-01T00:00:{i:02d}Z")
+        rep = pr.build_daily_report(INPUTS_HEALTHY, report_date="2026-08-07",
+                                    now=NOW)
+        pr.append_daily_report(rep)
+        rows = json.load(open(pr.REPORTS_FILE))
+        # bounded to the keep_min floor (incl. the new row); new row survives
+        self.assertEqual(len(rows), pr.RETENTION_MIN_KEEP)
+        self.assertIsNotNone(pr.get_daily_report("2026-08-07"))
+
+    def test_five_day_tracker_works_after_prune(self):
+        # Seed reports for the 5 trading days ending Fri 2026-08-07 plus
+        # a very old row; prune; the tracker must still see all 5 days.
+        days = ["2026-08-03", "2026-08-04", "2026-08-05",
+                "2026-08-06", "2026-08-07"]
+        for d in days:
+            rep = pr.build_daily_report(
+                INPUTS_HEALTHY if d == "2026-08-07" else {
+                    k: (v if not isinstance(v, dict) else
+                        {**v, "generated_at": f"{d}T09:00:00Z",
+                         "created_at": f"{d}T09:00:00Z"})
+                    for k, v in INPUTS_HEALTHY.items()},
+                report_date=d, now=NOW)
+            pr.append_daily_report(rep)
+        self._seed("2020-01-01", "2020-01-01T00:00:00Z")
+        pr.prune_daily_reports(days=90, keep_min=1)
+        for d in days:
+            self.assertIsNotNone(pr.get_daily_report(d))
+        tracker = pr.build_five_day_acceptance(now=NOW)
+        self.assertEqual(len(tracker["days"]), 5)
+
+    def test_prune_never_raises_on_corrupt_file(self):
+        with open(pr.REPORTS_FILE, "w") as f:
+            f.write("{corrupt")
+        out = pr.prune_daily_reports()
+        self.assertEqual(out["deleted"], 0)
+
     def test_run_without_persist(self):
         rep = pr.run_daily_report(persist=False, inputs=INPUTS_HEALTHY,
                                   report_date="2026-08-07")
