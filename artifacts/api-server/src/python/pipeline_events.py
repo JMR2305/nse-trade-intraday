@@ -95,17 +95,25 @@ def _ensure_schema(conn) -> None:
 
 def emit(event_type: str, stage: str, *, scan_id: Optional[str] = None,
          symbol: Optional[str] = None, payload: Optional[Dict[str, Any]] = None,
-         mode: str = "LIVE", run_id: Optional[str] = None) -> None:
-    """Append one event. NEVER raises — pipeline safety first."""
+         mode: str = "LIVE", run_id: Optional[str] = None,
+         ts: Optional[str] = None) -> None:
+    """Append one event. NEVER raises — pipeline safety first.
+
+    `ts` (optional ISO-8601 string) records the TRUE processing time of the
+    event. When omitted, insert time is used. Batch-emitted events (e.g.
+    derive_symbol_events) should pass per-event timestamps captured at the
+    moment each stage actually ran, otherwise all events in a batch share one
+    insert timestamp and stage-timing analytics read as 0 ms.
+    """
     try:
         _emit_unsafe(event_type, stage, scan_id=scan_id, symbol=symbol,
-                     payload=payload, mode=mode, run_id=run_id)
+                     payload=payload, mode=mode, run_id=run_id, ts=ts)
     except Exception:
         pass
 
 
 def _emit_unsafe(event_type: str, stage: str, *, scan_id, symbol, payload,
-                 mode, run_id) -> None:
+                 mode, run_id, ts=None) -> None:
     if db_available():
         conn = _connect()
         try:
@@ -114,10 +122,11 @@ def _emit_unsafe(event_type: str, stage: str, *, scan_id, symbol, payload,
                 cur.execute(
                     """
                     INSERT INTO pipeline_events
-                        (mode, run_id, scan_id, event_type, stage, symbol, payload)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        (ts, mode, run_id, scan_id, event_type, stage, symbol, payload)
+                    VALUES (COALESCE(%s::timestamptz, NOW()),
+                            %s, %s, %s, %s, %s, %s, %s)
                     """,
-                    (mode, run_id, scan_id, event_type, stage.upper(),
+                    (ts, mode, run_id, scan_id, event_type, stage.upper(),
                      (symbol or None), json.dumps(payload or {}, default=str)),
                 )
             conn.commit()
@@ -134,7 +143,7 @@ def _emit_unsafe(event_type: str, stage: str, *, scan_id, symbol, payload,
         rows = []
     next_id = (rows[-1]["id"] + 1) if rows else 1
     rows.append({
-        "id": next_id, "ts": _now_iso(), "mode": mode, "run_id": run_id,
+        "id": next_id, "ts": (ts or _now_iso()), "mode": mode, "run_id": run_id,
         "scan_id": scan_id, "event_type": event_type, "stage": stage.upper(),
         "symbol": symbol, "payload": payload or {},
     })
@@ -162,11 +171,12 @@ def emit_many(events: List[Dict[str, Any]]) -> None:
                     cur.executemany(
                         """
                         INSERT INTO pipeline_events
-                            (mode, run_id, scan_id, event_type, stage, symbol, payload)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                            (ts, mode, run_id, scan_id, event_type, stage, symbol, payload)
+                        VALUES (COALESCE(%s::timestamptz, NOW()),
+                                %s, %s, %s, %s, %s, %s, %s)
                         """,
                         [
-                            (e.get("mode", "LIVE"), e.get("run_id"),
+                            (e.get("ts"), e.get("mode", "LIVE"), e.get("run_id"),
                              e.get("scan_id"), e["event_type"],
                              str(e["stage"]).upper(), e.get("symbol") or None,
                              json.dumps(e.get("payload") or {}, default=str))
@@ -181,7 +191,7 @@ def emit_many(events: List[Dict[str, Any]]) -> None:
                 _emit_unsafe(e["event_type"], e["stage"],
                              scan_id=e.get("scan_id"), symbol=e.get("symbol"),
                              payload=e.get("payload"), mode=e.get("mode", "LIVE"),
-                             run_id=e.get("run_id"))
+                             run_id=e.get("run_id"), ts=e.get("ts"))
     except Exception:
         pass
 

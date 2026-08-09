@@ -42,3 +42,7 @@ UI: `/live-command-center` (LiveCommandCenter.tsx) renders purely from
 no hidden rejections.
 **How to apply:** any new pipeline stage or trading action must emit here
 (fail-safe) and dashboards must read events, not recompute.
+
+## Per-event timestamps (stage timing fix)
+Batch-derived symbol events all shared one insert timestamp, so operator-analytics stage timings read 0ms.
+**Rule:** `_scan_one` records true per-stage ISO timestamps in a non-dataclass attr `rec._stage_ts` (kept out of asdict snapshots); `derive_symbol_events` attaches `ts` per event; `pipeline_events.emit/emit_many` honor explicit `ts` via `COALESCE(%s::timestamptz, NOW())` (file fallback uses the given ts too). MARKET_INTELLIGENCE/MONITORING are derived views → honestly ~0ms; RESEARCH carries the bulk.
