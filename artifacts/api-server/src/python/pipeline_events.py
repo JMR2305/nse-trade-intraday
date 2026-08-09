@@ -295,7 +295,7 @@ def stage_summary(*, scan_id: Optional[str] = None, run_id: Optional[str] = None
     """
     base = {
         s: {"stage": s, "events": 0, "completed": 0, "rejected": 0, "errors": 0,
-            "last_ts": None, "last_symbol": None}
+            "last_ts": None, "last_symbol": None, "avg_symbol_ms": None}
         for s in STAGES
     }
     total = 0
@@ -351,6 +351,32 @@ def stage_summary(*, scan_id: Optional[str] = None, run_id: Optional[str] = None
                     for stage, symbol in cur.fetchall():
                         if stage in base:
                             base[stage]["last_symbol"] = symbol
+                    # avg per-symbol processing time inside each stage
+                    # (first event → last event for a symbol in that stage)
+                    # processing time attributed to a stage = gap between a
+                    # symbol's event in that stage and the SAME symbol's
+                    # previous pipeline event in the same scan
+                    cur.execute(
+                        f"""
+                        SELECT stage,
+                               AVG(EXTRACT(EPOCH FROM (ts - prev_ts)) * 1000)
+                        FROM (
+                            SELECT stage, ts,
+                                   LAG(ts) OVER (
+                                       PARTITION BY scan_id, symbol
+                                       ORDER BY ts, id
+                                   ) AS prev_ts
+                            FROM pipeline_events
+                            WHERE {where} AND symbol IS NOT NULL
+                        ) gaps
+                        WHERE prev_ts IS NOT NULL
+                        GROUP BY stage
+                        """,
+                        args,
+                    )
+                    for stage, avg_ms in cur.fetchall():
+                        if stage in base and avg_ms is not None:
+                            base[stage]["avg_symbol_ms"] = round(float(avg_ms), 1)
             finally:
                 conn.close()
         else:
@@ -373,6 +399,29 @@ def stage_summary(*, scan_id: Optional[str] = None, run_id: Optional[str] = None
                     st["completed"] += 1
                 if (e.get("payload") or {}).get("error"):
                     st["errors"] += 1
+            # file fallback: same inter-stage gap definition as the SQL path
+            per_symbol: Dict[tuple, list] = {}
+            for e in events:
+                if e.get("symbol"):
+                    per_symbol.setdefault((e.get("scan_id"), e["symbol"]),
+                                          []).append((e["ts"], e.get("id") or 0,
+                                                      e["stage"]))
+            per_stage: Dict[str, list] = {}
+            for seq in per_symbol.values():
+                # identical ordering to the SQL path: ORDER BY ts, id
+                seq.sort(key=lambda p: (str(p[0]), p[1]))
+                for (prev_ts, _pid, _), (ts, _id, stg) in zip(seq, seq[1:]):
+                    if stg not in base:
+                        continue
+                    try:
+                        d = (datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+                             - datetime.fromisoformat(str(prev_ts).replace("Z", "+00:00")))
+                        per_stage.setdefault(stg, []).append(d.total_seconds() * 1000)
+                    except Exception:
+                        continue
+            for stg, vals in per_stage.items():
+                if vals:
+                    base[stg]["avg_symbol_ms"] = round(sum(vals) / len(vals), 1)
     except Exception:
         pass
     return {

@@ -146,7 +146,7 @@ const MODES: Array<{ id: ReplayMode; label: string }> = [
   { id: "decision", label: "AI Decision" }, { id: "day", label: "Day" },
   { id: "week", label: "Week" }, { id: "month", label: "Month" },
 ];
-const SPEEDS = [1, 2, 5, 10, 20, 0] as const; // 0 = Max
+const SPEEDS = [1, 5, 20, 100, 0] as const; // 0 = Instant (jump to end)
 
 function fmtINR(v: unknown): string {
   const n = typeof v === "number" ? v : null;
@@ -313,7 +313,7 @@ export default function InvestigationCenter() {
 
   // run launcher form
   const [interval, setIntervalStr] = useState("1d");
-  const [preset, setPreset] = useState<"1w" | "1m" | "3m" | "custom">("1m");
+  const [preset, setPreset] = useState<"1w" | "1m" | "3m" | "6m" | "1y" | "custom">("1m");
   const [start, setStart] = useState(rangePreset(30).start);
   const [end, setEnd] = useState(rangePreset(30).end);
   const [symbolsText, setSymbolsText] = useState("");
@@ -322,7 +322,8 @@ export default function InvestigationCenter() {
 
   useEffect(() => {
     if (preset === "custom") return;
-    const days = preset === "1w" ? 7 : preset === "1m" ? 30 : 90;
+    const days = preset === "1w" ? 7 : preset === "1m" ? 30
+      : preset === "3m" ? 90 : preset === "6m" ? 180 : 365;
     const r = rangePreset(days);
     setStart(r.start); setEnd(r.end);
   }, [preset]);
@@ -500,7 +501,13 @@ export default function InvestigationCenter() {
   useEffect(() => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     if (playing && total) {
-      const period = speed === 0 ? 40 : 900 / speed;
+      if (speed === 0) {
+        // Instant: jump straight to the final tick.
+        setCursor(total - 1);
+        setPlaying(false);
+        return;
+      }
+      const period = Math.max(20, 900 / speed);
       timerRef.current = setInterval(() => {
         setCursor((c) => {
           const nxt = stepNext(c);
@@ -718,6 +725,8 @@ export default function InvestigationCenter() {
               <option value="1w">One week</option>
               <option value="1m">One month</option>
               <option value="3m">Three months</option>
+              <option value="6m">Six months</option>
+              <option value="1y">One year</option>
               <option value="custom">Custom</option>
             </select>
           </label>
@@ -754,6 +763,13 @@ export default function InvestigationCenter() {
           </Button>
           {launch.data && !launch.data.ok && (
             <span className="text-xs text-red-500">{String(launch.data.error)}</span>
+          )}
+          {interval !== "1d" && start && end &&
+            (new Date(end).getTime() - new Date(start).getTime()) / 86400_000 > 55 && (
+            <span className="text-xs text-amber-500" data-testid="text-intraday-range-warning">
+              Intraday ({interval}) history is only available for roughly the last 55 days —
+              older candles in this range will be reported as missing data, not fabricated.
+            </span>
           )}
         </CardContent>
       </Card>
@@ -848,7 +864,7 @@ export default function InvestigationCenter() {
               <Button size="icon" variant="ghost" onClick={() => setCursor(total - 1)} data-testid="button-jump-end"><SkipForward className="h-4 w-4" /></Button>
               {SPEEDS.map((s) => (
                 <Button key={s} size="sm" variant={speed === s ? "default" : "ghost"} onClick={() => setSpeed(s)} data-testid={`button-speed-${s || "max"}`}>
-                  {s === 0 ? "Max" : `${s}x`}
+                  {s === 0 ? "Instant" : `${s}x`}
                 </Button>
               ))}
               <input type="range" min={0} max={Math.max(0, total - 1)} value={Math.max(0, cursor)}
@@ -879,6 +895,21 @@ export default function InvestigationCenter() {
             <span className="flex items-center gap-1"><Clock className="h-3 w-3" />
               {cursorTs ? `Tick ${cursor + 1}/${total} · ${tsShort(cursorTs)}` : "No replay data"}</span>
             <span>Decisions so far: {decisionCount}</span>
+            {currentTick && (() => {
+              const order = bundle?.stage_order ?? [];
+              const agent = [...order].reverse().find(
+                (st) => (currentTick.stages?.[st]?.events ?? 0) > 0) ?? null;
+              const stock = currentTick.buys[0]?.symbol ?? currentTick.decisions[0]?.symbol
+                ?? currentTick.sells[0]?.symbol ?? currentTick.rejected[0]?.symbol ?? null;
+              const dec = currentTick.decisions[0];
+              return (
+                <span className="flex items-center gap-3" data-testid="text-current-tick-context">
+                  {agent && <span>Agent: <span className="font-semibold text-foreground">{STAGE_LABELS[agent] ?? agent}</span></span>}
+                  {stock && <span>Stock: <span className="font-semibold text-foreground">{stock}</span></span>}
+                  {dec?.action && <span>Decision: <span className="font-semibold text-foreground">{dec.symbol} {dec.action}</span></span>}
+                </span>
+              );
+            })()}
             {currentTick?.processing_ms !== null && currentTick?.processing_ms !== undefined && (
               <span className="flex items-center gap-1"><Zap className="h-3 w-3" />tick processed in {currentTick.processing_ms}ms</span>
             )}
