@@ -120,6 +120,17 @@ def _execute_trades(
     state    = _load_state()
     positions = state.get("positions", {})
     cash     = available_cash
+
+    # Canonical scan attribution for pre-check events / replay. Fail-safe:
+    # missing snapshot just means events carry scan_id=None (global summaries).
+    canonical_scan_id = None
+    try:
+        from scan_state_store import load_latest_snapshot
+        _snap = load_latest_snapshot()
+        if isinstance(_snap, dict) and _snap.get("scan_id"):
+            canonical_scan_id = str(_snap["scan_id"])
+    except Exception:
+        pass
     opp_by_stock = {
         str(o.get("stock", "")).upper(): o.get("opportunity_score", 0.0) or 0.0
         for o in (opportunity_scan or [])
@@ -155,6 +166,7 @@ def _execute_trades(
                     symbol.upper(), ai_dec.get("opportunity_score", 0.0) or 0.0
                 ),
                 trade_quality     = (enr.get("trade_quality") or {}).get("total_score", 0.0) or 0.0,
+                scan_id           = canonical_scan_id,
             )
             if ok:
                 cash -= qty * price

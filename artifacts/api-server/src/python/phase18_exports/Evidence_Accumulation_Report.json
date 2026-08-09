@@ -1,9 +1,10 @@
 {
   "success": true,
-  "trading_sessions_completed": 3,
+  "trading_sessions_completed": 14,
   "completed_paper_trades": 0,
   "minimum_target_trades": 100,
   "market_regimes_covered": [
+    "LOW_VOLATILITY",
     "SIDEWAYS"
   ],
   "strategy_sample_sizes": {},
@@ -29,9 +30,9 @@
   },
   "progress": {
     "trading_sessions": {
-      "value": 3,
+      "value": 14,
       "target": 50,
-      "pct": 6.0
+      "pct": 28.0
     },
     "completed_paper_trades": {
       "value": 0,
@@ -39,12 +40,13 @@
       "pct": 0.0
     },
     "market_regimes_covered": {
-      "value": 1,
+      "value": 2,
       "target": 3,
       "regimes": [
+        "LOW_VOLATILITY",
         "SIDEWAYS"
       ],
-      "pct": 33.3
+      "pct": 66.7
     },
     "unresolved_critical_issues": {
       "value": 0,

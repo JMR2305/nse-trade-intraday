@@ -175,6 +175,7 @@ const PIPELINE_STAGES = [
   { id: "market_intelligence",  label: "Market Intelligence",           icon: BarChart3,   desc: "Regime, sector strength, liquidity" },
   { id: "monitoring",           label: "Monitoring",                    icon: Activity,    desc: "VWAP, EMA, MACD, RSI, volume" },
   { id: "strategy",             label: "Strategy",                      icon: Layers,      desc: "Strategy matching & scoring" },
+  { id: "portfolio_precheck",   label: "Portfolio Pre-Check",           icon: Wallet,      desc: "Allocation & exposure limit gates" },
   { id: "risk",                 label: "Risk",                          icon: Shield,      desc: "Capital gates, R:R, exposure" },
   { id: "ai_decision",          label: "Decision",                      icon: Zap,         desc: "BUY / SELL / WATCH / AVOID" },
   { id: "execution",            label: "Execution",                     icon: Target,      desc: "Order placement & fills" },
@@ -191,7 +192,7 @@ const TRADE_ALLOCATION = 10_000;
 /** Simulated seconds-after-session-open for each pipeline stage. */
 const STAGE_OFFSETS_S: Record<string, number> = {
   supervisor: 2, market_data: 5, research: 8, market_intelligence: 16,
-  monitoring: 24, strategy: 35, risk: 41, ai_decision: 45,
+  monitoring: 24, strategy: 35, portfolio_precheck: 38, risk: 41, ai_decision: 45,
   execution: 46, portfolio_management: 61,
 };
 
@@ -232,6 +233,12 @@ const STAGE_META: Record<string, { inputs: string[]; outputs: string[]; dependen
     outputs: ["Strategy match", "Strategy score", "Risk:Reward estimate"],
     dependencies: ["Monitoring"],
     data_used: ["Strategy library", "Historical backtest results"],
+  },
+  portfolio_precheck: {
+    inputs: ["BUY candidate", "Portfolio book", "Allocation & limit config"],
+    outputs: ["Approved / blocked", "Exact rejection reasons", "Approved capital"],
+    dependencies: ["Strategy", "Portfolio Engine"],
+    data_used: ["Portfolio Engine (single source of validation)", "Limit overrides", "Pipeline event store"],
   },
   risk: {
     inputs: ["Strategy output", "Portfolio state", "Risk limits"],

@@ -128,6 +128,9 @@ const replaySnapshot = {
     { id: "market_data", label: "Scanned", stocks_out: 150 },
     { id: "research", label: "Analysed", stocks_out: 60 },
     { id: "strategy", label: "Strategy", stocks_out: 20 },
+    // 3 evaluated (2 approved + 1 rejected), 17 unevaluated pass-through:
+    // stocks_out = 19 but only approved_count = 2 may show as "approved".
+    { id: "portfolio_precheck", label: "Portfolio Pre-Check", stocks_in: 20, stocks_out: 19, rejected: 1, approved_count: 2 },
     { id: "risk", label: "Risk", stocks_out: 8, rejected: 4 },
   ],
   decisions: [
@@ -170,6 +173,11 @@ describe("ThroughputWidget", () => {
     expect(funnel.textContent).toContain("200"); // supervisor
     expect(funnel.textContent).toContain("8");   // risk stocks_out
     expect(funnel.textContent).toContain("4");   // risk rejected
+
+    // Pre-Check Approved must show ONLY event-derived approvals (2), never
+    // the pass-through stocks_out (19) that includes unevaluated symbols.
+    expect(funnel.textContent).toContain("Pre-Check Approved");
+    expect(funnel.textContent).not.toContain("19");
 
     // signals mapped from decisions (BUY counts case-insensitively → 2)
     const signals = screen.getByTestId("mc-throughput-signals");

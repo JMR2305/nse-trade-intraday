@@ -1,0 +1,482 @@
+[
+  {
+    "run_ts": "2026-08-09T09:32:03Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:03Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:03Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:03Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:03Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:03Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:03Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:03Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:03Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:03Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:03Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:03Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:03Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:03Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:03Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:03Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:03Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:03Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:03Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:03Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:03Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:03Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:03Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:03Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:03Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:03Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:03Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:03Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:04Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  },
+  {
+    "run_ts": "2026-08-09T09:32:04Z",
+    "quality_score": 43.1,
+    "grade": "D",
+    "critical_count": 2,
+    "warning_count": 1,
+    "domain_scores": {
+      "market": 0.0,
+      "preopen": 0.0,
+      "paper": 33.3,
+      "portfolio": 100.0,
+      "ai": 0.0,
+      "signals": 100.0,
+      "config": 87.5
+    }
+  }
+]

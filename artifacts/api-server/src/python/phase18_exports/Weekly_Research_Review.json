@@ -1,8 +1,8 @@
 {
   "success": true,
-  "week_start": "2026-07-20",
-  "week_end": "2026-07-26",
-  "trading_days_completed": 0,
+  "week_start": "2026-08-03",
+  "week_end": "2026-08-09",
+  "trading_days_completed": 6,
   "finalized_days": 0,
   "completed_paper_trades": 0,
   "open_paper_trades": 1,
@@ -25,10 +25,11 @@
   "common_success_patterns": [
     "Insufficient Data"
   ],
-  "data_quality_incidents": 0,
+  "data_quality_incidents": 6,
   "qa_failures": 0,
   "cross_page_consistency_issues": 0,
   "research_questions_next_week": [
+    "Investigate data-quality incidents recorded this week.",
     "No completed paper trades this week \u2014 is the workflow being exercised daily?",
     "Which skipped high-confidence signals would have worked? (advisory review only)"
   ],

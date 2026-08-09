@@ -1,4 +1,5 @@
 Issue ID,Date,Severity,Page,Description,Scan ID,Trade ID,Reproducible,Status,Resolution,Resolved Date
+ISS-0028,2026-08-09,LOW,test,unit-test issue,,,False,VERIFIED,test done,2026-08-09
 ISS-0027,2026-07-26,LOW,test,unit-test issue,,,False,VERIFIED,test done,2026-07-26
 ISS-0026,2026-07-26,LOW,test,unit-test issue,,,False,VERIFIED,test done,2026-07-26
 ISS-0025,2026-07-26,LOW,test,unit-test issue,,,False,VERIFIED,test done,2026-07-26

@@ -115,8 +115,16 @@ class TestStageSummary(PipelineEventsBase):
         self.assertEqual(by["RISK"]["rejected"], 1)
         self.assertEqual(by["AI_DECISION"]["completed"], 1)
         self.assertEqual(by["SCANNER"]["last_symbol"], "INFY")
-        # All 10 canonical stages always present
-        self.assertEqual(len(summ["stages"]), 10)
+        # All 11 canonical stages always present (incl. PORTFOLIO_PRECHECK)
+        self.assertEqual(len(summ["stages"]), 11)
+        self.assertIn("PORTFOLIO_PRECHECK", by)
+        # PORTFOLIO_PRECHECK sits between STRATEGY and RISK in canonical order
+        self.assertEqual(
+            pe.STAGES.index("PORTFOLIO_PRECHECK"),
+            pe.STAGES.index("STRATEGY") + 1)
+        self.assertEqual(
+            pe.STAGES.index("RISK"),
+            pe.STAGES.index("PORTFOLIO_PRECHECK") + 1)
 
     def test_summary_empty(self):
         summ = pe.stage_summary(scan_id="nope")

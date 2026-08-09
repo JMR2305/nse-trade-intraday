@@ -152,7 +152,8 @@ interface PipelineEvent {
 const STAGE_LABELS: Record<string, string> = {
   SUPERVISOR: "Supervisor", SCANNER: "Scanner", RESEARCH: "Research",
   MARKET_INTELLIGENCE: "Market Intel", MONITORING: "Monitoring",
-  STRATEGY: "Strategy", RISK: "Risk", AI_DECISION: "AI Decision",
+  STRATEGY: "Strategy", PORTFOLIO_PRECHECK: "Portfolio Pre-Check",
+  RISK: "Risk", AI_DECISION: "AI Decision",
   EXECUTION: "Execution", PORTFOLIO: "Portfolio",
 };
 

@@ -1,14 +1,14 @@
 {
   "bundle_version": 1,
   "phase": 13,
-  "generated_at": "2026-07-26T09:18:16Z",
+  "generated_at": "2026-08-09T09:32:00Z",
   "engine_version": "Research Engine v1.0 \u00b7 Phase 13",
   "mode": "PAPER_TRADING_RESEARCH_ONLY",
   "label": "PAPER / RESEARCH ONLY",
   "market_status": {
     "state": "WEEKEND",
     "is_open": false,
-    "now_ist": "2026-07-26T14:48:16.680233+05:30",
+    "now_ist": "2026-08-09T15:02:00.949426+05:30",
     "timezone": "Asia/Kolkata",
     "session": {
       "pre_open": "09:00",
@@ -19,8 +19,8 @@
     "holiday_today": null,
     "next_transition": {
       "event": "market_open",
-      "at_ist": "2026-07-27T09:15:00+05:30",
-      "seconds_until": 66403
+      "at_ist": "2026-08-10T09:15:00+05:30",
+      "seconds_until": 65579
     },
     "upcoming_holidays": [
       {
@@ -41,23 +41,23 @@
   "quote_provider": {
     "provider": "Yahoo Finance (yfinance)",
     "provider_id": "yfinance",
-    "circuit_breaker": "CLOSED",
-    "consecutive_failures": 0,
-    "last_success_ts": "2026-07-26T09:04:59Z",
-    "total_fetches": 270,
+    "circuit_breaker": "OPEN",
+    "consecutive_failures": 3,
+    "last_success_ts": null,
+    "total_fetches": 0,
     "total_errors": 0,
-    "cached_symbols": 3,
+    "cached_symbols": 1,
     "quote_ttl_s": 20.0,
     "quote_ttl_closed_s": 300.0
   },
   "regime": {
     "regime": "RANGE_BOUND",
-    "confidence": 100.0,
+    "confidence": 65.0,
     "all_scores": {
       "TRENDING_UP": 15.0,
       "TRENDING_DOWN": 15.0,
-      "VOLATILE": 20.0,
-      "RANGE_BOUND": 100.0,
+      "VOLATILE": 0.0,
+      "RANGE_BOUND": 65.0,
       "CRISIS": 0.0
     },
     "prev_regime": "RANGE_BOUND",
@@ -69,38 +69,13 @@
     ],
     "inputs": {
       "vix": 18.0,
-      "nifty_trend": "SIDEWAYS",
+      "nifty_trend": "UP",
       "market_score": 50.0,
       "breadth": 50.0
     },
-    "reasoning": "VIX=18.0, trend=SIDEWAYS, mkt_score=50, breadth=50"
+    "reasoning": "VIX=18.0, trend=UP, mkt_score=50, breadth=50"
   },
-  "sector_rotation_top3": [
-    {
-      "sector": "BANKING",
-      "avg_score": 37.5,
-      "stock_count": 6,
-      "vs_median": 16.5,
-      "momentum": "STRONG",
-      "rank": 1
-    },
-    {
-      "sector": "FINANCE",
-      "avg_score": 29.6,
-      "stock_count": 5,
-      "vs_median": 8.6,
-      "momentum": "STRONG",
-      "rank": 2
-    },
-    {
-      "sector": "ENERGY",
-      "avg_score": 25.8,
-      "stock_count": 5,
-      "vs_median": 4.8,
-      "momentum": "OUTPERFORMING",
-      "rank": 3
-    }
-  ],
+  "sector_rotation_top3": [],
   "factor_weights": {
     "trend": 0.15,
     "momentum": 0.12,
@@ -127,14 +102,14 @@
     "WATCH": 50
   },
   "contradiction_summary": {
-    "NONE": 40,
-    "LOW": 10,
+    "NONE": 46,
+    "LOW": 4,
     "MEDIUM": 0,
     "HIGH": 0
   },
   "scan_staleness": {
     "stale": true,
-    "age_minutes": 846.4
+    "age_minutes": 766.1
   },
   "audit_summary": {
     "trade_count": 0,
@@ -225,8 +200,8 @@
     {
       "file": "phase13_cache.json",
       "exists": true,
-      "size_bytes": 149458,
-      "modified": "2026-07-26T09:18:16Z"
+      "size_bytes": 140165,
+      "modified": "2026-08-09T09:32:00Z"
     },
     {
       "file": "phase13_proposals.json",
@@ -238,31 +213,31 @@
       "file": "phase13_audit_report.json",
       "exists": true,
       "size_bytes": 1269,
-      "modified": "2026-07-26T09:18:16Z"
+      "modified": "2026-08-09T09:32:00Z"
     },
     {
       "file": "phase13_diagnostic_bundle.json",
       "exists": true,
       "size_bytes": 6508,
-      "modified": "2026-07-26T09:16:10Z"
+      "modified": "2026-07-26T09:18:16Z"
     },
     {
       "file": "phase13_summary.csv",
       "exists": true,
       "size_bytes": 2249,
-      "modified": "2026-07-26T09:16:10Z"
+      "modified": "2026-07-26T09:18:16Z"
     },
     {
       "file": "phase7_scan_cache.json",
       "exists": true,
-      "size_bytes": 65942,
-      "modified": "2026-07-26T09:16:29Z"
+      "size_bytes": 67972,
+      "modified": "2026-08-09T09:31:39Z"
     },
     {
       "file": "market_context_cache.json",
       "exists": true,
-      "size_bytes": 566,
-      "modified": "2026-07-25T19:10:22Z"
+      "size_bytes": 556,
+      "modified": "2026-08-08T20:46:28Z"
     }
   ],
   "errors": {},

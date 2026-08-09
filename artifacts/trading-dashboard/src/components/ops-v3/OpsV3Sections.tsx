@@ -367,7 +367,7 @@ export function StockJourneyPanel() {
 
 const REPLAY_STAGES = [
   "Supervisor","Market Data","Research","Market Intelligence",
-  "Monitoring","Strategy","Risk","AI Decision","Execution",
+  "Monitoring","Strategy","Portfolio Pre-Check","Risk","AI Decision","Execution",
 ];
 
 export function ScanReplayPanel({ data }: { data?: OpsSnapshotV3 }) {
@@ -393,13 +393,17 @@ export function ScanReplayPanel({ data }: { data?: OpsSnapshotV3 }) {
 
   const nodes = data?.pipeline_nodes ?? [];
   const pipeStats = data?.pipeline ?? null;
-  const pipelineKeys = ["supervisor","market_data","research","market_intelligence","monitoring","strategy","risk","ai_decision","execution"];
+  const pipelineKeys = ["supervisor","market_data","research","market_intelligence","monitoring","strategy","portfolio_precheck","risk","ai_decision","execution"];
 
   const pipeCounts = pipeStats ? [
     pipeStats.universe_loaded, pipeStats.stocks_reviewed,
     pipeStats.passed_market_data, pipeStats.passed_research,
     pipeStats.passed_intelligence, pipeStats.passed_monitoring,
-    pipeStats.passed_strategy, pipeStats.passed_risk,
+    pipeStats.passed_strategy,
+    // Funnel flow-through (approved + unevaluated pass-through) — NOT the
+    // approved-only count; see passed_precheck for "Pre-Check Approved".
+    pipeStats.precheck_flow_out ?? pipeStats.passed_strategy,
+    pipeStats.passed_risk,
     pipeStats.buy_recommendations,
   ] : [];
 
@@ -1035,6 +1039,7 @@ export function EndOfDaySummary({ data, loading }: { data?: OpsSnapshotV3; loadi
               {[
                 { label: "Scanned",     value: p.universe_loaded,      tip: "Total stocks in universe" },
                 { label: "→ Strategy",  value: p.passed_strategy,       tip: "Passed strategy evaluation" },
+                { label: "→ Pre-Check", value: p.passed_precheck ?? "—", tip: "Approved by the Portfolio Pre-Check (allocation & exposure limits)" },
                 { label: "→ Risk",      value: p.passed_risk,            tip: "Approved by risk gate" },
                 { label: "BUY Recs",   value: p.buy_recommendations,    tip: "BUY recommendations generated" },
                 { label: "Executed",   value: p.paper_orders_executed,   tip: "Paper orders placed" },

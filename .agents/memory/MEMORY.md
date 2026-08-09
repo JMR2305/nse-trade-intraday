@@ -91,4 +91,5 @@
 - [Portfolio pre-check wiring](portfolio-precheck-wiring.md) — portfolio_bridge gates execute_buy/build_preview (fail-closed) + mirrors fills/marks (fail-open); equity for drawdown must include position value.
 - [Portfolio snapshot recovery](portfolio-snapshot-recovery.md) — attach snapshot repo only after seeding (initialise() writes poisonous empty v1 rows); empty service book is authoritative; all-corrupt rows must raise.
 - [Portfolio config overrides hot-reload](portfolio-config-overrides.md) — durable override store; long-lived services need engine-level config swap, not just service.config; hermetic kill switch for env-default tests.
+- [Phase 26A pre-check visibility](phase26a-precheck-visibility.md) — PORTFOLIO_PRECHECK stage between STRATEGY/RISK; events emitted at true decision point with exact engine reasons; replay from events only.
 - [Phase 23.8B validation & certification](phase238b-validation-certification.md) — validators orchestrate existing checkers with injected fixtures; READY needs every domain PASS (WARN/INSUFFICIENT block); append-only cert runs.

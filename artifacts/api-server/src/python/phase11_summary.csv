@@ -1,10 +1,10 @@
 key,value
-generated_at,2026-07-26T09:18:16Z
+generated_at,2026-08-09T09:32:00Z
 engine_version,Research Engine v1.0
 mode,PAPER_TRADING_RESEARCH_ONLY
 market_status.state,WEEKEND
 market_status.is_open,False
-market_status.now_ist,2026-07-26T14:48:16.023739+05:30
+market_status.now_ist,2026-08-09T15:02:00.575955+05:30
 market_status.timezone,Asia/Kolkata
 market_status.session.pre_open,09:00
 market_status.session.open,09:15
@@ -12,8 +12,8 @@ market_status.session.close,15:30
 market_status.session.post_close,16:00
 market_status.holiday_today,
 market_status.next_transition.event,market_open
-market_status.next_transition.at_ist,2026-07-27T09:15:00+05:30
-market_status.next_transition.seconds_until,66403
+market_status.next_transition.at_ist,2026-08-10T09:15:00+05:30
+market_status.next_transition.seconds_until,65579
 market_status.upcoming_holidays,[3 items]
 market_status.label,PAPER / RESEARCH ONLY
 quote_provider.provider,Yahoo Finance (yfinance)
@@ -26,8 +26,8 @@ quote_provider.total_errors,0
 quote_provider.cached_symbols,1
 quote_provider.quote_ttl_s,20.0
 quote_provider.quote_ttl_closed_s,300.0
-scan.scan_id,d49e1ec37b7f
-scan.snapshot_ts,2026-07-25T19:09:49Z
+scan.scan_id,4915c8df904f
+scan.snapshot_ts,2026-08-08T20:45:55Z
 scan.recommendation_count,50
 scan.provider_connection,DEGRADED
 scan.symbol_coverage_pct,96.0
@@ -43,7 +43,7 @@ risk.kill_switch.triggered_at,2026-07-15T03:38:28.777367
 risk.kill_switch.triggered_by,manual
 risk.kill_switch.resumed_at,2026-07-15T03:38:34.155811
 risk.risk_alert_count,
-notifications.total_alerts,324
-notifications.unread,316
+notifications.total_alerts,500
+notifications.unread,500
 portfolio.cash,
 portfolio.open_positions,0

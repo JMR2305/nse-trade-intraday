@@ -971,6 +971,12 @@ def _pipeline_summary() -> Dict[str, Any]:
         "passed_intelligence":        intel_count,
         "passed_monitoring":          intel_count,
         "passed_strategy":            scanner_candidates,
+        # passed_precheck: Portfolio Pre-Check output — only available from the
+        # unified replay snapshot (event-derived); null in the legacy fallback.
+        "passed_precheck":            None,
+        # Funnel flow-through of the pre-check stage (approved + unevaluated
+        # pass-through). Distinct from passed_precheck (approved only).
+        "precheck_flow_out":          None,
         "passed_risk":                eligible or scanner_candidates,
         # scanner_candidates: raw scanner BUY/STRONG BUY count (opportunity_score ≥ ~62)
         "scanner_candidates":         scanner_candidates,
@@ -1020,6 +1026,12 @@ def _pipeline_summary() -> Dict[str, Any]:
             summary["passed_intelligence"] = _out("market_intelligence", intel_count)
             summary["passed_monitoring"]   = _out("monitoring", intel_count)
             summary["passed_strategy"]     = _out("strategy", scanner_candidates)
+            # Event-derived approvals only — never count symbols that were
+            # never evaluated (no BUY attempt) as "Pre-Check Approved".
+            summary["passed_precheck"]     = int(
+                (pc.get("portfolio_precheck") or {}).get("approved", 0))
+            summary["precheck_flow_out"]   = _out("portfolio_precheck",
+                                                  _out("strategy", scanner_candidates))
             summary["passed_risk"]         = _out("risk", eligible or scanner_candidates)
             summary["buy_recommendations"] = _out("ai_decision",
                                                   confirmed_buy_count if confirmed_buy_count is not None else 0)
@@ -1029,7 +1041,8 @@ def _pipeline_summary() -> Dict[str, Any]:
             summary["counts_source"]       = "replay_snapshot"
             # Rebuild the trace from the same unified counts.
             _order = ["supervisor", "market_data", "research", "market_intelligence",
-                      "monitoring", "strategy", "risk", "ai_decision", "execution", "portfolio"]
+                      "monitoring", "strategy", "portfolio_precheck", "risk",
+                      "ai_decision", "execution", "portfolio"]
             summary["pipeline_trace"] = [
                 {
                     "stage": (pc.get(k) or {}).get("label", k),
@@ -1400,6 +1413,7 @@ def get_v3_enrichment(agents: Dict[str, Any], pipeline: Dict[str, Any]) -> Dict[
         ("stocks_reviewed","Reviewed"), ("passed_market_data","Market Data"),
         ("passed_research","Research"), ("passed_intelligence","Intelligence"),
         ("passed_monitoring","Monitoring"), ("passed_strategy","Strategy"),
+        ("passed_precheck","Portfolio Pre-Check"),
         ("passed_risk","Risk"), ("buy_recommendations","BUY Recs"),
         ("paper_orders_executed","Executed"),
     ]

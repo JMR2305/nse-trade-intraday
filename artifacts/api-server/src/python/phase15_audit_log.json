@@ -696,5 +696,47 @@
     },
     "decision_summary": "0 STRONG BUY, 0 BUY, 3 WATCH, 45 IGNORE across 50 stocks; best HDFCBANK (51.9); avg score 22.9",
     "label": "PAPER / RESEARCH ONLY"
+  },
+  {
+    "audit_id": "a15_4915c8df904f",
+    "scan_id": "4915c8df904f",
+    "timestamp": "2026-08-08T20:45:55Z",
+    "recorded_at": "2026-08-09T09:32:01Z",
+    "duration_s": 22.87,
+    "stocks_processed": 50,
+    "stocks_valid": 48,
+    "strategies_executed": [
+      "Breakout Hunter",
+      "EMA Cross",
+      "MACD Cross",
+      "Mean Reversion",
+      "Supertrend",
+      "Trend Rider"
+    ],
+    "signals_generated": {
+      "strong_buy": 1,
+      "buy": 5,
+      "watch": 27,
+      "ignore": 15
+    },
+    "warnings": [],
+    "warning_count": 0,
+    "errors": [
+      "LTIM: Data fetch failed: No data returned for LTIM.NS",
+      "TATAMOTORS: Data fetch failed: No data returned for TATAMOTORS.NS"
+    ],
+    "error_count": 2,
+    "learning_events": [
+      "Adaptive learning active (bounded, human-governed)"
+    ],
+    "risk_checks": {
+      "quality_gates_applied": true,
+      "rr_gate_applied": true,
+      "volume_gate_applied": true,
+      "stale_cap_applied": true,
+      "gate_failures": 0
+    },
+    "decision_summary": "1 STRONG BUY, 5 BUY, 27 WATCH, 15 IGNORE across 50 stocks; best BAJAJ-AUTO (79.6); avg score 47.7",
+    "label": "PAPER / RESEARCH ONLY"
   }
 ]

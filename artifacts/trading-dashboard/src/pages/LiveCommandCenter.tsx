@@ -81,6 +81,7 @@ const STAGE_LABELS: Record<string, string> = {
   MARKET_INTELLIGENCE: "Market Intel",
   MONITORING: "Monitoring",
   STRATEGY: "Strategy",
+  PORTFOLIO_PRECHECK: "Portfolio Pre-Check",
   RISK: "Risk",
   AI_DECISION: "AI Decision",
   EXECUTION: "Execution",
@@ -185,7 +186,7 @@ export default function LiveCommandCenter() {
   const rejections = useMemo(() => {
     const evs = rejectionsQ.data?.events ?? [];
     return evs.filter((e) =>
-      ["RISK_REJECTED", "ORDER_REJECTED", "SYMBOL_REJECTED", "STRATEGY_REJECTED"].includes(e.event_type) &&
+      ["RISK_REJECTED", "ORDER_REJECTED", "SYMBOL_REJECTED", "STRATEGY_REJECTED", "PRECHECK_REJECTED"].includes(e.event_type) &&
       (!rejectionFilter || e.event_type === rejectionFilter),
     );
   }, [rejectionsQ.data, rejectionFilter]);
@@ -324,6 +325,9 @@ export default function LiveCommandCenter() {
                     <span className="text-muted-foreground truncate">
                       {String(
                         (e.payload as Record<string, unknown>).reason ??
+                        (Array.isArray((e.payload as Record<string, unknown>).reasons)
+                          ? ((e.payload as Record<string, unknown>).reasons as unknown[]).join("; ")
+                          : undefined) ??
                         (e.payload as Record<string, unknown>).action ??
                         (e.payload as Record<string, unknown>).strategy_name ??
                         (e.payload as Record<string, unknown>).trade_id ??
@@ -432,6 +436,7 @@ export default function LiveCommandCenter() {
                 const failed = p.failed_gates as Record<string, { reason?: string }> | undefined;
                 const detail =
                   (p.reason as string) ??
+                  (Array.isArray(p.reasons) ? (p.reasons as unknown[]).join("; ") : undefined) ??
                   (failed ? Object.entries(failed).map(([g, v]) => `${g}: ${v?.reason ?? "failed"}`).join("; ") : "") ??
                   (p.error as string) ?? "";
                 return (

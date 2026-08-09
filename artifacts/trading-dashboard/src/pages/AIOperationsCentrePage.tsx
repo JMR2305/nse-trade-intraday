@@ -97,6 +97,11 @@ interface OpsSnapshot {
     passed_intelligence: number;
     passed_monitoring: number;
     passed_strategy: number;
+    /** Portfolio Pre-Check output (event-derived via replay). null when the
+     *  unified replay snapshot is unavailable (legacy fallback counts). */
+    passed_precheck?: number | null;
+    /** Funnel flow-through of the pre-check stage (approved + unevaluated). */
+    precheck_flow_out?: number | null;
     passed_risk: number;
     /** Raw scanner-level BUY/STRONG BUY count (opportunity_score ≥ ~62).
      *  Always ≥ buy_recommendations. Shown separately so operators understand
@@ -879,6 +884,8 @@ function PipelineFunnel({ pipeline, loading }: {
     { label: "Passed Intelligence",    count: pipeline.passed_intelligence,    note: null },
     { label: "Passed Monitoring",      count: pipeline.passed_monitoring,      note: null },
     { label: "Passed Strategy",        count: pipeline.passed_strategy,        note: null },
+    { label: "Pre-Check Approved",     count: pipeline.passed_precheck ?? null,
+      note: "Portfolio allocation & limit gates (event-derived)" },
     { label: "Passed Risk",            count: pipeline.passed_risk,            note: null },
     // Scanner-level BUY candidates (shown only when the field is present)
     ...(hasScanner ? [{

@@ -66,9 +66,10 @@ STAGES = [
     {"id": "market_intelligence", "label": "Market Intelligence","order": 3},
     {"id": "monitoring",          "label": "Monitoring",         "order": 4},
     {"id": "strategy",            "label": "Strategy",           "order": 5},
-    {"id": "risk",                "label": "Risk",               "order": 6},
-    {"id": "ai_decision",         "label": "AI Decision",        "order": 7},
-    {"id": "execution",           "label": "Execution",          "order": 8},
+    {"id": "portfolio_precheck",  "label": "Portfolio Pre-Check","order": 6},
+    {"id": "risk",                "label": "Risk",               "order": 7},
+    {"id": "ai_decision",         "label": "AI Decision",        "order": 8},
+    {"id": "execution",           "label": "Execution",          "order": 9},
 ]
 
 
@@ -122,10 +123,47 @@ def _pct(v: Any) -> Optional[float]:
 # Core — reconstruct stages from snapshot.recommendations
 # ---------------------------------------------------------------------------
 
-def _build_stages_from_snapshot(snapshot: Dict) -> List[Dict]:
+def _get_precheck_decisions(scan_id: str) -> Dict[str, Dict]:
     """
-    Reconstruct 9-stage pipeline from a Phase7ScanResult snapshot dict.
+    Latest Portfolio Pre-Check decision per symbol for a scan, reconstructed
+    PURELY from canonical pipeline events (PRECHECK_APPROVED /
+    PRECHECK_REJECTED). Returns {} on any failure — replay must never break
+    because the event store is unavailable.
+    """
+    out: Dict[str, Dict] = {}
+    if not scan_id:
+        return out
+    try:
+        import pipeline_events
+        events = pipeline_events.query_events(
+            scan_id=scan_id, stage="PORTFOLIO_PRECHECK", limit=2000)
+        for e in events:  # ascending id — the last decision per symbol wins
+            et = e.get("event_type")
+            if et not in ("PRECHECK_APPROVED", "PRECHECK_REJECTED"):
+                continue
+            sym = e.get("symbol")
+            if not sym:
+                continue
+            payload = e.get("payload") or {}
+            out[sym] = {
+                "approved": et == "PRECHECK_APPROVED",
+                "reasons": list(payload.get("reasons") or []),
+                "blocking_limit": payload.get("blocking_limit"),
+            }
+    except Exception:
+        return {}
+    return out
+
+
+def _build_stages_from_snapshot(snapshot: Dict,
+                                precheck_decisions: Optional[Dict[str, Dict]] = None) -> List[Dict]:
+    """
+    Reconstruct the pipeline stages from a Phase7ScanResult snapshot dict.
     Returns a list of stage dicts ordered by pipeline position.
+
+    `precheck_decisions` ({symbol: {approved, reasons, ...}}) is replayed from
+    canonical pipeline events only (see _get_precheck_decisions) — the replay
+    NEVER re-evaluates portfolio rules.
     """
     raw_recs: List[Dict] = snapshot.get("recommendations") or []
     provider = snapshot.get("provider_health") or {}
@@ -197,10 +235,26 @@ def _build_stages_from_snapshot(snapshot: Dict) -> List[Dict]:
     ]
     _strategy_set = set(strategy_symbols)
 
-    # Stage 6 — Risk: strategy symbols where all gates passed
+    # Stage 6 — Portfolio Pre-Check: decisions replayed from canonical events
+    # only. Symbols the pre-check explicitly rejected stop here and NEVER
+    # appear in Risk or later stages. Symbols with no recorded decision
+    # (pre-check only evaluates actual BUY attempts) pass through.
+    _pc = precheck_decisions or {}
+    precheck_rejected_symbols = [
+        s for s in strategy_symbols if (_pc.get(s) or {}).get("approved") is False
+    ]
+    _pc_rejected_set = set(precheck_rejected_symbols)
+    precheck_symbols = [s for s in strategy_symbols if s not in _pc_rejected_set]
+    _precheck_set = set(precheck_symbols)
+    precheck_evaluated = [s for s in strategy_symbols if s in _pc]
+    precheck_approved = [
+        s for s in precheck_evaluated if (_pc.get(s) or {}).get("approved") is True
+    ]
+
+    # Stage 7 — Risk: pre-check output where all gates passed
     risk_symbols = [
         r["symbol"] for r in recs
-        if r.get("symbol") in _strategy_set and r.get("all_gates_passed")
+        if r.get("symbol") in _precheck_set and r.get("all_gates_passed")
     ]
     _risk_set = set(risk_symbols)
 
@@ -332,22 +386,49 @@ def _build_stages_from_snapshot(snapshot: Dict) -> List[Dict]:
             "status": "COMPLETE",
         },
         {
-            "id": "risk",
-            "label": "Risk",
+            "id": "portfolio_precheck",
+            "label": "Portfolio Pre-Check",
             "order": 6,
             "stocks_in": len(strategy_symbols),
+            "stocks_out": len(precheck_symbols),
+            "rejected": len(precheck_rejected_symbols),
+            "rejected_symbols": precheck_rejected_symbols[:10],
+            "rejection_reasons": {
+                s: (_pc.get(s) or {}).get("reasons") or []
+                for s in precheck_rejected_symbols[:10]
+            },
+            "stocks": precheck_symbols[:50],
+            "evaluated_count": len(precheck_evaluated),
+            # Event-derived approvals only — symbols never evaluated (no BUY
+            # attempt) are NOT counted as approved.
+            "approved_count": len(precheck_approved),
+            "not_evaluated": len(precheck_symbols) - len(precheck_approved),
+            "duration_ms": _ms("portfolio_precheck") or 50,
+            "description": (
+                f"{len(precheck_evaluated)} BUY candidate(s) evaluated by the "
+                f"Portfolio Engine · {len(precheck_rejected_symbols)} blocked"
+                if precheck_evaluated
+                else "No BUY candidates reached the portfolio pre-check"
+            ),
+            "status": "COMPLETE",
+        },
+        {
+            "id": "risk",
+            "label": "Risk",
+            "order": 7,
+            "stocks_in": len(precheck_symbols),
             "stocks_out": len(risk_symbols),
-            "rejected": len(strategy_symbols) - len(risk_symbols),
-            "rejected_symbols": [s for s in strategy_symbols if s not in set(risk_symbols)][:10],
+            "rejected": len(precheck_symbols) - len(risk_symbols),
+            "rejected_symbols": [s for s in precheck_symbols if s not in set(risk_symbols)][:10],
             "stocks": risk_symbols[:50],
             "duration_ms": _ms("risk") or 500,
-            "description": f"{len(risk_symbols)} approved · {len(strategy_symbols) - len(risk_symbols)} rejected by gates",
+            "description": f"{len(risk_symbols)} approved · {len(precheck_symbols) - len(risk_symbols)} rejected by gates",
             "status": "COMPLETE",
         },
         {
             "id": "ai_decision",
             "label": "AI Decision",
-            "order": 7,
+            "order": 8,
             "stocks_in": len(risk_symbols),
             # stocks_out = BUY only; rejected = everything that didn't become BUY (clamped ≥ 0)
             "stocks_out": len(buy_symbols),
@@ -364,7 +445,7 @@ def _build_stages_from_snapshot(snapshot: Dict) -> List[Dict]:
         {
             "id": "execution",
             "label": "Execution",
-            "order": 8,
+            "order": 9,
             "stocks_in": len(buy_symbols),
             "stocks_out": len(execution_symbols),
             # Conservation holds by construction: execution_symbols ⊆ buy_symbols
@@ -504,7 +585,8 @@ def _get_execution_trades(conn, scan_id: str, snapshot: Dict) -> List[Dict]:
 # Per-symbol journey reconstruction
 # ---------------------------------------------------------------------------
 
-def _build_symbol_journey(rec: Dict, snapshot: Dict) -> List[Dict]:
+def _build_symbol_journey(rec: Dict, snapshot: Dict,
+                          precheck: Optional[Dict] = None) -> List[Dict]:
     """
     Reconstruct the full per-symbol timeline across all 9 agent stages.
     Each entry has: stage, timestamp (relative), result, score, reason.
@@ -586,6 +668,21 @@ def _build_symbol_journey(rec: Dict, snapshot: Dict) -> List[Dict]:
             },
         },
         {
+            "stage": "portfolio_precheck",
+            "label": "Portfolio Pre-Check",
+            "result": (
+                "NOT EVALUATED" if precheck is None
+                else ("PASS" if precheck.get("approved") else "BLOCKED")
+            ),
+            "score": None,
+            "reason": (
+                "No BUY attempt reached the portfolio pre-check" if precheck is None
+                else ("Allocation & limits approved" if precheck.get("approved")
+                      else "; ".join(precheck.get("reasons") or ["Blocked by portfolio limits"]))
+            ),
+            "detail": precheck,
+        },
+        {
             "stage": "risk",
             "label": "Risk",
             "result": "PASS" if all_gates else "FAIL",
@@ -622,6 +719,7 @@ def _build_symbol_journey(rec: Dict, snapshot: Dict) -> List[Dict]:
             "stage": "execution",
             "label": "Execution",
             "result": "PAPER BUY" if paper_eligible else ("SKIPPED" if final_action != "BUY" else "REJECTED"),
+            # (may be overridden below when the pre-check blocked this symbol)
             "score": None,
             "reason": "Paper order placed" if paper_eligible else (
                 "Not paper-eligible" if final_action == "BUY" else f"Action: {final_action}"
@@ -634,6 +732,15 @@ def _build_symbol_journey(rec: Dict, snapshot: Dict) -> List[Dict]:
             },
         },
     ]
+    # Pre-check BLOCKED (event-derived): nothing downstream actually happened
+    # for this symbol — mark Risk / AI Decision / Execution as skipped instead
+    # of showing stale snapshot-derived PASS/BUY results.
+    if precheck is not None and not precheck.get("approved"):
+        _blocked_reason = "; ".join(precheck.get("reasons") or ["Blocked by portfolio limits"])
+        for step in journey:
+            if step["stage"] in ("risk", "ai_decision", "execution"):
+                step["result"] = "SKIPPED"
+                step["reason"] = f"Blocked at Portfolio Pre-Check: {_blocked_reason}"
     return journey
 
 
@@ -905,7 +1012,9 @@ def build_replay(scan_id: str) -> Dict:
         return {"error": "No scan data found", "scan_id": scan_id}
 
     recs: List[Dict] = snapshot.get("recommendations") or []
-    stages = _build_stages_from_snapshot(snapshot)
+    _pc_scan_id = str(snapshot.get("scan_id", scan_id) or scan_id or "")
+    stages = _build_stages_from_snapshot(
+        snapshot, precheck_decisions=_get_precheck_decisions(_pc_scan_id))
 
     # Lightweight symbol list (full details via /symbol/:symbol endpoint)
     symbols_list = []
@@ -1051,6 +1160,11 @@ def build_replay(scan_id: str) -> Dict:
             "rejected": max(0, s.get("rejected", 0)),
             "pending": max(0, s.get("pending", 0)),
             "cancelled": max(0, s.get("cancelled", 0)),
+            # Pre-check extras (event-derived; absent for other stages)
+            **({"approved": s.get("approved_count", 0),
+                "evaluated": s.get("evaluated_count", 0),
+                "not_evaluated": s.get("not_evaluated", 0)}
+               if s["id"] == "portfolio_precheck" else {}),
         }
         for s in stages
     }
@@ -1371,7 +1485,9 @@ def get_symbol_journey(scan_id: str, symbol: str) -> Dict:
             "thinking": {},
         }
 
-    journey = _build_symbol_journey(rec, snapshot)
+    _pc_map = _get_precheck_decisions(str(resolved_sid or scan_id or ""))
+    journey = _build_symbol_journey(rec, snapshot,
+                                    precheck=_pc_map.get(symbol.upper()))
     thinking = _build_agent_thinking(rec)
 
     return {

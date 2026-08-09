@@ -1,5 +1,21 @@
 [
   {
+    "issue_id": "ISS-0028",
+    "date": "2026-08-09",
+    "severity": "LOW",
+    "page": "test",
+    "description": "unit-test issue",
+    "related_scan_id": null,
+    "related_trade_id": null,
+    "reproducible": false,
+    "status": "VERIFIED",
+    "resolution": "test done",
+    "resolved_date": "2026-08-09",
+    "notes": [],
+    "created_at": "2026-08-09T09:32:02.418775+00:00",
+    "updated_at": "2026-08-09T09:32:02.419657+00:00"
+  },
+  {
     "issue_id": "ISS-0027",
     "date": "2026-07-26",
     "severity": "LOW",

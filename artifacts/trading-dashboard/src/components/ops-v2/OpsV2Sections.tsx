@@ -98,6 +98,11 @@ export interface OpsSnapshotV2 {
     passed_intelligence: number;
     passed_monitoring: number;
     passed_strategy: number;
+    /** Portfolio Pre-Check output (event-derived via replay). null when the
+     *  unified replay snapshot is unavailable (legacy fallback counts). */
+    passed_precheck?: number | null;
+    /** Funnel flow-through of the pre-check stage (approved + unevaluated). */
+    precheck_flow_out?: number | null;
     passed_risk: number;
     /** Raw scanner-level BUY/STRONG BUY count (opportunity_score ≥ ~62).
      *  Always ≥ buy_recommendations. Present only when the backend has run
@@ -406,6 +411,8 @@ export function PipelineFunnelV2({ pipeline, loading }: {
       tip: "Stocks with at least one confirmed technical signal." },
     { label: "Passed Strategy",      count: pipeline.passed_strategy,
       tip: "Stocks that met the scanner's opportunity score threshold (~62)." },
+    { label: "Pre-Check Approved",   count: pipeline.passed_precheck ?? null,
+      tip: "Portfolio Pre-Check (allocation & exposure limits) — BUY candidates blocked here never reach Risk. null = replay snapshot not yet available." },
     { label: "Passed Risk",          count: pipeline.passed_risk,
       tip: "Stocks approved by the risk gate (capital, sector, sizing)." },
     // Scanner-level candidates — only shown when the field is present

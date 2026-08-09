@@ -292,6 +292,8 @@ interface ReplayStageLite {
   id: string; label: string;
   stocks_in?: number; stocks_out?: number;
   rejected?: number; pending?: number; cancelled?: number;
+  /** Pre-check only: event-derived approvals (never includes unevaluated). */
+  approved_count?: number;
 }
 interface ReplayDecision { symbol: string; final_action?: string | null }
 interface ReplaySnapshot {
@@ -301,13 +303,16 @@ interface ReplaySnapshot {
 }
 
 // Map replay stage ids (canonical) → spec funnel labels.
-const FUNNEL_STAGES: { id: string; label: string; field: "stocks_out" | "stocks_in" }[] = [
+const FUNNEL_STAGES: { id: string; label: string; field: "stocks_out" | "stocks_in" | "approved_count" }[] = [
   { id: "supervisor",          label: "Universe Loaded",       field: "stocks_out" },
   { id: "market_data",         label: "Scanned",               field: "stocks_out" },
   { id: "research",            label: "Analysed",              field: "stocks_out" },
   { id: "market_intelligence", label: "Market Intelligence",   field: "stocks_out" },
   { id: "monitoring",          label: "Monitoring",            field: "stocks_out" },
   { id: "strategy",            label: "Strategy Evaluated",    field: "stocks_out" },
+  // Event-derived approvals only — unevaluated pass-through symbols are
+  // never presented as approved.
+  { id: "portfolio_precheck",  label: "Pre-Check Approved",    field: "approved_count" },
   { id: "risk",                label: "Risk Approved",         field: "stocks_out" },
 ];
 

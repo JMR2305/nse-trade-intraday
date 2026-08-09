@@ -63,6 +63,14 @@
       "message": "BAJFINANCE holds 8 vs recommended 3 at current limits",
       "ts": "2026-08-08T09:23:02.065414",
       "acknowledged": false
+    },
+    {
+      "key": "POSITION_OVERSIZED|2026-08-09|BAJFINANCE",
+      "type": "POSITION_OVERSIZED",
+      "severity": "WARNING",
+      "message": "BAJFINANCE holds 8 vs recommended 3 at current limits",
+      "ts": "2026-08-09T09:32:04.483772",
+      "acknowledged": false
     }
   ]
 }

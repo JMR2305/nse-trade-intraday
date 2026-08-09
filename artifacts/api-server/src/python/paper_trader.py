@@ -207,6 +207,7 @@ def execute_buy(
     trade_quality: float = 0.0,
     bypass_risk: bool = False,
     ledger_trade_id: str = "",
+    scan_id: str = "",
 ) -> tuple[bool, str]:
     """
     Execute a paper buy order.
@@ -244,6 +245,32 @@ def execute_buy(
                 symbol, quantity, price,
                 strategy_id=strategy_id or "ai_scan",
             )
+            # Phase 26A: make every pre-check decision visible in the
+            # canonical pipeline event store (fail-safe — never blocks
+            # trading; `emit` itself also never raises).
+            try:
+                from pipeline_events import emit as _pe_emit
+                _approved = bool(_pc.get("approved"))
+                _pe_emit(
+                    "PRECHECK_APPROVED" if _approved else "PRECHECK_REJECTED",
+                    "PORTFOLIO_PRECHECK",
+                    scan_id=(scan_id or None), symbol=symbol,
+                    payload={
+                        "approved": _approved,
+                        "reasons": list(_pc.get("reasons") or []),
+                        "allocation_status": _pc.get("allocation_status"),
+                        "limits_allowed": _pc.get("limits_allowed"),
+                        "blocking_limit": _pc.get("blocking_limit"),
+                        "approved_capital": _pc.get("approved_capital"),
+                        "quantity": quantity,
+                        "price": price,
+                        "order_value": quantity * price,
+                        "strategy_id": strategy_id or "ai_scan",
+                        "ledger_trade_id": ledger_trade_id or None,
+                    },
+                )
+            except Exception:
+                pass
             if not _pc.get("approved"):
                 return False, ("PORTFOLIO BLOCKED: "
                                + "; ".join(_pc.get("reasons") or ["limit breach"]))
