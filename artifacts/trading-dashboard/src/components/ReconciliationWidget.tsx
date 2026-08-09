@@ -315,6 +315,13 @@ export default function ReconciliationWidget() {
                     ? <span className="text-emerald-400">CLEAN</span>
                     : <span className="text-red-400">DISCREPANCIES</span>
               } />
+              {Number(dbRun.paper_fallback_count ?? 0) > 0 && (
+                <RunSummaryRow label="Paper fallback" value={
+                  <span className="text-amber-400">
+                    Orders routed to paper due to token expiry: {dbRun.paper_fallback_count}
+                  </span>
+                } />
+              )}
               {dbRun.error && (
                 <div className="py-2 text-[10px] text-red-400 font-mono break-all">{dbRun.error}</div>
               )}

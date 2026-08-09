@@ -2597,6 +2597,10 @@ def main():
         elif command == "reconcil_status":
             from eod_reconciliation import get_reconciliation_status
             result = get_reconciliation_status()
+        elif command == "reconcil_publish":
+            from eod_reconciliation import publish_reconciliation_summary
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = publish_reconciliation_summary(payload)
         elif command == "reconcil_trigger":
             from eod_reconciliation import run_eod_reconciliation
             force = "--force" in args

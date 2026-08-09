@@ -351,3 +351,40 @@ describe("eod_reconciliation.py — resolve_discrepancy persists resolved state"
     expect(pythonSrc).toMatch(/not found|already resolved|rowcount|no.*row/i);
   });
 });
+
+// ── 4. Paper-fallback (token expiry) count bridge — bot → API → widget ────
+
+describe("paper-fallback count reaches the Broker page", () => {
+  it("widget renders the token-expiry paper-fallback row only when count > 0", () => {
+    expect(componentSrc).toContain("paper_fallback_count");
+    expect(componentSrc).toContain("Orders routed to paper due to token expiry");
+    // Conditional render — zero-count days must show nothing
+    expect(componentSrc).toMatch(/paper_fallback_count\s*\?\?\s*0\)\s*>\s*0/);
+  });
+
+  it("Python status queries expose paper_fallback_count on latest and recent runs", () => {
+    const selects = pythonSrc.match(/SELECT[\s\S]*?FROM broker_reconciliation_runs/g) ?? [];
+    expect(selects.length).toBeGreaterThanOrEqual(2);
+    for (const s of selects) expect(s).toContain("paper_fallback_count");
+  });
+
+  it("schema migration adds paper_fallback_count idempotently", () => {
+    expect(pythonSrc).toMatch(
+      /ADD COLUMN IF NOT EXISTS paper_fallback_count INTEGER NOT NULL DEFAULT 0/,
+    );
+  });
+
+  it("Python exposes an idempotent publish ingestion function for the bot bridge", () => {
+    expect(pythonSrc).toMatch(/def\s+publish_reconciliation_summary/);
+    expect(pythonSrc).toMatch(/ON CONFLICT \(run_id\) DO UPDATE/);
+  });
+
+  it("publish route is authenticated with a shared-secret token and validates input", () => {
+    expect(routeSrc).toMatch(/router\.post\s*\(\s*["']\/broker\/reconciliation\/publish["']/);
+    expect(routeSrc).toContain("RECON_PUBLISH_TOKEN");
+    expect(routeSrc).toContain("x-recon-publish-token");
+    expect(routeSrc).toMatch(/status\s*\(\s*401\s*\)/);
+    expect(routeSrc).toMatch(/status\s*\(\s*503\s*\)/);
+    expect(routeSrc).toContain("reconcil_publish");
+  });
+});

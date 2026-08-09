@@ -96,6 +96,13 @@ def _ensure_schema(conn) -> None:
                 ADD COLUMN IF NOT EXISTS resolved_at   TIMESTAMPTZ,
                 ADD COLUMN IF NOT EXISTS resolved_note TEXT
         """)
+        # Migration: paper-fallback bucket count (orders rerouted to the
+        # paper broker mid-session, e.g. token expiry) — written by the
+        # trading-bot reconciliation engine; EOD runs default to 0.
+        cur.execute("""
+            ALTER TABLE broker_reconciliation_runs
+                ADD COLUMN IF NOT EXISTS paper_fallback_count INTEGER NOT NULL DEFAULT 0
+        """)
         cur.execute("""
             CREATE INDEX IF NOT EXISTS idx_recon_discrepancies_resolved
                 ON broker_reconciliation_discrepancies(resolved, resolved_at DESC)
@@ -709,7 +716,7 @@ def get_reconciliation_status() -> Dict[str, Any]:
                     cur.execute("""
                         SELECT run_id, trigger, started_at, completed_at,
                                orders_checked, clean, discrepancy_count,
-                               paper_mode, error
+                               paper_mode, paper_fallback_count, error
                         FROM broker_reconciliation_runs
                         ORDER BY started_at DESC
                         LIMIT 1
@@ -775,7 +782,7 @@ def get_reconciliation_status() -> Dict[str, Any]:
                     cur.execute("""
                         SELECT run_id, trigger, started_at, completed_at,
                                orders_checked, clean, discrepancy_count,
-                               paper_mode, error
+                               paper_mode, paper_fallback_count, error
                         FROM broker_reconciliation_runs
                         ORDER BY started_at DESC
                         LIMIT 10
@@ -805,6 +812,89 @@ def get_reconciliation_status() -> Dict[str, Any]:
         "last_ran_today": _kv_get("eod_reconcil_date") == _today_ist(),
         "eod_window_active": _is_eod_window(),
     }
+
+
+def publish_reconciliation_summary(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Ingest a reconciliation run summary published by the trading bot.
+
+    Isolation-preserving bridge: the intraday trading bot runs against its
+    own database (INTRADAY_DATABASE_URL) and cannot be read directly by the
+    dashboard.  Instead it POSTs its completed reconciliation summary here
+    and this function upserts it into this API server's
+    broker_reconciliation_runs table — the single source of truth for the
+    Broker Execution page.
+
+    Required payload fields: run_id, started_at (ISO 8601).
+    Optional: trigger, completed_at, orders_checked, clean,
+    discrepancy_count, paper_mode, paper_fallback_count.
+    Idempotent per run_id (ON CONFLICT DO UPDATE with the same values).
+    """
+    run_id = str(payload.get("run_id") or "").strip()
+    started_at_raw = payload.get("started_at")
+    if not run_id or not started_at_raw:
+        return {"success": False, "error": "run_id and started_at are required"}
+    try:
+        started_at = datetime.fromisoformat(str(started_at_raw).replace("Z", "+00:00"))
+        completed_at = None
+        if payload.get("completed_at"):
+            completed_at = datetime.fromisoformat(
+                str(payload["completed_at"]).replace("Z", "+00:00")
+            )
+    except Exception:
+        return {"success": False, "error": "started_at/completed_at must be ISO 8601"}
+
+    def _int(key: str) -> int:
+        try:
+            v = int(payload.get(key, 0))
+            return max(0, v)
+        except (TypeError, ValueError):
+            return 0
+
+    trigger = str(payload.get("trigger") or "bot_publish")[:50]
+    orders_checked = _int("orders_checked")
+    discrepancy_count = _int("discrepancy_count")
+    paper_fallback_count = _int("paper_fallback_count")
+    clean = bool(payload.get("clean", discrepancy_count == 0))
+    paper_mode = bool(payload.get("paper_mode", False))
+
+    try:
+        from scan_state_store import _connect, db_available
+        if not db_available():
+            return {"success": False, "error": "Database unavailable"}
+        conn = _connect()
+        try:
+            _ensure_schema(conn)
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO broker_reconciliation_runs
+                        (run_id, trigger, started_at, completed_at,
+                         orders_checked, clean, discrepancy_count,
+                         paper_mode, paper_fallback_count)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (run_id) DO UPDATE SET
+                        completed_at         = EXCLUDED.completed_at,
+                        orders_checked       = EXCLUDED.orders_checked,
+                        clean                = EXCLUDED.clean,
+                        discrepancy_count    = EXCLUDED.discrepancy_count,
+                        paper_fallback_count = EXCLUDED.paper_fallback_count
+                """, (
+                    run_id, trigger, started_at, completed_at,
+                    orders_checked, clean, discrepancy_count,
+                    paper_mode, paper_fallback_count,
+                ))
+            conn.commit()
+        finally:
+            conn.close()
+        _log(f"Published bot reconciliation summary run_id={run_id} "
+             f"paper_fallback_count={paper_fallback_count}")
+        return {
+            "success": True,
+            "run_id": run_id,
+            "paper_fallback_count": paper_fallback_count,
+        }
+    except Exception as exc:
+        _log(f"publish_reconciliation_summary failed: {exc}")
+        return {"success": False, "error": f"DB write failed: {type(exc).__name__}"}
 
 
 def check_reconciliation_probe() -> Dict[str, Any]:

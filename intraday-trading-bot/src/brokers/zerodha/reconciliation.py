@@ -409,6 +409,11 @@ class ReconciliationEngine:
             if db_session is not None:
                 await self._persist_report(report, db_session)
 
+            # Publish summary to the dashboard API server (fail-open;
+            # no-op unless RECON_PUBLISH_URL/TOKEN are configured).
+            from src.brokers.zerodha.reconciliation_publisher import publish_report
+            await publish_report(report)
+
             return report
 
         except Exception as exc:

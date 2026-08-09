@@ -74,6 +74,32 @@ router.post("/broker/reconciliation/trigger", wrap(async (req, res) => {
   res.json(await runPython(args, 120_000));
 }));
 
+// POST /api/broker/reconciliation/publish — authenticated ingestion endpoint
+// for the isolated trading bot to publish its reconciliation run summary
+// (including paper_fallback_count). Requires a shared-secret token so the
+// bot never needs direct access to this server's database.
+router.post("/broker/reconciliation/publish", wrap(async (req, res) => {
+  const expected = process.env.RECON_PUBLISH_TOKEN;
+  if (!expected) {
+    return res.status(503).json({
+      success: false,
+      error: "Publishing disabled: RECON_PUBLISH_TOKEN is not configured",
+    });
+  }
+  const provided = req.get("x-recon-publish-token") ?? "";
+  if (provided !== expected) {
+    return res.status(401).json({ success: false, error: "Invalid publish token" });
+  }
+  const body = req.body ?? {};
+  if (typeof body.run_id !== "string" || !body.run_id.trim() || !body.started_at) {
+    return res.status(400).json({
+      success: false,
+      error: "run_id and started_at are required",
+    });
+  }
+  res.json(await runPython(["reconcil_publish", JSON.stringify(body)], 15_000));
+}));
+
 // POST /api/broker/reconciliation/resolve — mark a discrepancy resolved
 router.post("/broker/reconciliation/resolve", wrap(async (req, res) => {
   const id = parseInt(String(req.body?.id ?? ""), 10);
