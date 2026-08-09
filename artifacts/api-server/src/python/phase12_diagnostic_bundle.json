@@ -1,14 +1,14 @@
 {
   "bundle_version": 2,
   "phase": 12,
-  "generated_at": "2026-08-09T09:32:00Z",
+  "generated_at": "2026-08-09T15:26:31Z",
   "engine_version": "Research Engine v1.0 \u00b7 Phase 12",
   "mode": "PAPER_TRADING_RESEARCH_ONLY",
   "label": "PAPER / RESEARCH ONLY",
   "market_status": {
     "state": "WEEKEND",
     "is_open": false,
-    "now_ist": "2026-08-09T15:02:00.794143+05:30",
+    "now_ist": "2026-08-09T20:56:31.762042+05:30",
     "timezone": "Asia/Kolkata",
     "session": {
       "pre_open": "09:00",
@@ -20,7 +20,7 @@
     "next_transition": {
       "event": "market_open",
       "at_ist": "2026-08-10T09:15:00+05:30",
-      "seconds_until": 65579
+      "seconds_until": 44308
     },
     "upcoming_holidays": [
       {
@@ -171,14 +171,14 @@
     {
       "file": "phase12_cache.json",
       "exists": true,
-      "size_bytes": 198988,
-      "modified": "2026-08-09T09:32:00Z"
+      "size_bytes": 198990,
+      "modified": "2026-08-09T15:26:25Z"
     },
     {
       "file": "phase7_scan_cache.json",
       "exists": true,
       "size_bytes": 67972,
-      "modified": "2026-08-09T09:31:39Z"
+      "modified": "2026-08-09T15:08:22Z"
     },
     {
       "file": "market_context_cache.json",
@@ -189,20 +189,20 @@
     {
       "file": "phase11_quote_state.json",
       "exists": true,
-      "size_bytes": 5124,
-      "modified": "2026-08-08T22:11:18Z"
+      "size_bytes": 5125,
+      "modified": "2026-08-09T11:09:59Z"
     },
     {
       "file": "phase12_diagnostic_bundle.json",
       "exists": true,
-      "size_bytes": 5554,
-      "modified": "2026-07-26T09:18:16Z"
+      "size_bytes": 5036,
+      "modified": "2026-08-09T15:26:25Z"
     },
     {
       "file": "phase12_summary.csv",
       "exists": true,
-      "size_bytes": 2672,
-      "modified": "2026-07-26T09:18:16Z"
+      "size_bytes": 2632,
+      "modified": "2026-08-09T15:26:25Z"
     }
   ],
   "errors": {},

@@ -7,6 +7,7 @@ from typing import Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.logging import logger
+from src.core.exceptions import IdempotencyError, OrderValidationError
 from src.brokers.paper_broker import PaperBroker
 from src.brokers.interface import BrokerAdapter, OrderRequest
 from src.brokers.contracts import (
@@ -105,6 +106,11 @@ class ExecutionService:
             raise Exception(f"Risk check failed: {integration_result.rejection_reason}")
 
         if integration_result.error:
+            # Re-raise typed errors so the API layer can map them to proper
+            # status codes (409 idempotency conflict, 400 validation).
+            exc = integration_result.exception
+            if isinstance(exc, (IdempotencyError, OrderValidationError)):
+                raise exc
             raise Exception(f"Execution error: {integration_result.error}")
 
         return integration_result.execution_result

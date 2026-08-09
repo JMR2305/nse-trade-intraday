@@ -64,13 +64,19 @@ class OrderRepository:
         await self._session.refresh(order)
         return order
 
-    async def update(self, order_id: int, **kwargs) -> Optional[Order]:
-        """Update order fields."""
+    async def update(self, order_pk: int, **kwargs) -> Optional[Order]:
+        """Update order fields.
+
+        Positional arg is the ROW primary key. Named `order_pk` (not
+        `order_id`) because Order also has an `order_id` COLUMN (broker
+        order id) that callers may pass in kwargs — a same-named parameter
+        raised "got multiple values for argument 'order_id'".
+        """
         kwargs["updated_at"] = datetime.now(timezone.utc)
         await self._session.execute(
-            update(Order).where(Order.id == order_id).values(**kwargs)
+            update(Order).where(Order.id == order_pk).values(**kwargs)
         )
-        return await self.get_by_id(order_id)
+        return await self.get_by_id(order_pk)
 
     async def update_status(self, order_id: int, status: str, message: Optional[str] = None) -> Optional[Order]:
         """Update order status."""

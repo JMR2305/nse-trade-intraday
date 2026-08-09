@@ -86,9 +86,7 @@ class TestAiForecastIntegration:
         )
         features = gen.generate("INFY", mtf, _utcnow().isoformat())
         import asyncio
-        result = asyncio.get_event_loop().run_until_complete(
-            adapter.forecast("INFY", features)
-        )
+        result = asyncio.run(adapter.forecast("INFY", features))
         assert result is None
 
     def test_benchmark_tracks_accuracy(self) -> None:
@@ -141,9 +139,7 @@ class TestAiForecastIntegration:
         bench = InMemoryForecastBenchmark()
 
         import asyncio
-        forecast = asyncio.get_event_loop().run_until_complete(
-            adapter.forecast("INFY", features)
-        )
+        forecast = asyncio.run(adapter.forecast("INFY", features))
 
         if forecast is not None:
             gated = ForecastConfidenceGate.apply(forecast, min_confidence=Decimal("0.0"))

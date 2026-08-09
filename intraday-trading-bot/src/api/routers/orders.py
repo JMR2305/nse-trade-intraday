@@ -38,6 +38,11 @@ async def place_order(symbol: str, side: str, quantity: int, order_type: str = "
     session = await session_service.get_active_session()
     if not session:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No active session. Start a session first.")
+    if stop_loss is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="stop_loss is required for intraday orders",
+        )
     broker = get_broker()
     execution = ExecutionService(db, broker=broker)
     live = is_live_mode()
@@ -48,7 +53,7 @@ async def place_order(symbol: str, side: str, quantity: int, order_type: str = "
             trigger_price=Decimal(str(trigger_price)) if trigger_price else None,
             stop_loss=Decimal(str(stop_loss)) if stop_loss else None,
             target=Decimal(str(target)) if target else None, idempotency_key=x_idempotency_key, created_by=user_id)
-        return {"status": "success", "mode": "LIVE" if live else "PAPER", **result, "idempotency_key": x_idempotency_key}
+        return {**result, "order_status": result.get("status"), "status": "success", "mode": "LIVE" if live else "PAPER", "idempotency_key": x_idempotency_key}
     except KillSwitchError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except BrokerKillSwitchError as e:

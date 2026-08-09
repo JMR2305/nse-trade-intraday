@@ -88,7 +88,10 @@ class KillSwitchManager:
             )
             return
 
-        self._history.append(self._state)
+        # Only real triggered states belong in history — the initial NORMAL
+        # placeholder (triggered_at=None) is not an event.
+        if self._state.triggered_at is not None:
+            self._history.append(self._state)
         self._state = KillSwitchState(
             level=level,
             triggered_at=datetime.now(timezone.utc),

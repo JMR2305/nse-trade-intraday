@@ -92,6 +92,10 @@ class RiskIntegrationResult:
     execution_result: Optional[Dict[str, Any]] = None
     rejection_reason: Optional[str] = None
     error: Optional[str] = None
+    # Original exception from the execution attempt (when error is set) so
+    # callers can re-raise typed errors (idempotency, validation) instead of
+    # collapsing everything into a generic Exception.
+    exception: Optional[BaseException] = None
 
     @property
     def rejected(self) -> bool:
@@ -294,6 +298,7 @@ class RiskIntegrationLayer:
                     approved=True,   # Risk approved; execution failed
                     risk_result=risk_result,
                     error=str(exc),
+                    exception=exc,
                 )
 
             # ── 5. Publish fill event ────────────────────────────────────────

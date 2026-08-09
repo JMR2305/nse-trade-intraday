@@ -874,8 +874,17 @@ class TestNoCommitInCoordinator:
         tree = ast.parse(text)
         violations = []
         for node in ast.walk(tree):
-            if isinstance(node, ast.Attribute) and node.attr in {"commit", "rollback", "close"}:
-                violations.append(f"{path}:line~{getattr(node, 'lineno', '?')}:.{node.attr}")
+            # Only flag actual method CALLS (.commit()/.rollback()/.close());
+            # plain attribute reads like `bar.close` (the bar's closing price)
+            # are not session operations.
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr in {"commit", "rollback", "close"}
+            ):
+                violations.append(
+                    f"{path}:line~{getattr(node, 'lineno', '?')}:.{node.func.attr}"
+                )
         return violations
 
     def test_no_commit_in_coordinator(self):

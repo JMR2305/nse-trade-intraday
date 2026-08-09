@@ -38,14 +38,11 @@ from src.strategy.recovery import (
 # ------------------------------------------------------------------
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest.fixture(scope="session")
+# NOTE: no custom event_loop fixture and no session-scoped async fixtures:
+# pytest-asyncio (asyncio_default_fixture_loop_scope = "function") runs each
+# test on its own loop, so a session-scoped engine causes ScopeMismatch.
+# The in-memory SQLite engine is cheap to build per test.
+@pytest.fixture
 async def async_engine():
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False, future=True)
     # Only create the 3 strategy tables — Base.metadata.create_all would fail

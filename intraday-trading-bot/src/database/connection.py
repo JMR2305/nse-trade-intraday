@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import text
 
+from sqlalchemy.engine import make_url
+
 from src.core.config import settings
 from src.core.logging import logger
 
@@ -26,8 +28,20 @@ def get_engine() -> AsyncEngine:
     """Return the shared async engine, creating it on first call."""
     global _engine
     if _engine is None:
+        # asyncpg does not accept libpq's `sslmode` query parameter —
+        # translate it to the asyncpg `ssl` connect arg instead.
+        url = make_url(settings.database_url)
+        connect_args = {}
+        sslmode = url.query.get("sslmode")
+        if sslmode is not None and url.drivername.endswith("asyncpg"):
+            url = url.difference_update_query(["sslmode"])
+            if sslmode in ("disable", "allow", "prefer"):
+                connect_args["ssl"] = False
+            else:  # require / verify-ca / verify-full
+                connect_args["ssl"] = True
         _engine = create_async_engine(
-            settings.database_url,
+            url,
+            connect_args=connect_args,
             echo=settings.debug,
             future=True,
             pool_pre_ping=True,
@@ -56,6 +70,11 @@ async def get_db_session() -> AsyncSession:
     async with get_session_factory()() as session:
         try:
             yield session
+            # Commit at the request boundary: repositories/services never
+            # commit themselves (enforced by the no-bare-commit audit), so
+            # the unit-of-work must be committed here or every API write
+            # silently rolls back when the session closes.
+            await session.commit()
         except Exception:
             await session.rollback()
             raise

@@ -30,4 +30,6 @@ class TestAuth:
 
     def test_me_unauthenticated(self, client):
         response = client.get("/auth/me")
-        assert response.status_code == 403
+        # Missing credentials → 401 Unauthorized (correct HTTP semantics;
+        # the auth middleware rejects before HTTPBearer's 403 path).
+        assert response.status_code == 401

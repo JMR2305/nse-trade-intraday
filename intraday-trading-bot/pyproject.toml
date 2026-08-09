@@ -71,6 +71,11 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# src/ packages import each other with bare names (e.g. `from execution.
+# contracts import ...`), so src must be importable directly. NOTE: the
+# root conftest also imports via the `src.` prefix — code touching ORM
+# models must keep the documented try/except double-import guard.
+pythonpath = ["src"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 

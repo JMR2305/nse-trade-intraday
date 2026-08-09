@@ -17,6 +17,20 @@ from src.brokers.zerodha.health import BrokerHealthTracker
 from src.brokers.contracts import BrokerSession
 
 
+
+
+def _run_coro(coro):
+    """Run a coroutine on a fresh, properly closed event loop.
+
+    asyncio.get_event_loop() is deprecated in sync contexts and breaks in
+    full-suite runs once another test has closed the policy loop.
+    """
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -177,8 +191,8 @@ class TestBrokerHealthTrackerExpiryWarning:
 
     def test_mark_token_expiry_warning_expired_invalidates_session(self):
         tracker = BrokerHealthTracker(paper_mode=False)
-        asyncio.get_event_loop().run_until_complete(tracker.mark_authenticated())
-        asyncio.get_event_loop().run_until_complete(
+        _run_coro(tracker.mark_authenticated())
+        _run_coro(
             tracker.mark_token_expiry_warning(-5.0, is_expired=True)
         )
         health = tracker.get_health()
@@ -190,21 +204,21 @@ class TestBrokerHealthTrackerExpiryWarning:
 
     def test_is_ready_false_after_expiry(self):
         tracker = BrokerHealthTracker(paper_mode=False)
-        asyncio.get_event_loop().run_until_complete(tracker.mark_authenticated())
-        asyncio.get_event_loop().run_until_complete(tracker.mark_rest_success())
+        _run_coro(tracker.mark_authenticated())
+        _run_coro(tracker.mark_rest_success())
         assert tracker.is_ready() is True
 
-        asyncio.get_event_loop().run_until_complete(
+        _run_coro(
             tracker.mark_token_expiry_warning(-1.0, is_expired=True)
         )
         assert tracker.is_ready() is False
 
     def test_clear_expiry_warning(self):
         tracker = BrokerHealthTracker(paper_mode=False)
-        asyncio.get_event_loop().run_until_complete(
+        _run_coro(
             tracker.mark_token_expiry_warning(10.0, is_expired=False)
         )
-        asyncio.get_event_loop().run_until_complete(tracker.clear_token_expiry_warning())
+        _run_coro(tracker.clear_token_expiry_warning())
         health = tracker.get_health()
         assert health.token_expiry_minutes is None
         assert health.token_expiry_warning is False
@@ -250,7 +264,7 @@ class TestAdapterCheckTokenExpiry:
         adapter._health_tracker = BrokerHealthTracker(paper_mode=True)
         adapter._session_manager = ZerodhaSessionManager(config)
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = _run_coro(
             adapter.check_token_expiry(warning_lead_minutes=30)
         )
         assert result["action"] == "none"
@@ -259,7 +273,7 @@ class TestAdapterCheckTokenExpiry:
     def test_healthy_session_no_action(self):
         adapter = self._make_adapter(session_minutes=120)  # 2 hours remaining
         with patch.object(adapter, "_send_expiry_alert", new_callable=AsyncMock) as mock_alert:
-            result = asyncio.get_event_loop().run_until_complete(
+            result = _run_coro(
                 adapter.check_token_expiry(warning_lead_minutes=30)
             )
         assert result["action"] == "none"
@@ -269,7 +283,7 @@ class TestAdapterCheckTokenExpiry:
     def test_expiring_soon_triggers_warning(self):
         adapter = self._make_adapter(session_minutes=15)  # 15 min < 30 min threshold
         with patch.object(adapter, "_send_expiry_alert", new_callable=AsyncMock) as mock_alert:
-            result = asyncio.get_event_loop().run_until_complete(
+            result = _run_coro(
                 adapter.check_token_expiry(warning_lead_minutes=30)
             )
         assert result["action"] == "warning_alert"
@@ -279,7 +293,7 @@ class TestAdapterCheckTokenExpiry:
     def test_expired_session_degrades_to_paper(self):
         adapter = self._make_adapter(session_minutes=-5)  # already expired
         with patch.object(adapter, "_send_expiry_alert", new_callable=AsyncMock) as mock_alert:
-            result = asyncio.get_event_loop().run_until_complete(
+            result = _run_coro(
                 adapter.check_token_expiry(warning_lead_minutes=30)
             )
         assert result["action"] == "expired_degraded"
@@ -293,7 +307,7 @@ class TestAdapterCheckTokenExpiry:
         """When no session exists (not yet authenticated), no warning is fired."""
         adapter = self._make_adapter(session_minutes=None)
         with patch.object(adapter, "_send_expiry_alert", new_callable=AsyncMock) as mock_alert:
-            result = asyncio.get_event_loop().run_until_complete(
+            result = _run_coro(
                 adapter.check_token_expiry(warning_lead_minutes=30)
             )
         assert result["action"] == "none"
@@ -306,7 +320,7 @@ class TestAdapterCheckTokenExpiry:
         # Force an exception inside by patching the import to raise
         with patch("builtins.__import__", side_effect=ImportError("no module")):
             # Should not raise
-            asyncio.get_event_loop().run_until_complete(
+            _run_coro(
                 adapter._send_expiry_alert(
                     is_expired=True,
                     minutes_remaining=-1.0,
@@ -318,7 +332,7 @@ class TestAdapterCheckTokenExpiry:
         """A healthy session (120 min remaining) must NOT set token_expiry_warning."""
         adapter = self._make_adapter(session_minutes=120)
         with patch.object(adapter, "_send_expiry_alert", new_callable=AsyncMock):
-            asyncio.get_event_loop().run_until_complete(
+            _run_coro(
                 adapter.check_token_expiry(warning_lead_minutes=30)
             )
         health = adapter._health_tracker.get_health()
@@ -350,7 +364,7 @@ class TestPaperFallbackRouting:
         paper_broker = PaperBroker()
         health_tracker = BrokerHealthTracker(paper_mode=False)
         # Mark session invalid (as check_token_expiry does after expiry)
-        asyncio.get_event_loop().run_until_complete(
+        _run_coro(
             health_tracker.mark_token_expiry_warning(-1.0, is_expired=True)
         )
 
@@ -389,7 +403,7 @@ class TestPaperFallbackRouting:
             paper_mode=False,  # caller intends live — fallback overrides this
         )
 
-        response = asyncio.get_event_loop().run_until_complete(
+        response = _run_coro(
             adapter.place_broker_order(request)
         )
 
@@ -429,7 +443,7 @@ class TestPaperFallbackRouting:
             paper_mode=True,
         )
 
-        response = asyncio.get_event_loop().run_until_complete(
+        response = _run_coro(
             adapter.place_broker_order(request)
         )
         assert response.paper_mode is True
@@ -469,7 +483,7 @@ class TestPaperFallbackRouting:
         kill_switch_manager.escalate(KillSwitchLevel.PAUSE, "test kill switch")
         try:
             with pytest.raises(BrokerKillSwitchError):
-                asyncio.get_event_loop().run_until_complete(
+                _run_coro(
                     adapter.place_broker_order(request)
                 )
         finally:
@@ -502,13 +516,13 @@ class TestPaperFallbackRouting:
         )
 
         # First placement should succeed
-        asyncio.get_event_loop().run_until_complete(
+        _run_coro(
             adapter.place_broker_order(request)
         )
 
         # Second placement with same idempotency key must be rejected
         with pytest.raises(BrokerDuplicateOrderError):
-            asyncio.get_event_loop().run_until_complete(
+            _run_coro(
                 adapter.place_broker_order(request)
             )
 
@@ -566,7 +580,7 @@ class TestPaperFallbackRouting:
             paper_mode=False,
         )
 
-        asyncio.get_event_loop().run_until_complete(
+        _run_coro(
             adapter.place_broker_order(request)
         )
 
@@ -598,7 +612,7 @@ class TestTokenExpiryMonitor:
             await asyncio.sleep(0.1)  # let one iteration run
             await monitor.stop()
 
-        asyncio.get_event_loop().run_until_complete(_run())
+        _run_coro(_run())
         # check_token_expiry should have been called at least once
         mock_adapter.check_token_expiry.assert_called()
 
@@ -621,7 +635,7 @@ class TestTokenExpiryMonitor:
             assert task1 is task2
             await monitor.stop()
 
-        asyncio.get_event_loop().run_until_complete(_run())
+        _run_coro(_run())
 
     def test_poll_error_does_not_crash_monitor(self):
         """Monitor loop must continue even if check_token_expiry raises."""
@@ -646,7 +660,7 @@ class TestTokenExpiryMonitor:
             await asyncio.sleep(0.05)
             await monitor.stop()
 
-        asyncio.get_event_loop().run_until_complete(_run())
+        _run_coro(_run())
         assert call_count >= 1  # monitor survived the error
 
 
@@ -693,7 +707,7 @@ class TestAdapterMonitorLifecycle:
             assert monitor._warning_lead == 45
             await adapter.close()
 
-        asyncio.get_event_loop().run_until_complete(_run())
+        _run_coro(_run())
 
     def test_close_stops_monitor(self):
         adapter = self._make_adapter()
@@ -705,7 +719,7 @@ class TestAdapterMonitorLifecycle:
             assert monitor._task.done()
             assert monitor._running is False
 
-        asyncio.get_event_loop().run_until_complete(_run())
+        _run_coro(_run())
 
     def test_initialize_twice_does_not_duplicate_monitor(self):
         adapter = self._make_adapter()
@@ -719,7 +733,7 @@ class TestAdapterMonitorLifecycle:
             assert first._task is first_task  # start() is idempotent
             await adapter.close()
 
-        asyncio.get_event_loop().run_until_complete(_run())
+        _run_coro(_run())
 
     def test_default_lead_minutes_is_30(self):
         config = ZerodhaBrokerConfig(
@@ -778,7 +792,7 @@ class TestLifespanStopsMonitor:
             assert registry.get_live_broker() is None
             assert registry.is_live_mode() is False
 
-        asyncio.get_event_loop().run_until_complete(_run())
+        _run_coro(_run())
 
     def test_startup_failure_cleanup_closes_adapter(self):
         """If initialize_live_session raises, adapter.close() must be safe to
@@ -809,7 +823,7 @@ class TestLifespanStopsMonitor:
             assert adapter._expiry_monitor is None
             await adapter.close()
 
-        asyncio.get_event_loop().run_until_complete(_run())
+        _run_coro(_run())
 
     def test_real_lifespan_failure_after_registration_cleans_up(self):
         """Run the actual main.py lifespan: force a startup failure AFTER
@@ -858,4 +872,4 @@ class TestLifespanStopsMonitor:
             assert registry.get_live_broker() is None
             assert registry.is_live_mode() is False
 
-        asyncio.get_event_loop().run_until_complete(_run())
+        _run_coro(_run())

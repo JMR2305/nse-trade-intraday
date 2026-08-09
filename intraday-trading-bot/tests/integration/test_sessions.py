@@ -43,3 +43,4 @@ class TestSessions:
         assert data["session_id"] == session_id
         assert "order_count" in data
         assert "open_position_count" in data
+

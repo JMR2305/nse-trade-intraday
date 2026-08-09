@@ -99,4 +99,5 @@
 - [kv_claim_once guards](kv-claim-once.md) — atomic first-claimant KV claim for exactly-once scheduler alerts; never kv_get→kv_set dedup across processes.
 - [Phase 26A e2e validation](phase26a-e2e-validation.md) — eligible-no-ledger BUY = BLOCKED+WARN not ERROR; replay `_is_buy_action` normalises STRONG BUY; flock the run-store JSON fallback.
 - [Bot DB collision](bot-db-collision.md) — bot .env targets the shared workspace DB; alembic never applied; 0006 collides with api-server's broker_reconciliation_runs; prod columns arrive only via republish.
+- [Bot test suite conventions](bot-test-suite.md) — alias finder, isolated intraday_bot_test DB, NullPool per-loop, request-boundary commit contract, bcrypt<5 pin.
 - [Durable portfolio repos](portfolio-durable-repos.md) — recover-first startup w/ canonical-ledger cross-check; DB idempotency dedupe; serial id is the only cross-process sequence; unit tests must set all portfolio DB kill-switches.
