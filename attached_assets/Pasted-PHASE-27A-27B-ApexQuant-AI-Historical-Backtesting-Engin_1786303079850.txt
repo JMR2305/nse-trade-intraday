@@ -1,0 +1,313 @@
+PHASE 27A + 27B
+ApexQuant AI
+Historical Backtesting Engine + AI Live Trading Command Center
+
+OBJECTIVE
+
+Transform ApexQuant AI into a professional AI trading platform where:
+
+1. Historical NSE data can be replayed through the COMPLETE AI pipeline.
+
+2. Operators can visually watch the AI working LIVE during market hours without reading logs.
+
+This phase MUST NOT modify any trading logic.
+
+It is purely infrastructure, visualization and validation.
+
+=========================================================
+PART A
+HISTORICAL BACKTEST ENGINE
+=========================================================
+
+Create a complete replay engine.
+
+Support
+
+• 5 minute NSE candles
+
+• 10 minute NSE candles
+
+Selectable
+
+Last Week
+
+Last Month
+
+Last 3 Months
+
+Last 6 Months
+
+Last Year
+
+Custom Date Range
+
+=========================================================
+
+Replay MUST execute the EXACT production pipeline
+
+Supervisor
+
+↓
+
+Market Scanner
+
+↓
+
+Research
+
+↓
+
+Market Intelligence
+
+↓
+
+Monitoring
+
+↓
+
+Strategy
+
+↓
+
+Risk
+
+↓
+
+AI Decision
+
+↓
+
+Execution
+
+↓
+
+Portfolio
+
+↓
+
+Learning
+
+=========================================================
+
+Replay should NOT use simplified calculations.
+
+Replay must use the SAME code paths used during live paper trading.
+
+=========================================================
+
+Display
+
+Replay Speed
+
+1x
+
+5x
+
+20x
+
+100x
+
+Instant
+
+=========================================================
+
+For every candle display
+
+Current time
+
+Current candle
+
+Current stock
+
+Current agent
+
+Current decision
+
+=========================================================
+
+Store every replay
+
+Replay ID
+
+Duration
+
+Stocks scanned
+
+Signals generated
+
+Orders executed
+
+Win rate
+
+PnL
+
+Drawdown
+
+=========================================================
+
+PART B
+AI LIVE TRADING COMMAND CENTER
+
+Create a completely new page.
+
+Name
+
+AI Live Trading Command Center
+
+This becomes the operator dashboard.
+
+=========================================================
+
+Display LIVE
+
+Current scan cycle
+
+Cycle number
+
+Cycle duration
+
+Current agent
+
+Agent latency
+
+Stocks scanned today
+
+Stocks currently queued
+
+Stocks inside every pipeline stage
+
+Stocks waiting
+
+BUY candidates
+
+WATCH candidates
+
+Rejected candidates
+
+Orders waiting
+
+Orders executed
+
+Open positions
+
+Current cash
+
+Current portfolio
+
+Current exposure
+
+Sector distribution
+
+Capital utilisation
+
+=========================================================
+
+For every pipeline stage show
+
+Input count
+
+Output count
+
+Rejected
+
+Pending
+
+Average processing time
+
+Current symbol
+
+Current agent status
+
+=========================================================
+
+Every symbol should move LIVE across the pipeline.
+
+Supervisor
+
+↓
+
+Scanner
+
+↓
+
+Research
+
+↓
+
+Market Intelligence
+
+↓
+
+Monitoring
+
+↓
+
+Strategy
+
+↓
+
+Risk
+
+↓
+
+Decision
+
+↓
+
+Execution
+
+↓
+
+Portfolio
+
+=========================================================
+
+Provide
+
+Live refresh
+
+Auto refresh
+
+Pause
+
+Replay current cycle
+
+Open symbol details
+
+Open AI explanation
+
+=========================================================
+
+Every number MUST come from the existing canonical event store.
+
+No duplicated calculations.
+
+No frontend-only counters.
+
+=========================================================
+
+Validation
+
+✓ Existing tests continue passing
+
+✓ No duplicate data source
+
+✓ Read-only
+
+✓ Mobile responsive
+
+✓ Uses existing event stream
+
+✓ No regression
+
+Deliver
+
+• Working Backtest Engine
+
+• AI Live Trading Command Center
+
+• Tests
+
+• Documentation
+
+• Verification report

@@ -317,6 +317,17 @@ def run_tick() -> Dict[str, Any]:
         # Phase 26D: daily validation report, once per IST trading day
         # post-close (KV claim taken only right before persisting, so a
         # build failure retries next tick). Never raises.
+        # Phase 26C: recovery / performance / quality validations, once per
+        # IST trading day — triggered from POST_CLOSE (15:30 IST) so results
+        # are persisted BEFORE the first CLOSED tick builds the one-shot 26D
+        # daily report; CLOSED also accepted as catch-up. Never raises.
+        p26c_auto = None
+        if mstate in ("POST_CLOSE", "CLOSED"):
+            try:
+                from phase26c_auto import maybe_run_session_validations
+                p26c_auto = maybe_run_session_validations(mstate)
+            except Exception as exc:
+                p26c_auto = {"ran": [], "error": str(exc)[:200]}
         p26d_daily = None
         if mstate == "CLOSED":
             try:
@@ -348,6 +359,8 @@ def run_tick() -> Dict[str, Any]:
             out["eod_reconciliation"] = eod_recon
         if p24_learning is not None:
             out["phase24_learning"] = p24_learning
+        if p26c_auto is not None:
+            out["phase26c_auto"] = p26c_auto
         if p26d_daily is not None:
             out["phase26d_daily_report"] = p26d_daily
         return out
