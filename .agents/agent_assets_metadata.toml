@@ -369,3 +369,10 @@ uri = "file://PHASE26_SUMMARY.md"
 type = "text"
 title = "Phase 26 Summary"
 description = "End-to-End Validation & Production Readiness — summary of Phases 26A–26D."
+
+[[outputs]]
+id = "1jTznUDsmck3pNs6vwaPf"
+uri = "file://PHASE27_EF_SUMMARY.md"
+type = "text"
+title = "Phase 27E + 27F Summary"
+description = "Combined summary of Operator Analytics (27E) and System Readiness Dashboard (27F) — features, implementation, and verification results."
