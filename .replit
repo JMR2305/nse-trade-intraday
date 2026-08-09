@@ -23,6 +23,10 @@ author = "agent"
 task = "workflow.run"
 args = "typecheck"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "paper-analytics-smoke"
+
 [[workflows.workflow]]
 name = "typecheck"
 author = "agent"
@@ -30,6 +34,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pnpm exec tsc -b lib/api-client-react lib/api-zod lib/db artifacts/api-server && pnpm --filter trading-dashboard exec tsc --noEmit && pnpm --filter @workspace/trading-mobile exec tsc --noEmit"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "paper-analytics-smoke"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd artifacts/api-server/src/python && PAPER_ANALYTICS_ENABLED=true python -m pytest paper_analytics/test_paper_analytics_integration.py -q"
 
 [workflows.workflow.metadata]
 isValidation = true
