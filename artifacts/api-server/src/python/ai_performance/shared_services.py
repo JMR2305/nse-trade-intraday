@@ -163,6 +163,12 @@ def _compute_health_score(signals, pred, calibration, rec_analysis, profiles, le
     return h
 
 
+def _metadata_integrity() -> Dict[str, Any]:
+    """Advisory metadata-shape check (see metadata_integrity module)."""
+    from .metadata_integrity import check_metadata_integrity
+    return check_metadata_integrity()
+
+
 # ── Stable public API ─────────────────────────────────────────────────────────
 
 def get_ai_summary() -> dict:
@@ -195,6 +201,10 @@ def get_ai_summary() -> dict:
             "accuracy_delta":      d["learning"]["accuracy_delta"],
             "recent_accuracy":     d["learning"]["recent_accuracy"],
             "confidence_distribution": d["conf_dist"],
+            # Advisory guard: flags trade metadata written in the wrong shape
+            # (e.g. nested under "metadata"), which would silently zero out
+            # confidence analytics. Never raises.
+            "metadata_integrity":  _metadata_integrity(),
         }
     except Exception as exc:
         return {"error": str(exc), "status": "ERROR", "label": _LABEL}
