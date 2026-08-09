@@ -1,0 +1,416 @@
+PHASE 26 – PRODUCTION VALIDATION & TRADING READINESS
+
+OBJECTIVE
+
+The platform is feature complete.
+
+Mission Control, Replay, Investigation Center, Learning Engine,
+Simulation Lab, Strategy Optimization, Validation and Certification
+are complete.
+
+The goal of this phase is NOT to build more features.
+
+The goal is to validate that the complete platform behaves correctly
+during real NSE paper trading.
+
+===============================================================================
+ARCHITECTURE
+===============================================================================
+
+Do NOT introduce new business logic.
+
+Do NOT duplicate calculations.
+
+All validation must consume the existing canonical:
+
+• Pipeline Event Store
+• Replay Store
+• Paper Trade Ledger
+• Portfolio Store
+• Execution Store
+• Learning Engine
+• Validation Store
+
+===============================================================================
+PART A – END-TO-END PIPELINE VALIDATION
+===============================================================================
+
+Validate every trading cycle.
+
+Market Data
+
+↓
+
+Scanner
+
+↓
+
+Research
+
+↓
+
+Market Intelligence
+
+↓
+
+Monitoring
+
+↓
+
+Strategy
+
+↓
+
+Portfolio Pre-Check
+
+↓
+
+Risk
+
+↓
+
+AI Decision
+
+↓
+
+Execution
+
+↓
+
+Paper Trade
+
+↓
+
+Portfolio
+
+↓
+
+P&L
+
+↓
+
+Replay
+
+↓
+
+Mission Control
+
+↓
+
+Learning Engine
+
+↓
+
+Validation
+
+For every stage verify:
+
+Input Count
+
+Output Count
+
+Rejected Count
+
+Pending Count
+
+Latency
+
+Timestamp
+
+Conservation
+
+No duplicate symbols
+
+No missing symbols
+
+===============================================================================
+PART B – LIVE PAPER TRADING VALIDATION
+===============================================================================
+
+During live NSE sessions automatically verify:
+
+Scanner running
+
+Research active
+
+Risk active
+
+Decision active
+
+Execution active
+
+Portfolio updates
+
+PnL updates
+
+Mission Control updates
+
+Replay updates
+
+Learning updates
+
+Generate validation every 5 minutes.
+
+===============================================================================
+PART C – CROSS-PAGE CONSISTENCY
+===============================================================================
+
+Verify identical values on:
+
+Mission Control
+
+AI Operations Center
+
+Replay
+
+Investigation Center
+
+Portfolio
+
+Broker
+
+Performance
+
+Learning Center
+
+Validation Dashboard
+
+Report every mismatch.
+
+===============================================================================
+PART D – EXECUTION VALIDATION
+===============================================================================
+
+For every BUY:
+
+Decision generated
+
+↓
+
+Execution submitted
+
+↓
+
+Paper trade created
+
+↓
+
+Portfolio updated
+
+↓
+
+PnL updated
+
+↓
+
+Replay event created
+
+↓
+
+Mission Control updated
+
+↓
+
+Learning record created
+
+Every missing step becomes an ERROR.
+
+===============================================================================
+PART E – PORTFOLIO VALIDATION
+===============================================================================
+
+Verify:
+
+Cash
+
+Capital
+
+Exposure
+
+Open Positions
+
+Closed Positions
+
+Sector Allocation
+
+Portfolio Value
+
+Realized PnL
+
+Unrealized PnL
+
+Ledger consistency
+
+===============================================================================
+PART F – LIVE RECOVERY TESTS
+===============================================================================
+
+Validate recovery after:
+
+API restart
+
+Database restart
+
+Redis restart
+
+Broker reconnect
+
+Network interruption
+
+Historical provider failure
+
+Background worker restart
+
+===============================================================================
+PART G – PERFORMANCE VALIDATION
+===============================================================================
+
+Measure:
+
+Scan duration
+
+Decision latency
+
+Execution latency
+
+Replay latency
+
+Mission Control refresh
+
+Dashboard load time
+
+Memory
+
+CPU
+
+Database queries
+
+===============================================================================
+PART H – TRADING QUALITY
+===============================================================================
+
+Measure:
+
+Stocks scanned
+
+Stocks analysed
+
+Risk approvals
+
+Risk rejections
+
+BUY signals
+
+SELL signals
+
+WATCH signals
+
+Executed trades
+
+Win rate
+
+Profit factor
+
+Expectancy
+
+Average holding time
+
+Missed opportunities
+
+===============================================================================
+PART I – AUTOMATED ISSUE DETECTION
+===============================================================================
+
+Automatically detect:
+
+Pipeline mismatch
+
+Duplicate events
+
+Missing replay
+
+Missing portfolio update
+
+Missing PnL
+
+Execution failure
+
+Portfolio inconsistency
+
+Learning inconsistency
+
+Mission Control inconsistency
+
+===============================================================================
+PART J – DAILY VALIDATION REPORT
+===============================================================================
+
+Generate every trading day:
+
+System Health
+
+Trading Health
+
+AI Health
+
+Portfolio Health
+
+Execution Health
+
+Replay Health
+
+Learning Health
+
+Validation Score
+
+Certification Score
+
+Outstanding Issues
+
+Recommendations
+
+===============================================================================
+PART K – ACCEPTANCE
+===============================================================================
+
+Platform should successfully complete:
+
+5 consecutive live trading days
+
+without
+
+Pipeline mismatch
+
+Portfolio mismatch
+
+Replay mismatch
+
+Execution mismatch
+
+Mission Control mismatch
+
+Critical errors
+
+===============================================================================
+DELIVERABLES
+===============================================================================
+
+1. End-to-End Validation Engine
+
+2. Cross-Page Consistency Validator
+
+3. Live Trading Validation
+
+4. Recovery Validation
+
+5. Performance Validation
+
+6. Trading Quality Dashboard
+
+7. Automated Issue Detection
+
+8. Daily Validation Reports
+
+9. Five-Day Stability Report
+
+10. Final Production Readiness Report

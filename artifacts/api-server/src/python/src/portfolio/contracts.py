@@ -628,6 +628,18 @@ class PortfolioSnapshot(BaseModel):
     snapshotted_at: datetime       = Field(default_factory=lambda: datetime.now(timezone.utc))
     checksum: str | None           = None
     metadata: dict[str, Any] | None = None
+    # Durable event-store cursor: highest portfolio_events serial id already
+    # reflected in this snapshot's state. Recovery replays events with
+    # id > event_cursor — wall-clock timestamps are NOT a safe replay
+    # boundary (fills can carry occurrence times older than the snapshot).
+    # Excluded from the checksum for backwards compatibility.
+    event_cursor: int | None       = None
+    # Pending order capital reservations (order_id → amount as string).
+    # Persisted so recovery can restore reservation IDENTITY, not just the
+    # blocked-cash total — otherwise a post-restart release/fill cannot
+    # consume the reservation and capital stays blocked forever.
+    # Excluded from the checksum for backwards compatibility.
+    pending_reservations: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("snapshotted_at", mode="before")
     @classmethod

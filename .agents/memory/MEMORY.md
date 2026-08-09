@@ -94,3 +94,4 @@
 - [Phase 26A pre-check visibility](phase26a-precheck-visibility.md) — PORTFOLIO_PRECHECK stage between STRATEGY/RISK; events emitted at true decision point with exact engine reasons; replay from events only.
 - [Phase 23.8B validation & certification](phase238b-validation-certification.md) — validators orchestrate existing checkers with injected fixtures; READY needs every domain PASS (WARN/INSUFFICIENT block); append-only cert runs.
 - [Scanner coverage probe](scanner-coverage-probe.md) — session-hours health checks must require a scan from TODAY's session and judge against the configured universe, all logic server-side.
+- [Durable portfolio repos](portfolio-durable-repos.md) — recover-first startup w/ canonical-ledger cross-check; DB idempotency dedupe; serial id is the only cross-process sequence; unit tests must set all portfolio DB kill-switches.

@@ -201,6 +201,40 @@ class PortfolioEventLedger:
                         event.idempotency_key,
                     )
 
+            # Replay reservation mutations — a snapshot-write failure after a
+            # durable reservation event must not lose the reservation on
+            # restart. Release is idempotent in the state manager (missing
+            # order_id is a no-op), and a replayed fill for the same order_id
+            # consumes its reservation, so ordering stays consistent.
+            elif event.event_type == PortfolioEventType.ORDER_RESERVED:
+                payload = event.payload or {}
+                order_id = str(payload.get("order_id", ""))
+                if order_id:
+                    await state_manager.reserve_order_capital(
+                        order_id,
+                        Decimal(str(payload.get("amount", "0"))),
+                        during_recovery=True,
+                    )
+                    state_manager._seen_idempotency_keys.add(
+                        event.idempotency_key
+                    )
+                    logger.info(
+                        "Replay applied reservation [idem=%s]",
+                        event.idempotency_key,
+                    )
+            elif event.event_type == PortfolioEventType.ORDER_RESERVATION_RELEASED:
+                payload = event.payload or {}
+                order_id = str(payload.get("order_id", ""))
+                if order_id:
+                    await state_manager.release_order_capital(order_id)
+                    state_manager._seen_idempotency_keys.add(
+                        event.idempotency_key
+                    )
+                    logger.info(
+                        "Replay applied reservation release [idem=%s]",
+                        event.idempotency_key,
+                    )
+
             # Record in ledger
             try:
                 await self.append(event)

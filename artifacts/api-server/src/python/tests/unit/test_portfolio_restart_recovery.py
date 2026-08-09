@@ -133,7 +133,19 @@ class TestRestartRecovery(unittest.TestCase):
         # process 2 (simulated restart) hits a canonical-ledger outage and
         # must recover the latest fill from Postgres.
         import portfolio_bridge as pb
+        import psycopg2
         from unittest.mock import patch
+
+        # The real bridge (and its unpatched final restore) writes snapshots
+        # for the 'default' portfolio — record a watermark so every row this
+        # test adds under 'default' is removed afterwards. Leaving fixture
+        # books in the store would make the next real process start noisy
+        # (recover → critical discrepancies → re-seed).
+        conn = psycopg2.connect(os.environ["DATABASE_URL"])
+        with conn.cursor() as cur:
+            cur.execute("SELECT COALESCE(MAX(id),0) FROM portfolio_snapshots")
+            watermark = cur.fetchone()[0]
+        conn.close()
 
         def fake_build():
             from src.portfolio.repositories.portfolio_snapshot import (
@@ -157,14 +169,27 @@ class TestRestartRecovery(unittest.TestCase):
         def boom():
             raise RuntimeError("ledger down (simulated)")
 
-        with patch.object(pb, "_build_service", side_effect=fake_build), \
-             patch.object(pb, "_canonical_state", side_effect=boom), \
-             patch.object(pb, "is_enabled", return_value=True):
-            self.assertTrue(pb.startup(force=True))
-            snap = pb._run(pb.get_service().get_snapshot())
-        symbols = sorted(p.instrument_symbol for p in snap.open_positions)
-        self.assertEqual(symbols, ["INFY", "RELIANCE"])
-        pb.startup(force=True)  # restore real bridge state for this process
+        try:
+            with patch.object(pb, "_build_service", side_effect=fake_build), \
+                 patch.object(pb, "_canonical_state", side_effect=boom), \
+                 patch.object(pb, "is_enabled", return_value=True):
+                self.assertTrue(pb.startup(force=True))
+                snap = pb._run(pb.get_service().get_snapshot())
+            symbols = sorted(p.instrument_symbol for p in snap.open_positions)
+            self.assertEqual(symbols, ["INFY", "RELIANCE"])
+        finally:
+            # Remove every 'default' snapshot this test wrote, then restore
+            # real bridge state (which re-persists a clean canonical book).
+            conn = psycopg2.connect(os.environ["DATABASE_URL"])
+            with conn.cursor() as cur:
+                cur.execute(
+                    "DELETE FROM portfolio_snapshots "
+                    "WHERE portfolio_id = 'default' AND id > %s",
+                    (watermark,),
+                )
+            conn.commit()
+            conn.close()
+            pb.startup(force=True)  # restore real bridge state for this process
 
     def test_all_corrupt_rows_raise_and_recovery_survives(self):
         from src.portfolio.exceptions import CorruptSnapshotError

@@ -252,8 +252,38 @@ class PortfolioService:
         pid = portfolio_id or self.config.portfolio_id
         return self._state_manager.get_snapshot(pid)
 
+    async def _save_snapshot(self, snapshot: PortfolioSnapshot) -> None:
+        """Persist *snapshot*, restamped with the configured portfolio_id.
+
+        Some state-manager paths build snapshots with the model default
+        ("default"); persisting them unstamped would mis-scope durable
+        rows for any non-default portfolio."""
+        update: dict = {}
+        if snapshot.portfolio_id != self.config.portfolio_id:
+            update["portfolio_id"] = self.config.portfolio_id
+        # Attach the durable replay cursor: the highest event-store serial
+        # id THIS instance has incorporated.  Every save site persists its
+        # event(s) before saving the snapshot, so the cursor covers exactly
+        # the state reflected here.  A table-wide MAX(id) would race with
+        # concurrent writers and permanently skip their events on replay.
+        if snapshot.event_cursor is None and self._event_repo is not None:
+            getter = getattr(self._event_repo, "incorporated_cursor", None)
+            if callable(getter):
+                cursor = getter(self.config.portfolio_id)
+                if cursor is not None:
+                    update["event_cursor"] = int(cursor)
+        if update:
+            snapshot = snapshot.model_copy(update=update)
+        await self._snapshot_repo.save(snapshot)
+
     async def _persist_event(self, event: PortfolioEvent) -> PortfolioEvent:
         """Append to ledger and optionally persist to event_repo."""
+        # Stamp the configured portfolio_id — construction sites rely on the
+        # model default ("default"), which would mis-scope durable events
+        # (and recovery replay) for any non-default portfolio.
+        if event.portfolio_id != self.config.portfolio_id:
+            event = event.model_copy(
+                update={"portfolio_id": self.config.portfolio_id})
         sequenced = await self._ledger.append(event)
         if self._event_repo is not None:
             await self._event_repo.append(sequenced)
@@ -293,7 +323,7 @@ class PortfolioService:
             pass
 
         if self._snapshot_repo is not None:
-            await self._snapshot_repo.save(snapshot)
+            await self._save_snapshot(snapshot)
 
         # Record in health monitor
         self._health_monitor.record_recovery(success=True)
@@ -530,6 +560,10 @@ class PortfolioService:
         except DuplicateEventError:
             pass
 
+        if self._snapshot_repo is not None:
+            snapshot = self._snapshot_sync()  # includes the reservation
+            await self._save_snapshot(snapshot)
+
         logger.info(
             "Order capital reserved",
             extra={"order_id": order_id, "amount": str(amount)},
@@ -555,6 +589,10 @@ class PortfolioService:
             await self._persist_event(event)
         except DuplicateEventError:
             pass
+
+        if self._snapshot_repo is not None:
+            snapshot = self._snapshot_sync()  # reflects the release
+            await self._save_snapshot(snapshot)
 
         logger.info("Order reservation released", extra={"order_id": order_id})
         return snapshot
@@ -659,7 +697,7 @@ class PortfolioService:
             pass
 
         if self._snapshot_repo is not None:
-            await self._snapshot_repo.save(snapshot)
+            await self._save_snapshot(snapshot)
 
         logger.info(
             "Fill applied",
@@ -918,11 +956,32 @@ class PortfolioService:
 
             # Replay any FILL_RECEIVED events that occurred after the snapshot
             # was taken so the in-memory state catches up to present.
+            # Prefer the durable serial-id cursor stored with the snapshot —
+            # wall-clock filtering is unsafe because a fill committed after
+            # the snapshot can carry an occurrence time older than the
+            # snapshot's timestamp and would be silently skipped.
             if self._event_repo is not None:
-                events = await self._event_repo.get_events_after(
-                    portfolio_id=pid,
-                    after=restore_target.snapshotted_at,
-                )
+                cursor = getattr(restore_target, "event_cursor", None)
+                if cursor is not None:
+                    events = await self._event_repo.get_events_after_sequence(
+                        portfolio_id=pid,
+                        sequence=cursor,
+                    )
+                else:
+                    events = await self._event_repo.get_events_after(
+                        portfolio_id=pid,
+                        after=restore_target.snapshotted_at,
+                    )
+                # The snapshot's cursor plus every replayed event is now
+                # incorporated in this instance's state — advance the repo's
+                # per-instance cursor so the next snapshot carries it.
+                base_noter = getattr(self._event_repo, "note_baseline", None)
+                if callable(base_noter):
+                    base_noter(pid, cursor)
+                noter = getattr(self._event_repo, "note_incorporated", None)
+                if callable(noter):
+                    for e in events:
+                        noter(pid, e.sequence)
                 if events:
                     replayed = await self._ledger.replay(events, self._state_manager)
                     logger.info(
@@ -1011,28 +1070,39 @@ class PortfolioService:
             return None
 
         all_events = await self._event_repo.list_all(portfolio_id=pid)
-        fill_events = [
+        # Replay every state-mutating event type in durable order —
+        # filtering to fills only would silently DROP outstanding capital
+        # reservations on a snapshot-loss rebuild, releasing cash that must
+        # stay blocked for pending orders.
+        state_events = [
             e for e in all_events
-            if e.event_type == PortfolioEventType.FILL_RECEIVED
+            if e.event_type in (
+                PortfolioEventType.FILL_RECEIVED,
+                PortfolioEventType.ORDER_RESERVED,
+                PortfolioEventType.ORDER_RESERVATION_RELEASED,
+            )
         ]
 
-        if not fill_events:
+        if not state_events:
+            # No state-mutating history at all — nothing to rebuild from.
+            # A reservation-only book (no fills yet) MUST still rebuild,
+            # or its blocked capital would be silently released.
             logger.warning(
-                "rebuild_from_fills: no FILL_RECEIVED events found in event store",
+                "rebuild_from_fills: no state-mutating events found in event store",
                 extra={"portfolio_id": pid},
             )
             return None
 
         logger.info(
-            "rebuild_from_fills: replaying %d fill events to rebuild portfolio state",
-            len(fill_events),
+            "rebuild_from_fills: replaying %d state events to rebuild portfolio state",
+            len(state_events),
             extra={"portfolio_id": pid},
         )
 
         # Reinitialise from configured capital so cash baseline is correct.
         await self._state_manager.initialise(self.config.initial_capital, pid)
 
-        replayed = await self._ledger.replay(fill_events, self._state_manager)
+        replayed = await self._ledger.replay(state_events, self._state_manager)
 
         # Transition to READY.
         self._state_manager._status = PortfolioStatus.READY
@@ -1067,7 +1137,7 @@ class PortfolioService:
         snapshot = self._snapshot_sync()
 
         if self._snapshot_repo is not None:
-            await self._snapshot_repo.save(snapshot)
+            await self._save_snapshot(snapshot)
 
         snap_event = PortfolioEvent(
             idempotency_key=f"snap-{snapshot.snapshot_id}",

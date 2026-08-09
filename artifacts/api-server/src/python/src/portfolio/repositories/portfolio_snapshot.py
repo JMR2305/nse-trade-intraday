@@ -27,7 +27,10 @@ def compute_snapshot_checksum(snapshot: PortfolioSnapshot) -> str:
     it can be stored alongside the payload without creating a circular
     dependency.  The JSON serialisation uses sorted keys for determinism.
     """
-    data = snapshot.model_dump(exclude={"checksum"})
+    # event_cursor is repository bookkeeping assigned at persist time (after
+    # the checksum was computed) — excluding it keeps existing checksums valid.
+    data = snapshot.model_dump(
+        exclude={"checksum", "event_cursor", "pending_reservations"})
 
     def _default(obj: Any) -> Any:
         from decimal import Decimal
@@ -124,6 +127,8 @@ def _ensure_schema(conn) -> None:
             );
             CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_pid
                 ON portfolio_snapshots (portfolio_id, snapshotted_at DESC);
+            ALTER TABLE portfolio_snapshots
+                ADD COLUMN IF NOT EXISTS event_cursor BIGINT;
             """
         )
     conn.commit()
@@ -162,6 +167,11 @@ class PortfolioSnapshotRepository:
         conn = _connect()
         try:
             _ensure_schema(conn)
+            # Durable replay cursor: assigned by the SERVICE at snapshot
+            # creation time from its per-instance incorporated cursor —
+            # never derived here from a table-wide MAX(id), which would
+            # race with concurrent writers and skip their events on replay.
+            event_cursor = snapshot.event_cursor
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -171,8 +181,8 @@ class PortfolioSnapshotRepository:
                         buying_power_net, equity,
                         open_position_count, pending_order_count,
                         realised_pnl, unrealised_pnl, daily_pnl, drawdown,
-                        snapshot_payload, checksum, snapshotted_at
-                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                        snapshot_payload, checksum, snapshotted_at, event_cursor
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     ON CONFLICT (snapshot_id) DO NOTHING
                     """,
                     (
@@ -195,6 +205,7 @@ class PortfolioSnapshotRepository:
                         _snapshot_to_payload(snapshot),
                         snapshot.checksum,
                         snapshot.snapshotted_at,
+                        event_cursor,
                     ),
                 )
             conn.commit()
@@ -213,7 +224,7 @@ class PortfolioSnapshotRepository:
         try:
             _ensure_schema(conn)
             sql = (
-                "SELECT snapshot_payload FROM portfolio_snapshots "
+                "SELECT snapshot_payload, event_cursor FROM portfolio_snapshots "
                 "WHERE portfolio_id = %s AND snapshot_payload IS NOT NULL"
             )
             params: list[Any] = [portfolio_id]
@@ -236,9 +247,15 @@ class PortfolioSnapshotRepository:
             conn.close()
         out: list[PortfolioSnapshot] = []
         corrupt = 0
-        for (payload,) in rows:
+        for (payload, cursor) in rows:
             try:
-                out.append(_snapshot_from_payload(payload))
+                snap = _snapshot_from_payload(payload)
+                if cursor is not None:
+                    # Repository bookkeeping column, not part of the payload
+                    # or checksum — attach for cursor-based recovery replay.
+                    snap = snap.model_copy(
+                        update={"event_cursor": int(cursor)})
+                out.append(snap)
             except Exception as exc:
                 corrupt += 1
                 logger.warning(

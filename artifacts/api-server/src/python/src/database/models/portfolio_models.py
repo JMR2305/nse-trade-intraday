@@ -12,6 +12,7 @@ Tables:
 from __future__ import annotations
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     Column,
     DateTime,
@@ -52,6 +53,9 @@ class PortfolioSnapshotModel(Base):
     drawdown = Column(Numeric(**_MONEY), nullable=False, default=0)
     snapshot_payload = Column(JSONB, nullable=True)
     checksum = Column(Text, nullable=True)
+    # Durable replay cursor: highest contiguous portfolio_events serial id
+    # incorporated in this snapshot (nullable for legacy rows).
+    event_cursor = Column(BigInteger, nullable=True)
     snapshotted_at = Column(DateTime(timezone=True), nullable=False, index=True)
     created_at = Column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -166,6 +170,9 @@ class ReconciliationRunModel(Base):
     notes = Column(Text, nullable=True)
     state_version = Column(Integer, nullable=False, default=0)
     broker_snapshot_age_s = Column(Numeric(**_MONEY), nullable=True)
+    # Full serialized PortfolioReconciliationReport for exact round-trip
+    # by the reconciliation repository (nullable for legacy rows).
+    report_payload = Column(JSONB, nullable=True)
     started_at = Column(DateTime(timezone=True), nullable=False, index=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
 

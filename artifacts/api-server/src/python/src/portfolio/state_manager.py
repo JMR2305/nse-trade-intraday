@@ -125,10 +125,19 @@ class PortfolioStateManager:
             for lot in pos.lots:
                 self._seen_idempotency_keys.add(lot.fill_id)
 
-        # pending_order_count is recorded in snapshot but individual amounts
-        # are not persisted; start with empty reservations (conservative —
-        # any genuinely pending orders will be reconciled on startup).
-        self._pending_reservations = {}
+        # Restore reservation identity (order_id → amount) exactly as
+        # persisted — restoring only the blocked-cash total would strand
+        # capital: a post-restart release/fill could never consume the
+        # reservation. Older snapshots without the field restore empty.
+        self._pending_reservations = {
+            oid: Decimal(str(amt))
+            for oid, amt in (snapshot.pending_reservations or {}).items()
+        }
+        # Mark the restored reservations' durable event keys as applied so
+        # a gap-pinned cursor replaying this service's own ORDER_RESERVED
+        # event again cannot double-block the capital.
+        for oid in self._pending_reservations:
+            self._seen_idempotency_keys.add(f"reserve-{oid}")
 
         _log.info(
             "State restored from snapshot version=%d positions=%d status→RECOVERING",
@@ -159,13 +168,27 @@ class PortfolioStateManager:
         self,
         order_id: str,
         amount: Decimal,
+        *,
+        during_recovery: bool = False,
     ) -> PortfolioSnapshot:
-        """Block cash for a pending order."""
+        """Block cash for a pending order.
+
+        ``during_recovery=True`` permits replaying a durable ORDER_RESERVED
+        event while the portfolio is still in RECOVERING state (event
+        replay happens before the status transitions back to READY)."""
         if self._status == PortfolioStatus.HALTED:
             raise PortfolioHaltedError(f"Portfolio halted: {self._halted_reason}")
-        if self._status not in (PortfolioStatus.READY, PortfolioStatus.DEGRADED):
+        allowed = (PortfolioStatus.READY, PortfolioStatus.DEGRADED)
+        if during_recovery:
+            allowed = allowed + (PortfolioStatus.RECOVERING,)
+        if self._status not in allowed:
             raise PortfolioNotReadyError(f"Portfolio not ready: {self._status}")
         assert self._cash is not None
+
+        # Idempotent by order_id: re-reserving an existing reservation must
+        # not block the capital twice (replay / retry safety).
+        if order_id in self._pending_reservations:
+            return self._build_snapshot()
 
         if self._cash.available < amount:
             raise InsufficientCapitalError(
@@ -444,5 +467,9 @@ class PortfolioStateManager:
                 p for p in positions if p.status != PositionStatus.CLOSED
             ),
             pending_order_count=len(self._pending_reservations),
+            pending_reservations={
+                oid: str(amt)
+                for oid, amt in self._pending_reservations.items()
+            },
             snapshotted_at=now,
         )

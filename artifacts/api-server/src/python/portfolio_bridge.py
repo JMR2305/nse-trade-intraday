@@ -160,7 +160,24 @@ def get_service():
 def startup(force: bool = False) -> bool:
     """Instantiate + initialise the PortfolioService and run the startup
     reconciliation. Idempotent per process. Returns True when the service
-    is ready."""
+    is ready.
+
+    Startup strategy
+    ----------------
+    1. **Snapshot recovery first**: when a valid persisted snapshot exists
+       in the Postgres-backed repository, recover() restores it and replays
+       any durable events written after it (the event repository is also
+       Postgres-backed), preserving reservation state and event history
+       across restarts.  The recovered book is then cross-checked against
+       the canonical phase20 ledger; any CRITICAL discrepancy discards the
+       recovered state and falls back to ledger re-seeding, so limit checks
+       can never run on a stale book.
+    2. **Ledger re-seed**: no (valid) snapshot, or the recovered state
+       disagreed with the canonical ledger — initialise fresh and seed the
+       canonical positions as synthetic fills (the pre-DB behaviour).
+    3. **Recovery-only**: canonical ledger unreadable — recover() from the
+       snapshot repository (falling back to durable fill-history replay,
+       then fresh init)."""
     global _service, _started, _startup_error
     if _started and not force:
         return _service is not None
@@ -168,11 +185,6 @@ def startup(force: bool = False) -> bool:
     try:
         _service, _snap_repo = _build_service()
 
-        # Canonical phase20 ledger is the authoritative seed.  If it cannot
-        # be read (DB outage, missing state after a restart), recover from
-        # the last persisted portfolio snapshot instead of starting empty —
-        # recover() restores from the Postgres-backed snapshot repository,
-        # replays any later events, and only then falls back to fresh init.
         canon = None
         try:
             canon = _canonical_state()
@@ -181,12 +193,11 @@ def startup(force: bool = False) -> bool:
                 "canonical ledger unavailable (%s) — recovering portfolio "
                 "state from persisted snapshot", exc)
 
-        # NOTE: the event repository is process-local, so recovery relies on
-        # the persisted snapshot alone.  That is sufficient because
-        # persist_snapshot_if_changed() writes a fresh snapshot after EVERY
-        # state-changing fill/mark — there are never durable events newer
-        # than the newest persisted snapshot.
         if canon is None:
+            # Canonical ledger unreadable: recovery is the only option.
+            # recover() restores from the Postgres-backed snapshot repo,
+            # replays durable events written after the snapshot, and falls
+            # back to fill-history rebuild, then fresh init.
             _service._snapshot_repo = _snap_repo
             _run(_service.recover())
             _startup_error = None
@@ -195,6 +206,44 @@ def startup(force: bool = False) -> bool:
                 "(canonical ledger unavailable)")
             return True
 
+        # ── Preferred path: recover from a valid persisted snapshot ──────
+        snap = None
+        try:
+            snap = _run(_snap_repo.get_latest_valid(
+                _service.config.portfolio_id))
+        except Exception as exc:
+            # Corrupt/unreadable snapshot store — fall back to ledger seed.
+            logger.warning(
+                "persisted snapshot unavailable (%s) — seeding from "
+                "canonical ledger", exc)
+
+        if snap is not None:
+            try:
+                _service._snapshot_repo = _snap_repo
+                _run(_service.recover(snapshot=snap))
+                report = _run(_service.reconcile(
+                    _broker_like_snapshot(canon), dry_run=True))
+                if report.critical_count == 0:
+                    persist_snapshot_if_changed()
+                    _startup_error = None
+                    logger.info(
+                        "portfolio_bridge started via snapshot recovery "
+                        "(v=%d, reconciled clean against canonical ledger)",
+                        snap.version)
+                    return True
+                logger.warning(
+                    "recovered snapshot disagrees with canonical ledger "
+                    "(%d critical discrepancies) — discarding recovered "
+                    "state and re-seeding", report.critical_count)
+            except Exception as exc:
+                logger.warning(
+                    "snapshot recovery failed (%s) — seeding from "
+                    "canonical ledger", exc)
+            # Recovered state is stale/diverged: rebuild a fresh service so
+            # no recovered positions leak into the ledger-seeded book.
+            _service, _snap_repo = _build_service()
+
+        # ── Fallback: seed from the canonical phase20 ledger ─────────────
         _run(_service.initialise(Decimal(str(canon.get("initial_capital")
                                              or _service.config.initial_capital))))
 
