@@ -73,31 +73,63 @@ def _holding_minutes(buy: dict, sell: dict) -> float:
 # Aggregate module enrichment (current-session snapshots)
 # ---------------------------------------------------------------------------
 
+# Hard deadline for aggregate snapshot helpers.  The underlying dashboard
+# modules can trigger live yfinance network calls that hang indefinitely;
+# analytics collection must never block on them.
+_SNAPSHOT_TIMEOUT_SECONDS = 2.0
+
+
+def _call_with_timeout(fn, timeout: float = _SNAPSHOT_TIMEOUT_SECONDS):
+    """
+    Run fn() in a daemon worker thread and return its result, or None if it
+    raises or does not complete within `timeout` seconds.
+
+    The worker thread is a daemon, so a hung network call cannot keep the
+    process alive; we simply abandon it and return None.
+    """
+    import threading
+
+    result: list = [None]
+
+    def _worker() -> None:
+        try:
+            result[0] = fn()
+        except Exception:
+            result[0] = None
+
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+    t.join(timeout)
+    if t.is_alive():
+        return None
+    return result[0]
+
+
 def _get_exec_score_snapshot() -> Optional[float]:
-    try:
+    def _fetch():
         from execution_quality.api import get_summary
         s = get_summary()
         return s.get("avg_execution_score")
-    except Exception:
-        return None
+
+    return _call_with_timeout(_fetch)
 
 
 def _get_executive_snapshot() -> Optional[float]:
-    try:
+    def _fetch():
         from executive_dashboard.shared_services import get_executive_snapshot
         snap = get_executive_snapshot()
         return snap.get("executive_score")
-    except Exception:
-        return None
+
+    return _call_with_timeout(_fetch)
 
 
 def _get_portfolio_value() -> Optional[float]:
-    try:
+    def _fetch():
         from portfolio_performance.api import get_summary
         s = get_summary()
         return s.get("total_portfolio_value")
-    except Exception:
-        return None
+
+    return _call_with_timeout(_fetch)
 
 
 # ---------------------------------------------------------------------------

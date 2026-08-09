@@ -159,12 +159,10 @@ class TestStrategyOptimisationIntegration(unittest.TestCase):
     the complete collect_all_trade_records → strategy_optimisation pipeline.
     """
 
-    # Patch targets: _get_exec_score_snapshot and _get_executive_snapshot in
-    # validation_collector import heavy dashboard modules that trigger yfinance
-    # network calls.  We stub them to None — the integration test is scoped to
-    # the DB → FIFO-match → strategy_optimisation pipeline only.
-    _PATCH_EXEC_SCORE  = "paper_trading_validation.validation_collector._get_exec_score_snapshot"
-    _PATCH_EXEC_SNAP   = "paper_trading_validation.validation_collector._get_executive_snapshot"
+    # No stubs needed for _get_exec_score_snapshot / _get_executive_snapshot:
+    # validation_collector wraps them in a 2-second daemon-thread timeout, so
+    # slow yfinance-backed dashboard modules can never hang collection — the
+    # helpers return a real value quickly or None after the deadline.
     _PATCH_PORT_VAL    = "paper_trading_validation.validation_collector._get_portfolio_value"
 
     @classmethod
@@ -189,21 +187,10 @@ class TestStrategyOptimisationIntegration(unittest.TestCase):
             except Exception:
                 pass
 
-    def _with_stubs(self):
-        """Context manager that stubs out slow external snapshot calls."""
-        from unittest.mock import patch
-        return (
-            patch(self._PATCH_EXEC_SCORE, return_value=None),
-            patch(self._PATCH_EXEC_SNAP,  return_value=None),
-            patch(self._PATCH_PORT_VAL,   return_value=500_000.0),
-        )
-
     def _run_with_stubs(self, fn):
-        """Call fn() with all slow-import stubs applied, return result."""
+        """Call fn() with the portfolio-value stub applied, return result."""
         from unittest.mock import patch
-        with patch(self._PATCH_EXEC_SCORE, return_value=None), \
-             patch(self._PATCH_EXEC_SNAP,  return_value=None), \
-             patch(self._PATCH_PORT_VAL,   return_value=500_000.0):
+        with patch(self._PATCH_PORT_VAL, return_value=500_000.0):
             return fn()
 
     # ── convenience wrappers ─────────────────────────────────────────────────
@@ -225,16 +212,15 @@ class TestStrategyOptimisationIntegration(unittest.TestCase):
         return self._run_with_stubs(get_patterns)
 
     # ── collect_all_trade_records smoke ──────────────────────────────────────
-    # Stubs are applied to _get_exec_score_snapshot / _get_executive_snapshot
-    # in validation_collector because those helpers import heavy dashboard
-    # modules that trigger yfinance network calls (can hang indefinitely).
-    # The integration scope here is DB → FIFO-match → TradeRecord, not the
-    # execution_quality or executive_dashboard modules.
+    # test_00 deliberately runs collect_all_trade_records() with NO stubs:
+    # _get_exec_score_snapshot / _get_executive_snapshot are now bounded by a
+    # 2-second daemon-thread timeout inside validation_collector, so heavy
+    # yfinance-backed dashboard modules can no longer hang collection.
 
     def test_00_collect_trade_records_non_empty(self) -> None:
-        """Full DB → FIFO-match → TradeRecord pipeline must yield ≥30 records."""
+        """Full DB → FIFO-match → TradeRecord pipeline must yield ≥30 records (un-stubbed)."""
         from paper_trading_validation.validation_collector import collect_all_trade_records
-        records = self._run_with_stubs(collect_all_trade_records)
+        records = collect_all_trade_records()
         self.assertGreaterEqual(
             len(records), len(self.pairs),
             f"Expected ≥{len(self.pairs)} trade records, got {len(records)}",
