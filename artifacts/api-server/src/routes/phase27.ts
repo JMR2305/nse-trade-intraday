@@ -3,6 +3,7 @@
  *
  * GET /api/explain/symbol/:symbol            — per-symbol WHY bundle (27C)
  * GET /api/strategy-optimization/report      — historical optimization report (27D)
+ * GET /api/operator-analytics/report         — operator analytics report (27E)
  *
  * READ-ONLY · ADVISORY-ONLY. Aggregates canonical stores only; never
  * modifies orders, portfolio, strategies, thresholds or AI state.
@@ -60,6 +61,27 @@ router.get("/strategy-optimization/report", async (_req, res) => {
         .finally(() => { reportInFlight = null; });
     }
     res.json(await reportInFlight);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// Phase 27E: operator analytics — same 30s cache + single-flight pattern.
+let opanCache: { at: number; data: unknown } | null = null;
+let opanInFlight: Promise<unknown> | null = null;
+
+router.get("/operator-analytics/report", async (_req, res) => {
+  try {
+    if (opanCache && Date.now() - opanCache.at < REPORT_TTL_MS) {
+      res.json(opanCache.data);
+      return;
+    }
+    if (!opanInFlight) {
+      opanInFlight = runPython(["operator_analytics_report"])
+        .then((data) => { opanCache = { at: Date.now(), data }; return data; })
+        .finally(() => { opanInFlight = null; });
+    }
+    res.json(await opanInFlight);
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }

@@ -3433,6 +3433,9 @@ def main():
         elif command == "strategy_optimization_report":
             from phase27_strategy_optimization import strategy_optimization_report as _f
             result = _f()
+        elif command == "operator_analytics_report":
+            from phase27_operator_analytics import operator_analytics_report as _f
+            result = _f(args[1] if len(args) > 1 and args[1] else None)
 
         # ── Phase 8.5: Operational Control Centre ─────────────────────────────
         elif command == "ops_summary":

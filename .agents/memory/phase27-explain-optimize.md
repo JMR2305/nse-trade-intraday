@@ -17,3 +17,9 @@ description: Read-only aggregators over canonical stores; the store-shape pitfal
 
 **Why:** honesty rules — INSUFFICIENT_EVIDENCE over extrapolation; factors the pipeline doesn't compute (MACD/VWAP/ATR/news/corp actions) are `evaluated: false`, never fabricated.
 **How to apply:** any future consumer of scan gates, phase24 missed-opps, or the ops journey must use these shapes; curl/inspect real store rows before typing interfaces.
+
+Phase 27E operator analytics additions:
+- Rejection accounting must separate rejected EVENTS from reason-code OCCURRENCES (one RISK_REJECTED can fail several gates); % labelled as share of occurrences, never of events.
+- Every canonical reader returns a source state (`available/error/truncated`); bounded fetches hitting the limit are PARTIAL evidence; distinguish SOURCE_UNAVAILABLE vs VERIFIED_EMPTY — a swallowed exception rendered as "no data" is a lie.
+- `get_replay_sessions()` fabricates a synthetic `demo` session when no DB scan exists — filter `source == "demo"` before treating sessions as evidence.
+- JSX gotcha: `PRECHECK_*/` inside a block comment terminates the comment (`*/`).
