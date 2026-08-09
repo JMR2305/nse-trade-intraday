@@ -464,6 +464,61 @@ class TestPersistenceAndIssues(unittest.TestCase):
         self.assertEqual(len(open_issues), 1)
         self.assertIn("funnel_conservation", open_issues[0]["key"])
 
+    def test_prune_removes_old_rows_keeps_recent_and_latest(self):
+        old_ts = iso(datetime.now(timezone.utc) - timedelta(days=90))
+        # 5 old rows beyond keep_min, plus 2 recent rows
+        for i in range(5):
+            store.append_result("RECOVERY", {
+                "result_id": f"rec-old-{i}", "verdict": "PASS",
+                "generated_at": old_ts})
+        recent = [store.append_result("RECOVERY", {"verdict": "PASS"})
+                  for _ in range(2)]
+        out = store.prune_results(days=30, keep_min=2)
+        self.assertEqual(out["deleted"], 5)
+        rows = store.list_results("RECOVERY", limit=50)
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(store.latest_result("RECOVERY")["result_id"],
+                         recent[-1]["result"]["result_id"])
+
+    def test_prune_keep_min_protects_old_rows(self):
+        old_ts = iso(datetime.now(timezone.utc) - timedelta(days=90))
+        for i in range(3):
+            store.append_result("PERFORMANCE", {
+                "result_id": f"perf-old-{i}", "verdict": "PASS",
+                "generated_at": old_ts})
+        out = store.prune_results(days=30, keep_min=5)
+        self.assertEqual(out["deleted"], 0)
+        self.assertEqual(len(store.list_results("PERFORMANCE", limit=50)), 3)
+        # latest_result still resolves even though all rows are old
+        self.assertIsNotNone(store.latest_result("PERFORMANCE"))
+
+    def test_prune_is_per_area_and_never_raises(self):
+        old_ts = iso(datetime.now(timezone.utc) - timedelta(days=90))
+        store.append_result("QUALITY", {"result_id": "q-old",
+                                        "verdict": "PASS",
+                                        "generated_at": old_ts})
+        store.append_result("RECOVERY", {"verdict": "PASS"})
+        out = store.prune_results(days=30, keep_min=1)
+        self.assertNotIn("error", out)
+        # QUALITY has only one row → protected by keep_min
+        self.assertEqual(len(store.list_results("QUALITY", limit=50)), 1)
+        self.assertEqual(len(store.list_results("RECOVERY", limit=50)), 1)
+
+    def test_persist_run_triggers_on_write_prune(self):
+        old_ts = iso(datetime.now(timezone.utc) - timedelta(days=90))
+        # more old rows than keep_min so the on-write prune has work to do
+        for i in range(store.RETENTION_MIN_KEEP + 3):
+            store.append_result("RECOVERY", {
+                "result_id": f"rec-bulk-{i}", "verdict": "PASS",
+                "generated_at": old_ts})
+        rep = run_recovery_validation(persist=True,
+                                      inputs=live_recovery_inputs())
+        rows = store.list_results("RECOVERY", limit=500)
+        # newest keep_min rows remain (new run + keep_min-1 old); rest pruned
+        self.assertEqual(len(rows), store.RETENTION_MIN_KEEP)
+        self.assertEqual(store.latest_result("RECOVERY")["result_id"],
+                         rep["result_id"])
+
     def test_unknown_area_rejected(self):
         with self.assertRaises(ValueError):
             store.append_result("BOGUS", {"verdict": "PASS"})

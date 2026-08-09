@@ -218,6 +218,7 @@ def run_performance_validation(persist: bool = True,
             import phase26c_store as store
             stored = store.append_result(report["area"], report)
             report["result_id"] = stored.get("result_id")
+            store.prune_results()   # bounded retention; never raises
         except Exception as exc:
             report["persist_error"] = str(exc)[:200]
     return report

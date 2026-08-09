@@ -244,6 +244,78 @@ def append_result(area: str, result: Dict[str, Any]) -> Dict[str, Any]:
     return stored
 
 
+# ── Retention ────────────────────────────────────────────────────────────────
+# Pruning deliberately lives OUTSIDE the append-only contract above:
+# append_result() never truncates. prune_results() is invoked as a
+# separate fail-safe job after each validation run persists (on-write
+# prune), mirroring the pipeline_events 14-day prune pattern.
+#
+# Policy (per area): delete rows older than RETENTION_DAYS, but always
+# keep the newest RETENTION_MIN_KEEP rows per area regardless of age —
+# so latest_result() and recent history are never affected.
+RETENTION_DAYS = 30
+RETENTION_MIN_KEEP = 20
+
+
+def prune_results(days: int = RETENTION_DAYS,
+                  keep_min: int = RETENTION_MIN_KEEP) -> Dict[str, Any]:
+    """Bounded retention for phase26c_results (DB and file fallback).
+    NEVER raises. Returns {"deleted": n, "days": days, "keep_min": k}."""
+    days = max(1, int(days))
+    keep_min = max(1, int(keep_min))
+    try:
+        def in_db(conn):
+            deleted = 0
+            with conn.cursor() as cur:
+                for area in AREAS:
+                    cur.execute(
+                        """
+                        DELETE FROM phase26c_results
+                        WHERE area = %s
+                          AND created_at < NOW() - (%s || ' days')::interval
+                          AND result_id NOT IN (
+                              SELECT result_id FROM phase26c_results
+                              WHERE area = %s
+                              ORDER BY created_at DESC LIMIT %s
+                          )
+                        """,
+                        (area, days, area, keep_min),
+                    )
+                    deleted += cur.rowcount
+            return {"deleted": deleted, "days": days, "keep_min": keep_min}
+
+        def in_file():
+            from datetime import timedelta
+            cutoff = (datetime.now(timezone.utc)
+                      - timedelta(days=days)).isoformat()
+            deleted = 0
+            with _file_lock(RESULTS_FILE):
+                rows = _read_json(RESULTS_FILE, [])
+                kept: List[Dict[str, Any]] = []
+                for area in AREAS:
+                    area_rows = sorted(
+                        (r for r in rows if r.get("area") == area),
+                        key=lambda r: str(r.get("created_at") or ""),
+                        reverse=True)
+                    for i, r in enumerate(area_rows):
+                        if i < keep_min or \
+                                str(r.get("created_at") or "") >= cutoff:
+                            kept.append(r)
+                        else:
+                            deleted += 1
+                # preserve rows with unknown areas untouched
+                kept.extend(r for r in rows if r.get("area") not in AREAS)
+                if deleted:
+                    kept.sort(key=lambda r: str(r.get("created_at") or ""))
+                    _write_json(RESULTS_FILE, kept)
+            return {"deleted": deleted, "days": days, "keep_min": keep_min}
+
+        return _with_db(in_db, in_file)
+    except Exception as exc:
+        return {"deleted": 0, "days": days, "keep_min": keep_min,
+                "error": str(exc)[:200]}
+
+
 def list_results(area: str, limit: int = 50) -> List[Dict[str, Any]]:
     """Newest-first result summaries for one area."""
     area = str(area).upper()
