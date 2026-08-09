@@ -355,3 +355,10 @@ uri = "file://PHASE26A_SUMMARY.md"
 type = "text"
 title = "Phase 26A Summary"
 description = "Summary of the Portfolio Pre-Check visibility implementation: events, pipeline stage, replay, honest counts, and test verification."
+
+[[outputs]]
+id = "cGbbzgxaytK5mo0fmZw8M"
+uri = "file://OPEN_TASKS_REPORT.md"
+type = "text"
+title = "Open Task Report (complete)"
+description = "All 163 open project tasks as of Aug 9, 2026: 1 in progress, 4 waiting, 158 drafts — with dependencies and last-updated dates."
