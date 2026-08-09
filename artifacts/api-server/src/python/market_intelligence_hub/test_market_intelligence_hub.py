@@ -347,6 +347,35 @@ class TestBreadthAnalyser(unittest.TestCase):
         r = analyse_breadth(_scan_set(), _bull_regime())
         self.assertGreater(len(r["sector_participation"]), 0)
 
+    def test_strong_buy_with_space_counts_as_advancer(self):
+        # Canonical scan snapshots emit "STRONG BUY" (space-separated).
+        from market_intelligence_hub.breadth_analyser import analyse_breadth
+        items = [_make_item(final_action=a) for a in ["STRONG BUY", "BUY", "IGNORE"]]
+        r = analyse_breadth(items, _bull_regime())
+        self.assertEqual(r["advancers"], 2)
+        self.assertEqual(r["decliners"], 1)
+
+    def test_volume_breadth_from_volume_ratio(self):
+        from market_intelligence_hub.breadth_analyser import analyse_breadth
+        items = [_make_item(final_action="BUY") for _ in range(4)]
+        items[0]["volume_ratio"] = 1.5
+        items[1]["volume_ratio"] = 1.0
+        items[2]["volume_ratio"] = 0.6
+        items[3]["volume_ratio"] = None  # no volume data → excluded
+        r = analyse_breadth(items, _bull_regime())
+        self.assertEqual(r["volume_advancers"], 2)
+        self.assertEqual(r["volume_decliners"], 1)
+        self.assertEqual(r["volume_symbols"], 3)
+        self.assertAlmostEqual(r["volume_breadth"], 66.67, places=2)
+
+    def test_volume_breadth_none_without_volume_data(self):
+        from market_intelligence_hub.breadth_analyser import analyse_breadth
+        items = [_make_item(final_action="BUY")]
+        items[0].pop("volume_ratio", None)
+        r = analyse_breadth(items, _bull_regime())
+        self.assertIsNone(r["volume_breadth"])
+        self.assertEqual(r["volume_symbols"], 0)
+
     def test_breadth_label_assigned(self):
         from market_intelligence_hub.breadth_analyser import analyse_breadth
         r = analyse_breadth(_scan_set(), _bull_regime())

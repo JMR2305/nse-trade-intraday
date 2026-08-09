@@ -628,6 +628,7 @@ interface BreadthResp {
   advancers?: number; decliners?: number; neutral?: number; total?: number;
   advance_decline_ratio?: number;
   breadth_strength?: number; breadth_momentum?: string; breadth_label?: string;
+  volume_breadth?: number | null; volume_advancers?: number; volume_decliners?: number; volume_symbols?: number;
   sector_participation?: { sector: string; advancing: number; total: number; participation_rate: number; participating: boolean }[];
   participating_sectors?: number; total_sectors_scanned?: number;
   regime?: string;
@@ -759,8 +760,12 @@ export function MarketBreadthWidget() {
         <div>
           <p className="text-muted-foreground text-[10px]">Volume Breadth</p>
           <p className="font-semibold">
-            {b?.breadth_strength != null && biEnabled ? `${b.breadth_strength.toFixed(0)}%` : <NoSource />}
-            {b?.breadth_label && biEnabled && <span className="text-[9px] text-muted-foreground ml-1">{b.breadth_label}</span>}
+            {b?.volume_breadth != null && biEnabled
+              ? `${b.volume_breadth.toFixed(0)}%`
+              : <NoSource />}
+            {b?.volume_breadth != null && biEnabled && b?.volume_advancers != null && b?.volume_decliners != null && (
+              <span className="text-[9px] text-muted-foreground ml-1">{b.volume_advancers}↑/{b.volume_decliners}↓</span>
+            )}
           </p>
         </div>
         <div>

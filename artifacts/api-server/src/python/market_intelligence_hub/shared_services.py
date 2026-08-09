@@ -263,7 +263,12 @@ def _get_scan_items() -> list:
         from scan_state_store import load_latest_snapshot
         snap = load_latest_snapshot()
         if snap:
-            items = snap.get("items") or snap.get("watchlist") or []
+            items = (
+                snap.get("items")
+                or snap.get("recommendations")
+                or snap.get("watchlist")
+                or []
+            )
             if items:
                 return items
     except Exception:
@@ -280,6 +285,7 @@ def _get_scan_items() -> list:
                     data = json.load(f)
                 items = (
                     data.get("items") or
+                    data.get("recommendations") or
                     data.get("watchlist") or
                     data.get("scan_items") or []
                 )
