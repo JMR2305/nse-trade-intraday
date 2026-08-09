@@ -767,6 +767,35 @@ def kv_claim_once(key: str) -> bool:
     return bool(_with_db(to_db, to_file))
 
 
+def kv_release(key: str) -> None:
+    """Release a kv_claim_once claim (compensation when the work guarded by
+    the claim failed after claiming — e.g. a persist error). The next
+    kv_claim_once for the key succeeds again."""
+    def to_db(conn):
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS phase20_kv (
+                    key TEXT PRIMARY KEY,
+                    value JSONB,
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
+                """
+            )
+            cur.execute("DELETE FROM phase20_kv WHERE key = %s", (key,))
+        conn.commit()
+
+    def to_file():
+        path = os.path.join(_DIR, "phase20_kv.json")
+        with _kv_file_lock():
+            data = _read_json(path, {})
+            if key in data:
+                del data[key]
+                _write_json(path, data)
+
+    _with_db(to_db, to_file)
+
+
 def kv_get(key: str, default: Any = None) -> Any:
     def from_db(conn):
         with conn.cursor() as cur:

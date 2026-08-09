@@ -33,7 +33,7 @@ ADVISORY = ("Phase 23.9 export/acceptance — read-only over canonical "
 _DIR = os.path.dirname(os.path.abspath(__file__))
 
 REPORTS = ("certification", "validation_logs", "simulation",
-           "comparison", "acceptance")
+           "comparison", "acceptance", "readiness")
 FORMATS = ("json", "csv", "md", "pdf")
 
 _CONTENT_TYPES = {
@@ -290,6 +290,9 @@ def _collect(report: str, params: Dict[str, Any]) -> Dict[str, Any]:
         return sim.compare_sim_runs(sim_ids)
     if report == "acceptance":
         return acceptance_report()
+    if report == "readiness":
+        from phase26_reports import build_readiness_report
+        return build_readiness_report()
     return {"ok": False, "error": f"Unknown report '{report}' — use one of "
                                   f"{', '.join(REPORTS)}"}
 
@@ -363,6 +366,39 @@ def _tables(report: str, data: Dict[str, Any]) -> List[Dict[str, Any]]:
                       else f"ERROR: {r.get('error')}"]
                      for r in rows],
         }]
+    if report == "readiness":
+        fd = data.get("five_day_acceptance") or {}
+        day_rows = [[d.get("date"), d.get("status"), d.get("verdict"),
+                     d.get("critical_open_issues"),
+                     ", ".join(d.get("failed_sections") or []) or None,
+                     d.get("detail")]
+                    for d in (fd.get("days") or [])]
+        cert = data.get("certification") or {}
+        perf = data.get("performance") or {}
+        issues = data.get("open_issues") or {}
+        summary_rows = [
+            ["readiness_verdict", data.get("verdict")],
+            ["five_day_acceptance", fd.get("verdict")],
+            ["certification",
+             f"{cert.get('verdict')} ({cert.get('certification_pct')}%)"
+             if cert else "NONE"],
+            ["performance_validation", perf.get("verdict") if perf
+             else "NONE"],
+            ["open_issues_total", issues.get("total")],
+            ["open_issues_critical", issues.get("critical")],
+            ["blockers", "; ".join(data.get("blockers") or []) or None],
+            ["pending", "; ".join(data.get("pending") or []) or None],
+        ]
+        return [
+            {"title": (f"Final Production Readiness — "
+                       f"{data.get('verdict')}"),
+             "headers": ["item", "value"], "rows": summary_rows},
+            {"title": "Five-Day Acceptance Window",
+             "headers": ["date", "status", "report_verdict",
+                         "critical_open_issues", "failed_sections",
+                         "detail"],
+             "rows": day_rows},
+        ]
     if report == "acceptance":
         sys_rows = [[s.get("system"), s.get("module"), s.get("verdict"),
                      sum(1 for c in s.get("checks", [])
@@ -409,6 +445,9 @@ def _render_md(report: str, data: Dict[str, Any],
         blockers = data.get("blockers") or []
         if blockers:
             lines += ["**Blockers:**"] + [f"- {b}" for b in blockers] + [""]
+    if report == "readiness":
+        lines += [f"**Verdict: {data.get('verdict')}**", "",
+                  data.get("policy") or "", ""]
     if report == "acceptance":
         lines += [f"**Verdict: {data.get('verdict')}** — score "
                   f"{data.get('score_pct')}% "

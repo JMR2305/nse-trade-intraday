@@ -61,6 +61,7 @@ import replayRouter                 from "./replay";
 import e2eValidationRouter          from "./e2e-validation";
 import liveValidationRouter         from "./live-validation";
 import phase26cValidationRouter     from "./phase26c-validation";
+import phase26dReportsRouter        from "./phase26d-reports";
 import validationV2Router           from "./validation-v2";
 import phase24Router from "./phase24";
 
@@ -128,6 +129,7 @@ router.use(replayRouter);
 router.use(e2eValidationRouter);
 router.use(liveValidationRouter);
 router.use(phase26cValidationRouter);
+router.use(phase26dReportsRouter);
 router.use(validationV2Router);
 router.use(tradingRouter);
 router.use(downloadRouter);

@@ -78,7 +78,7 @@ const MAX_ID_LEN = 64;
 const cleanId = (v: unknown): string => String(v ?? "").slice(0, MAX_ID_LEN);
 
 const REPORTS = new Set([
-  "certification", "validation_logs", "simulation", "comparison",
+  "certification", "validation_logs", "simulation", "comparison", "readiness",
   "acceptance",
 ]);
 const FORMATS = new Set(["json", "csv", "md", "pdf"]);

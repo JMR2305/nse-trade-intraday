@@ -244,6 +244,7 @@ export const AGENTS: Agent[] = [
       { href: "/kite-connect",       label: "Kite Connect",              icon: Radio,      tags: ["kite", "zerodha"] },
       { href: "/settings",           label: "Settings",                  icon: Settings2,  tags: ["config", "settings"] },
       { href: "/validation-dashboard", label: "Validation Dashboard",    icon: ShieldCheck,tags: ["validation", "certification", "acceptance", "export", "ready", "phase23.9"] },
+      { href: "/trading-quality",    label: "Trading Quality",           icon: Gauge,      tags: ["quality", "funnel", "daily report", "five day", "acceptance", "readiness", "phase26"] },
       { href: "/system-validation",  label: "System Validation",         icon: ShieldCheck,tags: ["validate", "system"] },
       { href: "/validation",         label: "Paper Trading Validation",  icon: ShieldCheck,tags: ["paper", "validate"] },
       { href: "/phase4a-session",    label: "Phase 4A Operations",       icon: Activity,   tags: ["phase4"] },

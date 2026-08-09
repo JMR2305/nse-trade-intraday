@@ -2470,6 +2470,31 @@ def main():
                           str(p.get("area") or "").upper(),
                           limit=int(p.get("limit") or 50))}
 
+        # ── Phase 26D: Reports & Readiness Dashboard ──────────────────────
+        elif command == "p26d_daily_run":
+            from phase26_reports import run_daily_report
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = run_daily_report(persist=True,
+                                      report_date=p.get("report_date"))
+        elif command == "p26d_daily_latest":
+            from phase26_reports import latest_daily_report
+            latest = latest_daily_report()
+            result = ({"ok": True, "report": latest} if latest else
+                      {"ok": False,
+                       "error": "no daily validation reports recorded yet"})
+        elif command == "p26d_daily_history":
+            from phase26_reports import list_daily_reports
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = {"ok": True,
+                      "reports": list_daily_reports(
+                          limit=int(p.get("limit") or 30))}
+        elif command == "p26d_five_day":
+            from phase26_reports import build_five_day_acceptance
+            result = build_five_day_acceptance()
+        elif command == "p26d_readiness":
+            from phase26_reports import build_readiness_report
+            result = build_readiness_report()
+
         # ── Phase 23.9: Export Engine + Final Acceptance ──────────────────
         elif command == "p239_export":
             import phase239_reports as p239

@@ -314,6 +314,16 @@ def run_tick() -> Dict[str, Any]:
     if mstate != "OPEN":
         report = _maybe_generate_session_report(mstate)
         eod_recon = _maybe_run_eod_reconciliation() if mstate == "CLOSED" else None
+        # Phase 26D: daily validation report, once per IST trading day
+        # post-close (KV claim taken only right before persisting, so a
+        # build failure retries next tick). Never raises.
+        p26d_daily = None
+        if mstate == "CLOSED":
+            try:
+                from phase26_reports import maybe_generate_daily_report
+                p26d_daily = maybe_generate_daily_report(mstate)
+            except Exception as exc:
+                p26d_daily = {"generated": False, "error": str(exc)[:200]}
         # Phase 24: KV-guarded daily learning run (advisory only, never raises)
         p24_learning = None
         if mstate == "CLOSED":
@@ -338,6 +348,8 @@ def run_tick() -> Dict[str, Any]:
             out["eod_reconciliation"] = eod_recon
         if p24_learning is not None:
             out["phase24_learning"] = p24_learning
+        if p26d_daily is not None:
+            out["phase26d_daily_report"] = p26d_daily
         return out
 
     # Coverage watchdog: alert operators automatically (dedup per session)
