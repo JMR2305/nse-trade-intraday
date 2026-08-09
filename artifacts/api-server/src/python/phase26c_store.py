@@ -4,9 +4,11 @@ performance, and trading-quality validation areas.
 
 One table, `phase26c_results`, keyed by result_id with an `area` column
 (RECOVERY | PERFORMANCE | QUALITY). Results are append-only — a run is never
-overwritten. With DATABASE_URL Postgres is authoritative; without it a
-flock-serialized JSON file fallback is used (redirectable in tests via the
-module-level RESULTS_FILE).
+overwritten or re-evaluated — but history is BOUNDED: after each append,
+rows older than RETENTION_DAYS are pruned (always keeping the newest
+KEEP_MIN_PER_AREA rows per area). With DATABASE_URL Postgres is
+authoritative; without it a flock-serialized JSON file fallback is used
+(redirectable in tests via the module-level RESULTS_FILE).
 
 PAPER TRADING / RESEARCH ONLY.
 """
@@ -105,6 +107,91 @@ def _file_lock(path: str):
             os.close(fd)
 
 
+# ── Retention ────────────────────────────────────────────────────────────────
+# History must stay bounded under continuous operation: results older than
+# RETENTION_DAYS are pruned after each append, but the newest KEEP_MIN_PER_AREA
+# rows per area are always kept so history survives quiet periods (weekends,
+# holidays, disabled schedulers) and latest_result() never goes empty.
+
+RETENTION_DAYS = 30
+KEEP_MIN_PER_AREA = 20
+_FALLBACK_MAX_PER_AREA = 200  # hard cap for the local JSON fallback
+
+
+def prune_results(days: int = RETENTION_DAYS,
+                  keep_min: int = KEEP_MIN_PER_AREA) -> Dict[str, Any]:
+    """Delete results older than `days`, always keeping the newest `keep_min`
+    rows per area. Fail-safe: NEVER raises (called after each append)."""
+    try:
+        days = max(1, int(days))
+        keep_min = max(0, int(keep_min))
+
+        def in_db(conn):
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    DELETE FROM phase26c_results
+                    WHERE created_at < NOW() - (%s || ' days')::interval
+                      AND result_id NOT IN (
+                        SELECT result_id FROM (
+                            SELECT result_id,
+                                   ROW_NUMBER() OVER (
+                                       PARTITION BY area
+                                       ORDER BY created_at DESC
+                                   ) AS rn
+                            FROM phase26c_results
+                        ) ranked
+                        WHERE rn <= %s
+                      )
+                    """,
+                    (days, keep_min),
+                )
+                deleted = cur.rowcount
+            return {"deleted": deleted, "days": days, "keep_min": keep_min}
+
+        def in_file():
+            deleted = 0
+            with _file_lock(RESULTS_FILE):
+                rows = _read_json(RESULTS_FILE, [])
+                kept: List[Dict[str, Any]] = []
+                by_area: Dict[str, List[Dict[str, Any]]] = {}
+                for r in rows:
+                    by_area.setdefault(str(r.get("area")), []).append(r)
+                cutoff = datetime.now(timezone.utc).timestamp() - days * 86400
+                for area_rows in by_area.values():
+                    area_rows.sort(key=lambda r: str(r.get("created_at") or ""),
+                                   reverse=True)
+                    for idx, r in enumerate(area_rows):
+                        if idx < keep_min or (
+                            idx < _FALLBACK_MAX_PER_AREA
+                            and _created_ts(r) >= cutoff
+                        ):
+                            kept.append(r)
+                        else:
+                            deleted += 1
+                if deleted:
+                    _write_json(RESULTS_FILE, kept)
+            return {"deleted": deleted, "days": days, "keep_min": keep_min,
+                    "fallback": True}
+
+        return _with_db(in_db, in_file)
+    except Exception:
+        return {"deleted": 0, "days": days, "error": True}
+
+
+def _created_ts(record: Dict[str, Any]) -> float:
+    try:
+        raw = str(record.get("created_at") or "")
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.timestamp()
+    except Exception:
+        # Unparseable timestamp: treat as fresh so we never delete a row we
+        # can't age-judge (append-only bias toward keeping evidence).
+        return datetime.now(timezone.utc).timestamp()
+
+
 def new_result_id(area: str) -> str:
     return f"{area.lower()}-{uuid.uuid4().hex[:12]}"
 
@@ -147,10 +234,14 @@ def append_result(area: str, result: Dict[str, Any]) -> Dict[str, Any]:
             if any(r.get("result_id") == result_id for r in rows):
                 return record
             rows.append(record)
-            _write_json(RESULTS_FILE, rows)   # append-only: never truncate
+            _write_json(RESULTS_FILE, rows)   # never overwrites existing runs
         return record
 
-    return _with_db(in_db, in_file)
+    stored = _with_db(in_db, in_file)
+    # Retention: bound history after each write; fail-safe, never affects
+    # the append result.
+    prune_results()
+    return stored
 
 
 def list_results(area: str, limit: int = 50) -> List[Dict[str, Any]]:

@@ -471,3 +471,71 @@ class TestPersistenceAndIssues(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPhase26cRetention(unittest.TestCase):
+    """Task: bound phase26c history — prune by age with a keep-min floor."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self._old_results = store.RESULTS_FILE
+        self._old_db = os.environ.pop("DATABASE_URL", None)
+        store.RESULTS_FILE = os.path.join(self.tmp.name, "results.json")
+
+    def tearDown(self):
+        store.RESULTS_FILE = self._old_results
+        if self._old_db is not None:
+            os.environ["DATABASE_URL"] = self._old_db
+        self.tmp.cleanup()
+
+    @staticmethod
+    def _old_iso(days):
+        from datetime import datetime, timedelta, timezone
+        return (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+
+    def _seed(self, area, n, age_days):
+        for i in range(n):
+            store.append_result(area, {
+                "verdict": "PASS",
+                "generated_at": self._old_iso(age_days),
+            })
+
+    def test_old_rows_pruned_beyond_keep_min(self):
+        self._seed("QUALITY", store.KEEP_MIN_PER_AREA + 5, age_days=90)
+        rows = store.list_results("QUALITY", limit=500)
+        self.assertEqual(len(rows), store.KEEP_MIN_PER_AREA)
+
+    def test_recent_rows_never_pruned(self):
+        self._seed("RECOVERY", 30, age_days=1)
+        rows = store.list_results("RECOVERY", limit=500)
+        self.assertEqual(len(rows), 30)
+
+    def test_keep_min_floor_survives_quiet_periods(self):
+        # Even when EVERYTHING is old, the newest keep_min rows remain so
+        # latest_result() never goes empty after a long weekend/holiday.
+        self._seed("PERFORMANCE", 10, age_days=365)
+        store.prune_results()
+        self.assertEqual(len(store.list_results("PERFORMANCE", limit=500)), 10)
+        self.assertIsNotNone(store.latest_result("PERFORMANCE"))
+
+    def test_prune_is_per_area(self):
+        self._seed("QUALITY", store.KEEP_MIN_PER_AREA + 3, age_days=90)
+        self._seed("RECOVERY", 5, age_days=1)
+        self.assertEqual(
+            len(store.list_results("QUALITY", limit=500)),
+            store.KEEP_MIN_PER_AREA,
+        )
+        self.assertEqual(len(store.list_results("RECOVERY", limit=500)), 5)
+
+    def test_prune_never_raises(self):
+        # Corrupt file: prune must be fail-safe.
+        with open(store.RESULTS_FILE, "w") as f:
+            f.write("{corrupt")
+        out = store.prune_results()
+        self.assertIsInstance(out, dict)
+
+    def test_fallback_hard_cap(self):
+        self._seed("QUALITY", store._FALLBACK_MAX_PER_AREA + 10, age_days=40)
+        rows = store.list_results("QUALITY", limit=500)
+        self.assertLessEqual(len(rows), store._FALLBACK_MAX_PER_AREA)
+
