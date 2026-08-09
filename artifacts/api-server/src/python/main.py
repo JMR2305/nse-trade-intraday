@@ -2445,6 +2445,31 @@ def main():
                 str(p.get("category") or ""), str(p.get("key") or ""))
             result = {"ok": True, "resolved": bool(changed)}
 
+        # ── Phase 26C: Recovery, Performance & Quality Validation ─────────
+        elif command == "recovery_validation_run":
+            from phase26_recovery import run_recovery_validation
+            result = run_recovery_validation(persist=True)
+        elif command == "performance_validation_run":
+            from phase26_performance import run_performance_validation
+            result = run_performance_validation(persist=True)
+        elif command == "trading_quality_run":
+            from phase26_quality import run_quality_validation
+            result = run_quality_validation(persist=True)
+        elif command == "phase26c_latest":
+            import phase26c_store
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            area = str(p.get("area") or "").upper()
+            latest = phase26c_store.latest_result(area)
+            result = ({"ok": True, "result": latest} if latest else
+                      {"ok": False, "error": f"no {area} runs recorded yet"})
+        elif command == "phase26c_history":
+            import phase26c_store
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = {"ok": True,
+                      "runs": phase26c_store.list_results(
+                          str(p.get("area") or "").upper(),
+                          limit=int(p.get("limit") or 50))}
+
         # ── Phase 23.9: Export Engine + Final Acceptance ──────────────────
         elif command == "p239_export":
             import phase239_reports as p239
