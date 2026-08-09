@@ -24,6 +24,19 @@ import {
   RotateCcw,
   LineChart,
 } from "lucide-react";
+import {
+  ResponsiveContainer,
+  LineChart as ReLineChart,
+  Line,
+  BarChart as ReBarChart,
+  Bar,
+  Cell,
+  XAxis,
+  YAxis,
+  Tooltip as ReTooltip,
+  ReferenceLine,
+  CartesianGrid,
+} from "recharts";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -86,6 +99,10 @@ interface PortfolioSnapshot {
   limits_from_config?: boolean;
   sector_exposures?: SectorExposure[];
   exposure_warnings?: ExposureWarning[];
+  /** Equity curve points from paper trader pnl_history */
+  pnl_history?: Array<{ timestamp: string; value: number }>;
+  /** Realised P&L per session (date, pnl, trades) */
+  daily_pnl?: Array<{ date: string; pnl: number; trades: number }>;
 }
 
 interface PortfolioHealth {
@@ -379,6 +396,155 @@ function Sparkline({
       <path d={areaPath} fill={stroke} fillOpacity="0.12" />
       <path d={linePath} fill="none" stroke={stroke} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
+  );
+}
+
+// ── Equity Curve & Daily P&L charts (Task 24) ────────────────────────────────
+
+const timeLabel = (ts: string) => {
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return ts;
+  return d.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+function EquityCurveChart({ history }: { history: Array<{ timestamp: string; value: number }> }) {
+  const data = history.map((p) => ({
+    ts: p.timestamp,
+    label: timeLabel(p.timestamp),
+    value: Number(p.value ?? 0),
+  }));
+  const rising = data.length >= 2 && data[data.length - 1].value >= data[0].value;
+  const stroke = rising ? "#4ade80" : "#f87171";
+  return (
+    <Card className="bg-card/50 border-border/50" data-testid="section-equity-curve">
+      <CardHeader className="pb-2 pt-4 px-4">
+        <CardTitle className="text-sm font-mono uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+          <LineChart className="h-3.5 w-3.5" />
+          Equity Curve
+          <span className="ml-auto text-[10px] font-normal normal-case tracking-normal">
+            {data.length} snapshot{data.length !== 1 ? "s" : ""}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-4 pt-0">
+        {data.length < 2 ? (
+          <div className="h-48 flex items-center justify-center text-sm text-muted-foreground font-mono" data-testid="empty-equity-curve">
+            NOT ENOUGH DATA YET — equity points are recorded on each paper trade
+          </div>
+        ) : (
+          <div className="h-48" data-testid="chart-equity-curve">
+            <ResponsiveContainer width="100%" height="100%">
+              <ReLineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.15)" />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 10, fill: "#94a3b8" }}
+                  tickLine={false}
+                  axisLine={{ stroke: "rgba(148,163,184,0.25)" }}
+                  minTickGap={40}
+                />
+                <YAxis
+                  tick={{ fontSize: 10, fill: "#94a3b8" }}
+                  tickLine={false}
+                  axisLine={false}
+                  width={80}
+                  domain={["auto", "auto"]}
+                  tickFormatter={(v: number) => `₹${Number(v).toLocaleString("en-IN")}`}
+                />
+                <ReTooltip
+                  contentStyle={{
+                    background: "#0f172a",
+                    border: "1px solid rgba(148,163,184,0.3)",
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontFamily: "monospace",
+                  }}
+                  formatter={(v) => [rupee(Number(v)), "Equity"]}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="value"
+                  stroke={stroke}
+                  strokeWidth={2}
+                  dot={false}
+                  isAnimationActive={false}
+                />
+              </ReLineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function DailyPnlChart({ daily }: { daily: Array<{ date: string; pnl: number; trades: number }> }) {
+  const data = daily.map((d) => ({ ...d, pnl: Number(d.pnl ?? 0) }));
+  return (
+    <Card className="bg-card/50 border-border/50" data-testid="section-daily-pnl">
+      <CardHeader className="pb-2 pt-4 px-4">
+        <CardTitle className="text-sm font-mono uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+          <BarChart2 className="h-3.5 w-3.5" />
+          Daily Realised P&amp;L
+          <span className="ml-auto text-[10px] font-normal normal-case tracking-normal">
+            {data.length} session{data.length !== 1 ? "s" : ""}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-4 pt-0">
+        {data.length === 0 ? (
+          <div className="h-48 flex items-center justify-center text-sm text-muted-foreground font-mono" data-testid="empty-daily-pnl">
+            NO CLOSED TRADES YET — realised P&amp;L appears after positions close
+          </div>
+        ) : (
+          <div className="h-48" data-testid="chart-daily-pnl">
+            <ResponsiveContainer width="100%" height="100%">
+              <ReBarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.15)" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 10, fill: "#94a3b8" }}
+                  tickLine={false}
+                  axisLine={{ stroke: "rgba(148,163,184,0.25)" }}
+                  minTickGap={20}
+                />
+                <YAxis
+                  tick={{ fontSize: 10, fill: "#94a3b8" }}
+                  tickLine={false}
+                  axisLine={false}
+                  width={80}
+                  tickFormatter={(v: number) => `₹${Number(v).toLocaleString("en-IN")}`}
+                />
+                <ReTooltip
+                  contentStyle={{
+                    background: "#0f172a",
+                    border: "1px solid rgba(148,163,184,0.3)",
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontFamily: "monospace",
+                  }}
+                  formatter={(v, _name, entry) => [
+                    `${rupee(Number(v))} (${(entry?.payload as { trades?: number })?.trades ?? 0} trade${((entry?.payload as { trades?: number })?.trades ?? 0) !== 1 ? "s" : ""})`,
+                    "Realised P&L",
+                  ]}
+                />
+                <ReferenceLine y={0} stroke="rgba(148,163,184,0.4)" />
+                <Bar dataKey="pnl" isAnimationActive={false} radius={[2, 2, 0, 0]}>
+                  {data.map((d) => (
+                    <Cell key={d.date} fill={d.pnl >= 0 ? "#4ade80" : "#f87171"} />
+                  ))}
+                </Bar>
+              </ReBarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1481,6 +1647,14 @@ export default function PortfolioLive() {
           </CardContent>
         </Card>
       )}
+
+      {/* ── Equity curve + Daily P&L history (Task 24) ───────────────────
+           Driven by the same snapshotQuery, so both charts refresh on the
+           same 15-second cadence as the rest of the panel. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <EquityCurveChart history={snap?.pnl_history ?? []} />
+        <DailyPnlChart daily={snap?.daily_pnl ?? []} />
+      </div>
 
       {/* ── Performance Snapshot (Phase 5D.2 inline — hidden when disabled) ─── */}
       <PerformanceSnapshot />

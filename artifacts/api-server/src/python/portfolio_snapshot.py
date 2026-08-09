@@ -229,9 +229,11 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
             total_invested = sum(p["market_value"] for p in open_positions)
             unrealised_pnl = sum(p["unrealised_pnl"] for p in open_positions)
 
-    # Realised P&L: sum of completed trades recorded today
+    # Realised P&L: sum of completed trades recorded today, plus a per-session
+    # daily realised P&L history for the dashboard bar chart.
     realised_pnl_today = 0.0
     closed_count_today = 0
+    daily_pnl_map: Dict[str, Dict[str, Any]] = {}
     try:
         from paper_trader import get_trades as _get_trades
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -243,6 +245,27 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
                 closed_count_today += 1
     except Exception:
         pass
+
+    # Daily P&L history: ALL sessions (current + archived trades), bucketed by
+    # the IST trading day. Only SELL/close records carry realised P&L.
+    try:
+        from paper_trader import get_all_trades as _get_all_trades, _trade_ist_date
+        for t in _get_all_trades() or []:
+            if str(t.get("action", "SELL")).upper() == "BUY":
+                continue
+            day = _trade_ist_date(t)
+            if not day:
+                continue
+            bucket = daily_pnl_map.setdefault(day, {"pnl": 0.0, "trades": 0})
+            bucket["pnl"] += _safe_float(t.get("pnl", t.get("realised_pnl", 0)))
+            bucket["trades"] += 1
+    except Exception:
+        pass
+
+    daily_pnl = [
+        {"date": day, "pnl": round(v["pnl"], 2), "trades": v["trades"]}
+        for day, v in sorted(daily_pnl_map.items())
+    ]
 
     # Also check phase22 evidence for daily P&L
     if realised_pnl_today == 0.0:
@@ -260,7 +283,7 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
         initial_capital = _INITIAL_CAPITAL_local
 
     # Peak equity: use the maximum from pnl_history if available
-    pnl_history = state.get("pnl_history", [])
+    pnl_history = [p for p in (state.get("pnl_history", []) or []) if isinstance(p, dict)]
     if pnl_history:
         peak_equity = max(
             (_safe_float(p.get("value", p.get("equity", equity))) for p in pnl_history),
@@ -374,6 +397,18 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
         "limits_from_config": limits_from_config,
         "sector_exposures": sector_exposures,
         "exposure_warnings": exposure_warnings,
+        # ── Performance history (Task 24) ──────────────────────────────
+        # Equity curve points from paper_trader pnl_history (normalised to
+        # {timestamp, value}); daily realised P&L per session for bar chart.
+        "pnl_history": [
+            {
+                "timestamp": str(p.get("timestamp", "")),
+                "value": _safe_float(p.get("value", p.get("equity", 0.0))),
+            }
+            for p in pnl_history
+            if isinstance(p, dict) and p.get("timestamp")
+        ],
+        "daily_pnl": daily_pnl,
     }
 
 
