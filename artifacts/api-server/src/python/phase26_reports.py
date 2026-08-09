@@ -654,10 +654,16 @@ def _gen_error_key(day: str) -> str:
     return f"p26d_daily_report_error:{day}"
 
 
+# Error keys older than this are deleted on write so the KV store never
+# accumulates one row per failed day forever.
+GEN_ERROR_RETENTION_DAYS = 7
+
+
 def _record_generation_error(day: str, error: Optional[str]) -> None:
     """Persist (or clear, when error is None) the last automatic-generation
     failure for `day` in the phase20 KV store, so the status endpoint can
-    surface it. Never raises."""
+    surface it. Also prunes error keys older than GEN_ERROR_RETENTION_DAYS.
+    Never raises."""
     try:
         import phase20_store as store
         if error is None:
@@ -665,8 +671,38 @@ def _record_generation_error(day: str, error: Optional[str]) -> None:
         else:
             store.kv_set(_gen_error_key(day),
                          {"error": error, "at": _now_iso()})
+        _prune_gen_error_keys()
     except Exception:
         pass
+
+
+def _prune_gen_error_keys(days: int = GEN_ERROR_RETENTION_DAYS) -> int:
+    """Delete p26d_daily_report_error:<date> KV keys whose date is older
+    than `days` (IST). Keys with an unparseable date suffix are also
+    removed — they can never be read back by the status endpoint (it looks
+    up by exact ISO date). Never raises; returns number deleted."""
+    deleted = 0
+    try:
+        import phase20_store as store
+        prefix = _gen_error_key("")
+        cutoff = (datetime.now(timezone.utc).astimezone(IST).date()
+                  - timedelta(days=max(1, int(days)))).isoformat()
+        for key in store.kv_list_keys(prefix):
+            suffix = str(key)[len(prefix):]
+            try:
+                date.fromisoformat(suffix)
+                stale = suffix < cutoff
+            except ValueError:
+                stale = True                 # malformed key — unreachable
+            if stale:
+                try:
+                    store.kv_release(key)    # deletes the row
+                    deleted += 1
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    return deleted
 
 
 def today_report_status(now: Optional[datetime] = None,

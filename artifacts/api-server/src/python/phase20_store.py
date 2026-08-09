@@ -796,6 +796,31 @@ def kv_release(key: str) -> None:
     _with_db(to_db, to_file)
 
 
+def kv_list_keys(prefix: str) -> List[str]:
+    """All KV keys starting with `prefix` (DB + file fallback)."""
+    def from_db(conn):
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS phase20_kv (
+                    key TEXT PRIMARY KEY,
+                    value JSONB,
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
+                """
+            )
+            conn.commit()
+            cur.execute("SELECT key FROM phase20_kv WHERE key LIKE %s",
+                        (prefix.replace("%", r"\%").replace("_", r"\_") + "%",))
+            return [r[0] for r in cur.fetchall()]
+
+    def from_file():
+        data = _read_json(os.path.join(_DIR, "phase20_kv.json"), {})
+        return [k for k in data if str(k).startswith(prefix)]
+
+    return list(_with_db(from_db, from_file) or [])
+
+
 def kv_get(key: str, default: Any = None) -> Any:
     def from_db(conn):
         with conn.cursor() as cur:

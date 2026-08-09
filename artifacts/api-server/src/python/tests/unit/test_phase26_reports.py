@@ -399,6 +399,8 @@ class TestDailyReportStore(unittest.TestCase):
             kv_release=lambda k: kv.pop(k, None),
             kv_set=lambda k, v: kv.__setitem__(k, v),
             kv_get=lambda k, d=None: kv.get(k, d),
+            kv_list_keys=lambda p: [k for k in list(kv)
+                                    if str(k).startswith(p)],
         ), kv
 
     def test_status_not_expected_on_weekend(self):
@@ -663,6 +665,63 @@ class TestReadinessExport(unittest.TestCase):
             self.assertIn("READY", out["content"])
         pdf = p239.export_report("readiness", "pdf", data=data)
         self.assertTrue(pdf["ok"])
+
+
+
+
+class TestGenErrorKeyPrune(unittest.TestCase):
+    """Old p26d_daily_report_error:* KV keys are pruned on write so the
+    KV store never accumulates one row per failed day forever."""
+
+    def _fake_store(self):
+        import types
+        kv: dict = {}
+        return types.SimpleNamespace(
+            kv_set=lambda k, v: kv.__setitem__(k, v),
+            kv_release=lambda k: kv.pop(k, None),
+            kv_get=lambda k, d=None: kv.get(k, d),
+            kv_list_keys=lambda p: [k for k in list(kv)
+                                    if str(k).startswith(p)],
+        ), kv
+
+    def test_prune_on_write_keeps_recent_drops_old(self):
+        fake, kv = self._fake_store()
+        real = sys.modules.get("phase20_store")
+        sys.modules["phase20_store"] = fake
+        try:
+            today_ist = (datetime.now(timezone.utc)
+                         .astimezone(IST).date())
+            old_day = (today_ist - timedelta(days=30)).isoformat()
+            recent_day = (today_ist - timedelta(days=2)).isoformat()
+            kv[pr._gen_error_key(old_day)] = {"error": "x", "at": "t"}
+            kv[pr._gen_error_key(recent_day)] = {"error": "y", "at": "t"}
+            kv[pr._gen_error_key("garbage")] = {"error": "z", "at": "t"}
+            kv["unrelated_key"] = True
+
+            pr._record_generation_error(today_ist.isoformat(), "boom")
+
+            self.assertNotIn(pr._gen_error_key(old_day), kv)
+            self.assertNotIn(pr._gen_error_key("garbage"), kv)
+            self.assertIn(pr._gen_error_key(recent_day), kv)
+            self.assertIn(pr._gen_error_key(today_ist.isoformat()), kv)
+            self.assertIn("unrelated_key", kv)
+        finally:
+            if real is not None:
+                sys.modules["phase20_store"] = real
+            else:
+                sys.modules.pop("phase20_store", None)
+
+    def test_prune_never_raises_without_store_helpers(self):
+        import types
+        real = sys.modules.get("phase20_store")
+        sys.modules["phase20_store"] = types.SimpleNamespace()  # no kv_*
+        try:
+            self.assertEqual(pr._prune_gen_error_keys(), 0)
+        finally:
+            if real is not None:
+                sys.modules["phase20_store"] = real
+            else:
+                sys.modules.pop("phase20_store", None)
 
 
 if __name__ == "__main__":
