@@ -39,6 +39,7 @@ EMAIL_KINDS = (
     "CIRCUIT_BREAKER_TRIPPED",
     "RECONCILIATION_DISCREPANCY",
     "DATA_QUALITY_CRITICAL",   # Phase 8.3 — critical data quality issues
+    "VALIDATION_FAILED",       # Phase 26C — scheduled validation FAIL/ERROR
 )
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")

@@ -269,7 +269,15 @@ def _maybe_run_live_validation(mstate: str) -> Any:
     except Exception as exc:
         return {"ran": False, "error": str(exc)[:200]}
 
-
+def _maybe_run_phase26c_validation(mstate: str) -> Any:
+    """Phase 26C recovery/performance/quality suites at session milestones
+    (once after open, once after close — atomic KV claim). Delegated to
+    phase26c_scheduler. Never raises."""
+    try:
+        from phase26c_scheduler import maybe_run_session_validation
+        return maybe_run_session_validation(mstate)
+    except Exception as exc:
+        return {"ran": False, "error": str(exc)[:200]}
 def _live_validation_brief(lv: Any) -> Any:
     """Keep the tick output small — full snapshot lives in the store."""
     if not isinstance(lv, dict):
@@ -314,20 +322,16 @@ def run_tick() -> Dict[str, Any]:
     if mstate != "OPEN":
         report = _maybe_generate_session_report(mstate)
         eod_recon = _maybe_run_eod_reconciliation() if mstate == "CLOSED" else None
+        # Phase 26C: close-of-session validation milestone (recovery /
+        # performance / quality), exactly once per suite per IST trading
+        # day — triggered from POST_CLOSE (15:30 IST) so results are
+        # persisted BEFORE the first CLOSED tick builds the one-shot 26D
+        # daily report; CLOSED also accepted as catch-up. Never raises.
+        p26c = _maybe_run_phase26c_validation(mstate) \
+            if mstate in ("POST_CLOSE", "CLOSED") else None
         # Phase 26D: daily validation report, once per IST trading day
         # post-close (KV claim taken only right before persisting, so a
         # build failure retries next tick). Never raises.
-        # Phase 26C: recovery / performance / quality validations, once per
-        # IST trading day — triggered from POST_CLOSE (15:30 IST) so results
-        # are persisted BEFORE the first CLOSED tick builds the one-shot 26D
-        # daily report; CLOSED also accepted as catch-up. Never raises.
-        p26c_auto = None
-        if mstate in ("POST_CLOSE", "CLOSED"):
-            try:
-                from phase26c_auto import maybe_run_session_validations
-                p26c_auto = maybe_run_session_validations(mstate)
-            except Exception as exc:
-                p26c_auto = {"ran": [], "error": str(exc)[:200]}
         p26d_daily = None
         if mstate == "CLOSED":
             try:
@@ -359,10 +363,10 @@ def run_tick() -> Dict[str, Any]:
             out["eod_reconciliation"] = eod_recon
         if p24_learning is not None:
             out["phase24_learning"] = p24_learning
-        if p26c_auto is not None:
-            out["phase26c_auto"] = p26c_auto
         if p26d_daily is not None:
             out["phase26d_daily_report"] = p26d_daily
+        if p26c is not None:
+            out["phase26c_validation"] = p26c
         return out
 
     # Coverage watchdog: alert operators automatically (dedup per session)
@@ -372,6 +376,10 @@ def run_tick() -> Dict[str, Any]:
     # Phase 26B: live subsystem + consistency validation snapshot, once per
     # 5-minute bucket (atomic KV claim, cross-process safe). Never raises.
     live_validation = _maybe_run_live_validation(mstate)
+
+    # Phase 26C: in-session validation milestone (recovery/performance/
+    # quality), once per day after the post-open grace period. Never raises.
+    p26c_session = _maybe_run_phase26c_validation(mstate)
 
     from phase15_scan_context import scan_age_seconds
     age = scan_age_seconds()
@@ -391,6 +399,8 @@ def run_tick() -> Dict[str, Any]:
             result["coverage_alert"] = coverage_alert
         if live_validation is not None:
             result["live_validation"] = _live_validation_brief(live_validation)
+        if p26c_session is not None:
+            result["phase26c_validation"] = p26c_session
         return result
 
     store.update_scheduler_state(last_attempt_at=now_iso, status="SCANNING",
@@ -433,6 +443,8 @@ def run_tick() -> Dict[str, Any]:
             if live_validation is not None:
                 busy_out["live_validation"] = \
                     _live_validation_brief(live_validation)
+            if p26c_session is not None:
+                busy_out["phase26c_validation"] = p26c_session
             return busy_out
 
         ran = not snap.get("_from_cache", False)
@@ -475,6 +487,8 @@ def run_tick() -> Dict[str, Any]:
             result["coverage_alert"] = coverage_alert
         if live_validation is not None:
             result["live_validation"] = _live_validation_brief(live_validation)
+        if p26c_session is not None:
+            result["phase26c_validation"] = p26c_session
         # ── RC-10C1: scheduled portfolio reconciliation after each scan tick.
         # Fail-open — reconcile_now() never raises; it returns an error dict.
         if ran:
@@ -510,6 +524,8 @@ def run_tick() -> Dict[str, Any]:
         if live_validation is not None:
             fail_out["live_validation"] = \
                 _live_validation_brief(live_validation)
+        if p26c_session is not None:
+            fail_out["phase26c_validation"] = p26c_session
         return fail_out
 
 
