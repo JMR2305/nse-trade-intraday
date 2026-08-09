@@ -98,4 +98,5 @@
 - [Scanner coverage probe](scanner-coverage-probe.md) — session-hours health checks must require a scan from TODAY's session and judge against the configured universe, all logic server-side.
 - [kv_claim_once guards](kv-claim-once.md) — atomic first-claimant KV claim for exactly-once scheduler alerts; never kv_get→kv_set dedup across processes.
 - [Phase 26A e2e validation](phase26a-e2e-validation.md) — eligible-no-ledger BUY = BLOCKED+WARN not ERROR; replay `_is_buy_action` normalises STRONG BUY; flock the run-store JSON fallback.
+- [Bot DB collision](bot-db-collision.md) — bot .env targets the shared workspace DB; alembic never applied; 0006 collides with api-server's broker_reconciliation_runs; prod columns arrive only via republish.
 - [Durable portfolio repos](portfolio-durable-repos.md) — recover-first startup w/ canonical-ledger cross-check; DB idempotency dedupe; serial id is the only cross-process sequence; unit tests must set all portfolio DB kill-switches.
