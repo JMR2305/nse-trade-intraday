@@ -204,3 +204,149 @@ describe("AIValidationV2Page — cache invalidation on backtest completion (Task
     }, { timeout: 5000 });
   }, 20_000);
 });
+
+// ── Task #457 — Performance Analytics + Optimizer KPI freshness ──────────────
+
+const UPDATED_STATS = {
+  ...STATS,
+  total_trades: 9, winning_trades: 7, losing_trades: 2,
+  win_rate_pct: 77.8, loss_rate_pct: 22.2, avg_pnl_pct: 2.4,
+  sharpe_ratio: 1.8, expectancy_pct: 2.4,
+};
+
+/**
+ * Mock that serves STALE data on the first fetch of v2-performance and
+ * v2-opt-rec, and FRESH data on every subsequent fetch. A second fetch can
+ * only happen within the 60 s staleTime window if invalidateQueries marked
+ * the cache stale — so seeing the fresh values proves the invalidation path.
+ */
+function buildFreshnessMock(counters: { perf: number; opt: number }) {
+  return vi.fn().mockImplementation((path: string, opts?: RequestInit) => {
+    if (opts?.method === "POST" && (path as string).includes("backtest/run")) {
+      return Promise.resolve({ run_id: "run-new" });
+    }
+    if (path === "validation-v2/backtest") return Promise.resolve(RUN_LIST);
+    if ((path as string).includes("backtest/run-new")) {
+      return Promise.resolve(RUN_DETAIL_COMPLETED);
+    }
+    if (path === "validation-v2/missed-opportunities") {
+      return Promise.resolve(BASE_MISSED);
+    }
+    if ((path as string).startsWith("validation-v2/performance")) {
+      counters.perf++;
+      const stats = counters.perf <= 1 ? STATS : UPDATED_STATS;
+      return Promise.resolve({
+        stats, period: "monthly", most_common_rejection: "confidence below threshold",
+        best_trade: null, worst_trade: null,
+        recommendation_distribution: {}, all_time_stats: stats,
+      });
+    }
+    if (path === "validation-v2/optimizer/recommendation") {
+      counters.opt++;
+      return Promise.resolve({
+        best_config: { sharpe_ratio: counters.opt <= 1 ? 1.2 : 2.5 },
+        recommendation: "",
+      });
+    }
+    return Promise.resolve({});
+  });
+}
+
+describe("AIValidationV2Page — fresh data after backtest without waiting for staleTime (Task #457)", () => {
+  beforeEach(() => { mockApiJson.mockReset(); });
+  afterEach(() => { vi.clearAllMocks(); cleanup(); });
+
+  it("Performance Analytics tab shows updated stats immediately after a completed backtest", async () => {
+    /**
+     * 1. Page loads → Overview fetches v2-performance → stale STATS (60.0% win rate)
+     * 2. Navigate to Performance tab → active subscriber, cached stale value shown
+     *    (no second fetch: staleTime is 60 s, proving the cache was still fresh)
+     * 3. Run a backtest; it completes → invalidateQueries(["v2-performance"])
+     * 4. Navigate back to Performance tab → re-fetch fires immediately
+     *    (would NOT happen without invalidation) → 77.8% win rate shown
+     */
+    const counters = { perf: 0, opt: 0 };
+    mockApiJson.mockImplementation(buildFreshnessMock(counters));
+
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <AIValidationV2Page />
+      </QueryClientProvider>
+    );
+
+    // Overview loads the monthly performance query once (stale data)
+    await waitFor(() => expect(counters.perf).toBeGreaterThanOrEqual(1), { timeout: 3000 });
+
+    // Navigate to the Performance tab — stale stats visible from cache
+    const perfBtns = await screen.findAllByRole("button", { name: /^Performance$/i });
+    await userEvent.click(perfBtns[0]);
+    await waitFor(() => {
+      expect(screen.getAllByText("60.0%").length).toBeGreaterThan(0);
+    }, { timeout: 3000 });
+    // Cache was fresh (within staleTime) → no re-fetch on mount
+    expect(counters.perf).toBe(1);
+
+    // Run a backtest that completes immediately
+    const backtestBtns = await screen.findAllByRole("button", { name: /Backtest Runner/i });
+    await userEvent.click(backtestBtns[0]);
+    const runBtn = await screen.findByRole("button", { name: /Run Backtest/i });
+    await userEvent.click(runBtn);
+
+    // Wait for completion + invalidation, then return to the Performance tab
+    await waitFor(() => {
+      expect(mockApiJson.mock.calls.some(c => String(c[0]).includes("backtest/run-new"))).toBe(true);
+    }, { timeout: 10_000 });
+    const perfBtns2 = await screen.findAllByRole("button", { name: /^Performance$/i });
+    await userEvent.click(perfBtns2[0]);
+
+    // Invalidation forces an immediate re-fetch (staleTime NOT respected) → fresh stats
+    await waitFor(() => expect(counters.perf).toBeGreaterThanOrEqual(2), { timeout: 5000 });
+    await waitFor(() => {
+      expect(screen.getAllByText("77.8%").length).toBeGreaterThan(0);
+    }, { timeout: 5000 });
+  }, 25_000);
+
+  it("Overview Best Config Sharpe KPI shows the updated optimizer value immediately after a completed backtest", async () => {
+    /**
+     * 1. Overview loads → v2-opt-rec fetch → stale best_config sharpe 1.20
+     * 2. Run a backtest; it completes → invalidateQueries(["v2-opt-rec"])
+     * 3. Navigate back to Overview → re-fetch fires immediately despite
+     *    the 60 s staleTime → KPI shows 2.50
+     */
+    const counters = { perf: 0, opt: 0 };
+    mockApiJson.mockImplementation(buildFreshnessMock(counters));
+
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <AIValidationV2Page />
+      </QueryClientProvider>
+    );
+
+    // Overview shows the stale Best Config Sharpe KPI
+    await waitFor(() => {
+      expect(screen.getAllByText("1.20").length).toBeGreaterThan(0);
+    }, { timeout: 3000 });
+    expect(counters.opt).toBe(1);
+
+    // Run a backtest that completes immediately
+    const backtestBtns = await screen.findAllByRole("button", { name: /Backtest Runner/i });
+    await userEvent.click(backtestBtns[0]);
+    const runBtn = await screen.findByRole("button", { name: /Run Backtest/i });
+    await userEvent.click(runBtn);
+
+    // Wait for completion + invalidation, then return to Overview
+    await waitFor(() => {
+      expect(mockApiJson.mock.calls.some(c => String(c[0]).includes("backtest/run-new"))).toBe(true);
+    }, { timeout: 10_000 });
+    const overviewBtns = await screen.findAllByRole("button", { name: /^Overview$/i });
+    await userEvent.click(overviewBtns[0]);
+
+    // Fresh optimizer recommendation is fetched and rendered immediately
+    await waitFor(() => expect(counters.opt).toBeGreaterThanOrEqual(2), { timeout: 5000 });
+    await waitFor(() => {
+      expect(screen.getAllByText("2.50").length).toBeGreaterThan(0);
+    }, { timeout: 5000 });
+  }, 25_000);
+});
