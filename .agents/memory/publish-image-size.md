@@ -9,6 +9,8 @@ description: Why publishes fail with "image size is over the limit of 8 GiB" and
 
 **Why:** two consecutive publishes failed with "image size is over the limit of 8 GiB" (Aug 2026). First fix cleaned the dev workspace (8.8→4.7 GiB) — the next publish still failed because the build re-added ~4 GiB.
 
+**CRITICAL:** never delete `.cache/replit` from the image — it holds the module environment (`.cache/replit/env/latest` = PATH to node/pnpm/python). Wholesale `rm -rf .cache` made every publish fail at "Creating Autoscale service" with `exec: "node": executable file not found in $PATH` (5 consecutive failures Aug 9–10, 2026). Strip caches with `find .cache -mindepth 1 -maxdepth 1 ! -name replit -exec rm -rf {} +` in both deploy-build.sh Step 5 and `[deployment.postBuild]`.
+
 **How to apply:**
 - `scripts/deploy-build.sh` Step 5 strips `.git`, `.cache`, `.pythonlibs`, `.local/state` inside the image; `[deployment.postBuild]` in `.replit` prunes+removes the pnpm store and `.cache`. Keep those steps when editing either file.
 - Production Python runs from `.venv` (built in deploy-build.sh); `.pythonlibs` is dev-only and rebuilt at runtime container start — never rely on it in prod.

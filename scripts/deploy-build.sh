@@ -66,12 +66,16 @@ echo "--- Step 5: Strip build-only bloat from the deployment image ---"
 # The publish image has a hard 8 GiB limit (a 2026-08-09/10 publish failed on
 # it). Everything below is not needed at runtime:
 #   .git         — version history (1.2+ GiB)
-#   .cache       — uv/pip/pnpm download caches refilled by this build
+#   .cache/*     — uv/pip/pnpm download caches refilled by this build
+#                  EXCEPT .cache/replit — it holds the module environment
+#                  (PATH to node/pnpm/python). Deleting it breaks production
+#                  startup with 'exec: "node": executable file not found'.
 #   .pythonlibs  — dev Python env; production uses the .venv built above
 #   .local/state — workspace-local logs/state
 # (.local/share/pnpm is stripped in the postBuild step, after pnpm store prune.)
-rm -rf .git .cache .pythonlibs .local/state
-echo "    Stripped .git, .cache, .pythonlibs, .local/state"
+rm -rf .git .pythonlibs .local/state
+find .cache -mindepth 1 -maxdepth 1 ! -name replit -exec rm -rf {} + 2>/dev/null || true
+echo "    Stripped .git, .cache/* (kept .cache/replit), .pythonlibs, .local/state"
 du -sh . 2>/dev/null | awk '{print "    Image workspace size after cleanup: " $1}'
 
 echo ""

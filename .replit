@@ -8,7 +8,7 @@ deploymentTarget = "autoscale"
 args = ["bash", "scripts/deploy-build.sh"]
 
 [deployment.postBuild]
-args = ["bash", "-c", "pnpm store prune || true; rm -rf .local/share/pnpm .cache; du -sh . || true"]
+args = ["bash", "-c", "pnpm store prune || true; rm -rf .local/share/pnpm; find .cache -mindepth 1 -maxdepth 1 ! -name replit -exec rm -rf {} + 2>/dev/null || true; du -sh . || true"]
 env = { "CI" = "true" }
 
 [workflows]
