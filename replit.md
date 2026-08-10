@@ -62,6 +62,15 @@ A paper-trading algorithmic system for Indian NSE stocks with a React web dashbo
 - The api-server has `@workspace/db` in dependencies but does NOT import it — the trading routes use only Python child_process. DATABASE_URL is not required for the trading system to work.
 - After adding new OpenAPI endpoints, always run `pnpm --filter @workspace/api-spec run codegen` before using the generated hooks.
 
+## Publish image size guard
+
+The publish image has an 8 GiB limit (a 2026-08-09 publish failed on it).
+Run `./scripts/check-workspace-size.sh` (also registered as the
+`image-size` validation step) before publishing — it fails at ≥7 GiB and
+prints the safe cleanup recipe: clear `.cache/{uv,pip,pnpm}`, `pnpm store
+prune`, `git lfs prune`, `git gc --prune=now`. After cleanup, verify the
+dashboard and API server still respond.
+
 ## Pointers
 
 - See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details

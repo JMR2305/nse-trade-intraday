@@ -27,6 +27,10 @@ args = "typecheck"
 task = "workflow.run"
 args = "paper-analytics-smoke"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "image-size"
+
 [[workflows.workflow]]
 name = "typecheck"
 author = "agent"
@@ -45,6 +49,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd artifacts/api-server/src/python && PAPER_ANALYTICS_ENABLED=true python -m pytest paper_analytics/test_paper_analytics_integration.py -q"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "image-size"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "./scripts/check-workspace-size.sh"
 
 [workflows.workflow.metadata]
 isValidation = true
