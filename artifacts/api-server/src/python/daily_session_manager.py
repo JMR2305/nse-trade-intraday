@@ -31,6 +31,7 @@ _SESSION_DATE_KEY  = "daily_session_date"           # "YYYY-MM-DD" of last init
 _SESSION_TS_KEY    = "daily_session_initialized_at"  # ISO timestamp
 _SESSION_STATE_KEY = "daily_session_state"          # INITIALISED | ERROR
 _SESSION_ERROR_KEY = "daily_session_last_error"     # {at, source, detail} of last failure
+_SESSION_RECOVERED_KEY = "daily_session_recovered"  # {date, at} of today's recovery (if any)
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -277,6 +278,9 @@ def initialize_daily_session(force: bool = False) -> Dict[str, Any]:
                         severity="INFO",
                         context={"date": today, "recovered_at": now},
                     )
+                    # Durable stamp so the dashboard session card can show
+                    # "recovered at HH:MM" for the rest of the day.
+                    _kv_set(_SESSION_RECOVERED_KEY, {"date": today, "at": now})
                     result["recovery_notice"] = {"emitted": True}
                 else:
                     result["recovery_notice"] = {
@@ -431,6 +435,15 @@ def get_session_status() -> Dict[str, Any]:
 
     initialized_today = init_date == today
 
+    # Today's recovery stamp (set when a failed init later succeeded and the
+    # SESSION_INIT_RECOVERED notice was emitted). Only surfaced while the
+    # session is INITIALISED today — never for other days or states.
+    recovered_at = None
+    rec = _kv_get(_SESSION_RECOVERED_KEY)
+    if (isinstance(rec, dict) and rec.get("date") == today
+            and initialized_today and init_state == "INITIALISED"):
+        recovered_at = rec.get("at")
+
     # Market state so the UI can distinguish "not initialised because the
     # market is closed" (expected) from a real initialisation failure.
     mstate = "UNKNOWN"
@@ -464,6 +477,7 @@ def get_session_status() -> Dict[str, Any]:
         "session_state":       init_state if initialized_today else "NOT_INITIALIZED",
         "market_state":        mstate,
         "last_error":          last_error if (initialized_today and init_state == "ERROR") or not initialized_today else None,
+        "recovered_at":        recovered_at,
         "auto_scan_enabled":   settings.get("auto_scan_enabled",  True),
         "auto_paper_entries":  settings.get("auto_paper_entries", False),
         "auto_paper_exits":    settings.get("auto_paper_exits",   True),

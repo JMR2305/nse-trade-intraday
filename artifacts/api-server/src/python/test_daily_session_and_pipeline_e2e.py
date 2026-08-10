@@ -384,6 +384,8 @@ class TestRecoveryNotice(unittest.TestCase):
         self.assertEqual(notes[0]["severity"], "INFO")
         # Open-alert claim must remain untouched (read-only check).
         self.assertNotIn(f"session_init_open_alert:{today}", claims)
+        # Durable recovery stamp for the dashboard session card.
+        self.assertEqual(kv["daily_session_recovered"]["date"], today)
 
         # Second successful init the same day → no duplicate.
         result2 = self._init(kv, claims, notes)
@@ -398,6 +400,37 @@ class TestRecoveryNotice(unittest.TestCase):
         self.assertNotIn("recovery_notice", result)
         self.assertEqual(notes, [])
         self.assertEqual(claims, set())
+
+    def test_status_exposes_recovered_at_only_when_initialised_today(self):
+        import daily_session_manager as dsm
+        today = dsm._today_ist()
+        base = {
+            "daily_session_date": today,
+            "daily_session_state": "INITIALISED",
+            "daily_session_recovered": {"date": today,
+                                        "at": "2026-08-10T04:05:00Z"},
+        }
+
+        def status(kv):
+            with patch.object(dsm, "_kv_get",
+                              side_effect=lambda k, d=None: kv.get(k, d)), \
+                 patch("market_hours.market_state", return_value="OPEN"):
+                return dsm.get_session_status()
+
+        self.assertEqual(status(dict(base))["recovered_at"],
+                         "2026-08-10T04:05:00Z")
+        # Stale stamp from a previous day → hidden.
+        stale = dict(base)
+        stale["daily_session_recovered"] = {"date": "2020-01-01", "at": "x"}
+        self.assertIsNone(status(stale)["recovered_at"])
+        # Session back in ERROR → hidden (failure display wins).
+        err = dict(base)
+        err["daily_session_state"] = "ERROR"
+        self.assertIsNone(status(err)["recovered_at"])
+        # No stamp at all → hidden.
+        clean = dict(base)
+        del clean["daily_session_recovered"]
+        self.assertIsNone(status(clean)["recovered_at"])
 
     def test_no_recovery_when_init_still_failing(self):
         import daily_session_manager as dsm

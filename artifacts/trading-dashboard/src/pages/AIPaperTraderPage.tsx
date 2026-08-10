@@ -163,6 +163,7 @@ interface SessionStatus {
   last_init_date: string | null;
   last_init_at: string | null;
   session_state: string;
+  recovered_at?: string | null;
   auto_scan_enabled: boolean;
   auto_paper_entries: boolean;
   auto_paper_exits: boolean;
@@ -453,6 +454,10 @@ function S0AutonomousSession() {
           {standby ? (
             <span className="text-xs text-slate-500">
               Market closed — auto-initializes at pre-open (08:43 IST)
+            </span>
+          ) : sess?.recovered_at ? (
+            <span className="text-xs text-emerald-500/80" data-testid="text-session-recovered">
+              Recovered at {istTime(sess.recovered_at)} IST after earlier init failure
             </span>
           ) : sess?.last_init_at ? (
             <span className="text-xs text-slate-600">{istTime(sess.last_init_at)} IST</span>
