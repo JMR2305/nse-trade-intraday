@@ -2332,7 +2332,16 @@ function ModelComparisonTab() {
 const RUN_DEPENDENT_TABS = new Set([2, 3, 4, 5, 6, 7, 8, 9]);
 
 export default function AIValidationV2Page() {
-  const [activeTab, setActiveTab] = useState(0);
+  const [activeTab, setActiveTab] = useState(() => {
+    // Deep-link support: ?tab=<id> opens that tab directly.
+    try {
+      const id = new URLSearchParams(window.location.search).get("tab");
+      const idx = id ? TABS.findIndex(t => t.id === id) : -1;
+      return idx >= 0 ? idx : 0;
+    } catch {
+      return 0;
+    }
+  });
   const [latestRunId, setLatestRunId] = useState<string | null>(null);
   // Set immediately when a backtest completes in this session, so the banner
   // clears and tabs unlock without waiting for the ["v2-runs"] refetch.

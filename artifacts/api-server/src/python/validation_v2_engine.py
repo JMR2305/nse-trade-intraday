@@ -420,6 +420,16 @@ def _build_scan_item_from_bar(
     else:
         confidence = 70.0 if entry_signal else 35.0
 
+    # Evidence-aware confidence cap: rule-fraction confidence saturates at
+    # exactly 100 on every check_entry() bar, which forces _decide() into the
+    # STRONG_BUY band — a band that requires >= RELIABLE_SAMPLE walk-forward
+    # trades and is therefore unreachable early in a replay. With a thin
+    # sample the item already declares evidence_reliability VERY_LOW, so cap
+    # confidence in the BUY band until enough closed trades accumulate.
+    n_wf_trades_for_cap = int(wf_stats.get("total_trades", 0))
+    if n_wf_trades_for_cap < 20 and confidence >= 85.0:
+        confidence = 82.0
+
     # ── Risk levels from config (optimizer will vary these per-combo)
     stop_pct = float(config.get("stop_pct", 2.0))
     target_pct = float(config.get("target_pct", 4.0))
@@ -481,6 +491,10 @@ def _build_scan_item_from_bar(
         "filter_passed": filter_passed,
         "filter_reasons": filter_reasons,
         "error": None,
+        # _decide() treats data as OK only when error is None AND source is
+        # "yfinance" — replay bars come from the same fetch pipeline, so mark
+        # them accordingly or every bar is blocked as "Data unavailable".
+        "source": "yfinance",
         # live_signal is used by production _decide() to determine the WATCH
         # reason ("Setup incomplete — no live entry signal yet"). Must be set
         # from the actual strategy.check_entry() result, not inferred.
@@ -1324,10 +1338,17 @@ def start_backtest_pipeline(config_json: str) -> dict:
             """, (run_id, json.dumps(config), json.dumps(symbols),
                   json.dumps(strategy_names), start_date, end_date, interval,
                   len(symbols)))
-        except Exception:
-            pass
+        except Exception as e:
+            try:
+                conn.close()
+            except Exception:
+                pass
+            return {"error": f"Failed to create run record: {str(e)[:200]}", "label": LABEL}
         finally:
-            conn.close()
+            try:
+                conn.close()
+            except Exception:
+                pass
     else:
         # No DB — fall back to synchronous run so the caller still gets results
         return run_backtest_pipeline(config_json)
@@ -1487,6 +1508,28 @@ def _execute_backtest_impl(run_id: str, config_json: str) -> dict:
                     pass
                 continue
             df = compute_indicators_df(df_raw)
+            # Capture the source of the REPLAY data now — the per-strategy
+            # bootstrap run_backtest() below re-fetches an earlier window and
+            # can fail → overwrite the tracked source with "mock", which makes
+            # _decide() block every bar as "Data unavailable" even though the
+            # replay candles themselves are real.
+            import market_data_engine as _mde
+            replay_source = _mde.get_last_source(symbol)
+            if replay_source != "yfinance":
+                # Mock fallback candles would silently poison the run —
+                # record an explicit error and skip the symbol instead.
+                msg = f"{symbol}: live data unavailable (source={replay_source}, likely rate-limited) — skipped"
+                errors.append(msg)
+                try:
+                    _exec(conn, """
+                        UPDATE validation_v2_runs
+                        SET symbol_errors = symbol_errors || %s::jsonb,
+                            symbols_done = %s, last_progress_at = NOW()
+                        WHERE run_id = %s
+                    """, (json.dumps([msg]), sym_idx + 1, run_id))
+                except Exception:
+                    pass
+                continue
         except Exception as e:
             msg = f"{symbol}: candle fetch failed — {str(e)[:60]}"
             errors.append(msg)
@@ -1528,6 +1571,10 @@ def _execute_backtest_impl(run_id: str, config_json: str) -> dict:
                     bootstrap_trades = _bt.get("trades", [])
                 except Exception:
                     pass
+
+                # Restore the replay data source clobbered by the bootstrap fetch
+                # so _decide()'s data-quality gate judges the actual replay data.
+                _mde._LAST_SOURCES[symbol.upper().replace(".NS", "")] = replay_source
 
                 bar_decisions, sim_trades = _run_symbol_replay(
                     symbol, df, config, bootstrap_trades, strategy_name
@@ -1697,6 +1744,11 @@ def run_backtest_pipeline(config_json: str) -> dict:
                 errors.append(f"{symbol}: insufficient data ({len(df_raw)} bars)")
                 continue
             df = compute_indicators_df(df_raw)
+            import market_data_engine as _mde2
+            _replay_source = _mde2.get_last_source(symbol)
+            if _replay_source != "yfinance":
+                errors.append(f"{symbol}: live data unavailable (source={_replay_source}) — skipped")
+                continue
         except Exception as e:
             errors.append(f"{symbol}: candle fetch failed — {str(e)[:60]}")
             continue
@@ -1732,6 +1784,11 @@ def run_backtest_pipeline(config_json: str) -> dict:
                 #   - Uses intrabar low/high for stop/target exits (same as run_backtest)
                 #   - Also calls strategy.check_exit() for signal exits
                 #   - Walk-forward stats seeded with bootstrap; grow as replay closes trades
+                # Restore the replay data source clobbered by the bootstrap fetch
+                # so _decide()'s data-quality gate judges the actual replay data.
+                import market_data_engine as _mde2
+                _mde2._LAST_SOURCES[symbol.upper().replace(".NS", "")] = _replay_source
+
                 bar_decisions, sim_trades = _run_symbol_replay(
                     symbol, df, config, bootstrap_trades, strategy_name
                 )

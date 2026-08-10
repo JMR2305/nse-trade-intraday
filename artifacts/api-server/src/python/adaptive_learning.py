@@ -282,15 +282,33 @@ def build_explanation(strategy_name: str, match_context: str,
 
 # ── Current market regime (same taxonomy as the knowledge base) ──────────────
 
+_REGIME_CACHE: dict = {"value": None, "at": 0.0}
+_REGIME_TTL_S = 600.0  # regime is a slow-moving daily classification
+
+
 def current_market_regime() -> str:
-    """Classify today's regime with the SAME 7-way labels as the KB builder."""
+    """Classify today's regime with the SAME 7-way labels as the KB builder.
+
+    Cached per-process for 10 minutes: building MarketContext requires two
+    index downloads, and callers like decision_service._decide() may run
+    thousands of times per process (e.g. bar-by-bar backtest replay). Without
+    the cache, a rate-limited data provider turns each call into a slow retry
+    loop and stalls the whole pipeline.
+    """
+    import time as _time
+    now = _time.monotonic()
+    if _REGIME_CACHE["value"] is not None and now - _REGIME_CACHE["at"] < _REGIME_TTL_S:
+        return _REGIME_CACHE["value"]
     try:
         from historical_knowledge_builder import MarketContext
         from datetime import datetime
         ctx = MarketContext("6mo")
-        return ctx.context_for(datetime.now().isoformat())["market_regime"]
+        regime = ctx.context_for(datetime.now().isoformat())["market_regime"]
     except Exception:
-        return "Neutral"
+        return "Neutral"  # do not cache failures — retry next call
+    _REGIME_CACHE["value"] = regime
+    _REGIME_CACHE["at"] = now
+    return regime
 
 
 def regime_strength_of(regime: str) -> float:
