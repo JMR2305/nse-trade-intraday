@@ -357,6 +357,10 @@ class TestRunAndPersistence:
         monkeypatch.setattr(phase26_store, "RUNS_FILE",
                             str(tmp_path / "runs.json"))
         monkeypatch.setattr(phase26_store, "db_available", lambda: False)
+        # keep the opportunistic daily prune guard out of the repo KV file
+        import phase20_store
+        monkeypatch.setattr(phase20_store, "kv_claim_once",
+                            lambda key: False)
         yield
 
     def _run(self, **kw):
@@ -418,6 +422,107 @@ class TestRunAndPersistence:
         hist = phase26_store.list_runs(limit=500)
         assert len(hist) == 3
         assert {h["run_id"] for h in hist} == set(ids[-3:])
+
+
+# ── Retention (task: stop validation-run history growing forever) ───────────
+
+class TestRunRetention:
+    @pytest.fixture(autouse=True)
+    def _isolate_store(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(phase26_store, "RUNS_FILE",
+                            str(tmp_path / "runs.json"))
+        monkeypatch.setattr(phase26_store, "db_available", lambda: False)
+        yield
+
+    def _seed(self, n_old=3, n_fresh=2):
+        from datetime import datetime, timezone, timedelta
+        now = datetime.now(timezone.utc)
+        old = (now - timedelta(
+            days=phase26_store.RETENTION_DAYS + 5)).isoformat()
+        fresh = (now - timedelta(hours=1)).isoformat()
+        rows = ([{"run_id": f"old-{i}", "scan_id": None, "verdict": "PASS",
+                  "created_at": old, "result": {}} for i in range(n_old)]
+                + [{"run_id": f"fresh-{i}", "scan_id": None,
+                    "verdict": "PASS", "created_at": fresh, "result": {}}
+                   for i in range(n_fresh)])
+        phase26_store._write_json(phase26_store.RUNS_FILE, rows)
+
+    def test_prune_removes_only_aged_rows(self, monkeypatch):
+        monkeypatch.setattr(phase26_store, "KEEP_MIN", 1)
+        self._seed(n_old=3, n_fresh=2)
+        out = phase26_store.prune(keep_min=1)
+        assert out["deleted"] == 3
+        ids = {r["run_id"] for r in phase26_store.list_runs(limit=500)}
+        assert ids == {"fresh-0", "fresh-1"}
+
+    def test_prune_always_keeps_newest_keep_min_regardless_of_age(self):
+        self._seed(n_old=5, n_fresh=0)
+        out = phase26_store.prune(keep_min=4)
+        assert out["deleted"] == 1
+        assert len(phase26_store.list_runs(limit=500)) == 4
+
+    def test_prune_is_idempotent_and_keeps_unparsable_timestamps(self):
+        self._seed(n_old=2, n_fresh=1)
+        phase26_store.prune(keep_min=1)
+        out = phase26_store.prune(keep_min=1)
+        assert out["deleted"] == 0
+        phase26_store._write_json(phase26_store.RUNS_FILE, [
+            {"run_id": "weird", "created_at": "not-a-timestamp",
+             "result": {}}])
+        out = phase26_store.prune(keep_min=1)
+        assert out["deleted"] == 0
+
+    def test_append_run_triggers_daily_guarded_prune(self, monkeypatch):
+        import phase20_store
+        from unittest import mock
+        self._seed(n_old=3, n_fresh=1)
+        monkeypatch.setattr(phase26_store, "KEEP_MIN", 1)
+        with mock.patch.object(phase20_store, "kv_claim_once",
+                               return_value=True) as claim:
+            phase26_store.append_run({"verdict": "PASS"})
+        claim.assert_called_once()
+        assert claim.call_args[0][0].startswith("phase26_runs_prune:")
+        ids = {r["run_id"] for r in phase26_store.list_runs(limit=500)}
+        assert not any(i.startswith("old-") for i in ids)
+        assert "fresh-0" in ids
+
+    def test_maybe_prune_skips_when_already_claimed_today(self, monkeypatch):
+        import phase20_store
+        self._seed()
+        monkeypatch.setattr(phase20_store, "kv_claim_once",
+                            lambda key: False)
+        out = phase26_store.maybe_prune()
+        assert out == {"skipped": True}
+        assert len(phase26_store.list_runs(limit=500)) == 5
+
+    def test_maybe_prune_never_raises_when_guard_fails(self, monkeypatch):
+        import phase20_store
+
+        def boom(key):
+            raise RuntimeError("kv down")
+
+        monkeypatch.setattr(phase20_store, "kv_claim_once", boom)
+        out = phase26_store.maybe_prune()
+        assert out.get("skipped")
+        # append still succeeds even if the prune guard blows up
+        rec = phase26_store.append_run({"verdict": "PASS"})
+        assert rec["run_id"]
+
+    def test_prune_never_raises_on_backend_error(self, monkeypatch):
+        monkeypatch.setattr(phase26_store, "_file_lock",
+                            mock_raising_lock := _RaisingLock())
+        out = phase26_store.prune()
+        assert out["deleted"] == 0 and "error" in out
+        assert mock_raising_lock.calls == 1
+
+
+class _RaisingLock:
+    def __init__(self):
+        self.calls = 0
+
+    def __call__(self, path):
+        self.calls += 1
+        raise RuntimeError("lock failure")
 
     def test_concurrent_appends_lose_nothing(self):
         import threading

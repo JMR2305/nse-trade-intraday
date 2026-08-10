@@ -2,8 +2,9 @@
 phase26_store.py — Phase 26A: End-to-End Validation run storage.
 
 Append-only store for E2E validation runs. Each run is a permanent record —
-runs are never overwritten or re-evaluated. History stays queryable forever
-(subject to the file-fallback cap in local dev).
+runs are never overwritten or re-evaluated — but history is BOUNDED: an
+opportunistic daily prune (maybe_prune) ages out rows older than
+RETENTION_DAYS, always keeping the newest KEEP_MIN rows regardless of age.
 
 With DATABASE_URL: Postgres is authoritative. Without it (local dev / tests):
 JSON file fallback in this directory.
@@ -145,7 +146,95 @@ def append_run(result: Dict[str, Any]) -> Dict[str, Any]:
             _write_json(RUNS_FILE, rows[-_FALLBACK_CAP:])
         return record
 
-    return _with_db(in_db, in_file)
+    out = _with_db(in_db, in_file)
+    maybe_prune()  # opportunistic, daily-guarded, never raises
+    return out
+
+
+# ── Retention ────────────────────────────────────────────────────────────────
+# Postgres rows would otherwise grow forever (the JSON fallback is already
+# capped by _FALLBACK_CAP). Mirrors the phase26_live_store pattern: prune()
+# never raises, maybe_prune() runs at most once per UTC day across all
+# processes via the phase20 KV first-claimant guard. The newest KEEP_MIN
+# runs are always kept regardless of age so recent history/latest views
+# are never affected.
+
+RETENTION_DAYS = 30
+KEEP_MIN = 20
+
+
+def prune(days: Optional[int] = None,
+          keep_min: Optional[int] = None) -> Dict[str, Any]:
+    """Delete validation runs older than `days` (default RETENTION_DAYS),
+    always keeping the newest `keep_min` (default KEEP_MIN) rows regardless
+    of age. NEVER raises — retention must not break a validation cycle.
+    Returns {"deleted", "days", "keep_min"}."""
+    days = max(1, int(RETENTION_DAYS if days is None else days))
+    keep_min = max(1, int(KEEP_MIN if keep_min is None else keep_min))
+    try:
+        def in_db(conn):
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    DELETE FROM phase26_validation_runs
+                    WHERE created_at < NOW() - (%s || ' days')::interval
+                      AND run_id NOT IN (
+                          SELECT run_id FROM phase26_validation_runs
+                          ORDER BY created_at DESC LIMIT %s
+                      )
+                    """,
+                    (days, keep_min))
+                deleted = cur.rowcount
+            return {"deleted": deleted, "days": days, "keep_min": keep_min}
+
+        def in_file():
+            from datetime import timedelta
+            cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+            def _older(ts: Any) -> bool:
+                try:
+                    d = datetime.fromisoformat(
+                        str(ts).replace("Z", "+00:00"))
+                    if d.tzinfo is None:
+                        d = d.replace(tzinfo=timezone.utc)
+                    return d < cutoff
+                except Exception:
+                    return False  # unparsable timestamps are kept
+
+            deleted = 0
+            with _file_lock(RUNS_FILE):
+                rows = _read_json(RUNS_FILE, [])
+                ordered = sorted(
+                    rows, key=lambda r: str(r.get("created_at") or ""),
+                    reverse=True)
+                kept = []
+                for i, r in enumerate(ordered):
+                    if i < keep_min or not _older(r.get("created_at")):
+                        kept.append(r)
+                    else:
+                        deleted += 1
+                if deleted:
+                    kept.sort(key=lambda r: str(r.get("created_at") or ""))
+                    _write_json(RUNS_FILE, kept)
+            return {"deleted": deleted, "days": days, "keep_min": keep_min}
+
+        return _with_db(in_db, in_file)
+    except Exception as exc:
+        return {"deleted": 0, "days": days, "keep_min": keep_min,
+                "error": str(exc)[:200]}
+
+
+def maybe_prune(days: Optional[int] = None) -> Dict[str, Any]:
+    """Opportunistic daily prune: runs at most once per UTC day across all
+    processes via the phase20 KV first-claimant guard. NEVER raises."""
+    try:
+        import phase20_store
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        if not phase20_store.kv_claim_once(f"phase26_runs_prune:{today}"):
+            return {"skipped": True}
+        return prune(days)
+    except Exception:
+        return {"skipped": True, "error": True}
 
 
 def list_runs(limit: int = 50) -> List[Dict[str, Any]]:
