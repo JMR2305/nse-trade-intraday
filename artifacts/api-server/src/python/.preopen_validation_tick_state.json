@@ -7,6 +7,24 @@
       "fetched": 10,
       "symbols": 10,
       "updated": 10
+    },
+    "price_0930": {
+      "ts": "2026-08-10T09:28:06.706028+05:30",
+      "fetched": 10,
+      "symbols": 10,
+      "updated": 10
+    },
+    "price_1000": {
+      "ts": "2026-08-10T09:58:27.985568+05:30",
+      "fetched": 10,
+      "symbols": 10,
+      "updated": 10
+    },
+    "price_1030": {
+      "ts": "2026-08-10T10:29:13.589679+05:30",
+      "fetched": 10,
+      "symbols": 10,
+      "updated": 10
     }
   }
 }

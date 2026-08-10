@@ -376,3 +376,10 @@ uri = "file://PHASE27_EF_SUMMARY.md"
 type = "text"
 title = "Phase 27E + 27F Summary"
 description = "Combined summary of Operator Analytics (27E) and System Readiness Dashboard (27F) — features, implementation, and verification results."
+
+[[outputs]]
+id = "_e0MmPjOru5Z9BICKGGKN"
+uri = "file://docs/AI_VALIDATION_CENTER_V2_REPORT.md"
+type = "text"
+title = "AI Validation Centre V2 — Status Report"
+description = "Summary of everything built for the AI Validation Centre V2 page, verified working state, guardrails, and next step."
