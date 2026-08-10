@@ -331,6 +331,85 @@ class TestOpenAlert(unittest.TestCase):
         notify.assert_not_called()
 
 
+class TestRecoveryNotice(unittest.TestCase):
+    """initialize_daily_session emits a one-time INFO SESSION_INIT_RECOVERED
+    notification when today's open-alert claim exists and init succeeds."""
+
+    def _init(self, kv, claims, notes, fail=False):
+        import daily_session_manager as dsm
+        import paper_trader
+        import phase20_store as p20
+
+        def kv_claim_once(key):
+            if key in claims:
+                return False
+            claims.add(key)
+            return True
+
+        def boom():
+            raise RuntimeError("still broken")
+
+        with patch.object(dsm, "_kv_get",
+                          side_effect=lambda k, d=None: kv.get(k, d)), \
+             patch.object(dsm, "_kv_set",
+                          side_effect=lambda k, v: kv.__setitem__(k, v)), \
+             patch.object(dsm, "_notify", lambda *a, **k: None), \
+             patch.object(dsm, "verify_agents",
+                          return_value={"agents": {}, "healthy": 0,
+                                        "total": 0}), \
+             patch.object(paper_trader, "reset_portfolio",
+                          side_effect=boom if fail else (lambda: None)), \
+             patch.object(p20, "update_settings", lambda *a, **k: {}), \
+             patch.object(p20, "kv_claim_once", side_effect=kv_claim_once), \
+             patch.object(p20, "add_notification",
+                          side_effect=lambda kind, title, body="",
+                          severity="INFO", context=None:
+                          notes.append({"kind": kind, "severity": severity,
+                                        "context": context})), \
+             patch("phase11_autonomous.check_and_apply_topup",
+                   return_value={"applied": False}):
+            return dsm.initialize_daily_session(force=True)
+
+    def test_recovery_emitted_once_when_alert_fired(self):
+        import daily_session_manager as dsm
+        today = dsm._today_ist()
+        kv = {f"session_init_open_alert:{today}": True}   # alert already fired
+        claims, notes = set(), []
+
+        result = self._init(kv, claims, notes)
+        self.assertTrue(result["success"])
+        self.assertEqual(result["recovery_notice"], {"emitted": True})
+        self.assertEqual(len(notes), 1)
+        self.assertEqual(notes[0]["kind"], "SESSION_INIT_RECOVERED")
+        self.assertEqual(notes[0]["severity"], "INFO")
+        # Open-alert claim must remain untouched (read-only check).
+        self.assertNotIn(f"session_init_open_alert:{today}", claims)
+
+        # Second successful init the same day → no duplicate.
+        result2 = self._init(kv, claims, notes)
+        self.assertEqual(result2["recovery_notice"]["emitted"], False)
+        self.assertEqual(len(notes), 1)
+
+    def test_no_recovery_when_no_alert_was_raised(self):
+        kv = {}                                            # alert never fired
+        claims, notes = set(), []
+        result = self._init(kv, claims, notes)
+        self.assertTrue(result["success"])
+        self.assertNotIn("recovery_notice", result)
+        self.assertEqual(notes, [])
+        self.assertEqual(claims, set())
+
+    def test_no_recovery_when_init_still_failing(self):
+        import daily_session_manager as dsm
+        today = dsm._today_ist()
+        kv = {f"session_init_open_alert:{today}": True}
+        claims, notes = set(), []
+        result = self._init(kv, claims, notes, fail=True)
+        self.assertFalse(result["success"])
+        self.assertNotIn("recovery_notice", result)
+        self.assertEqual(notes, [])
+
+
 class TestRunTickOpenAlertE2E(unittest.TestCase):
     """End-to-end through a real phase20_scheduler.run_tick(): market OPEN,
     session init in a failed/uninitialised state → exactly one CRITICAL

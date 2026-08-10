@@ -257,6 +257,34 @@ def initialize_daily_session(force: bool = False) -> Dict[str, Any]:
         severity="INFO" if not errors else "WARNING",
     )
 
+    # ── 7. Recovery notice ────────────────────────────────────────────────────
+    # If today's market-open CRITICAL alert already fired (its kv_claim_once
+    # key exists — read-only check, we must NOT claim it here or we'd
+    # suppress a legitimate future alert) and this init succeeded, close the
+    # loop with a one-time INFO "recovered" notification (own claim key).
+    if not errors:
+        try:
+            alert_key = f"session_init_open_alert:{today}"
+            if _kv_get(alert_key) is not None:
+                from phase20_store import kv_claim_once, add_notification
+                if kv_claim_once(f"session_init_recovered:{today}"):
+                    add_notification(
+                        "SESSION_INIT_RECOVERED",
+                        f"Session initialised (recovered) — {today}",
+                        ("Today's paper trading session is now INITIALISED "
+                         "after the earlier market-open failure alert. "
+                         "Auto paper entries can run normally."),
+                        severity="INFO",
+                        context={"date": today, "recovered_at": now},
+                    )
+                    result["recovery_notice"] = {"emitted": True}
+                else:
+                    result["recovery_notice"] = {
+                        "emitted": False, "reason": "already emitted today"}
+        except Exception as exc:   # never break init on notification issues
+            result["recovery_notice"] = {"emitted": False,
+                                         "error": str(exc)[:200]}
+
     return result
 
 
