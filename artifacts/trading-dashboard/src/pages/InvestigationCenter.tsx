@@ -17,6 +17,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiJson } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
@@ -340,15 +341,17 @@ export default function InvestigationCenter() {
   const running = run?.status === "RUNNING" || run?.status === "PENDING";
 
   const launch = useMutation({
-    mutationFn: () => apiJson<{ ok: boolean; run_id?: string; error?: string }>("/backtest/run", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        interval, start, end, capital,
-        symbols: symbolsText.trim() ? symbolsText.split(/[\s,]+/).filter(Boolean) : undefined,
-        universe,
-      }),
-    }, 30_000),
+    mutationFn: (overrides?: Partial<{ interval: string; start: string; end: string; capital: number; symbols: string[] }>) =>
+      apiJson<{ ok: boolean; run_id?: string; error?: string }>("/backtest/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          interval, start, end, capital,
+          symbols: symbolsText.trim() ? symbolsText.split(/[\s,]+/).filter(Boolean) : undefined,
+          universe,
+          ...(overrides ?? {}),
+        }),
+      }, 30_000),
     onSuccess: (d) => {
       if (d.run_id) setSelectedRunId(d.run_id);
       void qc.invalidateQueries({ queryKey: ["bt-runs"] });
@@ -694,12 +697,17 @@ export default function InvestigationCenter() {
       <div className="flex flex-wrap items-center gap-3">
         <FlaskConical className="h-6 w-6 text-primary" />
         <div>
-          <h1 className="text-xl font-semibold">AI Investigation Center</h1>
+          <h1 className="text-xl font-semibold">Pipeline Backtest — Production Logic</h1>
           <p className="text-xs text-muted-foreground">
-            Historical backtests run through the EXACT production pipeline — candle-by-candle, no hidden logic.
+            Replays the real ApexQuant AI production pipeline using historical data. This is the canonical
+            backtest page for answering: What would the real system have done?
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
+          <Link href="/validation-v2" className="text-xs text-primary underline underline-offset-2 whitespace-nowrap"
+            data-testid="link-validation-v2">
+            Open Strategy Validation Centre
+          </Link>
           <Badge variant="outline" className="border-amber-500 text-amber-500">{LABEL}</Badge>
         </div>
       </div>
@@ -758,7 +766,7 @@ export default function InvestigationCenter() {
             <input type="number" className="bg-background border rounded px-2 py-1.5 w-28" value={capital}
               onChange={(e) => setCapital(Number(e.target.value) || 100000)} data-testid="input-capital" />
           </label>
-          <Button onClick={() => launch.mutate()} disabled={launch.isPending} data-testid="button-run-backtest">
+          <Button onClick={() => launch.mutate(undefined)} disabled={launch.isPending} data-testid="button-run-backtest">
             {launch.isPending ? "Launching…" : "Run Backtest"}
           </Button>
           {launch.data && !launch.data.ok && (
@@ -779,7 +787,29 @@ export default function InvestigationCenter() {
         <Card data-testid="card-runs">
           <CardHeader className="pb-2"><CardTitle className="text-sm">Backtest Runs</CardTitle></CardHeader>
           <CardContent className="space-y-1 max-h-64 overflow-auto">
-            {runs.length === 0 && <div className="text-xs text-muted-foreground">No backtest runs yet. Launch one above.</div>}
+            {runs.length === 0 && runsQ.isSuccess && (
+              <div className="space-y-2" data-testid="empty-state-runs">
+                <div className="text-xs text-muted-foreground">
+                  No pipeline backtest runs yet. Run your first production-pipeline backtest.
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Safe defaults: RELIANCE, TCS, INFY, HDFCBANK, ICICIBANK · 1d · 3 months · ₹50,000 · PAPER / RESEARCH ONLY.
+                </div>
+                <Button size="sm" disabled={launch.isPending} data-testid="button-first-backtest"
+                  onClick={() => {
+                    setIntervalStr("1d"); setPreset("3m"); setCapital(50000);
+                    setSymbolsText("RELIANCE, TCS, INFY, HDFCBANK, ICICIBANK");
+                    const r = rangePreset(90);
+                    launch.mutate({ interval: "1d", start: r.start, end: r.end, capital: 50000,
+                      symbols: ["RELIANCE", "TCS", "INFY", "HDFCBANK", "ICICIBANK"] });
+                  }}>
+                  {launch.isPending ? "Launching…" : "Run First Pipeline Backtest"}
+                </Button>
+                {launch.data && !launch.data.ok && (
+                  <div className="text-xs text-red-500">{String(launch.data.error)}</div>
+                )}
+              </div>
+            )}
             {runs.map((r) => (
               <button key={r.run_id} onClick={() => setSelectedRunId(r.run_id)}
                 className={`w-full text-left text-xs rounded px-2 py-1.5 border ${r.run_id === runId ? "border-primary bg-primary/10" : "border-transparent hover:bg-muted"}`}
@@ -1103,7 +1133,13 @@ export default function InvestigationCenter() {
         <Card data-testid="card-trade-list">
           <CardHeader className="pb-2"><CardTitle className="text-sm">Trade List (click a trade for its story)</CardTitle></CardHeader>
           <CardContent className="max-h-80 overflow-auto">
-            {trades.length === 0 && <div className="text-xs text-muted-foreground">No backtest trades in this run.</div>}
+            {trades.length === 0 && (
+              <div className="text-xs text-muted-foreground" data-testid="text-no-trades">
+                {run?.status === "COMPLETED"
+                  ? "Backtest completed — no trades met entry criteria."
+                  : "No backtest trades in this run."}
+              </div>
+            )}
             {trades.length > 0 && (
               <table className="w-full text-xs">
                 <thead><tr className="text-muted-foreground text-left">

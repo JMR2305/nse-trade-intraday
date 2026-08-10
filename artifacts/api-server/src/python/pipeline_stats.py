@@ -156,6 +156,32 @@ def get_pipeline_stats() -> Dict[str, Any]:
     except Exception as exc:
         stage_errors.append(f"settings: {exc}")
 
+    # ── Gate blocked-count summary ────────────────────────────────────────────
+    # Total BUY signals plus, per gate, how many candidates that gate blocks.
+    # Failed GLOBAL gates block every BUY candidate; per-candidate gate counts
+    # come from each candidate's failed_gates list.
+    failed_global = [g["gate"] for g in global_gates if not g.get("passed")]
+    scan_stale    = "scan_fresh" in failed_global
+    market_closed = "market_open" in failed_global
+
+    per_gate_counts: Dict[str, int] = {}
+    _global_set = set(failed_global)
+    for c in candidate_details:
+        for g in c.get("failed_gates") or []:
+            if g in _global_set:
+                continue  # already counted as a global block — avoid double display
+            per_gate_counts[g] = per_gate_counts.get(g, 0) + 1
+
+    gate_summary = {
+        "total_buy_signals": scan_buy_signals,
+        "scan_stale":        scan_stale,
+        "market_closed":     market_closed,
+        "failed_global_gates": failed_global,
+        # A failed global gate blocks ALL buy signals
+        "global_blocked_counts": {g: scan_buy_signals for g in failed_global},
+        "candidate_blocked_counts": per_gate_counts,
+    }
+
     # ── Funnel stages for UI ──────────────────────────────────────────────────
     funnel = [
         {
@@ -256,6 +282,7 @@ def get_pipeline_stats() -> Dict[str, Any]:
         "first_blocker":       first_blocker,
         "top_buy_candidates":  top_candidates[:10],
         "candidate_gate_details": candidate_details[:10],
+        "gate_summary":        gate_summary,
         "recent_trades":       recent_trades,
         "settings":            settings_snapshot,
         "stage_errors":        stage_errors,

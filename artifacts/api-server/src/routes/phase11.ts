@@ -24,7 +24,20 @@ function runPython(args: string[], timeoutMs = 90_000): Promise<unknown> {
     const timer = setTimeout(() => { proc.kill(); reject(new Error(`Python timeout after ${timeoutMs}ms`)); }, timeoutMs);
     proc.on("close", (code) => {
       clearTimeout(timer);
-      if (code !== 0) return reject(new Error(stderr || `Python exited with code ${code}`));
+      if (code !== 0) {
+        // main.py prints {"error": ..., "trace": ...} to STDOUT before exiting 1 —
+        // surface that detail instead of a bare exit code.
+        let detail = "";
+        try {
+          const parsed = JSON.parse(stdout) as { error?: string; trace?: string };
+          if (parsed?.error) {
+            const traceTail = (parsed.trace ?? "").trim().split("\n").slice(-3).join(" | ");
+            detail = traceTail ? `${parsed.error} — ${traceTail}` : parsed.error;
+          }
+        } catch { /* stdout was not JSON */ }
+        if (!detail) detail = stderr.trim() || `Python exited with code ${code}`;
+        return reject(new Error(detail.slice(0, 600)));
+      }
       try {
         resolve(JSON.parse(stdout));
       } catch {
@@ -175,6 +188,12 @@ router.post("/session/init", async (req: any, res: any) => {
     const force = Boolean(req.body?.force ?? false);
     res.json(await runPython(["daily_session_init", JSON.stringify({ force })], TIMEOUT_MEDIUM));
   } catch (e: any) {
+    // Persist the crash-level failure so the dashboard can show it beside
+    // NOT INIT even after this response is gone (fire-and-forget).
+    runPython(["daily_session_record_error", JSON.stringify({
+      command: "daily_session_init",
+      error: String(e?.message ?? e).slice(0, 1500),
+    })], 15_000).catch(() => { /* KV down — status endpoint still shows state */ });
     res.status(500).json({ error: e.message });
   }
 });

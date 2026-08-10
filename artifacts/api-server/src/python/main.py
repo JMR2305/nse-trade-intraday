@@ -3783,9 +3783,13 @@ def main():
             from daily_session_manager import get_session_status as _f; result = _f()
         elif command == "daily_session_init":
             # Manual trigger — force=True ignores the idempotency guard.
-            force = bool((data or {}).get("force", False))
+            _payload = json.loads(args[1]) if len(args) > 1 else {}
+            force = bool(_payload.get("force", False))
             from daily_session_manager import initialize_daily_session as _f
             result = _f(force=force)
+        elif command == "daily_session_record_error":
+            from daily_session_manager import record_session_error as _f
+            result = _f(args[1] if len(args) > 1 else "{}")
         elif command == "daily_session_verify_agents":
             from daily_session_manager import verify_agents as _f; result = _f()
         elif command == "daily_session_enable_autonomous":
@@ -3813,6 +3817,11 @@ def main():
             _run_id = sys.argv[2] if len(sys.argv) > 2 else ""
             _cfg_json = sys.argv[3] if len(sys.argv) > 3 else "{}"
             result = _f(_run_id, _cfg_json)
+        elif command == "validation_v2_mark_failed":
+            from validation_v2_engine import mark_run_failed as _f
+            _run_id = sys.argv[2] if len(sys.argv) > 2 else ""
+            _err = sys.argv[3] if len(sys.argv) > 3 else "unknown error"
+            result = _f(_run_id, _err)
         elif command == "validation_v2_backtest_list":
             from validation_v2_engine import list_backtest_runs as _f
             result = _f()

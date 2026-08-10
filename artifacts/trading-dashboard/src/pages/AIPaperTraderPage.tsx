@@ -173,6 +173,11 @@ interface SessionStatus {
   paper_only: boolean;
   advisory_only: boolean;
   no_live_orders: boolean;
+  market_state?: string;           // OPEN | PRE_OPEN | CLOSED | POST_CLOSE | UNKNOWN
+  last_error?: {
+    at?: string; source?: string;
+    detail?: Record<string, unknown> | string;
+  } | null;
 }
 /** Canonical agent status — served by /ops-centre/agents (same source as AI Operations Centre) */
 interface CanonicalAgentStatus {
@@ -375,12 +380,37 @@ function S0AutonomousSession() {
   const total       = agents?.agent_count?.total  ?? 0;
   const agentOk     = healthy > 0 && healthy === total;
 
-  const statusCls = initialized
+  // Distinguish "not initialized because the market is closed" (expected,
+  // auto-initializes 08:43–09:20 IST pre-open) from a real worker failure.
+  const marketState  = sess?.market_state ?? "UNKNOWN";
+  const marketClosed = marketState !== "OPEN" && marketState !== "PRE_OPEN";
+  const initFailed   = sess?.session_state === "ERROR" || !!sess?.last_error || initMut.isError;
+  const standby      = !initialized && !initFailed && marketClosed;
+
+  const initErrorText = initMut.isError
+    ? (initMut.error as Error)?.message ?? "Initialization request failed"
+    : sess?.last_error
+      ? `${sess.last_error.source ?? "session init"}: ${
+          typeof sess.last_error.detail === "string"
+            ? sess.last_error.detail
+            : JSON.stringify(sess.last_error.detail ?? {})
+        }`
+      : null;
+
+  const statusCls = initialized && !initFailed
     ? "bg-emerald-950/30 border-emerald-700/40"
-    : "bg-amber-950/30 border-amber-700/40";
-  const statusIcon = initialized
+    : initFailed
+      ? "bg-rose-950/30 border-rose-700/40"
+      : standby
+        ? "bg-slate-900/40 border-slate-700/40"
+        : "bg-amber-950/30 border-amber-700/40";
+  const statusIcon = initialized && !initFailed
     ? <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-    : <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />;
+    : initFailed
+      ? <XCircle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+      : standby
+        ? <Clock className="w-4 h-4 text-slate-400 flex-shrink-0" />
+        : <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />;
 
   return (
     <div className={`border rounded-xl p-4 ${statusCls}`}>
@@ -404,19 +434,29 @@ function S0AutonomousSession() {
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
         {/* Session Status */}
-        <div className={`rounded-xl border p-3 ${initialized
+        <div className={`rounded-xl border p-3 ${initialized && !initFailed
           ? "bg-emerald-950/40 border-emerald-700/40"
-          : "bg-amber-950/40 border-amber-700/40"}`}>
+          : initFailed
+            ? "bg-rose-950/40 border-rose-700/40"
+            : standby
+              ? "bg-slate-900/60 border-slate-700/40"
+              : "bg-amber-950/40 border-amber-700/40"}`}>
           <span className="text-xs text-slate-500">Session</span>
           <div className="flex items-center gap-1 mt-0.5">
             {statusIcon}
-            <span className={`text-sm font-bold ${initialized ? "text-emerald-400" : "text-amber-400"}`}>
-              {sessLoad ? "…" : initialized ? "READY" : "NOT INIT"}
+            <span className={`text-sm font-bold ${initialized && !initFailed ? "text-emerald-400"
+              : initFailed ? "text-rose-400" : standby ? "text-slate-300" : "text-amber-400"}`}>
+              {sessLoad ? "…" : initialized && !initFailed ? "READY"
+                : initFailed ? "INIT FAILED" : standby ? "STANDBY" : "NOT INIT"}
             </span>
           </div>
-          {sess?.last_init_at && (
+          {standby ? (
+            <span className="text-xs text-slate-500">
+              Market closed — auto-initializes at pre-open (08:43 IST)
+            </span>
+          ) : sess?.last_init_at ? (
             <span className="text-xs text-slate-600">{istTime(sess.last_init_at)} IST</span>
-          )}
+          ) : null}
         </div>
 
         {/* Auto Paper Entries */}
@@ -487,17 +527,37 @@ function S0AutonomousSession() {
         </div>
       </div>
 
+      {/* Init failure detail */}
+      {initErrorText && (
+        <div className="rounded-lg bg-rose-950/30 border border-rose-700/40 px-3 py-2 mb-3">
+          <p className="text-xs text-rose-300 font-medium flex items-center gap-1.5">
+            <XCircle className="w-3.5 h-3.5 flex-shrink-0" />
+            Session initialization failed
+            {sess?.last_error?.at && (
+              <span className="text-rose-400/70 font-normal">({istTime(sess.last_error.at)} IST)</span>
+            )}
+          </p>
+          <p className="text-[10px] text-rose-400/80 font-mono mt-1 break-all">
+            {initErrorText.slice(0, 400)}
+          </p>
+          <p className="text-[10px] text-slate-400 mt-1">
+            Recovery: press Retry below. If it fails again, check the API server logs — the exact
+            Python error is now included in the response.
+          </p>
+        </div>
+      )}
+
       {/* Action Row */}
       <div className="flex flex-wrap items-center gap-2">
-        {!initialized && (
+        {(!initialized || initFailed) && (
           <button
             disabled={initMut.isPending}
-            onClick={() => initMut.mutate(false)}
+            onClick={() => initMut.mutate(initFailed)}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-700/40 hover:bg-emerald-700/60 text-emerald-300 border border-emerald-700/50 transition-colors disabled:opacity-50">
             {initMut.isPending
               ? <RefreshCcw className="w-3 h-3 animate-spin" />
               : <Power className="w-3 h-3" />}
-            Initialize Today's Session
+            {initFailed ? "Retry Session Initialization" : "Initialize Today's Session"}
           </button>
         )}
 
@@ -602,12 +662,21 @@ interface PipelineStats {
     candidates_eligible: number; paper_orders_today: number;
     open_positions: number;
   };
+  gate_summary?: {
+    total_buy_signals: number;
+    scan_stale: boolean;
+    market_closed: boolean;
+    failed_global_gates: string[];
+    global_blocked_counts: Record<string, number>;
+    candidate_blocked_counts: Record<string, number>;
+  };
   stage_errors?: string[];
 }
 
 function SPipelineStats() {
   const [expanded, setExpanded] = useState(false);
   const [showGates, setShowGates] = useState<string | null>(null);
+  const qc = useQueryClient();
 
   const { data, isLoading, refetch, dataUpdatedAt } = useQuery<PipelineStats>({
     queryKey: ["apt", "pipeline"],
@@ -617,10 +686,23 @@ function SPipelineStats() {
     retry: 1,
   });
 
+  // "Run fresh scan" CTA — reuses the existing scan-run flow.
+  const scanMut = useMutation({
+    mutationFn: () => apiJson("/live-data/scan/run", { method: "POST" }),
+    onSuccess: () => {
+      setTimeout(() => {
+        qc.invalidateQueries({ queryKey: ["apt", "pipeline"] });
+      }, 5_000);
+    },
+  });
+
   const summary   = data?.summary;
   const funnel    = data?.funnel ?? [];
   const blocker   = data?.first_blocker;
   const hasBlock  = !!blocker;
+  const gs        = data?.gate_summary;
+  const scanStale = gs?.scan_stale ?? false;
+  const mktClosed = gs?.market_closed ?? false;
 
   // Colour each stage
   function stageCls(s: PipelineFunnelStage) {
@@ -733,6 +815,60 @@ function SPipelineStats() {
             </div>
           )}
 
+          {/* Stale scan guidance + fresh-scan CTA */}
+          {scanStale && (
+            <div className="rounded-lg bg-amber-950/30 border border-amber-700/40 px-3 py-2">
+              <p className="text-xs text-amber-300 font-medium flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                Scan data is stale — BUY candidates are blocked and cannot execute.
+              </p>
+              {mktClosed ? (
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Market is closed. Run a fresh scan during market hours (09:15–15:30 IST) —
+                  auto-scan will also refresh automatically once the market opens.
+                </p>
+              ) : (
+                <button
+                  disabled={scanMut.isPending}
+                  onClick={() => scanMut.mutate()}
+                  className="mt-1.5 flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-medium rounded-lg bg-teal-700/40 hover:bg-teal-700/60 text-teal-300 border border-teal-700/50 transition-colors disabled:opacity-50">
+                  {scanMut.isPending
+                    ? <RefreshCcw className="w-3 h-3 animate-spin" />
+                    : <RefreshCcw className="w-3 h-3" />}
+                  {scanMut.isSuccess ? "Scan started — refreshing…" : "Run Fresh Scan Now"}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Per-gate blocked-count summary */}
+          {gs && gs.total_buy_signals > 0 && (
+            <div className="rounded-lg bg-slate-900/40 border border-slate-800/40 p-3">
+              <p className="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1.5">
+                <Shield className="w-3 h-3" /> Why BUYs Are Blocked
+                <span className="font-mono text-slate-500">
+                  ({gs.total_buy_signals} BUY signal{gs.total_buy_signals !== 1 ? "s" : ""} total)
+                </span>
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {Object.entries(gs.global_blocked_counts).map(([g, n]) => (
+                  <span key={g} className="text-[10px] font-mono bg-rose-950/50 border border-rose-800/40 text-rose-300 rounded px-1.5 py-0.5">
+                    {g}: blocks all {n}
+                  </span>
+                ))}
+                {Object.entries(gs.candidate_blocked_counts).map(([g, n]) => (
+                  <span key={g} className="text-[10px] font-mono bg-amber-950/50 border border-amber-800/40 text-amber-300 rounded px-1.5 py-0.5">
+                    {g}: {n}
+                  </span>
+                ))}
+                {Object.keys(gs.global_blocked_counts).length === 0 &&
+                  Object.keys(gs.candidate_blocked_counts).length === 0 && (
+                  <span className="text-[10px] text-emerald-300">No gate blocks recorded — candidates flowing</span>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Global gates */}
           {(() => {
             const gStage = funnel.find(s => s.stage === "global_gates");
@@ -764,6 +900,11 @@ function SPipelineStats() {
             <div className="rounded-lg bg-slate-900/40 border border-slate-800/40 p-3">
               <p className="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1.5">
                 <TrendingUp className="w-3 h-3 text-teal-400" /> BUY Candidates This Scan
+                {scanStale && (
+                  <Badge className="text-[9px] bg-amber-950 border-amber-700/50 text-amber-300 px-1.5 py-0">
+                    Blocked due to stale scan — not executable
+                  </Badge>
+                )}
               </p>
               <div className="overflow-x-auto">
                 <table className="w-full text-[10px]">
@@ -780,11 +921,13 @@ function SPipelineStats() {
                   </thead>
                   <tbody>
                     {(data?.top_buy_candidates ?? []).map(c => (
-                      <tr key={c.symbol} className="border-t border-slate-800/30">
+                      <tr key={c.symbol} className={`border-t border-slate-800/30 ${scanStale ? "opacity-60" : ""}`}>
                         <td className="py-1 pr-2 font-mono text-teal-300">{c.symbol}</td>
                         <td className="py-1 pr-2">
-                          <span className={`px-1 rounded text-[9px] ${c.action === "STRONG BUY" ? "bg-emerald-900/60 text-emerald-300" : "bg-teal-900/60 text-teal-300"}`}>
-                            {c.action}
+                          <span className={`px-1 rounded text-[9px] ${scanStale
+                            ? "bg-amber-950/60 text-amber-300 border border-amber-800/40"
+                            : c.action === "STRONG BUY" ? "bg-emerald-900/60 text-emerald-300" : "bg-teal-900/60 text-teal-300"}`}>
+                            {scanStale ? `${c.action} · BLOCKED (stale scan)` : c.action}
                           </span>
                         </td>
                         <td className="py-1 pr-2 text-right font-mono text-emerald-300">{c.opportunity_score.toFixed(1)}</td>

@@ -91,6 +91,8 @@ def _ensure_tables(conn):
         symbols_total   INTEGER DEFAULT 0,
         current_symbol  TEXT DEFAULT '',
         symbol_errors   JSONB DEFAULT '[]',
+        error           TEXT,
+        last_progress_at TIMESTAMPTZ DEFAULT NOW(),
         created_at  TIMESTAMPTZ DEFAULT NOW(),
         completed_at TIMESTAMPTZ
     );
@@ -166,7 +168,9 @@ def _ensure_tables(conn):
         ADD COLUMN IF NOT EXISTS symbols_total INTEGER DEFAULT 0,
         ADD COLUMN IF NOT EXISTS current_symbol TEXT DEFAULT '',
         ADD COLUMN IF NOT EXISTS symbol_errors JSONB DEFAULT '[]',
-        ADD COLUMN IF NOT EXISTS strategies JSONB NOT NULL DEFAULT '[]';
+        ADD COLUMN IF NOT EXISTS strategies JSONB NOT NULL DEFAULT '[]',
+        ADD COLUMN IF NOT EXISTS error TEXT,
+        ADD COLUMN IF NOT EXISTS last_progress_at TIMESTAMPTZ DEFAULT NOW();
     ALTER TABLE IF EXISTS validation_v2_decisions
         ADD COLUMN IF NOT EXISTS stage TEXT DEFAULT '';
     ALTER TABLE IF EXISTS validation_v2_decisions
@@ -1336,7 +1340,70 @@ def start_backtest_pipeline(config_json: str) -> dict:
     }
 
 
+def mark_run_failed(run_id: str, error: str) -> dict:
+    """Persist a FAILED status + error text on a run (idempotent, terminal-safe).
+
+    Never downgrades a COMPLETED run.  Used by the crash wrapper below and by
+    the Node route when the background executor process dies.
+    """
+    conn = _get_conn()
+    if not conn:
+        return {"error": "DB unavailable"}
+    try:
+        _ensure_tables(conn)
+        _exec(conn, """
+            UPDATE validation_v2_runs
+            SET status = 'FAILED', error = %s, completed_at = NOW()
+            WHERE run_id = %s AND status NOT IN ('COMPLETED', 'FAILED')
+        """, (str(error)[:2000], run_id))
+        return {"ok": True, "run_id": run_id}
+    except Exception as e:
+        return {"error": str(e)}
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+# Runs still RUNNING with no progress for this long are declared stuck.
+STUCK_RUN_TIMEOUT_MINUTES = 30
+
+_STUCK_ERROR = (
+    "No progress for {m}+ minutes — the background executor likely crashed. "
+    "Re-run the backtest; if it happens again check the server logs."
+)
+
+
+def _fail_stuck_runs(conn) -> None:
+    """Mark RUNNING runs with no recent progress as FAILED (lazy watchdog)."""
+    try:
+        _exec(conn, """
+            UPDATE validation_v2_runs
+            SET status = 'FAILED', error = %s, completed_at = NOW()
+            WHERE status = 'RUNNING'
+              AND COALESCE(last_progress_at, created_at) < NOW() - (%s * INTERVAL '1 minute')
+        """, (_STUCK_ERROR.format(m=STUCK_RUN_TIMEOUT_MINUTES),
+              STUCK_RUN_TIMEOUT_MINUTES))
+    except Exception:
+        pass
+
+
 def execute_backtest_pipeline(run_id: str, config_json: str) -> dict:
+    """Crash-safe wrapper: any uncaught executor exception marks the run FAILED."""
+    try:
+        result = _execute_backtest_impl(run_id, config_json)
+        if isinstance(result, dict) and result.get("error"):
+            mark_run_failed(run_id, str(result["error"]))
+        return result
+    except Exception as e:
+        import traceback
+        detail = f"{e}\n{traceback.format_exc()[-1500:]}"
+        mark_run_failed(run_id, detail)
+        return {"error": str(e), "run_id": run_id}
+
+
+def _execute_backtest_impl(run_id: str, config_json: str) -> dict:
     """
     Phase 2 of the async backtest flow.  Processes symbols one-by-one and
     writes progress + results to DB after each symbol.  Designed to run as a
@@ -1386,7 +1453,8 @@ def execute_backtest_pipeline(run_id: str, config_json: str) -> dict:
         try:
             _exec(conn, """
                 UPDATE validation_v2_runs
-                SET current_symbol = %s, symbols_done = %s
+                SET current_symbol = %s, symbols_done = %s,
+                    last_progress_at = NOW()
                 WHERE run_id = %s
             """, (symbol, sym_idx, run_id))
         except Exception:
@@ -1412,7 +1480,7 @@ def execute_backtest_pipeline(run_id: str, config_json: str) -> dict:
                     _exec(conn, """
                         UPDATE validation_v2_runs
                         SET symbol_errors = symbol_errors || %s::jsonb,
-                            symbols_done = %s
+                            symbols_done = %s, last_progress_at = NOW()
                         WHERE run_id = %s
                     """, (json.dumps([msg]), sym_idx + 1, run_id))
                 except Exception:
@@ -1426,7 +1494,7 @@ def execute_backtest_pipeline(run_id: str, config_json: str) -> dict:
                 _exec(conn, """
                     UPDATE validation_v2_runs
                     SET symbol_errors = symbol_errors || %s::jsonb,
-                        symbols_done = %s
+                        symbols_done = %s, last_progress_at = NOW()
                     WHERE run_id = %s
                 """, (json.dumps([msg]), sym_idx + 1, run_id))
             except Exception:
@@ -1434,6 +1502,14 @@ def execute_backtest_pipeline(run_id: str, config_json: str) -> dict:
             continue
 
         for strategy_name in strategy_names:
+            # Heartbeat: long symbol/strategy replays must not look stuck.
+            try:
+                _exec(conn, """
+                    UPDATE validation_v2_runs SET last_progress_at = NOW()
+                    WHERE run_id = %s AND status = 'RUNNING'
+                """, (run_id,))
+            except Exception:
+                pass
             try:
                 bootstrap_trades: list = []
                 try:
@@ -1520,7 +1596,8 @@ def execute_backtest_pipeline(run_id: str, config_json: str) -> dict:
             # Advance symbols_done counter and clear current_symbol
             _exec(conn, """
                 UPDATE validation_v2_runs
-                SET symbols_done = %s, current_symbol = %s
+                SET symbols_done = %s, current_symbol = %s,
+                    last_progress_at = NOW()
                 WHERE run_id = %s
             """, (sym_idx + 1, "" if sym_idx + 1 < len(symbols) else "", run_id))
 
@@ -1531,12 +1608,13 @@ def execute_backtest_pipeline(run_id: str, config_json: str) -> dict:
     try:
         _exec(conn, """
             UPDATE validation_v2_runs
-            SET status = 'COMPLETED',
+            SET status = 'COMPLETED', error = NULL,
                 total_decisions = %s, total_trades = %s,
+                last_progress_at = NOW(),
                 symbols_done = %s, current_symbol = '',
                 symbol_errors = %s,
                 completed_at = NOW()
-            WHERE run_id = %s
+            WHERE run_id = %s AND status = 'RUNNING'
         """, (len(all_decisions), len(all_trades), len(symbols),
               json.dumps(errors[:20]), run_id))
     except Exception as e:
@@ -1752,6 +1830,7 @@ def get_backtest_run(run_id: str) -> dict:
         return {"error": "DB unavailable", "run_id": run_id}
     try:
         _ensure_tables(conn)
+        _fail_stuck_runs(conn)
         run = _q1(conn, "SELECT * FROM validation_v2_runs WHERE run_id = %s", (run_id,))
         if not run:
             return {"error": f"Run {run_id} not found"}
@@ -1808,6 +1887,7 @@ def get_backtest_run(run_id: str) -> dict:
         return {
             "success": True, "run_id": run_id, "label": LABEL,
             "status": run.get("status"),
+            "run_error": run.get("error"),
             "config": run.get("config") or {},
             "symbols": _jsonb_list(run.get("symbols")),
             "strategies": _jsonb_list(run.get("strategies")),
@@ -1834,9 +1914,10 @@ def list_backtest_runs() -> dict:
         return {"runs": [], "label": LABEL}
     try:
         _ensure_tables(conn)
+        _fail_stuck_runs(conn)
         runs = _q(conn, """
             SELECT run_id, status, total_decisions, total_trades,
-                   start_date, end_date, interval, created_at, completed_at
+                   start_date, end_date, interval, error, created_at, completed_at
             FROM validation_v2_runs ORDER BY created_at DESC LIMIT 50
         """)
         return {"runs": runs, "count": len(runs), "label": LABEL}

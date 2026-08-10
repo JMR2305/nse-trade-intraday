@@ -1,0 +1,218 @@
+CORE BACKTESTING FIX — NO NEW PAGES, NO NEW FEATURES
+
+We reviewed CORE_ARCHITECTURE_AND_BACKTESTING_AUDIT.md.
+
+Important decision:
+Stop adding new pages and new features.
+
+The audit confirms there are two separate backtesting systems:
+
+1. /backtest
+   - Phase 23 Backtest Runner
+   - This is the canonical production-pipeline backtester
+   - It uses the real production pipeline
+
+2. /validation-v2
+   - AI Validation Centre V2
+   - This is a strategy-validation / optimizer harness
+   - It uses simplified strategy models
+   - It must NOT be presented as the main production-pipeline backtester
+
+OBJECTIVE
+
+Fix the core backtesting confusion and make the canonical backtesting flow reliable.
+
+Do not create any new pages.
+Do not add new dashboards.
+Do not modify trading strategy logic.
+Do not modify risk thresholds.
+Do not place live orders.
+Keep everything PAPER / RESEARCH ONLY.
+
+===============================================================================
+TASK 1 — BACKTESTING PAGE LABELS
+===============================================================================
+
+Add clear labels and banners:
+
+On /backtest:
+
+Title / banner:
+"Pipeline Backtest — Production Logic"
+
+Description:
+"Replays the real ApexQuant AI production pipeline using historical data. This is the canonical backtest page for answering: What would the real system have done?"
+
+On /validation-v2:
+
+Title / banner:
+"Strategy Validation — Research Models"
+
+Description:
+"Uses simplified validation and optimizer models for research. This is not the canonical production-pipeline backtest."
+
+Add cross-links:
+
+From /backtest:
+"Open Strategy Validation Centre"
+
+From /validation-v2:
+"Open Production Pipeline Backtest"
+
+===============================================================================
+TASK 2 — VERIFY /backtest FIRST-RUN FLOW
+===============================================================================
+
+Run a real browser/API smoke test for /backtest.
+
+Use a small safe test:
+
+- 5 symbols
+- 1d interval
+- 3 months
+- ₹50,000 capital
+- PAPER / RESEARCH ONLY
+
+Verify:
+
+1. POST /backtest/run starts a run.
+2. Status endpoint progresses correctly.
+3. Run completes or fails with visible error.
+4. backtest_runs table is populated.
+5. backtest_trades table is checked.
+6. pipeline_events are written with mode=backtest where applicable.
+7. Results appear on the /backtest page.
+8. Latest run auto-selects after completion.
+9. No blank page after completion.
+
+If no trades are generated, that is acceptable, but the UI must clearly say:
+"Backtest completed — no trades met entry criteria."
+
+===============================================================================
+TASK 3 — FIX PHASE 23 BACKTEST FIRST-RUN UX
+===============================================================================
+
+If /backtest does not already do this, add:
+
+1. Empty state:
+   "No pipeline backtest runs yet. Run your first production-pipeline backtest."
+
+2. CTA:
+   "Run First Pipeline Backtest"
+
+3. Default safe values:
+   RELIANCE, TCS, INFY, HDFCBANK, ICICIBANK
+   1d interval
+   3 months
+   ₹50,000
+   PAPER / RESEARCH ONLY
+
+4. After completion:
+   - refetch runs
+   - auto-select latest completed run
+   - populate result sections
+
+5. If run fails:
+   - show the error message clearly
+   - do not leave user on an empty screen
+
+===============================================================================
+TASK 4 — FIX VALIDATION V2 SILENT BACKGROUND FAILURES
+===============================================================================
+
+Audit found a real blocker:
+
+Validation V2 background executor can fail silently because stdio is ignored.
+A crash can leave a run stuck RUNNING forever.
+
+Fix:
+
+1. Capture stderr/stdout from the background executor.
+2. If the run crashes:
+   - set status=FAILED
+   - store error text on the run row
+   - show error in /validation-v2 UI
+3. Add stuck-run timeout:
+   - if RUNNING too long without progress, mark as FAILED or STALE
+   - show remediation message
+4. Add tests:
+   - background crash marks run FAILED
+   - error text is persisted
+   - UI shows failed run instead of endless running
+
+===============================================================================
+TASK 5 — FIX AI PAPER TRADER SESSION INIT ERROR VISIBILITY
+===============================================================================
+
+Audit found:
+
+daily_session_init can exit with code 1, but traceback is not persisted.
+
+Fix:
+
+1. Persist last session init error in phase20 KV or canonical paper-session store.
+2. Store:
+   - timestamp
+   - command
+   - exit code
+   - stderr / traceback
+   - recovery hint
+3. Show it on AI Paper Trader beside NOT INIT.
+4. If market is closed or after IST midnight, show:
+   "Session not initialized for today. This is expected until the next trading session init."
+5. If Python failed, show:
+   "Session init failed" with exact persisted error.
+
+Do not bypass market_open.
+Do not bypass scan_fresh.
+Do not force trades after market close.
+
+===============================================================================
+TASK 6 — CANONICAL BACKTESTING RESULT LOCATIONS
+===============================================================================
+
+Make the UI clear:
+
+/backtest shows:
+- production-pipeline backtest runs
+- production-pipeline simulated trades
+- production-pipeline missed opportunities
+- production-pipeline replay/story
+
+/validation-v2 shows:
+- strategy validation runs
+- simplified model trades
+- optimizer results
+- model comparison
+
+Do not mix the two run types.
+
+===============================================================================
+TASK 7 — VERIFICATION REPORT
+===============================================================================
+
+Produce:
+
+BACKTESTING_CORE_FIX_VERIFICATION.md
+
+Include:
+
+1. Confirmation no new pages were added.
+2. Confirmation no trading logic changed.
+3. Confirmation /backtest is labelled canonical production-pipeline backtest.
+4. Confirmation /validation-v2 is labelled strategy-validation research harness.
+5. /backtest smoke run result:
+   - run id
+   - status
+   - symbols
+   - interval
+   - period
+   - decisions/events
+   - trades, if any
+   - where results appear
+6. Validation V2 failure handling test result.
+7. AI Paper Trader session-init error persistence test result.
+8. List of any remaining blockers.
+
+Stop after this verification.
+Do not continue to new features.

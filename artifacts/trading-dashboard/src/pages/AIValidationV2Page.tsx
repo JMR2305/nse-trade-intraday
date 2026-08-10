@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { Link } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiJson } from "@/lib/api";
 import DataFreshnessBar from "@/components/DataFreshnessBar";
@@ -440,9 +441,13 @@ function BacktestRunnerTab({ onRunComplete }: { onRunComplete: (run: RunDetail) 
       qc.invalidateQueries({ queryKey: ["v2-performance"] });
       qc.invalidateQueries({ queryKey: ["v2-opt-rec"] });
       onRunComplete(currentRun);
-    } else if (currentRun?.status === "ERROR") {
+    } else if (currentRun?.status === "ERROR" || currentRun?.status === "FAILED") {
       setRunning(false);
-      setError(String((currentRun as any).error ?? "Run failed — check backend logs"));
+      qc.invalidateQueries({ queryKey: ["v2-runs"] });
+      setError(String(
+        (currentRun as any).run_error ?? (currentRun as any).error
+        ?? "Run failed — check backend logs"
+      ));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentRun?.status]);
@@ -606,9 +611,20 @@ function BacktestRunnerTab({ onRunComplete }: { onRunComplete: (run: RunDetail) 
                   <tr key={r.run_id} className="border-b border-slate-700/30 hover:bg-slate-700/20">
                     <td className="px-3 py-2 text-slate-300">{r.run_id.slice(0, 10)}…</td>
                     <td className="px-3 py-2">
-                      <span className={r.status === "COMPLETED" ? "text-emerald-400" : r.status === "RUNNING" ? "text-amber-400 animate-pulse" : "text-slate-400"}>
+                      <span className={
+                        r.status === "COMPLETED" ? "text-emerald-400"
+                          : r.status === "RUNNING" ? "text-amber-400 animate-pulse"
+                            : (r.status === "FAILED" || r.status === "ERROR") ? "text-rose-400"
+                              : "text-slate-400"}
+                        title={(r as any).error ? String((r as any).error) : undefined}
+                        data-testid={`v2-run-status-${r.run_id}`}>
                         {r.status}
                       </span>
+                      {(r.status === "FAILED" || r.status === "ERROR") && (r as any).error && (
+                        <div className="text-[10px] text-rose-400/80 mt-0.5 max-w-[260px] truncate">
+                          {String((r as any).error)}
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-slate-300">{r.total_decisions}</td>
                     <td className="px-3 py-2 text-emerald-400">{r.total_trades}</td>
@@ -2359,14 +2375,22 @@ export default function AIValidationV2Page() {
             <div className="p-2 bg-indigo-500/15 rounded-xl">
               <Brain size={22} className="text-indigo-400" />
             </div>
-            AI Validation Centre V2
+            Strategy Validation — Research Models
           </h1>
           <p className="text-sm text-slate-400 mt-1">
-            Production-parity walk-forward validation · Advisory only · Research use only
+            Uses simplified validation and optimizer models for research. This is not the canonical
+            production-pipeline backtest.
           </p>
         </div>
-        <div className="flex items-center gap-2 text-xs bg-amber-900/20 border border-amber-700/40 px-3 py-1.5 rounded-full text-amber-300">
-          <Shield size={12} /> PAPER TRADING · ADVISORY ONLY
+        <div className="flex items-center gap-3 flex-wrap">
+          <Link href="/investigation-center"
+            className="text-xs text-teal-300 underline underline-offset-2 whitespace-nowrap"
+            data-testid="link-pipeline-backtest">
+            Open Production Pipeline Backtest
+          </Link>
+          <div className="flex items-center gap-2 text-xs bg-amber-900/20 border border-amber-700/40 px-3 py-1.5 rounded-full text-amber-300">
+            <Shield size={12} /> PAPER TRADING · ADVISORY ONLY
+          </div>
         </div>
       </div>
 

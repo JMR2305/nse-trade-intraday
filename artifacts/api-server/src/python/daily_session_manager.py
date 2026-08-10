@@ -29,6 +29,7 @@ from typing import Any, Dict, Optional
 _SESSION_DATE_KEY  = "daily_session_date"           # "YYYY-MM-DD" of last init
 _SESSION_TS_KEY    = "daily_session_initialized_at"  # ISO timestamp
 _SESSION_STATE_KEY = "daily_session_state"          # INITIALISED | ERROR
+_SESSION_ERROR_KEY = "daily_session_last_error"     # {at, source, detail} of last failure
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -196,16 +197,43 @@ def initialize_daily_session(force: bool = False) -> Dict[str, Any]:
 
     # ── 5. Record KV guards ───────────────────────────────────────────────────
     now = _iso_now()
-    _kv_set(_SESSION_DATE_KEY,  today)
-    _kv_set(_SESSION_TS_KEY,    now)
-    _kv_set(_SESSION_STATE_KEY, "INITIALISED")
-    result["completed_at"] = now
 
-    # Determine overall success
-    errors = [k for k, v in result["steps"].items()
-              if isinstance(v, str) and v.startswith("ERROR")]
+    # Determine overall success — a step failed when:
+    #   * its value is a string starting with "ERROR", OR
+    #   * it is a dict carrying an "error" key (e.g. topup failure), OR
+    #   * it is the agents dict and any agent reported an ERROR status.
+    def _step_error_detail(name: str, v: Any) -> Optional[Any]:
+        if isinstance(v, str) and v.startswith("ERROR"):
+            return v
+        if isinstance(v, dict):
+            if v.get("error"):
+                return {"error": v["error"]}
+            if name == "agents":
+                bad = {a: s for a, s in (v.get("agents") or {}).items()
+                       if isinstance(s, str) and s.startswith("ERROR")}
+                if bad:
+                    return {"failed_agents": bad,
+                            "healthy": v.get("healthy"), "total": v.get("total")}
+        return None
+
+    error_details = {k: d for k, v in result["steps"].items()
+                     if (d := _step_error_detail(k, v)) is not None}
+    errors = list(error_details.keys())
     result["success"] = len(errors) == 0
     result["errors"]  = errors
+
+    _kv_set(_SESSION_DATE_KEY,  today)
+    _kv_set(_SESSION_TS_KEY,    now)
+    _kv_set(_SESSION_STATE_KEY, "INITIALISED" if not errors else "ERROR")
+    if errors:
+        _kv_set(_SESSION_ERROR_KEY, {
+            "at":     now,
+            "source": "session_init_steps",
+            "detail": error_details,
+        })
+    else:
+        _kv_set(_SESSION_ERROR_KEY, None)
+    result["completed_at"] = now
 
     # ── 6. Notification ───────────────────────────────────────────────────────
     agents_ok = result["steps"].get("agents", {})
@@ -265,6 +293,35 @@ def check_and_maybe_initialize(mstate: str) -> Optional[Dict[str, Any]]:
 
 # ── Status endpoint helper ─────────────────────────────────────────────────────
 
+def record_session_error(payload_json: str = "{}") -> Dict[str, Any]:
+    """
+    Persist a crash-level session-init error (e.g. the Python process exited
+    non-zero before initialize_daily_session() could record anything itself).
+
+    Called by the API server when `daily_session_init` fails at the process
+    level.  Stores timestamp, command, exit code, stderr/traceback, and a
+    recovery hint so the dashboard can show the exact failure beside NOT INIT.
+    """
+    try:
+        payload = json.loads(payload_json) if payload_json else {}
+    except Exception:
+        payload = {"raw": str(payload_json)[:500]}
+    entry = {
+        "at":     _now_iso(),
+        "source": "python_crash",
+        "detail": {
+            "command":   str(payload.get("command", "daily_session_init"))[:200],
+            "exit_code": payload.get("exit_code"),
+            "error":     str(payload.get("error", ""))[:1500],
+            "hint":      "Retry from the AI Paper Trader page; if it recurs, "
+                         "check api-server logs for the full traceback.",
+        },
+    }
+    _kv_set(_SESSION_ERROR_KEY, entry)
+    _kv_set(_SESSION_STATE_KEY, "ERROR")
+    return {"ok": True, "recorded": entry}
+
+
 def get_session_status() -> Dict[str, Any]:
     """
     Return a JSON-safe status dict for the /phase20/daily-session endpoint.
@@ -273,8 +330,18 @@ def get_session_status() -> Dict[str, Any]:
     init_date  = _kv_get(_SESSION_DATE_KEY)
     init_at    = _kv_get(_SESSION_TS_KEY)
     init_state = _kv_get(_SESSION_STATE_KEY, "UNKNOWN")
+    last_error = _kv_get(_SESSION_ERROR_KEY)
 
     initialized_today = init_date == today
+
+    # Market state so the UI can distinguish "not initialised because the
+    # market is closed" (expected) from a real initialisation failure.
+    mstate = "UNKNOWN"
+    try:
+        from market_hours import market_state
+        mstate = market_state()
+    except Exception:
+        pass
 
     # Phase 20 settings
     settings: Dict[str, Any] = {}
@@ -298,6 +365,8 @@ def get_session_status() -> Dict[str, Any]:
         "last_init_date":      init_date,
         "last_init_at":        init_at,
         "session_state":       init_state if initialized_today else "NOT_INITIALIZED",
+        "market_state":        mstate,
+        "last_error":          last_error if (initialized_today and init_state == "ERROR") or not initialized_today else None,
         "auto_scan_enabled":   settings.get("auto_scan_enabled",  True),
         "auto_paper_entries":  settings.get("auto_paper_entries", False),
         "auto_paper_exits":    settings.get("auto_paper_exits",   True),

@@ -18,6 +18,8 @@
 
 import { Router } from "express";
 import { spawn, SpawnOptions } from "child_process";
+import * as fs from "fs";
+import * as path from "path";
 import { PYTHON_DIR, PYTHON_BIN } from "../lib/python-env";
 
 const router = Router();
@@ -162,18 +164,44 @@ function validateOptimizerBody(body: Record<string, unknown>): string | null {
   return null;
 }
 
-/** Spawn a Python process in the background (fire-and-forget). */
-function spawnBackground(args: string[]): void {
-  const opts: SpawnOptions = {
-    cwd: PYTHON_DIR,
-    env: { ...process.env },
-    stdio: "ignore",
-    detached: false,
+/**
+ * Spawn a Python process in the background.
+ *
+ * Output is captured to /tmp/v2_backtest_<runId>.log; if the process exits
+ * non-zero (or fails to spawn), the run is marked FAILED with the tail of
+ * that log so the UI never shows an endless RUNNING state.
+ */
+function spawnBackground(args: string[], runId: string): void {
+  const logPath = path.join("/tmp", `v2_backtest_${runId.replace(/[^\w-]/g, "")}.log`);
+  const markFailed = (reason: string) => {
+    runPython(["validation_v2_mark_failed", runId, reason.slice(0, 1800)], 15_000)
+      .catch(() => { /* DB down — stuck-run watchdog will catch it */ });
   };
   try {
+    const logFd = fs.openSync(logPath, "w");
+    const opts: SpawnOptions = {
+      cwd: PYTHON_DIR,
+      env: { ...process.env },
+      stdio: ["ignore", logFd, logFd],
+      detached: false,
+    };
     const child = spawn(PYTHON_BIN, ["-u", "main.py", ...args], opts);
-    child.on("error", () => { /* background process — ignore errors */ });
-  } catch (_) { /* ignore */ }
+    fs.close(logFd, () => { /* child holds its own fd copy */ });
+    child.on("error", (e) => markFailed(`Background executor failed to start: ${e}`));
+    child.on("exit", (code, signal) => {
+      if (code === 0) return;
+      let tail = "";
+      try {
+        const content = fs.readFileSync(logPath, "utf8");
+        tail = content.split("\n").slice(-15).join("\n").slice(-1500);
+      } catch { /* no log */ }
+      markFailed(
+        `Background executor crashed (exit code ${code ?? "?"}${signal ? `, signal ${signal}` : ""}).\n${tail}`
+      );
+    });
+  } catch (e) {
+    markFailed(`Background executor failed to spawn: ${e}`);
+  }
 }
 
 /** POST /validation-v2/backtest/run — kick off a full backtest */
@@ -202,7 +230,7 @@ router.post("/validation-v2/backtest/run", async (req, res) => {
     // Phase 2: execute backtest asynchronously — frontend polls GET /:runId for progress
     const runId = String((startResult as any).run_id ?? "");
     if (runId) {
-      spawnBackground(["validation_v2_backtest_execute", runId, configJson]);
+      spawnBackground(["validation_v2_backtest_execute", runId, configJson], runId);
     }
 
     res.json(startResult);

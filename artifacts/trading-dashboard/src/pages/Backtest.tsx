@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useGetStrategies, useRunBacktest } from "@workspace/api-client-react";
 import type { BacktestResult, BacktestTrade } from "@workspace/api-client-react";
 import { FlaskConical, TrendingUp, TrendingDown, AlertTriangle, BarChart2, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 import DataFreshnessBar from "@/components/DataFreshnessBar";
 
@@ -170,14 +171,26 @@ export default function Backtest() {
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <FlaskConical className="h-6 w-6 text-primary" />
         <div>
-          <h1 className="text-2xl font-bold tracking-tight font-mono">Backtest Engine</h1>
+          <h1 className="text-2xl font-bold tracking-tight font-mono">Backtest Engine — Single-Strategy Research</h1>
           <p className="text-sm text-muted-foreground font-mono">
             Walk-forward paper simulation · No real orders · ₹{capital.toLocaleString()} capital
           </p>
         </div>
+        <Link href="/investigation-center"
+          className="ml-auto text-xs text-primary underline underline-offset-2 whitespace-nowrap"
+          data-testid="link-pipeline-backtest">
+          Open Production Pipeline Backtest
+        </Link>
+      </div>
+
+      <div className="bg-amber-500/10 border border-amber-500/40 rounded-lg px-4 py-3 text-xs text-amber-500 font-mono"
+        data-testid="banner-not-canonical">
+        This page runs a simple single-strategy simulator for quick research. It is NOT the canonical
+        production-pipeline backtest — for &ldquo;what would the real system have done?&rdquo;, use the
+        Production Pipeline Backtest (Investigation Center).
       </div>
 
       <DataFreshnessBar variant="historical" datasetLabel="Backtest dataset" />
