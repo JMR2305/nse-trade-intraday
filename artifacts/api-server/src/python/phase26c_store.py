@@ -107,78 +107,6 @@ def _file_lock(path: str):
             os.close(fd)
 
 
-# ── Retention ────────────────────────────────────────────────────────────────
-# History must stay bounded under continuous operation: results older than
-# RETENTION_DAYS are pruned after each append, but the newest KEEP_MIN_PER_AREA
-# rows per area are always kept so history survives quiet periods (weekends,
-# holidays, disabled schedulers) and latest_result() never goes empty.
-
-RETENTION_DAYS = 30
-KEEP_MIN_PER_AREA = 20
-_FALLBACK_MAX_PER_AREA = 200  # hard cap for the local JSON fallback
-
-
-def prune_results(days: int = RETENTION_DAYS,
-                  keep_min: int = KEEP_MIN_PER_AREA) -> Dict[str, Any]:
-    """Delete results older than `days`, always keeping the newest `keep_min`
-    rows per area. Fail-safe: NEVER raises (called after each append)."""
-    try:
-        days = max(1, int(days))
-        keep_min = max(0, int(keep_min))
-
-        def in_db(conn):
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    DELETE FROM phase26c_results
-                    WHERE created_at < NOW() - (%s || ' days')::interval
-                      AND result_id NOT IN (
-                        SELECT result_id FROM (
-                            SELECT result_id,
-                                   ROW_NUMBER() OVER (
-                                       PARTITION BY area
-                                       ORDER BY created_at DESC
-                                   ) AS rn
-                            FROM phase26c_results
-                        ) ranked
-                        WHERE rn <= %s
-                      )
-                    """,
-                    (days, keep_min),
-                )
-                deleted = cur.rowcount
-            return {"deleted": deleted, "days": days, "keep_min": keep_min}
-
-        def in_file():
-            deleted = 0
-            with _file_lock(RESULTS_FILE):
-                rows = _read_json(RESULTS_FILE, [])
-                kept: List[Dict[str, Any]] = []
-                by_area: Dict[str, List[Dict[str, Any]]] = {}
-                for r in rows:
-                    by_area.setdefault(str(r.get("area")), []).append(r)
-                cutoff = datetime.now(timezone.utc).timestamp() - days * 86400
-                for area_rows in by_area.values():
-                    area_rows.sort(key=lambda r: str(r.get("created_at") or ""),
-                                   reverse=True)
-                    for idx, r in enumerate(area_rows):
-                        if idx < keep_min or (
-                            idx < _FALLBACK_MAX_PER_AREA
-                            and _created_ts(r) >= cutoff
-                        ):
-                            kept.append(r)
-                        else:
-                            deleted += 1
-                if deleted:
-                    _write_json(RESULTS_FILE, kept)
-            return {"deleted": deleted, "days": days, "keep_min": keep_min,
-                    "fallback": True}
-
-        return _with_db(in_db, in_file)
-    except Exception:
-        return {"deleted": 0, "days": days, "error": True}
-
-
 def _created_ts(record: Dict[str, Any]) -> float:
     try:
         raw = str(record.get("created_at") or "")
@@ -251,14 +179,18 @@ def append_result(area: str, result: Dict[str, Any]) -> Dict[str, Any]:
 # prune), mirroring the pipeline_events 14-day prune pattern.
 #
 # Policy (per area): delete rows older than RETENTION_DAYS, but always
-# keep the newest RETENTION_MIN_KEEP rows per area regardless of age —
-# so latest_result() and recent history are never affected.
+# keep the newest KEEP_MIN_PER_AREA rows per area regardless of age —
+# so latest_result() and recent history are never affected. The local
+# JSON fallback additionally enforces a _FALLBACK_MAX_PER_AREA hard cap
+# so the file can never grow unbounded even with fresh rows.
 RETENTION_DAYS = 30
-RETENTION_MIN_KEEP = 20
+KEEP_MIN_PER_AREA = 20
+RETENTION_MIN_KEEP = KEEP_MIN_PER_AREA   # legacy alias — keep in sync
+_FALLBACK_MAX_PER_AREA = 200  # hard cap for the local JSON fallback
 
 
 def prune_results(days: int = RETENTION_DAYS,
-                  keep_min: int = RETENTION_MIN_KEEP) -> Dict[str, Any]:
+                  keep_min: int = KEEP_MIN_PER_AREA) -> Dict[str, Any]:
     """Bounded retention for phase26c_results (DB and file fallback).
     NEVER raises. Returns {"deleted": n, "days": days, "keep_min": k}."""
     days = max(1, int(days))
@@ -285,9 +217,7 @@ def prune_results(days: int = RETENTION_DAYS,
             return {"deleted": deleted, "days": days, "keep_min": keep_min}
 
         def in_file():
-            from datetime import timedelta
-            cutoff = (datetime.now(timezone.utc)
-                      - timedelta(days=days)).isoformat()
+            cutoff = datetime.now(timezone.utc).timestamp() - days * 86400
             deleted = 0
             with _file_lock(RESULTS_FILE):
                 rows = _read_json(RESULTS_FILE, [])
@@ -298,8 +228,10 @@ def prune_results(days: int = RETENTION_DAYS,
                         key=lambda r: str(r.get("created_at") or ""),
                         reverse=True)
                     for i, r in enumerate(area_rows):
-                        if i < keep_min or \
-                                str(r.get("created_at") or "") >= cutoff:
+                        if i < keep_min or (
+                            i < _FALLBACK_MAX_PER_AREA
+                            and _created_ts(r) >= cutoff
+                        ):
                             kept.append(r)
                         else:
                             deleted += 1
