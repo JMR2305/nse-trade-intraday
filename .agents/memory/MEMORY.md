@@ -104,4 +104,5 @@
 - [Replay snapshot contract](replay-snapshot-contract.md) — stages use id/stocks_in/stocks_out, decisions use final_action; market_data↔SCANNER alias; curl real keys before typing interfaces.
 - [Phase 27C/27D explain & optimize](phase27-explain-optimize.md) — scan gates are `{passed,reason}` dicts; phase24 missed-opps wrap in `record`; error rows trip all gates; journey can lag the canonical scan.
 - [Test date drift](test-date-drift.md) — never hardcode "recent" timestamps in tests whose logic compares against now (e.g. max-holding TIME_EXIT); compute relative to now or tests rot.
+- [Publish image 8 GiB limit](publish-image-size.md) — deploy build must strip .git/caches/.pythonlibs inside the image; cleaning the dev workspace alone doesn't fix oversize publishes.
 - [Durable portfolio repos](portfolio-durable-repos.md) — recover-first startup w/ canonical-ledger cross-check; DB idempotency dedupe; serial id is the only cross-process sequence; unit tests must set all portfolio DB kill-switches.

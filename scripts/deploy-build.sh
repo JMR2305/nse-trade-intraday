@@ -62,6 +62,19 @@ echo "--- Step 4: Build API server bundle ---"
 pnpm --filter @workspace/api-server run build
 
 echo ""
+echo "--- Step 5: Strip build-only bloat from the deployment image ---"
+# The publish image has a hard 8 GiB limit (a 2026-08-09/10 publish failed on
+# it). Everything below is not needed at runtime:
+#   .git         — version history (1.2+ GiB)
+#   .cache       — uv/pip/pnpm download caches refilled by this build
+#   .pythonlibs  — dev Python env; production uses the .venv built above
+#   .local/state — workspace-local logs/state
+# (.local/share/pnpm is stripped in the postBuild step, after pnpm store prune.)
+rm -rf .git .cache .pythonlibs .local/state
+echo "    Stripped .git, .cache, .pythonlibs, .local/state"
+du -sh . 2>/dev/null | awk '{print "    Image workspace size after cleanup: " $1}'
+
+echo ""
 echo "========================================"
 echo " Build complete"
 echo "========================================"
