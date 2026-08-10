@@ -1,64 +1,11 @@
 {
-  "cash": 41199.6,
-  "positions": {
-    "BAJFINANCE": {
-      "quantity": 8,
-      "avg_price": 1100.05
-    }
-  },
+  "cash": 50000.0,
+  "positions": {},
+  "trades": [],
   "pnl_history": [
     {
-      "value": 50000.0,
-      "timestamp": "2026-08-07T04:16:20.950726"
-    },
-    {
-      "timestamp": "2026-08-07T04:17:06.645469",
+      "timestamp": "2026-08-10T03:30:13.151022",
       "value": 50000.0
-    }
-  ],
-  "trades": [
-    {
-      "id": "61208e38",
-      "symbol": "BAJFINANCE",
-      "action": "BUY",
-      "quantity": 8,
-      "price": 1100.05,
-      "total": 8800.4,
-      "timestamp": "2026-08-07T04:17:06.304645",
-      "reason": "Phase 20 AUTO paper entry (trade P20-4a5f909738)",
-      "signal_confidence": 64.9,
-      "regime": "Strong uptrend",
-      "ai_decision": "BUY",
-      "rr_ratio": 3.0,
-      "target": 1280.59,
-      "stop_loss": 1037.67,
-      "plain_english": "Automated Phase 20 paper entry (AUTO)",
-      "strategy_id": "trend_rider",
-      "strategy_name": "Trend Rider",
-      "opportunity_score": 65.9,
-      "trade_quality": 55.9,
-      "est_broker_charges": 10.44,
-      "est_slippage": 4.4,
-      "risk_pct": 5.67,
-      "reward_pct": 16.41,
-      "position_size_value": 8800.4,
-      "trailing_stop": null,
-      "indicators_at_entry": {
-        "ema9": 1112.18,
-        "ema20": 1079.74,
-        "ema50": 1024.11,
-        "ema200": 963.74,
-        "rsi": 57.43,
-        "macd": 37.1383,
-        "macd_signal": 33.252,
-        "vwap": 1079.26,
-        "atr": 30.37,
-        "adx": 34.38,
-        "supertrend": 1065.32,
-        "volume_ratio": 0.44
-      },
-      "market_regime_at_entry": "Bullish",
-      "volatility_at_entry": 10.34
     }
   ]
 }

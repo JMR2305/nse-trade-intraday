@@ -1,11 +1,12 @@
 {
-  "trading_date": "2026-08-07",
-  "session_id": "val-2026-08-07-877bfa",
+  "trading_date": "2026-08-10",
+  "session_id": "val-2026-08-10-6b5d58",
   "checkpoints_done": {
-    "price_1000": {
-      "ts": "2026-08-07T09:58:48.548267+05:30",
-      "symbols": 0,
-      "skipped": "no_candidates"
+    "open_0920": {
+      "ts": "2026-08-10T09:18:29.236198+05:30",
+      "fetched": 10,
+      "symbols": 10,
+      "updated": 10
     }
   }
 }
