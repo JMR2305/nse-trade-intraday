@@ -20,6 +20,7 @@ PAPER TRADING ONLY — NO LIVE ORDERS.
 
 from __future__ import annotations
 
+import json
 import os
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
@@ -291,6 +292,74 @@ def check_and_maybe_initialize(mstate: str) -> Optional[Dict[str, Any]]:
     return initialize_daily_session()
 
 
+# ── Market-open failure alert ──────────────────────────────────────────────────
+
+def check_open_alert(mstate: str) -> Optional[Dict[str, Any]]:
+    """
+    Called every minute by phase20_scheduler.run_tick() after
+    check_and_maybe_initialize().
+
+    When the market has reached OPEN and today's session is still NOT
+    INITIALISED (never ran, or ran with errors → state=ERROR), emit exactly
+    one CRITICAL notification per IST trading day (atomic kv_claim_once, so
+    concurrent Autoscale ticks can't double-alert). The notification includes
+    the persisted daily_session_last_error detail when present, and the
+    SESSION_INIT_FAILED kind is on the email-alert critical list.
+
+    Never raises. Returns a small status dict, or None when idle.
+    """
+    if mstate != "OPEN":
+        return None
+    try:
+        today = _today_ist()
+        init_date = _kv_get(_SESSION_DATE_KEY)
+        state = _kv_get(_SESSION_STATE_KEY, "UNKNOWN")
+        initialized_ok = (init_date == today and state == "INITIALISED")
+        if initialized_ok:
+            return None
+
+        session_state = state if init_date == today else "NOT_INITIALIZED"
+
+        from phase20_store import kv_claim_once, add_notification
+        claim_key = f"session_init_open_alert:{today}"
+        if not kv_claim_once(claim_key):
+            return {"alerted": False, "state": session_state,
+                    "reason": "already alerted today"}
+
+        last_error = _kv_get(_SESSION_ERROR_KEY)
+        body = (
+            f"Market is OPEN but today's paper trading session is "
+            f"{session_state} (expected INITIALISED). Auto paper entries "
+            f"will NOT run until the session is initialised. "
+            f"Retry from the AI Paper Trader page."
+        )
+        if isinstance(last_error, dict) and last_error:
+            try:
+                detail = json.dumps(last_error.get("detail"),
+                                    default=str)[:600]
+            except Exception:
+                detail = str(last_error.get("detail"))[:600]
+            body += (f" Last error (at {last_error.get('at')}, "
+                     f"source {last_error.get('source')}): {detail}")
+
+        add_notification(
+            "SESSION_INIT_FAILED",
+            f"Daily session NOT initialised at market open — {today}",
+            body,
+            severity="CRITICAL",
+            context={
+                "date": today,
+                "session_state": session_state,
+                "last_init_date": init_date,
+                "last_error": last_error,
+            },
+        )
+        return {"alerted": True, "state": session_state,
+                "claim_key": claim_key}
+    except Exception as exc:   # never break the scheduler tick
+        return {"alerted": False, "error": str(exc)[:200]}
+
+
 # ── Status endpoint helper ─────────────────────────────────────────────────────
 
 def record_session_error(payload_json: str = "{}") -> Dict[str, Any]:
@@ -307,7 +376,7 @@ def record_session_error(payload_json: str = "{}") -> Dict[str, Any]:
     except Exception:
         payload = {"raw": str(payload_json)[:500]}
     entry = {
-        "at":     _now_iso(),
+        "at":     _iso_now(),
         "source": "python_crash",
         "detail": {
             "command":   str(payload.get("command", "daily_session_init"))[:200],

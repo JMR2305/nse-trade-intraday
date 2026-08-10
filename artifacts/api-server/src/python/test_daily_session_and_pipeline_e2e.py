@@ -190,6 +190,147 @@ class TestDailySessionErrorReporting(unittest.TestCase):
         self.assertIsNone(status["last_error"])
 
 
+class TestOpenAlert(unittest.TestCase):
+    """check_open_alert: CRITICAL notification when session is not
+    INITIALISED at market OPEN, deduped once per day via kv_claim_once."""
+
+    def _run(self, kv, mstate="OPEN", claim_result=True):
+        import daily_session_manager as dsm
+        notifications = []
+
+        def add_notification(kind, title, body="", severity="INFO",
+                             context=None):
+            notifications.append({"kind": kind, "title": title,
+                                  "body": body, "severity": severity,
+                                  "context": context})
+
+        import phase20_store as p20
+        with patch.object(dsm, "_kv_get",
+                          side_effect=lambda k, d=None: kv.get(k, d)), \
+             patch.object(p20, "kv_claim_once",
+                          return_value=claim_result) as claim, \
+             patch.object(p20, "add_notification",
+                          side_effect=add_notification):
+            out = dsm.check_open_alert(mstate)
+        return out, notifications, claim
+
+    def test_no_alert_when_market_not_open(self):
+        out, notes, _ = self._run({}, mstate="PRE_OPEN")
+        self.assertIsNone(out)
+        self.assertEqual(notes, [])
+
+    def test_no_alert_when_initialised_today(self):
+        import daily_session_manager as dsm
+        kv = {"daily_session_date": dsm._today_ist(),
+              "daily_session_state": "INITIALISED"}
+        out, notes, _ = self._run(kv)
+        self.assertIsNone(out)
+        self.assertEqual(notes, [])
+
+    def test_alert_when_not_initialized(self):
+        out, notes, claim = self._run({})
+        self.assertTrue(out["alerted"])
+        self.assertEqual(out["state"], "NOT_INITIALIZED")
+        self.assertEqual(len(notes), 1)
+        self.assertEqual(notes[0]["kind"], "SESSION_INIT_FAILED")
+        self.assertEqual(notes[0]["severity"], "CRITICAL")
+        import daily_session_manager as dsm
+        claim.assert_called_once_with(
+            f"session_init_open_alert:{dsm._today_ist()}")
+
+    def test_alert_when_error_state_includes_last_error(self):
+        import daily_session_manager as dsm
+        kv = {"daily_session_date": dsm._today_ist(),
+              "daily_session_state": "ERROR",
+              "daily_session_last_error": {
+                  "at": "2026-08-10T03:20:00Z",
+                  "source": "session_init_steps",
+                  "detail": {"portfolio_reset": "ERROR: store outage"}}}
+        out, notes, _ = self._run(kv)
+        self.assertTrue(out["alerted"])
+        self.assertEqual(out["state"], "ERROR")
+        self.assertIn("store outage", notes[0]["body"])
+        self.assertIn("session_init_steps", notes[0]["body"])
+        self.assertEqual(
+            notes[0]["context"]["last_error"]["source"],
+            "session_init_steps")
+
+    def test_deduped_when_already_claimed(self):
+        out, notes, _ = self._run({}, claim_result=False)
+        self.assertFalse(out["alerted"])
+        self.assertEqual(out["reason"], "already alerted today")
+        self.assertEqual(notes, [])
+
+    def test_never_raises(self):
+        import daily_session_manager as dsm
+        with patch.object(dsm, "_kv_get",
+                          side_effect=RuntimeError("kv down")):
+            out = dsm.check_open_alert("OPEN")
+        self.assertFalse(out["alerted"])
+        self.assertIn("kv down", out["error"])
+
+    def test_session_init_failed_is_email_kind(self):
+        from email_alerts import EMAIL_KINDS
+        self.assertIn("SESSION_INIT_FAILED", EMAIL_KINDS)
+
+    def test_run_tick_alerts_even_when_auto_scan_disabled(self):
+        """Scheduler regression: OPEN + auto_scan_enabled=False + session
+        uninitialised must STILL emit the SESSION_INIT_FAILED CRITICAL alert
+        (the disabled early-return previously skipped it entirely)."""
+        import daily_session_manager as dsm
+        import phase20_scheduler as sched
+        import phase20_store as p20
+        notifications = []
+        settings = dict(DEFAULT_SETTINGS)
+        settings["auto_scan_enabled"] = False
+
+        with patch.object(p20, "get_settings", return_value=settings), \
+             patch.object(p20, "update_scheduler_state",
+                          lambda *a, **k: None), \
+             patch("market_hours.market_status",
+                   return_value={"state": "OPEN"}), \
+             patch.object(dsm, "_kv_get",
+                          side_effect=lambda k, d=None: None), \
+             patch.object(p20, "kv_claim_once",
+                          return_value=True) as claim, \
+             patch.object(p20, "add_notification",
+                          side_effect=lambda kind, title, body="",
+                          severity="INFO", context=None:
+                          notifications.append((kind, severity))):
+            out = sched.run_tick()
+
+        self.assertFalse(out["ran_scan"])
+        self.assertEqual(out["reason"], "Auto scan disabled")
+        self.assertTrue(out["session_alert"]["alerted"])
+        self.assertEqual(notifications,
+                         [("SESSION_INIT_FAILED", "CRITICAL")])
+        claim.assert_called_once_with(
+            f"session_init_open_alert:{dsm._today_ist()}")
+
+    def test_run_tick_disabled_no_alert_when_initialised(self):
+        """OPEN + disabled scans + session INITIALISED today → no alert."""
+        import daily_session_manager as dsm
+        import phase20_scheduler as sched
+        import phase20_store as p20
+        kv = {"daily_session_date": dsm._today_ist(),
+              "daily_session_state": "INITIALISED"}
+        settings = dict(DEFAULT_SETTINGS)
+        settings["auto_scan_enabled"] = False
+
+        with patch.object(p20, "get_settings", return_value=settings), \
+             patch.object(p20, "update_scheduler_state",
+                          lambda *a, **k: None), \
+             patch("market_hours.market_status",
+                   return_value={"state": "OPEN"}), \
+             patch.object(dsm, "_kv_get",
+                          side_effect=lambda k, d=None: kv.get(k, d)), \
+             patch.object(p20, "add_notification") as notify:
+            out = sched.run_tick()
+
+        self.assertNotIn("session_alert", out)
+        notify.assert_not_called()
+
+
 # ── 3. main.py dispatch regression guard ─────────────────────────────────────
 
 class TestMainDispatchParsesPayload(unittest.TestCase):

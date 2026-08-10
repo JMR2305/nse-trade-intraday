@@ -40,6 +40,7 @@ EMAIL_KINDS = (
     "RECONCILIATION_DISCREPANCY",
     "DATA_QUALITY_CRITICAL",   # Phase 8.3 — critical data quality issues
     "VALIDATION_FAILED",       # Phase 26C — scheduled validation FAIL/ERROR
+    "SESSION_INIT_FAILED",     # Daily session not initialised at market open
     "LIVE_VALIDATION_FAIL",    # Phase 26B — live validation verdict FAIL
     "LIVE_VALIDATION_ISSUE",   # Phase 26B — new CRITICAL live issue opened
 )

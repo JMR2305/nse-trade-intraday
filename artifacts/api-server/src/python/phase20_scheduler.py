@@ -296,17 +296,30 @@ def run_tick() -> Dict[str, Any]:
     interval_min = int(settings.get("scan_interval_minutes", 5))
     now_iso = _iso_now()
 
+    from market_hours import market_status
+    mstat = market_status()
+    mstate = str(mstat.get("state") or mstat.get("market_state") or "").upper()
+
     if not settings.get("auto_scan_enabled", True):
+        # Scans stay suppressed, but the market-open session alert must
+        # still be evaluated — a disabled scheduler is exactly the kind of
+        # situation where the session silently misses the day. Never raises.
+        disabled_alert: Any = None
+        try:
+            from daily_session_manager import check_open_alert
+            disabled_alert = check_open_alert(mstate)
+        except Exception as exc:
+            disabled_alert = {"alerted": False, "error": str(exc)[:200]}
         store.update_scheduler_state(
             last_attempt_at=now_iso, status="DISABLED",
             detail="Auto scan disabled in settings",
             owner=_OWNER, heartbeat_at=now_iso,
         )
-        return {"success": True, "ran_scan": False, "reason": "Auto scan disabled"}
-
-    from market_hours import market_status
-    mstat = market_status()
-    mstate = str(mstat.get("state") or mstat.get("market_state") or "").upper()
+        out_disabled: Dict[str, Any] = {"success": True, "ran_scan": False,
+                                        "reason": "Auto scan disabled"}
+        if disabled_alert is not None:
+            out_disabled["session_alert"] = disabled_alert
+        return out_disabled
 
     # ── Daily session initialisation (pre-market + OPEN fallback) ────────────
     # Runs once per trading day before the first scan.  Idempotent.
@@ -318,6 +331,17 @@ def run_tick() -> Dict[str, Any]:
         session_init = check_and_maybe_initialize(mstate)
     except Exception as exc:
         session_init = {"error": str(exc)[:200]}
+
+    # If the market is OPEN and today's session is still not INITIALISED
+    # (init never ran or ended in ERROR), raise a once-per-day CRITICAL
+    # operator alert (atomic KV claim; includes persisted last_error).
+    # Never raises.
+    session_alert: Any = None
+    try:
+        from daily_session_manager import check_open_alert
+        session_alert = check_open_alert(mstate)
+    except Exception as exc:
+        session_alert = {"alerted": False, "error": str(exc)[:200]}
 
     if mstate != "OPEN":
         report = _maybe_generate_session_report(mstate)
@@ -395,6 +419,8 @@ def run_tick() -> Dict[str, Any]:
             "reason": f"Snapshot fresh ({round(age)}s old, interval {interval_min}m)",
         }
         result["paper"] = _manage_paper(settings, ran_scan=False)
+        if session_alert is not None:
+            result["session_alert"] = session_alert
         if coverage_alert is not None:
             result["coverage_alert"] = coverage_alert
         if live_validation is not None:
@@ -438,6 +464,8 @@ def run_tick() -> Dict[str, Any]:
             busy_out: Dict[str, Any] = {
                 "success": True, "ran_scan": False,
                 "reason": "SKIPPED_ACTIVE_SCAN — another scan in progress"}
+            if session_alert is not None:
+                busy_out["session_alert"] = session_alert
             if coverage_alert is not None:
                 busy_out["coverage_alert"] = coverage_alert
             if live_validation is not None:
@@ -483,6 +511,8 @@ def run_tick() -> Dict[str, Any]:
                 "failed_modules": pipeline.get("failed_modules"),
             }
         result["paper"] = _manage_paper(settings, ran_scan=ran)
+        if session_alert is not None:
+            result["session_alert"] = session_alert
         if coverage_alert is not None:
             result["coverage_alert"] = coverage_alert
         if live_validation is not None:
