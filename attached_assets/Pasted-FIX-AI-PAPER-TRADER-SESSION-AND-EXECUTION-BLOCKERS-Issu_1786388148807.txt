@@ -1,0 +1,72 @@
+FIX AI PAPER TRADER SESSION AND EXECUTION BLOCKERS
+
+Issue observed on AI Paper Trader page:
+
+1. Autonomous Trading Session shows:
+   - Session: NOT INIT
+   - Python exited with code 1
+
+2. Execution Pipeline shows:
+   - BUY Signals Generated: 8
+   - Global Gates Passed: 0
+   - Candidates Evaluated: 8
+   - Passed All Entry Gates: 0
+   - Paper Orders Executed Today: 0
+
+3. First blockage:
+   - scan_fresh: Scan age 32687s, stale after 5400s
+   - market_open: Market state is CLOSED
+
+Required investigation:
+
+A. Fix Python exited with code 1
+- Find the exact traceback for the AI Paper Trader session initialization.
+- Fix the underlying crash.
+- Ensure Initialize Today's Session works without Python process failure.
+- Add logging if the error is currently hidden.
+
+B. Improve session state clarity
+- If market is closed, show:
+  "Session not initialized because market is closed"
+  instead of only "NOT INIT".
+- If Python worker failed, show the exact error source and recovery action.
+
+C. Confirm global gate behavior
+- market_open should block BUY entries when NSE market is closed.
+- scan_fresh should block BUY entries when scan data is stale.
+- This is correct behavior, but the UI should clearly say:
+  "BUY signals are from stale historical scan and cannot be executed."
+
+D. Fresh scan requirement
+- Add a clear button or instruction:
+  "Run fresh scan during market hours before paper entries can execute."
+- If scan is stale, do not show stale BUY candidates as executable.
+- Label them as "Blocked due to stale scan".
+
+E. Entry gate reporting
+- Show gate summary:
+  Total BUY signals
+  Blocked by scan_fresh
+  Blocked by market_open
+  Blocked by min_confidence
+  Blocked by min_opportunity_score
+  Blocked by min_trade_quality
+  Blocked by min_risk_reward
+  Blocked by per_stock_cap
+
+F. Verify paper trade path during market hours
+- During NSE market hours with fresh scan:
+  BUY signal
+  → global gates
+  → entry gates
+  → paper order
+  → portfolio position
+  → P&L
+- Add a test or simulated market-open validation proving this full path works.
+
+Important:
+Do not place live orders.
+Keep PAPER ONLY.
+Do not loosen risk thresholds automatically.
+Do not bypass scan_fresh or market_open gates.
+Fix the Python crash and improve the UI explanation.

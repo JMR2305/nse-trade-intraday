@@ -1,0 +1,242 @@
+STOP FEATURE DEVELOPMENT — CORE ARCHITECTURE + BACKTESTING AUDIT ONLY
+
+We are stopping all future coding, new pages, new dashboards, new phases, and new features for now.
+
+Current issue:
+The project has many pages, but several pages appear empty, inconsistent, or disconnected. We need to understand the real architecture before making more changes.
+
+Observed problems:
+1. AI Validation Centre V2 page exists, but most tabs show “No run selected”.
+2. Validation V2 report says APIs are healthy but no backtest run has been executed yet.
+3. AI Paper Trader shows BUY signals but 0 paper orders executed.
+4. AI Paper Trader shows Session NOT INIT and Python exited with code 1.
+5. Some pages appear to use different data sources or inconsistent counts.
+6. Backtesting, Replay, Investigation, Validation V2, AI Live Command Center, Strategy Optimization, and Portfolio pages may be overlapping.
+7. We need to know exactly which page runs backtests, where the data comes from, where results are stored, and where results are displayed.
+
+IMPORTANT RULES:
+- Do NOT create new pages.
+- Do NOT add new features.
+- Do NOT change trading strategy logic.
+- Do NOT change risk thresholds.
+- Do NOT loosen gates.
+- Do NOT bypass market_open or scan_fresh rules.
+- Do NOT place live orders.
+- Keep everything PAPER / RESEARCH ONLY.
+- First produce an architecture report before doing fixes.
+
+TASK 1 — FULL ARCHITECTURE MAP
+
+Produce a markdown report named:
+
+CORE_ARCHITECTURE_AND_BACKTESTING_AUDIT.md
+
+The report must explain the current system architecture clearly.
+
+Include:
+
+A. Page inventory table
+
+For every major page, list:
+
+- Page name
+- Route
+- Purpose
+- Backend API endpoints used
+- Data source/store used
+- Whether it is live, replay, backtest, validation, analytics, or portfolio
+- Whether it is currently functional
+- Whether it is duplicate/legacy/overlapping
+- Recommended action: keep / merge / deprecate / fix
+
+Pages to include at minimum:
+
+- Mission Control
+- AI Operations Centre
+- AI Live Trading Command Center
+- AI Investigation Center
+- AI Validation Centre V2
+- Replay / Trading Day Timeline
+- Trade Replay
+- Backtest Runner
+- Strategy Optimisation
+- Operator Analytics
+- System Readiness
+- Portfolio Performance
+- Trade History
+- Broker / Execution
+- AI Paper Trader
+- Learning / Knowledge pages if applicable
+
+B. Canonical data stores
+
+List every source of truth:
+
+- Pipeline Event Store
+- Replay Store
+- Backtest Store
+- Paper Trade Ledger
+- Portfolio Store
+- Execution Store
+- Scan State Store
+- Validation V2 tables
+- Learning Store
+- Any JSON fallback stores
+- Any legacy/demo stores
+
+For each store, explain:
+
+- What owns it
+- What writes to it
+- What reads from it
+- Whether it is canonical or legacy
+- Whether any page is using the wrong store
+
+C. Correct live trading flow
+
+Document the real live/paper trading flow:
+
+Market Data
+→ Scanner
+→ Research
+→ Market Intelligence
+→ Monitoring
+→ Strategy
+→ Portfolio Pre-Check
+→ Risk
+→ AI Decision
+→ Execution
+→ Paper Trade Ledger
+→ Portfolio
+→ P&L
+→ Replay
+→ Learning
+→ Dashboards
+
+For each stage, document:
+
+- Input
+- Output
+- Event emitted
+- Store written
+- Pages that display it
+
+D. Backtesting data flow
+
+This is the most important section.
+
+Explain clearly:
+
+1. Which page actually starts a backtest.
+2. Which button or form starts it.
+3. Which API endpoint is called.
+4. Which backend engine runs the backtest.
+5. Where historical data is downloaded from.
+6. Which intervals are supported: 5m, 10m, 15m, 1d, etc.
+7. What date ranges are supported.
+8. Whether NSE data comes from Zerodha, Yahoo, NSE, yfinance, or another provider.
+9. Whether provider limits exist.
+10. Where backtest runs are stored.
+11. Where trades are stored.
+12. Where missed opportunities are stored.
+13. Where decisions are stored.
+14. Which page displays the results.
+15. Which dropdown should show completed runs.
+16. Why the current AI Validation Centre V2 shows no runs.
+17. How to run the first backtest correctly.
+18. Whether the backtesting engine uses the real production pipeline or a simplified path.
+
+E. AI Validation Centre V2 audit
+
+For `/validation-v2`, explain:
+
+- Is the page code complete?
+- Are all 10 tabs connected to real APIs?
+- Why do tabs show empty state?
+- Is the dropdown empty because there are no backtest runs?
+- Does Backtest Runner work?
+- What exact action is needed to populate the page?
+- Are results persisted correctly after a run?
+- Is this page overlapping with Investigation Center or Phase 23 backtesting?
+
+F. AI Paper Trader audit
+
+For AI Paper Trader, explain:
+
+- Why Session shows NOT INIT
+- Why Python exited with code 1
+- Where the traceback is
+- Whether Initialize Today’s Session is broken
+- Why 8 BUY signals produced 0 paper orders
+- Which gates blocked execution
+- Whether scan_fresh and market_open are correctly blocking stale/closed-market trades
+- Whether paper orders should only happen during fresh market sessions
+- Whether the execution → paper ledger → portfolio → P&L flow works during market hours
+
+G. Cross-page consistency audit
+
+Compare these pages for the same latest scan/run:
+
+- Mission Control
+- AI Operations Centre
+- AI Live Command Center
+- AI Investigation Center
+- Replay
+- AI Paper Trader
+- Portfolio
+- Trade History
+- Validation V2
+
+Report whether they show the same:
+
+- Universe count
+- Scanned count
+- BUY signals
+- WATCH signals
+- Rejections
+- Executed paper trades
+- Open positions
+- P&L
+- Portfolio value
+
+If not, identify exactly which page is reading the wrong API or store.
+
+H. Duplicate / legacy page cleanup recommendation
+
+Do not delete anything yet.
+
+Just identify:
+
+- Which pages are canonical
+- Which pages are duplicate
+- Which pages are legacy
+- Which pages should be hidden later
+- Which pages should be merged later
+
+TASK 2 — BACKTESTING FIX PLAN ONLY
+
+After the architecture report, provide a fix plan but do not implement yet.
+
+The plan must answer:
+
+1. What is the minimum fix required to make backtesting work?
+2. Which single page should be the canonical backtesting page?
+3. Should AI Validation Centre V2 be the main backtesting page, or should Investigation Center remain the main page?
+4. How should the first backtest run be triggered?
+5. How should run results appear automatically after completion?
+6. Which tables must be populated?
+7. Which APIs must be verified?
+8. Which tests must pass?
+
+TASK 3 — ONLY AFTER REPORT, ASK FOR APPROVAL
+
+Do not start coding fixes until the report is complete.
+
+When done, provide:
+
+- CORE_ARCHITECTURE_AND_BACKTESTING_AUDIT.md
+- Backtesting Fix Plan
+- List of critical blockers
+- Recommendation for the single canonical backtesting flow
+
+Then stop and wait for approval.

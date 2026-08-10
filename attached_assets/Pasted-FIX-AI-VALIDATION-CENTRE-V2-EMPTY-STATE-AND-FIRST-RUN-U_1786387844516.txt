@@ -1,0 +1,87 @@
+FIX AI VALIDATION CENTRE V2 EMPTY STATE AND FIRST-RUN UX
+
+Issue:
+AI Validation Centre V2 is coded and reachable, but all tabs currently appear empty because no validation backtest run has been executed yet.
+
+Screenshots show:
+- Dataset Updated: —
+- Select a run dropdown has no usable run
+- Trade Simulation says No run selected
+- Session Playback says Select a run
+- Explainability says No run selected
+- AI vs Market says No run selected
+
+The status report confirms:
+- GET /validation-v2/backtest returns runs: []
+- No backtest run has been executed yet
+- All tabs require a run before data can appear
+
+Required fix:
+Make the page operator-friendly and usable from a fresh empty database.
+
+Tasks:
+
+1. If /validation-v2/backtest returns no runs:
+   - Show a top-level banner:
+     "No validation backtest run exists yet. Run your first validation backtest to populate this dashboard."
+   - Auto-focus or auto-open the Backtest Runner tab.
+   - Disable or grey out run-dependent tabs until a run exists:
+     Trade Simulation
+     Missed Opps
+     AI vs Market
+     Param Optimizer
+     Explainability
+     Session Playback
+     Performance
+     Model Comparison
+
+2. Add a large CTA button:
+   "Run First Validation Backtest"
+
+3. Pre-fill safe default values in Backtest Runner:
+   - Symbols: RELIANCE, TCS, INFY, HDFCBANK, ICICIBANK
+   - Period: Last 6 months if supported, otherwise last available intraday provider window
+   - Interval: 5m or 10m
+   - Capital: ₹50,000
+   - Mode: PAPER / RESEARCH ONLY
+   - Strategy: default production strategy
+   - Max symbols: within server cap
+
+4. When the user clicks Run First Validation Backtest:
+   - Call POST /validation-v2/backtest/run
+   - Poll progress every 3 seconds
+   - Show progress clearly:
+     queued / running / completed / failed
+   - Show current symbol and progress if available
+
+5. After run completes:
+   - Refresh GET /validation-v2/backtest
+   - Auto-select the latest completed run
+   - Populate all run-dependent tabs
+   - Show run summary on Overview
+
+6. Dropdown fix:
+   - If no runs exist, show "No runs available — run a backtest first"
+   - Do not show a useless dropdown with no options
+   - Once runs exist, sort latest first and auto-select latest
+
+7. Dataset header fix:
+   - Replace Updated: — with a meaningful state:
+     "No runs yet" when empty
+     "Last run: <timestamp>" when available
+   - Show sample size once data exists
+
+8. Add tests:
+   - Empty run state renders first-run CTA
+   - Run-dependent tabs disabled when no runs exist
+   - Backtest Runner auto-selected when no runs exist
+   - Latest run auto-selected after successful run
+   - Tabs populate after run selection
+   - No fabricated data shown
+
+Important:
+Do not modify trading logic.
+Do not place live orders.
+Keep this PAPER / RESEARCH ONLY.
+Use existing validation-v2 APIs.
+Do not duplicate calculations.

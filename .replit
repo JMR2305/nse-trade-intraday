@@ -74,7 +74,7 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
-packages = ["cargo", "freetype", "glibcLocales", "libiconv", "libxcrypt", "postgresql", "rustc"]
+packages = ["freetype", "glibcLocales", "libiconv", "libxcrypt"]
 
 [userenv]
 

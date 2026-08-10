@@ -400,11 +400,12 @@ function OverviewTab({ onNavigate }: { onNavigate: (tab: number) => void }) {
 
 function BacktestRunnerTab({ onRunComplete }: { onRunComplete: (run: RunDetail) => void }) {
   const qc = useQueryClient();
-  const [selectedSymbols, setSelectedSymbols] = useState<string[]>(["RELIANCE", "TCS", "INFY"]);
+  // Safe first-run defaults: 5 liquid large-caps, 6 months, ₹50,000 paper capital.
+  const [selectedSymbols, setSelectedSymbols] = useState<string[]>(["RELIANCE", "TCS", "INFY", "HDFCBANK", "ICICIBANK"]);
   const [strategy, setStrategy] = useState("trend_rider");
-  const [periodIdx, setPeriodIdx] = useState(1);
+  const [periodIdx, setPeriodIdx] = useState(2);
   const [interval, setIntervalVal] = useState("1d");
-  const [capital, setCapital] = useState(10000);
+  const [capital, setCapital] = useState(50000);
   const [stopPct, setStopPct] = useState(2.0);
   const [targetPct, setTargetPct] = useState(5.0);
   const [confThresh, setConfThresh] = useState(55);
@@ -551,9 +552,11 @@ function BacktestRunnerTab({ onRunComplete }: { onRunComplete: (run: RunDetail) 
         </div>
         <div className="flex items-center gap-3">
           <button onClick={handleRun} disabled={running || selectedSymbols.length === 0}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-teal-500 hover:bg-teal-400 text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+            className={`flex items-center gap-2 rounded-lg bg-teal-500 hover:bg-teal-400 text-white font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
+              runs.length === 0 ? "px-7 py-3 text-base" : "px-5 py-2.5 text-sm"
+            }`}>
             {running ? <RefreshCw size={14} className="animate-spin" /> : <Play size={14} />}
-            {running ? "Running…" : "Run Backtest"}
+            {running ? "Running…" : runs.length === 0 ? "Run First Validation Backtest" : "Run Backtest"}
           </button>
           {running && (() => {
             const prog = currentRun?.progress;
@@ -979,7 +982,7 @@ function TradeSimulationTab({ latestRunId }: { latestRunId: string | null }) {
         <label className="text-xs text-slate-400 uppercase tracking-widest">Run</label>
         <select value={selectedRunId} onChange={e => { setSelectedRunId(e.target.value); setTradeFilter("ALL"); }}
           className="bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-teal-500">
-          <option value="">{latestRunId ? "Latest run" : "Select a run…"}</option>
+          <option value="">{latestRunId ? "Latest run" : runs.length === 0 ? "No runs available — run a backtest first" : "Select a run…"}</option>
           {runs.map(r => (
             <option key={r.run_id} value={r.run_id}>{r.run_id.slice(0, 10)} ({r.total_trades} trades)</option>
           ))}
@@ -1469,7 +1472,7 @@ function AIvsMarketTab({ latestRunId }: { latestRunId: string | null }) {
         <label className="text-xs text-slate-400 uppercase tracking-widest">Run</label>
         <select value={selectedRunId} onChange={e => setSelectedRunId(e.target.value)}
           className="bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none">
-          <option value="">{latestRunId ? "Latest run" : "Select a run…"}</option>
+          <option value="">{latestRunId ? "Latest run" : runs.length === 0 ? "No runs available — run a backtest first" : "Select a run…"}</option>
           {runs.map(r => <option key={r.run_id} value={r.run_id}>{r.run_id.slice(0, 10)} ({r.total_decisions} decisions)</option>)}
         </select>
         {runQ.isFetching && <RefreshCw size={13} className="text-slate-400 animate-spin" />}
@@ -1790,7 +1793,7 @@ function AgentExplainabilityTab({ latestRunId }: { latestRunId: string | null })
           <label className="text-xs text-slate-400 uppercase tracking-widest">Run</label>
           <select value={selectedRunId} onChange={e => setSelectedRunId(e.target.value)}
             className="bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none">
-            <option value="">{latestRunId ? "Latest run" : "Select a run…"}</option>
+            <option value="">{latestRunId ? "Latest run" : runs.length === 0 ? "No runs available — run a backtest first" : "Select a run…"}</option>
             {runs.map(r => <option key={r.run_id} value={r.run_id}>{r.run_id.slice(0, 10)}</option>)}
           </select>
         </div>
@@ -1940,7 +1943,7 @@ function SessionPlaybackTab({ latestRunId }: { latestRunId: string | null }) {
       <div className="flex flex-wrap items-center gap-3">
         <select value={selectedRunId} onChange={e => { setSelectedRunId(e.target.value); setCursor(0); stopPlayback(); }}
           className="bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none">
-          <option value="">{latestRunId ? "Latest run" : "Select a run…"}</option>
+          <option value="">{latestRunId ? "Latest run" : runs.length === 0 ? "No runs available — run a backtest first" : "Select a run…"}</option>
           {runs.map(r => <option key={r.run_id} value={r.run_id}>{r.run_id.slice(0, 10)} ({r.total_trades} trades)</option>)}
         </select>
         {timelineQ.isLoading && <RefreshCw size={14} className="text-slate-400 animate-spin" />}
@@ -2309,9 +2312,44 @@ function ModelComparisonTab() {
 // Main Page
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Tabs that need at least one backtest run before they can show anything. */
+const RUN_DEPENDENT_TABS = new Set([2, 3, 4, 5, 6, 7, 8, 9]);
+
 export default function AIValidationV2Page() {
   const [activeTab, setActiveTab] = useState(0);
   const [latestRunId, setLatestRunId] = useState<string | null>(null);
+  // Set immediately when a backtest completes in this session, so the banner
+  // clears and tabs unlock without waiting for the ["v2-runs"] refetch.
+  const [sessionRunCompleted, setSessionRunCompleted] = useState(false);
+
+  // Page-level run list (shares the ["v2-runs"] cache with the tabs).
+  const runsQ = useQuery<{ runs: RunListItem[] }>({
+    queryKey: ["v2-runs"],
+    queryFn:  () => apiJson("validation-v2/backtest"),
+    staleTime: 30_000,
+  });
+  const runs = runsQ.data?.runs ?? [];
+  const hasRuns = runs.length > 0 || sessionRunCompleted;
+  const latestRun = runs[0];
+
+  // First-run UX: with a fresh empty database, open the Backtest Runner directly.
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    if (runsQ.isSuccess && !hasRuns && !autoOpened.current) {
+      autoOpened.current = true;
+      setActiveTab(1);
+    }
+  }, [runsQ.isSuccess, hasRuns]);
+
+  // Auto-select the latest run once runs exist (server returns latest first).
+  useEffect(() => {
+    if (hasRuns && !latestRunId) setLatestRunId(latestRun.run_id);
+  }, [hasRuns, latestRunId, latestRun?.run_id]);
+
+  const selectTab = (i: number) => {
+    if (RUN_DEPENDENT_TABS.has(i) && runsQ.isSuccess && !hasRuns) return;
+    setActiveTab(i);
+  };
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-12">
@@ -2332,17 +2370,58 @@ export default function AIValidationV2Page() {
         </div>
       </div>
 
-      <DataFreshnessBar variant="historical" datasetLabel="Validation backtest dataset" />
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex-1 min-w-[280px]">
+          <DataFreshnessBar
+            variant="historical"
+            datasetLabel="Validation backtest dataset"
+            lastUpdated={latestRun?.created_at ?? null}
+          />
+        </div>
+        <span className="text-xs text-slate-400 whitespace-nowrap" data-testid="v2-dataset-status">
+          {runsQ.isSuccess && !hasRuns
+            ? "No runs yet"
+            : latestRun
+              ? `Last run: ${latestRun.created_at?.slice(0, 16).replace("T", " ") ?? "—"} · ${latestRun.total_trades} trades / ${latestRun.total_decisions} decisions`
+              : ""}
+        </span>
+      </div>
+
+      {runsQ.isSuccess && !hasRuns && (
+        <div className="flex items-center justify-between gap-4 flex-wrap bg-indigo-900/20 border border-indigo-700/40 rounded-xl px-5 py-4"
+          data-testid="v2-first-run-banner">
+          <div className="flex items-center gap-3">
+            <FlaskConical size={20} className="text-indigo-400 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-white">
+                No validation backtest run exists yet. Run your first validation backtest to populate this dashboard.
+              </p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Safe defaults are pre-filled — 5 large-cap symbols, 6 months, ₹50,000 paper capital. PAPER / RESEARCH ONLY.
+              </p>
+            </div>
+          </div>
+          <button onClick={() => setActiveTab(1)}
+            className="flex items-center gap-2 px-6 py-3 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-semibold transition-colors"
+            data-testid="v2-first-run-cta">
+            <Play size={15} /> Run First Validation Backtest
+          </button>
+        </div>
+      )}
 
       <div className="flex gap-1 flex-wrap border-b border-slate-700/50 pb-0">
         {TABS.map((tab, i) => {
           const Icon = tab.icon;
+          const disabled = RUN_DEPENDENT_TABS.has(i) && runsQ.isSuccess && !hasRuns;
           return (
-            <button key={tab.id} onClick={() => setActiveTab(i)}
+            <button key={tab.id} onClick={() => selectTab(i)} disabled={disabled}
+              title={disabled ? "Run a backtest first to unlock this tab" : undefined}
               className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium rounded-t-lg transition-colors border-b-2 -mb-px ${
                 activeTab === i
                   ? "border-teal-500 text-teal-300 bg-teal-500/10"
-                  : "border-transparent text-slate-400 hover:text-white hover:bg-slate-800/40"
+                  : disabled
+                    ? "border-transparent text-slate-600 cursor-not-allowed"
+                    : "border-transparent text-slate-400 hover:text-white hover:bg-slate-800/40"
               }`}>
               <Icon size={13} />
               {tab.label}
@@ -2352,8 +2431,15 @@ export default function AIValidationV2Page() {
       </div>
 
       <div className="min-h-[400px]">
-        {activeTab === 0 && <OverviewTab onNavigate={setActiveTab} />}
-        {activeTab === 1 && <BacktestRunnerTab onRunComplete={(run) => setLatestRunId(run.run_id)} />}
+        {activeTab === 0 && <OverviewTab onNavigate={selectTab} />}
+        {activeTab === 1 && (
+          <BacktestRunnerTab
+            onRunComplete={(run) => {
+              setLatestRunId(run.run_id);
+              setSessionRunCompleted(true);
+            }}
+          />
+        )}
         {activeTab === 2 && <TradeSimulationTab latestRunId={latestRunId} />}
         {activeTab === 3 && (
           <MissedOpportunitiesTab

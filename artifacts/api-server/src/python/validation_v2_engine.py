@@ -165,7 +165,23 @@ def _ensure_tables(conn):
         ADD COLUMN IF NOT EXISTS symbols_done  INTEGER DEFAULT 0,
         ADD COLUMN IF NOT EXISTS symbols_total INTEGER DEFAULT 0,
         ADD COLUMN IF NOT EXISTS current_symbol TEXT DEFAULT '',
-        ADD COLUMN IF NOT EXISTS symbol_errors JSONB DEFAULT '[]';
+        ADD COLUMN IF NOT EXISTS symbol_errors JSONB DEFAULT '[]',
+        ADD COLUMN IF NOT EXISTS strategies JSONB NOT NULL DEFAULT '[]';
+    ALTER TABLE IF EXISTS validation_v2_decisions
+        ADD COLUMN IF NOT EXISTS stage TEXT DEFAULT '';
+    ALTER TABLE IF EXISTS validation_v2_decisions
+        ALTER COLUMN stage SET DEFAULT '',
+        ADD COLUMN IF NOT EXISTS strategy TEXT NOT NULL DEFAULT '',
+        ADD COLUMN IF NOT EXISTS recommendation TEXT,
+        ADD COLUMN IF NOT EXISTS final_confidence DOUBLE PRECISION,
+        ADD COLUMN IF NOT EXISTS entry_signal BOOLEAN DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS filter_passed BOOLEAN DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS rr_ratio DOUBLE PRECISION;
+    ALTER TABLE IF EXISTS validation_v2_trades
+        ADD COLUMN IF NOT EXISTS trailing_stop DOUBLE PRECISION,
+        ADD COLUMN IF NOT EXISTS recommendation TEXT;
+    ALTER TABLE IF EXISTS validation_v2_missed
+        ADD COLUMN IF NOT EXISTS strategy TEXT NOT NULL DEFAULT '';
     """
     try:
         with conn.cursor() as cur:
@@ -1774,9 +1790,18 @@ def get_backtest_run(run_id: str) -> dict:
         except Exception:
             sym_errors = []
 
+        def _jsonb_list(val) -> list:
+            """JSONB columns may come back as str (legacy) or list (psycopg native)."""
+            if isinstance(val, str):
+                try:
+                    return json.loads(val or "[]")
+                except Exception:
+                    return []
+            return list(val or [])
+
         progress = {
             "symbols_done": syms_done,
-            "symbols_total": syms_total or len(json.loads(run.get("symbols") or "[]")),
+            "symbols_total": syms_total or len(_jsonb_list(run.get("symbols"))),
             "current_symbol": current_sym,
         }
 
@@ -1784,8 +1809,8 @@ def get_backtest_run(run_id: str) -> dict:
             "success": True, "run_id": run_id, "label": LABEL,
             "status": run.get("status"),
             "config": run.get("config") or {},
-            "symbols": json.loads(run.get("symbols") or "[]"),
-            "strategies": json.loads(run.get("strategies") or "[]"),
+            "symbols": _jsonb_list(run.get("symbols")),
+            "strategies": _jsonb_list(run.get("strategies")),
             "interval": run.get("interval", "1h"),
             "total_decisions": len(decisions),
             "total_trades": len(trades),
