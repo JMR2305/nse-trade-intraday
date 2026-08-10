@@ -331,6 +331,160 @@ class TestOpenAlert(unittest.TestCase):
         notify.assert_not_called()
 
 
+class TestRunTickOpenAlertE2E(unittest.TestCase):
+    """End-to-end through a real phase20_scheduler.run_tick(): market OPEN,
+    session init in a failed/uninitialised state → exactly one CRITICAL
+    SESSION_INIT_FAILED notification across consecutive ticks, and no alert
+    when the OPEN retry succeeds. Exercises the FRESH branch (scan_age small)
+    so the session_alert key must survive into the tick result."""
+
+    def _tick(self, sched, kv, claims, notifications):
+        """Run one real run_tick() with a shared KV/claim/notification world."""
+        import daily_session_manager as dsm
+        import phase20_store as p20
+
+        def kv_claim_once(key):
+            if key in claims:
+                return False
+            claims.add(key)
+            return True
+
+        def add_notification(kind, title, body="", severity="INFO",
+                             context=None):
+            notifications.append({"kind": kind, "severity": severity,
+                                  "body": body, "context": context})
+
+        settings = dict(DEFAULT_SETTINGS)
+        settings["auto_scan_enabled"] = True
+
+        with patch.object(p20, "get_settings", return_value=settings), \
+             patch.object(p20, "update_scheduler_state", lambda *a, **k: None), \
+             patch("market_hours.market_status",
+                   return_value={"state": "OPEN"}), \
+             patch.object(dsm, "_kv_get",
+                          side_effect=lambda k, d=None: kv.get(k, d)), \
+             patch.object(dsm, "_kv_set",
+                          side_effect=lambda k, v: kv.__setitem__(k, v)), \
+             patch.object(p20, "kv_claim_once", side_effect=kv_claim_once), \
+             patch.object(p20, "add_notification",
+                          side_effect=add_notification), \
+             patch("phase15_scan_context.scan_age_seconds", return_value=10), \
+             patch.object(sched, "_manage_paper",
+                          return_value={"managed": False}), \
+             patch.object(sched, "_maybe_alert_low_coverage",
+                          return_value=None), \
+             patch.object(sched, "_maybe_run_live_validation",
+                          return_value=None), \
+             patch.object(sched, "_maybe_run_phase26c_validation",
+                          return_value=None):
+            return sched.run_tick()
+
+    def test_failed_init_alerts_exactly_once_across_two_ticks(self):
+        import daily_session_manager as dsm
+        import phase20_scheduler as sched
+        # Init already ran today but ended in ERROR (persisted last_error).
+        kv = {"daily_session_date": dsm._today_ist(),
+              "daily_session_state": "ERROR",
+              "daily_session_last_error": {
+                  "at": "2026-08-10T03:20:00Z",
+                  "source": "session_init_steps",
+                  "detail": {"portfolio_reset": "ERROR: store outage"}}}
+        claims, notes = set(), []
+
+        out1 = self._tick(sched, kv, claims, notes)
+        self.assertTrue(out1["success"])
+        self.assertFalse(out1["ran_scan"])          # FRESH branch
+        self.assertIn("Snapshot fresh", out1["reason"])
+        self.assertTrue(out1["session_alert"]["alerted"])
+        self.assertEqual(out1["session_alert"]["state"], "ERROR")
+        self.assertEqual(len(notes), 1)
+        self.assertEqual(notes[0]["kind"], "SESSION_INIT_FAILED")
+        self.assertEqual(notes[0]["severity"], "CRITICAL")
+        self.assertIn("store outage", notes[0]["body"])
+
+        out2 = self._tick(sched, kv, claims, notes)  # next minute, same day
+        self.assertIn("session_alert", out2)
+        self.assertFalse(out2["session_alert"]["alerted"])
+        self.assertEqual(out2["session_alert"]["reason"],
+                         "already alerted today")
+        self.assertEqual(len(notes), 1)              # still exactly one
+
+    def test_open_retry_success_emits_no_alert(self):
+        """Init never ran today (yesterday's ERROR state lingers), the OPEN
+        tick retries it via check_and_maybe_initialize and it succeeds →
+        session_alert must not fire and no notification is added."""
+        import daily_session_manager as dsm
+        import phase20_scheduler as sched
+        kv = {"daily_session_date": "2020-01-01",     # stale — not today
+              "daily_session_state": "ERROR"}
+        claims, notes = set(), []
+
+        def fake_init(force=False):
+            kv["daily_session_date"] = dsm._today_ist()
+            kv["daily_session_state"] = "INITIALISED"
+            kv["daily_session_last_error"] = None
+            return {"success": True, "errors": {}}
+
+        with patch.object(dsm, "initialize_daily_session",
+                          side_effect=fake_init):
+            out = self._tick(sched, kv, claims, notes)
+
+        self.assertTrue(out["success"])
+        self.assertEqual(kv["daily_session_state"], "INITIALISED")
+        self.assertNotIn("session_alert", out)       # check_open_alert → None
+        self.assertEqual(notes, [])
+        self.assertEqual(claims, set())              # no claim consumed
+
+    def test_busy_branch_still_carries_session_alert(self):
+        """Stale snapshot + scan lock busy → BUSY branch must still surface
+        the session alert in the tick result."""
+        import daily_session_manager as dsm
+        import phase20_scheduler as sched
+        import phase20_store as p20
+        kv = {"daily_session_date": dsm._today_ist(),
+              "daily_session_state": "ERROR"}
+        claims, notes = set(), []
+
+        def kv_claim_once(key):
+            if key in claims:
+                return False
+            claims.add(key)
+            return True
+
+        settings = dict(DEFAULT_SETTINGS)
+        settings["auto_scan_enabled"] = True
+
+        with patch.object(p20, "get_settings", return_value=settings), \
+             patch.object(p20, "update_scheduler_state", lambda *a, **k: None), \
+             patch.object(p20, "record_scan_run", lambda *a, **k: None), \
+             patch.object(p20, "kv_set", lambda *a, **k: None), \
+             patch.object(p20, "kv_get", return_value=0), \
+             patch("market_hours.market_status",
+                   return_value={"state": "OPEN"}), \
+             patch.object(dsm, "_kv_get",
+                          side_effect=lambda k, d=None: kv.get(k, d)), \
+             patch.object(p20, "kv_claim_once", side_effect=kv_claim_once), \
+             patch.object(p20, "add_notification",
+                          side_effect=lambda kind, *a, **k:
+                          notes.append(kind)), \
+             patch("phase15_scan_context.scan_age_seconds",
+                   return_value=10_000), \
+             patch("live_scan_engine.get_or_run_scan",
+                   return_value={"_scan_lock_busy": True}), \
+             patch.object(sched, "_maybe_alert_low_coverage",
+                          return_value=None), \
+             patch.object(sched, "_maybe_run_live_validation",
+                          return_value=None), \
+             patch.object(sched, "_maybe_run_phase26c_validation",
+                          return_value=None):
+            out = sched.run_tick()
+
+        self.assertFalse(out["ran_scan"])
+        self.assertIn("SKIPPED_ACTIVE_SCAN", out["reason"])
+        self.assertTrue(out["session_alert"]["alerted"])
+        self.assertEqual(notes, ["SESSION_INIT_FAILED"])
+
+
 # ── 3. main.py dispatch regression guard ─────────────────────────────────────
 
 class TestMainDispatchParsesPayload(unittest.TestCase):
