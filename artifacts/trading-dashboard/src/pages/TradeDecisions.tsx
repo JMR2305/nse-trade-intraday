@@ -732,7 +732,16 @@ function TechnicalAnalysisPanel({ d }: { d: TradeDecision }) {
         1. Current Technical Analysis
       </div>
       <dl className="space-y-1 font-mono text-xs">
-        <div className="flex justify-between"><dt className="text-muted-foreground">Technical score</dt><dd>{fmt(t.technical_score, 0)}</dd></div>
+        <div className="flex justify-between" title="Historical strategy performance score — walk-backtest win rate, profit factor, net P&L, Sharpe, and reliability/trade count. Not calculated from current RSI, ADX, EMA, or volume.">
+          <dt className="text-muted-foreground">Strategy performance score</dt>
+          <dd>{fmt((t as unknown as Record<string,number>).strategy_performance_score ?? t.technical_score, 0)}</dd>
+        </div>
+        {(t as unknown as Record<string,number>).indicator_score != null && (
+          <div className="flex justify-between" title="Advisory indicator score — current RSI, ADX, volume ratio, EMA20, EMA50 composite. Display-only: does not affect decisions.">
+            <dt className="text-muted-foreground">Indicator score (advisory)</dt>
+            <dd className="text-sky-400">{fmt((t as unknown as Record<string,number>).indicator_score, 0)}</dd>
+          </div>
+        )}
         <div className="flex justify-between"><dt className="text-muted-foreground">Opportunity score</dt><dd>{fmt(t.opportunity_score, 0)}</dd></div>
         <div className="flex justify-between"><dt className="text-muted-foreground">Risk filters</dt><dd className={t.risk_filters_passed ? "text-green-400" : "text-red-400"}>{t.risk_filters_passed ? "Passed" : "Failed"}</dd></div>
         {!t.risk_filters_passed && t.risk_filter_notes.length > 0 && (

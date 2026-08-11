@@ -919,7 +919,7 @@ function SPipelineStats() {
                       <th className="text-left pb-1 pr-2">Action</th>
                       <th className="text-right pb-1 pr-2">Opp Score</th>
                       <th className="text-right pb-1 pr-2">Confidence</th>
-                      <th className="text-right pb-1 pr-2">Quality</th>
+                      <th className="text-right pb-1 pr-2" title="Strategy Performance Score — historical walk-backtest quality, not current RSI/ADX">Strat Perf</th>
                       <th className="text-right pb-1 pr-2">R:R</th>
                       <th className="text-left pb-1">Regime</th>
                     </tr>

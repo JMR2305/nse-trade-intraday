@@ -204,6 +204,20 @@ router.get("/backtest/run/:id/replay-verify", async (req, res) => {
   }
 });
 
+/** Ingest backtest missed opportunities into Phase-24 learning store. */
+router.post("/backtest/run/:id/ingest-missed", async (req, res) => {
+  try {
+    res.json(
+      await runPython(
+        ["p24_ingest_backtest", JSON.stringify({ run_id: req.params.id })],
+        60_000,
+      ),
+    );
+  } catch (err) {
+    fail(res, err);
+  }
+});
+
 /** Event-count stats for the run comparison panel (fast SQL only). */
 router.get("/backtest/run/:id/stats", async (req, res) => {
   try {

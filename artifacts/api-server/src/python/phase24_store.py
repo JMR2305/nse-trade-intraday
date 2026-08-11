@@ -71,12 +71,21 @@ def _ensure_schema(conn) -> None:
             )""")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS phase24_missed_opps (
-                id         TEXT PRIMARY KEY,
-                scan_id    TEXT,
-                symbol     TEXT,
-                record     JSONB NOT NULL,
-                created_at TIMESTAMPTZ DEFAULT NOW()
+                id              TEXT PRIMARY KEY,
+                scan_id         TEXT,
+                symbol          TEXT,
+                record          JSONB NOT NULL,
+                source          TEXT NOT NULL DEFAULT 'live',
+                backtest_run_id TEXT,
+                created_at      TIMESTAMPTZ DEFAULT NOW()
             )""")
+        # Idempotent schema upgrades for existing tables
+        cur.execute("""
+            ALTER TABLE phase24_missed_opps
+                ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'live'""")
+        cur.execute("""
+            ALTER TABLE phase24_missed_opps
+                ADD COLUMN IF NOT EXISTS backtest_run_id TEXT""")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS phase24_recommendations (
                 id         TEXT PRIMARY KEY,
@@ -207,16 +216,25 @@ def list_trade_records(limit: int = 500) -> List[Dict[str, Any]]:
 
 # ── Missed opportunities (append-only) ───────────────────────────────────────
 
-def insert_missed_opp(scan_id: str, symbol: str, record: Dict[str, Any]) -> bool:
-    """Append-only per (scan_id, symbol)."""
-    mid = f"{scan_id}:{symbol}"
+def insert_missed_opp(scan_id: str, symbol: str, record: Dict[str, Any],
+                      source: str = "live",
+                      backtest_run_id: Optional[str] = None) -> bool:
+    """Append-only per (scan_id, symbol) for live; per (run_id, scan_id, symbol,
+    decision) for backtest so both pools coexist without collision."""
+    if source == "backtest" and backtest_run_id:
+        decision = record.get("decision", "WATCH")
+        mid = f"BT:{backtest_run_id}:{scan_id}:{symbol}:{decision}"
+    else:
+        mid = f"{scan_id}:{symbol}"
 
     def in_db(conn):
         with conn.cursor() as cur:
             cur.execute(
-                """INSERT INTO phase24_missed_opps (id, scan_id, symbol, record)
-                   VALUES (%s,%s,%s,%s) ON CONFLICT (id) DO NOTHING""",
-                (mid, scan_id, symbol, json.dumps(record, default=str)))
+                """INSERT INTO phase24_missed_opps
+                   (id, scan_id, symbol, record, source, backtest_run_id)
+                   VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT (id) DO NOTHING""",
+                (mid, scan_id, symbol, json.dumps(record, default=str),
+                 source, backtest_run_id))
             return cur.rowcount == 1
 
     def in_file():
@@ -224,7 +242,9 @@ def insert_missed_opp(scan_id: str, symbol: str, record: Dict[str, Any]) -> bool
         if any(r.get("id") == mid for r in rows):
             return False
         rows.append({"id": mid, "scan_id": scan_id, "symbol": symbol,
-                     "record": record, "created_at": _now()})
+                     "record": record, "source": source,
+                     "backtest_run_id": backtest_run_id,
+                     "created_at": _now()})
         _write_json(MISSED_FILE, rows)
         return True
 

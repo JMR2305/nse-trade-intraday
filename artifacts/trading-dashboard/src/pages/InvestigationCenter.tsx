@@ -870,6 +870,15 @@ export default function InvestigationCenter() {
               older candles in this range will be reported as missing data, not fabricated.
             </span>
           )}
+          {start && end &&
+            (new Date(end).getTime() - new Date(start).getTime()) / 86400_000 < 90 && (
+            <span className="text-xs text-amber-400" data-testid="text-short-window-warning">
+              Short backtest window (&lt;90 days). Confidence and opportunity scores may be
+              structurally limited by low walk-backtest trade count. Results are valid, but
+              BUY scoring may underestimate strategy quality. Consider a longer range for
+              reliable calibration.
+            </span>
+          )}
         </CardContent>
       </Card>
 

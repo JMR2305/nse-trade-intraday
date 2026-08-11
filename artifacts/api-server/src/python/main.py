@@ -3964,6 +3964,14 @@ def main():
         elif command == "p24_daily_learning":
             from phase24_recommendations import maybe_run_daily_learning as _f
             result = _f(force="--force" in sys.argv)
+        elif command == "p24_ingest_backtest":
+            arg = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            _run_id = arg.get("run_id", "") if isinstance(arg, dict) else str(arg)
+            if not _run_id:
+                result = {"ok": False, "error": "run_id required"}
+            else:
+                from phase24_engine import ingest_backtest_missed_opps as _f
+                result = _f(_run_id)
 
         else:
             error_msg = f"Unknown command: {command}"

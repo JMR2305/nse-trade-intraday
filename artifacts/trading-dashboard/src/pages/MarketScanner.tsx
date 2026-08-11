@@ -235,7 +235,9 @@ function RankRow({ item, rank }: { item: any; rank: number }) {
                 <div className="text-[10px] font-mono uppercase text-muted-foreground tracking-wider">
                   Opportunity Score Breakdown — {bd.score.toFixed(0)}
                 </div>
-                <BreakdownBar label="Technical" weight="40%" score={bd.technical_score} contribution={bd.technical_contribution} color="bg-primary" />
+                <div title="Strategy Performance Score — historical walk-backtest win rate, profit factor, net P&L, Sharpe, and reliability/trade count. Not calculated from current RSI, ADX, EMA, or volume.">
+                  <BreakdownBar label="Strat Perf" weight="40%" score={bd.technical_score} contribution={bd.technical_contribution} color="bg-primary" />
+                </div>
                 <BreakdownBar label="Hist. Expectancy" weight="30%" score={bd.expectancy_score} contribution={bd.expectancy_contribution} color="bg-emerald-500" />
                 <BreakdownBar label="Profit Factor" weight="15%" score={bd.pf_score} contribution={bd.pf_contribution} color="bg-violet-500" />
                 <BreakdownBar label="Risk" weight="10%" score={bd.risk_score} contribution={bd.risk_contribution} color="bg-sky-500" />

@@ -166,7 +166,10 @@ class Phase7Recommendation:
     volume_ratio: float
     above_ema20: bool
     above_ema50: bool
-    error: Optional[str]
+    error: Optional[str] = None
+    # ── Advisory display fields — NEVER affect BUY/SELL decisions ──────────────
+    strategy_performance_score: float = 0.0  # clearer alias for technical_score (same value)
+    indicator_score: float = 0.0             # RSI/ADX/EMA/volume composite (display only)
 
 
 # ── Canonical scan ────────────────────────────────────────────────────────────
@@ -194,6 +197,45 @@ def _holding_days(strategy_id: str) -> int:
         if k in (strategy_id or "").lower():
             return v
     return 10
+
+
+def _indicator_score(rsi: float, adx: float, volume_ratio: float,
+                     above_ema20: bool, above_ema50: bool) -> float:
+    """Advisory indicator score (0–100) from current technical indicators only.
+    Display-only — does NOT feed into BUY/SELL decisions, confidence, or
+    opportunity score. Never affects trade logic or paper-trading defaults."""
+    score = 0.0
+    # RSI component (30 pts): bullish zone 45–65; wider range partial credit
+    if 45.0 <= rsi <= 65.0:
+        score += 30.0
+    elif (35.0 <= rsi < 45.0) or (65.0 < rsi <= 75.0):
+        score += 18.0
+    elif (25.0 <= rsi < 35.0) or (75.0 < rsi <= 85.0):
+        score += 8.0
+    # ADX component (20 pts): stronger trend is better
+    if adx >= 25.0:
+        score += 20.0
+    elif adx >= 20.0:
+        score += 14.0
+    elif adx >= 15.0:
+        score += 8.0
+    else:
+        score += 3.0
+    # Volume ratio component (20 pts): above-average volume confirms move
+    if volume_ratio >= 1.5:
+        score += 20.0
+    elif volume_ratio >= 1.2:
+        score += 14.0
+    elif volume_ratio >= 1.0:
+        score += 9.0
+    else:
+        score += 3.0
+    # EMA position components (15 pts each)
+    if above_ema20:
+        score += 15.0
+    if above_ema50:
+        score += 15.0
+    return round(min(score, 100.0), 1)
 
 
 def _scan_one(
@@ -439,6 +481,14 @@ def _scan_one(
         above_ema20=bool(price > float(last_row.get("ema20", 0.0) or 0.0) > 0),
         above_ema50=bool(price > float(last_row.get("ema50", 0.0) or 0.0) > 0),
         error=None,
+        strategy_performance_score=round(perf_score, 1),
+        indicator_score=_indicator_score(
+            rsi=round(float(last_row.get("rsi", 0.0) or 0.0), 1),
+            adx=round(float(last_row.get("adx", 0.0) or 0.0), 1),
+            volume_ratio=round(vol_ratio, 2),
+            above_ema20=bool(price > float(last_row.get("ema20", 0.0) or 0.0) > 0),
+            above_ema50=bool(price > float(last_row.get("ema50", 0.0) or 0.0) > 0),
+        ),
     )
     rec._stage_ts = dict(stage_ts)  # type: ignore[attr-defined]
     return rec

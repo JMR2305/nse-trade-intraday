@@ -91,6 +91,8 @@ interface SymbolRow {
   final_action: string | null;
   confidence: number;
   technical_score: number;
+  strategy_performance_score?: number;
+  indicator_score?: number;
   strategy: string | null;
   all_gates_passed: boolean;
   paper_eligible: boolean;

@@ -1,0 +1,132 @@
+IMPLEMENT TCS SCORING VISIBILITY + BACKTEST LEARNING BRIDGE — NO THRESHOLD CHANGES
+
+We reviewed TCS_ZERO_BUY_SCORING_AUDIT.md.
+
+Findings:
+- TCS truly produced 0 BUY_GENERATED events in run BT-48de9da82a.
+- Risk gate passed every tick.
+- The block is upstream in AI Decision / opportunity-score calculation.
+- The field called technical_score is misleading. It is actually historical strategy performance score.
+- Current RSI/ADX/EMA/volume indicators do not mathematically feed into technical_score.
+- 30-day 15m backtests are structurally penalized because the scoring model was calibrated for 6-month lookbacks.
+- TCS missed opportunities were meaningful: 71/100 WATCH signals became profitable.
+- Do not change thresholds yet.
+- Do not change live/paper defaults.
+- Do not enable live orders.
+- PAPER / RESEARCH ONLY.
+
+TASK 1 — RENAME MISLEADING SCORE LABEL
+
+Do not change formula.
+
+Rename UI/event display label:
+
+From:
+technical_score
+
+To:
+strategy_performance_score
+
+Add tooltip:
+"Historical strategy performance score from walk-backtest win rate, profit factor, net P&L, Sharpe, and reliability/trade count. Not calculated from current RSI, ADX, EMA, or volume."
+
+Preserve backward compatibility if existing payloads still use technical_score.
+
+TASK 2 — ADD ADVISORY INDICATOR SCORE
+
+Add a new display-only field:
+
+indicator_score
+
+This should be computed from current live technical indicators only:
+- RSI
+- ADX
+- volume ratio
+- above EMA20
+- above EMA50
+
+Important:
+- indicator_score is advisory/display only.
+- It must not affect BUY/SELL decisions yet.
+- It must not affect confidence/opportunity score yet.
+- It is only to show operators whether current indicators are bullish even when strategy performance score is low.
+
+TASK 3 — ADD SHORT-WINDOW WARNING
+
+When a backtest range is less than 90 calendar days, show a warning in Investigation Center:
+
+"Short backtest window. Confidence and opportunity scores may be structurally limited by low walk-backtest trade count. Results are valid, but BUY scoring may underestimate strategy quality. Consider a longer range for reliable calibration."
+
+This is advisory only.
+
+TASK 4 — IMPLEMENT BACKTEST MISSED-OPPORTUNITY LEARNING BRIDGE
+
+Implement the bridge from BACKTEST_LEARNING_LOOP_AUDIT.md.
+
+Add:
+- source column to phase24_missed_opps, default 'live'
+- backtest_run_id nullable FK to backtest_runs
+- p24_ingest_backtest <run_id> command
+- POST /api/backtest/run/:id/ingest-missed endpoint
+
+The bridge should:
+- read backtest_runs.missed
+- transform entries to phase24_missed_opps schema
+- write with source='backtest'
+- set advisory_only=true
+- be idempotent
+- never modify thresholds
+- never modify strategy logic
+- never modify paper/live defaults
+
+TASK 5 — INGEST TCS RUN AS ADVISORY EVIDENCE
+
+After bridge is implemented, ingest:
+
+BT-48de9da82a
+
+Verify:
+- 100 missed opportunities ingested
+- source='backtest'
+- backtest_run_id='BT-48de9da82a'
+- no duplicates on re-run
+- Phase-24 recommendations can now see backtest-sourced missed opportunities
+
+TASK 6 — GENERATE ADVISORY RECOMMENDATIONS ONLY
+
+Generate Phase-24 recommendations from mixed evidence.
+
+Recommendations must clearly label source:
+- live evidence
+- backtest evidence
+- symbol
+- interval
+- run_id
+- sample size
+- win rate
+- median forward return
+- false-positive risk
+- confidence level
+
+No recommendation should auto-apply.
+
+TASK 7 — REPORT
+
+Produce:
+
+TCS_SCORING_VISIBILITY_AND_LEARNING_FIX_VERIFICATION.md
+
+Include:
+1. Confirmation no thresholds changed.
+2. Confirmation no strategy logic changed.
+3. Confirmation no live/paper defaults changed.
+4. Confirmation no live orders placed.
+5. technical_score rename / alias result.
+6. indicator_score display result.
+7. short-window warning result.
+8. TCS missed-opportunity ingestion result.
+9. Phase-24 recommendation result.
+10. Whether the TCS evidence suggests future calibration work.
+11. Recommended next step, but no automatic setting changes.
+
+Stop after the report.

@@ -123,6 +123,84 @@ def generate_recommendations(force: bool = False) -> Dict[str, Any]:
                              "total_pnl": item.get("total_pnl")},
             })
 
+    # Backtest-sourced missed opportunity signals (Task 6)
+    try:
+        all_opps = store.list_missed_opps(limit=5000)
+        bt_opps = [o for o in all_opps
+                   if (o.get("record") or {}).get("source") == "backtest"]
+        # Group by backtest_run_id
+        by_run: Dict[str, List[Dict[str, Any]]] = {}
+        for o in bt_opps:
+            rec = o.get("record") or {}
+            rid = str(rec.get("backtest_run_id") or "unknown")
+            by_run.setdefault(rid, []).append(rec)
+
+        for rid, entries in by_run.items():
+            sample = len(entries)
+            if sample < 10:  # insufficient evidence
+                continue
+            profitable_count = sum(
+                1 for e in entries if e.get("would_have_been_profitable")
+            )
+            win_rate = round(profitable_count / sample, 3)
+            fwd_returns = sorted(
+                float(e["return_at_horizon_pct"]) for e in entries
+                if e.get("return_at_horizon_pct") is not None
+            )
+            median_fwd = (round(fwd_returns[len(fwd_returns) // 2], 2)
+                          if fwd_returns else None)
+            false_pos_risk = round(1.0 - win_rate, 3)
+            confidence_level = ("HIGH" if sample >= 50
+                                 else "MEDIUM" if sample >= 20 else "LOW")
+            interval = entries[0].get("interval", "unknown") if entries else "unknown"
+
+            # Per-symbol breakdown
+            by_sym: Dict[str, List] = {}
+            for e in entries:
+                sym = str(e.get("symbol") or "UNKNOWN")
+                by_sym.setdefault(sym, []).append(e)
+            symbol_breakdown = {
+                sym: {
+                    "count": len(syms),
+                    "win_rate": round(
+                        sum(1 for e in syms if e.get("would_have_been_profitable"))
+                        / len(syms), 3),
+                }
+                for sym, syms in by_sym.items()
+            }
+
+            if win_rate >= 0.55:  # majority of WATCH/REJECTED signals were profitable
+                proposals.append({
+                    "kind": "BACKTEST_LEARNING",
+                    "source": "backtest",
+                    "backtest_run_id": rid,
+                    "title": (f"Backtest {rid}: {round(win_rate * 100, 1)}% of "
+                              f"WATCH/REJECTED signals were profitable"),
+                    "detail": (
+                        f"Run {rid} ({interval}, n={sample}): "
+                        f"win rate {round(win_rate * 100, 1)}%, "
+                        f"median forward return {median_fwd}%, "
+                        f"false-positive risk {round(false_pos_risk * 100, 1)}%, "
+                        f"confidence: {confidence_level}. "
+                        f"Evidence suggests some decisions blocked profitable moves. "
+                        f"Advisory only — no gates or thresholds changed."
+                    ),
+                    "evidence": {
+                        "backtest_run_id": rid,
+                        "interval": interval,
+                        "sample_size": sample,
+                        "win_rate": win_rate,
+                        "profitable_count": profitable_count,
+                        "median_forward_return_pct": median_fwd,
+                        "false_positive_risk": false_pos_risk,
+                        "confidence_level": confidence_level,
+                        "source": "backtest",
+                        "symbol_breakdown": symbol_breakdown,
+                    },
+                })
+    except Exception:
+        pass  # backtest section must never block live recommendations
+
     stored = []
     for p in proposals:
         p["advisory_only"] = True

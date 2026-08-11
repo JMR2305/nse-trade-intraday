@@ -389,6 +389,89 @@ def run_missed_opportunity_analysis(move_threshold_pct: float = 2.0) -> Dict[str
             "stored": stored, "items": analysed, "advisory_only": True}
 
 
+# ── Backtest missed-opportunity bridge ───────────────────────────────────────
+
+def ingest_backtest_missed_opps(run_id: str) -> dict:
+    """Read backtest_runs.missed and ingest into phase24_missed_opps with
+    source='backtest'. Idempotent (ON CONFLICT DO NOTHING). Advisory only —
+    never modifies thresholds, strategies, or trading defaults."""
+    import backtest_portfolio as bp
+    run = bp.get_run(run_id)
+    if not run:
+        return {"ok": False, "error": f"Run {run_id} not found",
+                "advisory_only": True}
+
+    missed_entries = run.get("missed") or []
+    if not missed_entries:
+        return {"ok": True, "run_id": run_id, "ingested": 0, "skipped_existing": 0,
+                "reason": "No missed opportunities stored in this run",
+                "advisory_only": True}
+
+    cfg = run.get("config") or {}
+    interval = str(cfg.get("interval") or "unknown")
+
+    # Batch-level advisory stats (attached to every record for context)
+    profitable = [e for e in missed_entries if e.get("would_have_been_profitable")]
+    sample_size = len(missed_entries)
+    win_rate = round(len(profitable) / sample_size, 3) if sample_size else 0.0
+    fwd_returns = sorted(
+        float(e["return_at_horizon_pct"]) for e in missed_entries
+        if e.get("return_at_horizon_pct") is not None
+    )
+    median_fwd = round(fwd_returns[len(fwd_returns) // 2], 2) if fwd_returns else None
+    false_pos_risk = round(1.0 - win_rate, 3)
+    confidence_level = ("HIGH" if sample_size >= 50
+                        else "MEDIUM" if sample_size >= 20 else "LOW")
+    batch_stats = {
+        "sample_size": sample_size,
+        "win_rate": win_rate,
+        "median_forward_return_pct": median_fwd,
+        "false_positive_risk": false_pos_risk,
+        "confidence_level": confidence_level,
+    }
+
+    ingested, skipped, errors = 0, 0, []
+    for entry in missed_entries:
+        sym = str(entry.get("symbol") or "").upper()
+        scan_id = str(entry.get("scan_id") or "")
+        if not sym or not scan_id:
+            skipped += 1
+            continue
+        record = {
+            **entry,
+            "source": "backtest",
+            "backtest_run_id": run_id,
+            "interval": interval,
+            "advisory_only": True,
+            "ingested_at": _now(),
+            "batch_stats": batch_stats,
+        }
+        try:
+            inserted = store.insert_missed_opp(
+                scan_id=scan_id, symbol=sym, record=record,
+                source="backtest", backtest_run_id=run_id,
+            )
+            if inserted:
+                ingested += 1
+            else:
+                skipped += 1
+        except Exception as exc:
+            errors.append({"symbol": sym, "scan_id": scan_id,
+                           "error": str(exc)[:200]})
+
+    return {
+        "ok": True, "run_id": run_id,
+        "total_entries": len(missed_entries),
+        "ingested": ingested,
+        "skipped_existing": skipped,
+        "errors": errors,
+        "batch_stats": batch_stats,
+        "advisory_only": True,
+        "note": ("Backtest missed opportunities ingested for advisory analysis. "
+                 "No thresholds, strategies, or paper/live defaults were modified."),
+    }
+
+
 # ── Risk-rule learning ───────────────────────────────────────────────────────
 
 def risk_rule_learning() -> Dict[str, Any]:

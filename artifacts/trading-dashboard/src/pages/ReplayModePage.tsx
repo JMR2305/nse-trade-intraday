@@ -62,6 +62,8 @@ interface SymbolRow {
   final_action: string | null;
   confidence: number;
   technical_score: number;
+  strategy_performance_score?: number;
+  indicator_score?: number;
   strategy: string | null;
   all_gates_passed: boolean;
   paper_eligible: boolean;
@@ -411,7 +413,17 @@ function TimeTravelDebugger({ stages, symbols }: { stages: Stage[]; symbols: Sym
                 <div key={sym.symbol} className="bg-slate-700/40 border border-slate-600/30 rounded-lg p-2">
                   <p className="text-xs font-semibold text-white">{sym.symbol}</p>
                   <p className="text-xs text-slate-400">{sym.sector ?? "—"}</p>
-                  {sym.technical_score > 0 && <p className="text-xs text-teal-400">Score: {sym.technical_score}</p>}
+                  {(sym.strategy_performance_score ?? sym.technical_score) > 0 && (
+                    <p className="text-xs text-teal-400"
+                      title="Strategy Performance Score — historical walk-backtest quality. Not current RSI/ADX.">
+                      Strat: {sym.strategy_performance_score ?? sym.technical_score}
+                      {sym.indicator_score != null && (
+                        <span className="text-sky-400 ml-1" title="Advisory indicator score (RSI/ADX/EMA/volume). Display only.">
+                          · Ind: {sym.indicator_score}
+                        </span>
+                      )}
+                    </p>
+                  )}
                   {sym.final_action && <Badge label={sym.final_action} />}
                 </div>
               ))}
