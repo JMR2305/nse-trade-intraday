@@ -1,0 +1,92 @@
+AUDIT GLAND INTRADAY BACKTEST VS DAILY BACKTEST — NO NEW PAGES
+
+Issue:
+The GLAND 6-month daily backtest showed only 3 trades and ₹4,474.61 profit even though the stock had a strong run.
+
+Concern:
+Daily candles may be too coarse. The AI should evaluate intraday trend, volume accumulation, VWAP/EMA/RSI/MACD, and risk gates using point-in-time data, not future knowledge.
+
+Do not add new pages.
+Do not change strategy logic.
+Do not change thresholds.
+Do not loosen gates.
+Do not place live orders.
+PAPER / RESEARCH ONLY.
+
+TASK 1 — CONFIRM WHAT DAILY BACKTEST TESTED
+
+For run BT-73de2d890c, confirm:
+- interval used
+- candles used
+- number of candles
+- whether intraday volume accumulation was available
+- whether hourly/minute trend was available
+- whether VWAP was calculated from intraday data or unavailable on daily candles
+
+Explain clearly:
+Daily backtest cannot fully validate intraday trading behaviour.
+
+TASK 2 — RUN GLAND INTRADAY SMOKE BACKTEST
+
+Using the canonical production-pipeline backtest in Investigation Center:
+
+Run GLAND with:
+- interval: 5m if available, otherwise 10m
+- date range: maximum supported intraday range
+- capital: ₹50,000 and ₹1,00,000 comparison if possible
+- PAPER / RESEARCH ONLY
+
+Verify:
+- candles loaded
+- scan events created
+- BUY/WATCH/REJECT decisions generated
+- trades generated, if any
+- missed opportunities captured
+- volume filters evaluated
+- trend filters evaluated
+- risk filters evaluated
+
+TASK 3 — COMPARE DAILY VS INTRADAY
+
+Produce a comparison:
+
+Daily GLAND backtest:
+- candles
+- trades
+- P&L
+- missed opportunities
+- rejection reasons
+
+Intraday GLAND backtest:
+- candles
+- trades
+- P&L
+- missed opportunities
+- rejection reasons
+
+Explain whether the AI captures the move better on 5m/10m data.
+
+TASK 4 — VERIFY POINT-IN-TIME SAFETY
+
+Confirm the backtest never looks ahead.
+
+For each BUY decision, prove:
+- only past candles were visible
+- future high/low was not used for entry
+- future volume was not used for entry
+- target/stop simulation happens only after entry
+
+TASK 5 — REPORT
+
+Produce:
+GLAND_INTRADAY_BACKTEST_AUDIT.md
+
+Include:
+1. Whether daily backtest was insufficient.
+2. Whether intraday data improves signal capture.
+3. Whether volume accumulation is evaluated.
+4. Whether point-in-time replay is safe.
+5. Whether low profit was caused by interval, risk filters, position sizing, or strategy exits.
+
+Stop after the report.
+Do not implement strategy changes yet.

@@ -383,3 +383,10 @@ uri = "file://docs/AI_VALIDATION_CENTER_V2_REPORT.md"
 type = "text"
 title = "AI Validation Centre V2 — Status Report"
 description = "Summary of everything built for the AI Validation Centre V2 page, verified working state, guardrails, and next step."
+
+[[outputs]]
+id = "gK08ZQAUt_MvcMsA9kgFq"
+uri = "file://GLAND_INTRADAY_BACKTEST_AUDIT.md"
+type = "text"
+title = "GLAND Intraday Backtest Audit"
+description = "Daily vs 5m intraday backtest comparison, point-in-time safety verification, and root-cause analysis of the low daily-run profit."
