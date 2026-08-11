@@ -1,0 +1,202 @@
+TCS ZERO-BUY BACKTEST AUDIT — INVESTIGATE SCORING BUG OR OVER-CONSERVATIVE MODEL
+
+Issue:
+A completed TCS pipeline backtest shows:
+
+- Symbol: TCS
+- Interval: 15 minute
+- Range: 2026-07-12 → 2026-08-11
+- Completed: 549/549 ticks
+- Trades: 0
+- Net return: 0%
+- Missed opportunities present
+- Trade list says: "Backtest completed — no trades met entry criteria"
+
+But the chart shows price movement and missed opportunities. The AI explanation also shows some positive conditions:
+- RSI around 70.7
+- ADX around 21.3
+- volume_ratio around 0.83
+- above_ema20 = true
+- above_ema50 = true
+- RR gate passed
+- price gate passed
+- volume gate passed
+- market regime: Trending
+Yet final decision is IGNORE with:
+- confidence around 36.6
+- opportunity_score around 38.5
+- technical_score around 35.5
+
+This looks suspicious. Investigate whether the AI scoring model is too conservative or incorrectly scoring TCS.
+
+Do not add new pages.
+Do not change thresholds yet.
+Do not change strategy logic yet.
+Do not enable live trading.
+Do not auto-apply learning.
+Keep PAPER / RESEARCH ONLY.
+
+TASK 1 — IDENTIFY THE EXACT RUN
+
+Find the completed TCS run visible in Investigation Center:
+- likely run id: BT-f8a8c46864
+- symbol: TCS
+- interval: 15m
+- range: 2026-07-12 → 2026-08-11
+- ticks: 549
+- trades: 0
+
+Confirm exact run_id, config, interval, symbols, candles, and status.
+
+TASK 2 — EVENT COUNTS
+
+For this TCS run, count:
+
+- SYMBOL_SCANNED
+- RESEARCH_COMPLETED
+- MARKET_INTELLIGENCE_COMPLETED
+- MONITORING_COMPLETED
+- STRATEGY_SELECTED
+- STRATEGY_REJECTED
+- AI_DECISION / WATCH_GENERATED
+- BUY_GENERATED
+- STRONG_BUY_GENERATED
+- RISK_APPROVED
+- RISK_REJECTED
+- PORTFOLIO_PRECHECK_APPROVED
+- ORDER_SUBMITTED
+- ORDER_EXECUTED
+- MISSED_OPPORTUNITY count
+
+Confirm whether there were truly zero BUY_GENERATED events.
+
+TASK 3 — SCORE DISTRIBUTION
+
+Across all 549 TCS ticks, calculate:
+
+- min / median / max confidence
+- min / median / max opportunity_score
+- min / median / max technical_score
+- min / median / max RSI
+- min / median / max ADX
+- min / median / max volume_ratio
+- count above EMA20
+- count above EMA50
+- count with RR passed
+- count with volume passed
+- count with price passed
+
+Then identify:
+- how many ticks were close to BUY threshold
+- how many ticks had opportunity_score 60+
+- how many ticks had opportunity_score 70+
+- how many ticks had confidence 60+
+- how many ticks had confidence 70+
+
+TASK 4 — WHY FINAL CONFIDENCE IS LOW
+
+For the best 20 TCS missed opportunities, explain exactly why confidence/opportunity_score stayed low.
+
+Break down contribution from:
+
+- technical score
+- strategy score
+- research win rate
+- low evidence flag
+- profit factor
+- ADX
+- RSI
+- EMA alignment
+- volume
+- sector/regime
+- RR ratio
+- data quality
+- any penalty factor
+
+Specifically investigate why a tick with:
+- RSI 70.7
+- ADX 21.3
+- volume_ratio 0.83
+- above_ema20 true
+- above_ema50 true
+still resulted in:
+- technical_score 35.5
+- confidence 36.6
+- opportunity_score 38.5
+
+This may indicate a scoring bug or an overly harsh penalty.
+
+TASK 5 — MISSED OPPORTUNITY QUALITY
+
+For all TCS missed opportunities, show:
+
+- timestamp
+- decision: WATCH / IGNORE / REJECT
+- confidence
+- opportunity_score
+- technical_score
+- later peak return
+- return at horizon
+- max adverse move
+- would_have_been_profitable
+- reason not BUY
+
+Calculate:
+- missed opportunity win rate
+- median forward return
+- average forward return
+- max adverse move
+- false-positive risk estimate
+
+TASK 6 — COMPARE TCS VS GLAND
+
+Compare TCS scoring with GLAND successful BUY ticks.
+
+Show side-by-side:
+
+- RSI
+- ADX
+- volume_ratio
+- above EMA20/50
+- technical score
+- strategy score
+- confidence
+- opportunity score
+- RR
+- final action
+
+Explain why GLAND got BUY but TCS got IGNORE/WATCH.
+
+TASK 7 — BUG CHECK
+
+Check for these possible bugs:
+
+1. Strategy score formula penalizes low historical trade count too heavily.
+2. technical_score is not matching indicator strength.
+3. EMA Cross strategy score is incorrectly low.
+4. Research low_evidence penalty is too harsh.
+5. TCS sector/regime mapping is penalizing incorrectly.
+6. 15m backtest is still using daily-shaped indicators and not true 15m EMA/RSI/MACD.
+7. Missed-opportunity records include profitable moves but are not influencing recommendations.
+8. BUY threshold comparison uses wrong field.
+9. Case sensitivity / symbol mapping issue for TCS.
+10. Some BUY events are generated but not shown due to event filter/UI bug.
+
+TASK 8 — REPORT ONLY
+
+Produce:
+
+TCS_ZERO_BUY_SCORING_AUDIT.md
+
+Include:
+
+1. Whether TCS truly had zero BUY_GENERATED events.
+2. Whether zero trades were expected or suspicious.
+3. Why the AI kept TCS as WATCH/IGNORE.
+4. Whether the technical score is calculated correctly.
+5. Whether the confidence/opportunity model is too conservative.
+6. Whether this is a scoring bug, strategy limitation, or valid rejection.
+7. Whether TCS missed opportunities should be ingested into learning.
+8. Recommended fix plan, but do not implement threshold or strategy changes yet.
+
+Stop after the report.
