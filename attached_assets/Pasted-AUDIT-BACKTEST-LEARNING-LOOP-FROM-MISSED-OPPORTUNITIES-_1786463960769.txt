@@ -1,0 +1,97 @@
+AUDIT BACKTEST LEARNING LOOP FROM MISSED OPPORTUNITIES — NO NEW PAGES
+
+Issue observed in Investigation Center / Pipeline Backtest:
+
+A TCS backtest completed with:
+- 0 trades
+- 0% return
+- several missed opportunities marked WATCH
+- missed opportunity examples later moved +2% to +3%
+- AI Decision showed IGNORE with low confidence / low opportunity score
+- Portfolio pre-check had 0 events
+- Execution had 0 events
+
+Question:
+Is the AI actually learning from backtesting missed opportunities, or is it only displaying them?
+
+Do not add new pages.
+Do not change BUY thresholds.
+Do not change strategy logic.
+Do not enable live trading.
+Do not auto-apply learning changes to paper/live.
+Keep PAPER / RESEARCH ONLY.
+
+TASK 1 — TRACE MISSED OPPORTUNITY FLOW
+
+For a completed backtest run with missed opportunities, trace:
+
+Backtest missed opportunity
+→ event store
+→ missed opportunity store
+→ learning layer
+→ recommendation engine
+→ any learning dashboard / report
+
+For each step, confirm:
+- endpoint/table/file used
+- whether data is persisted
+- whether data is consumed by learning
+- whether recommendations are generated
+- whether anything is only UI display
+
+TASK 2 — VERIFY TCS CASE
+
+Use the TCS run visible in Investigation Center.
+
+Explain:
+1. Why no BUY was generated.
+2. Why the final decision was IGNORE/WATCH.
+3. Which scores were below threshold.
+4. Why Portfolio Precheck had 0 events.
+5. Why Execution had 0 events.
+6. Which missed opportunities later became profitable.
+7. Whether those missed opportunities were sent to the learning layer.
+
+TASK 3 — LEARNING SAFETY CHECK
+
+Confirm:
+- Backtest learning does not modify live BUY thresholds automatically.
+- Backtest learning does not modify paper trading defaults automatically.
+- Any learning output is advisory only.
+- Human approval is required before changing strategy/risk settings.
+
+TASK 4 — RECOMMENDATION QUALITY
+
+For missed opportunities, generate advisory recommendations such as:
+
+- “confidence threshold may be too strict”
+- “technical score model underweighted trend continuation”
+- “WATCH signal later profitable but evidence weak”
+- “do not change rule; sample is too small”
+- “requires multi-symbol validation”
+
+Each recommendation must include:
+- sample size
+- win rate after missed signal
+- median forward return
+- max adverse move
+- whether change would increase false positives
+- confidence level of recommendation
+
+TASK 5 — REPORT
+
+Produce:
+
+BACKTEST_LEARNING_LOOP_AUDIT.md
+
+Include:
+1. Whether AI is currently learning from backtests.
+2. Whether missed opportunities are persisted.
+3. Whether missed opportunities reach the learning layer.
+4. Whether recommendations are generated.
+5. Whether recommendations are advisory only.
+6. What is missing, if anything.
+7. Exact fix plan if missed opportunities are only displayed and not learned from.
+
+Stop after report.
+Do not implement rule changes yet.
