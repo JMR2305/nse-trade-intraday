@@ -1,0 +1,96 @@
+RUN WIDER CAPITAL DEPLOYMENT VALIDATION — NO LIVE DEFAULT CHANGES
+
+We reviewed CAPITAL_DEPLOYMENT_FIX_VERIFICATION.md.
+
+The GLAND fix is approved for research validation only.
+
+Important:
+- Do not add new pages.
+- Do not enable changes in live/paper defaults.
+- Do not place live orders.
+- Do not lower BUY threshold.
+- Do not bypass scan_fresh or market_open.
+- Keep everything PAPER / RESEARCH ONLY.
+
+Objective:
+Validate whether the new capital-deployment settings improve results across a broader NSE universe, not just GLAND.
+
+Use canonical pipeline backtesting through Investigation Center.
+
+Test universe:
+Use 20–50 liquid NSE stocks from the current configured universe.
+
+Run these 5m intraday backtests over the maximum supported intraday window:
+
+A. Baseline
+- scale_in_enabled=false
+- risk_per_trade_pct=1
+- max_position_cap_pct=25
+- volume_time_normalized=false
+
+B. Scale-in only
+- scale_in_enabled=true
+- max_scale_in_count=2
+- risk_per_trade_pct=1
+- max_symbol_exposure_pct=25
+- max_total_exposure_pct=80
+- volume_time_normalized=false
+
+C. Volume-normalized only
+- scale_in_enabled=false
+- risk_per_trade_pct=1
+- max_symbol_exposure_pct=25
+- max_total_exposure_pct=80
+- volume_time_normalized=true
+
+D. Recommended combined
+- scale_in_enabled=true
+- max_scale_in_count=2
+- risk_per_trade_pct=1
+- max_symbol_exposure_pct=25
+- max_total_exposure_pct=80
+- volume_time_normalized=true
+
+E. Higher sizing research only
+- scale_in_enabled=false
+- risk_per_trade_pct=1.5
+- max_symbol_exposure_pct=25
+- max_total_exposure_pct=80
+- volume_time_normalized=true
+
+Compare:
+- total trades
+- executed BUYs
+- cancelled due to open position
+- scale-ins approved/executed/rejected
+- rejection reasons
+- average capital utilization
+- peak exposure
+- realized P&L
+- net return
+- win rate
+- profit factor
+- realized drawdown
+- mark-to-market drawdown if available
+- largest loss
+- average holding time
+- symbol concentration
+- missed opportunities
+- volume gate rejection change
+
+Important:
+Add mark-to-market drawdown reporting if it already exists. If not available, clearly label drawdown as realized-only and do not fabricate MTM data.
+
+Produce:
+WIDER_CAPITAL_DEPLOYMENT_VALIDATION.md
+
+Include:
+1. Which configuration performed best.
+2. Whether scale-in helped across multiple symbols.
+3. Whether volume normalization helped.
+4. Whether risk_per_trade_pct=1.5 increased risk too much.
+5. Whether the recommended config is safe enough for paper-trading trial.
+6. Whether live/paper defaults should remain unchanged.
+7. Final recommendation: approve for paper trial / reject / continue research.
+
+Stop after the report.

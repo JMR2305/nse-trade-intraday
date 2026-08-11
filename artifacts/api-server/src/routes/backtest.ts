@@ -204,6 +204,15 @@ router.get("/backtest/run/:id/replay-verify", async (req, res) => {
   }
 });
 
+/** Event-count stats for the run comparison panel (fast SQL only). */
+router.get("/backtest/run/:id/stats", async (req, res) => {
+  try {
+    res.json(await runPython(["backtest_run_stats", JSON.stringify({ run_id: req.params.id })], 30_000));
+  } catch (err) {
+    fail(res, err);
+  }
+});
+
 router.get("/backtest/candles", async (req, res) => {
   try {
     res.json(

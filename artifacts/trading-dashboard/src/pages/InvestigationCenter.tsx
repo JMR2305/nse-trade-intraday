@@ -33,16 +33,39 @@ const LABEL = "BACKTEST — SIMULATED, ISOLATED FROM LIVE";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
+interface RunSizing {
+  scale_in_enabled?: boolean;
+  risk_per_trade_pct?: number;
+  max_position_cap_pct?: number;
+  max_symbol_exposure_pct?: number;
+  max_total_exposure_pct?: number;
+  max_scale_in_count?: number;
+}
+
 interface BacktestRun {
   run_id: string;
   created_at?: string;
   status: string;
-  config?: { interval?: string; start?: string; end?: string; capital?: number; symbols?: string[] | null; universe?: string };
-  progress?: { phase?: string; done?: number; total?: number; ts?: string; cash?: number };
+  config?: {
+    interval?: string; start?: string; end?: string; capital?: number;
+    symbols?: string[] | null; universe?: string;
+    sizing?: RunSizing; volume_time_normalized?: boolean;
+  };
+  progress?: { phase?: string; done?: number; total?: number; ts?: string; cash?: number; symbol?: string };
   metrics?: Record<string, unknown> | null;
   missed?: MissedOpp[] | null;
   validation?: ValidationResult | null;
   error?: string | null;
+}
+
+interface RunStats {
+  run_id: string;
+  event_counts: Record<string, number>;
+  profit_factor: number | null;
+  avg_hold_min: number | null;
+  symbol_count: number;
+  gross_win: number;
+  gross_loss: number;
 }
 
 interface Candle { ts: string; open: number; high: number; low: number; close: number; volume: number }
@@ -148,6 +171,43 @@ const MODES: Array<{ id: ReplayMode; label: string }> = [
   { id: "week", label: "Week" }, { id: "month", label: "Month" },
 ];
 const SPEEDS = [1, 5, 20, 100, 0] as const; // 0 = Instant (jump to end)
+
+/** Derive a human label for a run config (e.g. "A Baseline", "D Recommended"). */
+function configLabel(run: BacktestRun): string {
+  const s = run.config?.sizing;
+  const vol = !!run.config?.volume_time_normalized;
+  if (!s) return "Default";
+  const si = s.scale_in_enabled === true;
+  const risk = s.risk_per_trade_pct ?? 1;
+  if (!si && risk <= 1 && !vol) return "A Baseline";
+  if (si && risk <= 1 && !vol) return "B Scale-in";
+  if (!si && risk <= 1 && vol) return "C Vol-Normalized";
+  if (si && risk <= 1 && vol) return "D Recommended";
+  if (!si && risk > 1 && vol) return "E Higher Sizing";
+  return si ? "Scale-in" : risk > 1 ? "Higher Risk" : "Custom";
+}
+
+/** Format elapsed seconds as Xh Ym Zs. */
+function fmtElapsed(createdAt?: string): string {
+  if (!createdAt) return "—";
+  const sec = Math.max(0, (Date.now() - new Date(createdAt).getTime()) / 1000);
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = Math.floor(sec % 60);
+  return h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+/** Estimate remaining time given done/total and elapsed seconds. */
+function fmtETA(done?: number, total?: number, createdAt?: string): string {
+  if (!done || !total || done <= 0 || !createdAt) return "—";
+  const elapsed = (Date.now() - new Date(createdAt).getTime()) / 1000;
+  const rate = done / elapsed; // ticks/sec
+  if (rate <= 0) return "—";
+  const remaining = (total - done) / rate;
+  const m = Math.floor(remaining / 60);
+  const s = Math.floor(remaining % 60);
+  return m > 0 ? `~${m}m ${s}s left` : `~${s}s left`;
+}
 
 function fmtINR(v: unknown): string {
   const n = typeof v === "number" ? v : null;
@@ -357,6 +417,37 @@ export default function InvestigationCenter() {
       void qc.invalidateQueries({ queryKey: ["bt-runs"] });
     },
   });
+
+  // Per-run event-count stats for completed runs (comparison table).
+  // We fetch for every completed run in the list; queries are cached.
+  const completedRuns = useMemo(() => runs.filter((r) => r.status === "COMPLETED"), [runs]);
+  const statsQueries = completedRuns.map((r) => ({
+    queryKey: ["bt-stats", r.run_id],
+    queryFn: () => apiJson<RunStats>(`/backtest/run/${r.run_id}/stats`, undefined, 30_000),
+    staleTime: 300_000,
+  }));
+  // We can't call hooks in a loop, so we pre-fetch via the query client in a
+  // single useEffect whenever the completed run list changes. Errors are
+  // caught and suppressed — the comparison table shows "…" for missing stats.
+  useEffect(() => {
+    for (const q of statsQueries) {
+      void qc.fetchQuery({
+        ...q,
+        queryFn: () => apiJson<RunStats>(`/backtest/run/${q.queryKey[1]}/stats`, undefined, 30_000)
+          .catch(() => null),
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [completedRuns.map((r) => r.run_id).join(",")]);
+  const statsCache: Record<string, RunStats> = useMemo(() => {
+    const out: Record<string, RunStats> = {};
+    for (const r of completedRuns) {
+      const d = qc.getQueryData<RunStats | null>(["bt-stats", r.run_id]);
+      if (d) out[r.run_id] = d;
+    }
+    return out;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [completedRuns, qc]);
 
   const eventsQ = useQuery({
     queryKey: ["bt-events", runId],
@@ -785,8 +876,13 @@ export default function InvestigationCenter() {
       {/* Runs + status */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card data-testid="card-runs">
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Backtest Runs</CardTitle></CardHeader>
-          <CardContent className="space-y-1 max-h-64 overflow-auto">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm">Backtest Runs</CardTitle>
+              <span className="text-[10px] text-muted-foreground">auto-refresh 5s</span>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-1 max-h-96 overflow-auto">
             {runs.length === 0 && runsQ.isSuccess && (
               <div className="space-y-2" data-testid="empty-state-runs">
                 <div className="text-xs text-muted-foreground">
@@ -810,24 +906,76 @@ export default function InvestigationCenter() {
                 )}
               </div>
             )}
-            {runs.map((r) => (
-              <button key={r.run_id} onClick={() => setSelectedRunId(r.run_id)}
-                className={`w-full text-left text-xs rounded px-2 py-1.5 border ${r.run_id === runId ? "border-primary bg-primary/10" : "border-transparent hover:bg-muted"}`}
-                data-testid={`row-run-${r.run_id}`}>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono">{r.run_id}</span>
-                  <Badge variant="outline" className={
-                    r.status === "COMPLETED" ? "border-green-500 text-green-500"
-                      : r.status === "FAILED" ? "border-red-500 text-red-500"
-                        : "border-blue-400 text-blue-400"}>{r.status}</Badge>
-                </div>
-                <div className="text-muted-foreground mt-0.5">
-                  {r.config?.interval} · {r.config?.start} → {r.config?.end}
-                  {r.progress?.total ? ` · ${r.progress.done}/${r.progress.total} ${r.progress.phase ?? ""}` : ""}
-                </div>
-                {r.error && <div className="text-red-500 mt-0.5">{r.error}</div>}
-              </button>
-            ))}
+            {runs.map((r) => {
+              const isActive = r.status === "RUNNING" || r.status === "PENDING";
+              const pct = (r.progress?.done && r.progress?.total)
+                ? Math.round((r.progress.done / r.progress.total) * 100) : null;
+              const symsTotal = r.config?.symbols?.length ?? (r.metrics as Record<string,number>|undefined)?.symbols ?? null;
+              const symsDone = (r.metrics as Record<string,number>|undefined)?.symbols
+                ?? (r.progress?.done && r.progress?.total && symsTotal
+                    ? Math.ceil((r.progress.done / r.progress.total) * Number(symsTotal)) : null);
+              return (
+                <button key={r.run_id} onClick={() => setSelectedRunId(r.run_id)}
+                  className={`w-full text-left text-xs rounded px-2 py-2 border ${r.run_id === runId ? "border-primary bg-primary/10" : "border-transparent hover:bg-muted"}`}
+                  data-testid={`row-run-${r.run_id}`}>
+                  {/* Row 1: ID + config label + status */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-foreground">{configLabel(r)}</span>
+                    <span className="font-mono text-muted-foreground text-[10px]">{r.run_id}</span>
+                    <Badge variant="outline" className={`ml-auto ${
+                      r.status === "COMPLETED" ? "border-green-500 text-green-500"
+                        : r.status === "FAILED" ? "border-red-500 text-red-500"
+                          : r.status === "RUNNING" ? "border-blue-400 text-blue-400"
+                            : "border-amber-400 text-amber-400"}`}>{r.status}</Badge>
+                  </div>
+                  {/* Row 2: interval · date range · symbol list */}
+                  <div className="text-muted-foreground mt-0.5 truncate">
+                    {r.config?.interval} · {r.config?.start} → {r.config?.end}
+                    {r.config?.symbols?.length
+                      ? ` · [${r.config.symbols.slice(0,4).join(",")}${r.config.symbols.length > 4 ? `…+${r.config.symbols.length-4}` : ""}]`
+                      : ` · ${r.config?.universe ?? "configured"}`}
+                  </div>
+                  {/* Row 3: progress bar + tick count (running only) */}
+                  {isActive && r.progress?.total != null && (
+                    <div className="mt-1 space-y-0.5">
+                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                        <span>{r.progress.done ?? 0}/{r.progress.total} ticks</span>
+                        {symsTotal != null && <span>· {symsDone ?? "?"}/{symsTotal} syms</span>}
+                        {pct != null && <span className="text-foreground font-semibold">{pct}%</span>}
+                        <span className="ml-auto">{fmtElapsed(r.created_at)}</span>
+                        <span className="text-blue-400">{fmtETA(r.progress.done, r.progress.total, r.created_at)}</span>
+                      </div>
+                      <div className="h-1 bg-muted rounded overflow-hidden">
+                        <div className="h-full bg-blue-500 rounded transition-all" style={{ width: `${pct ?? 0}%` }} />
+                      </div>
+                    </div>
+                  )}
+                  {/* Row 4: latest symbol + timestamp (running) */}
+                  {isActive && (r.progress?.symbol || r.progress?.ts) && (
+                    <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-2">
+                      {r.progress.symbol && <span>↳ {r.progress.symbol}</span>}
+                      {r.progress.ts && <span>{tsShort(r.progress.ts)}</span>}
+                    </div>
+                  )}
+                  {/* Row 5: completed metrics summary */}
+                  {r.status === "COMPLETED" && r.metrics && (() => {
+                    const mm = r.metrics as Record<string, number>;
+                    return (
+                      <div className="mt-1 flex items-center gap-3 text-[10px]">
+                        <span className={`font-semibold ${mm.realized_pnl >= 0 ? "text-green-500" : "text-red-500"}`}>
+                          {fmtINR(mm.realized_pnl)} ({mm.net_return_pct}%)
+                        </span>
+                        <span className="text-muted-foreground">{mm.total_trades} trades · {mm.win_rate}% WR · {fmtElapsed(r.created_at)} total</span>
+                      </div>
+                    );
+                  })()}
+                  {/* Row 6: error */}
+                  {r.error && (
+                    <div className="text-red-500 mt-0.5 text-[10px] break-words">{r.error.slice(0, 120)}</div>
+                  )}
+                </button>
+              );
+            })}
           </CardContent>
         </Card>
 
@@ -869,6 +1017,92 @@ export default function InvestigationCenter() {
           </CardContent>
         </Card>
       </div>
+
+      {/* ── Run Comparison Panel ─────────────────────────────────────────── */}
+      {completedRuns.length > 0 && (
+        <Card data-testid="card-run-comparison">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Zap className="h-4 w-4 text-primary" />
+              Run Comparison — completed runs
+              <span className="text-xs text-muted-foreground font-normal ml-2">PAPER / RESEARCH ONLY · drawdown = realized-equity only (no MTM)</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <table className="text-xs w-full min-w-[800px]">
+              <thead>
+                <tr className="text-muted-foreground text-left border-b border-border">
+                  <th className="pb-1 pr-3">Config</th>
+                  <th className="pb-1 pr-3">Symbols</th>
+                  <th className="pb-1 pr-3 text-right">Trades</th>
+                  <th className="pb-1 pr-3 text-right">P&L</th>
+                  <th className="pb-1 pr-3 text-right">Return</th>
+                  <th className="pb-1 pr-3 text-right">Win%</th>
+                  <th className="pb-1 pr-3 text-right">PF</th>
+                  <th className="pb-1 pr-3 text-right">DD%</th>
+                  <th className="pb-1 pr-3 text-right">Cancelled</th>
+                  <th className="pb-1 pr-3 text-right">SI✓/✗</th>
+                  <th className="pb-1 pr-3 text-right">Vol-rej</th>
+                  <th className="pb-1 pr-3 text-right">Missed</th>
+                  <th className="pb-1 text-right">Hold</th>
+                </tr>
+              </thead>
+              <tbody>
+                {completedRuns.map((r) => {
+                  const mm = r.metrics as Record<string, number> | undefined;
+                  const st = statsCache[r.run_id];
+                  const ev = st?.event_counts ?? {};
+                  const cancelled = ev["ORDER_CANCELLED"] ?? 0;
+                  const siApproved = ev["SCALE_IN_APPROVED"] ?? 0;
+                  const siExecuted = ev["SCALE_IN_EXECUTED"] ?? 0;
+                  const siRejected = ev["SCALE_IN_REJECTED"] ?? 0;
+                  const volRej = ev["RISK_REJECTED"] ?? 0;
+                  const missedCount = (r.missed ?? []).length;
+                  const pf = st?.profit_factor;
+                  const hold = st?.avg_hold_min;
+                  const symList = r.config?.symbols?.slice(0, 3).join(",") ?? r.config?.universe ?? "—";
+                  const isSelected = r.run_id === runId;
+                  return (
+                    <tr key={r.run_id}
+                      className={`border-b border-border/40 cursor-pointer hover:bg-muted/40 transition-colors ${isSelected ? "bg-primary/5" : ""}`}
+                      onClick={() => setSelectedRunId(r.run_id)}
+                      data-testid={`cmp-row-${r.run_id}`}>
+                      <td className="py-1.5 pr-3 font-semibold whitespace-nowrap">{configLabel(r)}</td>
+                      <td className="py-1.5 pr-3 text-muted-foreground text-[10px]">{symList}{(r.config?.symbols?.length ?? 0) > 3 ? `…` : ""}</td>
+                      <td className="py-1.5 pr-3 text-right">{mm?.total_trades ?? "—"}</td>
+                      <td className={`py-1.5 pr-3 text-right font-semibold ${(mm?.realized_pnl ?? 0) >= 0 ? "text-green-500" : "text-red-500"}`}>
+                        {mm ? fmtINR(mm.realized_pnl) : "—"}
+                      </td>
+                      <td className={`py-1.5 pr-3 text-right font-semibold ${(mm?.net_return_pct ?? 0) >= 0 ? "text-green-500" : "text-red-500"}`}>
+                        {mm ? `${mm.net_return_pct}%` : "—"}
+                      </td>
+                      <td className="py-1.5 pr-3 text-right">{mm ? `${mm.win_rate}%` : "—"}</td>
+                      <td className="py-1.5 pr-3 text-right">
+                        {pf === null ? "—" : pf === Infinity ? "∞" : pf != null ? pf : <span className="text-muted-foreground text-[10px]">…</span>}
+                      </td>
+                      <td className="py-1.5 pr-3 text-right">{mm ? `${mm.max_drawdown_pct}%` : "—"}</td>
+                      <td className="py-1.5 pr-3 text-right text-amber-500">{cancelled > 0 ? cancelled.toLocaleString() : "—"}</td>
+                      <td className="py-1.5 pr-3 text-right">
+                        {siExecuted > 0 || siRejected > 0
+                          ? <span><span className="text-green-500">{siExecuted}</span>/<span className="text-red-500">{siRejected}</span></span>
+                          : siApproved > 0 ? <span className="text-green-500">{siApproved}</span> : "—"}
+                      </td>
+                      <td className="py-1.5 pr-3 text-right text-red-400">{volRej > 0 ? volRej.toLocaleString() : "—"}</td>
+                      <td className="py-1.5 pr-3 text-right text-amber-400">{missedCount > 0 ? missedCount : "—"}</td>
+                      <td className="py-1.5 text-right text-muted-foreground">
+                        {hold != null ? `${hold >= 60 ? `${Math.floor(hold/60)}h${Math.round(hold%60)}m` : `${hold}m`}` : "…"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <div className="mt-2 text-[10px] text-muted-foreground">
+              PF = profit factor (gross win ÷ gross loss) · SI = scale-in executions/rejections · Vol-rej = RISK_REJECTED events · DD = realized-equity drawdown only, no mark-to-market · click a row to load it in the replay panel below
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Advanced replay: chart + controls (Parts A, H, I) */}
       <Card data-testid="card-replay">

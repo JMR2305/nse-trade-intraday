@@ -1,0 +1,128 @@
+FRONTEND BACKTEST MONITOR + SMALL SMOKE RUN — NO NEW PAGE
+
+The wider capital deployment validation is taking 2–3 hours with 20 symbols. That is okay, but I need to verify the flow from the frontend now.
+
+Do not add a new page.
+Do not change live/paper defaults.
+Do not place live orders.
+Do not lower BUY thresholds.
+Do not bypass risk gates.
+Keep PAPER / RESEARCH ONLY.
+
+TASK 1 — DO NOT CANCEL LONG RUNS
+
+Keep the existing wider A/B/C/D/E runs running in the background if they are healthy.
+
+But do not launch more large runs.
+
+TASK 2 — ADD / VERIFY FRONTEND PROGRESS ON EXISTING INVESTIGATION CENTER
+
+On the existing Investigation Center / Pipeline Backtest page, make sure I can see:
+
+- active backtest runs
+- run config name: A Baseline, B Scale-in, C Volume-normalized, D Recommended, E Higher sizing
+- status: QUEUED / RUNNING / COMPLETED / FAILED
+- progress: completed ticks / total ticks
+- symbols completed / total symbols
+- elapsed time
+- estimated remaining time if available
+- latest processed symbol
+- latest processed timestamp
+- error text if failed
+- refresh / auto-polling every few seconds
+
+Do not create a new dashboard. Put this into the existing backtest run list or existing Investigation Center page.
+
+TASK 3 — RUN SMALL FRONTEND SMOKE VALIDATION
+
+Run a smaller frontend-visible test so I can check results quickly.
+
+Use only 3–5 liquid symbols from the configured universe.
+
+Suggested symbols:
+RELIANCE, TCS, INFY, HDFCBANK, ICICIBANK
+
+Interval:
+5m
+
+Range:
+maximum supported intraday range, or a smaller range if needed for speed.
+
+Capital:
+₹1,00,000
+
+Run these configs:
+
+A. Baseline
+- scale_in_enabled=false
+- risk_per_trade_pct=1
+- max_position_cap_pct=25
+- volume_time_normalized=false
+
+B. Scale-in only
+- scale_in_enabled=true
+- max_scale_in_count=2
+- risk_per_trade_pct=1
+- max_symbol_exposure_pct=25
+- max_total_exposure_pct=80
+- volume_time_normalized=false
+
+C. Volume-normalized only
+- scale_in_enabled=false
+- risk_per_trade_pct=1
+- max_symbol_exposure_pct=25
+- max_total_exposure_pct=80
+- volume_time_normalized=true
+
+D. Recommended combined
+- scale_in_enabled=true
+- max_scale_in_count=2
+- risk_per_trade_pct=1
+- max_symbol_exposure_pct=25
+- max_total_exposure_pct=80
+- volume_time_normalized=true
+
+E. Higher sizing research only
+- scale_in_enabled=false
+- risk_per_trade_pct=1.5
+- max_symbol_exposure_pct=25
+- max_total_exposure_pct=80
+- volume_time_normalized=true
+
+TASK 4 — SHOW RESULT COMPARISON IN FRONTEND
+
+On the existing Investigation Center page, make sure completed runs show:
+
+- total trades
+- realized P&L
+- net return
+- win rate
+- profit factor
+- drawdown
+- capital utilization
+- peak exposure
+- cancelled due to open position
+- scale-ins approved / executed / rejected
+- volume-only rejections
+- missed opportunities
+
+If the existing UI already has these sections, reuse them.
+Do not add a new page.
+
+TASK 5 — SHORT REPORT
+
+Produce:
+
+FRONTEND_BACKTEST_MONITOR_VERIFICATION.md
+
+Include:
+
+1. Whether the long 20-symbol runs are still healthy.
+2. Whether the small frontend smoke runs completed.
+3. Run IDs for A/B/C/D/E.
+4. Where I can see them in the frontend.
+5. Whether the Investigation Center auto-refreshes progress.
+6. Which config performed best in the small smoke run.
+7. Whether we should wait for the full 20-symbol result before enabling anything.
+
+Stop after the report.

@@ -2236,6 +2236,49 @@ def main():
             from backtest_replay import replay_verify
             p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
             result = replay_verify(str(p.get("run_id")))
+        elif command == "backtest_run_stats":
+            # Fast event-count stats for the run comparison panel.
+            # Returns counts per event_type plus derived metrics (profit_factor,
+            # avg holding bars, symbol concentration).
+            from scan_state_store import _connect as _ss_connect
+            import backtest_portfolio as _bp
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            rid = str(p.get("run_id") or "")
+            with _ss_connect() as _conn:
+                with _conn.cursor() as _cur:
+                    # event counts
+                    _cur.execute(
+                        "SELECT event_type, count(*) FROM pipeline_events"
+                        " WHERE run_id=%s GROUP BY 1", (rid,))
+                    ev_counts = dict(_cur.fetchall())
+                    # profit factor: sum of positive pnl / abs(sum of negative pnl)
+                    # fill_ts / exit_ts are TEXT columns — cast explicitly.
+                    _cur.execute(
+                        "SELECT sum(case when realized_pnl>0 then realized_pnl else 0 end),"
+                        " abs(sum(case when realized_pnl<0 then realized_pnl else 0 end)),"
+                        " avg(extract(epoch from ("
+                        "   coalesce(exit_ts::timestamptz, now())"
+                        "   - fill_ts::timestamptz))/60),"
+                        " count(distinct symbol), count(*)"
+                        " FROM backtest_trades WHERE run_id=%s", (rid,))
+                    _row = _cur.fetchone()
+            gross_win = float(_row[0] or 0)
+            gross_loss = float(_row[1] or 0)
+            avg_hold_min = float(_row[2] or 0) if _row[2] else None
+            sym_count = int(_row[3] or 0)
+            total_bt_trades = int(_row[4] or 0)
+            profit_factor = (gross_win / gross_loss) if gross_loss > 0 else (
+                None if gross_win == 0 else float("inf"))
+            result = {
+                "run_id": rid,
+                "event_counts": ev_counts,
+                "profit_factor": round(profit_factor, 2) if profit_factor is not None and profit_factor != float("inf") else profit_factor,
+                "avg_hold_min": round(avg_hold_min, 1) if avg_hold_min is not None else None,
+                "symbol_count": sym_count,
+                "total_trades_db": total_bt_trades,
+                "gross_win": round(gross_win, 2),
+                "gross_loss": round(gross_loss, 2),
+            }
         elif command == "backtest_validate":
             from backtest_runner import validate_run
             p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
