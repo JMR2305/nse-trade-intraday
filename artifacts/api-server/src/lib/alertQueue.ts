@@ -222,7 +222,9 @@ export async function processDueDeliveries(
       }
     }
   } catch (err) {
-    logger.warn({ err: err instanceof Error ? err.message : String(err) },
+    const cause = err instanceof Error && err.cause instanceof Error
+      ? err.cause.message : undefined;
+    logger.warn({ err: err instanceof Error ? err.message : String(err), cause },
       "Alert queue processing failed (will retry on next tick)");
   }
   return counters;
