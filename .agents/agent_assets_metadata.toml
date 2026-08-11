@@ -390,3 +390,10 @@ uri = "file://GLAND_INTRADAY_BACKTEST_AUDIT.md"
 type = "text"
 title = "GLAND Intraday Backtest Audit"
 description = "Daily vs 5m intraday backtest comparison, point-in-time safety verification, and root-cause analysis of the low daily-run profit."
+
+[[outputs]]
+id = "GIj2rCGkTXnO_IvdBqgQ3"
+uri = "file://BUY_CRITERIA_POSITION_SIZING_AUDIT.md"
+type = "text"
+title = "BUY Criteria + Position Sizing Audit"
+description = "Complete gate map, exact sizing math for every GLAND trade, WATCH-to-BUY forward-return analysis, volume gate time-of-day audit, and prioritized recommendations (nothing implemented)."

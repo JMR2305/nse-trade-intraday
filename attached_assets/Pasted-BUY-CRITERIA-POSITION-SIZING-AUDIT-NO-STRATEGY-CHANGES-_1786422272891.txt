@@ -1,0 +1,114 @@
+BUY CRITERIA + POSITION SIZING AUDIT — NO STRATEGY CHANGES YET
+
+We reviewed GLAND_INTRADAY_BACKTEST_AUDIT.md.
+
+Findings:
+- Daily backtest was insufficient for intraday validation.
+- 5m intraday backtest improved capture rate.
+- Point-in-time replay is safe.
+- Low profit is mainly caused by position sizing / risk caps.
+- Conservative BUY threshold kept the biggest GLAND move as WATCH.
+- Morning volume gate may be structurally too strict because partial-session volume is compared with full-day averages.
+- Exit logic was not the main culprit.
+
+Do not add new pages.
+Do not change trading logic yet.
+Do not change thresholds yet.
+Do not bypass risk gates.
+Do not place live orders.
+PAPER / RESEARCH ONLY.
+
+TASK 1 — CURRENT BUY CRITERIA MAP
+
+Produce a complete table of all current BUY criteria.
+
+For each rule show:
+- Rule name
+- Stage where applied
+- Current threshold
+- Actual GLAND value
+- Pass / fail
+- Impact on trade decision
+- Whether it blocks BUY, reduces confidence, or only affects advisory scoring
+
+Include:
+- confidence threshold
+- opportunity score
+- trade quality
+- risk/reward
+- volume ratio
+- trend / momentum
+- strategy score
+- market regime
+- liquidity
+- price validity
+- portfolio cap
+- per-stock cap
+- max open positions
+- one-open-position-per-symbol
+- daily max trades
+- cooldown rules
+- scan_fresh
+- market_open
+
+TASK 2 — POSITION SIZING AUDIT
+
+For each executed GLAND trade, show exact sizing calculation:
+
+- capital
+- available cash
+- per-stock cap
+- risk-per-trade
+- stop-loss distance
+- target
+- quantity before rounding
+- final quantity
+- charges
+- slippage
+- capital actually deployed
+- unused capital
+- reason capital was not fully used
+
+Explain why the AI bought only small quantities.
+
+TASK 3 — WATCH-TO-BUY AUDIT
+
+For all GLAND WATCH decisions that later became profitable:
+
+Show:
+- timestamp
+- confidence
+- opportunity score
+- technical score
+- failed rule
+- later return
+- whether only one rule blocked BUY
+- whether it should be considered a near-miss
+
+TASK 4 — VOLUME GATE AUDIT
+
+Investigate the intraday volume gate.
+
+Problem:
+Morning session-to-date volume is being compared against full-day average volume, causing volume_ratio near zero.
+
+Check whether this causes good early trades to be rejected.
+
+Do not change the rule yet. Just report:
+- how many GLAND candidates failed only because of volume
+- how many later became profitable
+- whether volume should be normalized by time-of-day
+
+TASK 5 — RECOMMENDATION ONLY
+
+Produce:
+BUY_CRITERIA_POSITION_SIZING_AUDIT.md
+
+Include:
+1. Current BUY criteria.
+2. Which gates are too restrictive.
+3. Which gates are working correctly.
+4. Whether position sizing is too conservative.
+5. Whether volume should be time-normalized.
+6. Whether WATCH-to-BUY threshold should be reviewed.
+7. Proposed changes, but do not implement them yet.
