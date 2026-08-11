@@ -41,6 +41,10 @@ def _ensure_schema(conn) -> None:
     if _SCHEMA_READY:
         return
     with conn.cursor() as cur:
+        # Serialize DDL across concurrent backtest workers — the tranche
+        # migration below takes AccessExclusiveLock and two workers running
+        # it simultaneously deadlock.
+        cur.execute("SELECT pg_advisory_xact_lock(74230911)")
         cur.execute(
             """
             CREATE TABLE IF NOT EXISTS backtest_runs (
@@ -93,10 +97,20 @@ def _ensure_schema(conn) -> None:
             "CREATE INDEX IF NOT EXISTS idx_backtest_trades_run"
             " ON backtest_trades (run_id, created_at)"
         )
+        # Scale-in support: tranche 0 = initial entry, 1..N = scale-ins.
+        # Existing rows/databases get tranche 0 (identical behaviour).
         cur.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_backtest_trades_open"
-            " ON backtest_trades (run_id, symbol) WHERE status = 'OPEN'"
+            "ALTER TABLE backtest_trades"
+            " ADD COLUMN IF NOT EXISTS tranche INTEGER NOT NULL DEFAULT 0"
         )
+        # Create the replacement index FIRST, drop the legacy one after — a
+        # failure between the two statements must never leave the table
+        # without a uniqueness guarantee on open positions.
+        cur.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_backtest_trades_open_tranche"
+            " ON backtest_trades (run_id, symbol, tranche) WHERE status = 'OPEN'"
+        )
+        cur.execute("DROP INDEX IF EXISTS idx_backtest_trades_open")
     conn.commit()
     _SCHEMA_READY = True
 
@@ -274,17 +288,24 @@ _TRADE_COLS = ["trade_id", "run_id", "scan_id", "symbol", "strategy_id",
                "strategy_name", "side", "signal_ts", "fill_ts", "signal_price",
                "fill_price", "quantity", "stop_loss", "target", "est_charges",
                "slippage", "confidence", "opportunity_score", "regime",
-               "status", "exit_ts", "exit_price", "exit_rule", "realized_pnl"]
+               "status", "exit_ts", "exit_price", "exit_rule", "realized_pnl",
+               "tranche"]
 
 
 def open_trade(row: Dict[str, Any]) -> Optional[str]:
     """
     Insert an OPEN backtest trade. Returns trade_id, or None when an OPEN
-    trade already exists for (run_id, symbol) — the unique partial index makes
-    duplicate entries impossible at the database level.
+    trade already exists for (run_id, symbol, tranche) — the unique partial
+    index makes duplicate entries impossible at the database level.
+
+    Default tranche is 0 (the initial entry), which preserves the historical
+    one-open-position-per-symbol rule exactly: a second tranche-0 insert for
+    the same symbol is always rejected. Scale-ins (tranche 1..N) are only ever
+    attempted by the runner when scale_in_enabled is set for the run.
     """
     trade_id = row.get("trade_id") or f"BTT-{uuid.uuid4().hex[:10]}"
-    row = {**row, "trade_id": trade_id, "status": "OPEN"}
+    row = {**row, "trade_id": trade_id, "status": "OPEN",
+           "tranche": int(row.get("tranche") or 0)}
     if db_available():
         conn = _connect()
         try:
@@ -306,6 +327,7 @@ def open_trade(row: Dict[str, Any]) -> Optional[str]:
         return trade_id
     rows = _load(_TRADES_FILE)
     if any(t["run_id"] == row["run_id"] and t["symbol"] == row["symbol"]
+           and int(t.get("tranche") or 0) == row["tranche"]
            and t["status"] == "OPEN" for t in rows):
         return None
     rows.append(row)

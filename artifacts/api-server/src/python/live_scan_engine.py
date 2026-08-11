@@ -345,7 +345,27 @@ def _scan_one(
 
     # Gate: volume
     vol_ratio = float(last_row.get("volume_ratio", 0.0) or 0.0)
+    # Intraday backtests may attach a time-of-day normalized volume ratio
+    # (session-so-far vs avg session-to-date at the same time). Only the
+    # backtest runner sets df.attrs — LIVE and daily scans are unaffected.
+    vol_norm = None
+    try:
+        # Hard guard: honoured ONLY for backtest-cache data. A live provider
+        # dataframe can never activate this path, even if attrs leak through.
+        if fetch_result.data_source == "backtest_cache":
+            vol_norm = (getattr(fetch_result.df, "attrs", None) or {}).get(
+                "intraday_vol_norm")
+    except Exception:
+        vol_norm = None
+    if isinstance(vol_norm, dict) and vol_norm.get("ok"):
+        vol_ratio = float(vol_norm["ratio"])
     vol_ok, vol_reason = _volume_gate(vol_ratio, action)
+    if isinstance(vol_norm, dict):
+        vol_reason += (
+            " [time-of-day normalized"
+            f" over {vol_norm.get('days')} sessions]" if vol_norm.get("ok")
+            else f" [volume-curve evidence insufficient — raw full-day ratio;"
+                 f" {vol_norm.get('reason')}]")
     if not vol_ok and action in ("STRONG BUY", "BUY"):
         action = "WATCH"
         heat = _heat_of(action)

@@ -38,3 +38,10 @@ description: Historical backtest engine + Investigation Center — same-pipeline
 - UI replay cursor must be a TICK index over the bundle's union timeline, mapped to candles via last-candle-ts ≤ tick-ts — per-symbol candle indices desync the pipeline/portfolio views.
 - Explorer tests must seed a deterministic synthetic run directly into the stores (events+ledger+candles); pipeline-driven fixtures are fragile because confidence calibration state can turn all decisions to IGNORE.
 - portfolio↔replay verify: END_OF_BACKTEST closes happen after the last PORTFOLIO_UPDATED, so compare last portfolio event OR metrics cash against metrics portfolio_value.
+
+## Capital deployment fix (Aug 2026)
+- Backtest sizing is settings-driven via `resolve_sizing(cfg)` (`cfg.sizing` from POST /api/backtest/run); defaults reproduce old 1%/25% constants. `main.py backtest_start` must pass new cfg keys through — it rebuilds the config dict and silently drops unknown keys.
+- Scale-in tranches: `backtest_trades.tranche` col; unique OPEN index is (run_id, symbol, tranche). Tranche 0 preserves one-position rule. SCALE_IN_APPROVED/REJECTED/EXECUTED events with exact reasons.
+- Time-of-day volume normalization: opt-in `volume_time_normalized`, intraday only, attached via df.attrs in build_asof_df (both execute_run AND validate_run must pass the flag for parity); consumed in _scan_one only when data_source=="backtest_cache".
+- concurrent backtest workers deadlocked on _ensure_schema DDL → pg_advisory_xact_lock serializes it; create replacement index before dropping the old one.
+- resolve_sizing strictly validates (finite, bounded, JSON bools) — NaN comparisons silently bypass caps otherwise.

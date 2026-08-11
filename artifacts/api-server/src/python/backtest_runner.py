@@ -35,13 +35,76 @@ import historical_data_engine as hde
 from pipeline_events import emit, emit_many
 
 WARMUP_DAILY_DAYS = 270          # calendar days of daily history for indicators
-RISK_PER_TRADE_PCT = 1.0         # % of current cash risked per trade
-MAX_POSITION_PCT = 25.0          # max % of cash in one position
 DEFAULT_SETTINGS = {             # same knobs phase20 uses
     "fill_model": "NEXT_QUOTE",
     "slippage_pct": 0.15,
     "charges_pct": 0.12,
 }
+
+# Settings-driven position sizing (Capital Deployment Fix).
+# Defaults preserve historical behaviour EXACTLY: 1% risk, 25% cap,
+# scale-in disabled → one open position per symbol.
+DEFAULT_SIZING = {
+    "risk_per_trade_pct": 1.0,             # % of current cash risked per trade
+    "max_position_cap_pct": 25.0,          # max % of cash in one tranche
+    "max_symbol_exposure_pct": 25.0,       # total cost basis per symbol vs portfolio
+    "max_total_exposure_pct": 80.0,        # total open cost basis vs portfolio
+    "scale_in_enabled": False,             # OFF by default — no behaviour change
+    "max_scale_in_count": 2,               # extra tranches allowed per symbol
+    "scale_in_min_confidence": 60.0,
+    "scale_in_min_rr": 1.5,
+    "scale_in_min_unrealized_profit_pct": -1.0,  # existing position not deeply negative
+}
+
+# Minimum prior sessions with data at the same time-of-day before the
+# time-normalized intraday volume ratio is trusted (Task 4 fallback rule).
+VOL_CURVE_MIN_DAYS = 5
+
+
+# Safe bounds per numeric sizing knob: (min, max). Values outside the bound,
+# non-finite (NaN/Inf) or non-numeric fall back to the default — fail-safe.
+_SIZING_BOUNDS = {
+    "risk_per_trade_pct": (0.01, 10.0),
+    "max_position_cap_pct": (0.1, 100.0),
+    "max_symbol_exposure_pct": (0.1, 100.0),
+    "max_total_exposure_pct": (0.1, 100.0),
+    "scale_in_min_confidence": (0.0, 100.0),
+    "scale_in_min_rr": (0.0, 100.0),
+    "scale_in_min_unrealized_profit_pct": (-100.0, 100.0),
+}
+
+
+def resolve_sizing(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Merge run-config sizing over safe defaults. Strictly validated:
+    booleans must be real JSON booleans (strings like "false" are rejected),
+    numbers must be finite and within safe bounds, otherwise the default is
+    kept. Unknown keys are ignored. This is the last line of defence for
+    unvalidated API payloads — never trust raw values in guard comparisons
+    (NaN compares false and would silently bypass exposure caps).
+    """
+    raw = cfg.get("sizing") or {}
+    out = dict(DEFAULT_SIZING)
+    if not isinstance(raw, dict):
+        return out
+    for k in DEFAULT_SIZING:
+        v = raw.get(k)
+        if v is None:
+            continue
+        if k == "scale_in_enabled":
+            if isinstance(v, bool):
+                out[k] = v
+        elif k == "max_scale_in_count":
+            if isinstance(v, (int, float)) and not isinstance(v, bool) \
+                    and math.isfinite(float(v)) and 0 <= int(v) <= 10:
+                out[k] = int(v)
+        else:
+            lo, hi = _SIZING_BOUNDS[k]
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                f = float(v)
+                if math.isfinite(f) and lo <= f <= hi:
+                    out[k] = f
+    return out
 
 
 # ── Universe resolution ──────────────────────────────────────────────────────
@@ -81,7 +144,8 @@ def _to_df(candles: List[Dict[str, Any]]) -> pd.DataFrame:
 
 
 def build_asof_df(daily: pd.DataFrame, intraday: Optional[pd.DataFrame],
-                  ts: pd.Timestamp, interval: str) -> Optional[pd.DataFrame]:
+                  ts: pd.Timestamp, interval: str,
+                  vol_normalize: bool = False) -> Optional[pd.DataFrame]:
     """
     Build the OHLCV dataframe a live scan would have seen at moment `ts`:
       * daily interval: all daily bars with timestamp <= ts.
@@ -89,6 +153,14 @@ def build_asof_df(daily: pd.DataFrame, intraday: Optional[pd.DataFrame],
         partial "today" bar aggregated from intraday candles up to ts.
     Strictly no data after `ts` is included — this is the no-lookahead
     guarantee, and the validation engine re-derives it identically.
+
+    vol_normalize (intraday only, opt-in per run): attach a time-of-day
+    normalized volume ratio to df.attrs["intraday_vol_norm"] — session-so-far
+    volume vs the AVERAGE session-to-date volume at the same time-of-day over
+    prior sessions in the cache. Never fabricated: with fewer than
+    VOL_CURVE_MIN_DAYS prior sessions it reports ok=False (insufficient
+    evidence) and the pipeline falls back to the raw full-day ratio.
+    Daily mode is never affected.
     """
     if daily is None or daily.empty:
         return None
@@ -97,21 +169,58 @@ def build_asof_df(daily: pd.DataFrame, intraday: Optional[pd.DataFrame],
         return df if not df.empty else None
     day_start = ts.normalize()
     df = daily[daily.index < day_start]
+    session_vol: Optional[float] = None
     if intraday is not None and not intraday.empty:
         today = intraday[(intraday.index >= day_start) & (intraday.index <= ts)]
         if not today.empty:
+            session_vol = float(today["volume"].sum())
             bar = pd.DataFrame(
                 [{
                     "open": float(today["open"].iloc[0]),
                     "high": float(today["high"].max()),
                     "low": float(today["low"].min()),
                     "close": float(today["close"].iloc[-1]),
-                    "volume": float(today["volume"].sum()),
+                    "volume": session_vol,
                 }],
                 index=[day_start],
             )
             df = pd.concat([df, bar])
-    return df if not df.empty else None
+    if df.empty:
+        return None
+    if vol_normalize and session_vol is not None:
+        df.attrs["intraday_vol_norm"] = _time_of_day_volume_ratio(
+            intraday, ts, day_start, session_vol)
+    return df
+
+
+def _time_of_day_volume_ratio(intraday: pd.DataFrame, ts: pd.Timestamp,
+                              day_start: pd.Timestamp,
+                              session_vol: float) -> Dict[str, Any]:
+    """
+    session_so_far_volume / average_session_to_date_volume_at_same_time,
+    strictly from prior sessions ALREADY in the as-of window (< day_start —
+    no look-ahead). Returns ok=False with a reason when evidence is
+    insufficient; never fabricates a volume curve.
+    """
+    cutoff = ts.time()
+    prior = intraday[intraday.index < day_start]
+    cums: List[float] = []
+    if not prior.empty:
+        for day, grp in prior.groupby(prior.index.normalize()):
+            v = float(grp[grp.index.time <= cutoff]["volume"].sum())
+            if v > 0:
+                cums.append(v)
+    if len(cums) < VOL_CURVE_MIN_DAYS:
+        return {"ok": False, "days": len(cums),
+                "reason": (f"insufficient volume-curve evidence: "
+                           f"{len(cums)} prior sessions < {VOL_CURVE_MIN_DAYS}")}
+    avg = sum(cums) / len(cums)
+    if avg <= 0:
+        return {"ok": False, "days": len(cums),
+                "reason": "prior session-to-date volumes are zero"}
+    return {"ok": True, "ratio": round(session_vol / avg, 4),
+            "days": len(cums), "cutoff": str(cutoff),
+            "basis": "time_of_day_normalized"}
 
 
 def _fetch_result(symbol: str, df: Optional[pd.DataFrame], ts: str):
@@ -135,19 +244,66 @@ def _fetch_result(symbol: str, df: Optional[pd.DataFrame], ts: str):
 
 # ── Execution against the isolated backtest ledger ──────────────────────────
 
-def _try_enter(run_id: str, scan_id: str, rec, cash: float, ts: str) -> Tuple[float, Optional[str]]:
-    """Enter a BUY-class recommendation into the backtest ledger."""
+def _try_enter(run_id: str, scan_id: str, rec, cash: float, ts: str,
+               sizing: Optional[Dict[str, Any]] = None,
+               mark: Optional[float] = None) -> Tuple[float, Optional[str]]:
+    """
+    Enter a BUY-class recommendation into the backtest ledger.
+
+    Sizing is settings-driven (resolve_sizing). Behaviour with default
+    settings is IDENTICAL to the historical hardcoded 1% risk / 25% cap /
+    one-open-position-per-symbol rule.
+
+    Scale-in (only when sizing["scale_in_enabled"] is true): if an OPEN
+    position already exists for the symbol, an additional tranche is allowed
+    only when every scale-in guard passes; every attempt emits
+    SCALE_IN_APPROVED / SCALE_IN_REJECTED (with the exact reason) and
+    executed tranches additionally emit SCALE_IN_EXECUTED.
+    """
     from phase20_executor import compute_fill, compute_charges
+    s = sizing or DEFAULT_SIZING
     entry, stop = float(rec.entry_price), float(rec.stop_loss)
     per_share_risk = entry - stop
     if entry <= 0 or per_share_risk <= 0:
+        if s.get("scale_in_enabled"):
+            open_now = [t for t in bp.open_trades(run_id)
+                        if str(t["symbol"]).upper() == str(rec.symbol).upper()]
+            if open_now:
+                emit("SCALE_IN_REJECTED", "EXECUTION", scan_id=scan_id,
+                     symbol=rec.symbol, mode="BACKTEST", run_id=run_id,
+                     payload={"reason": "Invalid stop-loss/target for scale-in"})
         return cash, None
-    risk_amount = cash * RISK_PER_TRADE_PCT / 100.0
+
+    # Existing OPEN tranches for this symbol / whole run (for scale-in guards)
+    sym = str(rec.symbol).upper()
+    open_all = bp.open_trades(run_id)
+    open_sym = [t for t in open_all if str(t["symbol"]).upper() == sym]
+    tranche = 0
+    scale_in = bool(open_sym)
+    if scale_in:
+        if not s.get("scale_in_enabled"):
+            # Preserved historical behaviour: duplicate entry cancelled.
+            emit("ORDER_CANCELLED", "EXECUTION", scan_id=scan_id, symbol=rec.symbol,
+                 mode="BACKTEST", run_id=run_id,
+                 payload={"reason": "Open backtest position already exists"})
+            return cash, None
+        ok, reject_reason, tranche = _scale_in_guards(
+            rec, s, open_all, open_sym, cash, entry, mark)
+        if not ok:
+            emit("SCALE_IN_REJECTED", "EXECUTION", scan_id=scan_id,
+                 symbol=rec.symbol, mode="BACKTEST", run_id=run_id,
+                 payload={"reason": reject_reason,
+                          "open_tranches": len(open_sym),
+                          "cash": round(cash, 2)})
+            return cash, None
+
+    risk_amount = cash * float(s["risk_per_trade_pct"]) / 100.0
     qty = int(risk_amount / per_share_risk)
-    max_qty = int(cash * MAX_POSITION_PCT / 100.0 / entry)
+    max_qty = int(cash * float(s["max_position_cap_pct"]) / 100.0 / entry)
     qty = min(qty, max_qty)
     if qty < 1:
-        emit("ORDER_REJECTED", "EXECUTION", scan_id=scan_id, symbol=rec.symbol,
+        ev = "SCALE_IN_REJECTED" if scale_in else "ORDER_REJECTED"
+        emit(ev, "EXECUTION", scan_id=scan_id, symbol=rec.symbol,
              mode="BACKTEST", run_id=run_id,
              payload={"reason": "Position size < 1 share for available cash",
                       "cash": round(cash, 2)})
@@ -157,15 +313,41 @@ def _try_enter(run_id: str, scan_id: str, rec, cash: float, ts: str) -> Tuple[fl
     charges = compute_charges(fill_price * qty, DEFAULT_SETTINGS)
     cost = fill_price * qty + charges
     if cost > cash:
-        emit("ORDER_REJECTED", "EXECUTION", scan_id=scan_id, symbol=rec.symbol,
+        ev = "SCALE_IN_REJECTED" if scale_in else "ORDER_REJECTED"
+        emit(ev, "EXECUTION", scan_id=scan_id, symbol=rec.symbol,
              mode="BACKTEST", run_id=run_id,
              payload={"reason": "Insufficient cash", "cost": round(cost, 2),
                       "cash": round(cash, 2)})
         return cash, None
+    if scale_in:
+        # Exposure guards re-checked WITH the new tranche cost included.
+        pv = cash + sum(float(t["fill_price"]) * int(t["quantity"])
+                        for t in open_all)
+        sym_cost = sum(float(t["fill_price"]) * int(t["quantity"])
+                       for t in open_sym) + cost
+        tot_cost = sum(float(t["fill_price"]) * int(t["quantity"])
+                       for t in open_all) + cost
+        if pv > 0 and sym_cost / pv * 100.0 > float(s["max_symbol_exposure_pct"]):
+            emit("SCALE_IN_REJECTED", "EXECUTION", scan_id=scan_id,
+                 symbol=rec.symbol, mode="BACKTEST", run_id=run_id,
+                 payload={"reason": f"Symbol exposure {sym_cost / pv * 100.0:.1f}%"
+                                    f" would exceed cap {s['max_symbol_exposure_pct']}%"})
+            return cash, None
+        if pv > 0 and tot_cost / pv * 100.0 > float(s["max_total_exposure_pct"]):
+            emit("SCALE_IN_REJECTED", "EXECUTION", scan_id=scan_id,
+                 symbol=rec.symbol, mode="BACKTEST", run_id=run_id,
+                 payload={"reason": f"Total exposure {tot_cost / pv * 100.0:.1f}%"
+                                    f" would exceed cap {s['max_total_exposure_pct']}%"})
+            return cash, None
+        emit("SCALE_IN_APPROVED", "EXECUTION", scan_id=scan_id,
+             symbol=rec.symbol, mode="BACKTEST", run_id=run_id,
+             payload={"tranche": tranche, "qty": qty,
+                      "confidence": rec.calibrated_confidence,
+                      "rr_ratio": rec.rr_ratio})
 
     emit("ORDER_SUBMITTED", "EXECUTION", scan_id=scan_id, symbol=rec.symbol,
          mode="BACKTEST", run_id=run_id,
-         payload={"qty": qty, "signal_price": entry,
+         payload={"qty": qty, "signal_price": entry, "tranche": tranche,
                   "fill_model": DEFAULT_SETTINGS["fill_model"]})
     trade_id = bp.open_trade({
         "run_id": run_id, "scan_id": scan_id, "symbol": rec.symbol,
@@ -176,12 +358,18 @@ def _try_enter(run_id: str, scan_id: str, rec, cash: float, ts: str) -> Tuple[fl
         "est_charges": charges, "slippage": fill["slippage"],
         "confidence": rec.calibrated_confidence,
         "opportunity_score": rec.opportunity_score, "regime": rec.regime,
+        "tranche": tranche,
     })
     if trade_id is None:
         emit("ORDER_CANCELLED", "EXECUTION", scan_id=scan_id, symbol=rec.symbol,
              mode="BACKTEST", run_id=run_id,
              payload={"reason": "Open backtest position already exists"})
         return cash, None
+    if scale_in:
+        emit("SCALE_IN_EXECUTED", "EXECUTION", scan_id=scan_id,
+             symbol=rec.symbol, mode="BACKTEST", run_id=run_id,
+             payload={"trade_id": trade_id, "tranche": tranche,
+                      "fill_price": fill_price, "qty": qty})
     emit_many([
         {"event_type": "ORDER_EXECUTED", "stage": "EXECUTION",
          "scan_id": scan_id, "symbol": rec.symbol, "mode": "BACKTEST",
@@ -197,6 +385,44 @@ def _try_enter(run_id: str, scan_id: str, rec, cash: float, ts: str) -> Tuple[fl
                      "strategy": rec.strategy_name}},
     ])
     return cash - cost, trade_id
+
+
+def _scale_in_guards(rec, s: Dict[str, Any], open_all: List[Dict[str, Any]],
+                     open_sym: List[Dict[str, Any]], cash: float,
+                     entry: float, mark: Optional[float]
+                     ) -> Tuple[bool, str, int]:
+    """
+    Pre-sizing scale-in guards. Returns (ok, reject_reason, tranche_number).
+    Exposure caps are re-checked after sizing (with the actual tranche cost).
+    """
+    # open_sym includes the initial tranche
+    n_scale_ins = max(0, len(open_sym) - 1)
+    if n_scale_ins >= int(s["max_scale_in_count"]):
+        return False, (f"Scale-in count {n_scale_ins} at limit "
+                       f"({int(s['max_scale_in_count'])})"), 0
+    conf = float(rec.calibrated_confidence or 0.0)
+    if conf < float(s["scale_in_min_confidence"]):
+        return False, (f"Confidence {conf:.1f} below scale-in threshold "
+                       f"{s['scale_in_min_confidence']}"), 0
+    rr = float(rec.rr_ratio or 0.0)
+    if rr < float(s["scale_in_min_rr"]):
+        return False, (f"Risk/reward {rr:.2f} below scale-in threshold "
+                       f"{s['scale_in_min_rr']}"), 0
+    stop, target = float(rec.stop_loss), float(rec.target_price)
+    if not (0 < stop < entry < target):
+        return False, "Invalid stop-loss/target for scale-in", 0
+    # Existing position must be profitable or not deeply negative.
+    px = float(mark) if mark else entry
+    cost = sum(float(t["fill_price"]) * int(t["quantity"]) for t in open_sym)
+    qty = sum(int(t["quantity"]) for t in open_sym)
+    if cost > 0 and qty > 0:
+        unreal_pct = (px * qty - cost) / cost * 100.0
+        if unreal_pct < float(s["scale_in_min_unrealized_profit_pct"]):
+            return False, (f"Existing position unrealized {unreal_pct:.2f}% "
+                           f"below scale-in floor "
+                           f"{s['scale_in_min_unrealized_profit_pct']}%"), 0
+    tranche = max(int(t.get("tranche") or 0) for t in open_sym) + 1
+    return True, "", tranche
 
 
 def _check_exits(run_id: str, scan_id: str, ts_iso: str,
@@ -338,6 +564,8 @@ def execute_run(run_id: str) -> Dict[str, Any]:
         # learning state fingerprint the pipeline consulted.
         cash_log: List[List[Any]] = [[0, round(capital, 2)]]
         learning_fp = _learning_fingerprint()
+        sizing = resolve_sizing(cfg)
+        vol_normalize = bool(cfg.get("volume_time_normalized")) and interval != "1d"
         for tick_i, ts_iso in enumerate(timeline):
             ts = pd.Timestamp(ts_iso)
             if ts.tzinfo is None:
@@ -361,7 +589,7 @@ def execute_run(run_id: str) -> Dict[str, Any]:
             recs = []
             for sym in bars:
                 df = build_asof_df(daily_dfs.get(sym), intraday_dfs.get(sym),
-                                   ts, interval)
+                                   ts, interval, vol_normalize=vol_normalize)
                 fr = _fetch_result(sym, df, ts_iso)
                 recs.append(_scan_one(sym, fr, scan_id, ts_iso, cash))
             emit_many(derive_symbol_events(recs, scan_id, mode="BACKTEST",
@@ -371,7 +599,10 @@ def execute_run(run_id: str) -> Dict[str, Any]:
             for rec in recs:
                 if rec.error is None and rec.all_gates_passed \
                         and rec.final_action in ("BUY", "STRONG BUY"):
-                    cash, _tid = _try_enter(run_id, scan_id, rec, cash, ts_iso)
+                    bar = bars.get(str(rec.symbol).upper())
+                    cash, _tid = _try_enter(
+                        run_id, scan_id, rec, cash, ts_iso, sizing=sizing,
+                        mark=float(bar["close"]) if bar else None)
 
             if tick_i % 5 == 0 or tick_i == tick_count - 1:
                 snap_marks = {s: float(b["close"]) for s, b in bars.items()}
@@ -545,6 +776,7 @@ def validate_run(run_id: str, sample: int = 25) -> Dict[str, Any]:
 
     # exact replay inputs recorded by execute_run
     capital = float(cfg.get("capital") or 100000.0)
+    vol_normalize = bool(cfg.get("volume_time_normalized")) and interval != "1d"
     cash_log = cfg.get("cash_by_tick") or [[0, capital]]
     learning_fp = cfg.get("learning_fingerprint")
     learning_changed = (learning_fp is not None
@@ -595,7 +827,8 @@ def validate_run(run_id: str, sample: int = 25) -> Dict[str, Any]:
         ts = pd.Timestamp(ts_iso)
         if ts.tzinfo is None:
             ts = ts.tz_localize("UTC")
-        df = build_asof_df(daily_cache[sym], intra_cache[sym], ts, interval)
+        df = build_asof_df(daily_cache[sym], intra_cache[sym], ts, interval,
+                           vol_normalize=vol_normalize)
         fr = _fetch_result(sym, df, ts_iso)
         rec = _scan_one(sym, fr, scan_id, ts_iso, cash_at(tick_i))
         checked += 1

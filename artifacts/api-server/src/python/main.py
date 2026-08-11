@@ -2151,6 +2151,12 @@ def main():
                 "symbols": p.get("symbols"),
                 "universe": p.get("universe") or "configured",
             }
+            # Capital-deployment settings (optional; defaults preserve
+            # historical behaviour — scale-in OFF, 1% risk, 25% cap).
+            if isinstance(p.get("sizing"), dict):
+                cfg["sizing"] = p["sizing"]
+            if p.get("volume_time_normalized"):
+                cfg["volume_time_normalized"] = True
             if not cfg["start"] or not cfg["end"]:
                 result = {"ok": False, "error": "start and end dates required"}
             else:

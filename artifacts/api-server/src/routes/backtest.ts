@@ -72,6 +72,10 @@ router.post("/backtest/run", async (req, res) => {
       capital: Number(b.capital) || 100000,
       symbols: Array.isArray(b.symbols) && b.symbols.length ? b.symbols : undefined,
       universe: b.universe || "configured",
+      // Capital-deployment settings (all optional; defaults preserve
+      // historical behaviour — scale-in OFF, 1% risk, 25% cap).
+      sizing: b.sizing && typeof b.sizing === "object" ? b.sizing : undefined,
+      volume_time_normalized: b.volume_time_normalized ? true : undefined,
     };
     res.json(await runPython(["backtest_start", JSON.stringify(payload)]));
   } catch (err) {

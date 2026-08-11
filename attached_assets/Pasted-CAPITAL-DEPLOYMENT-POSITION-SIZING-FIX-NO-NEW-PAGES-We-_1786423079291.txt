@@ -1,0 +1,214 @@
+CAPITAL DEPLOYMENT + POSITION SIZING FIX — NO NEW PAGES
+
+We reviewed BUY_CRITERIA_POSITION_SIZING_AUDIT.md.
+
+Root issue:
+The AI is finding BUY-class opportunities, but capital deployment is too weak.
+
+Evidence:
+- GLAND 5m intraday run had 2,780 scans.
+- 1,592 BUY-class approvals.
+- Only 2 executed trades.
+- 1,590 approved BUYs were cancelled because one GLAND position was already open.
+- Risk sizing used only 9–16% capital per trade.
+- Around 85–90% of capital stayed idle during a strong trend.
+
+Do not add new pages.
+Do not place live orders.
+Do not lower BUY threshold yet.
+Do not bypass risk gates.
+Do not bypass market_open or scan_fresh.
+Keep PAPER / RESEARCH ONLY.
+
+OBJECTIVE
+
+Fix capital deployment safely by making position sizing configurable and adding controlled scale-in support in backtests/paper mode.
+
+====================================================
+TASK 1 — MAKE BACKTEST POSITION SIZING SETTINGS-DRIVEN
+====================================================
+
+Currently the backtest uses hardcoded:
+- risk_per_trade = 1%
+- per_stock_cap = 25%
+
+Fix this.
+
+Move these into config/settings so they can be tested without code edits.
+
+Expose these settings to the backtest runner:
+
+- risk_per_trade_pct
+- max_position_cap_pct
+- max_symbol_exposure_pct
+- max_total_exposure_pct
+- max_scale_in_count
+- scale_in_enabled
+- scale_in_min_confidence
+- scale_in_min_rr
+- scale_in_min_unrealized_profit_pct
+
+Defaults must preserve current behaviour:
+- scale_in_enabled = false
+- risk_per_trade_pct = 1
+- max_position_cap_pct = 25
+
+This ensures no behaviour changes unless explicitly enabled in backtest/paper settings.
+
+====================================================
+TASK 2 — ADD CONTROLLED SCALE-IN LOGIC
+====================================================
+
+Current behaviour:
+If one position is open, all future approved BUYs for the same symbol are cancelled.
+
+New behaviour, only when scale_in_enabled = true:
+
+Allow an additional BUY tranche only if:
+
+1. Existing position is profitable or not deeply negative.
+2. Fresh BUY-class signal exists.
+3. Confidence passes threshold.
+4. Risk/reward passes threshold.
+5. Total symbol exposure remains within max_symbol_exposure_pct.
+6. Total portfolio exposure remains within max_total_exposure_pct.
+7. Scale-in count is below max_scale_in_count.
+8. Stop-loss and target are valid.
+9. Cash is sufficient.
+10. No market safety gate fails.
+
+Every scale-in must create clear events:
+
+- SCALE_IN_APPROVED
+- SCALE_IN_REJECTED
+- SCALE_IN_EXECUTED
+
+Store exact reason if rejected.
+
+Do not silently merge or hide scale-in trades.
+
+====================================================
+TASK 3 — PRESERVE ONE-POSITION RULE WHEN SCALE-IN OFF
+====================================================
+
+If scale_in_enabled = false, current behaviour must remain unchanged.
+
+Open position should still block duplicate symbol entries.
+
+Add regression test proving current behaviour is preserved by default.
+
+====================================================
+TASK 4 — TIME-NORMALIZE INTRADAY VOLUME GATE
+====================================================
+
+The audit found morning volume is compared against full-day average volume, causing the volume ratio to be structurally low early in the session.
+
+For intraday mode only:
+
+Replace raw:
+session_so_far_volume / average_full_day_volume
+
+with:
+session_so_far_volume / average_session_to_date_volume_at_same_time
+
+Example:
+09:45 volume should be compared against average 09:45 accumulated volume, not full-day volume.
+
+Important:
+- Apply only to intraday scans/backtests.
+- Daily mode remains unchanged.
+- If time-of-day volume curve is unavailable, fall back safely and label evidence as insufficient.
+- Do not fabricate volume curve data.
+
+====================================================
+TASK 5 — RE-RUN GLAND COMPARISON
+====================================================
+
+After implementation, run GLAND 5m backtests:
+
+A. Baseline current behaviour:
+- scale_in_enabled = false
+- risk_per_trade_pct = 1
+- max_position_cap_pct = 25
+
+B. Scale-in test:
+- scale_in_enabled = true
+- max_scale_in_count = 2
+- risk_per_trade_pct = 1
+- max_symbol_exposure_pct = 25
+- max_total_exposure_pct = 80
+
+C. Position sizing test:
+- scale_in_enabled = false
+- risk_per_trade_pct = 1.5
+- max_position_cap_pct = 25
+
+D. Combined test:
+- scale_in_enabled = true
+- max_scale_in_count = 2
+- risk_per_trade_pct = 1.5
+- max_symbol_exposure_pct = 25
+- max_total_exposure_pct = 80
+- time-normalized volume enabled
+
+Compare:
+
+- Trades executed
+- BUY approvals
+- Cancelled due to existing position
+- Capital deployed
+- Average capital utilization
+- Realized P&L
+- Net return
+- Drawdown
+- Win rate
+- Profit factor
+- Missed opportunities
+- Risk per trade
+- Largest loss
+- Exposure
+
+====================================================
+TASK 6 — VERIFY SAFETY
+====================================================
+
+Add tests proving:
+
+- No scale-in when disabled.
+- Scale-in respects max_symbol_exposure_pct.
+- Scale-in respects max_total_exposure_pct.
+- Scale-in respects cash.
+- Scale-in respects stop validity.
+- Scale-in records events.
+- Rejections show exact reason.
+- Volume normalization only affects intraday mode.
+- Daily mode unchanged.
+- No live orders are placed.
+- Paper mode only.
+
+====================================================
+TASK 7 — REPORT
+====================================================
+
+Produce:
+
+CAPITAL_DEPLOYMENT_FIX_VERIFICATION.md
+
+Include:
+
+1. What changed.
+2. What did not change.
+3. Confirmation no live trading logic was enabled.
+4. Confirmation default behaviour is unchanged unless scale-in is enabled.
+5. GLAND baseline vs scale-in vs sizing comparison.
+6. Whether capital utilization improved.
+7. Whether P&L improved.
+8. Whether drawdown increased.
+9. Whether volume normalization helped.
+10. Recommendation on whether to enable scale-in for wider backtesting.
+
+Important:
+Do not enable the new behaviour globally by default.
+Do not change live production/paper defaults without approval.
+Do not lower BUY threshold yet.
+Stop after the report.
