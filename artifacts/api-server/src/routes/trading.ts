@@ -3383,4 +3383,20 @@ router.get("/risk/audit", async (_req, res) => {
   }
 });
 
+// GET /api/auto-paper/buy-audit?limit=10
+// Read-only diagnostic: the most recent BUY_GENERATED pipeline events with
+// market-hours verification, auto-entry cross-reference, and execution outcome.
+// Each record shows: scan_id, symbol, generated_at_ist, market_open,
+// auto_entry_attempted, execution_outcome, failed_gates, fill_price, qty, status.
+// limit: 1–50 (default 10).  READ-ONLY · PAPER TRADING ONLY.
+router.get("/auto-paper/buy-audit", async (req, res) => {
+  try {
+    const raw = Number(req.query["limit"]);
+    const limit = Math.min(Math.max(isNaN(raw) ? 10 : raw, 1), 50);
+    res.json(await runPython(["buy_audit", String(limit)], 15_000));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 export default router;

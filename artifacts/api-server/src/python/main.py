@@ -4136,6 +4136,14 @@ def main():
                 from phase24_engine import ingest_backtest_missed_opps as _f
                 result = _f(_run_id)
 
+        elif command == "buy_audit":
+            # GET /api/auto-paper/buy-audit?limit=N
+            # Read-only diagnostic: BUY_GENERATED events cross-referenced with
+            # the phase20 paper-trade ledger and ORDER_* pipeline events.
+            from buy_audit import get_buy_audit as _buy_audit
+            _limit = int(args[1]) if len(args) > 1 else 10
+            result = _buy_audit(_limit)
+
         else:
             error_msg = f"Unknown command: {command}"
 
