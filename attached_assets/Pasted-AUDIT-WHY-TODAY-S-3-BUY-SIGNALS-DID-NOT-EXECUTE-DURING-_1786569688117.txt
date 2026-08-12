@@ -1,0 +1,116 @@
+AUDIT WHY TODAY'S 3 BUY SIGNALS DID NOT EXECUTE DURING MARKET HOURS
+
+Issue:
+AI Paper Trader showed 3 BUY / STRONG BUY signals, but all 3 were rejected.
+
+Frontend evidence:
+- Session READY
+- Auto Entries ON
+- Agents 12/12
+- BUY Signals Generated: 3
+- Global Gates Passed: 0
+- Passed All Entry Gates: 0
+- Paper Orders Executed Today: 0
+- First blockage: global_gates
+- scan_fresh failed: scan age ~40369s, stale after 5400s
+- market_open failed: Market state CLOSED
+
+User concern:
+These were today's signals. Why did they not execute during the market session?
+
+Do not change strategy logic.
+Do not change thresholds.
+Do not bypass scan_fresh.
+Do not bypass market_open.
+Do not place live orders.
+PAPER ONLY.
+
+TASK 1 — IDENTIFY THE 3 BUY SIGNALS
+
+For the latest scan that produced 3 BUY / STRONG BUY signals, report:
+
+- scan_id
+- scan timestamp IST
+- symbol
+- decision
+- confidence
+- opportunity score
+- trade quality
+- RR
+- entry
+- stop
+- target
+- data source
+- whether data quality was LIVE or fallback
+
+TASK 2 — CHECK WHETHER THEY WERE GENERATED DURING MARKET HOURS
+
+For each of the 3 BUY signals, confirm:
+
+- was the scan generated between 09:15 and 15:30 IST?
+- was the market_open gate true at signal time?
+- was scan_fresh true at signal time?
+- were the signals executable at that exact time?
+
+TASK 3 — CHECK AUTO-ENTRY EXECUTOR TIMING
+
+For the same scan_id, check:
+
+- did phase20 auto-entry run immediately after the scan?
+- if yes, what happened?
+- if no, why not?
+- scheduler running?
+- auto entries enabled?
+- session initialized?
+- daily trade limit reached?
+- max open positions reached?
+- per-stock cap issue?
+- broker/paper ledger issue?
+- DB lock issue?
+- worker crashed?
+- any logs/errors?
+
+TASK 4 — DIFFERENTIATE TWO CASES
+
+Case A:
+Signals were generated after market close or from stale scan.
+Result: correct rejection.
+
+Case B:
+Signals were generated during market hours but executor did not process them before they became stale.
+Result: bug in scheduler/auto-entry timing.
+
+Clearly state which case happened.
+
+TASK 5 — UI IMPROVEMENT
+
+In AI Paper Trader, show both timestamps:
+
+- Signal generated at: HH:MM IST
+- Execution checked at: HH:MM IST
+
+Also show:
+
+- Fresh at signal time: yes/no
+- Fresh at execution time: yes/no
+- Market open at signal time: yes/no
+- Market open at execution time: yes/no
+
+This will stop confusion where today's old signal appears as actionable.
+
+TASK 6 — REPORT
+
+Produce:
+
+TODAYS_BUY_SIGNAL_EXECUTION_AUDIT.md
+
+Include:
+1. The 3 symbols.
+2. Signal timestamps.
+3. Whether each was executable when generated.
+4. Whether auto-entry attempted execution.
+5. Exact reason each did not reach paper order.
+6. Whether this was correct safety behavior or a scheduler bug.
+7. Fix plan if scheduler did not run during market hours.
+
+Stop after report.

@@ -422,25 +422,20 @@ def _scan_one(
     )
     _mark("RISK")  # all gates evaluated
 
-    # Paper order creation (simulated only)
+    # Paper order placement is NOT done inline during scanning.
+    # The phase20 auto-entry executor reads `paper_eligible` from the
+    # scan snapshot and places orders via execute_buy (phase20_executor.py).
+    # create_paper_order was removed from paper_trader.py when phase20 took
+    # over all paper order lifecycle.  Setting a clear note here prevents
+    # the confusing "cannot import name 'create_paper_order'" error from
+    # appearing in scan snapshots and audit logs.
     paper_order_id = None
-    paper_note = "Not eligible for paper execution"
-    if paper_eligible:
-        try:
-            from paper_trader import create_paper_order
-            order = create_paper_order(
-                symbol=symbol.upper(), action=action,
-                entry_price=round(price, 2), stop_loss=stop_loss,
-                target=target, strategy=strategy.name,
-                scan_id=scan_id, confidence=final_conf,
-            )
-            if order and order.get("order_id"):
-                paper_order_id = order["order_id"]
-                paper_note = f"Paper order created: {paper_order_id}"
-            else:
-                paper_note = order.get("reason", "Paper order skipped")
-        except Exception as exc:
-            paper_note = f"Paper order skipped: {exc}"
+    paper_note = (
+        "Paper orders managed by phase20 executor — eligible candidates "
+        "are processed after scan completion."
+        if paper_eligible
+        else "Not eligible for paper execution"
+    )
     _mark("AI_DECISION")  # final action + paper eligibility decided
 
     rec = Phase7Recommendation(

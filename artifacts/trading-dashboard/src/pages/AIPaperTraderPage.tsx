@@ -208,6 +208,17 @@ function fmtK(n: number) {
 function pnlCls(v: number) {
   return v > 0 ? "text-emerald-400" : v < 0 ? "text-rose-400" : "text-slate-400";
 }
+/** Returns true if the UTC ISO timestamp fell within NSE market hours (09:15–15:30 IST). */
+function wasMarketOpenAt(utcIso: string): boolean {
+  try {
+    const d = new Date(utcIso);
+    // Convert to IST minutes-since-midnight
+    const istMs  = d.getTime() + 5.5 * 60 * 60 * 1000;
+    const istMin = Math.floor(istMs / 60_000) % (24 * 60);
+    return istMin >= 9 * 60 + 15 && istMin < 15 * 60 + 30;
+  } catch { return false; }
+}
+
 function istTime(ts: string) {
   try {
     return new Date(ts).toLocaleTimeString("en-IN", {
@@ -641,6 +652,8 @@ interface PipelineFunnelStage {
 interface PipelineStats {
   generated_at?: string;
   scan_id?: string;
+  snapshot_ts?: string;      // UTC ISO — when the scan that produced signals was run
+  scan_age_s?: number;       // seconds since snapshot_ts at evaluation time
   scan_available?: boolean;
   eval_available?: boolean;
   funnel?: PipelineFunnelStage[];
@@ -759,6 +772,88 @@ function SPipelineStats() {
           </button>
         </div>
       </div>
+
+      {/* ── Dual-timestamp clarity strip ─────────────────────────────────────
+          Shows TWO contexts side-by-side so operators can distinguish
+          "signal was blocked NOW" (stale scan / market closed) from
+          "signal was blocked WHEN IT WAS GENERATED" (risk gate, gate rule).
+          This addresses the confusion where a valid market-hours signal looks
+          like it never ran, because the UI is checked after close.
+      ────────────────────────────────────────────────────────────────────── */}
+      {!isLoading && data?.snapshot_ts && (
+        <div className="mb-3 rounded-lg bg-slate-900/50 border border-slate-800/40 px-3 py-2">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-0.5 text-[10px] font-mono">
+            {/* Column A — signal-generation context (what was true when scan ran) */}
+            <div>
+              <p className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">
+                Signal generated at
+              </p>
+              <p className="text-slate-200 mb-0.5">
+                <span className="text-teal-300 font-semibold">{istTime(data.snapshot_ts)}</span>
+                {" "}<span className="text-slate-500">IST</span>
+                {" · "}<span className="text-slate-500 text-[9px]">{data.scan_id?.slice(0, 8)}</span>
+              </p>
+              <div className="flex gap-2 flex-wrap">
+                {/* Scan is always fresh at the moment it is generated */}
+                <span className="text-emerald-400 flex items-center gap-0.5">
+                  <CheckCircle2 className="w-2.5 h-2.5" /> Fresh at signal time
+                </span>
+                {wasMarketOpenAt(data.snapshot_ts)
+                  ? <span className="text-emerald-400 flex items-center gap-0.5">
+                      <CheckCircle2 className="w-2.5 h-2.5" /> Market open at signal time
+                    </span>
+                  : <span className="text-amber-400 flex items-center gap-0.5">
+                      <AlertTriangle className="w-2.5 h-2.5" /> Market closed at signal time
+                    </span>
+                }
+              </div>
+            </div>
+
+            {/* Column B — current-check context (what is true right now) */}
+            <div>
+              <p className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">
+                Execution checked now
+              </p>
+              <p className="text-slate-200 mb-0.5">
+                <span className={`font-semibold ${mktClosed || scanStale ? "text-rose-300" : "text-emerald-300"}`}>
+                  {new Date().toLocaleTimeString("en-IN", {
+                    hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Kolkata",
+                  })}
+                </span>
+                {" "}<span className="text-slate-500">IST</span>
+              </p>
+              <div className="flex gap-2 flex-wrap">
+                {scanStale
+                  ? <span className="text-rose-400 flex items-center gap-0.5">
+                      <XCircle className="w-2.5 h-2.5" /> Scan stale now
+                    </span>
+                  : <span className="text-emerald-400 flex items-center gap-0.5">
+                      <CheckCircle2 className="w-2.5 h-2.5" /> Fresh now
+                    </span>
+                }
+                {mktClosed
+                  ? <span className="text-rose-400 flex items-center gap-0.5">
+                      <XCircle className="w-2.5 h-2.5" /> Market closed now
+                    </span>
+                  : <span className="text-emerald-400 flex items-center gap-0.5">
+                      <CheckCircle2 className="w-2.5 h-2.5" /> Market open now
+                    </span>
+                }
+              </div>
+            </div>
+          </div>
+
+          {/* Explanatory note when contexts differ — the most common confusion */}
+          {(scanStale || mktClosed) && wasMarketOpenAt(data.snapshot_ts) && (
+            <p className="mt-1.5 text-[9px] text-amber-400/80 border-t border-slate-800/40 pt-1.5">
+              ⚠ Signal was generated during market hours when all global gates passed.
+              Current blockage reflects <em>this moment</em> (stale/closed) — not what
+              happened when the executor ran. Check blocked-candidates below for the
+              actual per-symbol gate failures.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Funnel — compact horizontal strip */}
       {isLoading ? (
