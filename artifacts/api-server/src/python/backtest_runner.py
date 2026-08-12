@@ -610,19 +610,36 @@ def execute_run(run_id: str) -> Dict[str, Any]:
         learning_fp = _learning_fingerprint()
         sizing = resolve_sizing(cfg)
         vol_normalize = bool(cfg.get("volume_time_normalized")) and interval != "1d"
+
+        # ── Performance: pre-build O(1) timestamp index for bar lookup ────────
+        # Without this, each tick scans every candle of every symbol looking for
+        # the matching timestamp — O(symbols × candles) per tick = ~1.5 M string
+        # comparisons for a 5-symbol 15m 30-day run.
+        per_symbol_ts_idx: Dict[str, Dict[str, Dict[str, float]]] = {
+            sym: {c["ts"]: c for c in candles}
+            for sym, candles in per_symbol.items()
+        }
+
+        # ── Performance: event buffer — batch DB writes every 5 ticks ─────────
+        # Opening a new psycopg2 connection for each tick's emit_many() call
+        # costs ~66 ms on Neon serverless.  Buffering events and flushing every
+        # 5 ticks cuts 553 connections to ≤ 111 — saving ~29 s on a typical run.
+        # Exit events (POSITION_CLOSED) from _check_exits are emitted promptly
+        # (not buffered) to preserve their exact timing in the event stream.
+        _evt_buf: List[Dict[str, Any]] = []
+
         for tick_i, ts_iso in enumerate(timeline):
             ts = pd.Timestamp(ts_iso)
             if ts.tzinfo is None:
                 ts = ts.tz_localize("UTC")
             scan_id = f"{run_id}-T{tick_i:05d}"
 
-            # current bars per symbol (only symbols with a candle at this ts)
-            bars: Dict[str, Dict[str, float]] = {}
-            for sym, candles in per_symbol.items():
-                for c in candles:
-                    if c["ts"] == ts_iso:
-                        bars[sym] = c
-                        break
+            # O(1) bar lookup via pre-built timestamp index
+            bars: Dict[str, Dict[str, float]] = {
+                sym: idx[ts_iso]
+                for sym, idx in per_symbol_ts_idx.items()
+                if ts_iso in idx
+            }
 
             # exits first (against the current candle, never the entry candle)
             cash = _check_exits(run_id, scan_id, ts_iso, bars, cash)
@@ -636,8 +653,9 @@ def execute_run(run_id: str) -> Dict[str, Any]:
                                    ts, interval, vol_normalize=vol_normalize)
                 fr = _fetch_result(sym, df, ts_iso)
                 recs.append(_scan_one(sym, fr, scan_id, ts_iso, cash))
-            emit_many(derive_symbol_events(recs, scan_id, mode="BACKTEST",
-                                           run_id=run_id))
+            # Buffer events — flushed every 5 ticks (see checkpoint block below)
+            _evt_buf.extend(derive_symbol_events(recs, scan_id, mode="BACKTEST",
+                                                 run_id=run_id))
 
             # enter BUY-class recommendations via the isolated ledger
             for rec in recs:
@@ -648,11 +666,18 @@ def execute_run(run_id: str) -> Dict[str, Any]:
                         run_id, scan_id, rec, cash, ts_iso, sizing=sizing,
                         mark=float(bar["close"]) if bar else None)
 
-            if tick_i % 5 == 0 or tick_i == tick_count - 1:
-                # Cancellation checkpoint — checked every 5 ticks (piggybacks on
-                # the progress write; no extra DB round-trip on other ticks).
+            # ── Every 5 ticks: flush events + cancel/stale check + heartbeat ──
+            # Heartbeat MUST run every 5 ticks or the 30-min stale watchdog will
+            # mark the run STALE.  Flushing events here keeps event latency ≤ 5
+            # ticks (~75 min of 15m data) which is acceptable for backtest audit.
+            if tick_i % 5 == 4 or tick_i == tick_count - 1:
+                # Flush buffered scan events (one DB round-trip for ≤5 ticks)
+                if _evt_buf:
+                    emit_many(_evt_buf)
+                    _evt_buf.clear()
+                # Cancellation / stale checkpoint — one cheap DB read.
                 # get_run_status() returns None on any DB error so a transient
-                # Neon outage here skips the check rather than crashing the run.
+                # Neon outage skips the check rather than crashing the run.
                 try:
                     _cur_status = bp.get_run_status(run_id)
                 except Exception:
@@ -675,19 +700,34 @@ def execute_run(run_id: str) -> Dict[str, Any]:
                             "ticks_completed": tick_i,
                             "message": ("Run marked STALE by watchdog; "
                                         "worker exiting without overwriting state")}
-                snap_marks = {s: float(b["close"]) for s, b in bars.items()}
-                snap = bp.portfolio_snapshot(run_id, snap_marks)
-                emit("PORTFOLIO_UPDATED", "PORTFOLIO", scan_id=scan_id,
-                     mode="BACKTEST", run_id=run_id,
-                     payload={"cash": snap["cash"],
-                              "portfolio_value": snap["portfolio_value"],
-                              "open_positions": snap["open_positions_count"],
-                              "realized_pnl": snap["realized_pnl"]})
+                # Heartbeat: cheap progress write that resets the stale clock.
                 bp.update_run(run_id, progress={
                     "phase": "REPLAY", "done": tick_i + 1, "total": tick_count,
                     "ts": ts_iso, "cash": round(cash, 2),
                     "current_symbols": sorted(bars.keys()),
                     "progress_updated_at": datetime.now(timezone.utc).isoformat()})
+
+            # ── Every 20 ticks: full portfolio snapshot ────────────────────────
+            # More expensive than the heartbeat (reads all trades from DB).
+            # 20-tick cadence keeps DB load low while still giving operators a
+            # live equity curve at ~5 min resolution for 15m backtests.
+            if tick_i % 20 == 0 or tick_i == tick_count - 1:
+                snap_marks = {s: float(b["close"]) for s, b in bars.items()}
+                snap = bp.portfolio_snapshot(run_id, snap_marks)
+                # Buffer PORTFOLIO_UPDATED alongside the next scan-event flush;
+                # a final immediate flush below handles the last-tick case.
+                _evt_buf.append({
+                    "event_type": "PORTFOLIO_UPDATED", "stage": "PORTFOLIO",
+                    "scan_id": scan_id, "mode": "BACKTEST", "run_id": run_id,
+                    "payload": {"cash": snap["cash"],
+                                "portfolio_value": snap["portfolio_value"],
+                                "open_positions": snap["open_positions_count"],
+                                "realized_pnl": snap["realized_pnl"]}})
+                # Flush immediately on the last tick so PORTFOLIO_UPDATED is
+                # never left in the buffer after the loop exits.
+                if tick_i == tick_count - 1 and _evt_buf:
+                    emit_many(_evt_buf)
+                    _evt_buf.clear()
 
         # 3. Close whatever is still open at the final candle close.
         last_close: Dict[str, float] = {}

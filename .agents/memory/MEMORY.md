@@ -100,6 +100,7 @@
 - [Phase 26A e2e validation](phase26a-e2e-validation.md) — eligible-no-ledger BUY = BLOCKED+WARN not ERROR; replay `_is_buy_action` normalises STRONG BUY; flock the run-store JSON fallback.
 - [Bot DB collision](bot-db-collision.md) — bot .env targets the shared workspace DB; alembic never applied; 0006 collides with api-server's broker_reconciliation_runs; prod columns arrive only via republish.
 - [Bot test suite conventions](bot-test-suite.md) — alias finder, isolated intraday_bot_test DB, NullPool per-loop, request-boundary commit contract, bcrypt<5 pin.
+- [Backtest perf fix](backtest-perf-fix.md) — 5h+ freezes were pre-fix infra (no sweep/heartbeat); real runs take ~6 min; tick loop now buffers events every 5 ticks + O(1) ts index + 20-tick snapshots.
 - [Phase 26C scheduled validation](phase26c-scheduled-validation.md) — per-suite kv_claim_once at open/close milestones; ERROR releases claim for retry, FAIL keeps it; dedupe error alerts separately.
 - [Replay snapshot contract](replay-snapshot-contract.md) — stages use id/stocks_in/stocks_out, decisions use final_action; market_data↔SCANNER alias; curl real keys before typing interfaces.
 - [Phase 27C/27D explain & optimize](phase27-explain-optimize.md) — scan gates are `{passed,reason}` dicts; phase24 missed-opps wrap in `record`; error rows trip all gates; journey can lag the canonical scan.
