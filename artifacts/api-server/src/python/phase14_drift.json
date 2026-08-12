@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-08-09T21:54:25.160240+00:00",
+ "generated_at": "2026-08-12T21:45:06.560360+00:00",
  "sample_size": 19,
  "indicators": [
   {
@@ -13,7 +13,7 @@
  "learning_frozen": {
   "frozen": false,
   "reason": "decision-time freeze test done",
-  "updated_at": "2026-08-09T21:54:25.137998+00:00"
+  "updated_at": "2026-08-12T21:45:06.532838+00:00"
  },
  "recovery_criteria": "All indicators must fall below CRITICAL thresholds on the next drift computation.",
  "note": "Drift never disables existing safety controls."

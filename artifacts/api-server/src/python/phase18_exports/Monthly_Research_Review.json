@@ -19,19 +19,19 @@
   "opportunity_score_validation": "Requires closed trades with stored opportunity scores \u2014 Insufficient Data",
   "risk_metrics": {
     "max_drawdown": "Insufficient Data",
-    "open_positions": 1
+    "open_positions": 0
   },
   "data_provider_reliability": {
     "stale_scan_days": 0,
-    "days_with_symbol_errors": 6,
-    "notebook_days": 6
+    "days_with_symbol_errors": 9,
+    "notebook_days": 9
   },
   "qa_trend": "Insufficient Data",
   "validation_trend": {
     "runs_this_month": 0
   },
   "learning_progress": {
-    "notebook_days": 6,
+    "notebook_days": 9,
     "notes_recorded": 0,
     "lessons_recorded": 0
   },
@@ -42,6 +42,22 @@
   ],
   "human_approved_changes": "Tracked via issue log and notes \u2014 no automatic changes exist.",
   "issues_this_month": [
+    {
+      "issue_id": "ISS-0031",
+      "date": "2026-08-13",
+      "severity": "LOW",
+      "page": "test",
+      "description": "unit-test issue",
+      "related_scan_id": null,
+      "related_trade_id": null,
+      "reproducible": false,
+      "status": "VERIFIED",
+      "resolution": "test done",
+      "resolved_date": "2026-08-13",
+      "notes": [],
+      "created_at": "2026-08-12T21:45:07.456444+00:00",
+      "updated_at": "2026-08-12T21:45:07.459046+00:00"
+    },
     {
       "issue_id": "ISS-0030",
       "date": "2026-08-09",
@@ -93,9 +109,9 @@
   ],
   "production_readiness_progress": {
     "trading_sessions": {
-      "value": 14,
+      "value": 17,
       "target": 50,
-      "pct": 28.0
+      "pct": 34.0
     },
     "completed_paper_trades": {
       "value": 0,

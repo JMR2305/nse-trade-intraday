@@ -1132,5 +1132,32 @@
   "message": "Rolled back champion to p13_champion_v1 (research/paper mode).",
   "informational_only": true,
   "note": "Alerts never trigger trades."
+ },
+ {
+  "id": "21e9022114",
+  "ts": "2026-08-12T21:45:06.415186+00:00",
+  "type": "challenger_ready",
+  "severity": "INFO",
+  "message": "Challenger p14_challenger_v1 created and ready for review.",
+  "informational_only": true,
+  "note": "Alerts never trigger trades."
+ },
+ {
+  "id": "18ffb32a95",
+  "ts": "2026-08-12T21:45:06.432035+00:00",
+  "type": "challenger_rejected",
+  "severity": "INFO",
+  "message": "Model p14_challenger_v1 rejected by tester.",
+  "informational_only": true,
+  "note": "Alerts never trigger trades."
+ },
+ {
+  "id": "0e364a4a20",
+  "ts": "2026-08-12T21:45:06.444735+00:00",
+  "type": "model_rollback",
+  "severity": "WARNING",
+  "message": "Rolled back champion to p13_champion_v1 (research/paper mode).",
+  "informational_only": true,
+  "note": "Alerts never trigger trades."
  }
 ]

@@ -104,10 +104,20 @@ def get_pipeline_stats() -> Dict[str, Any]:
         candidates_eligible  = int(ev.get("eligible_count") or 0)
 
         for c in (ev.get("candidates") or []):
+            # Build a {gate_name: reason_text} map for every gate that failed,
+            # so the UI can display the human-readable reason alongside the gate
+            # pill (e.g. "per_stock_cap: Post-trade DRREDDY exposure 21.5% (cap 20%)").
+            # Only failed gates are included — passing gates are not shown.
+            failed_gate_reasons: Dict[str, str] = {
+                g["gate"]: str(g.get("reason") or "")
+                for g in (c.get("gates") or [])
+                if not g.get("passed")
+            }
             candidate_details.append({
                 "symbol":       c.get("symbol"),
                 "eligible":     c.get("eligible"),
                 "failed_gates": c.get("failed_gates") or [],
+                "failed_gate_reasons": failed_gate_reasons,
                 "opportunity_score": float(c.get("opportunity_score") or 0),
                 "confidence":        float(c.get("confidence") or 0),
             })

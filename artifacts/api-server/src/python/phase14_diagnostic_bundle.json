@@ -1,15 +1,15 @@
 {
- "generated_at": "2026-08-09T21:54:25.160491+00:00",
+ "generated_at": "2026-08-12T21:45:06.560827+00:00",
  "readme": "PHASE 14 DIAGNOSTIC BUNDLE \u2014 README\nRESEARCH / PAPER LEARNING ONLY. No real broker orders. No secrets included.\n\nFiles/sections:\n- learning_dataset: canonical completed-trade learning rows. Each row carries\n  a no_look_ahead audit block (passed + issues). Entry features are entry-time\n  snapshots only.\n- evaluation_report: overall and grouped performance metrics with sample sizes\n  and reliability labels (INSUFFICIENT <30, LOW 30-49, MODERATE 50-99,\n  STRONG 100-249, HIGH 250+).\n- calibration_report: calibrator versions, methods, before/after Brier, ECE,\n  and log loss on out-of-sample data.\n- learning_adjustments: per-source bounded adjustments (\u00b15/source, \u00b110 total),\n  each with evidence, reliability, bounds, and reason.\n- model_registry: champion/challenger models, statuses, promotion requirements.\n- drift_report: drift indicators with severity and frozen-learning state.\n- audit_log: calibrator training, evaluations, adjustment changes, model\n  status changes, approvals, rollbacks, exports.\n- verification: Phase 14 verification summary (acceptance criteria evidence).\n\nField conventions: pnl values in INR; confidences 0-100; probabilities 0-1.\n",
  "verification": {
-  "generated_at": "2026-08-09T21:54:25.162283+00:00",
+  "generated_at": "2026-08-12T21:45:06.562910+00:00",
   "banner": "RESEARCH / PAPER LEARNING ONLY",
   "message": "Adaptive learning uses completed historical and paper trades. Findings may be unreliable with limited samples. No model, rule, or strategy is promoted automatically. Human approval is required.",
   "completed_learning_rows": 19,
   "rows_passing_no_look_ahead": 19,
   "no_look_ahead_audit_status": "PASS",
   "current_champion": "p13_champion_v1",
-  "active_calibrator": "cal_v43",
+  "active_calibrator": "cal_v44",
   "calibrator_method": "identity",
   "adjustment_sources_active": 0,
   "max_adjustment_observed": 0.0,
@@ -35,7 +35,7 @@
   "learning_frozen": {
    "frozen": false,
    "reason": "decision-time freeze test done",
-   "updated_at": "2026-08-09T21:54:25.137998+00:00"
+   "updated_at": "2026-08-12T21:45:06.532838+00:00"
   },
   "challenger_count": 0,
   "automatic_promotion_occurred": false,
@@ -43,7 +43,7 @@
   "sample_warning": "Sample size below 30 \u2014 all conclusions unreliable; adjustments disabled."
  },
  "learning_dataset": {
-  "generated_at": "2026-08-09T21:54:25.155190+00:00",
+  "generated_at": "2026-08-12T21:45:06.554449+00:00",
   "feature_version": "fv1",
   "model_version": "p14_m1",
   "total_rows": 19,
@@ -1347,7 +1347,7 @@
   ]
  },
  "evaluation_report": {
-  "generated_at": "2026-08-09T21:54:25.157072+00:00",
+  "generated_at": "2026-08-12T21:45:06.556452+00:00",
   "model_version": "p14_m1",
   "feature_version": "fv1",
   "completed_trades": 19,
@@ -1804,9 +1804,9 @@
   "note": "RESEARCH / PAPER LEARNING ONLY. Low-sample groups must not display strong conclusions."
  },
  "calibration_report": {
-  "active_version": "cal_v43",
+  "active_version": "cal_v44",
   "active_method": "identity",
-  "calibrator_count": 43,
+  "calibrator_count": 44,
   "completed_trades": 19,
   "warning": "Only 19 completed trades \u2014 calibration unreliable below 100.",
   "history": [
@@ -2738,6 +2738,28 @@
     "version": "cal_v43",
     "created_at": "2026-08-09T21:54:25.092812+00:00",
     "method": "identity",
+    "status": "ARCHIVED",
+    "train_samples": 0,
+    "test_samples": 8,
+    "metrics_before": {
+     "brier": 0.2437,
+     "ece": 0.4695,
+     "log_loss": 0.6729,
+     "n": 8
+    },
+    "metrics_after": {
+     "brier": 0.2437,
+     "ece": 0.4695,
+     "log_loss": 0.6729,
+     "n": 8
+    },
+    "reject_reason": null,
+    "warning": "Only 8 completed trades \u2014 calibration unreliable below 100."
+   },
+   {
+    "version": "cal_v44",
+    "created_at": "2026-08-12T21:45:06.350980+00:00",
+    "method": "identity",
     "status": "ACTIVE",
     "train_samples": 0,
     "test_samples": 8,
@@ -2760,11 +2782,11 @@
   "note": "RESEARCH / PAPER LEARNING ONLY."
  },
  "learning_adjustments": {
-  "generated_at": "2026-08-09T21:54:25.159150+00:00",
+  "generated_at": "2026-08-12T21:45:06.559087+00:00",
   "learning_frozen": {
    "frozen": false,
    "reason": "decision-time freeze test done",
-   "updated_at": "2026-08-09T21:54:25.137998+00:00"
+   "updated_at": "2026-08-12T21:45:06.532838+00:00"
   },
   "caps": {
    "per_source": 5.0,
@@ -2784,10 +2806,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-09T21:54:25.158556+00:00",
+     "last_updated": "2026-08-12T21:45:06.558347+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-09T21:54:25.157072+00:00"
+      "to": "2026-08-12T21:45:06.556452+00:00"
      }
     },
     "EMA Cross": {
@@ -2802,10 +2824,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-09T21:54:25.158570+00:00",
+     "last_updated": "2026-08-12T21:45:06.558359+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-09T21:54:25.157072+00:00"
+      "to": "2026-08-12T21:45:06.556452+00:00"
      }
     },
     "MACD Cross": {
@@ -2820,10 +2842,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-09T21:54:25.158574+00:00",
+     "last_updated": "2026-08-12T21:45:06.558363+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-09T21:54:25.157072+00:00"
+      "to": "2026-08-12T21:45:06.556452+00:00"
      }
     },
     "Trend Rider": {
@@ -2838,10 +2860,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-09T21:54:25.158578+00:00",
+     "last_updated": "2026-08-12T21:45:06.558366+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-09T21:54:25.157072+00:00"
+      "to": "2026-08-12T21:45:06.556452+00:00"
      }
     }
    },
@@ -2858,10 +2880,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-09T21:54:25.158582+00:00",
+     "last_updated": "2026-08-12T21:45:06.558370+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-09T21:54:25.157072+00:00"
+      "to": "2026-08-12T21:45:06.556452+00:00"
      }
     },
     "40-59": {
@@ -2876,10 +2898,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-09T21:54:25.158586+00:00",
+     "last_updated": "2026-08-12T21:45:06.558373+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-09T21:54:25.157072+00:00"
+      "to": "2026-08-12T21:45:06.556452+00:00"
      }
     },
     "60-79": {
@@ -2894,10 +2916,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-09T21:54:25.158589+00:00",
+     "last_updated": "2026-08-12T21:45:06.558377+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-09T21:54:25.157072+00:00"
+      "to": "2026-08-12T21:45:06.556452+00:00"
      }
     },
     "80-100": {
@@ -2912,10 +2934,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-09T21:54:25.158592+00:00",
+     "last_updated": "2026-08-12T21:45:06.558380+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-09T21:54:25.157072+00:00"
+      "to": "2026-08-12T21:45:06.556452+00:00"
      }
     },
     "UNKNOWN": {
@@ -2930,10 +2952,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-09T21:54:25.158596+00:00",
+     "last_updated": "2026-08-12T21:45:06.558383+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-09T21:54:25.157072+00:00"
+      "to": "2026-08-12T21:45:06.556452+00:00"
      }
     }
    },
@@ -2950,10 +2972,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-09T21:54:25.158600+00:00",
+     "last_updated": "2026-08-12T21:45:06.558410+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-09T21:54:25.157072+00:00"
+      "to": "2026-08-12T21:45:06.556452+00:00"
      }
     },
     "50-74": {
@@ -2968,10 +2990,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-09T21:54:25.158626+00:00",
+     "last_updated": "2026-08-12T21:45:06.558422+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-09T21:54:25.157072+00:00"
+      "to": "2026-08-12T21:45:06.556452+00:00"
      }
     },
     "UNKNOWN": {
@@ -2986,10 +3008,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-09T21:54:25.158632+00:00",
+     "last_updated": "2026-08-12T21:45:06.558426+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-09T21:54:25.157072+00:00"
+      "to": "2026-08-12T21:45:06.556452+00:00"
      }
     }
    },
@@ -3006,10 +3028,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-09T21:54:25.158637+00:00",
+     "last_updated": "2026-08-12T21:45:06.558430+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-09T21:54:25.157072+00:00"
+      "to": "2026-08-12T21:45:06.556452+00:00"
      }
     },
     "2-5d": {
@@ -3024,10 +3046,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-09T21:54:25.158641+00:00",
+     "last_updated": "2026-08-12T21:45:06.558433+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-09T21:54:25.157072+00:00"
+      "to": "2026-08-12T21:45:06.556452+00:00"
      }
     }
    },
@@ -3044,10 +3066,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-09T21:54:25.158645+00:00",
+     "last_updated": "2026-08-12T21:45:06.558436+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-09T21:54:25.157072+00:00"
+      "to": "2026-08-12T21:45:06.556452+00:00"
      }
     },
     "D": {
@@ -3062,10 +3084,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-09T21:54:25.158648+00:00",
+     "last_updated": "2026-08-12T21:45:06.558439+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-09T21:54:25.157072+00:00"
+      "to": "2026-08-12T21:45:06.556452+00:00"
      }
     },
     "UNKNOWN": {
@@ -3080,10 +3102,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-09T21:54:25.158651+00:00",
+     "last_updated": "2026-08-12T21:45:06.558442+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-09T21:54:25.157072+00:00"
+      "to": "2026-08-12T21:45:06.556452+00:00"
      }
     }
    },
@@ -3100,10 +3122,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-09T21:54:25.159019+00:00",
+     "last_updated": "2026-08-12T21:45:06.558862+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-09T21:54:25.157072+00:00"
+      "to": "2026-08-12T21:45:06.556452+00:00"
      }
     },
     "EMA Cross|Bearish": {
@@ -3118,10 +3140,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-09T21:54:25.159024+00:00",
+     "last_updated": "2026-08-12T21:45:06.558868+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-09T21:54:25.157072+00:00"
+      "to": "2026-08-12T21:45:06.556452+00:00"
      }
     },
     "MACD Cross|Bearish": {
@@ -3136,10 +3158,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-09T21:54:25.159027+00:00",
+     "last_updated": "2026-08-12T21:45:06.558872+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-09T21:54:25.157072+00:00"
+      "to": "2026-08-12T21:45:06.556452+00:00"
      }
     },
     "Trend Rider|Bearish": {
@@ -3154,10 +3176,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-09T21:54:25.159029+00:00",
+     "last_updated": "2026-08-12T21:45:06.558875+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-09T21:54:25.157072+00:00"
+      "to": "2026-08-12T21:45:06.556452+00:00"
      }
     }
    },
@@ -3174,10 +3196,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-09T21:54:25.159133+00:00",
+     "last_updated": "2026-08-12T21:45:06.559063+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-09T21:54:25.157072+00:00"
+      "to": "2026-08-12T21:45:06.556452+00:00"
      }
     },
     "AI Scan|IT": {
@@ -3192,10 +3214,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-09T21:54:25.159136+00:00",
+     "last_updated": "2026-08-12T21:45:06.559068+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-09T21:54:25.157072+00:00"
+      "to": "2026-08-12T21:45:06.556452+00:00"
      }
     },
     "EMA Cross|ENERGY": {
@@ -3210,10 +3232,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-09T21:54:25.159138+00:00",
+     "last_updated": "2026-08-12T21:45:06.559071+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-09T21:54:25.157072+00:00"
+      "to": "2026-08-12T21:45:06.556452+00:00"
      }
     },
     "MACD Cross|ENERGY": {
@@ -3228,10 +3250,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-09T21:54:25.159140+00:00",
+     "last_updated": "2026-08-12T21:45:06.559074+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-09T21:54:25.157072+00:00"
+      "to": "2026-08-12T21:45:06.556452+00:00"
      }
     },
     "MACD Cross|METALS": {
@@ -3246,10 +3268,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-09T21:54:25.159143+00:00",
+     "last_updated": "2026-08-12T21:45:06.559077+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-09T21:54:25.157072+00:00"
+      "to": "2026-08-12T21:45:06.556452+00:00"
      }
     },
     "Trend Rider|BANKING": {
@@ -3264,10 +3286,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-09T21:54:25.159145+00:00",
+     "last_updated": "2026-08-12T21:45:06.559079+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-09T21:54:25.157072+00:00"
+      "to": "2026-08-12T21:45:06.556452+00:00"
      }
     },
     "Trend Rider|ENERGY": {
@@ -3282,10 +3304,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-09T21:54:25.159147+00:00",
+     "last_updated": "2026-08-12T21:45:06.559083+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-09T21:54:25.157072+00:00"
+      "to": "2026-08-12T21:45:06.556452+00:00"
      }
     }
    }
@@ -3329,7 +3351,7 @@
   "note": "RESEARCH / PAPER LEARNING ONLY \u2014 no automatic promotion; human approval mandatory."
  },
  "drift_report": {
-  "generated_at": "2026-08-09T21:54:25.160240+00:00",
+  "generated_at": "2026-08-12T21:45:06.560360+00:00",
   "sample_size": 19,
   "indicators": [
    {
@@ -3343,7 +3365,7 @@
   "learning_frozen": {
    "frozen": false,
    "reason": "decision-time freeze test done",
-   "updated_at": "2026-08-09T21:54:25.137998+00:00"
+   "updated_at": "2026-08-12T21:45:06.532838+00:00"
   },
   "recovery_criteria": "All indicators must fall below CRITICAL thresholds on the next drift computation.",
   "note": "Drift never disables existing safety controls."
@@ -6578,6 +6600,60 @@
     "restored": "p13_champion_v1",
     "demoted": "tmp_champ"
    }
+  },
+  {
+   "id": "1f4fbc5b45",
+   "ts": "2026-08-09T21:54:25.177820+00:00",
+   "event_type": "bundle_exported",
+   "actor": "system",
+   "detail": {
+    "files": [
+     "phase14_diagnostic_bundle.json",
+     "phase14_summary.csv"
+    ]
+   }
+  },
+  {
+   "id": "a8f934f455",
+   "ts": "2026-08-12T21:45:06.412048+00:00",
+   "event_type": "challenger_created",
+   "actor": "system",
+   "detail": {
+    "model_version": "p14_challenger_v1"
+   }
+  },
+  {
+   "id": "8d4feb2088",
+   "ts": "2026-08-12T21:45:06.419075+00:00",
+   "event_type": "promotion_blocked",
+   "actor": "tester",
+   "detail": {
+    "model_version": "p14_challenger_v1",
+    "failed": [
+     "\u2265100 completed OOS trades",
+     "\u22653 independent test windows"
+    ]
+   }
+  },
+  {
+   "id": "88b66438a4",
+   "ts": "2026-08-12T21:45:06.427910+00:00",
+   "event_type": "model_rejected",
+   "actor": "tester",
+   "detail": {
+    "model_version": "p14_challenger_v1",
+    "notes": ""
+   }
+  },
+  {
+   "id": "b728020be4",
+   "ts": "2026-08-12T21:45:06.434411+00:00",
+   "event_type": "model_rollback",
+   "actor": "human",
+   "detail": {
+    "restored": "p13_champion_v1",
+    "demoted": "tmp_champ"
+   }
   }
  ],
  "alerts": [
@@ -7709,6 +7785,33 @@
   {
    "id": "86e251feef",
    "ts": "2026-08-09T21:54:25.120837+00:00",
+   "type": "model_rollback",
+   "severity": "WARNING",
+   "message": "Rolled back champion to p13_champion_v1 (research/paper mode).",
+   "informational_only": true,
+   "note": "Alerts never trigger trades."
+  },
+  {
+   "id": "21e9022114",
+   "ts": "2026-08-12T21:45:06.415186+00:00",
+   "type": "challenger_ready",
+   "severity": "INFO",
+   "message": "Challenger p14_challenger_v1 created and ready for review.",
+   "informational_only": true,
+   "note": "Alerts never trigger trades."
+  },
+  {
+   "id": "18ffb32a95",
+   "ts": "2026-08-12T21:45:06.432035+00:00",
+   "type": "challenger_rejected",
+   "severity": "INFO",
+   "message": "Model p14_challenger_v1 rejected by tester.",
+   "informational_only": true,
+   "note": "Alerts never trigger trades."
+  },
+  {
+   "id": "0e364a4a20",
+   "ts": "2026-08-12T21:45:06.444735+00:00",
    "type": "model_rollback",
    "severity": "WARNING",
    "message": "Rolled back champion to p13_champion_v1 (research/paper mode).",

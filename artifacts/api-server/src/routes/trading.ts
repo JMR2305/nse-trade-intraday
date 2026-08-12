@@ -3393,7 +3393,7 @@ router.get("/auto-paper/buy-audit", async (req, res) => {
   try {
     const raw = Number(req.query["limit"]);
     const limit = Math.min(Math.max(isNaN(raw) ? 10 : raw, 1), 50);
-    res.json(await runPython(["buy_audit", String(limit)], 15_000));
+    res.json(await runPython(["buy_audit", String(limit)]));
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }

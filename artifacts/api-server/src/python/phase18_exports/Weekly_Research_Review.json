@@ -1,11 +1,11 @@
 {
   "success": true,
-  "week_start": "2026-08-03",
-  "week_end": "2026-08-09",
-  "trading_days_completed": 6,
+  "week_start": "2026-08-10",
+  "week_end": "2026-08-16",
+  "trading_days_completed": 3,
   "finalized_days": 0,
   "completed_paper_trades": 0,
-  "open_paper_trades": 1,
+  "open_paper_trades": 0,
   "weekly_pnl": "Insufficient Data",
   "win_rate": "Insufficient Data",
   "profit_factor": "Insufficient Data",
@@ -25,7 +25,7 @@
   "common_success_patterns": [
     "Insufficient Data"
   ],
-  "data_quality_incidents": 6,
+  "data_quality_incidents": 3,
   "qa_failures": 0,
   "cross_page_consistency_issues": 0,
   "research_questions_next_week": [

@@ -1,0 +1,95 @@
+FIX SILENT DROP BETWEEN BUY_GENERATED AND EXECUTION — INTRADAY PAPER TRADING
+
+Audit result:
+Today's 3 BUY signals were generated at 15:12 IST.
+market_open=true for all 3.
+scan_fresh=true for all 3.
+data_quality=LIVE for all 3.
+
+So this was not a stale-scan or market-closed issue at signal time.
+
+Observed outcomes:
+1. HDFCLIFE
+   - BUY_GENERATED
+   - paper_eligible=true
+   - confidence=73.7%
+   - no ORDER_SUBMITTED
+   - no ORDER_REJECTED
+   - no phase20_paper_trades row
+   - silently disappeared before executor
+
+2. DRREDDY
+   - auto-entry attempted
+   - ORDER_REJECTED
+   - position size ₹10,814 = 21.6% of portfolio
+   - rejected because limit is 20%
+
+3. BAJAJ-AUTO
+   - auto-entry attempted
+   - ORDER_REJECTED
+   - position size ₹11,725 = 23.4% of portfolio
+   - rejected because limit is 20%
+
+Do not change thresholds yet.
+Do not bypass risk gates.
+Do not enable live orders.
+PAPER ONLY.
+
+TASK 1 — FIX HDFCLIFE SILENT DROP
+
+Trace why HDFCLIFE BUY_GENERATED with paper_eligible=true did not reach:
+
+- portfolio pre-check
+- risk_agent_pre_trade
+- ORDER_SUBMITTED
+- ORDER_REJECTED
+- phase20_paper_trades
+
+Find the exact code path where it was filtered/dropped.
+
+TASK 2 — ADD MANDATORY OUTCOME EVENT FOR EVERY BUY
+
+For every BUY_GENERATED / STRONG_BUY_GENERATED candidate, the system must emit exactly one terminal outcome:
+
+- ORDER_SUBMITTED
+- ORDER_EXECUTED
+- ORDER_REJECTED
+- ORDER_CANCELLED
+- EXECUTION_SKIPPED_WITH_REASON
+
+No BUY signal should disappear silently.
+
+TASK 3 — IMPROVE POSITION-CAP REJECTION
+
+For DRREDDY and BAJAJ-AUTO, current rejection is because position size exceeded 20%.
+
+Check whether the system should:
+A. reject the trade completely, or
+B. reduce quantity to fit within per-stock cap.
+
+Do not change behavior yet. Report the safest option.
+
+TASK 4 — ADD UI EXPLANATION
+
+In AI Paper Trader, for each BUY signal, show:
+
+- generated time
+- signal freshness at generation time
+- market open at generation time
+- auto-entry attempted yes/no
+- final outcome
+- final rejection reason
+
+TASK 5 — REPORT
+
+Produce:
+INTRADAY_BUY_EXECUTION_GAP_FIX_REPORT.md
+
+Include:
+1. Why HDFCLIFE vanished.
+2. Whether this was a bug.
+3. Why DRREDDY was rejected.
+4. Why BAJAJ-AUTO was rejected.
+5. Whether quantity should be resized to cap instead of rejected.
+6. Confirmation no live orders placed.
+7. Confirmation no thresholds changed.

@@ -738,5 +738,46 @@
     },
     "decision_summary": "1 STRONG BUY, 5 BUY, 27 WATCH, 15 IGNORE across 50 stocks; best BAJAJ-AUTO (79.6); avg score 47.7",
     "label": "PAPER / RESEARCH ONLY"
+  },
+  {
+    "audit_id": "a15_d93cd7d08adb",
+    "scan_id": "d93cd7d08adb",
+    "timestamp": "2026-08-12T09:54:29Z",
+    "recorded_at": "2026-08-12T21:45:06Z",
+    "duration_s": 24.88,
+    "stocks_processed": 50,
+    "stocks_valid": 48,
+    "strategies_executed": [
+      "Breakout Hunter",
+      "EMA Cross",
+      "MACD Cross",
+      "Mean Reversion",
+      "Trend Rider"
+    ],
+    "signals_generated": {
+      "strong_buy": 0,
+      "buy": 1,
+      "watch": 28,
+      "ignore": 19
+    },
+    "warnings": [],
+    "warning_count": 0,
+    "errors": [
+      "LTIM: Data fetch failed: No data returned for LTIM.NS",
+      "TATAMOTORS: Data fetch failed: No data returned for TATAMOTORS.NS"
+    ],
+    "error_count": 2,
+    "learning_events": [
+      "Adaptive learning active (bounded, human-governed)"
+    ],
+    "risk_checks": {
+      "quality_gates_applied": true,
+      "rr_gate_applied": true,
+      "volume_gate_applied": true,
+      "stale_cap_applied": true,
+      "gate_failures": 0
+    },
+    "decision_summary": "0 STRONG BUY, 1 BUY, 28 WATCH, 19 IGNORE across 50 stocks; best DRREDDY (62.6); avg score 44.4",
+    "label": "PAPER / RESEARCH ONLY"
   }
 ]

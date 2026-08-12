@@ -666,6 +666,8 @@ interface PipelineStats {
   }[];
   candidate_gate_details?: {
     symbol: string; eligible: boolean; failed_gates: string[];
+    /** gate_name → human-readable reason string, e.g. "Post-trade DRREDDY exposure 21.5% (cap 20%)" */
+    failed_gate_reasons?: Record<string, string>;
     opportunity_score: number; confidence: number;
   }[];
   settings?: {
@@ -1043,23 +1045,38 @@ function SPipelineStats() {
             </div>
           )}
 
-          {/* Per-candidate gate failures */}
+          {/* Per-candidate gate failures — shows gate name + human-readable reason */}
           {(data?.candidate_gate_details?.filter(c => !c.eligible).length ?? 0) > 0 && (
             <div className="rounded-lg bg-slate-900/40 border border-slate-800/40 p-3">
               <p className="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1.5">
                 <XCircle className="w-3 h-3 text-rose-400" /> Blocked Candidates
+                <span className="ml-auto text-[9px] text-slate-600 font-normal">
+                  gate name · reason why it failed
+                </span>
               </p>
-              <div className="space-y-1">
+              <div className="space-y-2">
                 {(data?.candidate_gate_details ?? [])
                   .filter(c => !c.eligible)
                   .map(c => (
                     <div key={c.symbol} className="flex items-start gap-2 text-[10px]">
-                      <span className="font-mono text-rose-300 w-16 flex-shrink-0">{c.symbol}</span>
-                      <span className="text-slate-500">
-                        {c.failed_gates.map(g => (
-                          <span key={g} className="inline-block bg-rose-950/50 border border-rose-800/40 text-rose-400 rounded px-1 mr-1 mb-0.5">{g}</span>
-                        ))}
-                      </span>
+                      <span className="font-mono text-rose-300 w-16 flex-shrink-0 pt-0.5">{c.symbol}</span>
+                      <div className="flex-1 space-y-0.5">
+                        {c.failed_gates.map(g => {
+                          const reason = c.failed_gate_reasons?.[g];
+                          return (
+                            <div key={g} className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+                              <span className="inline-block bg-rose-950/50 border border-rose-800/40 text-rose-400 rounded px-1 flex-shrink-0">
+                                {g}
+                              </span>
+                              {reason && (
+                                <span className="text-slate-500 text-[9px] leading-tight">
+                                  {reason}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   ))}
               </div>

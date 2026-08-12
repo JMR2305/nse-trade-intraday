@@ -1,16 +1,16 @@
 {
   "bundle_version": 1,
-  "generated_at": "2026-08-09T21:54:24Z",
+  "generated_at": "2026-08-12T21:45:05Z",
   "engine_version": "Research Engine v1.0",
   "mode": "PAPER_TRADING_RESEARCH_ONLY",
   "environment": {
     "python_version": "3.12.12",
-    "platform": "Linux-6.18.43-x86_64-with-glibc2.40"
+    "platform": "Linux-6.18.44-x86_64-with-glibc2.40"
   },
   "market_status": {
     "state": "CLOSED",
     "is_open": false,
-    "now_ist": "2026-08-10T03:24:24.686390+05:30",
+    "now_ist": "2026-08-13T03:15:05.934080+05:30",
     "timezone": "Asia/Kolkata",
     "session": {
       "pre_open": "09:00",
@@ -21,8 +21,8 @@
     "holiday_today": null,
     "next_transition": {
       "event": "market_open",
-      "at_ist": "2026-08-10T09:15:00+05:30",
-      "seconds_until": 21035
+      "at_ist": "2026-08-13T09:15:00+05:30",
+      "seconds_until": 21594
     },
     "upcoming_holidays": [
       {
@@ -53,8 +53,8 @@
     "quote_ttl_closed_s": 300.0
   },
   "scan": {
-    "scan_id": "4915c8df904f",
-    "snapshot_ts": "2026-08-08T20:45:55Z",
+    "scan_id": "d93cd7d08adb",
+    "snapshot_ts": "2026-08-12T09:54:29Z",
     "recommendation_count": 50,
     "provider_connection": "DEGRADED",
     "symbol_coverage_pct": 96.0,
@@ -101,14 +101,14 @@
     {
       "file": "phase7_scan_cache.json",
       "exists": true,
-      "size_bytes": 67972,
-      "modified": "2026-08-09T21:54:18Z"
+      "size_bytes": 70428,
+      "modified": "2026-08-12T21:44:42Z"
     },
     {
       "file": "phase9_alerts.json",
       "exists": true,
-      "size_bytes": 191959,
-      "modified": "2026-08-08T20:46:29Z"
+      "size_bytes": 190702,
+      "modified": "2026-08-12T09:55:15Z"
     },
     {
       "file": "portfolio.json",
@@ -137,8 +137,8 @@
     {
       "file": "phase11_quote_state.json",
       "exists": true,
-      "size_bytes": 5124,
-      "modified": "2026-08-09T21:30:24Z"
+      "size_bytes": 5504,
+      "modified": "2026-08-12T21:43:24Z"
     }
   ],
   "notes": [
