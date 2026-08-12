@@ -164,6 +164,10 @@ async function runQueueTick(): Promise<void> {
 }
 
 export function startBacktestScheduler(): void {
+  if (process.env["DISABLE_BACKTEST_SCHEDULER"] === "true") {
+    logger.info("Backtest queue scheduler disabled via DISABLE_BACKTEST_SCHEDULER");
+    return;
+  }
   if (timer) return; // idempotent — safe to call more than once
   schedulerEnabled = true;
   timer = setInterval(() => { void runQueueTick(); }, TICK_INTERVAL_MS);
