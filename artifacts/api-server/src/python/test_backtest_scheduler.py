@@ -75,7 +75,13 @@ def _run_bt_queue_tick_logic() -> dict:
                 )
             spawned.append(rid)
         except Exception:
-            pass  # spawn failure — next tick will retry
+            # Popen failed — revert PENDING back to QUEUED immediately
+            # so the next tick can retry without waiting for the 30-min
+            # stale watchdog to surface the stuck run.
+            try:
+                bp.revert_pending_to_queued(rid)
+            except Exception:
+                pass
 
     return {
         **sweep_result,
@@ -278,6 +284,86 @@ class TestQueueTickNoQueued(SchedulerBase):
         self.assertEqual(result["promoted"], 0)
         self.assertEqual(result["promoted_runs"], [])
         mock_popen.assert_not_called()
+
+
+class TestQueueTickPopenFailure(SchedulerBase):
+    """bt_queue_tick reverts PENDING → QUEUED when subprocess.Popen raises."""
+
+    def test_popen_oserror_run_not_in_spawned(self):
+        """
+        Given: one QUEUED run, no active runs.
+        When:  bt_queue_tick logic executes and subprocess.Popen raises OSError.
+        Then:
+          - result["spawned"] does NOT contain the run_id.
+          - result["spawned_count"] is 0.
+        """
+        run_id = f"BT-{uuid.uuid4().hex[:10]}"
+        self._seed_run(run_id, "QUEUED")
+
+        with patch("subprocess.Popen", side_effect=OSError("No such file or directory")):
+            result = _run_bt_queue_tick_logic()
+
+        # The run was promoted (sweep logic ran), but spawn failed
+        self.assertIn(run_id, result["promoted_runs"],
+                      "Run must still appear in promoted_runs (sweep succeeded)")
+
+        # It must NOT appear in spawned — the worker was never started
+        self.assertNotIn(run_id, result["spawned"],
+                         "Run must NOT be in spawned when Popen raises")
+        self.assertEqual(result["spawned_count"], 0)
+
+    def test_popen_oserror_run_reverted_to_queued(self):
+        """
+        Given: one QUEUED run, no active runs.
+        When:  bt_queue_tick logic executes and subprocess.Popen raises OSError.
+        Then:
+          - The run is reverted to QUEUED immediately (not stuck as PENDING).
+          - find_unclaimed_pending will NOT surface it (it is QUEUED, not PENDING).
+        """
+        run_id = f"BT-{uuid.uuid4().hex[:10]}"
+        self._seed_run(run_id, "QUEUED")
+
+        with patch("subprocess.Popen", side_effect=OSError("No such file or directory")):
+            _run_bt_queue_tick_logic()
+
+        row = self._get_run(run_id)
+        self.assertIsNotNone(row)
+        self.assertEqual(
+            row["status"], "QUEUED",
+            "Run must be reverted to QUEUED when Popen fails, not left as PENDING",
+        )
+
+        # A subsequent find_unclaimed_pending should not find the run
+        # (it was reverted to QUEUED, which the next tick's sweep will re-promote)
+        unclaimed = bp.find_unclaimed_pending(older_than_min=0)
+        self.assertNotIn(run_id, unclaimed,
+                         "A QUEUED run must not appear as unclaimed PENDING")
+
+    def test_popen_oserror_next_tick_can_retry(self):
+        """
+        Given: a run left QUEUED after a Popen failure.
+        When:  a second bt_queue_tick runs (Popen succeeds this time).
+        Then:  the run is promoted again and the worker is spawned.
+        """
+        run_id = f"BT-{uuid.uuid4().hex[:10]}"
+        self._seed_run(run_id, "QUEUED")
+
+        # First tick: Popen fails → run reverted to QUEUED
+        with patch("subprocess.Popen", side_effect=OSError("spawn failure")):
+            result1 = _run_bt_queue_tick_logic()
+
+        self.assertNotIn(run_id, result1["spawned"])
+        self.assertEqual(self._get_run(run_id)["status"], "QUEUED")
+
+        # Second tick: Popen succeeds → run promoted and spawned
+        mock_popen = MagicMock(return_value=MagicMock())
+        with patch("subprocess.Popen", mock_popen):
+            result2 = _run_bt_queue_tick_logic()
+
+        self.assertIn(run_id, result2["spawned"],
+                      "Run must be spawned on the retry tick after revert")
+        mock_popen.assert_called_once()
+        self.assertEqual(self._get_run(run_id)["status"], "PENDING")
 
 
 if __name__ == "__main__":

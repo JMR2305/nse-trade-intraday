@@ -2299,7 +2299,13 @@ def main():
                         )
                     spawned.append(rid)
                 except Exception:
-                    pass  # spawn failure logged on next tick
+                    # Popen failed — revert PENDING back to QUEUED immediately
+                    # so the next tick can retry without waiting for the 30-min
+                    # stale watchdog to surface the stuck run.
+                    try:
+                        _bp.revert_pending_to_queued(rid)
+                    except Exception:
+                        pass
             result = {**sweep_result,
                       "spawned": spawned,
                       "spawned_count": len(spawned),
