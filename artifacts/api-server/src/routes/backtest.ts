@@ -26,6 +26,7 @@ import { Router, type IRouter } from "express";
 import { spawn } from "child_process";
 import path from "path";
 import { PYTHON_BIN, PYTHON_DIR } from "../lib/python-env";
+import { getSchedulerStatus, type SchedulerStatus } from "../lib/backtestScheduler";
 
 const router: IRouter = Router();
 
@@ -278,6 +279,23 @@ router.get("/backtest/cache", async (_req, res) => {
   } catch (err) {
     fail(res, err);
   }
+});
+
+/**
+ * GET /api/backtest/scheduler/status
+ * Returns the current scheduler health so operators can confirm the background
+ * sweep is running correctly via the Investigation Center.
+ *
+ * Fields:
+ *   enabled             — true while the interval timer is running
+ *   last_sweep_at       — ISO timestamp of the last *successful* tick, or null
+ *   last_attempt_at     — ISO timestamp of the most recent attempt (success or fail)
+ *   consecutive_failures — how many consecutive ticks have NOT produced a clean sweep
+ *   last_error          — human-readable failure description, or null on success
+ */
+router.get("/backtest/scheduler/status", (_req, res) => {
+  const status: SchedulerStatus = getSchedulerStatus();
+  res.json(status);
 });
 
 export default router;

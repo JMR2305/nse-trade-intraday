@@ -225,6 +225,20 @@ function tickOf(scanId?: string | null): number | null {
   return m ? Number(m[1]) : null;
 }
 
+/** Format a past ISO timestamp as a human relative age string, e.g. "2 min ago". */
+function fmtAgo(iso: string | null | undefined): string {
+  if (!iso) return "Never";
+  const ageMs = Date.now() - new Date(iso).getTime();
+  if (ageMs < 0) return "just now";
+  const s = Math.floor(ageMs / 1000);
+  if (s < 10) return "just now";
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} min ago`;
+  const h = Math.floor(m / 60);
+  return `${h}h ${m % 60}m ago`;
+}
+
 function rangePreset(days: number): { start: string; end: string } {
   const end = new Date();
   const start = new Date(end.getTime() - days * 86400_000);
@@ -395,6 +409,18 @@ export default function InvestigationCenter() {
     refetchInterval: 5_000,
   });
   const runs = runsQ.data?.runs ?? [];
+
+  const schedulerQ = useQuery({
+    queryKey: ["bt-scheduler-status"],
+    queryFn: () => apiJson<{
+      enabled: boolean;
+      last_sweep_at: string | null;
+      last_attempt_at: string | null;
+      consecutive_failures: number;
+      last_error: string | null;
+    }>("/backtest/scheduler/status", undefined, 10_000),
+    refetchInterval: 30_000,
+  });
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const runId = selectedRunId ?? runs[0]?.run_id ?? null;
   const run = runs.find((r) => r.run_id === runId) ?? null;
@@ -995,6 +1021,55 @@ export default function InvestigationCenter() {
             </div>
           </CardHeader>
           <CardContent className="space-y-1 max-h-96 overflow-auto">
+            {/* Scheduler health status */}
+            {(() => {
+              const s = schedulerQ.data;
+              if (!s) return null;
+              const sweepAgeMs = s.last_sweep_at
+                ? Date.now() - new Date(s.last_sweep_at).getTime()
+                : Infinity;
+              const sweepOverdue = sweepAgeMs > 5 * 60 * 1000; // > 5 min
+              const hasFailed = s.consecutive_failures > 0;
+              // Degraded = scheduler is on but either: recent failures, or no
+              // successful sweep in > 5 min (could be still warming up if < 5 min
+              // since startup, but amber is a safe conservative indicator).
+              const isAmber = s.enabled && (hasFailed || sweepOverdue);
+              return (
+                <div
+                  className={`flex flex-col gap-0.5 pb-1 border-b border-border/50 text-[10px] ${
+                    !s.enabled ? "text-muted-foreground"
+                    : isAmber ? "text-amber-400"
+                    : "text-muted-foreground"
+                  }`}
+                  data-testid="scheduler-status"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="h-3 w-3 shrink-0" />
+                    <span>
+                      {!s.enabled
+                        ? "Auto-sweep: scheduler disabled"
+                        : `Last auto-sweep: ${fmtAgo(s.last_sweep_at)}`}
+                    </span>
+                    {isAmber && (
+                      <AlertTriangle
+                        className="h-3 w-3 text-amber-400 shrink-0"
+                        aria-label="Sweep overdue or failing"
+                      />
+                    )}
+                  </div>
+                  {hasFailed && s.last_error && (
+                    <div
+                      className="text-amber-400/80 pl-4 truncate"
+                      title={s.last_error}
+                      data-testid="scheduler-last-error"
+                    >
+                      {s.consecutive_failures} failure{s.consecutive_failures > 1 ? "s" : ""}:{" "}
+                      {s.last_error}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {runs.length === 0 && runsQ.isSuccess && (
               <div className="space-y-2" data-testid="empty-state-runs">
                 <div className="text-xs text-muted-foreground">
