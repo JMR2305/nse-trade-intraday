@@ -661,16 +661,38 @@ class ExecutionEngine:
         now = self._now()
 
         if mode == ExecutionMode.PAPER_TRADING:
-            # Route to paper_trader
+            # Route to paper_trader — dispatch by order side.
+            # create_paper_order no longer exists; use execute_buy / execute_sell.
             try:
-                from paper_trader import create_paper_order
-                result = create_paper_order(
-                    symbol=preview.symbol, action=preview.side,
-                    entry_price=preview.entry_price, stop_loss=preview.stop_loss,
-                    target=preview.target_price, strategy=preview.strategy,
-                    scan_id=preview.preview_id, confidence=preview.confidence,
-                )
-                order_id = result.get("order_id") if result else None
+                if preview.side == "BUY":
+                    from paper_trader import execute_buy as _paper_execute
+                    ok, msg = _paper_execute(
+                        symbol=preview.symbol,
+                        quantity=preview.quantity,
+                        price=preview.entry_price,
+                        reason=preview.strategy,
+                        signal_confidence=preview.confidence,
+                        stop_loss_price=preview.stop_loss,
+                        target=preview.target_price,
+                        scan_id=preview.preview_id,
+                    )
+                elif preview.side == "SELL":
+                    from paper_trader import execute_sell as _paper_execute
+                    ok, msg = _paper_execute(
+                        symbol=preview.symbol,
+                        quantity=preview.quantity,
+                        price=preview.entry_price,
+                        reason=preview.strategy,
+                        exit_type="MANUAL",
+                    )
+                else:
+                    ok, msg = False, f"Unsupported order side for paper trading: {preview.side}"
+                if not ok:
+                    event = "ORDER_FAILED"
+                    _append_audit({"event": event, "preview_id": preview_id,
+                                   "symbol": preview.symbol, "error": msg, "ts": now})
+                    return {"success": False, "error": msg}
+                order_id = f"PAPER-{uuid.uuid4().hex[:8].upper()}"
                 event = "PAPER_ORDER"
             except Exception as exc:
                 event = "ORDER_FAILED"
