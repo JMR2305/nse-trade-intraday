@@ -143,8 +143,16 @@ def _ensure_schema(conn) -> None:
                 validation JSONB,
                 error TEXT,
                 started_at TIMESTAMPTZ,
-                completed_at TIMESTAMPTZ
+                completed_at TIMESTAMPTZ,
+                pending_at TIMESTAMPTZ
             )
+            """
+        )
+        # Add pending_at to existing tables that pre-date the column.
+        cur.execute(
+            """
+            ALTER TABLE backtest_runs
+            ADD COLUMN IF NOT EXISTS pending_at TIMESTAMPTZ
             """
         )
         cur.execute(
@@ -248,29 +256,55 @@ def count_active_runs() -> int:
 
 
 def create_run(config: Dict[str, Any]) -> str:
-    """Create a run. Status is QUEUED if MAX_CONCURRENT_BACKTESTS are already active."""
+    """Create a run. Status is QUEUED if MAX_CONCURRENT_BACKTESTS are already active.
+
+    DB path acquires pg_advisory_xact_lock(74230912) before counting and
+    inserting, serializing all admission decisions across concurrent processes.
+    Without this, two READ COMMITTED transactions can each snapshot the
+    active-run count before either commits and both insert as PENDING,
+    exceeding MAX_CONCURRENT_BACKTESTS and causing OOM / stalled runs.
+    """
     run_id = f"BT-{uuid.uuid4().hex[:10]}"
-    initial_status = ("QUEUED" if count_active_runs() >= MAX_CONCURRENT_BACKTESTS
-                      else "PENDING")
     if db_available():
         conn = _connect_with_retry()
         try:
             _ensure_schema(conn)
             with conn.cursor() as cur:
+                # Serialize admission: only one transaction may count + insert
+                # at a time. Released automatically at commit/rollback.
+                cur.execute("SELECT pg_advisory_xact_lock(74230912)")
                 cur.execute(
-                    "INSERT INTO backtest_runs (run_id, status, config)"
-                    " VALUES (%s, %s, %s)",
-                    (run_id, initial_status, json.dumps(config, default=str)),
+                    """
+                    WITH active AS (
+                        SELECT count(*) AS cnt FROM backtest_runs
+                        WHERE status IN ('RUNNING','PENDING','CANCEL_REQUESTED')
+                    )
+                    INSERT INTO backtest_runs (run_id, status, config, pending_at)
+                    SELECT %s,
+                        CASE WHEN (SELECT cnt FROM active) >= %s
+                             THEN 'QUEUED' ELSE 'PENDING' END,
+                        %s::jsonb,
+                        CASE WHEN (SELECT cnt FROM active) >= %s
+                             THEN NULL ELSE NOW() END
+                    RETURNING status
+                    """,
+                    (run_id, MAX_CONCURRENT_BACKTESTS,
+                     json.dumps(config, default=str),
+                     MAX_CONCURRENT_BACKTESTS),
                 )
             conn.commit()
         finally:
             conn.close()
     else:
+        initial_status = ("QUEUED" if count_active_runs() >= MAX_CONCURRENT_BACKTESTS
+                          else "PENDING")
+        now = _now_iso()
         rows = _load(_RUNS_FILE)
-        rows.append({"run_id": run_id, "created_at": _now_iso(),
+        rows.append({"run_id": run_id, "created_at": now,
                      "status": initial_status, "config": config, "progress": {},
                      "metrics": None, "missed": None, "validation": None,
-                     "error": None, "started_at": None, "completed_at": None})
+                     "error": None, "started_at": None, "completed_at": None,
+                     "pending_at": now if initial_status == "PENDING" else None})
         _save(_RUNS_FILE, rows)
     return run_id
 
@@ -311,6 +345,95 @@ def update_run(run_id: str, **fields: Any) -> None:
     _save(_RUNS_FILE, rows)
 
 
+def complete_run(run_id: str, **fields: Any) -> bool:
+    """Atomically finalize a run as COMPLETED, only if it is still RUNNING.
+
+    Returns True iff the update was applied (rowcount == 1).
+    Returns False when the run is no longer RUNNING (e.g. a watchdog marked it
+    STALE between the worker's status check and this write) — the caller must
+    not proceed, and the watchdog state is preserved.
+
+    All ``fields`` (metrics, progress, config, completed_at, …) are written
+    together with the status change in a single conditional UPDATE so there is
+    no window where the STALE mark can be overwritten.
+    """
+    now = datetime.now(timezone.utc)
+    fields.setdefault("status", "COMPLETED")
+    fields.setdefault("completed_at", now)
+    if db_available():
+        conn = _connect_with_retry()
+        try:
+            _ensure_schema(conn)
+            sets, args = [], []
+            for k, v in fields.items():
+                if k in _JSON_FIELDS:
+                    sets.append(f"{k} = %s::jsonb")
+                    args.append(json.dumps(v, default=str))
+                else:
+                    sets.append(f"{k} = %s")
+                    args.append(v)
+            args.append(run_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"UPDATE backtest_runs SET {', '.join(sets)}"
+                    " WHERE run_id = %s AND status = 'RUNNING'",
+                    args,
+                )
+                applied = cur.rowcount == 1
+            conn.commit()
+            return applied
+        finally:
+            conn.close()
+    # File fallback: reload + conditional update in one write.
+    rows = _load(_RUNS_FILE)
+    applied = False
+    for r in rows:
+        if r["run_id"] == run_id and r.get("status") == "RUNNING":
+            r.update(fields)
+            applied = True
+    if applied:
+        _save(_RUNS_FILE, rows)
+    return applied
+
+
+def cancel_checkpoint_run(run_id: str) -> bool:
+    """Atomically write CANCELLED, only if the run is still CANCEL_REQUESTED.
+
+    Returns True iff the update was applied (rowcount == 1).
+    Returns False when the run has already been marked STALE (or another
+    terminal state) between the checkpoint read and this write.
+    """
+    now = datetime.now(timezone.utc)
+    if db_available():
+        conn = _connect_with_retry()
+        try:
+            _ensure_schema(conn)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE backtest_runs SET status = 'CANCELLED',"
+                    " error = 'Cancelled by operator',"
+                    " completed_at = %s"
+                    " WHERE run_id = %s AND status = 'CANCEL_REQUESTED'",
+                    (now, run_id),
+                )
+                applied = cur.rowcount == 1
+            conn.commit()
+            return applied
+        finally:
+            conn.close()
+    rows = _load(_RUNS_FILE)
+    applied = False
+    for r in rows:
+        if r["run_id"] == run_id and r.get("status") == "CANCEL_REQUESTED":
+            r["status"] = "CANCELLED"
+            r["error"] = "Cancelled by operator"
+            r["completed_at"] = now.isoformat()
+            applied = True
+    if applied:
+        _save(_RUNS_FILE, rows)
+    return applied
+
+
 def claim_run(run_id: str) -> bool:
     """
     Atomically claim a PENDING run for execution (PENDING → RUNNING).
@@ -347,12 +470,12 @@ def claim_run(run_id: str) -> bool:
 
 _RUN_COLS = ["run_id", "created_at", "status", "config", "progress",
              "metrics", "missed", "validation", "error",
-             "started_at", "completed_at"]
+             "started_at", "completed_at", "pending_at"]
 
 
 def _run_row_to_dict(r) -> Dict[str, Any]:
     d = dict(zip(_RUN_COLS, r))
-    for k in ("created_at", "started_at", "completed_at"):
+    for k in ("created_at", "started_at", "completed_at", "pending_at"):
         if d.get(k) is not None and hasattr(d[k], "isoformat"):
             d[k] = d[k].isoformat()
     for k in _JSON_FIELDS:
@@ -405,21 +528,37 @@ TERMINAL_STATUSES = {"COMPLETED", "CANCELLED", "STALE", "FAILED"}
 
 def promote_next_queued() -> Optional[str]:
     """Promote the oldest QUEUED run to PENDING when a concurrency slot is free.
-    Returns the promoted run_id, or None if nothing was promoted."""
-    if count_active_runs() >= MAX_CONCURRENT_BACKTESTS:
-        return None
+    Returns the promoted run_id, or None if nothing was promoted.
+
+    DB path acquires pg_advisory_xact_lock(74230912) — the same lock used by
+    create_run() — before counting and promoting, so concurrent workers and
+    new-run requests cannot both see a free slot and both act on it.
+    """
     if db_available():
         conn = _connect_with_retry()
         try:
             _ensure_schema(conn)
             with conn.cursor() as cur:
+                # Same admission lock as create_run() — serialize all slot
+                # decisions across processes. Released at commit/rollback.
+                cur.execute("SELECT pg_advisory_xact_lock(74230912)")
                 cur.execute(
-                    "UPDATE backtest_runs SET status = 'PENDING'"
-                    " WHERE run_id = ("
-                    "   SELECT run_id FROM backtest_runs WHERE status = 'QUEUED'"
-                    "   ORDER BY created_at ASC LIMIT 1"
-                    " ) AND status = 'QUEUED'"
-                    " RETURNING run_id"
+                    """
+                    WITH active AS (
+                        SELECT count(*) AS cnt FROM backtest_runs
+                        WHERE status IN ('RUNNING','PENDING','CANCEL_REQUESTED')
+                    )
+                    UPDATE backtest_runs
+                    SET status = 'PENDING', pending_at = NOW()
+                    WHERE run_id = (
+                        SELECT run_id FROM backtest_runs WHERE status = 'QUEUED'
+                        ORDER BY created_at ASC LIMIT 1
+                    )
+                    AND status = 'QUEUED'
+                    AND (SELECT cnt FROM active) < %s
+                    RETURNING run_id
+                    """,
+                    (MAX_CONCURRENT_BACKTESTS,),
                 )
                 row = cur.fetchone()
                 if row:
@@ -429,16 +568,134 @@ def promote_next_queued() -> Optional[str]:
             return None
         finally:
             conn.close()
-    # File fallback
+    # File fallback — fast path for dev/tests; no concurrent processes here.
+    if count_active_runs() >= MAX_CONCURRENT_BACKTESTS:
+        return None
     rows = _load(_RUNS_FILE)
     for r in rows:
         if r.get("status") == "QUEUED":
             r["status"] = "PENDING"
+            r["pending_at"] = _now_iso()
             _save(_RUNS_FILE, rows)
             return r["run_id"]
     return None
 
 
+def revert_pending_to_queued(run_id: str) -> bool:
+    """Atomically revert a PENDING run back to QUEUED on spawn failure.
+
+    Returns True iff the run was actually reverted (it was still PENDING).
+    Returns False (safely) if the run had already been claimed (RUNNING or
+    any other status) — prevents overwriting an executing worker.
+
+    DB path uses a single conditional UPDATE with ``WHERE status = 'PENDING'``
+    so there is no read-modify-write gap where a concurrent claim_run() could
+    transition PENDING → RUNNING between our check and our write.
+
+    File path reloads and re-checks before saving, which is safe because the
+    file fallback is single-process.
+    """
+    if db_available():
+        conn = _connect_with_retry()
+        try:
+            _ensure_schema(conn)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE backtest_runs SET status = 'QUEUED', pending_at = NULL"
+                    " WHERE run_id = %s AND status = 'PENDING'",
+                    (run_id,),
+                )
+                reverted = cur.rowcount == 1
+            conn.commit()
+            return reverted
+        finally:
+            conn.close()
+    # File fallback: reload + conditional update in one write.
+    rows = _load(_RUNS_FILE)
+    reverted = False
+    for r in rows:
+        if r["run_id"] == run_id and r.get("status") == "PENDING":
+            r["status"] = "QUEUED"
+            r["pending_at"] = None
+            reverted = True
+    if reverted:
+        _save(_RUNS_FILE, rows)
+    return reverted
+
+
+def _sweep_stale_runs_file() -> Dict[str, Any]:
+    """File-fallback implementation of sweep_stale_runs() for dev/test environments."""
+    now = datetime.now(timezone.utc)
+    rows = _load(_RUNS_FILE)
+    marked_stale: list = []
+    promoted: list = []
+
+    for r in rows:
+        status = r.get("status")
+        if status in ("RUNNING", "CANCEL_REQUESTED"):
+            progress = r.get("progress") or {}
+            last_ts_str = (progress.get("progress_updated_at")
+                           or r.get("started_at")
+                           or r.get("created_at"))
+            try:
+                last_dt = datetime.fromisoformat(
+                    str(last_ts_str).replace("Z", "+00:00"))
+                if last_dt.tzinfo is None:
+                    last_dt = last_dt.replace(tzinfo=timezone.utc)
+                minutes = (now - last_dt).total_seconds() / 60.0
+            except Exception:
+                continue
+            if minutes >= _STALE_RUNNING_THRESHOLD_MIN:
+                r["status"] = "STALE"
+                r["error"] = (f"Run stalled — no progress for {round(minutes, 1)} minutes. "
+                              "Worker likely stopped. Retry required.")
+                marked_stale.append(r["run_id"])
+
+        elif status == "PENDING":
+            # Use pending_at (set at admission/promotion) rather than
+            # created_at so a run that waited a long time in QUEUED is not
+            # immediately classified as stale the moment it is promoted.
+            pending_str = r.get("pending_at") or r.get("created_at")
+            if not pending_str:
+                continue
+            try:
+                pending_dt = datetime.fromisoformat(
+                    str(pending_str).replace("Z", "+00:00"))
+                if pending_dt.tzinfo is None:
+                    pending_dt = pending_dt.replace(tzinfo=timezone.utc)
+                minutes = (now - pending_dt).total_seconds() / 60.0
+            except Exception:
+                continue
+            if minutes >= _STALE_PENDING_THRESHOLD_MIN:
+                r["status"] = "STALE"
+                r["error"] = (f"Run stalled — PENDING with no worker for {round(minutes, 1)} minutes. "
+                              "Worker likely stopped. Retry required.")
+                marked_stale.append(r["run_id"])
+
+    _save(_RUNS_FILE, rows)
+
+    # Promote QUEUED runs into vacated slots.
+    # CANCEL_REQUESTED counts as occupied: the worker is still executing until
+    # its next checkpoint, so we must not over-subscribe the concurrency limit.
+    active_count = sum(1 for r in rows
+                       if r.get("status") in ("RUNNING", "PENDING",
+                                              "CANCEL_REQUESTED"))
+    slots = max(0, MAX_CONCURRENT_BACKTESTS - active_count)
+    queued = [r for r in rows if r.get("status") == "QUEUED"][:slots]
+    _promotion_ts = _now_iso()
+    for r in queued:
+        r["status"] = "PENDING"
+        r["pending_at"] = _promotion_ts  # start the stale clock from promotion, not creation
+        promoted.append(r["run_id"])
+    if queued:
+        _save(_RUNS_FILE, rows)
+
+    return {
+        "swept": len(marked_stale),
+        "marked_stale": marked_stale,
+        "promoted": len(promoted),
+        "promoted_runs": promoted,
+    }
 def sweep_stale_runs() -> Dict[str, Any]:
     """Server-side watchdog — auto-marks orphaned/stale runs and promotes queued ones.
 
@@ -452,7 +709,7 @@ def sweep_stale_runs() -> Dict[str, Any]:
     so it runs automatically every 5 s while the Investigation Center is open.
     """
     if not db_available():
-        return {"swept": 0, "promoted": 0}
+        return _sweep_stale_runs_file()
 
     now = datetime.now(timezone.utc)
     marked_stale: list = []
@@ -501,15 +758,19 @@ def sweep_stale_runs() -> Dict[str, Any]:
             pending_rows = [_run_row_to_dict(r) for r in cur.fetchall()]
 
         for r in pending_rows:
-            created_str = r.get("created_at")
-            if not created_str:
+            # Use pending_at (set at admission/promotion) rather than
+            # created_at so a long-queued run is not immediately stale on
+            # promotion. Fall back to created_at for rows that pre-date the
+            # pending_at column.
+            pending_str = r.get("pending_at") or r.get("created_at")
+            if not pending_str:
                 continue
             try:
-                created_dt = datetime.fromisoformat(
-                    str(created_str).replace("Z", "+00:00"))
-                if created_dt.tzinfo is None:
-                    created_dt = created_dt.replace(tzinfo=timezone.utc)
-                minutes = (now - created_dt).total_seconds() / 60.0
+                pending_dt = datetime.fromisoformat(
+                    str(pending_str).replace("Z", "+00:00"))
+                if pending_dt.tzinfo is None:
+                    pending_dt = pending_dt.replace(tzinfo=timezone.utc)
+                minutes = (now - pending_dt).total_seconds() / 60.0
             except Exception:
                 continue
             if minutes >= _STALE_PENDING_THRESHOLD_MIN:
@@ -524,38 +785,21 @@ def sweep_stale_runs() -> Dict[str, Any]:
                 marked_stale.append(r["run_id"])
 
         conn.commit()
-
-        # ── 3. Promote QUEUED runs into newly vacated slots ────────────────
-        promoted: list = []
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT count(*) FROM backtest_runs"
-                " WHERE status IN ('RUNNING','PENDING')"
-            )
-            active_count = int(cur.fetchone()[0])
-            slots = max(0, MAX_CONCURRENT_BACKTESTS - active_count)
-            if slots > 0:
-                cur.execute(
-                    f"SELECT {', '.join(_RUN_COLS)} FROM backtest_runs"
-                    " WHERE status = 'QUEUED' ORDER BY created_at ASC LIMIT %s",
-                    (slots,),
-                )
-                queued_rows = [_run_row_to_dict(r) for r in cur.fetchall()]
-            else:
-                queued_rows = []
-
-        for r in queued_rows:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "UPDATE backtest_runs SET status = 'PENDING'"
-                    " WHERE run_id = %s AND status = 'QUEUED'",
-                    (r["run_id"],),
-                )
-                if cur.rowcount == 1:
-                    promoted.append(r["run_id"])
-        conn.commit()
     finally:
         conn.close()
+
+    # ── 3. Promote QUEUED runs under the shared admission lock ─────────────
+    # Delegate to promote_next_queued() which acquires
+    # pg_advisory_xact_lock(74230912), so sweep promotion cannot race with a
+    # concurrent create_run() or another sweep call that also sees free slots.
+    # Without this, a sweep and a concurrent create can each count N-1 active
+    # runs and both act on the result, exceeding MAX_CONCURRENT_BACKTESTS.
+    promoted: list = []
+    for _ in range(MAX_CONCURRENT_BACKTESTS):
+        next_rid = promote_next_queued()
+        if next_rid is None:
+            break
+        promoted.append(next_rid)
 
     return {
         "swept": len(marked_stale),
@@ -707,8 +951,11 @@ def retry_run(run_id: str) -> Dict[str, Any]:
     config.pop("cash_by_tick", None)
     config.pop("learning_fingerprint", None)
     new_run_id = create_run(config)
+    # Report the actual admission status (PENDING or QUEUED) so callers
+    # can gate worker spawning on truly-PENDING runs only.
+    new_status = get_run_status(new_run_id) or "PENDING"
     return {"ok": True, "original_run_id": run_id, "new_run_id": new_run_id,
-            "status": "PENDING",
+            "status": new_status,
             "message": (f"New run {new_run_id} created from config of {run_id}. "
                         f"Original run preserved for audit.")}
 

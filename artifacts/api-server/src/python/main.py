@@ -2174,16 +2174,27 @@ def main():
                                         "will start automatically when a slot opens)")}
                 else:
                     log_path = f"/tmp/backtest_{rid}.log"
-                    with open(log_path, "ab") as lf:
-                        subprocess.Popen(
-                            [sys.executable, os.path.abspath(__file__),
-                             "backtest_exec", json.dumps({"run_id": rid})],
-                            stdout=lf, stderr=lf,
-                            cwd=os.path.dirname(os.path.abspath(__file__)),
-                            start_new_session=True)
-                    result = {"ok": True, "run_id": rid, "status": "PENDING",
-                              "log": log_path,
-                              "label": "BACKTEST — SIMULATED, ISOLATED FROM LIVE"}
+                    try:
+                        with open(log_path, "ab") as lf:
+                            subprocess.Popen(
+                                [sys.executable, os.path.abspath(__file__),
+                                 "backtest_exec", json.dumps({"run_id": rid})],
+                                stdout=lf, stderr=lf,
+                                cwd=os.path.dirname(os.path.abspath(__file__)),
+                                start_new_session=True)
+                        result = {"ok": True, "run_id": rid, "status": "PENDING",
+                                  "log": log_path,
+                                  "label": "BACKTEST — SIMULATED, ISOLATED FROM LIVE"}
+                    except Exception as _spawn_err:
+                        # Atomic conditional revert: single DB UPDATE WHERE
+                        # status='PENDING' — safe if a worker already claimed it.
+                        try:
+                            _bp.revert_pending_to_queued(rid)
+                        except Exception:
+                            pass
+                        result = {"ok": False, "run_id": rid, "status": "QUEUED",
+                                  "error": (f"Spawn failed ({_spawn_err}); "
+                                            "run reverted to QUEUED for auto-retry")}
         elif command == "backtest_exec":
             from backtest_runner import execute_run
             p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
@@ -2194,34 +2205,55 @@ def main():
             result = _bp.get_run(str(p.get("run_id"))) or \
                 {"ok": False, "error": "Unknown run"}
         elif command == "backtest_runs":
-            import subprocess
             import backtest_portfolio as _bp
             p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
             # Sweep-on-read: auto-mark orphaned RUNNING/PENDING runs as STALE
             # and promote QUEUED runs into vacated slots.  Runs every 5 s
             # while the Investigation Center is open — cheap DB query.
-            sweep = _bp.sweep_stale_runs()
-            # CRITICAL: spawn workers for every run just promoted from QUEUED
-            # to PENDING.  Without this, a run can sit PENDING indefinitely
-            # because the scheduler tick sees promoted_runs=[] (promotion
-            # already happened) and skips spawning.
-            for rid in sweep.get("promoted_runs") or []:
+            _sweep = _bp.sweep_stale_runs()
+            # Spawn a worker for every run the sweep just promoted QUEUED→PENDING.
+            # On spawn failure, immediately revert to QUEUED so the next sweep
+            # poll retries — do not strand the run as PENDING with no worker.
+            import subprocess as _sub
+            for _rid in _sweep.get("promoted_runs") or []:
+                _log = f"/tmp/backtest_{_rid}.log"
                 try:
-                    with open(f"/tmp/backtest_{rid}.log", "ab") as lf:
-                        subprocess.Popen(
+                    with open(_log, "ab") as _lf:
+                        _sub.Popen(
                             [sys.executable, os.path.abspath(__file__),
-                             "backtest_exec", json.dumps({"run_id": rid})],
-                            stdout=lf, stderr=lf,
+                             "backtest_exec", json.dumps({"run_id": _rid})],
+                            stdout=_lf, stderr=_lf,
                             cwd=os.path.dirname(os.path.abspath(__file__)),
-                            start_new_session=True,
-                        )
+                            start_new_session=True)
                 except Exception:
-                    pass  # best-effort; scheduler tick will retry
+                    # Atomic conditional revert: safe if a worker already claimed it.
+                    try:
+                        _bp.revert_pending_to_queued(_rid)
+                    except Exception:
+                        pass
             result = {"runs": _bp.list_runs(int(p.get("limit") or 50)),
                       "label": "BACKTEST — SIMULATED, ISOLATED FROM LIVE"}
         elif command == "bt_sweep_stale":
             import backtest_portfolio as _bp
-            result = _bp.sweep_stale_runs()
+            _sweep = _bp.sweep_stale_runs()
+            # Spawn workers for promoted runs; revert to QUEUED on spawn failure.
+            import subprocess as _sub
+            for _rid in _sweep.get("promoted_runs") or []:
+                _log = f"/tmp/backtest_{_rid}.log"
+                try:
+                    with open(_log, "ab") as _lf:
+                        _sub.Popen(
+                            [sys.executable, os.path.abspath(__file__),
+                             "backtest_exec", json.dumps({"run_id": _rid})],
+                            stdout=_lf, stderr=_lf,
+                            cwd=os.path.dirname(os.path.abspath(__file__)),
+                            start_new_session=True)
+                except Exception:
+                    try:
+                        _bp.revert_pending_to_queued(_rid)
+                    except Exception:
+                        pass
+            result = _sweep
         elif command == "bt_queue_tick":
             # Called every 2 minutes by the Node.js backtest queue scheduler
             # (startBacktestScheduler in src/lib/backtestScheduler.ts).
@@ -2374,6 +2406,13 @@ def main():
             import backtest_portfolio as _bpc
             p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
             result = _bpc.cancel_run(str(p.get("run_id") or ""))
+            # When a QUEUED or PENDING run is cancelled immediately it frees a
+            # concurrency slot at once — drain the queue so waiting runs aren't
+            # left stranded.  (CANCEL_REQUESTED means the worker is still alive;
+            # it will call _spawn_next_queued() when it exits.)
+            if result.get("ok") and result.get("status") == "CANCELLED":
+                from backtest_runner import _spawn_next_queued as _snq
+                _snq()
         elif command == "backtest_mark_stale":
             import backtest_portfolio as _bpc
             p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
@@ -2382,6 +2421,26 @@ def main():
             import backtest_portfolio as _bpc
             p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
             result = _bpc.retry_run(str(p.get("run_id") or ""))
+            # If the new run was admitted as PENDING, spawn its worker now —
+            # identical to the backtest_start path.  On spawn failure revert to
+            # QUEUED so the watchdog retries on the next poll.
+            if result.get("ok") and result.get("status") == "PENDING":
+                import subprocess as _sub
+                _new_rid = result.get("new_run_id", "")
+                _log = f"/tmp/backtest_{_new_rid}.log"
+                try:
+                    with open(_log, "ab") as _lf:
+                        _sub.Popen(
+                            [sys.executable, os.path.abspath(__file__),
+                             "backtest_exec", json.dumps({"run_id": _new_rid})],
+                            stdout=_lf, stderr=_lf,
+                            cwd=os.path.dirname(os.path.abspath(__file__)),
+                            start_new_session=True)
+                except Exception:
+                    try:
+                        _bpc.revert_pending_to_queued(_new_rid)
+                    except Exception:
+                        pass
 
         # ── Phase 23 Parts 6/7: Strategy Lab + Institutional Analytics ────
         elif command == "lab_compare_runs":

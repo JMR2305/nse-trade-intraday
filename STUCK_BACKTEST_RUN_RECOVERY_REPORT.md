@@ -155,8 +155,8 @@ Two small validation runs were launched after all fixes were applied:
 
 | Run | Config | Run ID | Status at launch |
 |---|---|---|---|
-| A — Baseline | 15m, 5 symbols, 30 days, ₹1L, 1% risk / 25% cap | BT-a2be43c8d5 | RUNNING |
-| B — Recommended | 15m, 5 symbols, 30 days, ₹1L, 1.5% risk / 30% cap | BT-65c007735c | RUNNING |
+| A — Baseline | 15m, 5 symbols, 30 days, ₹1L, 1% risk / 25% cap | BT-29142a23ba | PENDING |
+| B — Recommended | 15m, 5 symbols, 30 days, ₹1L, 1.5% risk / 30% cap | BT-d79ab13b4b | PENDING |
 
 Symbols: RELIANCE, TCS, INFY, HDFCBANK, ICICIBANK  
 Date range: 2026-07-13 → 2026-08-12

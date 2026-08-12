@@ -25,6 +25,8 @@ from __future__ import annotations
 
 import json
 import math
+import os
+import sys
 from datetime import datetime, timedelta, date, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -496,10 +498,18 @@ def _learning_fingerprint() -> str:
 def _spawn_next_queued() -> None:
     """Promote the next QUEUED run to PENDING and spawn its worker process.
 
-    Called after any run finishes (COMPLETED or FAILED) so the queue drains
-    automatically.  Failures are swallowed — queue promotion is best-effort and
-    must never crash the finishing worker.
+    Called after any run finishes (COMPLETED, FAILED, or checkpoint-CANCELLED)
+    so the queue drains automatically.
+
+    On any spawn/log-open failure the promoted run is reverted to QUEUED
+    *provided it is still PENDING* (i.e. no other process has already claimed
+    it).  This prevents the run from waiting 30 minutes for the stale watchdog
+    rather than retrying on the next sweep poll.
+
+    Failures are always swallowed at the outermost level — this helper must
+    never crash the finishing worker.
     """
+    next_rid = None
     try:
         next_rid = bp.promote_next_queued()
         if not next_rid:
@@ -516,7 +526,13 @@ def _spawn_next_queued() -> None:
                 start_new_session=True,
             )
     except Exception:
-        pass  # queue promotion is always best-effort
+        # Revert to QUEUED only if the run is still PENDING (not RUNNING —
+        # another process may have already claimed it).
+        if next_rid is not None:
+            try:
+                bp.revert_pending_to_queued(next_rid)
+            except Exception:
+                pass
 
 
 def execute_run(run_id: str) -> Dict[str, Any]:
@@ -572,6 +588,7 @@ def execute_run(run_id: str) -> Dict[str, Any]:
                                    if start <= c["ts"][:10] <= end]
             bp.update_run(run_id, progress={
                 "phase": "DATA", "done": i + 1, "total": len(universe),
+                "current_symbol": sym,
                 "progress_updated_at": datetime.now(timezone.utc).isoformat()})
         emit("SCAN_FETCH_COMPLETED", "SUPERVISOR", scan_id=run_id,
              mode="BACKTEST", run_id=run_id,
@@ -641,12 +658,23 @@ def execute_run(run_id: str) -> Dict[str, Any]:
                 except Exception:
                     _cur_status = None   # belt-and-suspenders: skip, not crash
                 if _cur_status == "CANCEL_REQUESTED":
-                    bp.update_run(run_id, status="CANCELLED",
-                                  error="Cancelled by operator",
-                                  completed_at=datetime.now(timezone.utc))
+                    # Atomic: only writes CANCELLED if status is still
+                    # CANCEL_REQUESTED (not yet STALE or otherwise terminal).
+                    bp.cancel_checkpoint_run(run_id)
+                    # Drain the queue: this slot is now free, so promote and
+                    # spawn the next waiting run exactly like COMPLETED/FAILED.
+                    _spawn_next_queued()
                     return {"ok": False, "run_id": run_id, "cancelled": True,
                             "ticks_completed": tick_i,
                             "message": "Run cancelled by operator at checkpoint"}
+                if _cur_status == "STALE":
+                    # Watchdog marked us stale (no heartbeat for 30+ min).
+                    # Exit without overwriting the STALE status so operators
+                    # see the correct audit state and can safely retry.
+                    return {"ok": False, "run_id": run_id, "stale_exit": True,
+                            "ticks_completed": tick_i,
+                            "message": ("Run marked STALE by watchdog; "
+                                        "worker exiting without overwriting state")}
                 snap_marks = {s: float(b["close"]) for s, b in bars.items()}
                 snap = bp.portfolio_snapshot(run_id, snap_marks)
                 emit("PORTFOLIO_UPDATED", "PORTFOLIO", scan_id=scan_id,
@@ -658,6 +686,7 @@ def execute_run(run_id: str) -> Dict[str, Any]:
                 bp.update_run(run_id, progress={
                     "phase": "REPLAY", "done": tick_i + 1, "total": tick_count,
                     "ts": ts_iso, "cash": round(cash, 2),
+                    "current_symbols": sorted(bars.keys()),
                     "progress_updated_at": datetime.now(timezone.utc).isoformat()})
 
         # 3. Close whatever is still open at the final candle close.
@@ -690,13 +719,23 @@ def execute_run(run_id: str) -> Dict[str, Any]:
         metrics["ticks"] = tick_count
         metrics["symbols"] = len(per_symbol)
         metrics["data_errors"] = data_errors
-        bp.update_run(run_id, status="COMPLETED",
-                      completed_at=datetime.now(timezone.utc),
-                      config={**cfg, "cash_by_tick": cash_log,
-                              "learning_fingerprint": learning_fp},
-                      metrics=metrics, missed=missed,
-                      progress={"phase": "DONE", "done": tick_count,
-                                "total": tick_count})
+        # Atomic: complete_run() writes COMPLETED only if status is still
+        # RUNNING (single conditional UPDATE, rowcount-checked).  If a watchdog
+        # marked the run STALE between the last checkpoint and here, the write
+        # is a no-op and we exit without overwriting the watchdog's state.
+        _written = bp.complete_run(
+            run_id,
+            config={**cfg, "cash_by_tick": cash_log,
+                    "learning_fingerprint": learning_fp},
+            metrics=metrics, missed=missed,
+            progress={"phase": "DONE", "done": tick_count,
+                      "total": tick_count},
+        )
+        if not _written:
+            _cur = bp.get_run_status(run_id)
+            return {"ok": False, "run_id": run_id, "fenced": True,
+                    "message": (f"Run was marked {_cur!r} during finalization; "
+                                "worker exits without overwriting watchdog state")}
         emit("SCAN_COMPLETED", "SUPERVISOR", scan_id=run_id, mode="BACKTEST",
              run_id=run_id, payload=metrics)
         _spawn_next_queued()   # promote + start next queued run if any
