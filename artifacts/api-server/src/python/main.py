@@ -2194,17 +2194,84 @@ def main():
             result = _bp.get_run(str(p.get("run_id"))) or \
                 {"ok": False, "error": "Unknown run"}
         elif command == "backtest_runs":
+            import subprocess
             import backtest_portfolio as _bp
             p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
             # Sweep-on-read: auto-mark orphaned RUNNING/PENDING runs as STALE
             # and promote QUEUED runs into vacated slots.  Runs every 5 s
             # while the Investigation Center is open — cheap DB query.
-            _bp.sweep_stale_runs()
+            sweep = _bp.sweep_stale_runs()
+            # CRITICAL: spawn workers for every run just promoted from QUEUED
+            # to PENDING.  Without this, a run can sit PENDING indefinitely
+            # because the scheduler tick sees promoted_runs=[] (promotion
+            # already happened) and skips spawning.
+            for rid in sweep.get("promoted_runs") or []:
+                try:
+                    with open(f"/tmp/backtest_{rid}.log", "ab") as lf:
+                        subprocess.Popen(
+                            [sys.executable, os.path.abspath(__file__),
+                             "backtest_exec", json.dumps({"run_id": rid})],
+                            stdout=lf, stderr=lf,
+                            cwd=os.path.dirname(os.path.abspath(__file__)),
+                            start_new_session=True,
+                        )
+                except Exception:
+                    pass  # best-effort; scheduler tick will retry
             result = {"runs": _bp.list_runs(int(p.get("limit") or 50)),
                       "label": "BACKTEST — SIMULATED, ISOLATED FROM LIVE"}
         elif command == "bt_sweep_stale":
             import backtest_portfolio as _bp
             result = _bp.sweep_stale_runs()
+        elif command == "bt_queue_tick":
+            # Called every 2 minutes by the Node.js backtest queue scheduler
+            # (startBacktestScheduler in src/lib/backtestScheduler.ts).
+            # Runs regardless of whether any browser is polling — ensures the
+            # queue drains and stale runs are detected even when no operator
+            # has the Investigation Center open overnight.
+            #
+            # Steps:
+            #   1. sweep_stale_runs() — marks RUNNING/PENDING with no heartbeat
+            #      for 30+ min as STALE; promotes QUEUED → PENDING.
+            #   2. Spawn workers for newly-promoted runs.
+            #   3. Spawn workers for any PENDING run whose original spawn
+            #      failed (unclaimed recovery): a run PENDING for > 2 min
+            #      has no live worker; spawning a replacement is safe because
+            #      claim_run() is atomic — the replacement exits immediately
+            #      if the original worker somehow claimed in the meantime.
+            import subprocess
+            import backtest_portfolio as _bp
+            sweep_result = _bp.sweep_stale_runs()
+            spawned = []
+            _main_py = os.path.abspath(__file__)
+            _cwd = os.path.dirname(_main_py)
+
+            # Runs just promoted in this tick
+            to_spawn = list(sweep_result.get("promoted_runs") or [])
+
+            # Unclaimed PENDING recovery: runs PENDING > 2 min whose worker
+            # was never spawned or exited before claiming (spawn-failure retry).
+            recovery = _bp.find_unclaimed_pending(older_than_min=2.0)
+            for rid in recovery:
+                if rid not in to_spawn:
+                    to_spawn.append(rid)
+
+            for rid in to_spawn:
+                try:
+                    with open(f"/tmp/backtest_{rid}.log", "ab") as lf:
+                        subprocess.Popen(
+                            [sys.executable, _main_py,
+                             "backtest_exec", json.dumps({"run_id": rid})],
+                            stdout=lf, stderr=lf,
+                            cwd=_cwd,
+                            start_new_session=True,
+                        )
+                    spawned.append(rid)
+                except Exception:
+                    pass  # spawn failure logged on next tick
+            result = {**sweep_result,
+                      "spawned": spawned,
+                      "spawned_count": len(spawned),
+                      "recovery_candidates": recovery}
         elif command == "backtest_portfolio":
             import backtest_portfolio as _bp
             p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}

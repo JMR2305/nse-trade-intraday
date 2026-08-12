@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startScanScheduler } from "./lib/scanScheduler";
+import { startBacktestScheduler } from "./lib/backtestScheduler";
 
 const rawPort = process.env["PORT"];
 
@@ -24,6 +25,7 @@ const server = app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
   startScanScheduler();
+  startBacktestScheduler();
 });
 
 // Graceful shutdown — close server, then exit (force-exit after 5s).

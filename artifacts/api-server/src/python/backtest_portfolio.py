@@ -20,7 +20,7 @@ from __future__ import annotations
 import json
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from scan_state_store import _connect, db_available
@@ -457,7 +457,7 @@ def sweep_stale_runs() -> Dict[str, Any]:
     now = datetime.now(timezone.utc)
     marked_stale: list = []
 
-    conn = _connect()
+    conn = _connect_with_retry()
     try:
         _ensure_schema(conn)
         with conn.cursor() as cur:
@@ -563,6 +563,41 @@ def sweep_stale_runs() -> Dict[str, Any]:
         "promoted": len(promoted),
         "promoted_runs": promoted,
     }
+
+
+def find_unclaimed_pending(older_than_min: float = 2.0) -> List[str]:
+    """Return run_ids that have been PENDING for > older_than_min minutes.
+
+    Used by the queue scheduler (bt_queue_tick) to recover from spawn failures:
+    a run PENDING for longer than a normal worker startup time (~60 s) has no
+    live worker and needs a new subprocess spawned.
+
+    Safe to call redundantly: claim_run() is atomic (PENDING → RUNNING via
+    conditional UPDATE), so a redundant worker exits immediately if the original
+    worker already claimed the run.
+
+    Uses created_at as a proxy for pending_since.  For runs promoted from
+    QUEUED this is conservative (created_at pre-dates the promotion), but the
+    redundant-spawn safety guarantee means false positives are harmless.
+    """
+    if not db_available():
+        return []
+    threshold = datetime.now(timezone.utc) - timedelta(minutes=older_than_min)
+    try:
+        conn = _connect_with_retry()
+        try:
+            _ensure_schema(conn)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT run_id FROM backtest_runs"
+                    " WHERE status = 'PENDING' AND created_at < %s",
+                    (threshold,),
+                )
+                return [str(r[0]) for r in cur.fetchall()]
+        finally:
+            conn.close()
+    except Exception:
+        return []
 
 
 def get_run_status(run_id: str) -> Optional[str]:
