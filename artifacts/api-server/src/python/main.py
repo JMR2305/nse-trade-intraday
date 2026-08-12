@@ -2284,6 +2284,18 @@ def main():
             p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
             result = validate_run(str(p.get("run_id")),
                                   sample=int(p.get("sample") or 25))
+        elif command == "backtest_cancel":
+            import backtest_portfolio as _bpc
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = _bpc.cancel_run(str(p.get("run_id") or ""))
+        elif command == "backtest_mark_stale":
+            import backtest_portfolio as _bpc
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = _bpc.mark_stale_run(str(p.get("run_id") or ""))
+        elif command == "backtest_retry":
+            import backtest_portfolio as _bpc
+            p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = _bpc.retry_run(str(p.get("run_id") or ""))
 
         # ── Phase 23 Parts 6/7: Strategy Lab + Institutional Analytics ────
         elif command == "lab_compare_runs":

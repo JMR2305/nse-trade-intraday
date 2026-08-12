@@ -398,7 +398,7 @@ export default function InvestigationCenter() {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const runId = selectedRunId ?? runs[0]?.run_id ?? null;
   const run = runs.find((r) => r.run_id === runId) ?? null;
-  const running = run?.status === "RUNNING" || run?.status === "PENDING";
+  const running = ["RUNNING", "PENDING", "CANCEL_REQUESTED"].includes(run?.status ?? "");
 
   const launch = useMutation({
     mutationFn: (overrides?: Partial<{ interval: string; start: string; end: string; capital: number; symbols: string[] }>) =>
@@ -417,6 +417,76 @@ export default function InvestigationCenter() {
       void qc.invalidateQueries({ queryKey: ["bt-runs"] });
     },
   });
+
+  // ── Run controls: filter, hide, cancel, stale, retry ──────────────────────
+
+  // Filter: which runs to show
+  const [runFilter, setRunFilter] = useState<"all" | "active" | "completed" | "failed">("all");
+
+  // Hidden runs: persisted in localStorage, never deleted from DB
+  const [hiddenRunIds, setHiddenRunIds] = useState<Set<string>>(() => {
+    try {
+      const s = localStorage.getItem("bt-hidden-runs");
+      return s ? new Set<string>(JSON.parse(s)) : new Set<string>();
+    } catch { return new Set<string>(); }
+  });
+  const hideRun = (rid: string) => setHiddenRunIds(prev => {
+    const next = new Set(prev); next.add(rid);
+    localStorage.setItem("bt-hidden-runs", JSON.stringify([...next]));
+    return next;
+  });
+  const showAllRuns = () => {
+    setHiddenRunIds(new Set());
+    localStorage.removeItem("bt-hidden-runs");
+  };
+
+  // Mutations
+  const cancelMut = useMutation({
+    mutationFn: (rid: string) =>
+      apiJson<{ ok: boolean; message?: string }>(`/backtest/run/${rid}/cancel`, { method: "POST" }, 15_000),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["bt-runs"] }),
+  });
+  const markStaleMut = useMutation({
+    mutationFn: (rid: string) =>
+      apiJson<{ ok: boolean; message?: string }>(`/backtest/run/${rid}/mark-stale`, { method: "POST" }, 15_000),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["bt-runs"] }),
+  });
+  const retryMut = useMutation({
+    mutationFn: (rid: string) =>
+      apiJson<{ ok: boolean; new_run_id?: string }>(`/backtest/run/${rid}/retry`, { method: "POST" }, 15_000),
+    onSuccess: (d) => {
+      if (d.new_run_id) setSelectedRunId(d.new_run_id);
+      void qc.invalidateQueries({ queryKey: ["bt-runs"] });
+    },
+  });
+
+  // Filtered + visible runs list
+  const filteredRuns = useMemo(() => {
+    let out = runs.filter(r => !hiddenRunIds.has(r.run_id));
+    if (runFilter === "active")
+      out = out.filter(r => ["PENDING", "RUNNING", "CANCEL_REQUESTED"].includes(r.status));
+    else if (runFilter === "completed")
+      out = out.filter(r => r.status === "COMPLETED");
+    else if (runFilter === "failed")
+      out = out.filter(r => ["FAILED", "STALE", "CANCELLED", "CANCEL_REQUESTED"].includes(r.status));
+    return out;
+  }, [runs, hiddenRunIds, runFilter]);
+
+  // Watchdog: RUNNING runs with no progress_updated_at or updated_at for 30+ min
+  const staleRunIds = useMemo(() => {
+    const now = Date.now();
+    return new Set(
+      runs
+        .filter(r => r.status === "RUNNING")
+        .filter(r => {
+          const ts = (r.progress as Record<string, unknown> | undefined)?.progress_updated_at
+                     ?? r.created_at;
+          if (!ts) return true; // no timestamp = treat as stale
+          return now - new Date(String(ts)).getTime() > 30 * 60 * 1000;
+        })
+        .map(r => r.run_id),
+    );
+  }, [runs]);
 
   // Per-run event-count stats for completed runs (comparison table).
   // We fetch for every completed run in the list; queries are cached.
@@ -886,9 +956,42 @@ export default function InvestigationCenter() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card data-testid="card-runs">
           <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <CardTitle className="text-sm">Backtest Runs</CardTitle>
-              <span className="text-[10px] text-muted-foreground">auto-refresh 5s</span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <select
+                  className="text-[10px] bg-background border rounded px-1.5 py-0.5"
+                  value={runFilter}
+                  onChange={e => setRunFilter(e.target.value as typeof runFilter)}
+                  data-testid="select-run-filter">
+                  <option value="all">All</option>
+                  <option value="active">Active</option>
+                  <option value="completed">Completed</option>
+                  <option value="failed">Failed/Stale</option>
+                </select>
+                {hiddenRunIds.size > 0 && (
+                  <button className="text-[10px] text-blue-400 hover:text-blue-300"
+                    onClick={showAllRuns} data-testid="btn-show-all-runs">
+                    Show all ({hiddenRunIds.size} hidden)
+                  </button>
+                )}
+                <button
+                  className="text-[10px] text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    const toHide = runs
+                      .filter(r => ["FAILED", "STALE", "CANCELLED"].includes(r.status))
+                      .map(r => r.run_id);
+                    setHiddenRunIds(prev => {
+                      const next = new Set([...prev, ...toHide]);
+                      localStorage.setItem("bt-hidden-runs", JSON.stringify([...next]));
+                      return next;
+                    });
+                  }}
+                  data-testid="btn-hide-failed-runs">
+                  Hide failed
+                </button>
+                <span className="text-[10px] text-muted-foreground">auto-refresh 5s</span>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-1 max-h-96 overflow-auto">
@@ -915,74 +1018,131 @@ export default function InvestigationCenter() {
                 )}
               </div>
             )}
-            {runs.map((r) => {
-              const isActive = r.status === "RUNNING" || r.status === "PENDING";
+            {filteredRuns.map((r) => {
+              const isActive = ["RUNNING", "PENDING", "CANCEL_REQUESTED"].includes(r.status);
               const pct = (r.progress?.done && r.progress?.total)
                 ? Math.round((r.progress.done / r.progress.total) * 100) : null;
               const symsTotal = r.config?.symbols?.length ?? (r.metrics as Record<string,number>|undefined)?.symbols ?? null;
               const symsDone = (r.metrics as Record<string,number>|undefined)?.symbols
                 ?? (r.progress?.done && r.progress?.total && symsTotal
                     ? Math.ceil((r.progress.done / r.progress.total) * Number(symsTotal)) : null);
+              const isWatchdogStale = staleRunIds.has(r.run_id);
               return (
-                <button key={r.run_id} onClick={() => setSelectedRunId(r.run_id)}
-                  className={`w-full text-left text-xs rounded px-2 py-2 border ${r.run_id === runId ? "border-primary bg-primary/10" : "border-transparent hover:bg-muted"}`}
+                <div key={r.run_id}
+                  className={`w-full text-xs rounded border ${r.run_id === runId ? "border-primary bg-primary/10" : "border-transparent hover:bg-muted"}`}
                   data-testid={`row-run-${r.run_id}`}>
-                  {/* Row 1: ID + config label + status */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-foreground">{configLabel(r)}</span>
-                    <span className="font-mono text-muted-foreground text-[10px]">{r.run_id}</span>
-                    <Badge variant="outline" className={`ml-auto ${
-                      r.status === "COMPLETED" ? "border-green-500 text-green-500"
-                        : r.status === "FAILED" ? "border-red-500 text-red-500"
-                          : r.status === "RUNNING" ? "border-blue-400 text-blue-400"
-                            : "border-amber-400 text-amber-400"}`}>{r.status}</Badge>
-                  </div>
-                  {/* Row 2: interval · date range · symbol list */}
-                  <div className="text-muted-foreground mt-0.5 truncate">
-                    {r.config?.interval} · {r.config?.start} → {r.config?.end}
-                    {r.config?.symbols?.length
-                      ? ` · [${r.config.symbols.slice(0,4).join(",")}${r.config.symbols.length > 4 ? `…+${r.config.symbols.length-4}` : ""}]`
-                      : ` · ${r.config?.universe ?? "configured"}`}
-                  </div>
-                  {/* Row 3: progress bar + tick count (running only) */}
-                  {isActive && r.progress?.total != null && (
-                    <div className="mt-1 space-y-0.5">
-                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                        <span>{r.progress.done ?? 0}/{r.progress.total} ticks</span>
-                        {symsTotal != null && <span>· {symsDone ?? "?"}/{symsTotal} syms</span>}
-                        {pct != null && <span className="text-foreground font-semibold">{pct}%</span>}
-                        <span className="ml-auto">{fmtElapsed(r.created_at)}</span>
-                        <span className="text-blue-400">{fmtETA(r.progress.done, r.progress.total, r.created_at)}</span>
-                      </div>
-                      <div className="h-1 bg-muted rounded overflow-hidden">
-                        <div className="h-full bg-blue-500 rounded transition-all" style={{ width: `${pct ?? 0}%` }} />
-                      </div>
+                  {/* Clickable body: select this run */}
+                  <div className="text-left px-2 pt-2 cursor-pointer"
+                    onClick={() => setSelectedRunId(r.run_id)}>
+                    {/* Row 1: ID + config label + status */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-foreground">{configLabel(r)}</span>
+                      <span className="font-mono text-muted-foreground text-[10px]">{r.run_id}</span>
+                      <Badge variant="outline" className={`ml-auto ${
+                        r.status === "COMPLETED" ? "border-green-500 text-green-500"
+                          : r.status === "FAILED" ? "border-red-500 text-red-500"
+                            : r.status === "STALE" ? "border-amber-500 text-amber-500"
+                              : r.status === "CANCEL_REQUESTED" ? "border-orange-400 text-orange-400"
+                                : r.status === "CANCELLED" ? "border-red-400/60 text-red-400/60"
+                                  : r.status === "RUNNING" ? "border-blue-400 text-blue-400"
+                                    : "border-amber-400 text-amber-400"}`}>{r.status}</Badge>
                     </div>
-                  )}
-                  {/* Row 4: latest symbol + timestamp (running) */}
-                  {isActive && (r.progress?.symbol || r.progress?.ts) && (
-                    <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-2">
-                      {r.progress.symbol && <span>↳ {r.progress.symbol}</span>}
-                      {r.progress.ts && <span>{tsShort(r.progress.ts)}</span>}
+                    {/* Row 2: interval · date range · symbol list */}
+                    <div className="text-muted-foreground mt-0.5 truncate">
+                      {r.config?.interval} · {r.config?.start} → {r.config?.end}
+                      {r.config?.symbols?.length
+                        ? ` · [${r.config.symbols.slice(0,4).join(",")}${r.config.symbols.length > 4 ? `…+${r.config.symbols.length-4}` : ""}]`
+                        : ` · ${r.config?.universe ?? "configured"}`}
                     </div>
-                  )}
-                  {/* Row 5: completed metrics summary */}
-                  {r.status === "COMPLETED" && r.metrics && (() => {
-                    const mm = r.metrics as Record<string, number>;
-                    return (
-                      <div className="mt-1 flex items-center gap-3 text-[10px]">
-                        <span className={`font-semibold ${mm.realized_pnl >= 0 ? "text-green-500" : "text-red-500"}`}>
-                          {fmtINR(mm.realized_pnl)} ({mm.net_return_pct}%)
-                        </span>
-                        <span className="text-muted-foreground">{mm.total_trades} trades · {mm.win_rate}% WR · {fmtElapsed(r.created_at)} total</span>
+                    {/* Row 3: progress bar + tick count (active only) */}
+                    {isActive && r.progress?.total != null && (
+                      <div className="mt-1 space-y-0.5">
+                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                          <span>{r.progress.done ?? 0}/{r.progress.total} ticks</span>
+                          {symsTotal != null && <span>· {symsDone ?? "?"}/{symsTotal} syms</span>}
+                          {pct != null && <span className="text-foreground font-semibold">{pct}%</span>}
+                          <span className="ml-auto">{fmtElapsed(r.created_at)}</span>
+                          <span className="text-blue-400">{fmtETA(r.progress.done, r.progress.total, r.created_at)}</span>
+                        </div>
+                        <div className="h-1 bg-muted rounded overflow-hidden">
+                          <div className="h-full bg-blue-500 rounded transition-all" style={{ width: `${pct ?? 0}%` }} />
+                        </div>
                       </div>
-                    );
-                  })()}
-                  {/* Row 6: error */}
-                  {r.error && (
-                    <div className="text-red-500 mt-0.5 text-[10px] break-words">{r.error.slice(0, 120)}</div>
-                  )}
-                </button>
+                    )}
+                    {/* Row 4: latest symbol + timestamp (active) */}
+                    {isActive && (r.progress?.symbol || r.progress?.ts) && (
+                      <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-2">
+                        {r.progress.symbol && <span>↳ {r.progress.symbol}</span>}
+                        {r.progress.ts && <span>{tsShort(r.progress.ts)}</span>}
+                      </div>
+                    )}
+                    {/* Row 5: completed metrics summary */}
+                    {r.status === "COMPLETED" && r.metrics && (() => {
+                      const mm = r.metrics as Record<string, number>;
+                      return (
+                        <div className="mt-1 flex items-center gap-3 text-[10px]">
+                          <span className={`font-semibold ${mm.realized_pnl >= 0 ? "text-green-500" : "text-red-500"}`}>
+                            {fmtINR(mm.realized_pnl)} ({mm.net_return_pct}%)
+                          </span>
+                          <span className="text-muted-foreground">{mm.total_trades} trades · {mm.win_rate}% WR · {fmtElapsed(r.created_at)} total</span>
+                        </div>
+                      );
+                    })()}
+                    {/* Row 6: watchdog warning (RUNNING, no progress for 30+ min) */}
+                    {r.status === "RUNNING" && isWatchdogStale && (
+                      <div className="text-amber-500 mt-0.5 text-[10px]"
+                        data-testid={`text-stale-${r.run_id}`}>
+                        ⚠ No progress for 30+ min — worker may be stuck
+                      </div>
+                    )}
+                    {/* Row 7: error */}
+                    {r.error && (
+                      <div className="text-red-500 mt-0.5 text-[10px] break-words">{r.error.slice(0, 120)}</div>
+                    )}
+                  </div>
+                  {/* Control buttons row — click is isolated from row selection */}
+                  <div className="px-2 pb-2 pt-1 flex items-center gap-1 flex-wrap"
+                    onClick={e => e.stopPropagation()}>
+                    {/* Stop / Cancel */}
+                    {["PENDING", "RUNNING", "CANCEL_REQUESTED"].includes(r.status) && (
+                      <button
+                        className="text-[10px] px-1.5 py-0.5 rounded border border-red-500/50 text-red-400 hover:bg-red-500/10 disabled:opacity-40"
+                        disabled={cancelMut.isPending || r.status === "CANCEL_REQUESTED"}
+                        onClick={() => cancelMut.mutate(r.run_id)}
+                        data-testid={`btn-cancel-${r.run_id}`}>
+                        {r.status === "CANCEL_REQUESTED" ? "Stopping…"
+                          : r.status === "PENDING" ? "Cancel" : "Stop"}
+                      </button>
+                    )}
+                    {/* Mark Stale (only visible when watchdog fires) */}
+                    {r.status === "RUNNING" && isWatchdogStale && (
+                      <button
+                        className="text-[10px] px-1.5 py-0.5 rounded border border-amber-500/50 text-amber-400 hover:bg-amber-500/10 disabled:opacity-40"
+                        disabled={markStaleMut.isPending}
+                        onClick={() => markStaleMut.mutate(r.run_id)}
+                        data-testid={`btn-mark-stale-${r.run_id}`}>
+                        Mark Stale
+                      </button>
+                    )}
+                    {/* Retry (fresh run, original preserved) */}
+                    {["FAILED", "STALE", "CANCELLED"].includes(r.status) && (
+                      <button
+                        className="text-[10px] px-1.5 py-0.5 rounded border border-blue-500/50 text-blue-400 hover:bg-blue-500/10 disabled:opacity-40"
+                        disabled={retryMut.isPending}
+                        onClick={() => retryMut.mutate(r.run_id)}
+                        data-testid={`btn-retry-${r.run_id}`}>
+                        Retry
+                      </button>
+                    )}
+                    {/* Hide (client-only, reversible via Show all) */}
+                    <button
+                      className="text-[10px] px-1.5 py-0.5 rounded border border-border text-muted-foreground hover:bg-muted/50 ml-auto"
+                      onClick={() => hideRun(r.run_id)}
+                      data-testid={`btn-hide-${r.run_id}`}>
+                      Hide
+                    </button>
+                  </div>
+                </div>
               );
             })}
           </CardContent>

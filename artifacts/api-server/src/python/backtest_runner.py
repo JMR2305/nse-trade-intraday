@@ -545,7 +545,8 @@ def execute_run(run_id: str) -> Dict[str, Any]:
                 per_symbol[sym] = [c for c in d["candles"]
                                    if start <= c["ts"][:10] <= end]
             bp.update_run(run_id, progress={
-                "phase": "DATA", "done": i + 1, "total": len(universe)})
+                "phase": "DATA", "done": i + 1, "total": len(universe),
+                "progress_updated_at": datetime.now(timezone.utc).isoformat()})
         emit("SCAN_FETCH_COMPLETED", "SUPERVISOR", scan_id=run_id,
              mode="BACKTEST", run_id=run_id,
              payload={"symbols_ok": len(per_symbol),
@@ -605,6 +606,16 @@ def execute_run(run_id: str) -> Dict[str, Any]:
                         mark=float(bar["close"]) if bar else None)
 
             if tick_i % 5 == 0 or tick_i == tick_count - 1:
+                # Cancellation checkpoint — checked every 5 ticks (piggybacks on
+                # the progress write; no extra DB round-trip on other ticks).
+                _cur_status = bp.get_run_status(run_id)
+                if _cur_status == "CANCEL_REQUESTED":
+                    bp.update_run(run_id, status="CANCELLED",
+                                  error="Cancelled by operator",
+                                  completed_at=datetime.now(timezone.utc))
+                    return {"ok": False, "run_id": run_id, "cancelled": True,
+                            "ticks_completed": tick_i,
+                            "message": "Run cancelled by operator at checkpoint"}
                 snap_marks = {s: float(b["close"]) for s, b in bars.items()}
                 snap = bp.portfolio_snapshot(run_id, snap_marks)
                 emit("PORTFOLIO_UPDATED", "PORTFOLIO", scan_id=scan_id,
@@ -615,7 +626,8 @@ def execute_run(run_id: str) -> Dict[str, Any]:
                               "realized_pnl": snap["realized_pnl"]})
                 bp.update_run(run_id, progress={
                     "phase": "REPLAY", "done": tick_i + 1, "total": tick_count,
-                    "ts": ts_iso, "cash": round(cash, 2)})
+                    "ts": ts_iso, "cash": round(cash, 2),
+                    "progress_updated_at": datetime.now(timezone.utc).isoformat()})
 
         # 3. Close whatever is still open at the final candle close.
         last_close: Dict[str, float] = {}

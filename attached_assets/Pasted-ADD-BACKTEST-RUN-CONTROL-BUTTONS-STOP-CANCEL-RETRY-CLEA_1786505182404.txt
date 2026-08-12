@@ -1,0 +1,161 @@
+ADD BACKTEST RUN CONTROL BUTTONS — STOP / CANCEL / RETRY / CLEAR STALE
+
+Issue:
+Investigation Center shows stuck RUNNING backtest runs, but there is no UI option to stop, cancel, clear, or retry them.
+
+Current problem:
+- Some runs show RUNNING for many hours with no progress.
+- ETA becomes absurd.
+- Operator cannot stop or clear the run from the UI.
+- This blocks confidence in the frontend backtest monitor.
+
+Do not add a new page.
+Do not change strategy logic.
+Do not change BUY/SELL thresholds.
+Do not change live/paper defaults.
+Do not place live orders.
+PAPER / RESEARCH ONLY.
+
+TASK 1 — ADD RUN STATUS CONTROL MODEL
+
+Support these statuses for backtest runs:
+
+- QUEUED
+- RUNNING
+- COMPLETED
+- FAILED
+- STALE
+- CANCEL_REQUESTED
+- CANCELLED
+
+Do not delete run history by default.
+
+TASK 2 — ADD BACKEND CANCEL ENDPOINT
+
+Add endpoint:
+
+POST /api/backtest/run/:id/cancel
+
+Behaviour:
+- If run is QUEUED: mark CANCELLED immediately.
+- If run is RUNNING: mark CANCEL_REQUESTED and persist cancel_requested_at.
+- If worker is alive, it should check cancellation regularly and stop safely.
+- If worker is already dead/stale, mark CANCELLED or STALE with reason:
+  "Cancelled by operator or no active worker found."
+- Preserve partial events/trades for audit.
+- Do not corrupt completed runs.
+- Do not allow cancelling COMPLETED runs.
+
+TASK 3 — ADD WORKER CANCELLATION CHECK
+
+Inside the backtest runner loop:
+
+At safe checkpoints, ideally every tick or every few ticks:
+- check whether run status is CANCEL_REQUESTED
+- if yes:
+  - stop processing
+  - mark run CANCELLED
+  - store progress
+  - store message: "Cancelled by operator"
+  - exit cleanly
+
+No partial trade corruption.
+No live tables touched.
+
+TASK 4 — ADD MARK STALE / FAIL ENDPOINT
+
+Add endpoint:
+
+POST /api/backtest/run/:id/mark-stale
+
+Use only for RUNNING runs with no progress/heartbeat for 30+ minutes.
+
+Behaviour:
+- mark status STALE or FAILED
+- store last_error:
+  "No progress for X minutes. Worker likely stopped."
+- preserve partial data
+- stop ETA from showing nonsense
+
+TASK 5 — ADD RETRY ENDPOINT
+
+Add endpoint:
+
+POST /api/backtest/run/:id/retry
+
+Behaviour:
+- create a new run with same config
+- new run_id
+- old run remains CANCELLED/STALE/FAILED for audit
+- do not resume into old run unless true resume is implemented
+- do not duplicate old trades/events
+
+TASK 6 — ADD UI CONTROLS IN EXISTING INVESTIGATION CENTER
+
+In Backtest Runs card, add buttons:
+
+For QUEUED:
+- Cancel
+
+For RUNNING:
+- Stop
+- Mark stale if no progress > 30 min
+
+For STALE / FAILED / CANCELLED:
+- Retry
+- Hide from list
+
+For COMPLETED:
+- no cancel button
+- optional Hide from list only
+
+Do not add a new page.
+
+TASK 7 — ADD CLEAR / FILTER OPTIONS
+
+Add simple filters in the Backtest Runs card:
+
+- Show active only
+- Show completed
+- Show failed/stale/cancelled
+- Show all
+
+Add button:
+"Hide failed/stale/cancelled runs"
+
+This should hide them from the frontend list, not delete them from DB.
+
+TASK 8 — ADD WATCHDOG
+
+If RUNNING and no progress/heartbeat for 30+ minutes:
+- automatically mark STALE
+- show red status badge
+- show reason
+- show Retry button
+
+TASK 9 — CLEAN CURRENT STUCK RUNS
+
+For current stuck runs visible in Investigation Center:
+- inspect each RUNNING run
+- if no progress/heartbeat for 30+ minutes, mark STALE
+- preserve partial data
+- allow retry from UI
+
+TASK 10 — VERIFICATION REPORT
+
+Produce:
+
+BACKTEST_RUN_CONTROLS_VERIFICATION.md
+
+Include:
+1. Cancel endpoint result.
+2. Mark-stale endpoint result.
+3. Retry endpoint result.
+4. UI buttons added.
+5. Current stuck runs cleaned up.
+6. Confirmation completed runs were not corrupted.
+7. Confirmation live/paper defaults unchanged.
+8. Confirmation no live orders placed.
+9. Recommended safe run approach: one 20-symbol config at a time, not many parallel runs.
+
+Stop after report.

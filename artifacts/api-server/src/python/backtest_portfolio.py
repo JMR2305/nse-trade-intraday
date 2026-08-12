@@ -282,6 +282,112 @@ def list_runs(limit: int = 50) -> List[Dict[str, Any]]:
     return list(reversed(_load(_RUNS_FILE)))[:limit]
 
 
+# ── Run lifecycle controls (cancel / stale / retry) ───────────────────────────
+
+TERMINAL_STATUSES = {"COMPLETED", "CANCELLED", "STALE", "FAILED"}
+
+
+def get_run_status(run_id: str) -> Optional[str]:
+    """Fast status-only check — avoids deserialising the full run row."""
+    if db_available():
+        conn = _connect()
+        try:
+            _ensure_schema(conn)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT status FROM backtest_runs WHERE run_id = %s", (run_id,))
+                r = cur.fetchone()
+                return r[0] if r else None
+        finally:
+            conn.close()
+    for r in _load(_RUNS_FILE):
+        if r["run_id"] == run_id:
+            return r.get("status")
+    return None
+
+
+def cancel_run(run_id: str) -> Dict[str, Any]:
+    """Cancel a PENDING or RUNNING run.
+    PENDING → CANCELLED immediately.
+    RUNNING → CANCEL_REQUESTED (worker stops at next tick checkpoint).
+    Terminal statuses (COMPLETED/CANCELLED/STALE/FAILED) → error.
+    Partial events and trades are always preserved."""
+    run = get_run(run_id)
+    if not run:
+        return {"ok": False, "error": f"Run {run_id} not found"}
+    status = run.get("status")
+    if status in TERMINAL_STATUSES:
+        return {"ok": False,
+                "error": f"Run {run_id} is already {status}; cannot cancel a terminal run"}
+    if status == "CANCEL_REQUESTED":
+        return {"ok": True, "run_id": run_id, "status": "CANCEL_REQUESTED",
+                "message": "Cancel already requested — worker will stop at next checkpoint"}
+    now = _now_iso()
+    if status == "PENDING":
+        update_run(run_id, status="CANCELLED", error="Cancelled by operator",
+                   completed_at=now)
+        return {"ok": True, "run_id": run_id, "status": "CANCELLED",
+                "message": "Run was PENDING; cancelled immediately. Partial data preserved."}
+    # RUNNING → CANCEL_REQUESTED
+    progress = dict(run.get("progress") or {})
+    progress["cancel_requested_at"] = now
+    update_run(run_id, status="CANCEL_REQUESTED", progress=progress)
+    return {"ok": True, "run_id": run_id, "status": "CANCEL_REQUESTED",
+            "message": ("Cancel requested. Worker stops at next checkpoint (≤5 ticks). "
+                        "Partial events and trades preserved.")}
+
+
+def mark_stale_run(run_id: str) -> Dict[str, Any]:
+    """Mark a RUNNING or CANCEL_REQUESTED run STALE.
+    Use when the worker appears dead (no progress for 30+ minutes).
+    Preserves all partial events and trades for audit."""
+    run = get_run(run_id)
+    if not run:
+        return {"ok": False, "error": f"Run {run_id} not found"}
+    status = run.get("status")
+    if status not in ("RUNNING", "CANCEL_REQUESTED"):
+        return {"ok": False,
+                "error": (f"Run {run_id} is {status}; mark-stale only applies "
+                          "to RUNNING or CANCEL_REQUESTED runs")}
+    progress = run.get("progress") or {}
+    last_ts_str = (progress.get("progress_updated_at")
+                   or run.get("started_at")
+                   or run.get("created_at"))
+    minutes: Optional[float] = None
+    if last_ts_str:
+        try:
+            last_dt = datetime.fromisoformat(str(last_ts_str).replace("Z", "+00:00"))
+            if last_dt.tzinfo is None:
+                last_dt = last_dt.replace(tzinfo=timezone.utc)
+            minutes = round(
+                (datetime.now(timezone.utc) - last_dt).total_seconds() / 60.0, 1)
+        except Exception:
+            pass
+    reason = (f"No progress for {minutes} minutes. Worker likely stopped."
+              if minutes is not None else "No recent progress. Worker likely stopped.")
+    update_run(run_id, status="STALE", error=reason)
+    return {"ok": True, "run_id": run_id, "status": "STALE",
+            "minutes_stale": minutes, "message": reason}
+
+
+def retry_run(run_id: str) -> Dict[str, Any]:
+    """Create a new PENDING run with the same config as `run_id`.
+    The original run is preserved unchanged for audit.
+    Does NOT resume — always starts fresh from tick 0."""
+    run = get_run(run_id)
+    if not run:
+        return {"ok": False, "error": f"Run {run_id} not found"}
+    config = dict(run.get("config") or {})
+    # Strip replay-time state that must not carry over to a fresh run
+    config.pop("cash_by_tick", None)
+    config.pop("learning_fingerprint", None)
+    new_run_id = create_run(config)
+    return {"ok": True, "original_run_id": run_id, "new_run_id": new_run_id,
+            "status": "PENDING",
+            "message": (f"New run {new_run_id} created from config of {run_id}. "
+                        f"Original run preserved for audit.")}
+
+
 # ── Trades (backtest execution ledger) ───────────────────────────────────────
 
 _TRADE_COLS = ["trade_id", "run_id", "scan_id", "symbol", "strategy_id",

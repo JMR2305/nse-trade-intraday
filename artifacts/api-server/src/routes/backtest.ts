@@ -204,6 +204,33 @@ router.get("/backtest/run/:id/replay-verify", async (req, res) => {
   }
 });
 
+/** Cancel a PENDING or RUNNING run. */
+router.post("/backtest/run/:id/cancel", async (req, res) => {
+  try {
+    res.json(await runPython(["backtest_cancel", JSON.stringify({ run_id: req.params.id })], 15_000));
+  } catch (err) {
+    fail(res, err);
+  }
+});
+
+/** Mark a stuck RUNNING run as STALE (worker likely dead). */
+router.post("/backtest/run/:id/mark-stale", async (req, res) => {
+  try {
+    res.json(await runPython(["backtest_mark_stale", JSON.stringify({ run_id: req.params.id })], 15_000));
+  } catch (err) {
+    fail(res, err);
+  }
+});
+
+/** Create a new run with the same config. Old run preserved for audit. */
+router.post("/backtest/run/:id/retry", async (req, res) => {
+  try {
+    res.json(await runPython(["backtest_retry", JSON.stringify({ run_id: req.params.id })], 15_000));
+  } catch (err) {
+    fail(res, err);
+  }
+});
+
 /** Ingest backtest missed opportunities into Phase-24 learning store. */
 router.post("/backtest/run/:id/ingest-missed", async (req, res) => {
   try {
