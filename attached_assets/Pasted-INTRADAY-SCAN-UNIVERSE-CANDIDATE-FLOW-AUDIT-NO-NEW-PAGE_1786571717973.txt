@@ -1,0 +1,209 @@
+INTRADAY SCAN UNIVERSE + CANDIDATE FLOW AUDIT — NO NEW PAGE
+
+Issue:
+For intraday trading, we need full transparency into:
+
+1. Which stocks the AI is tracking.
+2. What universe it starts with.
+3. What scan interval/cadence is used.
+4. What candle interval is used for indicators.
+5. How many scans happened during the trading session.
+6. Which stocks were received, missing, dropped, ignored, watched, bought, or rejected.
+7. Why each stock was dropped at each stage.
+8. Whether a BUY candidate reached execution or was blocked.
+
+Do not add a new page.
+Do not change strategy logic.
+Do not change thresholds.
+Do not enable live orders.
+Do not bypass risk gates.
+PAPER ONLY.
+
+Use existing AI Paper Trader / Investigation Center / Mission Control components only.
+
+TASK 1 — CURRENT INTRADAY UNIVERSE MAP
+
+Produce the exact current intraday universe.
+
+Show:
+
+- configured universe list
+- requested symbols count
+- actual symbols requested today
+- symbols received successfully
+- symbols missing / unavailable
+- symbols deprecated / replaced
+- symbols excluded before scan
+- symbols excluded after data fetch
+- final symbols evaluated
+
+For each symbol show:
+
+- symbol
+- company name
+- sector
+- current mapped NSE symbol
+- instrument token if available
+- provider used: Zerodha / yfinance / fallback
+- tradable: yes/no
+- reason if not tradable
+- data quality: LIVE / DELAYED / FALLBACK / UNAVAILABLE
+
+Special check:
+Confirm old TATAMOTORS is fully removed or marked deprecated.
+Confirm TMPV and TMCV are used correctly if included.
+
+TASK 2 — SCAN CADENCE AND INTERVAL AUDIT
+
+For today’s session, show:
+
+- market open time
+- first scan time
+- last scan time
+- number of scans completed
+- scheduled cadence, e.g. every 6 minutes
+- actual average gap between scans
+- missed scans, if any
+- scan duration min / avg / max
+- whether scans ran during pre-open
+- whether scans stopped after market close
+
+Also show the data interval used for live scan indicators:
+
+- 1m / 5m / 15m / daily?
+- how many candles are used per symbol
+- whether RSI / EMA / MACD / VWAP use intraday candles or daily candles
+- whether volume ratio uses intraday session volume or daily average
+- whether time-normalized volume is active in live scan or backtest only
+
+TASK 3 — PER-SCAN PIPELINE BREAKDOWN
+
+For each scan today, show:
+
+- scan_id
+- started_at IST
+- completed_at IST
+- duration seconds
+- requested symbols
+- received symbols
+- unavailable symbols
+- fallback symbols
+- evaluated symbols
+- BUY count
+- STRONG BUY count
+- WATCH count
+- AVOID / IGNORE count
+- RISK_REJECTED count
+- paper eligible count
+- auto-entry attempted count
+- order submitted count
+- order rejected count
+- order executed count
+
+TASK 4 — PER-SYMBOL DROP REASON
+
+For the latest scan and for the 15:18 scan, show each symbol’s journey:
+
+Universe
+→ data fetch
+→ market intelligence
+→ monitoring
+→ strategy
+→ AI decision
+→ risk
+→ portfolio pre-check
+→ execution
+
+For each symbol, classify final status:
+
+- NOT_REQUESTED
+- DATA_UNAVAILABLE
+- FALLBACK_BLOCKED
+- SCANNED
+- WATCH
+- IGNORE
+- BUY_GENERATED
+- RISK_REJECTED
+- PORTFOLIO_BLOCKED
+- EXECUTION_REJECTED
+- PAPER_ORDER_EXECUTED
+
+For every dropped symbol, show exact reason:
+
+Examples:
+- data unavailable
+- deprecated symbol
+- sector not top-ranked
+- volume too low
+- opportunity score below threshold
+- confidence below threshold
+- risk/reward below minimum
+- per-stock cap exceeded
+- market closed
+- scan stale
+- fallback data not tradable
+- existing position
+- daily trade limit reached
+
+TASK 5 — UI VISIBILITY IN EXISTING PAGE
+
+In AI Paper Trader, add or verify an expandable section:
+
+"Intraday Scan Coverage"
+
+It should show:
+
+- Current universe size
+- Requested / received / missing
+- Scan cadence
+- Last scan time
+- Last scan duration
+- Next scan due
+- Data provider status
+- Live/fallback/unavailable counts
+- Latest BUY/WATCH/IGNORE breakdown
+- Missing symbols list
+- Dropped symbols list with reason
+
+Do not create a new page.
+
+TASK 6 — DIAGNOSTIC ENDPOINT
+
+Add read-only endpoint:
+
+GET /api/auto-paper/scan-coverage?date=today
+
+Return:
+
+- universe
+- scans
+- per_scan_counts
+- per_symbol_flow
+- dropped_reason_summary
+- current_config
+- scheduler_status
+
+This must be read-only.
+No trading side effects.
+
+TASK 7 — REPORT
+
+Produce:
+
+INTRADAY_SCAN_UNIVERSE_AND_CANDIDATE_FLOW_AUDIT.md
+
+Include:
+
+1. Exact current universe.
+2. How many stocks AI tracks.
+3. Scan cadence.
+4. Indicator candle interval.
+5. Number of scans today.
+6. Requested vs received symbols.
+7. Missing symbols.
+8. Dropped symbols and reasons.
+9. BUY/WATCH/IGNORE counts by scan.
+10. Why symbols move from 50 → 48 → 3 → 0.
+11. Whether any data issue remains.
+12. Whether any UI improvement was added.
+13. Confirmation no thresholds or trading logic changed.

@@ -163,6 +163,45 @@ def get_pipeline_stats() -> Dict[str, Any]:
     except Exception as exc:
         stage_errors.append(f"evaluate_entries: {exc}")
 
+    # ── Consecutive-block counts from buy_pipeline_eval_history ──────────────
+    # For each blocked candidate, count how many consecutive BUY-candidate
+    # pipeline evaluations it has appeared in as blocked.  We read from the
+    # dedicated buy_pipeline_eval_history key (written only by the canonical
+    # default evaluate_entries() call — not by ad-hoc audit callers that pass
+    # an explicit candidate_symbols list).  This prevents audit invocations for
+    # the same scan_id from contaminating the streak via the dedup guard.
+    #
+    # Walk newest → oldest; the first entry where the symbol is absent
+    # terminates the streak so a single clean scan correctly resets it to zero.
+    consecutive_blocks: Dict[str, int] = {}
+    try:
+        from phase20_store import kv_get
+        _bp_hist: List[Dict[str, Any]] = kv_get("buy_pipeline_eval_history") or []
+        # Symbols of interest: only those currently blocked in candidate_details
+        _blocked_now = {
+            c["symbol"] for c in candidate_details
+            if c.get("symbol") and not c.get("eligible")
+        }
+        if _blocked_now and _bp_hist:
+            for sym in _blocked_now:
+                count = 0
+                # Walk history newest → oldest; stop when symbol not blocked
+                for entry in reversed(_bp_hist):
+                    if sym in set(entry.get("blocked_symbols") or []):
+                        count += 1
+                    else:
+                        break
+                if count > 0:
+                    consecutive_blocks[sym] = count
+    except Exception as exc:
+        stage_errors.append(f"consecutive_blocks: {exc}")
+
+    # Attach consecutive_blocks to candidate_details
+    for det in candidate_details:
+        sym = det.get("symbol")
+        if sym and sym in consecutive_blocks:
+            det["consecutive_blocks"] = consecutive_blocks[sym]
+
     # ── Stage 8-9: Paper trade ledger ────────────────────────────────────────
     paper_orders_today = 0
     open_positions     = 0

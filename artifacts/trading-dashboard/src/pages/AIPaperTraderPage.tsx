@@ -651,19 +651,29 @@ interface PipelineFunnelStage {
 
 interface PipelineStats {
   generated_at?: string;
+
   scan_id?: string;
+
   snapshot_ts?: string;      // UTC ISO — when the scan that produced signals was run
+
   scan_age_s?: number;       // seconds since snapshot_ts at evaluation time
+
   scan_available?: boolean;
+
   eval_available?: boolean;
+
   funnel?: PipelineFunnelStage[];
+
   first_blocker?: string | null;
+
   top_buy_candidates?: {
     symbol: string; action: string;
     opportunity_score: number; confidence: number;
     technical_score: number; rr_ratio: number;
     regime: string; data_quality: string;
+
   }[];
+
   candidate_gate_details?: {
     symbol: string; eligible: boolean; failed_gates: string[];
     /** gate_name → human-readable reason string, e.g. "Post-trade DRREDDY exposure 21.5% (cap 20%)" */
@@ -672,13 +682,17 @@ interface PipelineStats {
     auto_entry_attempted?: boolean;
     /** ELIGIBLE | ORDER_CREATED | SKIPPED_GATE_FAILED */
     entry_outcome?: string;
+    /** How many consecutive evaluation scans this symbol has been blocked (≥1 when present). */
+    consecutive_blocks?: number;
     opportunity_score: number; confidence: number;
   }[];
+
   settings?: {
     min_confidence?: number; min_opportunity_score?: number;
     min_trade_quality?: number; min_risk_reward?: number;
     max_trades_per_day?: number; auto_paper_entries?: boolean;
   };
+
   summary?: {
     stocks_scanned: number; live_data_count: number;
     passed_intelligence: number; buy_signals: number;
@@ -686,6 +700,7 @@ interface PipelineStats {
     candidates_eligible: number; paper_orders_today: number;
     open_positions: number;
   };
+
   gate_summary?: {
     total_buy_signals: number;
     scan_stale: boolean;
@@ -694,6 +709,7 @@ interface PipelineStats {
     global_blocked_counts: Record<string, number>;
     candidate_blocked_counts: Record<string, number>;
   };
+
   stage_errors?: string[];
 }
 
@@ -1065,6 +1081,17 @@ function SPipelineStats() {
                     <div key={c.symbol} className="flex items-start gap-2 text-[10px]">
                       <span className="font-mono text-rose-300 w-16 flex-shrink-0 pt-0.5">{c.symbol}</span>
                       <div className="flex-1 space-y-1">
+                        {/* Consecutive-block streak badge — only shown when blocked across ≥2 scans */}
+                        {(c.consecutive_blocks ?? 0) > 1 && (
+                          <div className="mb-0.5">
+                            <span
+                              className="inline-flex items-center gap-1 text-[9px] font-medium bg-amber-950/60 border border-amber-700/50 text-amber-300 rounded px-1.5 py-0.5"
+                              title={`This symbol has been blocked by a gate in every one of the last ${c.consecutive_blocks} consecutive scans.`}
+                            >
+                              🔁 {c.consecutive_blocks} consecutive scan{c.consecutive_blocks !== 1 ? "s" : ""} blocked
+                            </span>
+                          </div>
+                        )}
                         {/* Execution outcome badge */}
                         <div className="flex items-center gap-1.5 mb-0.5">
                           {c.entry_outcome === "SKIPPED_GATE_FAILED" && (

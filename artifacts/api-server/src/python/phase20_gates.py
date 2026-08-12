@@ -450,10 +450,17 @@ def evaluate_entries(candidate_symbols: Optional[List[str]] = None) -> Dict[str,
         store.kv_set("entry_eval_counters", counters)
         # Append lightweight summary to evaluation_history (dedup by scan_id, max 60)
         _gate_blocked: Dict[str, int] = {}
+        _blocked_symbols: List[str] = []
         for _c in candidates:
+            _sym_blocked = False
             for _g in _c.get("gates", []):
                 if not _g["passed"]:
                     _gate_blocked[_g["gate"]] = _gate_blocked.get(_g["gate"], 0) + 1
+                    _sym_blocked = True
+            if _sym_blocked:
+                _sym = _c.get("symbol")
+                if _sym:
+                    _blocked_symbols.append(_sym)
         _hist: List[Dict[str, Any]] = store.kv_get("evaluation_history") or []
         _scan_id = evaluation.get("scan_id")
         if not _hist or _hist[-1].get("scan_id") != _scan_id:
@@ -465,6 +472,24 @@ def evaluate_entries(candidate_symbols: Optional[List[str]] = None) -> Dict[str,
                 "gate_blocked_counts": _gate_blocked,
             })
             store.kv_set("evaluation_history", _hist[-60:])
+        # ── Per-symbol consecutive-block history (canonical pipeline only) ───
+        # Only written when this is the default BUY-candidate evaluation
+        # (candidate_symbols is None).  Ad-hoc callers (gate_rejection_audit,
+        # phase24 missed-opportunity analysis) pass an explicit symbol list and
+        # must NOT pollute this key — they evaluate all symbols, not just the
+        # current BUY candidates, and the scan-id dedup would otherwise let a
+        # non-BUY audit invocation win the slot and report a misleading streak.
+        if candidate_symbols is None:
+            _bp_hist: List[Dict[str, Any]] = (
+                store.kv_get("buy_pipeline_eval_history") or []
+            )
+            if not _bp_hist or _bp_hist[-1].get("scan_id") != _scan_id:
+                _bp_hist.append({
+                    "evaluated_at": evaluation["evaluated_at"],
+                    "scan_id": _scan_id,
+                    "blocked_symbols": _blocked_symbols,
+                })
+                store.kv_set("buy_pipeline_eval_history", _bp_hist[-60:])
         # Structured pipeline cycle log (P8 — per-cycle structured audit trail)
         try:
             _cycle_log: List[Dict[str, Any]] = store.kv_get("pipeline_cycle_log") or []
