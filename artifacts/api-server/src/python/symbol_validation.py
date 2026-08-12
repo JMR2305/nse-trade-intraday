@@ -208,6 +208,25 @@ def validate_symbol(raw: Any, *, context: str = "generic",
             out["reason"] += f". Similar: {', '.join(c['symbol'] for c in candidates)}"
         return out
 
+    # Deprecated-symbol check: give a specific, actionable rejection message
+    # BEFORE the generic "outside universe" check so operators know exactly
+    # what happened (corporate action) rather than seeing a cryptic rejection.
+    if sym in DEPRECATED_SYMBOLS:
+        info = DEPRECATED_SYMBOLS[sym]
+        reason = (
+            f"'{sym}' is deprecated — {info['reason']} "
+            f"Use '{info['replacement']}' (and '{info.get('also_see', '')}') instead."
+        )
+        _track(raw, context, False, "deprecated symbol (corporate action)")
+        return {
+            "valid": False,
+            "reason": reason,
+            "deprecated": True,
+            "replacement": info["replacement"],
+            "also_see": info.get("also_see"),
+            "action": info.get("action"),
+        }
+
     if require_universe and sym not in config.NIFTY_50:
         reason = (f"'{sym}' is outside the approved NIFTY 50 research universe")
         _track(raw, context, False, reason)
@@ -236,7 +255,10 @@ COMPANY_NAMES: Dict[str, str] = {
     "COALINDIA": "Coal India",
     "LT": "Larsen & Toubro", "ULTRACEMCO": "UltraTech Cement", "GRASIM": "Grasim Industries",
     "ADANIPORTS": "Adani Ports & SEZ",
-    "MARUTI": "Maruti Suzuki India", "TATAMOTORS": "Tata Motors",
+    "MARUTI": "Maruti Suzuki India",
+    # TATAMOTORS was replaced by TMPV + TMCV after the 2024 Tata Motors demerger.
+    "TMPV": "Tata Motors Passenger Vehicles Ltd",
+    "TMCV": "Tata Motors Commercial Vehicles Ltd",
     "BAJAJ-AUTO": "Bajaj Auto", "EICHERMOT": "Eicher Motors",
     "M&M": "Mahindra & Mahindra", "HEROMOTOCO": "Hero MotoCorp",
     "HINDUNILVR": "Hindustan Unilever", "NESTLEIND": "Nestle India",
@@ -258,6 +280,30 @@ ALIASES: Dict[str, str] = {
     "NESTLE": "NESTLEIND", "ULTRATECH": "ULTRACEMCO", "APOLLO": "APOLLOHOSP",
     "HERO": "HEROMOTOCO", "SUZUKI": "MARUTI", "DRL": "DRREDDY",
     "TATA CONSULTANCY": "TCS", "UNILEVER": "HINDUNILVR",
+    # Passenger-vehicle shorthand → canonical post-demerger ticker
+    "TATA MOTORS PV": "TMPV", "TATA MOTORS CV": "TMCV",
+}
+
+# ── Deprecated / stale symbols (corporate actions, demergers, suspensions) ───
+# Symbols in this dict are NEVER allowed in the watchlist, scan universe or
+# paper portfolio — the validator returns a clear rejection with the
+# replacement ticker.  No BUY/STRONG BUY can be generated from them.
+DEPRECATED_SYMBOLS: Dict[str, Dict[str, str]] = {
+    "TATAMOTORS": {
+        "reason": (
+            "TATAMOTORS was demerged in 2024. The NSE equity line has been "
+            "split into two separate tradeable instruments: "
+            "TMPV (Tata Motors Passenger Vehicles Ltd, ~₹343) and "
+            "TMCV (Tata Motors Commercial Vehicles Ltd, ~₹457). "
+            "Prices fetched for TATAMOTORS.NS from yfinance are invalid "
+            "(the ticker raises an exchange-metadata error). "
+            "No BUY signal should be generated from TATAMOTORS data."
+        ),
+        "replacement": "TMPV",
+        "also_see": "TMCV",
+        "deprecated_since": "2024",
+        "action": "DATA_UNAVAILABLE — no BUY allowed",
+    },
 }
 
 

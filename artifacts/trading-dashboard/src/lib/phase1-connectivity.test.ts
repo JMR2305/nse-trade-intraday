@@ -176,7 +176,7 @@ describe("Phase 1 · test 6 — cached outage shows CACHED", () => {
 describe("Phase 1 · test 7 — partial data shows DELAYED", () => {
   it("returns DELAYED when symbols are missing", async () => {
     const { deriveDataStatus } = await import("../components/DataFreshnessBar");
-    const partialMeta = { ...GOOD_META, symbols_missing: 2, missing_symbols: ["LTIM", "TATAMOTORS"] };
+    const partialMeta = { ...GOOD_META, symbols_missing: 2, missing_symbols: ["LTIM", "TMPV"] };
     // Weekday current_time so market-closed branch doesn't fire
     const weekdaySt = { ...GOOD_ST, current_time: "2026-07-21T06:30:00Z", stale: false }; // Tuesday 12:00 IST
     expect(deriveDataStatus(false, false, false, partialMeta, weekdaySt as never)).toBe("DELAYED");

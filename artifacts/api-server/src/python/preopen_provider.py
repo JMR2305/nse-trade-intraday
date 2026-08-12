@@ -204,7 +204,8 @@ FIXTURE_SNAPSHOTS: List[Dict] = [
     {"symbol": "INFY",         "prev_close": 1500.0,  "ind_price": 1425.0,  "buy_qty": 30000,  "sell_qty": 90000,  "volume": 60000,  "age_seconds": 45,  "sector": "IT"},
     {"symbol": "TCS",          "prev_close": 3500.0,  "ind_price": 3500.5,  "buy_qty": 50000,  "sell_qty": 52000,  "volume": 40000,  "age_seconds": 60,  "sector": "IT"},
     {"symbol": "HDFCBANK",     "prev_close": 1700.0,  "ind_price": 1734.0,  "buy_qty": 80000,  "sell_qty": 60000,  "volume": 95000,  "age_seconds": 20,  "sector": "Banking"},
-    {"symbol": "TATAMOTORS",   "prev_close": 900.0,   "ind_price": 864.0,   "buy_qty": 20000,  "sell_qty": 110000, "volume": 70000,  "age_seconds": 55,  "sector": "Auto"},
+    # TATAMOTORS removed (demerger 2024). TMPV replaces it in the Auto fixture.
+    {"symbol": "TMPV",         "prev_close": 340.0,   "ind_price": 343.0,   "buy_qty": 20000,  "sell_qty": 45000,  "volume": 55000,  "age_seconds": 55,  "sector": "Auto"},
     {"symbol": "WIPRO",        "prev_close": 450.0,   "ind_price": 454.5,   "buy_qty": 35000,  "sell_qty": 33000,  "volume": 25000,  "age_seconds": 90,  "sector": "IT"},
     {"symbol": "SUNPHARMA",    "prev_close": 1200.0,  "ind_price": 1260.0,  "buy_qty": 60000,  "sell_qty": 10000,  "volume": 55000,  "age_seconds": 15,  "sector": "Pharma"},
     {"symbol": "ITC",          "prev_close": 460.0,   "ind_price": 441.6,   "buy_qty": 15000,  "sell_qty": 85000,  "volume": 80000,  "age_seconds": 40,  "sector": "FMCG"},

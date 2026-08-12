@@ -97,7 +97,12 @@ SECTOR_MAP: dict[str, list[str]] = {
     "FINANCE":   ["BAJFINANCE", "BAJAJFINSV", "HDFCLIFE", "SBILIFE", "SHRIRAMFIN"],
     "ENERGY":    ["RELIANCE", "ONGC", "POWERGRID", "NTPC", "COALINDIA"],
     "INFRA":     ["LT", "ULTRACEMCO", "GRASIM", "ADANIPORTS"],
-    "AUTO":      ["MARUTI", "TATAMOTORS", "BAJAJ-AUTO", "EICHERMOT", "M&M", "HEROMOTOCO"],
+    # TATAMOTORS was removed 2026-08-12 after the Tata Motors demerger.
+    # NSE no longer has a tradeable TATAMOTORS equity; the two successor
+    # instruments are TMPV (Tata Motors Passenger Vehicles Ltd, ~₹343) and
+    # TMCV (Tata Motors Commercial Vehicles Ltd, ~₹457).  Both are live on
+    # NSE and yfinance responds to TMPV.NS and TMCV.NS correctly.
+    "AUTO":      ["MARUTI", "TMPV", "TMCV", "BAJAJ-AUTO", "EICHERMOT", "M&M", "HEROMOTOCO"],
     "FMCG":      ["HINDUNILVR", "NESTLEIND", "BRITANNIA", "ITC", "TATACONSUM"],
     "PHARMA":    ["SUNPHARMA", "CIPLA", "DRREDDY", "DIVISLAB", "APOLLOHOSP"],
     "METALS":    ["TATASTEEL", "HINDALCO", "JSWSTEEL", "ADANIENT"],

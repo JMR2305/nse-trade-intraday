@@ -350,7 +350,8 @@ def sim_07_multiple_positions() -> Dict[str, Any]:
         symbols_affordable = [
             ("SBIN",       1,  600.0,  570.0,  660.0),
             ("WIPRO",      2,  300.0,  285.0,  330.0),
-            ("TATAMOTORS", 1,  800.0,  760.0,  880.0),
+            # TATAMOTORS deprecated (2024 demerger); replaced by TMPV (~₹343).
+            ("TMPV",       1,  343.0,  326.0,  377.0),
         ]
 
         def _run(state):

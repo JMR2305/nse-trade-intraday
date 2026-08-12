@@ -2,7 +2,7 @@
 scanner_coverage.py — market-hours scanner coverage probe.
 
 Phase 2B/2C observed the scanner stuck at 48/50 symbols over weekends
-(Yahoo returns no weekend data for some symbols, e.g. LTIM / TATAMOTORS).
+(Yahoo returns no weekend data for some symbols, e.g. LTIM / TMPV).
 That gap is expected to self-resolve at Monday market open — but nothing
 confirmed the recovery actually happened. This probe makes the check
 explicit and automated:

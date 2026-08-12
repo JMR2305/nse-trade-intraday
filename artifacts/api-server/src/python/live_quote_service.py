@@ -46,6 +46,23 @@ INDICES = {
 
 _ALLOWED = {s.upper() for s in NIFTY_50} | set(INDICES.keys())
 
+# ── Demerged / suspended symbols ─────────────────────────────────────────────
+# Symbols listed here are rejected immediately without a yfinance call.
+# They return quality=UNAVAILABLE, tradable=False, and a clear note so any
+# UI layer can display "Data unavailable — no BUY allowed" rather than
+# showing a stale/fabricated price.
+# The scan-engine quality gate (_apply_quality_gate in live_scan_engine.py)
+# already caps UNAVAILABLE data to IGNORE — these symbols can never produce
+# a BUY or STRONG BUY even if they were allowed through.
+_DEMERGED: dict[str, str] = {
+    "TATAMOTORS": (
+        "TATAMOTORS was demerged in 2024 into TMPV (Tata Motors Passenger "
+        "Vehicles Ltd, ~₹343) and TMCV (Tata Motors Commercial Vehicles Ltd, "
+        "~₹457). yfinance raises an exchange-metadata error for TATAMOTORS.NS. "
+        "Use TMPV or TMCV. DATA UNAVAILABLE — no BUY allowed."
+    ),
+}
+
 
 def is_allowed_symbol(symbol: str) -> bool:
     return symbol.upper().strip() in _ALLOWED
@@ -203,6 +220,25 @@ def get_quotes(symbols: List[str], force: bool = False) -> Dict[str, Any]:
 
     for raw in symbols:
         sym = raw.upper().strip()
+
+        # Demerged / suspended symbol — return immediately with a clear
+        # UNAVAILABLE response (never calls yfinance, never returns a price).
+        # The scan-engine quality gate caps these to IGNORE so no BUY is generated.
+        if sym in _DEMERGED:
+            quotes[sym] = {
+                "symbol": sym,
+                "ltp": None,
+                "quality": "UNAVAILABLE",
+                "tradable": False,
+                "demerger_note": _DEMERGED[sym],
+                "error": f"DATA UNAVAILABLE — {sym} is demerged. No BUY allowed.",
+                "source": PROVIDER_ID,
+                "fetch_ts": _utc_now_iso(),
+                "from_cache": False,
+                "cache_age_s": None,
+            }
+            continue
+
         if not is_allowed_symbol(sym):
             rejected.append(sym)
             continue

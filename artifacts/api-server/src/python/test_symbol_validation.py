@@ -21,7 +21,8 @@ FAKE_MASTER = {
     "TCS": {"tradingsymbol": "TCS", "name": "TATA CONSULTANCY SERVICES"},
     "M&M": {"tradingsymbol": "M&M", "name": "MAHINDRA & MAHINDRA"},
     "BAJAJ-AUTO": {"tradingsymbol": "BAJAJ-AUTO", "name": "BAJAJ AUTO"},
-    "TATAMOTORS": {"tradingsymbol": "TATAMOTORS", "name": "TATA MOTORS"},
+    "TMPV": {"tradingsymbol": "TMPV", "name": "TATA MOTORS PASSENGER VEHICLES"},
+    "TMCV": {"tradingsymbol": "TMCV", "name": "TATA MOTORS COMMERCIAL VEHICLES"},
     "TATASTEEL": {"tradingsymbol": "TATASTEEL", "name": "TATA STEEL"},
 }
 
@@ -191,7 +192,11 @@ class SymbolValidationTest(unittest.TestCase):
         syms = [x["symbol"] for x in r["results"]]
         self.assertGreater(len(syms), 1)
         self.assertTrue(r["ambiguous"])
-        self.assertIn("TATAMOTORS", syms)
+        # TATAMOTORS was deprecated (demerger); TMPV / TMCV are the successors.
+        # "TATA" search should still find Tata-family tickers in the universe.
+        tata_family = {"TMPV", "TMCV", "TATASTEEL", "TATACONSUM", "TCS"}
+        self.assertTrue(tata_family & set(syms),
+                        f"Expected at least one Tata-family symbol in {syms}")
 
     def test_search_only_approved_universe(self):
         import config

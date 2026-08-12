@@ -10,7 +10,7 @@ import DataFreshnessBar from "@/components/DataFreshnessBar";
 const SYMBOLS = [
   "RELIANCE", "TCS", "INFY", "HDFCBANK", "ICICIBANK",
   "SBIN", "WIPRO", "LT", "BAJFINANCE", "MARUTI",
-  "AXISBANK", "KOTAKBANK", "TATAMOTORS", "TITAN", "NESTLEIND",
+  "AXISBANK", "KOTAKBANK", "TMPV", "TMCV", "TITAN", "NESTLEIND",
 ];
 
 const PERIODS: { label: string; start: () => string; end: () => string }[] = [

@@ -42,7 +42,7 @@ FRIDAY_SCAN_TS = "2026-08-07T20:45:00Z"
 MONDAY_SCAN_TS = "2026-08-10T04:00:00Z"
 
 
-def _meta(received: int, requested: int = 50, ts: str = MONDAY_SCAN_TS,
+def _meta(received: int, requested: int = MIN_SYMBOLS_EXPECTED, ts: str = MONDAY_SCAN_TS,
           missing=None):
     return {
         "symbols_received": received,
@@ -85,7 +85,7 @@ class TestScannerCoverage(unittest.TestCase):
 
     def test_fresh_low_coverage_is_flagged_with_missing_symbols(self):
         r = _probe("OPEN", MONDAY_10AM,
-                   _meta(48, missing=["LTIM", "TATAMOTORS"]))
+                   _meta(48, missing=["LTIM", "TMPV"]))
         self.assertFalse(r["ok"])
         self.assertIn("48/", r["warning"])
         self.assertIn("LTIM", r["warning"])
@@ -106,7 +106,7 @@ class TestScannerCoverage(unittest.TestCase):
         """HOLIDAY is out of session — stale/low coverage is not a warning."""
         holiday_noon = datetime(2026, 8, 15, 12, 0, tzinfo=IST)
         r = _probe("HOLIDAY", holiday_noon,
-                   _meta(48, ts=FRIDAY_SCAN_TS, missing=["LTIM", "TATAMOTORS"]))
+                   _meta(48, ts=FRIDAY_SCAN_TS, missing=["LTIM", "TMPV"]))
         self.assertTrue(r["ok"])
         self.assertFalse(r["in_session"])
         self.assertIsNone(r["warning"])
@@ -121,7 +121,7 @@ class TestScannerCoverage(unittest.TestCase):
     def test_session_boundary_scan_exactly_at_preopen_start_is_fresh(self):
         """A scan at exactly 09:00 IST today counts as this session."""
         ts = "2026-08-10T03:30:00Z"  # 09:00 IST
-        r = _probe("OPEN", MONDAY_10AM, _meta(50, ts=ts))
+        r = _probe("OPEN", MONDAY_10AM, _meta(MIN_SYMBOLS_EXPECTED, ts=ts))
         self.assertTrue(r["ok"])
         self.assertTrue(r["scan_fresh_for_session"])
 

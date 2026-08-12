@@ -109,3 +109,4 @@
 - [Validation V2 backtest pitfalls](validation-v2-backtest.md) — stale-schema silent INSERT fail, bootstrap fetch clobbers data-source gate, regime cache, confidence-100 STRONG_BUY deadlock, yfinance rate limits.
 - [Durable portfolio repos](portfolio-durable-repos.md) — recover-first startup w/ canonical-ledger cross-check; DB idempotency dedupe; serial id is the only cross-process sequence; unit tests must set all portfolio DB kill-switches.
 - [Backtest scheduler cold-start fix](backtest-scheduler-coldstart.md) — bt_queue_tick_cmd.py is the lightweight scheduler tick (116ms cold); never use main.py for scheduler ticks; scan is 93% of replay time (370s floor for 5-sym 15m 30d).
+- [TATAMOTORS demerger mapping](tatamotors-demerger-mapping.md) — TATAMOTORS.NS is dead; use TMPV+TMCV; NIFTY_50 is now 51; _meta(50) tests must become _meta(MIN_SYMBOLS_EXPECTED).

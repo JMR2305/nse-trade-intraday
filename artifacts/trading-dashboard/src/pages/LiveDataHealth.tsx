@@ -270,12 +270,21 @@ export default function LiveDataHealth() {
               <span className={stream.lastError ? "text-red-400" : "text-zinc-400"}>{stream.lastError ?? "None"}</span>
             </div>
             {Object.entries(stream.quotes).map(([sym, q]: [string, any]) => (
-              <div key={sym} className="flex justify-between">
-                <span className="text-zinc-500">{sym}</span>
-                <span className="text-zinc-200">
-                  {q?.ltp != null
-                    ? `${q.ltp} (${q.change_pct != null ? `${q.change_pct >= 0 ? "+" : ""}${q.change_pct}%` : "N/A"}) · ${q.quality ?? "N/A"}${q.from_cache ? ` · cached ${q.cache_age_s}s` : ""}`
-                    : "Unavailable"}
+              <div key={sym} className="flex justify-between gap-2">
+                <span className="text-zinc-500 shrink-0">{sym}</span>
+                <span className={q?.tradable === false ? "text-red-400 font-medium" : "text-zinc-200"}>
+                  {q?.tradable === false
+                    ? /* demerged / suspended — never show a price as actionable */
+                      `DATA UNAVAILABLE — no BUY allowed · ${q?.source ?? "?"}`
+                    : q?.ltp != null
+                    ? `₹${q.ltp.toLocaleString("en-IN", { maximumFractionDigits: 2 })} (${
+                        q.change_pct != null
+                          ? `${q.change_pct >= 0 ? "+" : ""}${q.change_pct}%`
+                          : "N/A"
+                      }) · ${q.quality ?? "N/A"}${q.quality === "STALE" ? " ⚠ NON-TRADABLE" : ""}${
+                        q.from_cache ? ` · cached ${q.cache_age_s}s` : ""
+                      } · ${q.source ?? "?"}`
+                    : `Unavailable · ${q?.quality ?? "N/A"}`}
                 </span>
               </div>
             ))}
