@@ -94,6 +94,28 @@ def get_pipeline_stats() -> Dict[str, Any]:
     candidate_details: List[Dict[str, Any]] = []
     eval_available         = False
 
+    # Whether auto-paper entries are currently enabled (for per-candidate
+    # "auto_entry_attempted" display in the UI).
+    _auto_entries_on = False
+    try:
+        from phase20_store import get_settings as _gs
+        _auto_entries_on = bool(_gs().get("auto_paper_entries", False))
+    except Exception:
+        pass
+
+    # Last run_auto_entries outcome (persisted by the executor) — lets us
+    # distinguish "gate failed before executor" (SKIPPED_GATE_FAILED) from
+    # "executor attempted and order was created" (ORDER_CREATED).
+    _last_run: Dict[str, Any] = {}
+    try:
+        from phase20_store import kv_get as _kv
+        _last_run = _kv("last_auto_entries_result") or {}
+    except Exception:
+        pass
+    _last_created_syms: set = {
+        c["symbol"] for c in (_last_run.get("created") or [])
+    }
+
     try:
         from phase20_gates import evaluate_entries
         ev = evaluate_entries()
@@ -104,6 +126,8 @@ def get_pipeline_stats() -> Dict[str, Any]:
         candidates_eligible  = int(ev.get("eligible_count") or 0)
 
         for c in (ev.get("candidates") or []):
+            sym = c.get("symbol") or ""
+            is_eligible = bool(c.get("eligible"))
             # Build a {gate_name: reason_text} map for every gate that failed,
             # so the UI can display the human-readable reason alongside the gate
             # pill (e.g. "per_stock_cap: Post-trade DRREDDY exposure 21.5% (cap 20%)").
@@ -113,11 +137,25 @@ def get_pipeline_stats() -> Dict[str, Any]:
                 for g in (c.get("gates") or [])
                 if not g.get("passed")
             }
+            # Determine auto-entry outcome:
+            # SKIPPED_GATE_FAILED — failed evaluate_entries(); executor never ran
+            # ORDER_CREATED       — executor ran and confirmed a paper trade
+            # ELIGIBLE            — passed gates; executor would run (auto ON)
+            #                       or would have run (auto OFF / market closed)
+            if is_eligible:
+                _outcome = "ORDER_CREATED" if sym in _last_created_syms else "ELIGIBLE"
+                _auto_attempted = _auto_entries_on
+            else:
+                _outcome = "SKIPPED_GATE_FAILED"
+                _auto_attempted = False  # executor never ran for this candidate
+
             candidate_details.append({
-                "symbol":       c.get("symbol"),
-                "eligible":     c.get("eligible"),
-                "failed_gates": c.get("failed_gates") or [],
-                "failed_gate_reasons": failed_gate_reasons,
+                "symbol":               sym,
+                "eligible":             is_eligible,
+                "failed_gates":         c.get("failed_gates") or [],
+                "failed_gate_reasons":  failed_gate_reasons,
+                "auto_entry_attempted": _auto_attempted,
+                "entry_outcome":        _outcome,
                 "opportunity_score": float(c.get("opportunity_score") or 0),
                 "confidence":        float(c.get("confidence") or 0),
             })

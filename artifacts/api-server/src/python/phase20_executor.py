@@ -557,14 +557,46 @@ def run_auto_entries(settings: Dict[str, Any]) -> Dict[str, Any]:
     evaluation = evaluate_entries()
     created: List[Dict[str, Any]] = []
     blocked: List[Dict[str, Any]] = []
+    _scan_id = evaluation.get("scan_id")
+    _snap_ts = evaluation.get("snapshot_ts")
     for cand in evaluation.get("candidates", []):
         if not cand.get("eligible"):
-            blocked.append({"symbol": cand["symbol"],
-                            "failed_gates": cand["failed_gates"]})
+            # Build a human-readable reason map from the full gate objects so
+            # the outcome event carries actionable detail (not just gate names).
+            _reasons: Dict[str, str] = {
+                g["gate"]: str(g.get("reason") or "")
+                for g in (cand.get("gates") or [])
+                if not g.get("passed")
+            }
+            blocked.append({
+                "symbol": cand["symbol"],
+                "failed_gates": cand["failed_gates"],
+                "failed_gate_reasons": _reasons,
+            })
+            # Emit a mandatory per-candidate outcome event so no BUY signal
+            # disappears silently.  Before this fix, ineligible candidates were
+            # appended to a blocked list and silently skipped — no pipeline
+            # event, no per-symbol notification, no DB row.
+            try:
+                from pipeline_events import emit as _pe
+                _pe("EXECUTION_SKIPPED_WITH_REASON", "EXECUTION",
+                    scan_id=_scan_id, symbol=cand["symbol"],
+                    payload={
+                        "failed_gates":        cand["failed_gates"],
+                        "failed_gate_reasons": _reasons,
+                        "opportunity_score":   cand.get("opportunity_score"),
+                        "confidence":          cand.get("confidence"),
+                        "auto_entry_attempted": False,
+                        "note": (
+                            "Candidate failed entry-gate evaluation; "
+                            "executor skipped without attempting order"
+                        ),
+                    })
+            except Exception:
+                pass
             continue
         res = create_paper_entry(cand, settings,
-                                 evaluation.get("scan_id"),
-                                 evaluation.get("snapshot_ts"),
+                                 _scan_id, _snap_ts,
                                  trigger_source="AUTO")
         created.append(res)
         # Re-check the daily limit after each creation.
@@ -577,10 +609,32 @@ def run_auto_entries(settings: Dict[str, Any]) -> Dict[str, Any]:
             "; ".join(f"{b['symbol']}: {', '.join(b['failed_gates'][:3])}"
                       for b in blocked[:5]),
             severity="INFO",
-            context={"scan_id": evaluation.get("scan_id"), "blocked": blocked})
-    return {"ran": True, "scan_id": evaluation.get("scan_id"),
-            "created": created, "blocked": blocked,
-            "evaluation": evaluation}
+            context={"scan_id": _scan_id, "blocked": blocked})
+    result = {"ran": True, "scan_id": _scan_id,
+              "created": created, "blocked": blocked,
+              "evaluation": evaluation}
+    # Persist last run outcome so the pipeline stats UI can display
+    # auto-entry attempted / final outcome per candidate without re-running.
+    try:
+        store.kv_set("last_auto_entries_result", {
+            "ran_at":         _iso(),
+            "scan_id":        _scan_id,
+            "snapshot_ts":    _snap_ts,
+            "created_count":  sum(1 for c in created if c.get("created")),
+            "blocked_count":  len(blocked),
+            "blocked": [
+                {"symbol": b["symbol"], "failed_gates": b["failed_gates"],
+                 "failed_gate_reasons": b.get("failed_gate_reasons", {})}
+                for b in blocked
+            ],
+            "created": [
+                {"symbol": c.get("symbol"), "trade_id": c.get("trade_id")}
+                for c in created if c.get("created")
+            ],
+        })
+    except Exception:
+        pass
+    return result
 
 
 # ── Exit recording (called by phase20_exits) ─────────────────────────────────

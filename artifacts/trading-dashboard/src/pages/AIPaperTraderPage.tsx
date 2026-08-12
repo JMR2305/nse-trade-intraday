@@ -668,6 +668,10 @@ interface PipelineStats {
     symbol: string; eligible: boolean; failed_gates: string[];
     /** gate_name → human-readable reason string, e.g. "Post-trade DRREDDY exposure 21.5% (cap 20%)" */
     failed_gate_reasons?: Record<string, string>;
+    /** Whether the auto-entry executor actually attempted this candidate */
+    auto_entry_attempted?: boolean;
+    /** ELIGIBLE | ORDER_CREATED | SKIPPED_GATE_FAILED */
+    entry_outcome?: string;
     opportunity_score: number; confidence: number;
   }[];
   settings?: {
@@ -1045,22 +1049,35 @@ function SPipelineStats() {
             </div>
           )}
 
-          {/* Per-candidate gate failures — shows gate name + human-readable reason */}
+          {/* Per-candidate gate failures — shows gate name + reason + auto-entry outcome */}
           {(data?.candidate_gate_details?.filter(c => !c.eligible).length ?? 0) > 0 && (
             <div className="rounded-lg bg-slate-900/40 border border-slate-800/40 p-3">
               <p className="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1.5">
                 <XCircle className="w-3 h-3 text-rose-400" /> Blocked Candidates
                 <span className="ml-auto text-[9px] text-slate-600 font-normal">
-                  gate name · reason why it failed
+                  gate · reason · execution outcome
                 </span>
               </p>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {(data?.candidate_gate_details ?? [])
                   .filter(c => !c.eligible)
                   .map(c => (
                     <div key={c.symbol} className="flex items-start gap-2 text-[10px]">
                       <span className="font-mono text-rose-300 w-16 flex-shrink-0 pt-0.5">{c.symbol}</span>
-                      <div className="flex-1 space-y-0.5">
+                      <div className="flex-1 space-y-1">
+                        {/* Execution outcome badge */}
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          {c.entry_outcome === "SKIPPED_GATE_FAILED" && (
+                            <span className="inline-flex items-center gap-0.5 text-[9px] bg-amber-950/50 border border-amber-800/40 text-amber-400 rounded px-1.5 py-0.5">
+                              <AlertTriangle className="w-2 h-2" />
+                              Executor skipped — gate failed before order attempt
+                            </span>
+                          )}
+                          {!c.auto_entry_attempted && c.entry_outcome !== "SKIPPED_GATE_FAILED" && (
+                            <span className="text-[9px] text-slate-600">auto-entry OFF</span>
+                          )}
+                        </div>
+                        {/* Failed gate pills with reason text */}
                         {c.failed_gates.map(g => {
                           const reason = c.failed_gate_reasons?.[g];
                           return (

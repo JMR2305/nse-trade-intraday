@@ -1,0 +1,101 @@
+AUDIT HDFCLIFE MISSED INTRADAY LOW — WHY NO BUY NEAR 12:56
+
+Issue:
+NSE chart shows HDFCLIFE made an intraday low around ₹531.55 near 12:56 IST on 2026-08-12 and later recovered to around ₹537.
+
+The AI later generated a BUY candidate but it was blocked by min_risk_reward + per_stock_cap.
+
+Question:
+Why did the AI not generate or execute a BUY near the intraday low/reversal area?
+
+Do not change thresholds.
+Do not change strategy logic yet.
+Do not bypass risk gates.
+Do not place live orders.
+PAPER ONLY.
+
+TASK 1 — TRACE HDFCLIFE DURING REVERSAL WINDOW
+
+For HDFCLIFE on 2026-08-12, inspect all scans/events from:
+
+12:30 IST to 13:30 IST
+
+Show for each scan:
+- scan_id
+- timestamp IST
+- price
+- RSI
+- ADX
+- volume_ratio
+- VWAP relation if available
+- EMA20 / EMA50 relation
+- strategy selected
+- strategy_performance_score
+- indicator_score
+- confidence
+- opportunity score
+- final action: BUY / WATCH / IGNORE / REJECT
+- failed gates if any
+- entry
+- stop
+- target
+- R:R
+- calculated quantity
+- position size %
+- paper_eligible true/false
+
+TASK 2 — CHECK WHY LOW WAS NOT BOUGHT
+
+Answer clearly:
+1. Did HDFCLIFE generate BUY near 12:56?
+2. If no, was it WATCH or IGNORE?
+3. Which score/gate prevented BUY?
+4. Was reversal strategy active?
+5. Was trend-following strategy waiting for confirmation?
+6. Did volume confirm reversal?
+7. Did R:R pass at the low?
+8. Did position size fit the 20% cap at the low?
+
+TASK 3 — COMPARE LOW VS LATER BUY SIGNAL
+
+Compare:
+
+A. Around 12:56 low
+B. Later 15:18 BUY signal
+
+For both show:
+- price
+- confidence
+- opportunity score
+- indicator score
+- strategy performance score
+- R:R
+- position size %
+- final action
+- rejection reason
+
+TASK 4 — DETERMINE ROOT CAUSE
+
+Classify the reason:
+
+- valid rejection
+- missed reversal due to strategy limitation
+- scanner cadence issue
+- R:R calculation issue
+- position sizing/cap issue
+- scoring calibration issue
+- data issue
+
+TASK 5 — REPORT ONLY
+
+Produce:
+
+HDFCLIFE_INTRADAY_LOW_MISSED_BUY_AUDIT.md
+
+Include:
+1. Whether AI evaluated the low.
+2. Why it did not buy near 12:56.
+3. Why later BUY was rejected.
+4. Whether current strategy can catch intraday reversal lows.
+5. Whether we need a separate reversal / VWAP bounce / volume-accumulation strategy.
+6. No rule changes applied.
