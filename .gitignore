@@ -84,3 +84,6 @@ lib/db/backups/
 artifacts/api-server/src/python/.signal_validation_tick_state.json
 artifacts/api-server/src/python/decision_summary_cache.json
 artifacts/api-server/src/python/symbol_validation_log.json
+
+# Transient pre-open session state
+artifacts/api-server/src/python/.preopen_*_tick_state.json
