@@ -634,7 +634,12 @@ def execute_run(run_id: str) -> Dict[str, Any]:
             if tick_i % 5 == 0 or tick_i == tick_count - 1:
                 # Cancellation checkpoint — checked every 5 ticks (piggybacks on
                 # the progress write; no extra DB round-trip on other ticks).
-                _cur_status = bp.get_run_status(run_id)
+                # get_run_status() returns None on any DB error so a transient
+                # Neon outage here skips the check rather than crashing the run.
+                try:
+                    _cur_status = bp.get_run_status(run_id)
+                except Exception:
+                    _cur_status = None   # belt-and-suspenders: skip, not crash
                 if _cur_status == "CANCEL_REQUESTED":
                     bp.update_run(run_id, status="CANCELLED",
                                   error="Cancelled by operator",
@@ -697,12 +702,29 @@ def execute_run(run_id: str) -> Dict[str, Any]:
         _spawn_next_queued()   # promote + start next queued run if any
         return {"ok": True, "run_id": run_id, "metrics": metrics}
     except Exception as exc:
-        bp.update_run(run_id, status="FAILED", error=str(exc)[:500],
-                      completed_at=datetime.now(timezone.utc))
-        emit("SCAN_FAILED", "SUPERVISOR", scan_id=run_id, mode="BACKTEST",
-             run_id=run_id, payload={"error": str(exc)[:300]})
+        # Classify DB connectivity failures with a clear, actionable message so
+        # operators know immediately this is a Neon/Postgres issue, not a bug.
+        raw_err = str(exc)
+        if bp._is_connection_error(exc):
+            err_str = (
+                f"Database connection failed during backtest replay "
+                f"({type(exc).__name__}: {raw_err[:200]}). "
+                "This is typically a Neon/Postgres auth-timeout on a long run "
+                "(>30 min with no DB activity during a warmup-data-fetch phase). "
+                "Retry the run — the candle cache is warm and will resume faster."
+            )[:500]
+        else:
+            err_str = raw_err[:500]
+        # _emergency_mark_failed tries DB first (with retry), then file fallback.
+        # Never raises — a second DB failure here must not leave the run RUNNING.
+        bp._emergency_mark_failed(run_id, err_str)
+        try:
+            emit("SCAN_FAILED", "SUPERVISOR", scan_id=run_id, mode="BACKTEST",
+                 run_id=run_id, payload={"error": err_str[:300]})
+        except Exception:
+            pass   # event emission is best-effort; never let it mask the FAILED write
         _spawn_next_queued()   # promote + start next queued run even on failure
-        return {"ok": False, "run_id": run_id, "error": str(exc)[:500]}
+        return {"ok": False, "run_id": run_id, "error": err_str}
 
 
 # ── Part F: Missed Opportunity Analyzer ──────────────────────────────────────

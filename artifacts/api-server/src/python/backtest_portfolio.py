@@ -36,6 +36,91 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
 
+# ── DB connection resilience ──────────────────────────────────────────────────
+
+def _is_connection_error(exc: Exception) -> bool:
+    """Return True for transient DB connectivity / auth errors worth retrying.
+
+    Covers:
+    - psycopg2 OperationalError / InterfaceError (connection reset, auth
+      failure, SSL EOF — all common with Neon serverless cold-starts)
+    - Generic string patterns for environments without psycopg2 on the path
+    """
+    try:
+        import psycopg2
+        if isinstance(exc, (psycopg2.OperationalError, psycopg2.InterfaceError)):
+            return True
+    except ImportError:
+        pass
+    msg = str(exc).lower()
+    return any(token in msg for token in (
+        "connection", "auth", "timeout", "ssl", "eof",
+        "broken pipe", "server closed", "reset by peer",
+        "could not connect", "terminating connection",
+    ))
+
+
+def _connect_with_retry():
+    """Open a DB connection, retrying ONCE on transient connectivity errors.
+
+    A single retry covers:
+    - Neon serverless compute node waking from scale-to-zero (~200–800 ms)
+    - Transient network blips and SSL/EOF resets
+    - Short auth-token refresh windows
+
+    A persistent outage (Neon fully down, wrong credentials) will still raise
+    on the second attempt — we never swallow a non-transient failure.
+    """
+    import time as _time
+    try:
+        return _connect()
+    except Exception as exc:
+        if _is_connection_error(exc):
+            _time.sleep(1.0)
+            return _connect()   # let a persistent failure propagate naturally
+        raise
+
+
+def _emergency_mark_failed(run_id: str, error_msg: str) -> None:
+    """Mark a run FAILED. Tries DB (with retry) first; falls back to the file
+    store when the DB is also unavailable.
+
+    Used exclusively inside exception handlers where a second DB failure would
+    leave the run stuck as RUNNING forever.  Never raises.
+    """
+    now = _now_iso()
+    _guard = {"COMPLETED", "CANCELLED", "STALE", "FAILED"}
+    if db_available():
+        try:
+            conn = _connect_with_retry()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE backtest_runs"
+                        " SET status = 'FAILED', error = %s, completed_at = %s"
+                        " WHERE run_id = %s"
+                        "   AND status NOT IN ('COMPLETED','CANCELLED','STALE','FAILED')",
+                        (error_msg[:500], now, run_id),
+                    )
+                conn.commit()
+                return                  # DB write succeeded — done
+            finally:
+                conn.close()
+        except Exception:
+            pass                        # DB unavailable even after retry
+    # File-store fallback (also the primary path when DATABASE_URL is absent)
+    try:
+        rows = _load(_RUNS_FILE)
+        for r in rows:
+            if r["run_id"] == run_id and r.get("status") not in _guard:
+                r["status"] = "FAILED"
+                r["error"] = error_msg[:500]
+                r["completed_at"] = now
+        _save(_RUNS_FILE, rows)
+    except Exception:
+        pass                            # truly best-effort — nothing more we can do
+
+
 def _ensure_schema(conn) -> None:
     global _SCHEMA_READY
     if _SCHEMA_READY:
@@ -147,7 +232,7 @@ _STALE_PENDING_THRESHOLD_MIN = 30   # PENDING with no worker claim
 def count_active_runs() -> int:
     """Count RUNNING + PENDING + CANCEL_REQUESTED runs."""
     if db_available():
-        conn = _connect()
+        conn = _connect_with_retry()
         try:
             _ensure_schema(conn)
             with conn.cursor() as cur:
@@ -168,7 +253,7 @@ def create_run(config: Dict[str, Any]) -> str:
     initial_status = ("QUEUED" if count_active_runs() >= MAX_CONCURRENT_BACKTESTS
                       else "PENDING")
     if db_available():
-        conn = _connect()
+        conn = _connect_with_retry()
         try:
             _ensure_schema(conn)
             with conn.cursor() as cur:
@@ -198,7 +283,7 @@ def update_run(run_id: str, **fields: Any) -> None:
     if not fields:
         return
     if db_available():
-        conn = _connect()
+        conn = _connect_with_retry()
         try:
             _ensure_schema(conn)
             sets, args = [], []
@@ -234,7 +319,7 @@ def claim_run(run_id: str) -> bool:
     """
     now = _now_iso()
     if db_available():
-        conn = _connect()
+        conn = _connect_with_retry()
         try:
             _ensure_schema(conn)
             with conn.cursor() as cur:
@@ -281,7 +366,7 @@ def _run_row_to_dict(r) -> Dict[str, Any]:
 
 def get_run(run_id: str) -> Optional[Dict[str, Any]]:
     if db_available():
-        conn = _connect()
+        conn = _connect_with_retry()
         try:
             _ensure_schema(conn)
             with conn.cursor() as cur:
@@ -300,7 +385,7 @@ def get_run(run_id: str) -> Optional[Dict[str, Any]]:
 
 def list_runs(limit: int = 50) -> List[Dict[str, Any]]:
     if db_available():
-        conn = _connect()
+        conn = _connect_with_retry()
         try:
             _ensure_schema(conn)
             with conn.cursor() as cur:
@@ -324,7 +409,7 @@ def promote_next_queued() -> Optional[str]:
     if count_active_runs() >= MAX_CONCURRENT_BACKTESTS:
         return None
     if db_available():
-        conn = _connect()
+        conn = _connect_with_retry()
         try:
             _ensure_schema(conn)
             with conn.cursor() as cur:
@@ -481,18 +566,29 @@ def sweep_stale_runs() -> Dict[str, Any]:
 
 
 def get_run_status(run_id: str) -> Optional[str]:
-    """Fast status-only check — avoids deserialising the full run row."""
+    """Fast status-only check — avoids deserialising the full run row.
+
+    Returns None on any DB error so callers inside the replay loop
+    (cancellation checkpoint) continue gracefully through transient outages
+    instead of terminating the run with a bare connection error.
+    """
     if db_available():
-        conn = _connect()
         try:
-            _ensure_schema(conn)
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT status FROM backtest_runs WHERE run_id = %s", (run_id,))
-                r = cur.fetchone()
-                return r[0] if r else None
-        finally:
-            conn.close()
+            conn = _connect_with_retry()
+            try:
+                _ensure_schema(conn)
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT status FROM backtest_runs WHERE run_id = %s",
+                        (run_id,))
+                    r = cur.fetchone()
+                    return r[0] if r else None
+            finally:
+                conn.close()
+        except Exception:
+            # DB unavailable after retry — return None so the cancellation
+            # checkpoint skips gracefully rather than crashing the worker.
+            return None
     for r in _load(_RUNS_FILE):
         if r["run_id"] == run_id:
             return r.get("status")
@@ -607,7 +703,7 @@ def open_trade(row: Dict[str, Any]) -> Optional[str]:
     row = {**row, "trade_id": trade_id, "status": "OPEN",
            "tranche": int(row.get("tranche") or 0)}
     if db_available():
-        conn = _connect()
+        conn = _connect_with_retry()
         try:
             _ensure_schema(conn)
             cols = [c for c in _TRADE_COLS if c in row]
@@ -638,7 +734,7 @@ def open_trade(row: Dict[str, Any]) -> Optional[str]:
 def close_trade(trade_id: str, exit_ts: str, exit_price: float,
                 exit_rule: str) -> Optional[Dict[str, Any]]:
     if db_available():
-        conn = _connect()
+        conn = _connect_with_retry()
         try:
             _ensure_schema(conn)
             with conn.cursor() as cur:
@@ -670,7 +766,7 @@ def close_trade(trade_id: str, exit_ts: str, exit_price: float,
 
 def trades(run_id: str, status: Optional[str] = None) -> List[Dict[str, Any]]:
     if db_available():
-        conn = _connect()
+        conn = _connect_with_retry()
         try:
             _ensure_schema(conn)
             q = (f"SELECT {', '.join(_TRADE_COLS)} FROM backtest_trades"
