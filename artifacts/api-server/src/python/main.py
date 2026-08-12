@@ -2140,6 +2140,9 @@ def main():
             # Create a run and launch execution in a DETACHED process so the
             # API request returns immediately; progress is polled via
             # backtest_status.
+            # When MAX_CONCURRENT_BACKTESTS are already active, the run is
+            # created as QUEUED and the worker is NOT spawned; it will be
+            # promoted and spawned automatically when a running slot opens.
             import subprocess
             import backtest_portfolio as _bp
             p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
@@ -2161,17 +2164,26 @@ def main():
                 result = {"ok": False, "error": "start and end dates required"}
             else:
                 rid = _bp.create_run(cfg)
-                log_path = f"/tmp/backtest_{rid}.log"
-                with open(log_path, "ab") as lf:
-                    subprocess.Popen(
-                        [sys.executable, os.path.abspath(__file__),
-                         "backtest_exec", json.dumps({"run_id": rid})],
-                        stdout=lf, stderr=lf,
-                        cwd=os.path.dirname(os.path.abspath(__file__)),
-                        start_new_session=True)
-                result = {"ok": True, "run_id": rid, "status": "PENDING",
-                          "log": log_path,
-                          "label": "BACKTEST — SIMULATED, ISOLATED FROM LIVE"}
+                run_status = _bp.get_run_status(rid)
+                if run_status == "QUEUED":
+                    # At concurrency cap — worker will be spawned when a slot opens
+                    result = {"ok": True, "run_id": rid, "status": "QUEUED",
+                              "log": None,
+                              "label": ("BACKTEST — QUEUED "
+                                        f"(max {_bp.MAX_CONCURRENT_BACKTESTS} concurrent runs; "
+                                        "will start automatically when a slot opens)")}
+                else:
+                    log_path = f"/tmp/backtest_{rid}.log"
+                    with open(log_path, "ab") as lf:
+                        subprocess.Popen(
+                            [sys.executable, os.path.abspath(__file__),
+                             "backtest_exec", json.dumps({"run_id": rid})],
+                            stdout=lf, stderr=lf,
+                            cwd=os.path.dirname(os.path.abspath(__file__)),
+                            start_new_session=True)
+                    result = {"ok": True, "run_id": rid, "status": "PENDING",
+                              "log": log_path,
+                              "label": "BACKTEST — SIMULATED, ISOLATED FROM LIVE"}
         elif command == "backtest_exec":
             from backtest_runner import execute_run
             p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
@@ -2184,8 +2196,15 @@ def main():
         elif command == "backtest_runs":
             import backtest_portfolio as _bp
             p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            # Sweep-on-read: auto-mark orphaned RUNNING/PENDING runs as STALE
+            # and promote QUEUED runs into vacated slots.  Runs every 5 s
+            # while the Investigation Center is open — cheap DB query.
+            _bp.sweep_stale_runs()
             result = {"runs": _bp.list_runs(int(p.get("limit") or 50)),
                       "label": "BACKTEST — SIMULATED, ISOLATED FROM LIVE"}
+        elif command == "bt_sweep_stale":
+            import backtest_portfolio as _bp
+            result = _bp.sweep_stale_runs()
         elif command == "backtest_portfolio":
             import backtest_portfolio as _bp
             p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}

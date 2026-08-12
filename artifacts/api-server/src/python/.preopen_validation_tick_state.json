@@ -1,36 +1,12 @@
 {
-  "trading_date": "2026-08-11",
-  "session_id": "val-2026-08-11-0b4117",
+  "trading_date": "2026-08-12",
+  "session_id": "val-2026-08-12-e38a26",
   "checkpoints_done": {
     "open_0920": {
-      "ts": "2026-08-11T09:18:35.219504+05:30",
+      "ts": "2026-08-12T09:18:29.747426+05:30",
       "fetched": 10,
       "symbols": 10,
       "updated": 10
-    },
-    "price_0930": {
-      "ts": "2026-08-11T09:28:19.722952+05:30",
-      "fetched": 10,
-      "symbols": 10,
-      "updated": 10
-    },
-    "price_1000": {
-      "ts": "2026-08-11T09:58:16.768375+05:30",
-      "fetched": 10,
-      "symbols": 10,
-      "updated": 10
-    },
-    "price_1030": {
-      "ts": "2026-08-11T10:28:09.741186+05:30",
-      "fetched": 10,
-      "symbols": 10,
-      "updated": 10
-    },
-    "eod_classify": {
-      "ts": "2026-08-11T15:28:48.571106+05:30",
-      "classified": 10,
-      "continuation_rate": 0.0,
-      "report_path": "/home/runner/workspace/artifacts/api-server/src/python/reports/PreOpenAccuracy_20260811.json"
     }
   }
 }

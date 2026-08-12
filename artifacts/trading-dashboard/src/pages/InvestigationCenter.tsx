@@ -1045,7 +1045,8 @@ export default function InvestigationCenter() {
                               : r.status === "CANCEL_REQUESTED" ? "border-orange-400 text-orange-400"
                                 : r.status === "CANCELLED" ? "border-red-400/60 text-red-400/60"
                                   : r.status === "RUNNING" ? "border-blue-400 text-blue-400"
-                                    : "border-amber-400 text-amber-400"}`}>{r.status}</Badge>
+                                    : r.status === "QUEUED" ? "border-yellow-500 text-yellow-500"
+                                      : "border-amber-400 text-amber-400"}`}>{r.status}</Badge>
                     </div>
                     {/* Row 2: interval · date range · symbol list */}
                     <div className="text-muted-foreground mt-0.5 truncate">
@@ -1092,7 +1093,14 @@ export default function InvestigationCenter() {
                     {r.status === "RUNNING" && isWatchdogStale && (
                       <div className="text-amber-500 mt-0.5 text-[10px]"
                         data-testid={`text-stale-${r.run_id}`}>
-                        ⚠ No progress for 30+ min — worker may be stuck
+                        Run stalled — no progress for 30+ minutes. Worker likely stopped. Retry required.
+                      </div>
+                    )}
+                    {/* Row 6b: queued notice */}
+                    {r.status === "QUEUED" && (
+                      <div className="text-yellow-500 mt-0.5 text-[10px]"
+                        data-testid={`text-queued-${r.run_id}`}>
+                        ⏳ Queued — will start automatically when a running slot opens (max {2} concurrent).
                       </div>
                     )}
                     {/* Row 7: error */}
@@ -1103,15 +1111,15 @@ export default function InvestigationCenter() {
                   {/* Control buttons row — click is isolated from row selection */}
                   <div className="px-2 pb-2 pt-1 flex items-center gap-1 flex-wrap"
                     onClick={e => e.stopPropagation()}>
-                    {/* Stop / Cancel */}
-                    {["PENDING", "RUNNING", "CANCEL_REQUESTED"].includes(r.status) && (
+                    {/* Stop / Cancel (also cancels QUEUED runs before they start) */}
+                    {["QUEUED", "PENDING", "RUNNING", "CANCEL_REQUESTED"].includes(r.status) && (
                       <button
                         className="text-[10px] px-1.5 py-0.5 rounded border border-red-500/50 text-red-400 hover:bg-red-500/10 disabled:opacity-40"
                         disabled={cancelMut.isPending || r.status === "CANCEL_REQUESTED"}
                         onClick={() => cancelMut.mutate(r.run_id)}
                         data-testid={`btn-cancel-${r.run_id}`}>
                         {r.status === "CANCEL_REQUESTED" ? "Stopping…"
-                          : r.status === "PENDING" ? "Cancel" : "Stop"}
+                          : r.status === "RUNNING" ? "Stop" : "Cancel"}
                       </button>
                     )}
                     {/* Mark Stale (only visible when watchdog fires) */}

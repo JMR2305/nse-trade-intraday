@@ -1,0 +1,157 @@
+FIX STUCK PIPELINE BACKTEST RUNS — NO NEW FEATURES
+
+Issue:
+The Investigation Center shows backtest runs stuck since yesterday night.
+
+Visible stuck runs:
+- BT-e8a3d43733
+  - 15m
+  - 2026-06-29 → 2026-08-11
+  - 20 symbols
+  - 121/800 ticks
+  - 4/20 symbols
+  - 15%
+  - elapsed 7h+
+  - ETA ~2368 minutes
+  - progress has not moved overnight
+
+- BT-cc91b1afa0
+  - 5m
+  - 6/434 ticks
+  - 1%
+  - elapsed 17h+
+  - ETA ~76858 minutes
+
+Also visible:
+- BT-67e6d27ff6 failed due to Neon/Postgres authentication timeout.
+
+This is not acceptable. The frontend says RUNNING, but the worker appears stale/orphaned.
+
+Do not add new pages.
+Do not change trading logic.
+Do not change thresholds.
+Do not change paper/live defaults.
+Do not place live orders.
+PAPER / RESEARCH ONLY.
+
+TASK 1 — AUDIT CURRENT RUN STATES
+
+For every run with status RUNNING or PENDING:
+
+Check:
+- run_id
+- config
+- start time
+- last progress timestamp
+- current tick
+- current symbol
+- last pipeline event timestamp
+- whether a Python worker/process is still alive
+- whether progress changed in the last 10 minutes
+- whether DB connection errors occurred
+- whether run is truly active or orphaned
+
+Mark runs as:
+- ACTIVE
+- STALE
+- ORPHANED
+- FAILED
+- SAFE_TO_RETRY
+
+TASK 2 — CLEANUP STUCK RUNS SAFELY
+
+For runs that are stale/orphaned:
+
+- Do not leave them as RUNNING forever.
+- Mark them as FAILED or STALE with a clear error:
+  "Backtest worker stopped or no heartbeat/progress for X minutes."
+- Preserve partial data for inspection.
+- Do not delete historical runs unless explicitly asked.
+- Do not corrupt completed runs.
+
+TASK 3 — ADD STUCK-RUN WATCHDOG FOR PHASE 23 BACKTESTS
+
+Add watchdog logic for production-pipeline backtests:
+
+If run status is RUNNING and no progress/heartbeat for more than 30 minutes:
+- mark run as STALE or FAILED
+- store error message
+- show it in Investigation Center
+- stop ETA from showing absurd values
+- allow operator to retry safely
+
+The UI should display:
+"Run stalled — no progress for 30+ minutes. Worker likely stopped. Retry required."
+
+TASK 4 — ADD HEARTBEAT / LAST_PROGRESS_AT
+
+For every active backtest run, persist:
+
+- last_progress_at
+- current_symbol
+- current_tick
+- current_phase
+- heartbeat timestamp
+- last_error, if any
+
+Update it regularly during processing.
+
+TASK 5 — ADD SAFE RETRY / RERUN BEHAVIOUR
+
+Add or verify safe retry:
+
+- Retry should create a new run ID.
+- Do not resume into a corrupted partial run unless resume is fully supported.
+- Do not duplicate completed trades/events into the old run.
+- Old stale run remains visible as STALE/FAILED for audit.
+
+TASK 6 — REDUCE PARALLEL RUN RISK
+
+Do not run many heavy backtests in parallel on the current Replit size.
+
+For 20-symbol 15m tests:
+- run only one config at a time, or max two if resource usage is safe.
+- Queue the rest.
+- Show QUEUED status clearly.
+- Avoid launching A/B/C/D/E all in parallel on 2 vCPU / 4GB RAM.
+
+TASK 7 — RERUN SMALLER VALIDATION
+
+After cleanup, run a smaller frontend-visible test first:
+
+Symbols:
+RELIANCE, TCS, INFY, HDFCBANK, ICICIBANK
+
+Interval:
+15m
+
+Range:
+maximum available intraday range, or 30 days if needed for speed
+
+Capital:
+₹1,00,000
+
+Run only:
+A. Baseline
+B. Recommended research config
+
+Once this completes successfully, then run the full 20-symbol version sequentially.
+
+TASK 8 — REPORT
+
+Produce:
+
+STUCK_BACKTEST_RUN_RECOVERY_REPORT.md
+
+Include:
+1. Which runs were stuck.
+2. Root cause if found.
+3. Whether the Python worker died, DB timed out, or Replit restarted.
+4. Which runs were marked STALE/FAILED.
+5. Whether watchdog/heartbeat was added.
+6. Whether frontend now shows stalled runs correctly.
+7. Whether retry works.
+8. Recommended safe run size on current Replit resources.
+9. Next run IDs for the smaller validation.
+
+Stop after report.

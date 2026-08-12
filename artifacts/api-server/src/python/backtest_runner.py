@@ -493,6 +493,32 @@ def _learning_fingerprint() -> str:
         return "absent"
 
 
+def _spawn_next_queued() -> None:
+    """Promote the next QUEUED run to PENDING and spawn its worker process.
+
+    Called after any run finishes (COMPLETED or FAILED) so the queue drains
+    automatically.  Failures are swallowed — queue promotion is best-effort and
+    must never crash the finishing worker.
+    """
+    try:
+        next_rid = bp.promote_next_queued()
+        if not next_rid:
+            return
+        import subprocess as _sub
+        _main_py = os.path.join(os.path.dirname(os.path.abspath(__file__)), "main.py")
+        log_path = f"/tmp/backtest_{next_rid}.log"
+        with open(log_path, "ab") as _lf:
+            _sub.Popen(
+                [sys.executable, _main_py,
+                 "backtest_exec", json.dumps({"run_id": next_rid})],
+                stdout=_lf, stderr=_lf,
+                cwd=os.path.dirname(os.path.abspath(__file__)),
+                start_new_session=True,
+            )
+    except Exception:
+        pass  # queue promotion is always best-effort
+
+
 def execute_run(run_id: str) -> Dict[str, Any]:
     """
     Execute a backtest run created via backtest_portfolio.create_run().
@@ -668,12 +694,14 @@ def execute_run(run_id: str) -> Dict[str, Any]:
                                 "total": tick_count})
         emit("SCAN_COMPLETED", "SUPERVISOR", scan_id=run_id, mode="BACKTEST",
              run_id=run_id, payload=metrics)
+        _spawn_next_queued()   # promote + start next queued run if any
         return {"ok": True, "run_id": run_id, "metrics": metrics}
     except Exception as exc:
         bp.update_run(run_id, status="FAILED", error=str(exc)[:500],
                       completed_at=datetime.now(timezone.utc))
         emit("SCAN_FAILED", "SUPERVISOR", scan_id=run_id, mode="BACKTEST",
              run_id=run_id, payload={"error": str(exc)[:300]})
+        _spawn_next_queued()   # promote + start next queued run even on failure
         return {"ok": False, "run_id": run_id, "error": str(exc)[:500]}
 
 

@@ -134,8 +134,39 @@ def _save(path: str, rows: List[Dict[str, Any]]) -> None:
 
 # ── Runs ─────────────────────────────────────────────────────────────────────
 
+# Maximum number of concurrently RUNNING+PENDING backtest workers.
+# On Replit (2 vCPU / 4 GB RAM) a single 20-symbol 15m run already saturates
+# the interpreter; running three or more in parallel causes OOM and stalls.
+MAX_CONCURRENT_BACKTESTS = 2
+
+# Threshold for the server-side watchdog (minutes without a heartbeat).
+_STALE_RUNNING_THRESHOLD_MIN = 30   # RUNNING/CANCEL_REQUESTED with no progress
+_STALE_PENDING_THRESHOLD_MIN = 30   # PENDING with no worker claim
+
+
+def count_active_runs() -> int:
+    """Count RUNNING + PENDING + CANCEL_REQUESTED runs."""
+    if db_available():
+        conn = _connect()
+        try:
+            _ensure_schema(conn)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT count(*) FROM backtest_runs"
+                    " WHERE status IN ('RUNNING','PENDING','CANCEL_REQUESTED')"
+                )
+                return int(cur.fetchone()[0])
+        finally:
+            conn.close()
+    return sum(1 for r in _load(_RUNS_FILE)
+               if r.get("status") in ("RUNNING", "PENDING", "CANCEL_REQUESTED"))
+
+
 def create_run(config: Dict[str, Any]) -> str:
+    """Create a run. Status is QUEUED if MAX_CONCURRENT_BACKTESTS are already active."""
     run_id = f"BT-{uuid.uuid4().hex[:10]}"
+    initial_status = ("QUEUED" if count_active_runs() >= MAX_CONCURRENT_BACKTESTS
+                      else "PENDING")
     if db_available():
         conn = _connect()
         try:
@@ -143,8 +174,8 @@ def create_run(config: Dict[str, Any]) -> str:
             with conn.cursor() as cur:
                 cur.execute(
                     "INSERT INTO backtest_runs (run_id, status, config)"
-                    " VALUES (%s, 'PENDING', %s)",
-                    (run_id, json.dumps(config, default=str)),
+                    " VALUES (%s, %s, %s)",
+                    (run_id, initial_status, json.dumps(config, default=str)),
                 )
             conn.commit()
         finally:
@@ -152,7 +183,7 @@ def create_run(config: Dict[str, Any]) -> str:
     else:
         rows = _load(_RUNS_FILE)
         rows.append({"run_id": run_id, "created_at": _now_iso(),
-                     "status": "PENDING", "config": config, "progress": {},
+                     "status": initial_status, "config": config, "progress": {},
                      "metrics": None, "missed": None, "validation": None,
                      "error": None, "started_at": None, "completed_at": None})
         _save(_RUNS_FILE, rows)
@@ -287,6 +318,168 @@ def list_runs(limit: int = 50) -> List[Dict[str, Any]]:
 TERMINAL_STATUSES = {"COMPLETED", "CANCELLED", "STALE", "FAILED"}
 
 
+def promote_next_queued() -> Optional[str]:
+    """Promote the oldest QUEUED run to PENDING when a concurrency slot is free.
+    Returns the promoted run_id, or None if nothing was promoted."""
+    if count_active_runs() >= MAX_CONCURRENT_BACKTESTS:
+        return None
+    if db_available():
+        conn = _connect()
+        try:
+            _ensure_schema(conn)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE backtest_runs SET status = 'PENDING'"
+                    " WHERE run_id = ("
+                    "   SELECT run_id FROM backtest_runs WHERE status = 'QUEUED'"
+                    "   ORDER BY created_at ASC LIMIT 1"
+                    " ) AND status = 'QUEUED'"
+                    " RETURNING run_id"
+                )
+                row = cur.fetchone()
+                if row:
+                    conn.commit()
+                    return row[0]
+            conn.rollback()
+            return None
+        finally:
+            conn.close()
+    # File fallback
+    rows = _load(_RUNS_FILE)
+    for r in rows:
+        if r.get("status") == "QUEUED":
+            r["status"] = "PENDING"
+            _save(_RUNS_FILE, rows)
+            return r["run_id"]
+    return None
+
+
+def sweep_stale_runs() -> Dict[str, Any]:
+    """Server-side watchdog — auto-marks orphaned/stale runs and promotes queued ones.
+
+    Marks as STALE:
+    - RUNNING or CANCEL_REQUESTED with no progress heartbeat for 30+ minutes.
+    - PENDING with no worker claim for 30+ minutes (worker died before claiming).
+
+    Then promotes QUEUED → PENDING to fill any newly vacated concurrency slots.
+
+    Designed to be called on every ``backtest_runs`` list request (sweep-on-read)
+    so it runs automatically every 5 s while the Investigation Center is open.
+    """
+    if not db_available():
+        return {"swept": 0, "promoted": 0}
+
+    now = datetime.now(timezone.utc)
+    marked_stale: list = []
+
+    conn = _connect()
+    try:
+        _ensure_schema(conn)
+        with conn.cursor() as cur:
+            # ── 1. Stale RUNNING / CANCEL_REQUESTED runs ───────────────────
+            cur.execute(
+                f"SELECT {', '.join(_RUN_COLS)} FROM backtest_runs"
+                " WHERE status IN ('RUNNING','CANCEL_REQUESTED')"
+            )
+            active_rows = [_run_row_to_dict(r) for r in cur.fetchall()]
+
+        for r in active_rows:
+            progress = r.get("progress") or {}
+            last_ts_str = (progress.get("progress_updated_at")
+                           or r.get("started_at")
+                           or r.get("created_at"))
+            try:
+                last_dt = datetime.fromisoformat(
+                    str(last_ts_str).replace("Z", "+00:00"))
+                if last_dt.tzinfo is None:
+                    last_dt = last_dt.replace(tzinfo=timezone.utc)
+                minutes = (now - last_dt).total_seconds() / 60.0
+            except Exception:
+                continue
+            if minutes >= _STALE_RUNNING_THRESHOLD_MIN:
+                reason = (f"Run stalled — no progress for {round(minutes, 1)} minutes. "
+                          "Worker likely stopped. Retry required.")
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE backtest_runs SET status = 'STALE', error = %s"
+                        " WHERE run_id = %s"
+                        "   AND status IN ('RUNNING','CANCEL_REQUESTED')",
+                        (reason, r["run_id"]),
+                    )
+                marked_stale.append(r["run_id"])
+
+        # ── 2. Orphaned PENDING runs (worker died before claim) ────────────
+        with conn.cursor() as cur:
+            cur.execute(
+                f"SELECT {', '.join(_RUN_COLS)} FROM backtest_runs WHERE status = 'PENDING'"
+            )
+            pending_rows = [_run_row_to_dict(r) for r in cur.fetchall()]
+
+        for r in pending_rows:
+            created_str = r.get("created_at")
+            if not created_str:
+                continue
+            try:
+                created_dt = datetime.fromisoformat(
+                    str(created_str).replace("Z", "+00:00"))
+                if created_dt.tzinfo is None:
+                    created_dt = created_dt.replace(tzinfo=timezone.utc)
+                minutes = (now - created_dt).total_seconds() / 60.0
+            except Exception:
+                continue
+            if minutes >= _STALE_PENDING_THRESHOLD_MIN:
+                reason = (f"Run stalled — PENDING with no worker for {round(minutes, 1)} minutes. "
+                          "Worker likely stopped. Retry required.")
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE backtest_runs SET status = 'STALE', error = %s"
+                        " WHERE run_id = %s AND status = 'PENDING'",
+                        (reason, r["run_id"]),
+                    )
+                marked_stale.append(r["run_id"])
+
+        conn.commit()
+
+        # ── 3. Promote QUEUED runs into newly vacated slots ────────────────
+        promoted: list = []
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT count(*) FROM backtest_runs"
+                " WHERE status IN ('RUNNING','PENDING')"
+            )
+            active_count = int(cur.fetchone()[0])
+            slots = max(0, MAX_CONCURRENT_BACKTESTS - active_count)
+            if slots > 0:
+                cur.execute(
+                    f"SELECT {', '.join(_RUN_COLS)} FROM backtest_runs"
+                    " WHERE status = 'QUEUED' ORDER BY created_at ASC LIMIT %s",
+                    (slots,),
+                )
+                queued_rows = [_run_row_to_dict(r) for r in cur.fetchall()]
+            else:
+                queued_rows = []
+
+        for r in queued_rows:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE backtest_runs SET status = 'PENDING'"
+                    " WHERE run_id = %s AND status = 'QUEUED'",
+                    (r["run_id"],),
+                )
+                if cur.rowcount == 1:
+                    promoted.append(r["run_id"])
+        conn.commit()
+    finally:
+        conn.close()
+
+    return {
+        "swept": len(marked_stale),
+        "marked_stale": marked_stale,
+        "promoted": len(promoted),
+        "promoted_runs": promoted,
+    }
+
+
 def get_run_status(run_id: str) -> Optional[str]:
     """Fast status-only check — avoids deserialising the full run row."""
     if db_available():
@@ -307,9 +500,10 @@ def get_run_status(run_id: str) -> Optional[str]:
 
 
 def cancel_run(run_id: str) -> Dict[str, Any]:
-    """Cancel a PENDING or RUNNING run.
-    PENDING → CANCELLED immediately.
-    RUNNING → CANCEL_REQUESTED (worker stops at next tick checkpoint).
+    """Cancel a QUEUED, PENDING, or RUNNING run.
+    QUEUED   → CANCELLED immediately (was waiting; never had a worker).
+    PENDING  → CANCELLED immediately.
+    RUNNING  → CANCEL_REQUESTED (worker stops at next tick checkpoint).
     Terminal statuses (COMPLETED/CANCELLED/STALE/FAILED) → error.
     Partial events and trades are always preserved."""
     run = get_run(run_id)
@@ -323,11 +517,11 @@ def cancel_run(run_id: str) -> Dict[str, Any]:
         return {"ok": True, "run_id": run_id, "status": "CANCEL_REQUESTED",
                 "message": "Cancel already requested — worker will stop at next checkpoint"}
     now = _now_iso()
-    if status == "PENDING":
+    if status in ("QUEUED", "PENDING"):
         update_run(run_id, status="CANCELLED", error="Cancelled by operator",
                    completed_at=now)
         return {"ok": True, "run_id": run_id, "status": "CANCELLED",
-                "message": "Run was PENDING; cancelled immediately. Partial data preserved."}
+                "message": f"Run was {status}; cancelled immediately. Partial data preserved."}
     # RUNNING → CANCEL_REQUESTED
     progress = dict(run.get("progress") or {})
     progress["cancel_requested_at"] = now
