@@ -86,9 +86,14 @@ async function runQueueTick(): Promise<void> {
     await new Promise<void>((resolve) => {
       let didTimeout = false;
 
+      // bt_queue_tick_cmd.py is a lightweight entry point that imports ONLY
+      // backtest_portfolio (psycopg2-only, ~23 ms cold start).  main.py pulls
+      // in pandas + yfinance + sqlalchemy unconditionally, adding 13–25 s of
+      // import overhead that reliably triggers this 30-second timeout on
+      // Autoscale cold instances.  Both scripts produce identical JSON output.
       const proc = spawn(
         PYTHON_BIN,
-        [path.join(PYTHON_DIR, "main.py"), "bt_queue_tick"],
+        [path.join(PYTHON_DIR, "bt_queue_tick_cmd.py")],
         { cwd: PYTHON_DIR, env: process.env },
       );
       let out = "";

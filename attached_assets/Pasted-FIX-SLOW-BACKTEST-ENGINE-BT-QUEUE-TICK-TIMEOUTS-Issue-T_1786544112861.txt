@@ -1,0 +1,148 @@
+FIX SLOW BACKTEST ENGINE — BT_QUEUE_TICK TIMEOUTS
+
+Issue:
+The stuck-run controls and watchdog improved reliability, but backtest performance is still far too slow.
+
+Current frontend evidence:
+- Run ID: BT-16f1ae6f85
+- 15m interval
+- 1 month
+- 5 symbols: RELIANCE, TCS, INFY, HDFCBANK, ICICIBANK
+- Progress: 395/553 ticks, 4/5 symbols, 71%
+- Elapsed: 2h+
+- ETA: ~48m
+- Warning shown in UI: 11 failures — bt_queue_tick timed out after 30s
+
+Expected:
+The recovery report says 5 symbols, 15m, 30 days should complete in 1–3 minutes. Current runtime is still abnormal.
+
+Do not add new pages.
+Do not change strategy logic.
+Do not change thresholds.
+Do not change live/paper defaults.
+Do not place live orders.
+PAPER / RESEARCH ONLY.
+
+TASK 1 — DIAGNOSE BT_QUEUE_TICK TIMEOUTS
+
+Investigate why bt_queue_tick times out after 30 seconds.
+
+For run BT-16f1ae6f85, report:
+
+- whether the worker is still alive
+- whether progress_updated_at is moving
+- average seconds per tick
+- slowest tick duration
+- average DB write time per tick
+- average _scan_one time per tick
+- average research / market intelligence / strategy time per tick
+- whether event writes are happening one-by-one
+- whether candle fetch/cache is repeated unnecessarily
+- whether Python subprocess startup/import is happening repeatedly
+- whether queue tick is doing heavy backtest work that should be async
+
+TASK 2 — FIND TOP BOTTLENECK
+
+Profile and rank time spent in:
+
+1. yfinance / candle loading
+2. candle cache reads
+3. _scan_one
+4. indicator calculation
+5. research / walk-backtest scoring
+6. strategy selection
+7. risk gate
+8. event emission
+9. pipeline_events DB writes
+10. backtest_trades DB writes
+11. progress update
+12. queue tick / scheduler
+
+Show exact timings.
+
+TASK 3 — FIX PERFORMANCE WITHOUT CHANGING STRATEGY OUTPUT
+
+Performance fixes are allowed only if they preserve identical decisions.
+
+Possible fixes to evaluate:
+
+- preload all candles once per symbol
+- avoid repeated candle DB fetches per tick
+- cache walk-backtest metrics per symbol/time bucket where safe
+- batch pipeline event inserts
+- batch progress updates less frequently
+- avoid per-tick subprocess startup
+- reduce redundant DB reads
+- make bt_queue_tick only manage queue state, not long-running tick processing
+- move heavy replay work to worker loop, not HTTP route
+- lower concurrency to 1 for intraday runs if CPU is saturated
+
+Do not skip pipeline stages.
+Do not reduce event integrity.
+Do not fabricate results.
+Do not change BUY/SELL decisions.
+
+TASK 4 — ADD PERFORMANCE TELEMETRY TO RUN METRICS
+
+For every completed backtest, store:
+
+- total runtime
+- ticks per second
+- avg ms per tick
+- p95 ms per tick
+- db write time
+- scan time
+- event write time
+- progress update count
+- queue timeout count
+- worker restart count
+
+Show this in the run detail or report, not necessarily new UI.
+
+TASK 5 — VERIFY OUTPUT PARITY
+
+After optimization, rerun the same test:
+
+- RELIANCE, TCS, INFY, HDFCBANK, ICICIBANK
+- 15m
+- 2026-07-13 → 2026-08-12
+- ₹1L
+- same config as BT-16f1ae6f85
+
+Compare optimized run vs BT-16f1ae6f85:
+
+- BUY count
+- WATCH count
+- IGNORE count
+- RISK_REJECTED count
+- trades
+- P&L
+- missed opportunities
+- event counts
+
+If results differ, explain why. Otherwise confirm output parity.
+
+TASK 6 — TARGET PERFORMANCE
+
+Target:
+- 5 symbols, 15m, 30 days should complete under 5 minutes on current Replit if possible.
+- If not possible, explain the realistic minimum time and exact bottleneck.
+
+TASK 7 — REPORT
+
+Produce:
+
+BACKTEST_ENGINE_PERFORMANCE_FIX_REPORT.md
+
+Include:
+1. Root cause of bt_queue_tick timeout.
+2. Bottleneck timing table.
+3. What was optimized.
+4. Runtime before vs after.
+5. Output parity result.
+6. New run ID.
+7. Whether 20-symbol 15m backtests are realistic on current Replit.
+8. Safe recommended run size after optimization.
+9. Confirmation no trading logic, thresholds, or live defaults changed.
+
+Stop after report.

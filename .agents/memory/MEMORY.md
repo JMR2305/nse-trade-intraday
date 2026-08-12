@@ -108,3 +108,4 @@
 - [Publish image 8 GiB limit](publish-image-size.md) — deploy build must strip .git/caches/.pythonlibs inside the image; cleaning the dev workspace alone doesn't fix oversize publishes.
 - [Validation V2 backtest pitfalls](validation-v2-backtest.md) — stale-schema silent INSERT fail, bootstrap fetch clobbers data-source gate, regime cache, confidence-100 STRONG_BUY deadlock, yfinance rate limits.
 - [Durable portfolio repos](portfolio-durable-repos.md) — recover-first startup w/ canonical-ledger cross-check; DB idempotency dedupe; serial id is the only cross-process sequence; unit tests must set all portfolio DB kill-switches.
+- [Backtest scheduler cold-start fix](backtest-scheduler-coldstart.md) — bt_queue_tick_cmd.py is the lightweight scheduler tick (116ms cold); never use main.py for scheduler ticks; scan is 93% of replay time (370s floor for 5-sym 15m 30d).

@@ -27,6 +27,7 @@ import json
 import math
 import os
 import sys
+import time
 from datetime import datetime, timedelta, date, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -540,6 +541,7 @@ def execute_run(run_id: str) -> Dict[str, Any]:
     Execute a backtest run created via backtest_portfolio.create_run().
     Long-running — meant to be launched in a detached process.
     """
+    _perf_start = time.perf_counter()  # wall-clock start for telemetry
     run = bp.get_run(run_id)
     if not run:
         return {"ok": False, "error": f"Unknown run {run_id}"}
@@ -628,7 +630,16 @@ def execute_run(run_id: str) -> Dict[str, Any]:
         # (not buffered) to preserve their exact timing in the event stream.
         _evt_buf: List[Dict[str, Any]] = []
 
+        # ── Telemetry accumulators (advisory, stored in metrics at completion) ─
+        _tick_times: List[float] = []  # wall-clock ms per tick (avg / p95)
+        _scan_ms    = 0.0              # cumulative _scan_one + indicator time
+        _event_ms   = 0.0             # cumulative emit_many flush time
+        _db_ms      = 0.0             # cumulative DB write time
+        _progress_updates = 0         # heartbeat writes to backtest_runs
+        _data_ms = (time.perf_counter() - _perf_start) * 1000  # DATA phase cost
+
         for tick_i, ts_iso in enumerate(timeline):
+            _t0 = time.perf_counter()  # per-tick wall-clock start
             ts = pd.Timestamp(ts_iso)
             if ts.tzinfo is None:
                 ts = ts.tz_localize("UTC")
@@ -642,17 +653,21 @@ def execute_run(run_id: str) -> Dict[str, Any]:
             }
 
             # exits first (against the current candle, never the entry candle)
+            _t_db = time.perf_counter()
             cash = _check_exits(run_id, scan_id, ts_iso, bars, cash)
+            _db_ms += (time.perf_counter() - _t_db) * 1000
             if round(cash, 2) != cash_log[-1][1]:
                 cash_log.append([tick_i, round(cash, 2)])
 
             # scan every symbol that has a bar at this timestamp
             recs = []
+            _t_scan = time.perf_counter()
             for sym in bars:
                 df = build_asof_df(daily_dfs.get(sym), intraday_dfs.get(sym),
                                    ts, interval, vol_normalize=vol_normalize)
                 fr = _fetch_result(sym, df, ts_iso)
                 recs.append(_scan_one(sym, fr, scan_id, ts_iso, cash))
+            _scan_ms += (time.perf_counter() - _t_scan) * 1000
             # Buffer events — flushed every 5 ticks (see checkpoint block below)
             _evt_buf.extend(derive_symbol_events(recs, scan_id, mode="BACKTEST",
                                                  run_id=run_id))
@@ -672,9 +687,11 @@ def execute_run(run_id: str) -> Dict[str, Any]:
             # ticks (~75 min of 15m data) which is acceptable for backtest audit.
             if tick_i % 5 == 4 or tick_i == tick_count - 1:
                 # Flush buffered scan events (one DB round-trip for ≤5 ticks)
+                _t_evt = time.perf_counter()
                 if _evt_buf:
                     emit_many(_evt_buf)
                     _evt_buf.clear()
+                _event_ms += (time.perf_counter() - _t_evt) * 1000
                 # Cancellation / stale checkpoint — one cheap DB read.
                 # get_run_status() returns None on any DB error so a transient
                 # Neon outage skips the check rather than crashing the run.
@@ -701,11 +718,14 @@ def execute_run(run_id: str) -> Dict[str, Any]:
                             "message": ("Run marked STALE by watchdog; "
                                         "worker exiting without overwriting state")}
                 # Heartbeat: cheap progress write that resets the stale clock.
+                _t_db = time.perf_counter()
                 bp.update_run(run_id, progress={
                     "phase": "REPLAY", "done": tick_i + 1, "total": tick_count,
                     "ts": ts_iso, "cash": round(cash, 2),
                     "current_symbols": sorted(bars.keys()),
                     "progress_updated_at": datetime.now(timezone.utc).isoformat()})
+                _db_ms += (time.perf_counter() - _t_db) * 1000
+                _progress_updates += 1
 
             # ── Every 20 ticks: full portfolio snapshot ────────────────────────
             # More expensive than the heartbeat (reads all trades from DB).
@@ -713,7 +733,9 @@ def execute_run(run_id: str) -> Dict[str, Any]:
             # live equity curve at ~5 min resolution for 15m backtests.
             if tick_i % 20 == 0 or tick_i == tick_count - 1:
                 snap_marks = {s: float(b["close"]) for s, b in bars.items()}
+                _t_db = time.perf_counter()
                 snap = bp.portfolio_snapshot(run_id, snap_marks)
+                _db_ms += (time.perf_counter() - _t_db) * 1000
                 # Buffer PORTFOLIO_UPDATED alongside the next scan-event flush;
                 # a final immediate flush below handles the last-tick case.
                 _evt_buf.append({
@@ -726,8 +748,11 @@ def execute_run(run_id: str) -> Dict[str, Any]:
                 # Flush immediately on the last tick so PORTFOLIO_UPDATED is
                 # never left in the buffer after the loop exits.
                 if tick_i == tick_count - 1 and _evt_buf:
+                    _t_evt = time.perf_counter()
                     emit_many(_evt_buf)
                     _evt_buf.clear()
+                    _event_ms += (time.perf_counter() - _t_evt) * 1000
+            _tick_times.append((time.perf_counter() - _t0) * 1000)
 
         # 3. Close whatever is still open at the final candle close.
         last_close: Dict[str, float] = {}
@@ -759,6 +784,25 @@ def execute_run(run_id: str) -> Dict[str, Any]:
         metrics["ticks"] = tick_count
         metrics["symbols"] = len(per_symbol)
         metrics["data_errors"] = data_errors
+        # ── Performance telemetry (advisory — never changes decisions) ────────
+        _total_s = time.perf_counter() - _perf_start
+        _tt_sorted = sorted(_tick_times)
+        _p95_idx = max(0, int(len(_tt_sorted) * 0.95) - 1) if _tt_sorted else 0
+        metrics["perf"] = {
+            "total_runtime_s":   round(_total_s, 1),
+            "data_phase_s":      round(_data_ms / 1000, 1),
+            "replay_phase_s":    round(_total_s - _data_ms / 1000, 1),
+            "ticks_per_second":  round(
+                len(_tick_times) / max(_total_s - _data_ms / 1000, 0.001), 2),
+            "avg_ms_per_tick":   round(
+                sum(_tick_times) / len(_tick_times), 1) if _tick_times else 0,
+            "p95_ms_per_tick":   round(_tt_sorted[_p95_idx], 1) if _tt_sorted else 0,
+            "max_ms_per_tick":   round(max(_tick_times), 1) if _tick_times else 0,
+            "scan_ms_total":     round(_scan_ms),
+            "event_ms_total":    round(_event_ms),
+            "db_ms_total":       round(_db_ms),
+            "progress_updates":  _progress_updates,
+        }
         # Atomic: complete_run() writes COMPLETED only if status is still
         # RUNNING (single conditional UPDATE, rowcount-checked).  If a watchdog
         # marked the run STALE between the last checkpoint and here, the write
