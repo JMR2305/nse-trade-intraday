@@ -642,12 +642,54 @@ def _build_symbol_journey(rec: Dict, snapshot: Dict,
     # ("outcome not recorded") rather than the misleading "Paper order placed".
     _eo = execution_outcome or {}
     _eo_type = _eo.get("event_type")
+    _eo_failed_gates: list = _eo.get("failed_gates") or []
     _eo_gate_reasons: dict = _eo.get("failed_gate_reasons") or {}
     _eo_reason_str = (
         "; ".join(str(v) for v in _eo_gate_reasons.values())
         if _eo_gate_reasons
         else (_eo.get("note") or "")
     )
+
+    # ── Dual-threshold R:R gap detection ───────────────────────────────────
+    # The Risk Agent approves at ≥1.5; the execution layer requires ≥2.0.
+    # A symbol permanently stuck in this gap shows RISK_APPROVED + BUY in the
+    # snapshot but is silently skipped every scan.  Surface this explicitly so
+    # operators understand why no paper order ever fires — no thresholds change.
+    # Guard: only EXECUTION_SKIPPED_WITH_REASON (not ORDER_REJECTED or others).
+    _rr_gap = (
+        _eo_type == "EXECUTION_SKIPPED_WITH_REASON"
+        and "min_risk_reward" in _eo_failed_gates
+        and bool(all_gates)  # Risk Agent passed at its lower threshold
+    )
+    _dual_rr_note: Optional[str] = None
+    if _rr_gap:
+        import re as _re
+        _rr_val = _pct(rec.get("rr_ratio"))
+        _rr_val_str = f"{_rr_val:.2f}" if _rr_val is not None else "this level"
+        # The execution gate reason in the event payload carries the *actual*
+        # configured threshold (e.g. "R:R 1.5 vs minimum 2.0").  Extract it
+        # so the callout always reflects the live settings value, never a
+        # hardcoded constant.
+        _exec_rr_reason = _eo_gate_reasons.get("min_risk_reward") or ""
+        _exec_min_match = _re.search(r"minimum\s+([\d.]+)", _exec_rr_reason)
+        _exec_min_str = (
+            f"≥{_exec_min_match.group(1)}" if _exec_min_match else "the configured execution minimum"
+        )
+        if _exec_rr_reason:
+            _dual_rr_note = (
+                f"Risk Agent approved (R:R {_rr_val_str}) but execution gate blocked: "
+                f"{_exec_rr_reason} — signal permanently blocked unless R:R improves "
+                f"to {_exec_min_str}"
+            )
+        else:
+            # Event payload missing gate-reason detail — surface the conflict
+            # without stating a specific threshold that may be misconfigured.
+            _dual_rr_note = (
+                f"Risk Agent approved (R:R {_rr_val_str}) but the execution R:R gate "
+                f"blocked this order — check execution settings for the required "
+                f"minimum R:R threshold"
+            )
+
     if _eo_type in ("ORDER_SUBMITTED", "ORDER_EXECUTED"):
         _exec_result = "PAPER BUY"
         _exec_reason = "Paper order placed and recorded"
@@ -803,6 +845,10 @@ def _build_symbol_journey(rec: Dict, snapshot: Dict,
                 "paper_order_id": rec.get("paper_order_id"),
                 "paper_order_note": rec.get("paper_order_note"),
                 "entry_price": rec.get("entry_price"),
+                # Dual-threshold warning: present only when Risk Agent approved
+                # at its lower R:R gate but execution layer blocked at its higher
+                # gate.  Null when not applicable — UI hides it when null.
+                "dual_threshold_warning": _dual_rr_note,
             },
         },
     ]

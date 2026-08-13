@@ -1865,6 +1865,18 @@ function JourneyStepRow({ step, isLast }: { step: JourneyStep; isLast: boolean }
           </div>
         </div>
         <p className="text-xs text-slate-400">{step.reason}</p>
+        {/* Dual R:R threshold warning — shown only when Risk Agent approved but
+            the execution layer's stricter gate permanently blocks the order.
+            Narrowed to string so TypeScript does not infer unknown/ReactNode. */}
+        {step.stage === "execution" &&
+          typeof step.detail?.dual_threshold_warning === "string" && (
+          <div className="mt-2 flex items-start gap-2 bg-amber-900/20 border border-amber-700/40 rounded-lg px-3 py-2.5">
+            <AlertTriangle size={13} className="text-amber-400 mt-0.5 shrink-0" />
+            <p className="text-xs text-amber-300 leading-relaxed">
+              {step.detail.dual_threshold_warning}
+            </p>
+          </div>
+        )}
         {hasDetail && (
           <button
             onClick={() => setExpanded(v => !v)}
