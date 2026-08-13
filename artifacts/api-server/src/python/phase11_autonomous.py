@@ -483,6 +483,27 @@ def get_recommendation_queue() -> Dict[str, Any]:
     # Sort by confidence desc
     items.sort(key=lambda x: float(x.get("confidence", 0)), reverse=True)
 
+    # ── Session-date gate ──────────────────────────────────────────────────
+    # When the latest scan is from a previous trading day, the recommendation
+    # queue must be cleared so yesterday's BUY items don't appear as active.
+    _is_today_session = True
+    try:
+        from phase15_scan_context import build_scan_context as _bsc
+        _sc = _bsc()
+        _is_today_session = bool(_sc.get("is_today_session", True))
+    except Exception:
+        pass
+
+    if not _is_today_session:
+        return {
+            "items":         [],
+            "count":         0,
+            "advisory_only": ADVISORY_ONLY,
+            "paper_only":    PAPER_ONLY,
+            "as_of":         _now_iso(),
+            "session_mismatch": True,
+        }
+
     return {
         "items":         items,
         "count":         len(items),

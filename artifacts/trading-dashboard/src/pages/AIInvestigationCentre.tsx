@@ -41,6 +41,8 @@ import type { ExecutionTrade }    from "@/components/replay/TradeEventCard";
 interface Session {
   scan_id: string;
   snapshot_ts: string;
+  snapshot_date_ist?: string;
+  is_today_session?: boolean;
   status: string;
   universe_size: number | null;
   symbols_processed: number | null;
@@ -1983,6 +1985,21 @@ export default function AIInvestigationCentre() {
   const selectedSession = sessions.find(s => s.scan_id === selectedScanId) ?? sessions[0];
   const snapshotTs = replayData?.snapshot_ts ?? selectedSession?.snapshot_ts;
 
+  // Session-date guard: when the selected session is the latest and from a
+  // previous IST trading day, active candidate cards and Paper badges must be
+  // suppressed so operators don't see stale yesterday data as actionable.
+  const isTodaySession: boolean = (() => {
+    if (selectedSession?.is_today_session != null) return !!selectedSession.is_today_session;
+    // Fallback: compare snapshot_date_ist against today's IST date
+    const dateIst = selectedSession?.snapshot_date_ist;
+    if (!dateIst) return true; // unknown — default to showing content
+    const todayIst = new Date(Date.now() + 5.5 * 60 * 60 * 1000)
+      .toISOString().slice(0, 10);
+    return dateIst === todayIst;
+  })();
+  const isLatestSession = !!(selectedSession?.is_latest);
+  const showStaleGuard = isLatestSession && !isTodaySession;
+
   // ── Playback engine ───────────────────────────────────────────────────────
   const stages = replayData?.stages ?? [];
 
@@ -2582,6 +2599,56 @@ export default function AIInvestigationCentre() {
                     />
                   </div>
                 </div>
+                {/* Morning stale-data guard: when the latest scan is from a previous
+                    trading day, replace the active candidate grid with a neutral
+                    waiting state and show a collapsed "Previous session" accordion. */}
+                {showStaleGuard ? (
+                  <div className="space-y-3">
+                    <div className="col-span-2 flex flex-col items-center gap-3 py-8 rounded-xl bg-slate-900/50 border border-slate-700/50">
+                      <Clock size={28} className="text-slate-500" />
+                      <p className="text-sm font-semibold text-slate-300">Waiting for today's first fresh scan</p>
+                      <p className="text-xs text-slate-500 text-center max-w-xs">
+                        The latest scan is from a previous trading session ({selectedSession?.snapshot_date_ist ?? "—"}).
+                        Active BUY candidates are hidden until a fresh scan runs today.
+                      </p>
+                    </div>
+                    <details className="rounded-xl border border-slate-700/40 overflow-hidden">
+                      <summary className="px-4 py-2.5 text-xs font-semibold text-slate-500 cursor-pointer hover:text-slate-300 flex items-center gap-2 list-none bg-slate-900/40">
+                        <ChevronDown size={12} />
+                        Previous session snapshot — historical / not actionable ({filteredSymbols.length} symbols)
+                      </summary>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 max-h-72 overflow-y-auto bg-slate-900/20">
+                        {filteredSymbols.map(sym => (
+                          <button
+                            key={sym.symbol}
+                            onClick={() => { setSelectedSymbol(sym.symbol); setActiveTab(1); }}
+                            className="text-left bg-slate-800/40 border border-slate-700/40 rounded-lg p-3 opacity-70 hover:opacity-90 transition-all group"
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="font-mono font-semibold text-sm text-slate-400 group-hover:text-slate-200 transition-colors">
+                                {sym.symbol}
+                              </span>
+                              <span className={`px-2 py-0.5 rounded text-xs font-semibold ${actionBadge(sym.final_action)}`}>
+                                {sym.final_action ?? "—"}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 text-xs text-slate-500">
+                              <span>{sym.sector ?? "—"}</span>
+                              <span className="text-slate-500">{sym.confidence}% conf</span>
+                              {/* Paper badge suppressed for previous-session symbols */}
+                            </div>
+                            {sym.strategy && <div className="text-xs text-slate-600 mt-0.5 truncate">{sym.strategy}</div>}
+                          </button>
+                        ))}
+                        {filteredSymbols.length === 0 && (
+                          <div className="col-span-2 text-center py-4 text-slate-600 text-sm">
+                            {replayLoading ? "Loading…" : "No symbols match"}
+                          </div>
+                        )}
+                      </div>
+                    </details>
+                  </div>
+                ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-96 overflow-y-auto pr-1">
                   {filteredSymbols.map(sym => (
                     <button
@@ -2601,7 +2668,7 @@ export default function AIInvestigationCentre() {
                       <div className="flex items-center gap-3 text-xs text-slate-500">
                         <span>{sym.sector ?? "—"}</span>
                         <span className="text-teal-400">{sym.confidence}% conf</span>
-                        {sym.paper_eligible && <span className="text-amber-400">Paper Eligible</span>}
+                        {sym.paper_eligible && isTodaySession && <span className="text-amber-400">Paper ✓</span>}
                       </div>
                       {sym.strategy && <div className="text-xs text-slate-600 mt-0.5 truncate">{sym.strategy}</div>}
                     </button>
@@ -2612,6 +2679,7 @@ export default function AIInvestigationCentre() {
                     </div>
                   )}
                 </div>
+                )}
               </div>
 
             </div>

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
 try:
@@ -59,6 +59,33 @@ def _is_buy_action(action) -> bool:
     """Canonical BUY classification — the scanner emits both 'BUY' and
     'STRONG BUY' (space) as buy decisions; normalise before comparing."""
     return str(action or "").upper().replace("_", " ") in ("BUY", "STRONG BUY")
+
+
+def _today_ist() -> str:
+    """Return today's date in IST (UTC+5:30) as YYYY-MM-DD."""
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%Y-%m-%d")
+    except Exception:
+        return (datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d")
+
+
+def _snapshot_date_ist(snapshot_ts: str) -> Optional[str]:
+    """Return the IST date of a snapshot timestamp as YYYY-MM-DD, or None."""
+    if not snapshot_ts:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(snapshot_ts).replace("Z", "+00:00"))
+        ist_dt = dt + timedelta(hours=5, minutes=30)
+        return ist_dt.strftime("%Y-%m-%d")
+    except Exception:
+        return None
+
+
+def _is_today_session(snapshot_ts: str) -> bool:
+    """Return True when the snapshot's IST date equals today's IST date."""
+    date_ist = _snapshot_date_ist(snapshot_ts)
+    return bool(date_ist and date_ist == _today_ist())
 
 
 # ---------------------------------------------------------------------------
@@ -638,8 +665,9 @@ def _build_symbol_journey(rec: Dict, snapshot: Dict,
         )
     elif paper_eligible:
         # paper_eligible=True in snapshot but no execution event for this scan_id
-        _exec_result = "PENDING"
-        _exec_reason = "Paper eligible — execution outcome not recorded for this scan"
+        # "Paper eligible" (not "Paper order placed") — no actual order was placed
+        _exec_result = "ELIGIBLE"
+        _exec_reason = "Paper eligible"
     else:
         _exec_result = "SKIPPED" if not _is_buy_action(final_action) else "REJECTED"
         _exec_reason = (
@@ -942,9 +970,12 @@ def get_replay_sessions() -> Dict:
                 except Exception:
                     pass
                 dur = snap.get("duration_s")
+                _snap_ts_str = str(row.get("snapshot_ts") or row.get("completed_at") or "")
                 sessions.append({
                     "scan_id": row["scan_id"] or "latest",
-                    "snapshot_ts": str(row.get("snapshot_ts") or row.get("completed_at") or ""),
+                    "snapshot_ts": _snap_ts_str,
+                    "snapshot_date_ist": _snapshot_date_ist(_snap_ts_str),
+                    "is_today_session": _is_today_session(_snap_ts_str),
                     "status": row.get("status") or "COMPLETED",
                     "universe_size": int(row.get("symbols_requested") or snap.get("universe_size") or 0),
                     "symbols_processed": int(row.get("symbols_received") or len(recs)),
@@ -969,9 +1000,12 @@ def get_replay_sessions() -> Dict:
                 sid = hr.get("scan_id")
                 if sid == latest_sid:
                     continue
+                _hr_snap_ts = str(hr.get("snapshot_ts") or "")
                 sessions.append({
                     "scan_id": sid,
-                    "snapshot_ts": str(hr.get("snapshot_ts") or ""),
+                    "snapshot_ts": _hr_snap_ts,
+                    "snapshot_date_ist": _snapshot_date_ist(_hr_snap_ts),
+                    "is_today_session": _is_today_session(_hr_snap_ts),
                     "status": "COMPLETED",
                     "universe_size": None,
                     "symbols_processed": None,

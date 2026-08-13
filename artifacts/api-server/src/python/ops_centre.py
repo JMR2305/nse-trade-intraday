@@ -1692,7 +1692,7 @@ def get_stock_journey(symbol: str) -> Dict[str, Any]:
     elif executed:
         note = (canon or {}).get("paper_order_note")
         paper_elig = bool((canon or {}).get("paper_eligible"))
-        exec_decision = "Paper Eligible" if paper_elig else "Not placed"
+        exec_decision = "Paper Eligible" if paper_elig else "Not executed"
         exec_reason = str(note or (
             "Paper-eligible — no order recorded for this scan" if paper_elig
             else "Not paper-eligible for this scan"

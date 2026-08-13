@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
@@ -21,6 +21,27 @@ SCAN_CACHE = os.path.join(_DIR, "phase7_scan_cache.json")
 P13_CACHE = os.path.join(_DIR, "phase13_cache.json")
 
 STALE_AFTER_S = 90 * 60  # 90 minutes — aligned with phase13 stale gate
+
+
+def _today_ist() -> str:
+    """Return today's date in IST (UTC+5:30) as YYYY-MM-DD."""
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%Y-%m-%d")
+    except Exception:
+        return (datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d")
+
+
+def _snapshot_date_ist(snapshot_ts: str) -> Optional[str]:
+    """Return the IST date of a snapshot timestamp as YYYY-MM-DD, or None."""
+    try:
+        dt = _parse_ts(snapshot_ts)
+        if dt is None:
+            return None
+        ist_dt = dt + timedelta(hours=5, minutes=30)
+        return ist_dt.strftime("%Y-%m-%d")
+    except Exception:
+        return None
 
 
 def _load(path: str) -> Optional[Dict[str, Any]]:
@@ -153,14 +174,21 @@ def build_scan_context() -> Dict[str, Any]:
             "error": r.get("error"),
         }
 
+    snap_ts = scan.get("snapshot_ts") or ""
+    _snap_date_ist = _snapshot_date_ist(snap_ts)
+    _today = _today_ist()
+    is_today_session = bool(_snap_date_ist and _snap_date_ist == _today)
+
     return {
         "available": True,
         "scan_id": scan.get("scan_id"),
-        "snapshot_ts": scan.get("snapshot_ts"),
+        "snapshot_ts": snap_ts,
+        "snapshot_date_ist": _snap_date_ist,
         "scan_age_seconds": round(age_s, 0) if age_s is not None else None,
         "stale": stale,
         "stale_after_seconds": STALE_AFTER_S,
-        "buy_recommendations_disabled": stale,
+        "is_today_session": is_today_session,
+        "buy_recommendations_disabled": stale or not is_today_session,
         "market_regime": regime,
         "universe_size": scan.get("universe_size"),
         "duration_s": scan.get("duration_s"),

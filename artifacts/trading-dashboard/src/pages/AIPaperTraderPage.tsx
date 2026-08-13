@@ -711,6 +711,11 @@ interface PipelineStats {
   };
 
   stage_errors?: string[];
+  /** True when the latest scan is from a previous trading day — active
+   *  candidate cards, badges, and gate details are replaced with a
+   *  "Waiting for today's first fresh scan" state. */
+  session_mismatch?: boolean;
+  session_message?: string | null;
 }
 
 // ── Cadence stats type ────────────────────────────────────────────────────────
@@ -1194,8 +1199,23 @@ function SPipelineStats() {
             );
           })()}
 
+          {/* Session-date gate: stale previous-day scan — show waiting state
+              instead of yesterday's BUY candidates */}
+          {data?.session_mismatch && (
+            <div className="rounded-lg bg-slate-900/50 border border-slate-700/40 p-4 flex flex-col items-center gap-2 text-center">
+              <Clock className="w-5 h-5 text-slate-500" />
+              <p className="text-xs font-semibold text-slate-300">
+                {data.session_message ?? "Waiting for today's first fresh scan"}
+              </p>
+              <p className="text-[10px] text-slate-500">
+                The latest scan is from a previous trading session.
+                BUY candidates and execution cards are hidden until a fresh scan runs today.
+              </p>
+            </div>
+          )}
+
           {/* Top BUY candidates */}
-          {(data?.top_buy_candidates?.length ?? 0) > 0 && (
+          {!data?.session_mismatch && (data?.top_buy_candidates?.length ?? 0) > 0 && (
             <div className="rounded-lg bg-slate-900/40 border border-slate-800/40 p-3">
               <p className="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1.5">
                 <TrendingUp className="w-3 h-3 text-teal-400" /> BUY Candidates This Scan
@@ -1243,7 +1263,7 @@ function SPipelineStats() {
           )}
 
           {/* Per-candidate gate failures — shows gate name + reason + auto-entry outcome */}
-          {(data?.candidate_gate_details?.filter(c => !c.eligible).length ?? 0) > 0 && (
+          {!data?.session_mismatch && (data?.candidate_gate_details?.filter(c => !c.eligible).length ?? 0) > 0 && (
             <div className="rounded-lg bg-slate-900/40 border border-slate-800/40 p-3">
               <p className="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1.5">
                 <XCircle className="w-3 h-3 text-rose-400" /> Blocked Candidates

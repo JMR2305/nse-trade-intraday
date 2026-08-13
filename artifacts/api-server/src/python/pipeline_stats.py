@@ -47,10 +47,12 @@ def get_pipeline_stats() -> Dict[str, Any]:
     snapshot_ts         = None
     scan_available      = False
     top_candidates: List[Dict[str, Any]] = []
+    _loaded_ctx: Optional[Dict[str, Any]] = None  # saved for session-date gate below
 
     try:
         from phase15_scan_context import build_scan_context
         ctx = build_scan_context()
+        _loaded_ctx    = ctx
         scan_available = bool(ctx.get("available"))
         scan_id        = ctx.get("scan_id")
         snapshot_ts    = ctx.get("snapshot_ts")
@@ -359,6 +361,18 @@ def get_pipeline_stats() -> Dict[str, Any]:
             first_blocker = f["stage"]
             break
 
+    # ── Session-date gate ────────────────────────────────────────────────────
+    # When the latest scan is from a previous trading day, candidate-display
+    # fields are cleared so stale BUY cards never appear as active.
+    # The funnel, gate_summary, and first_blocker continue to reflect the
+    # real stale-scan state so operators see the diagnostic.
+    # Reuse ctx already loaded above — never calls build_scan_context() twice.
+    _is_today_session = bool(_loaded_ctx.get("is_today_session", True)) if _loaded_ctx else True
+
+    _session_mismatch = scan_available and not _is_today_session
+    _display_candidates = top_candidates[:10] if not _session_mismatch else []
+    _display_gate_details = candidate_details[:10] if not _session_mismatch else []
+
     return {
         "generated_at":        _now(),
         "scan_id":             scan_id,
@@ -367,14 +381,19 @@ def get_pipeline_stats() -> Dict[str, Any]:
         "eval_available":      eval_available,
         "funnel":              funnel,
         "first_blocker":       first_blocker,
-        "top_buy_candidates":  top_candidates[:10],
-        "candidate_gate_details": candidate_details[:10],
+        "top_buy_candidates":  _display_candidates,
+        "candidate_gate_details": _display_gate_details,
         "gate_summary":        gate_summary,
         "recent_trades":       recent_trades,
         "settings":            settings_snapshot,
         "stage_errors":        stage_errors,
         "advisory_only":       True,
         "paper_only":          True,
+        "session_mismatch":    _session_mismatch,
+        "session_message":     (
+            "Waiting for today's first fresh scan"
+            if _session_mismatch else None
+        ),
         # Flat summary for quick reads
         "summary": {
             "stocks_scanned":        scan_total,
