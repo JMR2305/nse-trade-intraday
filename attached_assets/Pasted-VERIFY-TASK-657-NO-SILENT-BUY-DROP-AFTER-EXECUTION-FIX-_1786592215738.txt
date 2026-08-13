@@ -1,0 +1,93 @@
+VERIFY TASK #657 — NO SILENT BUY DROP AFTER EXECUTION FIX
+
+We need to confirm the HDFCLIFE execution bug is fixed.
+
+Known previous issue:
+HDFCLIFE generated valid BUY_GENERATED signals with paper_eligible=true during market hours.
+The AI caught the intraday low correctly.
+All gates passed.
+But no ORDER_SUBMITTED, no ORDER_REJECTED, and no phase20_paper_trades row appeared because execution_engine.py called missing function create_paper_order.
+This was supposedly fixed in Task #657.
+
+Do not change strategy logic.
+Do not change thresholds.
+Do not bypass risk gates.
+Do not place live orders.
+PAPER ONLY.
+
+TASK 1 — CONFIRM CODE FIX IS DEPLOYED
+
+Verify:
+- execution_engine.py no longer imports/calls missing create_paper_order
+- paper execution uses the correct Phase20 paper executor path
+- ImportError is gone
+- no silent exception swallowing remains
+
+TASK 2 — REPLAY / DRY-RUN THE KNOWN HDFCLIFE CASE
+
+Use the known Aug 12 HDFCLIFE BUY scan if possible:
+
+- scan_id: b20baab14cfd
+- time: 12:56:30 IST
+- symbol: HDFCLIFE
+- action: BUY_GENERATED
+- paper_eligible=true
+- confidence: 71.3%
+- opportunity score: 63.0
+- R:R: 1.50
+
+Run in PAPER / DRY-RUN mode only.
+
+Expected:
+The BUY must now produce one terminal event:
+
+- ORDER_SUBMITTED / ORDER_EXECUTED
+or
+- ORDER_REJECTED with exact reason
+or
+- EXECUTION_SKIPPED_WITH_REASON
+
+It must not disappear silently.
+
+TASK 3 — LIVE MARKET-HOURS VERIFICATION
+
+During today’s market session after 09:15 IST:
+
+For every BUY_GENERATED / STRONG_BUY_GENERATED signal, verify:
+
+- signal timestamp
+- scan_fresh at signal time
+- market_open at signal time
+- auto-entry attempted yes/no
+- terminal outcome
+- paper trade row yes/no
+- rejection reason if not executed
+
+TASK 4 — ADD ASSERTION
+
+Add a test/assertion:
+
+Every BUY_GENERATED with paper_eligible=true must have one terminal outcome event within the same scan_id + symbol flow.
+
+Allowed outcomes:
+- ORDER_SUBMITTED
+- ORDER_EXECUTED
+- ORDER_REJECTED
+- EXECUTION_SKIPPED_WITH_REASON
+
+Failure condition:
+- BUY_GENERATED + paper_eligible=true + no terminal outcome
+
+TASK 5 — REPORT
+
+Produce:
+
+TASK657_EXECUTION_FIX_VERIFICATION.md
+
+Include:
+1. Whether the missing create_paper_order import is removed/fixed.
+2. Whether known HDFCLIFE replay now produces an order or rejection event.
+3. Whether today’s live BUY signals all have terminal outcomes.
+4. Whether any BUY still disappears silently.
+5. Confirmation no live orders placed.
+6. Confirmation paper mode only.
