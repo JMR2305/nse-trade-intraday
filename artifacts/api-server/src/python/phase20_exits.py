@@ -192,6 +192,39 @@ def manage_open_positions(settings: Dict[str, Any]) -> Dict[str, Any]:
                        else "SIGNAL_EXIT"),
         )
         if not ok:
+            # Emit a mandatory terminal event so the SELL failure is
+            # visible in the pipeline and never disappears silently.
+            # The most common cause is portfolio-state divergence: the
+            # Phase 20 ledger shows the trade as OPEN, but the paper
+            # portfolio no longer holds the position (e.g. after a
+            # manual reset or a failed prior SELL).
+            try:
+                from pipeline_events import emit as _pe
+                _pe("EXECUTION_SKIPPED_WITH_REASON", "EXECUTION",
+                    scan_id=exit_scan_id, symbol=sym,
+                    payload={
+                        "reason": msg,
+                        "note": (
+                            "SELL skipped — no open paper position; "
+                            "portfolio state diverged from Phase 20 ledger"
+                        ),
+                        "exit_rule": rule,
+                        "position_count": len(portfolio.get("positions", [])),
+                        "source": "paper_mode_sell_validation",
+                        "trade_id": trade_id,
+                    })
+            except Exception:
+                pass
+            store.add_notification(
+                "SELL_SKIPPED_NO_POSITION",
+                f"SELL skipped — no open paper position for {sym}",
+                f"execute_sell returned: {msg}. Exit rule: {rule}. "
+                f"The Phase 20 ledger trade {trade_id} is still OPEN but "
+                f"the paper portfolio no longer holds {sym}.",
+                severity="WARN",
+                context={"symbol": sym, "trade_id": trade_id,
+                         "rule": rule, "scan_id": exit_scan_id},
+            )
             pending.append({"trade_id": trade_id, "symbol": sym,
                             "rule": rule, "reason": msg})
             continue
@@ -236,6 +269,24 @@ def _retry_pending(symbols_ctx: Dict[str, Any], scan_ok: bool, stale: bool,
                                 exit_type="SIGNAL_EXIT",
                                 ledger_trade_id=str(trade.get("trade_id") or ""))
         if not ok:
+            # Pending retry also failed — emit terminal event so the gap
+            # is visible in the pipeline rather than silently dropped.
+            try:
+                from pipeline_events import emit as _pe
+                _pe("EXECUTION_SKIPPED_WITH_REASON", "EXECUTION",
+                    scan_id=exit_scan_id, symbol=sym,
+                    payload={
+                        "reason": _msg,
+                        "note": (
+                            "SELL skipped — no open paper position; "
+                            "pending exit retry could not be resolved"
+                        ),
+                        "exit_rule": rule,
+                        "source": "paper_mode_sell_validation",
+                        "trade_id": str(trade.get("trade_id") or ""),
+                    })
+            except Exception:
+                pass
             continue
         record_exit(str(trade.get("trade_id")), quote, rule, exit_scan_id,
                     status="CLOSED")
