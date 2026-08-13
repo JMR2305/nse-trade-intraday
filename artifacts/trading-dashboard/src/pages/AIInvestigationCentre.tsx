@@ -99,6 +99,8 @@ interface SymbolRow {
   all_gates_passed: boolean;
   paper_eligible: boolean;
   data_quality: string | null;
+  /** True when Risk Agent approved (all_gates_passed) but execution R:R gate blocks at a higher threshold */
+  rr_gap?: boolean;
 }
 
 interface JourneyStep {
@@ -2683,6 +2685,15 @@ export default function AIInvestigationCentre() {
                         {sym.paper_eligible && isTodaySession && <span className="text-amber-400">Paper ✓</span>}
                       </div>
                       {sym.strategy && <div className="text-xs text-slate-600 mt-0.5 truncate">{sym.strategy}</div>}
+                      {sym.rr_gap && sym.paper_eligible && (
+                        <div
+                          className="mt-1 flex items-center gap-1 px-1.5 py-0.5 rounded border border-amber-600/40 bg-amber-900/20 text-[10px] text-amber-400 font-medium"
+                          title="R:R gap — passes Risk (≥1.5), blocked at Execution (≥2.0). Open Investigation Mode for details."
+                        >
+                          <AlertTriangle size={10} className="shrink-0" />
+                          R:R gap — blocked at Execution
+                        </div>
+                      )}
                     </button>
                   ))}
                   {filteredSymbols.length === 0 && (

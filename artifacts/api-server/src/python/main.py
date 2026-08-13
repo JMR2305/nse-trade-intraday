@@ -1231,6 +1231,9 @@ def main():
             from phase20_executor import run_auto_entries
             result = run_auto_entries(_p20gs())
             result["success"] = True
+        elif command == "get_rr_gap_symbols":
+            from replay_engine import get_rr_gap_symbols
+            result = get_rr_gap_symbols(args[1] if len(args) > 1 else None)
         elif command == "replay_sessions":
             from replay_engine import get_replay_sessions
             result = get_replay_sessions()

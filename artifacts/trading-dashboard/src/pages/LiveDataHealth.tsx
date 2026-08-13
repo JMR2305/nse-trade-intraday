@@ -575,7 +575,20 @@ export default function LiveDataHealth() {
                     ))}
                     <td className="px-2 py-1">
                       {r.paper_eligible
-                        ? <CheckCircle2 className="h-3 w-3 text-violet-400" />
+                        ? (
+                          <span className="flex items-center gap-1">
+                            <CheckCircle2 className="h-3 w-3 text-violet-400 shrink-0" />
+                            {r.rr_gap && (
+                              <span
+                                className="inline-flex items-center gap-0.5 px-1 rounded border border-amber-600/40 bg-amber-900/20 text-[8px] text-amber-400 font-medium whitespace-nowrap"
+                                title="R:R gap — passes Risk (≥1.5), blocked at Execution (≥2.0)"
+                              >
+                                <AlertTriangle className="h-2 w-2 shrink-0" />
+                                R:R gap
+                              </span>
+                            )}
+                          </span>
+                        )
                         : <span className="text-zinc-600">—</span>}
                     </td>
                     <td className="px-2 py-1 text-red-400 text-[9px] max-w-24 truncate" title={r.error ?? ""}>{r.error ?? ""}</td>

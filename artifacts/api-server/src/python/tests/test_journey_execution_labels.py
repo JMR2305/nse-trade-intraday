@@ -29,10 +29,17 @@ Dual-threshold R:R gap warning (Task #672)
 
 import sys
 from pathlib import Path
+from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from replay_engine import _build_symbol_journey, _pick_highest_priority_exec_event  # noqa: E402
+from replay_engine import (  # noqa: E402
+    _build_symbol_journey,
+    _pick_highest_priority_exec_event,
+    _get_rr_gap_symbols_for_scan,
+    _load_risk_approved_for_scan,
+    get_rr_gap_symbols,
+)
 
 # ── Minimal helpers ──────────────────────────────────────────────────────────
 
@@ -454,4 +461,305 @@ class TestRaceConditionJourneyOutcome:
         step = _exec_step(journey)
         assert step["result"] == "REJECTED", (
             f"Journey must show REJECTED when order was rejected; got {step['result']!r}"
+        )
+
+
+# ── R:R gap symbol detection ──────────────────────────────────────────────────
+
+class TestGetRrGapSymbolsForScan:
+    """
+    Unit tests for _get_rr_gap_symbols_for_scan() and get_rr_gap_symbols().
+
+    Regression guard: the rr_gap annotation on /live-data/scan must be scoped
+    to the concrete scan_id returned by the scan fetch — never resolved
+    independently from scan_state, which could produce cross-scan annotations
+    during a forced refresh or scan-state transition.
+    """
+
+    def _make_skip_event(self, scan_id: str, symbol: str, failed_gates: list,
+                         ev_id: int = 1) -> dict:
+        """Build an EXECUTION_SKIPPED_WITH_REASON event row."""
+        return {
+            "id": ev_id,
+            "scan_id": scan_id,
+            "symbol": symbol,
+            "event_type": "EXECUTION_SKIPPED_WITH_REASON",
+            "payload": {
+                "failed_gates": failed_gates,
+                "failed_gate_reasons": {g: f"{g} reason" for g in failed_gates},
+            },
+        }
+
+    def _make_executed_event(self, scan_id: str, symbol: str,
+                             ev_id: int = 2) -> dict:
+        """Build an ORDER_EXECUTED event row (higher priority than SKIPPED)."""
+        return {
+            "id": ev_id,
+            "scan_id": scan_id,
+            "symbol": symbol,
+            "event_type": "ORDER_EXECUTED",
+            "payload": {},
+        }
+
+    # ── Patch helper ─────────────────────────────────────────────────────────
+    # _get_rr_gap_symbols_for_scan imports pipeline_events locally (inside the
+    # function), so we must patch via patch.object on the already-imported
+    # module — not via "replay_engine.pipeline_events" which is not a
+    # module-level attribute.
+    @staticmethod
+    def _pe_module():
+        import pipeline_events as _pe
+        return _pe
+
+    def test_returns_symbols_with_rr_gate_in_failed_gates(self):
+        """_get_rr_gap_symbols_for_scan returns only symbols whose canonical
+        terminal event is SKIPPED with min_risk_reward in failed_gates AND the
+        symbol is risk-approved."""
+        events = [
+            self._make_skip_event("scan_A", "AAPL", ["min_risk_reward"], ev_id=1),
+            self._make_skip_event("scan_A", "MSFT", ["per_stock_cap"], ev_id=2),
+        ]
+        risk_approved = {"AAPL", "MSFT"}
+        with patch.object(self._pe_module(), "query_events", return_value=events):
+            conn = MagicMock()
+            result = _get_rr_gap_symbols_for_scan(conn, "scan_A", risk_approved)
+        assert result == {"AAPL"}, f"Only AAPL has min_risk_reward gate; got {result!r}"
+
+    def test_excludes_symbols_not_risk_approved(self):
+        """A symbol with EXECUTION_SKIPPED_WITH_REASON + min_risk_reward but
+        all_gates_passed=False (Risk rejected) must NOT appear in the gap set."""
+        events = [
+            self._make_skip_event("scan_A", "TSLA", ["min_risk_reward"], ev_id=1),
+        ]
+        # TSLA is NOT in risk_approved — Risk Agent rejected it
+        risk_approved = {"AAPL"}
+        with patch.object(self._pe_module(), "query_events", return_value=events):
+            conn = MagicMock()
+            result = _get_rr_gap_symbols_for_scan(conn, "scan_A", risk_approved)
+        assert "TSLA" not in result, (
+            f"TSLA must be excluded when not risk-approved; got {result!r}"
+        )
+
+    def test_order_executed_beats_skip_no_false_gap_flag(self):
+        """Seal-vs-executor race regression: when both ORDER_EXECUTED and
+        EXECUTION_SKIPPED_WITH_REASON exist for the same (scan_id, symbol),
+        ORDER_EXECUTED wins (higher priority) and the symbol must NOT be
+        flagged as having an R:R gap — the order was actually placed."""
+        events = [
+            # Executor emitted ORDER_EXECUTED first (lower id)
+            self._make_executed_event("scan_A", "AAPL", ev_id=10),
+            # Seal emitted EXECUTION_SKIPPED_WITH_REASON later (higher id)
+            self._make_skip_event("scan_A", "AAPL", ["min_risk_reward"], ev_id=11),
+        ]
+        risk_approved = {"AAPL"}
+        with patch.object(self._pe_module(), "query_events", return_value=events):
+            conn = MagicMock()
+            result = _get_rr_gap_symbols_for_scan(conn, "scan_A", risk_approved)
+        assert "AAPL" not in result, (
+            "ORDER_EXECUTED must win over EXECUTION_SKIPPED_WITH_REASON; "
+            f"AAPL must NOT be flagged as R:R gap; got {result!r}"
+        )
+
+    def test_order_executed_beats_skip_id_reversed(self):
+        """Same race scenario with ids reversed (seal had a lower id but
+        ORDER_EXECUTED still wins on priority, not insertion order)."""
+        events = [
+            # Seal emitted SKIPPED first (lower id, arrived earlier)
+            self._make_skip_event("scan_A", "TCS", ["min_risk_reward"], ev_id=5),
+            # Executor emitted ORDER_EXECUTED later (higher id)
+            self._make_executed_event("scan_A", "TCS", ev_id=6),
+        ]
+        risk_approved = {"TCS"}
+        with patch.object(self._pe_module(), "query_events", return_value=events):
+            conn = MagicMock()
+            result = _get_rr_gap_symbols_for_scan(conn, "scan_A", risk_approved)
+        assert "TCS" not in result, (
+            "ORDER_EXECUTED must beat EXECUTION_SKIPPED_WITH_REASON regardless "
+            f"of id ordering; TCS must NOT be flagged; got {result!r}"
+        )
+
+    def test_scan_id_binding_prevents_cross_scan_annotation(self):
+        """Regression: when a scan-state transition occurs between the scan
+        fetch and the rr_gap lookup, the lookup must use the scan_id from the
+        RETURNED scan, not from scan_state.
+
+        Simulates two scans (scan_old, scan_new) where only scan_old has an
+        R:R gap symbol.  When the caller binds to scan_new (the fetched scan),
+        the result must be empty — proving no cross-scan annotation.
+        """
+        # scan_old has INFOSYS with an RR gap; scan_new has none
+        def fake_query_events(*, scan_id=None, stage=None, limit=2000):
+            if scan_id == "scan_old":
+                return [self._make_skip_event("scan_old", "INFOSYS",
+                                              ["min_risk_reward"], ev_id=1)]
+            return []  # scan_new has no execution events
+
+        with patch.object(self._pe_module(), "query_events", side_effect=fake_query_events):
+            conn = MagicMock()
+            # Caller binds to scan_new (the scan that was actually fetched)
+            gap_new = _get_rr_gap_symbols_for_scan(
+                conn, "scan_new", {"INFOSYS", "RELIANCE"})
+        assert gap_new == set(), (
+            f"scan_new has no RR-gap events; must return empty set; got {gap_new!r}"
+        )
+
+    def test_empty_risk_approved_returns_empty(self):
+        """If no symbols are risk-approved, the gap set must be empty
+        (short-circuits before calling pipeline_events)."""
+        # Pass an empty risk_approved set — helper returns early without querying
+        conn = MagicMock()
+        result = _get_rr_gap_symbols_for_scan(conn, "scan_X", set())
+        assert result == set(), f"Empty risk_approved must yield empty gap set; got {result!r}"
+
+    def test_pipeline_events_error_returns_empty(self):
+        """If pipeline_events raises, the helper must return an empty set
+        (fail-open: no annotation is safer than a crash)."""
+        with patch.object(self._pe_module(), "query_events",
+                          side_effect=RuntimeError("DB unavailable")):
+            conn = MagicMock()
+            result = _get_rr_gap_symbols_for_scan(conn, "scan_Y", {"WIPRO"})
+        assert result == set(), (
+            f"Exception in pipeline_events must yield empty gap set; got {result!r}"
+        )
+
+
+# ── scan_id-binding integration tests ────────────────────────────────────────
+
+class TestLoadRiskApprovedForScan:
+    """
+    Integration guard for _load_risk_approved_for_scan() and get_rr_gap_symbols().
+
+    The core invariant: risk-approved symbols must come from the SAME scan as
+    the requested scan_id.  This prevents cross-scan annotation when scan_state
+    is updated between the /live-data/scan fetch and the rr_gap lookup.
+    """
+
+    def _make_snap_row(self, scan_id: str, symbols_approved: list) -> dict:
+        """Build a fake scan_state row."""
+        import json
+        recs = [
+            {"symbol": s, "all_gates_passed": True, "final_action": "BUY"}
+            for s in symbols_approved
+        ]
+        return {"scan_id": scan_id, "snapshot": json.dumps({"recommendations": recs})}
+
+    def _make_signal_row(self, symbols_approved: list) -> dict:
+        """Build a fake signal_snapshots row."""
+        import json
+        recs = [
+            {"symbol": s, "all_gates_passed": True, "final_action": "BUY"}
+            for s in symbols_approved
+        ]
+        return {"signals": json.dumps(recs)}
+
+    def test_uses_scan_state_when_ids_match(self):
+        """When scan_state.scan_id == requested scan_id, use scan_state.snapshot."""
+        conn = MagicMock()
+        # scan_state belongs to scan_A — IDs match
+        conn.cursor.return_value.__enter__.return_value.fetchall.return_value = [
+            self._make_snap_row("scan_A", ["RELIANCE", "TCS"])
+        ]
+        with patch("replay_engine._q1", return_value=self._make_snap_row("scan_A", ["RELIANCE", "TCS"])):
+            result = _load_risk_approved_for_scan(conn, "scan_A")
+        assert "RELIANCE" in result and "TCS" in result, (
+            f"Must return scan_A's approved symbols; got {result!r}"
+        )
+
+    def test_falls_back_to_signal_snapshots_on_scan_state_transition(self):
+        """
+        Regression: when scan_state has advanced to scan_new but the caller
+        requests scan_old, _load_risk_approved_for_scan must NOT use
+        scan_new's risk-approved set.  It falls back to signal_snapshots for
+        scan_old and returns its correct approved symbols.
+        """
+        # scan_state is now scan_new; scan_old was archived in signal_snapshots
+        scan_state_row = self._make_snap_row("scan_new", ["WIPRO"])  # new scan
+        signal_row = self._make_signal_row(["INFOSYS"])              # old scan
+
+        call_count = [0]
+
+        def fake_q1(conn, sql, params=()):
+            call_count[0] += 1
+            if "scan_state" in sql:
+                return scan_state_row
+            if "signal_snapshots" in sql:
+                return signal_row
+            return None
+
+        with patch("replay_engine._q1", side_effect=fake_q1):
+            result = _load_risk_approved_for_scan(MagicMock(), "scan_old")
+
+        # Must return scan_old's symbol (INFOSYS), not scan_new's (WIPRO)
+        assert "INFOSYS" in result, (
+            f"Must return scan_old's approved symbol INFOSYS; got {result!r}"
+        )
+        assert "WIPRO" not in result, (
+            f"Must NOT include scan_new's symbol WIPRO; got {result!r}"
+        )
+
+    def test_get_rr_gap_symbols_scan_transition_integration(self):
+        """
+        Full integration regression: get_rr_gap_symbols(scan_id='scan_old')
+        called after scan_state has transitioned to scan_new must:
+          - derive risk_approved from scan_old's archived snapshot (not scan_new's)
+          - return R:R gap symbols for scan_old only
+
+        Simulates the /live-data/scan route scenario where getP7Scan() returns
+        scan_old but scan_state is updated to scan_new before get_rr_gap_symbols
+        is called.
+        """
+        import json
+
+        # scan_old: INFOSYS risk-approved, has R:R gap event
+        # scan_new: WIPRO risk-approved, no events
+        scan_old_recs = [{"symbol": "INFOSYS", "all_gates_passed": True, "final_action": "BUY"}]
+        scan_new_recs = [{"symbol": "WIPRO", "all_gates_passed": True, "final_action": "BUY"}]
+
+        fake_scan_state = {"scan_id": "scan_new", "snapshot": json.dumps({"recommendations": scan_new_recs})}
+        fake_signal_row = {"signals": json.dumps(scan_old_recs)}
+
+        def fake_q1(conn, sql, params=()):
+            if "scan_state" in sql and "snapshot" in sql:
+                return fake_scan_state
+            if "scan_state" in sql:
+                return {"scan_id": "scan_new"}
+            if "signal_snapshots" in sql:
+                return fake_signal_row
+            return None
+
+        def fake_get_conn():
+            return MagicMock()
+
+        # scan_old has an R:R gap event for INFOSYS; scan_new has none.
+        # Uses **kwargs to accept any combination of scan_id/stage/event_type/limit.
+        def fake_query_events(**kwargs):
+            if kwargs.get("scan_id") == "scan_old":
+                return [{
+                    "id": 1,
+                    "scan_id": "scan_old",
+                    "symbol": "INFOSYS",
+                    "event_type": "EXECUTION_SKIPPED_WITH_REASON",
+                    "payload": {
+                        "failed_gates": ["min_risk_reward"],
+                        "failed_gate_reasons": {"min_risk_reward": "R:R 1.5 vs minimum 2.0"},
+                    },
+                }]
+            return []
+
+        pe_mod = __import__("pipeline_events")
+        with (
+            patch("replay_engine._q1", side_effect=fake_q1),
+            patch("replay_engine._get_conn", side_effect=fake_get_conn),
+            patch.object(pe_mod, "query_events", side_effect=fake_query_events),
+        ):
+            result = get_rr_gap_symbols("scan_old")
+
+        assert result["scan_id"] == "scan_old", (
+            f"scan_id in result must be scan_old; got {result['scan_id']!r}"
+        )
+        assert "INFOSYS" in result["symbols"], (
+            f"INFOSYS must appear as R:R gap symbol for scan_old; got {result['symbols']!r}"
+        )
+        assert "WIPRO" not in result["symbols"], (
+            f"WIPRO from scan_new must NOT appear; got {result['symbols']!r}"
         )

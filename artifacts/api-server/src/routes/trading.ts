@@ -1114,10 +1114,36 @@ router.get("/live-data/health", async (req, res) => {
 });
 
 // GET /api/live-data/scan — full canonical scan (all pages must consume this)
+// Annotates each recommendation with rr_gap: true when the symbol has an R:R
+// dual-threshold conflict (Risk Agent approved at ≥1.5, execution gate blocks
+// at ≥2.0).
+//
+// IMPORTANT — scan_id binding: the rr_gap lookup must use the concrete scan_id
+// returned by the scan fetch, never resolve its own from scan_state.  Parallel
+// execution would allow the two calls to land on different scans during a
+// forced refresh or scan-state transition, producing stale cross-scan
+// annotations.  We therefore await the scan first, extract scan_id, then
+// look up rr_gap symbols bound to that exact scan.
 router.get("/live-data/scan", async (req, res) => {
   try {
     const force = req.query.force === "true";
-    res.json(await getP7Scan(force));
+    const scanData = await getP7Scan(force);
+    const scan = scanData as Record<string, unknown>;
+    // Extract the concrete scan_id from the resolved scan result so the rr_gap
+    // query is always scoped to the same scan we are returning.
+    const resolvedScanId = String((scan?.scan_id as string | undefined) ?? "");
+    const rrGapData = await runPython(
+      resolvedScanId ? ["get_rr_gap_symbols", resolvedScanId] : ["get_rr_gap_symbols"],
+    ).catch(() => ({ symbols: [] }));
+    const rrGapSet = new Set<string>(((rrGapData as Record<string, unknown>)?.symbols as string[]) ?? []);
+    const recs = Array.isArray(scan?.recommendations) ? scan.recommendations as Record<string, unknown>[] : [];
+    res.json({
+      ...scan,
+      recommendations: recs.map((r) => ({
+        ...r,
+        rr_gap: rrGapSet.has(String(r.symbol ?? "")),
+      })),
+    });
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
   }

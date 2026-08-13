@@ -1133,6 +1133,163 @@ def get_replay_sessions() -> Dict:
     return {"sessions": sessions, "count": len(sessions)}
 
 
+def _get_rr_gap_symbols_for_scan(
+        conn,
+        scan_id: str,
+        risk_approved_symbols: set,
+) -> set:
+    """
+    Return the set of symbols that have an R:R dual-threshold gap for a scan:
+      • Canonical terminal execution event (after priority resolution) is
+        EXECUTION_SKIPPED_WITH_REASON with 'min_risk_reward' in failed_gates
+      • AND the symbol is in risk_approved_symbols (Risk Agent passed at its
+        lower threshold, confirmed from snapshot all_gates_passed=True)
+
+    PRIORITY RESOLUTION — same rule as _pick_highest_priority_exec_event:
+      ORDER_EXECUTED (1) > ORDER_REJECTED (2) > ORDER_CANCELLED (3) >
+      EXECUTION_SKIPPED_WITH_REASON (4) > ORDER_SUBMITTED (5)
+
+    This means a symbol where both ORDER_EXECUTED and EXECUTION_SKIPPED_WITH_REASON
+    exist (the seal-vs-executor race) is NOT flagged — ORDER_EXECUTED wins.
+    Only symbols whose canonical terminal event is EXECUTION_SKIPPED_WITH_REASON
+    with min_risk_reward in failed_gates are included in the gap set.
+
+    Returns an empty set on any failure — callers must treat absence as "no gap",
+    never as an error.
+    """
+    if not scan_id or not risk_approved_symbols:
+        return set()
+    try:
+        import pipeline_events as _pe
+        # Fetch ALL terminal execution events for this scan so we can apply the
+        # priority ladder per symbol (same rule as _pick_highest_priority_exec_event).
+        # Restricting to only EXECUTION_SKIPPED_WITH_REASON would miss the
+        # seal-vs-executor race where ORDER_EXECUTED also exists.
+        all_exec_events = _pe.query_events(
+            scan_id=scan_id,
+            stage="EXECUTION",
+            limit=2000,
+        )
+        # Group events by symbol — one list per symbol for priority selection
+        by_symbol: Dict[str, list] = {}
+        for ev in all_exec_events:
+            sym = ev.get("symbol")
+            if not sym or sym not in risk_approved_symbols:
+                continue
+            by_symbol.setdefault(sym, []).append(ev)
+
+        gap: set = set()
+        for sym, evs in by_symbol.items():
+            winner = _pick_highest_priority_exec_event(evs)
+            if winner is None:
+                continue
+            if winner.get("event_type") != "EXECUTION_SKIPPED_WITH_REASON":
+                continue
+            payload = winner.get("payload") or {}
+            failed_gates = payload.get("failed_gates") or []
+            if "min_risk_reward" in failed_gates:
+                gap.add(sym)
+        return gap
+    except Exception:
+        return set()
+
+
+def _load_risk_approved_for_scan(conn, scan_id: str) -> set:
+    """
+    Return the set of risk-approved symbol names (all_gates_passed=True) for
+    the given scan_id, loaded from the snapshot that BELONGS to that scan.
+
+    Priority:
+      1. scan_state.snapshot — only when scan_state.scan_id == scan_id.
+         A scan-state transition may update scan_state.scan_id before this
+         lookup runs; using scan_state's snapshot for a different scan would
+         cross-contaminate risk-approval sets.
+      2. signal_snapshots (historical archive) — when scan_state belongs to a
+         different scan or the snapshot is absent.
+
+    Returns an empty set on any failure.
+    """
+    try:
+        # Read scan_state in a single query so ID and snapshot are atomic
+        scan_state_row = _q1(
+            conn,
+            "SELECT scan_id, snapshot FROM scan_state WHERE id = 1",
+        )
+        snap: Dict = {}
+        if scan_state_row and str(scan_state_row.get("scan_id") or "") == str(scan_id):
+            # scan_state is still current — use its snapshot directly
+            s = scan_state_row.get("snapshot") or {}
+            if isinstance(s, str):
+                s = json.loads(s)
+            snap = s
+        else:
+            # scan_state has moved on to a newer scan; load the historical
+            # archive for the exact scan_id that was requested.
+            sig_row = _q1(conn, """
+                SELECT signals FROM signal_snapshots
+                WHERE scan_id = %s LIMIT 1
+            """, (scan_id,))
+            if sig_row:
+                signals = sig_row.get("signals") or []
+                if isinstance(signals, str):
+                    signals = json.loads(signals)
+                snap = {"recommendations": signals}
+        return {
+            r["symbol"]
+            for r in (snap.get("recommendations") or [])
+            if r.get("symbol") and r.get("all_gates_passed")
+        }
+    except Exception:
+        return set()
+
+
+def get_rr_gap_symbols(scan_id: Optional[str] = None) -> Dict:
+    """
+    Public entry point called by the /live-data/scan route to annotate
+    recommendations with the R:R dual-threshold gap flag.
+
+    Returns {"symbols": [<symbol>, ...], "scan_id": <resolved_scan_id>}.
+    Gracefully returns empty list on DB / pipeline_events unavailability.
+
+    scan_id binding guarantee:
+      When the caller passes an explicit scan_id (as /live-data/scan does after
+      awaiting the scan result), both the pipeline_events query and the
+      risk-approval lookup are scoped to that exact scan — never to whatever
+      scan_state currently holds.  This prevents cross-scan annotation when
+      scan_state is updated between the scan fetch and this lookup.
+    """
+    result: Dict = {"symbols": [], "scan_id": None}
+    conn = _get_conn()
+    if not conn:
+        return result
+    try:
+        # Resolve 'latest' to the concrete scan_id stored in scan_state.
+        # When an explicit scan_id is provided (the common route path), skip
+        # this resolution — the caller already holds the concrete ID.
+        _sid = scan_id
+        if not _sid or _sid in ("latest", ""):
+            row = _q1(conn, "SELECT scan_id FROM scan_state WHERE id = 1")
+            _sid = (row or {}).get("scan_id")
+        if not _sid:
+            return result
+        result["scan_id"] = _sid
+
+        # Risk-approved symbols must come from the SAME scan as _sid.
+        # _load_risk_approved_for_scan verifies scan_state.scan_id matches
+        # before using scan_state's snapshot, avoiding cross-scan contamination.
+        risk_approved = _load_risk_approved_for_scan(conn, _sid)
+        gap_set = _get_rr_gap_symbols_for_scan(conn, _sid, risk_approved)
+        result["symbols"] = sorted(gap_set)
+    except Exception:
+        pass
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    return result
+
+
 def build_replay(scan_id: str) -> Dict:
     """
     Build the full pipeline replay for a given scan_id.
@@ -1192,6 +1349,22 @@ def build_replay(scan_id: str) -> Dict:
     stages = _build_stages_from_snapshot(
         snapshot, precheck_decisions=_get_precheck_decisions(_pc_scan_id))
 
+    # R:R gap detection — symbols where Risk Agent passed (all_gates_passed) but
+    # execution permanently blocks them at a higher R:R threshold.  Computed once
+    # per build_replay call so the symbol list and the journey stay consistent.
+    _rr_gap_set: set = set()
+    _rr_gap_conn = _get_conn()
+    if _rr_gap_conn:
+        try:
+            _rr_gap_set = _get_rr_gap_symbols_for_scan(
+                _rr_gap_conn, _pc_scan_id,
+                {r["symbol"] for r in recs if r.get("symbol") and r.get("all_gates_passed")},
+            )
+        except Exception:
+            pass
+        finally:
+            _rr_gap_conn.close()
+
     # Lightweight symbol list (full details via /symbol/:symbol endpoint)
     symbols_list = []
     for r in recs:
@@ -1208,6 +1381,8 @@ def build_replay(scan_id: str) -> Dict:
             "all_gates_passed": bool(r.get("all_gates_passed")),
             "paper_eligible": bool(r.get("paper_eligible")),
             "data_quality": r.get("data_quality"),
+            # True when Risk Agent approved but execution R:R gate blocks permanently
+            "rr_gap": sym in _rr_gap_set,
         })
 
     # Attach real execution trades from phase20_paper_trades scoped to this scan_id.
