@@ -637,6 +637,82 @@ def run_auto_entries(settings: Dict[str, Any]) -> Dict[str, Any]:
     return result
 
 
+# ── Execution-outcome seal ────────────────────────────────────────────────────
+
+# Terminal event types that close out an EXECUTION outcome for a symbol.
+# Any of these means the symbol was processed — it did NOT slip through silently.
+_EXECUTION_TERMINAL_TYPES: frozenset = frozenset({
+    "ORDER_EXECUTED",
+    "ORDER_REJECTED",
+    "ORDER_CANCELLED",
+    "EXECUTION_SKIPPED_WITH_REASON",
+})
+
+
+def seal_execution_outcomes(scan_id: str,
+                             reason: str = "auto_paper_entries_off") -> Dict[str, Any]:
+    """
+    Ensure every BUY_GENERATED event for ``scan_id`` has a corresponding
+    terminal EXECUTION-stage outcome event.
+
+    For each symbol with a ``BUY_GENERATED`` event in this scan, if none of
+    ORDER_EXECUTED / ORDER_REJECTED / ORDER_CANCELLED /
+    EXECUTION_SKIPPED_WITH_REASON exist in the EXECUTION stage, one
+    ``EXECUTION_SKIPPED_WITH_REASON`` is emitted so operators can see the
+    outcome in the Agent Journey and the orphan-check query returns 0 rows.
+
+    This closes the "last scan of the session" gap: when auto_paper_entries is
+    OFF the executor never fires at all, leaving BUY_GENERATED events without
+    any terminal outcome.  It also acts as a safety net after each auto-entry
+    run in case any symbol slipped through without an event.
+
+    NEVER raises. Returns a summary dict.
+    """
+    if not scan_id:
+        return {"sealed": 0, "reason": "no scan_id"}
+    try:
+        from pipeline_events import query_events, emit as _pe
+
+        # All BUY_GENERATED events for this scan (cap at 200 — ≫ NIFTY 50).
+        buys = query_events(scan_id=scan_id, event_type="BUY_GENERATED", limit=200)
+        buy_symbols: set = {str(e["symbol"]).upper() for e in buys if e.get("symbol")}
+
+        if not buy_symbols:
+            return {"sealed": 0, "scan_id": scan_id, "reason": "no BUY_GENERATED events"}
+
+        # Collect symbols that already have a terminal execution outcome.
+        terminal_symbols: set = set()
+        for et in _EXECUTION_TERMINAL_TYPES:
+            evs = query_events(scan_id=scan_id, event_type=et,
+                               stage="EXECUTION", limit=200)
+            terminal_symbols.update(
+                str(e["symbol"]).upper() for e in evs if e.get("symbol")
+            )
+
+        orphans = buy_symbols - terminal_symbols
+        for sym in sorted(orphans):
+            _pe(
+                "EXECUTION_SKIPPED_WITH_REASON", "EXECUTION",
+                scan_id=scan_id, symbol=sym,
+                payload={
+                    "reason": reason,
+                    "note": (
+                        "Sealed by seal_execution_outcomes: BUY_GENERATED "
+                        "event had no terminal execution outcome recorded"
+                    ),
+                    "auto_entry_attempted": False,
+                },
+            )
+        return {
+            "sealed": len(orphans),
+            "scan_id": scan_id,
+            "orphans": sorted(orphans),
+            "reason": reason,
+        }
+    except Exception as exc:
+        return {"sealed": 0, "scan_id": scan_id, "error": str(exc)[:200]}
+
+
 # ── Exit recording (called by phase20_exits) ─────────────────────────────────
 
 def record_exit(trade_id: str, exit_price: float, exit_rule: str,

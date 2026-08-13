@@ -21,7 +21,7 @@ import os
 import socket
 import time
 from datetime import datetime, timezone, timedelta
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import phase20_store as store
 
@@ -630,6 +630,38 @@ def _manage_paper(settings: Dict[str, Any], ran_scan: bool) -> Dict[str, Any]:
         out["evidence_outcomes"] = update_outcomes()
     except Exception as exc:
         out["evidence_outcomes"] = {"error": str(exc)[:200]}
+    # ── Execution-outcome seal ────────────────────────────────────────────────
+    # Ensure every BUY_GENERATED event for the current scan has a terminal
+    # EXECUTION-stage outcome event.  This closes the "last scan of the
+    # session" gap: the executor runs on a 1-minute tick, so by the time it
+    # fires for the final scan the market is already closed and no terminal
+    # event (ORDER_EXECUTED / ORDER_REJECTED / EXECUTION_SKIPPED_WITH_REASON)
+    # is ever written — producing orphan BUY signals in the Agent Journey.
+    # Calling this after every paper-management run (both auto-entries ON and
+    # OFF) guarantees the orphan-check query returns 0 rows. Never raises.
+    try:
+        _seal_scan_id: Optional[str] = None
+        entries = out.get("entries") or {}
+        if isinstance(entries, dict):
+            # Auto-entries path: scan_id recorded in the run result.
+            _seal_scan_id = entries.get("scan_id")
+        if not _seal_scan_id:
+            # Evidence-only path (auto_paper_entries OFF): derive from context.
+            try:
+                from phase15_scan_context import build_scan_context as _bsc
+                _seal_scan_id = (_bsc() or {}).get("scan_id")
+            except Exception:
+                pass
+        if _seal_scan_id:
+            auto_on = bool(settings.get("auto_paper_entries")
+                           and settings.get("auto_paper_entries_confirmed_at"))
+            _seal_reason = ("post_auto_entry_seal" if auto_on
+                            else "auto_paper_entries_off")
+            from phase20_executor import seal_execution_outcomes
+            out["execution_seal"] = seal_execution_outcomes(
+                _seal_scan_id, _seal_reason)
+    except Exception as exc:
+        out["execution_seal"] = {"error": str(exc)[:200]}
     # ── Continuous Research Mode (Mode B) top-up ─────────────────────────────
     # Apply a capital top-up if the operator has selected Mode B and cash has
     # fallen below the configured threshold. Advisory-only; never places a
