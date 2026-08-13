@@ -26,7 +26,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const _store: Record<string, string> = {};
 
-const { mockSetItem, mockGetItem, mockRemoveItem } = vi.hoisted(() => ({
+// ── Default decodeSnapshot implementation (matches real contract) ─────────────
+// Defined outside vi.hoisted so it can be reused as the reset implementation.
+function _defaultDecodeSnapshot(key: string, raw: string | null | undefined) {
+  if (!raw) return { ok: false, reason: "corrupt" };
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw); } catch { return { ok: false, reason: "corrupt" }; }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return { ok: false, reason: "corrupt" };
+  }
+  const obj = parsed as { v?: unknown; data?: unknown; ts?: unknown };
+  if (typeof obj.ts !== "number" || obj.ts <= 0) return { ok: false, reason: "missing-fields" };
+  if (obj.data === undefined) return { ok: false, reason: "missing-fields" };
+  return { ok: true, data: obj.data, ts: obj.ts, migrated: false };
+}
+
+const { mockSetItem, mockGetItem, mockRemoveItem, mockDecodeSnapshot } = vi.hoisted(() => ({
   mockSetItem: vi.fn((key: string, value: string) => {
     _store[key] = value;
     return Promise.resolve();
@@ -36,6 +51,9 @@ const { mockSetItem, mockGetItem, mockRemoveItem } = vi.hoisted(() => ({
     delete _store[key];
     return Promise.resolve();
   }),
+  // vi.fn so individual tests can override the return value with mockReturnValueOnce
+  // without affecting other tests; default implementation mirrors the real contract.
+  mockDecodeSnapshot: vi.fn(),
 }));
 
 vi.mock("@react-native-async-storage/async-storage", () => ({
@@ -45,23 +63,14 @@ vi.mock("@react-native-async-storage/async-storage", () => ({
 // ── cacheSchema mock ─────────────────────────────────────────────────────────
 // Provide lightweight stubs so the test file doesn't depend on alias resolution
 // for @/lib/cacheSchema.  The stubs match the real contract exactly.
+// mockDecodeSnapshot is a vi.fn() so readSnapshot eviction tests can inject
+// specific ok:false results (incompatible, invalid-payload, etc.) per-test.
 
 vi.mock("@/lib/cacheSchema", () => ({
   CACHE_SCHEMA_VERSION: 2,
   MIN_COMPATIBLE_VERSION: 1,
   encodeSnapshot: (data: unknown, ts: number) => JSON.stringify({ v: 2, data, ts }),
-  decodeSnapshot: (key: string, raw: string | null | undefined) => {
-    if (!raw) return { ok: false, reason: "corrupt" };
-    let parsed: unknown;
-    try { parsed = JSON.parse(raw); } catch { return { ok: false, reason: "corrupt" }; }
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-      return { ok: false, reason: "corrupt" };
-    }
-    const obj = parsed as { v?: unknown; data?: unknown; ts?: unknown };
-    if (typeof obj.ts !== "number" || obj.ts <= 0) return { ok: false, reason: "missing-fields" };
-    if (obj.data === undefined) return { ok: false, reason: "missing-fields" };
-    return { ok: true, data: obj.data, ts: obj.ts, migrated: false };
-  },
+  decodeSnapshot: mockDecodeSnapshot,
 }));
 
 // ── React stubs (not used by the functions under test but required by module) ─
@@ -74,7 +83,7 @@ vi.mock("react", () => ({
 
 // ── Imports (after mocks) ────────────────────────────────────────────────────
 
-import { formatAge, selectCacheData, writeSnapshot } from "../offlineCache";
+import { formatAge, readSnapshot, selectCacheData, writeSnapshot } from "../offlineCache";
 
 // ── Minimal OpsSnapshot shape (matches the fields the tab renders) ────────────
 
@@ -94,6 +103,10 @@ beforeEach(() => {
   mockSetItem.mockClear();
   mockGetItem.mockClear();
   mockRemoveItem.mockClear();
+  // Reset decodeSnapshot to default behaviour; any mockReturnValueOnce queued
+  // by a previous test is discarded, preventing cross-test contamination.
+  mockDecodeSnapshot.mockReset();
+  mockDecodeSnapshot.mockImplementation(_defaultDecodeSnapshot);
 });
 
 // ── 1. AsyncStorage write key ─────────────────────────────────────────────────
@@ -285,5 +298,159 @@ describe("formatAge — human-readable cache age", () => {
 
   it("returns 'unknown age' for zero (which formatAge treats as falsy)", () => {
     expect(formatAge(0)).toBe("unknown age");
+  });
+});
+
+// ── 7. readSnapshot — corrupt/invalid cache eviction ──────────────────────────
+//
+// Confirms the removal path in readSnapshot (offlineCache.ts lines 18–22):
+//
+//   if (!result.ok) {
+//     void AsyncStorage.removeItem(PREFIX + key).catch(() => {});
+//     return null;
+//   }
+//
+// If this removal silently fails (wrong key, missing prefix, etc.) a corrupt
+// or schema-invalid record persists across restarts and permanently blocks the
+// display of fresh data.  These tests are the only coverage for that path.
+
+describe("readSnapshot — corrupt/invalid cache eviction", () => {
+  const KEY = "ops-centre-snapshot";
+  const FULL_KEY = "offline_snapshot:ops-centre-snapshot";
+
+  // Helper: put a raw string directly into the mock store under the full key.
+  function seedStore(raw: string) {
+    _store[FULL_KEY] = raw;
+  }
+
+  // ── 7a. Corrupt JSON ────────────────────────────────────────────────────────
+
+  describe("corrupt JSON record", () => {
+    it("calls removeItem with the exact full key when the stored value is not valid JSON", async () => {
+      // Not valid JSON — JSON.parse will throw; mock returns { ok: false, reason: "corrupt" }
+      seedStore("this is not JSON {{{{");
+
+      await readSnapshot(KEY);
+
+      expect(mockRemoveItem).toHaveBeenCalledTimes(1);
+      expect(mockRemoveItem).toHaveBeenCalledWith(FULL_KEY);
+    });
+
+    it("returns null (not the bad data) when the stored value is not valid JSON", async () => {
+      seedStore("this is not JSON {{{{");
+
+      const result = await readSnapshot(KEY);
+
+      expect(result).toBeNull();
+    });
+
+    it("does NOT call setItem (no attempted re-persist of a corrupt record)", async () => {
+      seedStore("this is not JSON {{{{");
+
+      await readSnapshot(KEY);
+
+      expect(mockSetItem).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── 7b. Incompatible schema version ────────────────────────────────────────
+  //
+  // Represents a record written by a future version of the app (v=99) that
+  // this client cannot safely parse — decodeSnapshot returns { ok:false,
+  // reason:"incompatible" }.
+
+  describe("incompatible schema version", () => {
+    it("calls removeItem with the exact full key when decodeSnapshot returns incompatible", async () => {
+      // Inject a raw value that reaches decodeSnapshot; override its return so
+      // it signals "incompatible" regardless of the parsed envelope fields.
+      seedStore(JSON.stringify({ v: 99, data: {}, ts: Date.now() }));
+      mockDecodeSnapshot.mockReturnValueOnce({ ok: false, reason: "incompatible" });
+
+      await readSnapshot(KEY);
+
+      expect(mockRemoveItem).toHaveBeenCalledTimes(1);
+      expect(mockRemoveItem).toHaveBeenCalledWith(FULL_KEY);
+    });
+
+    it("returns null when the schema version is incompatible", async () => {
+      seedStore(JSON.stringify({ v: 99, data: {}, ts: Date.now() }));
+      mockDecodeSnapshot.mockReturnValueOnce({ ok: false, reason: "incompatible" });
+
+      const result = await readSnapshot(KEY);
+
+      expect(result).toBeNull();
+    });
+  });
+
+  // ── 7c. Invalid OpsSnapshot payload shape ───────────────────────────────────
+  //
+  // Represents a record whose envelope is valid (correct version, timestamp)
+  // but whose `data` field no longer satisfies PAYLOAD_VALIDATORS["ops-centre-snapshot"]
+  // — for example an API schema change removed the required `platform` object.
+
+  describe("invalid OpsSnapshot payload shape", () => {
+    it("calls removeItem with the exact full key when the payload fails schema validation", async () => {
+      // The envelope itself is well-formed, but decodeSnapshot rejects the payload
+      // shape (missing generated_at, platform, agents, pipeline, pipeline_nodes).
+      const malformedPayload = { some_unknown_field: true };
+      seedStore(JSON.stringify({ v: 2, data: malformedPayload, ts: Date.now() }));
+      mockDecodeSnapshot.mockReturnValueOnce({ ok: false, reason: "invalid-payload" });
+
+      await readSnapshot(KEY);
+
+      expect(mockRemoveItem).toHaveBeenCalledTimes(1);
+      expect(mockRemoveItem).toHaveBeenCalledWith(FULL_KEY);
+    });
+
+    it("returns null (not the malformed payload) when payload shape validation fails", async () => {
+      const malformedPayload = { some_unknown_field: true };
+      seedStore(JSON.stringify({ v: 2, data: malformedPayload, ts: Date.now() }));
+      mockDecodeSnapshot.mockReturnValueOnce({ ok: false, reason: "invalid-payload" });
+
+      const result = await readSnapshot(KEY);
+
+      expect(result).toBeNull();
+    });
+
+    it("does NOT call removeItem when the payload is fully valid", async () => {
+      // Sanity check: a good record must never be evicted.
+      const good = JSON.stringify({ v: 2, data: VALID_SNAPSHOT, ts: SNAPSHOT_TS });
+      seedStore(good);
+      // Default implementation returns ok:true for this well-formed envelope.
+
+      const result = await readSnapshot<typeof VALID_SNAPSHOT>(KEY);
+
+      expect(mockRemoveItem).not.toHaveBeenCalled();
+      expect(result).not.toBeNull();
+      expect(result?.data).toEqual(VALID_SNAPSHOT);
+      expect(result?.ts).toBe(SNAPSHOT_TS);
+    });
+  });
+
+  // ── 7d. removeItem key precision ────────────────────────────────────────────
+
+  describe("removeItem key precision", () => {
+    it("always includes the 'offline_snapshot:' prefix in the removeItem call", async () => {
+      // Guards against a regression where removeItem is called with the bare
+      // key (e.g. "ops-centre-snapshot") rather than the full storage key.
+      seedStore("not json");
+
+      await readSnapshot(KEY);
+
+      const calledKey: string = (mockRemoveItem.mock.calls[0] as [string])[0];
+      expect(calledKey).toContain("offline_snapshot:");
+      expect(calledKey).toContain(KEY);
+      expect(calledKey).toBe(FULL_KEY);
+    });
+
+    it("uses the correct key for a different cache slot (notifications)", async () => {
+      const notifKey = "notifications";
+      const notifFullKey = `offline_snapshot:${notifKey}`;
+      _store[notifFullKey] = "bad json !!!";
+
+      await readSnapshot(notifKey);
+
+      expect(mockRemoveItem).toHaveBeenCalledWith(notifFullKey);
+    });
   });
 });

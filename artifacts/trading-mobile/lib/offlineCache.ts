@@ -10,7 +10,8 @@ interface Snapshot<T> {
   ts: number;
 }
 
-async function readSnapshot<T>(key: string): Promise<Snapshot<T> | null> {
+/** @internal Exported for unit testing only — use the hook in production code. */
+export async function readSnapshot<T>(key: string): Promise<Snapshot<T> | null> {
   try {
     const raw = await AsyncStorage.getItem(PREFIX + key);
     if (!raw) return null;
