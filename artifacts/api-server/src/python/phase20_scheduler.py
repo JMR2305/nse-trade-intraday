@@ -391,6 +391,29 @@ def run_tick() -> Dict[str, Any]:
             out["phase26d_daily_report"] = p26d_daily
         if p26c is not None:
             out["phase26c_validation"] = p26c
+        # ── Post-close orphan seal ────────────────────────────────────────────
+        # Covers the "last-tick-of-session" gap: if the last scan of the day
+        # completed while mstate was still OPEN but the market crossed 15:30
+        # before the next scheduled tick, _manage_paper() never fires and
+        # BUY_GENERATED events are left without a terminal outcome.  Calling
+        # the seal here (POST_CLOSE / CLOSED only — not PRE_OPEN / WEEKEND /
+        # HOLIDAY) ensures the orphan-check query returns 0 rows.
+        # The seal is idempotent: if it already ran in the OPEN tick it is a
+        # no-op. Never raises.
+        if mstate in ("POST_CLOSE", "CLOSED"):
+            try:
+                _post_close_scan_id: Optional[str] = None
+                try:
+                    from phase15_scan_context import build_scan_context as _bsc
+                    _post_close_scan_id = (_bsc() or {}).get("scan_id")
+                except Exception:
+                    pass
+                if _post_close_scan_id:
+                    from phase20_executor import seal_execution_outcomes
+                    out["execution_seal"] = seal_execution_outcomes(
+                        _post_close_scan_id, reason="post_close_seal")
+            except Exception as _exc:
+                out["execution_seal"] = {"error": str(_exc)[:200]}
         return out
 
     # Coverage watchdog: alert operators automatically (dedup per session)
