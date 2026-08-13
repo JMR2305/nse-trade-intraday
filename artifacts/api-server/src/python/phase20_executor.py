@@ -666,6 +666,22 @@ def seal_execution_outcomes(scan_id: str,
     any terminal outcome.  It also acts as a safety net after each auto-entry
     run in case any symbol slipped through without an event.
 
+    Race-condition window (Autoscale concurrent ticks)
+    --------------------------------------------------
+    On Autoscale two scheduler ticks can overlap: one running run_auto_entries()
+    (which emits ORDER_EXECUTED) and one calling seal_execution_outcomes() at
+    nearly the same moment.  Because the seal reads terminal events BEFORE the
+    executor has committed its ORDER_EXECUTED row, it may see no terminal event
+    for a symbol and emit EXECUTION_SKIPPED_WITH_REASON — leaving both events
+    in the table for the same (scan_id, symbol).
+
+    The Agent Journey consumer guards against this at read time: when it selects
+    the terminal event it prefers ORDER_EXECUTED over EXECUTION_SKIPPED_WITH_REASON
+    by an explicit priority ordering, so the operator always sees the correct
+    "PAPER BUY" outcome even when both events coexist.  The seal event is
+    treated as a safe fallback that is silently superseded if a real execution
+    event arrives later — no data is corrupted.
+
     NEVER raises. Returns a summary dict.
     """
     if not scan_id:

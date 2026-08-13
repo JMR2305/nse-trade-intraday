@@ -32,7 +32,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from replay_engine import _build_symbol_journey  # noqa: E402
+from replay_engine import _build_symbol_journey, _pick_highest_priority_exec_event  # noqa: E402
 
 # ── Minimal helpers ──────────────────────────────────────────────────────────
 
@@ -268,4 +268,190 @@ class TestDualThresholdWarning:
 
         assert warning is None, (
             f"dual_threshold_warning must be None when only per_stock_cap blocked: {warning!r}"
+        )
+
+
+# ── Seal-vs-executor race condition guard (Task #681) ───────────────────────
+
+class TestPickHighestPriorityExecEvent:
+    """
+    Unit tests for _pick_highest_priority_exec_event — the consumer-side guard
+    that ensures ORDER_EXECUTED always wins over EXECUTION_SKIPPED_WITH_REASON
+    even when the seal inserted the SKIPPED event at a later timestamp (and
+    therefore a higher id) than the executor's ORDER_EXECUTED row.
+    """
+
+    def _ev(self, event_type: str, id_: int) -> dict:
+        return {"id": id_, "event_type": event_type, "payload": {}}
+
+    def test_empty_list_returns_none(self):
+        assert _pick_highest_priority_exec_event([]) is None
+
+    def test_single_event_returned_as_is(self):
+        ev = self._ev("ORDER_EXECUTED", 1)
+        assert _pick_highest_priority_exec_event([ev]) is ev
+
+    def test_order_executed_beats_skipped_regardless_of_id(self):
+        """Core race-condition guard: ORDER_EXECUTED (lower id) wins over
+        EXECUTION_SKIPPED_WITH_REASON (higher id = arrived later)."""
+        executed = self._ev("ORDER_EXECUTED",                1)
+        skipped  = self._ev("EXECUTION_SKIPPED_WITH_REASON", 2)
+        result = _pick_highest_priority_exec_event([skipped, executed])
+        assert result["event_type"] == "ORDER_EXECUTED", (
+            f"ORDER_EXECUTED must win even with a smaller id; got {result['event_type']!r}"
+        )
+
+    def test_order_executed_beats_skipped_when_ids_reversed(self):
+        """Same priority test with the list in opposite insertion order."""
+        executed = self._ev("ORDER_EXECUTED",                5)
+        skipped  = self._ev("EXECUTION_SKIPPED_WITH_REASON", 10)
+        result = _pick_highest_priority_exec_event([executed, skipped])
+        assert result["event_type"] == "ORDER_EXECUTED"
+
+    def test_order_executed_beats_order_rejected(self):
+        executed = self._ev("ORDER_EXECUTED", 1)
+        rejected = self._ev("ORDER_REJECTED", 2)
+        result = _pick_highest_priority_exec_event([rejected, executed])
+        assert result["event_type"] == "ORDER_EXECUTED"
+
+    def test_order_rejected_beats_submitted(self):
+        """Lifecycle regression: ORDER_SUBMITTED is a progress marker; a later
+        ORDER_REJECTED (definitive failure) must always win over it."""
+        submitted = self._ev("ORDER_SUBMITTED", 10)
+        rejected  = self._ev("ORDER_REJECTED",  11)   # higher id = arrived later
+        result = _pick_highest_priority_exec_event([submitted, rejected])
+        assert result["event_type"] == "ORDER_REJECTED", (
+            f"ORDER_REJECTED must beat ORDER_SUBMITTED; got {result['event_type']!r}"
+        )
+
+    def test_order_cancelled_beats_submitted(self):
+        """Lifecycle regression: ORDER_SUBMITTED emitted before duplicate-slot
+        claim; ORDER_CANCELLED (concurrent duplicate) must win even with a
+        smaller id (arrived first in the same atomic sequence)."""
+        submitted = self._ev("ORDER_SUBMITTED", 10)
+        cancelled = self._ev("ORDER_CANCELLED",  11)   # higher id = arrived later
+        result = _pick_highest_priority_exec_event([submitted, cancelled])
+        assert result["event_type"] == "ORDER_CANCELLED", (
+            f"ORDER_CANCELLED must beat ORDER_SUBMITTED; got {result['event_type']!r}"
+        )
+
+    def test_skipped_beats_submitted(self):
+        """ORDER_SUBMITTED is the lowest-priority event; even the seal fallback
+        EXECUTION_SKIPPED_WITH_REASON wins over it."""
+        submitted = self._ev("ORDER_SUBMITTED",              5)
+        skipped   = self._ev("EXECUTION_SKIPPED_WITH_REASON", 6)
+        result = _pick_highest_priority_exec_event([submitted, skipped])
+        assert result["event_type"] == "EXECUTION_SKIPPED_WITH_REASON", (
+            f"EXECUTION_SKIPPED_WITH_REASON must beat ORDER_SUBMITTED; got {result['event_type']!r}"
+        )
+
+    def test_same_priority_picks_highest_id(self):
+        """Two SKIPPED events for the same symbol → pick the most recent (highest id)."""
+        old_skip = self._ev("EXECUTION_SKIPPED_WITH_REASON", 10)
+        new_skip = self._ev("EXECUTION_SKIPPED_WITH_REASON", 20)
+        result = _pick_highest_priority_exec_event([old_skip, new_skip])
+        assert result["id"] == 20, (
+            f"Most recent (highest id) skipped event should be chosen; got id={result['id']}"
+        )
+
+    def test_full_priority_ladder(self):
+        """ORDER_EXECUTED wins over all other terminal types regardless of id."""
+        events = [
+            self._ev("EXECUTION_SKIPPED_WITH_REASON", 100),
+            self._ev("ORDER_CANCELLED",                90),
+            self._ev("ORDER_REJECTED",                 80),
+            self._ev("ORDER_SUBMITTED",                70),
+            self._ev("ORDER_EXECUTED",                  1),   # lowest id but highest priority
+        ]
+        result = _pick_highest_priority_exec_event(events)
+        assert result["event_type"] == "ORDER_EXECUTED"
+
+
+class TestRaceConditionJourneyOutcome:
+    """
+    Regression guard: when both ORDER_EXECUTED and EXECUTION_SKIPPED_WITH_REASON
+    exist for the same (scan_id, symbol), the Agent Journey must show PAPER BUY
+    (not SKIPPED).  The consumer selects ORDER_EXECUTED via priority ordering;
+    _build_symbol_journey receives only the winner.
+    """
+
+    def test_journey_shows_paper_buy_when_executed_wins_race(self):
+        """Simulates the consumer selecting ORDER_EXECUTED despite the seal's
+        EXECUTION_SKIPPED_WITH_REASON arriving later (higher id/ts)."""
+        events = [
+            {"id": 1, "event_type": "ORDER_EXECUTED",                "payload": {}},
+            {"id": 2, "event_type": "EXECUTION_SKIPPED_WITH_REASON", "payload": {
+                "reason": "auto_paper_entries_off",
+                "auto_entry_attempted": False,
+            }},
+        ]
+        # Consumer picks the winner via priority ordering
+        winner = _pick_highest_priority_exec_event(events)
+        assert winner is not None
+        assert winner["event_type"] == "ORDER_EXECUTED"
+
+        # Journey built from the winner shows PAPER BUY, not SKIPPED
+        eo = {"event_type": winner["event_type"], **winner["payload"]}
+        journey = _build_symbol_journey(_rec(), _SNAP, execution_outcome=eo)
+        step = _exec_step(journey)
+        assert step["result"] == "PAPER BUY", (
+            f"Journey must show PAPER BUY when ORDER_EXECUTED wins the race; "
+            f"got {step['result']!r}"
+        )
+
+    def test_journey_shows_skipped_when_no_execution_event_only_seal(self):
+        """When only a seal SKIPPED event exists (auto OFF, no race), SKIPPED is correct."""
+        events = [
+            {"id": 5, "event_type": "EXECUTION_SKIPPED_WITH_REASON", "payload": {
+                "reason": "auto_paper_entries_off",
+                "auto_entry_attempted": False,
+            }},
+        ]
+        winner = _pick_highest_priority_exec_event(events)
+        assert winner["event_type"] == "EXECUTION_SKIPPED_WITH_REASON"
+
+        eo = {"event_type": winner["event_type"], **winner["payload"]}
+        journey = _build_symbol_journey(_rec(), _SNAP, execution_outcome=eo)
+        step = _exec_step(journey)
+        assert step["result"] == "SKIPPED", (
+            f"Journey must show SKIPPED when only seal event exists; got {step['result']!r}"
+        )
+
+    def test_submitted_then_cancelled_shows_cancelled(self):
+        """Lifecycle regression: ORDER_SUBMITTED emitted first, then ORDER_CANCELLED
+        on a concurrent duplicate claim.  Journey must show REJECTED, not PAPER BUY."""
+        events = [
+            {"id": 10, "event_type": "ORDER_SUBMITTED", "payload": {}},
+            {"id": 11, "event_type": "ORDER_CANCELLED",  "payload": {
+                "reason": "Open Phase 20 trade already exists (concurrent claim)"}},
+        ]
+        winner = _pick_highest_priority_exec_event(events)
+        assert winner["event_type"] == "ORDER_CANCELLED", (
+            f"ORDER_CANCELLED must win over ORDER_SUBMITTED; got {winner['event_type']!r}"
+        )
+        # The journey must NOT show PAPER BUY for a cancelled order
+        eo = {"event_type": winner["event_type"], **winner["payload"]}
+        journey = _build_symbol_journey(_rec(), _SNAP, execution_outcome=eo)
+        step = _exec_step(journey)
+        assert step["result"] != "PAPER BUY", (
+            f"Journey must not show PAPER BUY for a cancelled order; got {step['result']!r}"
+        )
+
+    def test_submitted_then_rejected_shows_rejected(self):
+        """Lifecycle regression: ORDER_SUBMITTED emitted first, then ORDER_REJECTED
+        when execute_buy() fails.  Journey must show REJECTED, not PAPER BUY."""
+        events = [
+            {"id": 20, "event_type": "ORDER_SUBMITTED", "payload": {}},
+            {"id": 21, "event_type": "ORDER_REJECTED",  "payload": {
+                "reason": "Insufficient paper cash"}},
+        ]
+        winner = _pick_highest_priority_exec_event(events)
+        assert winner["event_type"] == "ORDER_REJECTED", (
+            f"ORDER_REJECTED must win over ORDER_SUBMITTED; got {winner['event_type']!r}"
+        )
+        eo = {"event_type": winner["event_type"], **winner["payload"]}
+        journey = _build_symbol_journey(_rec(), _SNAP, execution_outcome=eo)
+        step = _exec_step(journey)
+        assert step["result"] == "REJECTED", (
+            f"Journey must show REJECTED when order was rejected; got {step['result']!r}"
         )

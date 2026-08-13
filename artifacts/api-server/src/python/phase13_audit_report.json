@@ -1,7 +1,7 @@
 {
   "phase": 13,
   "engine_version": "Research Engine v1.0 \u00b7 Phase 13",
-  "generated_at": "2026-08-12T21:45:06Z",
+  "generated_at": "2026-08-13T19:35:47Z",
   "label": "PAPER / RESEARCH ONLY",
   "mode": "out_of_sample_paper_trade_comparison",
   "note": "No engine-tagged trades yet \u2014 both columns show the same completed paper trades. Engine attribution will differentiate as trades accumulate.",

@@ -1,55 +1,14 @@
 {
   "bundle_version": 1,
   "phase": 13,
-  "generated_at": "2026-08-12T21:45:06Z",
+  "generated_at": "2026-08-13T19:35:47Z",
   "engine_version": "Research Engine v1.0 \u00b7 Phase 13",
   "mode": "PAPER_TRADING_RESEARCH_ONLY",
   "label": "PAPER / RESEARCH ONLY",
   "market_status": {
-    "state": "CLOSED",
-    "is_open": false,
-    "now_ist": "2026-08-13T03:15:06.285290+05:30",
-    "timezone": "Asia/Kolkata",
-    "session": {
-      "pre_open": "09:00",
-      "open": "09:15",
-      "close": "15:30",
-      "post_close": "16:00"
-    },
-    "holiday_today": null,
-    "next_transition": {
-      "event": "market_open",
-      "at_ist": "2026-08-13T09:15:00+05:30",
-      "seconds_until": 21593
-    },
-    "upcoming_holidays": [
-      {
-        "date": "2026-08-15",
-        "name": "Independence Day"
-      },
-      {
-        "date": "2026-09-14",
-        "name": "Ganesh Chaturthi"
-      },
-      {
-        "date": "2026-10-02",
-        "name": "Gandhi Jayanti"
-      }
-    ],
-    "label": "PAPER / RESEARCH ONLY"
+    "state": "OPEN"
   },
-  "quote_provider": {
-    "provider": "Yahoo Finance (yfinance)",
-    "provider_id": "yfinance",
-    "circuit_breaker": "OPEN",
-    "consecutive_failures": 3,
-    "last_success_ts": null,
-    "total_fetches": 0,
-    "total_errors": 0,
-    "cached_symbols": 1,
-    "quote_ttl_s": 20.0,
-    "quote_ttl_closed_s": 300.0
-  },
+  "quote_provider": {},
   "regime": {
     "regime": "RANGE_BOUND",
     "confidence": 100.0,
@@ -96,21 +55,21 @@
   "relative_strength_leaders": [],
   "relative_strength_laggards": [],
   "evidence_distribution": {
-    "insufficient": 50
+    "insufficient": 51
   },
   "action_summary": {
-    "AVOID": 48,
-    "WATCH": 2
+    "AVOID": 50,
+    "WATCH": 1
   },
   "contradiction_summary": {
-    "NONE": 44,
-    "LOW": 6,
+    "NONE": 47,
+    "LOW": 4,
     "MEDIUM": 0,
     "HIGH": 0
   },
   "scan_staleness": {
     "stale": false,
-    "age_minutes": 710.6
+    "age_minutes": 605.6
   },
   "audit_summary": {
     "trade_count": 0,
@@ -123,7 +82,7 @@
     "note": "All proposals require human approval. No auto-promotion."
   },
   "sample_counts": {
-    "symbols_analyzed": 50,
+    "symbols_analyzed": 51,
     "completed_trades": 0
   },
   "self_tests": {
@@ -201,8 +160,8 @@
     {
       "file": "phase13_cache.json",
       "exists": true,
-      "size_bytes": 142285,
-      "modified": "2026-08-12T21:45:06Z"
+      "size_bytes": 144497,
+      "modified": "2026-08-13T19:35:47Z"
     },
     {
       "file": "phase13_proposals.json",
@@ -214,31 +173,31 @@
       "file": "phase13_audit_report.json",
       "exists": true,
       "size_bytes": 1269,
-      "modified": "2026-08-12T21:45:06Z"
+      "modified": "2026-08-13T19:35:47Z"
     },
     {
       "file": "phase13_diagnostic_bundle.json",
       "exists": true,
-      "size_bytes": 5990,
-      "modified": "2026-08-09T22:05:19Z"
+      "size_bytes": 6021,
+      "modified": "2026-08-12T21:45:06Z"
     },
     {
       "file": "phase13_summary.csv",
       "exists": true,
-      "size_bytes": 2234,
-      "modified": "2026-08-09T22:05:19Z"
+      "size_bytes": 2273,
+      "modified": "2026-08-12T21:45:06Z"
     },
     {
       "file": "phase7_scan_cache.json",
       "exists": true,
-      "size_bytes": 70428,
-      "modified": "2026-08-12T21:44:42Z"
+      "size_bytes": 71760,
+      "modified": "2026-08-13T19:35:26Z"
     },
     {
       "file": "market_context_cache.json",
       "exists": true,
-      "size_bytes": 567,
-      "modified": "2026-08-12T09:55:15Z"
+      "size_bytes": 571,
+      "modified": "2026-08-13T09:30:58Z"
     }
   ],
   "errors": {},

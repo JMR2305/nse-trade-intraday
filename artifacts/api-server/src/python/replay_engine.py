@@ -61,6 +61,55 @@ def _is_buy_action(action) -> bool:
     return str(action or "").upper().replace("_", " ") in ("BUY", "STRONG BUY")
 
 
+# Priority for selecting the canonical terminal EXECUTION event when more than
+# one exists for the same (scan_id, symbol).  Two scenarios can produce
+# duplicate events:
+#
+# 1. Seal-vs-executor race (Autoscale concurrent ticks): the executor emits
+#    ORDER_EXECUTED at T1, then the seal—seeing no terminal event yet—emits
+#    EXECUTION_SKIPPED_WITH_REASON at T2 (T2 > T1).  ORDER_EXECUTED must win.
+#
+# 2. Normal lifecycle: ORDER_SUBMITTED is emitted BEFORE the insert attempt,
+#    then if the insert fails a concurrent-duplicate claim the executor emits
+#    ORDER_CANCELLED, or if execute_buy() fails it emits ORDER_REJECTED.
+#    ORDER_SUBMITTED must NEVER override the later definitive outcome.
+#
+# Priority ladder (lower number = wins):
+#   ORDER_EXECUTED               → 1  definitive success
+#   ORDER_REJECTED               → 2  definitive failure (validation / execute_buy)
+#   ORDER_CANCELLED              → 3  definitive failure (concurrent duplicate)
+#   EXECUTION_SKIPPED_WITH_REASON → 4  seal fallback (safe to supersede)
+#   ORDER_SUBMITTED              → 5  progress marker only; always superseded
+_EXEC_TERMINAL_PRIORITY: Dict[str, int] = {
+    "ORDER_EXECUTED":                1,
+    "ORDER_REJECTED":                2,
+    "ORDER_CANCELLED":               3,
+    "EXECUTION_SKIPPED_WITH_REASON": 4,
+    "ORDER_SUBMITTED":               5,   # progress marker — lowest priority
+}
+
+
+def _pick_highest_priority_exec_event(
+        events: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Return the highest-priority terminal EXECUTION event from *events*.
+
+    ORDER_EXECUTED always beats EXECUTION_SKIPPED_WITH_REASON, regardless of
+    insertion order or timestamp.  This is the consumer-side guard against the
+    seal-vs-executor race: when both events land for the same (scan_id, symbol),
+    the one that means "the order was placed" wins.  Within the same priority
+    level the most recently inserted row (largest id) is preferred.
+    """
+    if not events:
+        return None
+    return min(
+        events,
+        key=lambda e: (
+            _EXEC_TERMINAL_PRIORITY.get(e.get("event_type", ""), 99),
+            -(e.get("id") or 0),   # negate so larger id (newer) wins on tie
+        ),
+    )
+
+
 def _today_ist() -> str:
     """Return today's date in IST (UTC+5:30) as YYYY-MM-DD."""
     try:
@@ -1558,7 +1607,8 @@ def get_symbol_journey(scan_id: str, symbol: str) -> Dict:
     conn = _get_conn()
     snapshot: Dict = {}
     paper_trade = None
-    exec_outcome = None  # populated inside try block; guard here for no-conn path
+    exec_outcome = None    # populated inside try block; guard here for no-conn path
+    resolved_sid: Optional[str] = None  # initialized before DB block so no-DB path is safe
 
     if conn:
         try:
@@ -1604,17 +1654,33 @@ def get_symbol_journey(scan_id: str, symbol: str) -> Dict:
             # journey can display the true terminal state rather than inferring
             # it from paper_eligible alone (which causes the misleading
             # "Paper order placed" label when execution was actually skipped).
+            #
+            # Priority guard: ORDER_EXECUTED must always win over
+            # EXECUTION_SKIPPED_WITH_REASON even when the seal ran after the
+            # executor and inserted the SKIPPED event at a later timestamp.
+            # We enforce this with an explicit CASE priority in ORDER BY so a
+            # simple ts DESC cannot pick the wrong event in a concurrent-tick
+            # scenario on Autoscale.
             exec_outcome = None
             if resolved_sid:
                 eo_row = _q1(conn, """
-                    SELECT event_type, payload
+                    SELECT id, event_type, payload
                     FROM pipeline_events
                     WHERE scan_id = %s AND symbol = %s
                       AND event_type IN (
                           'EXECUTION_SKIPPED_WITH_REASON','ORDER_REJECTED',
-                          'ORDER_SUBMITTED','ORDER_EXECUTED'
+                          'ORDER_SUBMITTED','ORDER_EXECUTED','ORDER_CANCELLED'
                       )
-                    ORDER BY ts DESC LIMIT 1
+                    ORDER BY
+                        CASE event_type
+                            WHEN 'ORDER_EXECUTED'                THEN 1
+                            WHEN 'ORDER_REJECTED'                THEN 2
+                            WHEN 'ORDER_CANCELLED'               THEN 3
+                            WHEN 'EXECUTION_SKIPPED_WITH_REASON' THEN 4
+                            WHEN 'ORDER_SUBMITTED'               THEN 5
+                        END ASC,
+                        id DESC
+                    LIMIT 1
                 """, (resolved_sid, symbol.upper()))
                 if eo_row:
                     payload = eo_row.get("payload") or {}
