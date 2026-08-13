@@ -3104,6 +3104,17 @@ router.get("/ops-centre/cycle-log", async (_req, res) => {
   }
 });
 
+// GET /api/phase20/orphan-seal — last execution-seal result for the dashboard
+// Shows how many BUY signals were orphaned (no execution outcome) and sealed
+// at session end by seal_execution_outcomes(). Zero is the healthy state.
+router.get("/phase20/orphan-seal", async (_req, res) => {
+  try {
+    res.json(await runPython(["phase20_orphan_seal_stats"]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/phase20/pipeline — execution pipeline funnel diagnostics
 router.get("/phase20/pipeline", async (_req, res) => {
   try {

@@ -35,6 +35,72 @@ except Exception:
 _OWNER = f"{socket.gethostname()}:{os.getpid()}"
 
 
+def _persist_seal_result(
+    seal_result: Dict[str, Any],
+    scan_id: str,
+    reason: str,
+) -> None:
+    """Durably store the last execution-seal result for the dashboard.
+
+    Idempotency guard
+    -----------------
+    ``seal_execution_outcomes`` is idempotent: a second call for the same
+    scan_id returns ``sealed=0`` because the orphans were already handled.
+    Without a guard, the POST_CLOSE tick (or a repeated OPEN tick) would
+    overwrite a stored ``sealed=2`` record with a misleading ``sealed=0``,
+    making the dashboard silently show the healthy state while orphans *were*
+    present.
+
+    We advance the stored record only when:
+    • A genuinely new ``scan_id`` appears (fresh session / clean scan).
+    • This call sealed orphans (``sealed > 0``).
+    • An error state must be recorded (never silently show zero on failure).
+
+    Notification
+    ------------
+    Fires an INFO notification once per scan_id (via ``kv_claim_once``) when
+    orphans were sealed and no error occurred.  Never raises — all failures are
+    swallowed so the scheduler tick cannot be blocked by a persistence glitch.
+    """
+    try:
+        n_sealed = int(seal_result.get("sealed") or 0)
+        seal_error = seal_result.get("error")
+
+        existing_kv: Dict[str, Any] = store.kv_get("last_execution_seal") or {}
+        is_new_scan = scan_id != existing_kv.get("scan_id")
+
+        if is_new_scan or n_sealed > 0 or seal_error:
+            record: Dict[str, Any] = {
+                "sealed":      n_sealed,
+                "scan_id":     seal_result.get("scan_id"),
+                "orphans":     seal_result.get("orphans", []),
+                "reason":      reason,
+                "recorded_at": _iso_now(),
+            }
+            if seal_error:
+                record["error"] = seal_error
+            store.kv_set("last_execution_seal", record)
+
+        if n_sealed > 0 and not seal_error:
+            _notify_key = f"orphan_seal_notified:{scan_id}"
+            if store.kv_claim_once(_notify_key):
+                store.add_notification(
+                    "EXECUTION_ORPHANS_SEALED",
+                    f"{n_sealed} BUY signal(s) sealed at session end",
+                    (f"Scan {scan_id}: "
+                     f"{', '.join(seal_result.get('orphans', [])[:5])}"
+                     f" had no execution outcome and were automatically "
+                     f"sealed as SKIPPED. Investigate if this count "
+                     f"grows unexpectedly across sessions."),
+                    severity="INFO",
+                    context={"scan_id":  scan_id,
+                             "sealed":   n_sealed,
+                             "orphans":  seal_result.get("orphans", [])},
+                )
+    except Exception:
+        pass
+
+
 def _iso_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -410,8 +476,11 @@ def run_tick() -> Dict[str, Any]:
                     pass
                 if _post_close_scan_id:
                     from phase20_executor import seal_execution_outcomes
-                    out["execution_seal"] = seal_execution_outcomes(
+                    _pc_seal = seal_execution_outcomes(
                         _post_close_scan_id, reason="post_close_seal")
+                    out["execution_seal"] = _pc_seal
+                    _persist_seal_result(
+                        _pc_seal, _post_close_scan_id, "post_close_seal")
             except Exception as _exc:
                 out["execution_seal"] = {"error": str(_exc)[:200]}
         return out
@@ -681,8 +750,9 @@ def _manage_paper(settings: Dict[str, Any], ran_scan: bool) -> Dict[str, Any]:
             _seal_reason = ("post_auto_entry_seal" if auto_on
                             else "auto_paper_entries_off")
             from phase20_executor import seal_execution_outcomes
-            out["execution_seal"] = seal_execution_outcomes(
-                _seal_scan_id, _seal_reason)
+            _seal_result = seal_execution_outcomes(_seal_scan_id, _seal_reason)
+            out["execution_seal"] = _seal_result
+            _persist_seal_result(_seal_result, _seal_scan_id, _seal_reason)
     except Exception as exc:
         out["execution_seal"] = {"error": str(exc)[:200]}
     # ── Continuous Research Mode (Mode B) top-up ─────────────────────────────

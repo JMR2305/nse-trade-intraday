@@ -124,6 +124,7 @@ export default function BrokerExecution() {
   const [readiness, setReadiness]   = useState<any>(null);
   const [account, setAccount]       = useState<any>(null);
   const [paper, setPaper]           = useState<any>(null);
+  const [sealStats, setSealStats]   = useState<any>(null);
   const [audit, setAudit]           = useState<any[]>([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState<string | null>(null);
@@ -145,14 +146,16 @@ export default function BrokerExecution() {
   const loadAll = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const [s, r, ac, au, ps] = await Promise.all([
+      const [s, r, ac, au, ps, ss] = await Promise.all([
         api("/broker/status"),
         api("/broker/readiness"),
         api("/broker/account"),
         api("/broker/audit?limit=50"),
         api("/broker/paper-summary").catch(() => null),
+        api("/phase20/orphan-seal").catch(() => null),
       ]);
       setStatus(s); setReadiness(r); setAccount(ac); setPaper(ps);
+      setSealStats(ss);
       setAudit(au.audit_log ?? []);
     } catch (e: any) {
       setError(e.message ?? "Failed to load broker data");
@@ -592,6 +595,120 @@ export default function BrokerExecution() {
               )}
             </>
           )}
+        </CardContent>
+      </Card>
+
+      {/* ── Section 4c: Sealed Orphan BUYs ───────────────────────────────── */}
+      {/* Shows how many BUY signals from the last scan had no execution
+          outcome event recorded and were automatically sealed as SKIPPED.
+          Zero is the healthy state. A non-zero count is informational —
+          it means the last tick of the session fired after market close
+          and the seal backstop closed the gap. Investigate if it grows. */}
+      <Card className="border-zinc-800 bg-zinc-900/60">
+        <CardHeader className="pb-2 pt-4 px-5">
+          <SectionTitle icon={<ShieldCheck className="h-4 w-4 text-primary" />}>
+            Execution Coverage · Last Scan
+          </SectionTitle>
+        </CardHeader>
+        <CardContent className="px-5 pb-5">
+          {!sealStats?.has_data ? (
+            <div className="text-xs text-zinc-500">
+              No seal data yet — stats appear after the first scheduled scan tick.
+            </div>
+          ) : (() => {
+            const seal = sealStats.last_seal ?? {};
+            const sealError: string | undefined = seal.error;
+            const n = Number(seal.sealed ?? 0);
+            const orphans: string[] = seal.orphans ?? [];
+            const scanId: string = seal.scan_id ?? "";
+            const reason: string = seal.reason ?? "";
+            const recordedAt: string = seal.recorded_at ?? "";
+
+            // Error state — do not show a misleading zero; show unavailable instead.
+            if (sealError) {
+              return (
+                <div className="space-y-2">
+                  <div className="p-2.5 bg-zinc-900/80 border border-zinc-700 rounded-md flex items-start gap-2">
+                    <AlertCircle className="h-3.5 w-3.5 text-zinc-500 flex-shrink-0 mt-0.5" />
+                    <div className="text-xs text-zinc-400">
+                      <span className="font-semibold text-zinc-300">Seal data unavailable</span>
+                      {" — "}the last execution-seal run returned an error and the orphan count
+                      cannot be confirmed. Showing unknown state rather than a misleading zero.
+                      <div className="mt-1 font-mono text-[10px] text-zinc-500 break-all">{sealError}</div>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-4 text-[10px] text-zinc-600 border-t border-zinc-800/60 pt-2">
+                    {scanId && <span>Scan: <span className="font-mono">{scanId.slice(0, 12)}…</span></span>}
+                    {recordedAt && <span>Recorded: <span>{recordedAt.replace("T", " ").replace("Z", " UTC")}</span></span>}
+                    <span className="ml-auto italic opacity-60">Advisory only</span>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div className="space-y-3">
+                {/* KPI row */}
+                <div className="flex items-center gap-6 flex-wrap">
+                  <div className="flex flex-col gap-0.5">
+                    <div className="text-[10px] uppercase tracking-wide text-zinc-500">
+                      Sealed Orphan BUYs
+                    </div>
+                    <div className={cn(
+                      "text-2xl font-bold font-mono",
+                      n === 0 ? "text-emerald-400" : "text-amber-400"
+                    )}>
+                      {n}
+                    </div>
+                    <div className="text-[10px] text-zinc-500">
+                      {n === 0
+                        ? "All BUY signals had a recorded execution outcome"
+                        : `${n} BUY signal${n === 1 ? "" : "s"} sealed as SKIPPED at session end`}
+                    </div>
+                  </div>
+                  {n > 0 && (
+                    <div className="p-2.5 bg-amber-950/30 border border-amber-800/50 rounded-md flex-1 min-w-0">
+                      <div className="flex items-start gap-1.5">
+                        <AlertTriangle className="h-3.5 w-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
+                        <div className="text-xs text-amber-200">
+                          <span className="font-semibold">Why this can happen: </span>
+                          The last scheduler tick fired after market close (15:30 IST), so the
+                          executor never ran for these signals. They were automatically sealed
+                          as SKIPPED to keep the Agent Journey accurate. This is expected
+                          behaviour — investigate only if the count grows session-over-session.
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Sealed symbol chips */}
+                {orphans.length > 0 && (
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1.5">
+                      Sealed symbols
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {orphans.map((sym) => (
+                        <span key={sym}
+                          className="px-2 py-0.5 text-[10px] font-mono rounded bg-amber-950/40 border border-amber-800/40 text-amber-300">
+                          {sym}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Metadata row */}
+                <div className="flex flex-wrap gap-4 text-[10px] text-zinc-500 border-t border-zinc-800/60 pt-2 mt-1">
+                  {scanId && <span>Scan: <span className="font-mono text-zinc-400">{scanId.slice(0, 12)}…</span></span>}
+                  {reason && <span>Trigger: <span className="text-zinc-400">{reason.replace(/_/g, " ")}</span></span>}
+                  {recordedAt && <span>Recorded: <span className="text-zinc-400">{recordedAt.replace("T", " ").replace("Z", " UTC")}</span></span>}
+                  <span className="ml-auto italic opacity-60">Advisory only</span>
+                </div>
+              </div>
+            );
+          })()}
         </CardContent>
       </Card>
 

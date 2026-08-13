@@ -403,5 +403,147 @@ class TestSkippedActiveScanBoundary(SealBase):
                          "Orphan-check must return 0 once seal fires after scan completes")
 
 
+class TestPersistSealResultKv(unittest.TestCase):
+    """Unit tests for _persist_seal_result() idempotency guard.
+
+    All four phase20_store KV/notification functions are mocked via
+    unittest.mock.patch so no real files (phase20_kv.json,
+    phase20_notifications.json) or DB connections are touched.
+
+    Verifies the three properties the reviewer required:
+    1. OPEN tick stores the nonzero seal; POST_CLOSE idempotent call (same
+       scan_id, sealed=0) does NOT overwrite the record.
+    2. A seal error is persisted with an 'error' field so the UI can show
+       'unavailable' instead of a misleading zero.
+    3. A new scan_id with sealed=0 (clean session) still advances the record.
+    """
+
+    def _make_claim_fn(self, claimed: set):
+        """Returns a kv_claim_once side_effect that is True only on the first claim."""
+        def _claim(key: str) -> bool:
+            if key in claimed:
+                return False
+            claimed.add(key)
+            return True
+        return _claim
+
+    def _run_persist(
+        self,
+        seal_result: dict,
+        scan_id: str,
+        reason: str,
+        *,
+        kv_store: dict,
+        claimed: set,
+        notifications: list,
+    ) -> None:
+        """Call _persist_seal_result with mocked store layer."""
+        from phase20_scheduler import _persist_seal_result
+        with (
+            mock.patch("phase20_store.kv_get", side_effect=lambda k: kv_store.get(k)),
+            mock.patch("phase20_store.kv_set", side_effect=lambda k, v: kv_store.update({k: v})),
+            mock.patch("phase20_store.kv_claim_once", side_effect=self._make_claim_fn(claimed)),
+            mock.patch("phase20_store.add_notification",
+                       side_effect=lambda *a, **kw: notifications.append((a, kw))),
+        ):
+            _persist_seal_result(seal_result, scan_id, reason)
+
+    # ------------------------------------------------------------------
+
+    def test_open_tick_nonzero_seal_is_stored(self):
+        """OPEN-path seal with sealed=2 must be written to KV."""
+        kv: dict = {}
+        self._run_persist(
+            {"sealed": 2, "scan_id": "op1", "orphans": ["RELIANCE", "TCS"]},
+            "op1", "auto_paper_entries_off",
+            kv_store=kv, claimed=set(), notifications=[],
+        )
+        stored = kv.get("last_execution_seal") or {}
+        self.assertEqual(stored.get("sealed"), 2)
+        self.assertIn("RELIANCE", stored.get("orphans", []))
+        self.assertEqual(stored.get("scan_id"), "op1")
+
+    def test_post_close_idempotent_zero_preserves_nonzero_open_record(self):
+        """POST_CLOSE tick (same scan_id, sealed=0) must NOT overwrite sealed=2.
+
+        seal_execution_outcomes() is idempotent: the POST_CLOSE call for the
+        same scan_id always returns 0 because the OPEN tick already handled the
+        orphans.  The KV record must still show the real nonzero count so
+        operators can see the gap that occurred.
+        """
+        kv: dict = {}
+        claimed: set = set()
+        notifs: list = []
+
+        # OPEN tick: seal 2 orphans.
+        self._run_persist(
+            {"sealed": 2, "scan_id": "idem1", "orphans": ["INFY", "WIPRO"]},
+            "idem1", "auto_paper_entries_off",
+            kv_store=kv, claimed=claimed, notifications=notifs,
+        )
+        self.assertEqual(kv["last_execution_seal"]["sealed"], 2)
+
+        # POST_CLOSE tick: idempotent call returns sealed=0 for same scan_id.
+        self._run_persist(
+            {"sealed": 0, "scan_id": "idem1", "orphans": []},
+            "idem1", "post_close_seal",
+            kv_store=kv, claimed=claimed, notifications=notifs,
+        )
+        self.assertEqual(
+            kv["last_execution_seal"]["sealed"], 2,
+            "Idempotent POST_CLOSE zero must not overwrite the nonzero OPEN record",
+        )
+        self.assertIn("INFY", kv["last_execution_seal"]["orphans"])
+
+    def test_seal_error_is_stored_with_error_field(self):
+        """A seal result with an 'error' key must be stored including that field.
+
+        Without this, an internal failure inside seal_execution_outcomes()
+        (which returns sealed=0 on error) would look identical to a clean zero,
+        making the dashboard silently claim full coverage.
+        """
+        kv: dict = {}
+        self._run_persist(
+            {"sealed": 0, "scan_id": "err1", "orphans": [],
+             "error": "DB connection lost"},
+            "err1", "auto_paper_entries_off",
+            kv_store=kv, claimed=set(), notifications=[],
+        )
+        stored = kv.get("last_execution_seal") or {}
+        self.assertIn("error", stored,
+                      "Error field must be propagated into the stored KV record")
+        self.assertEqual(stored["error"], "DB connection lost")
+        self.assertEqual(stored.get("scan_id"), "err1")
+
+    def test_new_scan_id_with_zero_advances_stored_record(self):
+        """A new scan_id with sealed=0 (clean session) must replace the old record.
+
+        Operators need to see coverage data for the *current* scan, not a
+        stale record from the previous session.
+        """
+        kv: dict = {}
+        claimed: set = set()
+        notifs: list = []
+
+        # Seed an old-scan record.
+        self._run_persist(
+            {"sealed": 0, "scan_id": "old1", "orphans": []},
+            "old1", "auto_paper_entries_off",
+            kv_store=kv, claimed=claimed, notifications=notifs,
+        )
+        self.assertEqual(kv["last_execution_seal"]["scan_id"], "old1")
+
+        # New session, clean scan — sealed=0 but a genuinely new scan_id.
+        self._run_persist(
+            {"sealed": 0, "scan_id": "new1", "orphans": []},
+            "new1", "auto_paper_entries_off",
+            kv_store=kv, claimed=claimed, notifications=notifs,
+        )
+        self.assertEqual(
+            kv["last_execution_seal"]["scan_id"], "new1",
+            "New scan_id with sealed=0 must advance the stored record",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

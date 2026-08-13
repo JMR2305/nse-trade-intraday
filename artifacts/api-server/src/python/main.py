@@ -1077,6 +1077,17 @@ def main():
             result = {"success": True, "subject": _parts["subject"],
                       "text": _parts["text"],
                       "html": _parts.get("html", "")}
+        elif command == "phase20_orphan_seal_stats":
+            # Return the last durable execution-seal record stored by the
+            # scheduler so the Broker & Execution dashboard can display the
+            # "Sealed orphan BUYs" metric without an expensive re-scan.
+            from phase20_store import kv_get as _kv
+            _last_seal = _kv("last_execution_seal") or {}
+            result = {
+                "last_seal": _last_seal,
+                "has_data": bool(_last_seal),
+                "advisory_only": True,
+            }
         elif command == "phase20_email_status":
             from email_alerts import provider_status, get_last_send
             result = {"success": True, **provider_status(),
