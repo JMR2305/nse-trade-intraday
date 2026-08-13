@@ -46,11 +46,13 @@ class TestSettingsValidation(unittest.TestCase):
             return store.update_settings(patch_dict, confirmation_text=confirmation)
 
     def test_invalid_interval_rejected(self):
-        with self.assertRaises(ValueError):
-            self._update({"scan_interval_minutes": 2})
+        # 1, 2, 7 are no longer valid; only 3,4,5,6,10,15 are allowed
+        for bad in (1, 2, 7):
+            with self.assertRaises(ValueError):
+                self._update({"scan_interval_minutes": bad})
 
     def test_valid_intervals_accepted(self):
-        for m in (1, 3, 5, 10, 15):
+        for m in (3, 4, 5, 6, 10, 15):
             s = self._update({"scan_interval_minutes": m})
             self.assertEqual(s["scan_interval_minutes"], m)
 

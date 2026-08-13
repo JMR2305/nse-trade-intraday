@@ -1,0 +1,142 @@
+INTRADAY SCAN CADENCE OPTIMIZATION — 6 MIN TO 4 MIN TARGET
+
+Issue:
+The audit says intraday scan cadence is about every 6 minutes, but Aug 12 had only 43 scans from 09:15 to 15:30 IST.
+
+Market duration:
+09:15–15:30 = 375 minutes.
+
+Expected scans:
+- 6 min cadence should produce ~62 scans.
+- 4 min cadence should produce ~94 scans.
+- 3 min cadence should produce ~125 scans.
+
+Actual:
+- 43 scans only.
+- Average effective gap = ~8.7 minutes.
+
+This is low for intraday trading.
+
+Do not change strategy logic.
+Do not change BUY/SELL thresholds.
+Do not bypass risk gates.
+Do not place live orders.
+PAPER ONLY.
+
+TASK 1 — AUDIT ACTUAL SCAN TIMING
+
+For the latest full trading session, report:
+
+- first scan start time
+- last scan start time
+- total scans
+- configured cadence
+- actual average start-to-start gap
+- min gap
+- max gap
+- p50 gap
+- p95 gap
+- average scan duration
+- max scan duration
+- number of skipped scans
+- reason for skipped scans
+- whether next scan is scheduled from scan START time or scan COMPLETION time
+
+TASK 2 — EXPLAIN WHY 43 SCANS ONLY
+
+Identify root cause:
+
+- config actually not 6 minutes?
+- scheduler waits 6 minutes after completion?
+- scan duration too long?
+- lock contention?
+- provider/yfinance delay?
+- Zerodha/live quote delay?
+- Replit CPU/memory constraint?
+- DB write delay?
+- market-state scheduler idle too long?
+- failed/skipped scans not counted?
+
+TASK 3 — MAKE CADENCE CONFIGURABLE
+
+Add/verify setting:
+
+INTRADAY_SCAN_INTERVAL_MINUTES
+
+Default current value can stay unchanged until approved.
+
+Allow safe values:
+- 6
+- 5
+- 4
+- 3
+
+Do not allow overlapping scans.
+
+If a scan is still running when the next scan is due:
+- skip the new scan
+- emit SCAN_SKIPPED_BUSY
+- show reason in UI
+- do not run two scans at once
+
+TASK 4 — PILOT 4-MINUTE CADENCE
+
+Set test cadence to 4 minutes in PAPER mode only.
+
+Expected:
+- around 90 scans/day if scan duration is short enough
+- no overlapping scans
+- no provider failures
+- no DB overload
+- no stale scan during market hours
+
+For the next session, collect:
+
+- expected scans
+- actual scans
+- skipped scans
+- average scan duration
+- provider errors
+- BUY/WATCH/IGNORE counts
+- auto-entry attempts
+- paper orders/rejections
+
+TASK 5 — UI VISIBILITY
+
+In AI Paper Trader / Intraday Scan Coverage, show:
+
+- configured scan cadence
+- actual average gap today
+- expected scans today
+- completed scans today
+- skipped scans today
+- last scan duration
+- next scan due
+- whether scheduler is start-to-start or completion-to-next-start
+
+TASK 6 — DO NOT MOVE TO 3 MIN YET
+
+Do not switch to 3 minutes until 4-minute cadence is tested for one full session.
+
+3-minute cadence should be considered only if:
+- average scan duration is below 90 seconds
+- skipped scans are near zero
+- no provider throttling
+- no DB overload
+- auto-entry still runs immediately after scan
+
+TASK 7 — REPORT
+
+Produce:
+
+INTRADAY_SCAN_CADENCE_OPTIMIZATION_REPORT.md
+
+Include:
+1. Why only 43 scans happened.
+2. Actual scan gap distribution.
+3. Actual scan duration distribution.
+4. Whether cadence is start-to-start or completion-to-next-start.
+5. Whether 4-minute cadence is safe.
+6. Whether 3-minute cadence is realistic later.
+7. Recommended production paper cadence.
+8. Confirmation no strategy/risk/live-order changes.

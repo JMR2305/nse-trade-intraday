@@ -3225,6 +3225,15 @@ router.post("/phase20/email/send-daily-summary", async (_req, res) => {
   }
 });
 
+// GET /api/phase20/cadence-stats — today's scan cadence metrics
+router.get("/phase20/cadence-stats", async (_req, res) => {
+  try {
+    res.json(await runPython(["phase20_cadence_stats"]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/phase20/scheduler/health — last runs, next due, missed, status
 router.get("/phase20/scheduler/health", async (_req, res) => {
   try {

@@ -455,6 +455,14 @@ def run_tick() -> Dict[str, Any]:
                              int(store.kv_get("scan_skipped_active_count") or 0) + 1)
             except Exception:
                 pass
+            # Emit pipeline event so operators can see skips in the cadence panel.
+            try:
+                from pipeline_events import emit as _pe_emit
+                _pe_emit("SCAN_SKIPPED_BUSY", "SCAN",
+                         payload={"reason": "SKIPPED_ACTIVE_SCAN — another scan in progress",
+                                  "interval_minutes": interval_min})
+            except Exception:
+                pass
             store.update_scheduler_state(
                 last_attempt_at=now_iso, status="BUSY",
                 detail="Skipped — another scan is already running",

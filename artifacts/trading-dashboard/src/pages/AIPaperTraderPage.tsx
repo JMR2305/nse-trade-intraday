@@ -19,7 +19,7 @@ import {
   BarChart2, Wallet, Layers, Trophy, Info,
   CalendarDays, RotateCcw, PieChart,
   Power, CheckCircle2, XCircle, AlertTriangle, Bot, Cpu, Shield, RefreshCcw,
-  GitBranch, ArrowDown, ChevronDown,
+  GitBranch, ArrowDown, ChevronDown, Timer, Gauge,
 } from "lucide-react";
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
@@ -711,6 +711,183 @@ interface PipelineStats {
   };
 
   stage_errors?: string[];
+}
+
+// ── Cadence stats type ────────────────────────────────────────────────────────
+interface CadenceStats {
+  success: boolean;
+  configured_interval_minutes: number;
+  scheduling_mode: string;
+  expected_scans_today: number;
+  completed_scans_today: number;
+  skipped_scans_today: number;
+  avg_gap_minutes: number | null;
+  min_gap_minutes: number | null;
+  max_gap_minutes: number | null;
+  p50_gap_minutes: number | null;
+  p95_gap_minutes: number | null;
+  avg_duration_seconds: number | null;
+  last_scan_duration_seconds: number | null;
+  next_due: string | null;
+  scheduler_status: string | null;
+  market_minutes: number;
+}
+
+// ── SCadencePanel — Intraday Scan Cadence ─────────────────────────────────────
+function SCadencePanel() {
+  const { data, isLoading, refetch } = useQuery<CadenceStats>({
+    queryKey: ["apt", "cadence"],
+    queryFn:  () => apiJson("/phase20/cadence-stats"),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+    retry: 1,
+  });
+
+  function fmtMin(v: number | null | undefined) {
+    if (v == null) return "—";
+    return `${v.toFixed(1)} min`;
+  }
+  function fmtSec(v: number | null | undefined) {
+    if (v == null) return "—";
+    return `${v.toFixed(0)} s`;
+  }
+  function fmtTime(iso: string | null | undefined) {
+    if (!iso) return "—";
+    try {
+      const d = new Date(iso);
+      // Convert UTC to IST (+5:30)
+      const ist = new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
+      return ist.toISOString().slice(11, 19) + " IST";
+    } catch { return iso; }
+  }
+
+  const completed  = data?.completed_scans_today ?? 0;
+  const expected   = data?.expected_scans_today ?? 0;
+  const skipped    = data?.skipped_scans_today ?? 0;
+  const pct        = expected > 0 ? Math.round((completed / expected) * 100) : 0;
+  const coverageOk = pct >= 70;
+  const avgGap     = data?.avg_gap_minutes;
+  const cfgInt     = data?.configured_interval_minutes ?? 5;
+  const gapOk      = avgGap == null || avgGap <= cfgInt * 1.3;
+
+  return (
+    <div className="border border-slate-800/50 rounded-xl p-4 bg-slate-900/40">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Timer className="w-4 h-4 text-teal-400" />
+          <h2 className="font-semibold text-xs tracking-widest uppercase text-slate-400">
+            Intraday Scan Cadence
+          </h2>
+          {!isLoading && (
+            <Badge className={`text-xs ${coverageOk && gapOk
+              ? "bg-emerald-950 border-emerald-700/50 text-emerald-300"
+              : "bg-amber-950 border-amber-700/50 text-amber-300"
+            }`}>
+              {coverageOk && gapOk ? "On Track" : "Review"}
+            </Badge>
+          )}
+        </div>
+        <button onClick={() => refetch()}
+          className="text-xs text-slate-500 hover:text-teal-400 flex items-center gap-1 transition-colors">
+          <RefreshCcw className="w-3 h-3" />
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {Array.from({length: 8}).map((_, i) => (
+            <Skeleton key={i} className="h-14 rounded-lg" />
+          ))}
+        </div>
+      ) : (
+        <>
+          {/* Primary KPIs */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+            {/* Configured cadence */}
+            <div className="bg-slate-900/60 border border-slate-800/40 rounded-lg p-3">
+              <p className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Configured</p>
+              <p className="text-xl font-bold text-teal-300 font-mono">{cfgInt}<span className="text-xs text-slate-400 ml-1">min</span></p>
+              <p className="text-[9px] text-slate-500 mt-0.5">start-to-start</p>
+            </div>
+
+            {/* Scans completed vs expected */}
+            <div className={`border rounded-lg p-3 ${coverageOk
+              ? "bg-emerald-950/20 border-emerald-800/30"
+              : "bg-amber-950/20 border-amber-800/30"}`}>
+              <p className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Scans Today</p>
+              <p className={`text-xl font-bold font-mono ${coverageOk ? "text-emerald-300" : "text-amber-300"}`}>
+                {completed}<span className="text-xs text-slate-400 ml-1">/ {expected}</span>
+              </p>
+              <p className="text-[9px] text-slate-500 mt-0.5">{pct}% of expected</p>
+            </div>
+
+            {/* Skipped scans */}
+            <div className={`border rounded-lg p-3 ${skipped > 5
+              ? "bg-rose-950/20 border-rose-800/30"
+              : "bg-slate-900/60 border-slate-800/40"}`}>
+              <p className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Skipped</p>
+              <p className={`text-xl font-bold font-mono ${skipped > 5 ? "text-rose-300" : "text-slate-200"}`}>
+                {skipped}
+              </p>
+              <p className="text-[9px] text-slate-500 mt-0.5">concurrent lock busy</p>
+            </div>
+
+            {/* Next scan due */}
+            <div className="bg-slate-900/60 border border-slate-800/40 rounded-lg p-3">
+              <p className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Next Due</p>
+              <p className="text-sm font-bold text-slate-200 font-mono">
+                {fmtTime(data?.next_due)}
+              </p>
+              <p className={`text-[9px] mt-0.5 ${
+                data?.scheduler_status === "SCANNING" ? "text-teal-400" :
+                data?.scheduler_status === "FRESH"    ? "text-emerald-400" :
+                data?.scheduler_status === "BUSY"     ? "text-amber-400" : "text-slate-500"
+              }`}>
+                {data?.scheduler_status ?? "—"}
+              </p>
+            </div>
+          </div>
+
+          {/* Gap distribution */}
+          <div className="grid grid-cols-3 md:grid-cols-5 gap-2 mb-3">
+            {[
+              { label: "Avg gap", value: fmtMin(avgGap), warn: !gapOk },
+              { label: "P50 gap", value: fmtMin(data?.p50_gap_minutes), warn: false },
+              { label: "P95 gap", value: fmtMin(data?.p95_gap_minutes), warn: false },
+              { label: "Avg duration", value: fmtSec(data?.avg_duration_seconds), warn: (data?.avg_duration_seconds ?? 0) > 120 },
+              { label: "Last duration", value: fmtSec(data?.last_scan_duration_seconds), warn: (data?.last_scan_duration_seconds ?? 0) > 120 },
+            ].map(m => (
+              <div key={m.label} className="bg-slate-900/40 border border-slate-800/30 rounded px-2 py-1.5 text-center">
+                <p className="text-[9px] text-slate-500 uppercase tracking-wider">{m.label}</p>
+                <p className={`text-sm font-mono font-semibold ${m.warn ? "text-amber-300" : "text-slate-200"}`}>
+                  {m.value}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Info strip */}
+          <div className="flex flex-wrap gap-3 text-[10px] text-slate-500">
+            <span className="flex items-center gap-1">
+              <Gauge className="w-3 h-3 text-slate-600" />
+              Scheduling: <span className="text-slate-400 ml-0.5">start-to-start (snapshot age)</span>
+            </span>
+            <span className="text-slate-700">·</span>
+            <span>Market window: <span className="text-slate-400">375 min</span></span>
+            <span className="text-slate-700">·</span>
+            <span>At {cfgInt} min: <span className="text-slate-400">~{Math.round(375/cfgInt)} scans expected</span></span>
+            {skipped > 0 && (
+              <>
+                <span className="text-slate-700">·</span>
+                <span className="text-amber-400/80">{skipped} skip{skipped !== 1 ? "s" : ""} — slow scan overlapped next window</span>
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 function SPipelineStats() {
@@ -2437,6 +2614,9 @@ export default function AIPaperTraderPage() {
 
         {/* Pipeline Funnel — shows stocks→signals→gates→orders at a glance */}
         <SPipelineStats />
+
+        {/* Intraday Scan Cadence — scheduler health + coverage metrics */}
+        <SCadencePanel />
 
         {/* S1 */}
         <S1MarketStatus />
