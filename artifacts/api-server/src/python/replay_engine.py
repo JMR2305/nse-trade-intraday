@@ -706,10 +706,11 @@ def _build_symbol_journey(rec: Dict, snapshot: Dict,
             if _eo_reason_str else "Order rejected by execution gate"
         )
     elif paper_eligible:
-        # paper_eligible=True in snapshot but no execution event for this scan_id
-        # "Paper eligible" (not "Paper order placed") — no actual order was placed
+        # paper_eligible=True in snapshot but no execution event recorded for this scan.
+        # Use ELIGIBLE (never "Paper order placed") — signal qualified but order was
+        # not placed; reason is explicit so operators know the outcome is absent.
         _exec_result = "ELIGIBLE"
-        _exec_reason = "Paper eligible"
+        _exec_reason = "Paper eligible — execution outcome not recorded for this scan"
     else:
         _exec_result = "SKIPPED" if not _is_buy_action(final_action) else "REJECTED"
         _exec_reason = (
