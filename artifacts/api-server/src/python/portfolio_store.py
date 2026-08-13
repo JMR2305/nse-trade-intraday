@@ -175,6 +175,7 @@ def save_state(state: Dict[str, Any]) -> None:
     """
     if not db_available():
         _write_json_fallback(state)
+        _invalidate_perf_cache()
         return
 
     conn = _connect()  # raises on connection failure
@@ -191,6 +192,29 @@ def save_state(state: Dict[str, Any]) -> None:
 
     # Write warm-cache AFTER successful DB commit (read optimisation only)
     _write_json_fallback(state)
+    # Immediately invalidate the performance analytics cache so the next
+    # request reflects the new trade within one poll cycle (< 1 s) rather
+    # than waiting for the 30-second TTL to expire.
+    _invalidate_perf_cache()
+
+
+def _invalidate_perf_cache() -> None:
+    """
+    Clear the portfolio-performance file-based TTL cache.
+
+    Called immediately after every successful portfolio write so that
+    performance endpoints reflect the new trade on the very next request
+    rather than serving stale data for up to 30 seconds.
+
+    Import is lazy to avoid a circular import between portfolio_store and
+    performance_engine.  Failures are swallowed — cache invalidation must
+    never block a committed trade write.
+    """
+    try:
+        from portfolio_performance.performance_engine import _clear_perf_cache
+        _clear_perf_cache()
+    except Exception:
+        pass
 
 
 # ── Archive all trades (portfolio reset — soft reset, never deletes) ─────────
