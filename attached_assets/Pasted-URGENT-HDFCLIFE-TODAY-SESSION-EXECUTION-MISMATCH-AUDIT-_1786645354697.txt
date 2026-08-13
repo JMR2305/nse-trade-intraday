@@ -1,0 +1,128 @@
+URGENT — HDFCLIFE TODAY SESSION EXECUTION MISMATCH AUDIT
+
+Issue:
+In AI Paper Trader, HDFCLIFE shows:
+- BUY
+- 73% confidence
+- Paper ✓
+- Agent Journey: AI Decision BUY
+- Execution: Paper order placed
+
+But the same screen also shows:
+- Portfolio Pre-Check: NOT EVALUATED
+- Live Trade Timeline: No paper trade recorded for HDFCLIFE in this session
+- End-of-Day Summary: No. of Trades = 0
+- Top banner: Scan data is stale 14h 21m old
+
+This is contradictory.
+
+Do not change strategy logic.
+Do not change thresholds.
+Do not bypass risk gates.
+Do not place live orders.
+PAPER ONLY.
+Read-only audit first.
+
+TASK 1 — IDENTIFY EXACT HDFCLIFE SIGNAL SHOWN IN UI
+
+Find the exact HDFCLIFE record currently displayed in AI Paper Trader:
+
+- scan_id
+- scan timestamp IST
+- snapshot age
+- action
+- confidence
+- opportunity score
+- paper_eligible
+- data_quality
+- strategy
+- R:R
+- source endpoint used by frontend
+
+Confirm whether this signal belongs to:
+A. today's fresh market session, or
+B. stale/previous snapshot being displayed after market close.
+
+TASK 2 — CHECK EXECUTION EVENTS
+
+For that exact scan_id + HDFCLIFE, check pipeline events:
+
+- BUY_GENERATED
+- EXECUTION_SKIPPED_WITH_REASON
+- ORDER_SUBMITTED
+- ORDER_REJECTED
+- ORDER_EXECUTED
+- ORDER_CANCELLED
+
+Report the exact terminal event.
+
+If there is no terminal event, mark this as TASK #665 FAILURE.
+
+TASK 3 — CHECK PAPER TRADE LEDGER
+
+Query phase20_paper_trades for HDFCLIFE for today's session:
+
+- any row created?
+- status OPEN/CLOSED/REJECTED?
+- quantity
+- price
+- created_at IST
+- scan_id / source if available
+
+If no row exists, the UI must not say "Paper order placed."
+
+TASK 4 — CHECK WHY PORTFOLIO PRE-CHECK SAYS NOT EVALUATED
+
+Explain why the Agent Journey says:
+
+Portfolio Pre-Check: NOT EVALUATED
+No BUY attempt reached the portfolio pre-check
+
+If portfolio pre-check was not evaluated, then Execution must not say "Paper order placed."
+
+TASK 5 — FIX UI LABEL IF MISLEADING
+
+If "Paper ✓" only means paper_eligible=true, rename it to:
+
+"Paper Eligible"
+
+Do not label it as "Paper order placed" unless one of these exists:
+
+- ORDER_SUBMITTED
+- ORDER_EXECUTED
+- phase20_paper_trades row
+
+If skipped or rejected, show:
+
+- EXECUTION_SKIPPED_WITH_REASON
+- ORDER_REJECTED
+- exact reason
+
+TASK 6 — VERIFY TASK #665
+
+For today's session, confirm:
+
+Every BUY_GENERATED + paper_eligible=true produced exactly one terminal outcome:
+
+- ORDER_SUBMITTED
+- ORDER_EXECUTED
+- ORDER_REJECTED
+- EXECUTION_SKIPPED_WITH_REASON
+
+No orphan BUYs allowed.
+
+TASK 7 — REPORT
+
+Produce:
+
+HDFCLIFE_TODAY_EXECUTION_MISMATCH_AUDIT.md
+
+Include:
+1. Whether HDFCLIFE BUY was from a fresh or stale scan.
+2. Whether auto-entry actually attempted.
+3. Whether a paper trade row exists.
+4. Why Portfolio Pre-Check was NOT EVALUATED.
+5. Why UI says Paper order placed.
+6. Whether this is a UI bug or execution bug.
+7. Whether Task #665 passed or failed.
+8. Confirmation no live orders placed.

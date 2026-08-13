@@ -592,7 +592,8 @@ def _get_execution_trades(conn, scan_id: str, snapshot: Dict) -> List[Dict]:
 # ---------------------------------------------------------------------------
 
 def _build_symbol_journey(rec: Dict, snapshot: Dict,
-                          precheck: Optional[Dict] = None) -> List[Dict]:
+                          precheck: Optional[Dict] = None,
+                          execution_outcome: Optional[Dict] = None) -> List[Dict]:
     """
     Reconstruct the full per-symbol timeline across all 9 agent stages.
     Each entry has: stage, timestamp (relative), result, score, reason.
@@ -606,6 +607,45 @@ def _build_symbol_journey(rec: Dict, snapshot: Dict,
     final_action = rec.get("final_action") or "UNKNOWN"
     paper_eligible = bool(rec.get("paper_eligible"))
     error = rec.get("error") or ""
+
+    # ── Execution outcome: derive label from actual pipeline event, not the
+    # paper_eligible flag alone.  execution_outcome is injected by the caller
+    # from pipeline_events (EXECUTION_SKIPPED_WITH_REASON / ORDER_REJECTED /
+    # ORDER_SUBMITTED / ORDER_EXECUTED).  When absent the label is honest
+    # ("outcome not recorded") rather than the misleading "Paper order placed".
+    _eo = execution_outcome or {}
+    _eo_type = _eo.get("event_type")
+    _eo_gate_reasons: dict = _eo.get("failed_gate_reasons") or {}
+    _eo_reason_str = (
+        "; ".join(str(v) for v in _eo_gate_reasons.values())
+        if _eo_gate_reasons
+        else (_eo.get("note") or "")
+    )
+    if _eo_type in ("ORDER_SUBMITTED", "ORDER_EXECUTED"):
+        _exec_result = "PAPER BUY"
+        _exec_reason = "Paper order placed and recorded"
+    elif _eo_type == "EXECUTION_SKIPPED_WITH_REASON":
+        _exec_result = "SKIPPED"
+        _exec_reason = (
+            f"Execution skipped — {_eo_reason_str}"
+            if _eo_reason_str else "Execution gate blocked this order"
+        )
+    elif _eo_type == "ORDER_REJECTED":
+        _exec_result = "REJECTED"
+        _exec_reason = (
+            f"Order rejected — {_eo_reason_str}"
+            if _eo_reason_str else "Order rejected by execution gate"
+        )
+    elif paper_eligible:
+        # paper_eligible=True in snapshot but no execution event for this scan_id
+        _exec_result = "PENDING"
+        _exec_reason = "Paper eligible — execution outcome not recorded for this scan"
+    else:
+        _exec_result = "SKIPPED" if not _is_buy_action(final_action) else "REJECTED"
+        _exec_reason = (
+            f"Action: {final_action}" if not _is_buy_action(final_action)
+            else "Not paper-eligible"
+        )
 
     journey = [
         {
@@ -724,14 +764,14 @@ def _build_symbol_journey(rec: Dict, snapshot: Dict,
         {
             "stage": "execution",
             "label": "Execution",
-            "result": "PAPER BUY" if paper_eligible else ("SKIPPED" if not _is_buy_action(final_action) else "REJECTED"),
-            # (may be overridden below when the pre-check blocked this symbol)
+            # result/reason derived from actual pipeline outcome; see variable
+            # computation above (before journey = [...]).
+            "result": _exec_result,
             "score": None,
-            "reason": "Paper order placed" if paper_eligible else (
-                "Not paper-eligible" if _is_buy_action(final_action) else f"Action: {final_action}"
-            ),
+            "reason": _exec_reason,
             "detail": {
                 "paper_eligible": paper_eligible,
+                "execution_event": _eo_type,
                 "paper_order_id": rec.get("paper_order_id"),
                 "paper_order_note": rec.get("paper_order_note"),
                 "entry_price": rec.get("entry_price"),
@@ -1437,6 +1477,7 @@ def get_symbol_journey(scan_id: str, symbol: str) -> Dict:
     conn = _get_conn()
     snapshot: Dict = {}
     paper_trade = None
+    exec_outcome = None  # populated inside try block; guard here for no-conn path
 
     if conn:
         try:
@@ -1477,6 +1518,29 @@ def get_symbol_journey(scan_id: str, symbol: str) -> Dict:
             """, (symbol.upper(), resolved_sid))
             if trade_row:
                 paper_trade = dict(trade_row)
+
+            # Query the actual execution outcome from pipeline_events so the
+            # journey can display the true terminal state rather than inferring
+            # it from paper_eligible alone (which causes the misleading
+            # "Paper order placed" label when execution was actually skipped).
+            exec_outcome = None
+            if resolved_sid:
+                eo_row = _q1(conn, """
+                    SELECT event_type, payload
+                    FROM pipeline_events
+                    WHERE scan_id = %s AND symbol = %s
+                      AND event_type IN (
+                          'EXECUTION_SKIPPED_WITH_REASON','ORDER_REJECTED',
+                          'ORDER_SUBMITTED','ORDER_EXECUTED'
+                      )
+                    ORDER BY ts DESC LIMIT 1
+                """, (resolved_sid, symbol.upper()))
+                if eo_row:
+                    payload = eo_row.get("payload") or {}
+                    if isinstance(payload, str):
+                        import json as _json
+                        payload = _json.loads(payload)
+                    exec_outcome = {"event_type": eo_row["event_type"], **payload}
         finally:
             conn.close()
 
@@ -1493,7 +1557,8 @@ def get_symbol_journey(scan_id: str, symbol: str) -> Dict:
 
     _pc_map = _get_precheck_decisions(str(resolved_sid or scan_id or ""))
     journey = _build_symbol_journey(rec, snapshot,
-                                    precheck=_pc_map.get(symbol.upper()))
+                                    precheck=_pc_map.get(symbol.upper()),
+                                    execution_outcome=exec_outcome)
     thinking = _build_agent_thinking(rec)
 
     return {

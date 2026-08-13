@@ -2601,7 +2601,7 @@ export default function AIInvestigationCentre() {
                       <div className="flex items-center gap-3 text-xs text-slate-500">
                         <span>{sym.sector ?? "—"}</span>
                         <span className="text-teal-400">{sym.confidence}% conf</span>
-                        {sym.paper_eligible && <span className="text-emerald-400">Paper ✓</span>}
+                        {sym.paper_eligible && <span className="text-amber-400">Paper Eligible</span>}
                       </div>
                       {sym.strategy && <div className="text-xs text-slate-600 mt-0.5 truncate">{sym.strategy}</div>}
                     </button>
