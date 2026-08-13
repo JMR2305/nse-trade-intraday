@@ -158,15 +158,80 @@ class PortfolioSnapshotRepository:
     semantics rather than raising.
     """
 
+    # ── retention knobs ────────────────────────────────────────────────
+    RETENTION_DAYS: int = 30
+    # Always keep this many most-recent snapshots regardless of age so
+    # recovery always has a pool of candidates to validate against.
+    MIN_SNAPSHOTS_TO_KEEP: int = 10
+    # Minimum seconds between successful prune runs for the same portfolio.
+    # Keeps the per-save overhead low without letting the table grow forever.
+    PRUNE_INTERVAL_SECONDS: float = 3600.0  # 1 hour
+
+    # class-level: portfolio_id → monotonic time of last *successful* prune.
+    _LAST_PRUNED: dict[str, float] = {}
+
     def __init__(self) -> None:
         self._snapshots: list[PortfolioSnapshot] = []
 
     # ── persistence helpers ────────────────────────────────────────────
 
+    def _maybe_prune(self, conn, portfolio_id: str | None) -> None:
+        """Bounded retention for portfolio_snapshots (best-effort, periodic).
+
+        Deletes rows older than RETENTION_DAYS for *portfolio_id* while
+        always keeping the MIN_SNAPSHOTS_TO_KEEP most-recent rows (by
+        serial id).  The serial-id guard means the newest valid snapshot
+        is never deleted regardless of its snapshotted_at timestamp.
+
+        Pruning is rate-limited by PRUNE_INTERVAL_SECONDS so it does not
+        run on every fill, but continues across the process lifetime so
+        snapshots that age past 30 days after an earlier successful prune
+        are eventually collected.  The cooldown timestamp is recorded only
+        after a successful commit; a DB failure leaves the portfolio eligible
+        so the next save can retry.
+
+        Failures are swallowed so a prune error can never break a save or
+        recovery read.
+        """
+        import time
+        if not portfolio_id:
+            return
+        last = self._LAST_PRUNED.get(portfolio_id)
+        if last is not None and (time.monotonic() - last) < self.PRUNE_INTERVAL_SECONDS:
+            return
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    DELETE FROM portfolio_snapshots
+                    WHERE portfolio_id = %s
+                      AND snapshotted_at < NOW() - make_interval(days => %s)
+                      AND id NOT IN (
+                          SELECT id FROM portfolio_snapshots
+                          WHERE portfolio_id = %s
+                          ORDER BY id DESC
+                          LIMIT %s
+                      )
+                    """,
+                    (
+                        portfolio_id,
+                        self.RETENTION_DAYS,
+                        portfolio_id,
+                        self.MIN_SNAPSHOTS_TO_KEEP,
+                    ),
+                )
+            conn.commit()
+            # Record the successful prune time ONLY after commit succeeds.
+            self._LAST_PRUNED[portfolio_id] = time.monotonic()
+        except Exception as exc:
+            conn.rollback()
+            logger.debug("snapshot prune skipped: %s", exc)
+
     def _db_save(self, snapshot: PortfolioSnapshot) -> None:
         conn = _connect()
         try:
             _ensure_schema(conn)
+            self._maybe_prune(conn, snapshot.portfolio_id)
             # Durable replay cursor: assigned by the SERVICE at snapshot
             # creation time from its per-instance incorporated cursor —
             # never derived here from a table-wide MAX(id), which would
