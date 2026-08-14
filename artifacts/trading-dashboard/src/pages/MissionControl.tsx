@@ -114,6 +114,9 @@ interface ReplayResp { stages?: ReplayStage[]; scan_id?: string; snapshot_ts?: s
 interface ScanStatus {
   success?: boolean; status?: string; scan_id?: string; snapshot_ts?: string;
   age_minutes?: number | null;
+  scan_count_today?: number | null;   // how many scans completed today (if backend provides)
+  cadence_minutes?: number | null;    // expected minutes between scans
+  rotation?: number | null;           // sequential rotation index for today
   latest_scan?: {
     scan_id?: string; snapshot_ts?: string; status?: string;
     symbols_total?: number; symbols_done?: number; duration_s?: number | null;
@@ -156,6 +159,202 @@ const STAGE_LABELS: Record<string, string> = {
   RISK: "Risk", AI_DECISION: "AI Decision",
   EXECUTION: "Execution", PORTFOLIO: "Portfolio",
 };
+
+// ── Symbol-level pipeline grid ────────────────────────────────────────────────
+// Shows one coloured box per symbol in the universe so operators can see at a
+// glance which stocks each pipeline stage has processed, passed, rejected, etc.
+// Pure display — no strategy logic, no thresholds, no order generation.
+
+type SymState = "pending" | "processing" | "passed" | "rejected" | "cancelled" | "skipped" | "warning";
+
+const SYM_BOX: Record<SymState, string> = {
+  pending:    "bg-slate-800/70 border-slate-600/30 text-slate-500/70",
+  processing: "bg-blue-500/80 border-blue-400/60 text-blue-100 animate-pulse",
+  passed:     "bg-emerald-600/80 border-emerald-500/50 text-emerald-50",
+  rejected:   "bg-red-600/80 border-red-500/50 text-red-50",
+  cancelled:  "bg-slate-600/50 border-slate-500/30 text-slate-400",
+  skipped:    "bg-slate-700/40 border-slate-600/20 text-slate-500",
+  warning:    "bg-amber-600/70 border-amber-500/50 text-amber-50",
+};
+
+function symStateFromEventType(et: string): SymState | null {
+  const u = et.toUpperCase();
+  if (u.includes("REJECT") || u.includes("FAIL"))   return "rejected";
+  if (u.includes("CANCEL"))                          return "cancelled";
+  if (u.includes("SKIP"))                            return "skipped";
+  if (u.includes("WATCH") || u.includes("WARN"))     return "warning";
+  if (
+    u.includes("COMPLET") || u.includes("APPROV") || u.includes("PASS") ||
+    u.includes("BUY_GEN") || u.includes("EXECUT")  || u.includes("SELECT") ||
+    u.includes("_OPEN")   || u.includes("_CLOS")
+  ) return "passed";
+  if (u.includes("START") || u.includes("PROCESS"))  return "processing";
+  return null;
+}
+
+interface SymEntry {
+  sym: string; state: SymState; reason?: string; score?: number; ts?: string;
+}
+
+/** Derive per-symbol state for every stage from a flat event list. */
+function buildStageSymbolMap(events: PipelineEvent[]): Map<string, Map<string, SymEntry>> {
+  const out = new Map<string, Map<string, SymEntry>>();
+  const isTerminal = (s: SymState) => s === "passed" || s === "rejected" || s === "cancelled";
+  // Events arrive newest-first; process oldest-first so terminal states win.
+  for (const e of [...events].reverse()) {
+    if (!e.symbol) continue;
+    const newState = symStateFromEventType(e.event_type);
+    if (!newState) continue;
+    if (!out.has(e.stage)) out.set(e.stage, new Map());
+    const stageMap = out.get(e.stage)!;
+    const cur = stageMap.get(e.symbol);
+    if (!cur || !isTerminal(cur.state)) {
+      stageMap.set(e.symbol, {
+        sym: e.symbol,
+        state: newState,
+        reason: (e.payload?.reason as string | undefined) ?? undefined,
+        score: (e.payload?.score as number | undefined) ?? undefined,
+        ts: e.ts,
+      });
+    }
+  }
+  return out;
+}
+
+/** Single symbol box with CSS-only hover tooltip. */
+function SymbolBox({ sym, state, reason, score, ts, stage }: SymEntry & { stage?: string }) {
+  // Strip exchange suffix for display; cap at 5 chars
+  const label = sym.replace(/\.(NS|BSE)$/i, "").slice(0, 5);
+  return (
+    <div className="relative group/sym">
+      <div
+        className={`w-8 h-8 rounded border text-[8px] font-bold flex items-center justify-center cursor-default select-none ${SYM_BOX[state]}`}
+        data-testid={`sym-box-${sym}`}
+      >
+        {label}
+      </div>
+      {/* Hover tooltip — pure CSS, no portal needed */}
+      <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/sym:block z-50 w-44">
+        <div className="rounded-lg border border-border bg-popover shadow-xl p-2 text-[10px] space-y-0.5">
+          <p className="font-semibold font-mono truncate">{sym}</p>
+          <p className="capitalize text-muted-foreground">{state}</p>
+          {stage && <p className="text-muted-foreground text-[9px]">Stage: {STAGE_LABELS[stage] ?? stage}</p>}
+          {score != null && (
+            <p>Score: <span className="font-semibold">{score.toFixed ? score.toFixed(2) : score}</span></p>
+          )}
+          {reason && (
+            <p className="text-amber-300/80 text-[9px] leading-snug">{String(reason).slice(0, 80)}</p>
+          )}
+          {ts && <p className="text-muted-foreground/60 text-[9px]">{timeAgo(ts)}</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Grid of symbol boxes for one pipeline stage. */
+function SymbolPipelineGrid({
+  entries, stage, currentSym, total,
+}: {
+  entries: SymEntry[]; stage: string; currentSym?: string | null; total?: number;
+}) {
+  const counts = entries.reduce(
+    (acc, e) => { acc[e.state] = (acc[e.state] ?? 0) + 1; return acc; },
+    {} as Record<string, number>,
+  );
+  // If we have fewer entries than the universe size, add placeholder "pending" boxes
+  const padCount = Math.max(0, (total ?? 0) - entries.length);
+
+  return (
+    <div className="mt-1.5">
+      {/* Summary chips */}
+      <div className="flex flex-wrap gap-x-2.5 gap-y-0.5 text-[9px] mb-1.5">
+        {(counts.passed ?? 0) > 0 && <span className="text-emerald-400">{counts.passed} passed</span>}
+        {(counts.rejected ?? 0) > 0 && <span className="text-red-400">{counts.rejected} rej</span>}
+        {(counts.warning ?? 0) > 0 && <span className="text-amber-400">{counts.warning} watch</span>}
+        {(counts.processing ?? 0) > 0 && (
+          <span className="text-blue-400 animate-pulse">{counts.processing} active</span>
+        )}
+        {(counts.cancelled ?? 0) > 0 && <span className="text-muted-foreground">{counts.cancelled} canc</span>}
+        {(counts.skipped ?? 0) > 0 && <span className="text-muted-foreground">{counts.skipped} skip</span>}
+        {padCount > 0 && <span className="text-muted-foreground/50">{padCount} pending</span>}
+        {currentSym && (
+          <span className="font-mono text-blue-300 animate-pulse ml-auto">▶ {currentSym.replace(/\.(NS|BSE)$/i, "")}</span>
+        )}
+      </div>
+      {/* Symbol boxes */}
+      <div className="flex flex-wrap gap-1">
+        {entries.map((e) => (
+          <SymbolBox key={e.sym} {...e} stage={stage} />
+        ))}
+        {/* Pending placeholders */}
+        {Array.from({ length: padCount }).map((_, i) => (
+          <div
+            key={`pad-${i}`}
+            className="w-8 h-8 rounded border bg-slate-800/40 border-slate-700/20"
+            aria-hidden
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Scan info chips ───────────────────────────────────────────────────────────
+// Compact strip of scan metadata shown at the top of Pipeline, Scanner, and
+// Paper Trader panels so operators always see the current rotation context.
+
+function ScanInfoChips({ scanData, summaryData }: {
+  scanData: ScanStatus | undefined;
+  summaryData?: PipelineSummary;
+}) {
+  const meta     = scanData?.latest_scan ?? {};
+  const progress = scanData?.progress;
+  const scanId   = (progress?.scan_id ?? (meta as {scan_id?: string}).scan_id ?? scanData?.scan_id) ?? null;
+  const universeSize =
+    progress?.symbols_total ??
+    (meta as { universe_size?: number; symbols_total?: number }).universe_size ??
+    (meta as { universe_size?: number; symbols_total?: number }).symbols_total ?? null;
+  const ageMin     = scanData?.age_minutes ?? null;
+  const durationS  = (meta as { duration_s?: number | null }).duration_s ?? null;
+  const startedAt  = progress?.started_at ?? null;
+  const countToday = scanData?.scan_count_today ?? null;
+  const cadence    = scanData?.cadence_minutes ?? null;
+  const rotation   = scanData?.rotation ?? null;
+
+  // Derive a rough rotation count from pipeline summary events when the backend
+  // doesn't provide it. Advisory display only — not used for any logic.
+  const derivedCount =
+    countToday ?? (summaryData ? undefined : undefined); // extend here if backend adds a count
+
+  type Chip = { label: string; value: string; cls?: string; mono?: boolean };
+  const chips: Chip[] = [];
+
+  if (rotation != null)        chips.push({ label: "Rotation", value: `#${rotation}` });
+  if (derivedCount != null)    chips.push({ label: "Today", value: `${derivedCount} scans` });
+  if (cadence != null)         chips.push({ label: "Cadence", value: `${cadence} min` });
+  if (universeSize != null)    chips.push({ label: "Universe", value: `${universeSize} symbols` });
+  if (scanId)                  chips.push({ label: "Scan ID", value: scanId.slice(0, 10) + (scanId.length > 10 ? "…" : ""), mono: true });
+  if (startedAt)               chips.push({ label: "Started", value: timeAgo(startedAt) });
+  if (durationS != null)       chips.push({ label: "Duration", value: `${durationS.toFixed(0)}s` });
+  if (ageMin != null)          chips.push({ label: "Age", value: `${Math.round(ageMin)}m`, cls: ageMin > 30 ? "text-amber-400" : "" });
+
+  if (chips.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1 mb-2">
+      {chips.map((c) => (
+        <span
+          key={c.label}
+          className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 bg-muted/30 border border-border/50 text-[9px] ${c.cls ?? ""}`}
+          title={`${c.label}: ${c.value}`}
+        >
+          <span className="text-muted-foreground">{c.label}</span>
+          <span className={`font-medium ${c.mono ? "font-mono" : ""}`}>{c.value}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
 
 function eventTone(et: string): "ok" | "warn" | "bad" | "info" {
   if (et.includes("REJECTED") || et.includes("FAILED") || et.includes("CANCELLED")) return "bad";
@@ -281,13 +480,24 @@ function StatusBar({
 
 // ── Panel 1 — Live AI Pipeline ───────────────────────────────────────────────
 
-function PipelinePanel({ scanning, replayQ }: {
+function PipelinePanel({ scanning, replayQ, scanQ }: {
   scanning: boolean;
-  /** Shared unified replay snapshot query — the ONLY source of in/out/rejected/pending/cancelled (also drives Mission Map & Replay widget). */
+  /** Shared unified replay snapshot query — the ONLY source of in/out/rejected/pending/cancelled. */
   replayQ: ReturnType<typeof useWidgetQuery<ReplayResp>>;
+  /** Shared scan-status query — for scan info chips and universe size. */
+  scanQ: ReturnType<typeof useWidgetQuery<ScanStatus>>;
 }) {
   const summaryQ = useWidgetQuery<PipelineSummary>({
     queryKey: ["mc", "pipeline-summary"], path: "/pipeline/summary", refetchInterval: R.pipeline,
+  });
+
+  // Fetch pipeline events at a higher limit to build the per-symbol grid.
+  // This query is separate from EventStreamPanel's 80-event feed so each panel
+  // can choose its own limit without blocking the other.
+  const gridEventsQ = useWidgetQuery<{ events?: PipelineEvent[] }>({
+    queryKey: ["mc", "pipeline-events-grid"],
+    path: "/pipeline/events?limit=400&newest_first=true",
+    refetchInterval: R.pipeline,
   });
 
   const replayByLabel = useMemo(() => {
@@ -299,7 +509,23 @@ function PipelinePanel({ scanning, replayQ }: {
     return m;
   }, [replayQ.data]);
 
-  const stages = summaryQ.data?.stages ?? [];
+  // Build per-stage symbol state map from the high-limit event feed.
+  const stageSymbolMap = useMemo(
+    () => buildStageSymbolMap(gridEventsQ.data?.events ?? []),
+    [gridEventsQ.data],
+  );
+
+  const stages       = summaryQ.data?.stages ?? [];
+  const universeSize =
+    scanQ.data?.progress?.symbols_total ??
+    (scanQ.data?.latest_scan as { universe_size?: number } | null | undefined)?.universe_size ??
+    (scanQ.data?.latest_scan as { symbols_total?: number } | null | undefined)?.symbols_total ?? 0;
+  const currentSym   = scanQ.data?.progress?.current_symbol ?? scanQ.data?.progress?.symbol ?? null;
+
+  // Per-stage grid expansion state — collapsed by default, toggled per stage.
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const toggle = (stage: string) =>
+    setExpanded((p) => ({ ...p, [stage]: !p[stage] }));
 
   return (
     <Widget
@@ -308,12 +534,24 @@ function PipelinePanel({ scanning, replayQ }: {
       headerExtra={
         <>
           {summaryQ.data?.scan_id && (
-            <span className="text-[9px] text-muted-foreground font-mono truncate max-w-[120px]">{summaryQ.data.scan_id}</span>
+            <span
+              className="text-[9px] text-muted-foreground font-mono truncate max-w-[120px]"
+              title={summaryQ.data.scan_id}
+            >
+              {summaryQ.data.scan_id.slice(0, 10)}…
+            </span>
           )}
-          {scanning && <Badge className="animate-pulse text-[9px] px-1.5 py-0"><Radio className="h-2.5 w-2.5 mr-1" />SCANNING</Badge>}
+          {scanning && (
+            <Badge className="animate-pulse text-[9px] px-1.5 py-0">
+              <Radio className="h-2.5 w-2.5 mr-1" />SCANNING
+            </Badge>
+          )}
         </>
       }
     >
+      {/* Scan metadata strip */}
+      <ScanInfoChips scanData={scanQ.data} summaryData={summaryQ.data} />
+
       {stages.length === 0 ? (
         <p className="text-xs text-muted-foreground">No pipeline events recorded yet — the flow populates on the next scan.</p>
       ) : (
@@ -321,43 +559,89 @@ function PipelinePanel({ scanning, replayQ }: {
           {stages.map((s) => {
             const active = scanning && s.last_ts != null && Date.now() - new Date(s.last_ts).getTime() < 60_000;
             const r = replayByLabel.get(s.stage) ?? replayByLabel.get(STAGE_LABELS[s.stage]?.toUpperCase().replace(/[\s]+/g, "_") ?? "");
+
+            // Symbol entries for this stage (from high-limit event feed)
+            const symEntries = [...(stageSymbolMap.get(s.stage)?.values() ?? [])];
+            const isExpanded = expanded[s.stage] ?? false;
+
+            // Is this the currently-active stage for this scan?
+            const isCurrentStage = scanning && currentSym != null &&
+              s.stage === (scanQ.data?.progress?.stage ?? "");
+
             return (
               <div
                 key={s.stage}
                 data-testid={`mc-stage-${s.stage.toLowerCase()}`}
-                className={`rounded-lg border px-2.5 py-1.5 text-[11px] transition-colors ${
-                  active ? "border-primary bg-primary/10 animate-pulse" : "border-border/60 bg-muted/20"
+                className={`rounded-lg border transition-colors ${
+                  active ? "border-primary bg-primary/10" : "border-border/60 bg-muted/20"
                 }`}
               >
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{STAGE_LABELS[s.stage] ?? s.stage}</span>
-                  {s.errors > 0 && (
-                    <span className="text-red-400 flex items-center gap-0.5" title={`${s.errors} errors`}>
-                      <AlertTriangle className="w-3 h-3" />{s.errors}
+                {/* Stage header row — clickable to expand symbol grid */}
+                <button
+                  className="w-full text-left px-2.5 py-1.5 text-[11px]"
+                  onClick={() => toggle(s.stage)}
+                  aria-expanded={isExpanded}
+                  data-testid={`mc-stage-toggle-${s.stage.toLowerCase()}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className={`font-medium ${active ? "animate-pulse" : ""}`}>
+                      {STAGE_LABELS[s.stage] ?? s.stage}
                     </span>
-                  )}
-                  <span className="ml-auto text-[9px] text-muted-foreground">
-                    {r?.duration_ms != null ? `${(r.duration_ms / 1000).toFixed(1)}s · ` : ""}{timeAgo(s.last_ts)}
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-x-2.5 mt-0.5 text-[10px] text-muted-foreground">
-                  {r ? (
-                    <>
-                      <span>in <b className="text-foreground">{r.stocks_in}</b></span>
-                      <span>out <b className="text-emerald-400">{r.stocks_out}</b></span>
-                      <span>rej <b className={r.rejected > 0 ? "text-red-400" : "text-foreground"}>{r.rejected}</b></span>
-                      <span>pend <b className={r.pending > 0 ? "text-amber-400" : "text-foreground"}>{r.pending}</b></span>
-                      <span>canc <b className="text-foreground">{r.cancelled}</b></span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-emerald-400">{s.completed}✓</span>
-                      {s.rejected > 0 && <span className="text-red-400">{s.rejected}✗</span>}
-                      <span>{s.events} events</span>
-                    </>
-                  )}
-                  {s.last_symbol && <span className="truncate font-mono">{s.last_symbol}</span>}
-                </div>
+                    {isCurrentStage && currentSym && (
+                      <span className="text-[9px] font-mono text-blue-300 animate-pulse">
+                        ▶ {currentSym.replace(/\.(NS|BSE)$/i, "")}
+                      </span>
+                    )}
+                    {s.errors > 0 && (
+                      <span className="text-red-400 flex items-center gap-0.5" title={`${s.errors} errors`}>
+                        <AlertTriangle className="w-3 h-3" />{s.errors}
+                      </span>
+                    )}
+                    {symEntries.length > 0 && (
+                      <span className="text-[9px] text-muted-foreground/60">
+                        {isExpanded ? "▲" : "▼"} {symEntries.length} symbols
+                      </span>
+                    )}
+                    <span className="ml-auto text-[9px] text-muted-foreground">
+                      {r?.duration_ms != null ? `${(r.duration_ms / 1000).toFixed(1)}s · ` : ""}{timeAgo(s.last_ts)}
+                    </span>
+                  </div>
+                  {/* In / out / rejected counts */}
+                  <div className="flex flex-wrap gap-x-2.5 mt-0.5 text-[10px] text-muted-foreground">
+                    {r ? (
+                      <>
+                        <span>in <b className="text-foreground">{r.stocks_in}</b></span>
+                        <span>out <b className="text-emerald-400">{r.stocks_out}</b></span>
+                        <span>rej <b className={r.rejected > 0 ? "text-red-400" : "text-foreground"}>{r.rejected}</b></span>
+                        <span>pend <b className={r.pending > 0 ? "text-amber-400" : "text-foreground"}>{r.pending}</b></span>
+                        <span>canc <b className="text-foreground">{r.cancelled}</b></span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-emerald-400">{s.completed}✓</span>
+                        {s.rejected > 0 && <span className="text-red-400">{s.rejected}✗</span>}
+                        <span>{s.events} events</span>
+                      </>
+                    )}
+                    {s.last_symbol && (
+                      <span className="truncate font-mono text-muted-foreground/80">
+                        last: {s.last_symbol.replace(/\.(NS|BSE)$/i, "")}
+                      </span>
+                    )}
+                  </div>
+                </button>
+
+                {/* Symbol box grid — shown when expanded */}
+                {isExpanded && symEntries.length > 0 && (
+                  <div className="px-2.5 pb-2.5 pt-0 border-t border-border/40">
+                    <SymbolPipelineGrid
+                      entries={symEntries}
+                      stage={s.stage}
+                      currentSym={isCurrentStage ? currentSym : null}
+                      total={universeSize || symEntries.length}
+                    />
+                  </div>
+                )}
               </div>
             );
           })}
@@ -379,53 +663,103 @@ function ScannerPanel({ scanQ }: { scanQ: ReturnType<typeof useWidgetQuery<ScanS
   const meta = d?.latest_scan ?? d ?? {};
   const progress = d?.progress ?? null;
   const scanning = !!progress?.stage;
-  const done = progress?.symbols_done ?? 0;
-  const total = progress?.symbols_total ?? (meta as { symbols_total?: number }).symbols_total ?? 0;
+  const done  = progress?.symbols_done ?? 0;
+  const total = progress?.symbols_total ??
+    (meta as { symbols_total?: number; universe_size?: number }).universe_size ??
+    (meta as { symbols_total?: number }).symbols_total ?? 0;
   const pct = total > 0 ? Math.min(100, (done / total) * 100) : 0;
   const currentSymbol = progress?.current_symbol ?? progress?.symbol ?? null;
   const ageMin = d?.age_minutes;
+  const scanId = (meta as { scan_id?: string }).scan_id ?? d?.scan_id ?? null;
+  const durationS = (meta as { duration_s?: number | null }).duration_s ?? null;
+
+  // Rotation / count labels
+  const rotation   = d?.rotation ?? null;
+  const countToday = d?.scan_count_today ?? null;
+  const cadence    = d?.cadence_minutes ?? null;
 
   return (
     <Widget
       title="Live Scanner" icon={Radar} query={scanQ} refreshMs={R.scan} testId="mc-scanner"
-      headerExtra={scanning
-        ? <Badge className="animate-pulse text-[9px] px-1.5 py-0">RUNNING · {progress?.stage}</Badge>
-        : <Badge variant="secondary" className="text-[9px] px-1.5 py-0">IDLE</Badge>}
+      headerExtra={
+        <div className="flex items-center gap-2 flex-wrap">
+          {rotation != null && (
+            <span className="text-[9px] font-semibold text-teal-300">Rotation #{rotation}</span>
+          )}
+          {countToday != null && (
+            <span className="text-[9px] text-muted-foreground">{countToday} today</span>
+          )}
+          {cadence != null && (
+            <span className="text-[9px] text-muted-foreground">{cadence} min cadence</span>
+          )}
+          {scanning
+            ? <Badge className="animate-pulse text-[9px] px-1.5 py-0">RUNNING · {progress?.stage}</Badge>
+            : <Badge variant="secondary" className="text-[9px] px-1.5 py-0">IDLE</Badge>}
+        </div>
+      }
     >
+      {/* Scan info chips */}
+      <ScanInfoChips scanData={d} />
+
+      {/* Primary counters */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] mb-2">
-        <div><p className="text-muted-foreground text-[10px]">Universe</p><p className="font-semibold">{total || "—"}</p></div>
-        <div><p className="text-muted-foreground text-[10px]">Scanned</p><p className="font-semibold">{scanning ? done : (total || "—")}</p></div>
-        <div><p className="text-muted-foreground text-[10px]">Remaining</p><p className="font-semibold">{scanning && total ? total - done : 0}</p></div>
         <div>
-          <p className="text-muted-foreground text-[10px]">Freshness</p>
+          <p className="text-muted-foreground text-[10px]">Universe</p>
+          <p className="font-semibold">{total || "—"} <span className="text-muted-foreground text-[9px]">symbols</span></p>
+        </div>
+        <div>
+          <p className="text-muted-foreground text-[10px]">Scanned</p>
+          <p className="font-semibold">{scanning ? done : (total || "—")}</p>
+        </div>
+        <div>
+          <p className="text-muted-foreground text-[10px]">Remaining</p>
+          <p className="font-semibold">{scanning && total ? total - done : 0}</p>
+        </div>
+        <div>
+          <p className="text-muted-foreground text-[10px]">Scan Age</p>
           <p className={`font-semibold ${ageMin != null && ageMin > 30 ? "text-amber-400" : ""}`}>
             {ageMin != null ? `${Math.round(ageMin)}m` : "—"}
           </p>
         </div>
       </div>
+
       {/* Progress bar */}
       <div className="h-1.5 rounded-full bg-muted mb-1.5">
         <div
-          className={`h-1.5 rounded-full transition-all ${scanning ? "bg-primary" : "bg-emerald-500"}`}
+          className={`h-1.5 rounded-full transition-all ${scanning ? "bg-primary animate-pulse" : "bg-emerald-500"}`}
           style={{ width: `${scanning ? pct : 100}%` }}
         />
       </div>
-      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+
+      {/* Current symbol / last scan info */}
+      <div className="flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
         {scanning ? (
           <>
             <span>{done}/{total} · {pct.toFixed(0)}%</span>
-            {currentSymbol && <span className="font-mono text-foreground">{currentSymbol}</span>}
+            {currentSymbol && (
+              <span className="font-mono text-foreground font-semibold animate-pulse">
+                ▶ {currentSymbol}
+              </span>
+            )}
           </>
         ) : (
           <>
-            <Clock className="w-3 h-3" />
+            <Clock className="w-3 h-3 shrink-0" />
             <span>Last scan {d?.snapshot_ts ? timeAgo(d.snapshot_ts) : "—"}</span>
-            {(meta as { scan_id?: string }).scan_id && (
-              <span className="font-mono truncate">{(meta as { scan_id?: string }).scan_id}</span>
-            )}
+            {durationS != null && <span>({durationS.toFixed(0)}s)</span>}
           </>
         )}
       </div>
+
+      {/* Scan ID — shown when idle (during a scan it's in the info chips) */}
+      {!scanning && scanId && (
+        <p
+          className="text-[9px] font-mono text-muted-foreground/60 mt-1 truncate"
+          title={`Current scan: ${scanId}`}
+        >
+          Current scan: {scanId}
+        </p>
+      )}
     </Widget>
   );
 }
@@ -761,7 +1095,7 @@ export default function MissionControl() {
     ),
     "pipeline-row": () => (
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 items-start">
-        <PipelinePanel scanning={scanning} replayQ={replayQ} />
+        <PipelinePanel scanning={scanning} replayQ={replayQ} scanQ={scanQ} />
         <div className="lg:col-span-2 space-y-3 min-w-0">
           <ScannerPanel scanQ={scanQ} />
           <PaperTradingPanel portfolio={portfolioQ.data} />

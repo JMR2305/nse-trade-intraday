@@ -27,6 +27,11 @@ export interface ReplayResp { stages?: ReplayStage[]; scan_id?: string; snapshot
 
 // ── Mission Map — Universe → Portfolio visual flow ───────────────────────────
 // Shares the SAME replay query as the pipeline panel (no separate count fetch).
+//
+// Layout: outer wrapper is overflow-x-auto; inner flex uses min-w-max so every
+// stage box keeps its natural width and scrolls cleanly on tablet / mobile
+// instead of overlapping. Stage wrappers are shrink-0 so the arrow connectors
+// never cause boxes to collapse below their content width.
 
 export function MissionMapWidget({ replayQ, scanning }: {
   replayQ: UseQueryResult<ReplayResp>; scanning: boolean;
@@ -35,50 +40,89 @@ export function MissionMapWidget({ replayQ, scanning }: {
     () => [...(replayQ.data?.stages ?? [])].sort((a, b) => a.order - b.order),
     [replayQ.data],
   );
+
+  const totalIn   = stages[0]?.stocks_in ?? 0;
+  const totalOut  = stages[stages.length - 1]?.stocks_out ?? 0;
+  const totalRej  = stages.reduce((s, r) => s + (r.rejected ?? 0), 0);
+
   return (
     <Widget
       title="Mission Map" icon={GitBranch} query={replayQ} refreshMs={30_000}
-      testId="mc-mission-map" skeletonClass="h-24"
+      testId="mc-mission-map" skeletonClass="h-28"
       headerExtra={
-        <>
+        <div className="flex items-center gap-2 flex-wrap">
           {replayQ.data?.scan_id && (
-            <span className="text-[9px] text-muted-foreground font-mono truncate max-w-[110px]">{replayQ.data.scan_id}</span>
+            <span
+              className="text-[9px] text-muted-foreground font-mono max-w-[130px] truncate"
+              title={replayQ.data.scan_id}
+            >
+              {replayQ.data.scan_id.slice(0, 12)}…
+            </span>
+          )}
+          {totalIn > 0 && (
+            <span className="text-[9px] text-muted-foreground hidden sm:inline">
+              {totalIn} in · <span className="text-emerald-400">{totalOut} out</span>
+              {totalRej > 0 && <> · <span className="text-red-400">{totalRej} rej</span></>}
+            </span>
           )}
           {scanning && <Badge className="animate-pulse text-[9px] px-1.5 py-0">PROCESSING</Badge>}
-        </>
+        </div>
       }
     >
       {stages.length === 0 ? (
         <p className="text-xs text-muted-foreground">No replay snapshot yet — the map lights up after the next scan.</p>
       ) : (
-        <div className="flex items-stretch gap-1 overflow-x-auto pb-1" data-testid="mc-mission-map-flow">
-          {stages.map((s, i) => {
-            const active = scanning && (s.status === "RUNNING" || s.status === "ACTIVE");
-            const done = s.stocks_out > 0 || s.status === "COMPLETED" || s.status === "DONE";
-            return (
-              <div key={s.id} className="flex items-center gap-1 min-w-0">
-                <div
-                  data-testid={`mc-map-stage-${s.id.toLowerCase()}`}
-                  className={`rounded-lg border px-2 py-1.5 text-center min-w-[74px] transition-colors ${
-                    active
-                      ? "border-primary bg-primary/15 animate-pulse"
-                      : done
-                        ? "border-emerald-700/40 bg-emerald-950/30"
-                        : "border-border/60 bg-muted/20"
-                  }`}
-                  title={`${s.label}: in ${s.stocks_in} · out ${s.stocks_out} · rejected ${s.rejected}`}
-                >
-                  <p className="text-[9px] font-semibold uppercase tracking-wide truncate">{s.label}</p>
-                  <p className="text-[11px] font-mono">
-                    <span className="text-muted-foreground">{s.stocks_in}→</span>
-                    <b className={done ? "text-emerald-400" : "text-foreground"}>{s.stocks_out}</b>
-                  </p>
-                  {s.rejected > 0 && <p className="text-[9px] text-red-400">−{s.rejected} rej</p>}
+        /* ── Horizontal-scroll container ────────────────────────────────
+           overflow-x-auto on the outer div + min-w-max on the inner flex
+           means the row scrolls rather than compressing / overlapping.
+           Each stage wrapper is shrink-0 so no box can ever be squashed. */
+        <div className="overflow-x-auto pb-2 -mx-0.5 px-0.5" data-testid="mc-mission-map-flow">
+          <div className="flex items-stretch gap-1.5 min-w-max">
+            {stages.map((s, i) => {
+              const active = scanning && (s.status === "RUNNING" || s.status === "ACTIVE");
+              const done   = s.stocks_out > 0 || s.status === "COMPLETED" || s.status === "DONE";
+              const pctOut = s.stocks_in > 0 ? Math.round((s.stocks_out / s.stocks_in) * 100) : null;
+              return (
+                <div key={s.id} className="flex items-center gap-1.5 shrink-0">
+                  <div
+                    data-testid={`mc-map-stage-${s.id.toLowerCase()}`}
+                    className={[
+                      "rounded-lg border px-2.5 py-2 text-center w-[82px] transition-colors",
+                      active ? "border-primary bg-primary/15 animate-pulse"
+                        : done ? "border-emerald-700/40 bg-emerald-950/30"
+                          : "border-border/60 bg-muted/20",
+                    ].join(" ")}
+                    title={`${s.label}: in ${s.stocks_in} · out ${s.stocks_out} · rej ${s.rejected}${s.duration_ms ? ` · ${(s.duration_ms / 1000).toFixed(1)}s` : ""}`}
+                  >
+                    {/* Stage name — no truncate; box is fixed-width so label is always readable */}
+                    <p className="text-[9px] font-semibold uppercase tracking-wide leading-tight whitespace-nowrap overflow-hidden text-ellipsis">
+                      {s.label}
+                    </p>
+                    {/* in → out */}
+                    <p className="text-[11px] font-mono mt-0.5">
+                      <span className="text-muted-foreground">{s.stocks_in}→</span>
+                      <b className={done ? "text-emerald-400" : "text-foreground"}>{s.stocks_out}</b>
+                    </p>
+                    {/* Rejected */}
+                    {s.rejected > 0 && (
+                      <p className="text-[9px] text-red-400 leading-tight">−{s.rejected} rej</p>
+                    )}
+                    {/* Pass-rate pill */}
+                    {pctOut !== null && s.stocks_in > 0 && (
+                      <p className="text-[8px] text-muted-foreground/70 leading-tight">{pctOut}%✓</p>
+                    )}
+                    {/* Duration */}
+                    {s.duration_ms != null && (
+                      <p className="text-[8px] text-muted-foreground/60 leading-tight">{(s.duration_ms / 1000).toFixed(1)}s</p>
+                    )}
+                  </div>
+                  {i < stages.length - 1 && (
+                    <span className="text-muted-foreground/40 text-[10px] shrink-0 select-none">→</span>
+                  )}
                 </div>
-                {i < stages.length - 1 && <span className="text-muted-foreground/50 text-xs shrink-0">→</span>}
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
     </Widget>
