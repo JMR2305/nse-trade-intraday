@@ -1184,8 +1184,15 @@ router.get("/live-data/coverage", async (_req, res) => {
 // durable scan-state store only — never triggers a scan. Cached briefly to
 // avoid a python spawn per page load.
 const SCAN_STATUS_CACHE_MS = 15_000;
-let scanStatusCache: { data: unknown; ts: number } | null = null;
+let scanStatusCache:   { data: unknown; ts: number } | null = null;
 let scanStatusInFlight: Promise<unknown> | null = null;
+// Generation counter — incremented every time the cache is deliberately
+// invalidated (scan start or scan completion).  Each in-flight request
+// captures the generation at creation; it only writes the cache / clears
+// the in-flight reference when the generation still matches.  This prevents
+// a pre-invalidation request that resolves late from overwriting the cache
+// with stale data for the 15-second TTL window.
+let scanStatusGen = 0;
 
 router.get("/live-data/scan/status", async (_req, res) => {
   try {
@@ -1194,13 +1201,20 @@ router.get("/live-data/scan/status", async (_req, res) => {
       return;
     }
     if (!scanStatusInFlight) {
+      const gen = scanStatusGen;  // capture before async work begins
       scanStatusInFlight = runPython(["scan_status"])
         .then((data) => {
-          scanStatusCache = { data, ts: Date.now() };
+          // Guard: only write cache if no invalidation happened since we started.
+          if (gen === scanStatusGen) {
+            scanStatusCache = { data, ts: Date.now() };
+          }
           return data;
         })
         .finally(() => {
-          scanStatusInFlight = null;
+          // Guard: only clear our own in-flight reference, never a newer one.
+          if (gen === scanStatusGen) {
+            scanStatusInFlight = null;
+          }
         });
     }
     res.json(await scanStatusInFlight);
@@ -1298,10 +1312,14 @@ router.post("/live-data/scan/run", (_req, res) => {
 
     // ── Kick off scan in background ──────────────────────────────────────────
     lastScanRunTs = now;
-    p7Cache       = null;   // Phase 7 cache — must refresh
-    marketScanCache = null; // Phase 19B: Market Scanner view
-    scanStatusCache  = null; // Phase 19C: freshness bar
-    scanHistoryCache = null; // Phase 713: scan history list
+    p7Cache         = null;   // Phase 7 cache — must refresh
+    marketScanCache = null;   // Phase 19B: Market Scanner view
+    // Advance the generation so any in-flight scan/status request that was
+    // started before this point cannot write stale data to the cache.
+    scanStatusGen++;
+    scanStatusCache   = null; // Phase 19C: freshness bar
+    scanStatusInFlight = null; // abandon stale in-flight; next poll starts fresh
+    scanHistoryCache  = null; // Phase 713: scan history list
 
     eventBus.publish("scan.started", { ts: new Date().toISOString() });
     void runPython(["system_event", "SCAN_STARTED",
@@ -1318,10 +1336,15 @@ router.post("/live-data/scan/run", (_req, res) => {
         void runPython(["system_event", "SCAN_COMPLETED", JSON.stringify({
           reason: `Live scan completed (scan ${String(r?.["scan_id"] ?? "unknown")}).`,
         })]).catch(() => undefined);
-        // Invalidate scan history cache AFTER completion so the new entry is
-        // visible on the next poll.  (It is also cleared at initiation above;
-        // clearing here as well ensures the first post-scan request is fresh.)
-        scanHistoryCache = null;
+        // Advance the generation and clear both caches on scan completion so
+        // the first post-completion poll sees fresh rotation count and history.
+        // Advancing the generation ensures any in-flight status request that
+        // started before this point cannot write its stale result to the cache
+        // even if it resolves a moment after we clear it.
+        scanStatusGen++;
+        scanStatusCache    = null;
+        scanStatusInFlight = null; // abandon stale in-flight; next poll fetches fresh
+        scanHistoryCache   = null;
         // Push advisory notifications — never blocks the scan response chain.
         void dispatchSignalPushNotifications().catch(() => undefined);
       })
