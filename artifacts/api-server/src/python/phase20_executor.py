@@ -405,12 +405,25 @@ def create_paper_entry(candidate: Dict[str, Any], settings: Dict[str, Any],
         )
         _rv_result = rv.to_dict()
         if rv.verdict == "REJECTED":
+            # Phase 1C: structured rejection payload — gate_name, actual_value,
+            # required_value, action, human_readable_reason all included.
+            _first_crit = next(
+                (i for i in rv.issues if i.severity == "CRITICAL"), None)
             try:
                 from pipeline_events import emit as _pe
                 _pe("ORDER_REJECTED", "EXECUTION", scan_id=scan_id, symbol=sym,
-                    payload={"reason": rv.reason, "verdict": "REJECTED",
-                             "stage_detail": "risk_agent_pre_trade",
-                             "qty": qty, "fill_price": fill_price})
+                    payload={
+                        "reason":               rv.reason,
+                        "verdict":              "REJECTED",
+                        "stage_detail":         "risk_agent_pre_trade",
+                        "qty":                  qty,
+                        "fill_price":           fill_price,
+                        "gate_name":            _first_crit.check if _first_crit else None,
+                        "actual_value":         _first_crit.value if _first_crit else None,
+                        "required_value":       rv.summary.get("required_value"),
+                        "action":               "BUY",
+                        "human_readable_reason": rv.reason,
+                    })
             except Exception:
                 pass
             store.add_notification(
@@ -437,6 +450,23 @@ def create_paper_entry(candidate: Dict[str, Any], settings: Dict[str, Any],
     except Exception as rv_exc:
         _rv_result = {"verdict": "APPROVED_WARN", "approved": True,
                       "error": str(rv_exc)[:200]}
+
+    # ── Phase 1B: adopt capped quantity when SIZE_REDUCED_TO_CAP ─────────────
+    # If the risk validator found the ideal qty exceeds the per-stock cap but
+    # a smaller quantity fits, use that smaller quantity instead of rejecting.
+    # This fixes the position-size cap rejection bug for DRREDDY, GRASIM,
+    # BAJAJ-AUTO, BAJAJFINSV, TMPV and other higher-priced NIFTY constituents.
+    if (isinstance(_rv_result, dict)
+            and _rv_result.get("size_reduced_to_cap")
+            and int(_rv_result.get("capped_qty") or 0) >= 1):
+        _old_qty = qty
+        qty = int(_rv_result["capped_qty"])
+        # fill_price is price-based (not qty-dependent); recompute charges only.
+        charges = compute_charges(fill_price * qty, settings)
+        _rv_result["original_qty"] = _old_qty
+        # Update sizing reference so downstream evidence records the reduced qty.
+        sizing = dict(sizing)
+        sizing["quantity"] = qty
 
     try:
         from model_versioning import get_active_version
@@ -579,14 +609,26 @@ def run_auto_entries(settings: Dict[str, Any]) -> Dict[str, Any]:
             # event, no per-symbol notification, no DB row.
             try:
                 from pipeline_events import emit as _pe
+                # Phase 1C: structured reason payload so every skip is auditable.
+                _first_gate = (cand["failed_gates"][0]
+                               if cand.get("failed_gates") else None)
+                _human_reason = (
+                    " | ".join(f"{k}: {v}" for k, v in _reasons.items())
+                    if _reasons
+                    else ("Failed gates: " + ", ".join(cand.get("failed_gates", [])))
+                )
                 _pe("EXECUTION_SKIPPED_WITH_REASON", "EXECUTION",
                     scan_id=_scan_id, symbol=cand["symbol"],
                     payload={
-                        "failed_gates":        cand["failed_gates"],
-                        "failed_gate_reasons": _reasons,
-                        "opportunity_score":   cand.get("opportunity_score"),
-                        "confidence":          cand.get("confidence"),
-                        "auto_entry_attempted": False,
+                        "failed_gates":           cand["failed_gates"],
+                        "failed_gate_reasons":    _reasons,
+                        "gate_name":              _first_gate,
+                        "action":                 cand.get("recommendation"),
+                        "human_readable_reason":  _human_reason,
+                        "reason":                 _human_reason,
+                        "opportunity_score":      cand.get("opportunity_score"),
+                        "confidence":             cand.get("confidence"),
+                        "auto_entry_attempted":   False,
                         "note": (
                             "Candidate failed entry-gate evaluation; "
                             "executor skipped without attempting order"

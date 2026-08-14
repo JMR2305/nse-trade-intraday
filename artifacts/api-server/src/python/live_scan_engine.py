@@ -577,10 +577,28 @@ def derive_symbol_events(recs: List[Phase7Recommendation], scan_id: str,
             batch.append(_ev("RISK_APPROVED", "RISK",
                              {"gates": gates, "rr_ratio": r.rr_ratio}))
         else:
+            # Phase 1C: every RISK_REJECTED must carry a structured reason so
+            # it is auditable without reading nested failed_gates manually.
+            _first_gate = next(iter(failed), None)
+            _gate_reason = (
+                (failed.get(_first_gate) or {}).get("reason", _first_gate)
+                if _first_gate else "unknown"
+            )
+            _readable = (
+                " | ".join(
+                    f"{k}: {(v or {}).get('reason', k)}"
+                    for k, v in failed.items()
+                ) if failed else "all_gates_passed=False but no specific gate identified"
+            )
             batch.append(_ev("RISK_REJECTED", "RISK",
-                             {"failed_gates": failed,
-                              "rr_ratio": r.rr_ratio,
-                              "confidence": r.calibrated_confidence}))
+                             {"failed_gates":          failed,
+                              "rr_ratio":              r.rr_ratio,
+                              "confidence":            r.calibrated_confidence,
+                              "action":                r.final_action,
+                              "gate_name":             _first_gate,
+                              "actual_value":          _gate_reason,
+                              "human_readable_reason": _readable,
+                              "reason":                _readable}))
         act = r.final_action
         et = ("BUY_GENERATED" if act in ("BUY", "STRONG BUY")
               else "WATCH_GENERATED" if act == "WATCH" else "IGNORE_GENERATED")

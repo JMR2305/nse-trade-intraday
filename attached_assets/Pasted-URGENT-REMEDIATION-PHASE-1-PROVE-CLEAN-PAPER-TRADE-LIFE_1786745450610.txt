@@ -1,0 +1,103 @@
+URGENT REMEDIATION PHASE 1 — PROVE CLEAN PAPER TRADE LIFECYCLE
+
+Use ApexQuant_AI_Review_Findings_and_Remediation_Spec.md as the controlling remediation document.
+
+Do not add new pages.
+Do not build new dashboards.
+Do not tune thresholds yet.
+Do not enable live orders.
+Do not call broker order APIs.
+PAPER ONLY.
+
+Goal:
+Prove one clean end-to-end paper trade lifecycle:
+signal → paper order → ledger row → exit → realized P&L.
+
+PHASE 1A — CODE TRACE ONLY, NO BEHAVIOR CHANGE
+
+1. Resolve Q1:
+Trace exactly where BUY_GENERATED is emitted in live_scan_engine.py.
+Confirm whether BUY_GENERATED is logged:
+- before data-quality STALE/WATCH downgrade, or
+- after final actionable decision.
+
+Produce evidence with file/function names and event order.
+
+2. Resolve Q2:
+Trace exactly where AI_MIN_RR_RATIO = 2.0 is enforced.
+Compare all R:R gates:
+- scan gate
+- risk agent gate
+- phase20 execution gate
+- AI decision engine gate
+
+Report whether thresholds are aligned or conflicting.
+
+3. Resolve Q3:
+Audit Aug 11 alleged 64 ORDER_EXECUTED / POSITION_OPENED events.
+Confirm whether they exist in:
+- canonical phase20_paper_trades
+- legacy paper_trades
+- only pipeline_events
+
+Decide whether Aug 11 was real execution or phantom events from scan-loop anomaly.
+
+Output:
+REMEDIATION_PHASE_1A_CODE_TRACE_REPORT.md
+
+PHASE 1B — FIX POSITION SIZING
+
+If code trace confirms it is safe, update position sizing:
+
+Instead of rejecting when ideal quantity exceeds per-stock cap:
+- compute cap_qty = floor(cap_amount / fill_price)
+- use qty = min(ideal_qty, cap_qty)
+- reject only if qty <= 0
+
+Add event reason:
+SIZE_REDUCED_TO_CAP
+
+Definition of done:
+DRREDDY, GRASIM, BAJAJ-AUTO, BAJAJFINSV, and TMPV produce valid reduced paper quantity when all other gates pass.
+
+PHASE 1C — FIX ALL REJECTION REASONS
+
+Every RISK_REJECTED and EXECUTION_SKIPPED_WITH_REASON must include structured reason payload:
+
+- gate_name
+- actual_value
+- required_value
+- symbol
+- scan_id
+- action
+- stage
+- human_readable_reason
+
+No null reason allowed.
+
+PHASE 1D — EXIT LOGIC AUDIT
+
+Audit whether paper positions can close normally by:
+- target hit
+- stop hit
+- time-based intraday exit
+- end-of-day square-off
+
+If not implemented, report exact missing pieces.
+Do not implement exit logic yet unless clearly isolated and safe.
+
+PHASE 1E — REPORT
+
+Produce:
+APEXQUANT_REMEDIATION_PHASE_1_REPORT.md
+
+Include:
+1. BUY_GENERATED event order.
+2. R:R threshold map.
+3. Aug 11 real vs phantom execution verdict.
+4. Position sizing fix result.
+5. Rejection reason logging result.
+6. Current count of BUY, WATCH, RISK_REJECTED, ORDER_REJECTED, ORDER_EXECUTED after fixes.
+7. Whether one clean paper trade lifecycle exists.
+8. If not, exact remaining blocker.
+9. Confirmation no live orders placed.

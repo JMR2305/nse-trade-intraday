@@ -13,7 +13,14 @@ VERDICT LEVELS
   APPROVED_WARN    — no CRITICAL failures but WARNING-level issues present
   REJECTED         — one or more CRITICAL checks failed; trade must be blocked
 
-Callers MUST block the trade when verdict == "REJECTED".
+SIZE_REDUCED_TO_CAP behaviour (Phase 1B fix):
+  When ideal quantity exceeds the per-stock cap, the validator computes the
+  largest quantity that fits within the cap.  If that capped quantity is ≥ 1,
+  the verdict is APPROVED_WARN (not REJECTED) and summary["capped_qty"] carries
+  the reduced quantity.  Callers MUST adopt summary["capped_qty"] when
+  summary["size_reduced_to_cap"] is True.  Only when floor(cap_amount/price)
+  == 0 is the CRITICAL rejection kept — the stock is genuinely too expensive
+  for this account size at the configured cap.
 """
 from __future__ import annotations
 
@@ -21,7 +28,8 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 # ── Thresholds ─────────────────────────────────────────────────────────────────
-_MAX_POSITION_PCT      = 20.0   # max % of total portfolio per position
+_MAX_POSITION_PCT      = 20.0   # fallback max % of total portfolio per position
+                                 # (overridden by settings["per_stock_exposure_cap_pct"])
 _MAX_RISK_PCT          = 2.0    # max % of total portfolio risked on one trade
 _MIN_RR_RATIO          = 1.5    # minimum reward:risk ratio
 _MAX_STOP_DIST_PCT     = 5.0    # max % stop distance from entry
@@ -95,22 +103,55 @@ def _get_portfolio() -> dict:
 def _check_position_size(
     sym: str, fill_price: float, qty: int,
     total_capital: float, issues: list,
+    cap_pct: float = _MAX_POSITION_PCT,
 ) -> dict:
-    """Position must be ≤ _MAX_POSITION_PCT of total portfolio."""
+    """
+    Position must be ≤ cap_pct % of total portfolio.
+
+    Phase 1B fix: instead of hard-rejecting when ideal qty exceeds the cap,
+    compute cap_qty = floor(cap_amount / fill_price).  If cap_qty >= 1, issue
+    a WARNING (SIZE_REDUCED_TO_CAP) and return cap_qty so the caller can adopt
+    the reduced quantity.  Only when cap_qty == 0 is a CRITICAL issued.
+    """
     trade_value = fill_price * qty
     pct = (trade_value / total_capital * 100) if total_capital > 0 else 0.0
 
-    metric = {"trade_value": round(trade_value, 2),
-               "position_pct": round(pct, 2),
-               "max_allowed_pct": _MAX_POSITION_PCT}
+    cap_amount = total_capital * cap_pct / 100.0
+    cap_qty    = int(cap_amount / fill_price) if fill_price > 0 else 0
 
-    if pct > _MAX_POSITION_PCT:
-        issues.append(PreTradeIssue(
-            "CRITICAL", "POSITION_SIZE_EXCEEDED", "quantity",
-            f"{sym}: position size ₹{trade_value:,.0f} = {pct:.1f}% of portfolio "
-            f"(limit {_MAX_POSITION_PCT}%)",
-            pct,
-        ))
+    metric: dict = {
+        "trade_value":       round(trade_value, 2),
+        "position_pct":      round(pct, 2),
+        "max_allowed_pct":   cap_pct,
+        "cap_amount":        round(cap_amount, 2),
+        "cap_qty":           cap_qty,
+        "size_reduced":      False,
+    }
+
+    if pct > cap_pct:
+        if cap_qty >= 1:
+            # Can fit a smaller position — downgrade to WARNING, not CRITICAL.
+            capped_value = fill_price * cap_qty
+            capped_pct   = capped_value / total_capital * 100 if total_capital > 0 else 0.0
+            metric["size_reduced"]  = True
+            metric["capped_qty"]    = cap_qty
+            metric["capped_value"]  = round(capped_value, 2)
+            metric["capped_pct"]    = round(capped_pct, 2)
+            issues.append(PreTradeIssue(
+                "WARNING", "SIZE_REDUCED_TO_CAP", "quantity",
+                f"{sym}: quantity reduced {qty}→{cap_qty} to fit {cap_pct:.0f}% cap "
+                f"(₹{capped_value:,.0f} = {capped_pct:.1f}% of portfolio)",
+                pct,
+            ))
+        else:
+            # Even 1 share exceeds the cap — genuinely too expensive.
+            issues.append(PreTradeIssue(
+                "CRITICAL", "POSITION_SIZE_EXCEEDED", "quantity",
+                f"{sym}: 1 share @ ₹{fill_price:,.0f} = "
+                f"{fill_price / total_capital * 100:.1f}% of portfolio — "
+                f"exceeds {cap_pct:.0f}% cap and cannot be reduced further",
+                pct,
+            ))
     return metric
 
 
@@ -293,11 +334,17 @@ def validate_pre_trade(
 
     Returns a PreTradeResult whose verdict field must be checked:
       APPROVED      → proceed
-      APPROVED_WARN → proceed with logged warnings
+      APPROVED_WARN → proceed with logged warnings; check summary["size_reduced_to_cap"]
+                      and adopt summary["capped_qty"] if present
       REJECTED      → block the trade (reason field explains why)
 
     Never raises; on unexpected errors returns APPROVED_WARN with an INFO issue
     so the trade is not silently dropped by a bug in this validation layer.
+
+    Phase 1B: when position size exceeds the cap but a smaller quantity fits,
+    verdict is APPROVED_WARN with summary["size_reduced_to_cap"]=True and
+    summary["capped_qty"] = the largest quantity that respects the cap.
+    The caller is responsible for adopting the reduced quantity.
     """
     issues: list[PreTradeIssue] = []
     metrics: Dict[str, Any]    = {}
@@ -317,9 +364,12 @@ def validate_pre_trade(
             except Exception:
                 total_cap = cash_avail = 50_000.0
 
+        # Per-stock cap: prefer settings value, fall back to module constant.
+        cap_pct = float(settings.get("per_stock_exposure_cap_pct") or _MAX_POSITION_PCT)
+
         # ── Run each check ────────────────────────────────────────────────
         metrics["position_size"]   = _check_position_size(
-            symbol, fill_price, qty, total_cap, issues)
+            symbol, fill_price, qty, total_cap, issues, cap_pct=cap_pct)
         metrics["capital_at_risk"] = _check_capital_at_risk(
             symbol, risk_amount, total_cap, issues)
         metrics["rr_ratio"]        = _check_rr_ratio(
@@ -345,14 +395,37 @@ def validate_pre_trade(
             verdict = "APPROVED"
             reason  = ""
 
+        # ── Structured summary ────────────────────────────────────────────
+        # Extract SIZE_REDUCED_TO_CAP info so the executor can adopt the
+        # capped quantity without re-parsing the issues list.
+        pos_metrics = metrics.get("position_size", {})
+        size_reduced  = bool(pos_metrics.get("size_reduced"))
+        capped_qty    = int(pos_metrics.get("capped_qty") or 0)
+
+        # Structured rejection context for every critical issue (Phase 1C).
+        first_critical = criticals[0] if criticals else None
+        structured_reason = {
+            "gate_name":           first_critical.check if first_critical else None,
+            "actual_value":        first_critical.value if first_critical else None,
+            "required_value":      cap_pct if (first_critical and
+                                               first_critical.check == "POSITION_SIZE_EXCEEDED")
+                                   else None,
+            "human_readable_reason": reason or (warnings[0].message if warnings else ""),
+        } if (criticals or warnings) else {}
+
         summary = {
-            "total_capital":  round(total_cap, 2),
-            "cash_available": round(cash_avail, 2),
-            "trade_value":    round(fill_price * qty, 2),
-            "risk_amount":    round(risk_amount, 2),
-            "checks_run":     6,
-            "checks_critical": len(criticals),
-            "checks_warning":  len(warnings),
+            "total_capital":       round(total_cap, 2),
+            "cash_available":      round(cash_avail, 2),
+            "trade_value":         round(fill_price * qty, 2),
+            "risk_amount":         round(risk_amount, 2),
+            "checks_run":          6,
+            "checks_critical":     len(criticals),
+            "checks_warning":      len(warnings),
+            # SIZE_REDUCED_TO_CAP fields
+            "size_reduced_to_cap": size_reduced,
+            "capped_qty":          capped_qty if size_reduced else None,
+            # Structured reason (Phase 1C)
+            **structured_reason,
         }
 
         return PreTradeResult(
@@ -368,6 +441,12 @@ def validate_pre_trade(
                 "INFO", "VALIDATOR_ERROR", "system",
                 f"Pre-trade validator encountered an error (non-blocking): {exc}",
             )],
-            summary={}, metrics={},
+            summary={
+                "size_reduced_to_cap": False,
+                "capped_qty": None,
+                "gate_name": "VALIDATOR_ERROR",
+                "human_readable_reason": str(exc),
+            },
+            metrics={},
             reason="",
         )
