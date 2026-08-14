@@ -1290,6 +1290,78 @@ def main():
             from phase20_validation import get_validation_status
             result = get_validation_status()
             result["success"] = True
+        # ── Paper Intraday Learning / Exploration Mode ─────────────────────
+        elif command == "exploration_status":
+            from phase20_store import get_settings as _p20gs
+            from paper_exploration_engine import get_exploration_status
+            result = {"success": True, **get_exploration_status(_p20gs())}
+        elif command == "exploration_report":
+            from paper_exploration_engine import generate_daily_report
+            result = {"success": True, **generate_daily_report()}
+        elif command == "exploration_trades":
+            _limit = int(args[1]) if len(args) > 1 else 50
+            from scan_state_store import _connect as _ex_conn
+            _exconn = _ex_conn()
+            try:
+                from paper_exploration_engine import _ensure_schema as _ex_schema
+                _ex_schema(_exconn)
+                with _exconn.cursor() as _exc:
+                    # Use actual table column names; normalise to dashboard shape.
+                    _exc.execute("""
+                        SELECT trade_id, symbol, action_type, entry_price, fill_price,
+                               stop_loss, target, quantity, confidence, rr_at_entry,
+                               status, exit_ts, exit_price, realized_pnl,
+                               max_favorable_excursion, max_adverse_excursion,
+                               reason_accepted, created_at
+                        FROM experimental_paper_trades
+                        ORDER BY created_at DESC LIMIT %s
+                    """, (_limit,))
+                    _cols = [d[0] for d in _exc.description]
+                    _raw = [dict(zip(_cols, r)) for r in _exc.fetchall()]
+                # Normalise to dashboard-expected field names
+                _trades = []
+                for _r in _raw:
+                    _ca = _r.get("created_at")
+                    if hasattr(_ca, "isoformat"):
+                        _ca = _ca.isoformat()
+                    _entry_px = float(_r.get("entry_price") or _r.get("fill_price") or 0)
+                    _raw_mfe = _r.get("max_favorable_excursion")
+                    _raw_mae = _r.get("max_adverse_excursion")
+                    # MFE/MAE stored as ₹/share absolute; convert → % of entry price
+                    _mfe_pct = (round(float(_raw_mfe) / _entry_px * 100, 2)
+                                if _raw_mfe is not None and _entry_px > 0 else None)
+                    _mae_pct = (round(float(_raw_mae) / _entry_px * 100, 2)
+                                if _raw_mae is not None and _entry_px > 0 else None)
+                    _trades.append({
+                        "id": _r.get("trade_id"),
+                        "symbol": _r.get("symbol"),
+                        "rule_type": _r.get("action_type"),
+                        "entry_price": _entry_px,
+                        "stop_price": float(_r.get("stop_loss") or 0),
+                        "target_price": float(_r.get("target") or 0),
+                        "quantity": int(_r.get("quantity") or 0),
+                        "confidence": float(_r.get("confidence") or 0),
+                        "rr_ratio": float(_r.get("rr_at_entry") or 0),
+                        "status": _r.get("status", "OPEN"),
+                        "entry_ts": _ca,
+                        "exit_ts": _r.get("exit_ts"),
+                        "exit_price": _r.get("exit_price"),
+                        "realized_pnl": _r.get("realized_pnl"),
+                        "mfe_pct": _mfe_pct,
+                        "mae_pct": _mae_pct,
+                        "notes": _r.get("reason_accepted"),
+                    })
+            finally:
+                _exconn.close()
+            result = {"success": True, "trades": _trades}
+        elif command == "exploration_settings_update":
+            _payload = json.loads(args[1]) if len(args) > 1 else {}
+            from phase20_store import update_settings as _p20_update
+            result = _p20_update(
+                _payload.get("patch", {}),
+                confirmation_text=str(_payload.get("confirmation_text") or ""),
+            )
+            result["success"] = True
         elif command == "phase7_recommendations":
             from live_scan_engine import get_or_run_scan
             full = get_or_run_scan(max_age_s=600)

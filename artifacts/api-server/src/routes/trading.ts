@@ -3545,6 +3545,64 @@ router.get("/risk/audit", async (_req, res) => {
   }
 });
 
+// ── Paper Intraday Learning / Exploration Mode ──────────────────────────────
+
+// GET /api/paper/exploration/status — full exploration status including budget,
+// candidates, open experimental trades, and learning summary.
+// Returns: enabled, budget, candidates[], open_trades[], learning_summary.
+// 15s server-side cache; invalidated when scanStatusGen increments.
+router.get("/paper/exploration/status", async (_req, res) => {
+  try {
+    res.json(await runPython(["exploration_status"]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/paper/exploration/trades?limit=N — experimental trade log (read-only).
+// limit: 1–200 (default 50).
+router.get("/paper/exploration/trades", async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query["limit"]) || 50, 200);
+    res.json(await runPython(["exploration_trades", String(limit)]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/paper/exploration/report — today's learning report (on-demand).
+router.get("/paper/exploration/report", async (_req, res) => {
+  try {
+    res.json(await runPython(["exploration_report"]));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// PUT /api/paper/exploration/settings — update exploration-mode settings.
+// Body: { patch: { paper_exploration_mode: true, ... } }
+router.put("/paper/exploration/settings", async (req, res) => {
+  try {
+    const body = req.body ?? {};
+    const patch = (body as Record<string, unknown>)["patch"];
+    if (typeof patch !== "object" || patch === null || Array.isArray(patch)) {
+      res.status(400).json({ error: "Provide { patch: { ... } }" });
+      return;
+    }
+    const result = (await runPython([
+      "exploration_settings_update",
+      JSON.stringify({ patch }),
+    ])) as Record<string, unknown>;
+    if (result && result["success"] === false) {
+      res.status(400).json(result);
+      return;
+    }
+    res.json(result);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/auto-paper/buy-audit?limit=10
 // Read-only diagnostic: the most recent BUY_GENERATED pipeline events with
 // market-hours verification, auto-entry cross-reference, and execution outcome.

@@ -92,6 +92,16 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     # market-only data when all research sources are unavailable;
     # "fail_closed" halts new paper entries until research recovers.
     "research_failure_mode": "fail_open",
+    # ── Paper Intraday Learning / Exploration Mode ───────────────────────────
+    # When enabled, the scheduler runs SIZE_REDUCED_TO_CAP and
+    # EXPERIMENTAL_BUY_FROM_WATCH candidates into experimental_paper_trades.
+    # This NEVER touches the canonical phase20 portfolio or places live orders.
+    "paper_exploration_mode": False,
+    "exploration_max_pct_per_trade": 5.0,       # max % of portfolio per exploration trade
+    "exploration_max_trades_per_day": 2,         # daily cap on new experimental entries
+    "exploration_max_total_exposure_pct": 10.0,  # max % of portfolio in experimental positions
+    "exploration_min_rr": 1.2,                  # minimum risk:reward for exploration entries
+    "exploration_min_confidence": 60.0,         # minimum confidence score for exploration entries
 }
 
 # Keys excluded from the reproducibility config hash (meta, not behaviour).
@@ -325,6 +335,32 @@ def _validate_patch(patch: Dict[str, Any], current: Dict[str, Any]) -> Dict[str,
                     f"research_failure_mode must be one of "
                     f"{_VALID_FAILURE_MODES}; got '{value}'")
             clean[key] = value
+        # ── Exploration mode numeric bounds ───────────────────────────────────
+        elif key == "exploration_max_pct_per_trade":
+            fv = float(value)
+            if fv < 1.0 or fv > 20.0:
+                raise ValueError("exploration_max_pct_per_trade must be between 1 and 20")
+            clean[key] = fv
+        elif key == "exploration_max_trades_per_day":
+            iv = int(float(value))
+            if iv < 1 or iv > 10:
+                raise ValueError("exploration_max_trades_per_day must be between 1 and 10")
+            clean[key] = iv
+        elif key == "exploration_max_total_exposure_pct":
+            fv = float(value)
+            if fv < 1.0 or fv > 50.0:
+                raise ValueError("exploration_max_total_exposure_pct must be between 1 and 50")
+            clean[key] = fv
+        elif key == "exploration_min_rr":
+            fv = float(value)
+            if fv < 0.5 or fv > 5.0:
+                raise ValueError("exploration_min_rr must be between 0.5 and 5.0")
+            clean[key] = fv
+        elif key == "exploration_min_confidence":
+            fv = float(value)
+            if fv < 40.0 or fv > 100.0:
+                raise ValueError("exploration_min_confidence must be between 40 and 100")
+            clean[key] = fv
         elif isinstance(default, (int, float)) and not isinstance(default, bool):
             num = float(value)
             if num < 0:

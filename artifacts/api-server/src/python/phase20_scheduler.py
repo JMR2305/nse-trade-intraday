@@ -766,4 +766,14 @@ def _manage_paper(settings: Dict[str, Any], ran_scan: bool) -> Dict[str, Any]:
             out["crm_topup"] = topup
     except Exception as exc:
         out["crm_topup"] = {"error": str(exc)[:200]}
+    # ── Paper Intraday Learning / Exploration Mode ───────────────────────────
+    # Only runs when operator has explicitly enabled exploration mode.
+    # Writes to experimental_paper_trades; NEVER touches the canonical
+    # phase20 portfolio, cash, positions, or daily trade counter.
+    if settings.get("paper_exploration_mode"):
+        try:
+            from paper_exploration_engine import run_exploration_tick
+            out["exploration"] = run_exploration_tick(settings)
+        except Exception as exc:
+            out["exploration"] = {"error": str(exc)[:300]}
     return out
