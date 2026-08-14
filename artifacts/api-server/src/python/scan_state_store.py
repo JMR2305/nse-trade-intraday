@@ -392,6 +392,117 @@ def _meta_from_snapshot(snapshot: Dict[str, Any], status: str,
     }
 
 
+def count_scans_today_ist() -> int:
+    """Return the number of SCAN_COMPLETED pipeline events since midnight IST
+    today.
+
+    IST = UTC + 05:30.  The correct approach is:
+      1. Convert the current UTC instant to IST (add 5h30m).
+      2. Take that IST local date at 00:00:00.
+      3. Convert back to UTC (subtract 5h30m) to get the cutoff.
+
+    This correctly handles the post-18:30 UTC case — after 18:30 UTC the IST
+    clock has already rolled over to the next day, so the cutoff must advance
+    to 18:30 of the *current* UTC date, not the previous one.
+
+    Falls back to 0 on any error or when DB is unavailable.  Never raises.
+    """
+    if not db_available():
+        return 0
+    try:
+        from datetime import timedelta
+        _IST_OFFSET = timedelta(hours=5, minutes=30)
+        now_utc = _now_utc()
+        # Step 1: shift to IST
+        now_ist = now_utc + _IST_OFFSET
+        # Step 2: IST midnight (00:00) of the current IST calendar day
+        ist_midnight = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
+        # Step 3: convert back to UTC
+        today_ist_midnight_utc = ist_midnight - _IST_OFFSET
+        conn = _connect()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT COUNT(*) FROM pipeline_events
+                    WHERE event_type = 'SCAN_COMPLETED'
+                      AND ts >= %s
+                    """,
+                    (today_ist_midnight_utc,),
+                )
+                row = cur.fetchone()
+            return int(row[0]) if row else 0
+        finally:
+            conn.close()
+    except Exception:
+        return 0
+
+
+def build_scan_status_response() -> Dict[str, Any]:
+    """Build and return the complete enriched scan-status payload.
+
+    Called directly by the main.py ``scan_status`` command so that both
+    the production path and tests exercise the *same* code, not a copy.
+
+    Returns:
+        {
+            "success": True,
+            "latest_scan": dict | None,
+            "age_minutes": float | None,
+            "scan_count_today": int,
+            "rotation": int,
+            "cadence_minutes": int | None,
+            "progress": dict | None,
+        }
+    """
+    meta = load_latest_meta()
+
+    # ── Age in minutes since the last successful snapshot ──────────────────
+    age_minutes: Optional[float] = None
+    try:
+        snap_ts = (meta or {}).get("snapshot_ts") or (meta or {}).get("completed_at")
+        if snap_ts:
+            snap_dt = datetime.fromisoformat(str(snap_ts).replace("Z", "+00:00"))
+            age_minutes = round(
+                (_now_utc() - snap_dt).total_seconds() / 60, 1
+            )
+    except Exception:
+        pass
+
+    # ── Cadence from operator-configured settings ──────────────────────────
+    cadence_minutes: Optional[int] = None
+    try:
+        from phase20_store import get_settings as _p20_settings
+        cadence_minutes = int(
+            (_p20_settings() or {}).get("scan_interval_minutes", 5)
+        )
+    except Exception:
+        pass
+
+    # ── Completed scans today (IST) and rotation index ────────────────────
+    scan_count_today = count_scans_today_ist()
+
+    # ── Live in-flight progress from KV (None when scanner is idle) ────────
+    progress: Optional[Dict[str, Any]] = None
+    try:
+        from phase20_store import kv_get as _p20_kv
+        _raw = _p20_kv("scan_progress")
+        if isinstance(_raw, dict):
+            progress = _raw
+    except Exception:
+        pass
+
+    return {
+        "success": True,
+        "latest_scan": meta,
+        "age_minutes": age_minutes,
+        "scan_count_today": scan_count_today,
+        "rotation": scan_count_today,
+        "cadence_minutes": cadence_minutes,
+        "progress": progress,
+    }
+
+
 def _read_json(path: str) -> Optional[Dict[str, Any]]:
     try:
         with open(path) as f:

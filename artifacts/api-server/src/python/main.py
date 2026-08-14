@@ -1003,8 +1003,10 @@ def main():
             except Exception:
                 pass
         elif command == "scan_status":
-            from scan_state_store import load_latest_meta
-            result = {"success": True, "latest_scan": load_latest_meta()}
+            # Delegate entirely to scan_state_store.build_scan_status_response()
+            # so that both this path and the unit tests exercise the same code.
+            from scan_state_store import build_scan_status_response
+            result = build_scan_status_response()
         elif command == "scheduled_scan_tick":
             # Phase 20: market-hours auto-scan tick with durable settings,
             # scheduler health, scan-run history, and paper management.
