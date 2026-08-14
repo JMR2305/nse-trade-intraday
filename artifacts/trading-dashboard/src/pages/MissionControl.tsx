@@ -169,6 +169,28 @@ const STAGE_LABELS: Record<string, string> = {
   EXECUTION: "Execution", PORTFOLIO: "Portfolio",
 };
 
+// ── Active-stage selection (pure, exported for unit tests) ───────────────────
+// Returns the pipeline stage that should be auto-expanded during an active scan.
+// Priority: backend progress.stage (authoritative) → stage with newest last_ts
+// within 60 s (fallback for gaps between progress updates).
+
+export function selectActiveStage(
+  stages: StageSummary[],
+  progressStage: string | null | undefined,
+  nowMs: number = Date.now(),
+): string | null {
+  if (progressStage) return progressStage;
+  return (
+    stages.reduce<{ stage: string; ts: number } | null>((best, s) => {
+      if (!s.last_ts) return best;
+      const t = new Date(s.last_ts).getTime();
+      if (nowMs - t >= 60_000) return best;
+      if (!best || t > best.ts) return { stage: s.stage, ts: t };
+      return best;
+    }, null)?.stage ?? null
+  );
+}
+
 // ── Symbol-level pipeline grid ────────────────────────────────────────────────
 // Shows one coloured box per symbol in the universe so operators can see at a
 // glance which stocks each pipeline stage has processed, passed, rejected, etc.
@@ -489,7 +511,7 @@ function StatusBar({
 
 // ── Panel 1 — Live AI Pipeline ───────────────────────────────────────────────
 
-function PipelinePanel({ scanning, replayQ, scanQ }: {
+export function PipelinePanel({ scanning, replayQ, scanQ }: {
   scanning: boolean;
   /** Shared unified replay snapshot query — the ONLY source of in/out/rejected/pending/cancelled. */
   replayQ: ReturnType<typeof useWidgetQuery<ReplayResp>>;
@@ -535,6 +557,41 @@ function PipelinePanel({ scanning, replayQ, scanQ }: {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const toggle = (stage: string) =>
     setExpanded((p) => ({ ...p, [stage]: !p[stage] }));
+
+  // Auto-expand the active stage during a live scan, then collapse it when the
+  // scan ends or a new stage becomes active.  Uses no extra API calls — reads
+  // the existing `stages` array (from summaryQ) and the `scanning` flag.
+  //
+  // progressStage is extracted so it can be listed as an explicit effect dep:
+  // when ONLY the progress stage changes (stages summary unchanged), the effect
+  // must still re-run to transition the highlighted stage.
+  const progressStage = scanQ.data?.progress?.stage ?? null;
+  const autoExpandedStageRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!scanning) {
+      // Scan ended: collapse whichever stage we auto-expanded so idle view stays collapsed.
+      if (autoExpandedStageRef.current) {
+        const prev = autoExpandedStageRef.current;
+        autoExpandedStageRef.current = null;
+        setExpanded((p) => ({ ...p, [prev]: false }));
+      }
+      return;
+    }
+
+    const activeStage = selectActiveStage(stages, progressStage);
+
+    if (activeStage === autoExpandedStageRef.current) return; // nothing changed
+
+    setExpanded((prev) => {
+      const next = { ...prev };
+      // Collapse the stage we previously auto-expanded.
+      if (autoExpandedStageRef.current) next[autoExpandedStageRef.current] = false;
+      // Expand the newly active stage.
+      if (activeStage) next[activeStage] = true;
+      return next;
+    });
+    autoExpandedStageRef.current = activeStage;
+  }, [scanning, stages, progressStage]);
 
   return (
     <Widget
