@@ -756,7 +756,12 @@ function ScannerPanel({ scanQ }: { scanQ: ReturnType<typeof useWidgetQuery<ScanS
       headerExtra={
         <div className="flex items-center gap-2 flex-wrap">
           {rotation != null && (
-            <span className="text-[9px] font-semibold text-teal-300">Rotation #{rotation}</span>
+            <span
+              className="text-[9px] font-semibold text-teal-300"
+              data-testid="mc-rotation-chip"
+            >
+              Rotation #{rotation}
+            </span>
           )}
           {countToday != null && (
             <span className="text-[9px] text-muted-foreground">{countToday} today</span>

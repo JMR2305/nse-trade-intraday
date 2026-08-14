@@ -1194,6 +1194,48 @@ let scanStatusInFlight: Promise<unknown> | null = null;
 // with stale data for the 15-second TTL window.
 let scanStatusGen = 0;
 
+/**
+ * Clears the scan-status in-process cache so the next GET /live-data/scan/status
+ * fetches fresh data from Python.  Exported for integration tests only — mirrors
+ * the clearPlatformCache() / clearAgentsCache() helpers used by other test suites.
+ */
+export function clearScanStatusCache(): void {
+  scanStatusGen++;
+  scanStatusCache    = null;
+  scanStatusInFlight = null;
+}
+
+/**
+ * Resets the scan-run rate-limit timestamp so POST /live-data/scan/run is not
+ * throttled in tests.  Exported for integration tests only.
+ */
+export function resetScanRunRateLimit(): void {
+  lastScanRunTs = 0;
+}
+
+/**
+ * Full scan-state reset for integration tests.  Clears the scan-status cache,
+ * the rate-limit timestamp, the phase7 in-flight reference (so the next
+ * POST /live-data/scan/run can start a new scan even when a previous test left
+ * a long-running mock proc alive), and the phase7 cache.
+ *
+ * The in-flight promise from a previous test is orphaned (its mock proc never
+ * emits close), but with a mocked child_process that is harmless — the Promise
+ * simply never settles and is eligible for GC once the module loses its last
+ * reference to it.
+ *
+ * Exported for integration tests only.
+ */
+export function resetScanStateForTest(): void {
+  scanStatusGen++;
+  scanStatusCache    = null;
+  scanStatusInFlight = null;
+  scanHistoryCache   = null;
+  lastScanRunTs      = 0;
+  p7InFlight         = null;  // allow a fresh scan; orphaned Promise GC'd in time
+  p7Cache            = null;
+}
+
 router.get("/live-data/scan/status", async (_req, res) => {
   try {
     if (scanStatusCache && Date.now() - scanStatusCache.ts < SCAN_STATUS_CACHE_MS) {
