@@ -1209,6 +1209,52 @@ router.get("/live-data/scan/status", async (_req, res) => {
   }
 });
 
+// GET /api/live-data/scan/history — today's (IST) completed scans with
+// duration and gap-from-previous so operators can spot coverage gaps.
+//
+// Caching strategy: always fetch the maximum (50 entries) from Python and
+// store the full result in one shared cache entry.  Per-request slicing is
+// applied after the cache hit so different `limit` values all share the same
+// in-flight promise and cached payload, preventing N independent Python
+// spawns for N concurrent callers with different limits.
+//
+// Cache is invalidated at scan initiation AND again on successful completion
+// (see below) so the first post-scan poll always returns fresh data.
+const SCAN_HISTORY_CACHE_MS      = 30_000;
+const SCAN_HISTORY_CANONICAL_MAX = 50;          // always fetched; sliced per request
+
+type ScanHistoryPayload = { success: boolean; history: unknown[]; count: number; ist_date: string };
+let scanHistoryCache:    { data: ScanHistoryPayload; ts: number } | null = null;
+let scanHistoryInFlight: Promise<ScanHistoryPayload> | null = null;
+
+router.get("/live-data/scan/history", async (req, res) => {
+  try {
+    const limitRaw = parseInt(String(req.query.limit ?? ""), 10);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), SCAN_HISTORY_CANONICAL_MAX) : 10;
+
+    // Serve from cache when fresh; otherwise start / join one canonical fetch.
+    if (!scanHistoryCache || Date.now() - scanHistoryCache.ts >= SCAN_HISTORY_CACHE_MS) {
+      if (!scanHistoryInFlight) {
+        scanHistoryInFlight = runPython(["scan_history", String(SCAN_HISTORY_CANONICAL_MAX)])
+          .then((data) => {
+            const d = data as ScanHistoryPayload;
+            scanHistoryCache = { data: d, ts: Date.now() };
+            return d;
+          })
+          .finally(() => { scanHistoryInFlight = null; });
+      }
+      await scanHistoryInFlight;
+    }
+
+    // Slice the canonical cache to the requested limit for this caller.
+    const full    = scanHistoryCache!.data;
+    const sliced  = (full.history ?? []).slice(0, limit);
+    res.json({ ...full, history: sliced, count: sliced.length });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // POST /api/live-data/scan/run — trigger fresh scan explicitly
 // Phase 11: idempotent under concurrency (single in-flight scan lock via
 // p7InFlight), rate-limited, and publishes scan.* events with notifications.
@@ -1254,7 +1300,8 @@ router.post("/live-data/scan/run", (_req, res) => {
     lastScanRunTs = now;
     p7Cache       = null;   // Phase 7 cache — must refresh
     marketScanCache = null; // Phase 19B: Market Scanner view
-    scanStatusCache = null; // Phase 19C: freshness bar
+    scanStatusCache  = null; // Phase 19C: freshness bar
+    scanHistoryCache = null; // Phase 713: scan history list
 
     eventBus.publish("scan.started", { ts: new Date().toISOString() });
     void runPython(["system_event", "SCAN_STARTED",
@@ -1271,6 +1318,10 @@ router.post("/live-data/scan/run", (_req, res) => {
         void runPython(["system_event", "SCAN_COMPLETED", JSON.stringify({
           reason: `Live scan completed (scan ${String(r?.["scan_id"] ?? "unknown")}).`,
         })]).catch(() => undefined);
+        // Invalidate scan history cache AFTER completion so the new entry is
+        // visible on the next poll.  (It is also cleared at initiation above;
+        // clearing here as well ensures the first post-scan request is fresh.)
+        scanHistoryCache = null;
         // Push advisory notifications — never blocks the scan response chain.
         void dispatchSignalPushNotifications().catch(() => undefined);
       })

@@ -503,6 +503,165 @@ def build_scan_status_response() -> Dict[str, Any]:
     }
 
 
+def _ist_today_cutoff_utc() -> Tuple[datetime, str]:
+    """Return (cutoff_utc, ist_date_str) for today's IST calendar day.
+
+    cutoff_utc  — UTC datetime equal to midnight IST today (18:30 UTC yesterday
+                  before 18:30 UTC; 18:30 UTC today after 18:30 UTC).
+    ist_date_str — 'YYYY-MM-DD' of the current IST calendar day.
+
+    Shared by count_scans_today_ist() and build_scan_history_response() so
+    both functions always use the exact same day boundary.
+    """
+    from datetime import timedelta
+    _IST_OFFSET = timedelta(hours=5, minutes=30)
+    now_ist = _now_utc() + _IST_OFFSET
+    ist_midnight = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
+    return ist_midnight - _IST_OFFSET, now_ist.strftime("%Y-%m-%d")
+
+
+def build_scan_history_response(limit: int = 10) -> Dict[str, Any]:
+    """Return a list of today's completed scans with duration and gap-from-previous.
+
+    Pairs SCAN_STARTED / SCAN_COMPLETED pipeline_events from today's IST day by
+    matching them chronologically (oldest-first pairing; no payload scan_id
+    dependency so the function is robust to payload schema variation).
+
+    Response shape::
+
+        {
+            "success": True,
+            "history": [            # newest-first
+                {
+                    "started_at":      str | None,   # ISO-8601 UTC
+                    "completed_at":    str | None,   # ISO-8601 UTC
+                    "duration_s":      int | None,   # seconds; None if started_at missing
+                    "symbols_scanned": int | None,   # from SCAN_COMPLETED payload
+                    "gap_from_prev_s": int | None,   # gap since prev COMPLETED; None for first
+                    "status":          "COMPLETED",
+                },
+                ...
+            ],
+            "count": int,
+            "ist_date": "YYYY-MM-DD",
+        }
+
+    Falls back to an empty history on any error or when DB is unavailable.
+    Never raises.
+    """
+    cutoff_utc, ist_date = _ist_today_cutoff_utc()  # type: ignore[misc]
+
+    empty: Dict[str, Any] = {"success": True, "history": [], "count": 0, "ist_date": ist_date}
+
+    if not db_available():
+        return empty
+
+    try:
+        conn = _connect()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT ts, event_type, payload
+                    FROM pipeline_events
+                    WHERE event_type IN ('SCAN_STARTED', 'SCAN_COMPLETED')
+                      AND ts >= %s
+                    ORDER BY ts ASC
+                    """,
+                    (cutoff_utc,),
+                )
+                rows = cur.fetchall()
+        finally:
+            conn.close()
+    except Exception:
+        return empty
+
+    # State-machine pairing: process events in chronological order.
+    #
+    # Rule: each SCAN_STARTED opens a "pending" slot. If another SCAN_STARTED
+    # arrives before a SCAN_COMPLETED, the previous start was abandoned (e.g.
+    # SCAN_FAILED or API restart) — discard it and treat the new STARTED as the
+    # current pending.  Only pair a SCAN_COMPLETED with the *most recent*
+    # SCAN_STARTED, never with one that was superseded.
+    #
+    # This prevents an abandoned-start duration (e.g. 15 min since a failed scan
+    # started) from polluting the next successful scan's duration (5 min).
+    history: list[Dict[str, Any]] = []
+    pending_start: Optional[datetime] = None   # ts of the open SCAN_STARTED
+    prev_completed_ts: Optional[datetime] = None
+
+    def _extract_symbols(p: Dict[str, Any]) -> Optional[int]:
+        for key in ("symbols_done", "symbols_received", "symbols_succeeded",
+                    "symbols_scanned", "symbols_total", "universe_size"):
+            v = p.get(key)
+            if v is not None:
+                try:
+                    return int(v)
+                except (TypeError, ValueError):
+                    pass
+        return None
+
+    for ts_raw, event_type, payload in rows:
+        # psycopg2 returns datetime objects; ensure timezone-aware
+        if isinstance(ts_raw, datetime):
+            ts = ts_raw if ts_raw.tzinfo else ts_raw.replace(tzinfo=timezone.utc)
+        else:
+            try:
+                ts = datetime.fromisoformat(str(ts_raw))
+                if not ts.tzinfo:
+                    ts = ts.replace(tzinfo=timezone.utc)
+            except Exception:
+                continue
+
+        if not isinstance(payload, dict):
+            try:
+                payload = json.loads(payload) if payload else {}
+            except Exception:
+                payload = {}
+
+        if event_type == "SCAN_STARTED":
+            # Supersede any abandoned pending start — the previous scan failed
+            # or was interrupted without emitting SCAN_COMPLETED.
+            pending_start = ts
+
+        elif event_type == "SCAN_COMPLETED":
+            duration_s: Optional[int] = None
+            if pending_start is not None:
+                try:
+                    duration_s = max(0, round((ts - pending_start).total_seconds()))
+                except Exception:
+                    pass
+
+            gap_from_prev_s: Optional[int] = None
+            if prev_completed_ts is not None and pending_start is not None:
+                try:
+                    gap_from_prev_s = max(0, round(
+                        (pending_start - prev_completed_ts).total_seconds()))
+                except Exception:
+                    pass
+
+            history.append({
+                "started_at":      _iso(pending_start) if pending_start is not None else None,
+                "completed_at":    _iso(ts),
+                "duration_s":      duration_s,
+                "symbols_scanned": _extract_symbols(payload),
+                "gap_from_prev_s": gap_from_prev_s,
+                "status":          "COMPLETED",
+            })
+            prev_completed_ts = ts
+            pending_start = None  # consumed — reset for the next scan
+
+    # Apply limit (oldest ones fall off) and return newest-first
+    history = list(reversed(history[-limit:]))
+
+    return {
+        "success": True,
+        "history": history,
+        "count":   len(history),
+        "ist_date": ist_date,
+    }
+
+
 def _read_json(path: str) -> Optional[Dict[str, Any]]:
     try:
         with open(path) as f:

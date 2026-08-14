@@ -127,6 +127,15 @@ interface ScanStatus {
     symbols_done?: number; symbols_total?: number; started_at?: string;
   } | null;
 }
+interface ScanHistoryEntry {
+  started_at?: string | null; completed_at?: string | null;
+  duration_s?: number | null; symbols_scanned?: number | null;
+  gap_from_prev_s?: number | null; status?: string;
+}
+interface ScanHistoryResp {
+  success?: boolean; history?: ScanHistoryEntry[]; count?: number; ist_date?: string;
+}
+
 interface SectorExposure { sector: string; total_value: number; exposure_pct: number; position_count: number }
 interface OpenPosition {
   symbol: string; quantity: number; avg_entry_price: number; last_price: number;
@@ -678,6 +687,12 @@ function ScannerPanel({ scanQ }: { scanQ: ReturnType<typeof useWidgetQuery<ScanS
   const countToday = d?.scan_count_today ?? null;
   const cadence    = d?.cadence_minutes ?? null;
 
+  // Today's scan history — 30 s cache, same TTL as the backend route.
+  const historyQ = useWidgetQuery<ScanHistoryResp>({
+    queryKey: ["mc", "scan-history"], path: "/live-data/scan/history", refetchInterval: 30_000,
+  });
+  const [showHistory, setShowHistory] = useState(false);
+
   return (
     <Widget
       title="Live Scanner" icon={Radar} query={scanQ} refreshMs={R.scan} testId="mc-scanner"
@@ -760,6 +775,77 @@ function ScannerPanel({ scanQ }: { scanQ: ReturnType<typeof useWidgetQuery<ScanS
           Current scan: {scanId}
         </p>
       )}
+
+      {/* ── Today's scans history ─────────────────────────────────────────── */}
+      {/* Collapsible list: every completed scan today with time, duration,   */}
+      {/* symbol count and gap-from-previous so gaps/delays are visible.      */}
+      <div className="mt-3 border-t border-border/40 pt-2" data-testid="mc-scan-history">
+        <button
+          className="w-full text-left flex items-center justify-between text-[10px] text-muted-foreground hover:text-foreground transition-colors py-0.5"
+          onClick={() => setShowHistory((p) => !p)}
+          aria-expanded={showHistory}
+          data-testid="mc-scan-history-toggle"
+        >
+          <span className="flex items-center gap-1.5">
+            <Clock className="w-3 h-3 shrink-0" />
+            <span>Today's scans</span>
+            {historyQ.data?.count != null && (
+              <span className="font-semibold text-foreground ml-0.5">{historyQ.data.count}</span>
+            )}
+            {historyQ.isLoading && <span className="text-muted-foreground/50">…</span>}
+          </span>
+          <span className="text-[9px]">{showHistory ? "▲" : "▼"}</span>
+        </button>
+
+        {showHistory && (() => {
+          const history = historyQ.data?.history ?? [];
+          if (historyQ.isLoading) {
+            return <p className="text-[10px] text-muted-foreground mt-1.5 animate-pulse">Loading…</p>;
+          }
+          if (history.length === 0) {
+            return <p className="text-[10px] text-muted-foreground mt-1.5">No completed scans today.</p>;
+          }
+          return (
+            <div className="mt-1.5" data-testid="mc-scan-history-list">
+              {/* Column headers */}
+              <div className="grid grid-cols-4 text-[9px] text-muted-foreground/60 px-1 pb-1 border-b border-border/30 font-medium">
+                <span>Time (IST)</span>
+                <span>Duration</span>
+                <span>Symbols</span>
+                <span>Gap</span>
+              </div>
+              {history.map((entry, i) => {
+                const timeIST = entry.completed_at
+                  ? new Date(entry.completed_at).toLocaleTimeString("en-IN", {
+                      timeZone: "Asia/Kolkata", hour12: false,
+                      hour: "2-digit", minute: "2-digit",
+                    })
+                  : "—";
+                const dur = entry.duration_s != null ? `${entry.duration_s}s` : "—";
+                const syms = entry.symbols_scanned != null ? String(entry.symbols_scanned) : "—";
+                // Gap in minutes, highlight if > 10 min (2× expected 4-min cadence + buffer)
+                const gapMin = entry.gap_from_prev_s != null
+                  ? Math.round(entry.gap_from_prev_s / 60)
+                  : null;
+                const gapLabel = gapMin != null ? `${gapMin}m` : (i === history.length - 1 ? "first" : "—");
+                const gapCls = gapMin != null && gapMin > 10 ? "text-amber-400 font-semibold" : "text-muted-foreground";
+                return (
+                  <div
+                    key={i}
+                    className="grid grid-cols-4 text-[10px] px-1 py-0.5 rounded hover:bg-muted/20 font-mono"
+                    data-testid={`mc-scan-history-row-${i}`}
+                  >
+                    <span className="text-foreground">{timeIST}</span>
+                    <span className="text-muted-foreground">{dur}</span>
+                    <span className="text-muted-foreground">{syms}</span>
+                    <span className={gapCls}>{gapLabel}</span>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
+      </div>
     </Widget>
   );
 }

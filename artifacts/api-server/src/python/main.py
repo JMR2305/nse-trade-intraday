@@ -1007,6 +1007,12 @@ def main():
             # so that both this path and the unit tests exercise the same code.
             from scan_state_store import build_scan_status_response
             result = build_scan_status_response()
+        elif command == "scan_history":
+            # Return today's (IST) completed scans with duration and gap.
+            # Optional arg: limit (default 10, max 50).
+            from scan_state_store import build_scan_history_response
+            _hist_limit = max(1, min(50, int(args[1]) if len(args) > 1 else 10))
+            result = build_scan_history_response(limit=_hist_limit)
         elif command == "scheduled_scan_tick":
             # Phase 20: market-hours auto-scan tick with durable settings,
             # scheduler health, scan-run history, and paper management.
