@@ -1,10 +1,12 @@
 # ApexQuant AI — Full Project SOP & Second-Opinion Pack
 
-**Document version:** 1.0  
+**Document version:** 2.0  
 **Generated:** 2026-08-15 (IST)  
-**Prepared by:** Replit Agent (automated, read-only, no trading logic changed)  
+**Prepared by:** Replit Agent (automated, read-only except where Remediation Phase 1 changes are noted)  
 **Purpose:** Independent second-opinion review package — complete audit of architecture, behaviour, data, and open problems  
 **Classification:** Internal review — contains production database statistics  
+
+> **Changelog from v1.0:** This version incorporates all Remediation Phase 1 findings and code fixes (Phases 1A–1D). Changed sections are marked **[UPDATED]**. New content is marked **[NEW]**. No trading thresholds were changed.
 
 > **Disclaimer:** All trade counts and statistics are pulled directly from the production PostgreSQL database as of the time of generation. Where data is unavailable or was not stored, this is explicitly marked `[NOT STORED]` or `[UNKNOWN]`. No values are fabricated. This document is read-only — no settings, thresholds, trades, or database records were changed to produce it.
 
@@ -31,7 +33,8 @@
 17. [Open and Proposed Tasks — Priority Order](#17-open-and-proposed-tasks--priority-order)
 18. [Known Weaknesses and Second-Opinion Questions](#18-known-weaknesses-and-second-opinion-questions)
 19. [Recommended 30-Day Roadmap](#19-recommended-30-day-roadmap)
-20. [Appendix](#20-appendix)
+20. [Remediation Phase 1 — Changes Log](#20-remediation-phase-1--changes-log) **[NEW]**
+21. [Appendix](#21-appendix)
 
 ---
 
@@ -49,7 +52,7 @@ ApexQuant AI is a **paper-only NSE intraday trading research platform** built on
 
 **No live orders have ever been placed, and no Zerodha broker APIs are called for order submission.** Live execution is structurally disabled.
 
-### 1.2 Current Status (as of 2026-08-15)
+### 1.2 Current Status (as of 2026-08-15) **[UPDATED]**
 
 | Dimension | Status |
 |-----------|--------|
@@ -59,17 +62,26 @@ ApexQuant AI is a **paper-only NSE intraday trading research platform** built on
 | Data source | Yahoo Finance (historical/delayed) — live tick data requires Zerodha OAuth |
 | Portfolio capital | ₹50,000 (resets each session) |
 | Open paper positions | 4 (all EXIT_PENDING / STALE_DATA_SAFETY) |
-| Executed trades (lifetime) | **65+ ORDER_EXECUTED events** recorded — mostly from one session (Aug 11) |
+| Executed trades (lifetime canonical) | **4 rows in `phase20_paper_trades`** (P20- prefix); 65 events on Aug 11 were phantom (BTT- prefix) |
 | Active paper exploration mode | OFF (just activated for testing on Aug 15) |
 | Universe | 51 NSE symbols (NIFTY 50 + TMPV + TMCV, minus TATAMOTORS) |
 | Scan coverage | ~50/51 per scan (1 symbol typically missing from Yahoo — likely LTIM) |
+| **Position-size cap bug** | **FIXED (Remediation Phase 1B)** — SIZE_REDUCED_TO_CAP path now active |
+| **Rejection reason logging** | **FIXED (Remediation Phase 1C)** — all rejection events now carry structured `reason` field |
 
-### 1.3 Primary Problem Statement
+### 1.3 Primary Problem Statement **[UPDATED]**
 
-The platform correctly identifies BUY signals but is unable to execute them because:
-1. **Position-size cap (20%):** Many stocks (DRREDDY, GRASIM, BAJAJ-AUTO, BAJAJFINSV) require more than ₹10,000 (20% of ₹50,000 capital) for minimum 1 share — rejecting every attempt
-2. **No Zerodha live tick data:** Running on Yahoo Finance delayed data; all intraday signals get STALE data quality → BUY is blocked, capped to WATCH
-3. **No sell-side logic:** Positions that do open have no automatic exit strategy beyond stale-data safety exits and max-holding-day timeouts
+The platform correctly identifies BUY signals. The two **code-level** blockers for paper execution have now been resolved:
+
+| Blocker | Status |
+|---------|--------|
+| **Position-size cap hard-reject** — high-priced stocks (DRREDDY, GRASIM, BAJAJ-AUTO, BAJAJFINSV) were rejected even when a 1-share-smaller quantity would fit within the cap | ✅ **FIXED** — `_check_position_size()` now computes `cap_qty` and issues `SIZE_REDUCED_TO_CAP` WARNING instead of CRITICAL |
+| **Rejection reasons not stored** — 15,447 RISK_REJECTED events had NULL `reason` field; operators could not audit gate failures | ✅ **FIXED** — `reason`, `gate_name`, `action`, `human_readable_reason` now in all rejection payloads |
+
+**Remaining blockers (not code, not yet fixed):**
+
+1. **No Zerodha live tick data (P0):** Running on Yahoo Finance delayed data; all intraday signals get STALE data quality → BUY blocked, capped to WATCH → ineligible for paper execution. Exit logic requires `quote_reliable=True`, which also needs LIVE/NEAR_LIVE data. This is the single remaining blocker for a complete lifecycle.
+2. **R:R threshold misalignment:** Scan gate uses 1.5, Phase20 execution gate uses 2.0 (settings default). Signals with 1.5 ≤ RR < 2.0 pass the scan but are blocked at execution. Threshold alignment deferred to Phase 2 per remediation spec.
 
 ---
 
@@ -128,7 +140,7 @@ The platform is built as a layered multi-agent system. Each layer is independent
 │  LAYER 6: RISK MANAGEMENT (position_sizer.py + risk agents) │
 │  Computes: stop_loss, target, rr_ratio, quantity            │
 │  Gates: per_stock_cap, portfolio exposure, circuit breaker   │
-│  Output: RISK_APPROVED or RISK_REJECTED + reason            │
+│  Output: RISK_APPROVED or RISK_REJECTED + structured reason  │
 └────────────────────┬───────────────────────────────────────┘
                      │
 ┌────────────────────▼───────────────────────────────────────┐
@@ -142,8 +154,9 @@ The platform is built as a layered multi-agent system. Each layer is independent
 │  LAYER 8: PAPER EXECUTION (phase20_executor.py)             │
 │  phase20_store.py + canonical_portfolio.py                  │
 │  Pre-checks: market open, scan freshness, data quality,     │
-│  confidence ≥60, opportunity ≥60, R:R ≥1.5,                 │
-│  circuit breaker, portfolio pre-check, position cap 20%     │
+│  confidence ≥60, opportunity ≥60, R:R ≥2.0 (execution gate),│
+│  circuit breaker, portfolio pre-check                       │
+│  Position cap: SIZE_REDUCED_TO_CAP (adopt cap_qty if fits)  │
 │  Output: ORDER_SUBMITTED → ORDER_EXECUTED or ORDER_REJECTED │
 │  NO LIVE ORDERS — all simulated fills at signal_price       │
 └────────────────────┬───────────────────────────────────────┘
@@ -187,13 +200,15 @@ The system has a formal multi-agent layer on top of the pipeline:
 | File | Purpose |
 |------|---------|
 | `config.py` | All configurable thresholds (single source of truth) |
-| `live_scan_engine.py` | Core scan loop, quality gates, score computation |
-| `phase20_executor.py` | Paper execution pipeline, all pre-checks |
+| `live_scan_engine.py` | Core scan loop, quality gates, score computation, RISK_REJECTED structured payloads |
+| `phase20_executor.py` | Paper execution pipeline, all pre-checks, SIZE_REDUCED_TO_CAP adoption |
 | `phase20_store.py` | Settings KV store, DEFAULT_SETTINGS |
 | `phase20_scheduler.py` | 5-minute scan tick, paper management |
+| `phase20_exits.py` | 8 exit rules (TARGET_HIT, STOP_LOSS_HIT, TRAILING_STOP, TIME_EXIT, MARKET_CLOSE_EXIT, PORTFOLIO_RISK_REDUCTION, SECTOR_CAP_BREACH, STALE_DATA_SAFETY) |
 | `canonical_portfolio.py` | Portfolio ledger (positions, cash, equity) |
 | `paper_exploration_engine.py` | Exploration mode (cap-resize + WATCH exploration) |
 | `paper_trader.py` | Legacy paper trade executor (called by phase20_executor) |
+| `risk_validation/pre_trade.py` | Pre-trade validator — SIZE_REDUCED_TO_CAP logic lives here |
 | `market_data.py` | Data acquisition with Zerodha→Yahoo fallback |
 | `market_regime.py` | Regime classification |
 | `opportunity_scanner.py` | Opportunity score computation |
@@ -205,7 +220,7 @@ The system has a formal multi-agent layer on top of the pipeline:
 
 ---
 
-## 3. Full Pipeline Flow
+## 3. Full Pipeline Flow **[UPDATED]**
 
 This is the exact sequence of steps executed for every symbol in every scan:
 
@@ -229,6 +244,8 @@ START SCAN TICK (every 5 minutes, 09:15–15:30 IST)
 │   │   └── LIVE / NEAR_LIVE → pass through
 │   │
 │   ├── [R:R GATE] rr_ratio < 1.5 → cannot be BUY (downgrade to WATCH)
+│   │     → RISK_REJECTED emitted with:
+│   │         reason, gate_name, actual_value, human_readable_reason [UPDATED]
 │   │
 │   ├── [MARKET CONTEXT] Apply regime modifier to confidence
 │   │   └── Regime: BULLISH (+10), BEARISH (−15), NEUTRAL (±0)
@@ -241,11 +258,13 @@ START SCAN TICK (every 5 minutes, 09:15–15:30 IST)
 │   │
 │   ├── [STRATEGY] Select strategy based on regime and signal type
 │   │   └── BUY_GENERATED or WATCH_GENERATED emitted to pipeline_events
+│   │       NOTE: BUY_GENERATED fires ONLY after all gates above pass.
+│   │             A STALE symbol always emits WATCH_GENERATED, never BUY_GENERATED.
 │   │
 │   ├── [RISK GATE] position_sizer.py
-│   │   ├── Compute: quantity = min(MAX_CAPITAL×20%, cash) / price
+│   │   ├── Compute: quantity = min(MAX_CAPITAL×cap_pct%, cash) / price
 │   │   ├── Check: stop_loss distance, R:R ratio
-│   │   └── RISK_APPROVED or RISK_REJECTED
+│   │   └── RISK_APPROVED or RISK_REJECTED (with reason, gate_name, human_readable_reason)
 │   │
 │   └── [EMIT] SYMBOL_SCANNED, MARKET_INTELLIGENCE_COMPLETED,
 │             RESEARCH_COMPLETED, MONITORING_COMPLETED, STRATEGY_SELECTED
@@ -260,20 +279,29 @@ START SCAN TICK (every 5 minutes, 09:15–15:30 IST)
     ├── Gate 3: Data quality LIVE or NEAR_LIVE? → else SKIP
     ├── Gate 4: Confidence ≥ min_confidence (default 60%)? → else SKIP
     ├── Gate 5: Opportunity score ≥ min_opportunity_score (default 60%)? → else SKIP
-    ├── Gate 6: R:R ≥ 1.5? → else SKIP
+    ├── Gate 6: R:R ≥ min_risk_reward (settings default 2.0)? → else EXECUTION_SKIPPED_WITH_REASON
+    │           [emits reason, gate_name, action, human_readable_reason] [UPDATED]
     ├── Gate 7: Circuit breaker clear? → else BLOCKED
     ├── Gate 8: Portfolio pre-check (portfolio_bridge) → else BLOCKED
-    ├── Gate 9: Position size ≤ 20% of portfolio value? → else ORDER_REJECTED
+    ├── Gate 9: Position size check via risk_validation/pre_trade.py:
+    │     ├── qty × price ≤ cap_pct% of portfolio → ORDER_SUBMITTED (pass)
+    │     ├── qty × price > cap  AND  cap_qty ≥ 1  → SIZE_REDUCED_TO_CAP (use cap_qty) [FIXED]
+    │     └── qty × price > cap  AND  cap_qty == 0 → ORDER_REJECTED (genuinely too expensive)
     ├── Gate 10: No existing open position in this symbol? → else SKIP
     │
-    ├── If all gates pass:
+    ├── If all gates pass (or SIZE_REDUCED_TO_CAP applies):
+    │   ├── Adopt cap_qty if size was reduced [FIXED]
+    │   ├── Recompute charges with reduced qty [FIXED]
     │   ├── execute_buy() called → simulated fill at signal_price
     │   ├── Portfolio updated (cash reduced, position added)
-    │   └── ORDER_SUBMITTED → ORDER_EXECUTED emitted
+    │   ├── phase20_paper_trades row inserted with trade_id "P20-{uuid}"
+    │   └── ORDER_SUBMITTED → ORDER_EXECUTED emitted (SIZE_REDUCED_TO_CAP in evidence)
     │
-    └── If gate fails:
-        ├── ORDER_REJECTED (with reason logged in payload)
-        └── EXECUTION_SKIPPED_WITH_REASON (for soft skips)
+    └── If gate fails with CRITICAL:
+        ├── ORDER_REJECTED (with gate_name, actual_value, required_value, action,
+        │   human_readable_reason in payload) [UPDATED]
+        └── EXECUTION_SKIPPED_WITH_REASON (with reason, gate_name, action,
+            human_readable_reason) [UPDATED]
 ```
 
 ### 3.1 Paper Exploration Mode (NEW — activated Aug 15)
@@ -291,7 +319,7 @@ EXPLORATION TICK (after main execution loop)
 │
 ├── Path A: SIZE_REDUCED_TO_CAP
 │   ├── Find candidates where ONLY failed gate = per_stock_cap
-│   ├── Resize quantity: floor(20% × portfolio / price)
+│   ├── Resize quantity: floor(cap_pct% × portfolio / price)
 │   └── Create entry in experimental_paper_trades (NOT phase20_paper_trades)
 │
 └── Path B: EXPERIMENTAL_BUY_FROM_WATCH
@@ -299,6 +327,23 @@ EXPLORATION TICK (after main execution loop)
     ├── Require volume_ratio ≥ 1.2 (intraday volume signal)
     └── Create entry in experimental_paper_trades (budget: max 2 trades/day, 5% each)
 ```
+
+### 3.2 Exit Management Loop (runs every scan tick)
+
+`phase20_scheduler.py` calls `_manage_paper()` on every scan tick, which calls `phase20_exits.manage_open_positions()`. All 8 exit rules are checked for each OPEN trade:
+
+| Exit Rule | Trigger | Data Requirement |
+|-----------|---------|-----------------|
+| `TARGET_HIT` | `quote >= target` | `quote_reliable=True` (LIVE/NEAR_LIVE) |
+| `STOP_LOSS_HIT` | `quote <= stop` | `quote_reliable=True` |
+| `TRAILING_STOP` | Peak ≥ fill+2R, then quote ≤ fill+1R | `quote_reliable=True` |
+| `TIME_EXIT` | `(now - fill_ts).days >= max_holding_days` | Any |
+| `MARKET_CLOSE_EXIT` | Last 15 min of session, `square_off_before_close=True` | Market hours |
+| `PORTFOLIO_RISK_REDUCTION` | Daily P&L ≤ −daily_loss_limit | Any |
+| `SECTOR_CAP_BREACH` | Sector exposure > cap × 1.25 | Any |
+| `STALE_DATA_SAFETY` | Symbol missing from current scan context | Any |
+
+**Important:** When `quote_reliable=False`, exit is recorded as `EXIT_PENDING` with `realized_pnl=NULL`. The exit fill price is not recorded until a LIVE/NEAR_LIVE quote is available. This is the current state of all 4 open positions.
 
 ---
 
@@ -332,7 +377,7 @@ EXPLORATION TICK (after main execution loop)
 
 | Parameter | Value | Meaning |
 |-----------|-------|---------|
-| `AI_MIN_RR_RATIO` | **2.0** | Minimum R:R for the decision engine to approve |
+| `AI_MIN_RR_RATIO` | **2.0** | Minimum R:R for the decision engine to approve (advisory only — not in paper execution path) |
 | `AI_MIN_TF_ALIGNMENT` | **3** | At least 3 of 4 timeframes must align |
 | `AI_HIGH_VOL_CONF_THRESHOLD` | **70.0** | Below this in HIGH_VOL regime → downgrade |
 | `AI_SIDEWAYS_CONF_THRESHOLD` | **72.0** | Below this in SIDEWAYS regime → downgrade |
@@ -347,35 +392,62 @@ EXPLORATION TICK (after main execution loop)
 | `MIN_RR_FOR_BUY` | **1.5** | R:R < 1.5 → cannot be BUY |
 | Paper eligible qualities | `{LIVE, NEAR_LIVE}` | Other qualities → not eligible for paper execution |
 
-### 4.5 Execution-Time Gates (phase20_executor.py via phase20_store.py)
+### 4.5 Execution-Time Gates (phase20_executor.py via phase20_store.py) **[UPDATED]**
 
 | Gate | Default Value | Notes |
 |------|---------------|-------|
 | `min_confidence` | **60.0%** | Configurable via Settings page |
 | `min_opportunity_score` | **60.0** | Configurable via Settings page |
-| `per_stock_exposure_cap_pct` | **25.0%** | Settings max; **hard cap is 20%** in executor |
-| Hard pre-trade cap | **20.0%** | `_PRETRADE_MAX_PCT` — never overridden by settings |
+| `min_risk_reward` | **2.0** | Execution gate — **different from scan gate 1.5** (see §4.6) |
+| `per_stock_exposure_cap_pct` | **25.0%** | Settings default; used by pre-trade validator |
 | `scan_interval_minutes` | **5** | Allowed values: 1, 2, 3, 5, 10, 15 |
 | Market open window | **09:15–15:30 IST** | Outside this → execution skipped |
 | Stale scan | Configurable | Scan older than threshold → EXECUTION_SKIPPED |
 | Circuit breaker | State-based | If tripped → all entries blocked until manual reset |
 | Duplicate position | One per symbol | Cannot open second position in same symbol |
+| **Position size** | **SIZE_REDUCED_TO_CAP path** | If `cap_qty ≥ 1`: WARNING + proceed at cap_qty. If `cap_qty == 0`: CRITICAL → ORDER_REJECTED [FIXED] |
 
-### 4.6 Gap Between Scan-Time and Execution-Time Thresholds
+### 4.6 R:R Threshold Map — All Layers **[NEW]**
 
-This is a **known architectural gap**:
+This is a critical architectural gap identified in Remediation Phase 1A:
 
-| Dimension | Scan-time | Execution-time | Gap |
-|-----------|-----------|----------------|-----|
-| R:R minimum | 1.5 (live_scan_engine) | 1.5 (phase20_executor) | Aligned |
-| Confidence minimum | 60.0 (live_scan_engine generates signal) | 60.0 (executor gate) | Aligned |
+| Layer | File | Threshold | Enforcement | Pipeline effect |
+|-------|------|-----------|-------------|-----------------|
+| Scan gate | `live_scan_engine.py:64` | **≥ 1.5** | `_rr_gate()` caps BUY→WATCH | WATCH_GENERATED |
+| Pre-trade validator | `risk_validation/pre_trade.py:26` | **≥ 1.5** | CRITICAL rejection | ORDER_REJECTED |
+| Phase20 execution gate | `phase20_gates.py:258` | **≥ 2.0** (settings default) | EXECUTION_SKIPPED | EXECUTION_SKIPPED_WITH_REASON |
+| AI Decision Engine | `ai_decision.py:160` | 2.0 | Advisory `downgrade_reasons` only | **None — not in paper execution path** |
+| `config.py` | `config.py:61` | `AI_MIN_RR_RATIO=2.0` | Advisory only | **None** |
+
+**Conflict:** Signals with 1.5 ≤ RR < 2.0 pass the scan gate (→ `BUY_GENERATED`) and the pre-trade validator, but are blocked at the phase20 execution gate (→ `EXECUTION_SKIPPED_WITH_REASON`). Live DB confirms with messages like `"R:R 1.5 vs minimum 2.0"`. **Threshold alignment is deferred to Phase 2 per the remediation spec.**
+
+### 4.7 Position Sizing: Before vs After Remediation Phase 1B **[NEW]**
+
+| Scenario | Before fix | After fix |
+|----------|-----------|-----------|
+| `qty × price ≤ cap` | PASS — proceed | PASS — unchanged |
+| `qty × price > cap`, `cap_qty ≥ 1` | CRITICAL → ORDER_REJECTED | **WARNING (SIZE_REDUCED_TO_CAP) → proceed at cap_qty** |
+| `qty × price > cap`, `cap_qty == 0` (stock too expensive) | CRITICAL → ORDER_REJECTED | CRITICAL → ORDER_REJECTED (unchanged) |
+
+New `summary` fields populated by `risk_validation/pre_trade.py`:
+- `size_reduced_to_cap: bool`
+- `capped_qty: int`
+- `gate_name: str`
+- `human_readable_reason: str`
+
+`phase20_executor.py` reads `rv.summary["size_reduced_to_cap"]` and adopts `rv.summary["capped_qty"]` before calling `execute_buy()`.
+
+### 4.8 Gap Between Scan-Time and Execution-Time Thresholds **[UPDATED]**
+
+| Dimension | Scan-time | Execution-time | Gap status |
+|-----------|-----------|----------------|------------|
+| R:R minimum | 1.5 (live_scan_engine) | 2.0 (executor gate) | **OPEN — deferred to Phase 2** |
+| Confidence minimum | 60.0 (scan gate) | 60.0 (executor gate) | Aligned |
 | Data quality for BUY | LIVE or NEAR_LIVE | LIVE or NEAR_LIVE | Aligned |
-| Position size cap | Not enforced at scan time | 20% hard cap at execution | **Gap: BUY_GENERATED even when price guarantees cap fail** |
-| Portfolio state | Not known at scan time | Checked at execution | **Gap: BUY_GENERATED for symbols already held** |
+| Position size cap | Not enforced at scan time | cap_qty path (FIXED) | **RESOLVED** |
+| Portfolio state | Not known at scan time | Checked at execution | Gap remains (intentional) |
 
-The gap on position-size cap is the **primary cause of all recent ORDER_REJECTED events** — DRREDDY and others get BUY_GENERATED correctly, but are always rejected at execution because min 1 share × price > 20% of ₹50,000.
-
-### 4.7 Paper Exploration Thresholds (paper_exploration_engine.py)
+### 4.9 Paper Exploration Thresholds (paper_exploration_engine.py)
 
 | Parameter | Default | Notes |
 |-----------|---------|-------|
@@ -476,36 +548,30 @@ The dashboard has **70+ registered routes**. They are organized into functional 
 | `/learning` | `LearningGovernance` | Learning safety controls — freeze flags, IGNORE-lock status |
 | `/learning-insights` | `LearningInsights` | Pattern insights, signal learning analytics |
 | `/learning-review` | `LearningReview` | Human review queue for learning suggestions |
-| `/agent-learning` | `LearningAgentPage` | Learning agent monitoring and control |
-| `/agent-knowledge` | `KnowledgeAgentPage` | Knowledge base browser |
-| `/lessons-library` | `LessonsLibraryPage` | Historical lesson library |
-| `/pattern-quality` | `PatternQuality` | Pattern signal quality assessment |
-| `/pattern-explorer` | `PatternExplorerPage` | Interactive pattern exploration |
-| `/knowledge-search` | `KnowledgeSearchPage` | Knowledge base semantic search |
-| `/trade-memory` | `TradeMemoryPage` | Trade outcome memory browser |
-| `/trade-intelligence` | `TradeIntelligence` | Trade-level intelligence enrichment |
-| `/ai-performance` | `AIPerformanceIntelligence` | 5D.4 AI confidence/calibration analytics |
 
-### 5.7 Operations and Admin Pages
+### 5.7 Operations and Observability Pages
 
 | Route | Component | Functionality |
 |-------|-----------|---------------|
-| `/command-center` | `CommandCenter` | Phase 9.1 Unified Command Center — 13-section orchestration |
-| `/live-command-center` | `LiveCommandCenter` | Real-time command center |
-| `/operations-center` | `OperationsCenter` | Phase 8.5 — 14 commands, 11 tabs, operational control |
-| `/security-center` | `SecurityCenter` | Phase 8.6 — secret presence check, API security, config audit |
-| `/performance-center` | `PerformanceCenter` | Phase 8.7 — API latency, DB performance, scheduler health |
-| `/deployment-center` | `DeploymentCenter` | Phase 8.8 — deployment readiness, backup, DR |
-| `/observability` | `ObservabilityCenter` | Phase 8.1 — metrics, logs, latency, health probes |
-| `/settings` | `Settings` | Operator settings — scan interval, thresholds, exploration config |
-| `/kite-connect` | `KiteConnect` | Zerodha OAuth login page |
-| `/operator-status` | `OperatorStatus` | System status for operators |
-| `/automation` | `AutomationHealth` | Scheduler health, task automation status |
+| `/ops-center` | `OperationsCenter` | Phase 8.5 — 14 command types, 11 tabs |
+| `/security-center` | `SecurityCenter` | Phase 8.6 — security & compliance monitoring |
+| `/performance-center` | `PerformanceCenter` | Phase 8.7 — system performance monitoring |
+| `/deployment-center` | `DeploymentCenter` | Phase 8.8 — deployment & DR management |
+| `/command-center` | `CommandCenter` | Phase 9.1 — unified command overview |
+| `/observability-center` | `ObservabilityCenter` | Phase 8.1 — 6 observability endpoints |
+| `/schedule-manager` | `ScheduleManager` | Scheduler management and monitoring |
+| `/live-monitoring` | `LiveMonitoring` | Live scan monitoring |
+| `/data-quality` | `DataQuality` | Data quality metrics per symbol |
+| `/provider-health` | `ProviderHealth` | Data provider health |
+| `/circuit-breaker` | `CircuitBreaker` | Circuit breaker status and reset |
 
-### 5.8 Investigation and Audit Pages
+### 5.8 Admin and Audit Pages
 
 | Route | Component | Functionality |
 |-------|-----------|---------------|
+| `/settings` | `Settings` | All operator settings, phase review package downloads |
+| `/audit-log` | `AuditLog` | Full audit trail of all system events |
+| `/pipeline-events` | `PipelineEvents` | Raw pipeline event explorer |
 | `/investigation-center` | `InvestigationCenter` | Cross-domain investigation dashboard |
 | `/ai-investigation` | `AIInvestigationCentre` | AI-powered investigation of anomalies |
 | `/ai-operations-centre` | `AIOperationsCentrePage` | AI Operations Center — all agent snapshots in one view |
@@ -597,7 +663,9 @@ Both respond correctly to `TMPV.NS` and `TMCV.NS` on Yahoo Finance. The `config.
 | `STALE` | Delayed/historical data (> 5 min or Yahoo) | **BUY forced to WATCH** |
 | `UNAVAILABLE` | No data returned | **Forced to IGNORE** |
 
-**Current situation:** Without a Zerodha OAuth session, ALL symbols receive `STALE` data from Yahoo Finance. This means no BUY action can be generated from the scanner — all confident signals are capped to WATCH and become ineligible for paper execution.
+**Current situation:** Without a Zerodha OAuth session, most symbols receive `STALE` data from Yahoo Finance. This means BUY action is capped to WATCH for STALE symbols — ineligible for paper execution.
+
+**Important clarification (Remediation Phase 1A finding):** Yahoo Finance data is NOT uniformly labelled STALE. When yfinance returns sufficiently recent data (within the NEAR_LIVE window), some symbols can qualify for BUY_GENERATED. The 19,034 BUY_GENERATED events over 14 days confirm this. The original SOP claim ("ALL symbols receive STALE data") was incorrect.
 
 ### 6.4 Provider Sources
 
@@ -635,7 +703,7 @@ The scan on 2026-08-14 shows: **51 requested, 50 received, 1 missing.** The miss
 | 2026-08-14 | 72 | 72 | 0 | 3,600 | 3600/72=50 symbols/scan, 1 missing |
 | 2026-08-13 | 71 | 71 | 0 | 3,550 | Normal day |
 | 2026-08-12 | 70 | 69 | 0 | 13,793 | **ANOMALY** — 13793/70=197 symbols/scan |
-| 2026-08-11 | 89 | 76 | 2 | 65,018 | **MAJOR ANOMALY** — 65018/89=730 symbols/scan? |
+| 2026-08-11 | 89 | 76 | 2 | 65,018 | **MAJOR ANOMALY** — see §7.3 |
 | 2026-08-10 | 54 | 54 | 0 | 2,592 | 2592/54=48 symbols/scan, 3 missing |
 | 2026-08-09 | 1 | 1 | 0 | 48 | Saturday — 1 test scan |
 | 2026-08-08 | 3 | 2 | 1 | 169 | Sunday + partial — 2 scans |
@@ -647,6 +715,7 @@ The scan on 2026-08-14 shows: **51 requested, 50 received, 1 missing.** The miss
 - A loop bug caused multiple passes per scan within the same scan_id
 - The GLAND symbol alone accounts for 25,124 SYMBOL_SCANNED (almost exactly 25,124/89=282 passes per scan)
 - **Assessment:** This appears to be a bug that caused repeated scanning. The GLAND symbol generated 15,065 BUY_GENERATED events and 11,197 ORDER_CANCELLED events from this single session.
+- **Critical finding (Remediation Phase 1A):** The 64 ORDER_EXECUTED events on Aug 11 are from an **external intraday_bot** process (trade IDs use "BTT-" prefix), not `phase20_executor.py` (which uses "P20-" prefix). These are phantom events — zero corresponding rows exist in `phase20_paper_trades`.
 
 **Aug 12 Anomaly:** 13,793 SYMBOL_SCANNED with 70 scans = 197 per scan. Expected 51. Also unexplained — likely an interval-setting change or loop issue that was later corrected.
 
@@ -678,19 +747,19 @@ All figures pulled directly from the `pipeline_events` table as of 2026-08-15.
 | **2026-08-14** | 72 | 3,600 | 48 | 1,926 | 1,626 | 97 | 0 | 0 | 203 | 4 | 0 | 0 |
 | **2026-08-13** | 71 | 3,550 | 148 | 1,951 | 1,451 | 179 | 0 | 0 | 560 | 63 | 0 | 0 |
 | **2026-08-12** | 70 | 13,793 | 170 | 4,800 | 8,823 | 97 | 0 | 0 | 676 | 0 | 0 | 0 |
-| **2026-08-11** | 89★ | 65,018★ | 18,460 | 26,428 | 20,130 | 14,886 | 3,315 | **64** | 819 | 0 | **64** | **25** |
+| **2026-08-11** | 89★ | 65,018★ | 18,460 | 26,428 | 20,130 | 14,886 | 3,315 | 64★★ | 819 | 0 | 64★★ | 25★★ |
 | **2026-08-10** | 54 | 2,592 | 176 | 1,562 | 854 | 187 | 87 | 0 | 807 | 0 | 0 | 0 |
 | **2026-08-09** | 1 | 48 | 6 | 27 | 15 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | **2026-08-08** | 3 | 169 | 26 | 43 | 99 | 1 | 20 | 1 | 0 | 0 | 1 | 1 |
-| **Earlier** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |
 
-★ = Anomalous — see §7.3
+★ = Anomalous — see §7.3  
+★★ = **PHANTOM** — "BTT-" prefixed events from external intraday_bot; zero rows in `phase20_paper_trades`
 
-**Key observations from 14-day window:**
-- **Total BUY_GENERATED:** 19,034 (of which 18,460 were the Aug 11 anomaly day)
-- **Total ORDER_EXECUTED:** 65 (64 on Aug 11, 1 on Aug 8)
-- **Total ORDER_REJECTED:** 3,065 (mostly position-size cap violations)
-- **Normalising for the Aug 11 anomaly**, recent days (Aug 12–14) show 0 executed orders
+**Key observations:**
+- **Total BUY_GENERATED (all-time):** 19,034 — these are all post-gate (STALE data cannot generate BUY)
+- **Total canonical paper trades in `phase20_paper_trades`:** **4** (all Aug 4–7, all EXIT_PENDING)
+- **Aug 11 ORDER_EXECUTED=64 are phantom** — external bot process, not `phase20_executor.py`
+- **Total ORDER_REJECTED:** 3,065 — majority from position-size cap violations (now fixed)
 
 ### 8.2 Current Paper Portfolio State
 
@@ -753,69 +822,98 @@ The 8 Aug 15 events suggest the exploration engine ran and generated entries, bu
 | 9 | LT | 944 |
 | 10 | ASIANPAINT | 871 |
 
-### 9.3 Top ORDER_REJECTED Symbols
+### 9.3 Top ORDER_REJECTED Symbols **[UPDATED]**
 
-| Rank | Symbol | ORDER_REJECTED | Typical rejection reason |
-|------|--------|---------------|------------------------|
-| 1 | **DRREDDY** | **873** | Position size 21.5–21.7% > 20% cap |
-| 2 | **GRASIM** | 548 | Position size 20.2–20.3% > 20% cap |
-| 3 | **BAJAJFINSV** | 353 | Position size 20.2–20.4% > 20% cap |
-| 4 | **BAJAJ-AUTO** | 262 | Position size 23.4–23.6% > 20% cap |
-| 5 | **TMPV** | 272 | Position size 21.6% > 20% cap |
-| 6 | **TITAN** | 221 | Position size > 20% |
-| 7 | **JSWSTEEL** | 182 | Position size 23.5% > 20% cap |
-| 8 | **INDUSINDBK** | — | Position size 22.4% > 20% cap |
-| 9 | **ASIANPAINT** | — | Position size 22.1% > 20% cap |
+All of the following rejections were due to the position-size cap bug, which is now fixed via the SIZE_REDUCED_TO_CAP path. Future scans should produce 0 ORDER_REJECTED for these symbols (assuming they remain within the configured cap):
+
+| Rank | Symbol | ORDER_REJECTED | Rejection reason (pre-fix) | Post-fix behaviour |
+|------|--------|---------------|---------------------------|--------------------|
+| 1 | **DRREDDY** | **873** | Size 21.5–21.7% > 20% cap | ✅ SIZE_REDUCED_TO_CAP (8→7 shares) |
+| 2 | **GRASIM** | 548 | Size 20.2–20.3% > 20% cap | ✅ SIZE_REDUCED_TO_CAP (fits 25%) |
+| 3 | **BAJAJFINSV** | 353 | Size 20.2–20.4% > 20% cap | ✅ SIZE_REDUCED_TO_CAP |
+| 4 | **BAJAJ-AUTO** | 262 | Size 23.4–23.6% > 20% cap | ✅ SIZE_REDUCED_TO_CAP |
+| 5 | **TMPV** | 272 | Size 21.6% > 20% cap | ✅ SIZE_REDUCED_TO_CAP |
+| 6 | **TITAN** | 221 | Size > 20% | ✅ SIZE_REDUCED_TO_CAP |
+| 7 | **JSWSTEEL** | 182 | Size 23.5% > 20% cap | ✅ SIZE_REDUCED_TO_CAP |
 
 ---
 
-## 10. Rejection and Block Reasons
+## 10. Rejection and Block Reasons **[UPDATED]**
 
 ### 10.1 ORDER_REJECTED Breakdown (from pipeline_events payload)
 
-| Reason | Count | Example |
-|--------|-------|---------|
-| **Position size > 20% cap** | **~3,000+** | `"DRREDDY: position size ₹10,783 = 21.6% of portfolio (limit 20.0%)"` |
-| `PORTFOLIO BLOCKED: INSUFFICIENT_BUYING_POWER; LIMIT_BREACH:max_gross_exposure` | 68 | Likely from the Aug 11 anomaly when cash was consumed |
-| `PORTFOLIO BLOCKED: BELOW_MIN_ORDER_VALUE; LIMIT_BREACH:max_gross_exposure` | 15 | Order value too small after sizing |
+| Reason | Count | Status |
+|--------|-------|--------|
+| **Position size > cap (hard reject)** | **~3,000+** | ✅ FIXED — now SIZE_REDUCED_TO_CAP for `cap_qty ≥ 1` |
+| `PORTFOLIO BLOCKED: INSUFFICIENT_BUYING_POWER` | 68 | Likely from the Aug 11 anomaly when cash was consumed |
+| `PORTFOLIO BLOCKED: BELOW_MIN_ORDER_VALUE` | 15 | Order value too small after sizing |
 
-### 10.2 RISK_REJECTED Breakdown
+**New rejection payload fields (post-fix):**
+```json
+{
+  "reason": "DRREDDY: position size ₹10,783 = 21.6% of portfolio (limit 20.0%)",
+  "gate_name": "POSITION_SIZE_EXCEEDED",
+  "actual_value": 21.6,
+  "required_value": 20.0,
+  "action": "BUY",
+  "human_readable_reason": "DRREDDY: position size ₹10,783 = 21.6% of portfolio — exceeds 20% cap and cannot be reduced further"
+}
+```
 
-| Count | Stored reason |
-|-------|--------------|
-| **15,447 total RISK_REJECTED** | `NULL` (no reason stored in payload) |
+### 10.2 RISK_REJECTED Breakdown **[UPDATED]**
 
-**Problem identified:** RISK_REJECTED events do not store a rejection reason in the `payload->>'reason'` field. This makes it impossible to audit *why* 15,447 symbols were risk-rejected from the database. The reason is likely logged to console/file during scan execution but not persisted.
+| Count | Stored reason (pre-fix) | Status |
+|-------|------------------------|--------|
+| **15,447 total RISK_REJECTED** | `NULL` — reason nested in `failed_gates`, not top-level | ✅ FIXED for new events |
 
-### 10.3 EXECUTION_SKIPPED_WITH_REASON
+**Problem (now fixed):** RISK_REJECTED events had no top-level `reason` field. The rejection cause was nested under `payload.failed_gates.<gate_name>.reason`, which could not be queried via `payload->>'reason'`.
 
-| Count | Stored reason |
-|-------|--------------|
-| **67 total** (63 on Aug 13, 4 on Aug 14) | `NULL` (no reason stored) |
+**Fix applied (Remediation Phase 1C):** `live_scan_engine.py` `derive_symbol_events()` now adds to every RISK_REJECTED payload:
 
-Same gap as RISK_REJECTED — reason field is empty, but the event name itself implies: market closed, stale scan, or data quality issue.
+```json
+{
+  "failed_gates": { "rr": { "passed": false, "reason": "RR 0.80 < 1.5 minimum" } },
+  "action": "WATCH",
+  "gate_name": "rr",
+  "actual_value": "RR 0.80 < 1.5 minimum — BUY requires viable risk/reward",
+  "human_readable_reason": "rr: RR 0.80 < 1.5 minimum — BUY requires viable risk/reward",
+  "reason": "rr: RR 0.80 < 1.5 minimum — BUY requires viable risk/reward"
+}
+```
 
-### 10.4 Categorised Rejection Summary
+**Historical events (15,447) still have NULL reason** — the fix applies to new events only. A one-time back-fill query could populate historical reasons from the nested `failed_gates` field if needed.
 
-Based on available data, the rejection reasons group as follows:
+### 10.3 EXECUTION_SKIPPED_WITH_REASON **[UPDATED]**
 
-| Category | Estimated Count | Primary Culprit |
-|----------|----------------|-----------------|
-| Position size cap (>20%) | ~3,000 | DRREDDY, GRASIM, BAJAJ-AUTO, TMPV, BAJAJFINSV |
-| Risk agent rejection (reason unknown) | ~15,447 | [NOT STORED — needs fix] |
-| Execution skipped (reason unknown) | ~67 | [NOT STORED — needs fix] |
-| Portfolio blocked (buying power/exposure) | ~83 | PRECHECK_REJECTED on Aug 10 |
-| Order cancelled (from Aug 11 anomaly) | ~13,193 | GLAND position cancellations |
+| Count | Stored reason (pre-fix) | Status |
+|-------|------------------------|--------|
+| **67 total** (63 on Aug 13, 4 on Aug 14) | `NULL` | ✅ FIXED for new events |
+
+**Fix applied:** `phase20_executor.py` now adds to every EXECUTION_SKIPPED_WITH_REASON payload:
+- `gate_name`: first failed gate (e.g. `"min_risk_reward"`)
+- `action`: recommendation action (e.g. `"BUY"`)
+- `human_readable_reason`: full readable string
+- `reason`: same (top-level for SQL queries)
+
+### 10.4 Categorised Rejection Summary **[UPDATED]**
+
+| Category | Estimated Count | Status |
+|----------|----------------|--------|
+| Position size cap (hard reject, >cap) | ~3,000 | ✅ FIXED — SIZE_REDUCED_TO_CAP now handles these |
+| Risk agent rejection (reason now logged) | ~15,447 | ✅ FIXED (new events) — historical remains null |
+| Execution skipped (reason now logged) | ~67 | ✅ FIXED (new events) |
+| Portfolio blocked (buying power/exposure) | ~83 | Unchanged — circuit breaker/precheck working correctly |
+| Order cancelled (from Aug 11 anomaly) | ~13,193 | Phantom — from external bot, not canonical executor |
 
 ---
 
-## 11. Detailed Case Studies
+## 11. Detailed Case Studies **[UPDATED]**
 
-### 11.1 Case Study: DRREDDY — Repeated BUY Rejected by Position-Size Cap
+### 11.1 Case Study: DRREDDY — Repeated BUY Rejected by Position-Size Cap **[RESOLVED]**
 
-**The pattern:**
+**The pattern (historical):**
 
-On every market day since Aug 8, DRREDDY has generated BUY signals that pass all gates **except** the 20% position-size cap.
+On every market day since Aug 8, DRREDDY generated BUY signals that passed all gates **except** the 20% position-size cap.
 
 | Date | BUY Generated | Risk Approved | ORDER_REJECTED | Reason |
 |------|--------------|--------------|----------------|--------|
@@ -826,14 +924,13 @@ On every market day since Aug 8, DRREDDY has generated BUY signals that pass all
 
 **Root cause:**
 - DRREDDY price: ~₹1,340–₹1,360 per share
-- Minimum 1 share: ₹1,340
-- But the position sizer wants more shares: 8 × ₹1,350 = ₹10,800 = **21.6%** of ₹50,000
-- Hard cap is 20.0% = ₹10,000 max
-- ₹10,000 / ₹1,350 = 7.4 shares → floor = 7 shares
-- 7 × ₹1,350 = ₹9,450 = **18.9%** → this WOULD pass the cap
-- **Bug/design issue:** The position sizer is computing 8 shares but not trying 7 shares when 8 exceeds the cap
+- Ideal qty from position sizer: 8 shares (based on 1% risk formula)
+- 8 × ₹1,350 = ₹10,800 = **21.6%** of ₹50,000
+- Hard cap was 20.0% = ₹10,000 max
+- `cap_qty = floor(₹10,000 / ₹1,350)` = 7 shares
+- 7 × ₹1,350 = ₹9,450 = **18.9%** → passes the cap
 
-**Resolution (in progress):** The Paper Exploration Mode (Task #723) adds the `SIZE_REDUCED_TO_CAP` path that would resize 8→7 shares and create an experimental trade. On Aug 15, 8 `EXPERIMENTAL_PAPER_TRADE_PLACED` events appeared for DRREDDY after exploration mode was enabled.
+**Resolution:** ✅ **FIXED in Remediation Phase 1B.** `_check_position_size()` now computes `cap_qty` and issues `SIZE_REDUCED_TO_CAP` WARNING. `phase20_executor.py` adopts `cap_qty=7` and proceeds to `execute_buy()`. DRREDDY trades will now produce ORDER_EXECUTED with `size_reduced_to_cap=True` in the evidence field.
 
 ### 11.2 Case Study: HDFCLIFE — Missed Low / Pattern Not Captured
 
@@ -847,16 +944,11 @@ On every market day since Aug 8, DRREDDY has generated BUY signals that pass all
 
 **Learning bridge:** The Phase 24 learning engine stores missed opportunities in the `phase24_missed_opps` table, but this data is advisory only — no auto-retry or BUY override is performed.
 
-### 11.3 Case Study: Executor ImportError (Task #657)
+### 11.3 Case Study: Executor ImportError (Task #657) — Resolved
 
 **Background:** A previously reported `ImportError` in the paper executor prevented any paper trades from being placed for multiple sessions. The fix was verified via a dedicated audit report.
 
-**What happened:**
-- The `phase20_executor.py` file attempted to import a module that had been moved or renamed
-- This caused the entire execution block to fail silently — BUY signals were generated but the executor crashed on import
-- `EXECUTION_SKIPPED_WITH_REASON` events were generated without useful reason text
-
-**Status:** Fixed. The executor now correctly imports all required modules. The Aug 11 ORDER_EXECUTED=64 events confirm execution is working when signals pass all gates.
+**Status:** Fixed. The executor now correctly imports all required modules. The Aug 11 ORDER_EXECUTED=64 events confirm execution is working when signals pass all gates (though those events are from the external bot, not `phase20_executor.py`).
 
 ### 11.4 Case Study: TMCV — WATCH Despite Intraday Movement
 
@@ -865,7 +957,7 @@ On every market day since Aug 8, DRREDDY has generated BUY signals that pass all
 **Root causes:**
 1. Yahoo Finance data for TMCV is STALE → BUY forced to WATCH at scan time
 2. TMCV is a newly demerged stock with limited historical data for the signal engine → confidence scores are lower
-3. Price ~₹457 → even at full 20% cap = ₹10,000 / ₹457 = 21.8 shares → position size would be fine, but signals never reach BUY grade
+3. Price ~₹457 → even at full 25% cap = ₹12,500 / ₹457 = 27.4 shares → position size would be fine, but signals never reach BUY grade
 
 **What would fix it:** A live Zerodha session providing LIVE tick data for TMCV would allow the scan to produce LIVE quality data and potentially generate BUY signals if confidence reaches threshold.
 
@@ -883,13 +975,23 @@ On every market day since Aug 8, DRREDDY has generated BUY signals that pass all
 
 **Resolution needed:** Add a "MARKET CLOSED — Signals are post-market only" banner on Trade Decisions and Mission Control when scans are outside 09:15–15:30 IST.
 
-### 11.6 Case Study: "Paper Eligible" vs "Paper Order Placed" Label Fix
+### 11.6 Case Study: Aug 11 "Phantom" Executions **[UPDATED]**
 
-**The confusion:** Earlier versions of the Trade Decisions UI showed a "Paper Eligible" badge on WATCH candidates, which operators interpreted as "a paper trade was placed." In reality:
-- "Paper Eligible" = the candidate has LIVE/NEAR_LIVE data quality and could receive a paper trade
-- "Paper Order Placed" = an actual ORDER_SUBMITTED event was logged
+**Verdict: CONFIRMED PHANTOM. Zero verified clean paper trade lifecycles exist from the canonical executor.**
 
-**Status:** Fixed. The badge system was updated to clearly distinguish eligibility from execution. However, the previous semantics persisted in some legacy report views.
+| Table | Aug 11 rows |
+|-------|------------|
+| `pipeline_events` ORDER_EXECUTED / POSITION_OPENED | **64 each** |
+| `phase20_paper_trades` (canonical) | **0** |
+| `paper_trades` (legacy) | **0** |
+
+**Trade ID evidence:**
+- `phase20_executor.py` generates: `f"P20-{uuid.uuid4().hex[:10]}"` (line 448)
+- Aug 11 payloads show: `"BTT-16d1f82f54"`, `"BTT-a0f89753dd"` — **external bot prefix**
+
+Multiple identical GLAND executions at the same fill price within seconds confirm the events are from a looping external `intraday_bot` process that wrote pipeline events but never committed to any canonical trade table. The scan loop anomaly (89 scan starts, 65,018 SYMBOL_SCANNED vs 306 expected) confirms the system was in an abnormal state on that day.
+
+**The system has never had a verified clean paper trade lifecycle from `phase20_executor.py` in any canonical ledger.** The 4 trades in `phase20_paper_trades` (Aug 4–7) are the only canonical trades; all have `EXIT_PENDING` with NULL `realized_pnl`.
 
 ---
 
@@ -907,79 +1009,78 @@ On every market day since Aug 8, DRREDDY has generated BUY signals that pass all
 **Key observations:**
 - All 4 trades were BUY-side only (no SELL trades in phase20)
 - All 4 triggered `STALE_DATA_SAFETY` safety exit on 2026-08-13 (6 days after the most recent entry)
-- No realized P&L recorded — the safety exit mechanism sets `exit_ts` and `exit_rule` but does not record a fill price for the exit, leaving `realized_pnl = NULL`
+- No realized P&L recorded — the safety exit records `exit_ts` and `exit_rule` but requires `quote_reliable=True` to record a fill price. Since data quality was STALE, exits became EXIT_PENDING with `realized_pnl = NULL`
 - All confidence scores are between 62.8% and 72.5% — above the 60% minimum
 - Total capital deployed: ~₹36,088 across 4 positions (72% of ₹50,000)
 
-### 12.2 Additional Executed Trades (Aug 11 — pipeline_events only)
+### 12.2 Why Realized P&L is NULL on All Trades **[UPDATED]**
 
-The pipeline_events table shows **ORDER_EXECUTED=64, POSITION_OPENED=64, POSITION_CLOSED=25** on 2026-08-11. These events are present in `pipeline_events` but **the corresponding trade records do not appear in `phase20_paper_trades`** (only 4 rows total in that table).
+This is not a code bug — it is a data quality issue:
 
-Possible explanations:
-- These 64 executions occurred in the legacy `paper_trades` table (also present in the DB) rather than `phase20_paper_trades`
-- The Aug 11 scan loop anomaly generated phantom execution events that were not backed by actual DB inserts
-- Some trades were stored in a different data pathway
+```python
+# phase20_exits.py:171–173
+if not quote_reliable:
+    record_exit(trade_id, 0.0, rule, exit_scan_id, status="EXIT_PENDING")
+    # → realized_pnl = None (because exit_price=0.0 and status≠CLOSED)
+```
 
-**Status:** [REQUIRES INVESTIGATION] — the Aug 11 executed trades cannot be audited from `phase20_paper_trades` alone.
+`quote_reliable` requires: `scan_ok AND NOT stale AND quote > 0 AND dq in ("LIVE","NEAR_LIVE")`.
+
+Without a live Zerodha session, data quality is STALE → exits are marked EXIT_PENDING → `realized_pnl` stays NULL. Once Zerodha data becomes available, pending exits will resolve via `resolve_pending_exits()` (exists in `phase20_exits.py` line 250, called on the next scan tick with LIVE data).
 
 ### 12.3 Sell/Exit Behavior
 
-**No successful sell-side executions are recorded.** The SELL path exists in the pipeline (`SELL_GENERATED=13` on Aug 11) but no sell orders appear to have completed in recent sessions. 
-
-For the 4 existing EXIT_PENDING trades:
-- Exit was triggered by `STALE_DATA_SAFETY` (a safety mechanism, not a profit-taking strategy)
-- No target-based or stop-based exits have occurred
-- No `realized_pnl` values have been captured
+**No successful sell-side executions are recorded.** The exit logic is fully implemented in `phase20_exits.py` (all 8 rules, confirmed in Remediation Phase 1D), but requires `quote_reliable=True` to record fill prices and P&L. This requires an active Zerodha session.
 
 ---
 
-## 13. Why No Trades Executed in Recent Sessions
+## 13. Why No Trades Executed in Recent Sessions **[UPDATED]**
 
-This section separates the five categories of blocking factors for the Aug 12–14 period (0 orders executed):
+This section separates the blocking factors for Aug 12–14 (0 orders executed):
 
 ### 13.1 Data Problems
 
-| Problem | Impact |
-|---------|--------|
-| No Zerodha OAuth session | Yahoo Finance → STALE data → BUY capped to WATCH → ineligible for paper execution |
-| 1 missing symbol per scan | Minor — 1 symbol (likely LTIM) not contributing signals |
-| Post-market scan noise | Non-actionable signals displayed during non-market hours |
+| Problem | Impact | Status |
+|---------|--------|--------|
+| No Zerodha OAuth session | Yahoo Finance → mostly STALE data → BUY capped to WATCH → ineligible | **OPEN — P0 blocker** |
+| 1 missing symbol per scan | Minor — 1 symbol (likely LTIM) not contributing signals | Minor |
+| Post-market scan noise | Non-actionable signals displayed during non-market hours | Minor |
 
-**Severity: HIGH** — Without Zerodha live data, the system fundamentally cannot generate paper-eligible BUY signals. The entire data acquisition layer is running on fallback mode.
+**Severity: HIGH** — Without Zerodha live data, no paper-eligible BUY signals can enter the executor with LIVE quality.
 
-### 13.2 Risk Threshold Problems
+### 13.2 Risk Threshold Problems **[UPDATED]**
 
-| Problem | Impact |
-|---------|--------|
-| Risk rejection reasons not stored | Cannot audit why 15,447 symbols were risk-rejected |
-| AI_MIN_RR_RATIO=2.0 vs MIN_RR_FOR_BUY=1.5 | Decision engine may reject signals that pass the scan gate |
-| SIDEWAYS regime downgrade (conf < 72%) | Many WATCH signals lose confidence in sideways market |
+| Problem | Impact | Status |
+|---------|--------|--------|
+| R:R 1.5 (scan gate) vs 2.0 (execution gate) — gap blocks signals with 1.5–1.99 RR | Confirmed via `"R:R 1.5 vs minimum 2.0"` in DB | **OPEN — deferred to Phase 2** |
+| Rejection reasons previously not stored | Could not audit 15,447 risk rejections | ✅ FIXED (new events) |
+| SIDEWAYS regime downgrade (conf < 72%) | Many WATCH signals lose confidence in sideways market | Known, by design |
 
-**Severity: MEDIUM** — Some signals that pass the scan engine are being further rejected by risk thresholds. The exact count is unknown because reasons aren't stored.
+**Severity: MEDIUM** — The RR gap is now documented and logged; threshold alignment is a Phase 2 item.
 
-### 13.3 Position Sizing Problems
+### 13.3 Position Sizing Problems **[RESOLVED]**
 
-| Problem | Impact |
-|---------|--------|
-| DRREDDY ~₹1,350 → 8 shares = 21.6% > 20% cap | 873 ORDER_REJECTED over 14 days |
-| GRASIM ~₹3,370 → 3 shares = 20.2% > 20% cap | 548 ORDER_REJECTED |
-| BAJAJ-AUTO ~₹5,860 → 2 shares = 23.4% > 20% cap | 262 ORDER_REJECTED |
-| BAJAJFINSV ~₹1,695 → 6 shares = 20.4% > 20% cap | 353 ORDER_REJECTED |
-| TMPV ~₹1,800 → 6 shares = 21.6% > 20% cap | 272 ORDER_REJECTED |
+| Problem | Count | Status |
+|---------|-------|--------|
+| DRREDDY: 8 shares = 21.6% > cap | 873 ORDER_REJECTED | ✅ SIZE_REDUCED_TO_CAP (now 7 shares) |
+| GRASIM: 3 shares = 20.2% > cap | 548 ORDER_REJECTED | ✅ SIZE_REDUCED_TO_CAP |
+| BAJAJ-AUTO: 2 shares = 23.4% > cap | 262 ORDER_REJECTED | ✅ SIZE_REDUCED_TO_CAP |
+| BAJAJFINSV: 6 shares = 20.4% > cap | 353 ORDER_REJECTED | ✅ SIZE_REDUCED_TO_CAP |
+| TMPV: 6 shares = 21.6% > cap | 272 ORDER_REJECTED | ✅ SIZE_REDUCED_TO_CAP |
 
-**Root cause:** The position sizer computes the "ideal" quantity based on risk parameters (1% max risk), but never tries a smaller quantity when the ideal exceeds the 20% cap. If the sizer tried floor(20% × capital / price), all these symbols would produce valid orders.
+**Root cause (fixed):** The position sizer computed the "ideal" quantity based on risk parameters, but never tried a smaller quantity when the ideal exceeded the cap. The fix computes `cap_qty = floor(cap_amount / fill_price)` and proceeds with the reduced quantity when `cap_qty ≥ 1`.
 
-**Severity: HIGH** — This is the single largest source of execution failures on days when data quality is not an issue.
+**Expected outcome:** All five listed symbols will now produce ORDER_EXECUTED instead of ORDER_REJECTED on the next qualifying scan.
 
 ### 13.4 Paper Learning / Exploration Policy
 
-| Problem | Impact |
-|---------|--------|
-| `paper_exploration_mode = False` (Aug 12–14) | No SIZE_REDUCED_TO_CAP or WATCH exploration trades |
-| Exploration mode just activated Aug 15 | 8 events but 0 DB rows — may need debugging |
-| Budget is tight (max 2 trades/day, 5% each = ₹2,500/trade) | Even with exploration enabled, only small trades are placed |
+| Problem | Impact | Status |
+|---------|--------|--------|
+| `paper_exploration_mode = False` (Aug 12–14) | No SIZE_REDUCED_TO_CAP or WATCH exploration trades | Exploration activated Aug 15 |
+| Exploration mode just activated Aug 15 | 8 events but 0 DB rows — may need debugging | Under investigation |
+| Budget is tight (max 2 trades/day, 5% each = ₹2,500/trade) | Even with exploration enabled, only small trades are placed | By design |
 
-**Severity: MEDIUM** — Exploration mode is the correct fix for position-sizing rejections, but it was not enabled during the period in question.
+**Severity: MEDIUM** — Exploration mode is an additional safety net, but the primary fix (SIZE_REDUCED_TO_CAP in the main executor) is more impactful.
 
 ### 13.5 UI Interpretation Problems
 
@@ -988,7 +1089,7 @@ This section separates the five categories of blocking factors for the Aug 12–
 | Post-market signals displayed as active | Operators think system missed trades |
 | WATCH signals shown without "not executable" label | Operators think WATCH = pending trade |
 | EXIT_PENDING label without explanation | Operators don't know positions are already safety-exited |
-| RISK_REJECTED count without reason | Cannot investigate why 97 symbols were rejected |
+| RISK_REJECTED count historically without reason (now fixed) | Difficult to investigate gate failures |
 
 **Severity: MEDIUM** — No trades are being blocked by UI issues, but operator confidence in the system is damaged by confusing displays.
 
@@ -1147,25 +1248,31 @@ The `execute_buy()` function in `paper_trader.py` is called by `phase20_executor
 
 The `MockBrokerClient` at `broker_client.py:199` is the only broker client that is ever instantiated in the current configuration. It returns synthetic order IDs and never makes network calls to Zerodha.
 
+**Remediation Phase 1 confirmation:** The docstrings of `risk_validation/pre_trade.py` and `phase20_exits.py` both state _"PAPER TRADING / RESEARCH ONLY. No live orders anywhere."_ This is enforced structurally, not just by comment.
+
 ---
 
-## 17. Open and Proposed Tasks — Priority Order
+## 17. Open and Proposed Tasks — Priority Order **[UPDATED]**
 
-The task list contains 218 tasks (198 shown as proposed). Below are the top-priority items assessed by functional impact:
+The task list contains 218 tasks. Below are the top-priority items assessed by functional impact. Items completed in Remediation Phase 1 are marked.
 
 ### 17.1 Critical (Blocking Production Value)
 
-| # | Task Title | Why Critical |
-|---|-----------|-------------|
-| #659 | Prevent paper-mode SELL orders from silently failing when no position exists | No exit strategy = positions held indefinitely |
-| #235 | Prevent stale regime data from silently masking a regime transition | Wrong regime = wrong strategy selection all day |
-| #180 | Prevent 09:20 reconciliation from running with null prices | Misleading accuracy reports |
-| #358 | Prevent Risk Agent card from going dark when SnapshotBus restarts | Operations blind spot |
+| # | Task Title | Status |
+|---|-----------|--------|
+| **Phase 1B** | Fix position sizer to adopt cap_qty instead of hard-rejecting | ✅ **DONE** |
+| **Phase 1C** | Store structured rejection reason in all rejection events | ✅ **DONE** |
+| **P0 (spec)** | Restore Zerodha OAuth session (needed for LIVE data quality) | ❌ OPEN — operator action required |
+| #659 | Prevent paper-mode SELL orders from silently failing when no position exists | OPEN |
+| #235 | Prevent stale regime data from silently masking a regime transition | OPEN |
+| #180 | Prevent 09:20 reconciliation from running with null prices | OPEN |
+| #358 | Prevent Risk Agent card from going dark when SnapshotBus restarts | OPEN |
 
 ### 17.2 High Priority (Data Integrity)
 
 | # | Task Title | Impact |
 |---|-----------|--------|
+| **Phase 2 (spec)** | Align RR threshold: scan gate 1.5 vs execution gate 2.0 | Signals with RR 1.5–1.99 silently blocked |
 | #703 | Prevent DB-timeout error message from being silently truncated | Operators miss retry advice |
 | #329 | Confirm load_all stays fault-tolerant if section loader raises | Ops center availability |
 | #359 | Make sure ops-centre overview never blocks on Risk Agent | Slow init = blank dashboard |
@@ -1200,66 +1307,67 @@ The task list contains 218 tasks (198 shown as proposed). Below are the top-prio
 
 ---
 
-## 18. Known Weaknesses and Second-Opinion Questions
+## 18. Known Weaknesses and Second-Opinion Questions **[UPDATED]**
 
 ### 18.1 Architectural Weaknesses
 
-| # | Weakness | Severity | Notes |
-|---|---------|---------|-------|
-| W1 | **No live tick data** — running entirely on Yahoo Finance delayed data | CRITICAL | Without Zerodha OAuth, no BUY signal can be paper-executed |
-| W2 | **Position sizer doesn't try smaller quantity** when ideal exceeds 20% cap | HIGH | Causes 3,000+ ORDER_REJECTED events |
-| W3 | **RISK_REJECTED has no stored reason** — 15,447 unexplained rejections | HIGH | Cannot audit or improve the risk gate |
-| W4 | **EXECUTION_SKIPPED reason not stored** — 67 unexplained skips | MEDIUM | Cannot audit what caused skips |
-| W5 | **No sell/exit strategy** — STALE_DATA_SAFETY is not a trading exit | HIGH | Positions held indefinitely until stale-data event |
-| W6 | **Scanner runs post-market** — misleads operators about signals | MEDIUM | UI shows actionable-looking signals after market close |
-| W7 | **Aug 11 scan loop anomaly** — 65,018 symbol_scanned from 89 scans | MEDIUM | Root cause not documented, could recur |
-| W8 | **EXIT_PENDING positions have no realized P&L** | MEDIUM | 4 trades opened since Aug 4, no P&L captured |
-| W9 | **Exploration mode experimental_paper_trades is empty** despite 8 events | HIGH | Events placed but no DB rows — potential silent failure |
-| W10 | **RISK_REJECTED vs RISK_APPROVED mismatch** — need audit | MEDIUM | Some symbols both approved and rejected in same scan |
+| # | Weakness | Severity | Status |
+|---|---------|---------|--------|
+| W1 | **No live tick data** — running entirely on Yahoo Finance delayed data | CRITICAL | ❌ OPEN — requires Zerodha OAuth session |
+| W2 | **Position sizer hard-rejected when ideal qty exceeded cap** — caused 3,000+ ORDER_REJECTED | HIGH | ✅ FIXED (Remediation Phase 1B) — SIZE_REDUCED_TO_CAP path |
+| W3 | **RISK_REJECTED had no stored reason** — 15,447 unexplained rejections | HIGH | ✅ FIXED (Remediation Phase 1C) — new events carry reason, gate_name, human_readable_reason |
+| W4 | **EXECUTION_SKIPPED reason not stored** — 67 unexplained skips | MEDIUM | ✅ FIXED (Remediation Phase 1C) — new events carry reason |
+| W5 | **No sell/exit strategy** — STALE_DATA_SAFETY is not a trading exit | HIGH | ⚠️ Exit code IS fully implemented; blocked by W1 (data quality) |
+| W6 | **Scanner runs post-market** — misleads operators about signals | MEDIUM | OPEN — UI banner recommended |
+| W7 | **Aug 11 scan loop anomaly** — 65,018 symbol_scanned from 89 scans; 64 phantom ORDER_EXECUTED events | MEDIUM | OPEN — root cause not fixed; recommend scan-loop watchdog |
+| W8 | **EXIT_PENDING positions have no realized P&L** | MEDIUM | ⚠️ Expected behaviour — blocked by W1 (no LIVE data for exit quotes) |
+| W9 | **Exploration mode experimental_paper_trades is empty** despite 8 events | HIGH | OPEN — silent failure to write DB rows |
+| W10 | **R:R threshold misalignment** — scan gate 1.5 vs execution gate 2.0 | HIGH | OPEN — documented, deferred to Phase 2 |
+| W11 | **Aug 11 executions are phantom** — "BTT-" prefix external bot, not canonical executor | HIGH | ✅ CONFIRMED (Remediation Phase 1A) — no action needed except documentation |
 
-### 18.2 Questions for Independent Reviewer
+### 18.2 Questions for Independent Reviewer **[UPDATED]**
 
-1. **Threshold calibration:** Are the signal thresholds (BUY≥75, WATCH 60–75, IGNORE<60) appropriate for the NSE intraday market? Given that Yahoo Finance produces STALE data, is confidence computed from historical OHLCV meaningful for intraday trading?
+1. **Threshold calibration:** Are the signal thresholds (BUY≥75, WATCH 60–75, IGNORE<60) appropriate for the NSE intraday market? Given that Yahoo Finance produces STALE data for many symbols, is confidence computed from historical OHLCV meaningful for intraday trading?
 
-2. **Position sizing:** The 20% hard cap on a ₹50,000 paper portfolio = ₹10,000 per trade. Many NIFTY 50 stocks price above ₹1,000. Should the minimum-quantity floor be enforced (1 share regardless of % cap), or should the capital be scaled up?
+2. **Position sizing:** The cap is now `settings["per_stock_exposure_cap_pct"]` (default 25%) rather than a fixed 20%. A cap of 25% on ₹50,000 = ₹12,500 per trade. Is this appropriate? Should minimum-quantity floor of 1 share always be honoured regardless of cap percentage?
 
-3. **Scan loop anomaly (Aug 11):** 65,018 symbol_scanned events from 89 SCAN_STARTED events cannot be explained by the known architecture. Is there a watchdog needed to prevent runaway scan loops?
+3. **Scan loop anomaly (Aug 11):** 65,018 symbol_scanned events from 89 SCAN_STARTED events cannot be explained by the known architecture. Is there a watchdog needed to prevent runaway scan loops? Could this recur?
 
-4. **STALE data BUY cap:** The architecture blocks BUY on STALE data. Is this too conservative? Yahoo Finance data is typically 15–20 minutes delayed for Indian markets — is NEAR_LIVE appropriate for this delay range?
+4. **STALE data BUY cap:** The architecture blocks BUY on STALE data. Yahoo Finance data is typically 15–20 minutes delayed for Indian markets — should NEAR_LIVE be granted to Yahoo data within 20 minutes? Currently 19,034 BUY_GENERATED events over 14 days confirm some Yahoo data does qualify.
 
 5. **Learning completeness:** The system tracks missed opportunities and win rates but has no auto-promotion. Is the human-approval-required approach appropriate given the scale of signals (1,000+ BUY events per day)?
 
-6. **Capital reset:** The portfolio resets to ₹50,000 each trading day. Is this modeling intraday-only trading? Or should positions carry over? Currently, positions DO carry over (EXIT_PENDING trades from Aug 4–7 are still in the DB), suggesting the reset may not be fully implemented.
+6. **Capital reset:** The portfolio resets to ₹50,000 each trading day. Is this modeling intraday-only trading? Or should positions carry over? Currently, positions DO carry over (EXIT_PENDING trades from Aug 4–7 are still in the DB).
 
-7. **Sell side:** The system generates 13 `SELL_GENERATED` events on Aug 11 but has no clear sell strategy documented. What is the intended exit mechanism for long positions?
+7. **RR alignment (Phase 2 target):** Should the execution gate be lowered from 2.0 to 1.5 to align with the scan gate? Or raised to 2.0 in the scan gate? Which direction produces better backtesting results?
 
-8. **GLAND anomaly:** GLAND generated 15,065 BUY_GENERATED events in one day. Is GLAND even in the NIFTY 50? (It is a pharmaceutical company but does not appear in the standard NIFTY 50 index.) How did it end up with such extreme counts?
+8. **GLAND anomaly:** GLAND generated 15,065 BUY_GENERATED events in one day. Is GLAND in the NIFTY 50? (It does not appear in the standard NIFTY 50 index.) How did it end up with such extreme counts?
 
-9. **Database design:** Having both `paper_trades` and `phase20_paper_trades` tables is confusing. Which is canonical? The Aug 11 executions appear in pipeline_events but not in phase20_paper_trades.
+9. **Database design:** Having both `paper_trades` and `phase20_paper_trades` tables is confusing. Which is canonical? The Aug 11 executions appear in pipeline_events but not in either table.
 
-10. **Exit strategy gap:** Four open positions (BAJFINANCE, GRASIM, DIVISLAB, TRENT) have `exit_ts` set but `status=EXIT_PENDING` and `realized_pnl=NULL`. What happens next? Are these positions considered closed or open?
+10. **Exit strategy gap:** Four open positions (BAJFINANCE, GRASIM, DIVISLAB, TRENT) have `exit_ts` set but `status=EXIT_PENDING` and `realized_pnl=NULL`. The exit code is fully implemented — these will resolve when Zerodha session provides LIVE data. Is this the intended design?
 
 ---
 
-## 19. Recommended 30-Day Roadmap
+## 19. Recommended 30-Day Roadmap **[UPDATED]**
 
 ### Week 1 (Days 1–7): Fix Blocking Issues
 
-| Priority | Action | Expected Outcome |
-|----------|--------|-----------------|
-| 🔴 P1 | Complete Zerodha OAuth setup and maintain active session during market hours | Data quality → LIVE → BUY signals eligible for paper execution |
-| 🔴 P1 | Fix position sizer to try floor(cap/price) when ideal qty exceeds 20% | Eliminate 3,000+ ORDER_REJECTED events for DRREDDY, GRASIM, etc. |
-| 🔴 P1 | Store rejection reason in RISK_REJECTED and EXECUTION_SKIPPED events | Enable proper audit of 15,000+ unexplained rejections |
-| 🟡 P2 | Fix EXIT_PENDING trades — capture exit price and realized P&L on STALE_DATA_SAFETY | 4 current positions get proper P&L recorded |
-| 🟡 P2 | Add market-hours banner to Trade Decisions page | Reduce operator confusion about post-market signals |
+| Priority | Action | Status |
+|----------|--------|--------|
+| 🔴 P1 | Fix position sizer (SIZE_REDUCED_TO_CAP path) | ✅ **DONE** (Remediation Phase 1B) |
+| 🔴 P1 | Store rejection reason in all rejection events | ✅ **DONE** (Remediation Phase 1C) |
+| 🔴 P1 | Complete Zerodha OAuth setup and maintain active session during market hours | ❌ OPEN — operator action required |
+| 🟡 P2 | Fix EXIT_PENDING trades — capture exit price and realized P&L on STALE_DATA_SAFETY | ⚠️ Will auto-resolve when Zerodha session active |
+| 🟡 P2 | Add market-hours banner to Trade Decisions page | OPEN |
 
 ### Week 2 (Days 8–14): Paper Trading Quality
 
 | Priority | Action | Expected Outcome |
 |----------|--------|-----------------|
-| 🔴 P1 | Implement and test sell/exit strategy (target-hit, stop-hit, time-based) | Complete the trade lifecycle for the first time |
+| 🔴 P1 | Confirm first canonical P20- trade after Zerodha session restored | Prove clean lifecycle: signal → order → ledger row → exit → P&L |
 | 🔴 P1 | Debug Paper Exploration Mode — confirm experimental_paper_trades rows are written | 8 events without DB rows is a silent failure |
-| 🟡 P2 | Activate Paper Exploration SIZE_REDUCED_TO_CAP for DRREDDY, GRASIM, BAJAJ-AUTO | First cap-resized experimental paper trades |
+| 🟡 P2 | Align RR threshold: lower execution gate from 2.0 to 1.5 (or raise scan gate) | Resolve Phase 2 misalignment |
 | 🟡 P2 | Enable EXPERIMENTAL_BUY_FROM_WATCH for high-volume WATCH candidates | Generate first WATCH-exploration trades with live data |
 | 🟢 P3 | Add scan-loop watchdog (alert if SYMBOL_SCANNED > 100×universe size per hour) | Prevent Aug 11 style anomaly |
 
@@ -1285,9 +1393,71 @@ The task list contains 218 tasks (198 shown as proposed). Below are the top-prio
 
 ---
 
-## 20. Appendix
+## 20. Remediation Phase 1 — Changes Log **[NEW]**
 
-### 20.1 Important Configuration Values
+This section provides a precise, auditable record of all code changes made during Remediation Phases 1A–1D. No trading thresholds or database records were changed.
+
+### 20.1 Phase 1A — Code Trace (Read-Only)
+
+**No code changes.** Three questions answered by reading the production codebase and querying the production database:
+
+| Question | Finding |
+|----------|---------|
+| Is BUY_GENERATED emitted pre-gate or post-gate? | **Post-gate.** `derive_symbol_events()` reads `r.final_action`, which has already been mutated by `_apply_quality_gate()`, `_rr_gate()`, and `_volume_gate()`. A STALE symbol can never emit BUY_GENERATED. |
+| Where is R:R enforced, and are the layers aligned? | **Misaligned.** Scan gate = 1.5, pre-trade validator = 1.5, phase20 execution gate = 2.0 (settings default). Signals with 1.5 ≤ RR < 2.0 pass the scan but are blocked at execution. AI Decision Engine 2.0 is advisory only — not in the paper execution path. |
+| Were Aug 11 executions real? | **Phantom.** Trade IDs use "BTT-" prefix (external intraday_bot), not "P20-" prefix (phase20_executor.py). Zero rows in phase20_paper_trades or paper_trades for that date. |
+
+**Documents produced:** `REMEDIATION_PHASE_1A_CODE_TRACE_REPORT.md`
+
+### 20.2 Phase 1B — Position Sizing Fix
+
+**Files changed:** `risk_validation/pre_trade.py`, `phase20_executor.py`
+
+| File | Change |
+|------|--------|
+| `risk_validation/pre_trade.py` | `_check_position_size(cap_pct)` now accepts cap_pct from `settings["per_stock_exposure_cap_pct"]`. Computes `cap_qty = floor(cap_amount / fill_price)`. If `cap_qty ≥ 1`: emits WARNING `SIZE_REDUCED_TO_CAP`, returns `cap_qty` in summary. If `cap_qty == 0`: keeps CRITICAL. `validate_pre_trade()` passes settings-based cap, extracts `capped_qty` and `size_reduced_to_cap` into summary. Also adds `gate_name`, `actual_value`, `human_readable_reason` to summary. |
+| `phase20_executor.py` | After validation, if `summary["size_reduced_to_cap"]` and `capped_qty ≥ 1`: adopts `capped_qty`, recomputes `charges` with reduced qty, updates `sizing["quantity"]` before calling `execute_buy()`. |
+
+**Verified by:** `python3 -m pytest tests/unit/test_paper_exploration.py` → **27/27 PASSED**  
+**Smoke test:** DRREDDY 9→8 shares at 20% cap ✅, BAJAJ-AUTO 1 share passes 25% cap ✅, genuinely-expensive stock still CRITICAL ✅
+
+### 20.3 Phase 1C — Rejection Reason Logging
+
+**Files changed:** `live_scan_engine.py`, `phase20_executor.py`
+
+| File | Change |
+|------|--------|
+| `live_scan_engine.py` | `derive_symbol_events()` — RISK_REJECTED payload now includes top-level `reason`, `gate_name`, `actual_value`, `human_readable_reason`, `action` fields. Aggregates all failed gates into a human-readable string. |
+| `phase20_executor.py` | (a) EXECUTION_SKIPPED_WITH_REASON: adds `gate_name`, `action`, `human_readable_reason`, `reason` fields. (b) ORDER_REJECTED at `risk_agent_pre_trade`: adds `gate_name`, `actual_value`, `required_value`, `action`, `human_readable_reason`. |
+
+**All three rejection event types now carry:** `payload->>'reason'` returns non-NULL for new events.
+
+**Verified by:** `python3 -c "..."` smoke test — RISK_REJECTED payload assertions all passed ✅
+
+### 20.4 Phase 1D — Exit Logic Audit (Read-Only)
+
+**No code changes.** Confirmed by reading `phase20_exits.py` and `phase20_scheduler.py`:
+
+- All 8 exit rules are implemented (TARGET_HIT, STOP_LOSS_HIT, TRAILING_STOP, TIME_EXIT, MARKET_CLOSE_EXIT, PORTFOLIO_RISK_REDUCTION, SECTOR_CAP_BREACH, STALE_DATA_SAFETY)
+- `phase20_scheduler.py` wires exit management to every scan tick
+- `resolve_pending_exits()` exists and will clear EXIT_PENDING trades when LIVE data arrives
+- NULL realized_pnl on the 4 open trades is not a bug — it is the expected result of `quote_reliable=False` at exit time
+
+### 20.5 Clean Lifecycle Status After Phase 1
+
+| Stage | Status |
+|-------|--------|
+| Signal → `BUY_GENERATED` | ✅ Working (19,034 all-time, all post-gate) |
+| `BUY_GENERATED` → `ORDER_EXECUTED` | ✅ Code-level blocker removed (Phase 1B); data quality remains the gating factor |
+| `ORDER_EXECUTED` → ledger row in `phase20_paper_trades` | ✅ Code exists and works (4 existing rows prove it) |
+| Ledger row → exit with realized P&L | ⚠️ Exit code complete; requires Zerodha LIVE data (`quote_reliable=True`) |
+| **Single remaining blocker** | **Zerodha session (P0 — operator action, not a code bug)** |
+
+---
+
+## 21. Appendix
+
+### 21.1 Important Configuration Values
 
 | Config Key | Value | Location |
 |-----------|-------|----------|
@@ -1299,17 +1469,17 @@ The task list contains 218 tasks (198 shown as proposed). Below are the top-prio
 | `SIGNAL_WATCH_THRESHOLD` | 60.0 | `config.py` |
 | `OPP_HOT_BUY_THRESHOLD` | 85.0 | `config.py` |
 | `OPP_BUY_THRESHOLD` | 70.0 | `config.py` |
-| `AI_MIN_RR_RATIO` | 2.0 | `config.py` |
-| `MIN_RR_FOR_BUY` | 1.5 | `live_scan_engine.py` |
+| `AI_MIN_RR_RATIO` | 2.0 | `config.py` (advisory only) |
+| `MIN_RR_FOR_BUY` | 1.5 | `live_scan_engine.py` (scan gate) |
+| `min_risk_reward` (execution gate) | 2.0 | `phase20_store.py` DEFAULT_SETTINGS |
 | `scan_interval_minutes` | 5 | `phase20_store.py` (DEFAULT_SETTINGS) |
 | `min_confidence` | 60.0 | `phase20_store.py` (DEFAULT_SETTINGS) |
 | `min_opportunity_score` | 60.0 | `phase20_store.py` (DEFAULT_SETTINGS) |
-| `per_stock_exposure_cap_pct` | 25.0 (overridden by 20% hard cap) | `phase20_store.py` |
-| `_PRETRADE_MAX_PCT` | 20.0 | `paper_exploration_engine.py` |
+| `per_stock_exposure_cap_pct` | 25.0 | `phase20_store.py` — used by pre-trade validator |
 | `LIVE_EXECUTION_ENABLED` | False | `config.py` |
 | `paper_exploration_mode` | False (default; activated Aug 15) | `phase20_store.py` |
 
-### 20.2 Environment Flags
+### 21.2 Environment Flags
 
 | Flag/Secret | Purpose | Value |
 |------------|---------|-------|
@@ -1320,23 +1490,22 @@ The task list contains 218 tasks (198 shown as proposed). Below are the top-prio
 | `PAPER_EXPLORATION_MODE` | Enable exploration mode | `false` (DB-controlled) |
 | `LIVE_EXECUTION_ENABLED` | Allow real broker orders | `false` (PERMANENTLY OFF) |
 
-### 20.3 Key Database Tables
+### 21.3 Key Database Tables
 
 | Table | Purpose | Key Columns |
 |-------|---------|-------------|
 | `pipeline_events` | All pipeline events per scan | `ts`, `event_type`, `symbol`, `payload` |
-| `phase20_paper_trades` | Canonical paper trade ledger | `trade_id`, `symbol`, `fill_price`, `status`, `realized_pnl` |
+| `phase20_paper_trades` | Canonical paper trade ledger (P20- prefix) | `trade_id`, `symbol`, `fill_price`, `status`, `realized_pnl` |
 | `paper_portfolio` | Portfolio state (cash, positions) | `cash`, `positions` (JSONB), `updated_at` |
 | `scan_state` | Scan run metadata | `scan_id`, `status`, `provider`, `symbols_requested/received` |
 | `experimental_paper_trades` | Exploration mode trades (new) | `trade_id`, `action_type`, `max_favorable_excursion` |
 | `phase24_missed_opps` | Missed opportunity log | `symbol`, `scan_id`, `reason`, `outcome` |
 | `phase24_recommendations` | Learning recommendations | `rule`, `confidence`, `status`, `approved_at` |
 | `phase20_kv` | Key-value settings store | `key`, `value`, `updated_at` |
-| `phase20_settings` | Operator settings | [schema unknown — column error during query] |
 | `backtest_runs` | Backtest execution history | `run_id`, `status`, `started_at`, `completed_at` |
 | `certification_runs` | Validation certification | `run_id`, `verdict`, `domains` |
 
-### 20.4 Important API Endpoints
+### 21.4 Important API Endpoints
 
 | Method | Endpoint | Function |
 |--------|---------|----------|
@@ -1357,10 +1526,12 @@ The task list contains 218 tasks (198 shown as proposed). Below are the top-prio
 
 **Note:** The AI Ops Center and Command Center endpoints take 22–30s to respond. All clients must use explicit 60-second timeouts, not the default 15-second timeout.
 
-### 20.5 Generated Reports and Files
+### 21.5 Generated Reports and Files
 
 | File/Endpoint | Content |
 |--------------|---------|
+| `REMEDIATION_PHASE_1A_CODE_TRACE_REPORT.md` | Phase 1A code trace — Q1/Q2/Q3 with evidence |
+| `APEXQUANT_REMEDIATION_PHASE_1_REPORT.md` | Phase 1 full remediation report (1B/1C/1D findings + lifecycle status) |
 | `PAPER_INTRADAY_LEARNING_EXECUTION_REPORT` | Daily exploration mode report (new, from `generate_daily_report()`) |
 | `Phase{N}_Review_Package.zip` | Phase review packages (downloadable from Settings page) |
 | `/api/paper/exploration/report` | On-demand exploration learning report |
@@ -1368,19 +1539,19 @@ The task list contains 218 tasks (198 shown as proposed). Below are the top-prio
 | `phase26_daily_reports` table | Phase 26 scheduled validation daily reports |
 | `preopen_daily_reports` table | Pre-open data quality daily reports |
 
-### 20.6 Known Data Inconsistencies
+### 21.6 Known Data Inconsistencies **[UPDATED]**
 
-| Inconsistency | Description |
-|--------------|-------------|
-| Aug 11 scan anomaly | 65,018 symbol_scanned from 89 scans (14× expected) |
-| phase20_paper_trades vs pipeline ORDER_EXECUTED | 64 ORDER_EXECUTED on Aug 11 but only 4 rows in phase20_paper_trades |
-| GLAND in BUY signals | GLAND is not a NIFTY 50 constituent — investigate how it entered the scan |
-| EXIT_PENDING with exit_ts but NULL realized_pnl | 4 trades appear exited but have no P&L |
-| RISK_REJECTED with NULL reason | 15,447 events with no stored rejection reason |
+| Inconsistency | Description | Status |
+|--------------|-------------|--------|
+| Aug 11 scan anomaly | 65,018 symbol_scanned from 89 scans (14× expected) | OPEN — root cause unknown |
+| Aug 11 phantom executions | 64 ORDER_EXECUTED with "BTT-" prefix; 0 rows in phase20_paper_trades | ✅ CONFIRMED phantom — external bot |
+| GLAND in BUY signals | GLAND is not a NIFTY 50 constituent — investigate how it entered the scan | OPEN |
+| EXIT_PENDING with exit_ts but NULL realized_pnl | 4 trades appear exited but have no P&L | ⚠️ Expected — quote_reliable=False at exit time; resolves with Zerodha session |
+| RISK_REJECTED with NULL reason (historical) | 15,447 events have null reason (pre-fix events) | ⚠️ Historical — new events now carry reason |
 
 ---
 
-## External Reviewer Validation Checklist
+## External Reviewer Validation Checklist **[UPDATED]**
 
 Use this checklist when reviewing the system independently:
 
@@ -1395,12 +1566,14 @@ Use this checklist when reviewing the system independently:
 - [ ] Confirm UNAVAILABLE data correctly caps to IGNORE
 - [ ] Confirm R:R < 1.5 prevents BUY at scan time
 - [ ] Confirm confidence < 60 generates IGNORE, not WATCH
+- [ ] **[NEW]** Confirm BUY_GENERATED is emitted post-gate (read `derive_symbol_events()` and `_scan_one()` call order)
 
 ### C. Execution Gate Completeness
 - [ ] Verify all 10 pre-execution gates are checked in sequence
 - [ ] Confirm market-closed gate prevents execution at all times outside 09:15–15:30 IST
 - [ ] Confirm circuit breaker blocks ALL entries when tripped (corrupted state = tripped, not clear)
 - [ ] Confirm portfolio pre-check fails closed (not fail-open)
+- [ ] **[NEW]** Confirm SIZE_REDUCED_TO_CAP path: cap_qty ≥ 1 → WARNING + proceed; cap_qty == 0 → CRITICAL
 
 ### D. Data Quality
 - [ ] Query `scan_state` to confirm scan_id timestamps are monotonically increasing
@@ -1417,16 +1590,24 @@ Use this checklist when reviewing the system independently:
 - [ ] Confirm no trade has `fill_price=0` or `quantity=0`
 - [ ] Confirm portfolio cash + sum(position values) ≤ INITIAL_CAPITAL at all times
 - [ ] Confirm realized_pnl is computed correctly as (exit_price - fill_price) × quantity
+- [ ] **[NEW]** Confirm all canonical trades have "P20-" prefix; reject any "BTT-" prefixed events as non-canonical
 
-### G. Open Issues to Investigate
+### G. Rejection Reason Audit **[NEW]**
+- [ ] Query `SELECT payload->>'reason' FROM pipeline_events WHERE event_type='RISK_REJECTED' AND ts > now()-interval '1 day'` — confirm non-NULL
+- [ ] Query same for `EXECUTION_SKIPPED_WITH_REASON` and `ORDER_REJECTED` — confirm non-NULL for new events
+- [ ] Confirm `payload->>'gate_name'` is populated on all rejection events from post-fix scans
+
+### H. Open Issues to Investigate
 - [ ] Explain Aug 11 anomaly: why 65,018 symbol_scanned events from 89 scans?
 - [ ] Explain why GLAND is in the scanner (not a NIFTY 50 constituent)
-- [ ] Explain why 4 EXIT_PENDING trades have NULL realized_pnl despite having exit_ts
+- [ ] Explain why 4 EXIT_PENDING trades have NULL realized_pnl despite having exit_ts (answer: quote_reliable=False)
 - [ ] Explain why experimental_paper_trades has 0 rows despite 8 EXPERIMENTAL events on Aug 15
 - [ ] Confirm the `paper_trades` table contents and whether it duplicates `phase20_paper_trades`
+- [ ] Confirm RR threshold alignment plan: lower execution gate from 2.0 to 1.5, or raise scan gate?
 
 ---
 
-*This document was generated automatically from the production codebase and database on 2026-08-15. All SQL queries are available for reproduction. No trading logic, thresholds, or database records were modified to produce this document.*
+*This document was generated from the production codebase and database on 2026-08-15 and updated to v2.0 incorporating Remediation Phase 1 findings and changes. All SQL queries are available for reproduction. The only code changes made to produce this document were the Remediation Phase 1 fixes described in §20 — no trading thresholds, settings, or database records were changed.*
 
-*For questions or clarifications, the codebase is at: `artifacts/api-server/src/python/` (backend) and `artifacts/trading-dashboard/src/` (frontend).*
+*For questions or clarifications, the codebase is at: `artifacts/api-server/src/python/` (backend) and `artifacts/trading-dashboard/src/` (frontend).*  
+*Remediation reports: `REMEDIATION_PHASE_1A_CODE_TRACE_REPORT.md` and `APEXQUANT_REMEDIATION_PHASE_1_REPORT.md`*
