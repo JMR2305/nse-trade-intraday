@@ -750,6 +750,18 @@ function ScannerPanel({ scanQ }: { scanQ: ReturnType<typeof useWidgetQuery<ScanS
   });
   const [showHistory, setShowHistory] = useState(false);
 
+  // Derive max gap (minutes) across today's scan history entries.
+  // If the largest gap exceeds 2× the configured cadence a missed scan likely occurred.
+  const maxGapMin = useMemo(() => {
+    const entries = historyQ.data?.history ?? [];
+    const gaps = entries
+      .map((e) => e.gap_from_prev_s)
+      .filter((g): g is number => g != null);
+    if (gaps.length === 0) return null;
+    return Math.max(...gaps) / 60;
+  }, [historyQ.data?.history]);
+  const gapAlert = cadence != null && maxGapMin != null && maxGapMin > cadence * 2;
+
   return (
     <Widget
       title="Live Scanner" icon={Radar} query={scanQ} refreshMs={R.scan} testId="mc-scanner"
@@ -761,6 +773,15 @@ function ScannerPanel({ scanQ }: { scanQ: ReturnType<typeof useWidgetQuery<ScanS
               data-testid="mc-rotation-chip"
             >
               Rotation #{rotation}
+            </span>
+          )}
+          {gapAlert && (
+            <span
+              className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 bg-amber-500/20 border border-amber-500/50 text-[9px] font-semibold text-amber-400"
+              data-testid="mc-scan-gap-badge"
+              title={`Gap between scans (${Math.round(maxGapMin!)}m) exceeds 2× cadence (${cadence}m). A missed scan may have occurred.`}
+            >
+              ⚠ Gap
             </span>
           )}
           {countToday != null && (
