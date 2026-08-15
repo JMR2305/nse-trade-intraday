@@ -495,6 +495,19 @@ export default function OperatorAnalytics() {
 
       {d.ok && (
         <>
+          {d.generated_at && (Date.now() - new Date(d.generated_at).getTime()) > 5 * 60 * 1000 && (
+            <div
+              className="flex items-center gap-2 rounded border border-amber-700 bg-amber-950/40 px-3 py-2 text-xs text-amber-300"
+              data-testid="stale-data-warning"
+            >
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+              <span>
+                Data may be stale — report was generated {fmtTs(d.generated_at)}.
+                Hit <strong>Refresh</strong> to fetch a fresh report.
+              </span>
+            </div>
+          )}
+
           <SourcesBanner sources={d.sources} />
 
           <SectionCard title="Pipeline Funnel & Stage Timing" icon={GitBranch}
