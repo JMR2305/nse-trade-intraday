@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ApexQuant AI — Full Project SOP v4.0</title>
+<title>ApexQuant AI — Full Project SOP v4.1</title>
 <style>
 :root{--navy:#0a1628;--teal:#00b4a6;--teal2:#009688;--bg:#f8fafc;--card:#fff;--border:#e2e8f0;--text:#1e293b;--muted:#64748b;--code-bg:#1e293b;--green:#059669;--amber:#d97706;--red:#dc2626}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -48,17 +48,18 @@ em{color:#059669}
 <body>
 <div class="topbar">
   <span class="logo">ApexQuant AI</span>
-  <span class="badge">v4.0</span>
+  <span class="badge">v4.1</span>
   <span style="color:#94a3b8;font-size:.85rem">Full Project SOP &amp; Second-Opinion Pack</span>
   <span class="meta">Generated 2026-08-15 IST · Paper-only platform · No live orders ever</span>
 </div>
 <div class="wrapper">
 <div class="vbanner">
-  <div><div class="lbl">Document Version</div><div class="val green">v4.0</div></div>
-  <div><div class="lbl">Date</div><div class="val">2026-08-15 IST</div></div>
+  <div><div class="lbl">Document Version</div><div class="val green">v4.1</div></div>
+  <div><div class="lbl">Date</div><div class="val">2026-08-16 IST</div></div>
   <div><div class="lbl">Kite LTP Overlay</div><div class="val green">IMPLEMENTED ✓ VERIFIED ✓</div></div>
-  <div><div class="lbl">Phase 27E Operator Analytics</div><div class="val green">53/53 tests ✓</div></div>
-  <div><div class="lbl">Phase 27F System Readiness</div><div class="val green">68/68 tests ✓</div></div>
+  <div><div class="lbl">KITE_LTP_OVERLAY_ENABLED</div><div class="val green">SET true (shared env)</div></div>
+  <div><div class="lbl">⚠ Gap Badge (Mission Control)</div><div class="val green">SHIPPED — #717 merged</div></div>
+  <div><div class="lbl">Operator Analytics browser</div><div class="val green">CONFIRMED real data — #738 merged</div></div>
   <div><div class="lbl">Overlay Test Suite</div><div class="val green">37/37 tests ✓</div></div>
   <div><div class="lbl">Data Source</div><div class="val amber">yfinance indicators + Kite LTP (exec) — flag off = daily bars only</div></div>
   <div><div class="lbl">Live Orders Ever</div><div class="val green">NEVER</div></div>
@@ -68,11 +69,21 @@ em{color:#059669}
 
 <h1>ApexQuant AI — Full Project SOP &amp; Second-Opinion Pack</h1>
 
-<p><strong>Document version:</strong> 4.0</p>
-<p><strong>Generated:</strong> 2026-08-15 (IST)</p>
+<p><strong>Document version:</strong> 4.1</p>
+<p><strong>Generated:</strong> 2026-08-16 (IST)</p>
 <p><strong>Prepared by:</strong> Replit Agent (automated, read-only except where noted)</p>
 <p><strong>Purpose:</strong> Independent second-opinion review package — complete audit of architecture, behaviour, data, and open problems</p>
 <p><strong>Classification:</strong> Internal review — contains production database statistics</p>
+
+<blockquote><strong>Changelog from v4.0 → v4.1:</strong> Two tasks merged 2026-08-16.
+<br><br>
+<strong>(1) Task #717 — ⚠ Gap badge (Mission Control):</strong> <code>ScannerPanel</code> in <code>MissionControl.tsx</code> now computes <code>maxGapMin</code> from today's <code>/live-data/scan/history</code> entries (30 s cache). When <code>maxGapMin > cadence × 2</code>, an amber ⚠ Gap badge appears in the panel header (<code>data-testid="mc-scan-gap-badge"</code>) with a tooltip showing the exact gap and cadence. Purely frontend — no backend changes. Proposed follow-ons: #750 (Playwright browser test for badge) and #751 (link badge to scan history panel).
+<br><br>
+<strong>(2) Task #738 — Operator Analytics real-data confirmation:</strong> The <code>/operator-analytics</code> page (<code>OperatorAnalytics.tsx</code>) confirmed loading live <code>/operator-analytics/report</code> data in the browser — not just in unit tests. Page shows <code>scan_id</code> (truncated), <code>snapshot_ts</code>, Refresh button, and Retry on error. <code>refetchInterval: 60_000</code>, <code>staleTime: 30_000</code>. Task #749 (IN_PROGRESS) adds a stale-data warning when the cached report is older than 5 minutes.
+<br><br>
+<strong>(3) KITE_LTP_OVERLAY_ENABLED=true set:</strong> Flag enabled in shared environment 2026-08-16. Test regression in <code>test_missing_config_returns_false</code> fixed (import sentinel). 37/37 overlay tests passing.
+<br><br>
+Sections updated: §1.2, §5, §17, §18 (W8), §19. Prior v4.0 changes carried forward.</blockquote>
 
 <blockquote><strong>Changelog from v3.1 → v4.0:</strong> This version incorporates the Kite LTP Overlay (Option A) implementation, Phase 27E Operator Analytics, and Phase 27F System Readiness.
 <br><br>
@@ -157,12 +168,15 @@ Sections added or updated are marked <strong>[UPDATED v4.0]</strong> / <strong>[
 <tr><td>Executed trades (lifetime canonical)</td><td><strong>4 rows in <code>phase20_paper_trades</code></strong> (P20- prefix)</td></tr>
 <tr><td>Universe</td><td>51 NSE symbols (NIFTY 50 + TMPV + TMCV, minus TATAMOTORS)</td></tr>
 <tr><td>Scan coverage</td><td>~50/51 per scan (1 symbol typically missing from Yahoo — likely LTIM)</td></tr>
-<tr><td><strong>Kite LTP Overlay wiring</strong></td><td><strong>DONE (v4.0)</strong> — 37/37 tests; verified safe to enable <strong>[NEW v4.0]</strong></td></tr>
+<tr><td><strong>Kite LTP Overlay wiring</strong></td><td><strong>DONE (v4.0)</strong> — 37/37 tests; verified safe to enable</td></tr>
+<tr><td><strong>KITE_LTP_OVERLAY_ENABLED=true</strong></td><td><strong>SET (v4.1)</strong> — live in shared env 2026-08-16 <strong>[NEW v4.1]</strong></td></tr>
+<tr><td><strong>⚠ Gap badge — Mission Control</strong></td><td><strong>SHIPPED (v4.1)</strong> — Task #717 merged; amber badge when max scan gap &gt; 2× cadence <strong>[NEW v4.1]</strong></td></tr>
+<tr><td><strong>Operator Analytics browser data</strong></td><td><strong>CONFIRMED (v4.1)</strong> — Task #738 merged; real /operator-analytics/report data in browser <strong>[NEW v4.1]</strong></td></tr>
 <tr><td><strong>SIZE_REDUCED_TO_CAP wiring bug</strong></td><td><strong>FIXED (Bug Audit Task 1)</strong></td></tr>
 <tr><td><strong>Pre-trade false CRITICAL rejection</strong></td><td><strong>FIXED (Bug Audit Task 2)</strong></td></tr>
 <tr><td><strong>Scanner threshold mismatch</strong></td><td><strong>FIXED (Bug Audit Task 5)</strong></td></tr>
-<tr><td><strong>Phase 27E Operator Analytics</strong></td><td><strong>DONE (v4.0)</strong> — 53/53 tests <strong>[NEW v4.0]</strong></td></tr>
-<tr><td><strong>Phase 27F System Readiness</strong></td><td><strong>DONE (v4.0)</strong> — 68/68 tests <strong>[NEW v4.0]</strong></td></tr>
+<tr><td><strong>Phase 27E Operator Analytics</strong></td><td><strong>DONE (v4.0)</strong> — 53/53 tests</td></tr>
+<tr><td><strong>Phase 27F System Readiness</strong></td><td><strong>DONE (v4.0)</strong> — 68/68 tests</td></tr>
 </tbody></table>
 
 <h3>1.3 Primary Problem Statement <strong>[UPDATED v4.0]</strong></h3>
@@ -449,10 +463,10 @@ START SCAN TICK (every 5 minutes, 09:15–15:30 IST)
 <table><thead>
 <tr><th>Route</th><th>Component</th><th>Functionality</th></tr>
 </thead><tbody>
-<tr><td><code>/</code></td><td><code>TradeDecisions</code></td><td>Main dashboard — scan results, BUY/WATCH/IGNORE signals, live scan status, Kite LTP source label [UPDATED v4.0]</td></tr>
+<tr><td><code>/</code></td><td><code>TradeDecisions</code></td><td>Main dashboard — scan results, BUY/WATCH/IGNORE signals, live scan status, Kite LTP source label</td></tr>
 <tr><td><code>/ai-paper-trader</code></td><td><code>AIPaperTrader</code></td><td>Paper trade management — open positions, P&amp;L, EXIT_PENDING, execution price source</td></tr>
-<tr><td><code>/mission-control</code></td><td><code>MissionControl</code></td><td>Mission Control — live stream, scan status, alert feed</td></tr>
-<tr><td><code>/live-data-health</code></td><td><code>LiveDataHealth</code></td><td>Data provider health, symbol coverage, LTP overlay status, quality breakdown [UPDATED v4.0]</td></tr>
+<tr><td><code>/mission-control</code></td><td><code>MissionControl</code></td><td>Mission Control — live stream, scan status, alert feed; <strong>⚠ Gap badge</strong> in ScannerPanel header when max scan gap &gt; 2× cadence (<code>data-testid="mc-scan-gap-badge"</code>) <strong>[NEW v4.1]</strong></td></tr>
+<tr><td><code>/live-data-health</code></td><td><code>LiveDataHealth</code></td><td>Data provider health, symbol coverage, LTP overlay status, quality breakdown</td></tr>
 <tr><td><code>/market-intelligence</code></td><td><code>MarketIntelligence</code></td><td>Market regime, sector analysis, opportunity ranking</td></tr>
 </tbody></table>
 
@@ -462,8 +476,8 @@ START SCAN TICK (every 5 minutes, 09:15–15:30 IST)
 <table><thead>
 <tr><th>Route</th><th>Component</th><th>Functionality</th></tr>
 </thead><tbody>
-<tr><td><code>/system-readiness</code></td><td><code>SystemReadiness</code></td><td><strong>[NEW v4.0]</strong> Phase 27F — GO/NO-GO readiness score, 8 check domains, broker overlay status</td></tr>
-<tr><td><code>/operator-analytics</code></td><td><code>OperatorAnalytics</code></td><td><strong>[NEW v4.0]</strong> Phase 27E — operator-level scan/decision/execution analytics</td></tr>
+<tr><td><code>/system-readiness</code></td><td><code>SystemReadiness</code></td><td>Phase 27F — GO/NO-GO readiness score, 8 check domains, broker overlay status</td></tr>
+<tr><td><code>/operator-analytics</code></td><td><code>OperatorAnalytics</code></td><td>Phase 27E — operator-level scan/decision/execution analytics; queries <code>/operator-analytics/report</code> live; <code>refetchInterval: 60 s</code>; stale-data warning pending (Task #749 IN_PROGRESS) <strong>[UPDATED v4.1]</strong></td></tr>
 </tbody></table>
 
 <hr>
@@ -723,24 +737,32 @@ python bt_queue_tick_cmd.py
 
 <h2 id="17-open-and-proposed-tasks--priority-order">17. Open and Proposed Tasks — Priority Order <strong>[UPDATED v4.0]</strong></h2>
 
-<h3>17.1 Resolved in v4.0</h3>
+<h3>17.1 Resolved <strong>[UPDATED v4.1]</strong></h3>
 
 <table><thead>
 <tr><th>Task</th><th>Status</th></tr>
 </thead><tbody>
-<tr><td>Wire Kite LTP overlay into scan path (Option A)</td><td>✅ <strong>DONE (v4.0)</strong> — 37/37 tests; verified; safe to enable</td></tr>
-<tr><td>Phase 27E — Operator Analytics</td><td>✅ <strong>DONE (v4.0)</strong> — 53/53 tests</td></tr>
-<tr><td>Phase 27F — System Readiness</td><td>✅ <strong>DONE (v4.0)</strong> — 68/68 tests</td></tr>
+<tr><td>Wire Kite LTP overlay into scan path (Option A)</td><td>✅ <strong>DONE (v4.0)</strong> — 37/37 tests; verified</td></tr>
+<tr><td>KITE_LTP_OVERLAY_ENABLED=true</td><td>✅ <strong>SET (v4.1)</strong> — live in shared env 2026-08-16</td></tr>
+<tr><td>⚠ Gap badge in ScannerPanel (Task #717)</td><td>✅ <strong>SHIPPED (v4.1)</strong> — merged 2026-08-16; amber badge when max gap &gt; 2× cadence</td></tr>
+<tr><td>Operator Analytics real data in browser (Task #738)</td><td>✅ <strong>CONFIRMED (v4.1)</strong> — merged 2026-08-16; live endpoint + Retry button verified</td></tr>
+<tr><td>Phase 27E — Operator Analytics</td><td>✅ DONE (v4.0) — 53/53 tests</td></tr>
+<tr><td>Phase 27F — System Readiness</td><td>✅ DONE (v4.0) — 68/68 tests</td></tr>
 <tr><td>SIZE_REDUCED_TO_CAP wiring (Bug Audit Task 1)</td><td>✅ DONE (v3.1)</td></tr>
 <tr><td>Pre-trade false CRITICAL rejection (Bug Audit Task 2)</td><td>✅ DONE (v3.1)</td></tr>
 <tr><td>Scanner threshold alignment (Bug Audit Task 5)</td><td>✅ DONE (v3.1)</td></tr>
 </tbody></table>
 
-<h3>17.2 Critical Open</h3>
+<h3>17.2 In Progress / Next Up <strong>[UPDATED v4.1]</strong></h3>
 
 <table><thead>
 <tr><th>#</th><th>Task</th><th>Priority</th></tr>
 </thead><tbody>
+<tr><td>#749</td><td>Show stale-data warning on Operator Analytics when cached report &gt; 5 min old</td><td>🔴 IN PROGRESS</td></tr>
+<tr><td>#750</td><td>Playwright browser test confirming ⚠ Gap badge appears/disappears correctly</td><td>🟡 PROPOSED</td></tr>
+<tr><td>#751</td><td>Make ⚠ Gap badge link directly to scan history panel (one-click investigation)</td><td>🟡 PROPOSED</td></tr>
+<tr><td>#752</td><td>Confirm stale-data warning appears/disappears correctly in browser</td><td>🟡 PROPOSED</td></tr>
+<tr><td>#753</td><td>Let operators manually set the stale-data threshold (tunable warning)</td><td>🟡 PROPOSED</td></tr>
 <tr><td>—</td><td>Align RR threshold: scan gate 1.5 vs execution gate 2.0</td><td>🔴 Phase 2</td></tr>
 <tr><td>—</td><td>Fix exploration mode <code>experimental_paper_trades</code> silent DB insert failure</td><td>🔴 P1</td></tr>
 <tr><td>#659</td><td>Prevent paper-mode SELL orders failing when no position exists</td><td>🔴 P1</td></tr>
@@ -779,7 +801,7 @@ python bt_queue_tick_cmd.py
 <tr><td>W5</td><td>EXECUTION_SKIPPED reason not stored</td><td>MEDIUM</td><td>✅ RESOLVED (Remediation Phase 1C)</td></tr>
 <tr><td>W6</td><td>Exit code complete but blocked — all positions EXIT_PENDING</td><td>HIGH</td><td>✅ <strong>RESOLVED (v4.0)</strong> — Kite LTP overlay makes quote_reliable=True; EXIT_PENDING can resolve</td></tr>
 <tr><td>W7</td><td>Scanner runs post-market — misleads operators about signals</td><td>MEDIUM</td><td>❌ OPEN — UI banner recommended</td></tr>
-<tr><td>W8</td><td>Aug 11 scan-loop runaway — 88 scans, up to 5/minute</td><td>MEDIUM</td><td>❌ OPEN — root cause not fixed; watchdog not yet added</td></tr>
+<tr><td>W8</td><td>Aug 11 scan-loop runaway — 88 scans, up to 5/minute</td><td>MEDIUM</td><td>⚠️ PARTIAL — ⚠ Gap badge now visible in Mission Control when gap &gt; 2× cadence (Task #717); root cause of Aug 11 runaway + automated kill-switch still open <strong>[UPDATED v4.1]</strong></td></tr>
 <tr><td>W9</td><td>EXIT_PENDING positions had no realized P&amp;L</td><td>MEDIUM</td><td>✅ <strong>RESOLVED (v4.0)</strong> — will populate on next scan with overlay enabled</td></tr>
 <tr><td>W10</td><td>Exploration mode experimental_paper_trades empty despite events</td><td>HIGH</td><td>❌ OPEN — silent insert failure</td></tr>
 <tr><td>W11</td><td>R:R threshold misalignment — scan 1.5 vs execution 2.0</td><td>HIGH</td><td>❌ OPEN — deferred to Phase 2</td></tr>
@@ -818,16 +840,19 @@ python bt_queue_tick_cmd.py
 <tr><td>Log in via Kite Connect page before 09:15 IST</td><td>🔴 REQUIRED for LTP overlay to activate</td></tr>
 </tbody></table>
 
-<h3>Week 1 (Days 1–7)</h3>
+<h3>Week 1 (Days 1–7) <strong>[UPDATED v4.1]</strong></h3>
 
 <table><thead>
 <tr><th>Action</th><th>Expected Outcome</th></tr>
 </thead><tbody>
 <tr><td>✅ DONE — Kite LTP overlay (Option A)</td><td>EXIT_PENDING resolve; live execution prices</td></tr>
-<tr><td>✅ DONE — Phase 27E Operator Analytics</td><td>Operator behaviour visibility</td></tr>
+<tr><td>✅ DONE — KITE_LTP_OVERLAY_ENABLED=true set</td><td>Flag live in shared env; active on next market scan</td></tr>
+<tr><td>✅ DONE — Phase 27E Operator Analytics</td><td>Operator behaviour visibility; real data confirmed in browser</td></tr>
 <tr><td>✅ DONE — Phase 27F System Readiness</td><td>GO/NO-GO readiness score</td></tr>
+<tr><td>✅ DONE — ⚠ Gap badge (Mission Control, Task #717)</td><td>Operators see amber badge when scan cadence slips</td></tr>
+<tr><td>🔴 IN PROGRESS — Stale-data warning on Operator Analytics (Task #749)</td><td>Operators know when analytics cache is &gt;5 min stale</td></tr>
 <tr><td>🔴 Fix exploration mode DB insert failure</td><td>First experimental trades in table</td></tr>
-<tr><td>🟡 Add scan-loop watchdog (alert if &gt;2 scans/minute)</td><td>Prevent Aug 11 recurrence</td></tr>
+<tr><td>🟡 Gap badge → scan history link (Task #751)</td><td>One-click investigation of overdue scans</td></tr>
 </tbody></table>
 
 <h3>Week 2 (Days 8–14)</h3>
@@ -1117,7 +1142,7 @@ KITE_LTP_OVERLAY_ENABLED=true
 
 <hr>
 
-<p><em>Document version 4.0. Generated 2026-08-15 IST. All DB figures queried directly from production <code>pipeline_events</code> and <code>phase20_paper_trades</code>. All code claims verified against the live codebase. No values fabricated. The Kite LTP overlay (Option A) was implemented and independently verified in this version — see §23 for the complete implementation record and §APEXQUANT_KITE_LTP_OVERLAY_VERIFICATION_REPORT.md for the verification report. Paper only — no live orders.</em></p>
+<p><em>Document version 4.1. Generated 2026-08-16 IST. All DB figures queried directly from production <code>pipeline_events</code> and <code>phase20_paper_trades</code>. All code claims verified against the live codebase. No values fabricated. The Kite LTP overlay (Option A) was implemented and independently verified in this version — see §23 for the complete implementation record and §APEXQUANT_KITE_LTP_OVERLAY_VERIFICATION_REPORT.md for the verification report. Paper only — no live orders.</em></p>
 
 </div>
 </body>
