@@ -162,6 +162,18 @@ def collect_inputs() -> Dict[str, Any]:
             "DATABASE_URL_present": bool(os.environ.get("DATABASE_URL")),
         }
 
+    def _kite_ltp_overlay():
+        try:
+            from kite_ltp_overlay import is_overlay_enabled
+            return {
+                "enabled": is_overlay_enabled(),
+                "note": ("Daily indicators + Kite live LTP overlay"
+                         if is_overlay_enabled()
+                         else "Daily-bar research mode, not true intraday LTP mode"),
+            }
+        except Exception as exc:
+            return {"enabled": False, "error": str(exc)[:200]}
+
     def _paper_mode():
         import config
         # Explicit boolean required — an absent or non-boolean attribute is
@@ -182,6 +194,7 @@ def collect_inputs() -> Dict[str, Any]:
     _try("pipeline", _last_event_ts)
     _try("env_flags", _env_flags)
     _try("paper_mode", _paper_mode)
+    _try("kite_ltp_overlay", _kite_ltp_overlay)
     return out
 
 
@@ -304,32 +317,60 @@ def check_market_data(inputs: Dict[str, Any],
 def check_broker(inputs: Dict[str, Any]) -> List[Dict[str, Any]]:
     dom = "Broker & Authentication"
     br = inputs.get("broker")
+
+    # Task 8: Kite LTP overlay context — affects remediation wording.
+    _ltp_overlay = inputs.get("kite_ltp_overlay") or {}
+    _ltp_enabled = bool(_ltp_overlay.get("enabled"))
+    _market_open_now = _market_open(inputs)
+    _overlay_missing_during_hours = _ltp_enabled and _market_open_now
+
     if br is None:
+        rem = ("Check the Kite Connect page; the session manager "
+               "could not report a state.")
+        if _overlay_missing_during_hours:
+            rem += (" KITE_LTP_OVERLAY_ENABLED=true but session unavailable "
+                    "during market hours — paper exits will use yfinance daily "
+                    "close instead of live LTP.")
         return [_unavailable(
             "broker_session", dom, "Zerodha Kite session",
             blocking=False, expected="coherent session state",
             error=inputs["_errors"].get("broker"),
-            remediation="Check the Kite Connect page; the session manager "
-                        "could not report a state.")]
+            remediation=rem)]
+
     state = str(br.get("connection_state") or "").upper()
     evidence = {"connection_state": state,
                 "token_status": br.get("token_status"),
                 "probe_source": br.get("probe_source"),
-                "last_success_at": br.get("last_success_at")}
+                "last_success_at": br.get("last_success_at"),
+                "kite_ltp_overlay_enabled": _ltp_enabled,
+                "kite_ltp_overlay_note": _ltp_overlay.get("note")}
+
     # Paper trading never requires a broker session — broker checks are
-    # non-blocking, mirroring phase26 recovery's classification.
+    # non-blocking. But when KITE_LTP_OVERLAY_ENABLED=true and the market is
+    # open, an unavailable session means paper exits revert to yfinance daily
+    # close → surface as WARNING (never READY) during market hours.
     if state == "CONNECTED":
-        status, actual, rem = READY, "authenticated probe succeeded", ""
+        actual = "authenticated probe succeeded"
+        if _ltp_enabled:
+            actual += " — Kite live LTP overlay active"
+        status, rem = READY, ""
     elif state in ("LOGIN_REQUIRED", "TOKEN_EXPIRED", "NOT_CONFIGURED"):
         status = WARNING
         actual = f"{state} — expected outside a logged-in trading day"
         rem = ("Use Login with Zerodha (Kite Connect page) before the "
                "session if live quotes are wanted; paper trading continues "
                "on the fallback provider chain.")
+        if _overlay_missing_during_hours:
+            rem += (" KITE_LTP_OVERLAY_ENABLED=true — paper exits will use "
+                    "yfinance daily close instead of live LTP until Kite "
+                    "session is restored.")
     elif state in ("API_ERROR", "AUTH_FAILED"):
         status = WARNING
         actual = f"{state} — last probe/authentication failed"
         rem = "Re-login on the Kite Connect page and re-check."
+        if _overlay_missing_during_hours:
+            rem += (" KITE_LTP_OVERLAY_ENABLED=true — live LTP overlay "
+                    "will not activate until session is restored.")
     else:
         status, actual = UNKNOWN, f"unrecognised state '{state}'"
         rem = "Inspect /api/kite/status."

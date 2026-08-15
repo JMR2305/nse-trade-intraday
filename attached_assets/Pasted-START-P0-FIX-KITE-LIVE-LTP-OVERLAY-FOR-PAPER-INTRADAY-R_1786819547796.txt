@@ -1,0 +1,232 @@
+START P0 FIX — KITE LIVE LTP OVERLAY FOR PAPER INTRADAY RELIABILITY
+
+Use these controlling documents:
+1. APEXQUANT_SOURCE_CODE_BUG_AUDIT_AND_FIX_REPORT.md
+2. PHASE27_EF_FINAL_VERIFICATION.md
+
+Context:
+Phase 27E and 27F are complete and passed. They added Operator Analytics and System Readiness, with 151/151 tests passing, but they are read-only/advisory dashboards. They do not fix the core data-path problem.
+
+Current confirmed problem:
+The scan engine still uses LiveDataProvider only.
+LiveDataProvider uses yfinance only.
+SCAN_INTERVAL is 1d daily bars.
+Kite/Zerodha is not used in the scan path.
+Therefore ApexQuant AI is still not a true intraday paper-trading system.
+
+Do not enable live orders.
+Do not call Zerodha order placement APIs.
+Do not change BUY/WATCH thresholds.
+Do not change strategy logic.
+Do not add new dashboards.
+PAPER ONLY.
+
+GOAL:
+Wire Zerodha/Kite live LTP into the paper scan and paper exit path so current price, quote reliability, and exit checks can use live NSE price during market hours.
+
+IMPORTANT:
+This is Option A only:
+Daily indicators + Kite live LTP overlay.
+
+Do NOT claim full 5m/15m intraday candle strategy yet.
+Do NOT replace indicator OHLCV with Kite candles in this phase.
+Do NOT change backtest calibration.
+Do NOT change strategy thresholds.
+
+TASK 1 — FEATURE FLAG
+
+Add feature flag:
+
+KITE_LTP_OVERLAY_ENABLED=true/false
+
+Default:
+false unless explicitly enabled in environment/settings.
+
+When disabled:
+System behavior remains exactly as today.
+
+When enabled:
+Kite LTP overlay is attempted only during market hours and only when Kite session is verified.
+
+TASK 2 — SCAN DATA PATH OVERLAY
+
+In the live scan flow, after yfinance OHLCV daily data is fetched and before final scan snapshot is published:
+
+For each scanned symbol:
+- keep OHLCV indicator source as yfinance_daily_bars
+- fetch current live LTP from kite_quote_provider if Kite session is verified
+- if Kite LTP is available:
+  - set current_price / last_price used for paper execution display to Kite LTP
+  - set current_price_source = kite_live_ltp
+  - set execution_price_source = kite_live_ltp
+  - set quote_reliable = true
+  - set data_quality = LIVE for current-price/execution purposes
+  - set latest_price_time_IST if available
+  - preserve indicator_source = yfinance_daily_bars
+  - preserve ohlcv_source = yfinance_daily_bars
+- if Kite LTP is not available:
+  - fall back to existing yfinance daily value
+  - quote_reliable should remain based on current data-quality rules
+  - record reason_not_live_ltp
+
+The UI and payload must clearly show:
+“Daily indicators + Kite live LTP overlay”
+
+It must NOT show:
+“Full intraday candle strategy”
+
+TASK 3 — PAPER EXECUTION PRICE
+
+When KITE_LTP_OVERLAY_ENABLED=true and Kite LTP is available:
+
+Paper BUY fill price should use Kite LTP, not yesterday’s yfinance daily close.
+
+Record in trade evidence:
+- signal_price_from_daily_bar
+- execution_price_from_kite_ltp
+- indicator_source
+- execution_price_source
+- kite_ltp_overlay_enabled
+- kite_ltp_timestamp
+- quote_reliable
+
+No real broker order should be placed.
+
+TASK 4 — PAPER EXIT PRICE
+
+Update paper exit checks to use Kite LTP when available:
+
+- TARGET_HIT
+- STOP_LOSS_HIT
+- TRAILING_STOP
+- MARKET_CLOSE_EXIT
+- EXIT_PENDING resolution
+
+When Kite LTP is available:
+- quote_reliable = true
+- fill exit at Kite LTP in paper mode
+- compute realized_pnl
+- update paper ledger correctly
+
+When Kite LTP is not available:
+- keep existing safe behavior
+- do not fabricate fill price
+- keep EXIT_PENDING if reliable quote is unavailable
+
+TASK 5 — OPEN POSITION RESOLUTION
+
+Check the existing 4 open paper positions that are EXIT_PENDING / STALE_DATA_SAFETY.
+
+With Kite LTP overlay enabled:
+- attempt exit manager using live Kite LTP
+- if target/stop/time/market-close rule applies, close the position in paper ledger
+- write realized_pnl
+- emit clear exit event
+
+Do not force-close positions without a valid exit rule.
+
+TASK 6 — DIAGNOSTICS PER SYMBOL
+
+Add per-symbol diagnostic fields to SYMBOL_SCANNED or equivalent scan diagnostics:
+
+- symbol
+- indicator_source
+- ohlcv_source
+- current_price_source
+- execution_price_source
+- yfinance_latest_date
+- yfinance_age_days
+- yfinance_last_close
+- kite_ltp
+- kite_ltp_available true/false
+- kite_session_verified true/false
+- final_current_price_used
+- quote_reliable true/false
+- data_quality_for_indicators
+- data_quality_for_execution
+- reason_not_live_ltp
+
+TASK 7 — UI LABELS
+
+Update relevant pages only if already displaying source/price info:
+
+- Trade Decisions
+- AI Paper Trader
+- Mission Control
+- Live Data Health
+- System Readiness
+- Operator Analytics if it reads these fields
+
+Show clear labels:
+- Indicator source: yfinance daily bars
+- Current price source: Kite live LTP, if available
+- Execution price source: Kite live LTP, if available
+- Mode: PAPER ONLY
+
+Do not create new pages.
+
+TASK 8 — READINESS CHECK UPDATE
+
+Update System Readiness so:
+
+If KITE_LTP_OVERLAY_ENABLED=true but Kite session is unavailable during market hours:
+- Market/Data or Broker domain should show WARNING or BLOCKED depending on whether paper execution depends on live LTP.
+- It must not show READY if live LTP overlay is required and unavailable.
+
+If KITE_LTP_OVERLAY_ENABLED=false:
+- System can still be READY for daily-bar paper research mode, but label should say:
+  “Daily-bar research mode, not true intraday LTP mode.”
+
+TASK 9 — TESTS
+
+Add or update tests for:
+
+1. Feature flag disabled:
+- behavior unchanged
+- yfinance daily source remains active
+- no Kite calls required
+
+2. Feature flag enabled + Kite session available:
+- Kite LTP fetched
+- current_price uses Kite LTP
+- execution price uses Kite LTP
+- indicator_source remains yfinance_daily_bars
+- quote_reliable true
+
+3. Feature flag enabled + Kite session unavailable:
+- fallback is safe
+- reason_not_live_ltp populated
+- no fake live price
+- no crash
+
+4. Paper BUY:
+- paper fill uses Kite LTP when available
+- trade evidence records daily signal price and Kite execution price separately
+
+5. Paper EXIT:
+- target/stop/trailing/market-close exits use Kite LTP when available
+- realized_pnl is computed
+- EXIT_PENDING positions can resolve only with reliable quote
+
+6. Safety:
+- LIVE_EXECUTION_ENABLED remains false
+- no broker order API called
+- no real order placement path touched
+
+TASK 10 — FINAL REPORT
+
+Generate:
+
+APEXQUANT_KITE_LTP_OVERLAY_IMPLEMENTATION_REPORT.md
+
+Include:
+1. Files changed.
+2. Feature flag name and default.
+3. Exact before/after data path.
+4. Proof that yfinance daily bars still drive indicators.
+5. Proof that Kite LTP now drives current price / paper execution when enabled.
+6. Proof that no live orders are enabled.
+7. DRREDDY and TMPV example showing current_price_source.
+8. Result of open EXIT_PENDING position check.
+9. Test results.
+10. Remaining gap: true 5m/15m Kite intraday candle strategy still pending.

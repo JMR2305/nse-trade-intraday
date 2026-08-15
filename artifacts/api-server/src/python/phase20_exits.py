@@ -88,10 +88,21 @@ def manage_open_positions(settings: Dict[str, Any]) -> Dict[str, Any]:
         target = float(trade.get("target") or 0)
         rec = symbols_ctx.get(sym) or {}
 
-        quote = float(rec.get("entry_price") or 0)  # latest scanned price
+        quote = float(rec.get("entry_price") or 0)  # yfinance daily close (baseline)
         dq = str(rec.get("data_quality") or "").upper()
         quote_reliable = (scan_ok and not stale and quote > 0
                           and dq in ("LIVE", "NEAR_LIVE") and not rec.get("error"))
+
+        # ── Task 4: Kite LTP overlay — use live LTP for exit price ───────────
+        # When the scan engine ran with KITE_LTP_OVERLAY_ENABLED=true and
+        # Kite LTP is available in the snapshot, use it as the exit quote.
+        # quote_reliable becomes True since LTP is a live verified price.
+        _kite_ltp_for_exit = float(rec.get("kite_ltp") or 0)
+        if (rec.get("kite_ltp_available")
+                and _kite_ltp_for_exit > 0
+                and rec.get("quote_reliable")):
+            quote = _kite_ltp_for_exit
+            quote_reliable = True
 
         # Decide which rule (if any) wants an exit.
         rule: Optional[str] = None
@@ -258,8 +269,15 @@ def _retry_pending(symbols_ctx: Dict[str, Any], scan_ok: bool, stale: bool,
             continue
         sym = str(trade.get("symbol") or "").upper()
         rec = symbols_ctx.get(sym) or {}
-        quote = float(rec.get("entry_price") or 0)
+        quote = float(rec.get("entry_price") or 0)  # yfinance daily close (baseline)
         dq = str(rec.get("data_quality") or "").upper()
+        # Task 4: Kite LTP overlay — use live LTP for pending exit resolution
+        _kite_ltp_retry = float(rec.get("kite_ltp") or 0)
+        if (rec.get("kite_ltp_available")
+                and _kite_ltp_retry > 0
+                and rec.get("quote_reliable")):
+            quote = _kite_ltp_retry
+            dq = "LIVE"   # treat as LIVE for the eligibility check below
         if not (quote > 0 and dq in ("LIVE", "NEAR_LIVE") and not rec.get("error")):
             continue
         qty = int(trade.get("quantity") or 0)

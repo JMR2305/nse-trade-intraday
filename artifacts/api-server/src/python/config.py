@@ -126,9 +126,19 @@ DEFAULT_WATCHLIST: list[str] = [
     "SBIN", "WIPRO", "LT", "BAJFINANCE", "MARUTI",
 ]
 
-# ── Zerodha integration (future) ──────────────────────────────────────────────
+# ── Zerodha integration ───────────────────────────────────────────────────────
+import os as _os
 
 ZERODHA_ENABLED: bool = False
 ZERODHA_API_KEY: str = ""
 ZERODHA_API_SECRET: str = ""
-PAPER_TRADING_MODE: bool = True     # always True until Zerodha is wired
+PAPER_TRADING_MODE: bool = True     # always True — no live orders ever
+
+# ── Kite LTP overlay (Option A) ───────────────────────────────────────────────
+# When true: daily yfinance OHLCV drives all indicators; Kite live LTP overlays
+# current_price / execution_price only, during market hours with a verified
+# Kite session.  Falls back to yfinance daily close if Kite is unavailable.
+# Default false so existing behaviour is unchanged unless explicitly enabled.
+KITE_LTP_OVERLAY_ENABLED: bool = (
+    _os.getenv("KITE_LTP_OVERLAY_ENABLED", "false").lower() == "true"
+)

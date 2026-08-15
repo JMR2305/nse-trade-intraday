@@ -111,3 +111,4 @@
 - [Backtest scheduler cold-start fix](backtest-scheduler-coldstart.md) — bt_queue_tick_cmd.py is the lightweight scheduler tick (116ms cold); never use main.py for scheduler ticks; scan is 93% of replay time (370s floor for 5-sym 15m 30d).
 - [TATAMOTORS demerger mapping](tatamotors-demerger-mapping.md) — TATAMOTORS.NS is dead; use TMPV+TMCV; NIFTY_50 is now 51; _meta(50) tests must become _meta(MIN_SYMBOLS_EXPECTED).
 - [Phase 27E/27F test conventions](phase27ef-tests.md) — frontend vitest needs PORT=9999 BASE_PATH=/trading-dashboard/; Python check_* fns are pure (inject inputs dict directly, no patching needed for most).
+- [Kite LTP overlay (Option A)](kite-ltp-overlay.md) — KITE_LTP_OVERLAY_ENABLED flag; overlays current_price/execution_price only; indicators always yfinance_daily_bars; kite_ltp_overlay.py is the single source; 37/37 tests.

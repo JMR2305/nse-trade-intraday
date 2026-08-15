@@ -170,6 +170,24 @@ class Phase7Recommendation:
     # ── Advisory display fields — NEVER affect BUY/SELL decisions ──────────────
     strategy_performance_score: float = 0.0  # clearer alias for technical_score (same value)
     indicator_score: float = 0.0             # RSI/ADX/EMA/volume composite (display only)
+    # ── Kite LTP overlay fields (Task 2 — KITE_LTP_OVERLAY_ENABLED) ───────────
+    # Set AFTER _scan_one() by the overlay loop in run_live_scan().
+    # NEVER affect indicator computation or strategy decisions.
+    # indicator_source and ohlcv_source are ALWAYS yfinance_daily_bars.
+    kite_ltp: Optional[float] = None
+    kite_ltp_available: bool = False
+    kite_session_verified_flag: bool = False
+    kite_ltp_overlay_enabled: bool = False
+    current_price_source: str = "yfinance_daily_bars"
+    execution_price_source: str = "yfinance_daily_bars"
+    quote_reliable: bool = False
+    indicator_source: str = "yfinance_daily_bars"
+    ohlcv_source: str = "yfinance_daily_bars"
+    yfinance_last_close: Optional[float] = None
+    data_quality_for_indicators: str = ""
+    data_quality_for_execution: str = ""
+    reason_not_live_ltp: Optional[str] = None
+    latest_price_time_ist: Optional[str] = None
 
 
 # ── Canonical scan ────────────────────────────────────────────────────────────
@@ -728,6 +746,40 @@ def run_live_scan(
 
     analysis_s = round(time.monotonic() - t_analysis0, 2)
 
+    # ── Phase 2B: Kite LTP overlay (KITE_LTP_OVERLAY_ENABLED — Option A) ─────
+    # Fetch live LTP once for all symbols in one bulk call AFTER yfinance
+    # analysis. Overlays current_price / execution_price fields only.
+    # Indicators / OHLCV always remain yfinance_daily_bars (never changed).
+    t_ltp0 = time.monotonic()
+    try:
+        from kite_ltp_overlay import (fetch_ltp_overlay, build_symbol_overlay,
+                                      apply_overlay_to_rec)
+        _ltp_result = fetch_ltp_overlay([r.symbol for r in recs])
+        for r in recs:
+            _ov = build_symbol_overlay(
+                r.symbol,
+                yfinance_close=float(r.entry_price),
+                yfinance_data_quality=str(r.data_quality),
+                overlay_result=_ltp_result,
+            )
+            apply_overlay_to_rec(r, _ov)
+        _ltp_note = _ltp_result.get("note", "")
+        _ltp_session_ok = _ltp_result.get("session_verified", False)
+        _ltp_enabled = _ltp_result.get("enabled", False)
+    except Exception as _ltp_exc:
+        _ltp_note = f"LTP overlay skipped: {_ltp_exc!s:.100}"
+        _ltp_session_ok = False
+        _ltp_enabled = False
+        # Fill defaults for every rec so the fields are always present
+        for r in recs:
+            if not r.data_quality_for_indicators:
+                r.data_quality_for_indicators = str(r.data_quality)
+            if not r.data_quality_for_execution:
+                r.data_quality_for_execution = str(r.data_quality)
+            if r.yfinance_last_close is None:
+                r.yfinance_last_close = round(float(r.entry_price), 2)
+    ltp_overlay_s = round(time.monotonic() - t_ltp0, 2)
+
     # Phase 23: per-symbol pipeline events derived from each recommendation —
     # one batch insert (never 50 round-trips), emitted from the authoritative
     # scan result itself so counts can never diverge from the scan.
@@ -824,7 +876,17 @@ def run_live_scan(
         "kite_connected": _kite_live,
         "data_provider": _provider_label,
         "ohlcv_source": "yfinance (historical)",
+        "indicator_source": "yfinance_daily_bars",
         "live_quote_source": "Kite Connect (LTP overlay)" if _kite_live else "Not configured",
+        # Kite LTP overlay status (Option A)
+        "kite_ltp_overlay_enabled": _ltp_enabled,
+        "kite_ltp_session_verified": _ltp_session_ok,
+        "kite_ltp_overlay_note": _ltp_note,
+        "mode_label": (
+            "Daily indicators + Kite live LTP overlay"
+            if (_ltp_enabled and _ltp_session_ok)
+            else "Daily-bar research mode, not true intraday LTP mode"
+        ),
         "note": "Phase 7 is paper trading and research only. No real broker API "
                 "is called. No real money is at risk. Meta-Learning and Strategy "
                 "Evolution findings do not affect live decisions unless a future "
@@ -843,6 +905,7 @@ def run_live_scan(
     timings: Dict[str, Any] = {
         "fetch_s": fetch_s,
         "analysis_s": analysis_s,
+        "ltp_overlay_s": ltp_overlay_s,
         "provider_auth_s": auth_s,
         "total_scan_s": duration_s,
         "symbols": len(universe),

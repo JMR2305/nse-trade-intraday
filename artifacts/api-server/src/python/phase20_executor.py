@@ -355,6 +355,15 @@ def _build_row(trade_id: str, scan_id: Optional[str], snapshot_ts: Optional[str]
             "sizing": sizing,
             "recommendation": candidate.get("recommendation"),
             "expected_holding_days": candidate.get("expected_holding_days"),
+            # ── Task 3: Kite LTP overlay provenance ──────────────────────────
+            "kite_ltp_overlay_enabled": _kite_ltp_overlay_active,
+            "indicator_source": candidate.get("indicator_source", "yfinance_daily_bars"),
+            "ohlcv_source": candidate.get("ohlcv_source", "yfinance_daily_bars"),
+            "signal_price_from_daily_bar": _signal_price_from_daily,
+            "execution_price_from_kite_ltp": _kite_ltp_used,
+            "execution_price_source": candidate.get("execution_price_source", "yfinance_daily_bars"),
+            "kite_ltp_timestamp": candidate.get("latest_price_time_ist"),
+            "quote_reliable": candidate.get("quote_reliable", False),
         },
         "recomputed": False,
     }
@@ -371,7 +380,29 @@ def create_paper_entry(candidate: Dict[str, Any], settings: Dict[str, Any],
     sym = str(candidate["symbol"]).upper()
     sizing = candidate.get("sizing") or {}
     qty = int(sizing.get("quantity") or 0)
-    signal_price = float(sizing.get("entry_price") or 0)
+    signal_price = float(sizing.get("entry_price") or 0)   # yfinance daily close
+
+    # ── Task 3: Kite LTP overlay — use live LTP as execution price ────────────
+    # When KITE_LTP_OVERLAY_ENABLED=true and Kite LTP is available in the
+    # candidate (set by the scan engine overlay loop), use it as the fill
+    # base price. The daily-bar signal_price is still recorded separately
+    # in evidence so the trade record is fully auditable.
+    _signal_price_from_daily = signal_price   # always record the daily-bar price
+    _kite_ltp_used: Optional[float] = None
+    _kite_ltp_overlay_active = False
+    try:
+        from kite_ltp_overlay import is_overlay_enabled
+        if (is_overlay_enabled()
+                and candidate.get("kite_ltp_available")
+                and candidate.get("execution_price_source") == "kite_live_ltp"):
+            _kite_ltp = float(candidate.get("kite_ltp") or 0)
+            if _kite_ltp > 0:
+                signal_price = _kite_ltp
+                _kite_ltp_used = _kite_ltp
+                _kite_ltp_overlay_active = True
+    except Exception:
+        pass  # silently fall back to daily-bar price
+
     if qty < 1 or signal_price <= 0:
         return {"created": False, "symbol": sym, "reason": "Invalid sizing"}
 
