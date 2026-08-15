@@ -267,3 +267,113 @@ test.describe("Mission Map — 375 px phone horizontal scroll", () => {
     ).toBe(true);
   });
 });
+
+// ── 320 px viewport — label truncation inside stage boxes ────────────────────
+//
+// Task 741 — at a very narrow 320 px viewport (smallest common phone width,
+// e.g. older Android devices) the label <p> inside each stage box must be
+// contained within the box.  The CSS classes
+//   whitespace-nowrap overflow-hidden text-ellipsis
+// are responsible for this.  We verify that label.scrollWidth ≤ box.clientWidth
+// for a stage whose label is long enough to naturally exceed any reasonable
+// fixed minimum width, confirming that truncation (not invisible overflow) is
+// what keeps the box readable.
+
+/**
+ * A label that is intentionally much longer than 82 px so that even at the
+ * smallest plausible font rendering it will overflow an unconstrained element.
+ * Using this label exercises the overflow-hidden clipping path of the CSS.
+ */
+const TRUNCATION_LABEL_STAGE = {
+  id: "TRUNCATION_TEST_STAGE",
+  label: "Extremely Long Pipeline Stage Label That Must Be Truncated",
+  order: 1,
+  stocks_in: 50,
+  stocks_out: 45,
+  rejected: 5,
+  pending: 0,
+  cancelled: 0,
+  duration_ms: 1200,
+  status: "COMPLETED",
+};
+
+const MOCK_REPLAY_TRUNCATION = {
+  scan_id: "test-truncation-320",
+  snapshot_ts: new Date().toISOString(),
+  stages: [TRUNCATION_LABEL_STAGE],
+};
+
+test.describe("Mission Map — 320 px viewport label truncation", () => {
+  test.use({ viewport: { width: 320, height: 568 } });
+
+  test.beforeEach(async ({ page }) => {
+    // Silence every /api/* request by default.
+    await page.route("**/api/**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ status: "DISABLED" }),
+      }),
+    );
+    // Serve the truncation-label snapshot (LIFO precedence over the catch-all).
+    await page.route("**/api/replay/sessions/latest**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(MOCK_REPLAY_TRUNCATION),
+      }),
+    );
+  });
+
+  test("label scrollWidth does not exceed stage box width at 320 px (truncation applied, not overflow)", async ({
+    page,
+  }) => {
+    await gotoMissionControlFull(page);
+
+    const stageTestId = `mc-map-stage-${TRUNCATION_LABEL_STAGE.id.toLowerCase()}`;
+    const box = page.getByTestId(stageTestId);
+    await expect(box).toBeAttached({ timeout: 15_000 });
+
+    // The label <p> is the first child of the stage box.  We evaluate both
+    // the box's clientWidth and the label's scrollWidth in a single browser
+    // call to avoid race conditions between two separate evaluations.
+    const { boxClientWidth, labelScrollWidth } = await box.evaluate((boxEl) => {
+      const labelEl = boxEl.querySelector("p");
+      return {
+        boxClientWidth: boxEl.clientWidth,
+        labelScrollWidth: labelEl ? labelEl.scrollWidth : 0,
+      };
+    });
+
+    expect(
+      labelScrollWidth,
+      `Label scrollWidth (${labelScrollWidth}px) must not exceed stage box clientWidth (${boxClientWidth}px) — overflow-hidden should clip, not leak`,
+    ).toBeLessThanOrEqual(boxClientWidth);
+  });
+
+  test("stage box is present and visible at 320 px with a truncated label", async ({
+    page,
+  }) => {
+    await gotoMissionControlFull(page);
+
+    const stageTestId = `mc-map-stage-${TRUNCATION_LABEL_STAGE.id.toLowerCase()}`;
+    const box = page.getByTestId(stageTestId);
+    await expect(box).toBeAttached({ timeout: 15_000 });
+
+    // The box must not be display:none or visibility:hidden even at 320 px.
+    const hidden = await box.evaluate((el) => {
+      const style = window.getComputedStyle(el);
+      return style.display === "none" || style.visibility === "hidden";
+    });
+    expect(hidden, "Stage box must be visible at 320 px viewport").toBe(false);
+  });
+
+  test("scroll container is present at 320 px when a long-label stage is rendered", async ({
+    page,
+  }) => {
+    await gotoMissionControlFull(page);
+
+    const flow = page.getByTestId("mc-mission-map-flow");
+    await expect(flow).toBeVisible({ timeout: 15_000 });
+  });
+});
