@@ -1,0 +1,148 @@
+URGENT — RESPOND TO INDEPENDENT REVIEW V3 FINDINGS
+
+Use ApexQuant_AI_Review_Findings_and_Remediation_Spec_v3.md as the controlling review.
+
+Do not add new pages.
+Do not tune strategy thresholds blindly.
+Do not enable live orders.
+PAPER ONLY.
+
+TASK 1 — VERIFY CURRENT CODE, NOT SOP CLAIMS
+
+The independent reviewer states that Bug Audit Tasks 1/2/5 and the Kite LTP Overlay are self-reported in SOP v4.x and not independently verified against the current code.
+
+Verify directly in the current source:
+
+1. SIZE_REDUCED_TO_CAP wiring:
+- confirm phase20_executor.py reads size_reduced_to_cap and capped_qty from rv.to_dict()["summary"]
+- confirm qty is actually reassigned to capped_qty
+- confirm charges, risk_amount, sizing dict, and evidence are recalculated
+- confirm tests exercise the exact nested summary path
+
+2. Pre-trade validator:
+- confirm downstream checks use effective capped qty and effective capped risk
+- confirm no false INSUFFICIENT_CASH / CRITICAL rejection after cap reduction
+
+3. Scanner thresholds:
+- confirm market_scanner.py imports OPP_HOT_BUY_THRESHOLD, OPP_BUY_THRESHOLD, OPP_WATCH_THRESHOLD from config.py
+- confirm no old hardcoded 78/62/42 thresholds remain
+
+4. Kite LTP Overlay:
+- confirm KITE_LTP_OVERLAY_ENABLED=true in runtime env
+- confirm kite_ltp_overlay.py is actually called during live scan
+- confirm current_price_source/execution_price_source become kite_live_ltp only when Kite session verified
+- confirm indicator_source and ohlcv_source remain yfinance_daily_bars
+- confirm phase20_executor uses Kite LTP for paper BUY fill
+- confirm phase20_exits uses Kite LTP for exit quote and EXIT_PENDING retry
+- confirm no place_order / modify_order / cancel_order calls exist
+
+Produce direct code evidence, not SOP statements.
+
+TASK 2 — INVESTIGATE EXTERNAL BTT / intraday_bot PROCESS
+
+The review says Aug 11 phantom ORDER_EXECUTED events had BTT- trade IDs from an external intraday_bot process, not the canonical P20 executor.
+
+Find:
+- where BTT- trade IDs are generated
+- which process/module writes them
+- whether the process still exists or runs
+- whether it can still write to pipeline_events
+- whether it can emit ORDER_SUBMITTED / ORDER_EXECUTED
+- why it produced 0 rows in phase20_paper_trades
+- how to disable/quarantine it from canonical paper trading
+
+Required fix:
+- only canonical phase20 executor should emit canonical paper execution events
+- external/bot/replay/test processes must emit namespaced event types or be blocked from writing ORDER_EXECUTED
+- add guardrail/test proving BTT- events cannot be counted as real paper trades
+
+TASK 3 — RESOLVE R:R CONTRADICTION
+
+The review says the SOP has a contradiction:
+- one section says execution R:R 2.0 is active and blocks trades
+- another says AI_MIN_RR_RATIO=2.0 is dead config and not enforced
+
+Find the actual enforced gate.
+
+Search for:
+- min_risk_reward
+- AI_MIN_RR_RATIO
+- rr_ratio
+- 2.0
+- 1.5
+- EXECUTION_SKIPPED_WITH_REASON
+
+Report:
+- exact file/function where R:R is enforced
+- actual threshold used at scan time
+- actual threshold used at execution time
+- whether 2.0 is real or dead
+- whether any roadmap task to lower 2.0 to 1.5 is valid or should be deleted
+
+Do not change threshold until this is proven.
+
+TASK 4 — FIX EXPLORATION MODE DB INSERT FAILURE
+
+The review says experimental_paper_trades insert is failing silently:
+- events are logged
+- 0 rows land in table
+
+Find:
+- insert function
+- schema mismatch
+- swallowed exception
+- missing migration/table/column
+- transaction rollback
+- whether EXPERIMENTAL_PAPER_TRADE_PLACED is emitted before DB success
+
+Fix:
+- emit event only after DB insert succeeds
+- if DB insert fails, emit EXPERIMENTAL_PAPER_TRADE_REJECTED with structured reason
+- add test proving event and DB row stay consistent
+
+TASK 5 — CHECK EXPLORATION EXIT PRICE PATH
+
+The review says exploration-mode exits may still use stale daily close, not Kite LTP.
+
+Verify:
+- main phase20 exits use Kite LTP
+- exploration exits also use Kite LTP when overlay available
+- no exploration MFE/MAE/stop/target logic uses daily close as fake live price
+
+If broken:
+- route exploration exits through the same Kite LTP quote wrapper
+- if Kite unavailable, do not fabricate intraday exit
+- record reason_not_live_ltp
+
+TASK 6 — CAPITAL MODEL REVIEW
+
+The review says capital resets daily while positions remain open across days.
+
+Audit:
+- where ₹50,000 capital is initialized
+- whether it resets daily/session
+- whether open positions reduce buying power across days
+- whether new trade sizing ignores capital tied in open positions
+- whether canonical portfolio and phase20_paper_trades agree
+
+Do not change yet unless safe.
+Produce recommendation:
+A. keep daily reset only if all positions square off EOD
+B. switch to persistent capital if positions carry multi-day
+
+TASK 7 — REPORT
+
+Generate:
+
+APEXQUANT_REVIEW_V3_RESPONSE_AND_CODE_VERIFICATION_REPORT.md
+
+Include:
+1. Direct code verification of Bug Audit Tasks 1/2/5.
+2. Direct code verification of Kite LTP Overlay.
+3. BTT/intraday_bot investigation result.
+4. R:R contradiction resolution.
+5. Exploration DB insert fix/result.
+6. Exploration exit price path result.
+7. Capital model recommendation.
+8. Confirmation no live orders enabled.
+9. Whether one clean P20 signal → fill → exit → P&L cycle is still unproven.

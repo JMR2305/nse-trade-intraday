@@ -25,9 +25,12 @@ trade counting, daily limits, or portfolio P&L.
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 import phase20_store as store
 from scan_state_store import db_available, _connect
@@ -125,7 +128,8 @@ def _with_db(fn, fallback):
             return fn(conn)
         finally:
             conn.close()
-    except Exception:
+    except Exception as _exc:
+        logger.error("paper_exploration_engine _with_db error: %s", _exc)
         return fallback()
 
 
@@ -725,11 +729,32 @@ def update_experimental_exits(settings: Dict[str, Any]) -> Dict[str, Any]:
 
     symbols = [str(r[1]).upper() for r in open_trades]
     prices: Dict[str, float] = {}
+    _used_kite_ltp = False
     try:
-        from market_data import get_multiple_ltp
-        prices = get_multiple_ltp(symbols) or {}
-    except Exception:
-        pass
+        from kite_ltp_overlay import is_overlay_enabled, fetch_ltp_overlay
+        if is_overlay_enabled():
+            _ltp_res = fetch_ltp_overlay(symbols)
+            if _ltp_res.get("session_verified"):
+                _ltps = _ltp_res.get("ltps", {}) or {}
+                prices = {s.upper(): float(v) for s, v in _ltps.items() if v is not None}
+                _used_kite_ltp = True
+                logger.info(
+                    "update_experimental_exits: using Kite LTP for %d symbols",
+                    len(prices),
+                )
+    except Exception as _ltp_exc:
+        logger.warning("update_experimental_exits: Kite LTP fetch failed (%s); "
+                       "falling back to yfinance daily close", _ltp_exc)
+
+    if not _used_kite_ltp:
+        # Fall back to yfinance daily close.
+        # Do NOT fabricate an intraday price — positions with no live quote
+        # remain OPEN until a real price is available (Kite session or next close).
+        try:
+            from market_data import get_multiple_ltp
+            prices = get_multiple_ltp(symbols) or {}
+        except Exception:
+            pass
 
     now = _now()
     closed_count = 0

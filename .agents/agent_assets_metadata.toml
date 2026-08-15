@@ -432,3 +432,10 @@ uri = "file://APEXQUANT_AI_SOP_v4.0.html"
 type = "text"
 title = "ApexQuant AI — SOP v4.2"
 description = "Updated 2026-08-16: Task #749 MERGED (Operator Analytics stale-data ⚠ warning); Tasks #752 and #753 CANCELLED. All prior v4.1 changes carried forward."
+
+[[outputs]]
+id = "b2TmDR9dHfO34mokeOrLj"
+uri = "file://APEXQUANT_REVIEW_V3_RESPONSE_AND_CODE_VERIFICATION_REPORT.md"
+type = "text"
+title = "ApexQuant Review V3 — Code Verification Report"
+description = "Direct source-code evidence for Bug Audit Tasks 1/2/5, Kite LTP Overlay, BTT- investigation, R:R resolution, exploration DB fix, capital model audit."
