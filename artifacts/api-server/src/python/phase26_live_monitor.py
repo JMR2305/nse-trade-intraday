@@ -297,8 +297,16 @@ def build_liveness_snapshot(inputs: Optional[Dict[str, Any]] = None,
 
     # ── event-driven: execution / portfolio / pnl ────────────────────────────
     exec_events = inputs.get("execution_events") or []
-    executed = [e for e in exec_events
-                if e.get("event_type") == "ORDER_EXECUTED"]
+    # Only canonical P20- trade IDs count as real executions in the live monitor;
+    # BTT-/replay events must not show as live paper executions.
+    executed = [
+        e for e in exec_events
+        if e.get("event_type") == "ORDER_EXECUTED"
+        and (
+            not str((e.get("payload") or {}).get("trade_id") or "")
+            or str((e.get("payload") or {}).get("trade_id") or "").startswith("P20-")
+        )
+    ]
     exec_row = stage_map.get("EXECUTION") or {}
     port_row = stage_map.get("PORTFOLIO") or {}
     if unavailable("execution_events") or stage_events_unavailable:

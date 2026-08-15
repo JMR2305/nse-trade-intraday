@@ -19,6 +19,21 @@ from zoneinfo import ZoneInfo
 
 IST = ZoneInfo("Asia/Kolkata")
 
+# Canonical paper execution trade IDs always begin with "P20-".
+# BTT- (backtest), EXP- (exploration), and any other prefixes are non-canonical
+# and must never be counted in live paper execution stats.
+_CANONICAL_PREFIX = "P20-"
+
+
+def _is_canonical_order_event(e: Dict[str, Any]) -> bool:
+    """Return True if this ORDER_* event comes from the canonical phase20 executor.
+
+    Events with no trade_id in the payload pass through (backward-compatible).
+    Events with an explicit non-P20-... trade_id are rejected.
+    """
+    tid = str((e.get("payload") or {}).get("trade_id") or "")
+    return not tid or tid.startswith(_CANONICAL_PREFIX)
+
 
 def _ts_to_ist_iso(ts_val) -> str:
     """Convert a timestamp value (datetime or ISO string) to IST ISO-8601."""
@@ -108,6 +123,8 @@ def _fetch_order_events_db(conn, scan_id: str, symbol: str) -> List[Dict[str, An
               AND symbol = %s
               AND event_type IN ('ORDER_SUBMITTED', 'ORDER_EXECUTED',
                                  'ORDER_REJECTED', 'ORDER_CANCELLED')
+              AND (payload->>'trade_id' IS NULL
+                   OR payload->>'trade_id' LIKE 'P20-%')
             ORDER BY id ASC
             """,
             (scan_id, symbol),
@@ -177,6 +194,8 @@ def _fetch_order_events_file(scan_id: str, symbol: str) -> List[Dict[str, Any]]:
             for e in evs
             if e["event_type"] in ("ORDER_SUBMITTED", "ORDER_EXECUTED",
                                    "ORDER_REJECTED", "ORDER_CANCELLED")
+            # Exclude non-canonical events (BTT-, EXP-, replay) from execution audit
+            and _is_canonical_order_event(e)
         ]
     except Exception:
         return []

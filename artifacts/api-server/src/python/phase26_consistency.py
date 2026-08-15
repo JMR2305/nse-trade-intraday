@@ -216,8 +216,16 @@ def run_cross_page_consistency(
         except Exception:
             scan_events = []
 
-    executed_events = [e for e in scan_events
-                       if e.get("event_type") == "ORDER_EXECUTED"]
+    # Only count canonical P20- execution events; BTT-/replay events must not
+    # affect the ledger-vs-event parity check.
+    executed_events = [
+        e for e in scan_events
+        if e.get("event_type") == "ORDER_EXECUTED"
+        and (
+            not str((e.get("payload") or {}).get("trade_id") or "")
+            or str((e.get("payload") or {}).get("trade_id") or "").startswith("P20-")
+        )
+    ]
     checks += 1
     if len(executed_events) != len(executed_rows):
         add("mission_control", "executed_events",

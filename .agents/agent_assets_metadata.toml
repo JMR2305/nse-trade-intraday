@@ -439,3 +439,10 @@ uri = "file://APEXQUANT_REVIEW_V3_RESPONSE_AND_CODE_VERIFICATION_REPORT.md"
 type = "text"
 title = "ApexQuant Review V3 — Code Verification Report"
 description = "Direct source-code evidence for Bug Audit Tasks 1/2/5, Kite LTP Overlay, BTT- investigation, R:R resolution, exploration DB fix, capital model audit."
+
+[[outputs]]
+id = "8N0I7rSlfaJRafIapxYPi"
+uri = "file://APEXQUANT_FINAL_PREMARKET_GUARDRAIL_AND_VALIDATION_PREP_REPORT.md"
+type = "text"
+title = "ApexQuant — Final Pre-Market Guardrail & Validation Prep Report"
+description = "BTT/replay event quarantine, 5 consumer filters patched, 18/18 tests passing, exploration fixes confirmed, pre-market checklist."

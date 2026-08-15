@@ -308,6 +308,7 @@ def validate_pipeline(run_id: Optional[str] = None, mode: str = "LIVE",
     # ORDER_SUBMITTED must resolve exactly once (EXECUTED or CANCELLED);
     # ORDER_REJECTED is a valid terminal outcome without a submission;
     # resolutions without a submission and double-resolutions both FAIL.
+    # Only canonical P20- trade IDs are counted; BTT-/replay events are excluded.
     _ORDER_TYPES = ("ORDER_SUBMITTED", "ORDER_EXECUTED", "ORDER_CANCELLED",
                     "ORDER_REJECTED")
     lifecycles: Dict[tuple, Dict[str, int]] = {}
@@ -315,6 +316,10 @@ def validate_pipeline(run_id: Optional[str] = None, mode: str = "LIVE",
     for e in events:
         et = e.get("event_type")
         if et not in _ORDER_TYPES:
+            continue
+        # Skip non-canonical events (BTT-, EXP-, replay fills)
+        _tid = str((e.get("payload") or {}).get("trade_id") or "")
+        if _tid and not _tid.startswith("P20-"):
             continue
         sym = str(e.get("symbol") or "").upper()
         sid = e.get("scan_id")

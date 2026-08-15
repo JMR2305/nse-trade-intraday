@@ -48,6 +48,7 @@ EVENT_TYPES = [
     "PRECHECK_APPROVED", "PRECHECK_REJECTED",
     "RISK_APPROVED", "RISK_REJECTED",
     "BUY_GENERATED", "SELL_GENERATED", "WATCH_GENERATED", "IGNORE_GENERATED",
+    # Canonical paper execution events — ONLY from phase20_executor (P20- trade IDs).
     "ORDER_SUBMITTED", "ORDER_EXECUTED", "ORDER_REJECTED", "ORDER_CANCELLED",
     "EXECUTION_SKIPPED_WITH_REASON",
     "SCALE_IN_APPROVED", "SCALE_IN_REJECTED", "SCALE_IN_EXECUTED",
@@ -55,7 +56,16 @@ EVENT_TYPES = [
     "PORTFOLIO_UPDATED", "PNL_UPDATED",
     "SCAN_COMPLETED", "SCAN_FAILED",
     "SCAN_SKIPPED_BUSY",
+    # Namespaced replay/backtest events — never counted as real paper executions.
+    "REPLAY_ORDER_SUBMITTED", "REPLAY_EXECUTION_COMPLETED", "REPLAY_ORDER_REJECTED",
 ]
+
+# Order event types that are exclusively canonical (only P20- trade IDs allowed).
+# Any emit() call with these types and a non-P20- trade_id in the payload is
+# silently dropped — preventing BTT-/EXP- backtest events from polluting live counts.
+_CANONICAL_ORDER_TYPES: frozenset = frozenset({
+    "ORDER_SUBMITTED", "ORDER_EXECUTED", "ORDER_REJECTED", "ORDER_CANCELLED",
+})
 
 
 def _now_iso() -> str:
@@ -117,6 +127,22 @@ def emit(event_type: str, stage: str, *, scan_id: Optional[str] = None,
 
 def _emit_unsafe(event_type: str, stage: str, *, scan_id, symbol, payload,
                  mode, run_id, ts=None) -> None:
+    # Guardrail: canonical ORDER_* events in LIVE mode must carry a P20- trade_id.
+    # Any event with an explicit non-P20- trade_id (e.g. BTT-, EXP-) is a replay or
+    # backtest event that must not pollute the canonical live execution stream.
+    # Use emit_replay() for backtest/replay fills.
+    if event_type in _CANONICAL_ORDER_TYPES and mode == "LIVE":
+        _tid = str((payload or {}).get("trade_id") or "")
+        if _tid and not _tid.startswith("P20-"):
+            import logging as _log
+            _log.getLogger(__name__).warning(
+                "pipeline_events: BLOCKED non-canonical %s (trade_id=%s) — "
+                "only P20-... IDs may use ORDER_* event types in LIVE mode. "
+                "Call emit_replay() for backtest/replay events.",
+                event_type, _tid,
+            )
+            return
+
     if db_available():
         conn = _connect()
         try:
@@ -155,6 +181,23 @@ def _emit_unsafe(event_type: str, stage: str, *, scan_id, symbol, payload,
     with open(tmp, "w") as f:
         json.dump(rows, f, default=str)
     os.replace(tmp, FALLBACK_FILE)
+
+
+def emit_replay(event_type: str, stage: str, *, scan_id: Optional[str] = None,
+                symbol: Optional[str] = None,
+                payload: Optional[Dict[str, Any]] = None,
+                run_id: Optional[str] = None, ts: Optional[str] = None) -> None:
+    """Emit a BACKTEST-mode event (mode='BACKTEST', never in LIVE stream).
+
+    Use this for backtest/replay fills instead of emit() so that replay
+    executions never appear in canonical live paper execution counts.
+    The payload is stamped with source='replay' and canonical_trade=False.
+    """
+    p = dict(payload or {})
+    p["source"] = "replay"
+    p["canonical_trade"] = False
+    emit(event_type, stage, scan_id=scan_id, symbol=symbol, payload=p,
+         mode="BACKTEST", run_id=run_id, ts=ts)
 
 
 def emit_many(events: List[Dict[str, Any]]) -> None:

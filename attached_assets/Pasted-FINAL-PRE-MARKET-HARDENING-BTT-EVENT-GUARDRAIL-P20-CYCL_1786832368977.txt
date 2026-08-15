@@ -1,0 +1,95 @@
+FINAL PRE-MARKET HARDENING — BTT EVENT GUARDRAIL + P20 CYCLE VALIDATION PREP
+
+Use APEXQUANT_REVIEW_V3_RESPONSE_AND_CODE_VERIFICATION_REPORT.md as the controlling report.
+
+Do not add new pages.
+Do not change trading thresholds.
+Do not enable live orders.
+PAPER ONLY.
+
+TASK 1 — QUARANTINE BACKTEST / BTT EXECUTION EVENTS
+
+Problem:
+backtest_portfolio.py can emit ORDER_EXECUTED events with BTT- trade IDs into the same pipeline_events table as real canonical P20 paper trades. This can pollute dashboards and make replay executions look like real paper executions.
+
+Fix:
+1. In backtest_portfolio.py and market_replay.py, do not emit canonical ORDER_EXECUTED for replay/backtest fills.
+2. Rename replay execution events to:
+   - REPLAY_ORDER_SUBMITTED
+   - REPLAY_EXECUTION_COMPLETED
+   - REPLAY_ORDER_REJECTED
+   or similar namespaced event types.
+3. Add payload field:
+   source = "replay" or "backtest"
+   canonical_trade = false
+4. Keep canonical live/paper executor events as:
+   ORDER_SUBMITTED
+   ORDER_EXECUTED
+   ORDER_REJECTED
+   only for P20- trade IDs from phase20_executor.py.
+
+TASK 2 — PATCH EVENT CONSUMERS
+
+Audit all dashboard/stat consumers that count ORDER_EXECUTED:
+
+- operator analytics
+- paper analytics
+- mission control
+- system readiness
+- AI paper trader
+- replay/investigation center
+- pipeline stats
+- any summary/report generator
+
+Rules:
+- Canonical paper trade count must count only trade_id prefix P20-
+- BTT- / replay events must never increment real paper execution counts
+- Replay dashboards may count REPLAY_EXECUTION_COMPLETED separately
+
+TASK 3 — ADD TESTS
+
+Add tests proving:
+
+1. BTT- event does not count as canonical paper execution.
+2. P20- ORDER_EXECUTED does count as canonical paper execution.
+3. Replay execution events appear only in replay analytics.
+4. Operator Analytics does not mix replay executions with live paper executions.
+5. Aug 11 phantom BTT events would now be excluded from canonical paper stats.
+
+TASK 4 — EXPLORATION FIX VERIFICATION
+
+Verify the fixes already applied in this report:
+
+- _with_db logs DB errors
+- EXPERIMENTAL_PAPER_TRADE_PLACED fires only after insert success
+- exploration exits use Kite LTP when available
+- exploration exits do not fabricate live price when Kite unavailable
+
+Add/confirm tests for these.
+
+TASK 5 — PREPARE NEXT MARKET SESSION VALIDATION
+
+Confirm before next session:
+
+- KITE_LTP_OVERLAY_ENABLED=true
+- Kite session must be authenticated via /kite-auth before 09:15 IST
+- LIVE_EXECUTION_ENABLED=false
+- PAPER_TRADING_MODE=true
+- no place_order / modify_order / cancel_order calls
+- 4 EXIT_PENDING positions are ready for retry using Kite LTP
+
+TASK 6 — REPORT
+
+Generate:
+
+APEXQUANT_FINAL_PREMARKET_GUARDRAIL_AND_VALIDATION_PREP_REPORT.md
+
+Include:
+1. Files changed.
+2. BTT/replay event namespace fix.
+3. Event consumer filters updated.
+4. Test results.
+5. Confirmation canonical paper executions count only P20- trades.
+6. Confirmation exploration DB/exit fixes.
+7. Confirmation no live orders enabled.
+8. Checklist for next market session P20 signal → fill → exit → P&L proof.
