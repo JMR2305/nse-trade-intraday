@@ -1,0 +1,144 @@
+NEXT SESSION VALIDATION — ACTIVATE KITE LTP OVERLAY AND PROVE ONE CLEAN PAPER TRADE CYCLE
+
+Use APEXQUANT_AI_SOP_v4.0.html as the controlling document.
+
+Do not add new features.
+Do not change BUY/WATCH thresholds.
+Do not enable live broker orders.
+Do not call Zerodha order placement APIs.
+PAPER ONLY.
+
+TASK 1 — ENABLE KITE LTP OVERLAY
+
+Set:
+
+KITE_LTP_OVERLAY_ENABLED=true
+
+Confirm:
+- flag is active
+- LIVE_EXECUTION_ENABLED remains false
+- PAPER_TRADING_MODE remains true
+- only Kite quote/LTP APIs are used
+- no place_order / modify_order / cancel_order calls are possible
+
+TASK 2 — PRE-MARKET READINESS CHECK
+
+Before 09:15 IST, run System Readiness.
+
+Report:
+- overall readiness state
+- Kite session status
+- KITE_LTP_OVERLAY_ENABLED status
+- whether current price source will be Kite LTP
+- whether execution price source will be Kite LTP
+- whether indicators remain yfinance_daily_bars
+- whether scheduler is healthy
+- whether circuit breaker is clear
+- whether DB is writable/readable
+- whether any blocking issue exists
+
+TASK 3 — FIRST MARKET SCAN VERIFICATION
+
+After first market-hours scan, verify at least 10 symbols including:
+
+DRREDDY
+TMPV
+TMCV
+BAJAJ-AUTO
+GRASIM
+BAJFINANCE
+DIVISLAB
+TRENT
+RELIANCE
+TCS
+
+For each symbol report:
+- final action
+- confidence
+- opportunity score
+- yfinance_last_close
+- kite_ltp
+- current_price_source
+- execution_price_source
+- indicator_source
+- ohlcv_source
+- quote_reliable
+- data_quality_for_indicators
+- data_quality_for_execution
+
+Expected:
+- indicator_source = yfinance_daily_bars
+- ohlcv_source = yfinance_daily_bars
+- current_price_source = kite_live_ltp when Kite LTP available
+- execution_price_source = kite_live_ltp when Kite LTP available
+
+TASK 4 — EXIT_PENDING RESOLUTION
+
+Check the 4 existing EXIT_PENDING paper positions:
+
+BAJFINANCE
+GRASIM
+DIVISLAB
+TRENT
+
+With Kite LTP overlay enabled:
+- verify quote_reliable=true if Kite LTP is available
+- run exit manager
+- do not force-close anything
+- close only if a valid exit rule triggers
+- if closed, record exit price and realized_pnl
+- if not closed, explain which exit rules did not trigger
+
+TASK 5 — PAPER BUY EXECUTION PROOF
+
+If a BUY candidate appears:
+- confirm paper execution uses Kite LTP as fill/reference price
+- confirm daily signal price and Kite execution price are both recorded
+- confirm SIZE_REDUCED_TO_CAP works if needed
+- confirm phase20_paper_trades row is written
+- confirm ORDER_SUBMITTED and ORDER_EXECUTED events exist
+- confirm no live order API was called
+
+If no BUY appears:
+- report exact reason per top 10 candidates:
+  WATCH, R:R blocked, confidence blocked, opportunity blocked, duplicate position, circuit breaker, data issue, or execution gate.
+
+TASK 6 — OPERATOR ANALYTICS AND READINESS
+
+After market close, run:
+- Operator Analytics
+- System Readiness
+- AI Paper Trader state
+- paper ledger check
+
+Report:
+- scan count
+- BUY count
+- WATCH count
+- IGNORE count
+- ORDER_SUBMITTED count
+- ORDER_EXECUTED count
+- ORDER_REJECTED count
+- EXECUTION_SKIPPED count
+- top rejection reasons
+- open positions
+- closed positions
+- realized_pnl
+- whether one clean signal → paper fill → exit → P&L cycle exists
+
+TASK 7 — REPORT
+
+Generate:
+
+APEXQUANT_NEXT_SESSION_KITE_LTP_VALIDATION_REPORT.md
+
+Include:
+1. Whether Kite LTP overlay was active.
+2. Whether Zerodha session was verified.
+3. First scan symbol-level proof.
+4. Whether open EXIT_PENDING positions resolved.
+5. Whether any new paper BUY executed.
+6. If no paper BUY executed, exact gate reasons.
+7. Confirmation no live orders placed.
+8. Whether system is now usable for paper intraday observation.
+9. Remaining gap: true 5m/15m Kite candle strategy still pending.

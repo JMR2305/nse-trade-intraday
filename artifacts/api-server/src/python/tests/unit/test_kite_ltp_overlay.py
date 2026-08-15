@@ -63,11 +63,14 @@ class TestFeatureFlag(unittest.TestCase):
         self.assertTrue(kite_ltp_overlay.is_overlay_enabled())
 
     def test_missing_config_returns_false(self) -> None:
-        _remove_module("config")
+        # Block the import entirely with a None sentinel so that
+        # "from config import KITE_LTP_OVERLAY_ENABLED" raises ImportError
+        # regardless of the real environment variable value.
+        sys.modules["config"] = None  # type: ignore[assignment]
         import importlib
         import kite_ltp_overlay
         importlib.reload(kite_ltp_overlay)
-        # config missing → is_overlay_enabled() must not raise; returns False
+        # config import blocked → is_overlay_enabled() must not raise; returns False
         result = kite_ltp_overlay.is_overlay_enabled()
         self.assertFalse(result)
 
