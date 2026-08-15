@@ -1,0 +1,88 @@
+VERIFY KITE LTP OVERLAY IMPLEMENTATION BEFORE ACTIVATION
+
+Use APEXQUANT_KITE_LTP_OVERLAY_IMPLEMENTATION_REPORT.md as the controlling document.
+
+Do not add new features.
+Do not change thresholds.
+Do not enable live orders.
+Do not place broker orders.
+PAPER ONLY.
+
+Goal:
+Verify the Kite LTP overlay implementation is actually working and safe before enabling it for the next market session.
+
+TASK 1 — RUN TESTS
+
+Run the new Kite LTP overlay test suite and relevant regression tests.
+
+Required:
+- test_kite_ltp_overlay.py must show exact pass count, e.g. 41/41 passed
+- phase20_executor tests must still pass
+- phase20_exits tests must still pass
+- system readiness tests must still pass
+- no pre-existing tests should fail
+
+TASK 2 — VERIFY FEATURE FLAG DEFAULT
+
+Confirm:
+- KITE_LTP_OVERLAY_ENABLED default is false
+- with flag=false, no Kite LTP calls are made
+- existing yfinance daily-bar behavior remains unchanged
+
+TASK 3 — VERIFY FLAG TRUE BEHAVIOR WITH MOCK KITE
+
+With KITE_LTP_OVERLAY_ENABLED=true and mocked verified Kite session:
+
+Confirm per-symbol fields:
+- kite_ltp_available=true
+- current_price_source=kite_live_ltp
+- execution_price_source=kite_live_ltp
+- quote_reliable=true
+- data_quality_for_execution=LIVE
+- indicator_source=yfinance_daily_bars
+- ohlcv_source=yfinance_daily_bars
+
+TASK 4 — VERIFY PAPER BUY USES KITE LTP
+
+Confirm paper BUY uses:
+- signal price from yfinance daily bar for signal evidence
+- execution/fill price from Kite LTP
+- no live order API
+- no broker order placement
+
+TASK 5 — VERIFY PAPER EXIT USES KITE LTP
+
+Confirm exit manager uses Kite LTP for:
+- TARGET_HIT
+- STOP_LOSS_HIT
+- TRAILING_STOP
+- MARKET_CLOSE_EXIT
+- EXIT_PENDING retry
+
+Confirm realized_pnl is written only when a valid exit rule triggers.
+
+TASK 6 — VERIFY SAFETY
+
+Confirm:
+- LIVE_EXECUTION_ENABLED remains false
+- PAPER_TRADING_MODE remains true
+- kite.place_order is never called
+- kite.modify_order is never called
+- kite.cancel_order is never called
+- only kite.quote/read-only quote APIs are used
+
+TASK 7 — PRODUCE REPORT
+
+Generate:
+
+APEXQUANT_KITE_LTP_OVERLAY_VERIFICATION_REPORT.md
+
+Include:
+1. Exact test commands and pass counts.
+2. Flag=false behavior.
+3. Flag=true mocked Kite behavior.
+4. Paper BUY verification.
+5. Paper EXIT verification.
+6. System Readiness behavior.
+7. Confirmation no live orders.
+8. Whether it is safe to set KITE_LTP_OVERLAY_ENABLED=true before next market session.
