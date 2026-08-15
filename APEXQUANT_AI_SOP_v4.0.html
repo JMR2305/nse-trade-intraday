@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ApexQuant AI — Full Project SOP v4.1</title>
+<title>ApexQuant AI — Full Project SOP v4.2</title>
 <style>
 :root{--navy:#0a1628;--teal:#00b4a6;--teal2:#009688;--bg:#f8fafc;--card:#fff;--border:#e2e8f0;--text:#1e293b;--muted:#64748b;--code-bg:#1e293b;--green:#059669;--amber:#d97706;--red:#dc2626}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -48,13 +48,13 @@ em{color:#059669}
 <body>
 <div class="topbar">
   <span class="logo">ApexQuant AI</span>
-  <span class="badge">v4.1</span>
+  <span class="badge">v4.2</span>
   <span style="color:#94a3b8;font-size:.85rem">Full Project SOP &amp; Second-Opinion Pack</span>
   <span class="meta">Generated 2026-08-15 IST · Paper-only platform · No live orders ever</span>
 </div>
 <div class="wrapper">
 <div class="vbanner">
-  <div><div class="lbl">Document Version</div><div class="val green">v4.1</div></div>
+  <div><div class="lbl">Document Version</div><div class="val green">v4.2</div></div>
   <div><div class="lbl">Date</div><div class="val">2026-08-16 IST</div></div>
   <div><div class="lbl">Kite LTP Overlay</div><div class="val green">IMPLEMENTED ✓ VERIFIED ✓</div></div>
   <div><div class="lbl">KITE_LTP_OVERLAY_ENABLED</div><div class="val green">SET true (shared env)</div></div>
@@ -74,6 +74,12 @@ em{color:#059669}
 <p><strong>Prepared by:</strong> Replit Agent (automated, read-only except where noted)</p>
 <p><strong>Purpose:</strong> Independent second-opinion review package — complete audit of architecture, behaviour, data, and open problems</p>
 <p><strong>Classification:</strong> Internal review — contains production database statistics</p>
+
+<blockquote><strong>Changelog from v4.1 → v4.2:</strong> One task merged, two cancelled 2026-08-16.
+<strong>(1) Task #749 — Stale-data warning on Operator Analytics (MERGED):</strong> The <code>/operator-analytics</code> page now shows an amber ⚠ banner when the cached report is older than 5 minutes (<code>data-testid="oa-stale-warning"</code>). The warning includes the age of the cache and a Refresh button. Threshold is fixed at 5 minutes server-side.
+<strong>(2) Task #752 — Browser test for stale-data warning (CANCELLED).</strong>
+<strong>(3) Task #753 — Operator-tunable stale-data threshold (CANCELLED).</strong>
+Sections updated: §1.2, §5 (Operator Analytics row), §17, §19. Prior v4.1 changes carried forward.</blockquote>
 
 <blockquote><strong>Changelog from v4.0 → v4.1:</strong> Two tasks merged 2026-08-16.
 <br><br>
@@ -172,6 +178,7 @@ Sections added or updated are marked <strong>[UPDATED v4.0]</strong> / <strong>[
 <tr><td><strong>KITE_LTP_OVERLAY_ENABLED=true</strong></td><td><strong>SET (v4.1)</strong> — live in shared env 2026-08-16 <strong>[NEW v4.1]</strong></td></tr>
 <tr><td><strong>⚠ Gap badge — Mission Control</strong></td><td><strong>SHIPPED (v4.1)</strong> — Task #717 merged; amber badge when max scan gap &gt; 2× cadence <strong>[NEW v4.1]</strong></td></tr>
 <tr><td><strong>Operator Analytics browser data</strong></td><td><strong>CONFIRMED (v4.1)</strong> — Task #738 merged; real /operator-analytics/report data in browser <strong>[NEW v4.1]</strong></td></tr>
+<tr><td><strong>Operator Analytics stale-data warning</strong></td><td><strong>SHIPPED (v4.2)</strong> — Task #749 merged; amber ⚠ banner when cache &gt; 5 min old (<code>data-testid="oa-stale-warning"</code>) <strong>[NEW v4.2]</strong></td></tr>
 <tr><td><strong>SIZE_REDUCED_TO_CAP wiring bug</strong></td><td><strong>FIXED (Bug Audit Task 1)</strong></td></tr>
 <tr><td><strong>Pre-trade false CRITICAL rejection</strong></td><td><strong>FIXED (Bug Audit Task 2)</strong></td></tr>
 <tr><td><strong>Scanner threshold mismatch</strong></td><td><strong>FIXED (Bug Audit Task 5)</strong></td></tr>
@@ -477,7 +484,7 @@ START SCAN TICK (every 5 minutes, 09:15–15:30 IST)
 <tr><th>Route</th><th>Component</th><th>Functionality</th></tr>
 </thead><tbody>
 <tr><td><code>/system-readiness</code></td><td><code>SystemReadiness</code></td><td>Phase 27F — GO/NO-GO readiness score, 8 check domains, broker overlay status</td></tr>
-<tr><td><code>/operator-analytics</code></td><td><code>OperatorAnalytics</code></td><td>Phase 27E — operator-level scan/decision/execution analytics; queries <code>/operator-analytics/report</code> live; <code>refetchInterval: 60 s</code>; stale-data warning pending (Task #749 IN_PROGRESS) <strong>[UPDATED v4.1]</strong></td></tr>
+<tr><td><code>/operator-analytics</code></td><td><code>OperatorAnalytics</code></td><td>Phase 27E — operator-level scan/decision/execution analytics; queries <code>/operator-analytics/report</code> live; <code>refetchInterval: 60 s</code>; amber ⚠ stale-data banner when cache &gt; 5 min old (<code>data-testid="oa-stale-warning"</code>); Refresh + Retry buttons <strong>[UPDATED v4.2]</strong></td></tr>
 </tbody></table>
 
 <hr>
@@ -737,7 +744,7 @@ python bt_queue_tick_cmd.py
 
 <h2 id="17-open-and-proposed-tasks--priority-order">17. Open and Proposed Tasks — Priority Order <strong>[UPDATED v4.0]</strong></h2>
 
-<h3>17.1 Resolved <strong>[UPDATED v4.1]</strong></h3>
+<h3>17.1 Resolved <strong>[UPDATED v4.2]</strong></h3>
 
 <table><thead>
 <tr><th>Task</th><th>Status</th></tr>
@@ -746,6 +753,7 @@ python bt_queue_tick_cmd.py
 <tr><td>KITE_LTP_OVERLAY_ENABLED=true</td><td>✅ <strong>SET (v4.1)</strong> — live in shared env 2026-08-16</td></tr>
 <tr><td>⚠ Gap badge in ScannerPanel (Task #717)</td><td>✅ <strong>SHIPPED (v4.1)</strong> — merged 2026-08-16; amber badge when max gap &gt; 2× cadence</td></tr>
 <tr><td>Operator Analytics real data in browser (Task #738)</td><td>✅ <strong>CONFIRMED (v4.1)</strong> — merged 2026-08-16; live endpoint + Retry button verified</td></tr>
+<tr><td>Stale-data warning on Operator Analytics (Task #749)</td><td>✅ <strong>SHIPPED (v4.2)</strong> — merged 2026-08-16; amber ⚠ banner + Refresh when cache &gt; 5 min old</td></tr>
 <tr><td>Phase 27E — Operator Analytics</td><td>✅ DONE (v4.0) — 53/53 tests</td></tr>
 <tr><td>Phase 27F — System Readiness</td><td>✅ DONE (v4.0) — 68/68 tests</td></tr>
 <tr><td>SIZE_REDUCED_TO_CAP wiring (Bug Audit Task 1)</td><td>✅ DONE (v3.1)</td></tr>
@@ -753,16 +761,16 @@ python bt_queue_tick_cmd.py
 <tr><td>Scanner threshold alignment (Bug Audit Task 5)</td><td>✅ DONE (v3.1)</td></tr>
 </tbody></table>
 
-<h3>17.2 In Progress / Next Up <strong>[UPDATED v4.1]</strong></h3>
+<h3>17.2 In Progress / Next Up <strong>[UPDATED v4.2]</strong></h3>
 
 <table><thead>
 <tr><th>#</th><th>Task</th><th>Priority</th></tr>
 </thead><tbody>
-<tr><td>#749</td><td>Show stale-data warning on Operator Analytics when cached report &gt; 5 min old</td><td>🔴 IN PROGRESS</td></tr>
+<tr><td>#749</td><td>Show stale-data warning on Operator Analytics when cached report &gt; 5 min old</td><td>✅ MERGED (v4.2)</td></tr>
 <tr><td>#750</td><td>Playwright browser test confirming ⚠ Gap badge appears/disappears correctly</td><td>🟡 PROPOSED</td></tr>
 <tr><td>#751</td><td>Make ⚠ Gap badge link directly to scan history panel (one-click investigation)</td><td>🟡 PROPOSED</td></tr>
-<tr><td>#752</td><td>Confirm stale-data warning appears/disappears correctly in browser</td><td>🟡 PROPOSED</td></tr>
-<tr><td>#753</td><td>Let operators manually set the stale-data threshold (tunable warning)</td><td>🟡 PROPOSED</td></tr>
+<tr><td>#752</td><td>Confirm stale-data warning appears/disappears correctly in browser</td><td>🚫 CANCELLED</td></tr>
+<tr><td>#753</td><td>Let operators manually set the stale-data threshold (tunable warning)</td><td>🚫 CANCELLED</td></tr>
 <tr><td>—</td><td>Align RR threshold: scan gate 1.5 vs execution gate 2.0</td><td>🔴 Phase 2</td></tr>
 <tr><td>—</td><td>Fix exploration mode <code>experimental_paper_trades</code> silent DB insert failure</td><td>🔴 P1</td></tr>
 <tr><td>#659</td><td>Prevent paper-mode SELL orders failing when no position exists</td><td>🔴 P1</td></tr>
@@ -850,7 +858,7 @@ python bt_queue_tick_cmd.py
 <tr><td>✅ DONE — Phase 27E Operator Analytics</td><td>Operator behaviour visibility; real data confirmed in browser</td></tr>
 <tr><td>✅ DONE — Phase 27F System Readiness</td><td>GO/NO-GO readiness score</td></tr>
 <tr><td>✅ DONE — ⚠ Gap badge (Mission Control, Task #717)</td><td>Operators see amber badge when scan cadence slips</td></tr>
-<tr><td>🔴 IN PROGRESS — Stale-data warning on Operator Analytics (Task #749)</td><td>Operators know when analytics cache is &gt;5 min stale</td></tr>
+<tr><td>✅ DONE — Stale-data warning on Operator Analytics (Task #749)</td><td>Operators see amber ⚠ banner when analytics cache is &gt;5 min stale</td></tr>
 <tr><td>🔴 Fix exploration mode DB insert failure</td><td>First experimental trades in table</td></tr>
 <tr><td>🟡 Gap badge → scan history link (Task #751)</td><td>One-click investigation of overdue scans</td></tr>
 </tbody></table>
