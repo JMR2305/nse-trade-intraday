@@ -456,17 +456,50 @@ def create_paper_entry(candidate: Dict[str, Any], settings: Dict[str, Any],
     # a smaller quantity fits, use that smaller quantity instead of rejecting.
     # This fixes the position-size cap rejection bug for DRREDDY, GRASIM,
     # BAJAJ-AUTO, BAJAJFINSV, TMPV and other higher-priced NIFTY constituents.
-    if (isinstance(_rv_result, dict)
-            and _rv_result.get("size_reduced_to_cap")
-            and int(_rv_result.get("capped_qty") or 0) >= 1):
+    #
+    # BUG FIX (Task 1): size_reduced_to_cap and capped_qty live inside
+    # rv.to_dict()["summary"], NOT at the top level of rv.to_dict().
+    # Previous code checked _rv_result.get("size_reduced_to_cap") which always
+    # evaluated to None because that key is nested one level deeper.
+    _rv_summary = _rv_result.get("summary", {}) if isinstance(_rv_result, dict) else {}
+    if (_rv_summary.get("size_reduced_to_cap")
+            and int(_rv_summary.get("capped_qty") or 0) >= 1):
         _old_qty = qty
-        qty = int(_rv_result["capped_qty"])
-        # fill_price is price-based (not qty-dependent); recompute charges only.
+        _old_risk = float(sizing.get("risk_amount") or 0)
+        qty = int(_rv_summary["capped_qty"])
+        # Recompute charges (turnover-based) with new qty.
         charges = compute_charges(fill_price * qty, settings)
-        _rv_result["original_qty"] = _old_qty
+        # Recompute risk_amount proportionally: risk scales linearly with qty.
+        _new_risk = round(_old_risk * qty / _old_qty, 2) if _old_qty > 0 else _old_risk
         # Update sizing reference so downstream evidence records the reduced qty.
         sizing = dict(sizing)
         sizing["quantity"] = qty
+        sizing["risk_amount"] = _new_risk
+        # Record original vs capped in the rv_result for evidence audit trail.
+        _rv_result = dict(_rv_result)
+        _rv_result["original_qty"] = _old_qty
+        _rv_result["capped_qty"] = qty
+        _rv_result["original_risk_amount"] = _old_risk
+        _rv_result["capped_risk_amount"] = _new_risk
+        # Emit a structured SIZE_REDUCED_TO_CAP pipeline event so the audit log
+        # always shows the resize happened (not silently absorbed).
+        try:
+            from pipeline_events import emit as _pe2
+            _pe2("SIZE_REDUCED_TO_CAP", "EXECUTION",
+                 scan_id=scan_id, symbol=sym,
+                 payload={
+                     "original_qty":    _old_qty,
+                     "capped_qty":      qty,
+                     "fill_price":      fill_price,
+                     "original_risk":   _old_risk,
+                     "capped_risk":     _new_risk,
+                     "trade_value_orig": round(fill_price * _old_qty, 2),
+                     "trade_value_cap": round(fill_price * qty, 2),
+                     "charges_recalculated": charges,
+                     "note": "SIZE_REDUCED_TO_CAP: adopting capped qty from risk validator summary",
+                 })
+        except Exception:
+            pass
 
     try:
         from model_versioning import get_active_version

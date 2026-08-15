@@ -21,7 +21,10 @@ import math
 from datetime import datetime, timezone
 from typing import TypedDict
 
-from config import SECTOR_MAP, NIFTY_50, INITIAL_CAPITAL
+from config import (
+    SECTOR_MAP, NIFTY_50, INITIAL_CAPITAL,
+    OPP_HOT_BUY_THRESHOLD, OPP_BUY_THRESHOLD, OPP_WATCH_THRESHOLD,
+)
 from market_data_engine import fetch_candles_df
 from indicator_engine import compute_indicators_df
 from strategies import get_strategy, LAB_STRATEGY_IDS
@@ -33,10 +36,13 @@ SCAN_PERIOD   = "6mo"     # lookback window used to evaluate strategies per stoc
 SCAN_INTERVAL = "1d"
 MIN_BARS      = WARMUP_BARS + 10
 
-# Final Action thresholds (0–100 Opportunity Score)
-ACTION_STRONG_BUY = 78.0
-ACTION_BUY        = 62.0
-ACTION_WATCH      = 42.0
+# Final Action thresholds (0–100 Opportunity Score).
+# Single source of truth: config.py OPP_* constants.
+# Previously hardcoded here (78/62/42) — now derived from config so
+# config.py, market_scanner.py, and the SOP all agree on the same values.
+ACTION_STRONG_BUY = OPP_HOT_BUY_THRESHOLD   # 85.0
+ACTION_BUY        = OPP_BUY_THRESHOLD        # 70.0
+ACTION_WATCH      = OPP_WATCH_THRESHOLD      # 50.0
 # below ACTION_WATCH => IGNORE
 
 WATCHLIST_SIZE = 10

@@ -411,3 +411,10 @@ uri = "file://APEXQUANT_AI_SOP_v3.html"
 type = "text"
 title = "ApexQuant AI — Full Project SOP v3.0"
 description = "Complete rebuild incorporating the Data Path & Intraday Truth Audit. Key corrections: yfinance-only architecture (no Kite in scan path), daily bars (1d) not intraday, AI_MIN_RR_RATIO confirmed dead config, Aug 11 phantom fills DB-verified (63 events / 0 ledger rows), per-symbol SYMBOL_SCANNED logging added, Kite LTP overlay scoped (~15 lines). All 22 sections updated."
+
+[[outputs]]
+id = "_0KMC8t45K36K7KnNo6cR"
+uri = "file://APEXQUANT_SOURCE_CODE_BUG_AUDIT_AND_FIX_REPORT.md"
+type = "text"
+title = "ApexQuant Source Code Bug Audit & Fix Report"
+description = "Five-task audit: three bugs fixed (SIZE_REDUCED_TO_CAP wiring, pre-trade false rejection, threshold mismatch), two items documented as operator decisions (data path / exploration mode price). 13/13 tests pass."

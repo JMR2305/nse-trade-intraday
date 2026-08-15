@@ -368,18 +368,38 @@ def validate_pre_trade(
         cap_pct = float(settings.get("per_stock_exposure_cap_pct") or _MAX_POSITION_PCT)
 
         # ── Run each check ────────────────────────────────────────────────
+        # Position-size check runs first so we can detect SIZE_REDUCED_TO_CAP
+        # and use the effective (capped) quantity for all downstream checks.
+        # This prevents false INSUFFICIENT_CASH / HIGH_UTILISATION rejections
+        # when the original over-sized qty would have consumed too much cash
+        # but the capped qty is perfectly fine. (Task 2 fix)
         metrics["position_size"]   = _check_position_size(
             symbol, fill_price, qty, total_cap, issues, cap_pct=cap_pct)
+
+        # Determine the effective quantity and risk amount for downstream checks.
+        # If size was reduced to cap, use capped values so checks that depend on
+        # quantity (utilisation, cash, daily risk) reflect the actual order size.
+        pos_m = metrics["position_size"]
+        if pos_m.get("size_reduced") and int(pos_m.get("capped_qty") or 0) >= 1:
+            _eff_qty = int(pos_m["capped_qty"])
+            # Scale risk_amount proportionally to the qty reduction.
+            _eff_risk = round(risk_amount * _eff_qty / qty, 2) if qty > 0 else risk_amount
+        else:
+            _eff_qty  = qty
+            _eff_risk = risk_amount
+
         metrics["capital_at_risk"] = _check_capital_at_risk(
-            symbol, risk_amount, total_cap, issues)
+            symbol, _eff_risk, total_cap, issues)
         metrics["rr_ratio"]        = _check_rr_ratio(
             symbol, fill_price, target, stop_loss, issues)
         metrics["stop_distance"]   = _check_stop_distance(
             symbol, fill_price, stop_loss, issues)
+        # Use _eff_qty so INSUFFICIENT_CASH is not raised for the original
+        # oversized quantity when the trade will actually use capped_qty.
         metrics["post_utilisation"]= _check_post_trade_utilisation(
-            symbol, fill_price, qty, cash_avail, total_cap, issues)
+            symbol, fill_price, _eff_qty, cash_avail, total_cap, issues)
         metrics["daily_risk"]      = _check_daily_risk(
-            symbol, risk_amount, settings, total_cap, issues)
+            symbol, _eff_risk, settings, total_cap, issues)
 
         # ── Verdict ───────────────────────────────────────────────────────
         criticals = [i for i in issues if i.severity == "CRITICAL"]

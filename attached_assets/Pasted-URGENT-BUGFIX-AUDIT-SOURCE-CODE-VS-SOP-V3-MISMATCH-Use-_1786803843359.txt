@@ -1,0 +1,97 @@
+URGENT BUGFIX AUDIT — SOURCE CODE VS SOP V3 MISMATCH
+
+Use the uploaded ZIP/source and APEXQUANT_AI_SOP_v3.html as reference.
+
+Do not add new pages.
+Do not tune trading thresholds blindly.
+Do not enable live broker orders.
+PAPER ONLY.
+
+TASK 1 — FIX SIZE_REDUCED_TO_CAP WIRING BUG
+
+In risk_validation/pre_trade.py, size_reduced_to_cap and capped_qty are returned inside result.summary.
+
+But phase20_executor.py appears to check:
+- _rv_result.get("size_reduced_to_cap")
+- _rv_result.get("capped_qty")
+
+This is wrong if _rv_result = rv.to_dict().
+
+Fix phase20_executor.py to read:
+- summary = _rv_result.get("summary", {})
+- summary.get("size_reduced_to_cap")
+- summary.get("capped_qty")
+
+When size_reduced_to_cap is true:
+- adopt capped_qty
+- recompute charges
+- recompute trade value
+- recompute risk_amount if needed
+- update sizing["quantity"]
+- update sizing["risk_amount"]
+- record original_qty and capped_qty in evidence
+- emit SIZE_REDUCED_TO_CAP evidence
+
+Add tests proving DRREDDY-style case:
+- original qty exceeds cap
+- capped_qty fits
+- final order uses capped_qty, not original qty
+
+TASK 2 — FIX PRE-TRADE VALIDATOR RECALCULATION AFTER CAPPING
+
+If cap_qty is smaller than original qty, validation checks that depend on quantity should be recalculated using capped_qty:
+- trade_value
+- risk_amount
+- post_trade_cash
+- utilisation
+- daily risk
+
+Do not allow original oversized quantity to create false rejections or false approvals.
+
+TASK 3 — DATA PATH BUG
+
+Confirm and report:
+- scanner uses LiveDataProvider
+- LiveDataProvider uses yfinance only
+- scanner interval is 1d
+- Kite is not used in scan path
+
+Then create implementation plan:
+- Option A: Kite LTP overlay for current price immediately
+- Option B: true Kite intraday candles 5m/15m
+- Option C: yfinance intraday temporary fallback for research only
+
+Do not claim this is true intraday until scanner uses intraday data.
+
+TASK 4 — EXPLORATION MODE PRICE BUG
+
+Audit paper_exploration_engine.py:
+- entry uses scan context
+- exits/MFE/MAE use market_data.get_multiple_ltp
+- market_data.get_ltp uses yfinance daily 1d close
+
+Fix or report clearly:
+Experimental intraday learning must not use daily close as live intraday price.
+
+TASK 5 — THRESHOLD SOURCE OF TRUTH
+
+Resolve mismatch:
+SOP says BUY threshold 70 / WATCH 50.
+market_scanner.py appears to use BUY 62 / WATCH 42.
+
+Make one single source of truth:
+- config.py or phase20_settings
+- UI
+- SOP
+- scanner code
+
+Generate report:
+APEXQUANT_SOURCE_CODE_BUG_AUDIT_AND_FIX_REPORT.md
+
+Include:
+1. Size cap wiring fix.
+2. Whether DRREDDY/TMPV now resize correctly.
+3. Whether data path is still yfinance/daily.
+4. Whether exploration mode still uses daily close.
+5. Threshold mismatch resolution.
+6. Confirmation no live orders placed.
