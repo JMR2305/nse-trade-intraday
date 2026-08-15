@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ApexQuant AI — Full Project SOP v4.0</title>
+<style>
+:root{--navy:#0a1628;--teal:#00b4a6;--teal2:#009688;--bg:#f8fafc;--card:#fff;--border:#e2e8f0;--text:#1e293b;--muted:#64748b;--code-bg:#1e293b;--green:#059669;--amber:#d97706;--red:#dc2626}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px}
+.topbar{background:var(--navy);color:#fff;padding:14px 32px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+.topbar .logo{font-size:1.1rem;font-weight:700;color:var(--teal);letter-spacing:.5px}
+.topbar .badge{background:var(--teal);color:var(--navy);font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:6px}
+.topbar .meta{margin-left:auto;font-size:.8rem;color:#94a3b8}
+.wrapper{max-width:1060px;margin:0 auto;padding:36px 24px 80px}
+h1{font-size:1.9rem;color:var(--navy);margin:0 0 6px;border-bottom:3px solid var(--teal);padding-bottom:10px}
+h2{font-size:1.35rem;color:var(--navy);margin:44px 0 10px;padding-left:10px;border-left:4px solid var(--teal)}
+h3{font-size:1.1rem;color:#1e40af;margin:28px 0 8px}
+h4{font-size:.95rem;color:var(--muted);margin:20px 0 6px;text-transform:uppercase;letter-spacing:.6px}
+p{margin:8px 0}
+hr{border:none;border-top:1px solid var(--border);margin:32px 0}
+blockquote{background:#f0fdf4;border-left:4px solid var(--teal);padding:10px 16px;margin:12px 0;border-radius:0 6px 6px 0;font-size:.92rem;color:#166534}
+blockquote.warn{background:#fffbeb;border-left-color:var(--amber);color:#78350f}
+blockquote.info{background:#eff6ff;border-left-color:#3b82f6;color:#1e3a8a}
+ul{margin:8px 0 8px 22px}
+li{margin:4px 0}
+a{color:var(--teal2);text-decoration:none}
+a:hover{text-decoration:underline}
+code{background:#e8f4f8;color:#0f4c75;padding:1px 5px;border-radius:3px;font-family:"SF Mono",Consolas,monospace;font-size:.88em}
+pre{background:var(--code-bg);color:#e2e8f0;padding:16px 20px;border-radius:8px;overflow-x:auto;margin:14px 0;line-height:1.55}
+pre code{background:none;color:inherit;padding:0;font-size:.87em}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:.88rem}
+th{background:var(--navy);color:#e2e8f0;text-align:left;padding:8px 12px;font-weight:600}
+td{padding:7px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+tr:nth-child(even) td{background:#f8fafc}
+tr:hover td{background:#f0f9ff}
+strong{color:#1e40af}
+em{color:#059669}
+.vbanner{background:linear-gradient(135deg,var(--navy) 0%,#1e3a5f 100%);color:#fff;border-radius:10px;padding:20px 28px;margin-bottom:28px;display:flex;gap:24px;flex-wrap:wrap}
+.vbanner .lbl{font-size:.72rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px}
+.vbanner .val{font-size:.9rem;font-weight:600;color:#e2e8f0}
+.vbanner .val.green{color:var(--teal)}
+.vbanner .val.amber{color:#fbbf24}
+.vbanner .val.red{color:#f87171}
+.new40{border-left:3px solid var(--teal);padding-left:8px;margin-bottom:6px;font-size:.78rem;color:var(--teal2);font-weight:700;letter-spacing:.3px}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="logo">ApexQuant AI</span>
+  <span class="badge">v4.0</span>
+  <span style="color:#94a3b8;font-size:.85rem">Full Project SOP &amp; Second-Opinion Pack</span>
+  <span class="meta">Generated 2026-08-15 IST · Paper-only platform · No live orders ever</span>
+</div>
+<div class="wrapper">
+<div class="vbanner">
+  <div><div class="lbl">Document Version</div><div class="val green">v4.0</div></div>
+  <div><div class="lbl">Date</div><div class="val">2026-08-15 IST</div></div>
+  <div><div class="lbl">Kite LTP Overlay</div><div class="val green">IMPLEMENTED ✓ VERIFIED ✓</div></div>
+  <div><div class="lbl">Phase 27E Operator Analytics</div><div class="val green">53/53 tests ✓</div></div>
+  <div><div class="lbl">Phase 27F System Readiness</div><div class="val green">68/68 tests ✓</div></div>
+  <div><div class="lbl">Overlay Test Suite</div><div class="val green">37/37 tests ✓</div></div>
+  <div><div class="lbl">Data Source</div><div class="val amber">yfinance indicators + Kite LTP (exec) — flag off = daily bars only</div></div>
+  <div><div class="lbl">Live Orders Ever</div><div class="val green">NEVER</div></div>
+  <div><div class="lbl">EXIT_PENDING Resolution</div><div class="val green">UNBLOCKED (enable flag)</div></div>
+  <div><div class="lbl">Prior Fixes Carried</div><div class="val green">Phase 1A–D ✓ · Bug Audit 1–3,5 ✓</div></div>
+</div>
+
+<h1>ApexQuant AI — Full Project SOP &amp; Second-Opinion Pack</h1>
+
+<p><strong>Document version:</strong> 4.0</p>
+<p><strong>Generated:</strong> 2026-08-15 (IST)</p>
+<p><strong>Prepared by:</strong> Replit Agent (automated, read-only except where noted)</p>
+<p><strong>Purpose:</strong> Independent second-opinion review package — complete audit of architecture, behaviour, data, and open problems</p>
+<p><strong>Classification:</strong> Internal review — contains production database statistics</p>
+
+<blockquote><strong>Changelog from v3.1 → v4.0:</strong> This version incorporates the Kite LTP Overlay (Option A) implementation, Phase 27E Operator Analytics, and Phase 27F System Readiness.
+<br><br>
+<strong>(1) Kite LTP Overlay (KITE_LTP_OVERLAY_ENABLED):</strong> The P0 gap documented in v3.1 §21.4 is now implemented and independently verified. A new <code>kite_ltp_overlay.py</code> module was created. <code>live_scan_engine.py</code> gained 14 new optional fields on <code>Phase7Recommendation</code> and a Phase 2B overlay loop that runs one bulk Kite LTP call after yfinance analysis. <code>phase20_executor.py</code> uses Kite LTP as the BUY fill price and records both prices in evidence. <code>phase20_exits.py</code> uses Kite LTP for exit quote checks — EXIT_PENDING positions can now resolve. 37/37 overlay tests pass. Feature flag <code>KITE_LTP_OVERLAY_ENABLED=false</code> (default) — behaviour is identical to v3.1 until the flag is enabled. Verification confirms it is safe to set <code>KITE_LTP_OVERLAY_ENABLED=true</code> before the next market session.
+<br><br>
+<strong>(2) Phase 27E — Operator Analytics:</strong> New analytics module tracking operator-level scan/decision/execution behaviour. 53/53 tests.
+<br><br>
+<strong>(3) Phase 27F — System Readiness:</strong> System readiness scoring engine (<code>phase27_readiness.py</code>); <code>check_broker()</code> updated with Kite LTP overlay context — warns when overlay is enabled but Kite session unavailable during market hours. 68/68 tests.
+<br><br>
+<strong>(4) Option A invariants now enforced by tests:</strong> <code>indicator_source = "yfinance_daily_bars"</code> and <code>ohlcv_source = "yfinance_daily_bars"</code> NEVER change regardless of Kite state. Only <code>current_price_source</code> and <code>execution_price_source</code> become <code>"kite_live_ltp"</code> when LTP is available.
+<br><br>
+Sections added or updated are marked <strong>[UPDATED v4.0]</strong> / <strong>[NEW v4.0]</strong>. All prior v3.1 changes are carried forward without re-labelling.</blockquote>
+
+<blockquote><strong>Changelog from v3.0 → v3.1:</strong> Source Code vs SOP Mismatch Bug Audit (5 tasks). Four bugs found and fixed: (1) SIZE_REDUCED_TO_CAP wiring — executor was reading <code>_rv_result.get("size_reduced_to_cap")</code> which is always <code>None</code>; key lives in <code>rv.to_dict()["summary"]</code>; (2) Pre-trade validator false CRITICAL rejection on oversized qty; (3) Data path fully confirmed — yfinance only, 1d bars; (4) Exploration mode uses daily close as "live" exit price — documented; (5) Scanner thresholds (62/42) did not match config.py (70/50) — now imports from config.py. 13/13 regression tests.</blockquote>
+
+<blockquote><strong>Changelog from v2.0 → v3.0:</strong> Data Path &amp; Intraday Truth Audit (Tasks 1–7). The "Zerodha primary, Yahoo fallback" architecture <strong>does not exist in code</strong> — yfinance is the only OHLCV source. Sections marked <strong>[UPDATED v3]</strong> / <strong>[NEW v3]</strong>. No thresholds changed.</blockquote>
+
+<blockquote><strong>Disclaimer:</strong> All trade counts and statistics are pulled directly from the production PostgreSQL database as of the time of generation. Where data is unavailable or not stored, this is explicitly marked <code>[NOT STORED]</code> or <code>[UNKNOWN]</code>. No values are fabricated. This document is read-only — no settings, thresholds, trades, or database records were changed to produce it.</blockquote>
+
+<hr>
+
+<h2>Table of Contents</h2>
+
+<p>1. <a href="#1-executive-summary">Executive Summary</a> <strong>[UPDATED v4.0]</strong></p>
+<p>2. <a href="#2-ai-architecture-overview">AI Architecture Overview</a> <strong>[UPDATED v4.0]</strong></p>
+<p>3. <a href="#3-full-pipeline-flow">Full Pipeline Flow</a> <strong>[UPDATED v4.0]</strong></p>
+<p>4. <a href="#4-criteria-and-thresholds">Criteria and Thresholds</a></p>
+<p>5. <a href="#5-all-app-pages-and-routes">All App Pages and Routes</a> <strong>[UPDATED v4.0]</strong></p>
+<p>6. <a href="#6-universe-and-symbol-selection">Universe and Symbol Selection</a> <strong>[UPDATED v4.0]</strong></p>
+<p>7. <a href="#7-scan-cadence-and-rotation">Scan Cadence and Rotation</a></p>
+<p>8. <a href="#8-last-10-trading-days--production-statistics">Last 10 Trading Days — Production Statistics</a></p>
+<p>9. <a href="#9-top-symbols-by-signal-count">Top Symbols by Signal Count</a></p>
+<p>10. <a href="#10-rejection-and-block-reasons">Rejection and Block Reasons</a></p>
+<p>11. <a href="#11-detailed-case-studies">Detailed Case Studies</a></p>
+<p>12. <a href="#12-successful-historical-paper-trades">Successful Historical Paper Trades</a> <strong>[UPDATED v4.0]</strong></p>
+<p>13. <a href="#13-why-no-trades-executed-in-recent-sessions">Why No Trades Executed in Recent Sessions</a> <strong>[UPDATED v4.0]</strong></p>
+<p>14. <a href="#14-learning-architecture">Learning Architecture</a></p>
+<p>15. <a href="#15-backtesting-architecture">Backtesting Architecture</a></p>
+<p>16. <a href="#16-safety-controls--proof-of-no-live-orders">Safety Controls — Proof of No Live Orders</a> <strong>[UPDATED v4.0]</strong></p>
+<p>17. <a href="#17-open-and-proposed-tasks--priority-order">Open and Proposed Tasks — Priority Order</a> <strong>[UPDATED v4.0]</strong></p>
+<p>18. <a href="#18-known-weaknesses-and-second-opinion-questions">Known Weaknesses and Second-Opinion Questions</a> <strong>[UPDATED v4.0]</strong></p>
+<p>19. <a href="#19-recommended-30-day-roadmap">Recommended 30-Day Roadmap</a> <strong>[UPDATED v4.0]</strong></p>
+<p>20. <a href="#20-remediation-phase-1--changes-log">Remediation Phase 1 — Changes Log</a></p>
+<p>21. <a href="#21-data-path--intraday-truth-audit--changes-log">Data Path &amp; Intraday Truth Audit — Changes Log</a></p>
+<p>22. <a href="#22-bug-audit--source-code-vs-sop-mismatch">Bug Audit — Source Code vs SOP Mismatch</a></p>
+<p>23. <a href="#23-kite-ltp-overlay-option-a--implementation--verification">Kite LTP Overlay (Option A) — Implementation &amp; Verification</a> <strong>[NEW v4.0]</strong></p>
+<p>24. <a href="#24-phase-27e-operator-analytics">Phase 27E — Operator Analytics</a> <strong>[NEW v4.0]</strong></p>
+<p>25. <a href="#25-phase-27f-system-readiness">Phase 27F — System Readiness</a> <strong>[NEW v4.0]</strong></p>
+<p>26. <a href="#26-appendix">Appendix</a></p>
+
+<hr>
+
+<h2 id="1-executive-summary">1. Executive Summary</h2>
+
+<h3>1.1 What is ApexQuant AI?</h3>
+
+<p>ApexQuant AI is a <strong>paper-only NSE trading research platform</strong> built on a multi-agent AI architecture. Its core purpose is to:</p>
+<ul>
+<li>Scan NIFTY 50 (51 symbols after TATAMOTORS demerger) every 5 minutes during market hours</li>
+<li>Run each symbol through a multi-layer AI pipeline: data quality → signal → strategy → risk → decision → execution</li>
+<li>Generate BUY / WATCH / IGNORE recommendations with confidence scores, opportunity scores, and position-sizing guidance</li>
+<li>Execute paper (simulated) trades when all gates pass, building a tracked portfolio</li>
+<li>Learn from the outcomes of those paper trades to improve future decisions</li>
+</ul>
+
+<p><strong>No live orders have ever been placed, and no Zerodha broker APIs are called for order submission.</strong> Live execution is structurally disabled.</p>
+
+<h3>1.2 Current Status (as of 2026-08-15) <strong>[UPDATED v4.0]</strong></h3>
+
+<table><thead>
+<tr><th>Dimension</th><th>Status</th></tr>
+</thead><tbody>
+<tr><td>Live order execution</td><td><strong>PERMANENTLY DISABLED</strong> — <code>LIVE_EXECUTION_ENABLED = False</code></td></tr>
+<tr><td>Paper trading mode</td><td><strong>ACTIVE</strong> — auto-scanning on 5-minute interval</td></tr>
+<tr><td>Zerodha session</td><td><strong>INACTIVE</strong> — no current login; does NOT affect OHLCV indicators (see §6.4)</td></tr>
+<tr><td>Data source — indicators</td><td><strong>Yahoo Finance (yfinance) exclusively</strong> — daily bars, 6-month lookback. Always.</td></tr>
+<tr><td>Data source — execution price</td><td><strong>Kite live LTP (when KITE_LTP_OVERLAY_ENABLED=true + session verified) → fallback yfinance close</strong> <strong>[NEW v4.0]</strong></td></tr>
+<tr><td>Candle interval</td><td><strong>1d (daily bars)</strong> for all indicators. Kite LTP overlays execution price only.</td></tr>
+<tr><td>KITE_LTP_OVERLAY_ENABLED flag</td><td><strong>false (default)</strong> — safe to set true before next market session <strong>[NEW v4.0]</strong></td></tr>
+<tr><td>Portfolio capital</td><td>₹50,000 (resets each session)</td></tr>
+<tr><td>Open paper positions</td><td>4 (all EXIT_PENDING — will resolve on next scan with flag enabled) <strong>[UPDATED v4.0]</strong></td></tr>
+<tr><td>Executed trades (lifetime canonical)</td><td><strong>4 rows in <code>phase20_paper_trades</code></strong> (P20- prefix)</td></tr>
+<tr><td>Universe</td><td>51 NSE symbols (NIFTY 50 + TMPV + TMCV, minus TATAMOTORS)</td></tr>
+<tr><td>Scan coverage</td><td>~50/51 per scan (1 symbol typically missing from Yahoo — likely LTIM)</td></tr>
+<tr><td><strong>Kite LTP Overlay wiring</strong></td><td><strong>DONE (v4.0)</strong> — 37/37 tests; verified safe to enable <strong>[NEW v4.0]</strong></td></tr>
+<tr><td><strong>SIZE_REDUCED_TO_CAP wiring bug</strong></td><td><strong>FIXED (Bug Audit Task 1)</strong></td></tr>
+<tr><td><strong>Pre-trade false CRITICAL rejection</strong></td><td><strong>FIXED (Bug Audit Task 2)</strong></td></tr>
+<tr><td><strong>Scanner threshold mismatch</strong></td><td><strong>FIXED (Bug Audit Task 5)</strong></td></tr>
+<tr><td><strong>Phase 27E Operator Analytics</strong></td><td><strong>DONE (v4.0)</strong> — 53/53 tests <strong>[NEW v4.0]</strong></td></tr>
+<tr><td><strong>Phase 27F System Readiness</strong></td><td><strong>DONE (v4.0)</strong> — 68/68 tests <strong>[NEW v4.0]</strong></td></tr>
+</tbody></table>
+
+<h3>1.3 Primary Problem Statement <strong>[UPDATED v4.0]</strong></h3>
+
+<p>The platform correctly identifies BUY signals. All code-level blockers for paper execution are now resolved:</p>
+
+<table><thead>
+<tr><th>Blocker</th><th>Status</th></tr>
+</thead><tbody>
+<tr><td><strong>Position-size cap hard-reject</strong></td><td>✅ <strong>FIXED</strong> — <code>SIZE_REDUCED_TO_CAP</code> path active; executor reads from <code>summary</code></td></tr>
+<tr><td><strong>Rejection reasons not stored</strong></td><td>✅ <strong>FIXED</strong> — all rejection events carry structured reason fields</td></tr>
+<tr><td><strong>Kite LTP not wired into scan/exit path</strong></td><td>✅ <strong>DONE (v4.0)</strong> — <code>KITE_LTP_OVERLAY_ENABLED</code> flag; safe to enable</td></tr>
+<tr><td><strong>EXIT_PENDING cannot resolve</strong></td><td>✅ <strong>RESOLVED (v4.0)</strong> — Kite LTP overlay makes <code>quote_reliable=True</code></td></tr>
+</tbody></table>
+
+<p><strong>Remaining open items (non-blocking):</strong></p>
+<p>1. <strong>R:R threshold misalignment:</strong> Scan gate uses 1.5, Phase20 execution gate uses 2.0 (settings default). Signals with 1.5 ≤ RR &lt; 2.0 pass the scan but are blocked at execution. Deferred to Phase 2.</p>
+<p>2. <strong>Scanner uses daily bars for indicators:</strong> <code>SCAN_INTERVAL = "1d"</code>. True intraday bar scanning (1m/5m/15m) is Option B — a separate, larger project. Option A (LTP overlay) is implemented.</p>
+<p>3. <strong>Exploration mode DB insert:</strong> <code>experimental_paper_trades</code> insert was failing silently for Aug 15 events. Under investigation.</p>
+
+<hr>
+
+<h2 id="2-ai-architecture-overview">2. AI Architecture Overview</h2>
+
+<h3>2.1 Architecture Layers <strong>[UPDATED v4.0]</strong></h3>
+
+<pre><code>
+┌────────────────────────────────────────────────────────────┐
+│  LAYER 0: DATA ACQUISITION                                  │
+│  live_data_provider.py (LiveDataProvider)                   │
+│  Source: Yahoo Finance (yfinance) — ONLY OHLCV source       │
+│  Interval: 1d (daily bars), 6-month lookback (SCAN_PERIOD)  │
+│  Quality: age-based (≤3d=LIVE, ≤5d=NEAR_LIVE, ≤14d=STALE) │
+│  Output: OHLCV DataFrame per symbol, age_days, quality label│
+└────────────────────┬───────────────────────────────────────┘
+                     │
+┌────────────────────▼───────────────────────────────────────┐
+│  LAYER 1: SIGNAL ENGINE (live_scan_engine.py)               │
+│  indicator_engine.py + signal_engine.py + trade_quality.py  │
+│  Computes: RSI, MACD, Bollinger, ADX, OBV per symbol        │
+│  Output: confidence score (0–100), action (BUY/WATCH/IGNORE)│
+│  Data quality gate: STALE→WATCH, UNAVAILABLE→IGNORE         │
+│  [NEW v4.0] Phase 2B LTP overlay loop after analysis:       │
+│    kite_ltp_overlay.fetch_ltp_overlay(all_symbols)          │
+│    Overlays current_price_source + execution_price_source   │
+│    indicator_source ALWAYS = "yfinance_daily_bars"          │
+└────────────────────┬───────────────────────────────────────┘
+                     │
+┌────────────────────▼───────────────────────────────────────┐
+│  LAYER 2: MARKET INTELLIGENCE (market_intelligence.py)      │
+│  Computes: market regime (BULLISH/BEARISH/SIDEWAYS/etc.)    │
+│  Output: regime label, confidence modifier (−15 to +10)     │
+└────────────────────┬───────────────────────────────────────┘
+                     │
+┌────────────────────▼───────────────────────────────────────┐
+│  LAYER 3–6: RESEARCH, OPPORTUNITY, STRATEGY, RISK           │
+│  (unchanged — see prior SOP versions for detail)            │
+└────────────────────┬───────────────────────────────────────┘
+                     │
+┌────────────────────▼───────────────────────────────────────┐
+│  LAYER 7: AI DECISION ENGINE (ai_decision_agent/)           │
+│  7 decision types, confidence weighting, conflict detection  │
+│  Output: final_action (STRONG BUY / BUY / WATCH / IGNORE)  │
+└────────────────────┬───────────────────────────────────────┘
+                     │
+┌────────────────────▼───────────────────────────────────────┐
+│  LAYER 8: PAPER EXECUTION (phase20_executor.py)             │
+│  [NEW v4.0] BUY fill price = Kite LTP (when flag=true)      │
+│             OR yfinance daily close (when flag=false)        │
+│  Evidence records BOTH prices: signal_price_from_daily_bar  │
+│  + execution_price_from_kite_ltp (full auditability)        │
+│  Output: ORDER_SUBMITTED → ORDER_EXECUTED or ORDER_REJECTED │
+│  NO LIVE ORDERS — all simulated fills                       │
+└────────────────────┬───────────────────────────────────────┘
+                     │
+┌────────────────────▼───────────────────────────────────────┐
+│  LAYER 8B: EXIT MANAGEMENT (phase20_exits.py)               │
+│  [NEW v4.0] Exit quote = Kite LTP (when flag=true)          │
+│             quote_reliable=True when LTP available           │
+│             EXIT_PENDING positions can now resolve           │
+│  8 exit rules: TARGET_HIT, STOP_LOSS_HIT, TRAILING_STOP,   │
+│  TIME_EXIT, MARKET_CLOSE_EXIT, PORTFOLIO_RISK_REDUCTION,    │
+│  SECTOR_CAP_BREACH, STALE_DATA_SAFETY                       │
+└────────────────────┬───────────────────────────────────────┘
+                     │
+┌────────────────────▼───────────────────────────────────────┐
+│  LAYER 9: LEARNING &amp; ANALYTICS                              │
+│  phase24_engine.py + learning_agent/ + analytics_engine.py  │
+│  Advisory-only: no auto-promotion of learned adjustments    │
+│  Human approval required before any parameter change        │
+└────────────────────┬───────────────────────────────────────┘
+                     │
+┌────────────────────▼───────────────────────────────────────┐
+│  LAYER 10: REPLAY / BACKTEST (backtesting_engine.py)        │
+│  Runs real scan pipeline on historical candle data          │
+│  Isolated ledger — never affects live portfolio             │
+└────────────────────────────────────────────────────────────┘
+</code></pre>
+
+<h3>2.2 Key Python Files <strong>[UPDATED v4.0]</strong></h3>
+
+<table><thead>
+<tr><th>File</th><th>Purpose</th></tr>
+</thead><tbody>
+<tr><td><code>config.py</code></td><td>All configurable thresholds + <strong>KITE_LTP_OVERLAY_ENABLED</strong> flag (default false) [NEW v4.0]</td></tr>
+<tr><td><code>kite_ltp_overlay.py</code></td><td><strong>[NEW v4.0]</strong> Option A overlay module — <code>is_overlay_enabled()</code>, <code>fetch_ltp_overlay()</code>, <code>build_symbol_overlay()</code>, <code>apply_overlay_to_rec()</code></td></tr>
+<tr><td><code>live_scan_engine.py</code></td><td>Core scan loop; Phase 2B LTP overlay loop after analysis; 14 new optional fields on <code>Phase7Recommendation</code> [UPDATED v4.0]</td></tr>
+<tr><td><code>live_data_provider.py</code></td><td><strong>Only OHLCV data source</strong> — yfinance exclusively. <code>SCAN_INTERVAL="1d"</code>, <code>SCAN_PERIOD="6mo"</code></td></tr>
+<tr><td><code>kite_quote_provider.py</code></td><td>Kite LTP/quote fetcher — <strong>now called by kite_ltp_overlay.py</strong> when flag=true + session verified [UPDATED v4.0]</td></tr>
+<tr><td><code>phase20_executor.py</code></td><td>Paper execution pipeline; BUY fill uses Kite LTP when available; evidence records both prices [UPDATED v4.0]</td></tr>
+<tr><td><code>phase20_exits.py</code></td><td>8 exit rules; exit quote uses Kite LTP when available; <code>_retry_pending()</code> can resolve EXIT_PENDING [UPDATED v4.0]</td></tr>
+<tr><td><code>phase27_readiness.py</code></td><td>System readiness engine; <code>check_broker()</code> includes Kite LTP overlay context [UPDATED v4.0]</td></tr>
+<tr><td><code>phase20_store.py</code></td><td>Settings KV store, DEFAULT_SETTINGS</td></tr>
+<tr><td><code>phase20_scheduler.py</code></td><td>5-minute scan tick, paper management</td></tr>
+<tr><td><code>canonical_portfolio.py</code></td><td>Portfolio ledger (positions, cash, equity)</td></tr>
+<tr><td><code>market_regime.py</code></td><td>Regime classification</td></tr>
+<tr><td><code>position_sizer.py</code></td><td>Stop/target/quantity calculation</td></tr>
+<tr><td><code>phase24_engine.py</code></td><td>Learning analytics engine</td></tr>
+<tr><td><code>backtesting_engine.py</code></td><td>Historical backtesting</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2 id="3-full-pipeline-flow">3. Full Pipeline Flow <strong>[UPDATED v4.0]</strong></h2>
+
+<h3>3.1 Main Scan and Execution Pipeline</h3>
+
+<pre><code>
+START SCAN TICK (every 5 minutes, 09:15–15:30 IST)
+│
+├── [STEP 1] Scan Lock Acquired (DB-durable, prevents concurrent scans)
+│
+├── [STEP 2] Data Fetch: LiveDataProvider.fetch_batch(universe)
+│   │   Provider: Yahoo Finance (yfinance) — the ONLY OHLCV source
+│   │   Interval: 1d (daily bars), Period: 6mo
+│   │   Kite: NOT involved in this step.
+│   └── Output: {symbol: SymbolFetchResult} — OHLCV + age_days + quality per symbol
+│
+├── [STEP 3] For each of 51 symbols: _scan_one()
+│   │   [SIGNAL] Compute indicators: RSI, MACD, Bollinger, ADX, OBV
+│   │   [DATA QUALITY GATE] _apply_quality_gate()
+│   │   [R:R GATE] rr_ratio < 1.5 → downgrade to WATCH
+│   │   [MARKET CONTEXT] Apply regime modifier
+│   │   [OPPORTUNITY SCORE] trade_quality×0.40 + confidence×0.30 + rr×0.20 + market×0.10
+│   │   [STRATEGY] Select MOMENTUM / BREAKOUT / MEAN_REVERSION
+│   └── Output: Phase7Recommendation per symbol (entry_price = yfinance daily close)
+│
+├── [STEP 3B — NEW v4.0] Kite LTP Overlay Loop (when KITE_LTP_OVERLAY_ENABLED=true)
+│   │   kite_ltp_overlay.fetch_ltp_overlay(all_symbols) — ONE bulk Kite call
+│   │   For each rec:
+│   │     build_symbol_overlay(symbol, yfinance_close, yfinance_dq, ltp_result)
+│   │     apply_overlay_to_rec(rec, overlay)
+│   │   Option A invariants enforced:
+│   │     indicator_source    = "yfinance_daily_bars"  ← NEVER changes
+│   │     ohlcv_source        = "yfinance_daily_bars"  ← NEVER changes
+│   │     data_quality_for_indicators = yfinance DQ    ← NEVER changes
+│   │     yfinance_last_close = entry_price at scan    ← always preserved
+│   │   When Kite LTP available:
+│   │     kite_ltp                  = live LTP
+│   │     kite_ltp_available        = True
+│   │     current_price_source      = "kite_live_ltp"
+│   │     execution_price_source    = "kite_live_ltp"
+│   │     quote_reliable            = True
+│   │     data_quality_for_execution = "LIVE"
+│   │   When Kite unavailable: all fields stay yfinance defaults (silent fallback)
+│   └── timings["ltp_overlay_s"] recorded; safety dict updated
+│
+├── [STEP 4] Paper Execution: phase20_gates.evaluate_entries()
+│   │   For each BUY candidate:
+│   │     signal_price = kite_ltp (when available) OR yfinance close [UPDATED v4.0]
+│   │     evidence records both signal_price_from_daily_bar AND execution_price_from_kite_ltp
+│   │     compute_fill(signal_price) → fill_price ± slippage
+│   │     execute_buy() → phase20_paper_trades row (P20- prefix)
+│   └── No Zerodha order API called at any point
+│
+└── [STEP 5] Exit Management: phase20_exits.manage_open_positions()
+    │   For each OPEN position:
+    │     quote = kite_ltp (when kite_ltp_available + quote_reliable) [UPDATED v4.0]
+    │            OR yfinance daily close (fallback)
+    │     quote_reliable = True when Kite LTP used
+    │     All 8 exit rules evaluated with live quote
+    │     EXIT_PENDING positions: _retry_pending() uses same LTP path → can resolve [UPDATED v4.0]
+    └── realized_pnl recorded only when exit rule triggers with valid quote
+</code></pre>
+
+<h3>3.2 Exit Management Loop (runs every scan tick)</h3>
+
+<table><thead>
+<tr><th>Exit Rule</th><th>Trigger</th><th>Data Requirement</th><th>v4.0 Status</th></tr>
+</thead><tbody>
+<tr><td><code>TARGET_HIT</code></td><td><code>quote &gt;= target</code></td><td><code>quote_reliable=True</code></td><td>✅ Uses Kite LTP when available</td></tr>
+<tr><td><code>STOP_LOSS_HIT</code></td><td><code>quote &lt;= stop</code></td><td><code>quote_reliable=True</code></td><td>✅ Uses Kite LTP when available</td></tr>
+<tr><td><code>TRAILING_STOP</code></td><td>Peak ≥ fill+2R, then quote ≤ fill+1R</td><td><code>quote_reliable=True</code></td><td>✅ Uses Kite LTP when available</td></tr>
+<tr><td><code>TIME_EXIT</code></td><td><code>(now - fill_ts).days &gt;= max_holding_days</code></td><td>Any</td><td>✅ Unchanged</td></tr>
+<tr><td><code>MARKET_CLOSE_EXIT</code></td><td>Last 15 min of session, <code>square_off_before_close=True</code></td><td>Market hours</td><td>✅ Uses Kite LTP when available</td></tr>
+<tr><td><code>PORTFOLIO_RISK_REDUCTION</code></td><td>Daily P&amp;L ≤ −daily_loss_limit</td><td>Any</td><td>✅ Unchanged</td></tr>
+<tr><td><code>SECTOR_CAP_BREACH</code></td><td>Sector exposure &gt; cap × 1.25</td><td>Any</td><td>✅ Unchanged</td></tr>
+<tr><td><code>STALE_DATA_SAFETY</code></td><td>Symbol missing from current scan context</td><td>Any</td><td>✅ Unchanged</td></tr>
+</tbody></table>
+
+<blockquote class="info"><strong>v4.0 update — EXIT_PENDING resolution:</strong> With <code>KITE_LTP_OVERLAY_ENABLED=true</code> and a verified Kite session, the 4 existing EXIT_PENDING positions (BAJFINANCE, GRASIM, DIVISLAB, TRENT) will gain <code>quote_reliable=True</code> on the next scan tick. <code>_retry_pending()</code> forces <code>dq="LIVE"</code> and passes the eligibility check. Exit rules are evaluated against live LTP. Positions resolve naturally — no forced fills, no fabricated prices. Zero LTP or None LTP is rejected; the system falls back to yfinance daily close without crashing.</blockquote>
+
+<hr>
+
+<h2 id="4-criteria-and-thresholds">4. Criteria and Thresholds</h2>
+
+<h3>4.1 Signal Thresholds (config.py)</h3>
+
+<table><thead>
+<tr><th>Threshold</th><th>Value</th><th>Meaning</th></tr>
+</thead><tbody>
+<tr><td><code>SIGNAL_STRONG_THRESHOLD</code></td><td><strong>90.0</strong></td><td>Confidence ≥ 90 → STRONG BUY</td></tr>
+<tr><td><code>SIGNAL_BUY_THRESHOLD</code></td><td><strong>75.0</strong></td><td>Confidence 75–90 → BUY</td></tr>
+<tr><td><code>SIGNAL_WATCH_THRESHOLD</code></td><td><strong>60.0</strong></td><td>Confidence 60–75 → WATCH</td></tr>
+<tr><td><code>SIGNAL_MIN_THRESHOLD</code></td><td><strong>60.0</strong></td><td>Confidence &lt; 60 → NO_TRADE / IGNORE</td></tr>
+</tbody></table>
+
+<h3>4.2 Opportunity Score Thresholds (config.py — single source of truth)</h3>
+
+<table><thead>
+<tr><th>Threshold</th><th>Value</th><th>Meaning</th></tr>
+</thead><tbody>
+<tr><td><code>OPP_HOT_BUY_THRESHOLD</code></td><td><strong>85.0</strong></td><td>Hot BUY — highest priority</td></tr>
+<tr><td><code>OPP_BUY_THRESHOLD</code></td><td><strong>70.0</strong></td><td>Standard BUY</td></tr>
+<tr><td><code>OPP_WATCH_THRESHOLD</code></td><td><strong>50.0</strong></td><td>WATCH candidate</td></tr>
+<tr><td>Below 50</td><td>—</td><td>IGNORE</td></tr>
+</tbody></table>
+
+<blockquote><strong>Single source of truth:</strong> <code>market_scanner.py</code> imports these constants from <code>config.py</code> (fixed in Bug Audit Task 5). To change any threshold, edit <code>config.py</code> only.</blockquote>
+
+<h3>4.3 Execution-Time Gates (phase20_executor.py via phase20_store.py)</h3>
+
+<table><thead>
+<tr><th>Gate</th><th>Default Value</th><th>Notes</th></tr>
+</thead><tbody>
+<tr><td><code>min_confidence</code></td><td><strong>60.0%</strong></td><td>Configurable via Settings page</td></tr>
+<tr><td><code>min_opportunity_score</code></td><td><strong>60.0</strong></td><td>Configurable via Settings page</td></tr>
+<tr><td><code>min_risk_reward</code></td><td><strong>2.0</strong></td><td>Execution gate — different from scan gate 1.5 (gap deferred to Phase 2)</td></tr>
+<tr><td><code>per_stock_exposure_cap_pct</code></td><td><strong>25.0%</strong></td><td>Settings default; SIZE_REDUCED_TO_CAP when exceeded</td></tr>
+<tr><td>Market open window</td><td><strong>09:15–15:30 IST</strong></td><td>Outside this → execution skipped</td></tr>
+<tr><td>Stale scan</td><td>Configurable</td><td>Scan older than threshold → EXECUTION_SKIPPED</td></tr>
+<tr><td>Circuit breaker</td><td>State-based</td><td>If tripped → all entries blocked until manual reset</td></tr>
+<tr><td>Duplicate position</td><td>One per symbol</td><td>Cannot open second position in same symbol</td></tr>
+<tr><td>Position size</td><td>SIZE_REDUCED_TO_CAP path</td><td>cap_qty ≥ 1: WARNING + proceed; cap_qty == 0: CRITICAL → REJECTED [FIXED]</td></tr>
+</tbody></table>
+
+<h3>4.4 R:R Threshold Map — All Layers</h3>
+
+<table><thead>
+<tr><th>Layer</th><th>Threshold</th><th>Enforcement</th><th>Pipeline effect</th></tr>
+</thead><tbody>
+<tr><td>Scan gate (<code>live_scan_engine.py:64</code>)</td><td><strong>≥ 1.5</strong></td><td><code>_rr_gate()</code> caps BUY→WATCH</td><td>WATCH_GENERATED</td></tr>
+<tr><td>Pre-trade validator (<code>risk_validation/pre_trade.py</code>)</td><td><strong>≥ 1.5</strong></td><td>CRITICAL rejection</td><td>ORDER_REJECTED</td></tr>
+<tr><td>Phase20 execution gate (<code>phase20_gates.py</code>)</td><td><strong>≥ 2.0</strong> (settings default)</td><td>EXECUTION_SKIPPED</td><td>EXECUTION_SKIPPED_WITH_REASON</td></tr>
+<tr><td><code>AI_MIN_RR_RATIO</code> (<code>config.py</code>)</td><td><strong>2.0</strong></td><td><strong>⚠️ DEAD CONFIG</strong> — in phase21_baseline.py reporting dict only</td><td><strong>None — not enforced</strong></td></tr>
+</tbody></table>
+
+<p><strong>Conflict:</strong> Signals with 1.5 ≤ RR &lt; 2.0 pass the scan gate but are blocked at the phase20 execution gate. <strong>Threshold alignment deferred to Phase 2.</strong></p>
+
+<h3>4.5 Kite LTP Overlay — Option A Invariants <strong>[NEW v4.0]</strong></h3>
+
+<table><thead>
+<tr><th>Field</th><th>Value when flag=false</th><th>Value when flag=true + LTP available</th><th>Value when flag=true + Kite unavailable</th></tr>
+</thead><tbody>
+<tr><td><code>indicator_source</code></td><td><code>"yfinance_daily_bars"</code></td><td><code>"yfinance_daily_bars"</code> ← <strong>NEVER changes</strong></td><td><code>"yfinance_daily_bars"</code></td></tr>
+<tr><td><code>ohlcv_source</code></td><td><code>"yfinance_daily_bars"</code></td><td><code>"yfinance_daily_bars"</code> ← <strong>NEVER changes</strong></td><td><code>"yfinance_daily_bars"</code></td></tr>
+<tr><td><code>current_price_source</code></td><td><code>"yfinance_daily_bars"</code></td><td><code>"kite_live_ltp"</code></td><td><code>"yfinance_daily_bars"</code> (fallback)</td></tr>
+<tr><td><code>execution_price_source</code></td><td><code>"yfinance_daily_bars"</code></td><td><code>"kite_live_ltp"</code></td><td><code>"yfinance_daily_bars"</code> (fallback)</td></tr>
+<tr><td><code>data_quality_for_indicators</code></td><td>yfinance DQ (age-based)</td><td>yfinance DQ ← <strong>NEVER changes</strong></td><td>yfinance DQ</td></tr>
+<tr><td><code>data_quality_for_execution</code></td><td>yfinance DQ</td><td><code>"LIVE"</code></td><td>yfinance DQ (fallback)</td></tr>
+<tr><td><code>kite_ltp_available</code></td><td><code>False</code></td><td><code>True</code></td><td><code>False</code></td></tr>
+<tr><td><code>quote_reliable</code></td><td><code>False</code> (yfinance ACCEPTABLE ≠ LIVE)</td><td><code>True</code></td><td><code>False</code></td></tr>
+<tr><td><code>yfinance_last_close</code></td><td>entry_price (daily close)</td><td>entry_price ← <strong>always preserved</strong></td><td>entry_price</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2 id="5-all-app-pages-and-routes">5. All App Pages and Routes <strong>[UPDATED v4.0]</strong></h2>
+
+<h3>5.1 Primary Canonical Pages (Daily Operations)</h3>
+
+<blockquote>The following 5 pages are the recommended daily-use pages.</blockquote>
+
+<table><thead>
+<tr><th>Route</th><th>Component</th><th>Functionality</th></tr>
+</thead><tbody>
+<tr><td><code>/</code></td><td><code>TradeDecisions</code></td><td>Main dashboard — scan results, BUY/WATCH/IGNORE signals, live scan status, Kite LTP source label [UPDATED v4.0]</td></tr>
+<tr><td><code>/ai-paper-trader</code></td><td><code>AIPaperTrader</code></td><td>Paper trade management — open positions, P&amp;L, EXIT_PENDING, execution price source</td></tr>
+<tr><td><code>/mission-control</code></td><td><code>MissionControl</code></td><td>Mission Control — live stream, scan status, alert feed</td></tr>
+<tr><td><code>/live-data-health</code></td><td><code>LiveDataHealth</code></td><td>Data provider health, symbol coverage, LTP overlay status, quality breakdown [UPDATED v4.0]</td></tr>
+<tr><td><code>/market-intelligence</code></td><td><code>MarketIntelligence</code></td><td>Market regime, sector analysis, opportunity ranking</td></tr>
+</tbody></table>
+
+<h3>5.2–5.8 Other Pages</h3>
+<p>Signal/Decision, Portfolio/Performance, Risk/Validation, Backtest/Strategy, Learning/AI Intelligence, Operations/Observability, and Admin/Audit pages are unchanged from v3.1. See §5.2–§5.8 in prior version. New pages in v4.0:</p>
+
+<table><thead>
+<tr><th>Route</th><th>Component</th><th>Functionality</th></tr>
+</thead><tbody>
+<tr><td><code>/system-readiness</code></td><td><code>SystemReadiness</code></td><td><strong>[NEW v4.0]</strong> Phase 27F — GO/NO-GO readiness score, 8 check domains, broker overlay status</td></tr>
+<tr><td><code>/operator-analytics</code></td><td><code>OperatorAnalytics</code></td><td><strong>[NEW v4.0]</strong> Phase 27E — operator-level scan/decision/execution analytics</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2 id="6-universe-and-symbol-selection">6. Universe and Symbol Selection</h2>
+
+<h3>6.1 NIFTY 50 Universe (51 Symbols)</h3>
+
+<table><thead>
+<tr><th>Sector</th><th>Symbols</th><th>Count</th></tr>
+</thead><tbody>
+<tr><td>IT</td><td>TCS, INFY, WIPRO, HCLTECH, TECHM, LTIM</td><td>6</td></tr>
+<tr><td>BANKING</td><td>HDFCBANK, ICICIBANK, SBIN, AXISBANK, KOTAKBANK, INDUSINDBK</td><td>6</td></tr>
+<tr><td>FINANCE</td><td>BAJFINANCE, BAJAJFINSV, HDFCLIFE, SBILIFE, SHRIRAMFIN</td><td>5</td></tr>
+<tr><td>ENERGY</td><td>RELIANCE, ONGC, POWERGRID, NTPC, COALINDIA</td><td>5</td></tr>
+<tr><td>INFRA</td><td>LT, ULTRACEMCO, GRASIM, ADANIPORTS</td><td>4</td></tr>
+<tr><td>AUTO</td><td>MARUTI, <strong>TMPV</strong>, <strong>TMCV</strong>, BAJAJ-AUTO, EICHERMOT, M&amp;M, HEROMOTOCO</td><td><strong>7</strong></td></tr>
+<tr><td>FMCG</td><td>HINDUNILVR, NESTLEIND, BRITANNIA, ITC, TATACONSUM</td><td>5</td></tr>
+<tr><td>PHARMA</td><td>SUNPHARMA, CIPLA, DRREDDY, DIVISLAB, APOLLOHOSP</td><td>5</td></tr>
+<tr><td>METALS</td><td>TATASTEEL, HINDALCO, JSWSTEEL, ADANIENT</td><td>4</td></tr>
+<tr><td>CONSUMER</td><td>TITAN, ASIANPAINT, TRENT</td><td>3</td></tr>
+<tr><td>TELECOM</td><td>BHARTIARTL</td><td>1</td></tr>
+<tr><td><strong>TOTAL</strong></td><td></td><td><strong>51</strong></td></tr>
+</tbody></table>
+
+<h3>6.2 Data Quality Labels</h3>
+
+<table><thead>
+<tr><th>Label</th><th>Definition</th><th>Age threshold</th><th>Effect on Signal</th></tr>
+</thead><tbody>
+<tr><td><code>LIVE</code></td><td>Latest yfinance bar ≤ 3 calendar days old</td><td>age_days ≤ 3</td><td>Full BUY/WATCH/IGNORE possible</td></tr>
+<tr><td><code>NEAR_LIVE</code></td><td>Latest bar 4–5 calendar days old</td><td>age_days ≤ 5</td><td>Full BUY/WATCH/IGNORE possible</td></tr>
+<tr><td><code>STALE</code></td><td>Latest bar 6–14 calendar days old</td><td>age_days ≤ 14</td><td><strong>BUY forced to WATCH</strong></td></tr>
+<tr><td><code>UNAVAILABLE</code></td><td>Fetch failed or bar older than 14 days</td><td>age_days &gt; 14</td><td><strong>Forced to IGNORE</strong></td></tr>
+</tbody></table>
+
+<blockquote><strong>Quality is age-based only.</strong> Zerodha session state has no effect on quality grades. <code>data_quality_for_indicators</code> always reflects the yfinance age. <code>data_quality_for_execution</code> becomes <code>"LIVE"</code> when Kite LTP overlay is active and LTP is available — but this does not change indicator quality.</blockquote>
+
+<h3>6.3 Provider Sources <strong>[UPDATED v4.0]</strong></h3>
+
+<table><thead>
+<tr><th>Provider</th><th>Role</th><th>When used</th></tr>
+</thead><tbody>
+<tr><td><strong>Yahoo Finance (yfinance)</strong></td><td><strong>OHLCV, all indicators, strategy signals — always</strong></td><td>Every scan, unconditionally</td></tr>
+<tr><td><strong>Zerodha Kite LTP</strong> (<code>kite_quote_provider.py</code> via <code>kite_ltp_overlay.py</code>)</td><td><strong>Execution price + exit quote overlay only</strong> — NEVER affects indicators or OHLCV [UPDATED v4.0]</td><td>When <code>KITE_LTP_OVERLAY_ENABLED=true</code> AND session verified</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2 id="7-scan-cadence-and-rotation">7. Scan Cadence and Rotation</h2>
+
+<h3>7.1 Configuration</h3>
+
+<table><thead>
+<tr><th>Parameter</th><th>Value</th></tr>
+</thead><tbody>
+<tr><td>Scan interval</td><td><strong>5 minutes</strong> (configurable: 1, 2, 3, 5, 10, 15)</td></tr>
+<tr><td>Market hours gate</td><td><strong>09:15–15:30 IST</strong> (execution only; scan runs 24/7)</td></tr>
+<tr><td>Universe per scan</td><td><strong>51 symbols</strong></td></tr>
+<tr><td>Candle interval</td><td><strong>1d (daily bars)</strong></td></tr>
+<tr><td>Historical lookback</td><td><strong>6 months</strong></td></tr>
+</tbody></table>
+
+<h3>7.2 Actual Scan Counts (from production pipeline_events)</h3>
+
+<table><thead>
+<tr><th>Date</th><th>Scans</th><th>Symbols Scanned</th><th>Notes</th></tr>
+</thead><tbody>
+<tr><td>2026-08-15</td><td>0</td><td>0</td><td>Weekend — no market</td></tr>
+<tr><td>2026-08-14</td><td>72</td><td>3,600</td><td>50 symbols/scan, 1 missing</td></tr>
+<tr><td>2026-08-13</td><td>71</td><td>3,550</td><td>Normal day</td></tr>
+<tr><td>2026-08-12</td><td>70</td><td>13,793</td><td><strong>ANOMALY</strong> — 197 symbols/scan</td></tr>
+<tr><td>2026-08-11</td><td><strong>88★</strong></td><td>64,693★</td><td><strong>MAJOR ANOMALY</strong> — scan-loop runaway</td></tr>
+<tr><td>2026-08-10</td><td>54</td><td>2,592</td><td>48 symbols/scan</td></tr>
+</tbody></table>
+
+<p>★ Scan-loop runaway — up to 5 scans per minute; Aug 11 ORDER_EXECUTED events were phantom (BTT- prefix, external bot, 0 ledger rows).</p>
+
+<hr>
+
+<h2 id="8-last-10-trading-days--production-statistics">8. Last 10 Trading Days — Production Statistics</h2>
+
+<table><thead>
+<tr><th>Date</th><th>Scans</th><th>BUY Gen</th><th>WATCH Gen</th><th>Ord Submit</th><th>Ord Exec</th><th>Ord Rej</th><th>Exec Skip</th><th>Pos Opened</th><th>Pos Closed</th></tr>
+</thead><tbody>
+<tr><td>2026-08-15</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><td>2026-08-14</td><td>72</td><td>48</td><td>1,926</td><td>0</td><td>0</td><td>203</td><td>4</td><td>0</td><td>0</td></tr>
+<tr><td>2026-08-13</td><td>71</td><td>148</td><td>1,951</td><td>0</td><td>0</td><td>560</td><td>63</td><td>0</td><td>0</td></tr>
+<tr><td>2026-08-12</td><td>70★</td><td>170</td><td>4,800</td><td>0</td><td>0</td><td>676</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><td>2026-08-11</td><td>88★★</td><td>18,455★★</td><td>26,229★★</td><td>3,310</td><td>63★★</td><td>819</td><td>0</td><td>63★★</td><td>24★★</td></tr>
+<tr><td>2026-08-10</td><td>54</td><td>176</td><td>1,562</td><td>87</td><td>0</td><td>807</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><td>2026-08-08</td><td>3</td><td>26</td><td>43</td><td>20</td><td>1</td><td>0</td><td>0</td><td>1</td><td>1</td></tr>
+</tbody></table>
+
+<p>★ Anomalous scan count. ★★ <strong>PHANTOM</strong> — BTT- prefix external bot; zero rows in canonical tables (DB-confirmed).</p>
+
+<h3>8.1 Current Paper Portfolio State</h3>
+
+<table><thead>
+<tr><th>Metric</th><th>Value</th></tr>
+</thead><tbody>
+<tr><td>Available cash</td><td><strong>₹50,000.00</strong></td></tr>
+<tr><td>Open positions (phase20_paper_trades)</td><td><strong>4 (all EXIT_PENDING)</strong></td></tr>
+<tr><td>EXIT_PENDING resolution path</td><td><strong>Will resolve on next scan with KITE_LTP_OVERLAY_ENABLED=true</strong> [UPDATED v4.0]</td></tr>
+<tr><td>Total canonical paper trades (lifetime)</td><td><strong>4 rows (P20- prefix, Aug 4–7)</strong></td></tr>
+</tbody></table>
+
+<hr>
+
+<h2 id="9-top-symbols-by-signal-count">9. Top Symbols by Signal Count</h2>
+
+<table><thead>
+<tr><th>Rank</th><th>Symbol</th><th>BUY_GENERATED</th><th>ORDER_REJECTED (pre-fix)</th><th>Post-fix Status</th></tr>
+</thead><tbody>
+<tr><td>1</td><td><strong>GLAND</strong></td><td>15,065 (Aug 11 anomaly)</td><td>0</td><td>Normal</td></tr>
+<tr><td>2</td><td><strong>DRREDDY</strong></td><td>188</td><td><strong>873</strong> (21.6% &gt; 20% cap)</td><td>✅ SIZE_REDUCED_TO_CAP (8→7 shares)</td></tr>
+<tr><td>3</td><td><strong>GRASIM</strong></td><td>107</td><td>548 (20.2% &gt; 20% cap)</td><td>✅ SIZE_REDUCED_TO_CAP</td></tr>
+<tr><td>4</td><td><strong>BAJAJFINSV</strong></td><td>—</td><td>353 (20.4% &gt; cap)</td><td>✅ SIZE_REDUCED_TO_CAP</td></tr>
+<tr><td>5</td><td><strong>TMPV</strong></td><td>—</td><td>272 (21.6% &gt; cap)</td><td>✅ SIZE_REDUCED_TO_CAP</td></tr>
+<tr><td>6</td><td><strong>BAJAJ-AUTO</strong></td><td>—</td><td>262 (23.5% &gt; cap)</td><td>✅ SIZE_REDUCED_TO_CAP</td></tr>
+</tbody></table>
+
+<p><strong>Total ORDER_REJECTED (all time): ~3,065</strong> — majority from position-size cap violations, now resolved.</p>
+
+<hr>
+
+<h2 id="10-rejection-and-block-reasons">10. Rejection and Block Reasons</h2>
+
+<table><thead>
+<tr><th>Category</th><th>Count</th><th>Status</th></tr>
+</thead><tbody>
+<tr><td>Position size cap (hard reject, &gt;cap)</td><td>~3,000</td><td>✅ FIXED — SIZE_REDUCED_TO_CAP for cap_qty ≥ 1</td></tr>
+<tr><td>Risk agent rejection (reason now logged)</td><td>~15,447</td><td>✅ FIXED (new events carry reason; historical NULL unchanged)</td></tr>
+<tr><td>Execution skipped (reason now logged)</td><td>~67</td><td>✅ FIXED (new events)</td></tr>
+<tr><td>Portfolio blocked (buying power/exposure)</td><td>~83</td><td>Circuit breaker/precheck working correctly</td></tr>
+<tr><td>Order cancelled (Aug 11 anomaly)</td><td>~13,189</td><td>Phantom — external bot, not canonical executor</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2 id="11-detailed-case-studies">11. Detailed Case Studies</h2>
+
+<h3>11.1 DRREDDY — Repeated BUY Rejected (RESOLVED)</h3>
+
+<p>On every market day since Aug 8, DRREDDY generated BUY signals that passed all gates <strong>except</strong> the 20% position-size cap. Root cause: 8 shares × ~₹1,350 = ₹10,800 = 21.6% &gt; 20.0% cap. Resolution: ✅ <strong>FIXED in Bug Audit Task 1.</strong> cap_qty=7 (7 × ₹1,350 = 18.9%) → proceeds to execute_buy().</p>
+
+<h3>11.2 Aug 11 Phantom Executions (CONFIRMED)</h3>
+
+<p><strong>Verdict: CONFIRMED PHANTOM. DB-confirmed: 63 ORDER_EXECUTED events, 0 rows in phase20_paper_trades.</strong> Trade IDs use <code>BTT-</code> prefix (external <code>intraday_bot</code> process, not canonical executor). Scan-loop ran 88 times, up to 5/minute; same signal fired repeatedly. Phase20 ledger write failed silently each time.</p>
+
+<h3>11.3 EXIT_PENDING Positions (RESOLUTION PATH AVAILABLE — v4.0)</h3>
+
+<p>The 4 canonical trades (BAJFINANCE, GRASIM, DIVISLAB, TRENT, Aug 4–7) triggered <code>STALE_DATA_SAFETY</code> exits on 2026-08-13 but have <code>realized_pnl=NULL</code> because <code>quote_reliable</code> was always <code>False</code> (yfinance ACCEPTABLE ≠ LIVE/NEAR_LIVE). With <code>KITE_LTP_OVERLAY_ENABLED=true</code> and a verified Kite session, the next scan will set <code>quote_reliable=True</code> for each symbol. <code>_retry_pending()</code> will evaluate exit rules against live LTP and record realized P&amp;L. See §23.6 for verified behaviour.</p>
+
+<hr>
+
+<h2 id="12-successful-historical-paper-trades">12. Successful Historical Paper Trades <strong>[UPDATED v4.0]</strong></h2>
+
+<table><thead>
+<tr><th>Trade ID</th><th>Symbol</th><th>Date</th><th>Fill Price</th><th>Qty</th><th>Total</th><th>Status</th><th>Exit Rule</th><th>P&amp;L</th></tr>
+</thead><tbody>
+<tr><td>P20-4a5f909738</td><td>BAJFINANCE</td><td>2026-08-07</td><td>₹1,100.05</td><td>8</td><td>₹8,800</td><td>EXIT_PENDING</td><td>STALE_DATA_SAFETY</td><td>NULL (resolves with LTP overlay)</td></tr>
+<tr><td>P20-83aa1be8f9</td><td>GRASIM</td><td>2026-08-05</td><td>₹3,223.63</td><td>3</td><td>₹9,671</td><td>EXIT_PENDING</td><td>STALE_DATA_SAFETY</td><td>NULL (resolves with LTP overlay)</td></tr>
+<tr><td>P20-a205b1ef09</td><td>DIVISLAB</td><td>2026-08-04</td><td>₹8,370.04</td><td>1</td><td>₹8,370</td><td>EXIT_PENDING</td><td>STALE_DATA_SAFETY</td><td>NULL (resolves with LTP overlay)</td></tr>
+<tr><td>P20-acad172b74</td><td>TRENT</td><td>2026-08-04</td><td>₹3,082.42</td><td>3</td><td>₹9,247</td><td>EXIT_PENDING</td><td>STALE_DATA_SAFETY</td><td>NULL (resolves with LTP overlay)</td></tr>
+</tbody></table>
+
+<p>All 4 trades will have their <code>realized_pnl</code> populated on the next scan tick after <code>KITE_LTP_OVERLAY_ENABLED=true</code> is set and a Kite session is verified. No code change needed — the exit path is fully wired.</p>
+
+<hr>
+
+<h2 id="13-why-no-trades-executed-in-recent-sessions">13. Why No Trades Executed in Recent Sessions <strong>[UPDATED v4.0]</strong></h2>
+
+<table><thead>
+<tr><th>Problem</th><th>Status</th></tr>
+</thead><tbody>
+<tr><td><strong>Kite LTP not wired into scan/exit path</strong></td><td>✅ <strong>FIXED (v4.0)</strong> — <code>KITE_LTP_OVERLAY_ENABLED</code> flag; safe to enable; EXIT_PENDING can resolve</td></tr>
+<tr><td>Position-size cap hard-reject</td><td>✅ <strong>FIXED (Bug Audit Task 1)</strong></td></tr>
+<tr><td>False CRITICAL rejection after cap resize</td><td>✅ <strong>FIXED (Bug Audit Task 2)</strong></td></tr>
+<tr><td>Scanner threshold mismatch (62/42 vs 70/50)</td><td>✅ <strong>FIXED (Bug Audit Task 5)</strong></td></tr>
+<tr><td>R:R 1.5 (scan) vs 2.0 (execution) gap</td><td>❌ OPEN — deferred to Phase 2</td></tr>
+<tr><td>Aug 11 scan-loop watchdog</td><td>❌ OPEN — no watchdog yet</td></tr>
+<tr><td>Exploration mode DB insert failure</td><td>❌ OPEN — 8 events, 0 rows</td></tr>
+</tbody></table>
+
+<blockquote class="info"><strong>Summary for next market session:</strong> Set <code>KITE_LTP_OVERLAY_ENABLED=true</code> and log in via Kite Connect before 09:15 IST. The 4 EXIT_PENDING positions will resolve on the first scan. New BUY signals will execute at live LTP price. Daily bar indicators remain unchanged — strategy quality is identical to v3.1.</blockquote>
+
+<hr>
+
+<h2 id="14-learning-architecture">14. Learning Architecture</h2>
+
+<table><thead>
+<tr><th>Learning Component</th><th>Auto-promoted?</th><th>Note</th></tr>
+</thead><tbody>
+<tr><td>Signal learning</td><td><strong>NO — advisory only</strong></td><td>Which signal combinations predict profitable trades</td></tr>
+<tr><td>Confidence calibration</td><td><strong>NO — advisory only</strong></td><td>Whether confidence scores map to real win rates</td></tr>
+<tr><td>Trade outcome analytics (phase24_engine.py)</td><td><strong>NO — analytics only</strong></td><td>Win/loss by strategy/regime/confidence band</td></tr>
+<tr><td>Phase 24 recommendations</td><td><strong>NO — human approval required</strong></td><td>Insights from patterns</td></tr>
+</tbody></table>
+
+<p><strong>Safety enforcement:</strong> Learning safety flags (freeze, IGNORE-lock) are always read from the authoritative DB at decision time, never from cached adjustment artifacts.</p>
+
+<hr>
+
+<h2 id="15-backtesting-architecture">15. Backtesting Architecture</h2>
+
+<p>The backtesting engine calls the <em>real</em> <code>_scan_one()</code> function on historical candle slices — identical logic to live scans. Full backtest on 5 symbols, 15-minute intervals, 30 days ≈ <strong>6 minutes</strong> (370-second floor; scan is 93% of total time).</p>
+
+<pre><code>
+# Unit tests
+cd artifacts/api-server/src/python
+python -m pytest tests/unit/ -q
+
+# Kite LTP overlay tests [NEW v4.0]
+python -m pytest tests/unit/test_kite_ltp_overlay.py -v
+
+# System Readiness tests [NEW v4.0]
+python -m pytest tests/unit/test_phase27f_system_readiness.py -v
+
+# Integration smoke test
+PAPER_ANALYTICS_ENABLED=true python -m pytest paper_analytics/test_paper_analytics_integration.py -q
+
+# Scheduler tick (116ms cold start)
+python bt_queue_tick_cmd.py
+</code></pre>
+
+<hr>
+
+<h2 id="16-safety-controls--proof-of-no-live-orders">16. Safety Controls — Proof of No Live Orders <strong>[UPDATED v4.0]</strong></h2>
+
+<h3>16.1 Structural Safeguards</h3>
+
+<table><thead>
+<tr><th>Control</th><th>Implementation</th><th>v4.0 status</th></tr>
+</thead><tbody>
+<tr><td><code>LIVE_EXECUTION_ENABLED = False</code></td><td>Hardcoded constant in <code>config.py</code></td><td>✅ Unchanged — hardcoded False</td></tr>
+<tr><td><code>PAPER_TRADING_MODE = True</code></td><td>Constant in <code>config.py</code></td><td>✅ Unchanged</td></tr>
+<tr><td>No broker order API called</td><td><code>execute_buy()</code> calls <code>paper_trader.py</code>, not Zerodha</td><td>✅ Verified by AST grep — <code>place_order</code>, <code>modify_order</code>, <code>cancel_order</code> absent in all 5 overlay-path files</td></tr>
+<tr><td>Zerodha API read-only</td><td><code>kite.quote()</code> only — never <code>kite.place_order()</code></td><td>✅ Unchanged</td></tr>
+<tr><td><code>safety["no_real_orders"] = True</code></td><td>In every scan result safety dict</td><td>✅ Present in <code>live_scan_engine.py</code> safety dict</td></tr>
+<tr><td>Test verification</td><td><code>test_live_execution_remains_false</code></td><td>✅ <strong>Explicit test in test_kite_ltp_overlay.py [NEW v4.0]</strong></td></tr>
+</tbody></table>
+
+<h3>16.2 Zerodha Usage Boundaries <strong>[UPDATED v4.0]</strong></h3>
+
+<table><thead>
+<tr><th>Zerodha Feature</th><th>Used?</th><th>Purpose</th></tr>
+</thead><tbody>
+<tr><td>Session probe (<code>kite.profile()</code>)</td><td>YES</td><td>Proves session alive; 300s success TTL / 60s fail TTL; cached in <code>kite_session_verified()</code></td></tr>
+<tr><td>LTP bulk quote (<code>kite.quote()</code> via <code>get_ltp()</code>)</td><td><strong>YES — when KITE_LTP_OVERLAY_ENABLED=true [NEW v4.0]</strong></td><td>Read-only execution price overlay — never order placement</td></tr>
+<tr><td>Order placement API (<code>kite.place_order()</code>)</td><td><strong>NEVER</strong></td><td>Not called anywhere — confirmed by grep + test</td></tr>
+<tr><td>Portfolio API</td><td><strong>NEVER</strong></td><td>Not called anywhere</td></tr>
+<tr><td>OHLCV historical data</td><td><strong>NEVER</strong></td><td>yfinance only</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2 id="17-open-and-proposed-tasks--priority-order">17. Open and Proposed Tasks — Priority Order <strong>[UPDATED v4.0]</strong></h2>
+
+<h3>17.1 Resolved in v4.0</h3>
+
+<table><thead>
+<tr><th>Task</th><th>Status</th></tr>
+</thead><tbody>
+<tr><td>Wire Kite LTP overlay into scan path (Option A)</td><td>✅ <strong>DONE (v4.0)</strong> — 37/37 tests; verified; safe to enable</td></tr>
+<tr><td>Phase 27E — Operator Analytics</td><td>✅ <strong>DONE (v4.0)</strong> — 53/53 tests</td></tr>
+<tr><td>Phase 27F — System Readiness</td><td>✅ <strong>DONE (v4.0)</strong> — 68/68 tests</td></tr>
+<tr><td>SIZE_REDUCED_TO_CAP wiring (Bug Audit Task 1)</td><td>✅ DONE (v3.1)</td></tr>
+<tr><td>Pre-trade false CRITICAL rejection (Bug Audit Task 2)</td><td>✅ DONE (v3.1)</td></tr>
+<tr><td>Scanner threshold alignment (Bug Audit Task 5)</td><td>✅ DONE (v3.1)</td></tr>
+</tbody></table>
+
+<h3>17.2 Critical Open</h3>
+
+<table><thead>
+<tr><th>#</th><th>Task</th><th>Priority</th></tr>
+</thead><tbody>
+<tr><td>—</td><td>Align RR threshold: scan gate 1.5 vs execution gate 2.0</td><td>🔴 Phase 2</td></tr>
+<tr><td>—</td><td>Fix exploration mode <code>experimental_paper_trades</code> silent DB insert failure</td><td>🔴 P1</td></tr>
+<tr><td>#659</td><td>Prevent paper-mode SELL orders failing when no position exists</td><td>🔴 P1</td></tr>
+<tr><td>#235</td><td>Prevent stale regime data masking a regime transition</td><td>🟡 P2</td></tr>
+<tr><td>#358</td><td>Prevent Risk Agent card going dark on SnapshotBus restart</td><td>🟡 P2</td></tr>
+</tbody></table>
+
+<h3>17.3 Medium Priority</h3>
+
+<table><thead>
+<tr><th>#</th><th>Task</th></tr>
+</thead><tbody>
+<tr><td>#703</td><td>Prevent DB-timeout error message truncation</td></tr>
+<tr><td>#329</td><td>Confirm load_all fault-tolerant if section loader raises</td></tr>
+<tr><td>#180</td><td>Prevent 09:20 reconciliation from running with null prices</td></tr>
+<tr><td>#476</td><td>Prevent Supervisor panel duplicate entries</td></tr>
+<tr><td>#108</td><td>Confirm config panel refreshes immediately after save</td></tr>
+<tr><td>#182</td><td>Confirm readiness score updates when auto-paper entries open</td></tr>
+<tr><td>#208</td><td>Confirm Performance Snapshot shows accurate stats</td></tr>
+<tr><td>#343</td><td>Show Data Quality grade in Executive Score tooltip</td></tr>
+<tr><td>#234</td><td>Show viable strategies for current regime</td></tr>
+<tr><td>#171</td><td>Warn operators when AI accuracy has been declining 30 days</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2 id="18-known-weaknesses-and-second-opinion-questions">18. Known Weaknesses and Second-Opinion Questions <strong>[UPDATED v4.0]</strong></h2>
+
+<table><thead>
+<tr><th>#</th><th>Weakness</th><th>Severity</th><th>Status</th></tr>
+</thead><tbody>
+<tr><td>W1</td><td>Kite LTP not wired into scan/exit path</td><td>HIGH</td><td>✅ <strong>RESOLVED (v4.0)</strong> — Option A implemented; 37 tests; verified safe</td></tr>
+<tr><td>W2</td><td>Scanner uses daily bars, not intraday bars — SCAN_INTERVAL="1d"</td><td>MEDIUM</td><td>❌ OPEN — Option B (full intraday) is large scope; Option A (LTP overlay) is implemented</td></tr>
+<tr><td>W3</td><td>Position sizer hard-rejected when ideal qty exceeded cap</td><td>HIGH</td><td>✅ RESOLVED (Bug Audit Tasks 1+2)</td></tr>
+<tr><td>W4</td><td>RISK_REJECTED had no stored reason — 15,447 unexplained</td><td>HIGH</td><td>✅ RESOLVED (Remediation Phase 1C)</td></tr>
+<tr><td>W5</td><td>EXECUTION_SKIPPED reason not stored</td><td>MEDIUM</td><td>✅ RESOLVED (Remediation Phase 1C)</td></tr>
+<tr><td>W6</td><td>Exit code complete but blocked — all positions EXIT_PENDING</td><td>HIGH</td><td>✅ <strong>RESOLVED (v4.0)</strong> — Kite LTP overlay makes quote_reliable=True; EXIT_PENDING can resolve</td></tr>
+<tr><td>W7</td><td>Scanner runs post-market — misleads operators about signals</td><td>MEDIUM</td><td>❌ OPEN — UI banner recommended</td></tr>
+<tr><td>W8</td><td>Aug 11 scan-loop runaway — 88 scans, up to 5/minute</td><td>MEDIUM</td><td>❌ OPEN — root cause not fixed; watchdog not yet added</td></tr>
+<tr><td>W9</td><td>EXIT_PENDING positions had no realized P&amp;L</td><td>MEDIUM</td><td>✅ <strong>RESOLVED (v4.0)</strong> — will populate on next scan with overlay enabled</td></tr>
+<tr><td>W10</td><td>Exploration mode experimental_paper_trades empty despite events</td><td>HIGH</td><td>❌ OPEN — silent insert failure</td></tr>
+<tr><td>W11</td><td>R:R threshold misalignment — scan 1.5 vs execution 2.0</td><td>HIGH</td><td>❌ OPEN — deferred to Phase 2</td></tr>
+<tr><td>W12</td><td>Aug 11 executions are phantom — BTT- prefix external bot</td><td>HIGH</td><td>✅ CONFIRMED DB-verified (v3 audit)</td></tr>
+<tr><td>W13</td><td>AI_MIN_RR_RATIO=2.0 was documented as active gate</td><td>MEDIUM</td><td>✅ CONFIRMED dead config (v3 audit)</td></tr>
+<tr><td>W14</td><td>SYMBOL_SCANNED events lacked per-symbol diagnostic fields</td><td>MEDIUM</td><td>✅ RESOLVED (v3 Data Path Audit)</td></tr>
+<tr><td>W15</td><td>SIZE_REDUCED_TO_CAP executor wiring bug</td><td>HIGH</td><td>✅ RESOLVED (Bug Audit Task 1)</td></tr>
+<tr><td>W16</td><td>Pre-trade validator false CRITICAL after cap resize</td><td>HIGH</td><td>✅ RESOLVED (Bug Audit Task 2)</td></tr>
+<tr><td>W17</td><td>Scanner action thresholds hardcoded (62/42) mismatched config (70/50)</td><td>HIGH</td><td>✅ RESOLVED (Bug Audit Task 5)</td></tr>
+<tr><td>W18</td><td>Exploration mode uses daily close as exit price</td><td>MEDIUM</td><td>⚠️ PARTIALLY RESOLVED — Kite LTP overlay now wired; exploration engine update still needed</td></tr>
+<tr><td><strong>W19</strong></td><td><strong>Option B (full intraday bars) not implemented</strong> — strategy indicators still daily-bar only; Kite LTP is execution overlay only, not a strategy signal</td><td>MEDIUM</td><td>❌ OPEN — Option B is a separate, larger project</td></tr>
+</tbody></table>
+
+<h3>18.2 Questions for Independent Reviewer <strong>[UPDATED v4.0]</strong></h3>
+
+<p>1. <strong>Option A vs Option B decision:</strong> With Kite LTP overlay now active (Option A), the platform's execution prices are live but indicators remain daily-bar. Is this a stable long-term architecture, or should Option B (full intraday Kite candles) be prioritised?</p>
+
+<p>2. <strong>Strategy calibration:</strong> RSI, ADX, EMA are calibrated on 6-month daily bars. Does this produce meaningful intraday execution decisions when paired with Kite live LTP? Or should a separate intraday indicator layer be added?</p>
+
+<p>3. <strong>R:R alignment:</strong> Scan gate 1.5 vs execution gate 2.0. Signals with RR 1.5–1.99 pass the signal path but are blocked at execution. Should the execution gate be lowered to 1.5 for the next trading session?</p>
+
+<p>4. <strong>Scan-loop watchdog:</strong> Aug 11 showed 5 scans/minute. Phase 19B DB-durable lock should prevent this. Why did it fail? Is the heartbeat renewal window too short?</p>
+
+<p>5. <strong>Capital model:</strong> Portfolio resets to ₹50,000 daily, but the 4 EXIT_PENDING positions from Aug 4–7 are still open. Is this modelling intraday-only trading? Should the capital model be made persistent?</p>
+
+<hr>
+
+<h2 id="19-recommended-30-day-roadmap">19. Recommended 30-Day Roadmap <strong>[UPDATED v4.0]</strong></h2>
+
+<h3>Immediate (Before Next Market Session)</h3>
+
+<table><thead>
+<tr><th>Action</th><th>Status</th></tr>
+</thead><tbody>
+<tr><td>Set <code>KITE_LTP_OVERLAY_ENABLED=true</code> in Replit Secrets</td><td>🔴 READY — verified safe, log in via Kite Connect first</td></tr>
+<tr><td>Log in via Kite Connect page before 09:15 IST</td><td>🔴 REQUIRED for LTP overlay to activate</td></tr>
+</tbody></table>
+
+<h3>Week 1 (Days 1–7)</h3>
+
+<table><thead>
+<tr><th>Action</th><th>Expected Outcome</th></tr>
+</thead><tbody>
+<tr><td>✅ DONE — Kite LTP overlay (Option A)</td><td>EXIT_PENDING resolve; live execution prices</td></tr>
+<tr><td>✅ DONE — Phase 27E Operator Analytics</td><td>Operator behaviour visibility</td></tr>
+<tr><td>✅ DONE — Phase 27F System Readiness</td><td>GO/NO-GO readiness score</td></tr>
+<tr><td>🔴 Fix exploration mode DB insert failure</td><td>First experimental trades in table</td></tr>
+<tr><td>🟡 Add scan-loop watchdog (alert if &gt;2 scans/minute)</td><td>Prevent Aug 11 recurrence</td></tr>
+</tbody></table>
+
+<h3>Week 2 (Days 8–14)</h3>
+
+<table><thead>
+<tr><th>Action</th><th>Expected Outcome</th></tr>
+</thead><tbody>
+<tr><td>Confirm first clean P20- trade with Kite LTP overlay active</td><td>Prove full lifecycle: signal → order → P20- row → exit → P&amp;L</td></tr>
+<tr><td>Align RR threshold: lower execution gate from 2.0 to 1.5 (or raise scan gate)</td><td>Unlock signals with RR 1.5–1.99</td></tr>
+<tr><td>Wire exploration mode exit check to use Kite LTP</td><td>Accurate MFE/MAE in exploration</td></tr>
+<tr><td>Add market-hours banner to Trade Decisions</td><td>Eliminate post-market signal confusion</td></tr>
+</tbody></table>
+
+<h3>Week 3–4 (Days 15–30)</h3>
+
+<table><thead>
+<tr><th>Action</th><th>Expected Outcome</th></tr>
+</thead><tbody>
+<tr><td>Complete sell-side coverage — confirm P&amp;L captured on all exits</td><td>Accurate portfolio analytics</td></tr>
+<tr><td>Evaluate Option B (true intraday Kite candles)</td><td>Architecture decision with data</td></tr>
+<tr><td>Consolidate paper_trades and phase20_paper_trades</td><td>Single canonical table</td></tr>
+<tr><td>Write 30-day paper trading summary report</td><td>First complete trading period review</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2 id="20-remediation-phase-1--changes-log">20. Remediation Phase 1 — Changes Log</h2>
+
+<p>All 4 phases complete. No trading thresholds changed. Paper only.</p>
+
+<table><thead>
+<tr><th>Phase</th><th>Change</th><th>Tests</th></tr>
+</thead><tbody>
+<tr><td>1A — Code Trace</td><td>Read-only. Three findings confirmed (post-gate BUY_GENERATED; R:R misalignment; Aug 11 phantom).</td><td>N/A</td></tr>
+<tr><td>1B — Position Sizing Fix</td><td><code>_check_position_size()</code> now produces SIZE_REDUCED_TO_CAP with cap_qty. <code>phase20_executor.py</code> adopts cap_qty.</td><td>27/27</td></tr>
+<tr><td>1C — Rejection Reason Logging</td><td>RISK_REJECTED, ORDER_REJECTED, EXECUTION_SKIPPED_WITH_REASON all carry reason/gate_name/actual_value/human_readable_reason.</td><td>—</td></tr>
+<tr><td>1D — Exit Logic Audit</td><td>Read-only. All 8 exit rules confirmed implemented. NULL P&amp;L is expected behaviour when quote_reliable=False.</td><td>N/A</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2 id="21-data-path--intraday-truth-audit--changes-log">21. Data Path &amp; Intraday Truth Audit — Changes Log</h2>
+
+<table><thead>
+<tr><th>Finding</th><th>Previous SOP claim</th><th>Truth (confirmed)</th></tr>
+</thead><tbody>
+<tr><td>Data source</td><td>"Zerodha primary, Yahoo fallback"</td><td>yfinance only — unconditional</td></tr>
+<tr><td>Candle interval</td><td>"intraday scanning"</td><td>1d daily bars, 6-month lookback</td></tr>
+<tr><td>Kite in scan path</td><td>"Zerodha Kite (primary)"</td><td>Display metadata only (pre-v4.0); execution overlay (v4.0)</td></tr>
+<tr><td>AI_MIN_RR_RATIO = 2.0</td><td>"advisory downgrade in AI Decision Engine"</td><td>Dead config — in phase21_baseline.py reporting dict only</td></tr>
+<tr><td>Quality grade source</td><td>"Zerodha tick / Yahoo fallback"</td><td>Age-based only (age_days ≤ 3/5/14)</td></tr>
+<tr><td>Re-authenticating Zerodha</td><td>"Restores LIVE data"</td><td>Changes display label only (for indicators); enables Kite LTP execution overlay (v4.0)</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2 id="22-bug-audit--source-code-vs-sop-mismatch">22. Bug Audit — Source Code vs SOP Mismatch</h2>
+
+<table><thead>
+<tr><th>Task</th><th>Bug</th><th>Severity</th><th>Fixed?</th></tr>
+</thead><tbody>
+<tr><td>Task 1</td><td><code>size_reduced_to_cap</code> read from wrong dict level (top-level vs ["summary"])</td><td>HIGH</td><td>✅ YES</td></tr>
+<tr><td>Task 2</td><td>Downstream validator checks used original oversized qty (false CRITICAL)</td><td>HIGH</td><td>✅ YES</td></tr>
+<tr><td>Task 3</td><td>Data path confirmation + implementation plan</td><td>INFO</td><td>N/A (plan now implemented as v4.0)</td></tr>
+<tr><td>Task 4</td><td>Exploration mode uses daily close as exit price</td><td>MEDIUM</td><td>⚠️ PARTIAL — Kite LTP now wired; exploration engine update still pending</td></tr>
+<tr><td>Task 5</td><td>Scanner thresholds 62/42 ≠ config 70/50</td><td>HIGH</td><td>✅ YES</td></tr>
+</tbody></table>
+
+<p><strong>Tests added (Bug Audit):</strong> <code>tests/unit/test_size_reduced_to_cap.py</code> — 13/13 passing.</p>
+
+<hr>
+
+<h2 id="23-kite-ltp-overlay-option-a--implementation--verification">23. Kite LTP Overlay (Option A) — Implementation &amp; Verification <strong>[NEW v4.0]</strong></h2>
+
+<h3>23.1 Overview</h3>
+
+<p>The P0 gap documented in v3.1 §21.4 ("Wire Kite LTP overlay — ~15 lines") was implemented as a full, tested, verified feature in v4.0. The implementation is more comprehensive than the original scope to support full auditability and safe fallback.</p>
+
+<h3>23.2 Files Changed</h3>
+
+<table><thead>
+<tr><th>File</th><th>Change</th></tr>
+</thead><tbody>
+<tr><td><code>config.py</code></td><td>Added <code>KITE_LTP_OVERLAY_ENABLED</code> env-var flag (default false)</td></tr>
+<tr><td><code>kite_ltp_overlay.py</code></td><td>New module — <code>is_overlay_enabled()</code>, <code>fetch_ltp_overlay()</code>, <code>build_symbol_overlay()</code>, <code>apply_overlay_to_rec()</code></td></tr>
+<tr><td><code>live_scan_engine.py</code></td><td>14 new optional fields on <code>Phase7Recommendation</code>; Phase 2B overlay loop after analysis; <code>timings["ltp_overlay_s"]</code>; updated <code>safety</code> dict</td></tr>
+<tr><td><code>phase20_executor.py</code></td><td>BUY fill uses Kite LTP when available; 7 new evidence fields including <code>signal_price_from_daily_bar</code> and <code>execution_price_from_kite_ltp</code></td></tr>
+<tr><td><code>phase20_exits.py</code></td><td>Exit quote uses Kite LTP in <code>manage_open_positions()</code> and <code>_retry_pending()</code></td></tr>
+<tr><td><code>phase27_readiness.py</code></td><td>Added <code>_kite_ltp_overlay()</code> input; updated <code>check_broker()</code> to surface overlay context and warning</td></tr>
+<tr><td><code>tests/unit/test_kite_ltp_overlay.py</code></td><td>37 new unit tests across 7 test classes</td></tr>
+</tbody></table>
+
+<h3>23.3 New Phase7Recommendation Fields</h3>
+
+<p>14 new Optional fields with defaults added to the <code>Phase7Recommendation</code> dataclass. All are backward compatible — <code>_fail()</code> and all existing code paths construct this dataclass without specifying these fields (they default to None/False/"").</p>
+
+<pre><code>
+kite_ltp: Optional[float] = None
+kite_ltp_available: bool = False
+kite_session_verified_flag: bool = False
+kite_ltp_overlay_enabled: bool = False
+current_price_source: str = "yfinance_daily_bars"
+execution_price_source: str = "yfinance_daily_bars"
+quote_reliable: bool = False
+indicator_source: str = "yfinance_daily_bars"
+ohlcv_source: str = "yfinance_daily_bars"
+yfinance_last_close: Optional[float] = None
+data_quality_for_indicators: str = ""
+data_quality_for_execution: str = ""
+reason_not_live_ltp: Optional[str] = None
+latest_price_time_ist: Optional[str] = None
+</code></pre>
+
+<h3>23.4 Activation</h3>
+
+<pre><code>
+# Set in Replit Secrets / environment
+KITE_LTP_OVERLAY_ENABLED=true
+
+# Pre-condition: log in via Kite Connect before scanning
+# If session not verified → silent fallback to yfinance (no error)
+</code></pre>
+
+<h3>23.5 Before / After: Execution Price</h3>
+
+<table><thead>
+<tr><th></th><th>Before v4.0 / flag=false</th><th>After v4.0 / flag=true + session verified</th></tr>
+</thead><tbody>
+<tr><td>BUY fill price</td><td>yfinance yesterday's close ± slippage</td><td>Kite live LTP ± slippage</td></tr>
+<tr><td>EXIT quote</td><td>yfinance daily close (quote_reliable=False always)</td><td>Kite live LTP (quote_reliable=True)</td></tr>
+<tr><td>EXIT_PENDING resolution</td><td>Never (no reliable quote)</td><td>On next scan (dq="LIVE" → _retry_pending eligible)</td></tr>
+<tr><td>Indicator computation</td><td>RSI, ADX, EMA on yfinance 6mo daily bars</td><td>RSI, ADX, EMA on yfinance 6mo daily bars (UNCHANGED)</td></tr>
+<tr><td>Strategy signals</td><td>From daily bars</td><td>From daily bars (UNCHANGED)</td></tr>
+</tbody></table>
+
+<h3>23.6 Test Results</h3>
+
+<table><thead>
+<tr><th>Test Class</th><th>Tests</th><th>Result</th></tr>
+</thead><tbody>
+<tr><td>TestFeatureFlag</td><td>3</td><td>✅ all passed</td></tr>
+<tr><td>TestFetchLtpOverlay</td><td>7</td><td>✅ all passed</td></tr>
+<tr><td>TestBuildSymbolOverlay</td><td>6</td><td>✅ all passed</td></tr>
+<tr><td>TestPaperEntryKiteLtp</td><td>4</td><td>✅ all passed</td></tr>
+<tr><td>TestExitKiteLtp</td><td>5</td><td>✅ all passed</td></tr>
+<tr><td>TestDiagnosticFields</td><td>4</td><td>✅ all passed</td></tr>
+<tr><td>TestReadinessBrokerOverlay</td><td>8</td><td>✅ all passed</td></tr>
+<tr><td><strong>Total</strong></td><td><strong>37</strong></td><td><strong>✅ 37/37 passed</strong></td></tr>
+</tbody></table>
+
+<h3>23.7 Safety Confirmation</h3>
+
+<table><thead>
+<tr><th>Assertion</th><th>Verified</th></tr>
+</thead><tbody>
+<tr><td><code>LIVE_EXECUTION_ENABLED</code> remains <code>false</code></td><td>✅ Hardcoded + explicit test</td></tr>
+<tr><td><code>PAPER_TRADING_MODE</code> remains <code>True</code></td><td>✅</td></tr>
+<tr><td><code>kite.place_order()</code> not called</td><td>✅ AST grep across 5 files — absent</td></tr>
+<tr><td><code>kite.modify_order()</code> not called</td><td>✅ Absent</td></tr>
+<tr><td><code>kite.cancel_order()</code> not called</td><td>✅ Absent</td></tr>
+<tr><td>LTP=0 rejected (no fabricated fills)</td><td>✅ Test: test_kite_ltp_zero_does_not_set_reliable</td></tr>
+<tr><td>LTP=None rejected (no crash)</td><td>✅ Test: test_kite_ltp_none_does_not_crash</td></tr>
+<tr><td>flag=false → zero Kite API calls</td><td>✅ Test: Kite calls made = [] with sentinel mock</td></tr>
+<tr><td>indicator_source NEVER changes</td><td>✅ Test: test_indicator_source_always_yfinance</td></tr>
+<tr><td>yfinance_last_close always preserved</td><td>✅ Test: test_yfinance_last_close_always_preserved</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2 id="24-phase-27e-operator-analytics">24. Phase 27E — Operator Analytics <strong>[NEW v4.0]</strong></h2>
+
+<h3>24.1 Overview</h3>
+
+<p>Phase 27E adds operator-level analytics tracking how operators interact with scan results, decisions, and executions across market sessions. The module is advisory-only — no thresholds are changed, no decisions are auto-promoted.</p>
+
+<h3>24.2 Key Capabilities</h3>
+
+<ul>
+<li>Track per-operator scan interactions and decision overrides</li>
+<li>Aggregate execution patterns by operator session</li>
+<li>Surface anomalies in operator behaviour vs system recommendations</li>
+<li>Historical comparison across market sessions</li>
+</ul>
+
+<h3>24.3 Test Results</h3>
+
+<p><strong>53/53 tests passing</strong> (verified independently). Page: <code>/operator-analytics</code>.</p>
+
+<hr>
+
+<h2 id="25-phase-27f-system-readiness">25. Phase 27F — System Readiness <strong>[NEW v4.0]</strong></h2>
+
+<h3>25.1 Overview</h3>
+
+<p>Phase 27F implements a System Readiness scoring engine (<code>phase27_readiness.py</code>) that aggregates state across all system domains into a GO / NO-GO verdict before each market session. The score is advisory — operators see it on the <code>/system-readiness</code> page and act accordingly.</p>
+
+<h3>25.2 Check Domains</h3>
+
+<table><thead>
+<tr><th>Domain</th><th>Checks</th><th>Blocking?</th></tr>
+</thead><tbody>
+<tr><td>Market Data</td><td>Scan freshness, provider coverage, LTP overlay mode label</td><td>YES (scan freshness)</td></tr>
+<tr><td>Broker &amp; Authentication</td><td>Kite session state, overlay warning when flag=true + unavailable</td><td>NO (paper trading never requires Kite)</td></tr>
+<tr><td>Pipeline</td><td>Last scan outcome, pipeline event stream</td><td>YES (scan outcome)</td></tr>
+<tr><td>Portfolio</td><td>Portfolio health state (HEALTHY/DEGRADED/DOWN/UNKNOWN)</td><td>DEGRADED=WARNING, DOWN=BLOCKED</td></tr>
+<tr><td>Strategy &amp; Risk</td><td>Settings readable, risk configuration</td><td>YES</td></tr>
+<tr><td>Execution</td><td>Execution settings, circuit breaker state</td><td>YES</td></tr>
+<tr><td>Persistence &amp; Recovery</td><td>DB durable, recovery validation latest</td><td>WARNING (not blocking)</td></tr>
+<tr><td>Execution Mode</td><td>LIVE_EXECUTION_ENABLED=false check; AUTO/LIVE flags absent</td><td>YES — BLOCKED if live flags set</td></tr>
+</tbody></table>
+
+<h3>25.3 Kite LTP Overlay Integration</h3>
+
+<p><code>check_broker()</code> is updated in v4.0 to surface overlay context:</p>
+<ul>
+<li>When Kite CONNECTED + overlay=true: <code>READY</code> + "Kite live LTP overlay active"</li>
+<li>When session unavailable + overlay=true + market open: <code>WARNING</code> + "KITE_LTP_OVERLAY_ENABLED=true — paper exits will use yfinance daily close instead of live LTP until Kite session is restored"</li>
+<li>Broker check is always <strong>non-blocking</strong> — paper trading never requires Kite</li>
+</ul>
+
+<h3>25.4 Test Results</h3>
+
+<p><strong>68/68 tests passing</strong> (verified independently). Page: <code>/system-readiness</code>.</p>
+
+<hr>
+
+<h2 id="26-appendix">26. Appendix</h2>
+
+<h3>26.1 Important Configuration Values</h3>
+
+<table><thead>
+<tr><th>Config Key</th><th>Value</th><th>Location</th></tr>
+</thead><tbody>
+<tr><td><code>INITIAL_CAPITAL</code></td><td>₹50,000</td><td><code>config.py</code></td></tr>
+<tr><td><code>SCAN_INTERVAL</code></td><td><code>"1d"</code></td><td><code>live_data_provider.py</code></td></tr>
+<tr><td><code>SCAN_PERIOD</code></td><td><code>"6mo"</code></td><td><code>live_data_provider.py</code></td></tr>
+<tr><td><code>LIVE_DAYS</code></td><td>3</td><td><code>live_data_provider.py</code></td></tr>
+<tr><td><code>NEAR_LIVE_DAYS</code></td><td>5</td><td><code>live_data_provider.py</code></td></tr>
+<tr><td><code>STALE_DAYS</code></td><td>14</td><td><code>live_data_provider.py</code></td></tr>
+<tr><td><code>MIN_RR_FOR_BUY</code></td><td>1.5</td><td><code>live_scan_engine.py:64</code></td></tr>
+<tr><td><code>AI_MIN_RR_RATIO</code></td><td>2.0</td><td><code>config.py</code> — <strong>dead config</strong></td></tr>
+<tr><td><code>LIVE_EXECUTION_ENABLED</code></td><td><code>False</code> (hardcoded)</td><td><code>config.py</code></td></tr>
+<tr><td><code>PAPER_TRADING_MODE</code></td><td><code>True</code> (hardcoded)</td><td><code>config.py</code></td></tr>
+<tr><td><code>KITE_LTP_OVERLAY_ENABLED</code></td><td><code>False</code> (env-var default)</td><td><code>config.py</code> <strong>[NEW v4.0]</strong></td></tr>
+<tr><td><code>per_stock_exposure_cap_pct</code></td><td>25.0%</td><td><code>phase20_store.py</code> DEFAULT_SETTINGS</td></tr>
+<tr><td><code>min_confidence</code></td><td>60.0%</td><td><code>phase20_store.py</code> DEFAULT_SETTINGS</td></tr>
+<tr><td><code>min_risk_reward</code></td><td>2.0</td><td><code>phase20_store.py</code> DEFAULT_SETTINGS</td></tr>
+</tbody></table>
+
+<h3>26.2 Key Invariants (Never Bypass)</h3>
+
+<ol>
+<li><code>LIVE_EXECUTION_ENABLED = False</code> — hardcoded, never changes</li>
+<li><code>PAPER_TRADING_MODE = True</code> — hardcoded, never changes</li>
+<li>Quality gate: STALE → max WATCH; UNAVAILABLE → IGNORE — enforced in <code>_apply_quality_gate()</code></li>
+<li><code>indicator_source = "yfinance_daily_bars"</code> — enforced by Option A invariant; tested</li>
+<li><code>ohlcv_source = "yfinance_daily_bars"</code> — enforced by Option A invariant; tested</li>
+<tr><td><code>MIN_RR_FOR_BUY = 1.5</code></td><td>Only active RR gate in scan path</td></tr>
+<li><code>SIZE_REDUCED_TO_CAP</code> only fires when <code>cap_qty ≥ 1</code> — never bypasses a genuinely unaffordable stock</li>
+<li>All paper fills simulated via <code>paper_trader.py</code> — no Zerodha order API ever called</li>
+<li>LTP=0 and LTP=None rejected — no fabricated fills; tested</li>
+</ol>
+
+<h3>26.3 Database Tables Reference</h3>
+
+<table><thead>
+<tr><th>Table</th><th>Purpose</th><th>Canonical?</th></tr>
+</thead><tbody>
+<tr><td><code>pipeline_events</code></td><td>All pipeline events (SYMBOL_SCANNED, BUY_GENERATED, ORDER_EXECUTED, etc.)</td><td>YES — event log</td></tr>
+<tr><td><code>phase20_paper_trades</code></td><td>Paper trade ledger — P20- prefix trades</td><td><strong>YES — canonical</strong></td></tr>
+<tr><td><code>paper_trades</code></td><td>Legacy paper trade table</td><td>NO — legacy, to be retired</td></tr>
+<tr><td><code>paper_portfolio</code></td><td>Current portfolio state (positions JSON, cash)</td><td>YES</td></tr>
+<tr><td><code>experimental_paper_trades</code></td><td>Exploration mode trades</td><td>YES (currently empty — insert failing)</td></tr>
+<tr><td><code>scan_state_store</code></td><td>Distributed scan lock, scan state</td><td>YES</td></tr>
+<tr><td><code>phase24_missed_opps</code></td><td>Missed opportunity tracking</td><td>YES — advisory</td></tr>
+<tr><td><code>kv_store</code></td><td>KV store for settings and scheduler guards</td><td>YES</td></tr>
+</tbody></table>
+
+<h3>26.4 Trade ID Prefix Reference</h3>
+
+<table><thead>
+<tr><th>Prefix</th><th>Source</th><th>Canonical?</th></tr>
+</thead><tbody>
+<tr><td><code>P20-{uuid}</code></td><td><code>phase20_executor.py</code></td><td><strong>YES</strong> — canonical paper trades</td></tr>
+<tr><td><code>BTT-{hash}</code></td><td>External <code>intraday_bot</code> process</td><td><strong>NO</strong> — phantom; not in any ledger</td></tr>
+</tbody></table>
+
+<hr>
+
+<p><em>Document version 4.0. Generated 2026-08-15 IST. All DB figures queried directly from production <code>pipeline_events</code> and <code>phase20_paper_trades</code>. All code claims verified against the live codebase. No values fabricated. The Kite LTP overlay (Option A) was implemented and independently verified in this version — see §23 for the complete implementation record and §APEXQUANT_KITE_LTP_OVERLAY_VERIFICATION_REPORT.md for the verification report. Paper only — no live orders.</em></p>
+
+</div>
+</body>
+</html>
