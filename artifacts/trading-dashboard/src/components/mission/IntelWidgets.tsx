@@ -87,7 +87,7 @@ export function MissionMapWidget({ replayQ, scanning }: {
                   <div
                     data-testid={`mc-map-stage-${s.id.toLowerCase()}`}
                     className={[
-                      "rounded-lg border px-2.5 py-2 text-center w-[82px] transition-colors",
+                      "rounded-lg border px-2.5 py-2 text-center w-auto min-w-[82px] transition-colors",
                       active ? "border-primary bg-primary/15 animate-pulse"
                         : done ? "border-emerald-700/40 bg-emerald-950/30"
                           : "border-border/60 bg-muted/20",
