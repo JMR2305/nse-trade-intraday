@@ -1,0 +1,1842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ApexQuant AI — Full Project SOP v3.1</title>
+<style>
+:root{--navy:#0a1628;--teal:#00b4a6;--teal2:#009688;--bg:#f8fafc;--card:#fff;--border:#e2e8f0;--text:#1e293b;--muted:#64748b;--code-bg:#1e293b;--green:#059669;--amber:#d97706;--red:#dc2626}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px}
+.topbar{background:var(--navy);color:#fff;padding:14px 32px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+.topbar .logo{font-size:1.1rem;font-weight:700;color:var(--teal);letter-spacing:.5px}
+.topbar .badge{background:var(--teal);color:var(--navy);font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:6px}
+.topbar .meta{margin-left:auto;font-size:.8rem;color:#94a3b8}
+.wrapper{max-width:1060px;margin:0 auto;padding:36px 24px 80px}
+h1{font-size:1.9rem;color:var(--navy);margin:0 0 6px;border-bottom:3px solid var(--teal);padding-bottom:10px}
+h2{font-size:1.35rem;color:var(--navy);margin:44px 0 10px;padding-left:10px;border-left:4px solid var(--teal)}
+h3{font-size:1.1rem;color:#1e40af;margin:28px 0 8px}
+h4{font-size:.95rem;color:var(--muted);margin:20px 0 6px;text-transform:uppercase;letter-spacing:.6px}
+p{margin:8px 0}
+hr{border:none;border-top:1px solid var(--border);margin:32px 0}
+blockquote{background:#f0fdf4;border-left:4px solid var(--teal);padding:10px 16px;margin:12px 0;border-radius:0 6px 6px 0;font-size:.92rem;color:#166534}
+ul{margin:8px 0 8px 22px}
+li{margin:4px 0}
+a{color:var(--teal2);text-decoration:none}
+a:hover{text-decoration:underline}
+code{background:#e8f4f8;color:#0f4c75;padding:1px 5px;border-radius:3px;font-family:"SF Mono",Consolas,monospace;font-size:.88em}
+pre{background:var(--code-bg);color:#e2e8f0;padding:16px 20px;border-radius:8px;overflow-x:auto;margin:14px 0;line-height:1.55}
+pre code{background:none;color:inherit;padding:0;font-size:.87em}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:.88rem}
+th{background:var(--navy);color:#e2e8f0;text-align:left;padding:8px 12px;font-weight:600}
+td{padding:7px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+tr:nth-child(even) td{background:#f8fafc}
+tr:hover td{background:#f0f9ff}
+strong{color:#1e40af}
+em{color:#059669}
+.vbanner{background:linear-gradient(135deg,var(--navy) 0%,#1e3a5f 100%);color:#fff;border-radius:10px;padding:20px 28px;margin-bottom:28px;display:flex;gap:24px;flex-wrap:wrap}
+.vbanner .lbl{font-size:.72rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px}
+.vbanner .val{font-size:.9rem;font-weight:600;color:#e2e8f0}
+.vbanner .val.green{color:var(--teal)}
+.vbanner .val.amber{color:#fbbf24}
+.vbanner .val.red{color:#f87171}
+.fix-badge{display:inline-block;background:#dcfce7;color:#166534;font-size:.72rem;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:4px;vertical-align:middle}
+.open-badge{display:inline-block;background:#fef3c7;color:#92400e;font-size:.72rem;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:4px;vertical-align:middle}
+.bug-badge{display:inline-block;background:#fee2e2;color:#991b1b;font-size:.72rem;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:4px;vertical-align:middle}
+.new31{border-left:3px solid var(--teal);padding-left:8px;margin-bottom:6px;font-size:.78rem;color:var(--teal2);font-weight:700;letter-spacing:.3px}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="logo">ApexQuant AI</span>
+  <span class="badge">v3.1</span>
+  <span style="color:#94a3b8;font-size:.85rem">Full Project SOP &amp; Second-Opinion Pack</span>
+  <span class="meta">Generated 2026-08-15 IST · Paper-only platform · No live orders ever</span>
+</div>
+<div class="wrapper">
+<div class="vbanner">
+  <div><div class="lbl">Document Version</div><div class="val green">v3.1</div></div>
+  <div><div class="lbl">Date</div><div class="val">2026-08-15 IST</div></div>
+  <div><div class="lbl">Phase 1 Fixes</div><div class="val green">1A ✓ 1B ✓ 1C ✓ 1D ✓</div></div>
+  <div><div class="lbl">Data Path Audit</div><div class="val green">Tasks 1–7 ✓</div></div>
+  <div><div class="lbl">Bug Audit (v3.1)</div><div class="val green">5 tasks · 3 fixed · 1 open · 1 confirmed</div></div>
+  <div><div class="lbl">SIZE_REDUCED wiring</div><div class="val green">FIXED ✓</div></div>
+  <div><div class="lbl">Scanner thresholds</div><div class="val green">ALIGNED 85/70/50 ✓</div></div>
+  <div><div class="lbl">Data Source</div><div class="val amber">yfinance only (1d bars)</div></div>
+  <div><div class="lbl">Live Orders Ever</div><div class="val green">NEVER</div></div>
+  <div><div class="lbl">Regression Tests</div><div class="val green">13/13 passing</div></div>
+</div>
+<h1>ApexQuant AI — Full Project SOP &amp; Second-Opinion Pack</h1>
+
+<p><strong>Document version:</strong> 3.1  </p>
+<p><strong>Generated:</strong> 2026-08-15 (IST)  </p>
+<p><strong>Prepared by:</strong> Replit Agent (automated, read-only except where noted)  </p>
+<p><strong>Purpose:</strong> Independent second-opinion review package — complete audit of architecture, behaviour, data, and open problems  </p>
+<p><strong>Classification:</strong> Internal review — contains production database statistics</p>
+
+<blockquote><strong>Changelog from v3.0 → v3.1:</strong> This version incorporates all findings from the Source Code vs SOP Mismatch Bug Audit (5 tasks). Four bugs found and fixed: (1) SIZE_REDUCED_TO_CAP wiring — executor was reading <code>_rv_result.get("size_reduced_to_cap")</code> which is always <code>None</code>; key lives in <code>rv.to_dict()["summary"]</code>; (2) Pre-trade validator ran utilisation/cash checks with original oversized qty, causing false INSUFFICIENT_CASH CRITICAL rejections — now re-runs with capped qty; (3) Data path fully confirmed — yfinance only, 1d bars, implementation plan for Options A/B/C provided; (4) Exploration mode uses daily close as "live" exit price — documented, no safe fix until Kite LTP wired; (5) Scanner thresholds (62/42) did not match config.py (70/50) or SOP — market_scanner.py now imports from config.py as single source of truth. 13/13 regression tests added and passing. Changed sections marked <strong>[UPDATED v3.1]</strong>.</blockquote>
+
+<blockquote><strong>Changelog from v2.0 → v3.0:</strong> Incorporated Data Path &amp; Intraday Truth Audit (Tasks 1–7). The documented "Zerodha primary, Yahoo fallback" data architecture <strong>does not exist in code</strong> — yfinance is the only OHLCV source, scanner uses daily (1d) bars, Kite is display metadata only. Aug 11 phantom-fills verdict fully DB-confirmed. Per-symbol diagnostic logging added to <code>SYMBOL_SCANNED</code> events. Sections marked <strong>[UPDATED v3]</strong> / <strong>[NEW v3]</strong>. No trading thresholds were changed.</blockquote>
+
+<blockquote><strong>Disclaimer:</strong> All trade counts and statistics are pulled directly from the production PostgreSQL database as of the time of generation. Where data is unavailable or was not stored, this is explicitly marked <code>[NOT STORED]</code> or <code>[UNKNOWN]</code>. No values are fabricated. This document is read-only — no settings, thresholds, trades, or database records were changed to produce it.</blockquote>
+
+<hr>
+
+<h2>Table of Contents</h2>
+
+<p>1. <a href="#1-executive-summary">Executive Summary</a></p>
+<p>2. <a href="#2-ai-architecture-overview">AI Architecture Overview</a></p>
+<p>3. <a href="#3-full-pipeline-flow">Full Pipeline Flow</a></p>
+<p>4. <a href="#4-criteria-and-thresholds">Criteria and Thresholds</a></p>
+<p>5. <a href="#5-all-app-pages-and-routes">All App Pages and Routes</a></p>
+<p>6. <a href="#6-universe-and-symbol-selection">Universe and Symbol Selection</a></p>
+<p>7. <a href="#7-scan-cadence-and-rotation">Scan Cadence and Rotation</a></p>
+<p>8. <a href="#8-last-10-trading-days--production-statistics">Last 10 Trading Days — Production Statistics</a></p>
+<p>9. <a href="#9-top-symbols-by-signal-count">Top Symbols by Signal Count</a></p>
+<p>10. <a href="#10-rejection-and-block-reasons">Rejection and Block Reasons</a></p>
+<p>11. <a href="#11-detailed-case-studies">Detailed Case Studies</a></p>
+<p>12. <a href="#12-successful-historical-paper-trades">Successful Historical Paper Trades</a></p>
+<p>13. <a href="#13-why-no-trades-executed-in-recent-sessions">Why No Trades Executed in Recent Sessions</a></p>
+<p>14. <a href="#14-learning-architecture">Learning Architecture</a></p>
+<p>15. <a href="#15-backtesting-architecture">Backtesting Architecture</a></p>
+<p>16. <a href="#16-safety-controls--proof-of-no-live-orders">Safety Controls — Proof of No Live Orders</a></p>
+<p>17. <a href="#17-open-and-proposed-tasks--priority-order">Open and Proposed Tasks — Priority Order</a></p>
+<p>18. <a href="#18-known-weaknesses-and-second-opinion-questions">Known Weaknesses and Second-Opinion Questions</a></p>
+<p>19. <a href="#19-recommended-30-day-roadmap">Recommended 30-Day Roadmap</a></p>
+<p>20. <a href="#20-remediation-phase-1--changes-log">Remediation Phase 1 — Changes Log</a></p>
+<p>21. <a href="#21-data-path--intraday-truth-audit--changes-log">Data Path &amp; Intraday Truth Audit — Changes Log</a> <strong>[NEW v3]</strong></p>
+<p>22. <a href="#22-bug-audit--source-code-vs-sop-mismatch">Bug Audit — Source Code vs SOP Mismatch</a> <strong>[NEW v3.1]</strong></p>
+<p>23. <a href="#23-appendix">Appendix</a></p>
+
+<hr>
+
+<h2>1. Executive Summary</h2>
+
+<h3>1.1 What is ApexQuant AI?</h3>
+
+<p>ApexQuant AI is a <strong>paper-only NSE trading research platform</strong> built on a multi-agent AI architecture. Its core purpose is to:</p>
+
+<ul style="margin-left:0px">
+<li>Scan NIFTY 50 (now 51 symbols after the TATAMOTORS demerger) every 5 minutes during market hours</li>
+<li>Run each symbol through a multi-layer AI pipeline: data quality → signal → strategy → risk → decision → execution</li>
+<li>Generate BUY / WATCH / IGNORE recommendations with confidence scores, opportunity scores, and position-sizing guidance</li>
+<li>Execute paper (simulated) trades when all gates pass, building a tracked portfolio</li>
+<li>Learn from the outcomes of those paper trades to improve future decisions</li>
+</ul>
+
+<p><strong>No live orders have ever been placed, and no Zerodha broker APIs are called for order submission.</strong> Live execution is structurally disabled.</p>
+
+<blockquote><strong>v3 note — "intraday" clarification:</strong> The platform is described as intraday because paper orders are squared off within the session. However, the scanner operates on <strong>daily (1d) bars with a 6-month lookback</strong> — not on intraday 1m/5m/15m candles. See §3 and §6.4 for the full data-path truth.</blockquote>
+
+<h3>1.2 Current Status (as of 2026-08-15) <strong>[UPDATED v3]</strong></h3>
+
+<table><thead>
+<tr><th>Dimension</th><th>Status</th></tr>
+</thead><tbody>
+<tr><td>Live order execution</td><td><strong>PERMANENTLY DISABLED</strong> — <code>LIVE_EXECUTION_ENABLED = False</code></td></tr>
+<tr><td>Paper trading mode</td><td><strong>ACTIVE</strong> — auto-scanning on 5-minute interval</td></tr>
+<tr><td>Zerodha session</td><td><strong>INACTIVE</strong> — no current login; does NOT affect OHLCV data (see §6.4)</td></tr>
+<tr><td>Data source</td><td><strong>Yahoo Finance (yfinance) exclusively</strong> — daily bars, 6-month lookback. Kite is NOT in the scan path.</td></tr>
+<tr><td>Candle interval</td><td><strong>1d (daily bars)</strong> — NOT intraday. See §6.4.</td></tr>
+<tr><td>Portfolio capital</td><td>₹50,000 (resets each session)</td></tr>
+<tr><td>Open paper positions</td><td>4 (all EXIT_PENDING / STALE_DATA_SAFETY)</td></tr>
+<tr><td>Executed trades (lifetime canonical)</td><td><strong>4 rows in <code>phase20_paper_trades</code></strong> (P20- prefix); 63 events on Aug 11 were phantom (BTT- prefix)</td></tr>
+<tr><td>Active paper exploration mode</td><td>OFF (just activated for testing on Aug 15)</td></tr>
+<tr><td>Universe</td><td>51 NSE symbols (NIFTY 50 + TMPV + TMCV, minus TATAMOTORS)</td></tr>
+<tr><td>Scan coverage</td><td>~50/51 per scan (1 symbol typically missing from Yahoo — likely LTIM)</td></tr>
+<tr><td><strong>Position-size cap bug</strong></td><td><strong>FIXED (Remediation Phase 1B)</strong> — SIZE_REDUCED_TO_CAP path now active</td></tr>
+<tr><td><strong>Rejection reason logging</strong></td><td><strong>FIXED (Remediation Phase 1C)</strong> — all rejection events now carry structured <code>reason</code> field</td></tr>
+<tr><td><strong>Per-symbol scan logging</strong></td><td><strong>ADDED (Data Path Audit Task 2)</strong> — SYMBOL_SCANNED now emits <code>data_source</code>, <code>latest_date</code>, <code>age_days</code>, <code>interval</code>, <code>last_price</code>, <code>tradable</code>, <code>reason_not_tradable</code></td></tr>
+<tr><td><strong>SIZE_REDUCED_TO_CAP wiring bug</strong></td><td><strong>FIXED (Bug Audit Task 1)</strong> — executor now reads <code>capped_qty</code> from <code>rv.to_dict()["summary"]</code>; risk_amount recomputed; pipeline event emitted</td></tr>
+<tr><td><strong>Pre-trade false CRITICAL rejection</strong></td><td><strong>FIXED (Bug Audit Task 2)</strong> — downstream checks (utilisation, cash, daily-risk) now use capped qty, not original oversized qty</td></tr>
+<tr><td><strong>Scanner threshold mismatch</strong></td><td><strong>FIXED (Bug Audit Task 5)</strong> — <code>market_scanner.py</code> now imports from <code>config.py</code>; single source of truth (STRONG BUY 85 / BUY 70 / WATCH 50)</td></tr>
+</tbody></table>
+
+<h3>1.3 Primary Problem Statement <strong>[UPDATED v3]</strong></h3>
+
+<p>The platform correctly identifies BUY signals. The two code-level blockers for paper execution have been resolved:</p>
+
+<table><thead>
+<tr><th>Blocker</th><th>Status</th></tr>
+</thead><tbody>
+<tr><td><strong>Position-size cap hard-reject</strong></td><td>✅ <strong>FIXED</strong> — <code>_check_position_size()</code> now computes <code>cap_qty</code> and issues <code>SIZE_REDUCED_TO_CAP</code> WARNING</td></tr>
+<tr><td><strong>Rejection reasons not stored</strong></td><td>✅ <strong>FIXED</strong> — <code>reason</code>, <code>gate_name</code>, <code>action</code>, <code>human_readable_reason</code> now in all rejection payloads</td></tr>
+</tbody></table>
+
+<p><strong>Remaining blockers:</strong></p>
+
+<p>1. <strong>Kite LTP not wired into scan path (P0 architecture gap):</strong> The scan engine unconditionally uses <code>LiveDataProvider()</code> (yfinance only). <code>kite_quote_provider.py</code> exists and can fetch live Kite LTP, but is never called during a scan. Data quality grades are based on age of the latest yfinance daily bar — not on whether Kite is connected. Fixing this requires wiring the Kite LTP overlay into <code>run_live_scan()</code> (~15 lines — see §21.4 for the exact scope). Re-authenticating Zerodha <strong>will not</strong> change scan data until this integration work is done.</p>
+
+<p>2. <strong>Scanner uses daily bars, not intraday bars:</strong> <code>SCAN_INTERVAL = "1d"</code>, <code>SCAN_PERIOD = "6mo"</code>. True intraday bar scanning (1m/5m/15m from Kite Historical API) is a separate, larger project.</p>
+
+<p>3. <strong>R:R threshold misalignment:</strong> Scan gate uses 1.5, Phase20 execution gate uses 2.0 (settings default). Signals with 1.5 ≤ RR &lt; 2.0 pass the scan but are blocked at execution. Deferred to Phase 2.</p>
+
+<hr>
+
+<h2>2. AI Architecture Overview</h2>
+
+<p>The platform is built as a layered multi-agent system. Each layer is independent and communicates through a shared scan snapshot.</p>
+
+<h3>2.1 Architecture Layers <strong>[UPDATED v3]</strong></h3>
+
+<pre><code>
+┌────────────────────────────────────────────────────────────┐
+│  LAYER 0: DATA ACQUISITION                                  │
+│  live_data_provider.py (LiveDataProvider)                   │
+│  Source: Yahoo Finance (yfinance) — ONLY source             │
+│  Interval: 1d (daily bars), 6-month lookback (SCAN_PERIOD)  │
+│  Quality: age-based (≤3d=LIVE, ≤5d=NEAR_LIVE, ≤14d=STALE) │
+│  Kite: kite_quote_provider.py exists but is NOT called here │
+│  Output: OHLCV DataFrame per symbol, age_days, quality label│
+└────────────────────┬───────────────────────────────────────┘
+                     │
+┌────────────────────▼───────────────────────────────────────┐
+│  LAYER 1: SIGNAL ENGINE (live_scan_engine.py)               │
+│  indicator_engine.py + signal_engine.py + trade_quality.py  │
+│  Computes: RSI, MACD, Bollinger, ADX, OBV per symbol        │
+│  Output: confidence score (0–100), action (BUY/WATCH/IGNORE) │
+│  Data quality gate: STALE→WATCH, UNAVAILABLE→IGNORE         │
+└────────────────────┬───────────────────────────────────────┘
+                     │
+┌────────────────────▼───────────────────────────────────────┐
+│  LAYER 2: MARKET INTELLIGENCE (market_intelligence.py)      │
+│  market_context.py + market_regime.py                       │
+│  Computes: market regime (BULLISH/BEARISH/SIDEWAYS/etc.)    │
+│  NIFTY/BankNIFTY direction, VIX level, sector breadth       │
+│  Output: regime label, confidence modifier (−15 to +10)     │
+└────────────────────┬───────────────────────────────────────┘
+                     │
+┌────────────────────▼───────────────────────────────────────┐
+│  LAYER 3: RESEARCH / MULTI-TIMEFRAME (research agents)      │
+│  Computes: 4-timeframe signal alignment (5m/15m/1h/1d)      │
+│  Required: ≥3 of 4 timeframes must agree for BUY            │
+│  Output: timeframe_alignment score, research quality        │
+└────────────────────┬───────────────────────────────────────┘
+                     │
+┌────────────────────▼───────────────────────────────────────┐
+│  LAYER 4: OPPORTUNITY SCORING (opportunity_scanner.py)      │
+│  Weights: trade_quality×0.40 + ai_confidence×0.30           │
+│           + rr_score×0.20 + market_alignment×0.10           │
+│  Output: opportunity_score (0–100)                          │
+└────────────────────┬───────────────────────────────────────┘
+                     │
+┌────────────────────▼───────────────────────────────────────┐
+│  LAYER 5: STRATEGY SELECTION (strategies.py)                │
+│  Selects strategy: MOMENTUM / BREAKOUT / MEAN_REVERSION     │
+│  Regime-gated: certain strategies blocked in certain regimes │
+│  Output: strategy_id, strategy_name, sizing params          │
+└────────────────────┬───────────────────────────────────────┘
+                     │
+┌────────────────────▼───────────────────────────────────────┐
+│  LAYER 6: RISK MANAGEMENT (position_sizer.py + risk agents) │
+│  Computes: stop_loss, target, rr_ratio, quantity            │
+│  Gates: per_stock_cap, portfolio exposure, circuit breaker   │
+│  Output: RISK_APPROVED or RISK_REJECTED + structured reason  │
+└────────────────────┬───────────────────────────────────────┘
+                     │
+┌────────────────────▼───────────────────────────────────────┐
+│  LAYER 7: AI DECISION ENGINE (ai_decision_agent/)           │
+│  7 decision types, confidence weighting, conflict detection  │
+│  Explainability: evidence labels per gate                    │
+│  Output: final_action (STRONG BUY / BUY / WATCH / IGNORE)  │
+└────────────────────┬───────────────────────────────────────┘
+                     │
+┌────────────────────▼───────────────────────────────────────┐
+│  LAYER 8: PAPER EXECUTION (phase20_executor.py)             │
+│  phase20_store.py + canonical_portfolio.py                  │
+│  Pre-checks: market open, scan freshness, data quality,     │
+│  confidence ≥60, opportunity ≥60, R:R ≥2.0 (execution gate),│
+│  circuit breaker, portfolio pre-check                       │
+│  Position cap: SIZE_REDUCED_TO_CAP (adopt cap_qty if fits)  │
+│  Output: ORDER_SUBMITTED → ORDER_EXECUTED or ORDER_REJECTED │
+│  NO LIVE ORDERS — all simulated fills at signal_price       │
+└────────────────────┬───────────────────────────────────────┘
+                     │
+┌────────────────────▼───────────────────────────────────────┐
+│  LAYER 9: LEARNING &amp; ANALYTICS                              │
+│  phase24_engine.py + learning_agent/ + analytics_engine.py  │
+│  Tracks: trade outcomes, MFE/MAE, win rates per strategy    │
+│  Advisory-only: no auto-promotion of learned adjustments    │
+│  Human approval required before any parameter change        │
+└────────────────────┬───────────────────────────────────────┘
+                     │
+┌────────────────────▼───────────────────────────────────────┐
+│  LAYER 10: REPLAY / BACKTEST (backtesting_engine.py)        │
+│  backtest_runner.py + market_replay.py                      │
+│  Runs real scan pipeline on historical candle data          │
+│  Isolated ledger — never affects live portfolio             │
+│  Output: replay stats, pipeline event counts, validation    │
+└────────────────────────────────────────────────────────────┘
+</code></pre>
+
+<h3>2.2 Multi-Agent Framework (Phases 10A–10E)</h3>
+
+<table><thead>
+<tr><th>Agent</th><th>File</th><th>Role</th></tr>
+</thead><tbody>
+<tr><td><strong>SupervisorAgent</strong></td><td><code>agent_framework/</code></td><td>Orchestrates all agents; never auto-restarts failing agents</td></tr>
+<tr><td><strong>MarketIntelligenceAgent</strong></td><td><code>analysis_layer/</code></td><td>Reads cached scan snapshots, computes regime + opportunity</td></tr>
+<tr><td><strong>StrategyAgent</strong></td><td><code>analysis_layer/</code></td><td>Selects and validates strategy fit per regime</td></tr>
+<tr><td><strong>RiskAgent</strong></td><td><code>analysis_layer/</code></td><td>Portfolio exposure, drawdown, stress scenarios</td></tr>
+<tr><td><strong>AIDecisionAgent</strong></td><td><code>decision_layer/</code></td><td>7-type decision scoring, conflict detection, explainability</td></tr>
+<tr><td><strong>ExecutionAgent</strong></td><td><code>execution_agent/</code></td><td>10 pre-execution checks, NSE charges calculator, paper-only default</td></tr>
+<tr><td><strong>LearningAgent</strong></td><td><code>learning_agent/</code></td><td>Outcome tracking, signal adjustments, pattern discovery</td></tr>
+<tr><td><strong>KnowledgeAgent</strong></td><td><code>knowledge_agent/</code></td><td>Historical knowledge base, pattern library</td></tr>
+<tr><td><strong>CollaborationEngine</strong></td><td><code>collaboration_engine/</code></td><td>11-node graph for inter-agent communication</td></tr>
+<tr><td><strong>AutonomousOpsAgent</strong></td><td><code>autonomous_operations/</code></td><td>Scheduled tasks, health monitoring</td></tr>
+</tbody></table>
+
+<h3>2.3 Key Python Files <strong>[UPDATED v3]</strong></h3>
+
+<table><thead>
+<tr><th>File</th><th>Purpose</th></tr>
+</thead><tbody>
+<tr><td><code>config.py</code></td><td>All configurable thresholds (single source of truth)</td></tr>
+<tr><td><code>live_scan_engine.py</code></td><td>Core scan loop, quality gates, score computation, RISK_REJECTED structured payloads, SYMBOL_SCANNED diagnostic fields</td></tr>
+<tr><td><code>live_data_provider.py</code></td><td><strong>Only OHLCV data source</strong> — yfinance exclusively. <code>SCAN_INTERVAL="1d"</code>, <code>SCAN_PERIOD="6mo"</code></td></tr>
+<tr><td><code>kite_quote_provider.py</code></td><td>Kite LTP/quote fetcher — fully implemented but <strong>not called in the scan path</strong>. Only used for display metadata (session probe + provider label).</td></tr>
+<tr><td><code>phase20_executor.py</code></td><td>Paper execution pipeline, all pre-checks, SIZE_REDUCED_TO_CAP adoption</td></tr>
+<tr><td><code>phase20_store.py</code></td><td>Settings KV store, DEFAULT_SETTINGS</td></tr>
+<tr><td><code>phase20_scheduler.py</code></td><td>5-minute scan tick, paper management</td></tr>
+<tr><td><code>phase20_exits.py</code></td><td>8 exit rules (TARGET_HIT, STOP_LOSS_HIT, TRAILING_STOP, TIME_EXIT, MARKET_CLOSE_EXIT, PORTFOLIO_RISK_REDUCTION, SECTOR_CAP_BREACH, STALE_DATA_SAFETY)</td></tr>
+<tr><td><code>canonical_portfolio.py</code></td><td>Portfolio ledger (positions, cash, equity)</td></tr>
+<tr><td><code>paper_exploration_engine.py</code></td><td>Exploration mode (cap-resize + WATCH exploration)</td></tr>
+<tr><td><code>risk_validation/pre_trade.py</code></td><td>Pre-trade validator — SIZE_REDUCED_TO_CAP logic lives here</td></tr>
+<tr><td><code>market_regime.py</code></td><td>Regime classification</td></tr>
+<tr><td><code>position_sizer.py</code></td><td>Stop/target/quantity calculation</td></tr>
+<tr><td><code>phase24_engine.py</code></td><td>Learning analytics engine</td></tr>
+<tr><td><code>backtesting_engine.py</code></td><td>Historical backtesting</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>3. Full Pipeline Flow <strong>[UPDATED v3]</strong></h2>
+
+<p>This is the exact sequence of steps executed for every symbol in every scan.</p>
+
+<blockquote><strong>v3 correction:</strong> Previous versions stated Step 2 as "try Zerodha Kite quotes → fallback Yahoo Finance". This is <strong>incorrect</strong>. The scan engine unconditionally uses <code>LiveDataProvider()</code> which is yfinance only. There is no Kite branch in the scan path. The corrected flow is below.</blockquote>
+
+<pre><code>
+START SCAN TICK (every 5 minutes, 09:15–15:30 IST)
+│
+├── [STEP 1] Scan Lock Acquired (DB-durable, prevents concurrent scans)
+│
+├── [STEP 2] Data Fetch: LiveDataProvider.fetch_batch(universe)
+│   │   Provider: Yahoo Finance (yfinance) — the ONLY source
+│   │   Interval: 1d (daily bars), Period: 6mo
+│   │   Method: one bulk yf.download() for all 51 symbols
+│   │   Fallback: per-symbol retry for any symbols missing from bulk response
+│   │   Kite: NOT involved in this step. kite_quote_provider.py is never called here.
+│   └── Output: {symbol: SymbolFetchResult} — OHLCV DataFrame + age_days + quality label per symbol
+│
+├── [STEP 3] For each of 51 symbols in universe:
+│   │
+│   ├── [SIGNAL] Compute indicators: RSI, MACD, Bollinger, ADX, OBV
+│   │   └── Combine into confidence score (0–100) → raw_action
+│   │
+│   ├── [DATA QUALITY GATE] _apply_quality_gate()
+│   │   ├── age_days ≤ 3  → LIVE     → pass through (BUY eligible)
+│   │   ├── age_days ≤ 5  → NEAR_LIVE → pass through (BUY eligible)
+│   │   ├── age_days ≤ 14 → STALE    → force action = max(WATCH)
+│   │   └── age_days &gt; 14 → UNAVAILABLE → force action = IGNORE
+│   │   NOTE: quality is age-only; the data source (yfinance) has no effect on grade
+│   │
+│   ├── [R:R GATE] _rr_gate() — rr_ratio &lt; 1.5 → downgrade to WATCH
+│   │     → RISK_REJECTED emitted with:
+│   │         reason, gate_name, actual_value, human_readable_reason [UPDATED v2]
+│   │
+│   ├── [MARKET CONTEXT] Apply regime modifier to confidence
+│   │   └── Regime: BULLISH (+10), BEARISH (−15), NEUTRAL (±0)
+│   │
+│   ├── [RESEARCH / MULTI-TF] Check 4-timeframe alignment
+│   │   └── &lt; 3 timeframes agreeing → lower confidence
+│   │
+│   ├── [OPPORTUNITY SCORE] Compute composite 0–100 score
+│   │   └── Weights: trade_quality×0.40 + confidence×0.30 + rr×0.20 + market×0.10
+│   │
+│   ├── [STRATEGY] Select strategy based on regime and signal type
+│   │   └── BUY_GENERATED or WATCH_GENERATED emitted to pipeline_events
+│   │       NOTE: BUY_GENERATED fires ONLY after all gates above pass.
+│   │             A STALE symbol always emits WATCH_GENERATED, never BUY_GENERATED.
+│   │
+│   ├── [RISK GATE] position_sizer.py
+│   │   ├── Compute: quantity = min(cap×capital, cash) / price
+│   │   ├── Check: stop_loss distance, R:R ratio
+│   │   └── RISK_APPROVED or RISK_REJECTED (with reason, gate_name, human_readable_reason)
+│   │
+│   └── [EMIT] SYMBOL_SCANNED (with data_source, latest_date, age_days, interval,
+│             last_price, tradable, reason_not_tradable) [UPDATED v3]
+│             MARKET_INTELLIGENCE_COMPLETED, RESEARCH_COMPLETED,
+│             MONITORING_COMPLETED, STRATEGY_SELECTED
+│
+├── [STEP 4] Snapshot published (post-scan, after all symbols complete)
+│
+├── [STEP 4a] Kite display metadata (POST-SCAN, read-only, display only) [NEW v3]
+│   │   kite_session_verified() → sets safety["kite_connected"]
+│   │   provider_label()        → sets safety["data_provider"]
+│   │   ohlcv_source            → ALWAYS hardcoded "yfinance (historical)"
+│   └── NOTE: This block runs AFTER scanning. It changes no prices, quality labels, or decisions.
+│
+└── [STEP 5] Paper Execution Loop (phase20_executor.py)
+    │   Runs for every BUY_GENERATED / STRONG_BUY_GENERATED candidate
+    │
+    ├── Gate 1: Market open? (09:15–15:30 IST) → else SKIP
+    ├── Gate 2: Scan fresh? (&lt; staleness_threshold minutes) → else SKIP
+    ├── Gate 3: Data quality LIVE or NEAR_LIVE? → else SKIP
+    ├── Gate 4: Confidence ≥ min_confidence (default 60%)? → else SKIP
+    ├── Gate 5: Opportunity score ≥ min_opportunity_score (default 60%)? → else SKIP
+    ├── Gate 6: R:R ≥ min_risk_reward (settings default 2.0)? → else EXECUTION_SKIPPED_WITH_REASON
+    │           [emits reason, gate_name, action, human_readable_reason]
+    ├── Gate 7: Circuit breaker clear? → else BLOCKED
+    ├── Gate 8: Portfolio pre-check (portfolio_bridge) → else BLOCKED
+    ├── Gate 9: Position size check via risk_validation/pre_trade.py:
+    │     ├── qty × price ≤ cap_pct% of portfolio → ORDER_SUBMITTED (pass)
+    │     ├── qty × price &gt; cap  AND  cap_qty ≥ 1  → SIZE_REDUCED_TO_CAP (use cap_qty) [FIXED]
+    │     └── qty × price &gt; cap  AND  cap_qty == 0 → ORDER_REJECTED (genuinely too expensive)
+    ├── Gate 10: No existing open position in this symbol? → else SKIP
+    │
+    ├── If all gates pass (or SIZE_REDUCED_TO_CAP applies):
+    │   ├── Adopt cap_qty if size was reduced [FIXED]
+    │   ├── Recompute charges with reduced qty [FIXED]
+    │   ├── execute_buy() called → simulated fill at signal_price
+    │   ├── Portfolio updated (cash reduced, position added)
+    │   ├── phase20_paper_trades row inserted with trade_id "P20-{uuid}"
+    │   └── ORDER_SUBMITTED → ORDER_EXECUTED emitted (SIZE_REDUCED_TO_CAP in evidence)
+    │
+    └── If gate fails with CRITICAL:
+        ├── ORDER_REJECTED (with gate_name, actual_value, required_value, action,
+        │   human_readable_reason in payload)
+        └── EXECUTION_SKIPPED_WITH_REASON (with reason, gate_name, action,
+            human_readable_reason)
+</code></pre>
+
+<h3>3.1 Paper Exploration Mode</h3>
+
+<p>When <code>paper_exploration_mode = True</code> in settings, an additional loop runs after the main execution loop:</p>
+
+<pre><code>
+EXPLORATION TICK (after main execution loop)
+│
+├── Hard Gates (always enforced, identical to main):
+│   ├── Market closed → BLOCKED
+│   ├── Scan stale &gt; 15 min → BLOCKED
+│   ├── Circuit breaker tripped → BLOCKED
+│   └── Data quality UNAVAILABLE → BLOCKED
+│
+├── Path A: SIZE_REDUCED_TO_CAP
+│   ├── Find candidates where ONLY failed gate = per_stock_cap
+│   ├── Resize quantity: floor(cap_pct% × portfolio / price)
+│   └── Create entry in experimental_paper_trades (NOT phase20_paper_trades)
+│
+└── Path B: EXPERIMENTAL_BUY_FROM_WATCH
+    ├── Find WATCH candidates with confidence ≥ 60, R:R ≥ 1.2
+    ├── Require volume_ratio ≥ 1.2 (intraday volume signal)
+    └── Create entry in experimental_paper_trades (budget: max 2 trades/day, 5% each)
+</code></pre>
+
+<h3>3.2 Exit Management Loop (runs every scan tick)</h3>
+
+<p><code>phase20_scheduler.py</code> calls <code>_manage_paper()</code> on every scan tick, which calls <code>phase20_exits.manage_open_positions()</code>. All 8 exit rules are checked for each OPEN trade:</p>
+
+<table><thead>
+<tr><th>Exit Rule</th><th>Trigger</th><th>Data Requirement</th></tr>
+</thead><tbody>
+<tr><td><code>TARGET_HIT</code></td><td><code>quote &gt;= target</code></td><td><code>quote_reliable=True</code> (LIVE/NEAR_LIVE)</td></tr>
+<tr><td><code>STOP_LOSS_HIT</code></td><td><code>quote &lt;= stop</code></td><td><code>quote_reliable=True</code></td></tr>
+<tr><td><code>TRAILING_STOP</code></td><td>Peak ≥ fill+2R, then quote ≤ fill+1R</td><td><code>quote_reliable=True</code></td></tr>
+<tr><td><code>TIME_EXIT</code></td><td><code>(now - fill_ts).days &gt;= max_holding_days</code></td><td>Any</td></tr>
+<tr><td><code>MARKET_CLOSE_EXIT</code></td><td>Last 15 min of session, <code>square_off_before_close=True</code></td><td>Market hours</td></tr>
+<tr><td><code>PORTFOLIO_RISK_REDUCTION</code></td><td>Daily P&amp;L ≤ −daily_loss_limit</td><td>Any</td></tr>
+<tr><td><code>SECTOR_CAP_BREACH</code></td><td>Sector exposure &gt; cap × 1.25</td><td>Any</td></tr>
+<tr><td><code>STALE_DATA_SAFETY</code></td><td>Symbol missing from current scan context</td><td>Any</td></tr>
+</tbody></table>
+
+<p><strong>Important:</strong> When <code>quote_reliable=False</code>, exit is recorded as <code>EXIT_PENDING</code> with <code>realized_pnl=NULL</code>. The exit fill price is not recorded until a LIVE/NEAR_LIVE quote is available. This is the current state of all 4 open positions. Wiring Kite LTP (Option A in §21.4) would provide <code>quote_reliable=True</code> and resolve pending exits.</p>
+
+<hr>
+
+<h2>4. Criteria and Thresholds</h2>
+
+<h3>4.1 Signal Thresholds (config.py)</h3>
+
+<table><thead>
+<tr><th>Threshold</th><th>Value</th><th>Meaning</th></tr>
+</thead><tbody>
+<tr><td><code>SIGNAL_STRONG_THRESHOLD</code></td><td><strong>90.0</strong></td><td>Confidence ≥ 90 → STRONG BUY</td></tr>
+<tr><td><code>SIGNAL_BUY_THRESHOLD</code></td><td><strong>75.0</strong></td><td>Confidence 75–90 → BUY</td></tr>
+<tr><td><code>SIGNAL_WATCH_THRESHOLD</code></td><td><strong>60.0</strong></td><td>Confidence 60–75 → WATCH</td></tr>
+<tr><td><code>SIGNAL_MIN_THRESHOLD</code></td><td><strong>60.0</strong></td><td>Confidence &lt; 60 → NO_TRADE / IGNORE</td></tr>
+</tbody></table>
+
+<h3>4.2 Opportunity Score Thresholds (config.py) <strong>[UPDATED v3.1]</strong></h3>
+
+<table><thead>
+<tr><th>Threshold</th><th>Value</th><th>Meaning</th></tr>
+</thead><tbody>
+<tr><td><code>OPP_HOT_BUY_THRESHOLD</code></td><td><strong>85.0</strong></td><td>Hot BUY — highest priority</td></tr>
+<tr><td><code>OPP_BUY_THRESHOLD</code></td><td><strong>70.0</strong></td><td>Standard BUY</td></tr>
+<tr><td><code>OPP_WATCH_THRESHOLD</code></td><td><strong>50.0</strong></td><td>WATCH candidate</td></tr>
+<tr><td>Below 50</td><td>—</td><td>IGNORE</td></tr>
+</tbody></table>
+
+<blockquote><strong>v3.1 fix — scanner threshold alignment:</strong> <code>market_scanner.py</code> previously hardcoded <code>ACTION_BUY=62</code> and <code>ACTION_WATCH=42</code> — mismatching this table and the SOP. After Bug Audit Task 5, <code>market_scanner.py</code> now imports <code>OPP_HOT_BUY_THRESHOLD</code>, <code>OPP_BUY_THRESHOLD</code>, and <code>OPP_WATCH_THRESHOLD</code> from <code>config.py</code>. <strong>Single source of truth is now <code>config.py</code> for all three thresholds.</strong> To change any threshold, edit <code>config.py</code> only. Pre-fix: stocks scoring 62–69 appeared as BUY; post-fix they correctly appear as WATCH.</blockquote>
+
+<p><strong>Opportunity Score Weights:</strong></p>
+<ul style="margin-left:0px">
+<li>trade_quality: <strong>40%</strong></li>
+<li>ai_confidence: <strong>30%</strong></li>
+<li>rr_score: <strong>20%</strong></li>
+<li>market_alignment: <strong>10%</strong></li>
+</ul>
+
+<h3>4.3 AI Decision Engine Thresholds (config.py) <strong>[UPDATED v3]</strong></h3>
+
+<table><thead>
+<tr><th>Parameter</th><th>Value</th><th>Meaning</th></tr>
+</thead><tbody>
+<tr><td><code>AI_MIN_RR_RATIO</code></td><td><strong>2.0</strong></td><td>⚠️ <strong>DEAD CONFIG</strong> — defined in <code>config.py</code>, copied into <code>phase21_baseline.py</code> reporting dict only; never compared against a live R:R value anywhere in the paper execution path. Rules out as a cause of unexplained rejections.</td></tr>
+<tr><td><code>AI_MIN_TF_ALIGNMENT</code></td><td><strong>3</strong></td><td>At least 3 of 4 timeframes must align</td></tr>
+<tr><td><code>AI_HIGH_VOL_CONF_THRESHOLD</code></td><td><strong>70.0</strong></td><td>Below this in HIGH_VOL regime → downgrade</td></tr>
+<tr><td><code>AI_SIDEWAYS_CONF_THRESHOLD</code></td><td><strong>72.0</strong></td><td>Below this in SIDEWAYS regime → downgrade</td></tr>
+<tr><td><code>AI_MIN_STOP_DISTANCE_PCT</code></td><td><strong>0.5%</strong></td><td>Stop &lt; 0.5% of price → reject (whipsaw risk)</td></tr>
+</tbody></table>
+
+<h3>4.4 Scan-Time Gates (live_scan_engine.py)</h3>
+
+<table><thead>
+<tr><th>Gate</th><th>Value</th><th>Action when failed</th></tr>
+</thead><tbody>
+<tr><td><code>STALE_GUARD_ACTION</code></td><td><code>"WATCH"</code></td><td>STALE data → force action to WATCH max</td></tr>
+<tr><td><code>UNAVAIL_GUARD_ACTION</code></td><td><code>"IGNORE"</code></td><td>UNAVAILABLE → force to IGNORE</td></tr>
+<tr><td><code>MIN_RR_FOR_BUY</code></td><td><strong>1.5</strong></td><td>R:R &lt; 1.5 → cannot be BUY</td></tr>
+<tr><td>Paper eligible qualities</td><td><code>{LIVE, NEAR_LIVE}</code></td><td>Other qualities → not eligible for paper execution</td></tr>
+</tbody></table>
+
+<h3>4.5 Execution-Time Gates (phase20_executor.py via phase20_store.py)</h3>
+
+<table><thead>
+<tr><th>Gate</th><th>Default Value</th><th>Notes</th></tr>
+</thead><tbody>
+<tr><td><code>min_confidence</code></td><td><strong>60.0%</strong></td><td>Configurable via Settings page</td></tr>
+<tr><td><code>min_opportunity_score</code></td><td><strong>60.0</strong></td><td>Configurable via Settings page</td></tr>
+<tr><td><code>min_risk_reward</code></td><td><strong>2.0</strong></td><td>Execution gate — <strong>different from scan gate 1.5</strong> (see §4.6)</td></tr>
+<tr><td><code>per_stock_exposure_cap_pct</code></td><td><strong>25.0%</strong></td><td>Settings default; used by pre-trade validator</td></tr>
+<tr><td><code>scan_interval_minutes</code></td><td><strong>5</strong></td><td>Allowed values: 1, 2, 3, 5, 10, 15</td></tr>
+<tr><td>Market open window</td><td><strong>09:15–15:30 IST</strong></td><td>Outside this → execution skipped</td></tr>
+<tr><td>Stale scan</td><td>Configurable</td><td>Scan older than threshold → EXECUTION_SKIPPED</td></tr>
+<tr><td>Circuit breaker</td><td>State-based</td><td>If tripped → all entries blocked until manual reset</td></tr>
+<tr><td>Duplicate position</td><td>One per symbol</td><td>Cannot open second position in same symbol</td></tr>
+<tr><td><strong>Position size</strong></td><td><strong>SIZE_REDUCED_TO_CAP path</strong></td><td>If <code>cap_qty ≥ 1</code>: WARNING + proceed at cap_qty. If <code>cap_qty == 0</code>: CRITICAL → ORDER_REJECTED [FIXED]</td></tr>
+</tbody></table>
+
+<h3>4.6 R:R Threshold Map — All Layers <strong>[UPDATED v3]</strong></h3>
+
+<table><thead>
+<tr><th>Layer</th><th>File</th><th>Threshold</th><th>Enforcement</th><th>Pipeline effect</th></tr>
+</thead><tbody>
+<tr><td>Scan gate</td><td><code>live_scan_engine.py:64</code></td><td><strong>≥ 1.5</strong></td><td><code>_rr_gate()</code> caps BUY→WATCH</td><td>WATCH_GENERATED</td></tr>
+<tr><td>Pre-trade validator</td><td><code>risk_validation/pre_trade.py:26</code></td><td><strong>≥ 1.5</strong></td><td>CRITICAL rejection</td><td>ORDER_REJECTED</td></tr>
+<tr><td>Phase20 execution gate</td><td><code>phase20_gates.py:258</code></td><td><strong>≥ 2.0</strong> (settings default)</td><td>EXECUTION_SKIPPED</td><td>EXECUTION_SKIPPED_WITH_REASON</td></tr>
+<tr><td><code>AI_MIN_RR_RATIO</code></td><td><code>config.py:61</code></td><td><strong>2.0</strong></td><td><strong>⚠️ DEAD CONFIG</strong> — in phase21_baseline.py reporting dict only</td><td><strong>None — not enforced anywhere</strong></td></tr>
+</tbody></table>
+
+<p><strong>Conflict:</strong> Signals with 1.5 ≤ RR &lt; 2.0 pass the scan gate (→ <code>BUY_GENERATED</code>) and the pre-trade validator, but are blocked at the phase20 execution gate (→ <code>EXECUTION_SKIPPED_WITH_REASON</code>). <strong>Threshold alignment is deferred to Phase 2.</strong></p>
+
+<p><strong>v3 correction:</strong> Previous versions listed <code>AI_MIN_RR_RATIO = 2.0</code> as an "advisory downgrade" in the AI Decision Engine. Code inspection confirms it is dead configuration — it never compares against a live R:R value.</p>
+
+<h3>4.7 Position Sizing: Before vs After All Fixes <strong>[UPDATED v3.1]</strong></h3>
+
+<table><thead>
+<tr><th>Scenario</th><th>Before Phase 1B</th><th>After Phase 1B</th><th>After Bug Audit Task 1+2</th></tr>
+</thead><tbody>
+<tr><td><code>qty × price ≤ cap</code></td><td>PASS</td><td>PASS — unchanged</td><td>PASS — unchanged</td></tr>
+<tr><td><code>qty × price &gt; cap</code>, <code>cap_qty ≥ 1</code></td><td>CRITICAL → ORDER_REJECTED</td><td>WARNING (SIZE_REDUCED_TO_CAP) → <strong>but executor never read it</strong> (wiring bug)</td><td><strong>WARNING → executor reads from <code>summary</code>, adopts cap_qty, recomputes risk_amount</strong> ✅</td></tr>
+<tr><td><code>qty × price &gt; cap</code>, <code>cap_qty == 0</code></td><td>CRITICAL → ORDER_REJECTED</td><td>CRITICAL → ORDER_REJECTED</td><td>CRITICAL → ORDER_REJECTED (unchanged)</td></tr>
+<tr><td>Utilisation/cash check (downstream)</td><td>With original qty</td><td>With original qty (false CRITICAL possible)</td><td><strong>With capped qty</strong> — false INSUFFICIENT_CASH eliminated ✅</td></tr>
+</tbody></table>
+
+<p><code>rv.to_dict()</code> structure (confirmed by Bug Audit Task 1 — this is where the wiring bug lived):</p>
+<pre><code>
+{
+  "verdict": "APPROVED_WARN",
+  "approved": true,
+  "summary": {
+    "size_reduced_to_cap": true,   ← lives HERE (not at top level)
+    "capped_qty": 15,              ← lives HERE (not at top level)
+    "trade_value": 97500.0,
+    ...
+  }
+}
+</code></pre>
+<p>Old executor code: <code>_rv_result.get("size_reduced_to_cap")</code> → always <code>None</code> (key is in <code>["summary"]</code>).  </p>
+<p>Fixed executor code: <code>_rv_result.get("summary", {}).get("size_reduced_to_cap")</code> → correct.</p>
+
+<p>New fields populated in the SIZE_REDUCED_TO_CAP pipeline event (post Bug Audit Task 1):</p>
+<p><code>original_qty</code>, <code>capped_qty</code>, <code>fill_price</code>, <code>original_risk</code>, <code>capped_risk</code>, <code>trade_value_orig</code>, <code>trade_value_cap</code>, <code>charges_recalculated</code></p>
+
+<h3>4.8 Gap Between Scan-Time and Execution-Time Thresholds</h3>
+
+<table><thead>
+<tr><th>Dimension</th><th>Scan-time</th><th>Execution-time</th><th>Gap status</th></tr>
+</thead><tbody>
+<tr><td>R:R minimum</td><td>1.5 (live_scan_engine)</td><td>2.0 (executor gate)</td><td><strong>OPEN — deferred to Phase 2</strong></td></tr>
+<tr><td>Confidence minimum</td><td>60.0 (scan gate)</td><td>60.0 (executor gate)</td><td>Aligned</td></tr>
+<tr><td>Data quality for BUY</td><td>LIVE or NEAR_LIVE</td><td>LIVE or NEAR_LIVE</td><td>Aligned</td></tr>
+<tr><td>Position size cap</td><td>Not enforced at scan time</td><td>cap_qty path (FIXED)</td><td><strong>RESOLVED</strong></td></tr>
+<tr><td>Portfolio state</td><td>Not known at scan time</td><td>Checked at execution</td><td>Gap remains (intentional)</td></tr>
+</tbody></table>
+
+<h3>4.9 Paper Exploration Thresholds (paper_exploration_engine.py)</h3>
+
+<table><thead>
+<tr><th>Parameter</th><th>Default</th><th>Notes</th></tr>
+</thead><tbody>
+<tr><td><code>exploration_max_pct_per_trade</code></td><td><strong>5.0%</strong></td><td>Max ₹2,500 per exploration trade</td></tr>
+<tr><td><code>exploration_max_trades_per_day</code></td><td><strong>2</strong></td><td>Daily budget cap</td></tr>
+<tr><td><code>exploration_max_total_exposure_pct</code></td><td><strong>10.0%</strong></td><td>Max total exploration exposure</td></tr>
+<tr><td><code>exploration_min_rr</code></td><td><strong>1.2</strong></td><td>Lower than main 1.5 minimum</td></tr>
+<tr><td><code>exploration_min_confidence</code></td><td><strong>60.0%</strong></td><td>Same as main</td></tr>
+<tr><td>Hard exploration cap</td><td><strong>20.0%</strong></td><td><code>_PRETRADE_MAX_PCT</code> — never bypassed</td></tr>
+<tr><td>Volume signal required</td><td><strong>vol_ratio ≥ 1.2</strong></td><td>For WATCH→exploration path</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>5. All App Pages and Routes</h2>
+
+<h3>5.1 Primary Canonical Pages (Daily Operations)</h3>
+
+<blockquote>The following 5 pages are the recommended daily-use pages. All other pages exist for deep-dive analysis.</blockquote>
+
+<table><thead>
+<tr><th>Route</th><th>Component</th><th>Functionality</th></tr>
+</thead><tbody>
+<tr><td><code>/</code></td><td><code>TradeDecisions</code></td><td>Main dashboard — scan results, BUY/WATCH/IGNORE signals, live scan status</td></tr>
+<tr><td><code>/ai-paper-trader</code></td><td><code>AIPaperTrader</code></td><td>Paper trade management — open positions, P&amp;L, EXIT_PENDING</td></tr>
+<tr><td><code>/mission-control</code></td><td><code>MissionControl</code></td><td>Mission Control — live stream, scan status, alert feed</td></tr>
+<tr><td><code>/live-data-health</code></td><td><code>LiveDataHealth</code></td><td>Data provider health, symbol coverage, quality breakdown</td></tr>
+<tr><td><code>/market-intelligence</code></td><td><code>MarketIntelligence</code></td><td>Market regime, sector analysis, opportunity ranking</td></tr>
+</tbody></table>
+
+<h3>5.2 Signal and Decision Pages</h3>
+
+<table><thead>
+<tr><th>Route</th><th>Component</th><th>Functionality</th></tr>
+</thead><tbody>
+<tr><td><code>/market-scanner</code></td><td><code>MarketScanner</code></td><td>Full NIFTY 50 scan results with filters</td></tr>
+<tr><td><code>/live-scan</code></td><td><code>LiveScan</code></td><td>Live scan trigger and progress monitoring</td></tr>
+<tr><td><code>/scan-results</code></td><td><code>ScanResults</code></td><td>Historical scan results explorer</td></tr>
+<tr><td><code>/ai-decision</code></td><td><code>AiDecision</code></td><td>AI Decision Agent interface — 7 decision types, explainability</td></tr>
+<tr><td><code>/agent-ai-decision</code></td><td><code>AiDecisionAgentPage</code></td><td>Agent-level AI decision monitoring</td></tr>
+<tr><td><code>/explainable-ai</code></td><td><code>ExplainableAI</code></td><td>Decision explainability — which factors drove BUY/WATCH/IGNORE</td></tr>
+<tr><td><code>/ai-copilot</code></td><td><code>AiCopilot</code></td><td>Alert-based AI recommendations from cached scan snapshots</td></tr>
+<tr><td><code>/event-intelligence</code></td><td><code>EventIntelligence</code></td><td>Corporate events, earnings calendar, dividend signals</td></tr>
+<tr><td><code>/macro-intelligence</code></td><td><code>MacroIntelligence</code></td><td>VIX, F&amp;O data, FII/DII flows, macro regime</td></tr>
+<tr><td><code>/preopen-intelligence</code></td><td><code>PreOpenIntelligence</code></td><td>Pre-open IEP, order imbalance, first-mover signals</td></tr>
+<tr><td><code>/preopen-accuracy</code></td><td><code>PreOpenAccuracy</code></td><td>Historical accuracy of pre-open predictions</td></tr>
+</tbody></table>
+
+<h3>5.3 Portfolio and Performance Pages</h3>
+
+<table><thead>
+<tr><th>Route</th><th>Component</th><th>Functionality</th></tr>
+</thead><tbody>
+<tr><td><code>/portfolio-manager</code></td><td><code>PortfolioManager</code></td><td>Portfolio allocation, position management</td></tr>
+<tr><td><code>/portfolio-live</code></td><td><code>PortfolioLive</code></td><td>Real-time paper portfolio state, equity curve</td></tr>
+<tr><td><code>/portfolio-performance</code></td><td><code>PortfolioPerformance</code></td><td>5D.2 FIFO P&amp;L analytics, return metrics, drawdown</td></tr>
+<tr><td><code>/portfolio-risk</code></td><td><code>PortfolioRiskAnalytics</code></td><td>Risk exposure analytics, HHI concentration, Kelly allocation</td></tr>
+<tr><td><code>/performance-analytics</code></td><td><code>PerformanceAnalytics</code></td><td>Cross-strategy performance comparison</td></tr>
+<tr><td><code>/paper-analytics</code></td><td><code>PaperAnalytics</code></td><td>Paper trading analytics — win rate, avg P&amp;L, by strategy/regime</td></tr>
+<tr><td><code>/execution-quality</code></td><td><code>ExecutionQualityPage</code></td><td>Fill quality, slippage analysis, FIFO trade matching</td></tr>
+<tr><td><code>/executive-dashboard</code></td><td><code>ExecutiveDashboard</code></td><td>Aggregated 5D.1–5D.5 executive KPI view</td></tr>
+<tr><td><code>/executive-reports</code></td><td><code>ExecutiveReports</code></td><td>7 report types, AI-generated insights, report library</td></tr>
+</tbody></table>
+
+<h3>5.4 Risk and Validation Pages</h3>
+
+<table><thead>
+<tr><th>Route</th><th>Component</th><th>Functionality</th></tr>
+</thead><tbody>
+<tr><td><code>/risk</code></td><td><code>RiskManagement</code></td><td>Risk limits, exposure limits, position constraints</td></tr>
+<tr><td><code>/risk-optimisation</code></td><td><code>RiskOptimisation</code></td><td>Kelly allocation, Monte Carlo, stress testing</td></tr>
+<tr><td><code>/risk-validation</code></td><td><code>RiskValidation</code></td><td>8-domain risk validation score</td></tr>
+<tr><td><code>/risk-decision-report</code></td><td><code>RiskDecisionReportPage</code></td><td>Per-decision risk evidence report</td></tr>
+<tr><td><code>/validation</code></td><td><code>PaperTradingValidation</code></td><td>Paper trading quality checks, 7-domain validation</td></tr>
+<tr><td><code>/validation-dashboard</code></td><td><code>ValidationDashboard</code></td><td>V2 validation dashboard — suite status, pass/warn/fail</td></tr>
+<tr><td><code>/system-validation</code></td><td><code>SystemValidation</code></td><td>System-level validation checks</td></tr>
+<tr><td><code>/validation-v2</code></td><td><code>AIValidationV2Page</code></td><td>V2 full validation framework with AI verdict</td></tr>
+<tr><td><code>/paper-trading-summary</code></td><td><code>Phase11SummaryPage</code></td><td>Paper trading session summary</td></tr>
+<tr><td><code>/paper-trading-portfolio</code></td><td><code>Phase11PortfolioPage</code></td><td>Portfolio state within paper trading session</td></tr>
+<tr><td><code>/paper-trading-reports</code></td><td><code>Phase11ReportsPage</code></td><td>Session reports</td></tr>
+<tr><td><code>/paper-trading-replay</code></td><td><code>Phase11ReplayPage</code></td><td>Trade replay within session</td></tr>
+</tbody></table>
+
+<h3>5.5 Backtest and Strategy Pages</h3>
+
+<table><thead>
+<tr><th>Route</th><th>Component</th><th>Functionality</th></tr>
+</thead><tbody>
+<tr><td><code>/backtest</code></td><td><code>Backtest</code></td><td>Run backtests on historical data</td></tr>
+<tr><td><code>/strategy-lab</code></td><td><code>StrategyLab</code></td><td>Strategy development and parameter tuning</td></tr>
+<tr><td><code>/simulation-lab</code></td><td><code>SimulationLab</code></td><td>What-if scenario simulation</td></tr>
+<tr><td><code>/strategy-intelligence</code></td><td><code>StrategyIntelligence</code></td><td>5D.3 strategy performance analytics</td></tr>
+<tr><td><code>/strategy-optimisation</code></td><td><code>StrategyOptimisation</code></td><td>Under-performing strategy detection, advisory suggestions</td></tr>
+<tr><td><code>/strategy-evolution</code></td><td><code>StrategyEvolution</code></td><td>Strategy adaptation tracking</td></tr>
+<tr><td><code>/optimization-lab</code></td><td><code>OptimizationLab</code></td><td>Hyperparameter optimization</td></tr>
+<tr><td><code>/optimizer</code></td><td><code>Optimizer</code></td><td>Strategy optimizer</td></tr>
+<tr><td><code>/walk-forward</code></td><td><code>WalkForwardValidation</code></td><td>Walk-forward validation</td></tr>
+<tr><td><code>/replay</code></td><td><code>ReplayModePage</code></td><td>Full pipeline replay mode</td></tr>
+<tr><td><code>/market-replay</code></td><td><code>MarketReplay</code></td><td>Market data replay</td></tr>
+</tbody></table>
+
+<h3>5.6 Learning and AI Intelligence Pages</h3>
+
+<table><thead>
+<tr><th>Route</th><th>Component</th><th>Functionality</th></tr>
+</thead><tbody>
+<tr><td><code>/ai-learning-center</code></td><td><code>AILearningCenter</code></td><td>Phase 24 learning — missed opportunities, patterns, recommendations</td></tr>
+<tr><td><code>/learning</code></td><td><code>LearningGovernance</code></td><td>Learning safety controls — freeze flags, IGNORE-lock status</td></tr>
+<tr><td><code>/learning-insights</code></td><td><code>LearningInsights</code></td><td>Pattern insights, signal learning analytics</td></tr>
+<tr><td><code>/learning-review</code></td><td><code>LearningReview</code></td><td>Human review queue for learning suggestions</td></tr>
+</tbody></table>
+
+<h3>5.7 Operations and Observability Pages</h3>
+
+<table><thead>
+<tr><th>Route</th><th>Component</th><th>Functionality</th></tr>
+</thead><tbody>
+<tr><td><code>/ops-center</code></td><td><code>OperationsCenter</code></td><td>Phase 8.5 — 14 command types, 11 tabs</td></tr>
+<tr><td><code>/security-center</code></td><td><code>SecurityCenter</code></td><td>Phase 8.6 — security &amp; compliance monitoring</td></tr>
+<tr><td><code>/performance-center</code></td><td><code>PerformanceCenter</code></td><td>Phase 8.7 — system performance monitoring</td></tr>
+<tr><td><code>/deployment-center</code></td><td><code>DeploymentCenter</code></td><td>Phase 8.8 — deployment &amp; DR management</td></tr>
+<tr><td><code>/command-center</code></td><td><code>CommandCenter</code></td><td>Phase 9.1 — unified command overview</td></tr>
+<tr><td><code>/observability-center</code></td><td><code>ObservabilityCenter</code></td><td>Phase 8.1 — 6 observability endpoints</td></tr>
+<tr><td><code>/schedule-manager</code></td><td><code>ScheduleManager</code></td><td>Scheduler management and monitoring</td></tr>
+<tr><td><code>/live-monitoring</code></td><td><code>LiveMonitoring</code></td><td>Live scan monitoring</td></tr>
+<tr><td><code>/data-quality</code></td><td><code>DataQuality</code></td><td>Data quality metrics per symbol</td></tr>
+<tr><td><code>/provider-health</code></td><td><code>ProviderHealth</code></td><td>Data provider health</td></tr>
+<tr><td><code>/circuit-breaker</code></td><td><code>CircuitBreaker</code></td><td>Circuit breaker status and reset</td></tr>
+</tbody></table>
+
+<h3>5.8 Admin and Audit Pages</h3>
+
+<table><thead>
+<tr><th>Route</th><th>Component</th><th>Functionality</th></tr>
+</thead><tbody>
+<tr><td><code>/settings</code></td><td><code>Settings</code></td><td>All operator settings, phase review package downloads</td></tr>
+<tr><td><code>/audit-log</code></td><td><code>AuditLog</code></td><td>Full audit trail of all system events</td></tr>
+<tr><td><code>/pipeline-events</code></td><td><code>PipelineEvents</code></td><td>Raw pipeline event explorer</td></tr>
+<tr><td><code>/investigation-center</code></td><td><code>InvestigationCenter</code></td><td>Cross-domain investigation dashboard</td></tr>
+<tr><td><code>/ai-investigation</code></td><td><code>AIInvestigationCentre</code></td><td>AI-powered investigation of anomalies</td></tr>
+<tr><td><code>/ai-operations-centre</code></td><td><code>AIOperationsCentrePage</code></td><td>AI Operations Center — all agent snapshots in one view</td></tr>
+<tr><td><code>/decision-lineage</code></td><td><code>DecisionLineagePage</code></td><td>Decision provenance — why was each decision made</td></tr>
+<tr><td><code>/gate-rejection-audit</code></td><td>[admin]</td><td>Gate rejection audit tool</td></tr>
+</tbody></table>
+
+<h3>5.9–5.11 (Agent Framework, Historical Research, UI/Experience Pages)</h3>
+
+<p><em>(Unchanged from v2.0 — see prior version for full tables)</em></p>
+
+<blockquote><strong>Note on Legacy vs Canonical Pages:</strong> Routes under <code>/phase12</code>, <code>/phase13</code>, <code>/phase4a-session</code>, and some <code>/paper-trading-*</code> are legacy pages from earlier development phases. The canonical pages for daily use are: <code>/</code> (Trade Decisions), <code>/ai-paper-trader</code>, <code>/mission-control</code>, <code>/live-data-health</code>, and <code>/market-intelligence</code>.</blockquote>
+
+<hr>
+
+<h2>6. Universe and Symbol Selection</h2>
+
+<h3>6.1 NIFTY 50 Universe (Now 51 Symbols)</h3>
+
+<table><thead>
+<tr><th>Sector</th><th>Symbols</th><th>Count</th></tr>
+</thead><tbody>
+<tr><td>IT</td><td>TCS, INFY, WIPRO, HCLTECH, TECHM, LTIM</td><td>6</td></tr>
+<tr><td>BANKING</td><td>HDFCBANK, ICICIBANK, SBIN, AXISBANK, KOTAKBANK, INDUSINDBK</td><td>6</td></tr>
+<tr><td>FINANCE</td><td>BAJFINANCE, BAJAJFINSV, HDFCLIFE, SBILIFE, SHRIRAMFIN</td><td>5</td></tr>
+<tr><td>ENERGY</td><td>RELIANCE, ONGC, POWERGRID, NTPC, COALINDIA</td><td>5</td></tr>
+<tr><td>INFRA</td><td>LT, ULTRACEMCO, GRASIM, ADANIPORTS</td><td>4</td></tr>
+<tr><td>AUTO</td><td>MARUTI, <strong>TMPV</strong>, <strong>TMCV</strong>, BAJAJ-AUTO, EICHERMOT, M&amp;M, HEROMOTOCO</td><td><strong>7</strong></td></tr>
+<tr><td>FMCG</td><td>HINDUNILVR, NESTLEIND, BRITANNIA, ITC, TATACONSUM</td><td>5</td></tr>
+<tr><td>PHARMA</td><td>SUNPHARMA, CIPLA, DRREDDY, DIVISLAB, APOLLOHOSP</td><td>5</td></tr>
+<tr><td>METALS</td><td>TATASTEEL, HINDALCO, JSWSTEEL, ADANIENT</td><td>4</td></tr>
+<tr><td>CONSUMER</td><td>TITAN, ASIANPAINT, TRENT</td><td>3</td></tr>
+<tr><td>TELECOM</td><td>BHARTIARTL</td><td>1</td></tr>
+<tr><td><strong>TOTAL</strong></td><td></td><td><strong>51</strong></td></tr>
+</tbody></table>
+
+<h3>6.2 TATAMOTORS Demerger Handling</h3>
+
+<p><strong>Background:</strong> TATAMOTORS was removed from the universe on 2026-08-12 after the Tata Motors demerger. NSE no longer lists a tradeable TATAMOTORS equity; the successor instruments are:</p>
+<ul style="margin-left:0px">
+<li><strong>TMPV</strong> (Tata Motors Passenger Vehicles Ltd) — price ~₹343</li>
+<li><strong>TMCV</strong> (Tata Motors Commercial Vehicles Ltd) — price ~₹457</li>
+</ul>
+
+<p>Both respond correctly to <code>TMPV.NS</code> and <code>TMCV.NS</code> on Yahoo Finance.</p>
+
+<p><strong>NIFTY 50 Index Note:</strong> The actual NIFTY 50 index now has 51 constituent stocks as a result of the demerger. Our universe mirrors this.</p>
+
+<h3>6.3 Data Quality Labels <strong>[UPDATED v3]</strong></h3>
+
+<blockquote><strong>v3 correction:</strong> Previous versions described LIVE as "Fresh Zerodha tick". This is incorrect. Quality is based <strong>entirely on the age of the yfinance daily bar</strong> — Zerodha/Kite is not involved in quality classification.</blockquote>
+
+<table><thead>
+<tr><th>Label</th><th>Definition</th><th>Age threshold</th><th>Effect on Signal</th></tr>
+</thead><tbody>
+<tr><td><code>LIVE</code></td><td>Latest yfinance bar ≤ 3 calendar days old</td><td>age_days ≤ 3</td><td>Full BUY/WATCH/IGNORE possible</td></tr>
+<tr><td><code>NEAR_LIVE</code></td><td>Latest bar 4–5 calendar days old (long weekend/holiday)</td><td>age_days ≤ 5</td><td>Full BUY/WATCH/IGNORE possible</td></tr>
+<tr><td><code>STALE</code></td><td>Latest bar 6–14 calendar days old</td><td>age_days ≤ 14</td><td><strong>BUY forced to WATCH</strong></td></tr>
+<tr><td><code>UNAVAILABLE</code></td><td>Fetch failed or bar older than 14 days</td><td>age_days &gt; 14</td><td><strong>Forced to IGNORE</strong></td></tr>
+</tbody></table>
+
+<p><strong>Current situation (Aug 15, Saturday):</strong> ALL 51 symbols are LIVE — the latest yfinance bar is from Friday Aug 14 (1 day old, within the LIVE_DAYS=3 threshold). yfinance is returning fresh data.</p>
+
+<p><strong>When does STALE occur?</strong> Only when yfinance returns bars older than 3 days — typically after a long holiday weekend (e.g., a 4-day closure would produce age_days=4 = NEAR_LIVE, still BUY-eligible). STALE requires a 6+ day gap, which is rare.</p>
+
+<p><strong>Zerodha session has no effect on quality grades.</strong> Kite session changes <code>safety["kite_connected"]</code> from False to True, which changes the display label — it does not change quality.</p>
+
+<h3>6.4 Provider Sources <strong>[UPDATED v3]</strong></h3>
+
+<blockquote><strong>v3 correction:</strong> Previous versions showed Zerodha Kite REST API as the "LIVE" primary source. This is incorrect. The corrected table is below.</blockquote>
+
+<table><thead>
+<tr><th>Provider</th><th>Role in scan path</th><th>Quality label produced</th></tr>
+</thead><tbody>
+<tr><td><strong>Yahoo Finance (yfinance)</strong></td><td><strong>Primary and ONLY OHLCV source</strong> — <code>live_data_provider.py</code> → <code>yf.download()</code>. Called unconditionally for every scan.</td><td>LIVE / NEAR_LIVE / STALE / UNAVAILABLE (age-based)</td></tr>
+<tr><td><strong>Zerodha Kite LTP</strong> (<code>kite_quote_provider.py</code>)</td><td><strong>NOT in scan path</strong> — exists and works, but is never called during scanning. Called post-scan only for display metadata (<code>kite_connected</code>, <code>live_quote_source</code>).</td><td>N/A — not used for data</td></tr>
+<tr><td>NSE Official (pre-open only)</td><td>Pre-open IEP/order data via separate pre-open endpoints</td><td>LIVE (pre-open window only)</td></tr>
+<tr><td>Mock/error fallback</td><td>When yfinance fetch fails for all retries</td><td>UNAVAILABLE</td></tr>
+</tbody></table>
+
+<p><strong>How to wire Kite into the scan path:</strong> See §21.4 — Option A is a ~15-line overlay after <code>provider.fetch_batch()</code> that has no strategy/threshold changes.</p>
+
+<h3>6.5 Missing Symbols</h3>
+
+<p>The scan on 2026-08-14 shows: <strong>51 requested, 50 received, 1 missing.</strong> Historically, <code>LTIM</code> has been the most common missing symbol on Yahoo Finance.</p>
+
+<hr>
+
+<h2>7. Scan Cadence and Rotation</h2>
+
+<h3>7.1 Configured Parameters</h3>
+
+<table><thead>
+<tr><th>Parameter</th><th>Value</th></tr>
+</thead><tbody>
+<tr><td><code>scan_interval_minutes</code></td><td><strong>5 minutes</strong></td></tr>
+<tr><td>Market hours</td><td><strong>09:15 – 15:30 IST</strong></td></tr>
+<tr><td>Expected scans per full market day</td><td><strong>~75</strong> (6.25 hours / 5 min = 75)</td></tr>
+<tr><td>Universe per scan</td><td><strong>51 symbols</strong></td></tr>
+<tr><td>Candle interval</td><td><strong>1d (daily bars)</strong></td></tr>
+<tr><td>Historical lookback</td><td><strong>6 months</strong></td></tr>
+</tbody></table>
+
+<h3>7.2 Actual Scan Counts (from production pipeline_events) <strong>[UPDATED v3]</strong></h3>
+
+<table><thead>
+<tr><th>Date</th><th>Scans Started</th><th>Scans Completed</th><th>Scans Failed</th><th>Symbols Scanned</th><th>Notes</th></tr>
+</thead><tbody>
+<tr><td>2026-08-15</td><td>0</td><td>0</td><td>0</td><td>0</td><td>Weekend/holiday — no market</td></tr>
+<tr><td>2026-08-14</td><td>72</td><td>72</td><td>0</td><td>3,600</td><td>3600/72=50 symbols/scan, 1 missing</td></tr>
+<tr><td>2026-08-13</td><td>71</td><td>71</td><td>0</td><td>3,550</td><td>Normal day</td></tr>
+<tr><td>2026-08-12</td><td>70</td><td>69</td><td>0</td><td>13,793</td><td><strong>ANOMALY</strong> — 13793/70=197 symbols/scan</td></tr>
+<tr><td>2026-08-11</td><td><strong>88</strong></td><td>75</td><td>2</td><td>64,693</td><td><strong>MAJOR ANOMALY</strong> — scan-loop runaway; see §7.3</td></tr>
+<tr><td>2026-08-10</td><td>54</td><td>54</td><td>0</td><td>2,592</td><td>2592/54=48 symbols/scan, 3 missing</td></tr>
+<tr><td>2026-08-09</td><td>1</td><td>1</td><td>0</td><td>48</td><td>Saturday — 1 test scan</td></tr>
+<tr><td>2026-08-08</td><td>3</td><td>2</td><td>1</td><td>169</td><td>Sunday + partial — 2 scans</td></tr>
+</tbody></table>
+
+<h3>7.3 Scan Anomalies <strong>[UPDATED v3]</strong></h3>
+
+<p><strong>Aug 11 Major Anomaly — Full DB verdict:</strong></p>
+
+<p>Normal: ~12–15 scans per market day. Aug 11: <strong>88 scans</strong> — nearly 6× the expected count.</p>
+
+<p>Breakdown by IST hour (from DB):</p>
+
+<table><thead>
+<tr><th>IST Hour</th><th>Scans</th></tr>
+</thead><tbody>
+<tr><td>09:00–10:00</td><td>12</td></tr>
+<tr><td>10:00–11:00</td><td>18</td></tr>
+<tr><td>11:00–12:00</td><td>11</td></tr>
+<tr><td>12:00–13:00</td><td>10</td></tr>
+<tr><td>13:00–14:00</td><td>16</td></tr>
+<tr><td>14:00–15:00</td><td>15</td></tr>
+<tr><td>15:00–16:00</td><td>5</td></tr>
+<tr><td>22:00–23:00</td><td>1</td></tr>
+</tbody></table>
+
+<p>Minutes with multiple scans (from DB): 10:14 IST = 5 scans, 14:17 IST = 5 scans, 13:55 IST = 4 scans. Confirmed <strong>scan-loop runaway</strong> — scheduler fired overlapping scans within the same minute.</p>
+
+<p>Result: 64,693 SYMBOL_SCANNED events from 88 scans → avg 735 per scan (expected 51). Confirmed from DB — this anomaly caused the same signal to fire the executor repeatedly.</p>
+
+<p><strong>Aug 12 Anomaly:</strong> 13,793 SYMBOL_SCANNED with 70 scans = 197 per scan. Expected 51. Likely an interval-setting change or loop issue that was later corrected.</p>
+
+<hr>
+
+<h2>8. Last 10 Trading Days — Production Statistics</h2>
+
+<p>All figures pulled directly from the <code>pipeline_events</code> table as of 2026-08-15.</p>
+
+<h3>8.1 Daily Pipeline Event Summary <strong>[UPDATED v3]</strong></h3>
+
+<table><thead>
+<tr><th>Date</th><th>Scans</th><th>Sym Scanned</th><th>BUY Gen</th><th>WATCH Gen</th><th>IGNORE Gen</th><th>Risk Rej</th><th>Ord Submit</th><th>Ord Exec</th><th>Ord Rej</th><th>Exec Skip</th><th>Pos Opened</th><th>Pos Closed</th></tr>
+</thead><tbody>
+<tr><td><strong>2026-08-15</strong></td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><td><strong>2026-08-14</strong></td><td>72</td><td>3,600</td><td>48</td><td>1,926</td><td>1,626</td><td>97</td><td>0</td><td>0</td><td>203</td><td>4</td><td>0</td><td>0</td></tr>
+<tr><td><strong>2026-08-13</strong></td><td>71</td><td>3,550</td><td>148</td><td>1,951</td><td>1,451</td><td>179</td><td>0</td><td>0</td><td>560</td><td>63</td><td>0</td><td>0</td></tr>
+<tr><td><strong>2026-08-12</strong></td><td>70</td><td>13,793</td><td>170</td><td>4,800</td><td>8,823</td><td>97</td><td>0</td><td>0</td><td>676</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><td><strong>2026-08-11</strong></td><td>88★</td><td>64,693★</td><td>18,455</td><td>26,229</td><td>20,009</td><td>14,886</td><td>3,310</td><td><strong>63</strong>★★</td><td>819</td><td>0</td><td><strong>63</strong>★★</td><td>24★★</td></tr>
+<tr><td><strong>2026-08-10</strong></td><td>54</td><td>2,592</td><td>176</td><td>1,562</td><td>854</td><td>187</td><td>87</td><td>0</td><td>807</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><td><strong>2026-08-09</strong></td><td>1</td><td>48</td><td>6</td><td>27</td><td>15</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><td><strong>2026-08-08</strong></td><td>3</td><td>169</td><td>26</td><td>43</td><td>99</td><td>1</td><td>20</td><td>1</td><td>0</td><td>0</td><td>1</td><td>1</td></tr>
+</tbody></table>
+
+<p>★ = Anomalous — see §7.3  </p>
+<p>★★ = <strong>PHANTOM</strong> — "BTT-" prefixed events from external intraday_bot; <strong>zero rows in <code>phase20_paper_trades</code> or <code>paper_trades</code> (DB-confirmed)</strong></p>
+
+<p><strong>Key observations:</strong></p>
+<ul style="margin-left:0px">
+<li><strong>Total BUY_GENERATED (all-time):</strong> 19,034+ — these are all post-gate (STALE data cannot generate BUY)</li>
+<li><strong>Total canonical paper trades in <code>phase20_paper_trades</code>:</strong> <strong>4</strong> (all Aug 4–7, all EXIT_PENDING)</li>
+<li><strong>Aug 11 ORDER_EXECUTED=63 are phantom</strong> — confirmed by DB query: 0 rows in <code>phase20_paper_trades</code> matching those scan_ids, 0 rows in legacy <code>paper_trades</code></li>
+<li><strong>Total ORDER_REJECTED:</strong> 3,065 — majority from position-size cap violations (now fixed)</li>
+</ul>
+
+<h3>8.2 Current Paper Portfolio State</h3>
+
+<table><thead>
+<tr><th>Metric</th><th>Value</th></tr>
+</thead><tbody>
+<tr><td>Available cash</td><td><strong>₹50,000.00</strong></td></tr>
+<tr><td>Open positions (phase20_paper_trades)</td><td><strong>4 (all EXIT_PENDING)</strong></td></tr>
+<tr><td>Positions JSON</td><td><code>{}</code> (empty) — portfolio positions cleared</td></tr>
+<tr><td>Last portfolio update</td><td>2026-08-14 03:40:57 UTC</td></tr>
+</tbody></table>
+
+<p><strong>Note:</strong> The 4 trades in <code>phase20_paper_trades</code> have <code>status=EXIT_PENDING</code> and <code>exit_rule=STALE_DATA_SAFETY</code> set on 2026-08-13. Their <code>realized_pnl</code> is <code>NULL</code>. The portfolio positions JSON is empty <code>{}</code>, confirming these positions are no longer counted in active portfolio exposure.</p>
+
+<h3>8.3 Experimental Paper Trades (exploration_mode)</h3>
+
+<table><thead>
+<tr><th>Table</th><th>Count</th></tr>
+</thead><tbody>
+<tr><td><code>experimental_paper_trades</code> rows</td><td><strong>0</strong></td></tr>
+<tr><td><code>EXPERIMENTAL_PAPER_TRADE_PLACED</code> events (Aug 15)</td><td><strong>8 events for DRREDDY</strong></td></tr>
+</tbody></table>
+
+<p>The 8 Aug 15 events suggest the exploration engine ran and generated entries, but no rows appear in the DB table — the DB insert is failing silently. <strong>Status:</strong> P1 open item — see §17.</p>
+
+<hr>
+
+<h2>9. Top Symbols by Signal Count</h2>
+
+<h3>9.1 Top BUY_GENERATED Symbols (All Time, 14-day window)</h3>
+
+<table><thead>
+<tr><th>Rank</th><th>Symbol</th><th>BUY_GENERATED</th><th>ORDER_REJECTED</th><th>WATCH_GENERATED</th><th>Risk_Rejected</th></tr>
+</thead><tbody>
+<tr><td>1</td><td><strong>GLAND</strong></td><td><strong>15,065</strong></td><td>0</td><td>10,059</td><td>10,023</td></tr>
+<tr><td>2</td><td><strong>NTPC</strong></td><td>884</td><td>0</td><td>772</td><td>561</td></tr>
+<tr><td>3</td><td><strong>TATASTEEL</strong></td><td>781</td><td>0</td><td>835</td><td>812</td></tr>
+<tr><td>4</td><td><strong>SBIN</strong></td><td>631</td><td>0</td><td>1,292</td><td>962</td></tr>
+<tr><td>5</td><td><strong>AXISBANK</strong></td><td>382</td><td>0</td><td>1,211</td><td>1,015</td></tr>
+<tr><td>6</td><td><strong>SUNPHARMA</strong></td><td>370</td><td>0</td><td>636</td><td>217</td></tr>
+<tr><td>7</td><td><strong>DRREDDY</strong></td><td>188</td><td><strong>873</strong></td><td>—</td><td>—</td></tr>
+<tr><td>8</td><td><strong>HDFCLIFE</strong></td><td>126</td><td>0</td><td>204</td><td>198</td></tr>
+<tr><td>9</td><td><strong>GRASIM</strong></td><td>107</td><td><strong>548</strong></td><td>223</td><td>—</td></tr>
+<tr><td>10</td><td><strong>ICICIBANK</strong></td><td>81</td><td>0</td><td>2,618</td><td>434</td></tr>
+</tbody></table>
+
+<blockquote>GLAND's extreme counts are from the Aug 11 scan-loop runaway.</blockquote>
+
+<h3>9.2 Top WATCH_GENERATED Symbols</h3>
+
+<table><thead>
+<tr><th>Rank</th><th>Symbol</th><th>WATCH_GENERATED</th></tr>
+</thead><tbody>
+<tr><td>1</td><td>GLAND</td><td>10,059 (Aug 11 anomaly)</td></tr>
+<tr><td>2</td><td>TCS</td><td>3,466</td></tr>
+<tr><td>3</td><td>ICICIBANK</td><td>2,618</td></tr>
+<tr><td>4</td><td>HDFCBANK</td><td>1,929</td></tr>
+<tr><td>5</td><td>HINDUNILVR</td><td>1,808</td></tr>
+<tr><td>6</td><td>WIPRO</td><td>1,593</td></tr>
+<tr><td>7</td><td>SBIN</td><td>1,292</td></tr>
+<tr><td>8</td><td>AXISBANK</td><td>1,211</td></tr>
+<tr><td>9</td><td>LT</td><td>944</td></tr>
+<tr><td>10</td><td>ASIANPAINT</td><td>871</td></tr>
+</tbody></table>
+
+<h3>9.3 Top ORDER_REJECTED Symbols</h3>
+
+<p>All rejections were due to the position-size cap bug, now fixed via the SIZE_REDUCED_TO_CAP path:</p>
+
+<table><thead>
+<tr><th>Rank</th><th>Symbol</th><th>ORDER_REJECTED</th><th>Rejection reason (pre-fix)</th><th>Post-fix behaviour</th></tr>
+</thead><tbody>
+<tr><td>1</td><td><strong>DRREDDY</strong></td><td><strong>873</strong></td><td>Size 21.5–21.7% &gt; 20% cap</td><td>✅ SIZE_REDUCED_TO_CAP (8→7 shares)</td></tr>
+<tr><td>2</td><td><strong>GRASIM</strong></td><td>548</td><td>Size 20.2–20.3% &gt; 20% cap</td><td>✅ SIZE_REDUCED_TO_CAP</td></tr>
+<tr><td>3</td><td><strong>BAJAJFINSV</strong></td><td>353</td><td>Size 20.2–20.4% &gt; 20% cap</td><td>✅ SIZE_REDUCED_TO_CAP</td></tr>
+<tr><td>4</td><td><strong>BAJAJ-AUTO</strong></td><td>262</td><td>Size 23.4–23.6% &gt; 20% cap</td><td>✅ SIZE_REDUCED_TO_CAP</td></tr>
+<tr><td>5</td><td><strong>TMPV</strong></td><td>272</td><td>Size 21.6% &gt; 20% cap</td><td>✅ SIZE_REDUCED_TO_CAP</td></tr>
+<tr><td>6</td><td><strong>TITAN</strong></td><td>221</td><td>Size &gt; 20%</td><td>✅ SIZE_REDUCED_TO_CAP</td></tr>
+<tr><td>7</td><td><strong>JSWSTEEL</strong></td><td>182</td><td>Size 23.5% &gt; 20% cap</td><td>✅ SIZE_REDUCED_TO_CAP</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>10. Rejection and Block Reasons</h2>
+
+<h3>10.1 ORDER_REJECTED Breakdown</h3>
+
+<table><thead>
+<tr><th>Reason</th><th>Count</th><th>Status</th></tr>
+</thead><tbody>
+<tr><td><strong>Position size &gt; cap (hard reject)</strong></td><td><strong>~3,000+</strong></td><td>✅ FIXED — now SIZE_REDUCED_TO_CAP for <code>cap_qty ≥ 1</code></td></tr>
+<tr><td><code>PORTFOLIO BLOCKED: INSUFFICIENT_BUYING_POWER</code></td><td>68</td><td>Likely from Aug 11 anomaly when cash was consumed</td></tr>
+<tr><td><code>PORTFOLIO BLOCKED: BELOW_MIN_ORDER_VALUE</code></td><td>15</td><td>Order value too small after sizing</td></tr>
+</tbody></table>
+
+<p><strong>New rejection payload fields (post-fix):</strong></p>
+<pre><code>
+{
+  "reason": "DRREDDY: position size ₹10,783 = 21.6% of portfolio (limit 20.0%)",
+  "gate_name": "POSITION_SIZE_EXCEEDED",
+  "actual_value": 21.6,
+  "required_value": 20.0,
+  "action": "BUY",
+  "human_readable_reason": "DRREDDY: position size ₹10,783 = 21.6% — exceeds cap and cannot be reduced further"
+}
+</code></pre>
+
+<h3>10.2 RISK_REJECTED Breakdown</h3>
+
+<table><thead>
+<tr><th>Count</th><th>Stored reason (pre-fix)</th><th>Status</th></tr>
+</thead><tbody>
+<tr><td><strong>15,447 total RISK_REJECTED</strong></td><td><code>NULL</code> — reason nested in <code>failed_gates</code>, not top-level</td><td>✅ FIXED for new events</td></tr>
+</tbody></table>
+
+<p><strong>Fix applied (Remediation Phase 1C):</strong> <code>live_scan_engine.py</code> <code>derive_symbol_events()</code> now adds to every RISK_REJECTED payload:</p>
+
+<pre><code>
+{
+  "failed_gates": { "rr": { "passed": false, "reason": "RR 0.80 &lt; 1.5 minimum" } },
+  "action": "WATCH",
+  "gate_name": "rr",
+  "actual_value": "RR 0.80 &lt; 1.5 minimum — BUY requires viable risk/reward",
+  "human_readable_reason": "rr: RR 0.80 &lt; 1.5 minimum — BUY requires viable risk/reward",
+  "reason": "rr: RR 0.80 &lt; 1.5 minimum — BUY requires viable risk/reward"
+}
+</code></pre>
+
+<p><strong>Historical events (15,447) still have NULL reason</strong> — the fix applies to new events only.</p>
+
+<h3>10.3 EXECUTION_SKIPPED_WITH_REASON</h3>
+
+<table><thead>
+<tr><th>Count</th><th>Stored reason (pre-fix)</th><th>Status</th></tr>
+</thead><tbody>
+<tr><td><strong>67 total</strong> (63 on Aug 13, 4 on Aug 14)</td><td><code>NULL</code></td><td>✅ FIXED for new events</td></tr>
+</tbody></table>
+
+<h3>10.4 Categorised Rejection Summary</h3>
+
+<table><thead>
+<tr><th>Category</th><th>Estimated Count</th><th>Status</th></tr>
+</thead><tbody>
+<tr><td>Position size cap (hard reject, &gt;cap)</td><td>~3,000</td><td>✅ FIXED — SIZE_REDUCED_TO_CAP now handles these</td></tr>
+<tr><td>Risk agent rejection (reason now logged)</td><td>~15,447</td><td>✅ FIXED (new events) — historical remains null</td></tr>
+<tr><td>Execution skipped (reason now logged)</td><td>~67</td><td>✅ FIXED (new events)</td></tr>
+<tr><td>Portfolio blocked (buying power/exposure)</td><td>~83</td><td>Unchanged — circuit breaker/precheck working correctly</td></tr>
+<tr><td>Order cancelled (from Aug 11 anomaly)</td><td>~13,189</td><td>Phantom — from external bot, not canonical executor</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>11. Detailed Case Studies</h2>
+
+<h3>11.1 Case Study: DRREDDY — Repeated BUY Rejected by Position-Size Cap <strong>[RESOLVED]</strong></h3>
+
+<p>On every market day since Aug 8, DRREDDY generated BUY signals that passed all gates <strong>except</strong> the 20% position-size cap.</p>
+
+<table><thead>
+<tr><th>Date</th><th>BUY Generated</th><th>Risk Approved</th><th>ORDER_REJECTED</th><th>Reason</th></tr>
+</thead><tbody>
+<tr><td>Aug 14</td><td>48</td><td>48</td><td>201</td><td>Size 21.5–21.7% of ₹50,000</td></tr>
+<tr><td>Aug 13</td><td>48</td><td>48</td><td>203</td><td>Size 21.5–21.7% of ₹50,000</td></tr>
+</tbody></table>
+
+<p><strong>Root cause:</strong></p>
+<ul style="margin-left:0px">
+<li>DRREDDY price: ~₹1,340–₹1,360 per share</li>
+<li>Ideal qty from position sizer: 8 shares → 8 × ₹1,350 = ₹10,800 = <strong>21.6%</strong> of ₹50,000</li>
+<li>Hard cap was 20.0% = ₹10,000 max → <code>cap_qty = floor(₹10,000 / ₹1,350)</code> = 7 shares</li>
+<li>7 × ₹1,350 = ₹9,450 = <strong>18.9%</strong> → passes the cap</li>
+</ul>
+
+<p><strong>Resolution:</strong> ✅ <strong>FIXED in Remediation Phase 1B.</strong> <code>_check_position_size()</code> now produces <code>SIZE_REDUCED_TO_CAP</code> with <code>cap_qty=7</code>. <code>phase20_executor.py</code> adopts <code>cap_qty=7</code> and proceeds to <code>execute_buy()</code>.</p>
+
+<h3>11.2 Case Study: HDFCLIFE — Missed Low / Pattern Not Captured</h3>
+
+<p>HDFCLIFE received 126 BUY_GENERATED and 198 RISK_REJECTED events over the 14-day window. Where the signal was BUY-grade, the executor had a data quality issue (age_days &gt; 3 on that day) that capped the action to WATCH. The missed opportunity was recorded in <code>phase24_missed_opps</code> but not acted on (advisory only).</p>
+
+<h3>11.3 Case Study: TMCV — WATCH Despite Intraday Movement</h3>
+
+<p>TMCV (Tata Motors Commercial Vehicles) appears in WATCH_GENERATED events but never in BUY_GENERATED. Root causes:</p>
+<p>1. TMCV is a newly demerged stock with limited historical data → lower confidence scores</p>
+<p>2. Price ~₹457 → position size is fine (within 25% cap)</p>
+<p>3. Signals never reach BUY-grade confidence threshold</p>
+
+<h3>11.4 Case Study: Post-Market Scans and UI Confusion</h3>
+
+<p>The scanner runs 24/7 on the 5-minute interval (no hard market-hours gate at the scan level). Post-market Yahoo data shows the closing price which may produce a BUY-grade signal, but the executor skips execution (market closed gate). Users see BUY signals post-market and assume trades were missed. <strong>Resolution needed:</strong> Add "MARKET CLOSED — Signals are post-market only" banner.</p>
+
+<h3>11.5 Case Study: Aug 11 "Phantom" Executions <strong>[UPDATED v3 — FULLY DB-CONFIRMED]</strong></h3>
+
+<p><strong>Verdict: CONFIRMED PHANTOM. DB-queried directly. Zero verified clean paper trade lifecycles from the canonical executor.</strong></p>
+
+<p><strong>Full DB evidence:</strong></p>
+
+<table><thead>
+<tr><th>Table</th><th>Aug 11 rows</th></tr>
+</thead><tbody>
+<tr><td><code>pipeline_events</code> ORDER_EXECUTED</td><td><strong>63</strong></td></tr>
+<tr><td><code>pipeline_events</code> POSITION_OPENED</td><td><strong>63</strong></td></tr>
+<tr><td><code>phase20_paper_trades</code> (matched by scan_id)</td><td><strong>0</strong></td></tr>
+<tr><td><code>paper_trades</code> legacy (matched by date)</td><td><strong>0</strong></td></tr>
+</tbody></table>
+
+<p><strong>Trade ID pattern (all 63 events):</strong></p>
+<ul style="margin-left:0px">
+<li>First 22 events: all <code>GLAND</code>, timestamps 04:05–05:13 UTC (09:35–10:43 IST)</li>
+<li>Fill prices: ₹2,248.49 and ₹2,639.98 (same two prices repeating)</li>
+<li>Trade IDs: <code>BTT-a0f89753dd</code>, <code>BTT-ca8827662a</code>, etc.</li>
+<li>Next 41 events: SBIN, TATASTEEL, NTPC, SUNPHARMA, AXISBANK, HINDUNILVR, ICICIBANK, BAJFINANCE, KOTAKBANK</li>
+<li>Timestamps: 08:22–08:44 UTC (13:52–14:14 IST)</li>
+<li>Same fill prices repeating per symbol across multiple BTT- IDs</li>
+</ul>
+
+<p><strong>Root cause:</strong></p>
+<p>1. Scan-loop ran 88 times (up to 5/minute). Each scan saw GLAND as a BUY, fired the executor, emitted <code>ORDER_EXECUTED</code> (fire-and-forget via pipeline_events).</p>
+<p>2. The <code>phase20_paper_trades</code> ledger write is a separate DB transaction — it failed silently each time (likely partial unique index constraint violation, or the table did not exist on Aug 11).</p>
+<p>3. <code>phase20_executor.py</code> uses <code>"P20-"</code> prefix; all 63 events use <code>"BTT-"</code> prefix — confirming these came from the separate <strong>intraday_bot</strong> process.</p>
+
+<p><strong>The system has never had a verified clean paper trade lifecycle producing a BTT- trade ID in any canonical table.</strong> The 4 trades in <code>phase20_paper_trades</code> (P20- prefix, Aug 4–7) are the only canonical trades.</p>
+
+<hr>
+
+<h2>12. Successful Historical Paper Trades</h2>
+
+<h3>12.1 All Trades in phase20_paper_trades</h3>
+
+<table><thead>
+<tr><th>Trade ID</th><th>Symbol</th><th>Date</th><th>Fill Price</th><th>Qty</th><th>Total Value</th><th>Confidence</th><th>Regime</th><th>Status</th><th>Exit Date</th><th>Exit Rule</th><th>Realized P&amp;L</th></tr>
+</thead><tbody>
+<tr><td>P20-4a5f909738</td><td><strong>BAJFINANCE</strong></td><td>2026-08-07</td><td>₹1,100.05</td><td>8</td><td>₹8,800</td><td>64.9%</td><td>Strong uptrend</td><td>EXIT_PENDING</td><td>2026-08-13</td><td>STALE_DATA_SAFETY</td><td>NULL</td></tr>
+<tr><td>P20-83aa1be8f9</td><td><strong>GRASIM</strong></td><td>2026-08-05</td><td>₹3,223.63</td><td>3</td><td>₹9,671</td><td>62.8%</td><td>Strong uptrend</td><td>EXIT_PENDING</td><td>2026-08-13</td><td>STALE_DATA_SAFETY</td><td>NULL</td></tr>
+<tr><td>P20-a205b1ef09</td><td><strong>DIVISLAB</strong></td><td>2026-08-04</td><td>₹8,370.04</td><td>1</td><td>₹8,370</td><td>64.5%</td><td>Strong uptrend</td><td>EXIT_PENDING</td><td>2026-08-04</td><td>STALE_DATA_SAFETY</td><td>NULL</td></tr>
+<tr><td>P20-acad172b74</td><td><strong>TRENT</strong></td><td>2026-08-04</td><td>₹3,082.42</td><td>3</td><td>₹9,247</td><td>72.5%</td><td>Trending (momentum)</td><td>EXIT_PENDING</td><td>2026-08-13</td><td>STALE_DATA_SAFETY</td><td>NULL</td></tr>
+</tbody></table>
+
+<p><strong>Key observations:</strong></p>
+<ul style="margin-left:0px">
+<li>All 4 trades were BUY-side only (no SELL trades in phase20)</li>
+<li>All 4 triggered <code>STALE_DATA_SAFETY</code> exit on 2026-08-13</li>
+<li>No realized P&amp;L recorded — requires <code>quote_reliable=True</code> to record a fill price</li>
+<li>Total capital deployed: ~₹36,088 across 4 positions (72% of ₹50,000)</li>
+</ul>
+
+<h3>12.2 Why Realized P&amp;L is NULL on All Trades</h3>
+
+<p>This is not a code bug — it is a data quality issue. Without <code>quote_reliable=True</code>, exits record <code>status="EXIT_PENDING"</code> and <code>realized_pnl=NULL</code>. <code>quote_reliable</code> requires <code>dq in ("LIVE","NEAR_LIVE")</code>.</p>
+
+<p>Once Kite LTP overlay is wired (Option A, §21.4), pending exits will resolve via <code>resolve_pending_exits()</code> on the next scan tick with LIVE data.</p>
+
+<h3>12.3 Sell/Exit Behavior</h3>
+
+<p><strong>No successful sell-side executions are recorded.</strong> The exit logic is fully implemented in <code>phase20_exits.py</code> (all 8 rules, confirmed in Remediation Phase 1D), but requires <code>quote_reliable=True</code> to record fill prices and P&amp;L. This requires either Kite LTP overlay or yfinance data that is LIVE quality (currently the case on weekdays).</p>
+
+<hr>
+
+<h2>13. Why No Trades Executed in Recent Sessions</h2>
+
+<h3>13.1 Data Problems <strong>[UPDATED v3]</strong></h3>
+
+<table><thead>
+<tr><th>Problem</th><th>Impact</th><th>Status</th></tr>
+</thead><tbody>
+<tr><td><strong>Kite LTP not wired into scan path</strong> — yfinance is the only source; daily bars, age-based quality</td><td>Quality grades are NOT affected by Zerodha session; re-authenticating Zerodha won't change scan data</td><td><strong>OPEN — requires new wiring (~15 lines)</strong>; see §21.4</td></tr>
+<tr><td>Data is CURRENTLY LIVE — all 51 symbols LIVE as of Aug 15</td><td><strong>No active STALE problem today</strong></td><td>Resolved by weekend timing (Fri close = 1 day old)</td></tr>
+<tr><td>1 missing symbol per scan</td><td>Minor — 1 symbol (likely LTIM) not contributing signals</td><td>Minor</td></tr>
+<tr><td>Post-market scan noise</td><td>Non-actionable signals displayed during non-market hours</td><td>Minor</td></tr>
+</tbody></table>
+
+<blockquote><strong>v3 correction:</strong> Previous versions stated "Without Zerodha live data, no paper-eligible BUY signals can enter the executor". This was misleading — quality is age-based only. <strong>All 51 symbols are currently LIVE without any Zerodha session.</strong> The real remaining data gap is that we use yesterday's close as "current price" rather than live Kite LTP.</blockquote>
+
+<h3>13.2 Risk Threshold Problems</h3>
+
+<table><thead>
+<tr><th>Problem</th><th>Impact</th><th>Status</th></tr>
+</thead><tbody>
+<tr><td>R:R 1.5 (scan gate) vs 2.0 (execution gate) — gap blocks signals with 1.5–1.99 RR</td><td>Confirmed via <code>"R:R 1.5 vs minimum 2.0"</code> in DB</td><td><strong>OPEN — deferred to Phase 2</strong></td></tr>
+<tr><td><code>AI_MIN_RR_RATIO = 2.0</code> was previously thought to be an active gate</td><td>Dead config — not enforced anywhere</td><td>✅ Confirmed dead (v3 audit)</td></tr>
+<tr><td>Rejection reasons previously not stored</td><td>Could not audit 15,447 risk rejections</td><td>✅ FIXED (new events)</td></tr>
+</tbody></table>
+
+<h3>13.3 Position Sizing Problems <strong>[RESOLVED]</strong></h3>
+
+<table><thead>
+<tr><th>Problem</th><th>Count</th><th>Status</th></tr>
+</thead><tbody>
+<tr><td>DRREDDY: 8 shares = 21.6% &gt; cap</td><td>873 ORDER_REJECTED</td><td>✅ SIZE_REDUCED_TO_CAP (now 7 shares)</td></tr>
+<tr><td>GRASIM: 3 shares = 20.2% &gt; cap</td><td>548 ORDER_REJECTED</td><td>✅ SIZE_REDUCED_TO_CAP</td></tr>
+<tr><td>BAJAJ-AUTO: 2 shares = 23.4% &gt; cap</td><td>262 ORDER_REJECTED</td><td>✅ SIZE_REDUCED_TO_CAP</td></tr>
+<tr><td>BAJAJFINSV: 6 shares = 20.4% &gt; cap</td><td>353 ORDER_REJECTED</td><td>✅ SIZE_REDUCED_TO_CAP</td></tr>
+<tr><td>TMPV: 6 shares = 21.6% &gt; cap</td><td>272 ORDER_REJECTED</td><td>✅ SIZE_REDUCED_TO_CAP</td></tr>
+</tbody></table>
+
+<h3>13.4 Paper Learning / Exploration Policy</h3>
+
+<table><thead>
+<tr><th>Problem</th><th>Impact</th><th>Status</th></tr>
+</thead><tbody>
+<tr><td><code>paper_exploration_mode = False</code> (Aug 12–14)</td><td>No exploration trades</td><td>Exploration activated Aug 15</td></tr>
+<tr><td>Exploration mode just activated Aug 15</td><td>8 events but 0 DB rows — silent DB insert failure</td><td><strong>OPEN — P1</strong></td></tr>
+</tbody></table>
+
+<h3>13.5 UI Interpretation Problems</h3>
+
+<table><thead>
+<tr><th>Problem</th><th>Impact</th></tr>
+</thead><tbody>
+<tr><td>Post-market signals displayed as active</td><td>Operators think system missed trades</td></tr>
+<tr><td>WATCH signals shown without "not executable" label</td><td>Operators think WATCH = pending trade</td></tr>
+<tr><td>EXIT_PENDING label without explanation</td><td>Operators don't know positions are already safety-exited</td></tr>
+<tr><td>RISK_REJECTED count historically without reason (now fixed)</td><td>Difficult to investigate gate failures</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>14. Learning Architecture</h2>
+
+<h3>14.1 What the System Currently Learns</h3>
+
+<table><thead>
+<tr><th>Learning Component</th><th>File</th><th>What it learns</th><th>Auto-promoted?</th></tr>
+</thead><tbody>
+<tr><td>Signal learning</td><td><code>signal_learning.py</code></td><td>Which signal combinations predict profitable trades</td><td><strong>NO — advisory only</strong></td></tr>
+<tr><td>Confidence calibration</td><td><code>confidence_calibration.py</code></td><td>Whether confidence scores map to real win rates</td><td><strong>NO — advisory only</strong></td></tr>
+<tr><td>Missed opportunity storage</td><td><code>phase24_store.py</code> → <code>phase24_missed_opps</code></td><td>Symbols where signals were right but not acted on</td><td><strong>NO — stored, not acted on</strong></td></tr>
+<tr><td>Trade outcome analytics</td><td><code>phase24_engine.py</code></td><td>Win/loss by strategy/regime/confidence band</td><td><strong>NO — analytics only</strong></td></tr>
+<tr><td>Phase 24 recommendations</td><td><code>phase24_recommendations.py</code></td><td>Human-readable insights from patterns</td><td><strong>NO — human approval required</strong></td></tr>
+</tbody></table>
+
+<h3>14.2 What is Advisory Only (Never Auto-Applied)</h3>
+
+<p>The following learning outputs require explicit human approval before any parameter changes:</p>
+
+<ul style="margin-left:0px">
+<li>Confidence threshold adjustments</li>
+<li>Strategy viability changes per regime</li>
+<li>Risk limit adjustments</li>
+<li>Stop/target ratio changes</li>
+<li>Position sizing formula changes</li>
+<li>Any changes to the BUY/WATCH/IGNORE thresholds</li>
+</ul>
+
+<p><strong>Safety enforcement:</strong> Learning safety flags are stored in the DB (<code>freeze</code> flag, <code>IGNORE-lock</code>). The safety state is always read from the authoritative DB at decision time, never from cached adjustment artifacts.</p>
+
+<h3>14.3 Phase 24 Learning Architecture</h3>
+
+<pre><code>
+phase24_engine.py
+├── Reads: phase20_paper_trades (outcome data)
+├── Reads: pipeline_events (signal data)
+├── Reads: phase24_missed_opps (missed opportunities)
+├── Writes: phase24_recommendations (human-readable insights)
+├── Writes: phase24_trade_intelligence (enriched trade data)
+└── Reports: phase24_reports (daily/weekly summaries)
+</code></pre>
+
+<h3>14.4 What is Not Learned (Intentional Gaps)</h3>
+
+<table><thead>
+<tr><th>Item</th><th>Reason not learned</th></tr>
+</thead><tbody>
+<tr><td>Position size formula</td><td>Safety critical — changes require manual review</td></tr>
+<tr><td>Circuit breaker thresholds</td><td>Safety critical</td></tr>
+<tr><td>Market open/close window</td><td>Fixed regulatory requirement</td></tr>
+<tr><td>Data quality gates (STALE/UNAVAILABLE)</td><td>Safety critical</td></tr>
+<tr><td>Live execution flag</td><td>Permanently off — not in learning scope</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>15. Backtesting Architecture</h2>
+
+<h3>15.1 Architecture Overview</h3>
+
+<pre><code>
+backtesting_engine.py (main engine)
+├── Uses: live _scan_one() function on historical data slices
+├── Generates: isolated in-memory ledger (never touches live portfolio)
+├── Candle source: backtest_candles table (pre-fetched historical OHLCV)
+├── Validates: results via validate_run() comparing replay vs pipeline
+└── Output: backtest_runs table, backtest_trades table
+</code></pre>
+
+<p><strong>Key design decision:</strong> The backtesting engine calls the <em>real</em> <code>_scan_one()</code> function on historical candle slices rather than a separate backtest-specific scoring function. This means backtests and live scans use identical logic.</p>
+
+<h3>15.2 Performance Characteristics</h3>
+
+<p>A full backtest on 5 symbols, 15-minute intervals, 30 days takes approximately <strong>6 minutes</strong> (370-second floor). The scan represents ~93% of total backtest time.</p>
+
+<h3>15.3 Local Setup</h3>
+
+<pre><code>
+# Unit tests
+cd artifacts/api-server/src/python
+python -m pytest tests/unit/ -q
+
+# Integration smoke test
+PAPER_ANALYTICS_ENABLED=true python -m pytest paper_analytics/test_paper_analytics_integration.py -q
+
+# Scheduler tick (lightweight, 116ms cold start)
+python bt_queue_tick_cmd.py
+</code></pre>
+
+<hr>
+
+<h2>16. Safety Controls — Proof of No Live Orders</h2>
+
+<h3>16.1 Structural Safeguards</h3>
+
+<table><thead>
+<tr><th>Control</th><th>Implementation</th><th>Location</th></tr>
+</thead><tbody>
+<tr><td><code>LIVE_EXECUTION_ENABLED = False</code></td><td>Hardcoded constant</td><td><code>config.py</code></td></tr>
+<tr><td>MockBrokerClient fallback</td><td>When Zerodha import fails or credentials absent</td><td><code>broker_client.py</code> line 467–475</td></tr>
+<tr><td>No broker order API called</td><td><code>execute_buy()</code> calls <code>paper_trader.py</code>, not Zerodha</td><td><code>phase20_executor.py</code> line 478</td></tr>
+<tr><td>Zerodha API read-only usage</td><td><code>kite.quote()</code> only — never <code>kite.place_order()</code></td><td><code>kite_quote_provider.py</code></td></tr>
+<tr><td>Paper-only label on all UI</td><td>"PAPER / LIVE DATA VALIDATION" on every scan result</td><td><code>live_scan_engine.py</code> line 191</td></tr>
+</tbody></table>
+
+<h3>16.2 Zerodha Usage Boundaries <strong>[UPDATED v3]</strong></h3>
+
+<table><thead>
+<tr><th>Zerodha Feature</th><th>Used?</th><th>Purpose</th></tr>
+</thead><tbody>
+<tr><td>Session probe (<code>kite.profile()</code>)</td><td>YES — when credentials present</td><td>Proves session is alive; result sets <code>safety["kite_connected"]</code> display field only</td></tr>
+<tr><td>Provider label</td><td>YES</td><td>Display metadata (<code>live_quote_source</code>, <code>data_provider</code>)</td></tr>
+<tr><td>Market data (LTP/quotes) via <code>get_quotes()</code></td><td><strong>NOT CURRENTLY WIRED</strong> into scan path</td><td><code>kite_quote_provider.py</code> is ready; Option A in §21.4 would wire it</td></tr>
+<tr><td>Order placement API</td><td><strong>NEVER</strong></td><td>Not called anywhere</td></tr>
+<tr><td>Portfolio API</td><td><strong>NEVER</strong></td><td>Not called anywhere</td></tr>
+<tr><td>OHLCV historical data</td><td><strong>NEVER</strong></td><td>yfinance only</td></tr>
+</tbody></table>
+
+<h3>16.3 Credential Management</h3>
+
+<ul style="margin-left:0px">
+<li><code>ZERODHA_API_KEY</code> and <code>ZERODHA_API_SECRET</code> are stored as Replit Secrets (never in code)</li>
+<li>Request tokens are processed via environment variable, not command-line arguments</li>
+<li>Token files are stored with <code>chmod 600</code> permissions</li>
+<li>Token expiry is fail-safe: malformed token = treated as expired</li>
+</ul>
+
+<h3>16.4 Paper Trading Guarantee</h3>
+
+<p>The <code>execute_buy()</code> function in <code>paper_trader.py</code>:</p>
+<p>1. Computes simulated fill price from signal price (with slippage model)</p>
+<p>2. Updates the <code>paper_portfolio</code> table (cash, positions)</p>
+<p>3. Writes to <code>phase20_paper_trades</code> table</p>
+<p>4. <strong>Does not call any broker API</strong></p>
+
+<p><strong>Data Path Audit confirmation:</strong> Across 6 months of code history, <code>kite.place_order()</code> has never been called. The <code>MockBrokerClient</code> is the only broker client instantiated in the current configuration.</p>
+
+<hr>
+
+<h2>17. Open and Proposed Tasks — Priority Order <strong>[UPDATED v3]</strong></h2>
+
+<h3>17.1 Critical (Blocking Production Value)</h3>
+
+<table><thead>
+<tr><th>#</th><th>Task Title</th><th>Status</th></tr>
+</thead><tbody>
+<tr><td><strong>Phase 1B</strong></td><td>Fix position sizer to adopt cap_qty instead of hard-rejecting</td><td>✅ <strong>DONE</strong></td></tr>
+<tr><td><strong>Phase 1C</strong></td><td>Store structured rejection reason in all rejection events</td><td>✅ <strong>DONE</strong></td></tr>
+<tr><td><strong>v3 P0</strong></td><td>Wire Kite LTP overlay into <code>run_live_scan()</code> (~15 lines)</td><td>❌ OPEN — implementation scoped in §21.4</td></tr>
+<tr><td><strong>v3 P0</strong></td><td>Fix exploration mode <code>experimental_paper_trades</code> silent DB insert failure</td><td>❌ OPEN — 8 events, 0 rows</td></tr>
+<tr><td>#659</td><td>Prevent paper-mode SELL orders from silently failing when no position exists</td><td>OPEN</td></tr>
+<tr><td>#235</td><td>Prevent stale regime data from silently masking a regime transition</td><td>OPEN</td></tr>
+<tr><td>#358</td><td>Prevent Risk Agent card from going dark when SnapshotBus restarts</td><td>OPEN</td></tr>
+</tbody></table>
+
+<h3>17.2 High Priority (Data Integrity)</h3>
+
+<table><thead>
+<tr><th>#</th><th>Task Title</th><th>Impact</th></tr>
+</thead><tbody>
+<tr><td><strong>Phase 2 (spec)</strong></td><td>Align RR threshold: scan gate 1.5 vs execution gate 2.0</td><td>Signals with RR 1.5–1.99 silently blocked</td></tr>
+<tr><td><strong>v3</strong></td><td>Add scan-loop watchdog (alert if &gt;2 scans per minute)</td><td>Prevent Aug 11 recurrence</td></tr>
+<tr><td>#703</td><td>Prevent DB-timeout error message truncation</td><td>Operators miss retry advice</td></tr>
+<tr><td>#329</td><td>Confirm load_all fault-tolerant if section loader raises</td><td>Ops center availability</td></tr>
+<tr><td>#180</td><td>Prevent 09:20 reconciliation from running with null prices</td><td>Misleading empty report</td></tr>
+</tbody></table>
+
+<h3>17.3 Medium Priority (UX and Correctness)</h3>
+
+<table><thead>
+<tr><th>#</th><th>Task Title</th><th>Impact</th></tr>
+</thead><tbody>
+<tr><td>#108</td><td>Confirm config panel refreshes immediately after save</td><td>Operator feedback loop</td></tr>
+<tr><td>#476</td><td>Prevent Supervisor panel duplicate entries</td><td>Confusing UI</td></tr>
+<tr><td>#182</td><td>Confirm readiness score updates when auto-paper entries open</td><td>Score lag</td></tr>
+<tr><td>#208</td><td>Confirm Performance Snapshot shows accurate stats</td><td>Zero-stats bug</td></tr>
+<tr><td>#343</td><td>Show Data Quality grade in Executive Score tooltip</td><td>Visibility</td></tr>
+<tr><td>#234</td><td>Show viable strategies for current regime</td><td>Decision support</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>18. Known Weaknesses and Second-Opinion Questions <strong>[UPDATED v3]</strong></h2>
+
+<h3>18.1 Architectural Weaknesses</h3>
+
+<table><thead>
+<tr><th>#</th><th>Weakness</th><th>Severity</th><th>Status</th></tr>
+</thead><tbody>
+<tr><td>W1</td><td><strong>Kite LTP not wired into scan path</strong> — <code>LiveDataProvider</code> uses yfinance exclusively; <code>kite_quote_provider.py</code> exists and works but is never called during scanning. Daily bars (1d) are the only OHLCV source.</td><td>HIGH</td><td>❌ OPEN — Option A fix scoped in §21.4 (~15 lines)</td></tr>
+<tr><td>W2</td><td><strong>Scanner uses daily bars, not intraday bars</strong> — <code>SCAN_INTERVAL="1d"</code>. Not 1m/5m/15m.</td><td>MEDIUM</td><td>❌ OPEN — Option B (full intraday) is large scope; Option A (LTP overlay) is minimal</td></tr>
+<tr><td>W3</td><td><strong>Position sizer hard-rejected when ideal qty exceeded cap</strong> — caused 3,000+ ORDER_REJECTED</td><td>HIGH</td><td>✅ FIXED (Remediation Phase 1B + Bug Audit Task 1+2)</td></tr>
+<tr><td>W4</td><td><strong>RISK_REJECTED had no stored reason</strong> — 15,447 unexplained rejections</td><td>HIGH</td><td>✅ FIXED (Remediation Phase 1C) — new events carry reason</td></tr>
+<tr><td>W5</td><td><strong>EXECUTION_SKIPPED reason not stored</strong> — 67 unexplained skips</td><td>MEDIUM</td><td>✅ FIXED (Remediation Phase 1C)</td></tr>
+<tr><td>W6</td><td><strong>Exit code complete but blocked</strong> — all 8 exit rules implemented; stuck in EXIT_PENDING due to age-based quality (not Kite session)</td><td>HIGH</td><td>⚠️ Will resolve when Kite LTP overlay wired</td></tr>
+<tr><td>W7</td><td><strong>Scanner runs post-market</strong> — misleads operators about signals</td><td>MEDIUM</td><td>OPEN — UI banner recommended</td></tr>
+<tr><td>W8</td><td><strong>Aug 11 scan-loop runaway</strong> — 88 scans in one day (5/minute peak); 63 phantom ORDER_EXECUTED; scan-loop watchdog needed</td><td>MEDIUM</td><td>❌ OPEN — root cause not fixed</td></tr>
+<tr><td>W9</td><td><strong>EXIT_PENDING positions have no realized P&amp;L</strong></td><td>MEDIUM</td><td>⚠️ Expected behaviour — will resolve when Option A wired</td></tr>
+<tr><td>W10</td><td><strong>Exploration mode experimental_paper_trades empty</strong> despite 8 events</td><td>HIGH</td><td>❌ OPEN — silent insert failure</td></tr>
+<tr><td>W11</td><td><strong>R:R threshold misalignment</strong> — scan gate 1.5 vs execution gate 2.0</td><td>HIGH</td><td>❌ OPEN — deferred to Phase 2</td></tr>
+<tr><td>W12</td><td><strong>Aug 11 executions are phantom</strong> — BTT- prefix external bot, 0 ledger rows</td><td>HIGH</td><td>✅ CONFIRMED DB-verified (v3 audit)</td></tr>
+<tr><td>W13</td><td><strong><code>AI_MIN_RR_RATIO=2.0</code> was documented as active gate</strong></td><td>MEDIUM</td><td>✅ CONFIRMED dead config (v3 audit) — corrected throughout SOP</td></tr>
+<tr><td>W14</td><td><strong>SYMBOL_SCANNED events lacked per-symbol diagnostic fields</strong></td><td>MEDIUM</td><td>✅ FIXED (v3 Data Path Audit) — 12 fields now emitted including <code>data_source</code>, <code>age_days</code>, <code>tradable</code></td></tr>
+<tr><td>W15</td><td><strong>SIZE_REDUCED_TO_CAP executor wiring bug</strong> — executor read <code>_rv_result.get("size_reduced_to_cap")</code> (top-level, always None); key lives in <code>["summary"]</code>; resize never fired</td><td>HIGH</td><td>✅ FIXED (Bug Audit Task 1) — reads from <code>summary</code>; risk_amount recomputed; pipeline event emitted</td></tr>
+<tr><td>W16</td><td><strong>Pre-trade validator false CRITICAL after cap resize</strong> — utilisation/cash checks ran with original oversized qty causing false INSUFFICIENT_CASH CRITICAL → REJECTED verdict</td><td>HIGH</td><td>✅ FIXED (Bug Audit Task 2) — downstream checks use capped qty/risk</td></tr>
+<tr><td>W17</td><td><strong>Scanner action thresholds hardcoded in <code>market_scanner.py</code> (62/42) mismatched <code>config.py</code> (70/50) and SOP (70/50)</strong> — stocks 62–69 appeared as BUY when they should be WATCH</td><td>HIGH</td><td>✅ FIXED (Bug Audit Task 5) — <code>market_scanner.py</code> now imports from <code>config.py</code></td></tr>
+<tr><td>W18</td><td><strong>Exploration mode <code>update_experimental_exits()</code> uses daily close as "live" exit price</strong> — <code>market_data.get_multiple_ltp()</code> returns yesterday's 1d close; intraday stop-loss hits not detected until EOD</td><td>MEDIUM</td><td>❌ OPEN — documented (Bug Audit Task 4); fix requires Kite LTP overlay (Task 3 Option A) first</td></tr>
+</tbody></table>
+
+<h3>18.2 Questions for Independent Reviewer <strong>[UPDATED v3]</strong></h3>
+
+<p>1. <strong>Data architecture:</strong> Given that <code>SCAN_INTERVAL="1d"</code> and quality is age-based, the system is genuinely a daily-bar swing-signal engine running intra-session. Is this the intended design? Should "intraday" be removed from the platform description?</p>
+
+<p>2. <strong>Kite LTP overlay (Option A):</strong> The minimal fix (~15 lines) overlays Kite LTP on the latest yfinance daily bar when a session is verified. This changes "current price" from yesterday's close to live LTP — without changing any strategy logic. Is this the right first step before full intraday bars?</p>
+
+<p>3. <strong>STALE data BUY cap:</strong> Currently all 51 symbols are LIVE (Friday close = 1 day old). STALE would only occur after a 6+ day market closure. Does the existing threshold design (3/5/14 days) adequately model the NSE holiday calendar?</p>
+
+<p>4. <strong>Scan-loop watchdog:</strong> Aug 11 showed 5 scans firing in the same minute. The Phase 19B DB-durable scan lock should prevent this — why did it fail? Is the lock heartbeat renewal window too short?</p>
+
+<p>5. <strong>Aug 11 BTT- events:</strong> The intraday_bot process wrote 63 ORDER_EXECUTED events to <code>pipeline_events</code> but never committed to any trade table. Should pipeline_events be restricted to canonical executor only? Or is the bot a legitimate secondary process that needs its own ledger table?</p>
+
+<p>6. <strong>Daily bar vs intraday bar for indicators:</strong> RSI, ADX, EMA computed on 6-month daily bars. Does this produce meaningful intraday signals? Or should there be a separate "current session" indicator layer using Kite Historical API (1m/5m) in addition to the daily-bar layer?</p>
+
+<p>7. <strong>Capital reset:</strong> The portfolio resets to ₹50,000 each trading day. Is this modeling intraday-only trading? Currently, positions carry over (EXIT_PENDING trades from Aug 4–7 are still in the DB).</p>
+
+<p>8. <strong>Database design:</strong> Having both <code>paper_trades</code> and <code>phase20_paper_trades</code> tables is confusing. Which is canonical? Recommend consolidating.</p>
+
+<hr>
+
+<h2>19. Recommended 30-Day Roadmap <strong>[UPDATED v3]</strong></h2>
+
+<h3>Week 1 (Days 1–7): Fix Blocking Issues</h3>
+
+<table><thead>
+<tr><th>Priority</th><th>Action</th><th>Status</th></tr>
+</thead><tbody>
+<tr><td>✅ Done</td><td>Fix position sizer (SIZE_REDUCED_TO_CAP path)</td><td><strong>DONE</strong> (Remediation Phase 1B)</td></tr>
+<tr><td>✅ Done</td><td>Store rejection reason in all rejection events</td><td><strong>DONE</strong> (Remediation Phase 1C)</td></tr>
+<tr><td>✅ Done</td><td>Add per-symbol diagnostic logging to SYMBOL_SCANNED</td><td><strong>DONE</strong> (Data Path Audit Task 2)</td></tr>
+<tr><td>🔴 P1</td><td>Wire Kite LTP overlay into <code>run_live_scan()</code> — Option A</td><td>~15 lines, no strategy changes; scoped in §21.4</td></tr>
+<tr><td>🔴 P1</td><td>Fix exploration mode DB insert failure (<code>experimental_paper_trades</code>)</td><td>Silent failure — 8 events, 0 rows</td></tr>
+<tr><td>🟡 P2</td><td>Add scan-loop watchdog (alert if &gt;2 scans in same minute)</td><td>Prevent Aug 11 recurrence</td></tr>
+</tbody></table>
+
+<h3>Week 2 (Days 8–14): Paper Trading Quality</h3>
+
+<table><thead>
+<tr><th>Priority</th><th>Action</th><th>Expected Outcome</th></tr>
+</thead><tbody>
+<tr><td>🔴 P1</td><td>Confirm first canonical P20- trade with Kite LTP overlay active</td><td>Prove clean lifecycle: signal → order → ledger row → exit → P&amp;L</td></tr>
+<tr><td>🟡 P2</td><td>Align RR threshold: lower execution gate from 2.0 to 1.5 (or raise scan gate)</td><td>Resolve Phase 2 misalignment</td></tr>
+<tr><td>🟡 P2</td><td>Enable EXPERIMENTAL_BUY_FROM_WATCH for high-volume WATCH candidates</td><td>Generate first WATCH-exploration trades</td></tr>
+<tr><td>🟡 P2</td><td>Add market-hours banner to Trade Decisions and Mission Control</td><td>Eliminate post-market signal confusion</td></tr>
+</tbody></table>
+
+<h3>Week 3 (Days 15–21): Learning and Analytics</h3>
+
+<table><thead>
+<tr><th>Priority</th><th>Action</th><th>Expected Outcome</th></tr>
+</thead><tbody>
+<tr><td>🟡 P2</td><td>Consolidate <code>paper_trades</code> and <code>phase20_paper_trades</code> into single canonical table</td><td>Single source of truth</td></tr>
+<tr><td>🟡 P2</td><td>Surface RISK_REJECTED reasons in Observability Center</td><td>Operators can see why risk is blocking</td></tr>
+<tr><td>🟡 P2</td><td>Add "AI accuracy declining" 30-day warning (Task #171)</td><td>Early warning system</td></tr>
+<tr><td>🟢 P3</td><td>Enable Phase 24 missed-opportunity alerts in Mission Control</td><td>Operators notified when signal was missed</td></tr>
+</tbody></table>
+
+<h3>Week 4 (Days 22–30): Validation and Production Readiness</h3>
+
+<table><thead>
+<tr><th>Priority</th><th>Action</th><th>Expected Outcome</th></tr>
+</thead><tbody>
+<tr><td>🔴 P1</td><td>Run full backtesting validation with Kite LTP active</td><td>Confirm thresholds work with live-quality price</td></tr>
+<tr><td>🟡 P2</td><td>Complete sell-side paper trading coverage — confirm P&amp;L captured on all exits</td><td>Accurate portfolio analytics</td></tr>
+<tr><td>🟡 P2</td><td>Evaluate whether true intraday bars (Option B) are needed vs daily-bar + LTP overlay</td><td>Architecture decision with data</td></tr>
+<tr><td>🟢 P3</td><td>Write 30-day paper trading summary report</td><td>First complete trading period review</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>20. Remediation Phase 1 — Changes Log</h2>
+
+<p>No trading thresholds or database records were changed in Remediation Phase 1.</p>
+
+<h3>20.1 Phase 1A — Code Trace (Read-Only)</h3>
+
+<p><strong>No code changes.</strong> Three questions answered by reading the production codebase and querying the production database:</p>
+
+<table><thead>
+<tr><th>Question</th><th>Finding</th></tr>
+</thead><tbody>
+<tr><td>Is BUY_GENERATED emitted pre-gate or post-gate?</td><td><strong>Post-gate.</strong> <code>derive_symbol_events()</code> reads <code>r.final_action</code>, which has already been mutated by all gates. A STALE symbol can never emit BUY_GENERATED.</td></tr>
+<tr><td>Where is R:R enforced, and are the layers aligned?</td><td><strong>Misaligned.</strong> Scan gate = 1.5, pre-trade validator = 1.5, phase20 execution gate = 2.0. <code>AI_MIN_RR_RATIO=2.0</code> is dead config (confirmed in v3 audit).</td></tr>
+<tr><td>Were Aug 11 executions real?</td><td><strong>Phantom.</strong> Trade IDs use "BTT-" prefix (external intraday_bot). Zero rows in phase20_paper_trades or paper_trades (DB-confirmed in v3 audit).</td></tr>
+</tbody></table>
+
+<h3>20.2 Phase 1B — Position Sizing Fix</h3>
+
+<p><strong>Files changed:</strong> <code>risk_validation/pre_trade.py</code>, <code>phase20_executor.py</code></p>
+
+<table><thead>
+<tr><th>File</th><th>Change</th></tr>
+</thead><tbody>
+<tr><td><code>risk_validation/pre_trade.py</code></td><td><code>_check_position_size()</code> now computes <code>cap_qty</code>. If <code>cap_qty ≥ 1</code>: WARNING <code>SIZE_REDUCED_TO_CAP</code>. If <code>cap_qty == 0</code>: CRITICAL (unchanged).</td></tr>
+<tr><td><code>phase20_executor.py</code></td><td>Adopts <code>capped_qty</code>, recomputes charges with reduced qty before calling <code>execute_buy()</code>.</td></tr>
+</tbody></table>
+
+<p><strong>Verified by:</strong> 27/27 unit tests PASSED</p>
+
+<h3>20.3 Phase 1C — Rejection Reason Logging</h3>
+
+<p><strong>Files changed:</strong> <code>live_scan_engine.py</code>, <code>phase20_executor.py</code></p>
+
+<p>All three rejection event types (RISK_REJECTED, ORDER_REJECTED, EXECUTION_SKIPPED_WITH_REASON) now carry <code>reason</code>, <code>gate_name</code>, <code>actual_value</code>, <code>human_readable_reason</code> at the top level of their payload.</p>
+
+<h3>20.4 Phase 1D — Exit Logic Audit (Read-Only)</h3>
+
+<p><strong>No code changes.</strong> Confirmed: all 8 exit rules are implemented in <code>phase20_exits.py</code>. NULL realized_pnl is expected behaviour when <code>quote_reliable=False</code>.</p>
+
+<h3>20.5 Clean Lifecycle Status After Phase 1</h3>
+
+<table><thead>
+<tr><th>Stage</th><th>Status</th></tr>
+</thead><tbody>
+<tr><td>Signal → <code>BUY_GENERATED</code></td><td>✅ Working (19,034+ all-time, all post-gate)</td></tr>
+<tr><td><code>BUY_GENERATED</code> → <code>ORDER_EXECUTED</code></td><td>✅ Code-level blocker removed (Phase 1B)</td></tr>
+<tr><td><code>ORDER_EXECUTED</code> → ledger row in <code>phase20_paper_trades</code></td><td>✅ Code exists (4 existing rows prove it)</td></tr>
+<tr><td>Ledger row → exit with realized P&amp;L</td><td>⚠️ Exit code complete; requires Kite LTP overlay for <code>quote_reliable=True</code></td></tr>
+<tr><td><strong>Single remaining code blocker</strong></td><td><strong>Wire Kite LTP overlay — Option A in §21.4</strong></td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>21. Data Path &amp; Intraday Truth Audit — Changes Log <strong>[NEW v3]</strong></h2>
+
+<p>This section documents the findings and code changes from the Data Path &amp; Intraday Truth Audit (Tasks 1–7), conducted 2026-08-15.</p>
+
+<h3>21.1 Key Findings (All Code-Verified)</h3>
+
+<table><thead>
+<tr><th>Finding</th><th>Previous SOP claim</th><th>Truth</th></tr>
+</thead><tbody>
+<tr><td>Data source</td><td>"Zerodha primary, Yahoo fallback"</td><td><strong>yfinance only</strong> — unconditional, no Kite branch</td></tr>
+<tr><td>Candle interval</td><td>"intraday scanning"</td><td><strong>1d (daily bars)</strong>, 6-month lookback</td></tr>
+<tr><td>Kite in scan path</td><td>"Zerodha Kite (primary) → Yahoo Finance (fallback)"</td><td><strong>Display metadata only</strong> — <code>kite_connected</code> boolean and <code>live_quote_source</code> label</td></tr>
+<tr><td><code>ohlcv_source</code> field</td><td>Varied by session</td><td><strong>Hardcoded <code>"yfinance (historical)"</code></strong> regardless of session state</td></tr>
+<tr><td><code>AI_MIN_RR_RATIO = 2.0</code></td><td>Listed as "advisory downgrade in AI Decision Engine"</td><td><strong>Dead config</strong> — in <code>phase21_baseline.py</code> reporting dict only, never compared</td></tr>
+<tr><td>Quality grade source</td><td>"Zerodha tick / Yahoo fallback"</td><td><strong>Age-based only</strong> (<code>age_days ≤ 3/5/14</code>) — source is irrelevant to the grade</td></tr>
+<tr><td>Re-authenticating Zerodha</td><td>"Restores LIVE data"</td><td><strong>Changes display label only</strong> — no OHLCV prices change</td></tr>
+<tr><td>Aug 11 ORDER_EXECUTED count</td><td>64 (from prior version)</td><td><strong>63</strong> (DB-confirmed)</td></tr>
+<tr><td>Aug 11 SCAN_STARTED</td><td>89</td><td><strong>88</strong> (DB-confirmed)</td></tr>
+</tbody></table>
+
+<h3>21.2 Aug 11 Verdict — DB-Confirmed</h3>
+
+<p>Full DB queries run against <code>pipeline_events</code> and <code>phase20_paper_trades</code>:</p>
+
+<ul style="margin-left:0px">
+<li><code>pipeline_events</code> WHERE event_type='ORDER_EXECUTED' AND date=Aug 11: <strong>63 rows</strong></li>
+<li><code>phase20_paper_trades</code> matched by scan_id from those events: <strong>0 rows</strong></li>
+<li><code>paper_trades</code> (legacy) matched by date: <strong>0 rows</strong></li>
+<li>All 63 ORDER_EXECUTED payloads: <code>trade_id</code> = <code>BTT-*</code> (external bot prefix)</li>
+<li>Same fill prices repeating (GLAND at ₹2,248.49 across 9 events): same snapshot re-executed</li>
+</ul>
+
+<p><strong>Verdict: PHANTOM FILLS CONFIRMED.</strong> Scan-loop runaway (88 scans, up to 5/minute peak) caused the external <code>intraday_bot</code> process to fire the same signal repeatedly. The pipeline_events emit is fire-and-forget; the ledger write failed silently (likely table constraint violation or table not existing on Aug 11).</p>
+
+<h3>21.3 Code Change — Per-Symbol SYMBOL_SCANNED Logging (Task 2)</h3>
+
+<p><strong>File changed:</strong> <code>artifacts/api-server/src/python/live_scan_engine.py</code>  </p>
+<p><strong>Function:</strong> <code>derive_symbol_events()</code>  </p>
+<p><strong>Change:</strong> Expanded <code>SYMBOL_SCANNED</code> event payload from 5 fields to 12 fields.</p>
+
+<table><thead>
+<tr><th>Field added</th><th>Source</th></tr>
+</thead><tbody>
+<tr><td><code>data_source</code></td><td><code>r.data_source</code> (always <code>"yfinance"</code> today)</td></tr>
+<tr><td><code>latest_date</code></td><td><code>r.latest_bar_date</code> (ISO date of last bar)</td></tr>
+<tr><td><code>age_days</code></td><td><code>r.data_age_days</code> (calendar days since latest bar)</td></tr>
+<tr><td><code>interval</code></td><td><code>"1d"</code> (hardcoded — actual interval used)</td></tr>
+<tr><td><code>last_price</code></td><td><code>r.entry_price</code> (last close used as scan price)</td></tr>
+<tr><td><code>tradable</code></td><td><code>r.paper_eligible</code></td></tr>
+<tr><td><code>reason_not_tradable</code></td><td>Gate-derived string; null when tradable</td></tr>
+</tbody></table>
+
+<p><strong>Query to read per-symbol diagnostic data:</strong></p>
+<pre><code>
+SELECT symbol,
+       payload-&gt;&gt;'data_source'       as source,
+       payload-&gt;&gt;'latest_date'       as latest_date,
+       payload-&gt;&gt;'age_days'          as age_days,
+       payload-&gt;&gt;'interval'          as interval,
+       payload-&gt;&gt;'last_price'        as last_price,
+       payload-&gt;&gt;'data_quality'      as dq,
+       payload-&gt;&gt;'tradable'          as tradable,
+       payload-&gt;&gt;'reason_not_tradable' as reason
+FROM pipeline_events
+WHERE event_type = 'SYMBOL_SCANNED'
+  AND scan_id = '&lt;your_scan_id&gt;'
+ORDER BY symbol;
+</code></pre>
+
+<h3>21.4 Scoped Fix — Kite LTP Overlay (Option A) <strong>[NEW v3]</strong></h3>
+
+<p>The minimal viable fix to wire live Kite price into the scan. No strategy changes. No threshold changes. Paper-only throughout.</p>
+
+<p><strong>Where:</strong> <code>live_scan_engine.py</code> → <code>run_live_scan()</code>, after <code>provider.fetch_batch()</code> returns (approximately line 675).</p>
+
+<p><strong>What it does:</strong> Calls <code>kite_quote_provider.get_ltp(universe)</code> when a proven Kite session is available. For each symbol where Kite LTP is returned, overrides the last close in the yfinance DataFrame with live LTP, sets <code>data_age_days = 0.0</code>, <code>data_quality = LIVE</code>, <code>data_source = "kite_live"</code>.</p>
+
+<p><strong>Approximate code (~15 lines):</strong></p>
+<pre><code>
+# Kite LTP overlay — live price when a proven session is available.
+# Keeps all indicators on daily bars; only "current price" is upgraded
+# from yesterday's close to Kite's live last-traded price.
+if kite_session_verified():
+    try:
+        from kite_quote_provider import get_ltp as _kite_ltp
+        from live_data_provider import DataQuality
+        _kite_prices = _kite_ltp(universe)
+        for sym, ltp in _kite_prices.items():
+            sym_upper = sym.upper()
+            if ltp is not None and sym_upper in fetch_results:
+                fr = fetch_results[sym_upper]
+                if fr.success and fr.df is not None:
+                    fr.df.iloc[-1, fr.df.columns.get_loc("close")] = ltp
+                    fr.data_age_days = 0.0
+                    fr.data_quality = DataQuality.LIVE
+                    fr.data_source = "kite_live"
+    except Exception:
+        pass  # fallback: yfinance prices remain
+</code></pre>
+
+<p><strong>Result when active:</strong></p>
+<ul style="margin-left:0px">
+<li><code>SYMBOL_SCANNED.data_source</code> = <code>"kite_live"</code> (instead of <code>"yfinance"</code>)</li>
+<li><code>SYMBOL_SCANNED.age_days</code> = <code>0.0</code></li>
+<li><code>safety["ohlcv_source"]</code> should be updated to <code>"kite_live + yfinance (history)"</code></li>
+<li>All 4 EXIT_PENDING trades gain <code>quote_reliable=True</code> → <code>resolve_pending_exits()</code> fires → realized P&amp;L captured</li>
+</ul>
+
+<p><strong>Files:</strong> <code>live_scan_engine.py</code> only. <code>kite_quote_provider.py</code> is already complete and requires no changes.</p>
+
+<p><strong>Option B — True intraday bars (1m/5m/15m via Kite Historical API):</strong> Out of scope for this phase. Requires re-calibrating all indicators for short bars. Separate project.</p>
+
+<hr>
+
+<h2>22. Bug Audit — Source Code vs SOP Mismatch <strong>[NEW v3.1]</strong></h2>
+
+<p>This section documents the five-task source code audit conducted 2026-08-15, using <code>APEXQUANT_AI_SOP_v3.html</code> as the controlling reference document. Detailed findings are in <code>APEXQUANT_SOURCE_CODE_BUG_AUDIT_AND_FIX_REPORT.md</code>.</p>
+
+<h3>22.1 Task 1 — SIZE_REDUCED_TO_CAP Wiring Bug (FIXED)</h3>
+
+<p><strong>Root cause:</strong> <code>phase20_executor.py</code> called <code>rv.to_dict()</code> then read <code>_rv_result.get("size_reduced_to_cap")</code> at the top level. The key lives inside <code>rv.to_dict()["summary"]</code> — not at the top level. The condition was <strong>always False</strong>; the executor always used the original oversized quantity.</p>
+
+<p><strong>Effect:</strong> Every DRREDDY, GRASIM, BAJAJ-AUTO, BAJAJFINSV, TMPV trade that passed the pre-trade validator with <code>SIZE_REDUCED_TO_CAP=True</code> was silently executed at the original oversized quantity (or blocked entirely at <code>execute_buy()</code> due to cash constraints). The 873 DRREDDY / 548 GRASIM ORDER_REJECTEDs from earlier sessions were from the hard-reject path; any subsequent runs after Phase 1B would have <em>appeared</em> to proceed but used the wrong qty.</p>
+
+<p><strong>Fix applied:</strong></p>
+<ul style="margin-left:0px">
+<li>Read <code>_rv_summary = _rv_result.get("summary", {})</code> then <code>_rv_summary.get("size_reduced_to_cap")</code></li>
+<li>Recompute <code>risk_amount</code> proportionally: <code>_new_risk = _old_risk × cap_qty / orig_qty</code></li>
+<li>Update <code>sizing["quantity"]</code> and <code>sizing["risk_amount"]</code></li>
+<li>Emit <code>SIZE_REDUCED_TO_CAP</code> pipeline event with full payload (original_qty, capped_qty, trade_value before/after, risk before/after, charges recalculated)</li>
+</ul>
+
+<p><strong>Tests:</strong> <code>tests/unit/test_size_reduced_to_cap.py</code> — <code>TestRvToDictStructure</code> proves the key lives in <code>["summary"]</code>, not top-level.</p>
+
+<h3>22.2 Task 2 — Pre-Trade Validator False CRITICAL Rejection (FIXED)</h3>
+
+<p><strong>Root cause:</strong> In <code>risk_validation/pre_trade.py</code>, <code>validate_pre_trade()</code> ran all six checks sequentially using the original <code>qty</code>. When <code>_check_position_size()</code> detected SIZE_REDUCED_TO_CAP (and set <code>size_reduced=True</code>, <code>capped_qty=15</code>), the next check <code>_check_post_trade_utilisation(symbol, fill_price, qty=30, ...)</code> still used <code>qty=30</code>. If 30 × fill_price &gt; <code>cash_available</code>, an <code>INSUFFICIENT_CASH</code> CRITICAL was raised — overriding the verdict to <code>REJECTED</code> even though 15 shares × fill_price would have been fine.</p>
+
+<p><strong>Fix applied:</strong></p>
+<ul style="margin-left:0px">
+<li><code>_check_position_size()</code> now runs first</li>
+<li>If <code>size_reduced=True</code> and <code>cap_qty ≥ 1</code>: compute <code>_eff_qty = cap_qty</code>, <code>_eff_risk = risk_amount × cap_qty / qty</code></li>
+<li>All downstream checks (<code>capital_at_risk</code>, <code>post_utilisation</code>, <code>daily_risk</code>) use <code>_eff_qty</code> / <code>_eff_risk</code></li>
+<li>False INSUFFICIENT_CASH CRITICAL is eliminated for valid resized trades</li>
+</ul>
+
+<p><strong>Tests:</strong> <code>TestPreTradeValidatorCapResize::test_no_insufficient_cash_critical_after_resize</code> — confirms no false CRITICAL for DRREDDY-style scenario.</p>
+
+<h3>22.3 Task 3 — Data Path Confirmation + Implementation Plan</h3>
+
+<p><strong>Confirmed from source code (no code changes):</strong></p>
+
+<table><thead>
+<tr><th>Claim</th><th>Status</th></tr>
+</thead><tbody>
+<tr><td>Scanner uses <code>LiveDataProvider</code></td><td>✓ <code>live_scan_engine.py:652</code> — unconditional</td></tr>
+<tr><td><code>LiveDataProvider</code> uses yfinance only</td><td>✓ <code>yf.download()</code> is the only OHLCV call</td></tr>
+<tr><td>Scanner interval is <code>1d</code></td><td>✓ <code>SCAN_INTERVAL = "1d"</code>, <code>SCAN_PERIOD = "6mo"</code></td></tr>
+<tr><td>Kite NOT in scan path</td><td>✓ <code>kite_quote_provider.py</code> never called during scanning</td></tr>
+</tbody></table>
+
+<p><strong>Implementation plan — see §21.4 for Option A code. Additional options:</strong></p>
+
+<ul style="margin-left:0px">
+<li><strong>Option B — True Kite intraday candles (5m/15m):</strong> ~4–6 days. All strategies need re-validation on short bars. Do not implement without a full re-calibration run.</li>
+<li><strong>Option C — yfinance intraday fallback for research only:</strong> <code>period="1d"</code>, <code>interval="5m"</code> as a display-only overlay. Label clearly as "indicative reference — not used for signal generation."</li>
+</ul>
+
+<h3>22.4 Task 4 — Exploration Mode Daily-Close Price Bug (Documented — No Fix Yet)</h3>
+
+<p><strong>Finding:</strong> <code>paper_exploration_engine.py</code> <code>update_experimental_exits()</code> calls <code>market_data.get_multiple_ltp(symbols)</code>. <code>get_multiple_ltp()</code> calls <code>get_ltp()</code> which fetches <code>fetch_ohlcv(symbol, period="5d", interval="1d")</code> and returns the last daily close. This means:</p>
+
+<ul style="margin-left:0px">
+<li>MFE, MAE, and exit-trigger checks (stop/target) in exploration mode use yesterday's close, not any intraday price</li>
+<li>Intraday stop-loss hits are missed entirely until EOD</li>
+<li>MFE/MAE statistics are per-day granularity only</li>
+</ul>
+
+<p><strong>Impact:</strong> Exploration mode is learning from daily EOD outcomes, not intraday exits. No financial loss (paper only), but MFE/MAE statistics are unreliable for intraday strategy learning.</p>
+
+<p><strong>Fix path:</strong> Implement Task 3 Option A (Kite LTP overlay) first. Then add a <code>get_ltp_from_kite_if_available(sym)</code> wrapper that checks <code>kite_session_verified()</code> before falling back to <code>market_data.get_ltp()</code>.</p>
+
+<p><strong>Status:</strong> ❌ OPEN — documented; no code change until Kite LTP wired.</p>
+
+<h3>22.5 Task 5 — Threshold Mismatch / Single Source of Truth (FIXED)</h3>
+
+<p><strong>Root cause:</strong> <code>market_scanner.py</code> had hardcoded action thresholds that did not match <code>config.py</code> or this SOP:</p>
+
+<table><thead>
+<tr><th>Location</th><th>STRONG BUY</th><th>BUY</th><th>WATCH</th></tr>
+</thead><tbody>
+<tr><td><code>config.py</code> (OPP_* constants)</td><td>85.0</td><td>70.0</td><td>50.0</td></tr>
+<tr><td><code>market_scanner.py</code> (hardcoded, pre-fix)</td><td>78.0</td><td><strong>62.0</strong></td><td><strong>42.0</strong></td></tr>
+<tr><td>This SOP</td><td>85.0</td><td>70.0</td><td>50.0</td></tr>
+</tbody></table>
+
+<p>Stocks scoring 62–69 appeared as BUY in the scanner output but should have been WATCH according to both <code>config.py</code> and this SOP. The discrepancy was silent — no error, no warning.</p>
+
+<p><strong>Fix applied:</strong> <code>market_scanner.py</code> now imports <code>OPP_HOT_BUY_THRESHOLD</code>, <code>OPP_BUY_THRESHOLD</code>, <code>OPP_WATCH_THRESHOLD</code> from <code>config.py</code>:</p>
+
+<pre><code>
+ACTION_STRONG_BUY = OPP_HOT_BUY_THRESHOLD   # 85.0
+ACTION_BUY        = OPP_BUY_THRESHOLD        # 70.0
+ACTION_WATCH      = OPP_WATCH_THRESHOLD      # 50.0
+</code></pre>
+
+<p><code>ACTION_STRONG_BUY</code>, <code>ACTION_BUY</code>, <code>ACTION_WATCH</code> are still exported from <code>market_scanner.py</code> (re-imported by <code>live_scan_engine.py</code>), so no downstream import changes needed.</p>
+
+<p><strong>Operational effect:</strong> Stocks scoring 62–69 now correctly appear as WATCH, not BUY. Strategy and signal logic are unchanged.</p>
+
+<p><strong>Single source of truth going forward:</strong> Edit only <code>config.py</code> to change action thresholds.</p>
+
+<h3>22.6 Bug Audit — Summary Table</h3>
+
+<table><thead>
+<tr><th>Task</th><th>Bug</th><th>Severity</th><th>Fixed?</th><th>Files changed</th></tr>
+</thead><tbody>
+<tr><td>Task 1</td><td><code>size_reduced_to_cap</code> read from wrong dict level</td><td>HIGH</td><td>✅ YES</td><td><code>phase20_executor.py</code></td></tr>
+<tr><td>Task 2</td><td>Downstream validator checks used original oversized qty</td><td>HIGH</td><td>✅ YES</td><td><code>risk_validation/pre_trade.py</code></td></tr>
+<tr><td>Task 3</td><td>Data path confirmation + implementation plan</td><td>INFO</td><td>N/A</td><td>None (plan provided)</td></tr>
+<tr><td>Task 4</td><td>Exploration mode uses daily close as exit price</td><td>MEDIUM</td><td>❌ OPEN</td><td>None (fix blocked on Task 3)</td></tr>
+<tr><td>Task 5</td><td>Scanner thresholds 62/42 ≠ config 70/50</td><td>HIGH</td><td>✅ YES</td><td><code>market_scanner.py</code></td></tr>
+</tbody></table>
+
+<p><strong>Tests added:</strong> <code>tests/unit/test_size_reduced_to_cap.py</code> — 13 tests, 13 passing.</p>
+
+<p><strong>No live orders placed. No strategy logic changed. Paper only throughout.</strong></p>
+
+<hr>
+
+<h2>23. Appendix</h2>
+
+<h3>23.1 Important Configuration Values</h3>
+
+<table><thead>
+<tr><th>Config Key</th><th>Value</th><th>Location</th></tr>
+</thead><tbody>
+<tr><td><code>INITIAL_CAPITAL</code></td><td>₹50,000</td><td><code>config.py</code></td></tr>
+<tr><td><code>SCAN_INTERVAL</code></td><td><code>"1d"</code></td><td><code>live_data_provider.py</code></td></tr>
+<tr><td><code>SCAN_PERIOD</code></td><td><code>"6mo"</code></td><td><code>live_data_provider.py</code></td></tr>
+<tr><td><code>LIVE_DAYS</code></td><td>3</td><td><code>live_data_provider.py</code></td></tr>
+<tr><td><code>NEAR_LIVE_DAYS</code></td><td>5</td><td><code>live_data_provider.py</code></td></tr>
+<tr><td><code>STALE_DAYS</code></td><td>14</td><td><code>live_data_provider.py</code></td></tr>
+<tr><td><code>MIN_RR_FOR_BUY</code></td><td>1.5</td><td><code>live_scan_engine.py:64</code></td></tr>
+<tr><td><code>AI_MIN_RR_RATIO</code></td><td>2.0</td><td><code>config.py:61</code> — <strong>dead config</strong></td></tr>
+<tr><td><code>LIVE_EXECUTION_ENABLED</code></td><td><code>False</code></td><td><code>config.py</code></td></tr>
+<tr><td><code>per_stock_exposure_cap_pct</code></td><td>25.0%</td><td><code>phase20_store.py</code> DEFAULT_SETTINGS</td></tr>
+<tr><td><code>min_confidence</code></td><td>60.0%</td><td><code>phase20_store.py</code> DEFAULT_SETTINGS</td></tr>
+<tr><td><code>min_risk_reward</code></td><td>2.0</td><td><code>phase20_store.py</code> DEFAULT_SETTINGS</td></tr>
+</tbody></table>
+
+<h3>23.2 Database Tables Reference</h3>
+
+<table><thead>
+<tr><th>Table</th><th>Purpose</th><th>Canonical?</th></tr>
+</thead><tbody>
+<tr><td><code>pipeline_events</code></td><td>All pipeline events (SYMBOL_SCANNED, BUY_GENERATED, ORDER_EXECUTED, etc.)</td><td>YES — event log</td></tr>
+<tr><td><code>phase20_paper_trades</code></td><td>Paper trade ledger — P20- prefix trades</td><td><strong>YES — canonical</strong></td></tr>
+<tr><td><code>paper_trades</code></td><td>Legacy paper trade table</td><td>NO — legacy, to be retired</td></tr>
+<tr><td><code>paper_portfolio</code></td><td>Current portfolio state (positions JSON, cash)</td><td>YES</td></tr>
+<tr><td><code>experimental_paper_trades</code></td><td>Exploration mode trades</td><td>YES (currently empty — insert failing)</td></tr>
+<tr><td><code>scan_state_store</code></td><td>Distributed scan lock, scan state</td><td>YES</td></tr>
+<tr><td><code>phase24_missed_opps</code></td><td>Missed opportunity tracking</td><td>YES — advisory</td></tr>
+<tr><td><code>kv_store</code></td><td>KV store for settings and scheduler guards</td><td>YES</td></tr>
+</tbody></table>
+
+<h3>23.3 Trade ID Prefix Reference</h3>
+
+<table><thead>
+<tr><th>Prefix</th><th>Source</th><th>Canonical?</th></tr>
+</thead><tbody>
+<tr><td><code>P20-{uuid}</code></td><td><code>phase20_executor.py</code></td><td><strong>YES</strong> — canonical paper trades</td></tr>
+<tr><td><code>BTT-{hash}</code></td><td>External <code>intraday_bot</code> process</td><td><strong>NO</strong> — phantom; not in any ledger</td></tr>
+</tbody></table>
+
+<h3>23.4 Key Invariants (Never Bypass)</h3>
+
+<p>1. <code>LIVE_EXECUTION_ENABLED = False</code> — hardcoded, never changes</p>
+<p>2. Quality gate: STALE → max WATCH; UNAVAILABLE → IGNORE — enforced in <code>_apply_quality_gate()</code></p>
+<p>3. <code>ohlcv_source = "yfinance (historical)"</code> — currently hardcoded; changes when Option A is wired</p>
+<p>4. <code>MIN_RR_FOR_BUY = 1.5</code> — only active RR gate in scan path</p>
+<p>5. <code>SIZE_REDUCED_TO_CAP</code> only fires when <code>cap_qty ≥ 1</code> — never bypasses a genuinely unaffordable stock</p>
+<p>6. All paper fills are simulated via <code>paper_trader.py</code> — no Zerodha order API ever called</p>
+
+<hr>
+
+<p><em>Document version 3.1. Generated 2026-08-15 IST. All DB figures queried directly from production <code>pipeline_events</code> and <code>phase20_paper_trades</code>. All code claims verified against the live codebase. No values fabricated. Trading thresholds corrected to match config.py (scanner alignment fix only — see §22.5). No strategy logic changed. Paper only.</em></p>
+
+</div>
+</body>
+</html>

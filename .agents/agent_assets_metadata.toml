@@ -418,3 +418,10 @@ uri = "file://APEXQUANT_SOURCE_CODE_BUG_AUDIT_AND_FIX_REPORT.md"
 type = "text"
 title = "ApexQuant Source Code Bug Audit & Fix Report"
 description = "Five-task audit: three bugs fixed (SIZE_REDUCED_TO_CAP wiring, pre-trade false rejection, threshold mismatch), two items documented as operator decisions (data path / exploration mode price). 13/13 tests pass."
+
+[[outputs]]
+id = "UGmjtgfv1ENwBA6H5D7Oy"
+uri = "file://APEXQUANT_AI_SOP_v3.1.html"
+type = "text"
+title = "ApexQuant AI — Full Project SOP v3.1"
+description = "Complete SOP incorporating all Bug Audit findings: SIZE_REDUCED_TO_CAP executor wiring fix, pre-trade false rejection fix, data path confirmed (yfinance/1d), exploration mode daily-close price bug documented, scanner thresholds aligned to config.py (85/70/50). 23 sections, 13/13 regression tests passing. Paper only throughout."

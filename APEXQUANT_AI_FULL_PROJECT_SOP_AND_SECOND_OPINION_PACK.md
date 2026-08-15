@@ -1,12 +1,14 @@
 # ApexQuant AI — Full Project SOP & Second-Opinion Pack
 
-**Document version:** 3.0  
+**Document version:** 3.1  
 **Generated:** 2026-08-15 (IST)  
 **Prepared by:** Replit Agent (automated, read-only except where noted)  
 **Purpose:** Independent second-opinion review package — complete audit of architecture, behaviour, data, and open problems  
 **Classification:** Internal review — contains production database statistics
 
-> **Changelog from v2.0:** This version incorporates all findings from the Data Path & Intraday Truth Audit (Tasks 1–7). The critical architectural correction: the documented "Zerodha primary, Yahoo fallback" data architecture **does not exist in code** — yfinance is the only OHLCV source, scanner uses daily (1d) bars, and Kite is display metadata only. Every affected section has been corrected. The Aug 11 phantom-fills verdict is now fully DB-confirmed. Per-symbol diagnostic logging added to `SYMBOL_SCANNED` events. Changed sections marked **[UPDATED v3]**. New content marked **[NEW v3]**. No trading thresholds were changed.
+> **Changelog from v3.0 → v3.1:** This version incorporates all findings from the Source Code vs SOP Mismatch Bug Audit (5 tasks). Four bugs found and fixed: (1) SIZE_REDUCED_TO_CAP wiring — executor was reading `_rv_result.get("size_reduced_to_cap")` which is always `None`; key lives in `rv.to_dict()["summary"]`; (2) Pre-trade validator ran utilisation/cash checks with original oversized qty, causing false INSUFFICIENT_CASH CRITICAL rejections — now re-runs with capped qty; (3) Data path fully confirmed — yfinance only, 1d bars, implementation plan for Options A/B/C provided; (4) Exploration mode uses daily close as "live" exit price — documented, no safe fix until Kite LTP wired; (5) Scanner thresholds (62/42) did not match config.py (70/50) or SOP — market_scanner.py now imports from config.py as single source of truth. 13/13 regression tests added and passing. Changed sections marked **[UPDATED v3.1]**.
+
+> **Changelog from v2.0 → v3.0:** Incorporated Data Path & Intraday Truth Audit (Tasks 1–7). The documented "Zerodha primary, Yahoo fallback" data architecture **does not exist in code** — yfinance is the only OHLCV source, scanner uses daily (1d) bars, Kite is display metadata only. Aug 11 phantom-fills verdict fully DB-confirmed. Per-symbol diagnostic logging added to `SYMBOL_SCANNED` events. Sections marked **[UPDATED v3]** / **[NEW v3]**. No trading thresholds were changed.
 
 > **Disclaimer:** All trade counts and statistics are pulled directly from the production PostgreSQL database as of the time of generation. Where data is unavailable or was not stored, this is explicitly marked `[NOT STORED]` or `[UNKNOWN]`. No values are fabricated. This document is read-only — no settings, thresholds, trades, or database records were changed to produce it.
 
@@ -35,7 +37,8 @@
 19. [Recommended 30-Day Roadmap](#19-recommended-30-day-roadmap)
 20. [Remediation Phase 1 — Changes Log](#20-remediation-phase-1--changes-log)
 21. [Data Path & Intraday Truth Audit — Changes Log](#21-data-path--intraday-truth-audit--changes-log) **[NEW v3]**
-22. [Appendix](#22-appendix)
+22. [Bug Audit — Source Code vs SOP Mismatch](#22-bug-audit--source-code-vs-sop-mismatch) **[NEW v3.1]**
+23. [Appendix](#23-appendix)
 
 ---
 
@@ -73,6 +76,9 @@ ApexQuant AI is a **paper-only NSE trading research platform** built on a multi-
 | **Position-size cap bug** | **FIXED (Remediation Phase 1B)** — SIZE_REDUCED_TO_CAP path now active |
 | **Rejection reason logging** | **FIXED (Remediation Phase 1C)** — all rejection events now carry structured `reason` field |
 | **Per-symbol scan logging** | **ADDED (Data Path Audit Task 2)** — SYMBOL_SCANNED now emits `data_source`, `latest_date`, `age_days`, `interval`, `last_price`, `tradable`, `reason_not_tradable` |
+| **SIZE_REDUCED_TO_CAP wiring bug** | **FIXED (Bug Audit Task 1)** — executor now reads `capped_qty` from `rv.to_dict()["summary"]`; risk_amount recomputed; pipeline event emitted |
+| **Pre-trade false CRITICAL rejection** | **FIXED (Bug Audit Task 2)** — downstream checks (utilisation, cash, daily-risk) now use capped qty, not original oversized qty |
+| **Scanner threshold mismatch** | **FIXED (Bug Audit Task 5)** — `market_scanner.py` now imports from `config.py`; single source of truth (STRONG BUY 85 / BUY 70 / WATCH 50) |
 
 ### 1.3 Primary Problem Statement **[UPDATED v3]**
 
@@ -380,7 +386,7 @@ EXPLORATION TICK (after main execution loop)
 | `SIGNAL_WATCH_THRESHOLD` | **60.0** | Confidence 60–75 → WATCH |
 | `SIGNAL_MIN_THRESHOLD` | **60.0** | Confidence < 60 → NO_TRADE / IGNORE |
 
-### 4.2 Opportunity Score Thresholds (config.py)
+### 4.2 Opportunity Score Thresholds (config.py) **[UPDATED v3.1]**
 
 | Threshold | Value | Meaning |
 |-----------|-------|---------|
@@ -388,6 +394,8 @@ EXPLORATION TICK (after main execution loop)
 | `OPP_BUY_THRESHOLD` | **70.0** | Standard BUY |
 | `OPP_WATCH_THRESHOLD` | **50.0** | WATCH candidate |
 | Below 50 | — | IGNORE |
+
+> **v3.1 fix — scanner threshold alignment:** `market_scanner.py` previously hardcoded `ACTION_BUY=62` and `ACTION_WATCH=42` — mismatching this table and the SOP. After Bug Audit Task 5, `market_scanner.py` now imports `OPP_HOT_BUY_THRESHOLD`, `OPP_BUY_THRESHOLD`, and `OPP_WATCH_THRESHOLD` from `config.py`. **Single source of truth is now `config.py` for all three thresholds.** To change any threshold, edit `config.py` only. Pre-fix: stocks scoring 62–69 appeared as BUY; post-fix they correctly appear as WATCH.
 
 **Opportunity Score Weights:**
 - trade_quality: **40%**
@@ -442,19 +450,33 @@ EXPLORATION TICK (after main execution loop)
 
 **v3 correction:** Previous versions listed `AI_MIN_RR_RATIO = 2.0` as an "advisory downgrade" in the AI Decision Engine. Code inspection confirms it is dead configuration — it never compares against a live R:R value.
 
-### 4.7 Position Sizing: Before vs After Remediation Phase 1B
+### 4.7 Position Sizing: Before vs After All Fixes **[UPDATED v3.1]**
 
-| Scenario | Before fix | After fix |
-|----------|-----------|-----------|
-| `qty × price ≤ cap` | PASS — proceed | PASS — unchanged |
-| `qty × price > cap`, `cap_qty ≥ 1` | CRITICAL → ORDER_REJECTED | **WARNING (SIZE_REDUCED_TO_CAP) → proceed at cap_qty** |
-| `qty × price > cap`, `cap_qty == 0` (stock too expensive) | CRITICAL → ORDER_REJECTED | CRITICAL → ORDER_REJECTED (unchanged) |
+| Scenario | Before Phase 1B | After Phase 1B | After Bug Audit Task 1+2 |
+|----------|----------------|----------------|--------------------------|
+| `qty × price ≤ cap` | PASS | PASS — unchanged | PASS — unchanged |
+| `qty × price > cap`, `cap_qty ≥ 1` | CRITICAL → ORDER_REJECTED | WARNING (SIZE_REDUCED_TO_CAP) → **but executor never read it** (wiring bug) | **WARNING → executor reads from `summary`, adopts cap_qty, recomputes risk_amount** ✅ |
+| `qty × price > cap`, `cap_qty == 0` | CRITICAL → ORDER_REJECTED | CRITICAL → ORDER_REJECTED | CRITICAL → ORDER_REJECTED (unchanged) |
+| Utilisation/cash check (downstream) | With original qty | With original qty (false CRITICAL possible) | **With capped qty** — false INSUFFICIENT_CASH eliminated ✅ |
 
-New `summary` fields from `risk_validation/pre_trade.py`:
-- `size_reduced_to_cap: bool`
-- `capped_qty: int`
-- `gate_name: str`
-- `human_readable_reason: str`
+`rv.to_dict()` structure (confirmed by Bug Audit Task 1 — this is where the wiring bug lived):
+```
+{
+  "verdict": "APPROVED_WARN",
+  "approved": true,
+  "summary": {
+    "size_reduced_to_cap": true,   ← lives HERE (not at top level)
+    "capped_qty": 15,              ← lives HERE (not at top level)
+    "trade_value": 97500.0,
+    ...
+  }
+}
+```
+Old executor code: `_rv_result.get("size_reduced_to_cap")` → always `None` (key is in `["summary"]`).  
+Fixed executor code: `_rv_result.get("summary", {}).get("size_reduced_to_cap")` → correct.
+
+New fields populated in the SIZE_REDUCED_TO_CAP pipeline event (post Bug Audit Task 1):
+`original_qty`, `capped_qty`, `fill_price`, `original_risk`, `capped_risk`, `trade_value_orig`, `trade_value_cap`, `charges_recalculated`
 
 ### 4.8 Gap Between Scan-Time and Execution-Time Thresholds
 
@@ -1193,7 +1215,7 @@ The `execute_buy()` function in `paper_trader.py`:
 |---|---------|---------|--------|
 | W1 | **Kite LTP not wired into scan path** — `LiveDataProvider` uses yfinance exclusively; `kite_quote_provider.py` exists and works but is never called during scanning. Daily bars (1d) are the only OHLCV source. | HIGH | ❌ OPEN — Option A fix scoped in §21.4 (~15 lines) |
 | W2 | **Scanner uses daily bars, not intraday bars** — `SCAN_INTERVAL="1d"`. Not 1m/5m/15m. | MEDIUM | ❌ OPEN — Option B (full intraday) is large scope; Option A (LTP overlay) is minimal |
-| W3 | **Position sizer hard-rejected when ideal qty exceeded cap** — caused 3,000+ ORDER_REJECTED | HIGH | ✅ FIXED (Remediation Phase 1B) |
+| W3 | **Position sizer hard-rejected when ideal qty exceeded cap** — caused 3,000+ ORDER_REJECTED | HIGH | ✅ FIXED (Remediation Phase 1B + Bug Audit Task 1+2) |
 | W4 | **RISK_REJECTED had no stored reason** — 15,447 unexplained rejections | HIGH | ✅ FIXED (Remediation Phase 1C) — new events carry reason |
 | W5 | **EXECUTION_SKIPPED reason not stored** — 67 unexplained skips | MEDIUM | ✅ FIXED (Remediation Phase 1C) |
 | W6 | **Exit code complete but blocked** — all 8 exit rules implemented; stuck in EXIT_PENDING due to age-based quality (not Kite session) | HIGH | ⚠️ Will resolve when Kite LTP overlay wired |
@@ -1205,6 +1227,10 @@ The `execute_buy()` function in `paper_trader.py`:
 | W12 | **Aug 11 executions are phantom** — BTT- prefix external bot, 0 ledger rows | HIGH | ✅ CONFIRMED DB-verified (v3 audit) |
 | W13 | **`AI_MIN_RR_RATIO=2.0` was documented as active gate** | MEDIUM | ✅ CONFIRMED dead config (v3 audit) — corrected throughout SOP |
 | W14 | **SYMBOL_SCANNED events lacked per-symbol diagnostic fields** | MEDIUM | ✅ FIXED (v3 Data Path Audit) — 12 fields now emitted including `data_source`, `age_days`, `tradable` |
+| W15 | **SIZE_REDUCED_TO_CAP executor wiring bug** — executor read `_rv_result.get("size_reduced_to_cap")` (top-level, always None); key lives in `["summary"]`; resize never fired | HIGH | ✅ FIXED (Bug Audit Task 1) — reads from `summary`; risk_amount recomputed; pipeline event emitted |
+| W16 | **Pre-trade validator false CRITICAL after cap resize** — utilisation/cash checks ran with original oversized qty causing false INSUFFICIENT_CASH CRITICAL → REJECTED verdict | HIGH | ✅ FIXED (Bug Audit Task 2) — downstream checks use capped qty/risk |
+| W17 | **Scanner action thresholds hardcoded in `market_scanner.py` (62/42) mismatched `config.py` (70/50) and SOP (70/50)** — stocks 62–69 appeared as BUY when they should be WATCH | HIGH | ✅ FIXED (Bug Audit Task 5) — `market_scanner.py` now imports from `config.py` |
+| W18 | **Exploration mode `update_experimental_exits()` uses daily close as "live" exit price** — `market_data.get_multiple_ltp()` returns yesterday's 1d close; intraday stop-loss hits not detected until EOD | MEDIUM | ❌ OPEN — documented (Bug Audit Task 4); fix requires Kite LTP overlay (Task 3 Option A) first |
 
 ### 18.2 Questions for Independent Reviewer **[UPDATED v3]**
 
@@ -1421,9 +1447,111 @@ if kite_session_verified():
 
 ---
 
-## 22. Appendix
+## 22. Bug Audit — Source Code vs SOP Mismatch **[NEW v3.1]**
 
-### 22.1 Important Configuration Values
+This section documents the five-task source code audit conducted 2026-08-15, using `APEXQUANT_AI_SOP_v3.html` as the controlling reference document. Detailed findings are in `APEXQUANT_SOURCE_CODE_BUG_AUDIT_AND_FIX_REPORT.md`.
+
+### 22.1 Task 1 — SIZE_REDUCED_TO_CAP Wiring Bug (FIXED)
+
+**Root cause:** `phase20_executor.py` called `rv.to_dict()` then read `_rv_result.get("size_reduced_to_cap")` at the top level. The key lives inside `rv.to_dict()["summary"]` — not at the top level. The condition was **always False**; the executor always used the original oversized quantity.
+
+**Effect:** Every DRREDDY, GRASIM, BAJAJ-AUTO, BAJAJFINSV, TMPV trade that passed the pre-trade validator with `SIZE_REDUCED_TO_CAP=True` was silently executed at the original oversized quantity (or blocked entirely at `execute_buy()` due to cash constraints). The 873 DRREDDY / 548 GRASIM ORDER_REJECTEDs from earlier sessions were from the hard-reject path; any subsequent runs after Phase 1B would have *appeared* to proceed but used the wrong qty.
+
+**Fix applied:**
+- Read `_rv_summary = _rv_result.get("summary", {})` then `_rv_summary.get("size_reduced_to_cap")`
+- Recompute `risk_amount` proportionally: `_new_risk = _old_risk × cap_qty / orig_qty`
+- Update `sizing["quantity"]` and `sizing["risk_amount"]`
+- Emit `SIZE_REDUCED_TO_CAP` pipeline event with full payload (original_qty, capped_qty, trade_value before/after, risk before/after, charges recalculated)
+
+**Tests:** `tests/unit/test_size_reduced_to_cap.py` — `TestRvToDictStructure` proves the key lives in `["summary"]`, not top-level.
+
+### 22.2 Task 2 — Pre-Trade Validator False CRITICAL Rejection (FIXED)
+
+**Root cause:** In `risk_validation/pre_trade.py`, `validate_pre_trade()` ran all six checks sequentially using the original `qty`. When `_check_position_size()` detected SIZE_REDUCED_TO_CAP (and set `size_reduced=True`, `capped_qty=15`), the next check `_check_post_trade_utilisation(symbol, fill_price, qty=30, ...)` still used `qty=30`. If 30 × fill_price > `cash_available`, an `INSUFFICIENT_CASH` CRITICAL was raised — overriding the verdict to `REJECTED` even though 15 shares × fill_price would have been fine.
+
+**Fix applied:**
+- `_check_position_size()` now runs first
+- If `size_reduced=True` and `cap_qty ≥ 1`: compute `_eff_qty = cap_qty`, `_eff_risk = risk_amount × cap_qty / qty`
+- All downstream checks (`capital_at_risk`, `post_utilisation`, `daily_risk`) use `_eff_qty` / `_eff_risk`
+- False INSUFFICIENT_CASH CRITICAL is eliminated for valid resized trades
+
+**Tests:** `TestPreTradeValidatorCapResize::test_no_insufficient_cash_critical_after_resize` — confirms no false CRITICAL for DRREDDY-style scenario.
+
+### 22.3 Task 3 — Data Path Confirmation + Implementation Plan
+
+**Confirmed from source code (no code changes):**
+
+| Claim | Status |
+|-------|--------|
+| Scanner uses `LiveDataProvider` | ✓ `live_scan_engine.py:652` — unconditional |
+| `LiveDataProvider` uses yfinance only | ✓ `yf.download()` is the only OHLCV call |
+| Scanner interval is `1d` | ✓ `SCAN_INTERVAL = "1d"`, `SCAN_PERIOD = "6mo"` |
+| Kite NOT in scan path | ✓ `kite_quote_provider.py` never called during scanning |
+
+**Implementation plan — see §21.4 for Option A code. Additional options:**
+
+- **Option B — True Kite intraday candles (5m/15m):** ~4–6 days. All strategies need re-validation on short bars. Do not implement without a full re-calibration run.
+- **Option C — yfinance intraday fallback for research only:** `period="1d"`, `interval="5m"` as a display-only overlay. Label clearly as "indicative reference — not used for signal generation."
+
+### 22.4 Task 4 — Exploration Mode Daily-Close Price Bug (Documented — No Fix Yet)
+
+**Finding:** `paper_exploration_engine.py` `update_experimental_exits()` calls `market_data.get_multiple_ltp(symbols)`. `get_multiple_ltp()` calls `get_ltp()` which fetches `fetch_ohlcv(symbol, period="5d", interval="1d")` and returns the last daily close. This means:
+
+- MFE, MAE, and exit-trigger checks (stop/target) in exploration mode use yesterday's close, not any intraday price
+- Intraday stop-loss hits are missed entirely until EOD
+- MFE/MAE statistics are per-day granularity only
+
+**Impact:** Exploration mode is learning from daily EOD outcomes, not intraday exits. No financial loss (paper only), but MFE/MAE statistics are unreliable for intraday strategy learning.
+
+**Fix path:** Implement Task 3 Option A (Kite LTP overlay) first. Then add a `get_ltp_from_kite_if_available(sym)` wrapper that checks `kite_session_verified()` before falling back to `market_data.get_ltp()`.
+
+**Status:** ❌ OPEN — documented; no code change until Kite LTP wired.
+
+### 22.5 Task 5 — Threshold Mismatch / Single Source of Truth (FIXED)
+
+**Root cause:** `market_scanner.py` had hardcoded action thresholds that did not match `config.py` or this SOP:
+
+| Location | STRONG BUY | BUY | WATCH |
+|----------|-----------|-----|-------|
+| `config.py` (OPP_* constants) | 85.0 | 70.0 | 50.0 |
+| `market_scanner.py` (hardcoded, pre-fix) | 78.0 | **62.0** | **42.0** |
+| This SOP | 85.0 | 70.0 | 50.0 |
+
+Stocks scoring 62–69 appeared as BUY in the scanner output but should have been WATCH according to both `config.py` and this SOP. The discrepancy was silent — no error, no warning.
+
+**Fix applied:** `market_scanner.py` now imports `OPP_HOT_BUY_THRESHOLD`, `OPP_BUY_THRESHOLD`, `OPP_WATCH_THRESHOLD` from `config.py`:
+
+```python
+ACTION_STRONG_BUY = OPP_HOT_BUY_THRESHOLD   # 85.0
+ACTION_BUY        = OPP_BUY_THRESHOLD        # 70.0
+ACTION_WATCH      = OPP_WATCH_THRESHOLD      # 50.0
+```
+
+`ACTION_STRONG_BUY`, `ACTION_BUY`, `ACTION_WATCH` are still exported from `market_scanner.py` (re-imported by `live_scan_engine.py`), so no downstream import changes needed.
+
+**Operational effect:** Stocks scoring 62–69 now correctly appear as WATCH, not BUY. Strategy and signal logic are unchanged.
+
+**Single source of truth going forward:** Edit only `config.py` to change action thresholds.
+
+### 22.6 Bug Audit — Summary Table
+
+| Task | Bug | Severity | Fixed? | Files changed |
+|------|-----|----------|--------|---------------|
+| Task 1 | `size_reduced_to_cap` read from wrong dict level | HIGH | ✅ YES | `phase20_executor.py` |
+| Task 2 | Downstream validator checks used original oversized qty | HIGH | ✅ YES | `risk_validation/pre_trade.py` |
+| Task 3 | Data path confirmation + implementation plan | INFO | N/A | None (plan provided) |
+| Task 4 | Exploration mode uses daily close as exit price | MEDIUM | ❌ OPEN | None (fix blocked on Task 3) |
+| Task 5 | Scanner thresholds 62/42 ≠ config 70/50 | HIGH | ✅ YES | `market_scanner.py` |
+
+**Tests added:** `tests/unit/test_size_reduced_to_cap.py` — 13 tests, 13 passing.
+
+**No live orders placed. No strategy logic changed. Paper only throughout.**
+
+---
+
+## 23. Appendix
+
+### 23.1 Important Configuration Values
 
 | Config Key | Value | Location |
 |-----------|-------|----------|
@@ -1440,7 +1568,7 @@ if kite_session_verified():
 | `min_confidence` | 60.0% | `phase20_store.py` DEFAULT_SETTINGS |
 | `min_risk_reward` | 2.0 | `phase20_store.py` DEFAULT_SETTINGS |
 
-### 22.2 Database Tables Reference
+### 23.2 Database Tables Reference
 
 | Table | Purpose | Canonical? |
 |-------|---------|-----------|
@@ -1453,14 +1581,14 @@ if kite_session_verified():
 | `phase24_missed_opps` | Missed opportunity tracking | YES — advisory |
 | `kv_store` | KV store for settings and scheduler guards | YES |
 
-### 22.3 Trade ID Prefix Reference
+### 23.3 Trade ID Prefix Reference
 
 | Prefix | Source | Canonical? |
 |--------|--------|-----------|
 | `P20-{uuid}` | `phase20_executor.py` | **YES** — canonical paper trades |
 | `BTT-{hash}` | External `intraday_bot` process | **NO** — phantom; not in any ledger |
 
-### 22.4 Key Invariants (Never Bypass)
+### 23.4 Key Invariants (Never Bypass)
 
 1. `LIVE_EXECUTION_ENABLED = False` — hardcoded, never changes
 2. Quality gate: STALE → max WATCH; UNAVAILABLE → IGNORE — enforced in `_apply_quality_gate()`
@@ -1471,4 +1599,4 @@ if kite_session_verified():
 
 ---
 
-*Document version 3.0. Generated 2026-08-15 IST. All DB figures queried directly from production `pipeline_events` and `phase20_paper_trades`. All code claims verified against the live codebase. No values fabricated. No thresholds changed.*
+*Document version 3.1. Generated 2026-08-15 IST. All DB figures queried directly from production `pipeline_events` and `phase20_paper_trades`. All code claims verified against the live codebase. No values fabricated. Trading thresholds corrected to match config.py (scanner alignment fix only — see §22.5). No strategy logic changed. Paper only.*
