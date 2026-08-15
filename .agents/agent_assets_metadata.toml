@@ -397,3 +397,10 @@ uri = "file://BUY_CRITERIA_POSITION_SIZING_AUDIT.md"
 type = "text"
 title = "BUY Criteria + Position Sizing Audit"
 description = "Complete gate map, exact sizing math for every GLAND trade, WATCH-to-BUY forward-return analysis, volume gate time-of-day audit, and prioritized recommendations (nothing implemented)."
+
+[[outputs]]
+id = "KX3-q8J2DXs0kSarSDWrS"
+uri = "file://APEXQUANT_AI_SOP_v2.html"
+type = "text"
+title = "ApexQuant AI — Full Project SOP v2.0"
+description = "Updated SOP incorporating all Remediation Phase 1 findings and code fixes (1A code trace · 1B position sizing fix · 1C rejection reason logging · 1D exit logic audit). Includes corrected pipeline flow, threshold maps, Aug 11 phantom verdict, weakness tracker, 30-day roadmap, and full changes log."
