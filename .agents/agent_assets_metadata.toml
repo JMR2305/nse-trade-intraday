@@ -404,3 +404,10 @@ uri = "file://APEXQUANT_AI_SOP_v2.html"
 type = "text"
 title = "ApexQuant AI — Full Project SOP v2.0"
 description = "Updated SOP incorporating all Remediation Phase 1 findings and code fixes (1A code trace · 1B position sizing fix · 1C rejection reason logging · 1D exit logic audit). Includes corrected pipeline flow, threshold maps, Aug 11 phantom verdict, weakness tracker, 30-day roadmap, and full changes log."
+
+[[outputs]]
+id = "qkdA5BI49Ueq3-gRH6P76"
+uri = "file://APEXQUANT_AI_SOP_v3.html"
+type = "text"
+title = "ApexQuant AI — Full Project SOP v3.0"
+description = "Complete rebuild incorporating the Data Path & Intraday Truth Audit. Key corrections: yfinance-only architecture (no Kite in scan path), daily bars (1d) not intraday, AI_MIN_RR_RATIO confirmed dead config, Aug 11 phantom fills DB-verified (63 events / 0 ledger rows), per-symbol SYMBOL_SCANNED logging added, Kite LTP overlay scoped (~15 lines). All 22 sections updated."
