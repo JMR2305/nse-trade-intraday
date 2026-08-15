@@ -99,6 +99,33 @@ async function gotoMissionControlFull(page: import("@playwright/test").Page) {
   await page.getByTestId("mc-mobile-full-toggle").click();
 }
 
+// ── Wide-label mock ───────────────────────────────────────────────────────────
+
+/**
+ * A single stage whose label is long enough that its natural rendered width
+ * clearly exceeds 82 px — the previous fixed `w-[82px]` value.  The label
+ * is intentionally verbose so the test is independent of font metrics: even
+ * at the smallest plausible font rendering the text will be wider than 82 px.
+ */
+const WIDE_LABEL_STAGE = {
+  id: "WIDE_LABEL_STAGE",
+  label: "Very Long Pipeline Stage Label",
+  order: 1,
+  stocks_in: 50,
+  stocks_out: 45,
+  rejected: 5,
+  pending: 0,
+  cancelled: 0,
+  duration_ms: 1200,
+  status: "COMPLETED",
+};
+
+const MOCK_REPLAY_WIDE = {
+  scan_id: "test-wide-label",
+  snapshot_ts: new Date().toISOString(),
+  stages: [WIDE_LABEL_STAGE],
+};
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 test.describe("Mission Map — 375 px phone horizontal scroll", () => {
@@ -171,5 +198,72 @@ test.describe("Mission Map — 375 px phone horizontal scroll", () => {
     // After scrolling, the last stage must still be accessible in the DOM and
     // not have been removed or hidden by the scroll operation.
     await expect(page.getByTestId(lastStageId)).toBeAttached();
+  });
+
+  // ── New tests: w-auto min-w-[82px] width-change assertions ─────────────────
+
+  test("stage box with a label longer than 82 px grows beyond the minimum width", async ({
+    page,
+  }) => {
+    // Override the replay endpoint with a single wide-label stage.  The route
+    // registered here takes LIFO precedence over the one in beforeEach so the
+    // catch-all and the short-label stages are never served.
+    await page.route("**/api/replay/sessions/latest**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(MOCK_REPLAY_WIDE),
+      }),
+    );
+
+    await gotoMissionControlFull(page);
+
+    const stageTestId = `mc-map-stage-${WIDE_LABEL_STAGE.id.toLowerCase()}`;
+    const box = page.getByTestId(stageTestId);
+    await expect(box).toBeAttached({ timeout: 15_000 });
+
+    // The `w-auto min-w-[82px]` classes mean the box must stretch to fit its
+    // content when the label exceeds 82 px.  getBoundingClientRect().width is
+    // the rendered pixel width including padding.
+    const boxWidth = await box.evaluate((el) =>
+      el.getBoundingClientRect().width,
+    );
+    expect(
+      boxWidth,
+      `Stage box for label "${WIDE_LABEL_STAGE.label}" should grow beyond 82 px but measured ${boxWidth} px`,
+    ).toBeGreaterThan(82);
+  });
+
+  test("scroll container remains scrollable at 375 px when boxes are wider than 82 px", async ({
+    page,
+  }) => {
+    // Use the wide-label mock so at least one box forces the row to overflow.
+    await page.route("**/api/replay/sessions/latest**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ...MOCK_REPLAY_WIDE,
+          // Add a second stage so the row definitely overflows 375 px.
+          stages: [
+            WIDE_LABEL_STAGE,
+            { ...WIDE_LABEL_STAGE, id: "WIDE_LABEL_STAGE_2", label: "Another Very Long Stage Label", order: 2 },
+          ],
+        }),
+      }),
+    );
+
+    await gotoMissionControlFull(page);
+
+    const flow = page.getByTestId("mc-mission-map-flow");
+    await expect(flow).toBeVisible({ timeout: 15_000 });
+
+    const isScrollable = await flow.evaluate(
+      (el) => el.scrollWidth > el.clientWidth,
+    );
+    expect(
+      isScrollable,
+      "Scroll container must be scrollable (scrollWidth > clientWidth) at 375 px when boxes are wider than 82 px",
+    ).toBe(true);
   });
 });
