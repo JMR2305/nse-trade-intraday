@@ -110,3 +110,4 @@
 - [Durable portfolio repos](portfolio-durable-repos.md) — recover-first startup w/ canonical-ledger cross-check; DB idempotency dedupe; serial id is the only cross-process sequence; unit tests must set all portfolio DB kill-switches.
 - [Backtest scheduler cold-start fix](backtest-scheduler-coldstart.md) — bt_queue_tick_cmd.py is the lightweight scheduler tick (116ms cold); never use main.py for scheduler ticks; scan is 93% of replay time (370s floor for 5-sym 15m 30d).
 - [TATAMOTORS demerger mapping](tatamotors-demerger-mapping.md) — TATAMOTORS.NS is dead; use TMPV+TMCV; NIFTY_50 is now 51; _meta(50) tests must become _meta(MIN_SYMBOLS_EXPECTED).
+- [Phase 27E/27F test conventions](phase27ef-tests.md) — frontend vitest needs PORT=9999 BASE_PATH=/trading-dashboard/; Python check_* fns are pure (inject inputs dict directly, no patching needed for most).

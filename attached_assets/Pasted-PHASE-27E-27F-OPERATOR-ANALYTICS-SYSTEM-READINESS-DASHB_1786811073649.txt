@@ -1,0 +1,682 @@
+PHASE 27E + 27F — OPERATOR ANALYTICS + SYSTEM READINESS DASHBOARD
+
+PROJECT
+ApexQuant AI — NSE Intraday Trading Platform
+
+MODE
+PAPER TRADING / RESEARCH ONLY
+
+OBJECTIVE
+Implement Phase 27E and Phase 27F as two coordinated but independently testable workstreams.
+
+IMPORTANT ARCHITECTURE RULE
+Do NOT create duplicate trading logic, duplicate portfolio calculations, duplicate pipeline state, or alternate decision engines.
+
+Consume the existing canonical sources wherever applicable:
+- Pipeline Event Store
+- Unified replay/session snapshot
+- canonical portfolio snapshot
+- scan/cycle logs
+- existing execution/order/trade records
+- existing monitoring/health data
+- existing backtest/replay infrastructure
+
+Phase 27E/F must be observational/analytical.
+
+They must NOT:
+- place live orders
+- alter strategy parameters automatically
+- create independent BUY/HOLD/WATCH decisions
+- bypass canonical risk/strategy/execution logic
+- fabricate unavailable data
+
+========================================================
+PHASE 27E — OPERATOR ANALYTICS
+========================================================
+
+GOAL
+
+Create an Operator Analytics capability that helps the human operator understand how ApexQuant AI has been behaving over time.
+
+This should answer questions such as:
+
+1. How many symbols entered each pipeline stage?
+2. Where are symbols being rejected?
+3. Which rejection reasons are most common?
+4. Which agents/stages contribute most to filtering?
+5. How long does each stage take?
+6. How often does the system generate BUY / WATCH / HOLD / REJECT outcomes?
+7. What happens to candidates after an initial signal?
+8. How does performance vary by:
+   - strategy
+   - sector
+   - market regime
+   - time of day
+   - confidence band
+   - signal type
+9. How frequently do risk controls block otherwise-qualified candidates?
+10. Which operational bottlenecks or unusual behaviours require attention?
+
+--------------------------------------------------------
+27E.1 PIPELINE FUNNEL
+--------------------------------------------------------
+
+Build a pipeline funnel using canonical event-store data.
+
+Show:
+
+Universe
+→ Scanner
+→ Research
+→ Market Intelligence
+→ Monitoring
+→ Strategy
+→ Risk
+→ AI Decision
+→ Execution
+→ Portfolio
+
+For each stage show:
+
+- symbols entering
+- symbols exiting
+- rejected
+- pending
+- conversion %
+- average processing time
+- median processing time where data allows
+- p95 processing time where data allows
+
+Allow comparison by scan cycle/session.
+
+Never infer missing events.
+
+If a stage did not emit sufficient data, explicitly show:
+"Insufficient telemetry"
+
+--------------------------------------------------------
+27E.2 REJECTION ANALYTICS
+--------------------------------------------------------
+
+Aggregate canonical rejection reasons.
+
+Show:
+
+- rejection reason
+- stage/agent responsible
+- count
+- percentage
+- affected symbols
+- recent trend
+- session distribution
+
+Support drill-down from a rejection reason to the underlying pipeline/event records.
+
+Do not invent normalized categories if canonical rejection codes already exist.
+
+If normalization is useful, preserve both:
+- canonical reason/code
+- display grouping
+
+--------------------------------------------------------
+27E.3 DECISION DISTRIBUTION
+--------------------------------------------------------
+
+Show canonical outcomes over selected periods:
+
+BUY
+WATCH
+HOLD
+REJECT
+NO_ACTION
+
+Use only outcomes actually represented in the canonical data model.
+
+Display:
+
+- count
+- percentage
+- trend
+- symbol distribution
+- sector distribution
+- market-regime distribution where available
+
+Do NOT calculate independent trading recommendations.
+
+--------------------------------------------------------
+27E.4 RISK INTERVENTION ANALYTICS
+--------------------------------------------------------
+
+Show where Risk prevented or modified progression.
+
+Examples, depending on existing canonical fields:
+
+- capital constraint
+- max position size
+- exposure constraint
+- sector limit
+- daily loss/risk limit
+- stop-loss/risk-reward rule
+- liquidity rule
+- kill switch
+- stale-data guard
+- execution safety rule
+
+Use existing reason codes and risk events.
+
+Show:
+
+Candidate signals
+→ Passed Risk
+→ Blocked by Risk
+
+Provide drill-down.
+
+--------------------------------------------------------
+27E.5 PERFORMANCE ANALYTICS
+--------------------------------------------------------
+
+Using canonical paper-trade/backtest data, provide analytical breakdowns where data exists:
+
+- win rate
+- realised P&L
+- unrealised P&L where relevant
+- average return/trade
+- average R:R
+- drawdown
+- trade count
+
+Break down by available dimensions such as:
+
+- strategy
+- symbol
+- sector
+- market regime
+- time bucket
+- confidence bucket
+- BUY source / signal family
+
+IMPORTANT:
+Do not mix live-paper statistics with historical backtest statistics without labeling them separately.
+
+Every chart/card must indicate its data source and analysis period.
+
+--------------------------------------------------------
+27E.6 TIME-OF-DAY ANALYTICS
+--------------------------------------------------------
+
+Where sufficient samples exist, analyze canonical historical activity by NSE session time bucket.
+
+Examples:
+
+09:15–09:30
+09:30–10:00
+10:00–11:00
+11:00–13:00
+13:00–14:30
+14:30–15:15
+15:15–15:30
+
+Use existing timezone/session utilities rather than hard-coding another market calendar if one already exists.
+
+Show signal count / trade count / outcomes only where supported.
+
+--------------------------------------------------------
+27E.7 OPERATOR ANALYTICS UI
+--------------------------------------------------------
+
+Create an Operator Analytics page or extend the canonical operations area, following the existing ApexQuant AI UI conventions.
+
+Suggested route:
+
+/operator-analytics
+
+Sections:
+
+1. Session summary
+2. Pipeline funnel
+3. Stage timing
+4. Rejection breakdown
+5. Decision distribution
+6. Risk intervention analytics
+7. Performance breakdown
+8. Time-of-day analytics
+9. Drill-down/event evidence
+
+Responsive desktop + mobile.
+
+Do not use frontend-only counters as authoritative metrics.
+
+========================================================
+PHASE 27F — SYSTEM READINESS DASHBOARD
+========================================================
+
+GOAL
+
+Build a single readiness view answering:
+
+"Is ApexQuant AI ready to safely run the next/current paper-trading session?"
+
+This is an operational readiness dashboard, NOT a trading signal dashboard.
+
+Suggested route:
+
+/system-readiness
+
+--------------------------------------------------------
+27F.1 READINESS DOMAINS
+--------------------------------------------------------
+
+Evaluate readiness using existing canonical health/status/configuration sources.
+
+At minimum inspect whether existing infrastructure can expose:
+
+A. Market Data
+B. Zerodha/Kite connectivity/authentication
+C. Instrument master/universe
+D. Database/persistence
+E. Pipeline/event store
+F. Scanner
+G. Market Intelligence
+H. Strategy engine
+I. Risk engine
+J. Execution engine
+K. Paper trader
+L. Portfolio state
+M. Replay/recovery system
+N. Scheduled jobs
+O. Freshness/staleness guards
+P. Kill switch / safety controls
+Q. Required feature flags/configuration
+
+Do not invent synthetic health checks when a canonical health indicator already exists.
+
+--------------------------------------------------------
+27F.2 READINESS STATES
+--------------------------------------------------------
+
+Use a clear status model such as:
+
+READY
+WARNING
+BLOCKED
+UNKNOWN
+
+But first inspect existing status enums/health models.
+
+Reuse existing canonical states if available rather than introducing unnecessary duplicates.
+
+Each readiness check must show:
+
+- component
+- status
+- evidence
+- last checked
+- expected condition
+- actual condition
+- blocking/non-blocking
+- remediation guidance
+
+UNKNOWN must be used when evidence is unavailable.
+
+Never convert missing evidence into READY.
+
+--------------------------------------------------------
+27F.3 SESSION READINESS SUMMARY
+--------------------------------------------------------
+
+At the top show:
+
+Overall readiness
+
+READY / WARNING / BLOCKED / UNKNOWN
+
+Also show:
+
+- market/session state
+- last successful scan
+- data freshness
+- broker authentication status
+- canonical portfolio health
+- persistence health
+- pipeline health
+- risk system health
+- paper-execution health
+- recovery/replay health
+
+Overall status should be derived deterministically from underlying checks.
+
+A BLOCKING failure must prevent overall READY.
+
+--------------------------------------------------------
+27F.4 PRE-MARKET READINESS
+--------------------------------------------------------
+
+Integrate existing pre-open/premarket infrastructure if present.
+
+Check things such as:
+
+- required authentication
+- latest instruments/universe
+- market-data availability
+- stale-data status
+- configured pre-open validation
+- scheduled scan readiness
+- previous-session recovery
+- portfolio consistency
+- risk controls
+- paper trading mode
+
+Do not duplicate the pre-open engine.
+
+This page should only report its readiness/status.
+
+--------------------------------------------------------
+27F.5 SAFETY VERIFICATION
+--------------------------------------------------------
+
+Readiness must verify the current execution mode.
+
+For the current project it should clearly display:
+
+PAPER TRADING
+
+and verify that live-order placement is not accidentally enabled.
+
+If a configuration inconsistency suggests live execution could be active, classify the condition as BLOCKED or the strongest existing equivalent.
+
+Do not expose secrets/API credentials.
+
+--------------------------------------------------------
+27F.6 DATA FRESHNESS
+--------------------------------------------------------
+
+Show freshness for critical dependencies.
+
+Examples:
+
+- latest market quote/candle
+- latest completed scan
+- latest pipeline event
+- latest portfolio snapshot
+- latest broker/session validation
+- latest instrument sync
+- latest recovery/consistency check
+
+Use existing configured freshness thresholds.
+
+Do not introduce conflicting hard-coded thresholds if canonical settings exist.
+
+--------------------------------------------------------
+27F.7 RECOVERY READINESS
+--------------------------------------------------------
+
+Show evidence that the application could recover safely after restart.
+
+Use existing Phase 7/23/etc. recovery infrastructure where applicable.
+
+Display:
+
+- persistence available
+- latest replay/session recoverable
+- portfolio consistency status
+- journal/event-store status
+- unresolved recovery errors
+
+Do not implement another recovery engine.
+
+--------------------------------------------------------
+27F.8 READINESS CHECK HISTORY
+--------------------------------------------------------
+
+If the existing persistence model allows this cleanly, persist readiness snapshots so operators can inspect:
+
+- timestamp
+- overall state
+- failed checks
+- warnings
+- duration
+- session/date
+
+Avoid introducing a heavy new subsystem solely for history.
+
+Use existing event/audit infrastructure if appropriate.
+
+--------------------------------------------------------
+27F.9 UI
+--------------------------------------------------------
+
+Create a clean System Readiness page.
+
+Suggested layout:
+
+TOP:
+Overall readiness banner
+
+Then:
+
+Market & Data
+Broker & Authentication
+Pipeline
+Strategy & Risk
+Execution
+Portfolio
+Persistence & Recovery
+Scheduling
+Safety Controls
+Configuration
+
+Each row/card should show:
+
+status
+evidence
+last check
+blocking indicator
+
+Include a "Run readiness check" control only if it calls safe read-only validation.
+
+It must NOT initiate trading.
+
+========================================================
+27E + 27F SHARED REQUIREMENTS
+========================================================
+
+1. CANONICAL DATA ONLY
+
+Do not duplicate:
+- portfolio metrics
+- pipeline counters
+- decision logic
+- risk calculations
+- trade outcomes
+- market state
+
+2. READ-ONLY / SAFE
+
+Phase 27E and 27F are observational.
+
+No automatic strategy modifications.
+No automatic parameter tuning.
+No live-order placement.
+
+3. EXISTING INFRASTRUCTURE FIRST
+
+Before creating any new:
+- endpoint
+- schema
+- database table
+- enum
+- calculation
+- health checker
+
+search the codebase for an existing canonical implementation.
+
+Reuse or extend it.
+
+4. HONESTY / UNKNOWN STATE
+
+Missing telemetry must appear as:
+
+UNKNOWN
+INSUFFICIENT DATA
+NOT AVAILABLE
+
+as appropriate.
+
+Never fake green/READY data.
+
+5. SOURCE TRACEABILITY
+
+For important metrics/checks, make source/evidence inspectable.
+
+Operator should be able to understand where the value came from.
+
+6. PERFORMANCE
+
+Avoid expensive full-event-history scans on every frontend refresh.
+
+Reuse existing aggregate queries/indexes where possible.
+
+Add indexes only where justified.
+
+7. MOBILE RESPONSIVENESS
+
+Verify both new pages on desktop and mobile.
+
+8. TESTS
+
+Add unit/integration tests covering:
+
+27E:
+- funnel calculation
+- rejection aggregation
+- decision aggregation
+- risk intervention aggregation
+- empty/partial data
+- scan/session isolation
+- deterministic aggregation
+
+27F:
+- READY state
+- WARNING state
+- BLOCKED state
+- UNKNOWN state
+- stale data
+- unavailable dependency
+- paper/live execution-mode validation
+- overall readiness derivation
+- missing telemetry cannot produce READY
+
+9. REGRESSION
+
+Run existing relevant test suites.
+
+Do not modify existing tests merely to force them green.
+
+Document unrelated pre-existing failures separately.
+
+========================================================
+DEPENDENCY / PARALLELISM RULES
+========================================================
+
+27E and 27F may be developed in parallel.
+
+They may also run concurrently with Phase 27C and 27D IF:
+
+- each consumes canonical event/replay/portfolio data
+- no duplicate business logic is created
+- shared schemas/interfaces are coordinated
+- migrations are not independently created for the same concern
+- no agent modifies canonical trading decisions
+
+If shared files must be changed by multiple Phase 27 tracks, coordinate those changes rather than overwriting one another.
+
+========================================================
+IMPLEMENTATION PROCESS
+========================================================
+
+STEP 1
+Audit the existing repository and map every required metric/check to its canonical source.
+
+STEP 2
+Produce a short implementation map:
+
+Requirement
+→ existing source
+→ existing API/service
+→ extension required
+→ new code required
+
+STEP 3
+Implement 27E and 27F.
+
+Do not stop after planning unless a genuine architectural blocker is found.
+
+STEP 4
+Run targeted tests.
+
+STEP 5
+Run regression tests.
+
+STEP 6
+Review for duplicate sources/calculations.
+
+STEP 7
+Verify desktop/mobile UI.
+
+STEP 8
+Perform an architect/code-review pass and fix valid findings.
+
+========================================================
+DELIVERABLES
+========================================================
+
+Create:
+
+PHASE27E_SUMMARY.md
+PHASE27E_VERIFICATION.md
+
+PHASE27F_SUMMARY.md
+PHASE27F_VERIFICATION.md
+
+And:
+
+PHASE27_EF_FINAL_VERIFICATION.md
+
+Final report must include:
+
+- files created/modified
+- canonical data-source map
+- APIs reused/added
+- DB changes, if any
+- test counts/results
+- UI routes
+- screenshots/viewport verification
+- known limitations
+- pre-existing failures
+- duplicate-source audit
+- safety/read-only verification
+- readiness-state derivation
+- final verdict for 27E
+- final verdict for 27F
+
+========================================================
+SUCCESS CRITERIA
+========================================================
+
+27E PASS:
+Operator Analytics accurately explains system behaviour using canonical historical/event data without generating independent trading decisions.
+
+27F PASS:
+System Readiness gives an evidence-backed determination of whether ApexQuant AI is operationally ready for paper trading, and missing/failed critical evidence can never result in READY.
+
+FINAL REQUIREMENT:
+
+Do not mark Phase 27E or 27F COMPLETE until:
+- implementation is finished
+- tests pass
+- regression is checked
+- canonical-source reuse is verified
+- UI is verified
+- architect/code review is complete
+- final verification report is generated.
