@@ -67,3 +67,38 @@ None. All test suites that existed before Phase 27E continue to pass.
 **Phase 27E — PASS**
 
 Operator Analytics accurately explains system behaviour using canonical historical/event data without generating independent trading decisions.
+
+## 2b. Frontend component tests
+```
+pnpm --filter trading-dashboard exec vitest run src/pages/OperatorAnalytics.test.tsx → 10 passed
+```
+- page renders without crash with full mock payload — PASS
+- SourcesBanner shown when sources unavailable/truncated — PASS
+- funnel stages render with `funnel-stage-<id>` data-testids — PASS
+- rejection rows expand/collapse on click (drill-down) — PASS
+- EvidenceBadge renders SOURCE_UNAVAILABLE / PARTIAL correctly — PASS
+- loading and error states (incl. Retry button) render correctly — PASS
+
+
+## 2. Unit tests
+```
+cd artifacts/api-server/src/python
+python -m pytest tests/unit/test_phase27e_operator_analytics.py -q → 31 passed
+python -m pytest test_phase27_operator_analytics.py -q            → 21 passed
+```
+Covers (per spec criterion — all PASS):
+- funnel calculation from replay stages (conversion %, 0-in → None) — PASS
+- rejection aggregation: reason codes verbatim, pct-of-occurrences,
+  rejected-EVENT vs reason-OCCURRENCE distinction — PASS
+- decision distribution: event counts + snapshot splits; splits omitted on
+  scan mismatch — PASS
+- risk intervention aggregation (risk + portfolio pre-check, block rate
+  None when no candidates) — PASS
+- empty/partial data paths: SOURCE_UNAVAILABLE / PARTIAL / VERIFIED_EMPTY
+  evidence states end-to-end — PASS
+- scan/session isolation: demo sessions excluded from session list and
+  trends; per-scan events never leak across trend points — PASS
+- deterministic aggregation (same input → same output) — PASS
+- `operator_analytics_report()` returns `ok=True` with all required keys;
+  replay/event-store failures surfaced, never fatal — PASS
+

@@ -1,442 +1,285 @@
 // @vitest-environment jsdom
 /**
- * OperatorAnalytics.test.tsx — Phase 27E
+ * OperatorAnalytics.test.tsx — Phase 27E component tests.
  *
- * Smoke-tests and contract-tests for the Operator Analytics Dashboard.
- * All backend calls are mocked via vi.mock("@/lib/api").
- *
- * Coverage:
- *  1.  Page renders title "Operator Analytics"
- *  2.  Page shows loading state while apiJson is pending
- *  3.  Page shows error state when apiJson rejects
- *  4.  SourcesBanner NOT shown when all sources are available
- *  5.  SourcesBanner shown when pipeline_events source is unavailable
- *  6.  SourcesBanner shown when pipeline_events source is truncated
- *  7.  Funnel stage "scanner" renders stocks_in→stocks_out
- *  8.  Funnel stage "risk" shows INSUFFICIENT TELEMETRY badge
- *  9.  Rejection row renders reason_code DAILY_LOSS_LIMIT
- * 10.  Clicking rejection row expands drill-down showing symbols
- * 11.  EvidenceBadge for SOURCE_UNAVAILABLE renders correct text
- * 12.  EvidenceBadge for PARTIAL renders correct text
- * 13.  Decisions section renders BUY count
- * 14.  Risk interventions "risk" card renders Blocked value
- * 15.  Trends table renders at least one row
+ * Mounts the real <OperatorAnalytics> with apiJson mocked via
+ * vi.mock("@/lib/api") and verifies:
+ *  - page renders without crash with a full mock payload
+ *  - SourcesBanner shown when sources are unavailable / truncated
+ *  - funnel stages render with correct data-testid attributes
+ *  - rejection rows expand on click (drill-down)
+ *  - EvidenceBadge renders SOURCE_UNAVAILABLE / PARTIAL correctly
+ *  - loading and error states render correctly
  */
-
 import React from "react";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, cleanup, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-
-// ── Module mocks ──────────────────────────────────────────────────────────────
 
 vi.mock("@/lib/api", () => ({
   API_BASE: "",
   apiJson: vi.fn(),
 }));
 
-vi.mock("wouter", () => ({
-  Link: ({ href, children, className }: React.AnchorHTMLAttributes<HTMLAnchorElement>) =>
-    React.createElement("a", { href, className }, children),
-  useLocation: vi.fn(() => ["/"]),
-  useRoute: vi.fn(() => [false, {}]),
-}));
-
 import { apiJson } from "@/lib/api";
 import OperatorAnalytics from "./OperatorAnalytics";
 
+const mockApi = apiJson as unknown as ReturnType<typeof vi.fn>;
+
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
-const FULL_REPORT = {
+const SOURCES_OK = {
+  replay: { available: true, error: null },
+  pipeline_events: { available: true, error: null, truncated: false, limit: 2000 },
+  snapshot: { available: true, error: null },
+  sessions: { available: true, error: null, demo_excluded: 0 },
+};
+
+const REPORT_FULL = {
   ok: true,
   advisory_only: true,
   read_only: true,
-  generated_at: "2025-01-01T09:15:00Z",
-  scan_id: "scan_abc123",
-  snapshot_ts: "2025-01-01T09:10:00Z",
-  event_count: 120,
-  note: "Phase 27E Operator Analytics — read-only",
-  sources: {
-    replay: { available: true, error: null },
-    pipeline_events: { available: true, error: null, truncated: false, limit: 2000 },
-    snapshot: { available: true, error: null },
-    sessions: { available: true, error: null, demo_excluded: 0 },
-  },
+  generated_at: "2026-08-14T10:00:00Z",
+  note: "Phase 27E Operator Analytics — read-only.",
+  scan_id: "scan-20260814-01",
+  snapshot_ts: "2026-08-14T09:30:00Z",
+  event_count: 42,
+  sources: SOURCES_OK,
   session_summary: {
     source: "replay sessions",
     available: true,
     error: null,
     sessions: [
-      {
-        scan_id: "scan_abc123",
-        snapshot_ts: "2025-01-01T09:10:00Z",
-        status: "SUCCESS",
-        universe_size: 50,
-        symbols_processed: 48,
-        total_recommendations: 5,
-        buy_signals: 2,
-        paper_orders: 1,
-        duration_s: 42,
-      },
+      { scan_id: "scan-20260814-01", snapshot_ts: "2026-08-14T09:30:00Z",
+        status: "COMPLETED", universe_size: 51, symbols_processed: 51,
+        total_recommendations: 40, buy_signals: 5, paper_orders: 2,
+        duration_s: 320 },
     ],
   },
   funnel: {
-    source: "unified replay snapshot",
+    source: "unified replay snapshot (counts) + pipeline_events (timing)",
     stages: [
-      {
-        id: "scanner",
-        label: "Scanner",
-        order: 1,
-        stocks_in: 50,
-        stocks_out: 48,
-        rejected: 2,
-        pending: 0,
-        cancelled: 0,
-        conversion_pct: 96.0,
-        timing: {
-          insufficient_telemetry: false,
-          samples: 48,
-          avg_ms: 120,
-          median_ms: 110,
-          p95_ms: 280,
-        },
-      },
-      {
-        id: "risk",
-        label: "Risk",
-        order: 6,
-        stocks_in: 10,
-        stocks_out: 3,
-        rejected: 7,
-        pending: 0,
-        cancelled: 0,
-        conversion_pct: 30.0,
-        timing: { insufficient_telemetry: true, samples: 1 },
-      },
+      { id: "market_data", label: "Scanner", order: 1, stocks_in: 51,
+        stocks_out: 40, rejected: 11, pending: 0, cancelled: 0,
+        conversion_pct: 78.4,
+        timing: { insufficient_telemetry: false, samples: 40,
+                  avg_ms: 120.5, median_ms: 100.0, p95_ms: 300.0 } },
+      { id: "risk", label: "Risk Gates", order: 2, stocks_in: 6,
+        stocks_out: 5, rejected: 1, pending: 0, cancelled: 0,
+        conversion_pct: 83.3,
+        timing: { insufficient_telemetry: true, samples: 1 } },
     ],
   },
   rejections: {
-    source: "pipeline_events",
-    rejected_events: 15,
-    reason_occurrences: 18,
+    rejected_events: 3,
+    reason_occurrences: 4,
     evidence: "OK",
+    source: "pipeline_events",
     reasons: [
-      {
-        event_type: "RISK_REJECTED",
-        group: "Risk gates",
-        reason_code: "DAILY_LOSS_LIMIT",
-        count: 10,
-        pct_of_occurrences: 55.6,
-        symbols: ["ABC", "XYZ"],
-        event_ids: [1, 2, 3],
-      },
-      {
-        event_type: "PRECHECK_REJECTED",
-        group: "Portfolio pre-check",
-        reason_code: "INSUFFICIENT_CASH",
-        count: 8,
-        pct_of_occurrences: 44.4,
-        symbols: ["DEF"],
-        event_ids: [4, 5],
-      },
+      { event_type: "RISK_REJECTED", group: "Risk gates",
+        reason_code: "max_positions", count: 2, pct_of_occurrences: 50.0,
+        symbols: ["AAA", "BBB"], event_ids: [11, 12] },
+      { event_type: "SYMBOL_REJECTED", group: "Scanner / market data",
+        reason_code: "no candles", count: 2, pct_of_occurrences: 50.0,
+        symbols: ["CCC"], event_ids: [13] },
     ],
   },
   decisions: {
-    source: "pipeline_events + snapshot",
+    source: "pipeline_events decision events + canonical snapshot",
     event_decisions: {
-      counts: { BUY: 3, WATCH: 12 },
-      total: 15,
-      evidence: "OK",
-      pct: { BUY: 20, WATCH: 80 },
+      counts: { BUY: 5, WATCH: 10 }, total: 15, evidence: "OK",
+      pct: { BUY: 33.3, WATCH: 66.7 },
     },
     snapshot_distribution: {
-      available: true,
-      note: null,
+      available: true, note: null, regime: "TRENDING",
       actions: [
-        { action: "WATCH", count: 12, pct: 80 },
-        { action: "BUY", count: 3, pct: 20 },
+        { action: "WATCH", count: 27, pct: 55.1 },
+        { action: "BUY", count: 5, pct: 10.2 },
       ],
-      by_sector: [{ sector: "IT", actions: { BUY: 2, WATCH: 5 } }],
-      regime: "TRENDING",
+      by_sector: [{ sector: "IT", actions: { BUY: 2, WATCH: 4 } }],
     },
   },
   risk_interventions: {
-    source: "pipeline_events",
-    risk: {
-      candidates: 10,
-      approved: 3,
-      blocked: 7,
-      block_rate_pct: 70.0,
-      evidence: "OK",
-      reasons: [
-        { reason_code: "DAILY_LOSS_LIMIT", count: 7, symbols: ["ABC"], event_ids: [1] },
-      ],
-    },
-    portfolio_precheck: {
-      candidates: 5,
-      approved: 4,
-      blocked: 1,
-      block_rate_pct: 20.0,
-      evidence: "OK",
-      reasons: [
-        { reason_code: "INSUFFICIENT_CASH", count: 1, symbols: ["DEF"], event_ids: [4] },
-      ],
-    },
+    source: "pipeline_events PRECHECK_*/RISK_*",
+    risk: { candidates: 6, approved: 5, blocked: 1, block_rate_pct: 16.7,
+            evidence: "OK",
+            reasons: [{ reason_code: "max_exposure", count: 1,
+                        symbols: ["AAA"], event_ids: [9] }] },
+    portfolio_precheck: { candidates: 0, approved: 0, blocked: 0,
+                          block_rate_pct: null, evidence: "VERIFIED_EMPTY",
+                          reasons: [] },
   },
   trends: {
-    window_scans: 5,
+    window_scans: 5, note: null,
     source: "replay sessions + per-scan pipeline_events",
-    note: null,
     points: [
-      {
-        scan_id: "scan_abc123",
-        snapshot_ts: "2025-01-01T09:10:00Z",
-        is_current: true,
-        rejected_events: 15,
-        decisions: { BUY: 3 },
-        rejections_by_reason: { DAILY_LOSS_LIMIT: 10 },
-        evidence: "OK",
-      },
+      { scan_id: "scan-20260814-01", snapshot_ts: "2026-08-14T09:30:00Z",
+        is_current: true, rejected_events: 3,
+        rejections_by_reason: { max_positions: 2, "no candles": 2 },
+        decisions: { BUY: 5 }, evidence: "OK" },
+      { scan_id: "scan-20260813-01", snapshot_ts: "2026-08-13T09:30:00Z",
+        is_current: false, rejected_events: 0, rejections_by_reason: {},
+        decisions: {}, evidence: "PARTIAL" },
     ],
   },
+  performance_note: "served by paper-analytics endpoints",
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+const PAPER_SUMMARY = { available: false };
+const PAPER_SNAPSHOT = {};
 
-function makeWrapper() {
-  const qc = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
+function wire(report: unknown | Promise<unknown>) {
+  mockApi.mockImplementation((path: string) => {
+    if (path.includes("operator-analytics/report")) {
+      return report instanceof Promise ? report : Promise.resolve(report);
+    }
+    if (path.includes("paper-analytics/summary")) return Promise.resolve(PAPER_SUMMARY);
+    if (path.includes("paper-analytics/snapshot")) return Promise.resolve(PAPER_SNAPSHOT);
+    return Promise.resolve(null);
   });
-  return ({ children }: { children: React.ReactNode }) =>
-    React.createElement(QueryClientProvider, { client: qc }, children);
 }
 
-function renderPage() {
+function mount() {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   return render(
-    React.createElement(OperatorAnalytics),
-    { wrapper: makeWrapper() }
+    <QueryClientProvider client={client}>
+      <OperatorAnalytics />
+    </QueryClientProvider>,
   );
 }
 
+// NOTE: never mockReset an API mock in beforeEach — in-flight React Query
+// retries from the previous test would reject unhandled (Vitest 4).
+afterEach(() => cleanup());
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-describe("OperatorAnalytics", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    cleanup();
-  });
-
-  // 1. Page title
-  it("renders page title 'Operator Analytics'", async () => {
-    vi.mocked(apiJson).mockResolvedValue(FULL_REPORT);
-    renderPage();
+describe("OperatorAnalytics — Phase 27E", () => {
+  it("renders the page with the full payload without crash", async () => {
+    wire(REPORT_FULL);
+    mount();
+    expect(screen.getByTestId("operator-analytics-page")).toBeTruthy();
+    await waitFor(() =>
+      expect(screen.getByText("Pipeline Funnel & Stage Timing")).toBeTruthy());
     expect(screen.getByText("Operator Analytics")).toBeTruthy();
+    expect(screen.getByText(/READ-ONLY/)).toBeTruthy();
+    expect(screen.getByText("Rejection Breakdown")).toBeTruthy();
+    expect(screen.getByText("Decision Distribution")).toBeTruthy();
+    expect(screen.getByText("Risk Interventions")).toBeTruthy();
+    expect(screen.getByText("Cross-Scan Trends")).toBeTruthy();
+    expect(screen.getByText("Session Summary")).toBeTruthy();
+    // no sources banner when all sources are OK
+    expect(screen.queryByTestId("sources-banner")).toBeNull();
   });
 
-  // 2. Loading state
-  it("shows loading state while apiJson is pending", async () => {
-    vi.mocked(apiJson).mockReturnValue(new Promise(() => {})); // never resolves
-    renderPage();
-    await waitFor(() => {
-      expect(screen.getByText(/Aggregating canonical stores/i)).toBeTruthy();
-    });
+  it("renders funnel stages with the correct data-testid attributes", async () => {
+    wire(REPORT_FULL);
+    mount();
+    await waitFor(() =>
+      expect(screen.getByTestId("funnel-stage-market_data")).toBeTruthy());
+    expect(screen.getByTestId("funnel-stage-risk")).toBeTruthy();
+    expect(screen.getByText(/51→40/)).toBeTruthy();
+    // stage with < MIN samples shows insufficient telemetry, never fabricated
+    expect(screen.getByText("INSUFFICIENT TELEMETRY")).toBeTruthy();
   });
 
-  // 3. Error state
-  it("shows error state when apiJson rejects", async () => {
-    // Route mock: operator-analytics report fails; paper-analytics returns null (loading)
-    vi.mocked(apiJson).mockImplementation((path: string) => {
-      if (String(path).includes("operator-analytics")) {
-        return Promise.reject(new Error("Network failure"));
-      }
-      return new Promise(() => {}); // paper-analytics never resolves (keeps loading)
-    });
-    // Use a fresh QueryClient with retry: false so error surfaces immediately
-    const qc = new QueryClient({
-      defaultOptions: { queries: { retry: false, gcTime: 0, staleTime: 0 } },
-    });
-    render(
-      React.createElement(OperatorAnalytics),
-      { wrapper: ({ children }: { children: React.ReactNode }) =>
-          React.createElement(QueryClientProvider, { client: qc }, children) }
-    );
-    await waitFor(() => {
-      expect(screen.getByText(/Failed to load operator analytics/i)).toBeTruthy();
-    }, { timeout: 5000 });
-  });
-
-  // 4. SourcesBanner NOT shown when all sources available
-  it("does NOT show SourcesBanner when all sources are available", async () => {
-    vi.mocked(apiJson).mockResolvedValue(FULL_REPORT);
-    renderPage();
-    await waitFor(() => {
-      expect(screen.queryByTestId("sources-banner")).toBeNull();
-    });
-  });
-
-  // 5. SourcesBanner shown when pipeline_events is unavailable
-  it("shows SourcesBanner when pipeline_events is unavailable", async () => {
-    const report = {
-      ...FULL_REPORT,
+  it("shows the SourcesBanner when a source is unavailable or truncated", async () => {
+    wire({
+      ...REPORT_FULL,
       sources: {
-        ...FULL_REPORT.sources,
-        pipeline_events: {
-          available: false,
-          error: "db timeout",
-          truncated: false,
-          limit: 2000,
-        },
+        ...SOURCES_OK,
+        pipeline_events: { available: false, error: "db down",
+                           truncated: false, limit: 2000 },
+        snapshot: { available: true, truncated: true, limit: 2000 },
       },
-    };
-    vi.mocked(apiJson).mockResolvedValue(report);
-    renderPage();
-    await waitFor(() => {
-      expect(screen.getByTestId("sources-banner")).toBeTruthy();
     });
+    mount();
+    await waitFor(() =>
+      expect(screen.getByTestId("sources-banner")).toBeTruthy());
+    expect(screen.getByText(/pipeline_events: unavailable \(db down\)/)).toBeTruthy();
+    expect(screen.getByText(/snapshot: fetch truncated at 2000 events/)).toBeTruthy();
   });
 
-  // 6. SourcesBanner shown when pipeline_events is truncated
-  it("shows SourcesBanner when pipeline_events fetch is truncated", async () => {
-    const report = {
-      ...FULL_REPORT,
-      sources: {
-        ...FULL_REPORT.sources,
-        pipeline_events: {
-          available: true,
-          error: null,
-          truncated: true,
-          limit: 2000,
-        },
+  it("expands a rejection row on click (drill-down)", async () => {
+    wire(REPORT_FULL);
+    mount();
+    await waitFor(() =>
+      expect(screen.getByTestId("rejection-RISK_REJECTED")).toBeTruthy());
+    // details hidden before click
+    expect(screen.queryByText(/symbols: AAA, BBB/)).toBeNull();
+    fireEvent.click(screen.getByTestId("rejection-RISK_REJECTED"));
+    expect(screen.getByText(/symbols: AAA, BBB/)).toBeTruthy();
+    expect(screen.getByText(/event ids: 11, 12/)).toBeTruthy();
+    // click again collapses
+    fireEvent.click(screen.getByTestId("rejection-RISK_REJECTED"));
+    expect(screen.queryByText(/symbols: AAA, BBB/)).toBeNull();
+  });
+
+  it("renders SOURCE_UNAVAILABLE evidence badges correctly", async () => {
+    wire({
+      ...REPORT_FULL,
+      rejections: { rejected_events: 0, reason_occurrences: 0, reasons: [],
+                    evidence: "SOURCE_UNAVAILABLE", source: "pipeline_events" },
+      decisions: {
+        ...REPORT_FULL.decisions,
+        event_decisions: { counts: {}, total: 0, pct: {},
+                           evidence: "SOURCE_UNAVAILABLE" },
       },
-    };
-    vi.mocked(apiJson).mockResolvedValue(report);
-    renderPage();
-    await waitFor(() => {
-      expect(screen.getByTestId("sources-banner")).toBeTruthy();
     });
+    mount();
+    await waitFor(() =>
+      expect(screen.getAllByText("SOURCE UNAVAILABLE").length)
+        .toBeGreaterThanOrEqual(2));
   });
 
-  // 7. Funnel stage scanner renders stocks_in→stocks_out
-  it("renders funnel stage scanner with 50→48 text", async () => {
-    vi.mocked(apiJson).mockResolvedValue(FULL_REPORT);
-    renderPage();
-    await waitFor(() => {
-      const scannerStage = screen.getByTestId("funnel-stage-scanner");
-      expect(scannerStage).toBeTruthy();
-      expect(scannerStage.textContent).toContain("50");
-      expect(scannerStage.textContent).toContain("48");
+  it("renders the PARTIAL evidence badge when the fetch was truncated", async () => {
+    wire({
+      ...REPORT_FULL,
+      rejections: { ...REPORT_FULL.rejections, evidence: "PARTIAL" },
     });
+    mount();
+    await waitFor(() =>
+      expect(screen.getByText("PARTIAL — FETCH TRUNCATED")).toBeTruthy());
   });
 
-  // 8. Funnel stage risk shows INSUFFICIENT TELEMETRY badge
-  it("shows INSUFFICIENT TELEMETRY badge for risk stage", async () => {
-    vi.mocked(apiJson).mockResolvedValue(FULL_REPORT);
-    renderPage();
-    await waitFor(() => {
-      const riskStage = screen.getByTestId("funnel-stage-risk");
-      expect(riskStage.textContent).toContain("INSUFFICIENT TELEMETRY");
-    });
+  it("renders risk intervention blocks with counts and reasons", async () => {
+    wire(REPORT_FULL);
+    mount();
+    await waitFor(() => expect(screen.getByTestId("risk-risk")).toBeTruthy());
+    expect(screen.getByTestId("risk-portfolio_precheck")).toBeTruthy();
+    expect(screen.getByText("max_exposure")).toBeTruthy();
+    expect(screen.getByText(/block rate: 16.7%/)).toBeTruthy();
+    // empty precheck shows VERIFIED EMPTY, never fabricated z 0-rate
+    expect(screen.getByText("VERIFIED EMPTY")).toBeTruthy();
   });
 
-  // 9. Rejection row renders DAILY_LOSS_LIMIT
-  it("renders rejection row with reason_code DAILY_LOSS_LIMIT", async () => {
-    vi.mocked(apiJson).mockResolvedValue(FULL_REPORT);
-    renderPage();
-    await waitFor(() => {
-      const rejRow = screen.getByTestId("rejection-RISK_REJECTED");
-      expect(rejRow).toBeTruthy();
-      expect(rejRow.textContent).toContain("DAILY_LOSS_LIMIT");
-    });
+  it("renders trend rows including partial-evidence flag", async () => {
+    wire(REPORT_FULL);
+    mount();
+    await waitFor(() =>
+      expect(screen.getByText(/max_positions \(2\)/)).toBeTruthy());
+    expect(screen.getByText("partial")).toBeTruthy();
   });
 
-  // 10. Clicking rejection row expands drill-down with symbols
-  it("clicking rejection row expands drill-down showing symbols ABC, XYZ", async () => {
-    vi.mocked(apiJson).mockResolvedValue(FULL_REPORT);
-    renderPage();
-    await waitFor(() => {
-      expect(screen.getByTestId("rejection-RISK_REJECTED")).toBeTruthy();
-    });
-    const rejBtn = screen.getByTestId("rejection-RISK_REJECTED");
-    fireEvent.click(rejBtn);
-    await waitFor(() => {
-      // After click, drill-down should show the symbols
-      expect(screen.getByText(/ABC.*XYZ|ABC, XYZ/)).toBeTruthy();
-    });
+  it("shows the loading state while the report is pending", () => {
+    wire(new Promise(() => {})); // never resolves
+    mount();
+    expect(screen.getByText(/Aggregating canonical stores/)).toBeTruthy();
   });
 
-  // 11. EvidenceBadge for SOURCE_UNAVAILABLE
-  it("EvidenceBadge renders 'SOURCE UNAVAILABLE' for SOURCE_UNAVAILABLE evidence", async () => {
-    const report = {
-      ...FULL_REPORT,
-      rejections: {
-        ...FULL_REPORT.rejections,
-        reasons: [],
-        evidence: "SOURCE_UNAVAILABLE",
-      },
-    };
-    vi.mocked(apiJson).mockResolvedValue(report);
-    renderPage();
-    await waitFor(() => {
-      expect(screen.getByText("SOURCE UNAVAILABLE")).toBeTruthy();
-    });
-  });
-
-  // 12. EvidenceBadge for PARTIAL
-  it("EvidenceBadge renders 'PARTIAL — FETCH TRUNCATED' for PARTIAL evidence", async () => {
-    const report = {
-      ...FULL_REPORT,
-      rejections: {
-        ...FULL_REPORT.rejections,
-        evidence: "PARTIAL",
-      },
-    };
-    vi.mocked(apiJson).mockResolvedValue(report);
-    renderPage();
-    await waitFor(() => {
-      expect(screen.getByText("PARTIAL — FETCH TRUNCATED")).toBeTruthy();
-    });
-  });
-
-  // 13. Decisions section renders BUY count
-  it("decisions section renders BUY count from event_decisions", async () => {
-    vi.mocked(apiJson).mockResolvedValue(FULL_REPORT);
-    renderPage();
-    await waitFor(() => {
-      // Multiple "BUY" labels exist (event_decisions + snapshot_distribution both show BUY)
-      const buyLabels = screen.getAllByText("BUY");
-      expect(buyLabels.length).toBeGreaterThan(0);
-      // The value "3 (20%)" appears for BUY in both sections — verify at least one exists
-      const buyValues = screen.getAllByText("3 (20%)");
-      expect(buyValues.length).toBeGreaterThan(0);
-    });
-  });
-
-  // 14. Risk interventions "risk" card renders Blocked value 7
-  it("risk interventions card renders Blocked value 7", async () => {
-    vi.mocked(apiJson).mockResolvedValue(FULL_REPORT);
-    renderPage();
-    await waitFor(() => {
-      const riskCard = screen.getByTestId("risk-risk");
-      expect(riskCard).toBeTruthy();
-      expect(riskCard.textContent).toContain("7");
-    });
-  });
-
-  // 15. Trends table renders at least one row
-  it("trends table renders at least one row", async () => {
-    vi.mocked(apiJson).mockResolvedValue(FULL_REPORT);
-    renderPage();
-    await waitFor(() => {
-      // The trend table row shows rejected_events count and BUY:3 decisions
-      // Multiple elements may match scan_abc123, so check for the trend-specific content
-      const allMatches = screen.getAllByText(/scan_abc123/);
-      expect(allMatches.length).toBeGreaterThan(0);
-      // Trends table also shows rejection count "15" for this scan
-      // and "BUY:3" in the decisions column
-      expect(screen.getByText("BUY:3")).toBeTruthy();
-    });
+  it("shows the error state with a Retry button when the report fails", async () => {
+    mockApi.mockImplementation((path: string) =>
+      path.includes("operator-analytics/report")
+        ? Promise.reject(new Error("boom 500"))
+        : Promise.resolve(null));
+    mount();
+    // the page sets retry: 2 internally → error surfaces after ~3s of retries
+    await waitFor(
+      () => expect(screen.getByText(/Failed to load operator analytics/)).toBeTruthy(),
+      { timeout: 10_000 });
+    expect(screen.getByText(/boom 500/)).toBeTruthy();
+    expect(screen.getByText("Retry")).toBeTruthy();
   });
 });

@@ -125,3 +125,26 @@ No new HTTP routes were added. All three were pre-existing dispatcher commands.
 - No portfolio state modified
 - No strategy parameters changed
 - No trading decisions generated
+
+## Tests
+Backend — `tests/unit/test_phase27e_operator_analytics.py` — **31 tests**:
+rejected-EVENTS vs reason-OCCURRENCES accounting (multi-gate events), pct =
+share of occurrences, reason extraction per event type, all evidence states
+(SOURCE_UNAVAILABLE / PARTIAL / VERIFIED_EMPTY / OK), decision normalisation +
+different-scan snapshot omission, risk/precheck approved/blocked/no-evidence
+(block rate None when no candidates), timing percentiles + insufficient
+telemetry below MIN_TIMING_SAMPLES, funnel conversion (0-in → no fabricated %),
+demo-session exclusion, trends scan isolation + bounded window, deterministic
+aggregation, and `operator_analytics_report()` contract (ok=True + all
+required keys; replay/event-store failures survive and surface).
+
+Frontend — `src/pages/OperatorAnalytics.test.tsx` — **10 tests** (Vitest +
+Testing Library, apiJson mocked): full-payload render, funnel stage
+data-testids, SourcesBanner on unavailable/truncated sources, rejection row
+expand/collapse drill-down, SOURCE_UNAVAILABLE / PARTIAL evidence badges,
+risk-intervention blocks, trends partial flag, loading state, error state +
+Retry.
+
+(An earlier smoke suite `test_phase27_operator_analytics.py` — 21 tests —
+remains alongside.) All pass; tsc clean.
+

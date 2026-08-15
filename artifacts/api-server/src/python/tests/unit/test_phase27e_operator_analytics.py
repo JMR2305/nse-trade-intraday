@@ -1,561 +1,371 @@
-"""Unit tests for Phase 27E: Operator Analytics (read-only aggregators).
+"""Unit tests for Phase 27E Operator Analytics (read-only aggregators).
 
-All canonical-source functions (_replay, _sessions, _scan_events,
-_snapshot_rows) are patched on the module so tests never touch real DB.
+Covers: funnel calculation, rejection aggregation (events vs occurrences),
+decision distribution (events + snapshot splits), risk interventions,
+evidence states (SOURCE_UNAVAILABLE / PARTIAL / VERIFIED_EMPTY / OK),
+demo-session exclusion, deterministic aggregation, and the
+operator_analytics_report() entry point contract.
 """
+import copy
+import sys
+import types
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import phase27_operator_analytics as oa
 
 
-# ---------------------------------------------------------------------------
-# Minimal helpers
-# ---------------------------------------------------------------------------
-
-def _make_event(event_type, symbol=None, payload=None,
-                ts="2025-01-01T09:15:00+00:00", id=1, stage=None):
-    return {
-        "event_type": event_type,
-        "symbol": symbol,
-        "payload": payload or {},
-        "ts": ts,
-        "id": id,
-        "stage": stage,
-    }
+def _ev(event_type, symbol=None, payload=None, ts=None, eid=None, stage=None):
+    return {"event_type": event_type, "symbol": symbol,
+            "payload": payload or {}, "ts": ts, "id": eid, "stage": stage}
 
 
-def _ok_state(truncated=False, limit=2000):
-    return {"available": True, "error": None, "truncated": truncated, "limit": limit}
+OK_STATE = {"available": True, "error": None, "truncated": False, "limit": 2000}
+TRUNC_STATE = {"available": True, "error": None, "truncated": True, "limit": 2000}
+DOWN_STATE = {"available": False, "error": "db down", "truncated": False,
+              "limit": 2000}
 
 
-def _unavailable_state(error="db down"):
-    return {"available": False, "error": error, "truncated": False, "limit": 2000}
+REJECTION_EVENTS = [
+    _ev("RISK_REJECTED", "AAA",
+        {"failed_gates": {"max_positions": True, "max_exposure": True}}, eid=1),
+    _ev("RISK_REJECTED", "BBB", {"failed_gates": ["max_positions"]}, eid=2),
+    _ev("PRECHECK_REJECTED", "CCC", {"reasons": ["insufficient_cash"]}, eid=3),
+    _ev("SYMBOL_REJECTED", "DDD", {"error": "no candles"}, eid=4),
+    _ev("BUY_GENERATED", "EEE", eid=5),  # not a rejection
+]
 
-
-# ---------------------------------------------------------------------------
-# 1. Funnel calculation
-# ---------------------------------------------------------------------------
-
-class TestFunnel(unittest.TestCase):
-
-    def _replay_with_stage(self, stage_id, stocks_in, stocks_out, rejected=0):
-        return {
-            "stages": [{
-                "id": stage_id, "label": stage_id.title(), "order": 1,
-                "stocks_in": stocks_in, "stocks_out": stocks_out,
-                "rejected": rejected, "pending": 0, "cancelled": 0,
-            }]
-        }
-
-    def test_funnel_conversion_pct_calculated(self):
-        replay = self._replay_with_stage("scanner", 50, 48, rejected=2)
-        result = oa._funnel(replay, [])
-        stage = result["stages"][0]
-        self.assertEqual(stage["stocks_in"], 50)
-        self.assertEqual(stage["stocks_out"], 48)
-        self.assertAlmostEqual(stage["conversion_pct"], 96.0)
-
-    def test_funnel_conversion_pct_zero_stocks_in_is_none(self):
-        replay = self._replay_with_stage("scanner", 0, 0)
-        result = oa._funnel(replay, [])
-        self.assertIsNone(result["stages"][0]["conversion_pct"])
-
-    def test_funnel_empty_replay_returns_empty_stages(self):
-        result = oa._funnel({}, [])
-        self.assertEqual(result["stages"], [])
-
-    def test_funnel_timing_insufficient_telemetry_lt3_samples(self):
-        # Only 1 gap → insufficient_telemetry
-        events = [
-            _make_event("EV", "AAA", ts="2025-01-01T09:15:00+00:00", id=1, stage="SCANNER"),
-            _make_event("EV", "AAA", ts="2025-01-01T09:15:01+00:00", id=2, stage="SCANNER"),
-        ]
-        timing = oa._stage_timing(events)
-        # 2 events for 1 symbol → 1 gap → insufficient
-        self.assertIn("SCANNER", timing)
-        self.assertTrue(timing["SCANNER"]["insufficient_telemetry"])
-        self.assertEqual(timing["SCANNER"]["samples"], 1)
-
-    def test_funnel_timing_with_3_or_more_samples(self):
-        # 4 events for one symbol → 3 gaps → sufficient
-        events = [
-            _make_event("EV", "AAA", ts="2025-01-01T09:15:00+00:00", id=1, stage="SCANNER"),
-            _make_event("EV", "AAA", ts="2025-01-01T09:15:01+00:00", id=2, stage="SCANNER"),
-            _make_event("EV", "AAA", ts="2025-01-01T09:15:02+00:00", id=3, stage="SCANNER"),
-            _make_event("EV", "AAA", ts="2025-01-01T09:15:03+00:00", id=4, stage="SCANNER"),
-        ]
-        timing = oa._stage_timing(events)
-        self.assertIn("SCANNER", timing)
-        t = timing["SCANNER"]
-        self.assertFalse(t["insufficient_telemetry"])
-        self.assertEqual(t["samples"], 3)
-        self.assertIn("avg_ms", t)
-        self.assertIn("median_ms", t)
-        self.assertIn("p95_ms", t)
-
-    def test_funnel_stage_without_timing_gets_insufficient_marker(self):
-        replay = self._replay_with_stage("supervisor", 10, 9)
-        result = oa._funnel(replay, [])
-        stage = result["stages"][0]
-        # No events → timing should be insufficient_telemetry=True, samples=0
-        self.assertTrue(stage["timing"]["insufficient_telemetry"])
-        self.assertEqual(stage["timing"]["samples"], 0)
-
-    def test_funnel_source_field_present(self):
-        result = oa._funnel({}, [])
-        self.assertIn("source", result)
-
-
-# ---------------------------------------------------------------------------
-# 2. Rejection aggregation
-# ---------------------------------------------------------------------------
 
 class TestAggregateRejections(unittest.TestCase):
+    def test_events_vs_occurrences_distinction(self):
+        d = oa._aggregate_rejections(list(REJECTION_EVENTS), OK_STATE)
+        # 4 rejected events; the first carries TWO failed gates → 5 occurrences
+        self.assertEqual(d["rejected_events"], 4)
+        self.assertEqual(d["reason_occurrences"], 5)
+        by = {(r["event_type"], r["reason_code"]): r for r in d["reasons"]}
+        self.assertEqual(by[("RISK_REJECTED", "max_positions")]["count"], 2)
+        self.assertEqual(by[("RISK_REJECTED", "max_exposure")]["count"], 1)
+        self.assertEqual(by[("PRECHECK_REJECTED", "insufficient_cash")]["count"], 1)
+        self.assertEqual(by[("SYMBOL_REJECTED", "no candles")]["count"], 1)
 
-    def test_risk_rejected_uses_failed_gates_dict_keys(self):
-        ev = _make_event("RISK_REJECTED", "ABC",
-                         payload={"failed_gates": {"DAILY_LOSS_LIMIT": True, "MAX_OPEN_TRADES": True}},
-                         id=1)
-        result = oa._aggregate_rejections([ev], _ok_state())
-        self.assertEqual(result["rejected_events"], 1)
-        self.assertEqual(result["reason_occurrences"], 2)
-        codes = {r["reason_code"] for r in result["reasons"]}
-        self.assertIn("DAILY_LOSS_LIMIT", codes)
-        self.assertIn("MAX_OPEN_TRADES", codes)
+    def test_pct_is_share_of_occurrences_not_events(self):
+        d = oa._aggregate_rejections(list(REJECTION_EVENTS), OK_STATE)
+        row = next(r for r in d["reasons"]
+                   if r["reason_code"] == "max_positions")
+        self.assertEqual(row["pct_of_occurrences"], round(2 / 5 * 100, 1))
+        self.assertIn("share of", d["source"])
 
-    def test_risk_rejected_failed_gates_list(self):
-        ev = _make_event("RISK_REJECTED", "XYZ",
-                         payload={"failed_gates": ["GATE_A", "GATE_B"]},
-                         id=2)
-        result = oa._aggregate_rejections([ev], _ok_state())
-        self.assertEqual(result["reason_occurrences"], 2)
+    def test_group_labels_and_symbols(self):
+        d = oa._aggregate_rejections(list(REJECTION_EVENTS), OK_STATE)
+        row = next(r for r in d["reasons"] if r["reason_code"] == "no candles")
+        self.assertEqual(row["group"], "Scanner / market data")
+        self.assertEqual(row["symbols"], ["DDD"])
+        self.assertEqual(row["event_ids"], [4])
 
-    def test_precheck_rejected_uses_reasons_list(self):
-        ev = _make_event("PRECHECK_REJECTED", "DEF",
-                         payload={"reasons": ["INSUFFICIENT_CASH", "POSITION_LIMIT"]},
-                         id=3)
-        result = oa._aggregate_rejections([ev], _ok_state())
-        self.assertEqual(result["rejected_events"], 1)
-        self.assertEqual(result["reason_occurrences"], 2)
-        codes = {r["reason_code"] for r in result["reasons"]}
-        self.assertIn("INSUFFICIENT_CASH", codes)
+    def test_evidence_states(self):
+        self.assertEqual(
+            oa._aggregate_rejections(list(REJECTION_EVENTS), OK_STATE)["evidence"],
+            "OK")
+        self.assertEqual(
+            oa._aggregate_rejections([], OK_STATE)["evidence"], "VERIFIED_EMPTY")
+        self.assertEqual(
+            oa._aggregate_rejections(list(REJECTION_EVENTS), TRUNC_STATE)["evidence"],
+            "PARTIAL")
+        self.assertEqual(
+            oa._aggregate_rejections([], DOWN_STATE)["evidence"],
+            "SOURCE_UNAVAILABLE")
 
-    def test_symbol_rejected_uses_error_field(self):
-        ev = _make_event("SYMBOL_REJECTED", "GHI", payload={"error": "NO_DATA"}, id=4)
-        result = oa._aggregate_rejections([ev], _ok_state())
-        self.assertEqual(result["reasons"][0]["reason_code"], "NO_DATA")
-
-    def test_pct_is_of_occurrences_not_events(self):
-        """One event with 2 failed_gates → 2 occurrences; pct must be 50/50."""
-        ev = _make_event("RISK_REJECTED", "ABC",
-                         payload={"failed_gates": {"GATE_A": True, "GATE_B": True}},
-                         id=1)
-        result = oa._aggregate_rejections([ev], _ok_state())
-        for r in result["reasons"]:
-            self.assertAlmostEqual(r["pct_of_occurrences"], 50.0, places=1)
-
-    def test_symbols_sorted_in_output(self):
-        events = [
-            _make_event("RISK_REJECTED", "ZZZ", payload={"failed_gates": {"G1": True}}, id=1),
-            _make_event("RISK_REJECTED", "AAA", payload={"failed_gates": {"G1": True}}, id=2),
-        ]
-        result = oa._aggregate_rejections(events, _ok_state())
-        row = result["reasons"][0]
-        self.assertEqual(row["symbols"], sorted(row["symbols"]))
-
-    def test_non_rejection_events_ignored(self):
-        ev = _make_event("BUY_GENERATED", "ABC", id=5)
-        result = oa._aggregate_rejections([ev], _ok_state())
-        self.assertEqual(result["rejected_events"], 0)
-        self.assertEqual(result["reason_occurrences"], 0)
-
-    def test_empty_events_returns_zero_counts(self):
-        result = oa._aggregate_rejections([], _ok_state())
-        self.assertEqual(result["rejected_events"], 0)
-        self.assertEqual(result["reason_occurrences"], 0)
-        self.assertEqual(result["reasons"], [])
+    def test_deterministic_same_input_same_output(self):
+        a = oa._aggregate_rejections(copy.deepcopy(REJECTION_EVENTS), OK_STATE)
+        b = oa._aggregate_rejections(copy.deepcopy(REJECTION_EVENTS), OK_STATE)
+        self.assertEqual(a, b)
 
 
-# ---------------------------------------------------------------------------
-# 3. Decision distribution
-# ---------------------------------------------------------------------------
+class TestRejectionReasons(unittest.TestCase):
+    def test_precheck_blocking_limit_fallback(self):
+        ev = _ev("PRECHECK_REJECTED", "AAA", {"blocking_limit": "max_daily_loss"})
+        self.assertEqual(oa._rejection_reasons(ev), ["max_daily_loss"])
+
+    def test_unknown_payload_falls_back_to_event_type(self):
+        ev = _ev("ORDER_REJECTED", "AAA", {})
+        self.assertEqual(oa._rejection_reasons(ev), ["ORDER_REJECTED"])
+
 
 class TestDecisionDistribution(unittest.TestCase):
+    EVENTS = [_ev("BUY_GENERATED"), _ev("BUY_GENERATED"),
+              _ev("WATCH_GENERATED"), _ev("IGNORE_GENERATED"),
+              _ev("RISK_REJECTED")]
+    SNAP = [
+        {"final_action": "STRONG BUY", "sector": "IT", "market_regime": "TRENDING"},
+        {"final_action": "BUY", "sector": "IT"},
+        {"final_action": "IGNORE", "sector": "AUTO"},
+        {"final_action": "watch", "sector": None},
+    ]
 
-    def test_buy_generated_maps_to_buy(self):
-        events = [_make_event("BUY_GENERATED", id=1)]
-        result = oa._decision_distribution(events, [], None, "scan1", _ok_state())
-        self.assertEqual(result["event_decisions"]["counts"].get("BUY"), 1)
+    def test_event_counts_and_pct(self):
+        d = oa._decision_distribution(self.EVENTS, [], None, "s1", OK_STATE)
+        ev = d["event_decisions"]
+        self.assertEqual(ev["counts"], {"BUY": 2, "WATCH": 1, "IGNORE": 1})
+        self.assertEqual(ev["total"], 4)
+        self.assertEqual(ev["pct"]["BUY"], 50.0)
+        self.assertEqual(ev["evidence"], "OK")
 
-    def test_watch_generated_maps_to_watch(self):
-        events = [_make_event("WATCH_GENERATED", id=2)]
-        result = oa._decision_distribution(events, [], None, "scan1", _ok_state())
-        self.assertEqual(result["event_decisions"]["counts"].get("WATCH"), 1)
+    def test_snapshot_splits_when_scan_matches(self):
+        d = oa._decision_distribution(self.EVENTS, self.SNAP, "s1", "s1", OK_STATE)
+        snap = d["snapshot_distribution"]
+        self.assertTrue(snap["available"])
+        acts = {a["action"]: a for a in snap["actions"]}
+        # actions normalised (upper, "_"→" ")
+        self.assertIn("STRONG BUY", acts)
+        self.assertIn("WATCH", acts)
+        self.assertEqual(acts["STRONG BUY"]["count"], 1)
+        self.assertEqual(acts["STRONG BUY"]["pct"], 25.0)
+        sectors = {s["sector"]: s["actions"] for s in snap["by_sector"]}
+        self.assertEqual(sectors["IT"]["STRONG BUY"], 1)
+        self.assertIn("Unknown", sectors)
+        self.assertEqual(snap["regime"], "TRENDING")
 
-    def test_ignore_generated_maps_to_ignore(self):
-        events = [_make_event("IGNORE_GENERATED", id=3)]
-        result = oa._decision_distribution(events, [], None, "scan1", _ok_state())
-        self.assertEqual(result["event_decisions"]["counts"].get("IGNORE"), 1)
+    def test_snapshot_splits_omitted_on_scan_mismatch(self):
+        d = oa._decision_distribution(self.EVENTS, self.SNAP, "other", "s1",
+                                      OK_STATE)
+        snap = d["snapshot_distribution"]
+        self.assertFalse(snap["available"])
+        self.assertIn("different scan", snap["note"])
+        self.assertEqual(snap["actions"], [])
 
-    def test_snapshot_splits_only_when_snap_scan_id_matches(self):
-        snap_rows = [{"final_action": "BUY", "sector": "IT", "market_regime": "TRENDING"}]
-        # Matching scan_id → splits available
-        result = oa._decision_distribution([], snap_rows, "scan1", "scan1", _ok_state())
-        self.assertTrue(result["snapshot_distribution"]["available"])
+    def test_empty_events_verified_empty(self):
+        d = oa._decision_distribution([], [], None, "s1", OK_STATE)
+        self.assertEqual(d["event_decisions"]["evidence"], "VERIFIED_EMPTY")
+        self.assertEqual(d["event_decisions"]["pct"], {})
 
-    def test_snapshot_splits_omitted_when_scan_id_mismatch(self):
-        snap_rows = [{"final_action": "BUY", "sector": "IT"}]
-        result = oa._decision_distribution([], snap_rows, "scan_other", "scan1", _ok_state())
-        self.assertFalse(result["snapshot_distribution"]["available"])
+    def test_source_unavailable(self):
+        d = oa._decision_distribution([], [], None, "s1", DOWN_STATE)
+        self.assertEqual(d["event_decisions"]["evidence"], "SOURCE_UNAVAILABLE")
 
-    def test_regime_extracted_from_snapshot(self):
-        snap_rows = [{"final_action": "BUY", "sector": "IT", "market_regime": "TRENDING"}]
-        result = oa._decision_distribution([], snap_rows, "scan1", "scan1", _ok_state())
-        self.assertEqual(result["snapshot_distribution"]["regime"], "TRENDING")
-
-    def test_pct_sums_to_100_with_multiple_decisions(self):
-        events = [
-            _make_event("BUY_GENERATED", id=1),
-            _make_event("BUY_GENERATED", id=2),
-            _make_event("WATCH_GENERATED", id=3),
-        ]
-        result = oa._decision_distribution(events, [], None, "scan1", _ok_state())
-        pcts = result["event_decisions"]["pct"]
-        self.assertAlmostEqual(sum(pcts.values()), 100.0, delta=0.2)
-
-
-# ---------------------------------------------------------------------------
-# 4. Risk interventions
-# ---------------------------------------------------------------------------
 
 class TestRiskInterventions(unittest.TestCase):
+    EVENTS = [
+        _ev("RISK_APPROVED", "AAA"), _ev("RISK_APPROVED", "BBB"),
+        _ev("RISK_REJECTED", "CCC", {"failed_gates": {"max_exposure": 1}}, eid=9),
+        _ev("PRECHECK_APPROVED", "AAA"),
+        _ev("PRECHECK_REJECTED", "DDD", {"reasons": ["insufficient_cash",
+                                                     "max_positions"]}, eid=10),
+    ]
 
-    def test_risk_approved_rejected_split(self):
-        events = [
-            _make_event("RISK_APPROVED", "ABC", id=1),
-            _make_event("RISK_APPROVED", "DEF", id=2),
-            _make_event("RISK_REJECTED", "XYZ",
-                        payload={"failed_gates": {"DAILY_LOSS_LIMIT": True}}, id=3),
-        ]
-        result = oa._risk_interventions(events, _ok_state())
-        r = result["risk"]
-        self.assertEqual(r["approved"], 2)
-        self.assertEqual(r["blocked"], 1)
-        self.assertEqual(r["candidates"], 3)
+    def test_risk_and_precheck_aggregation(self):
+        d = oa._risk_interventions(self.EVENTS, OK_STATE)
+        risk = d["risk"]
+        self.assertEqual(risk["candidates"], 3)
+        self.assertEqual(risk["approved"], 2)
+        self.assertEqual(risk["blocked"], 1)
+        self.assertEqual(risk["block_rate_pct"], 33.3)
+        self.assertEqual(risk["reasons"][0]["reason_code"], "max_exposure")
+        self.assertEqual(risk["reasons"][0]["symbols"], ["CCC"])
+        pre = d["portfolio_precheck"]
+        self.assertEqual(pre["candidates"], 2)
+        self.assertEqual(pre["blocked"], 1)
+        codes = {r["reason_code"] for r in pre["reasons"]}
+        self.assertEqual(codes, {"insufficient_cash", "max_positions"})
+        self.assertEqual(risk["evidence"], "OK")
 
-    def test_precheck_approved_rejected_split(self):
-        events = [
-            _make_event("PRECHECK_APPROVED", "A", id=1),
-            _make_event("PRECHECK_REJECTED", "B",
-                        payload={"reasons": ["INSUFFICIENT_CASH"]}, id=2),
-        ]
-        result = oa._risk_interventions(events, _ok_state())
-        p = result["portfolio_precheck"]
-        self.assertEqual(p["approved"], 1)
-        self.assertEqual(p["blocked"], 1)
+    def test_no_candidates_block_rate_none_verified_empty(self):
+        d = oa._risk_interventions([], OK_STATE)
+        for key in ("risk", "portfolio_precheck"):
+            self.assertEqual(d[key]["candidates"], 0)
+            self.assertIsNone(d[key]["block_rate_pct"])
+            self.assertEqual(d[key]["evidence"], "VERIFIED_EMPTY")
 
-    def test_block_rate_pct_calculated_correctly(self):
-        events = [
-            _make_event("RISK_APPROVED", id=1),
-            _make_event("RISK_APPROVED", id=2),
-            _make_event("RISK_APPROVED", id=3),
-            _make_event("RISK_REJECTED", payload={"failed_gates": {"G": True}}, id=4),
-        ]
-        result = oa._risk_interventions(events, _ok_state())
-        self.assertAlmostEqual(result["risk"]["block_rate_pct"], 25.0, places=1)
-
-    def test_block_rate_none_when_no_candidates(self):
-        result = oa._risk_interventions([], _ok_state())
-        self.assertIsNone(result["risk"]["block_rate_pct"])
-        self.assertIsNone(result["portfolio_precheck"]["block_rate_pct"])
-
-    def test_risk_reasons_populated(self):
-        events = [
-            _make_event("RISK_REJECTED", "ABC",
-                        payload={"failed_gates": {"DAILY_LOSS_LIMIT": True}}, id=1),
-        ]
-        result = oa._risk_interventions(events, _ok_state())
-        reasons = result["risk"]["reasons"]
-        self.assertEqual(len(reasons), 1)
-        self.assertEqual(reasons[0]["reason_code"], "DAILY_LOSS_LIMIT")
+    def test_source_unavailable_propagates(self):
+        d = oa._risk_interventions([], DOWN_STATE)
+        self.assertEqual(d["risk"]["evidence"], "SOURCE_UNAVAILABLE")
 
 
-# ---------------------------------------------------------------------------
-# 5. Evidence state / empty-partial handling
-# ---------------------------------------------------------------------------
+class TestStageTiming(unittest.TestCase):
+    def _events(self, n_gaps, stage="RISK"):
+        evs = []
+        for i in range(n_gaps + 1):
+            evs.append(_ev("X", "AAA", ts=f"2026-08-14T10:00:{i:02d}+00:00",
+                           eid=i, stage="SCANNER" if i == 0 else stage))
+        return evs
 
-class TestEvidenceState(unittest.TestCase):
+    def test_insufficient_telemetry_below_min_samples(self):
+        t = oa._stage_timing(self._events(oa.MIN_TIMING_SAMPLES - 1))
+        self.assertTrue(t["RISK"]["insufficient_telemetry"])
+        self.assertEqual(t["RISK"]["samples"], oa.MIN_TIMING_SAMPLES - 1)
 
-    def test_source_unavailable_when_available_false(self):
-        st = {"available": False, "error": "db down", "truncated": False}
-        self.assertEqual(oa._evidence_state(st, True), "SOURCE_UNAVAILABLE")
-        self.assertEqual(oa._evidence_state(st, False), "SOURCE_UNAVAILABLE")
+    def test_stats_with_enough_samples(self):
+        t = oa._stage_timing(self._events(4))["RISK"]
+        self.assertFalse(t["insufficient_telemetry"])
+        self.assertEqual(t["samples"], 4)
+        self.assertEqual(t["avg_ms"], 1000.0)
+        self.assertEqual(t["median_ms"], 1000.0)
+        self.assertEqual(t["p95_ms"], 1000.0)
 
-    def test_partial_when_truncated(self):
-        st = {"available": True, "truncated": True}
-        self.assertEqual(oa._evidence_state(st, True), "PARTIAL")
-
-    def test_verified_empty_when_ok_no_rows(self):
-        st = {"available": True, "truncated": False}
-        self.assertEqual(oa._evidence_state(st, False), "VERIFIED_EMPTY")
-
-    def test_ok_when_available_and_has_rows(self):
-        st = {"available": True, "truncated": False}
-        self.assertEqual(oa._evidence_state(st, True), "OK")
-
-    def test_aggregate_rejections_evidence_source_unavailable(self):
-        result = oa._aggregate_rejections([], _unavailable_state())
-        self.assertEqual(result["evidence"], "SOURCE_UNAVAILABLE")
-
-    def test_aggregate_rejections_evidence_partial_when_truncated(self):
-        # Even with rejection events, truncated = PARTIAL
-        ev = _make_event("RISK_REJECTED", payload={"failed_gates": {"G": True}}, id=1)
-        result = oa._aggregate_rejections([ev], _ok_state(truncated=True))
-        self.assertEqual(result["evidence"], "PARTIAL")
-
-    def test_aggregate_rejections_evidence_verified_empty_no_events(self):
-        result = oa._aggregate_rejections([], _ok_state())
-        self.assertEqual(result["evidence"], "VERIFIED_EMPTY")
+    def test_events_without_symbol_or_ts_ignored(self):
+        self.assertEqual(oa._stage_timing([_ev("X"), _ev("X", "A")]), {})
 
 
-# ---------------------------------------------------------------------------
-# 6. Session isolation — demo sessions excluded
-# ---------------------------------------------------------------------------
+class TestFunnel(unittest.TestCase):
+    REPLAY = {"stages": [
+        {"id": "market_data", "label": "Scanner", "order": 1,
+         "stocks_in": 50, "stocks_out": 40, "rejected": 10, "pending": 0,
+         "cancelled": 0},
+        {"id": "risk", "label": "Risk", "order": 2,
+         "stocks_in": 0, "stocks_out": 0, "rejected": 0, "pending": 0,
+         "cancelled": 0},
+    ]}
 
-class TestSessionIsolation(unittest.TestCase):
+    def test_funnel_counts_and_conversion(self):
+        d = oa._funnel(self.REPLAY, [])
+        s0, s1 = d["stages"]
+        self.assertEqual((s0["stocks_in"], s0["stocks_out"]), (50, 40))
+        self.assertEqual(s0["conversion_pct"], 80.0)
+        # zero-in stage: conversion is None, never a divide-by-zero
+        self.assertIsNone(s1["conversion_pct"])
+        self.assertTrue(s0["timing"]["insufficient_telemetry"])
+        self.assertIn("replay snapshot", d["source"])
 
-    def test_sessions_excludes_demo_source(self):
-        raw = [
-            {"scan_id": "scan1", "source": "replay"},
-            {"scan_id": "demo", "source": "demo"},
-            {"scan_id": "scan2", "source": "demo"},
-        ]
-        with patch.object(oa, "_sessions") as mock_sess:
-            # Simulate what the real _sessions does: exclude demo
-            real_sessions = [s for s in raw
-                             if s.get("source") != "demo" and s.get("scan_id") != "demo"]
-            mock_sess.return_value = (
-                real_sessions,
-                {"available": True, "error": None, "demo_excluded": 2}
-            )
-            sessions, state = oa._sessions()
-        self.assertEqual(len(sessions), 1)
-        self.assertEqual(sessions[0]["scan_id"], "scan1")
+    def test_empty_replay_yields_empty_stages(self):
+        self.assertEqual(oa._funnel({}, [])["stages"], [])
+
+    def test_deterministic(self):
+        self.assertEqual(oa._funnel(copy.deepcopy(self.REPLAY), []),
+                         oa._funnel(copy.deepcopy(self.REPLAY), []))
+
+
+class TestSessionsDemoExclusion(unittest.TestCase):
+    def _with_fake_replay_engine(self, sessions):
+        mod = types.ModuleType("replay_engine")
+        mod.get_replay_sessions = lambda: {"sessions": sessions}
+        return patch.dict(sys.modules, {"replay_engine": mod})
+
+    def test_demo_sessions_excluded(self):
+        raw = [{"scan_id": "s1", "source": "scan"},
+               {"scan_id": "demo", "source": "scan"},
+               {"scan_id": "s2", "source": "demo"}]
+        with self._with_fake_replay_engine(raw):
+            real, state = oa._sessions()
+        self.assertEqual([s["scan_id"] for s in real], ["s1"])
+        self.assertTrue(state["available"])
         self.assertEqual(state["demo_excluded"], 2)
 
-    def test_sessions_returns_empty_on_exception(self):
-        with patch("phase27_operator_analytics._sessions") as mock_sess:
-            mock_sess.return_value = (
-                [],
-                {"available": False, "error": "error", "demo_excluded": 0}
-            )
-            sessions, state = oa._sessions()
-        self.assertEqual(sessions, [])
+    def test_sessions_failure_reports_unavailable(self):
+        mod = types.ModuleType("replay_engine")
+        def boom():
+            raise RuntimeError("no db")
+        mod.get_replay_sessions = boom
+        with patch.dict(sys.modules, {"replay_engine": mod}):
+            real, state = oa._sessions()
+        self.assertEqual(real, [])
         self.assertFalse(state["available"])
+        self.assertIn("no db", state["error"])
 
-    def test_real_sessions_function_excludes_demo(self):
-        """Test actual _sessions() logic by mocking get_replay_sessions."""
-        mock_sessions_data = {
-            "sessions": [
-                {"scan_id": "real1", "source": "live"},
-                {"scan_id": "demo", "source": "demo"},
-                {"scan_id": "real2", "source": "replay"},
-            ]
+
+class TestTrends(unittest.TestCase):
+    SESSIONS = [{"scan_id": "s3", "snapshot_ts": "2026-08-14T10:00:00Z"},
+                {"scan_id": "s2", "snapshot_ts": "2026-08-13T10:00:00Z"}]
+
+    def test_trend_points_scan_isolated(self):
+        per_scan = {
+            "s3": ([_ev("RISK_REJECTED", "AAA",
+                        {"failed_gates": ["max_positions"]}),
+                    _ev("BUY_GENERATED", "BBB")], dict(OK_STATE)),
+            "s2": ([], dict(OK_STATE)),
         }
-        with patch.dict("sys.modules", {"replay_engine": MagicMock(
-            get_replay_sessions=lambda: mock_sessions_data
-        )}):
-            import importlib
-            # Re-test logic: the function filters demo source and demo scan_id
-            raw = mock_sessions_data["sessions"]
-            real = [s for s in raw
-                    if s.get("source") != "demo" and s.get("scan_id") != "demo"]
-            self.assertEqual(len(real), 2)
-            demo_excluded = len(raw) - len(real)
-            self.assertEqual(demo_excluded, 1)
+        with patch.object(oa, "_scan_events",
+                          side_effect=lambda sid, limit=0: per_scan[sid]):
+            d = oa._trends("s3", list(self.SESSIONS))
+        self.assertEqual(len(d["points"]), 2)
+        p3, p2 = d["points"]
+        self.assertTrue(p3["is_current"])
+        self.assertEqual(p3["rejected_events"], 1)
+        self.assertEqual(p3["rejections_by_reason"], {"max_positions": 1})
+        self.assertEqual(p3["decisions"], {"BUY": 1})
+        self.assertEqual(p3["evidence"], "OK")
+        # s2 events never leak into s3's point
+        self.assertEqual(p2["rejected_events"], 0)
+        self.assertEqual(p2["evidence"], "VERIFIED_EMPTY")
+        self.assertIsNone(d["note"])
 
+    def test_single_point_flags_insufficient_data(self):
+        with patch.object(oa, "_scan_events",
+                          return_value=([], dict(OK_STATE))):
+            d = oa._trends("s3", self.SESSIONS[:1])
+        self.assertEqual(d["note"], "INSUFFICIENT DATA")
 
-# ---------------------------------------------------------------------------
-# 7. Deterministic aggregation
-# ---------------------------------------------------------------------------
+    def test_window_bounded(self):
+        many = [{"scan_id": f"s{i}"} for i in range(10)]
+        with patch.object(oa, "_scan_events",
+                          return_value=([], dict(OK_STATE))):
+            d = oa._trends("s0", many)
+        self.assertEqual(len(d["points"]), oa.TREND_SCAN_WINDOW)
 
-class TestDeterministicAggregation(unittest.TestCase):
-
-    def test_same_input_identical_output_rejections(self):
-        events = [
-            _make_event("RISK_REJECTED", "ABC",
-                        payload={"failed_gates": {"GATE_A": True, "GATE_B": True}}, id=1),
-            _make_event("PRECHECK_REJECTED", "DEF",
-                        payload={"reasons": ["INSUFFICIENT_CASH"]}, id=2),
-        ]
-        state = _ok_state()
-        r1 = oa._aggregate_rejections(events, state)
-        r2 = oa._aggregate_rejections(events, state)
-        self.assertEqual(r1["rejected_events"], r2["rejected_events"])
-        self.assertEqual(r1["reason_occurrences"], r2["reason_occurrences"])
-        codes1 = [r["reason_code"] for r in r1["reasons"]]
-        codes2 = [r["reason_code"] for r in r2["reasons"]]
-        self.assertEqual(codes1, codes2)
-
-    def test_same_input_identical_output_risk_interventions(self):
-        events = [
-            _make_event("RISK_APPROVED", id=1),
-            _make_event("RISK_REJECTED", payload={"failed_gates": {"G": True}}, id=2),
-        ]
-        state = _ok_state()
-        r1 = oa._risk_interventions(events, state)
-        r2 = oa._risk_interventions(events, state)
-        self.assertEqual(r1["risk"]["approved"], r2["risk"]["approved"])
-        self.assertEqual(r1["risk"]["blocked"], r2["risk"]["blocked"])
-
-    def test_same_input_identical_output_funnel(self):
-        replay = {
-            "stages": [{
-                "id": "risk", "label": "Risk", "order": 6,
-                "stocks_in": 10, "stocks_out": 3,
-                "rejected": 7, "pending": 0, "cancelled": 0,
-            }]
-        }
-        events = []
-        r1 = oa._funnel(replay, events)
-        r2 = oa._funnel(replay, events)
-        self.assertEqual(r1["stages"][0]["conversion_pct"],
-                         r2["stages"][0]["conversion_pct"])
-
-
-# ---------------------------------------------------------------------------
-# 8. Entry point — operator_analytics_report()
-# ---------------------------------------------------------------------------
 
 class TestOperatorAnalyticsReport(unittest.TestCase):
+    REPLAY = {"scan_id": "s1", "stages": [
+        {"id": "market_data", "label": "Scanner", "order": 1,
+         "stocks_in": 10, "stocks_out": 8, "rejected": 2, "pending": 0,
+         "cancelled": 0}]}
+    SNAP_ROWS = [{"final_action": "BUY", "sector": "IT"}]
 
-    def _make_full_report(self, scan_id="scan_abc"):
-        """Run operator_analytics_report() with all sources mocked."""
-        mock_replay = {
-            "scan_id": scan_id,
-            "stages": [
-                {"id": "scanner", "label": "Scanner", "order": 1,
-                 "stocks_in": 50, "stocks_out": 48, "rejected": 2,
-                 "pending": 0, "cancelled": 0},
-            ],
-        }
-        mock_snap_rows = [{"final_action": "WATCH", "sector": "IT",
-                           "market_regime": "TRENDING"}]
-        mock_events = [
-            _make_event("BUY_GENERATED", "ABC", id=1),
-            _make_event("WATCH_GENERATED", "DEF", id=2),
-            _make_event("RISK_REJECTED", "XYZ",
-                        payload={"failed_gates": {"DAILY_LOSS_LIMIT": True}}, id=3),
-        ]
-        mock_sessions = [
-            {"scan_id": scan_id, "snapshot_ts": "2025-01-01T09:10:00Z",
-             "status": "SUCCESS", "universe_size": 50}
-        ]
-
-        with patch.object(oa, "_replay", return_value=mock_replay), \
-             patch.object(oa, "_snapshot_rows",
-                          return_value=(mock_snap_rows, scan_id,
-                                        "2025-01-01T09:10:00Z",
-                                        {"available": True, "error": None})), \
+    def _report(self, replay=None, events=None, events_state=None,
+                snap=None, sessions_state=None):
+        snap = snap or (self.SNAP_ROWS, "s1", "2026-08-14T10:00:00Z",
+                        {"available": True, "error": None})
+        with patch.object(oa, "_snapshot_rows", return_value=snap), \
+             patch.object(oa, "_replay",
+                          return_value=replay if replay is not None
+                          else dict(self.REPLAY)), \
              patch.object(oa, "_scan_events",
-                          return_value=(mock_events, _ok_state())), \
+                          return_value=(events or [],
+                                        events_state or dict(OK_STATE))), \
              patch.object(oa, "_sessions",
-                          return_value=(mock_sessions,
+                          return_value=([], sessions_state or
                                         {"available": True, "error": None,
                                          "demo_excluded": 0})):
-            return oa.operator_analytics_report(scan_id=scan_id)
+            return oa.operator_analytics_report()
 
-    def test_entry_point_ok_true(self):
-        result = self._make_full_report()
-        self.assertTrue(result["ok"])
+    def test_ok_true_with_all_required_keys(self):
+        d = self._report(events=list(REJECTION_EVENTS))
+        self.assertTrue(d["ok"])
+        self.assertTrue(d["advisory_only"] and d["read_only"])
+        for key in ("generated_at", "note", "scan_id", "snapshot_ts",
+                    "event_count", "sources", "session_summary", "funnel",
+                    "rejections", "decisions", "risk_interventions",
+                    "trends", "performance_note"):
+            self.assertIn(key, d)
+        self.assertEqual(d["scan_id"], "s1")
+        self.assertEqual(d["event_count"], len(REJECTION_EVENTS))
+        for src in ("replay", "pipeline_events", "snapshot", "sessions"):
+            self.assertIn(src, d["sources"])
 
-    def test_entry_point_advisory_only_true(self):
-        result = self._make_full_report()
-        self.assertTrue(result["advisory_only"])
+    def test_snapshot_ts_nulled_on_scan_mismatch(self):
+        snap = (self.SNAP_ROWS, "other", "2026-08-14T10:00:00Z",
+                {"available": True, "error": None})
+        d = self._report(snap=snap)
+        self.assertIsNone(d["snapshot_ts"])
+        self.assertFalse(d["decisions"]["snapshot_distribution"]["available"])
 
-    def test_entry_point_read_only_true(self):
-        result = self._make_full_report()
-        self.assertTrue(result["read_only"])
+    def test_replay_error_reported_not_fatal(self):
+        d = self._report(replay={"error": "no session"})
+        self.assertTrue(d["ok"])
+        self.assertFalse(d["sources"]["replay"]["available"])
+        self.assertIn("no session", d["sources"]["replay"]["error"])
+        self.assertEqual(d["funnel"]["stages"], [])
 
-    def test_entry_point_all_required_keys_present(self):
-        result = self._make_full_report()
-        for key in ("funnel", "rejections", "decisions",
-                    "risk_interventions", "trends",
-                    "session_summary", "sources"):
-            self.assertIn(key, result, f"Missing key: {key}")
+    def test_events_source_down_surfaces_unavailable(self):
+        d = self._report(events_state=dict(DOWN_STATE))
+        self.assertTrue(d["ok"])
+        self.assertFalse(d["sources"]["pipeline_events"]["available"])
+        self.assertEqual(d["rejections"]["evidence"], "SOURCE_UNAVAILABLE")
+        self.assertEqual(
+            d["risk_interventions"]["risk"]["evidence"], "SOURCE_UNAVAILABLE")
 
-    def test_entry_point_sources_map_has_all_four(self):
-        result = self._make_full_report()
-        src = result["sources"]
-        for key in ("replay", "pipeline_events", "snapshot", "sessions"):
-            self.assertIn(key, src, f"Missing source key: {key}")
-
-    def test_entry_point_funnel_has_stages(self):
-        result = self._make_full_report()
-        self.assertIn("stages", result["funnel"])
-
-    def test_entry_point_rejections_structure(self):
-        result = self._make_full_report()
-        rej = result["rejections"]
-        self.assertIn("rejected_events", rej)
-        self.assertIn("reason_occurrences", rej)
-        self.assertIn("reasons", rej)
-        self.assertIn("evidence", rej)
-
-    def test_entry_point_decisions_structure(self):
-        result = self._make_full_report()
-        dec = result["decisions"]
-        self.assertIn("event_decisions", dec)
-        self.assertIn("snapshot_distribution", dec)
-
-    def test_entry_point_risk_interventions_structure(self):
-        result = self._make_full_report()
-        ri = result["risk_interventions"]
-        self.assertIn("risk", ri)
-        self.assertIn("portfolio_precheck", ri)
-
-    def test_entry_point_trends_structure(self):
-        result = self._make_full_report()
-        tr = result["trends"]
-        self.assertIn("points", tr)
-        self.assertIn("window_scans", tr)
-
-    def test_entry_point_session_summary_structure(self):
-        result = self._make_full_report()
-        ss = result["session_summary"]
-        self.assertIn("sessions", ss)
-        self.assertIn("available", ss)
-
-    def test_entry_point_no_scan_id_uses_snapshot_scan(self):
-        """When scan_id=None, report uses snapshot's scan_id."""
-        mock_replay = {"scan_id": "snap_scan", "stages": []}
-        with patch.object(oa, "_replay", return_value=mock_replay), \
-             patch.object(oa, "_snapshot_rows",
-                          return_value=([], "snap_scan", None,
-                                        {"available": True, "error": None})), \
-             patch.object(oa, "_scan_events",
-                          return_value=([], _ok_state())), \
-             patch.object(oa, "_sessions",
-                          return_value=([], {"available": True, "error": None,
-                                             "demo_excluded": 0})):
-            result = oa.operator_analytics_report(scan_id=None)
-        self.assertTrue(result["ok"])
-
-    def test_entry_point_replay_error_graceful(self):
-        """A replay error sets source unavailable but report still returns ok=True."""
-        with patch.object(oa, "_replay", side_effect=Exception("replay down")), \
-             patch.object(oa, "_snapshot_rows",
-                          return_value=([], None, None,
-                                        {"available": True, "error": None})), \
-             patch.object(oa, "_scan_events",
-                          return_value=([], _ok_state())), \
-             patch.object(oa, "_sessions",
-                          return_value=([], {"available": True, "error": None,
-                                             "demo_excluded": 0})):
-            result = oa.operator_analytics_report(scan_id="any")
-        self.assertTrue(result["ok"])
-        self.assertFalse(result["sources"]["replay"]["available"])
+    def test_partial_fetch_flagged(self):
+        d = self._report(events=list(REJECTION_EVENTS),
+                         events_state=dict(TRUNC_STATE))
+        self.assertEqual(d["rejections"]["evidence"], "PARTIAL")
+        self.assertTrue(d["sources"]["pipeline_events"]["truncated"])
 
 
 if __name__ == "__main__":
