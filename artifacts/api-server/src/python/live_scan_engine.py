@@ -547,11 +547,32 @@ def derive_symbol_events(recs: List[Phase7Recommendation], scan_id: str,
                              {"error": r.error,
                               "data_quality": r.data_quality}))
             continue
+        # Task 2 — per-symbol data-path diagnostic fields so each scan row
+        # is independently auditable (data_source, latest_date, age_days,
+        # interval, last_price, tradable, reason_not_tradable).
+        _not_tradable_reason: Optional[str] = None
+        if not r.paper_eligible:
+            _gate_reasons = []
+            for _gk, _gv in [("data_quality", r.gate_data_quality),
+                              ("price",        r.gate_price),
+                              ("rr",           r.gate_rr),
+                              ("volume",       r.gate_volume)]:
+                if not (_gv or {}).get("passed"):
+                    _gate_reasons.append(f"{_gk}: {(_gv or {}).get('reason', _gk)}")
+            _not_tradable_reason = " | ".join(_gate_reasons) if _gate_reasons else "not_paper_eligible"
         batch.append(_ev("SYMBOL_SCANNED", "SCANNER",
-                         {"data_quality": r.data_quality,
-                          "bars": r.bars_available,
-                          "rsi": r.rsi, "adx": r.adx,
-                          "volume_ratio": r.volume_ratio}))
+                         {"data_quality":       r.data_quality,
+                          "data_source":        r.data_source,
+                          "latest_date":        r.latest_bar_date,
+                          "age_days":           r.data_age_days,
+                          "interval":           "1d",
+                          "last_price":         r.entry_price,
+                          "volume_ratio":       r.volume_ratio,
+                          "bars":               r.bars_available,
+                          "rsi":                r.rsi,
+                          "adx":                r.adx,
+                          "tradable":           r.paper_eligible,
+                          "reason_not_tradable": _not_tradable_reason}))
         batch.append(_ev("RESEARCH_COMPLETED", "RESEARCH",
                          {"win_rate": r.win_rate,
                           "profit_factor": r.profit_factor,

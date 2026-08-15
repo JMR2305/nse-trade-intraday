@@ -1,0 +1,112 @@
+URGENT — DATA PATH TRUTH AUDIT AND INTRADAY SCANNER FIX
+
+Use ApexQuant_AI_Review_Findings_and_Remediation_Spec_v2.md as the controlling document.
+
+Do not add new pages.
+Do not tune thresholds.
+Do not change strategy logic.
+Do not enable live broker orders.
+PAPER ONLY.
+
+The v2 independent review found that the documented "Zerodha primary, Yahoo fallback" architecture may not exist in code.
+
+Critical finding to verify:
+- live_scan_engine.py unconditionally uses LiveDataProvider()
+- live_data_provider.py uses yfinance only
+- Kite/Zerodha data appears to be display-only metadata
+- ohlcv_source is hardcoded as yfinance/historical
+- SCAN_INTERVAL appears to be 1d, meaning scanner may be using daily bars, not intraday bars
+
+TASK 1 — CODE/DB TRUTH AUDIT
+
+Produce a report showing the actual live scan data path:
+
+For each market-hours scan:
+- data provider class used
+- actual source: Kite / Zerodha / yfinance / mock
+- candle interval used: 1m / 5m / 15m / 1d
+- latest candle timestamp
+- latest candle age in minutes
+- age_days
+- data_quality
+- live_quote_source label
+- whether that label actually affects fetch logic
+- whether Zerodha session status affects price/quality
+- whether yfinance is always used regardless of Kite connection
+
+TASK 2 — PER-SYMBOL LOGGING
+
+For the next live scan, log per symbol:
+
+- symbol
+- data_source
+- latest_date
+- latest_time_IST
+- age_minutes
+- age_days
+- interval
+- last_price
+- volume
+- data_quality
+- tradable true/false
+- reason if not tradable
+
+Add this to diagnostics/reporting only first.
+
+TASK 3 — VERIFY INTRADAY CLAIM
+
+Confirm whether ApexQuant AI is currently doing true intraday scanning.
+
+Answer clearly:
+1. Is the live scan using daily bars?
+2. Is the live scan using intraday 1m/5m/15m bars?
+3. Is Zerodha/Kite actually used for live prices?
+4. Is Zerodha only used for display/session metadata?
+5. Does re-authenticating Zerodha change scanner data?
+6. Does yfinance fallback cap actions at WATCH or not?
+
+TASK 4 — SCOPE REAL INTRADAY DATA FIX
+
+If scanner is using yfinance daily bars, propose a safe fix:
+
+- use Kite/Zerodha as primary source when authenticated
+- fetch true intraday candles/quotes
+- use yfinance only as historical/backtest fallback
+- label yfinance as historical/research when market is open
+- do not allow daily-bar data to masquerade as live intraday data
+- keep paper mode only
+
+TASK 5 — RE-VERIFY EXISTING FIXES
+
+After data source is confirmed/fixed, re-test:
+
+- position sizing cap reduction
+- rejection reason logging
+- one BUY candidate producing paper order or clear rejection
+- one complete lifecycle: signal → paper fill → exit → realized P&L
+
+TASK 6 — AUG 11 AUDIT
+
+Resolve whether Aug 11's 64 ORDER_EXECUTED events were real or phantom.
+
+Check:
+- pipeline_events
+- phase20_paper_trades
+- legacy paper_trades
+- scan-loop anomaly
+- whether those fills should be counted as valid
+
+TASK 7 — REPORT
+
+Produce:
+
+APEXQUANT_DATA_PATH_AND_INTRADAY_TRUTH_AUDIT.md
+
+Include:
+1. Actual current data source.
+2. Actual candle interval.
+3. Whether Kite is used in the scan path.
+4. Whether yfinance is the only real data source.
+5. Whether the system is truly intraday today.
+6. Exact fix needed for true intraday scanning.
+7. Confirmation no live orders placed.
