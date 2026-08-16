@@ -446,3 +446,10 @@ uri = "file://APEXQUANT_FINAL_PREMARKET_GUARDRAIL_AND_VALIDATION_PREP_REPORT.md"
 type = "text"
 title = "ApexQuant — Final Pre-Market Guardrail & Validation Prep Report"
 description = "BTT/replay event quarantine, 5 consumer filters patched, 18/18 tests passing, exploration fixes confirmed, pre-market checklist."
+
+[[outputs]]
+id = "R_tCcrL4YAoAN0VE4bfDC"
+uri = "file://APEXQUANT_AI_SOP_v4.3.html"
+type = "text"
+title = "ApexQuant AI — Full Project SOP v4.3"
+description = "Updated 2026-08-16. BTT guardrail, exploration fixes, 18/18 tests, full architecture and pre-market checklist."

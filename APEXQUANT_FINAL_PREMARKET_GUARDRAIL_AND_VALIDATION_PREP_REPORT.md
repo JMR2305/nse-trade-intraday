@@ -1,7 +1,4 @@
-# ApexQuant AI — Final Pre-Market Guardrail & Validation Prep Report
-
-**Date:** 2026-08-16  
-**Constraint:** Paper only. No live orders. No new pages. No threshold changes.  
+New. No new pages. No threshold changes.  
 **Tests:** 18/18 passing
 
 ---
