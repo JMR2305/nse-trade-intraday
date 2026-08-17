@@ -272,14 +272,28 @@ def get_open_positions_view() -> List[Dict[str, Any]]:
                   for p in get_portfolio()["positions"]}
     except Exception:
         prices = {}
+    now = _now()
     out = []
     for t in open_trades:
         sym = str(t.get("symbol") or "").upper()
         cur = prices.get(sym) or float(t.get("fill_price") or 0)
         qty = int(t.get("quantity") or 0)
         fill = float(t.get("fill_price") or 0)
-        out.append({**t, "current_price": cur,
-                    "unrealized_pnl": round((cur - fill) * qty, 2)})
+        # Compute holding duration from fill_ts
+        holding_days: Optional[float] = None
+        fill_ts_raw = t.get("fill_ts")
+        if fill_ts_raw:
+            try:
+                ft = datetime.fromisoformat(str(fill_ts_raw).replace("Z", "+00:00"))
+                holding_days = round((now - ft).total_seconds() / 86400, 2)
+            except Exception:
+                pass
+        out.append({
+            **t,
+            "current_price": cur,
+            "unrealized_pnl": round((cur - fill) * qty, 2),
+            "holding_days": holding_days,
+        })
     return out
 
 

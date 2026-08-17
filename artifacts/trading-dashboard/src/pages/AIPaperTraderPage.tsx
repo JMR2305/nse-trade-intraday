@@ -93,6 +93,12 @@ interface OpenPosition {
   expected_return_entry: number; expected_return_current: number;
   target: number; stop_loss: number; strategy: string;
   market_regime: string; risk_level: string; holding_label: string;
+  /** Days held since fill_ts (float, e.g. 2.5 = two and a half days) */
+  holding_days?: number;
+  /** True when holding_days >= max_holding_days - 2 — show amber alert */
+  near_time_exit?: boolean;
+  /** Configured max holding days from settings (default 10) */
+  max_holding_days?: number;
   // Bootstrap provenance fields — present when trigger_source="BOOTSTRAP_AUTO"
   trigger_source?: string;
   fill_model?: string;
@@ -2337,6 +2343,10 @@ function SExitPendingAlert() {
             to resolve these positions. They will be force-closed once{" "}
             <code className="font-mono text-amber-300">max_holding_days</code> is exceeded,
             or when Kite LTP comes back online. No real money is at risk.
+            {" "}<a href="#holdings-section"
+              className="underline underline-offset-2 text-amber-300 hover:text-amber-200 transition-colors">
+              See Age column ↓
+            </a>
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             {stale.map(p => (
@@ -2406,6 +2416,7 @@ function S4Holdings() {
     refetchInterval: 30_000, staleTime: 15_000, retry: 1,
   });
   const list = toArr<OpenPosition>(data);
+  const nearExitCount = list.filter(p => p.near_time_exit).length;
 
   // Fetch timeline for sparkline price history — shared with S5 via same
   // query key so no extra network request is made when both are mounted.
@@ -2427,9 +2438,16 @@ function S4Holdings() {
   const priceSnapshots: Record<string, number[]> = phData?.snapshots ?? {};
 
   return (
-    <div className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-4">
+    <div id="holdings-section" className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
-        <SecTitle icon={Layers} title={`Current Holdings (${list.length})`} />
+        <div className="flex items-center gap-2">
+          <SecTitle icon={Layers} title={`Current Holdings (${list.length})`} />
+          {nearExitCount > 0 && (
+            <Badge className="text-xs bg-amber-900/70 border-amber-700/50 text-amber-300 px-1.5 py-0 -mt-3">
+              {nearExitCount} near TIME_EXIT
+            </Badge>
+          )}
+        </div>
         <div className="flex items-center gap-3 ml-auto">
           {list.length > 0 && (
             <span className="text-xs text-slate-600 flex items-center gap-1">
@@ -2454,7 +2472,7 @@ function S4Holdings() {
                 {[
                   "Stock","Momentum","Buy Time","Buy ₹","Qty","Cur ₹",
                   "Value","P/L","P/L %","Target","S/L","Exp Ret",
-                  "Confidence","Strategy","Risk","Duration",
+                  "Confidence","Strategy","Risk","Age","Duration",
                 ].map(h => (
                   <th key={h} className="pb-2 pr-3 text-left text-slate-500 font-medium">{h}</th>
                 ))}
@@ -2466,6 +2484,12 @@ function S4Holdings() {
                   p.stock, p.buy_price, p.current_price, tlEvents,
                   priceSnapshots[p.stock],
                 );
+                const maxHold = p.max_holding_days ?? 10;
+                const ageDays = p.holding_days;
+                const ageLabel = ageDays == null ? "—"
+                  : ageDays < 1    ? `${Math.round(ageDays * 24)}h`
+                  : `${ageDays.toFixed(1)}d`;
+                const ageNear = p.near_time_exit ?? false;
                 return (
                   <tr key={p.stock} className="border-b border-slate-800/30 hover:bg-slate-800/20 transition-colors">
                     <td className="py-2 pr-3 font-bold text-slate-100">
@@ -2503,6 +2527,26 @@ function S4Holdings() {
                     <td className="py-2 pr-3 w-28"><ConfBar value={p.ai_confidence} /></td>
                     <td className="py-2 pr-3 text-violet-300">{p.strategy}</td>
                     <td className="py-2 pr-3"><RiskBadge level={p.risk_level} /></td>
+                    {/* ── Age column ── */}
+                    <td className="py-2 pr-3">
+                      <span
+                        className={`inline-flex items-center gap-1 font-mono rounded px-1.5 py-0.5 ${
+                          ageNear
+                            ? "bg-amber-900/40 border border-amber-700/50 text-amber-300"
+                            : "text-slate-400"
+                        }`}
+                        title={
+                          ageDays == null
+                            ? "Fill timestamp unavailable"
+                            : ageNear
+                              ? `${ageDays.toFixed(1)}d held — within 2 days of max_holding_days (${maxHold}d). May be force-closed soon.`
+                              : `${ageDays.toFixed(1)} days held (max ${maxHold}d)`
+                        }
+                      >
+                        {ageNear && <AlertTriangle className="w-3 h-3 text-amber-400 flex-shrink-0" />}
+                        {ageLabel}
+                      </span>
+                    </td>
                     <td className="py-2 pr-3 text-slate-400">{p.holding_label}</td>
                   </tr>
                 );

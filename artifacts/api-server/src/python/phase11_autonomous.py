@@ -383,6 +383,18 @@ def get_open_positions_detail() -> List[Dict[str, Any]]:
         # Current expected return (live price vs target)
         cur_exp_return = ((target - current_price) / current_price * 100) if current_price > 0 else 0.0
 
+        holding_days = round(holding_mins / 1440, 2)
+
+        # Near-TIME_EXIT warning: flag positions within 2 days of the max holding
+        # threshold so the UI can highlight them amber.
+        _max_holding_days: int = 10  # default — matches phase20_store default
+        try:
+            from phase20_store import get_settings as _gs
+            _max_holding_days = int(_gs().get("max_holding_days", 10) or 10)
+        except Exception:
+            pass
+        near_time_exit = holding_days >= (_max_holding_days - 2)
+
         _prov = _provenance.get(str(sym).upper() if sym else "", {})
         result.append({
             "stock":                  sym,
@@ -402,7 +414,10 @@ def get_open_positions_detail() -> List[Dict[str, Any]]:
             "market_regime":          regime,
             "risk_level":             risk_level,
             "holding_mins":           holding_mins,
+            "holding_days":           holding_days,
             "holding_label":          _fmt_holding(holding_mins),
+            "near_time_exit":         near_time_exit,
+            "max_holding_days":       _max_holding_days,
             # Bootstrap provenance — present only when trigger_source="BOOTSTRAP_AUTO"
             "trigger_source":         _prov.get("trigger_source"),
             "fill_model":             _prov.get("fill_model"),
