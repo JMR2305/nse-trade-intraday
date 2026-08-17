@@ -453,3 +453,10 @@ uri = "file://APEXQUANT_AI_SOP_v4.3.html"
 type = "text"
 title = "ApexQuant AI — Full Project SOP v4.3"
 description = "Updated 2026-08-16. BTT guardrail, exploration fixes, 18/18 tests, full architecture and pre-market checklist."
+
+[[outputs]]
+id = "4b_4FEZ0kqcq8d5Fnmqnq"
+uri = "file://APEXQUANT_AI_SOP_v5.0.html"
+type = "text"
+title = "ApexQuant AI — SOP v5.0"
+description = "Full operator guide updated 2026-08-18. Covers Bootstrap Mode activation, secrets management, Kite auth, daily checklist, and troubleshooting."
