@@ -108,6 +108,14 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     # trigger_source="BOOTSTRAP_AUTO" so it is permanently distinguishable from
     # normal paper entries. Auto-disables when the ledger reaches 20 closed trades.
     "bootstrap_paper_enabled": False,
+    # ── Stale-scan exit fallback (Task 791) ─────────────────────────────────────
+    # When an exit rule fires on a stale scan AND the trade has been held for at
+    # least this many days, the exit engine uses the yfinance daily close as the
+    # exit price and records the trade as CLOSED immediately — preventing the
+    # position from entering EXIT_PENDING where it would accumulate if Kite LTP
+    # stays offline.  Set to 0 to disable (always defer to EXIT_PENDING on stale
+    # data, the legacy behaviour).
+    "exit_on_stale_after_days": 5,
 }
 
 # Keys excluded from the reproducibility config hash (meta, not behaviour).

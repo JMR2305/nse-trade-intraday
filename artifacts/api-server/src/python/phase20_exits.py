@@ -191,6 +191,58 @@ def manage_open_positions(settings: Dict[str, Any]) -> Dict[str, Any]:
             continue  # position stays open
 
         if not quote_reliable:
+            # ── Task 791: prefer immediate yfinance close over EXIT_PENDING ──
+            # When exit_on_stale_after_days > 0, a trade that has been held
+            # long enough (>= N days from fill_ts) may be closed immediately
+            # using the yfinance daily close — even on a stale scan — rather
+            # than accumulating EXIT_PENDING entries that won't resolve until
+            # Kite LTP comes back online.
+            _stale_exit_days = int(settings.get("exit_on_stale_after_days", 5))
+            if _stale_exit_days > 0:
+                _entry_dt = _parse_ts(trade.get("fill_ts"))
+                _held_days = (_now() - _entry_dt).days if _entry_dt else 0
+                _yf_quote = float(rec.get("entry_price") or 0)
+                if (_held_days >= _stale_exit_days
+                        and _yf_quote > 0
+                        and not rec.get("error")):
+                    # Use yfinance daily close for an immediate CLOSED exit.
+                    _ok, _msg = execute_sell(
+                        sym, qty, _yf_quote,
+                        ledger_trade_id=trade_id,
+                        reason=(
+                            f"Phase 20 exit {rule} "
+                            f"(stale scan, yfinance daily close, "
+                            f"held {_held_days}d >= exit_on_stale_after_days="
+                            f"{_stale_exit_days}d, trade {trade_id})"
+                        ),
+                        exit_type=("STOP_HIT" if rule == "STOP_LOSS_HIT"
+                                   else "TARGET_HIT" if rule == "TARGET_HIT"
+                                   else "SIGNAL_EXIT"),
+                    )
+                    if _ok:
+                        record_exit(trade_id, _yf_quote, rule, exit_scan_id,
+                                    status="CLOSED")
+                        exits.append({
+                            "trade_id": trade_id, "symbol": sym, "rule": rule,
+                            "exit_price": _yf_quote,
+                            "price_source": "yfinance_daily_close_stale",
+                        })
+                        store.add_notification(
+                            "EXIT_COMPLETED",
+                            f"Paper exit {sym} @ ₹{_yf_quote} ({rule}, "
+                            f"yfinance close on stale scan)",
+                            f"Trade {trade_id} closed by {rule} using yfinance "
+                            f"daily close on a stale scan (held {_held_days}d >= "
+                            f"exit_on_stale_after_days={_stale_exit_days}d). "
+                            f"Kite LTP was offline. Scan: {exit_scan_id}.",
+                            severity="INFO",
+                            context={
+                                "trade_id": trade_id, "symbol": sym,
+                                "rule": rule, "scan_id": exit_scan_id,
+                                "price_source": "yfinance_daily_close_stale",
+                                "held_days": _held_days,
+                            })
+                        continue
             # NEVER fabricate a fill from stale/unavailable data.
             record_exit(trade_id, 0.0, rule, exit_scan_id, status="EXIT_PENDING")
             pend = {"trade_id": trade_id, "symbol": sym, "rule": rule,

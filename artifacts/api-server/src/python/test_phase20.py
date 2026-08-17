@@ -378,10 +378,18 @@ class TestExitsSafety(unittest.TestCase):
         self.assertEqual(result["exits"][0]["rule"], "RECOMMENDATION_EXIT")
 
     def test_stale_data_never_fabricates_fill(self):
-        # Stop would be hit, but data is STALE → PENDING, no sell.
+        # TIME_EXIT fires (3 days held, max_holding_days=2), data is STALE, but
+        # held days (3) < exit_on_stale_after_days (5, default) → EXIT_PENDING.
+        # Verifies that the new stale-exit feature doesn't fire below its threshold.
+        from datetime import datetime, timedelta, timezone
+        recent_3d = (datetime.now(timezone.utc) - timedelta(days=3)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ")
         rec = {"entry_price": 90.0, "data_quality": "LIVE", "final_action": "WATCH"}
-        trade = self._trade(fill_ts="2026-06-01T04:00:00Z")  # also time-exit due
-        result, recorded, sells = self._run(trade, rec, stale=True)
+        trade = self._trade(fill_ts=recent_3d)
+        # max_holding_days=2 → TIME_EXIT fires; exit_on_stale_after_days=5 → not met
+        result, recorded, sells = self._run_with_settings(
+            trade, rec, stale=True,
+            settings_override={"max_holding_days": 2, "exit_on_stale_after_days": 5})
         self.assertEqual(len(sells), 0, "No fill may be fabricated from stale data")
         self.assertEqual(len(result["pending"]), 1)
         # record_exit called with EXIT_PENDING status
@@ -434,6 +442,126 @@ class TestExitsSafety(unittest.TestCase):
         self.assertEqual(result["exits"], [])
         self.assertEqual(result["pending"], [])
         self.assertEqual(len(sells), 0)
+
+    # ── Task 791: exit_on_stale_after_days tests ──────────────────────────────
+
+    def _run_with_settings(self, trade, rec, stale=False, settings_override=None):
+        """Like _run but accepts a full settings dict override."""
+        import phase20_exits as x
+        ctx = {"available": True, "scan_id": "s2", "stale": stale,
+               "symbols": ({"TCS": rec} if rec else {})}
+        pf = {"cash": 0.0, "total_value": 5000.0, "invested_value": 500.0,
+              "positions": [{"symbol": "TCS", "quantity": 5,
+                             "current_price": rec.get("entry_price", 100.0)
+                             if rec else 100.0}]}
+        recorded = []
+        sells = []
+        settings = dict(DEFAULT_SETTINGS)
+        if settings_override:
+            settings.update(settings_override)
+        with patch.object(x, "get_open_trades", return_value=[trade]), \
+             patch("phase15_scan_context.build_scan_context", return_value=ctx), \
+             patch("market_hours.market_status",
+                   return_value={"state": "OPEN"}), \
+             patch("paper_trader._load_state",
+                   return_value={"trades": [], "positions": {}}), \
+             patch("paper_trader.get_portfolio", return_value=pf), \
+             patch("paper_trader.execute_sell",
+                   side_effect=lambda *a, **k: (sells.append((a, k)) or (True, "ok"))), \
+             patch.object(x, "record_exit",
+                          side_effect=lambda *a, **k: recorded.append((a, k))), \
+             patch.object(x.store, "add_notification", lambda *a, **k: None), \
+             patch("phase20_executor.get_ledger", return_value=[]):
+            result = x.manage_open_positions(settings)
+        return result, recorded, sells
+
+    def _old_trade(self, days_held=6):
+        """Trade held for `days_held` days (default exceeds exit_on_stale_after_days=5)."""
+        from datetime import datetime, timedelta, timezone
+        old_ts = (datetime.now(timezone.utc) - timedelta(days=days_held)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ")
+        return self._trade(fill_ts=old_ts)
+
+    def test_stale_exit_after_n_days_closes_immediately(self):
+        """Stale scan + TIME_EXIT + held >= exit_on_stale_after_days + yfinance quote
+        → CLOSED immediately, no EXIT_PENDING.
+        (max_holding_days=2 makes TIME_EXIT fire; 6 days >= threshold of 5.)"""
+        rec = {"entry_price": 90.0, "data_quality": "LIVE", "final_action": "WATCH"}
+        trade = self._old_trade(days_held=6)
+        result, recorded, sells = self._run_with_settings(
+            trade, rec, stale=True,
+            settings_override={"max_holding_days": 2, "exit_on_stale_after_days": 5})
+        self.assertEqual(len(sells), 1, "execute_sell must be called for stale-after-N-days exit")
+        self.assertEqual(result["pending"], [], "Position must not enter EXIT_PENDING")
+        self.assertEqual(len(result["exits"]), 1)
+        self.assertEqual(result["exits"][0].get("price_source"), "yfinance_daily_close_stale")
+        # record_exit must be called with CLOSED, not EXIT_PENDING
+        self.assertTrue(any(k.get("status") == "CLOSED" or
+                            (len(a) >= 5 and a[4] == "CLOSED")
+                            for a, k in recorded),
+                        "record_exit must be called with status=CLOSED")
+
+    def test_stale_exit_below_threshold_defers_to_pending(self):
+        """Stale scan + TIME_EXIT fires but held days < exit_on_stale_after_days
+        → EXIT_PENDING (no sell).
+        (max_holding_days=2 fires TIME_EXIT; 3 days < threshold of 5.)"""
+        rec = {"entry_price": 90.0, "data_quality": "LIVE", "final_action": "WATCH"}
+        trade = self._old_trade(days_held=3)
+        result, recorded, sells = self._run_with_settings(
+            trade, rec, stale=True,
+            settings_override={"max_holding_days": 2, "exit_on_stale_after_days": 5})
+        self.assertEqual(len(sells), 0, "No fill when held days < threshold")
+        self.assertEqual(len(result["pending"]), 1)
+        self.assertTrue(any(k.get("status") == "EXIT_PENDING" or
+                            (len(a) >= 5 and a[4] == "EXIT_PENDING")
+                            for a, k in recorded))
+
+    def test_stale_exit_disabled_when_flag_zero(self):
+        """exit_on_stale_after_days=0 disables the feature → EXIT_PENDING regardless
+        of how long the trade has been held."""
+        rec = {"entry_price": 90.0, "data_quality": "LIVE", "final_action": "WATCH"}
+        trade = self._old_trade(days_held=30)  # well past any threshold
+        result, recorded, sells = self._run_with_settings(
+            trade, rec, stale=True,
+            settings_override={"exit_on_stale_after_days": 0})
+        self.assertEqual(len(sells), 0, "Feature is disabled — no fill must occur")
+        self.assertEqual(len(result["pending"]), 1)
+        self.assertTrue(any(k.get("status") == "EXIT_PENDING" or
+                            (len(a) >= 5 and a[4] == "EXIT_PENDING")
+                            for a, k in recorded))
+
+    def test_stale_exit_no_yfinance_quote_defers_to_pending(self):
+        """Stale scan + held >= threshold but no yfinance quote (entry_price=0)
+        → EXIT_PENDING even though the stale-exit gate is open.
+        (max_holding_days=2 fires TIME_EXIT; 6 days >= threshold of 5.)"""
+        rec = {"entry_price": 0, "data_quality": "LIVE", "final_action": "WATCH"}
+        trade = self._old_trade(days_held=6)
+        result, recorded, sells = self._run_with_settings(
+            trade, rec, stale=True,
+            settings_override={"max_holding_days": 2, "exit_on_stale_after_days": 5})
+        self.assertEqual(len(sells), 0, "No fill when yfinance quote is unavailable")
+        self.assertEqual(len(result["pending"]), 1)
+
+    def test_stale_exit_custom_threshold(self):
+        """Custom exit_on_stale_after_days=10: trade held 8 days → still EXIT_PENDING;
+        trade held 11 days → CLOSED via yfinance.
+        (max_holding_days=2 makes TIME_EXIT fire for both.)"""
+        rec = {"entry_price": 90.0, "data_quality": "LIVE", "final_action": "WATCH"}
+        settings_ov = {"max_holding_days": 2, "exit_on_stale_after_days": 10}
+
+        # 8 days held — below custom 10-day threshold → EXIT_PENDING
+        trade_8 = self._old_trade(days_held=8)
+        result8, _, sells8 = self._run_with_settings(
+            trade_8, rec, stale=True, settings_override=settings_ov)
+        self.assertEqual(len(sells8), 0, "8 days < 10 threshold — must not close")
+        self.assertEqual(len(result8["pending"]), 1)
+
+        # 11 days held — above custom 10-day threshold → CLOSED
+        trade_11 = self._old_trade(days_held=11)
+        result11, _, sells11 = self._run_with_settings(
+            trade_11, rec, stale=True, settings_override=settings_ov)
+        self.assertEqual(len(sells11), 1, "11 days >= 10 threshold — must close")
+        self.assertEqual(result11["pending"], [])
 
 
 class TestTimeoutExitPending(unittest.TestCase):
