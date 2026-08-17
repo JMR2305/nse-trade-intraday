@@ -1045,6 +1045,7 @@ function SBootstrapStatus() {
   // Single query: the Python endpoint short-circuits immediately when
   // bootstrap_paper_enabled=False (no DB query, no circuit-breaker evaluation),
   // so polling every 60 s is cheap regardless of the flag state.
+  const qc = useQueryClient();
   const { data, refetch } = useQuery<BootstrapStatus>({
     queryKey: ["apt", "bootstrap-status"],
     queryFn:  () => apiJson("/phase20/bootstrap-status"),
@@ -1053,8 +1054,60 @@ function SBootstrapStatus() {
     retry: 1,
   });
 
-  // Card is invisible when bootstrap is disabled or data hasn't arrived yet.
-  if (!data?.bootstrap_paper_enabled) return null;
+  const enableMut = useMutation({
+    mutationFn: () =>
+      apiJson("/phase20/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patch: { bootstrap_paper_enabled: true } }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["apt", "bootstrap-status"] });
+      setTimeout(() => refetch(), 800);
+    },
+  });
+
+  // If data hasn't arrived yet, stay silent.
+  if (!data) return null;
+
+  // ── DISABLED state: show an "Enable Bootstrap Mode" card ──────────────────
+  if (!data.bootstrap_paper_enabled) {
+    return (
+      <div className="border rounded-xl p-4 bg-slate-900/40 border-slate-700/40"
+           data-testid="bootstrap-status-card">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Zap className="w-4 h-4 text-slate-400" />
+            <span className="text-sm font-semibold text-slate-200">Bootstrap Mode</span>
+          </div>
+          <span className="text-xs px-2 py-0.5 rounded border bg-slate-800 border-slate-600/50 text-slate-400">
+            DISABLED
+          </span>
+        </div>
+        <p className="text-xs text-slate-400 mb-4 leading-relaxed">
+          Bootstrap Mode lets the AI automatically place the <em>first</em> paper trade
+          when there is no trading history yet. Enable it to kick-start the live paper
+          portfolio. It auto-disables after a configurable number of bootstrap trades.
+        </p>
+        <button
+          onClick={() => enableMut.mutate()}
+          disabled={enableMut.isPending}
+          className="w-full py-2 px-4 rounded-lg text-sm font-medium
+                     bg-teal-700 hover:bg-teal-600 disabled:opacity-50
+                     text-white transition-colors flex items-center justify-center gap-2"
+        >
+          {enableMut.isPending
+            ? <><RefreshCcw className="w-3.5 h-3.5 animate-spin" /> Enabling…</>
+            : <><Power className="w-3.5 h-3.5" /> Enable Bootstrap Mode</>}
+        </button>
+        {enableMut.isError && (
+          <p className="text-xs text-rose-400 mt-2 text-center">
+            Failed to enable — try again
+          </p>
+        )}
+      </div>
+    );
+  }
 
   const {
     auto_paper_entries,
