@@ -1,6 +1,6 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useGetSignals, useGetTradeDecisions, useRunLiveDataScan } from "@workspace/api-client-react";
-import { apiJson } from "@/lib/monitorApi";
+import { apiJson, usePhase11Recommendations, type Phase11RecQueue } from "@/lib/monitorApi";
 import { applyRunResponse, applyRunError } from "@/lib/scanLogic";
 import * as Haptics from "expo-haptics";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -23,6 +23,132 @@ import { StaleBanner } from "@/components/StaleBanner";
 import { useColors } from "@/hooks/useColors";
 import { useOfflineSnapshot } from "@/lib/offlineCache";
 import { AppHeader } from "@/components/AppHeader";
+
+// ── Recommendation Queue components ──────────────────────────────────────────
+
+/** Neutral waiting state shown when session_mismatch=true. */
+function SessionMismatchBanner({ message, nextScan }: { message?: string; nextScan?: string }) {
+  const colors = useColors();
+  return (
+    <View
+      testID="session-mismatch-banner"
+      style={[
+        styles.mismatchBanner,
+        { backgroundColor: colors.muted, borderColor: colors.border },
+      ]}
+    >
+      <Ionicons name="time-outline" size={28} color={colors.mutedForeground} />
+      <Text style={[styles.mismatchTitle, { color: colors.foreground }]}>
+        {message ?? "Waiting for today's first scan"}
+      </Text>
+      <Text style={[styles.mismatchBody, { color: colors.mutedForeground }]}>
+        The latest scan is from a previous trading session.{"\n"}
+        BUY recommendations are hidden until a fresh scan runs today.
+      </Text>
+      {nextScan ? (
+        <Text style={[styles.mismatchNext, { color: colors.mutedForeground }]}>
+          Next scan expected: {nextScan}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+/** Single phase11 recommendation card. */
+function RecCard({ item, rank }: { item: Phase11RecQueue["items"][number]; rank: number }) {
+  const colors = useColors();
+  const action = (item.action ?? "BUY").toUpperCase().replace(/_/g, " ");
+  const confidence = Math.round(item.confidence ?? 0);
+  const confColor =
+    confidence >= 75 ? colors.success : confidence >= 55 ? "#f59e0b" : colors.destructive;
+
+  return (
+    <View
+      style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
+      testID={`rec-card-${item.symbol}`}
+    >
+      <View style={styles.cardHeader}>
+        <View style={styles.symbolRow}>
+          <View
+            style={[
+              styles.rankBubble,
+              { backgroundColor: colors.primary + "22", borderColor: colors.primary + "55" },
+            ]}
+          >
+            <Text style={[styles.rankText, { color: colors.primary }]}>{rank}</Text>
+          </View>
+          <Text style={[styles.symbol, { color: colors.foreground }]}>{item.symbol}</Text>
+          <View style={[styles.badge, { backgroundColor: colors.success }]}>
+            <Text style={[styles.badgeText, { color: colors.successForeground ?? "#fff" }]}>
+              {action}
+            </Text>
+          </View>
+        </View>
+        {item.risk_level ? (
+          <Text style={[styles.riskLabel, { color: colors.mutedForeground }]}>
+            {item.risk_level} RISK
+          </Text>
+        ) : null}
+      </View>
+
+      {/* Confidence bar */}
+      {confidence > 0 && (
+        <View style={styles.confidenceRow}>
+          <Text style={[styles.label, { color: colors.mutedForeground }]}>Confidence</Text>
+          <View style={[styles.progressTrack, { backgroundColor: colors.muted }]}>
+            <View
+              style={[
+                styles.progressFill,
+                { width: `${confidence}%` as DimensionValue, backgroundColor: confColor },
+              ]}
+            />
+          </View>
+          <Text style={[styles.confidenceValue, { color: confColor }]}>{confidence}%</Text>
+        </View>
+      )}
+
+      {/* Price levels */}
+      {(item.entry != null || item.stop_loss != null || item.target != null) && (
+        <View style={styles.priceRow}>
+          {item.entry != null && (
+            <View style={[styles.priceBox, { backgroundColor: colors.muted }]}>
+              <Text style={[styles.priceBoxLabel, { color: colors.mutedForeground }]}>Entry</Text>
+              <Text style={[styles.priceBoxValue, { color: colors.foreground }]}>
+                ₹{item.entry.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+              </Text>
+            </View>
+          )}
+          {item.stop_loss != null && (
+            <View style={[styles.priceBox, { backgroundColor: colors.destructive + "18", borderColor: colors.destructive + "40" }]}>
+              <Text style={[styles.priceBoxLabel, { color: colors.destructive }]}>SL</Text>
+              <Text style={[styles.priceBoxValue, { color: colors.destructive }]}>
+                ₹{item.stop_loss.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+              </Text>
+            </View>
+          )}
+          {item.target != null && (
+            <View style={[styles.priceBox, { backgroundColor: colors.success + "18", borderColor: colors.success + "40" }]}>
+              <Text style={[styles.priceBoxLabel, { color: colors.success }]}>Target</Text>
+              <Text style={[styles.priceBoxValue, { color: colors.success }]}>
+                ₹{item.target.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Strategy / reasoning */}
+      {item.strategy ? (
+        <Text style={[styles.strategy, { color: colors.mutedForeground }]}>{item.strategy}</Text>
+      ) : null}
+      {item.reasoning ? (
+        <Text style={[styles.reason, { color: colors.mutedForeground }]} numberOfLines={2}>
+          {item.reasoning}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
 
 type SignalAction = "BUY" | "SELL" | "HOLD" | string;
 
@@ -141,6 +267,7 @@ export default function SignalsScreen() {
 
   const { data: liveSignals, isLoading, isError, refetch, isFetching, dataUpdatedAt } = useGetSignals();
   const decisions = useGetTradeDecisions();
+  const recs = usePhase11Recommendations();
 
   const {
     data: signals,
@@ -166,10 +293,10 @@ export default function SignalsScreen() {
   const [aborting, setAborting] = useState(false);
   const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Stable reference to decisions.refetch to avoid re-creating the poll interval
-  // on every render (react-query returns a stable refetch but the containing
-  // object is recreated each render).
+  // Stable references to avoid re-creating the poll interval on every render
+  // (react-query returns stable refetch fns but the containing object is new each render).
   const refetchDecisions = decisions.refetch;
+  const refetchRecs = recs.refetch;
 
   // Drive the elapsed counter off scanRunning, not mutation isPending.
   useEffect(() => {
@@ -206,14 +333,16 @@ export default function SignalsScreen() {
         // null baseline: no previous scan existed — any scan_id is a new completion.
         if (currentScanId !== null && currentScanId !== baselineScanId) {
           setScanRunning(false);
-          await Promise.all([refetch(), refetchDecisions()]);
+          // Also refresh the phase11 recommendation queue — a fresh scan
+          // clears session_mismatch=true so yesterday's badges disappear.
+          await Promise.all([refetch(), refetchDecisions(), refetchRecs()]);
         }
       } catch {
         // ignore transient poll errors; keep waiting
       }
     }, 5_000);
     return () => clearInterval(poll);
-  }, [scanRunning, baselineScanId, refetch, refetchDecisions]);
+  }, [scanRunning, baselineScanId, refetch, refetchDecisions, refetchRecs]);
 
   const handleAbort = useCallback(async () => {
     setAborting(true);
@@ -363,7 +492,7 @@ export default function SignalsScreen() {
           refreshControl={
             <RefreshControl
               refreshing={isFetching && !isLoading}
-              onRefresh={() => Promise.all([refetch(), decisions.refetch()])}
+              onRefresh={() => Promise.all([refetch(), decisions.refetch(), recs.refetch()])}
               tintColor={colors.primary}
             />
           }
@@ -371,7 +500,34 @@ export default function SignalsScreen() {
           {(signalsStale || decisionsSnapshot.isStale) && (
             <StaleBanner staleTs={staleTs ?? decisionsSnapshot.staleTs} onRetry={() => refetch()} />
           )}
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Latest Signals</Text>
+
+          {/* ── Recommendation Queue (phase11) ─────────────────────────── */}
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Recommendation Queue</Text>
+          {recs.isLoading && recs.data === undefined ? (
+            <>
+              <SkeletonCard lines={2} />
+              <SkeletonCard lines={2} />
+            </>
+          ) : recs.data?.session_mismatch ? (
+            /* Yesterday's scan — show neutral waiting state, never show stale BUY badges */
+            <SessionMismatchBanner
+              message={recs.data.session_message}
+              nextScan={recs.data.next_scan_expected_ist}
+            />
+          ) : (recs.data?.items?.length ?? 0) > 0 ? (
+            (recs.data!.items).map((r, i) => (
+              <RecCard key={`${r.symbol}-${i}`} item={r} rank={i + 1} />
+            ))
+          ) : (
+            <View style={styles.empty} testID="rec-queue-empty">
+              <Ionicons name="hourglass-outline" size={40} color={colors.mutedForeground} />
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                No recommendations at this time. Run a scan during market hours.
+              </Text>
+            </View>
+          )}
+
+          <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 12 }]}>Latest Signals</Text>
           {signalList.length === 0 ? (
             <View style={styles.empty}>
               <Ionicons name="pulse-outline" size={40} color={colors.mutedForeground} />
@@ -471,4 +627,38 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 14, fontFamily: "Inter_400Regular" },
   retryBtn: { marginTop: 8, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, borderWidth: 1 },
   retryText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+
+  // ── Recommendation Queue styles ──────────────────────────────────────────
+  mismatchBanner: {
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 20,
+    marginBottom: 10,
+    alignItems: "center",
+    gap: 8,
+  },
+  mismatchTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", textAlign: "center" },
+  mismatchBody: { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 18 },
+  mismatchNext: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 4 },
+
+  rankBubble: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rankText: { fontSize: 11, fontFamily: "Inter_700Bold" },
+  riskLabel: { fontSize: 11, fontFamily: "Inter_500Medium" },
+  priceRow: { flexDirection: "row", gap: 8, marginBottom: 8 },
+  priceBox: {
+    flex: 1,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 8,
+    alignItems: "center",
+  },
+  priceBoxLabel: { fontSize: 10, fontFamily: "Inter_500Medium", marginBottom: 2 },
+  priceBoxValue: { fontSize: 12, fontFamily: "Inter_700Bold" },
 });
