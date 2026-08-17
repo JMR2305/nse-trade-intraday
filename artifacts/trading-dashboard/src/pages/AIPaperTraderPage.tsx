@@ -95,6 +95,12 @@ interface OpenPosition {
   market_regime: string; risk_level: string; holding_label: string;
   /** Days held since fill_ts (float, e.g. 2.5 = two and a half days) */
   holding_days?: number;
+  /**
+   * Which timestamp field was used to compute holding_days.
+   * "fill_ts" = normal case. "signal_ts" | "snapshot_ts" | "created_at" = fallback.
+   * null means no usable timestamp was found (holding_days will also be null).
+   */
+  age_ts_source?: string | null;
   /** True when holding_days >= max_holding_days - 2 — show amber alert */
   near_time_exit?: boolean;
   /** Configured max holding days from settings (default 10) */
@@ -2486,10 +2492,21 @@ function S4Holdings() {
                 );
                 const maxHold = p.max_holding_days ?? 10;
                 const ageDays = p.holding_days;
+                const ageSrc  = p.age_ts_source ?? null;
                 const ageLabel = ageDays == null ? "—"
                   : ageDays < 1    ? `${Math.round(ageDays * 24)}h`
                   : `${ageDays.toFixed(1)}d`;
                 const ageNear = p.near_time_exit ?? false;
+                // Build the Age tooltip — surface which timestamp was used when
+                // fill_ts was absent so operators know the value is an estimate.
+                const ageFallbackNote = ageSrc && ageSrc !== "fill_ts"
+                  ? ` (estimated from ${ageSrc} — fill_ts unavailable)`
+                  : "";
+                const ageTitle = ageDays == null
+                  ? "Fill timestamp unavailable — age cannot be computed for this position"
+                  : ageNear
+                    ? `${ageDays.toFixed(1)}d held${ageFallbackNote} — within 2 days of max_holding_days (${maxHold}d). May be force-closed soon.`
+                    : `${ageDays.toFixed(1)} days held${ageFallbackNote} (max ${maxHold}d)`;
                 return (
                   <tr key={p.stock} className="border-b border-slate-800/30 hover:bg-slate-800/20 transition-colors">
                     <td className="py-2 pr-3 font-bold text-slate-100">
@@ -2533,15 +2550,11 @@ function S4Holdings() {
                         className={`inline-flex items-center gap-1 font-mono rounded px-1.5 py-0.5 ${
                           ageNear
                             ? "bg-amber-900/40 border border-amber-700/50 text-amber-300"
-                            : "text-slate-400"
+                            : ageDays == null
+                              ? "text-slate-600 italic"
+                              : "text-slate-400"
                         }`}
-                        title={
-                          ageDays == null
-                            ? "Fill timestamp unavailable"
-                            : ageNear
-                              ? `${ageDays.toFixed(1)}d held — within 2 days of max_holding_days (${maxHold}d). May be force-closed soon.`
-                              : `${ageDays.toFixed(1)} days held (max ${maxHold}d)`
-                        }
+                        title={ageTitle}
                       >
                         {ageNear && <AlertTriangle className="w-3 h-3 text-amber-400 flex-shrink-0" />}
                         {ageLabel}

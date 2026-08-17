@@ -279,20 +279,34 @@ def get_open_positions_view() -> List[Dict[str, Any]]:
         cur = prices.get(sym) or float(t.get("fill_price") or 0)
         qty = int(t.get("quantity") or 0)
         fill = float(t.get("fill_price") or 0)
-        # Compute holding duration from fill_ts
+        # Compute holding duration with a fallback timestamp chain so
+        # missing/malformed fill_ts never silently returns None.
+        # Priority: fill_ts → signal_ts → snapshot_ts → created_at.
+        # The result is clamped to ≥ 0 to absorb small clock-skew bugs.
         holding_days: Optional[float] = None
-        fill_ts_raw = t.get("fill_ts")
-        if fill_ts_raw:
+        _age_ts_source: Optional[str] = None
+        for _ts_key in ("fill_ts", "signal_ts", "snapshot_ts", "created_at"):
+            _raw = t.get(_ts_key)
+            if not _raw:
+                continue
             try:
-                ft = datetime.fromisoformat(str(fill_ts_raw).replace("Z", "+00:00"))
-                holding_days = round((now - ft).total_seconds() / 86400, 2)
+                _ft = datetime.fromisoformat(str(_raw).replace("Z", "+00:00"))
+                if _ft.tzinfo is None:
+                    _ft = _ft.replace(tzinfo=timezone.utc)
+                holding_days = round(max(0.0, (now - _ft).total_seconds() / 86400), 2)
+                _age_ts_source = _ts_key
+                break
             except Exception:
-                pass
+                continue
         out.append({
             **t,
             "current_price": cur,
             "unrealized_pnl": round((cur - fill) * qty, 2),
             "holding_days": holding_days,
+            # Indicates which timestamp was used when fill_ts was absent/malformed.
+            # "fill_ts" means the primary field was used (normal case).
+            # None means no usable timestamp was found in the ledger row.
+            "age_ts_source": _age_ts_source,
         })
     return out
 

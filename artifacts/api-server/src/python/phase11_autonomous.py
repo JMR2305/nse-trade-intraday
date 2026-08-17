@@ -359,6 +359,7 @@ def get_open_positions_detail() -> List[Dict[str, Any]]:
         stop_loss    = float(pos.get("stop_loss") or avg_price * 0.97)
         target       = float(pos.get("target") or avg_price * 1.06)
         buy_ts       = pos.get("opened_at") or ""
+        age_ts_src   = pos.get("age_ts_source")   # set by canonical_portfolio fallback chain
         strategy     = pos.get("strategy_id") or "UNKNOWN"
         confidence   = 0.0
         risk_level   = "MEDIUM"
@@ -371,19 +372,24 @@ def get_open_positions_detail() -> List[Dict[str, Any]]:
                         else cur_val - cost_basis)
         pnl_pct      = (pnl / cost_basis * 100) if cost_basis > 0 else 0.0
 
-        # Holding duration
-        holding_mins = 0
+        # Holding duration — clamped to >= 0 to absorb clock-skew / tz bugs.
+        # When no usable timestamp exists (opened_at is None/empty and
+        # age_ts_source is None), holding_days is explicitly set to None so
+        # the UI shows "—" rather than a misleading 0.
+        holding_mins: int = 0
+        holding_days: Optional[float] = None
         if buy_ts:
             try:
                 bt = datetime.fromisoformat(str(buy_ts).replace("Z", "+00:00"))
-                holding_mins = int((now_ts - bt).total_seconds() / 60)
+                if bt.tzinfo is None:
+                    bt = bt.replace(tzinfo=timezone.utc)
+                holding_mins = max(0, int((now_ts - bt).total_seconds() / 60))
+                holding_days = round(holding_mins / 1440, 2)
             except Exception:
                 pass
 
         # Current expected return (live price vs target)
         cur_exp_return = ((target - current_price) / current_price * 100) if current_price > 0 else 0.0
-
-        holding_days = round(holding_mins / 1440, 2)
 
         # Near-TIME_EXIT warning: flag positions within 2 days of the max holding
         # threshold so the UI can highlight them amber.
@@ -393,7 +399,10 @@ def get_open_positions_detail() -> List[Dict[str, Any]]:
             _max_holding_days = int(_gs().get("max_holding_days", 10) or 10)
         except Exception:
             pass
-        near_time_exit = holding_days >= (_max_holding_days - 2)
+        # Guard against None holding_days (no usable timestamp) so the
+        # near-exit comparison never raises TypeError.
+        near_time_exit = (holding_days is not None
+                          and holding_days >= (_max_holding_days - 2))
 
         _prov = _provenance.get(str(sym).upper() if sym else "", {})
         result.append({
@@ -415,6 +424,9 @@ def get_open_positions_detail() -> List[Dict[str, Any]]:
             "risk_level":             risk_level,
             "holding_mins":           holding_mins,
             "holding_days":           holding_days,
+            # Which timestamp field was used: "fill_ts" (normal), "signal_ts" /
+            # "snapshot_ts" / "created_at" (fallback), or None (unavailable).
+            "age_ts_source":          age_ts_src,
             "holding_label":          _fmt_holding(holding_mins),
             "near_time_exit":         near_time_exit,
             "max_holding_days":       _max_holding_days,

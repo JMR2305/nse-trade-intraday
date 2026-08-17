@@ -19,9 +19,44 @@ READ-ONLY: this module never mutates any store.
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 OPEN_STATUSES = ("OPEN", "EXIT_PENDING")
+
+_AGE_TS_KEYS = ("fill_ts", "signal_ts", "snapshot_ts", "created_at")
+
+
+def _parse_ts_utc(raw: object) -> "datetime | None":
+    """Parse any ISO-8601 string into an *aware* UTC datetime.
+
+    Handles Z-suffix, explicit UTC offset, and naive local strings (treated
+    as UTC so subtraction from utcnow() never raises TypeError).
+    Returns None on any parse failure or empty input.
+    """
+    if not raw:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except (ValueError, TypeError):
+        return None
+
+
+def _pick_age_ts(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Return {"opened_at": <str|None>, "age_ts_source": <str|None>}.
+
+    Iterates the fallback chain in priority order and returns the first
+    timestamp value that is both non-empty AND parses without error (including
+    naive strings treated as UTC). A malformed or unparseable value is skipped.
+    """
+    for key in _AGE_TS_KEYS:
+        raw = row.get(key)
+        if raw and _parse_ts_utc(raw) is not None:
+            return {"opened_at": str(raw), "age_ts_source": key}
+    return {"opened_at": None, "age_ts_source": None}
 
 
 def _ledger_rows() -> List[Dict[str, Any]]:
@@ -117,7 +152,12 @@ def build_canonical_portfolio() -> Dict[str, Any]:
             "status": r.get("status"),
             "sector": sector,
             "strategy_id": r.get("strategy_id"),
-            "opened_at": r.get("fill_ts") or r.get("signal_ts"),
+            # Fallback chain for holding-age computation.
+            # Priority: fill_ts → signal_ts → snapshot_ts → created_at.
+            # Each candidate is parse-validated so a non-empty but malformed
+            # value (e.g. "N/A", legacy placeholder) does not block a later
+            # valid fallback. age_ts_source records which field was actually used.
+            **_pick_age_ts(r),
             "stop_loss": r.get("stop_loss"),
             "target": r.get("target"),
             "scan_id": r.get("scan_id"),

@@ -963,5 +963,228 @@ class TestPriceSnapshots(unittest.TestCase):
         self.assertEqual(result["count"], 3)
 
 
+# ── Test: Age column fallback chain & clamping ────────────────────────────────
+
+def _make_pos(opened_at: str | None, age_ts_source: str | None) -> dict:
+    """Minimal canonical position fixture."""
+    return {
+        "trade_id": "T-age-test",
+        "symbol": "TESTCO",
+        "quantity": 1,
+        "avg_price": 100.0,
+        "cost": 100.0,
+        "mark_price": 105.0,
+        "mark_source": "scan",
+        "market_value": 105.0,
+        "unrealized_pnl": 5.0,
+        "status": "OPEN",
+        "sector": "TEST",
+        "strategy_id": "BREAKOUT",
+        "opened_at": opened_at,
+        "age_ts_source": age_ts_source,
+        "stop_loss": 90.0,
+        "target": 120.0,
+        "scan_id": "scan-age-test",
+    }
+
+
+def _canon_with_pos(pos: dict) -> dict:
+    return {
+        **EMPTY_CANON,
+        "cash": 50_000.0,
+        "initial_capital": 50_000.0,
+        "equity": 50_105.0,
+        "open_position_count": 1,
+        "positions": [pos],
+    }
+
+
+class TestAgeColumnCanonicalPortfolio(unittest.TestCase):
+    """Verify canonical_portfolio opens_at fallback chain & age_ts_source."""
+
+    def _build(self, ledger_row: dict) -> list:
+        """Run build_canonical_portfolio() with a single open ledger row mocked."""
+        import canonical_portfolio as cp
+        import portfolio_store
+
+        with patch.object(cp, "_ledger_rows", return_value=[ledger_row]), \
+             patch.object(cp, "_scan_marks",
+                          return_value=({"TESTCO": 105.0}, {"TESTCO": "TEST"}, "s1")), \
+             patch.object(cp, "_live_marks", return_value={}), \
+             patch.object(portfolio_store, "INITIAL_CAPITAL", 50_000.0):
+            snap = cp.build_canonical_portfolio()
+        return snap["positions"]
+
+    def _base_row(self, **overrides) -> dict:
+        row = {
+            "trade_id": "T1",
+            "symbol": "TESTCO",
+            "status": "OPEN",
+            "fill_ts":      None,
+            "signal_ts":    None,
+            "snapshot_ts":  None,
+            "created_at":   None,
+            "fill_price":   100.0,
+            "quantity":     1,
+            "stop_loss":    90.0,
+            "target":       120.0,
+            "strategy_id":  "BREAKOUT",
+            "sector":       "TEST",
+            "scan_id":      "s1",
+            "realized_pnl": None,
+        }
+        row.update(overrides)
+        return row
+
+    def test_fill_ts_is_primary_source(self):
+        """Normal case: fill_ts present → opened_at = fill_ts, source = fill_ts."""
+        positions = self._build(self._base_row(fill_ts="2025-08-10T05:00:00Z"))
+        self.assertEqual(len(positions), 1)
+        pos = positions[0]
+        self.assertEqual(pos["opened_at"], "2025-08-10T05:00:00Z")
+        self.assertEqual(pos["age_ts_source"], "fill_ts")
+
+    def test_signal_ts_fallback_when_fill_ts_null(self):
+        """fill_ts missing → fall back to signal_ts."""
+        positions = self._build(
+            self._base_row(fill_ts=None, signal_ts="2025-08-10T06:00:00Z"))
+        pos = positions[0]
+        self.assertEqual(pos["opened_at"], "2025-08-10T06:00:00Z")
+        self.assertEqual(pos["age_ts_source"], "signal_ts")
+
+    def test_snapshot_ts_fallback_when_fill_and_signal_null(self):
+        """fill_ts + signal_ts both missing → fall back to snapshot_ts."""
+        positions = self._build(
+            self._base_row(fill_ts=None, signal_ts=None,
+                           snapshot_ts="2025-08-10T07:00:00Z"))
+        pos = positions[0]
+        self.assertEqual(pos["opened_at"], "2025-08-10T07:00:00Z")
+        self.assertEqual(pos["age_ts_source"], "snapshot_ts")
+
+    def test_created_at_fallback_when_all_others_null(self):
+        """fill_ts, signal_ts, snapshot_ts all missing → fall back to created_at."""
+        positions = self._build(
+            self._base_row(fill_ts=None, signal_ts=None, snapshot_ts=None,
+                           created_at="2025-08-10T08:00:00Z"))
+        pos = positions[0]
+        self.assertEqual(pos["opened_at"], "2025-08-10T08:00:00Z")
+        self.assertEqual(pos["age_ts_source"], "created_at")
+
+    def test_age_ts_source_none_when_all_timestamps_null(self):
+        """All timestamp fields null → opened_at=None, age_ts_source=None."""
+        positions = self._build(
+            self._base_row(fill_ts=None, signal_ts=None, snapshot_ts=None,
+                           created_at=None))
+        pos = positions[0]
+        self.assertIsNone(pos["opened_at"])
+        self.assertIsNone(pos["age_ts_source"])
+
+    def test_malformed_fill_ts_falls_back_to_signal_ts(self):
+        """Malformed (non-empty, unparseable) fill_ts must be skipped;
+        the first valid fallback (signal_ts) is used instead."""
+        positions = self._build(
+            self._base_row(fill_ts="N/A",  # non-empty but unparseable
+                           signal_ts="2025-08-10T06:00:00Z"))
+        pos = positions[0]
+        self.assertEqual(pos["opened_at"], "2025-08-10T06:00:00Z")
+        self.assertEqual(pos["age_ts_source"], "signal_ts")
+
+    def test_malformed_fill_ts_falls_back_to_snapshot_ts(self):
+        """Malformed fill_ts + null signal_ts → snapshot_ts used."""
+        positions = self._build(
+            self._base_row(fill_ts="invalid-date",
+                           signal_ts=None,
+                           snapshot_ts="2025-08-10T07:30:00Z"))
+        pos = positions[0]
+        self.assertEqual(pos["opened_at"], "2025-08-10T07:30:00Z")
+        self.assertEqual(pos["age_ts_source"], "snapshot_ts")
+
+    def test_naive_fill_ts_is_accepted(self):
+        """Naive ISO timestamp (no UTC offset) is treated as UTC and accepted."""
+        positions = self._build(
+            self._base_row(fill_ts="2025-08-10T08:00:00"))  # no offset
+        pos = positions[0]
+        self.assertEqual(pos["opened_at"], "2025-08-10T08:00:00")
+        self.assertEqual(pos["age_ts_source"], "fill_ts")
+
+    def test_naive_fill_ts_malformed_falls_back_to_naive_signal_ts(self):
+        """Malformed fill_ts, then naive signal_ts → signal_ts selected."""
+        positions = self._build(
+            self._base_row(fill_ts="not-a-date",
+                           signal_ts="2025-08-10T09:00:00"))  # naive
+        pos = positions[0]
+        self.assertEqual(pos["opened_at"], "2025-08-10T09:00:00")
+        self.assertEqual(pos["age_ts_source"], "signal_ts")
+
+
+class TestAgeColumnPhase11Detail(unittest.TestCase):
+    """Verify phase11 get_open_positions_detail() propagates age_ts_source
+    correctly and clamps holding_days to >= 0."""
+
+    _common_patches = [
+        ("phase11_autonomous._get_current_regime", "TRENDING"),
+        ("portfolio_store.load_state", {}),
+    ]
+
+    @staticmethod
+    def _kv_mock(k, d=None):
+        return d
+
+    def _call(self, canon_override: dict) -> list:
+        import phase11_autonomous as m
+        with patch("canonical_portfolio.build_canonical_portfolio",
+                   return_value=canon_override), \
+             patch("phase11_autonomous._get_current_regime", return_value="TRENDING"), \
+             patch("phase20_store.kv_get", side_effect=self._kv_mock), \
+             patch("phase20_executor.get_open_trades", return_value=[]):
+            return m.get_open_positions_detail()
+
+    def test_holding_days_positive_with_fill_ts(self):
+        """A position opened in the past has holding_days > 0."""
+        from datetime import datetime, timezone, timedelta
+        past = (datetime.now(timezone.utc) - timedelta(days=3)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ")
+        pos = _make_pos(opened_at=past, age_ts_source="fill_ts")
+        result = self._call(_canon_with_pos(pos))
+        self.assertEqual(len(result), 1)
+        item = result[0]
+        self.assertIsNotNone(item["holding_days"])
+        self.assertGreaterEqual(item["holding_days"], 2.9)
+        self.assertEqual(item["age_ts_source"], "fill_ts")
+
+    def test_holding_days_none_when_no_timestamp(self):
+        """No usable timestamp → holding_days is None, age_ts_source is None."""
+        pos = _make_pos(opened_at=None, age_ts_source=None)
+        result = self._call(_canon_with_pos(pos))
+        self.assertEqual(len(result), 1)
+        item = result[0]
+        self.assertIsNone(item["holding_days"])
+        self.assertIsNone(item["age_ts_source"])
+        # near_time_exit must be False (not raise) when holding_days is None
+        self.assertFalse(item["near_time_exit"])
+
+    def test_holding_days_clamped_to_zero_for_future_timestamp(self):
+        """Future fill_ts (clock skew) → holding_days is 0.0, never negative."""
+        from datetime import datetime, timezone, timedelta
+        future = (datetime.now(timezone.utc) + timedelta(hours=2)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ")
+        pos = _make_pos(opened_at=future, age_ts_source="fill_ts")
+        result = self._call(_canon_with_pos(pos))
+        self.assertEqual(len(result), 1)
+        item = result[0]
+        self.assertIsNotNone(item["holding_days"])
+        self.assertEqual(item["holding_days"], 0.0)
+        self.assertFalse(item["near_time_exit"])
+
+    def test_fallback_source_propagated_to_output(self):
+        """age_ts_source from canonical portfolio is forwarded in the output."""
+        from datetime import datetime, timezone, timedelta
+        past = (datetime.now(timezone.utc) - timedelta(days=1)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ")
+        pos = _make_pos(opened_at=past, age_ts_source="snapshot_ts")
+        result = self._call(_canon_with_pos(pos))
+        self.assertEqual(result[0]["age_ts_source"], "snapshot_ts")
+
+
 if __name__ == "__main__":
     unittest.main()
