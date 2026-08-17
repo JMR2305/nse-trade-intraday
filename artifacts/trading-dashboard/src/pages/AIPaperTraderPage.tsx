@@ -3245,9 +3245,6 @@ export default function AIPaperTraderPage() {
         {/* S0 — Autonomous Session Status */}
         <S0AutonomousSession />
 
-        {/* Bootstrap Status — only visible when bootstrap_paper_enabled=true */}
-        <SBootstrapStatus />
-
         {/* Pipeline Funnel — shows stocks→signals→gates→orders at a glance */}
         <SPipelineStats />
 
@@ -3262,6 +3259,9 @@ export default function AIPaperTraderPage() {
           <div className="xl:col-span-2"><S2Portfolio data={portfolio} loading={portLoad} /></div>
           <S3AIStatus portfolio={portfolio} recs={recs} />
         </div>
+
+        {/* Bootstrap Status — below Portfolio / AI Agent so it's visible on mobile */}
+        <SBootstrapStatus />
 
         {/* EXIT_PENDING alert — shown when positions have been stuck > 24 h */}
         <SExitPendingAlert />
