@@ -716,6 +716,9 @@ interface PipelineStats {
    *  "Waiting for today's first fresh scan" state. */
   session_mismatch?: boolean;
   session_message?: string | null;
+  /** ISO timestamp (IST) for when the next scan is expected.
+   *  Present when session_mismatch is true so the UI can show a countdown. */
+  next_scan_expected_ist?: string | null;
 }
 
 // ── Cadence stats type ────────────────────────────────────────────────────────
@@ -891,6 +894,75 @@ function SCadencePanel() {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ── NextScanCountdown — live countdown to the next expected scan ──────────────
+// Updates every 30 s. When within 5 min of the expected time, shows
+// "Scan starting soon…" with a pulse animation.
+function NextScanCountdown({ expectedIso }: { expectedIso?: string | null }) {
+  const [label, setLabel] = useState<string>("");
+  const [soon, setSoon]   = useState(false);
+
+  useEffect(() => {
+    function compute() {
+      // Parse the ISO timestamp from the backend (includes IST offset).
+      // Fall back to 09:15 IST today (or tomorrow if already past).
+      let target: Date;
+      if (expectedIso) {
+        target = new Date(expectedIso);
+      } else {
+        // Build today's 09:15 IST = 03:45 UTC
+        const now = new Date();
+        const t = new Date(Date.UTC(
+          now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 3, 45, 0,
+        ));
+        if (t <= now) t.setUTCDate(t.getUTCDate() + 1);
+        target = t;
+      }
+
+      const now    = new Date();
+      const diffMs = target.getTime() - now.getTime();
+
+      if (diffMs <= 0) {
+        // Target passed — either overdue or scan should be in progress
+        setSoon(false);
+        setLabel("Scan overdue — auto-scan should start shortly");
+        return;
+      }
+
+      const diffMin = Math.round(diffMs / 60_000);
+      if (diffMin <= 5) {
+        setSoon(true);
+        setLabel("Scan starting soon…");
+        return;
+      }
+
+      const timeStr = target.toLocaleTimeString("en-IN", {
+        hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Kolkata",
+      });
+      const h = Math.floor(diffMin / 60);
+      const m = diffMin % 60;
+      setSoon(false);
+      setLabel(
+        `Next scan expected at ${timeStr} IST` +
+        (h > 0 ? ` (in ${h}h ${m}m)` : ` (in ${m}m)`),
+      );
+    }
+
+    compute();
+    const id = setInterval(compute, 30_000);
+    return () => clearInterval(id);
+  }, [expectedIso]);
+
+  if (!label) return null;
+  return (
+    <div className={`flex items-center justify-center gap-1.5 text-xs mt-1 ${
+      soon ? "text-teal-300 animate-pulse" : "text-slate-500"
+    }`}>
+      <Timer className="w-3 h-3 flex-shrink-0" />
+      <span>{label}</span>
     </div>
   );
 }
@@ -1207,6 +1279,7 @@ function SPipelineStats() {
               <p className="text-xs font-semibold text-slate-300">
                 {data.session_message ?? "Waiting for today's first fresh scan"}
               </p>
+              <NextScanCountdown expectedIso={data.next_scan_expected_ist} />
               <p className="text-[10px] text-slate-500">
                 The latest scan is from a previous trading session.
                 BUY candidates and execution cards are hidden until a fresh scan runs today.

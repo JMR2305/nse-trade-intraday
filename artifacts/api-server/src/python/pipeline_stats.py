@@ -373,6 +373,76 @@ def get_pipeline_stats() -> Dict[str, Any]:
     _display_candidates = top_candidates[:10] if not _session_mismatch else []
     _display_gate_details = candidate_details[:10] if not _session_mismatch else []
 
+    # ── Next scan expected time ───────────────────────────────────────────────
+    # ISO timestamp (IST) for when the next scan is expected, so the frontend
+    # "Waiting for today's first fresh scan" empty state can show a countdown.
+    # Priority: (1) scheduler's own next_due_at (most authoritative),
+    #           (2) compute from market calendar + configured interval.
+    # Both paths use market_hours.is_trading_day to correctly skip weekends
+    # and NSE trading holidays rather than naive +1-day arithmetic.
+    _next_scan_expected_ist: Optional[str] = None
+    try:
+        from market_hours import IST as _IST, MARKET_OPEN as _MO, MARKET_CLOSE as _MC
+        from market_hours import is_trading_day as _is_td, _load_holidays as _lh
+        from datetime import timedelta as _td
+
+        _hols = _lh()
+        _now_ist = datetime.now(_IST)
+        _today   = _now_ist.date()
+
+        # --- (1) Try the scheduler's authoritative next_due_at ---
+        # get_scheduler_health() returns a flat dict; next_due_at is at the
+        # top level (not nested under "state").
+        _sched_next: Optional[str] = None
+        try:
+            from phase20_store import get_scheduler_health as _gsh
+            _sh = _gsh()
+            _sched_next = _sh.get("next_due_at")
+        except Exception:
+            pass
+
+        if _sched_next:
+            # The scheduler already knows its next slot — trust it.
+            _next_scan_expected_ist = _sched_next
+        else:
+            # --- (2) Compute from market calendar + configured interval ---
+            _scan_int = 30
+            try:
+                from phase20_store import get_settings as _gs2
+                _scan_int = int(_gs2().get("scan_interval_minutes") or 30)
+            except Exception:
+                pass
+
+            _today_open  = datetime.combine(_today, _MO, tzinfo=_IST)
+            _today_close = datetime.combine(_today, _MC, tzinfo=_IST)
+
+            def _next_trading_day_open(from_date):
+                """First 09:15 IST on the next trading day after from_date."""
+                d = from_date + _td(days=1)
+                for _ in range(14):   # skip at most 2 weeks of holidays
+                    if _is_td(d, _hols):
+                        break
+                    d += _td(days=1)
+                return datetime.combine(d, _MO, tzinfo=_IST)
+
+            if _is_td(_today, _hols) and _now_ist < _today_open:
+                # Trading day, before market open → next scan at today's 09:15
+                _next_scan = _today_open
+            elif _is_td(_today, _hols) and _now_ist < _today_close:
+                # During market hours → next interval slot
+                _mins_since_open = (_now_ist - _today_open).total_seconds() / 60
+                _next_slot_mins  = (int(_mins_since_open / _scan_int) + 1) * _scan_int
+                _next_scan = _today_open + _td(minutes=_next_slot_mins)
+                if _next_scan >= _today_close:
+                    _next_scan = _next_trading_day_open(_today)
+            else:
+                # After close, weekend, or holiday → next trading day 09:15
+                _next_scan = _next_trading_day_open(_today)
+
+            _next_scan_expected_ist = _next_scan.isoformat()
+    except Exception:
+        pass
+
     return {
         "generated_at":        _now(),
         "scan_id":             scan_id,
@@ -394,6 +464,7 @@ def get_pipeline_stats() -> Dict[str, Any]:
             "Waiting for today's first fresh scan"
             if _session_mismatch else None
         ),
+        "next_scan_expected_ist": _next_scan_expected_ist,
         # Flat summary for quick reads
         "summary": {
             "stocks_scanned":        scan_total,
