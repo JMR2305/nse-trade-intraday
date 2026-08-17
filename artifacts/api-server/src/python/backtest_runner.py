@@ -570,16 +570,53 @@ def execute_run(run_id: str) -> Dict[str, Any]:
         daily_dfs: Dict[str, pd.DataFrame] = {}
         intraday_dfs: Dict[str, Optional[pd.DataFrame]] = {}
         data_errors: Dict[str, str] = {}
+        mock_candle_symbols: List[str] = []
+
+        def _has_mock(candles: List[Dict[str, Any]]) -> bool:
+            """True when any candle is tagged source='mock'."""
+            return any(str(c.get("source") or "").lower() == "mock"
+                       for c in candles)
+
         for i, sym in enumerate(universe):
             d = hde.ensure_candles(sym, "1d", warm_start, end)
             if not d["ok"]:
                 data_errors[sym] = d["error"]
+                continue
+            # Reject mock-sourced daily candles — these are synthetic fallback
+            # data from market_data_engine (yfinance was rate-limited during
+            # cache population).  Running decisions on mock prices produces
+            # results that look real but are meaningless.
+            if _has_mock(d["candles"]):
+                mock_candle_symbols.append(sym)
+                data_errors[sym] = (
+                    f"{sym}: daily candles are synthetic (source='mock') — "
+                    f"yfinance was rate-limited when the cache was populated. "
+                    f"Clear the cache entry and retry after the rate limit clears."
+                )
+                emit("MOCK_DATA_WARNING", "SUPERVISOR", scan_id=run_id,
+                     mode="BACKTEST", run_id=run_id, symbol=sym,
+                     payload={"reason": "mock_candle_source",
+                              "interval": "1d", "symbol": sym})
                 continue
             daily_dfs[sym] = _to_df(d["candles"])
             if interval != "1d":
                 r = hde.ensure_candles(sym, interval, start, end)
                 if not r["ok"]:
                     data_errors[sym] = r["error"]
+                    continue
+                # Same check for intraday candles.
+                if _has_mock(r["candles"]):
+                    mock_candle_symbols.append(sym)
+                    data_errors[sym] = (
+                        f"{sym}: {interval} candles are synthetic "
+                        f"(source='mock') — yfinance was rate-limited when "
+                        f"the cache was populated. Clear the cache entry and "
+                        f"retry after the rate limit clears."
+                    )
+                    emit("MOCK_DATA_WARNING", "SUPERVISOR", scan_id=run_id,
+                         mode="BACKTEST", run_id=run_id, symbol=sym,
+                         payload={"reason": "mock_candle_source",
+                                  "interval": interval, "symbol": sym})
                     continue
                 intraday_dfs[sym] = _to_df(r["candles"])
                 per_symbol[sym] = [c for c in r["candles"]
@@ -595,10 +632,17 @@ def execute_run(run_id: str) -> Dict[str, Any]:
         emit("SCAN_FETCH_COMPLETED", "SUPERVISOR", scan_id=run_id,
              mode="BACKTEST", run_id=run_id,
              payload={"symbols_ok": len(per_symbol),
-                      "symbols_failed": len(data_errors)})
+                      "symbols_failed": len(data_errors),
+                      "mock_candle_symbols": mock_candle_symbols})
         if not per_symbol:
+            mock_suffix = (
+                f" Symbols with synthetic data: {mock_candle_symbols}."
+                if mock_candle_symbols else ""
+            )
             raise RuntimeError(
-                f"No historical data for any symbol: {json.dumps(data_errors)[:400]}")
+                f"No historical data for any symbol: "
+                f"{json.dumps(data_errors)[:400]}{mock_suffix}"
+            )
 
         # 2. Candle-by-candle replay through the PRODUCTION pipeline.
         from live_scan_engine import _scan_one, derive_symbol_events
@@ -784,6 +828,8 @@ def execute_run(run_id: str) -> Dict[str, Any]:
         metrics["ticks"] = tick_count
         metrics["symbols"] = len(per_symbol)
         metrics["data_errors"] = data_errors
+        # Always present — empty list means no mock data was detected.
+        metrics["mock_candle_symbols"] = mock_candle_symbols
         # ── Performance telemetry (advisory — never changes decisions) ────────
         _total_s = time.perf_counter() - _perf_start
         _tt_sorted = sorted(_tick_times)

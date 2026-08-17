@@ -579,5 +579,193 @@ class TestStrategyLab(BacktestEngineTestBase):
         self.assertEqual(w["verdict"], "INSUFFICIENT_EVIDENCE")
 
 
+class TestMockCandleDetection(BacktestEngineTestBase):
+    """Mock-sourced candles must be rejected and logged — never traded silently."""
+
+    def _seed_real(self, symbol: str, base: float = 500.0):
+        candles = _make_candles("2025-09-01", 110, base=base, drift=4.0)
+        hde._store_candles(symbol, "1d", candles)
+        hde._record_coverage(symbol, "1d", date(2025, 1, 1), date(2026, 12, 31))
+        return candles
+
+    def _seed_mock(self, symbol: str):
+        """Store candles tagged source='mock' (simulates market_data_engine fallback)."""
+        candles = _make_candles("2025-09-01", 110, base=300.0, drift=2.0)
+        for c in candles:
+            c["source"] = "mock"
+        hde._store_candles(symbol, "1d", candles)
+        hde._record_coverage(symbol, "1d", date(2025, 1, 1), date(2026, 12, 31))
+
+    # ── Source round-trip ────────────────────────────────────────────────────
+
+    def test_source_field_stored_and_returned(self):
+        """File-fallback stores and returns the source field correctly."""
+        candles = _make_candles("2026-01-01", 5)
+        for c in candles:
+            c["source"] = "yfinance"
+        hde._store_candles("SRC_TEST", "1d", candles)
+        out = hde.get_candles("SRC_TEST", "1d", "2026-01-01", "2026-12-31")
+        self.assertTrue(all(c.get("source") == "yfinance" for c in out),
+                        "All returned candles must carry source='yfinance'")
+
+    def test_mock_source_field_round_trips(self):
+        """Candles stored with source='mock' are returned with source='mock'."""
+        candles = _make_candles("2026-01-01", 5)
+        for c in candles:
+            c["source"] = "mock"
+        hde._store_candles("MOCK_ROUND", "1d", candles)
+        out = hde.get_candles("MOCK_ROUND", "1d", "2026-01-01", "2026-12-31")
+        self.assertTrue(all(c.get("source") == "mock" for c in out),
+                        "Mock source must survive the file-cache round-trip")
+
+    def test_legacy_candles_without_source_default_to_yfinance(self):
+        """Older file-cache entries that lack a source field default to 'yfinance'."""
+        # Write a candle dict without the source key to mimic old cache entries.
+        data = hde._file_load("LEGACY", "1d")
+        data.setdefault("candles", {})
+        data["candles"]["2026-01-05T00:00:00+00:00"] = {
+            "open": 100.0, "high": 102.0, "low": 99.0, "close": 101.0, "volume": 1000
+        }
+        hde._file_save("LEGACY", "1d", data)
+        out = hde.get_candles("LEGACY", "1d", "2026-01-01", "2026-12-31")
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0].get("source"), "yfinance",
+                         "Missing source must default to 'yfinance'")
+
+    # ── Backtest run guards ──────────────────────────────────────────────────
+
+    def test_mock_symbol_skipped_and_logged(self):
+        """A symbol with mock candles is excluded from trading and logged."""
+        real_candles = self._seed_real("REAL_A")
+        self._seed_mock("FAKE_A")
+        start = real_candles[95]["ts"][:10]
+        end = real_candles[-1]["ts"][:10]
+        rid = bp.create_run({
+            "interval": "1d", "start": start, "end": end,
+            "capital": 100000.0, "symbols": ["REAL_A", "FAKE_A"],
+        })
+        out = br.execute_run(rid)
+        self.assertTrue(out["ok"], out)
+        run = bp.get_run(rid)
+        self.assertEqual(run["status"], "COMPLETED")
+
+        # mock_candle_symbols must name the offending symbol
+        mcs = run["metrics"].get("mock_candle_symbols", [])
+        self.assertIn("FAKE_A", mcs,
+                      "mock_candle_symbols must list the excluded symbol")
+
+        # FAKE_A must appear in data_errors with a clear message
+        errors = run["metrics"].get("data_errors", {})
+        self.assertIn("FAKE_A", errors)
+        self.assertIn("mock", errors["FAKE_A"].lower())
+
+        # No trades must be generated for the mock symbol
+        trades = bp.trades(rid)
+        mock_trades = [t for t in trades
+                       if str(t["symbol"]).upper() == "FAKE_A"]
+        self.assertEqual(mock_trades, [],
+                         "No trades allowed on mock-source data")
+
+    def test_mock_candle_symbols_always_present_in_metrics(self):
+        """mock_candle_symbols key exists even when all data is clean."""
+        real_candles = self._seed_real("REAL_B")
+        start = real_candles[95]["ts"][:10]
+        end = real_candles[-1]["ts"][:10]
+        rid = bp.create_run({
+            "interval": "1d", "start": start, "end": end,
+            "capital": 100000.0, "symbols": ["REAL_B"],
+        })
+        out = br.execute_run(rid)
+        self.assertTrue(out["ok"], out)
+        run = bp.get_run(rid)
+        self.assertIn("mock_candle_symbols", run["metrics"],
+                      "Key must always be present so the UI can rely on it")
+        self.assertEqual(run["metrics"]["mock_candle_symbols"], [],
+                         "Empty list when no mock data was detected")
+
+    def test_all_mock_symbols_causes_failed_run(self):
+        """When every symbol has mock candles the run must FAIL, not silently succeed."""
+        self._seed_mock("ONLY_MOCK_1")
+        self._seed_mock("ONLY_MOCK_2")
+        all_c = _make_candles("2025-09-01", 110)
+        start = all_c[95]["ts"][:10]
+        end = all_c[-1]["ts"][:10]
+        rid = bp.create_run({
+            "interval": "1d", "start": start, "end": end,
+            "capital": 100000.0, "symbols": ["ONLY_MOCK_1", "ONLY_MOCK_2"],
+        })
+        out = br.execute_run(rid)
+        # All symbols rejected → per_symbol is empty → RuntimeError → FAILED
+        self.assertFalse(out["ok"],
+                         "Run must fail when every symbol has mock candles")
+        run = bp.get_run(rid)
+        self.assertEqual(run["status"], "FAILED")
+
+    def test_mock_warning_event_emitted(self):
+        """A MOCK_DATA_WARNING pipeline event is emitted for each rejected symbol."""
+        real_candles = self._seed_real("REAL_C")
+        self._seed_mock("FAKE_C")
+        start = real_candles[95]["ts"][:10]
+        end = real_candles[-1]["ts"][:10]
+        rid = bp.create_run({
+            "interval": "1d", "start": start, "end": end,
+            "capital": 100000.0, "symbols": ["REAL_C", "FAKE_C"],
+        })
+        br.execute_run(rid)
+        events = pe.query_events(run_id=rid, mode="BACKTEST",
+                                 event_type="MOCK_DATA_WARNING", limit=100)
+        mock_syms = [e.get("symbol") for e in events]
+        self.assertIn("FAKE_C", mock_syms,
+                      "MOCK_DATA_WARNING event must be emitted for FAKE_C")
+        # No warning event for the real symbol
+        self.assertNotIn("REAL_C", mock_syms)
+
+    # ── 10m provenance propagation ───────────────────────────────────────────
+
+    def test_resample_10m_propagates_mock_source(self):
+        """A 10m bucket is mock if ANY constituent 5m candle is mock."""
+        five = [
+            {"ts": "2026-01-05T09:15:00+05:30", "open": 10, "high": 12,
+             "low": 9, "close": 11, "volume": 100, "source": "yfinance"},
+            {"ts": "2026-01-05T09:20:00+05:30", "open": 11, "high": 14,
+             "low": 10, "close": 13, "volume": 200, "source": "mock"},
+        ]
+        # Both candles land in different 10-min buckets (09:10 and 09:20).
+        ten = hde._resample_10m(five)
+        sources = {c["ts"]: c["source"] for c in ten}
+        # Bucket containing the yfinance-only candle stays yfinance.
+        yf_bucket = next(k for k in sources if "09:10" in k or "09:15" in k)
+        mock_bucket = next(k for k in sources if "09:20" in k)
+        self.assertEqual(sources[yf_bucket], "yfinance")
+        self.assertEqual(sources[mock_bucket], "mock",
+                         "10m bucket must inherit 'mock' from any constituent")
+
+    def test_resample_10m_bucket_with_mixed_sources_is_mock(self):
+        """When a single 10m bucket contains both yfinance and mock 5m bars, the bucket is mock."""
+        # Both candles share the same 10-min bucket (09:10–09:20).
+        five = [
+            {"ts": "2026-01-05T09:10:00+05:30", "open": 10, "high": 12,
+             "low": 9, "close": 11, "volume": 100, "source": "yfinance"},
+            {"ts": "2026-01-05T09:15:00+05:30", "open": 11, "high": 14,
+             "low": 10, "close": 13, "volume": 200, "source": "mock"},
+        ]
+        ten = hde._resample_10m(five)
+        self.assertEqual(len(ten), 1)
+        self.assertEqual(ten[0]["source"], "mock",
+                         "Mixed bucket must be conservatively marked mock")
+
+    def test_resample_10m_all_yfinance_stays_yfinance(self):
+        """A 10m bucket where every 5m candle is yfinance stays yfinance."""
+        five = [
+            {"ts": "2026-01-05T09:10:00+05:30", "open": 10, "high": 12,
+             "low": 9, "close": 11, "volume": 100, "source": "yfinance"},
+            {"ts": "2026-01-05T09:15:00+05:30", "open": 11, "high": 14,
+             "low": 10, "close": 13, "volume": 200, "source": "yfinance"},
+        ]
+        ten = hde._resample_10m(five)
+        self.assertEqual(len(ten), 1)
+        self.assertEqual(ten[0]["source"], "yfinance")
+
+
 if __name__ == "__main__":
     unittest.main()
