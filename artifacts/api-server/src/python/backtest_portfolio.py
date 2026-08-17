@@ -236,6 +236,13 @@ MAX_CONCURRENT_BACKTESTS = 2
 _STALE_RUNNING_THRESHOLD_MIN = 30   # RUNNING/CANCEL_REQUESTED with no progress
 _STALE_PENDING_THRESHOLD_MIN = 30   # PENDING with no worker claim
 
+# Watchdog TTL: a RUNNING run that has not completed within this many minutes
+# is assumed dead (OOM-killed, container restart, etc.) and is marked FAILED so
+# the queue can proceed.  The default covers the worst-case production run
+# (~6 min for 5-sym 15m 30d) with a generous safety margin; it can be overridden
+# per call for testing.
+WATCHDOG_TTL_MIN: int = 60
+
 
 def count_active_runs() -> int:
     """Count RUNNING + PENDING + CANCEL_REQUESTED runs."""
@@ -699,15 +706,30 @@ def _sweep_stale_runs_file() -> Dict[str, Any]:
 def sweep_stale_runs() -> Dict[str, Any]:
     """Server-side watchdog — auto-marks orphaned/stale runs and promotes queued ones.
 
-    Marks as STALE:
-    - RUNNING or CANCEL_REQUESTED with no progress heartbeat for 30+ minutes.
-    - PENDING with no worker claim for 30+ minutes (worker died before claiming).
+    Phase 1 — absolute TTL watchdog: RUNNING runs older than WATCHDOG_TTL_MIN
+    are marked FAILED (not STALE) so the queue slot is freed immediately and
+    the next QUEUED run can start.  This fires even when no run is finishing
+    (e.g. all slots are occupied by ghost processes that died silently).
 
-    Then promotes QUEUED → PENDING to fill any newly vacated concurrency slots.
+    Phase 2 — heartbeat stale sweep: RUNNING / CANCEL_REQUESTED runs with no
+    progress heartbeat for _STALE_RUNNING_THRESHOLD_MIN minutes are marked STALE.
+
+    Phase 3 — PENDING orphan sweep: PENDING with no worker claim for
+    _STALE_PENDING_THRESHOLD_MIN minutes are marked STALE.
+
+    Phase 4 — queue promotion: QUEUED runs are promoted to PENDING to fill
+    newly vacated concurrency slots.
 
     Designed to be called on every ``backtest_runs`` list request (sweep-on-read)
     so it runs automatically every 5 s while the Investigation Center is open.
     """
+    # Phase 1: absolute TTL watchdog — must run first so freed slots are
+    # visible to the heartbeat sweep and queue promotion below.
+    try:
+        sweep_watchdog_timeouts()
+    except Exception:
+        pass   # never let a watchdog failure abort the rest of the sweep
+
     if not db_available():
         return _sweep_stale_runs_file()
 
@@ -807,6 +829,121 @@ def sweep_stale_runs() -> Dict[str, Any]:
         "promoted": len(promoted),
         "promoted_runs": promoted,
     }
+
+
+def sweep_watchdog_timeouts(ttl_min: Optional[int] = None) -> Dict[str, Any]:
+    """Watchdog sweep — marks timed-out runs FAILED so the queue is never
+    permanently blocked by a dead worker process.
+
+    A run can stay RUNNING indefinitely when its worker is killed silently
+    (OOM, container restart, SIGKILL) without reaching an exception handler.
+    The heartbeat sweep in sweep_stale_runs() catches no-progress runs at 30
+    minutes but only marks them STALE — NOT FAILED — so queue slots are not
+    immediately freed.  This function enforces an absolute wall-clock TTL
+    anchored to ``started_at`` and writes FAILED (the terminal state
+    _spawn_next_queued treats as a vacancy signal).
+
+    Critically, this function targets **both** ``RUNNING`` and ``STALE`` rows
+    that have a ``started_at`` older than the TTL.  In the normal schedule
+    a ghost worker's row is first caught by the 30-minute heartbeat sweep
+    (RUNNING → STALE); this function then converts it to FAILED at the TTL
+    boundary.  Without targeting STALE as well, the watchdog would never see
+    the row because the heartbeat sweep fires first.
+
+    CANCEL_REQUESTED rows are excluded: the operator's cancellation is in
+    flight and the existing stale sweep manages that lifecycle.
+
+    Args:
+        ttl_min: Override the default WATCHDOG_TTL_MIN.  Values ≤ 0 are
+                 ignored and the default is used.  Intended for testing only.
+
+    Returns a dict with:
+        ``failed``      — number of runs marked FAILED
+        ``failed_runs`` — list of affected run_ids
+    """
+    effective_ttl = int(ttl_min) if (ttl_min is not None and int(ttl_min) > 0) else WATCHDOG_TTL_MIN
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=effective_ttl)
+    failed_runs: List[str] = []
+
+    def _watchdog_error(minutes: float) -> str:
+        return (
+            f"Watchdog timeout: run exceeded {effective_ttl} min TTL "
+            f"(ran for ~{round(minutes, 1)} min). "
+            "Worker process likely OOM-killed or container restarted. "
+            "Safe to retry."
+        )
+
+    if db_available():
+        conn = _connect_with_retry()
+        try:
+            _ensure_schema(conn)
+            # Target RUNNING and STALE rows with a started_at older than the
+            # cutoff.  STALE is included because the heartbeat sweep converts
+            # ghost RUNNING rows to STALE at 30 min — by 60 min they are STALE
+            # and would be missed if we only queried status = 'RUNNING'.
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"SELECT {', '.join(_RUN_COLS)} FROM backtest_runs"
+                    " WHERE status IN ('RUNNING', 'STALE')"
+                    "   AND started_at IS NOT NULL"
+                    "   AND started_at < %s",
+                    (cutoff,),
+                )
+                candidates = [_run_row_to_dict(r) for r in cur.fetchall()]
+
+            for r in candidates:
+                try:
+                    started = datetime.fromisoformat(
+                        str(r["started_at"]).replace("Z", "+00:00"))
+                    if started.tzinfo is None:
+                        started = started.replace(tzinfo=timezone.utc)
+                    minutes = (datetime.now(timezone.utc) - started).total_seconds() / 60.0
+                except Exception:
+                    minutes = float(effective_ttl)
+                reason = _watchdog_error(minutes)
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE backtest_runs"
+                        " SET status = 'FAILED', error = %s, completed_at = NOW()"
+                        " WHERE run_id = %s"
+                        "   AND status IN ('RUNNING', 'STALE')",
+                        (reason[:500], r["run_id"]),
+                    )
+                    if cur.rowcount == 1:
+                        failed_runs.append(r["run_id"])
+
+            conn.commit()
+        finally:
+            conn.close()
+    else:
+        # File-store fallback (dev / tests without DATABASE_URL).
+        now = datetime.now(timezone.utc)
+        rows = _load(_RUNS_FILE)
+        changed = False
+        for r in rows:
+            if r.get("status") not in ("RUNNING", "STALE"):
+                continue
+            started_str = r.get("started_at")
+            if not started_str:
+                continue
+            try:
+                started = datetime.fromisoformat(
+                    str(started_str).replace("Z", "+00:00"))
+                if started.tzinfo is None:
+                    started = started.replace(tzinfo=timezone.utc)
+                minutes = (now - started).total_seconds() / 60.0
+            except Exception:
+                continue
+            if minutes >= effective_ttl:
+                r["status"] = "FAILED"
+                r["error"] = _watchdog_error(minutes)[:500]
+                r["completed_at"] = _now_iso()
+                failed_runs.append(r["run_id"])
+                changed = True
+        if changed:
+            _save(_RUNS_FILE, rows)
+
+    return {"failed": len(failed_runs), "failed_runs": failed_runs}
 
 
 def find_unclaimed_pending(older_than_min: float = 2.0) -> List[str]:

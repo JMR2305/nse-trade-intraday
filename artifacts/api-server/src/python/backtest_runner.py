@@ -502,6 +502,11 @@ def _spawn_next_queued() -> None:
     Called after any run finishes (COMPLETED, FAILED, or checkpoint-CANCELLED)
     so the queue drains automatically.
 
+    Before promoting, the watchdog sweep is run to convert any RUNNING runs
+    whose worker process died silently (OOM kill, container restart) into FAILED.
+    This frees concurrency slots so the queue is never permanently blocked by a
+    ghost RUNNING row.
+
     On any spawn/log-open failure the promoted run is reverted to QUEUED
     *provided it is still PENDING* (i.e. no other process has already claimed
     it).  This prevents the run from waiting 30 minutes for the stale watchdog
@@ -510,6 +515,12 @@ def _spawn_next_queued() -> None:
     Failures are always swallowed at the outermost level — this helper must
     never crash the finishing worker.
     """
+    # Run the watchdog before checking the queue — clears ghost RUNNING slots.
+    try:
+        bp.sweep_watchdog_timeouts()
+    except Exception:
+        pass  # never block queue promotion on a watchdog failure
+
     next_rid = None
     try:
         next_rid = bp.promote_next_queued()

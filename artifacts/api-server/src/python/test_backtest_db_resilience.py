@@ -549,5 +549,311 @@ class TestExecuteRunDbBackedPath(unittest.TestCase):
                         "DB must record FAILED before execute_run returns")
 
 
+# ---------------------------------------------------------------------------
+# 5. sweep_watchdog_timeouts — marks long-running RUNNING runs as FAILED
+# ---------------------------------------------------------------------------
+
+class TestSweepWatchdogTimeouts(unittest.TestCase):
+    """sweep_watchdog_timeouts() must detect RUNNING runs that have exceeded the
+    configured TTL and mark them FAILED, freeing the queue slot."""
+
+    def setUp(self):
+        import tempfile
+        self._tmpdir = tempfile.mkdtemp()
+        self._runs_file = os.path.join(self._tmpdir, "backtest_runs.json")
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _iso(dt) -> str:
+        return dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+    def _make_running_run(self, run_id: str, started_minutes_ago: float) -> dict:
+        from datetime import datetime, timezone, timedelta
+        started = datetime.now(timezone.utc) - timedelta(minutes=started_minutes_ago)
+        r = _make_run(run_id, status="RUNNING")
+        r["started_at"] = self._iso(started)
+        r["created_at"] = self._iso(
+            datetime.now(timezone.utc) - timedelta(minutes=started_minutes_ago + 1))
+        return r
+
+    def _sweep(self, runs, ttl_min=60):
+        """Write runs to file store, run sweep, return updated rows."""
+        _write_runs(self._runs_file, runs)
+        from backtest_portfolio import sweep_watchdog_timeouts
+        with (
+            mock.patch("backtest_portfolio.db_available", return_value=False),
+            mock.patch("backtest_portfolio._RUNS_FILE", self._runs_file),
+        ):
+            result = sweep_watchdog_timeouts(ttl_min=ttl_min)
+        rows = _read_runs(self._runs_file)
+        return result, rows
+
+    # ------------------------------------------------------------------
+    # Core behaviour tests
+    # ------------------------------------------------------------------
+
+    def test_stale_running_run_marked_failed(self):
+        """A RUNNING run started 90 minutes ago must be marked FAILED on sweep."""
+        run_id = "BT-wd001"
+        result, rows = self._sweep(
+            [self._make_running_run(run_id, started_minutes_ago=90)],
+            ttl_min=60,
+        )
+        row = next(r for r in rows if r["run_id"] == run_id)
+        self.assertEqual(row["status"], "FAILED",
+                         "Run started 90 min ago must be FAILED after watchdog sweep")
+        self.assertIn(run_id, result["failed_runs"])
+        self.assertEqual(result["failed"], 1)
+
+    def test_watchdog_error_message_contains_expected_text(self):
+        """The FAILED error message must mention 'Watchdog timeout' so operators
+        can immediately distinguish a TTL kill from a logic exception."""
+        run_id = "BT-wd002"
+        result, rows = self._sweep(
+            [self._make_running_run(run_id, started_minutes_ago=90)],
+            ttl_min=60,
+        )
+        row = next(r for r in rows if r["run_id"] == run_id)
+        self.assertIn("Watchdog timeout", row.get("error", ""),
+                      "Error message must contain 'Watchdog timeout'")
+        self.assertIn("60", row.get("error", ""),
+                      "Error message must state the configured TTL (60 min)")
+
+    def test_recent_running_run_not_touched(self):
+        """A RUNNING run started only 10 minutes ago must not be affected."""
+        run_id = "BT-wd003"
+        result, rows = self._sweep(
+            [self._make_running_run(run_id, started_minutes_ago=10)],
+            ttl_min=60,
+        )
+        row = next(r for r in rows if r["run_id"] == run_id)
+        self.assertEqual(row["status"], "RUNNING",
+                         "Run started 10 min ago must stay RUNNING")
+        self.assertEqual(result["failed"], 0)
+        self.assertNotIn(run_id, result["failed_runs"])
+
+    def test_completed_run_not_touched(self):
+        """A COMPLETED run must never be changed to FAILED by the watchdog."""
+        from datetime import datetime, timezone, timedelta
+        run_id = "BT-wd004"
+        completed = _make_run(run_id, status="COMPLETED")
+        old_ts = self._iso(datetime.now(timezone.utc) - timedelta(minutes=120))
+        completed["started_at"] = old_ts
+        result, rows = self._sweep([completed], ttl_min=60)
+        row = next(r for r in rows if r["run_id"] == run_id)
+        self.assertEqual(row["status"], "COMPLETED",
+                         "COMPLETED runs must never be overwritten by the watchdog")
+
+    def test_failed_run_not_touched(self):
+        """An already-FAILED run must not be double-processed."""
+        from datetime import datetime, timezone, timedelta
+        run_id = "BT-wd005"
+        already_failed = _make_run(run_id, status="FAILED")
+        already_failed["started_at"] = self._iso(
+            datetime.now(timezone.utc) - timedelta(minutes=120))
+        result, rows = self._sweep([already_failed], ttl_min=60)
+        row = next(r for r in rows if r["run_id"] == run_id)
+        self.assertEqual(row["status"], "FAILED")
+        self.assertEqual(result["failed"], 0)
+
+    def test_watchdog_ttl_is_configurable(self):
+        """A custom TTL of 5 minutes must be respected — a run 6 min old is FAILED,
+        a run 4 min old is untouched."""
+        from datetime import datetime, timezone, timedelta
+        run_id_old = "BT-wd006a"
+        run_id_new = "BT-wd006b"
+        runs = [
+            self._make_running_run(run_id_old, started_minutes_ago=6),
+            self._make_running_run(run_id_new, started_minutes_ago=4),
+        ]
+        result, rows = self._sweep(runs, ttl_min=5)
+
+        old_row = next(r for r in rows if r["run_id"] == run_id_old)
+        new_row = next(r for r in rows if r["run_id"] == run_id_new)
+        self.assertEqual(old_row["status"], "FAILED",
+                         "Run 6 min old with 5 min TTL must be FAILED")
+        self.assertEqual(new_row["status"], "RUNNING",
+                         "Run 4 min old with 5 min TTL must stay RUNNING")
+
+    def test_multiple_stale_runs_all_failed(self):
+        """All stale RUNNING runs must be swept in a single call."""
+        run_ids = ["BT-wd007a", "BT-wd007b", "BT-wd007c"]
+        runs = [self._make_running_run(rid, started_minutes_ago=90)
+                for rid in run_ids]
+        result, rows = self._sweep(runs, ttl_min=60)
+        self.assertEqual(result["failed"], 3)
+        for rid in run_ids:
+            row = next(r for r in rows if r["run_id"] == rid)
+            self.assertEqual(row["status"], "FAILED")
+
+    def test_sweep_returns_zero_when_nothing_stale(self):
+        """When no runs exceed the TTL the function must return failed=0."""
+        result, _ = self._sweep(
+            [self._make_running_run("BT-wd008", started_minutes_ago=5)],
+            ttl_min=60,
+        )
+        self.assertEqual(result["failed"], 0)
+        self.assertEqual(result["failed_runs"], [])
+
+    def test_sweep_never_raises(self):
+        """sweep_watchdog_timeouts must not raise even with a corrupt file."""
+        from backtest_portfolio import sweep_watchdog_timeouts
+        with (
+            mock.patch("backtest_portfolio.db_available", return_value=False),
+            mock.patch("backtest_portfolio._RUNS_FILE", "/dev/null/no_such_file"),
+        ):
+            try:
+                result = sweep_watchdog_timeouts(ttl_min=60)
+                # With a broken file, the result should still be a dict
+                self.assertIn("failed", result)
+            except Exception as exc:
+                self.fail(f"sweep_watchdog_timeouts must not raise; got: {exc}")
+
+    def test_stale_run_promoted_to_failed_by_watchdog(self):
+        """Scheduler-realistic lifecycle: the heartbeat sweep turns a ghost
+        RUNNING row into STALE at ~30 min; the watchdog must then convert it
+        to FAILED at the TTL boundary even though it is now STALE, not RUNNING.
+
+        This guards the critical production race: sweep_stale_runs() fires first
+        (status RUNNING → STALE) then sweep_watchdog_timeouts fires later
+        (must still upgrade to FAILED, because STALE is not a vacancy signal
+        and _spawn_next_queued only counts RUNNING/PENDING/CANCEL_REQUESTED).
+        """
+        from datetime import datetime, timezone, timedelta
+        run_id = "BT-stale-to-failed"
+        # Simulate a row that the heartbeat sweep already converted to STALE.
+        stale_run = _make_run(run_id, status="STALE")
+        # started_at is 90 min ago — beyond both the 30 min heartbeat and
+        # the 60 min watchdog TTL.
+        started = datetime.now(timezone.utc) - timedelta(minutes=90)
+        stale_run["started_at"] = started.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        stale_run["error"] = ("Run stalled — no progress for 30.0 minutes. "
+                              "Worker likely stopped. Retry required.")
+
+        result, rows = self._sweep([stale_run], ttl_min=60)
+        row = next(r for r in rows if r["run_id"] == run_id)
+        self.assertEqual(row["status"], "FAILED",
+                         "A STALE row older than the watchdog TTL must be upgraded "
+                         "to FAILED so the queue slot is freed")
+        self.assertIn("Watchdog timeout", row.get("error", ""),
+                      "Error must be overwritten with the watchdog-timeout message")
+        self.assertIn(run_id, result["failed_runs"])
+
+
+# ---------------------------------------------------------------------------
+# 6. _spawn_next_queued calls the watchdog before promoting
+# ---------------------------------------------------------------------------
+
+class TestSpawnNextQueuedCallsWatchdog(unittest.TestCase):
+    """_spawn_next_queued must invoke sweep_watchdog_timeouts before trying to
+    promote a QUEUED run so that a ghost RUNNING row does not block the queue."""
+
+    def test_watchdog_called_before_promote(self):
+        """Verify sweep_watchdog_timeouts is called at the start of each
+        _spawn_next_queued invocation, even when the queue is empty."""
+        import backtest_portfolio as bp_module
+        import backtest_runner
+
+        with (
+            mock.patch.object(bp_module, "sweep_watchdog_timeouts",
+                              return_value={"failed": 0, "failed_runs": []}) as mock_wd,
+            mock.patch.object(bp_module, "promote_next_queued", return_value=None),
+        ):
+            backtest_runner._spawn_next_queued()
+
+        mock_wd.assert_called_once()
+
+    def test_ghost_running_row_unblocks_queue_via_spawn(self):
+        """End-to-end regression for the all-ghost blocking scenario:
+
+        Setup: MAX_CONCURRENT_BACKTESTS slots are all occupied by ghost RUNNING
+               rows (worker processes died silently); one run is QUEUED.
+        Action: Call _spawn_next_queued() — the path the scheduler and any
+                finishing worker use.
+        Assert:
+          1. The ghost rows are marked FAILED (not left as RUNNING).
+          2. The QUEUED run is promoted to PENDING.
+          3. subprocess.Popen is called with the queued run_id so a new worker
+             actually starts.
+        """
+        import tempfile, shutil, sys
+        tmpdir = tempfile.mkdtemp()
+        try:
+            from datetime import datetime, timezone, timedelta
+            from backtest_portfolio import MAX_CONCURRENT_BACKTESTS
+            runs_file = os.path.join(tmpdir, "backtest_runs.json")
+            trades_file = os.path.join(tmpdir, "backtest_trades.json")
+            _write_runs(trades_file, [])
+
+            queued_id = "BT-queued-e2e"
+            ghost_started = datetime.now(timezone.utc) - timedelta(minutes=90)
+
+            # Fill every concurrency slot with a ghost RUNNING row.
+            runs = []
+            for i in range(MAX_CONCURRENT_BACKTESTS):
+                ghost = _make_run(f"BT-ghost-{i}", status="RUNNING")
+                ghost["started_at"] = ghost_started.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+                runs.append(ghost)
+            runs.append(_make_run(queued_id, status="QUEUED"))
+            _write_runs(runs_file, runs)
+
+            import backtest_runner
+
+            spawned_run_ids = []
+
+            def _fake_popen(cmd, **kw):
+                # cmd = [sys.executable, main.py, "backtest_exec", json_payload]
+                args_json = cmd[3] if len(cmd) > 3 else "{}"
+                try:
+                    spawned_run_ids.append(json.loads(args_json).get("run_id"))
+                except Exception:
+                    pass
+                return mock.MagicMock()
+
+            with (
+                mock.patch("backtest_portfolio.db_available", return_value=False),
+                mock.patch("backtest_portfolio._RUNS_FILE", runs_file),
+                mock.patch("backtest_portfolio._TRADES_FILE", trades_file),
+                mock.patch("subprocess.Popen", side_effect=_fake_popen),
+                mock.patch("backtest_runner.emit"),
+                mock.patch("backtest_runner.emit_many"),
+                mock.patch("time.sleep"),
+            ):
+                # This is the exact production call path — triggers watchdog,
+                # then promote_next_queued, then Popen.
+                backtest_runner._spawn_next_queued()
+
+            rows_after = _read_runs(runs_file)
+
+            # 1. All ghost RUNNING rows must now be FAILED.
+            ghost_rows = [r for r in rows_after if r["run_id"].startswith("BT-ghost-")]
+            self.assertEqual(len(ghost_rows), MAX_CONCURRENT_BACKTESTS)
+            for gr in ghost_rows:
+                self.assertEqual(gr["status"], "FAILED",
+                                 f"{gr['run_id']} must be FAILED after watchdog sweep "
+                                 "inside _spawn_next_queued")
+                self.assertIn("Watchdog timeout", gr.get("error", ""),
+                              "Error must contain 'Watchdog timeout'")
+
+            # 2. The queued run must have been promoted (PENDING or RUNNING).
+            queued_row = next(r for r in rows_after if r["run_id"] == queued_id)
+            self.assertIn(queued_row["status"], ("PENDING", "RUNNING"),
+                          "QUEUED run must be promoted after ghost slots are freed")
+
+            # 3. A worker subprocess must have been spawned for the queued run.
+            self.assertIn(queued_id, spawned_run_ids,
+                          "_spawn_next_queued must call subprocess.Popen for the "
+                          "newly promoted run — ghost slots were blocking the queue")
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+
 if __name__ == "__main__":
     unittest.main()
