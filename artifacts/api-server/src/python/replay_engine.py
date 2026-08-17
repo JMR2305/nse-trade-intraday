@@ -700,10 +700,14 @@ def _build_symbol_journey(rec: Dict, snapshot: Dict,
     )
 
     # ── Dual-threshold R:R gap detection ───────────────────────────────────
-    # The Risk Agent approves at ≥1.5; the execution layer requires ≥2.0.
-    # A symbol permanently stuck in this gap shows RISK_APPROVED + BUY in the
-    # snapshot but is silently skipped every scan.  Surface this explicitly so
-    # operators understand why no paper order ever fires — no thresholds change.
+    # The Risk Agent and execution layer use separate configurable R:R thresholds
+    # (Risk Agent: SafetyControls.min_rr_ratio via execution_engine;
+    #  execution gate: settings["min_risk_reward"] via phase20_store).
+    # A symbol permanently stuck in the gap between these two configured values
+    # shows RISK_APPROVED + BUY in the snapshot but is silently skipped every
+    # scan.  Surface this explicitly so operators understand why no paper order
+    # ever fires.  Warning text always reads the live configured values — never
+    # a constant written at code-authoring time.
     # Guard: only EXECUTION_SKIPPED_WITH_REASON (not ORDER_REJECTED or others).
     _rr_gap = (
         _eo_type == "EXECUTION_SKIPPED_WITH_REASON"
@@ -731,12 +735,26 @@ def _build_symbol_journey(rec: Dict, snapshot: Dict,
                 f"to {_exec_min_str}"
             )
         else:
-            # Event payload missing gate-reason detail — surface the conflict
-            # without stating a specific threshold that may be misconfigured.
+            # Event payload missing gate-reason detail — read the live configured
+            # thresholds from the settings stores so the note always reflects
+            # what is actually set, never a constant written at code-authoring time.
+            try:
+                from phase20_store import get_settings as _get_settings20
+                _live_exec_min = float((_get_settings20() or {}).get("min_risk_reward", 2.0))
+                _exec_min_live_str = f"≥{_live_exec_min}"
+            except Exception:
+                _exec_min_live_str = "the configured execution minimum"
+            try:
+                from execution_engine import get_safety_controls as _get_sc
+                _live_risk_min = float(_get_sc().min_rr_ratio)
+                _risk_min_live_str = f"≥{_live_risk_min}"
+            except Exception:
+                _risk_min_live_str = "the configured Risk Agent minimum"
             _dual_rr_note = (
-                f"Risk Agent approved (R:R {_rr_val_str}) but the execution R:R gate "
-                f"blocked this order — check execution settings for the required "
-                f"minimum R:R threshold"
+                f"Risk Agent approved (R:R {_rr_val_str}, Risk Agent minimum "
+                f"{_risk_min_live_str}) but the execution gate (minimum "
+                f"{_exec_min_live_str}) blocked this order — adjust the execution "
+                f"R:R minimum in settings to allow this signal through"
             )
 
     if _eo_type in ("ORDER_SUBMITTED", "ORDER_EXECUTED"):

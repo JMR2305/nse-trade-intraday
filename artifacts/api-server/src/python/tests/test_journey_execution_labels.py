@@ -277,6 +277,61 @@ class TestDualThresholdWarning:
             f"dual_threshold_warning must be None when only per_stock_cap blocked: {warning!r}"
         )
 
+    def test_case10_fallback_reflects_live_settings_not_hardcoded(self):
+        """Fallback path (no gate-reason string in payload) reads live settings.
+
+        When the execution event carries min_risk_reward in failed_gates but
+        provides NO gate-reason string, the fallback must read the live
+        configured min_risk_reward from phase20_store.get_settings() rather than
+        emitting a hardcoded "2.0".  Mocking get_settings to return 2.8 confirms
+        the fallback text tracks the live value.
+        """
+        eo = {
+            "event_type": "EXECUTION_SKIPPED_WITH_REASON",
+            "failed_gates": ["min_risk_reward"],
+            # Intentionally omit failed_gate_reasons so the fallback path fires
+            "failed_gate_reasons": {},
+        }
+        with patch(
+            "replay_engine.phase20_store",
+            create=True,
+        ):
+            # Patch get_settings inside the replay_engine module's import scope
+            import replay_engine as _re_mod
+            import types
+            _fake_store = types.ModuleType("phase20_store")
+            _fake_store.get_settings = lambda: {"min_risk_reward": 2.8}
+            import sys as _sys
+            _sys.modules["phase20_store"] = _fake_store
+
+            try:
+                journey = _build_symbol_journey(
+                    _rec(all_gates_passed=True, rr_ratio=1.6),
+                    _SNAP,
+                    execution_outcome=eo,
+                )
+            finally:
+                # Restore the real module so other tests are unaffected
+                import importlib as _il
+                try:
+                    _sys.modules["phase20_store"] = _il.import_module("phase20_store")
+                except Exception:
+                    _sys.modules.pop("phase20_store", None)
+
+        step = _exec_step(journey)
+        warning = (step.get("detail") or {}).get("dual_threshold_warning")
+
+        assert isinstance(warning, str) and warning, (
+            f"dual_threshold_warning must be a non-empty string in fallback path, got: {warning!r}"
+        )
+        assert "2.8" in warning, (
+            f"Fallback warning must reflect live configured min_risk_reward (2.8), not a "
+            f"hardcoded constant: {warning!r}"
+        )
+        assert "2.0" not in warning, (
+            f"Hardcoded 2.0 must not appear when live min_risk_reward is 2.8: {warning!r}"
+        )
+
 
 # ── Seal-vs-executor race condition guard (Task #681) ───────────────────────
 
