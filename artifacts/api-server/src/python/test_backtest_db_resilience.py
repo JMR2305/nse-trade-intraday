@@ -22,6 +22,91 @@ from typing import Any, Dict, List
 
 
 # ---------------------------------------------------------------------------
+# Module-level worker for TestConcurrentQueueFinish
+# Must be at module level (not nested) so multiprocessing can pickle it.
+# ---------------------------------------------------------------------------
+
+def _finish_and_promote_worker(runs_file, lock_file, run_id, barrier, result_queue):
+    """Simulate a finish worker: emergency-mark run FAILED, then promote QUEUED.
+
+    Both steps are separate _file_store_lock acquisitions (sequential, not
+    nested), matching what execute_run does via _emergency_mark_failed and
+    _spawn_next_queued → promote_next_queued.  Must be module-level so that
+    multiprocessing can fork/pickle it.
+    """
+    import os as _os
+    _os.environ["DATABASE_URL"] = ""
+    import backtest_portfolio as bp
+    bp._RUNS_FILE = runs_file
+    bp._LOCK_FILE = lock_file
+    # Rendezvous with the watchdog worker before starting, maximising the
+    # concurrent race window between the finish+promote sequence and the
+    # watchdog sweep.
+    try:
+        barrier.wait(timeout=15)
+    except Exception:
+        pass
+    bp._emergency_mark_failed(run_id, "finish worker error")
+    promoted = bp.promote_next_queued()
+    result_queue.put(promoted)
+
+
+def _watchdog_sweep_worker(runs_file, lock_file, barrier, result_queue):
+    """Simulate a watchdog sweep running concurrently with a finish+promote.
+
+    Uses ttl_min=0 so every RUNNING/STALE row is treated as timed-out,
+    exercising the full sweep+save path in sweep_watchdog_timeouts().
+    Must be module-level so that multiprocessing can fork/pickle it.
+    """
+    import os as _os
+    _os.environ["DATABASE_URL"] = ""
+    import backtest_portfolio as bp
+    bp._RUNS_FILE = runs_file
+    bp._LOCK_FILE = lock_file
+    try:
+        barrier.wait(timeout=15)
+    except Exception:
+        pass
+    bp.sweep_watchdog_timeouts(ttl_min=0)
+    result_queue.put("watchdog_done")
+
+
+def _concurrent_finish_worker(runs_file, lock_file, run_id, barrier, result_queue):
+    """Simulate one backtest run finishing and triggering queue promotion.
+
+    Steps (in each subprocess):
+    1. Disable the DB path so only the file-store is used.
+    2. Record the run as FAILED via _emergency_mark_failed.
+    3. Rendezvous with the other worker at *barrier* (maximises the race
+       window between step 2 completing and step 4 starting).
+    4. Call promote_next_queued() and put the result in *result_queue*.
+
+    Must be a module-level function so it is importable by multiprocessing.
+    """
+    import os as _os
+    # Disable DB before any backtest_portfolio call so db_available() → False.
+    _os.environ["DATABASE_URL"] = ""
+
+    import backtest_portfolio as bp
+    bp._RUNS_FILE = runs_file
+    bp._LOCK_FILE = lock_file
+
+    # Step 2: simulate the run failing and triggering _emergency_mark_failed.
+    bp._emergency_mark_failed(run_id, "concurrent-test simulated failure")
+
+    # Step 3: rendezvous — both processes reach this point before either
+    # calls promote_next_queued, maximising the concurrent race window.
+    try:
+        barrier.wait(timeout=15)
+    except Exception:
+        pass  # timeout is acceptable; assertions will catch stalls
+
+    # Step 4: simulate _spawn_next_queued → promote the next QUEUED run.
+    promoted_id = bp.promote_next_queued()
+    result_queue.put(promoted_id)  # None when no QUEUED run is available
+
+
+# ---------------------------------------------------------------------------
 # Helper: build a minimal run dict the file-store path expects
 # ---------------------------------------------------------------------------
 
@@ -855,5 +940,243 @@ class TestSpawnNextQueuedCallsWatchdog(unittest.TestCase):
             shutil.rmtree(tmpdir, ignore_errors=True)
 
 
+
+
+# ---------------------------------------------------------------------------
+# 7. Concurrent finish — queue must not stall when two runs complete at the
+#    same instant (Task 704 regression).
+# ---------------------------------------------------------------------------
+
+class TestConcurrentQueueFinish(unittest.TestCase):
+    """Multiprocess regression for the concurrent-finish queue stall (Task 704).
+
+    Two backtest worker *processes* finish (or fail) at exactly the same
+    instant and both call _spawn_next_queued to promote the next QUEUED run.
+    Without cross-process serialisation (fcntl.flock), both processes can
+    read the same QUEUED row and both promote it — leaving the second QUEUED
+    run without a worker indefinitely.
+
+    Uses real OS processes (multiprocessing) to exercise the same concurrent
+    path that production workers use, so the test validates the fcntl.flock
+    fix in backtest_portfolio._file_store_lock().
+    """
+
+    def setUp(self):
+        import tempfile
+        self._tmpdir = tempfile.mkdtemp()
+        self._runs_file = os.path.join(self._tmpdir, "backtest_runs.json")
+        self._trades_file = os.path.join(self._tmpdir, "backtest_trades.json")
+        self._lock_file = os.path.join(self._tmpdir, "backtest_runs.lock")
+        _write_runs(self._trades_file, [])
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
+    def _run_two_workers(self, run_ids):
+        """Spawn two subprocesses that each finish one run and call promote."""
+        import multiprocessing
+        ctx = multiprocessing.get_context("fork")
+        barrier = ctx.Barrier(2, timeout=15)
+        result_queue = ctx.Queue()
+
+        procs = []
+        for rid in run_ids:
+            p = ctx.Process(
+                target=_concurrent_finish_worker,
+                args=(self._runs_file, self._lock_file, rid,
+                      barrier, result_queue),
+            )
+            procs.append(p)
+
+        for p in procs:
+            p.start()
+        for p in procs:
+            p.join(timeout=25)
+
+        promoted = []
+        while not result_queue.empty():
+            item = result_queue.get_nowait()
+            if item is not None:
+                promoted.append(item)
+
+        return procs, promoted
+
+    def test_no_stall_when_two_runs_finish_simultaneously(self):
+        """Core regression (Task 704): two worker processes finishing at the
+        same instant must each promote a *different* QUEUED run.
+
+        Correct behaviour with fcntl.flock:
+          - Both executed runs end FAILED (never stuck RUNNING).
+          - Each QUEUED run is promoted exactly once (no duplicate, no miss).
+          - Both QUEUED runs get a worker — the queue drains fully.
+
+        Without the lock, both processes race: they both read queued_1 first
+        and both promote it, leaving queued_2 stuck as QUEUED forever.
+        """
+        run_a = "BT-conc-a"
+        run_b = "BT-conc-b"
+        queued_1 = "BT-conc-q1"
+        queued_2 = "BT-conc-q2"
+
+        # Both runs are already RUNNING (claim step already done).
+        _write_runs(self._runs_file, [
+            _make_run(run_a, status="RUNNING"),
+            _make_run(run_b, status="RUNNING"),
+            _make_run(queued_1, status="QUEUED"),
+            _make_run(queued_2, status="QUEUED"),
+        ])
+
+        procs, promoted = self._run_two_workers([run_a, run_b])
+
+        for i, p in enumerate(procs):
+            self.assertFalse(
+                p.is_alive(),
+                f"Worker {i} is still alive — possible deadlock in _file_store_lock",
+            )
+            self.assertEqual(
+                p.exitcode, 0,
+                f"Worker {i} exited with non-zero code {p.exitcode}",
+            )
+
+        rows = _read_runs(self._runs_file)
+        by_id = {r["run_id"]: r for r in rows}
+
+        # 1. Both executing runs must be terminal — never stuck RUNNING.
+        for rid in (run_a, run_b):
+            self.assertIn(
+                by_id[rid]["status"], ("FAILED", "COMPLETED"),
+                f"{rid} is stuck as {by_id[rid]['status']!r} — "
+                "_emergency_mark_failed must write FAILED under concurrent load",
+            )
+
+        # 2. Each QUEUED run must be promoted at most once.
+        #    count > 1 → duplicate-promotion bug; the other run has no worker.
+        for qid in (queued_1, queued_2):
+            count = promoted.count(qid)
+            self.assertLessEqual(
+                count, 1,
+                f"{qid!r} was promoted {count} times — duplicate promotion "
+                "means the other QUEUED run has no worker (stall)",
+            )
+
+        # 3. Both QUEUED slots were filled — the queue drains fully.
+        self.assertIn(queued_1, promoted,
+                      f"{queued_1!r} was never promoted — queue stalled")
+        self.assertIn(queued_2, promoted,
+                      f"{queued_2!r} was never promoted — queue stalled")
+
+    def test_both_runs_are_failed_not_running_after_concurrent_failures(self):
+        """Both concurrent worker processes fail with no QUEUED runs to promote.
+
+        Verifies _emergency_mark_failed correctly records FAILED for *both*
+        runs under concurrent process-level load — no run may remain RUNNING.
+        """
+        run_a = "BT-2db-a"
+        run_b = "BT-2db-b"
+
+        _write_runs(self._runs_file, [
+            _make_run(run_a, status="RUNNING"),
+            _make_run(run_b, status="RUNNING"),
+        ])
+
+        procs, _ = self._run_two_workers([run_a, run_b])
+
+        for i, p in enumerate(procs):
+            self.assertFalse(p.is_alive(), f"Worker {i} deadlocked")
+            self.assertEqual(p.exitcode, 0, f"Worker {i} exit code: {p.exitcode}")
+
+        rows = _read_runs(self._runs_file)
+        by_id = {r["run_id"]: r for r in rows}
+
+        for rid in (run_a, run_b):
+            self.assertIn(
+                by_id[rid]["status"], ("FAILED", "COMPLETED"),
+                f"{rid} is stuck as {by_id[rid]['status']!r} after concurrent "
+                "failure — _emergency_mark_failed must write FAILED concurrently",
+            )
+
+        stuck_exec = [
+            r for r in rows
+            if r["run_id"] in (run_a, run_b) and r["status"] == "RUNNING"
+        ]
+        self.assertEqual(
+            stuck_exec, [],
+            f"Runs still RUNNING after concurrent failures: "
+            f"{[r['run_id'] for r in stuck_exec]}",
+        )
+
+    def test_watchdog_cannot_revert_queued_promotion_under_concurrent_load(self):
+        """Watchdog sweep racing with a finish+promote worker must not overwrite
+        the newly-promoted PENDING row with its stale QUEUED snapshot.
+
+        The race without _file_store_lock() on sweep_watchdog_timeouts():
+          1. Watchdog reads file: sees [RUNNING, QUEUED] into memory.
+          2. Finish worker: RUNNING→FAILED, QUEUED→PENDING, saves.
+          3. Watchdog saves its stale snapshot: [FAILED, QUEUED] ← PENDING lost!
+             The promoted run now has no worker — indefinite stall.
+
+        With the lock, steps 2 and 3 are serialised: the watchdog re-reads the
+        file after acquiring the lock so it sees the fresh state before saving.
+        """
+        stale_run = "BT-wd-stale"
+        queued_run = "BT-wd-queued"
+
+        # stale_run was started far in the past — past any TTL (ttl_min=0).
+        old_ts = "2020-01-01T00:00:00Z"
+        _write_runs(self._runs_file, [
+            {**_make_run(stale_run, status="RUNNING"), "started_at": old_ts},
+            _make_run(queued_run, status="QUEUED"),
+        ])
+
+        import multiprocessing
+        ctx = multiprocessing.get_context("fork")
+        barrier = ctx.Barrier(2, timeout=15)
+        result_queue = ctx.Queue()
+
+        p_finish = ctx.Process(
+            target=_finish_and_promote_worker,
+            args=(self._runs_file, self._lock_file, stale_run,
+                  barrier, result_queue),
+        )
+        p_watchdog = ctx.Process(
+            target=_watchdog_sweep_worker,
+            args=(self._runs_file, self._lock_file, barrier, result_queue),
+        )
+
+        p_finish.start()
+        p_watchdog.start()
+        p_finish.join(timeout=25)
+        p_watchdog.join(timeout=25)
+
+        self.assertFalse(p_finish.is_alive(),
+                         "Finish worker deadlocked — _file_store_lock stall?")
+        self.assertFalse(p_watchdog.is_alive(),
+                         "Watchdog worker deadlocked — _file_store_lock stall?")
+        self.assertEqual(p_finish.exitcode, 0,
+                         f"Finish worker exited with code {p_finish.exitcode}")
+        self.assertEqual(p_watchdog.exitcode, 0,
+                         f"Watchdog exited with code {p_watchdog.exitcode}")
+
+        rows = _read_runs(self._runs_file)
+        by_id = {r["run_id"]: r for r in rows}
+
+        # stale_run must be terminal (either worker can mark it FAILED first)
+        self.assertIn(
+            by_id[stale_run]["status"], ("FAILED", "COMPLETED"),
+            f"{stale_run} is {by_id[stale_run]['status']!r} — not terminal",
+        )
+
+        # queued_run must be PENDING — the promotion must not have been
+        # reverted to QUEUED by the watchdog's stale file snapshot.
+        self.assertEqual(
+            by_id[queued_run]["status"], "PENDING",
+            f"{queued_run} is {by_id[queued_run]['status']!r} — "
+            "the watchdog's stale snapshot overwrote the finish worker's "
+            "promotion; _file_store_lock must cover sweep_watchdog_timeouts",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
+
