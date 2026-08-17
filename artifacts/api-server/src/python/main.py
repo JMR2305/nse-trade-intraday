@@ -1025,6 +1025,61 @@ def main():
         elif command == "phase20_settings":
             from phase20_store import get_settings
             result = {"success": True, "settings": get_settings()}
+        elif command == "phase20_bootstrap_status":
+            # Aggregate bootstrap mode readiness into a single lightweight response.
+            # Gate predicates mirror run_bootstrap_auto_entry() in phase20_executor.py
+            # in priority order so the UI accurately reflects why entries are blocked.
+            # No yfinance calls — safe to poll every 60 s.
+            #
+            # Short-circuit: when bootstrap is disabled we return a minimal stub that
+            # skips the closed-trade count query and circuit-breaker evaluation.
+            # Note: get_settings() still reads from the settings DB row — but it does
+            # not spawn the two heavier operations (breaker eval + trade count).  All
+            # expensive work is gated on bootstrap_paper_enabled=True.
+            from phase20_store import get_settings as _p20_gs
+            _s = _p20_gs()  # already normalises auto_paper_entries=False when unconfirmed
+            if not _s.get("bootstrap_paper_enabled", False):
+                result = {"success": True, "bootstrap_paper_enabled": False}
+            else:
+                # Delegate to the extracted helper so the gate logic is
+                # unit-testable without importing the full main.py entry-point.
+                from scan_state_store import load_latest_snapshot as _load_snap
+                from phase20_executor import (
+                    _BOOTSTRAP_MAX_CLOSED_TRADES as _BS_MAX,
+                    _with_db as _bs_with_db,
+                )
+                from phase20_bootstrap_status import build_bootstrap_status_payload as _build_bs
+
+                def _eval_cb_safe(settings_arg):
+                    """circuit-breaker evaluate — fail-closed (unreadable = tripped)."""
+                    try:
+                        from phase20_circuit_breaker import evaluate_and_maybe_trip as _ev
+                        return _ev(settings_arg)
+                    except Exception as _cbe:
+                        return {"tripped": True, "reasons": [
+                            {"code": "STATE_UNREADABLE",
+                             "detail": f"breaker state unreadable: {_cbe!s:.80}"}]}
+
+                def _count_closed() -> int:
+                    """Count CLOSED paper trades — falls back to 0 on DB error."""
+                    def _q(conn) -> int:
+                        with conn.cursor() as _cur:
+                            _cur.execute(
+                                "SELECT COUNT(*) FROM phase20_paper_trades WHERE status='CLOSED'"
+                            )
+                            return int(_cur.fetchone()[0])
+                    try:
+                        return _bs_with_db(_q, lambda: 0)
+                    except Exception:
+                        return 0
+
+                result = _build_bs(
+                    settings=_s,
+                    snapshot=_load_snap(),
+                    evaluate_circuit_breaker=_eval_cb_safe,
+                    get_closed_trades=_count_closed,
+                    bootstrap_max_closed_trades=_BS_MAX,
+                )
         elif command == "phase20_settings_update":
             from phase20_store import update_settings
             _payload = json.loads(args[1]) if len(args) > 1 else {}

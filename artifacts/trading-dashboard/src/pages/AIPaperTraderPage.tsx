@@ -19,7 +19,7 @@ import {
   BarChart2, Wallet, Layers, Trophy, Info,
   CalendarDays, RotateCcw, PieChart,
   Power, CheckCircle2, XCircle, AlertTriangle, Bot, Cpu, Shield, RefreshCcw,
-  GitBranch, ArrowDown, ChevronDown, Timer, Gauge,
+  GitBranch, ArrowDown, ChevronDown, Timer, Gauge, LogIn,
 } from "lucide-react";
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
@@ -253,6 +253,50 @@ function toArr<T>(v: unknown): T[] {
     }
   }
   return [];
+}
+
+// ── Bootstrap status type ─────────────────────────────────────────────────────
+
+/**
+ * Shape returned by GET /api/phase20/bootstrap-status.
+ * Fields mirror the exact executor gate predicates from run_bootstrap_auto_entry()
+ * in priority order: auto_paper_entries → circuit_breaker → kite → cutoff → candidates.
+ */
+interface BootstrapStatus {
+  success: boolean;
+  bootstrap_paper_enabled: boolean;
+  // Gate 1: post-normalisation from get_settings() — False when unconfirmed too
+  auto_paper_entries: boolean;
+  auto_paper_entries_confirmed_at: string | null;
+  // Gate 2: circuit breaker (fail-closed — unreadable state counts as tripped)
+  circuit_breaker_tripped: boolean;
+  circuit_breaker_detail: string;
+  // Gate 3: Kite session verified.
+  // kite_verified=true requires kite_session_verified=true.
+  // Overlay-only (overlay_enabled=true, session_verified=false) is NOT sufficient:
+  // kite_ltp_overlay.py sets per-candidate kite_session_verified_flag=bool(session_ok),
+  // so without a live session all candidates fail the executor's per-candidate filter
+  // (phase20_executor.py line 875) and no bootstrap entry can fire.
+  kite_verified: boolean;
+  kite_session_verified: boolean;
+  kite_overlay_enabled: boolean;
+  // Gate 4: closed-trade cutoff
+  closed_bootstrap_trades: number;
+  bootstrap_max_closed_trades: number;
+  bootstrap_cutoff_reached: boolean;
+  // Candidate counts
+  bootstrap_eligible_count: number;
+  watch_count: number;
+  snapshot_ts: string | null;
+  scan_id: string | null;
+  top_candidates: {
+    symbol: string;
+    confidence: number;
+    opportunity_score: number;
+    rr_ratio: number;
+    bootstrap_eligible: boolean;
+    entry_price: number;
+  }[];
 }
 
 // ── Shared micro-components ───────────────────────────────────────────────────
@@ -966,6 +1010,363 @@ function NextScanCountdown({ expectedIso }: { expectedIso?: string | null }) {
     }`}>
       <Timer className="w-3 h-3 flex-shrink-0" />
       <span>{label}</span>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SBootstrapStatus — Bootstrap Mode Readiness Card
+// Visible only when bootstrap_paper_enabled=true; guides operators through the
+// single remaining step (Kite login) when the session is not yet verified.
+// ══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * SBootstrapStatus — Bootstrap Mode Readiness Card
+ *
+ * Two-query pattern: a cheap settings fetch gates the expensive bootstrap-status
+ * query so the Python process + DB query never run when bootstrap is disabled.
+ *
+ * State machine mirrors run_bootstrap_auto_entry() gate priority order exactly:
+ *   entries_off → circuit_breaker → no_kite → complete → scanning → ready
+ */
+function SBootstrapStatus() {
+  // Single query: the Python endpoint short-circuits immediately when
+  // bootstrap_paper_enabled=False (no DB query, no circuit-breaker evaluation),
+  // so polling every 60 s is cheap regardless of the flag state.
+  const { data, refetch } = useQuery<BootstrapStatus>({
+    queryKey: ["apt", "bootstrap-status"],
+    queryFn:  () => apiJson("/phase20/bootstrap-status"),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+    retry: 1,
+  });
+
+  // Card is invisible when bootstrap is disabled or data hasn't arrived yet.
+  if (!data?.bootstrap_paper_enabled) return null;
+
+  const {
+    auto_paper_entries,
+    circuit_breaker_tripped,
+    circuit_breaker_detail,
+    kite_verified,
+    kite_session_verified,
+    kite_overlay_enabled,
+    bootstrap_eligible_count: eligCount,
+    watch_count: watchCount,
+    closed_bootstrap_trades: closedTrades,
+    bootstrap_max_closed_trades: maxTrades,
+    bootstrap_cutoff_reached: cutoffReached,
+    top_candidates: cands = [],
+    snapshot_ts,
+  } = data;
+
+  const topCand = cands[0];
+
+  // ── Derive top-level card state ────────────────────────────────────────────
+  // Priority order mirrors run_bootstrap_auto_entry() gate order exactly:
+  //   auto_paper_entries → circuit_breaker → kite_ltp → cutoff → candidates
+  type CardState =
+    | "entries_off"       // Gate 1: auto_paper_entries false (or unconfirmed — same field)
+    | "circuit_breaker"   // Gate 2: breaker tripped or unreadable (fail-closed)
+    | "no_kite"           // Gate 3: kite_session_verified=false (overlay-only not enough)
+    | "complete"          // Gate 4: closed trades ≥ max — auto-disabled
+    | "scanning"          // Gates pass, no bootstrap-eligible candidates yet
+    | "ready";            // Eligible candidates found; scheduler will attempt entries
+
+  const cardState: CardState = !auto_paper_entries
+    ? "entries_off"
+    : circuit_breaker_tripped
+      ? "circuit_breaker"
+      : !kite_verified
+        ? "no_kite"
+        : cutoffReached
+          ? "complete"
+          : eligCount === 0
+            ? "scanning"
+            : "ready";
+
+  // ── Appearance by state ────────────────────────────────────────────────────
+  const cardCls: Record<CardState, string> = {
+    entries_off:     "bg-slate-900/40 border-slate-700/40",
+    circuit_breaker: "bg-rose-950/20 border-rose-700/40",
+    no_kite:         "bg-amber-950/20 border-amber-700/40",
+    complete:        "bg-slate-900/40 border-slate-700/40",
+    scanning:        "bg-teal-950/20 border-teal-700/40",
+    ready:           "bg-emerald-950/20 border-emerald-700/40",
+  };
+
+  const badgeCls: Record<CardState, string> = {
+    entries_off:     "bg-slate-800 border-slate-600/50 text-slate-400",
+    circuit_breaker: "bg-rose-950 border-rose-700/50 text-rose-300",
+    no_kite:         "bg-amber-950 border-amber-700/50 text-amber-300",
+    complete:        "bg-slate-800 border-slate-600/50 text-slate-400",
+    scanning:        "bg-teal-950 border-teal-700/50 text-teal-300",
+    ready:           "bg-emerald-950 border-emerald-700/50 text-emerald-300",
+  };
+
+  const badgeLabel: Record<CardState, string> = {
+    entries_off:     "Blocked",
+    circuit_breaker: "Paused",
+    no_kite:         "Armed",
+    complete:        "Complete",
+    scanning:        "Active",
+    ready:           "Active",
+  };
+
+  const headerIcon: Record<CardState, React.ReactNode> = {
+    entries_off:     <XCircle className="w-4 h-4 text-slate-400" />,
+    circuit_breaker: <XCircle className="w-4 h-4 text-rose-400" />,
+    no_kite:         <AlertTriangle className="w-4 h-4 text-amber-400" />,
+    complete:        <CheckCircle2 className="w-4 h-4 text-slate-400" />,
+    scanning:        <Activity className="w-4 h-4 text-teal-400" />,
+    ready:           <CheckCircle2 className="w-4 h-4 text-emerald-400" />,
+  };
+
+  // ── Kite tile colour — use composite kite_verified for the tile border,
+  //    but display the specific source (session vs overlay) as sub-text.
+  const kiteTileCls = kite_verified
+    ? "bg-emerald-950/40 border-emerald-700/40"
+    : "bg-rose-950/40 border-rose-700/40";
+
+  // kite_verified=true only when kite_session_verified=true; overlay-only
+  // (session absent) leaves kite_verified=false because per-candidate
+  // kite_session_verified_flag is also false → no bootstrap entry can fire.
+  // When overlay is configured but session is absent, say "Login required"
+  // so the operator knows exactly what to do, with a parenthetical hint that
+  // the overlay feature is ready to provide prices once they log in.
+  const kiteSourceLabel = kite_session_verified
+    ? kite_overlay_enabled
+      ? "Overlay enabled"           // session live + overlay → prices from Kite overlay
+      : "Session token live"        // session live + no overlay → prices from Kite session
+    : kite_overlay_enabled
+      ? "Login required (overlay configured)"   // overlay ready, session absent
+      : "Login required";
+
+  return (
+    <div
+      className={`border rounded-xl p-4 ${cardCls[cardState]}`}
+      data-testid="bootstrap-status-card"
+      data-card-state={cardState}
+    >
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          {headerIcon[cardState]}
+          <h2 className="font-semibold text-xs tracking-widest uppercase text-slate-400">
+            Bootstrap Mode
+          </h2>
+          <Badge className={`text-xs px-2 py-0 ${badgeCls[cardState]}`}>
+            {badgeLabel[cardState]}
+          </Badge>
+        </div>
+        <button
+          onClick={() => refetch()}
+          className="text-xs text-slate-500 hover:text-teal-400 flex items-center gap-1 transition-colors"
+        >
+          <RefreshCcw className="w-3 h-3" />
+        </button>
+      </div>
+
+      {/* ── ENTRIES OFF (Gate 1) — auto_paper_entries is false or unconfirmed ── */}
+      {cardState === "entries_off" && (
+        <div className="space-y-2">
+          <p className="text-xs text-slate-300 leading-relaxed">
+            Auto Paper Entries is currently OFF. Bootstrap cannot place entries until
+            auto-entries are enabled and the explicit confirmation is recorded. Enabling
+            without confirming also results in this state — both steps are required.
+          </p>
+          <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 px-3 py-2">
+            <p className="text-[10px] text-slate-400/80">
+              Go to <strong>Settings → Auto Paper Entries</strong> to enable and confirm.
+              This two-step gate prevents accidental paper entries.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── CIRCUIT BREAKER (Gate 2) — tripped or unreadable (fail-closed) ── */}
+      {cardState === "circuit_breaker" && (
+        <div className="space-y-2">
+          <p className="text-xs text-rose-300 leading-relaxed">
+            The entry circuit breaker is tripped — all automated entries including
+            bootstrap are paused pending manual review. This is a safety gate; no
+            new bootstrap positions will open until an operator resumes the breaker.
+          </p>
+          {circuit_breaker_detail && (
+            <div className="rounded-lg border border-rose-800/40 bg-rose-950/20 px-3 py-2">
+              <p className="text-[10px] text-rose-400/80 font-mono break-words">
+                {circuit_breaker_detail}
+              </p>
+            </div>
+          )}
+          <p className="text-[10px] text-slate-600 leading-snug">
+            Go to <strong>Operations → Circuit Breaker</strong> to review the trigger
+            reason and resume entries when ready.
+          </p>
+        </div>
+      )}
+
+      {/* ── COMPLETE (Gate 4) — closed-trade cutoff reached ── */}
+      {cardState === "complete" && (
+        <p className="text-xs text-slate-400 leading-relaxed">
+          Bootstrap auto-disabled: the paper ledger now has{" "}
+          <span className="font-semibold text-slate-200">{closedTrades}</span> closed
+          trades — at or above the {maxTrades}-trade threshold. No further bootstrap
+          entries will be placed. The live-evidence learning cycle can now run normally.
+        </p>
+      )}
+
+      {/* ── NO_KITE / SCANNING / READY (Gates 3+) — show status grid ── */}
+      {(cardState === "no_kite" || cardState === "scanning" || cardState === "ready") && (
+        <div className="flex flex-wrap gap-4 items-start">
+
+          {/* Status tiles */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-1 min-w-0">
+
+            {/* Kite LTP — requires a verified Kite session; overlay is an optional
+                price source after login, not a substitute for authentication. */}
+            <div className={`rounded-xl border p-3 ${kiteTileCls}`}>
+              <span className="text-xs text-slate-500">Kite LTP</span>
+              <div className="flex items-center gap-1 mt-0.5">
+                {kite_verified
+                  ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  : <XCircle className="w-3.5 h-3.5 text-rose-400" />}
+                <span className={`text-sm font-bold ${kite_verified ? "text-emerald-400" : "text-rose-400"}`}>
+                  {kite_verified ? "Live" : "Offline"}
+                </span>
+              </div>
+              <span className="text-xs text-slate-600">{kiteSourceLabel}</span>
+            </div>
+
+            {/* WATCH symbols */}
+            <div className="rounded-xl border bg-slate-900/60 border-slate-800/40 p-3">
+              <span className="text-xs text-slate-500">WATCH Symbols</span>
+              <span className="text-sm font-bold text-slate-100 block mt-0.5">{watchCount}</span>
+              <span className="text-xs text-slate-600">
+                {kite_verified ? "eligible once gates pass" : "ready once Kite live"}
+              </span>
+            </div>
+
+            {/* Eligible now */}
+            <div className={`rounded-xl border p-3 ${eligCount > 0
+              ? "bg-teal-950/40 border-teal-700/40"
+              : "bg-slate-900/60 border-slate-800/40"}`}>
+              <span className="text-xs text-slate-500">Eligible Now</span>
+              <span className={`text-sm font-bold block mt-0.5 ${eligCount > 0 ? "text-teal-300" : "text-slate-400"}`}>
+                {eligCount}
+              </span>
+              <span className="text-xs text-slate-600">passed all risk gates</span>
+            </div>
+
+            {/* Top candidate */}
+            <div className="rounded-xl border bg-slate-900/60 border-slate-800/40 p-3">
+              <span className="text-xs text-slate-500">Top Candidate</span>
+              {topCand ? (
+                <>
+                  <span className="text-sm font-bold text-amber-300 block mt-0.5">{topCand.symbol}</span>
+                  <span className="text-xs text-slate-600 font-mono">
+                    conf {topCand.confidence.toFixed(1)}% · R:R {topCand.rr_ratio.toFixed(1)}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="text-sm font-bold text-slate-500 block mt-0.5">—</span>
+                  <span className="text-xs text-slate-600">waiting for scan</span>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Action / guidance column */}
+          <div className="flex flex-col gap-2 min-w-[220px]">
+
+            {/* NO_KITE — Kite login prompt */}
+            {cardState === "no_kite" && (
+              <>
+                <p className="text-xs text-amber-300 leading-relaxed">
+                  All settings are confirmed. A verified Kite session is required before
+                  bootstrap entries can fire — log in below. The Kite LTP overlay will
+                  then supply live execution prices once authenticated, but it cannot
+                  substitute for session authentication itself (each candidate requires
+                  kite_session_verified_flag=true before the executor will select it).
+                </p>
+                <a
+                  href="/api/kite/login"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg
+                    bg-amber-700/30 hover:bg-amber-700/50 text-amber-200
+                    border border-amber-600/50 hover:border-amber-500/60 transition-colors"
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  Authenticate Kite (Zerodha)
+                </a>
+                <p className="text-[10px] text-slate-600 leading-snug">
+                  Opens Zerodha login in a new tab. After 2FA the session is saved
+                  automatically — no restart required.
+                </p>
+              </>
+            )}
+
+            {/* SCANNING — all gates pass, no eligible candidates yet */}
+            {cardState === "scanning" && (
+              <p className="text-xs text-teal-300 leading-relaxed">
+                Kite LTP is live and all prerequisites are met. No WATCH symbols
+                currently pass the bootstrap risk gates (conf ≥ 60, R:R ≥ 1.5).
+                Bootstrap will attempt entries on the next scan when a candidate
+                clears all gates.
+                Auto-disables at {maxTrades} closed trades ({closedTrades} so far).
+              </p>
+            )}
+
+            {/* READY — eligible candidates found; executor will attempt entries */}
+            {cardState === "ready" && (
+              <p className="text-xs text-emerald-300 leading-relaxed">
+                {eligCount} WATCH symbol{eligCount !== 1 ? "s pass" : " passes"} all
+                bootstrap risk gates. The scheduler will attempt paper entries on the
+                next tick. Each candidate is still subject to per-entry checks
+                (position limits, exposure caps, existing-open-bootstrap guard) before
+                any trade is placed — eligible does not guarantee a fill.
+                Max ₹1,500 per position · paper only · no live orders.
+                Auto-disables at {maxTrades} closed trades ({closedTrades} so far).
+              </p>
+            )}
+
+            {/* Candidate mini-list */}
+            {cands.length > 1 && (
+              <div className="rounded-lg border border-slate-800/50 bg-slate-900/40 p-2">
+                <p className="text-[9px] text-slate-500 uppercase tracking-wider mb-1.5">
+                  Top Candidates
+                </p>
+                <div className="space-y-1">
+                  {cands.slice(0, 5).map(c => (
+                    <div key={c.symbol} className="flex items-center justify-between gap-2">
+                      <span className={`text-xs font-bold ${
+                        c.bootstrap_eligible ? "text-teal-300" : "text-amber-300"
+                      }`}>{c.symbol}</span>
+                      <span className="text-[10px] font-mono text-slate-500">
+                        {c.confidence.toFixed(1)}% · R:R {c.rr_ratio.toFixed(1)}
+                        {c.bootstrap_eligible && (
+                          <span className="ml-1 text-teal-400">✓</span>
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Footer ── */}
+      <p className="text-[10px] text-slate-600 mt-3 leading-snug">
+        Bootstrap seeds the paper ledger while the 6-month backtest window fills naturally.
+        Normal BUY confidence thresholds and paper_eligible logic are unchanged.
+        {snapshot_ts && (
+          <span className="ml-1">Last scan: {istTime(snapshot_ts)} IST.</span>
+        )}
+      </p>
     </div>
   );
 }
@@ -2717,6 +3118,9 @@ export default function AIPaperTraderPage() {
 
         {/* S0 — Autonomous Session Status */}
         <S0AutonomousSession />
+
+        {/* Bootstrap Status — only visible when bootstrap_paper_enabled=true */}
+        <SBootstrapStatus />
 
         {/* Pipeline Funnel — shows stocks→signals→gates→orders at a glance */}
         <SPipelineStats />

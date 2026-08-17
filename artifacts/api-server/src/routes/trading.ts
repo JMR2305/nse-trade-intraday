@@ -3275,6 +3275,18 @@ router.get("/phase20/settings", async (_req, res) => {
   }
 });
 
+// GET /api/phase20/bootstrap-status — bootstrap mode readiness summary.
+// Reads from the latest cached scan snapshot + settings only; no yfinance calls.
+// Returns kite_session_verified, bootstrap_eligible_count, top WATCH candidates,
+// and all settings needed to render the BootstrapStatusCard without extra queries.
+router.get("/phase20/bootstrap-status", async (_req, res) => {
+  try {
+    res.json(await runPython(["phase20_bootstrap_status"]));
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // PUT /api/phase20/settings — update settings; enabling auto paper entries
 // requires the exact confirmation text (enforced python-side).
 router.put("/phase20/settings", async (req, res) => {
