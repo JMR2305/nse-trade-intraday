@@ -2287,6 +2287,75 @@ export function PnlSparkline({
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// SExitPendingAlert — amber warning when any position is stuck in EXIT_PENDING
+// ══════════════════════════════════════════════════════════════════════════════
+
+interface ExitPendingRow {
+  trade_id: string;
+  symbol: string;
+  fill_ts: string | null;
+  exit_ts: string | null;
+  exit_rule: string | null;
+  age_hours: number;
+  age_days: number;
+}
+interface ExitPendingData {
+  exit_pending_count: number;
+  stale_count: number;
+  has_stale: boolean;
+  positions: ExitPendingRow[];
+  stale_positions: ExitPendingRow[];
+}
+
+function SExitPendingAlert() {
+  const { data, isLoading } = useQuery<ExitPendingData>({
+    queryKey: ["apt", "exit-pending-alert"],
+    queryFn:  () => apiJson("/phase20/exit-pending-alert"),
+    refetchInterval: 120_000,
+    staleTime: 60_000,
+    retry: 1,
+  });
+
+  if (isLoading || !data?.has_stale) return null;
+
+  const stale = data.stale_positions;
+  const worst = stale.reduce((a, b) => a.age_hours > b.age_hours ? a : b, stale[0]);
+
+  return (
+    <div className="rounded-xl border border-amber-700/60 bg-amber-950/30 px-4 py-3">
+      <div className="flex items-start gap-2.5">
+        <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-amber-300 flex items-center gap-2 flex-wrap">
+            {stale.length} position{stale.length !== 1 ? "s" : ""} stuck in EXIT PENDING
+            <Badge className="text-xs bg-amber-900/70 border-amber-700/50 text-amber-200 px-1.5 py-0">
+              {worst.age_days.toFixed(1)}d longest
+            </Badge>
+          </p>
+          <p className="text-xs text-amber-400/80 mt-0.5">
+            Kite LTP appears unavailable — the exit engine cannot get current prices
+            to resolve these positions. They will be force-closed once{" "}
+            <code className="font-mono text-amber-300">max_holding_days</code> is exceeded,
+            or when Kite LTP comes back online. No real money is at risk.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {stale.map(p => (
+              <span key={p.trade_id}
+                className="inline-flex items-center gap-1 text-xs font-mono bg-amber-900/40 border border-amber-700/40 text-amber-300 rounded px-2 py-0.5"
+                title={`Exit rule: ${p.exit_rule ?? "—"} | Pending since: ${p.exit_ts ?? p.fill_ts ?? "unknown"}`}>
+                <Clock className="w-3 h-3 text-amber-500 flex-shrink-0" />
+                {p.symbol}
+                <span className="text-amber-500 font-normal">{p.age_days.toFixed(1)}d</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // S4 — Current Holdings (with P&L sparklines)
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -3136,6 +3205,9 @@ export default function AIPaperTraderPage() {
           <div className="xl:col-span-2"><S2Portfolio data={portfolio} loading={portLoad} /></div>
           <S3AIStatus portfolio={portfolio} recs={recs} />
         </div>
+
+        {/* EXIT_PENDING alert — shown when positions have been stuck > 24 h */}
+        <SExitPendingAlert />
 
         {/* S4 */}
         <S4Holdings />

@@ -1277,6 +1277,46 @@ def main():
             from phase20_gates import evaluate_entries
             result = evaluate_entries()
             result["success"] = True
+        elif command == "phase20_exit_pending_alert":
+            # Returns EXIT_PENDING trades with their age in hours so the
+            # dashboard can show an alert when positions have been stuck
+            # for more than 24 hours (e.g. Kite LTP offline for days).
+            from phase20_executor import get_ledger as _ep_gl
+            from datetime import datetime as _ep_dt, timezone as _ep_tz
+            _ep_now = _ep_dt.now(_ep_tz.utc)
+            _ep_rows: list = []
+            for _ep_t in _ep_gl(500):
+                if _ep_t.get("status") != "EXIT_PENDING":
+                    continue
+                # Age is computed from exit_ts (when it moved to EXIT_PENDING)
+                # falling back to fill_ts if exit_ts was not recorded.
+                _ep_ts_str = _ep_t.get("exit_ts") or _ep_t.get("fill_ts")
+                _ep_age_h: float = 0.0
+                if _ep_ts_str:
+                    try:
+                        _ep_ts_dt = _ep_dt.fromisoformat(
+                            str(_ep_ts_str).replace("Z", "+00:00"))
+                        _ep_age_h = (_ep_now - _ep_ts_dt).total_seconds() / 3600.0
+                    except Exception:
+                        pass
+                _ep_rows.append({
+                    "trade_id": _ep_t.get("trade_id"),
+                    "symbol": _ep_t.get("symbol"),
+                    "fill_ts": _ep_t.get("fill_ts"),
+                    "exit_ts": _ep_t.get("exit_ts"),
+                    "exit_rule": _ep_t.get("exit_rule"),
+                    "age_hours": round(_ep_age_h, 1),
+                    "age_days": round(_ep_age_h / 24.0, 1),
+                })
+            _ep_stale = [r for r in _ep_rows if r["age_hours"] > 24]
+            result = {
+                "success": True,
+                "exit_pending_count": len(_ep_rows),
+                "stale_count": len(_ep_stale),   # stuck > 24 h
+                "positions": _ep_rows,
+                "stale_positions": _ep_stale,
+                "has_stale": len(_ep_stale) > 0,
+            }
         elif command == "phase20_ledger":
             from phase20_executor import get_ledger
             _limit = int(args[1]) if len(args) > 1 else 200

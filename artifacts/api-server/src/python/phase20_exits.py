@@ -49,10 +49,13 @@ def _sector_of(symbol: str) -> str:
 
 
 def manage_open_positions(settings: Dict[str, Any]) -> Dict[str, Any]:
-    """Evaluate all open Phase 20 paper positions for exits."""
+    """Evaluate all open Phase 20 paper positions for exits.
+
+    Always runs the EXIT_PENDING timeout cleanup even when there are no OPEN
+    trades — EXIT_PENDING positions live in the ledger, not in open_trades,
+    so they would be silently skipped by an early-return guard.
+    """
     open_trades = get_open_trades()
-    if not open_trades:
-        return {"evaluated": 0, "exits": [], "pending": []}
 
     from phase15_scan_context import build_scan_context
     ctx = build_scan_context()
@@ -60,6 +63,14 @@ def manage_open_positions(settings: Dict[str, Any]) -> Dict[str, Any]:
     stale = bool(ctx.get("stale", True))
     symbols_ctx: Dict[str, Any] = ctx.get("symbols") or {}
     exit_scan_id = ctx.get("scan_id")
+
+    # Force-close EXIT_PENDING positions that have exceeded max_holding_days.
+    # Runs unconditionally because EXIT_PENDING rows are not in open_trades.
+    timeout_closed = _resolve_timeout_exit_pending(settings, symbols_ctx, exit_scan_id)
+
+    if not open_trades:
+        return {"evaluated": 0, "exits": [] + timeout_closed,
+                "pending": [], "timeout_closed": timeout_closed}
 
     from market_hours import market_status
     mstat = market_status()
@@ -252,13 +263,143 @@ def manage_open_positions(settings: Dict[str, Any]) -> Dict[str, Any]:
     # Retry previously pending exits when data has recovered.
     retried = _retry_pending(symbols_ctx, scan_ok, stale, exit_scan_id)
 
-    return {"evaluated": len(open_trades), "exits": exits + retried,
-            "pending": pending}
+    return {"evaluated": len(open_trades), "exits": exits + retried + timeout_closed,
+            "pending": pending, "timeout_closed": timeout_closed}
+
+
+def _resolve_timeout_exit_pending(
+    settings: Dict[str, Any],
+    symbols_ctx: Dict[str, Any],
+    exit_scan_id: Optional[str],
+) -> List[Dict[str, Any]]:
+    """Force-close EXIT_PENDING positions that have exceeded max_holding_days.
+
+    When Kite LTP is offline for an extended period the normal pending-retry
+    path never fires (it waits for a reliable quote).  A position that has
+    been in EXIT_PENDING long enough that even the original TIME_EXIT
+    threshold would have triggered is force-closed using whichever price
+    source is available:
+
+        1. Live yfinance daily close from the current scan snapshot.
+        2. Fill price (entry price) — never fabricates a loss, but records an
+           honest TIMEOUT exit so the position is no longer stuck.
+
+    Calls execute_sell so the paper portfolio is also reconciled; if the
+    portfolio no longer holds the position (desync) the ledger entry is still
+    closed so the UI reflects reality.
+
+    This function is advisory-safe: errors are swallowed per-trade so one
+    bad row never blocks the rest.
+    """
+    from phase20_executor import get_ledger, record_exit
+    from paper_trader import execute_sell
+    out: List[Dict[str, Any]] = []
+    max_days = float(settings.get("max_holding_days", 10))
+
+    for trade in get_ledger(500):
+        if trade.get("status") != "EXIT_PENDING":
+            continue
+        try:
+            sym = str(trade.get("symbol") or "").upper()
+            trade_id = str(trade.get("trade_id") or "")
+            qty = int(trade.get("quantity") or 0)
+            fill_price = float(trade.get("fill_price") or 0)
+
+            # Measure time spent in EXIT_PENDING state using exit_ts (the
+            # timestamp recorded when the trade transitioned to EXIT_PENDING).
+            # For legacy rows that have no exit_ts, fall back to fill_ts so
+            # old stuck positions are still cleaned up — but this fallback is
+            # logged via price_source so it is visible in notifications.
+            pending_dt = _parse_ts(trade.get("exit_ts"))
+            _ts_source = "exit_ts"
+            if pending_dt is None:
+                pending_dt = _parse_ts(trade.get("fill_ts"))
+                _ts_source = "fill_ts_legacy_fallback"
+            if not (pending_dt and (_now() - pending_dt).days >= max_days):
+                continue
+
+            # Price source: prefer live scan quote, fall back to fill price.
+            rec = symbols_ctx.get(sym) or {}
+            quote = float(rec.get("entry_price") or 0)
+            _price_source = "yfinance_daily_close"
+            # Kite LTP overlay when available
+            _kite_ltp = float(rec.get("kite_ltp") or 0)
+            if (rec.get("kite_ltp_available") and _kite_ltp > 0
+                    and rec.get("quote_reliable")):
+                quote = _kite_ltp
+                _price_source = "kite_ltp"
+            if not (quote > 0 and not rec.get("error")):
+                # No scan data at all — use fill price to un-stuck the position.
+                quote = fill_price
+                _price_source = "fill_price_fallback"
+
+            # Try to reconcile the paper portfolio; if it's already desync'd,
+            # still close the ledger so the dashboard is accurate.
+            ok, _msg = execute_sell(
+                sym, qty, quote,
+                ledger_trade_id=trade_id,
+                reason=(f"Phase 20 TIMEOUT_EXIT_PENDING "
+                        f"(pending >{max_days:.0f}d via {_ts_source}, "
+                        f"Kite LTP offline)"),
+                exit_type="SIGNAL_EXIT",
+            )
+            if not ok:
+                # Portfolio desync — close ledger only. The sell was never
+                # pending in paper_trader so this is safe to do directly.
+                try:
+                    from pipeline_events import emit as _pe
+                    _pe("EXECUTION_SKIPPED_WITH_REASON", "EXECUTION",
+                        scan_id=exit_scan_id, symbol=sym,
+                        payload={
+                            "reason": _msg,
+                            "note": "TIMEOUT_EXIT_PENDING sell skipped — portfolio position gone; closing ledger",
+                            "exit_rule": "TIMEOUT_EXIT_PENDING",
+                            "trade_id": trade_id,
+                        })
+                except Exception:
+                    pass
+
+            record_exit(trade_id, quote, "TIMEOUT_EXIT_PENDING", exit_scan_id,
+                        status="CLOSED")
+            days_stuck = (_now() - pending_dt).days
+            store.add_notification(
+                "EXIT_COMPLETED",
+                f"Force-closed {sym} after {days_stuck}d in EXIT_PENDING "
+                f"(Kite LTP offline — {_price_source})",
+                f"Trade {trade_id} has been stuck in EXIT_PENDING for {days_stuck} days "
+                f"(since {pending_dt.date().isoformat()}, measured via {_ts_source}). "
+                f"Force-closed at ₹{quote:.2f} using {_price_source}. "
+                f"Exit rule: TIMEOUT_EXIT_PENDING.",
+                severity="WARN",
+                context={
+                    "trade_id": trade_id, "symbol": sym,
+                    "days_stuck": days_stuck, "exit_price": quote,
+                    "price_source": _price_source,
+                    "ts_source": _ts_source,
+                    "scan_id": exit_scan_id,
+                },
+            )
+            out.append({
+                "trade_id": trade_id, "symbol": sym,
+                "exit_price": quote, "price_source": _price_source,
+                "days_stuck": days_stuck,
+                "exit_rule": "TIMEOUT_EXIT_PENDING",
+            })
+        except Exception:
+            pass  # never let one bad trade block the rest
+    return out
 
 
 def _retry_pending(symbols_ctx: Dict[str, Any], scan_ok: bool, stale: bool,
                    exit_scan_id: Optional[str]) -> List[Dict[str, Any]]:
-    """Complete EXIT_PENDING trades once a reliable quote is available."""
+    """Complete EXIT_PENDING trades once a reliable quote is available.
+
+    Two resolution tiers:
+      1. LIVE / NEAR_LIVE (or Kite LTP) — preferred; standard resolution.
+      2. yfinance daily close fallback — accepted when Kite LTP has been
+         offline for days and the only quote is a fresh daily-bar close.
+         The exit price is still a real market price, just not intraday.
+    """
     from phase20_executor import get_ledger
     from paper_trader import execute_sell
     out: List[Dict[str, Any]] = []
@@ -271,6 +412,7 @@ def _retry_pending(symbols_ctx: Dict[str, Any], scan_ok: bool, stale: bool,
         rec = symbols_ctx.get(sym) or {}
         quote = float(rec.get("entry_price") or 0)  # yfinance daily close (baseline)
         dq = str(rec.get("data_quality") or "").upper()
+        _price_source = "yfinance_daily_close"
         # Task 4: Kite LTP overlay — use live LTP for pending exit resolution
         _kite_ltp_retry = float(rec.get("kite_ltp") or 0)
         if (rec.get("kite_ltp_available")
@@ -278,7 +420,34 @@ def _retry_pending(symbols_ctx: Dict[str, Any], scan_ok: bool, stale: bool,
                 and rec.get("quote_reliable")):
             quote = _kite_ltp_retry
             dq = "LIVE"   # treat as LIVE for the eligibility check below
-        if not (quote > 0 and dq in ("LIVE", "NEAR_LIVE") and not rec.get("error")):
+            _price_source = "kite_ltp"
+
+        # How long has this trade been in EXIT_PENDING?  Use exit_ts (the
+        # transition timestamp), falling back to fill_ts for legacy rows.
+        _ep_ts_str = trade.get("exit_ts") or trade.get("fill_ts")
+        _ep_pending_hours = 0.0
+        if _ep_ts_str:
+            try:
+                from datetime import datetime as _epdt
+                _ep_dt_obj = _epdt.fromisoformat(
+                    str(_ep_ts_str).replace("Z", "+00:00"))
+                _ep_pending_hours = (_now() - _ep_dt_obj).total_seconds() / 3600.0
+            except Exception:
+                pass
+
+        # Tier 1: live / near-live data quality (or Kite LTP) — no age gate.
+        # Tier 2: yfinance daily close fallback — only accepted when the trade
+        #   has been stuck in EXIT_PENDING for at least 24 hours.  This gate
+        #   ensures newly-pending trades still wait for a reliable quote and do
+        #   not get immediately resolved on low-quality data, while positions
+        #   stuck for days (Kite LTP offline) are eventually unblocked.
+        _MIN_PENDING_HOURS_FOR_FALLBACK = 24.0
+        tier1_ok = (dq in ("LIVE", "NEAR_LIVE") and quote > 0
+                    and not rec.get("error"))
+        tier2_ok = (dq not in ("", "UNAVAILABLE", "ERROR")
+                    and quote > 0 and not rec.get("error")
+                    and _ep_pending_hours >= _MIN_PENDING_HOURS_FOR_FALLBACK)
+        if not (tier1_ok or tier2_ok):
             continue
         qty = int(trade.get("quantity") or 0)
         rule = str(trade.get("exit_rule") or "PENDING_DATA_RESOLVED")

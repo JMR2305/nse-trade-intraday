@@ -3390,6 +3390,24 @@ router.post("/phase20/email/send-daily-summary", async (_req, res) => {
   }
 });
 
+// GET /api/phase20/exit-pending-alert — EXIT_PENDING trades with age (for dashboard badge)
+// Cheap: reads the ledger, no scan or yfinance call. Cache 60 s.
+const _exitPendingCache: { data: unknown; ts: number } = { data: null, ts: 0 };
+router.get("/phase20/exit-pending-alert", async (_req, res) => {
+  try {
+    if (_exitPendingCache.data && Date.now() - _exitPendingCache.ts < 60_000) {
+      res.json(_exitPendingCache.data);
+      return;
+    }
+    const data = await runPython(["phase20_exit_pending_alert"]);
+    _exitPendingCache.data = data;
+    _exitPendingCache.ts = Date.now();
+    res.json(data);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/phase20/cadence-stats — today's scan cadence metrics
 router.get("/phase20/cadence-stats", async (_req, res) => {
   try {

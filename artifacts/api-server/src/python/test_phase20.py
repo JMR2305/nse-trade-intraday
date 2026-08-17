@@ -436,6 +436,201 @@ class TestExitsSafety(unittest.TestCase):
         self.assertEqual(len(sells), 0)
 
 
+class TestTimeoutExitPending(unittest.TestCase):
+    """Tests for TIMEOUT_EXIT_PENDING force-close and yfinance fallback retry."""
+
+    def _exit_pending_trade(self, pending_days=12, fill_days_ago=15, **over):
+        """A trade in EXIT_PENDING state.
+
+        pending_days — how long ago the trade transitioned to EXIT_PENDING
+                       (stored in exit_ts).
+        fill_days_ago — how long ago the trade was opened (stored in fill_ts).
+                        Default older than pending_days to simulate a realistic
+                        hold-then-stuck scenario.
+
+        The critical distinction: timeout gating uses exit_ts (time in
+        EXIT_PENDING), NOT fill_ts (total holding time).
+        """
+        from datetime import datetime, timedelta, timezone
+        now = datetime.now(timezone.utc)
+        fill_ts = (now - timedelta(days=fill_days_ago)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        exit_ts = (now - timedelta(days=pending_days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        t = {
+            "trade_id": "P20-ep1", "symbol": "BAJFINANCE",
+            "quantity": 3, "fill_price": 6500.0,
+            "stop_loss": 6200.0, "target": 7000.0,
+            "fill_ts": fill_ts, "exit_ts": exit_ts,
+            "status": "EXIT_PENDING",
+            "exit_rule": "TIME_EXIT",
+            "sector": "Finance",
+        }
+        t.update(over)
+        return t
+
+    def _run_manage(self, trade, rec, stale=False, ledger_extra=None):
+        import phase20_exits as x
+        ctx = {"available": True, "scan_id": "s-ep", "stale": stale,
+               "symbols": ({"BAJFINANCE": rec} if rec else {})}
+        pf = {"cash": 10_000.0, "total_value": 15_000.0,
+              "invested_value": 5_000.0,
+              "positions": [{"symbol": "BAJFINANCE", "quantity": 3,
+                             "current_price": rec.get("entry_price", 6500.0) if rec else 6500.0}]}
+        recorded = []
+        sells = []
+        settings = dict(DEFAULT_SETTINGS)
+        # Ledger includes the EXIT_PENDING trade so _retry_pending and
+        # _resolve_timeout_exit_pending can see it.
+        ledger = [trade] + (ledger_extra or [])
+        with patch.object(x, "get_open_trades", return_value=[]), \
+             patch("phase15_scan_context.build_scan_context", return_value=ctx), \
+             patch("market_hours.market_status",
+                   return_value={"state": "OPEN"}), \
+             patch("paper_trader._load_state",
+                   return_value={"trades": [], "positions": {}}), \
+             patch("paper_trader.get_portfolio", return_value=pf), \
+             patch("paper_trader.execute_sell",
+                   side_effect=lambda *a, **k: (sells.append((a, k)) or (True, "ok"))), \
+             patch.object(x, "record_exit",
+                          side_effect=lambda *a, **k: recorded.append((a, k))), \
+             patch.object(x.store, "add_notification", lambda *a, **k: None), \
+             patch("phase20_executor.get_ledger", return_value=ledger):
+            result = x.manage_open_positions(settings)
+        return result, recorded, sells
+
+    def test_timeout_exit_pending_force_closes_with_yfinance_price(self):
+        """A trade EXIT_PENDING for > max_holding_days must be force-closed."""
+        rec = {"entry_price": 6450.0, "data_quality": "DAILY",
+               "final_action": "WATCH"}
+        # exit_ts = 12 days ago (>10 day threshold); fill_ts = 15 days ago
+        trade = self._exit_pending_trade(pending_days=12, fill_days_ago=15)
+        result, recorded, sells = self._run_manage(trade, rec)
+        timeout_closed = result.get("timeout_closed", [])
+        self.assertEqual(len(timeout_closed), 1,
+                         "Trade stuck in EXIT_PENDING >max_holding_days must be force-closed")
+        self.assertEqual(timeout_closed[0]["exit_rule"], "TIMEOUT_EXIT_PENDING")
+        self.assertEqual(timeout_closed[0]["symbol"], "BAJFINANCE")
+        self.assertEqual(timeout_closed[0]["exit_price"], 6450.0)
+        self.assertEqual(timeout_closed[0]["price_source"], "yfinance_daily_close")
+
+    def test_timeout_exit_pending_uses_kite_ltp_when_available(self):
+        """Kite LTP is preferred over yfinance daily close in timeout force-close."""
+        rec = {"entry_price": 6450.0, "data_quality": "DAILY",
+               "final_action": "WATCH",
+               "kite_ltp": 6460.0, "kite_ltp_available": True,
+               "quote_reliable": True}
+        trade = self._exit_pending_trade(pending_days=12)
+        result, _, _ = self._run_manage(trade, rec)
+        tc = result.get("timeout_closed", [])
+        self.assertEqual(len(tc), 1)
+        self.assertEqual(tc[0]["price_source"], "kite_ltp")
+        self.assertAlmostEqual(tc[0]["exit_price"], 6460.0)
+
+    def test_timeout_exit_pending_falls_back_to_fill_price_when_no_quote(self):
+        """When even yfinance has no price, fill_price is used as exit price."""
+        trade = self._exit_pending_trade(pending_days=12)
+        result, recorded, _ = self._run_manage(trade, rec={})
+        tc = result.get("timeout_closed", [])
+        self.assertEqual(len(tc), 1)
+        self.assertEqual(tc[0]["price_source"], "fill_price_fallback")
+        self.assertAlmostEqual(tc[0]["exit_price"], 6500.0)
+
+    def test_timeout_uses_exit_ts_not_fill_ts(self):
+        """Timeout gate must measure time-in-EXIT_PENDING (exit_ts), not total
+        holding time (fill_ts).  A trade held for 15 days that only just entered
+        EXIT_PENDING (exit_ts 3 days ago) must NOT be force-closed."""
+        rec = {"entry_price": 6450.0, "data_quality": "DAILY",
+               "final_action": "WATCH"}
+        # fill_ts = 15 days ago (would trip fill_ts-based gate),
+        # exit_ts =  3 days ago (within max_holding_days=10 → must NOT close)
+        trade = self._exit_pending_trade(pending_days=3, fill_days_ago=15)
+        result, _, _ = self._run_manage(trade, rec)
+        self.assertEqual(result.get("timeout_closed", []), [],
+                         "Must not force-close: exit_ts is only 3 days old "
+                         "(even though fill_ts is 15 days old)")
+
+    def test_timeout_exit_not_triggered_for_recent_exit_pending(self):
+        """EXIT_PENDING trade within max_holding_days (by exit_ts) must NOT fire."""
+        rec = {"entry_price": 6450.0, "data_quality": "DAILY",
+               "final_action": "WATCH"}
+        trade = self._exit_pending_trade(pending_days=3)  # 3 days < 10 threshold
+        result, _, _ = self._run_manage(trade, rec)
+        self.assertEqual(result.get("timeout_closed", []), [],
+                         "Should not force-close a recently-pending trade")
+
+    def _pending_trade_for_retry(self, pending_hours=48, **over):
+        """An EXIT_PENDING trade with exit_ts `pending_hours` ago."""
+        from datetime import datetime, timedelta, timezone
+        now = datetime.now(timezone.utc)
+        exit_ts = (now - timedelta(hours=pending_hours)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ")
+        fill_ts = (now - timedelta(days=15)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        t = {
+            "trade_id": "P20-ep-retry", "symbol": "BAJFINANCE",
+            "quantity": 3, "fill_price": 6500.0,
+            "fill_ts": fill_ts, "exit_ts": exit_ts,
+            "status": "EXIT_PENDING", "exit_rule": "TIME_EXIT",
+        }
+        t.update(over)
+        return t
+
+    def test_retry_pending_accepts_yfinance_fallback_after_24h(self):
+        """_retry_pending resolves EXIT_PENDING via yfinance daily close when
+        the trade has been pending for ≥ 24 hours (Kite LTP offline scenario)."""
+        import phase20_exits as x
+        trade = self._pending_trade_for_retry(pending_hours=48)  # 2 days stuck
+        rec = {"entry_price": 6430.0, "data_quality": "DAILY",
+               "final_action": "WATCH"}
+        sells = []
+        recorded = []
+        with patch("paper_trader.execute_sell",
+                   side_effect=lambda *a, **k: (sells.append((a, k)) or (True, "ok"))), \
+             patch("phase20_executor.get_ledger", return_value=[trade]), \
+             patch.object(x, "record_exit",
+                          side_effect=lambda *a, **k: recorded.append((a, k))), \
+             patch.object(x.store, "add_notification", lambda *a, **k: None):
+            out = x._retry_pending({"BAJFINANCE": rec}, scan_ok=True, stale=False,
+                                   exit_scan_id="s-retry")
+        self.assertEqual(len(out), 1,
+                         "yfinance daily close must resolve EXIT_PENDING after 24 h")
+        self.assertEqual(out[0]["symbol"], "BAJFINANCE")
+
+    def test_retry_pending_rejects_yfinance_fallback_for_new_pending(self):
+        """_retry_pending must NOT resolve via yfinance fallback when the trade
+        just entered EXIT_PENDING (< 24 h ago).  New pending positions must
+        wait for a reliable LIVE/NEAR_LIVE quote, not settle for daily close."""
+        import phase20_exits as x
+        trade = self._pending_trade_for_retry(pending_hours=2)  # just entered pending
+        rec = {"entry_price": 6430.0, "data_quality": "DAILY",
+               "final_action": "WATCH"}
+        sells = []
+        with patch("paper_trader.execute_sell",
+                   side_effect=lambda *a, **k: (sells.append((a, k)) or (True, "ok"))), \
+             patch("phase20_executor.get_ledger", return_value=[trade]), \
+             patch.object(x, "record_exit", lambda *a, **k: None), \
+             patch.object(x.store, "add_notification", lambda *a, **k: None):
+            out = x._retry_pending({"BAJFINANCE": rec}, scan_ok=True, stale=False,
+                                   exit_scan_id="s-retry")
+        self.assertEqual(out, [],
+                         "New pending position must wait for reliable quote, "
+                         "not be immediately resolved via yfinance daily close")
+
+    def test_retry_pending_skips_error_quotes(self):
+        """_retry_pending must not resolve from a symbol marked with an error."""
+        import phase20_exits as x
+        trade = self._pending_trade_for_retry(pending_hours=48)
+        rec = {"entry_price": 6430.0, "data_quality": "DAILY", "error": "timeout"}
+        sells = []
+        with patch("paper_trader.execute_sell",
+                   side_effect=lambda *a, **k: (sells.append((a, k)) or (True, "ok"))), \
+             patch("phase20_executor.get_ledger", return_value=[trade]), \
+             patch.object(x, "record_exit", lambda *a, **k: None), \
+             patch.object(x.store, "add_notification", lambda *a, **k: None):
+            out = x._retry_pending({"BAJFINANCE": rec}, scan_ok=True, stale=False,
+                                   exit_scan_id="s-retry")
+        self.assertEqual(out, [],
+                         "Error quote must not be used to resolve EXIT_PENDING")
+
+
 class TestReplayDeterminism(unittest.TestCase):
     def test_replay_matches_original(self):
         import phase20_executor as ex
