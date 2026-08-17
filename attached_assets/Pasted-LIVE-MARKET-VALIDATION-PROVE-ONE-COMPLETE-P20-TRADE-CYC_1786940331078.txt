@@ -1,0 +1,112 @@
+LIVE MARKET VALIDATION — PROVE ONE COMPLETE P20 TRADE CYCLE
+
+Use ApexQuant_AI_Final_Code_Verified_Findings.md as the controlling review.
+
+Do not add new features.
+Do not change thresholds.
+Do not enable live orders.
+PAPER ONLY.
+
+TASK 1 — RUNTIME STATUS
+
+Verify:
+- KITE_LTP_OVERLAY_ENABLED=true in live runtime
+- Kite session authenticated via /kite-auth
+- /api/kite-auth/status returns session_verified=true
+- LIVE_EXECUTION_ENABLED=false
+- PAPER_TRADING_MODE=true
+- no place_order / modify_order / cancel_order calls
+
+TASK 2 — FIRST SCAN KITE LTP PROOF
+
+After first market-hours scan, verify at least these symbols:
+
+BAJFINANCE
+GRASIM
+DIVISLAB
+TRENT
+DRREDDY
+TMPV
+TMCV
+RELIANCE
+TCS
+BAJAJ-AUTO
+
+For each symbol show:
+- yfinance_last_close
+- kite_ltp
+- indicator_source
+- ohlcv_source
+- current_price_source
+- execution_price_source
+- quote_reliable
+- data_quality_for_execution
+
+Expected:
+- indicator_source = yfinance_daily_bars
+- ohlcv_source = yfinance_daily_bars
+- current_price_source = kite_live_ltp when Kite LTP available
+- execution_price_source = kite_live_ltp when Kite LTP available
+- quote_reliable = true when Kite LTP available
+
+TASK 3 — EXIT_PENDING FULL-CYCLE PROOF
+
+Check the 4 existing P20 EXIT_PENDING trades:
+
+- BAJFINANCE: P20-4a5f909738
+- GRASIM: P20-83aa1be8f9
+- DIVISLAB: P20-a205b1ef09
+- TRENT: P20-acad172b74
+
+Run:
+
+SELECT trade_id, symbol, status, exit_price, realized_pnl
+FROM phase20_paper_trades
+WHERE trade_id IN (
+  'P20-4a5f909738',
+  'P20-83aa1be8f9',
+  'P20-a205b1ef09',
+  'P20-acad172b74'
+);
+
+Confirm:
+- whether each trade is CLOSED or still EXIT_PENDING
+- exit_price, if closed
+- realized_pnl, if closed
+- exit_price source = Kite LTP, not yfinance daily close
+- exact exit rule triggered
+- no forced close without valid rule
+
+TASK 4 — CANONICAL EVENT CHECK
+
+Verify:
+- ORDER_EXECUTED events in LIVE mode only count P20- trade IDs
+- BTT- events do not count as canonical paper executions
+- no REPLAY/BACKTEST events pollute live paper analytics
+
+TASK 5 — NEW BUY IF ANY
+
+If a new BUY executes:
+- confirm trade_id starts with P20-
+- paper fill uses Kite LTP
+- evidence records both daily signal price and Kite execution price
+- phase20_paper_trades row is written
+- ORDER_SUBMITTED and ORDER_EXECUTED events exist
+- no live broker order API called
+
+TASK 6 — REPORT
+
+Generate:
+
+APEXQUANT_LIVE_MARKET_P20_FULL_CYCLE_PROOF.md
+
+Include:
+1. Runtime env status.
+2. Kite session proof.
+3. First scan Kite LTP proof table.
+4. EXIT_PENDING resolution result.
+5. Any new P20 BUY result.
+6. Realized P&L result.
+7. Confirmation BTT/replay events are excluded.
+8. Confirmation no live orders.
+9. Final verdict: has ApexQuant AI completed one verified P20 signal → fill → exit → realized P&L cycle?
