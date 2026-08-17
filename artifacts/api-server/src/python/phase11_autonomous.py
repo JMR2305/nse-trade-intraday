@@ -326,6 +326,22 @@ def get_open_positions_detail() -> List[Dict[str, Any]]:
     if not canon_positions:
         return []
 
+    # Build a provenance index from the phase20 ledger so each position row
+    # can include trigger_source and fill_model — needed for the BOOTSTRAP badge
+    # in the frontend.  Fails silently so normal positions are never blocked.
+    _provenance: Dict[str, Dict[str, Any]] = {}
+    try:
+        from phase20_executor import get_open_trades as _get_open_trades
+        for _t in _get_open_trades():
+            _sym = str(_t.get("symbol") or "").upper()
+            if _sym:
+                _provenance[_sym] = {
+                    "trigger_source": _t.get("trigger_source"),
+                    "fill_model":     _t.get("fill_model"),
+                }
+    except Exception:
+        pass
+
     # Try to get regime from latest scan
     regime = _safe(lambda: _get_current_regime(), "UNKNOWN")
 
@@ -367,6 +383,7 @@ def get_open_positions_detail() -> List[Dict[str, Any]]:
         # Current expected return (live price vs target)
         cur_exp_return = ((target - current_price) / current_price * 100) if current_price > 0 else 0.0
 
+        _prov = _provenance.get(str(sym).upper() if sym else "", {})
         result.append({
             "stock":                  sym,
             "buy_time":               buy_ts,
@@ -386,6 +403,9 @@ def get_open_positions_detail() -> List[Dict[str, Any]]:
             "risk_level":             risk_level,
             "holding_mins":           holding_mins,
             "holding_label":          _fmt_holding(holding_mins),
+            # Bootstrap provenance — present only when trigger_source="BOOTSTRAP_AUTO"
+            "trigger_source":         _prov.get("trigger_source"),
+            "fill_model":             _prov.get("fill_model"),
         })
 
     result.sort(key=lambda x: x["current_pnl_pct"], reverse=True)

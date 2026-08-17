@@ -102,6 +102,12 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "exploration_max_total_exposure_pct": 10.0,  # max % of portfolio in experimental positions
     "exploration_min_rr": 1.2,                  # minimum risk:reward for exploration entries
     "exploration_min_confidence": 60.0,         # minimum confidence score for exploration entries
+    # ── Bootstrap paper trading (ledger seeding when backtest evidence is thin) ──
+    # Requires auto_paper_entries ON and confirmed. Defaults to False (safe-off).
+    # A bootstrap trade is at most ₹1,500, uses the normal exit engine, and emits
+    # trigger_source="BOOTSTRAP_AUTO" so it is permanently distinguishable from
+    # normal paper entries. Auto-disables when the ledger reaches 20 closed trades.
+    "bootstrap_paper_enabled": False,
 }
 
 # Keys excluded from the reproducibility config hash (meta, not behaviour).

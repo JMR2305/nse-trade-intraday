@@ -93,6 +93,9 @@ interface OpenPosition {
   expected_return_entry: number; expected_return_current: number;
   target: number; stop_loss: number; strategy: string;
   market_regime: string; risk_level: string; holding_label: string;
+  // Bootstrap provenance fields — present when trigger_source="BOOTSTRAP_AUTO"
+  trigger_source?: string;
+  fill_model?: string;
 }
 interface ClosedPosition {
   symbol: string; buy_time: string; sell_time: string;
@@ -1995,7 +1998,17 @@ function S4Holdings() {
                 );
                 return (
                   <tr key={p.stock} className="border-b border-slate-800/30 hover:bg-slate-800/20 transition-colors">
-                    <td className="py-2 pr-3 font-bold text-slate-100">{p.stock}</td>
+                    <td className="py-2 pr-3 font-bold text-slate-100">
+                      {p.stock}
+                      {(p.trigger_source === "BOOTSTRAP_AUTO" || p.fill_model === "bootstrap_paper") && (
+                        <span
+                          className="ml-1.5 inline-flex items-center text-[8px] font-semibold bg-amber-950/70 border border-amber-600/60 text-amber-300 rounded px-1 py-0.5 leading-none align-middle"
+                          title="Bootstrap paper trade: low_evidence (backtest < 5 trades) blocked normal BUY path. Kite LTP live, all risk gates passed. Max ₹1,500 position. Paper only — no live order."
+                        >
+                          BOOTSTRAP
+                        </span>
+                      )}
+                    </td>
                     {/* ── Sparkline cell ── */}
                     <td className="py-2 pr-4">
                       <div title={`${p.stock} price trend — ${sparkPts.length} pts${priceSnapshots[p.stock]?.length ? ` (${priceSnapshots[p.stock].length} intraday snapshots)` : ""}. Entry ₹${p.buy_price.toFixed(2)} → Current ₹${p.current_price.toFixed(2)}`}>

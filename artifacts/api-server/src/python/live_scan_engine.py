@@ -66,6 +66,14 @@ MIN_RR_FOR_BUY      = 1.5        # RR gate: below this → WATCH minimum
 PAPER_ELIGIBLE_ACTIONS  = {"STRONG BUY", "BUY"}
 PAPER_ELIGIBLE_QUALITIES = {DataQuality.LIVE, DataQuality.NEAR_LIVE}
 
+# ── Bootstrap paper trade thresholds ─────────────────────────────────────────
+# Used ONLY when low_evidence blocks the normal BUY path.  The bootstrap path
+# is a strictly parallel track — it never modifies BUY_CONF, WATCH_CONF, or
+# paper_eligible. See bootstrap_eligible field on Phase7Recommendation.
+BOOTSTRAP_MIN_CONF      = 60.0   # calibrated_confidence floor
+BOOTSTRAP_MIN_OPP       = 50.0   # opportunity_score floor
+BOOTSTRAP_MIN_RR        = 1.5    # rr_ratio floor (same as BUY gate minimum)
+
 HOLDING_PERIOD_BY_STRATEGY = {
     "mean_reversion":  5,
     "macd_crossover": 12,
@@ -160,7 +168,10 @@ class Phase7Recommendation:
     profit_factor: float
     net_pnl_pct: float
     total_trades: int
-    low_evidence: bool          # True when total_trades < 5 (insufficient backtest evidence)
+    low_evidence: bool          # True when total_trades < 5 (insufficient 6-month backtest evidence).
+                                # Evidence source: strategy walk-forward backtest trades ONLY.
+                                # Paper trades do NOT contribute — low_evidence clears naturally as
+                                # the 6-month backtest window accumulates more signals over time.
     adx: float
     rsi: float
     volume_ratio: float
@@ -188,6 +199,14 @@ class Phase7Recommendation:
     data_quality_for_execution: str = ""
     reason_not_live_ltp: Optional[str] = None
     latest_price_time_ist: Optional[str] = None
+    # ── Bootstrap paper trade eligibility (parallel track to paper_eligible) ───
+    # True ONLY when low_evidence blocks the normal BUY path but Kite LTP is
+    # live and all hard risk gates pass.  Computed POST-overlay in run_live_scan()
+    # after quote_reliable / kite_session_verified_flag are set.
+    # NEVER affects normal BUY/WATCH confidence scores or paper_eligible.
+    # Purpose: seed the production paper ledger so the P20 exit cycle can be
+    # validated end-to-end before the 6-month backtest window fills naturally.
+    bootstrap_eligible: bool = False
 
 
 # ── Canonical scan ────────────────────────────────────────────────────────────
@@ -645,7 +664,8 @@ def derive_symbol_events(recs: List[Phase7Recommendation], scan_id: str,
                          {"action": act,
                           "confidence": r.calibrated_confidence,
                           "opportunity_score": r.opportunity_score,
-                          "paper_eligible": r.paper_eligible}))
+                          "paper_eligible": r.paper_eligible,
+                          "bootstrap_eligible": r.bootstrap_eligible}))
     return batch
 
 
@@ -780,6 +800,23 @@ def run_live_scan(
                 r.yfinance_last_close = round(float(r.entry_price), 2)
     ltp_overlay_s = round(time.monotonic() - t_ltp0, 2)
 
+    # ── Bootstrap eligibility pass (post-overlay) ─────────────────────────────
+    # Requires quote_reliable / kite_session_verified_flag which are only set
+    # by apply_overlay_to_rec() above — so this MUST run after the LTP loop.
+    # Strictly parallel to paper_eligible; never changes any decision field.
+    for r in recs:
+        if (r.error is None
+                and r.low_evidence                      # only when normal BUY blocked by thin backtest
+                and r.all_gates_passed                  # all hard risk gates pass
+                and r.final_action == "WATCH"           # not IGNORE — WATCH signals have better setups
+                and r.calibrated_confidence >= BOOTSTRAP_MIN_CONF
+                and r.opportunity_score >= BOOTSTRAP_MIN_OPP
+                and r.rr_ratio >= BOOTSTRAP_MIN_RR
+                and r.quote_reliable                    # Kite LTP must be live
+                and r.kite_session_verified_flag        # Kite session proven valid
+                and r.data_quality in PAPER_ELIGIBLE_QUALITIES):
+            r.bootstrap_eligible = True
+
     # Phase 23: per-symbol pipeline events derived from each recommendation —
     # one batch insert (never 50 round-trips), emitted from the authoritative
     # scan result itself so counts can never diverge from the scan.
@@ -811,6 +848,7 @@ def run_live_scan(
     for r in recs:
         quality_counts[r.data_quality] = quality_counts.get(r.data_quality, 0) + 1
 
+    bootstrap_elig = sum(1 for r in valid if r.bootstrap_eligible)
     avg_score = round(sum(r.opportunity_score for r in valid) / len(valid), 1) if valid else 0.0
     best = valid[0] if valid else None
 
@@ -824,6 +862,7 @@ def run_live_scan(
         "strong_buy_count": strong_buy, "buy_count": buy,
         "watch_count": watch, "ignore_count": ignore,
         "paper_eligible_count": paper_elig,
+        "bootstrap_eligible_count": bootstrap_elig,
         "all_gates_passed_count": gates_all,
         "avg_opportunity_score": avg_score,
         "best_stock": best.symbol if best else None,

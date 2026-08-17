@@ -78,7 +78,9 @@ class ScanItem(TypedDict):
     net_pnl_pct:        float
     total_trades:       int
     sharpe_ratio:       float
-    low_evidence:       bool     # True when total_trades < 5 (too few to be reliable)
+    low_evidence:       bool     # True when total_trades < 5 (too few to be reliable).
+                                 # Evidence source: strategy walk-forward backtest trades ONLY.
+                                 # Paper trades do NOT contribute to this count.
     # Trade levels (paper only — indicative)
     entry_price:        float
     stop_loss:          float
@@ -103,6 +105,9 @@ class ScanItem(TypedDict):
     supertrend:         float
     supertrend_dir:     str      # UP | DOWN
     error:              str | None
+    # Bootstrap paper trade eligibility (computed post-scan by caller, default False).
+    # Parallel track to paper_eligible — never modifies BUY/WATCH decision logic.
+    bootstrap_eligible: bool = False
 
 
 class SectorStrength(TypedDict):

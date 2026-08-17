@@ -697,6 +697,39 @@ def _manage_paper(settings: Dict[str, Any], ran_scan: bool) -> Dict[str, Any]:
             out["entries"] = {"skipped": "auto_paper_entries OFF (default)"}
     except Exception as exc:
         out["entries"] = {"error": str(exc)[:200]}
+    # ── Bootstrap paper entry ─────────────────────────────────────────────────
+    # Requires the same operator confirmation as normal auto entries: both
+    # auto_paper_entries and bootstrap_paper_enabled must be ON and confirmed.
+    # This preserves the Phase 20 explicit-confirmation invariant: bootstrap
+    # never opens canonical positions without operator opt-in.
+    # Never raises — a failure here must never block exits or evidence.
+    try:
+        _bs_entries_on = (settings.get("auto_paper_entries")
+                          and settings.get("auto_paper_entries_confirmed_at"))
+        _bs_flag_on = settings.get("bootstrap_paper_enabled", False)
+        if not _bs_entries_on or not _bs_flag_on:
+            out["bootstrap"] = {
+                "ran": False,
+                "reason": (
+                    "bootstrap_paper_enabled=False in settings"
+                    if not _bs_flag_on
+                    else "auto_paper_entries not confirmed — bootstrap requires same confirmation"
+                ),
+            }
+        else:
+            from phase20_executor import run_bootstrap_auto_entry
+            from scan_state_store import load_latest_snapshot as _load_snap
+            _bs_snap = _load_snap()
+            if _bs_snap:
+                _cb = out.get("circuit_breaker") or {}
+                _cb_tripped = bool(_cb.get("tripped")) or bool(_cb.get("error"))
+                out["bootstrap"] = run_bootstrap_auto_entry(
+                    _bs_snap, settings, circuit_breaker_tripped=_cb_tripped
+                )
+            else:
+                out["bootstrap"] = {"ran": False, "reason": "No snapshot available"}
+    except Exception as exc:
+        out["bootstrap"] = {"error": str(exc)[:200]}
     # ── Phase 22 evidence accumulation (records ALL candidates, opened AND
     # blocked, regardless of automation state; time-safe outcome updates).
     try:
