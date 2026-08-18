@@ -135,6 +135,28 @@ interface ScanHistoryEntry {
 interface ScanHistoryResp {
   success?: boolean; history?: ScanHistoryEntry[]; count?: number; ist_date?: string;
 }
+interface OhlcvCacheStatus {
+  success?: boolean;
+  cache_enabled?: boolean;
+  ohlcv_source?: string;            // "local_yfinance_cache" | "yfinance_fallback"
+  cache_hit_rate_pct?: number;      // 0-100
+  total_symbols?: number;
+  live_symbols?: number;
+  uncached_symbols?: string[];      // symbols not in the local cache
+  stale_symbols?: string[];
+  missing_required_bars?: string[];
+  latest_cached_date?: string | null;
+  last_postmarket_refresh?: {
+    refresh_date?: string | null;
+    refresh_type?: string | null;
+    status?: string | null;
+    symbols_requested?: number | null;
+    symbols_updated?: number | null;
+    failed_symbols?: string[] | null;
+    duration_seconds?: number | null;
+    end_time?: string | null;
+  } | null;
+}
 
 interface SectorExposure { sector: string; total_value: number; exposure_pct: number; position_count: number }
 interface OpenPosition {
@@ -378,9 +400,10 @@ function SymbolPipelineGrid({
 // Compact strip of scan metadata shown at the top of Pipeline, Scanner, and
 // Paper Trader panels so operators always see the current rotation context.
 
-function ScanInfoChips({ scanData, summaryData }: {
+function ScanInfoChips({ scanData, summaryData, cacheData }: {
   scanData: ScanStatus | undefined;
   summaryData?: PipelineSummary;
+  cacheData?: OhlcvCacheStatus;
 }) {
   const meta     = scanData?.latest_scan ?? {};
   const progress = scanData?.progress;
@@ -401,6 +424,14 @@ function ScanInfoChips({ scanData, summaryData }: {
   const derivedCount =
     countToday ?? (summaryData ? undefined : undefined); // extend here if backend adds a count
 
+  // Cache provenance from /ohlcv-cache/status
+  const hitRate    = cacheData?.cache_hit_rate_pct ?? null;
+  const ohlcvSrc   = cacheData?.ohlcv_source ?? null;
+  const sourceLabel =
+    ohlcvSrc === "local_yfinance_cache" ? "Local cache"
+    : ohlcvSrc === "yfinance_fallback"  ? "yfinance fallback"
+    : null;
+
   type Chip = { label: string; value: string; cls?: string; mono?: boolean };
   const chips: Chip[] = [];
 
@@ -412,6 +443,17 @@ function ScanInfoChips({ scanData, summaryData }: {
   if (startedAt)               chips.push({ label: "Started", value: timeAgo(startedAt) });
   if (durationS != null)       chips.push({ label: "Duration", value: `${durationS.toFixed(0)}s` });
   if (ageMin != null)          chips.push({ label: "Age", value: `${Math.round(ageMin)}m`, cls: ageMin > 30 ? "text-amber-400" : "" });
+  // Cache source chip — shown alongside duration so operators see both at a glance
+  if (sourceLabel != null)     chips.push({
+    label: "Source",
+    value: sourceLabel,
+    cls: ohlcvSrc === "local_yfinance_cache" ? "text-teal-300" : "text-amber-400",
+  });
+  if (hitRate != null)         chips.push({
+    label: "Cache",
+    value: `${hitRate.toFixed(0)}%`,
+    cls: hitRate >= 80 ? "text-teal-300" : hitRate >= 50 ? "text-amber-400" : "text-red-400",
+  });
 
   if (chips.length === 0) return null;
   return (
@@ -787,6 +829,17 @@ function ScannerPanel({ scanQ }: { scanQ: ReturnType<typeof useWidgetQuery<ScanS
   const countToday = d?.scan_count_today ?? null;
   const cadence    = d?.cadence_minutes ?? null;
 
+  // OHLCV cache status — 60 s cadence (slow route; Python spawns a DB query)
+  const cacheQ = useWidgetQuery<OhlcvCacheStatus>({
+    queryKey: ["mc", "ohlcv-cache-status"],
+    path: "/ohlcv-cache/status",
+    refetchInterval: 60_000,
+    timeoutMs: 35_000,
+  });
+  const cache = cacheQ.data;
+  const uncachedCount = cache?.uncached_symbols?.length ?? 0;
+  const yfinanceFallbackAlert = uncachedCount > 5;
+
   // Today's scan history — 30 s cache, same TTL as the backend route.
   const historyQ = useWidgetQuery<ScanHistoryResp>({
     queryKey: ["mc", "scan-history"], path: "/live-data/scan/history", refetchInterval: 30_000,
@@ -804,6 +857,20 @@ function ScannerPanel({ scanQ }: { scanQ: ReturnType<typeof useWidgetQuery<ScanS
     return Math.max(...gaps) / 60;
   }, [historyQ.data?.history]);
   const gapAlert = cadence != null && maxGapMin != null && maxGapMin > cadence * 2;
+
+  // Format the last post-market refresh timestamp for display.
+  const lastRefresh = cache?.last_postmarket_refresh ?? null;
+  const lastRefreshLabel = useMemo(() => {
+    if (!lastRefresh?.end_time) return null;
+    const dt = new Date(lastRefresh.end_time);
+    if (isNaN(dt.getTime())) return null;
+    return dt.toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      day: "2-digit", month: "short",
+      hour: "2-digit", minute: "2-digit",
+      hour12: false,
+    }) + " IST";
+  }, [lastRefresh]);
 
   return (
     <Widget
@@ -827,6 +894,15 @@ function ScannerPanel({ scanQ }: { scanQ: ReturnType<typeof useWidgetQuery<ScanS
               ⚠ Gap
             </span>
           )}
+          {yfinanceFallbackAlert && (
+            <span
+              className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 bg-amber-500/20 border border-amber-500/50 text-[9px] font-semibold text-amber-400"
+              data-testid="mc-yfinance-fallback-badge"
+              title={`${uncachedCount} symbols not in local cache — yfinance is being called for these symbols, which slows scans significantly.`}
+            >
+              ⚠ {uncachedCount} yfinance
+            </span>
+          )}
           {countToday != null && (
             <span className="text-[9px] text-muted-foreground">{countToday} today</span>
           )}
@@ -839,8 +915,8 @@ function ScannerPanel({ scanQ }: { scanQ: ReturnType<typeof useWidgetQuery<ScanS
         </div>
       }
     >
-      {/* Scan info chips */}
-      <ScanInfoChips scanData={d} />
+      {/* Scan info chips — includes cache source + hit rate when available */}
+      <ScanInfoChips scanData={d} cacheData={cache} />
 
       {/* Primary counters */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] mb-2">
@@ -900,6 +976,113 @@ function ScannerPanel({ scanQ }: { scanQ: ReturnType<typeof useWidgetQuery<ScanS
         >
           Current scan: {scanId}
         </p>
+      )}
+
+      {/* ── Live Data Health ──────────────────────────────────────────────── */}
+      {/* Shows OHLCV cache health, hit rate and last post-market refresh.   */}
+      {/* Only rendered once the cache status query has resolved.             */}
+      {cache != null && (
+        <div
+          className="mt-3 border-t border-border/40 pt-2 space-y-1"
+          data-testid="mc-live-data-health"
+        >
+          <p className="text-[10px] text-muted-foreground font-medium flex items-center gap-1.5">
+            <HeartPulse className="w-3 h-3 shrink-0" />
+            Live Data Health
+          </p>
+
+          {/* Cache summary row */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px]">
+            <span className="text-muted-foreground">OHLCV source:</span>
+            <span
+              className={`font-semibold ${
+                cache.ohlcv_source === "local_yfinance_cache"
+                  ? "text-teal-300"
+                  : "text-amber-400"
+              }`}
+              data-testid="mc-ohlcv-source-label"
+            >
+              {cache.ohlcv_source === "local_yfinance_cache"
+                ? "Local cache"
+                : cache.ohlcv_source === "yfinance_fallback"
+                ? "yfinance fallback"
+                : cache.ohlcv_source ?? "Unknown"}
+            </span>
+            {cache.cache_hit_rate_pct != null && (
+              <span
+                className={`font-semibold ${
+                  cache.cache_hit_rate_pct >= 80
+                    ? "text-teal-300"
+                    : cache.cache_hit_rate_pct >= 50
+                    ? "text-amber-400"
+                    : "text-red-400"
+                }`}
+                data-testid="mc-cache-hit-rate"
+              >
+                {cache.cache_hit_rate_pct.toFixed(0)}% cache
+              </span>
+            )}
+            {cache.live_symbols != null && cache.total_symbols != null && (
+              <span className="text-muted-foreground">
+                {cache.live_symbols}/{cache.total_symbols} live
+              </span>
+            )}
+          </div>
+
+          {/* Uncached symbols warning */}
+          {yfinanceFallbackAlert && (
+            <p
+              className="text-[10px] text-amber-400/80 leading-snug"
+              data-testid="mc-uncached-symbols-note"
+            >
+              ⚠ {uncachedCount} symbol{uncachedCount !== 1 ? "s" : ""} not in local cache —
+              yfinance is being called for these, slowing scans. Run a backfill to restore speed.
+            </p>
+          )}
+
+          {/* Last post-market refresh */}
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[10px]">
+            <span className="text-muted-foreground shrink-0">Last refresh:</span>
+            {lastRefreshLabel ? (
+              <>
+                <span
+                  className="font-semibold text-foreground"
+                  data-testid="mc-last-refresh-time"
+                >
+                  {lastRefreshLabel}
+                </span>
+                {lastRefresh?.status && (
+                  <span
+                    className={`text-[9px] ${
+                      lastRefresh.status === "SUCCESS"
+                        ? "text-teal-400"
+                        : "text-amber-400"
+                    }`}
+                  >
+                    {lastRefresh.status}
+                  </span>
+                )}
+                {lastRefresh?.symbols_updated != null && (
+                  <span className="text-muted-foreground text-[9px]">
+                    {lastRefresh.symbols_updated} symbols
+                  </span>
+                )}
+                {lastRefresh?.duration_seconds != null && (
+                  <span className="text-muted-foreground text-[9px]">
+                    {lastRefresh.duration_seconds.toFixed(0)}s
+                  </span>
+                )}
+              </>
+            ) : (
+              <span
+                className="text-muted-foreground/60 italic"
+                data-testid="mc-last-refresh-time"
+              >
+                {cacheQ.isLoading ? "Loading…" : "Not yet run"}
+              </span>
+            )}
+          </div>
+        </div>
       )}
 
       {/* ── Today's scans history ─────────────────────────────────────────── */}
@@ -1477,12 +1660,15 @@ export default function MissionControl() {
 
   // Scan lifecycle events (scan.started / scan.completed) refresh the scanner,
   // replay counts and portfolio immediately.
+  // Also refresh the OHLCV cache status on scan completion so the hit-rate chip
+  // reflects the actual source used by the completed scan.
   useEffect(() => {
     if (!scanEvent) return;
     void queryClient.invalidateQueries({ queryKey: ["mc", "scan-status"] });
     void queryClient.invalidateQueries({ queryKey: ["mc", "replay-latest"] });
     void queryClient.invalidateQueries({ queryKey: ["mc", "pipeline-summary"] });
     void queryClient.invalidateQueries({ queryKey: ["mc", "portfolio"] });
+    void queryClient.invalidateQueries({ queryKey: ["mc", "ohlcv-cache-status"] });
   }, [scanEvent, queryClient]);
 
   // Shared queries used by multiple regions (fetched ONCE each).
