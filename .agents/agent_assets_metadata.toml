@@ -460,3 +460,10 @@ uri = "file://APEXQUANT_AI_SOP_v5.0.html"
 type = "text"
 title = "ApexQuant AI — SOP v5.0"
 description = "Full operator guide updated 2026-08-18. Covers Bootstrap Mode activation, secrets management, Kite auth, daily checklist, and troubleshooting."
+
+[[outputs]]
+id = "dkufmAX2h3F7Q9m1cWYRm"
+uri = "file://APEXQUANT_FIRST_BOOTSTRAP_AUTO_TRADE_PROOF.md"
+type = "text"
+title = "ApexQuant — First Bootstrap Trade Proof"
+description = "Production verification report (2026-08-18 09:30 IST). All 10 tasks completed."

@@ -1,0 +1,314 @@
+LIVE MARKET VERIFICATION — FIRST BOOTSTRAP_AUTO PAPER TRADE PROOF
+
+Use APEXQUANT_AI_SOP_v5.0.html as the controlling document.
+
+Context from SOP v5.0:
+- Bootstrap Mode is ACTIVE in production.
+- bootstrap_paper_enabled=true in production DB.
+- Kite LTP overlay is LIVE.
+- Live orders are permanently disabled.
+- Top bootstrap candidates from the last report were INDUSINDBK, DRREDDY, TMCV, and HEROMOTOCO.
+- The first BOOTSTRAP_AUTO paper trade is expected on the next valid market scan if all gates still pass.
+
+Current operator context:
+It is market hours.
+Run this check against the PRODUCTION deployed app/database, not the dev workspace.
+Production URL:
+https://nse-trade-intraday.replit.app
+
+Do not enable live orders.
+Do not call broker order APIs.
+Do not change thresholds.
+Do not tune strategy settings.
+Do not change risk rules.
+PAPER ONLY.
+
+GOAL:
+Prove whether ApexQuant AI has created its first production BOOTSTRAP_AUTO P20 paper trade.
+
+TASK 1 — CONFIRM PRODUCTION ENVIRONMENT
+
+Verify this check is running against production, not dev.
+
+Report:
+- environment name
+- production URL being checked
+- masked DATABASE_URL or DB identity
+- phase20_settings source
+- phase20_paper_trades table source
+- latest production scan_id
+- current IST time
+- market open/closed status
+
+Expected:
+- environment = production
+- URL/domain = nse-trade-intraday.replit.app
+- not *.replit.dev
+- not local port 8080 unless explicitly connected to production DB
+
+TASK 2 — VERIFY CORE SAFETY
+
+Confirm:
+
+- LIVE_EXECUTION_ENABLED=false
+- PAPER_TRADING_MODE=true
+- live_order_placement_enabled=false
+- no real broker orders enabled
+- no kite.place_order / modify_order / cancel_order calls
+- paper trades only write to phase20_paper_trades
+- Kite is used only for quotes/LTP, not order placement
+
+Report exact evidence.
+
+TASK 3 — VERIFY BOOTSTRAP SETTINGS
+
+Check production Phase20 settings.
+
+Report:
+- bootstrap_paper_enabled
+- auto_paper_entries
+- auto_paper_entries_confirmed_at
+- bootstrap_max_closed_trades
+- current CLOSED trade count
+- current OPEN trade count
+- circuit_breaker_tripped
+- daily_realized_pnl
+- consecutive_losses
+- max order value / bootstrap cap
+- scan cadence
+
+Expected:
+- bootstrap_paper_enabled=true
+- auto_paper_entries=true
+- auto_paper_entries_confirmed_at is set
+- circuit breaker clear
+- closed trade count below bootstrap cutoff
+- max bootstrap notional ≤ ₹1,500
+
+TASK 4 — VERIFY KITE LTP OVERLAY
+
+Check latest successful production scan.
+
+Report:
+- KITE_LTP_OVERLAY_ENABLED
+- Kite LTP overlay status
+- kite_verified / kite_ltp_session_verified / overlay_live
+- current_price_source
+- execution_price_source
+- quote_reliable
+- kite_ltp_available
+
+For these symbols:
+- INDUSINDBK
+- DRREDDY
+- TMCV
+- HEROMOTOCO
+- BAJFINANCE
+- GRASIM
+- RELIANCE
+- TCS
+- TMPV
+- BAJAJ-AUTO
+
+Show:
+- symbol
+- final action
+- confidence
+- opportunity_score
+- R:R
+- yfinance_last_close
+- kite_ltp
+- current_price_source
+- execution_price_source
+- indicator_source
+- quote_reliable
+- bootstrap_eligible
+- reason if not eligible
+
+Expected:
+- indicator_source = yfinance_daily_bars
+- execution_price_source = kite_live_ltp when overlay is live
+- quote_reliable=true for symbols with Kite LTP
+- bootstrap_eligible=true for at least one candidate if all gates still pass
+
+TASK 5 — VERIFY BOOTSTRAP CANDIDATES
+
+List all bootstrap_eligible candidates from the latest production scan.
+
+For each candidate show:
+- rank
+- symbol
+- confidence
+- opportunity_score
+- rr_ratio
+- low_evidence
+- all_gates_passed
+- kite_ltp_available
+- quote_reliable
+- execution_price_source
+- estimated worst-case fill price
+- quantity
+- notional value
+- risk gate result
+- duplicate-position check
+- circuit breaker check
+- reason selected or skipped
+
+Expected:
+- top candidate likely INDUSINDBK unless latest scan changed ranking
+- max notional ≤ ₹1,500
+- low_evidence=true is allowed only under bootstrap mode
+- all hard gates must pass
+
+TASK 6 — CHECK WHETHER BOOTSTRAP TRADE FIRED
+
+Check phase20_paper_trades for today.
+
+Query/report:
+- any row created today
+- trade_id
+- symbol
+- status
+- trigger_source
+- fill_model
+- quantity
+- fill_price
+- entry_price
+- stop_loss
+- target
+- created_at
+- scan_id
+- evidence
+- current_price_source
+- execution_price_source
+
+Expected if successful:
+- trade_id starts with P20-
+- trigger_source = BOOTSTRAP_AUTO
+- fill_model = bootstrap_paper
+- status = OPEN or CLOSED
+- quantity > 0
+- notional ≤ ₹1,500
+- fill price based on Kite LTP
+- no live order API called
+
+TASK 7 — CHECK PIPELINE EVENTS
+
+Check pipeline_events for latest scan and today.
+
+Report counts:
+- BOOTSTRAP_PAPER_TRADE_APPROVED
+- ORDER_SUBMITTED
+- ORDER_EXECUTED
+- ORDER_REJECTED
+- EXECUTION_SKIPPED_WITH_REASON
+- BOOTSTRAP_SKIPPED or equivalent
+- any error/warning events
+
+For any BOOTSTRAP / ORDER event show:
+- event_type
+- scan_id
+- symbol
+- trade_id
+- stage
+- payload.trigger_source
+- payload.fill_model
+- payload.reason
+- payload.notional
+- payload.quote_source
+
+Expected:
+- BOOTSTRAP_PAPER_TRADE_APPROVED before trade creation
+- ORDER_SUBMITTED and ORDER_EXECUTED only if P20 trade row exists
+- all canonical ORDER_* events must have P20- trade_id
+- no BTT- event counted as live/canonical
+
+TASK 8 — IF NO TRADE WAS CREATED, FIND EXACT BLOCKER
+
+If no BOOTSTRAP_AUTO trade was created, do not guess.
+
+Find the exact first failing gate in run_bootstrap_auto_entry.
+
+Report the gate chain:
+
+1. bootstrap_paper_enabled
+2. auto_paper_entries confirmed
+3. circuit_breaker clear
+4. Kite verified / overlay live
+5. valid scan_id
+6. kv_claim_once result
+7. closed trades below cutoff
+8. no existing open bootstrap trade
+9. bootstrap_eligible candidates exist
+10. selected candidate passes independent re-check
+11. max notional cap
+12. duplicate position check
+13. order/ledger write
+
+For the failing gate, report:
+- expected value
+- actual value
+- file/function
+- exact reason message
+- whether this is correct safety behavior or a bug
+
+TASK 9 — IF TRADE CREATED, VERIFY DASHBOARD VISIBILITY
+
+If a BOOTSTRAP_AUTO trade exists, confirm the dashboard shows it.
+
+Check:
+- AI Paper Trader page
+- Current Holdings
+- Open Positions table
+- amber BOOTSTRAP badge
+- Activity Feed
+- Mission Control
+- Operator Analytics
+
+Expected:
+- BOOTSTRAP badge visible
+- trigger_source=BOOTSTRAP_AUTO
+- fill_model=bootstrap_paper
+- paper only
+- no live broker order
+
+TASK 10 — EXIT READINESS
+
+If a bootstrap trade was created, verify exit management is ready.
+
+Report:
+- stop_loss
+- target
+- trailing stop state
+- time exit rule
+- market close exit rule
+- quote_reliable
+- Kite LTP available
+- whether exit manager evaluated the trade after entry
+- whether any exit rule has already triggered
+- if CLOSED, exit_price and realized_pnl
+
+Expected:
+- if still OPEN, that is fine
+- if CLOSED, realized_pnl must be non-null
+- exit price must be from reliable quote/Kite LTP
+- no fabricated fill
+
+TASK 11 — FINAL REPORT
+
+Generate:
+
+APEXQUANT_FIRST_BOOTSTRAP_AUTO_TRADE_PROOF.md
+
+Include:
+1. Production environment proof.
+2. Safety proof: no live orders.
+3. Bootstrap settings proof.
+4. Kite LTP overlay proof.
+5. Latest scan candidate table.
+6. Whether a BOOTSTRAP_AUTO trade was created.
+7. If created: DB proof, event proof, dashboard proof.
+8. If not created: exact gate that blocked it.
+9. Whether this completes the first production P20 signal → paper fill cycle.
+10. Whether full cycle signal → fill → exit → realized P&L is complete or still pending.
+11. Next required operator action.
