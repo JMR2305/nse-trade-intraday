@@ -31,7 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Activity, AlertTriangle, CheckCircle2, ChevronRight, Clock, Cpu,
   HeartPulse, LayoutGrid, PieChart, Radar, Radio, Rocket, Search, Smartphone,
-  Wallet, Wifi, WifiOff, XCircle,
+  Timer, Wallet, Wifi, WifiOff, XCircle,
 } from "lucide-react";
 import { Widget, useWidgetQuery, fmtINR, timeAgo, PnlText } from "@/components/mission/Widget";
 import { CommandBar } from "@/components/mission/CommandBar";
@@ -178,6 +178,26 @@ interface BootstrapStatus {
   snapshot_ts?: string | null;
   top_candidates?: BootstrapCandidate[];
   top_watch_candidate?: BootstrapWatchCandidate | null;
+}
+interface EodForceCloseResult {
+  symbol: string | null; exit_rule: string; exit_price: number | null;
+  realized_pnl: number | null; exit_price_source: string | null;
+  fallback_used: boolean; ts: string;
+}
+interface EodBlockedEvent {
+  symbol: string | null; trade_id: string | null; reason: string | null; ts: string;
+}
+interface EodStatus {
+  success?: boolean;
+  time_to_squareoff_sec?: number;
+  squareoff_time_ist?: string;
+  in_squareoff_window?: boolean;
+  past_post_close?: boolean;
+  show_countdown?: boolean;
+  eod_ran_today?: boolean;
+  force_close_results?: EodForceCloseResult[];
+  blocked_events?: EodBlockedEvent[];
+  now_ist?: string;
 }
 interface PipelineEvent {
   id: number; ts: string; event_type: string; stage: string;
@@ -1021,6 +1041,159 @@ function BootstrapStatusBanner({ d }: { d: BootstrapStatus | undefined }) {
   );
 }
 
+// ── EOD square-off countdown banner ──────────────────────────────────────────
+// Shown inside PaperTradingPanel whenever the squareoff window is approaching
+// or active, or today's force-close has already produced results/blocks.
+
+function EodSquareoffBanner({ d }: { d: EodStatus | undefined }) {
+  // Local per-second countdown so the display is smooth between 30 s query
+  // refreshes.  Seeded from `time_to_squareoff_sec` whenever the query returns
+  // fresh data; counts down independently between refreshes.
+  const [localSec, setLocalSec] = useState<number | null>(null);
+  const seedRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (d?.time_to_squareoff_sec === undefined) return;
+    const fresh = d.time_to_squareoff_sec;
+    if (seedRef.current !== fresh) {
+      seedRef.current = fresh;
+      setLocalSec(fresh);
+    }
+    const id = setInterval(() => {
+      setLocalSec((prev) => (prev !== null && prev > 0 ? prev - 1 : prev));
+    }, 1_000);
+    return () => clearInterval(id);
+  }, [d?.time_to_squareoff_sec]);
+
+  if (!d) return null;
+
+  const sqTime = d.squareoff_time_ist ?? "15:20 IST";
+  const blocked = d.blocked_events ?? [];
+  const closed = d.force_close_results ?? [];
+
+  // ── 1. MARKET_CLOSE_EXIT_BLOCKED — prominent red banner ─────────────────
+  if (blocked.length > 0) {
+    return (
+      <div className="mt-2 space-y-1" data-testid="mc-eod-blocked-banner">
+        <div className="rounded-lg border border-red-500/50 bg-red-500/10 px-2.5 py-2 text-[10px]">
+          <p className="text-red-400 font-semibold flex items-center gap-1 mb-1">
+            <XCircle className="w-3 h-3 shrink-0" />
+            EOD square-off blocked — position{blocked.length !== 1 ? "s" : ""} may carry overnight
+          </p>
+          {blocked.map((b, i) => (
+            <p key={i} className="text-muted-foreground leading-snug">
+              <span className="font-mono font-semibold text-foreground">{b.symbol ?? "—"}</span>
+              {b.reason ? `: ${b.reason}` : " — no price available"}
+            </p>
+          ))}
+          <p className="text-red-300/70 mt-1">Manual review required.</p>
+        </div>
+        {/* Also show any successful closes alongside the block */}
+        {closed.length > 0 && (
+          <EodCloseResults results={closed} />
+        )}
+      </div>
+    );
+  }
+
+  // ── 2. After-close results (force-close ran, no blocks) ──────────────────
+  if ((d.eod_ran_today || closed.length > 0) && d.past_post_close) {
+    if (closed.length === 0) {
+      return (
+        <div
+          className="mt-2 rounded-lg border border-border/40 bg-muted/10 px-2.5 py-1.5 text-[10px] text-muted-foreground"
+          data-testid="mc-eod-ran-no-positions"
+        >
+          <span className="flex items-center gap-1">
+            <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+            EOD square-off completed — no open positions to close.
+          </span>
+        </div>
+      );
+    }
+    return <EodCloseResults results={closed} className="mt-2" />;
+  }
+
+  // ── 3. Active square-off window (15:20–15:30 IST) ───────────────────────
+  if (d.in_squareoff_window) {
+    return (
+      <div
+        className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px]"
+        data-testid="mc-eod-active-banner"
+      >
+        <p className="text-amber-300 font-semibold flex items-center gap-1">
+          <Timer className="w-3 h-3 shrink-0 animate-pulse" />
+          EOD square-off active — positions will close on next scan
+        </p>
+        <p className="text-muted-foreground mt-0.5">
+          All open paper positions will be force-closed at {sqTime}.
+        </p>
+      </div>
+    );
+  }
+
+  // ── 4. Countdown (within 30 min of 15:20 IST) ───────────────────────────
+  if (d.show_countdown && localSec !== null && localSec > 0) {
+    const mins = Math.floor(localSec / 60);
+    const secs = localSec % 60;
+    const urgency = localSec <= 5 * 60; // last 5 minutes
+    return (
+      <div
+        className={`mt-2 rounded-lg border px-2.5 py-1.5 text-[10px] ${
+          urgency
+            ? "border-orange-500/50 bg-orange-500/10"
+            : "border-amber-500/30 bg-amber-500/5"
+        }`}
+        data-testid="mc-eod-countdown-banner"
+      >
+        <p className={`font-semibold flex items-center gap-1 ${urgency ? "text-orange-300" : "text-amber-300"}`}>
+          <Timer className="w-3 h-3 shrink-0" />
+          EOD square-off in {mins}m {String(secs).padStart(2, "0")}s ({sqTime})
+        </p>
+        <p className="text-muted-foreground mt-0.5">
+          Open positions will be auto-closed at market end.
+        </p>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+/** Compact table of today's force-close results. */
+function EodCloseResults({
+  results, className = "",
+}: {
+  results: EodForceCloseResult[];
+  className?: string;
+}) {
+  return (
+    <div
+      className={`rounded-lg border border-teal-500/30 bg-teal-500/5 px-2.5 py-1.5 text-[10px] ${className}`}
+      data-testid="mc-eod-close-results"
+    >
+      <p className="text-teal-300 font-semibold flex items-center gap-1 mb-1">
+        <CheckCircle2 className="w-3 h-3 shrink-0" />
+        EOD square-off complete — {results.length} position{results.length !== 1 ? "s" : ""} closed
+      </p>
+      <div className="space-y-0.5">
+        {results.map((r, i) => (
+          <div key={i} className="flex items-center gap-2 text-[10px]">
+            <span className="font-mono font-semibold w-20 truncate">{r.symbol ?? "—"}</span>
+            <span className="text-muted-foreground">@ {fmtINR(r.exit_price, 2)}</span>
+            {r.realized_pnl != null && (
+              <PnlText value={r.realized_pnl} className="ml-auto" />
+            )}
+            {r.fallback_used && (
+              <span className="text-amber-400/80 shrink-0" title="Exit price used fill-price fallback">⚠</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Panel 3 — Live Paper Trading ─────────────────────────────────────────────
 
 function PaperTradingPanel({ portfolio }: { portfolio: PortfolioSnapshot | undefined }) {
@@ -1033,6 +1206,15 @@ function PaperTradingPanel({ portfolio }: { portfolio: PortfolioSnapshot | undef
   const bootstrapQ = useWidgetQuery<BootstrapStatus>({
     queryKey: ["mc", "bootstrap-status"],
     path: "/phase20/bootstrap-status",
+    refetchInterval: 30_000,
+    timeoutMs: 10_000,
+  });
+
+  // EOD square-off status — lightweight read-only endpoint; no yfinance calls.
+  // Polled every 30 s; 10 s timeout. Shown only when approaching 15:20 IST.
+  const eodQ = useWidgetQuery<EodStatus>({
+    queryKey: ["mc", "eod-status"],
+    path: "/phase20/eod-status",
     refetchInterval: 30_000,
     timeoutMs: 10_000,
   });
@@ -1088,6 +1270,9 @@ function PaperTradingPanel({ portfolio }: { portfolio: PortfolioSnapshot | undef
       </div>
       {/* Bootstrap eligibility status banner */}
       <BootstrapStatusBanner d={bootstrapQ.data} />
+
+      {/* EOD square-off countdown / result banner */}
+      <EodSquareoffBanner d={eodQ.data} />
 
       {/* Recent fills */}
       <p className="text-[10px] text-muted-foreground mb-1 mt-2">Recent trades</p>

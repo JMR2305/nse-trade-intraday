@@ -3287,6 +3287,19 @@ router.get("/phase20/bootstrap-status", async (_req, res) => {
   }
 });
 
+// GET /api/phase20/eod-status — EOD square-off countdown & result for Mission Control.
+// Returns: time_to_squareoff_sec, in_squareoff_window, show_countdown,
+// force_close_results (MARKET_CLOSE_EXIT / POST_CLOSE_FORCE_EXIT today),
+// blocked_events (MARKET_CLOSE_EXIT_BLOCKED today).
+// Read-only; never triggers any trades.
+router.get("/phase20/eod-status", async (_req, res) => {
+  try {
+    res.json(await runPython(["phase20_eod_status"]));
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // PUT /api/phase20/settings — update settings; enabling auto paper entries
 // requires the exact confirmation text (enforced python-side).
 router.put("/phase20/settings", async (req, res) => {

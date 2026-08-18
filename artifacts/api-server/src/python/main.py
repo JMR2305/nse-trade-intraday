@@ -1090,6 +1090,12 @@ def main():
                     bootstrap_max_closed_trades=_BS_MAX,
                     bootstrap_max_order_value=_BS_MAX_ORDER,
                 )
+        elif command == "phase20_eod_status":
+            # Read-only EOD square-off status: countdown to 15:20 IST, active
+            # window flag, today's force-close results, and any blocked events.
+            # No yfinance calls — safe to poll frequently.
+            from phase20_eod_status import build_eod_status_payload as _build_eod
+            result = _build_eod()
         elif command == "phase20_settings_update":
             from phase20_store import update_settings
             _payload = json.loads(args[1]) if len(args) > 1 else {}
