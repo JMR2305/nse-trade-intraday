@@ -467,3 +467,10 @@ uri = "file://APEXQUANT_FIRST_BOOTSTRAP_AUTO_TRADE_PROOF.md"
 type = "text"
 title = "ApexQuant — First Bootstrap Trade Proof"
 description = "Production verification report (2026-08-18 09:30 IST). All 10 tasks completed."
+
+[[outputs]]
+id = "3FNK_tPfrZ9dKiZdyRbPR"
+uri = "file://APEXQUANT_BOOTSTRAP_FALLBACK_CANDIDATE_FIX_AND_FIRST_TRADE_PROOF.md"
+type = "text"
+title = "Bootstrap Fallback Fix & First Trade Proof"
+description = "Fix implemented (45/45 tests), not yet deployed. Re-publish required for DRREDDY fallback to fire."

@@ -905,136 +905,216 @@ def run_bootstrap_auto_entry(snapshot: Dict[str, Any],
     if not candidates:
         return {"ran": False, "reason": "No bootstrap_eligible WATCH candidates in snapshot"}
 
-    # Best candidate = highest calibrated_confidence
-    best = max(candidates, key=lambda r: float(r.get("calibrated_confidence") or 0))
-    sym = str(best.get("symbol", "")).upper()
+    # Rank candidates: highest calibrated_confidence first, then opportunity_score
+    ranked = sorted(
+        candidates,
+        key=lambda r: (
+            float(r.get("calibrated_confidence") or 0),
+            float(r.get("opportunity_score") or 0),
+        ),
+        reverse=True,
+    )
 
-    # ── Independent gate re-verification ────────────────────────────────────
-    # Defensive re-check on the selected candidate.  bootstrap_eligible is a
-    # pre-computed flag that may reflect a stale scan or be overridden by a
-    # caller in tests.  We verify each constituent condition independently so a
-    # single inconsistent flag cannot bypass all hard gates.
-    if not best.get("low_evidence"):
-        return {"ran": False, "symbol": sym,
-                "reason": "Candidate low_evidence=False — normal BUY path is unblocked; "
-                           "bootstrap not needed"}
-    if not best.get("all_gates_passed"):
-        return {"ran": False, "symbol": sym,
-                "reason": "Candidate all_gates_passed=False — hard risk gate failure; "
-                           "bootstrap requires all gates to pass"}
-    if not best.get("kite_ltp_available"):
-        return {"ran": False, "symbol": sym,
-                "reason": "Candidate kite_ltp_available=False — live Kite LTP required "
-                           "for bootstrap execution price"}
-    _exec_src = str(best.get("execution_price_source") or "")
-    if "kite" not in _exec_src.lower():
-        return {"ran": False, "symbol": sym,
-                "reason": f"execution_price_source '{_exec_src}' is not a Kite source — "
-                           "bootstrap requires a live Kite execution price"}
-
-    price = float(best.get("kite_ltp") or 0)
-    if price <= 0:
-        return {"ran": False, "symbol": sym, "reason": "Invalid kite_ltp price"}
-
-    # Compute qty bounded by ₹1,500 hard ceiling — sized against the WORST-CASE
-    # slippage-adjusted fill so the executed notional can never breach the cap.
-    # "bootstrap_paper" fill_model falls through to SLIPPAGE_ADJUSTED (largest slip).
-    slip_pct = float(settings.get("slippage_pct", 0.15)) / 100.0
-    worst_fill = round(price * (1.0 + slip_pct), 2)  # BUY always pays up
-    if worst_fill > _BOOTSTRAP_MAX_ORDER_VALUE:
-        return {"ran": False, "symbol": sym,
-                "reason": f"Worst-case fill ₹{worst_fill:.2f} (LTP ₹{price:.2f} + "
-                           f"{slip_pct*100:.2f}% slippage) exceeds bootstrap cap "
-                           f"₹{_BOOTSTRAP_MAX_ORDER_VALUE} — cannot open even 1 share"}
-    qty = max(1, int(_BOOTSTRAP_MAX_ORDER_VALUE // worst_fill))
-    # Defensive post-computation assertion — qty × worst_fill must not exceed cap
-    while qty > 1 and qty * worst_fill > _BOOTSTRAP_MAX_ORDER_VALUE:
-        qty -= 1
-    order_value = round(qty * worst_fill, 2)
-
-    # Duplicate position guard (no OPEN position for this symbol)
-    from paper_trader import get_portfolio
-    if any(str(p["symbol"]).upper() == sym for p in get_portfolio()["positions"]):
-        return {"ran": False, "symbol": sym, "reason": "Open position already exists"}
-
-    # Build a minimal candidate dict compatible with create_paper_entry
-    sizing = {
-        "quantity":    qty,
-        "entry_price": price,
-        "stop_loss":   float(best.get("stop_loss") or 0),
-        "target_price": float(best.get("target_price") or 0),
-        "rr_ratio":    float(best.get("rr_ratio") or 0),
-        "order_value": order_value,
-    }
-    candidate: Dict[str, Any] = {
-        "eligible":               True,
-        "symbol":                 sym,
-        "recommendation":         "WATCH",
-        "confidence":             float(best.get("calibrated_confidence") or 0),
-        "opportunity_score":      float(best.get("opportunity_score") or 0),
-        "trade_quality_score":    float(best.get("technical_score") or 0),
-        "regime":                 str(best.get("regime") or "UNKNOWN"),
-        "strategy_id":            str(best.get("strategy_id") or ""),
-        "strategy_name":          str(best.get("strategy_name") or ""),
-        # Kite LTP overlay fields so create_paper_entry uses live price
-        "kite_ltp_available":       bool(best.get("kite_ltp_available")),
-        "execution_price_source":   str(best.get("execution_price_source") or ""),
-        "kite_ltp":                 float(best.get("kite_ltp") or 0),
-        "sizing":                   sizing,
-        "failed_gates":             [],
-    }
+    scan_id = snapshot.get("scan_id")
+    snap_ts = snapshot.get("snapshot_ts")
 
     # Override fill_model to "bootstrap_paper" for clear ledger labelling.
     bootstrap_settings = dict(settings)
     bootstrap_settings["fill_model"] = "bootstrap_paper"
 
-    scan_id = snapshot.get("scan_id")
-    snap_ts = snapshot.get("snapshot_ts")
+    slip_pct = float(settings.get("slippage_pct", 0.15)) / 100.0
 
-    # Emit approval event BEFORE creation for atomicity audit trail
+    # Track every skip so the final return is auditable even if all fail.
+    skipped: List[Dict[str, Any]] = []
+
+    from paper_trader import get_portfolio  # single import for the loop
+
+    for best in ranked:
+        sym = str(best.get("symbol", "")).upper()
+
+        # ── Independent gate re-verification ─────────────────────────────────
+        # Defensive re-check on each candidate.  bootstrap_eligible is a
+        # pre-computed flag that may reflect a stale scan or be overridden by a
+        # caller in tests.  We verify each constituent condition independently.
+        # Failures here skip to the next candidate rather than aborting the run.
+        if not best.get("low_evidence"):
+            skipped.append({"symbol": sym,
+                             "reason": "low_evidence=False — normal BUY path unblocked"})
+            continue
+        if not best.get("all_gates_passed"):
+            skipped.append({"symbol": sym,
+                             "reason": "all_gates_passed=False — hard risk gate failure"})
+            continue
+        if not best.get("kite_ltp_available"):
+            skipped.append({"symbol": sym,
+                             "reason": "kite_ltp_available=False — live LTP required"})
+            continue
+        _exec_src = str(best.get("execution_price_source") or "")
+        if "kite" not in _exec_src.lower():
+            skipped.append({"symbol": sym,
+                             "reason": f"execution_price_source '{_exec_src}' is not Kite"})
+            continue
+
+        price = float(best.get("kite_ltp") or 0)
+        if price <= 0:
+            skipped.append({"symbol": sym, "reason": "Invalid kite_ltp price (≤ 0)"})
+            continue
+
+        # Compute qty bounded by ₹1,500 ceiling against worst-case slippage fill.
+        worst_fill = round(price * (1.0 + slip_pct), 2)
+        if worst_fill > _BOOTSTRAP_MAX_ORDER_VALUE:
+            skipped.append({"symbol": sym,
+                             "reason": (f"Worst-case fill ₹{worst_fill:.2f} exceeds "
+                                        f"₹{_BOOTSTRAP_MAX_ORDER_VALUE} cap — even 1 share")})
+            continue
+        qty = max(1, int(_BOOTSTRAP_MAX_ORDER_VALUE // worst_fill))
+        while qty > 1 and qty * worst_fill > _BOOTSTRAP_MAX_ORDER_VALUE:
+            qty -= 1
+        order_value = round(qty * worst_fill, 2)
+
+        # Duplicate position guard — skip this symbol if already held.
+        if any(str(p["symbol"]).upper() == sym for p in get_portfolio()["positions"]):
+            skipped.append({"symbol": sym, "reason": "Open position already exists"})
+            continue
+
+        # Build a minimal candidate dict compatible with create_paper_entry
+        sizing = {
+            "quantity":    qty,
+            "entry_price": price,
+            "stop_loss":   float(best.get("stop_loss") or 0),
+            "target_price": float(best.get("target_price") or 0),
+            "rr_ratio":    float(best.get("rr_ratio") or 0),
+            "order_value": order_value,
+        }
+        candidate: Dict[str, Any] = {
+            "eligible":               True,
+            "symbol":                 sym,
+            "recommendation":         "WATCH",
+            "confidence":             float(best.get("calibrated_confidence") or 0),
+            "opportunity_score":      float(best.get("opportunity_score") or 0),
+            "trade_quality_score":    float(best.get("technical_score") or 0),
+            "regime":                 str(best.get("regime") or "UNKNOWN"),
+            "strategy_id":            str(best.get("strategy_id") or ""),
+            "strategy_name":          str(best.get("strategy_name") or ""),
+            "kite_ltp_available":       bool(best.get("kite_ltp_available")),
+            "execution_price_source":   str(best.get("execution_price_source") or ""),
+            "kite_ltp":                 float(best.get("kite_ltp") or 0),
+            "sizing":                   sizing,
+            "failed_gates":             [],
+        }
+
+        # Emit approval event BEFORE creation for atomicity audit trail
+        try:
+            from pipeline_events import emit as _pe
+            _pe("BOOTSTRAP_PAPER_TRADE_APPROVED", "EXECUTION",
+                scan_id=scan_id, symbol=sym,
+                payload={
+                    "symbol":                sym,
+                    "calibrated_confidence": best.get("calibrated_confidence"),
+                    "opportunity_score":     best.get("opportunity_score"),
+                    "rr_ratio":              best.get("rr_ratio"),
+                    "kite_ltp":              best.get("kite_ltp"),
+                    "order_value":           order_value,
+                    "qty":                   qty,
+                    "closed_trades_so_far":  closed,
+                    "rank_in_candidates":    ranked.index(best) + 1,
+                    "candidates_total":      len(ranked),
+                    "reason": (
+                        "Bootstrap paper trade: low_evidence (backtest < 5 trades) "
+                        "blocked normal BUY path. Kite LTP live, all hard gates "
+                        "passed. Max order value ₹1,500. No live broker API called. "
+                        "Exit handled by normal phase20 exit engine."
+                    ),
+                })
+        except Exception:
+            pass
+
+        result = create_paper_entry(candidate, bootstrap_settings,
+                                    scan_id, snap_ts,
+                                    trigger_source="BOOTSTRAP_AUTO")
+
+        if result.get("created"):
+            store.add_notification(
+                "BOOTSTRAP_TRADE_CREATED",
+                f"Bootstrap paper BUY {sym} × {qty} @ ₹{price:.2f}",
+                (f"Trade {result.get('trade_id')} created to seed the paper ledger. "
+                 f"Reason: low_evidence=True (backtest < 5 trades) blocked normal BUY. "
+                 f"Kite LTP live, all risk gates passed. Max ₹1,500 position. "
+                 f"Paper only — no live order. Exits via normal phase20 exit engine."),
+                severity="INFO",
+                context={"trade_id": result.get("trade_id"), "symbol": sym,
+                         "scan_id": scan_id, "trigger_source": "BOOTSTRAP_AUTO"},
+            )
+            return {"ran": True, "symbol": sym, "result": result,
+                    "closed_trades_before": closed,
+                    "candidates_checked": len(ranked),
+                    "skipped_before_success": skipped}
+
+        # create_paper_entry rejected (pre-trade risk check, duplicate, etc.).
+        # Compute slippage-adjusted R:R for the audit event.
+        _stop  = float(best.get("stop_loss") or 0)
+        _tgt   = float(best.get("target_price") or 0)
+        _rr_after: Optional[float] = None
+        if _stop > 0 and _tgt > worst_fill and worst_fill > _stop:
+            _rr_after = round((_tgt - worst_fill) / (worst_fill - _stop), 4)
+
+        _skip_entry = {
+            "symbol":              sym,
+            "reason":              result.get("reason", "create_paper_entry rejected"),
+            "rr_before_slippage":  float(best.get("rr_ratio") or 0),
+            "rr_after_slippage":   _rr_after,
+            "fill_price":          worst_fill,
+            "next_candidate_attempted": False,  # updated below if more remain
+        }
+        skipped.append(_skip_entry)
+
+        _next_idx = ranked.index(best) + 1
+        _has_next = _next_idx < len(ranked)
+        _skip_entry["next_candidate_attempted"] = _has_next
+
+        try:
+            from pipeline_events import emit as _pe
+            _pe("BOOTSTRAP_CANDIDATE_REJECTED", "EXECUTION",
+                scan_id=scan_id, symbol=sym,
+                payload={
+                    "symbol":                    sym,
+                    "reason":                    result.get("reason", "rejected"),
+                    "gate":                      (result.get("risk_validation") or {})
+                                                 .get("first_critical_check"),
+                    "rr_before_slippage":        float(best.get("rr_ratio") or 0),
+                    "rr_after_slippage":         _rr_after,
+                    "fill_price":                worst_fill,
+                    "next_candidate_attempted":  _has_next,
+                    "rank_in_candidates":        _next_idx,
+                    "candidates_total":          len(ranked),
+                })
+        except Exception:
+            pass
+
+    # All ranked candidates exhausted without a successful fill.
     try:
         from pipeline_events import emit as _pe
-        _pe("BOOTSTRAP_PAPER_TRADE_APPROVED", "EXECUTION",
-            scan_id=scan_id, symbol=sym,
+        _pe("BOOTSTRAP_ALL_CANDIDATES_REJECTED", "EXECUTION",
+            scan_id=scan_id, symbol=None,
             payload={
-                "symbol":           sym,
-                "calibrated_confidence": best.get("calibrated_confidence"),
-                "opportunity_score": best.get("opportunity_score"),
-                "rr_ratio":         best.get("rr_ratio"),
-                "kite_ltp":         best.get("kite_ltp"),
-                "order_value":      order_value,
-                "qty":              qty,
-                "closed_trades_so_far": closed,
-                "reason": (
-                    "Bootstrap paper trade: low_evidence (backtest < 5 trades) "
-                    "blocked normal BUY path. Kite LTP live, all hard gates "
-                    "passed. Max order value ₹1,500. No live broker API called. "
-                    "Exit handled by normal phase20 exit engine."
-                ),
+                "candidates_checked":  len(ranked),
+                "rejection_summary":   [
+                    {"symbol": s["symbol"], "reason": s["reason"],
+                     "rr_before_slippage": s.get("rr_before_slippage"),
+                     "rr_after_slippage": s.get("rr_after_slippage")}
+                    for s in skipped
+                ],
+                "reason": (f"All {len(ranked)} bootstrap candidate(s) exhausted — "
+                           "no paper trade created this scan"),
             })
     except Exception:
         pass
 
-    result = create_paper_entry(candidate, bootstrap_settings,
-                                scan_id, snap_ts,
-                                trigger_source="BOOTSTRAP_AUTO")
-
-    if result.get("created"):
-        store.add_notification(
-            "BOOTSTRAP_TRADE_CREATED",
-            f"Bootstrap paper BUY {sym} × {qty} @ ₹{price:.2f}",
-            (f"Trade {result.get('trade_id')} created to seed the paper ledger. "
-             f"Reason: low_evidence=True (backtest < 5 trades) blocked normal BUY. "
-             f"Kite LTP live, all risk gates passed. Max ₹1,500 position. "
-             f"Paper only — no live order. Exits via normal phase20 exit engine."),
-            severity="INFO",
-            context={"trade_id": result.get("trade_id"), "symbol": sym,
-                     "scan_id": scan_id, "trigger_source": "BOOTSTRAP_AUTO"},
-        )
-
-    return {"ran": True, "symbol": sym, "result": result,
-            "closed_trades_before": closed,
-            "candidates_checked": len(candidates)}
+    return {"ran": False,
+            "reason": (f"All {len(ranked)} bootstrap candidate(s) rejected after "
+                       f"pre-trade re-check — no paper trade created"),
+            "candidates_checked": len(ranked),
+            "skipped": skipped}
 
 
 # ── Execution-outcome seal ────────────────────────────────────────────────────

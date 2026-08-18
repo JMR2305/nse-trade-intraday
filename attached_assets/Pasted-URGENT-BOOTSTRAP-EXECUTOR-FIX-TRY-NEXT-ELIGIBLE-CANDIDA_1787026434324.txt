@@ -1,0 +1,102 @@
+URGENT BOOTSTRAP EXECUTOR FIX — TRY NEXT ELIGIBLE CANDIDATE AFTER REJECTION
+
+Use APEXQUANT_FIRST_BOOTSTRAP_AUTO_TRADE_PROOF.md as the controlling report.
+
+Do not change thresholds.
+Do not change risk rules.
+Do not enable live orders.
+Do not call broker order APIs.
+PAPER ONLY.
+
+Current production proof:
+- bootstrap_paper_enabled=true
+- auto_paper_entries=true and confirmed
+- Kite LTP overlay is live
+- quote_reliable=true
+- bootstrap candidates exist
+- HDFCLIFE and DRREDDY were bootstrap_eligible
+- HDFCLIFE was selected 3 times and rejected after slippage compressed R:R below 1.5
+- DRREDDY had R:R 2.5 and was not attempted after HDFCLIFE failed
+- No paper trade was created
+- No live orders were placed
+
+Problem:
+run_bootstrap_auto_entry tries only the top bootstrap candidate per run.
+If that candidate is rejected by the pre-trade risk re-check, the function stops.
+This prevents valid fallback candidates like DRREDDY from being attempted.
+
+Required fix:
+In phase20_executor.py, function run_bootstrap_auto_entry:
+
+1. Sort bootstrap_eligible candidates by current ranking logic.
+2. Iterate through candidates in order.
+3. For each candidate:
+   - independently re-check bootstrap gates
+   - verify low_evidence=true
+   - verify all_gates_passed=true
+   - verify kite_ltp_available=true
+   - verify quote_reliable=true
+   - verify execution_price_source contains kite
+   - verify worst-case notional <= ₹1,500
+   - verify no duplicate/open position
+4. Attempt create_paper_entry for the candidate.
+5. If create_paper_entry succeeds:
+   - stop iteration
+   - emit BOOTSTRAP_TRADE_CREATED / ORDER_SUBMITTED / ORDER_EXECUTED as currently designed
+6. If create_paper_entry returns ORDER_REJECTED:
+   - emit BOOTSTRAP_CANDIDATE_REJECTED with:
+     symbol
+     reason
+     gate
+     rr_before_slippage
+     rr_after_slippage
+     fill_price
+     next_candidate_attempted=true/false
+   - continue to the next bootstrap_eligible candidate
+7. If all candidates fail:
+   - emit BOOTSTRAP_ALL_CANDIDATES_REJECTED
+   - include full candidate rejection summary
+   - do not create any trade
+
+Do not lower _BOOTSTRAP_MIN_RR.
+Do not lower pre-trade R:R.
+Do not bypass the risk agent.
+Do not bypass slippage-aware re-check.
+Do not bypass position sizing.
+Do not bypass circuit breaker.
+Do not bypass duplicate-position rule.
+
+Expected production behavior after fix:
+- HDFCLIFE may still be rejected due R:R after slippage
+- DRREDDY should be attempted next
+- If DRREDDY still passes, one P20 paper trade should be created
+- trigger_source=BOOTSTRAP_AUTO
+- fill_model=bootstrap_paper
+- trade_id starts with P20-
+- max notional <= ₹1,500
+- no live broker order API called
+
+Tests required:
+1. Top candidate rejected by pre-trade R:R → second candidate attempted.
+2. Second candidate succeeds → one P20 bootstrap trade row created.
+3. Only one bootstrap trade per scan even if multiple candidates pass.
+4. All candidates rejected → no trade row, BOOTSTRAP_ALL_CANDIDATES_REJECTED emitted.
+5. Rejected candidate emits structured BOOTSTRAP_CANDIDATE_REJECTED event.
+6. Risk-agent rejection is not bypassed.
+7. No live broker order API called.
+8. kv_claim_once still prevents duplicate trades on same scan.
+
+After fix, run the next production scan and generate:
+
+APEXQUANT_BOOTSTRAP_FALLBACK_CANDIDATE_FIX_AND_FIRST_TRADE_PROOF.md
+
+Include:
+1. Files changed.
+2. Test results.
+3. HDFCLIFE rejection proof if still rejected.
+4. DRREDDY fallback attempt proof.
+5. Whether P20 BOOTSTRAP_AUTO trade was created.
+6. DB proof: trade_id, symbol, qty, fill_price, trigger_source, fill_model.
+7. Pipeline event proof.
+8. Confirmation no live orders.
+9. Whether first production P20 signal → paper fill cycle is now complete.

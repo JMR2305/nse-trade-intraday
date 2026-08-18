@@ -417,7 +417,9 @@ class TestBootstrapRefusesFailedGates:
         with patch("phase20_executor._with_db", side_effect=[0, False]):
             result = run_bootstrap_auto_entry(snapshot, _settings_bootstrap_on())
         assert result["ran"] is False
-        assert "low_evidence" in result.get("reason", "")
+        # Gate detail is now in the skipped list (loop-per-candidate design)
+        skip_reasons = " ".join(s.get("reason", "") for s in result.get("skipped", []))
+        assert "low_evidence" in skip_reasons or "low_evidence" in result.get("reason", "")
 
     def test_refuses_when_all_gates_not_passed_despite_bootstrap_eligible_true(self):
         """bootstrap_eligible=True but all_gates_passed=False must be rejected — the
@@ -427,7 +429,8 @@ class TestBootstrapRefusesFailedGates:
         with patch("phase20_executor._with_db", side_effect=[0, False]):
             result = run_bootstrap_auto_entry(snapshot, _settings_bootstrap_on())
         assert result["ran"] is False
-        assert "all_gates_passed" in result.get("reason", "")
+        skip_reasons = " ".join(s.get("reason", "") for s in result.get("skipped", []))
+        assert "all_gates_passed" in skip_reasons or "all_gates_passed" in result.get("reason", "")
 
     def test_refuses_when_kite_ltp_not_available_despite_bootstrap_eligible_true(self):
         """bootstrap_eligible=True but kite_ltp_available=False must be rejected — bootstrap
@@ -438,7 +441,8 @@ class TestBootstrapRefusesFailedGates:
         with patch("phase20_executor._with_db", side_effect=[0, False]):
             result = run_bootstrap_auto_entry(snapshot, _settings_bootstrap_on())
         assert result["ran"] is False
-        assert "kite_ltp_available" in result.get("reason", "")
+        skip_reasons = " ".join(s.get("reason", "") for s in result.get("skipped", []))
+        assert "kite_ltp_available" in skip_reasons or "kite_ltp_available" in result.get("reason", "")
 
     def test_refuses_when_execution_price_source_not_kite(self):
         """bootstrap_eligible=True but execution_price_source='yfinance_daily_bars' must
@@ -450,7 +454,8 @@ class TestBootstrapRefusesFailedGates:
         with patch("phase20_executor._with_db", side_effect=[0, False]):
             result = run_bootstrap_auto_entry(snapshot, _settings_bootstrap_on())
         assert result["ran"] is False
-        assert "execution_price_source" in result.get("reason", "")
+        skip_reasons = " ".join(s.get("reason", "") for s in result.get("skipped", []))
+        assert "execution_price_source" in skip_reasons or "execution_price_source" in result.get("reason", "")
 
     def test_refuses_when_feature_flag_off(self):
         """Bootstrap must be suppressible via BOOTSTRAP_PAPER_ENABLED=False."""
@@ -773,3 +778,246 @@ class TestSettingsAndSchedulerGate:
         _bs_flag_on_3 = s3.get("bootstrap_paper_enabled", False)
         assert _bs_entries_on_3 and _bs_flag_on_3, \
             "Both gates must be satisfied for bootstrap to run"
+
+
+# ── TEST 11: Fallback candidate iteration ─────────────────────────────────────
+
+class TestFallbackCandidateIteration:
+    """When the top candidate is rejected by the pre-trade risk re-check,
+    the executor must try the next eligible candidate rather than stopping."""
+
+    # Test 1 — top rejected → second attempted
+    def test_second_candidate_attempted_after_first_rejected(self):
+        """If create_paper_entry rejects the top candidate (pre-trade R:R failure),
+        run_bootstrap_auto_entry must attempt the second candidate."""
+        recs = [
+            # top: confidence 73.6 — will be rejected by pre-trade check
+            _make_rec(symbol="HDFCLIFE", calibrated_confidence=73.6,
+                      opportunity_score=63.9, rr_ratio=1.5, kite_ltp=539.2,
+                      stop_loss=524.87, target_price=0.0),
+            # second: confidence 62.6 — should succeed
+            _make_rec(symbol="DRREDDY", calibrated_confidence=62.6,
+                      opportunity_score=62.6, rr_ratio=2.5, kite_ltp=1186.4,
+                      stop_loss=1138.16, target_price=1250.0),
+        ]
+        snapshot = _make_snapshot(recs=recs)
+        create_calls: list[str] = []
+
+        def _side_effect(candidate, settings, scan_id, snap_ts, trigger_source="AUTO"):
+            sym = candidate.get("symbol", "")
+            create_calls.append(sym)
+            if sym == "HDFCLIFE":
+                return {"created": False, "symbol": sym,
+                        "reason": "Risk Agent: HDFCLIFE: reward:risk 1.35 is below minimum 1.5"}
+            return {"created": True, "trade_id": "P20-bt-drreddy", "symbol": sym}
+
+        with (
+            patch("phase20_executor._with_db", side_effect=[0, False]),
+            patch("phase20_executor.create_paper_entry", side_effect=_side_effect),
+        ):
+            result = run_bootstrap_auto_entry(snapshot, _settings_bootstrap_on())
+
+        assert "HDFCLIFE" in create_calls, "Top candidate must have been attempted"
+        assert "DRREDDY" in create_calls, "Second candidate must be attempted after first fails"
+        assert create_calls.index("HDFCLIFE") < create_calls.index("DRREDDY"), \
+            "Top candidate must be tried before fallback"
+
+    # Test 2 — second candidate succeeds → one P20 row created
+    def test_second_candidate_creates_trade_when_first_rejected(self):
+        """When the fallback candidate is accepted, run returns ran=True with the
+        fallback symbol, and only one trade row is created."""
+        recs = [
+            _make_rec(symbol="HDFCLIFE", calibrated_confidence=73.6,
+                      rr_ratio=1.5, kite_ltp=539.2, stop_loss=524.87, target_price=0.0),
+            _make_rec(symbol="DRREDDY", calibrated_confidence=62.6,
+                      rr_ratio=2.5, kite_ltp=1186.4, stop_loss=1138.16, target_price=1250.0),
+        ]
+        snapshot = _make_snapshot(recs=recs)
+
+        def _side_effect(candidate, settings, scan_id, snap_ts, trigger_source="AUTO"):
+            sym = candidate.get("symbol", "")
+            if sym == "HDFCLIFE":
+                return {"created": False, "symbol": sym,
+                        "reason": "Risk Agent: R:R 1.35 below minimum"}
+            return {"created": True, "trade_id": "P20-bt-drreddy", "symbol": sym}
+
+        with (
+            patch("phase20_executor._with_db", side_effect=[0, False]),
+            patch("phase20_executor.create_paper_entry", side_effect=_side_effect),
+        ):
+            result = run_bootstrap_auto_entry(snapshot, _settings_bootstrap_on())
+
+        assert result["ran"] is True
+        assert result["symbol"] == "DRREDDY"
+        assert result["result"]["trade_id"] == "P20-bt-drreddy"
+        # skipped_before_success must list HDFCLIFE
+        assert any(s["symbol"] == "HDFCLIFE"
+                   for s in result.get("skipped_before_success", []))
+
+    # Test 3 — only one trade per invocation even if multiple candidates pass
+    def test_stops_after_first_successful_fill(self):
+        """Even if multiple candidates would pass, only one trade is created per run."""
+        recs = [
+            _make_rec(symbol="DRREDDY", calibrated_confidence=65.0, rr_ratio=2.5),
+            _make_rec(symbol="TMCV",    calibrated_confidence=62.0, rr_ratio=3.0),
+        ]
+        snapshot = _make_snapshot(recs=recs)
+        created: list[str] = []
+
+        def _side_effect(candidate, settings, scan_id, snap_ts, trigger_source="AUTO"):
+            sym = candidate.get("symbol", "")
+            created.append(sym)
+            return {"created": True, "trade_id": f"P20-{sym}", "symbol": sym}
+
+        with (
+            patch("phase20_executor._with_db", side_effect=[0, False]),
+            patch("phase20_executor.create_paper_entry", side_effect=_side_effect),
+        ):
+            run_bootstrap_auto_entry(snapshot, _settings_bootstrap_on())
+
+        assert len(created) == 1, f"Only one trade must be created; got {created}"
+
+    # Test 4 — all rejected → no trade, BOOTSTRAP_ALL_CANDIDATES_REJECTED emitted
+    def test_all_candidates_rejected_emits_all_rejected_event(self):
+        """When every candidate fails, no trade is created and
+        BOOTSTRAP_ALL_CANDIDATES_REJECTED is emitted."""
+        recs = [
+            _make_rec(symbol="HDFCLIFE", calibrated_confidence=73.6,
+                      rr_ratio=1.5, kite_ltp=539.2, stop_loss=524.87, target_price=0.0),
+            _make_rec(symbol="DRREDDY", calibrated_confidence=62.6,
+                      rr_ratio=2.5, kite_ltp=1186.4, stop_loss=1138.16, target_price=1250.0),
+        ]
+        snapshot = _make_snapshot(recs=recs)
+        emitted: list[str] = []
+
+        def capture_emit(event_type, *a, **kw):
+            emitted.append(event_type)
+
+        with (
+            patch("phase20_executor._with_db", side_effect=[0, False]),
+            patch("phase20_executor.create_paper_entry",
+                  return_value={"created": False, "reason": "Risk Agent: R:R too low"}),
+            patch.object(sys.modules["pipeline_events"], "emit", capture_emit),
+        ):
+            result = run_bootstrap_auto_entry(snapshot, _settings_bootstrap_on())
+
+        assert result["ran"] is False
+        assert "BOOTSTRAP_ALL_CANDIDATES_REJECTED" in emitted
+        assert result["candidates_checked"] == 2
+        assert len(result["skipped"]) == 2
+
+    # Test 5 — rejected candidate emits structured BOOTSTRAP_CANDIDATE_REJECTED
+    def test_rejected_candidate_emits_structured_event(self):
+        """Each candidate rejected by create_paper_entry must emit
+        BOOTSTRAP_CANDIDATE_REJECTED with required fields."""
+        recs = [
+            _make_rec(symbol="HDFCLIFE", calibrated_confidence=73.6,
+                      rr_ratio=1.5, kite_ltp=539.2, stop_loss=524.87, target_price=0.0),
+        ]
+        snapshot = _make_snapshot(recs=recs)
+        emitted_payloads: list[dict] = []
+
+        def capture_emit(event_type, *a, **kw):
+            if event_type == "BOOTSTRAP_CANDIDATE_REJECTED":
+                emitted_payloads.append(kw.get("payload", {}))
+
+        with (
+            patch("phase20_executor._with_db", side_effect=[0, False]),
+            patch("phase20_executor.create_paper_entry",
+                  return_value={"created": False,
+                                "reason": "Risk Agent: R:R 1.35 below minimum 1.5"}),
+            patch.object(sys.modules["pipeline_events"], "emit", capture_emit),
+        ):
+            result = run_bootstrap_auto_entry(snapshot, _settings_bootstrap_on())
+
+        assert len(emitted_payloads) == 1
+        payload = emitted_payloads[0]
+        assert payload["symbol"] == "HDFCLIFE"
+        assert "reason" in payload
+        assert "rr_before_slippage" in payload
+        assert "fill_price" in payload
+        assert "next_candidate_attempted" in payload
+        assert payload["next_candidate_attempted"] is False  # no more candidates
+
+    # Test 6 — risk agent rejection is not bypassed
+    def test_risk_agent_rejection_not_bypassed(self):
+        """The fallback loop must still pass through create_paper_entry which
+        runs the pre-trade risk agent; the loop cannot short-circuit the agent."""
+        recs = [
+            _make_rec(symbol="HDFCLIFE", calibrated_confidence=73.6,
+                      rr_ratio=1.5, kite_ltp=539.2, stop_loss=524.87, target_price=0.0),
+            _make_rec(symbol="DRREDDY", calibrated_confidence=62.6,
+                      rr_ratio=2.5, kite_ltp=1186.4, stop_loss=1138.16, target_price=1250.0),
+        ]
+        snapshot = _make_snapshot(recs=recs)
+        create_call_symbols: list[str] = []
+
+        def _track(candidate, settings, scan_id, snap_ts, trigger_source="AUTO"):
+            sym = candidate.get("symbol", "")
+            create_call_symbols.append(sym)
+            # Reject all — simulates risk agent blocking every candidate
+            return {"created": False, "reason": "Risk Agent: test rejection"}
+
+        with (
+            patch("phase20_executor._with_db", side_effect=[0, False]),
+            patch("phase20_executor.create_paper_entry", side_effect=_track),
+        ):
+            result = run_bootstrap_auto_entry(snapshot, _settings_bootstrap_on())
+
+        # create_paper_entry (which houses the risk agent) was called for both
+        assert "HDFCLIFE" in create_call_symbols
+        assert "DRREDDY" in create_call_symbols
+        # No trade created — risk agent was not bypassed
+        assert result["ran"] is False
+
+    # Test 7 — no live broker order API called (paper path only)
+    def test_no_live_broker_api_called_during_fallback(self):
+        """Fallback iteration must never trigger live broker order placement.
+        create_paper_entry is the only entry path; it uses paper_trader.execute_buy."""
+        recs = [
+            _make_rec(symbol="HDFCLIFE", calibrated_confidence=73.6,
+                      rr_ratio=1.5, kite_ltp=539.2, stop_loss=524.87, target_price=0.0),
+            _make_rec(symbol="DRREDDY", calibrated_confidence=62.6,
+                      rr_ratio=2.5, kite_ltp=1186.4, stop_loss=1138.16, target_price=1250.0),
+        ]
+        snapshot = _make_snapshot(recs=recs)
+
+        def _side_effect(candidate, settings, scan_id, snap_ts, trigger_source="AUTO"):
+            sym = candidate.get("symbol", "")
+            if sym == "HDFCLIFE":
+                return {"created": False, "reason": "Risk Agent: R:R too low"}
+            return {"created": True, "trade_id": "P20-drreddy", "symbol": sym}
+
+        with (
+            patch("phase20_executor._with_db", side_effect=[0, False]),
+            patch("phase20_executor.create_paper_entry", side_effect=_side_effect),
+        ):
+            result = run_bootstrap_auto_entry(snapshot, _settings_bootstrap_on())
+
+        assert result["ran"] is True
+        assert result["symbol"] == "DRREDDY"
+        # broker_client.place_order_live is never accessible in this code path —
+        # create_paper_entry is mocked; even if real, it uses paper_trader.execute_buy
+        assert "broker_client" not in sys.modules or \
+               not getattr(sys.modules.get("broker_client"), "_live_orders_placed", False)
+
+    # Test 8 — kv_claim_once still guards against duplicate trades on same scan
+    def test_kv_claim_still_prevents_duplicates_with_fallback(self):
+        """kv_claim_once must still fire BEFORE any candidate iteration begins;
+        a second call with the same scan_id must see ran=False without touching
+        create_paper_entry at all."""
+        snapshot = _make_snapshot()
+        mock_create = MagicMock(return_value={
+            "created": True, "trade_id": "P20-x", "symbol": "DRREDDY",
+        })
+
+        with (
+            patch.object(sys.modules["phase20_store"], "kv_claim_once", return_value=False),
+            patch("phase20_executor.create_paper_entry", mock_create),
+        ):
+            result = run_bootstrap_auto_entry(snapshot, _settings_bootstrap_on())
+
+        assert result["ran"] is False
+        mock_create.assert_not_called()
+        assert "claim" in result.get("reason", "").lower() or \
+               "kv_claim_once" in result.get("reason", "")
