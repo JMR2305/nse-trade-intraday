@@ -426,6 +426,154 @@ def test_no_live_broker_order_api_called():
             )
 
 
+# ── Test 16: Real fetch_batch() end-to-end timing (skips when DB empty) ──────
+
+def test_fetch_batch_warm_cache_timing():
+    """
+    Real-DB integration timing test: LiveDataProvider.fetch_batch() for all
+    cached symbols must complete in under 30 seconds with yfinance never called.
+
+    This exercises the full warm-cache path — 50 separate psycopg2 connections
+    opened/closed + SQL query + pandas DataFrame construction per symbol — which
+    is what every real scan runs during market hours.
+
+    Skipped automatically when DATABASE_URL is not set or daily_ohlcv_cache is
+    empty (cold start before backfill).
+    """
+    import os, time
+    import psycopg2
+
+    db_url = os.environ.get("DATABASE_URL", "")
+    if not db_url:
+        pytest.skip("DATABASE_URL not set — skipping real-DB timing test")
+
+    try:
+        conn = psycopg2.connect(db_url)
+        with conn.cursor() as cur:
+            cur.execute("SELECT DISTINCT symbol FROM daily_ohlcv_cache ORDER BY symbol")
+            symbols = [r[0] for r in cur.fetchall()]
+        conn.close()
+    except Exception:
+        pytest.skip("Cannot connect to database — skipping real-DB timing test")
+
+    if not symbols:
+        pytest.skip("daily_ohlcv_cache is empty — run backfill first")
+
+    from live_data_provider import LiveDataProvider
+
+    yf_calls: list = []
+
+    def _yf_must_not_be_called(*args, **kwargs):
+        yf_calls.append(args)
+        raise AssertionError(
+            "yfinance.download must NOT be called on a warm cache — "
+            f"cache miss for symbols: {args}"
+        )
+
+    # Patch yfinance at the point where live_data_provider uses it.
+    # If any symbol is a cache miss, yfinance raises and the test fails
+    # with a clear message identifying the stray symbol.
+    with patch("live_data_provider.yf.download", side_effect=_yf_must_not_be_called):
+        t0 = time.monotonic()
+        results = LiveDataProvider().fetch_batch(symbols)
+        elapsed = time.monotonic() - t0
+
+    cache_hits  = sum(1 for r in results.values() if r.cache_hit)
+    yf_called   = sum(1 for r in results.values() if r.yfinance_called)
+    successful  = sum(1 for r in results.values() if r.success)
+
+    print(
+        f"\n[fetch_batch timing] {len(symbols)} symbols | "
+        f"{elapsed*1000:.0f}ms total | "
+        f"{elapsed / len(symbols) * 1000:.1f}ms/symbol | "
+        f"cache_hits={cache_hits} | yf_called={yf_called}"
+    )
+
+    # ── Correctness assertions ────────────────────────────────────────────────
+    assert yf_called == 0, (
+        f"{yf_called} symbols called yfinance on a warm cache — "
+        "cache miss; run the OHLCV backfill first"
+    )
+    assert cache_hits == len(symbols), (
+        f"Only {cache_hits}/{len(symbols)} symbols were cache hits"
+    )
+    assert successful == len(symbols), (
+        f"Only {successful}/{len(symbols)} fetch results are marked success"
+    )
+
+    # ── Timing assertion ─────────────────────────────────────────────────────
+    # Hard limit: the full fetch_batch() path (50 connections + queries +
+    # DataFrame coercion) must complete in under 30 seconds — the task target.
+    # On the development DB with the PK index serving ASC queries this runs
+    # in ~400–800ms including connection overhead.
+    assert elapsed < 30.0, (
+        f"fetch_batch() took {elapsed:.2f}s for {len(symbols)} symbols — "
+        "exceeds the 30s market-hours scan target; check DB connectivity and "
+        "that daily_ohlcv_cache_pkey index is intact"
+    )
+
+
+# ── Test 17: fetch_batch() calls ensure_tables() before the first cache read ──
+
+def test_fetch_batch_calls_ensure_tables():
+    """
+    fetch_batch() must invoke ensure_tables() before reading the cache.
+    Verifies the fresh-DB auto-wiring path: on a cold production server the
+    tables are created by fetch_batch itself, not by a separate startup hook.
+    """
+    df = _make_df()
+    ensure_called: list = []
+
+    def fake_ensure():
+        ensure_called.append(True)
+        return True
+
+    with patch("ohlcv_cache_store.OHLCV_CACHE_ENABLED", True), \
+         patch("ohlcv_cache_store.ensure_tables", side_effect=fake_ensure), \
+         patch("ohlcv_cache_store.read_symbol_from_cache", return_value=df), \
+         patch("ohlcv_cache_store.write_symbol_to_cache", return_value=0):
+        from live_data_provider import LiveDataProvider
+        results = LiveDataProvider().fetch_batch(["RELIANCE"])
+
+    assert len(ensure_called) >= 1, (
+        "ensure_tables() was not called by fetch_batch() — fresh production "
+        "databases will silently fail the first cache read"
+    )
+    assert results["RELIANCE"].cache_hit
+
+
+# ── Test 18: fetch_batch() logs WARNING when ensure_tables() fails ─────────────
+
+def test_fetch_batch_logs_warning_on_ensure_tables_failure(caplog):
+    """
+    When ensure_tables() raises (e.g. DB unreachable at startup), fetch_batch()
+    logs a WARNING rather than silently swallowing the error.  The symbol then
+    falls through to yfinance so the scan can still complete.
+    """
+    import logging
+    df = _make_df()
+
+    with caplog.at_level(logging.WARNING, logger="live_data_provider"), \
+         patch("ohlcv_cache_store.OHLCV_CACHE_ENABLED", True), \
+         patch("ohlcv_cache_store.ensure_tables",
+               side_effect=Exception("connection refused")), \
+         patch("ohlcv_cache_store.read_symbol_from_cache",
+               side_effect=Exception("relation does not exist")), \
+         patch("ohlcv_cache_store.write_symbol_to_cache", return_value=0), \
+         patch("yfinance.download", return_value=df):
+        from live_data_provider import LiveDataProvider
+        results = LiveDataProvider().fetch_batch(["RELIANCE"])
+
+    # A warning naming ensure_tables must appear in the log
+    matching = [m for m in caplog.messages if "ensure_tables" in m]
+    assert matching, (
+        f"Expected a WARNING containing 'ensure_tables' when initialisation "
+        f"fails, but log messages were: {caplog.messages}"
+    )
+    # The symbol still resolves via yfinance fallback — fetch must not crash
+    assert "RELIANCE" in results
+
+
 # ── Helpers for multi-index bulk DataFrame ────────────────────────────────────
 
 def _make_multiindex_bulk(tickers: List[str], df_template: pd.DataFrame) -> pd.DataFrame:

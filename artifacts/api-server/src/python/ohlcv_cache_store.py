@@ -112,6 +112,12 @@ def ensure_tables() -> bool:
                         error_summary       TEXT
                     )
                 """)
+                # Remove the stale DESC index that was briefly introduced and then
+                # retracted.  The PRIMARY KEY (symbol, trading_date) already covers
+                # every ASC query pattern; this cleanup is idempotent.
+                cur.execute(
+                    "DROP INDEX IF EXISTS idx_ohlcv_cache_symbol_date"
+                )
         return True
     except Exception as exc:
         logger.warning("ohlcv_cache_store.ensure_tables failed: %s", exc)

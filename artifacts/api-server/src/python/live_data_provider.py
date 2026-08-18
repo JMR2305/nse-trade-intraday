@@ -319,6 +319,19 @@ class LiveDataProvider:
             read_symbol_from_cache = None  # type: ignore[assignment]
 
         if _cache_enabled and read_symbol_from_cache is not None:
+            # Ensure tables exist before the first read.  This is the earliest safe
+            # call site in the fetch path and covers fresh production databases where
+            # ensure_tables() has not yet run.  A failure here is logged as a WARNING
+            # (not silently swallowed) so operators can see it; the fetch continues
+            # and any symbol with a missing table will fall through to yfinance.
+            try:
+                ensure_tables()
+            except Exception as _et_exc:
+                logger.warning(
+                    "fetch_batch: ensure_tables() failed — cache reads may fail "
+                    "and yfinance fallback will be used for all symbols: %s",
+                    _et_exc,
+                )
             still_needed: List[str] = []
             for sym in remaining:
                 try:
