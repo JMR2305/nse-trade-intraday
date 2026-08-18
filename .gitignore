@@ -72,6 +72,7 @@ artifacts/api-server/src/python/phase9_last_sector.json
 artifacts/api-server/src/python/signals_cache.json
 
 # Auto-generated runtime exports/reports
+exports/
 artifacts/api-server/src/python/Phase16_Validation_Report.md
 artifacts/api-server/src/python/exports/
 artifacts/api-server/src/python/phase16_exports/

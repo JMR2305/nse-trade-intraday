@@ -1,4 +1,0 @@
-trade_id,date,symbol,sector,strategy,entry,exit,quantity,pnl,return_pct,holding_days,exit_type,confidence,opportunity_score,outcome
-e74d9c83,2026-07-08,HDFCBANK,BANKING,AI Scan,820.0,865.0,5,225.0,5.49,0,TARGET_HIT,72.0,,WIN
-c5ed96de,2026-07-08,ICICIBANK,BANKING,AI Scan,1400.0,1380.0,3,-60.0,-1.43,0,STOP_HIT,65.0,,LOSS
-58152a3e,2026-07-08,SBIN,BANKING,AI Scan,1020.0,1095.0,4,300.0,7.35,0,SIGNAL_EXIT,82.0,,WIN
