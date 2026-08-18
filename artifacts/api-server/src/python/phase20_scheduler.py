@@ -619,12 +619,19 @@ def run_tick() -> Dict[str, Any]:
         if mstate in ("POST_CLOSE", "CLOSED"):
             try:
                 from phase20_store import kv_claim_once, kv_release
+                from phase20_store import get_settings as _ls
+                # IMPORTANT: import the close function BEFORE claiming the
+                # daily KV slot.  A cold-start ImportError / ModuleNotFoundError
+                # / AttributeError that fires after kv_claim_once would
+                # silently consume the only retry available for that calendar
+                # day, leaving OPEN positions stranded overnight.  By resolving
+                # all imports first we guarantee the claim is only written when
+                # the full close logic is known to be available.
+                from phase20_exits import eod_force_close_open_positions
                 import datetime as _dt
                 _today = _dt.date.today().isoformat()
                 _claim_key = f"eod_squareoff:{_today}"
                 if kv_claim_once(_claim_key, ttl_seconds=86400):
-                    from phase20_exits import eod_force_close_open_positions
-                    from phase20_store import get_settings as _ls
                     eod_squareoff = eod_force_close_open_positions(_ls())
                     # If any positions are still blocked (no price or sell failed),
                     # release the claim so the next POST_CLOSE/CLOSED tick can retry
@@ -632,6 +639,13 @@ def run_tick() -> Dict[str, Any]:
                     # from future runs because get_open_trades() returns only OPEN rows.
                     if eod_squareoff and eod_squareoff.get("blocked"):
                         kv_release(_claim_key)
+            except (ImportError, ModuleNotFoundError, AttributeError) as exc:
+                # Setup / dependency error — kv_claim_once was never reached
+                # (all imports run before it), so the daily retry slot is still
+                # available.  Surface the error for observability without
+                # blocking tomorrow's retry.
+                eod_squareoff = {"error": f"setup_error: {str(exc)[:200]}",
+                                 "claim_consumed": False}
             except Exception as exc:
                 eod_squareoff = {"error": str(exc)[:200]}
 
