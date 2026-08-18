@@ -88,3 +88,4 @@ artifacts/api-server/src/python/symbol_validation_log.json
 
 # Transient pre-open session state
 artifacts/api-server/src/python/.preopen_*_tick_state.json
+artifacts/api-server/src/python/phase21_calibration.json
