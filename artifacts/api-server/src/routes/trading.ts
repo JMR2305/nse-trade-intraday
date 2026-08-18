@@ -3300,6 +3300,18 @@ router.get("/phase20/eod-status", async (_req, res) => {
   }
 });
 
+// POST /api/phase20/force-eod-close — emergency bypass: run
+// eod_force_close_open_positions immediately WITHOUT the kv_claim_once guard.
+// Use when today's claim was already consumed by a failed earlier attempt.
+// Paper-only; never calls broker order APIs.
+router.post("/phase20/force-eod-close", async (_req, res) => {
+  try {
+    res.json(await runPython(["phase20_force_eod_close_now"]));
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // PUT /api/phase20/settings — update settings; enabling auto paper entries
 // requires the exact confirmation text (enforced python-side).
 router.put("/phase20/settings", async (req, res) => {

@@ -1096,6 +1096,18 @@ def main():
             # No yfinance calls — safe to poll frequently.
             from phase20_eod_status import build_eod_status_payload as _build_eod
             result = _build_eod()
+        elif command == "phase20_force_eod_close_now":
+            # Emergency: run eod_force_close_open_positions immediately,
+            # bypassing the kv_claim_once date guard (for use when the claim
+            # was already consumed by a failed earlier attempt).
+            # Paper-only — no live broker calls.
+            from phase20_store import get_settings as _gset
+            from phase20_exits import eod_force_close_open_positions
+            result = {
+                "success": True,
+                "label": "PAPER / RESEARCH ONLY",
+                "eod_force_close": eod_force_close_open_positions(_gset()),
+            }
         elif command == "phase20_settings_update":
             from phase20_store import update_settings
             _payload = json.loads(args[1]) if len(args) > 1 else {}

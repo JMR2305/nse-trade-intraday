@@ -501,7 +501,7 @@ def check_overnight_carry_on_startup() -> Dict[str, Any]:
         )
 
         # Run EOD force-close immediately, regardless of current mstate.
-        from phase20_settings import load_settings as _ls
+        from phase20_store import get_settings as _ls
         from phase20_exits import eod_force_close_open_positions
         eod_result = eod_force_close_open_positions(_ls())
 
@@ -624,7 +624,7 @@ def run_tick() -> Dict[str, Any]:
                 _claim_key = f"eod_squareoff:{_today}"
                 if kv_claim_once(_claim_key, ttl_seconds=86400):
                     from phase20_exits import eod_force_close_open_positions
-                    from phase20_settings import load_settings as _ls
+                    from phase20_store import get_settings as _ls
                     eod_squareoff = eod_force_close_open_positions(_ls())
                     # If any positions are still blocked (no price or sell failed),
                     # release the claim so the next POST_CLOSE/CLOSED tick can retry
