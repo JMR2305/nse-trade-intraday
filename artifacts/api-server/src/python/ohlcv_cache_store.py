@@ -129,23 +129,38 @@ def ensure_tables() -> bool:
 def read_symbol_from_cache(
     symbol: str,
     min_bars: int = MIN_BARS_REQUIRED,
+    end_date: Optional[str] = None,
 ) -> Optional[pd.DataFrame]:
     """
     Return a DataFrame of daily OHLCV bars from the local cache for *symbol*.
     Returns None if the cache is empty, stale, or DB is unavailable.
     The returned DataFrame has a DatetimeIndex and columns: open high low close volume.
+
+    When *end_date* (ISO "YYYY-MM-DD") is provided the read is an **as-of**
+    read: only bars with trading_date <= end_date are returned, and the
+    freshness check is evaluated relative to end_date instead of today.
+    This is the backtest path — a historical window must never be rejected
+    just because it is old relative to the current date.
     """
     if not OHLCV_CACHE_ENABLED or not _db_available():
         return None
     try:
         with _connect() as conn:
             with conn.cursor() as cur:
-                cur.execute("""
-                    SELECT trading_date, open, high, low, close, volume
-                    FROM daily_ohlcv_cache
-                    WHERE symbol = %s
-                    ORDER BY trading_date ASC
-                """, (symbol.upper(),))
+                if end_date:
+                    cur.execute("""
+                        SELECT trading_date, open, high, low, close, volume
+                        FROM daily_ohlcv_cache
+                        WHERE symbol = %s AND trading_date <= %s
+                        ORDER BY trading_date ASC
+                    """, (symbol.upper(), end_date))
+                else:
+                    cur.execute("""
+                        SELECT trading_date, open, high, low, close, volume
+                        FROM daily_ohlcv_cache
+                        WHERE symbol = %s
+                        ORDER BY trading_date ASC
+                    """, (symbol.upper(),))
                 rows = cur.fetchall()
         if not rows:
             return None
@@ -157,9 +172,12 @@ def read_symbol_from_cache(
         df = df.dropna()
         if len(df) < min_bars:
             return None   # not enough history
-        # Freshness check: reject if latest bar is too old
+        # Freshness check: reject if latest bar is too old.
+        # For as-of (backtest) reads, age is measured against end_date so a
+        # historical window is never rejected for being old vs today.
         latest = df.index[-1].date()
-        age_days = (date.today() - latest).days
+        ref_day = date.fromisoformat(end_date) if end_date else date.today()
+        age_days = (ref_day - latest).days
         if age_days > MAX_CACHE_AGE_DAYS:
             return None   # STALE/UNAVAILABLE — force a yfinance refresh
         return df

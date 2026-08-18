@@ -1461,7 +1461,7 @@ def _execute_backtest_impl(run_id: str, config_json: str) -> dict:
             pass
         return {"error": str(e)}
 
-    from market_data_engine import fetch_candles_df
+    # fetch_candles_df now routed via backtest_data_bridge (cache-first for 1d)
     from indicator_engine import compute_indicators_df
 
     all_decisions: List[dict] = []
@@ -1492,7 +1492,12 @@ def _execute_backtest_impl(run_id: str, config_json: str) -> dict:
                 kwargs["end"] = end_date
             else:
                 kwargs["period"] = "6mo" if interval == "1d" else "3mo"
-            df_raw = fetch_candles_df(symbol, **kwargs)
+            from backtest_data_bridge import fetch_candles_for_backtest
+            df_raw, replay_source = fetch_candles_for_backtest(
+                symbol, interval=interval,
+                period=kwargs.get("period"),
+                start_date=kwargs.get("start"), end_date=kwargs.get("end"),
+            )
             if df_raw.empty or len(df_raw) < 60:
                 msg = f"{symbol}: insufficient data ({len(df_raw)} bars)"
                 errors.append(msg)
@@ -1508,14 +1513,12 @@ def _execute_backtest_impl(run_id: str, config_json: str) -> dict:
                     pass
                 continue
             df = compute_indicators_df(df_raw)
-            # Capture the source of the REPLAY data now — the per-strategy
-            # bootstrap run_backtest() below re-fetches an earlier window and
-            # can fail → overwrite the tracked source with "mock", which makes
-            # _decide() block every bar as "Data unavailable" even though the
-            # replay candles themselves are real.
-            import market_data_engine as _mde
-            replay_source = _mde.get_last_source(symbol)
-            if replay_source != "yfinance":
+            # replay_source comes from the bridge for the exact replay window —
+            # the per-strategy bootstrap run_backtest() below re-fetches an
+            # earlier window and cannot clobber it.  Real data sources are
+            # yfinance and the local OHLCV cache (which only ever stores real
+            # yfinance bars — the bridge never writes mock candles to it).
+            if replay_source not in ("yfinance", "local_ohlcv_cache"):
                 # Mock fallback candles would silently poison the run —
                 # record an explicit error and skip the symbol instead.
                 msg = f"{symbol}: live data unavailable (source={replay_source}, likely rate-limited) — skipped"
@@ -1710,7 +1713,7 @@ def run_backtest_pipeline(config_json: str) -> dict:
     all_strategy_names = [s["id"] for s in list_strategies()]
     strategy_names: List[str] = config.get("strategies") or all_strategy_names
 
-    from market_data_engine import fetch_candles_df
+    # fetch_candles_df now routed via backtest_data_bridge (cache-first for 1d)
     from indicator_engine import compute_indicators_df
 
     conn = _get_conn()
@@ -1739,14 +1742,17 @@ def run_backtest_pipeline(config_json: str) -> dict:
                 kwargs["end"] = end_date
             else:
                 kwargs["period"] = "6mo" if interval == "1d" else "3mo"
-            df_raw = fetch_candles_df(symbol, **kwargs)
+            from backtest_data_bridge import fetch_candles_for_backtest
+            df_raw, _replay_source = fetch_candles_for_backtest(
+                symbol, interval=interval,
+                period=kwargs.get("period"),
+                start_date=kwargs.get("start"), end_date=kwargs.get("end"),
+            )
             if df_raw.empty or len(df_raw) < 60:
                 errors.append(f"{symbol}: insufficient data ({len(df_raw)} bars)")
                 continue
             df = compute_indicators_df(df_raw)
-            import market_data_engine as _mde2
-            _replay_source = _mde2.get_last_source(symbol)
-            if _replay_source != "yfinance":
+            if _replay_source not in ("yfinance", "local_ohlcv_cache"):
                 errors.append(f"{symbol}: live data unavailable (source={_replay_source}) — skipped")
                 continue
         except Exception as e:
@@ -2054,7 +2060,7 @@ def run_parameter_optimizer(config_json: str) -> dict:
         }
 
     from strategies import list_strategies, get_strategy
-    from market_data_engine import fetch_candles_df
+    # fetch_candles_df now routed via backtest_data_bridge (cache-first for 1d)
     from indicator_engine import compute_indicators_df
 
     strategy_names = [s["id"] for s in list_strategies()]
@@ -2069,7 +2075,14 @@ def run_parameter_optimizer(config_json: str) -> dict:
                 kwargs["start"] = start_date; kwargs["end"] = end_date
             else:
                 kwargs["period"] = "3mo"
-            df_raw = fetch_candles_df(sym, **kwargs)
+            from backtest_data_bridge import fetch_candles_for_backtest
+            df_raw, _src = fetch_candles_for_backtest(
+                sym, interval=interval,
+                period=kwargs.get("period"),
+                start_date=kwargs.get("start"), end_date=kwargs.get("end"),
+            )
+            if _src == "mock":
+                continue  # never optimise on synthetic candles
             if not df_raw.empty and len(df_raw) >= 60:
                 dfs[sym] = compute_indicators_df(df_raw)
         except Exception:
@@ -2228,7 +2241,7 @@ def run_model_comparison(config_json: str) -> dict:
     interval = str(config.get("interval", "1d"))
 
     from strategies import list_strategies, get_strategy
-    from market_data_engine import fetch_candles_df
+    # fetch_candles_df now routed via backtest_data_bridge (cache-first for 1d)
     from indicator_engine import compute_indicators_df
 
     strategy_names = [s["id"] for s in list_strategies()]
@@ -2241,7 +2254,14 @@ def run_model_comparison(config_json: str) -> dict:
                 kwargs["start"] = start_date; kwargs["end"] = end_date
             else:
                 kwargs["period"] = "3mo"
-            df_raw = fetch_candles_df(sym, **kwargs)
+            from backtest_data_bridge import fetch_candles_for_backtest
+            df_raw, _src = fetch_candles_for_backtest(
+                sym, interval=interval,
+                period=kwargs.get("period"),
+                start_date=kwargs.get("start"), end_date=kwargs.get("end"),
+            )
+            if _src == "mock":
+                continue  # never evaluate on synthetic candles
             if not df_raw.empty and len(df_raw) >= 60:
                 dfs[sym] = compute_indicators_df(df_raw)
         except Exception:

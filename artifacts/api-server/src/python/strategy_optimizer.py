@@ -28,7 +28,7 @@ import numpy as np
 import pandas as pd
 
 from backtesting_engine import WARMUP_BARS, _period_for_start, _safe_float as _sf
-from market_data_engine import fetch_candles_df
+# fetch_candles_df now routed via backtest_data_bridge (cache-first for 1d)
 from indicator_engine import compute_indicators_df, _ema
 
 
@@ -515,12 +515,16 @@ def run_optimizer(
         start_2y  = (end_dt - datetime.timedelta(days=730)).isoformat()
         fetch_start = min(start_date, start_2y)
         period_str  = _period_for_start(fetch_start)
-        df_raw = fetch_candles_df(
+        from backtest_data_bridge import fetch_candles_for_backtest
+        df_raw, _src = fetch_candles_for_backtest(
             symbol, interval=interval, period=period_str,
-            start=fetch_start, end=end_date,
+            start_date=fetch_start, end_date=end_date,
         )
     except Exception as exc:
         return [{"error": str(exc)}]
+
+    if _src == "mock":
+        return [{"error": "Live data unavailable (mock fallback) — optimisation blocked"}]
 
     if df_raw.empty or len(df_raw) < WARMUP_BARS + 5:
         return [{"error": f"Insufficient data: {len(df_raw)} bars fetched"}]
