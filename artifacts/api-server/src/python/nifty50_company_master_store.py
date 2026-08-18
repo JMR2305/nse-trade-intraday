@@ -89,7 +89,7 @@ def bootstrap_from_config() -> Dict[str, Any]:
     for sector, syms in SECTOR_MAP.items():
         for sym in syms:
             yahoo_sym = sym.upper() + ".NS"
-            rows.append((sym.upper(), yahoo_sym, sym.upper(), sector, now))
+            rows.append((sym.upper(), yahoo_sym, sym.upper(), sector, now, "config"))
 
     try:
         with _connect() as conn:

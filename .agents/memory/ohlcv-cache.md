@@ -13,8 +13,13 @@ All live scans must read from `daily_ohlcv_cache` (Postgres) before calling yfin
 ## Key constants
 - `OHLCV_CACHE_ENABLED` env flag — default true; set false to test yfinance-only path
 - Max cache age for scan: 3 days (configurable in ohlcv_cache_store.py via `MAX_CACHE_AGE_DAYS`)
-- Min bars required: 126 (≈ 6 months of trading days)
+- Min bars required: **120** (yfinance "6mo" returns ~124 NSE bars after holidays; 126 was too high)
+- Backfill period: **"8mo"** (not "6mo") — guarantees ≥120 bars in heavy-holiday periods
 - Post-market gate: `kv_claim_once("ohlcv_postmarket_refresh:{YYYY-MM-DD}")` — once per IST day
+
+## SQL bugs fixed on first run
+- `write_symbol_to_cache`: INSERT listed 11 columns (`...data_quality, updated_at`) but values had 10 — drop `updated_at` from column list (it has DEFAULT NOW(); ON CONFLICT clause still sets it).
+- `nifty50_company_master_store.bootstrap_from_config`: row tuple had 5 elements for 6 columns — missing `"config"` source value as 6th element.
 
 ## Scheduler wiring
 Post-market refresh fires at the first POST_CLOSE/CLOSED tick (after 15:30 IST).

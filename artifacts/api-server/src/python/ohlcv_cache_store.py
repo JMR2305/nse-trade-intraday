@@ -41,8 +41,10 @@ STALE_DAYS = 14
 # Max age beyond which a cache entry is considered UNAVAILABLE
 MAX_CACHE_AGE_DAYS = STALE_DAYS
 
-# Minimum number of daily bars required to compute all indicators reliably
-MIN_BARS_REQUIRED = 126   # ~6 calendar months of trading days
+# Minimum number of daily bars required to compute all indicators reliably.
+# 120 ≈ 6 months of Indian trading days after deducting holidays.
+# yfinance "6mo" typically returns 122-126 bars; 120 is the safe lower bound.
+MIN_BARS_REQUIRED = 120   # ~6 calendar months accounting for NSE holidays
 
 # ── DB helpers ────────────────────────────────────────────────────────────────
 
@@ -342,7 +344,7 @@ def write_symbol_to_cache(
                 execute_values(cur, """
                     INSERT INTO daily_ohlcv_cache
                         (symbol, trading_date, open, high, low, close, adjusted_close,
-                         volume, source, data_quality, updated_at)
+                         volume, source, data_quality)
                     VALUES %s
                     ON CONFLICT (symbol, trading_date) DO UPDATE SET
                         open           = EXCLUDED.open,
@@ -424,7 +426,7 @@ def log_refresh_complete(
 
 def backfill_all_symbols(
     symbols: List[str],
-    period: str = "6mo",
+    period: str = "8mo",   # 8mo guarantees ≥120 bars even in heavy-holiday periods
     interval: str = "1d",
     force: bool = False,
 ) -> Dict[str, Any]:
