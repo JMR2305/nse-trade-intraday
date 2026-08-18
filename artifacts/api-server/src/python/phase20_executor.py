@@ -343,7 +343,13 @@ def _build_row(trade_id: str, scan_id: Optional[str], snapshot_ts: Optional[str]
                signal_price: float, fill: Dict[str, Any], fill_price: float,
                qty: int, charges: float, model_version: str,
                settings: Dict[str, Any], trigger_source: str,
-               now_iso: str) -> Dict[str, Any]:
+               now_iso: str,
+               # Kite LTP overlay provenance — must be passed explicitly by
+               # create_paper_entry because they are its local variables, not
+               # module-level globals.  Defaults make old call sites safe.
+               kite_ltp_overlay_active: bool = False,
+               signal_price_from_daily: Optional[float] = None,
+               kite_ltp_used: Optional[float] = None) -> Dict[str, Any]:
     return {
         "trade_id": trade_id,
         "scan_id": scan_id,
@@ -384,11 +390,13 @@ def _build_row(trade_id: str, scan_id: Optional[str], snapshot_ts: Optional[str]
             "recommendation": candidate.get("recommendation"),
             "expected_holding_days": candidate.get("expected_holding_days"),
             # ── Task 3: Kite LTP overlay provenance ──────────────────────────
-            "kite_ltp_overlay_enabled": _kite_ltp_overlay_active,
+            "kite_ltp_overlay_enabled": kite_ltp_overlay_active,
             "indicator_source": candidate.get("indicator_source", "yfinance_daily_bars"),
             "ohlcv_source": candidate.get("ohlcv_source", "yfinance_daily_bars"),
-            "signal_price_from_daily_bar": _signal_price_from_daily,
-            "execution_price_from_kite_ltp": _kite_ltp_used,
+            "signal_price_from_daily_bar": (
+                signal_price_from_daily if signal_price_from_daily is not None
+                else signal_price),
+            "execution_price_from_kite_ltp": kite_ltp_used,
             "execution_price_source": candidate.get("execution_price_source", "yfinance_daily_bars"),
             "kite_ltp_timestamp": candidate.get("latest_price_time_ist"),
             "quote_reliable": candidate.get("quote_reliable", False),
@@ -574,7 +582,10 @@ def create_paper_entry(candidate: Dict[str, Any], settings: Dict[str, Any],
     # at the database level, so concurrent ticks cannot double-enter.
     row = _build_row(trade_id, scan_id, snapshot_ts, sym, candidate, sizing,
                      signal_price, fill, fill_price, qty, charges,
-                     model_version, settings, trigger_source, now_iso)
+                     model_version, settings, trigger_source, now_iso,
+                     kite_ltp_overlay_active=_kite_ltp_overlay_active,
+                     signal_price_from_daily=_signal_price_from_daily,
+                     kite_ltp_used=_kite_ltp_used)
     # Embed the risk-agent validation result in the immutable evidence record.
     if _rv_result:
         row.setdefault("evidence", {})["risk_validation"] = _rv_result
@@ -1069,9 +1080,31 @@ def run_bootstrap_auto_entry(snapshot: Dict[str, Any],
         except Exception:
             pass
 
-        result = create_paper_entry(candidate, bootstrap_settings,
-                                    scan_id, snap_ts,
-                                    trigger_source="BOOTSTRAP_AUTO")
+        try:
+            result = create_paper_entry(candidate, bootstrap_settings,
+                                        scan_id, snap_ts,
+                                        trigger_source="BOOTSTRAP_AUTO")
+        except Exception as _cpe:
+            # create_paper_entry raised unexpectedly (e.g. Kite API timeout,
+            # DB transient error).  Treat as a per-candidate rejection so the
+            # loop can continue to the next candidate instead of aborting.
+            _exc_reason = f"create_paper_entry raised: {_cpe!s:.120}"
+            skipped.append({"symbol": sym, "reason": _exc_reason})
+            try:
+                from pipeline_events import emit as _pe
+                _pe("BOOTSTRAP_CANDIDATE_REJECTED", "EXECUTION",
+                    scan_id=scan_id, symbol=sym,
+                    payload={
+                        "symbol":                   sym,
+                        "reason":                   _exc_reason,
+                        "gate":                     "CREATE_PAPER_ENTRY_EXCEPTION",
+                        "next_candidate_attempted": (ranked.index(best) + 1) < len(ranked),
+                        "rank_in_candidates":       ranked.index(best) + 1,
+                        "candidates_total":         len(ranked),
+                    })
+            except Exception:
+                pass
+            continue
 
         if result.get("created"):
             store.add_notification(
