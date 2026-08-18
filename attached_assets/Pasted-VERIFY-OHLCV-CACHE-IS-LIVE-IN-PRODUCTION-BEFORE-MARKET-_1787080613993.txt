@@ -1,0 +1,95 @@
+VERIFY OHLCV CACHE IS LIVE IN PRODUCTION BEFORE MARKET OPEN
+
+Use APEXQUANT_OHLCV_CACHE_MIGRATION_SUMMARY.md as the controlling report.
+
+Do not change trading thresholds.
+Do not enable live orders.
+PAPER ONLY.
+
+TASK 1 — CONFIRM PRODUCTION DEPLOYMENT
+
+Verify whether the OHLCV cache migration is live on:
+
+https://nse-trade-intraday.replit.app
+
+Confirm production includes:
+- daily_ohlcv_cache table
+- daily_ohlcv_refresh_state table
+- nifty50_company_master table
+- live_data_provider.py cache-first logic
+- post_market_data_refresh.py
+- pre_market_data_readiness.py
+- /api/ohlcv-cache/status
+- /api/ohlcv-cache/readiness
+
+TASK 2 — VERIFY CACHE STATUS IN PRODUCTION
+
+Run production endpoints:
+
+GET /api/ohlcv-cache/status
+GET /api/ohlcv-cache/readiness
+GET /api/ohlcv-cache/company-master
+GET /api/healthz
+
+Report:
+- cache_enabled
+- live_symbols
+- unavailable symbols
+- cache_hit_rate_pct
+- bars per symbol
+- latest cached trading date
+- readiness verdict
+- blocking reasons
+- warnings
+
+Expected:
+- 50/51 symbols usable
+- LTIM warning only
+- cache_hit_rate high
+- no yfinance bulk fetch required during scan
+- readiness becomes READY_WITH_WARNINGS after Kite re-auth
+
+TASK 3 — VERIFY FIRST MARKET SCAN PERFORMANCE
+
+After 09:15 IST and first scan:
+
+Report:
+- scan_id
+- scan duration
+- cache_hit count
+- yfinance_called_this_scan count
+- Kite LTP duration
+- symbols received
+- bootstrap eligible count
+- whether scan completed in under 5 seconds or under 60 seconds
+
+Expected:
+- yfinance calls per scan = 0 or near 0
+- ohlcv_source = local_yfinance_cache
+- execution_price_source = kite_live_ltp
+- completed scans should increase significantly versus 18/day
+
+TASK 4 — VERIFY POST-MARKET REFRESH
+
+After 15:30 IST:
+- confirm post-market refresh ran once
+- confirm latest daily candle appended
+- confirm DATA_CACHE_POSTMARKET_REFRESH_COMPLETED event
+- confirm LTIM logged as warning only
+- confirm cache ready for next day
+
+TASK 5 — REPORT
+
+Generate:
+
+APEXQUANT_PRODUCTION_OHLCV_CACHE_FIRST_SCAN_PROOF.md
+
+Include:
+1. Production deployment proof.
+2. Cache readiness.
+3. First scan duration.
+4. yfinance calls avoided.
+5. Kite LTP still used for execution price.
+6. Completed scan count improvement.
+7. Post-market refresh status.
+8. Confirmation no live orders.
