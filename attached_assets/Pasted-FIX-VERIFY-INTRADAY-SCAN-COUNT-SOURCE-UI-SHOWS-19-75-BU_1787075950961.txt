@@ -1,0 +1,79 @@
+FIX / VERIFY INTRADAY SCAN COUNT SOURCE — UI SHOWS 19/75 BUT FULL DAY HAD 77 SCANS
+
+Current screenshot at 23:26 IST shows:
+- Market CLOSED
+- Scan stale: ~7h 59m old
+- Intraday Scan Cadence: 19 / 75
+- Skipped: 6
+- Avg gap: 20.6 min
+- Last scan appears from 15:26 IST
+
+Problem:
+The UI shows only 19 scans today, but prior daily report showed 77 scans completed on 2026-08-18 from 09:16 to 15:27.
+This suggests the dashboard counter is reading a partial/reset source, likely after publish/restart, instead of the full-day production pipeline_events scan count.
+
+Do not change trading thresholds.
+Do not enable live orders.
+PAPER ONLY.
+
+TASK 1 — VERIFY TRUE FULL-DAY SCAN COUNT
+
+Query production DB for 2026-08-18 IST:
+
+- SCAN_COMPLETED events count
+- SCAN_STARTED events count
+- unique scan_id count
+- first scan time IST
+- last scan time IST
+- skipped / lock-busy count
+- failed scan count
+
+Use pipeline_events as source of truth.
+
+TASK 2 — COMPARE UI COUNTER SOURCE
+
+Find what endpoint/card feeds:
+AI Paper Trader → Intraday Scan Cadence → “Scans Today 19/75”
+
+Report:
+- frontend component file
+- backend API endpoint
+- DB table/source used
+- whether it reads scan_state, in-memory counter, current build cache, or pipeline_events
+- why it shows 19 instead of full-day count
+
+TASK 3 — FIX THE COUNTER
+
+Update scan cadence card to show two clearly separated metrics:
+
+1. Full-day scans:
+   - source: pipeline_events / SCAN_COMPLETED
+   - expected: ~75 for full NSE session at 5-min cadence
+   - should not reset after deploy/restart
+
+2. Current build/session scans:
+   - source: runtime/current process if needed
+   - label clearly as “since last restart/publish”
+
+Do not mix these two.
+
+TASK 4 — FIX POST-MARKET DISPLAY
+
+When market is CLOSED:
+- Do not show “Review” as if scanner failed during market hours unless full-day count is below expected.
+- Show: “Market closed — last scan at 15:26 IST”
+- Stale warning after close should be informational, not imply BUY-disabled error for tomorrow.
+- Explain that BUY recommendations resume after next fresh market scan.
+
+TASK 5 — REPORT
+
+Generate:
+APEXQUANT_SCAN_COUNT_COUNTER_SOURCE_FIX_REPORT.md
+
+Include:
+1. True full-day scan count for 2026-08-18.
+2. Why UI showed 19/75.
+3. Files changed.
+4. New UI labels.
+5. Confirmation scan scheduler itself did not fail if pipeline_events count is healthy.
+6. Confirmation no live orders.
