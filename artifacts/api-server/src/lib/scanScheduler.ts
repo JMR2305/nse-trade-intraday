@@ -159,6 +159,40 @@ export function startScanScheduler(): void {
   timer.unref();
   logger.info({ tickIntervalMin: TICK_INTERVAL_MIN },
     "Market-hours scan scheduler started (interval configured in Settings)");
+
+  // Cold-start overnight-carry safety check.
+  // Runs immediately at server startup to detect OPEN paper positions that
+  // survived from a prior session because the server was down during the
+  // POST_CLOSE/CLOSED window (15:30–18:00 IST).  The Python side is
+  // idempotent via kv_claim_once("startup_overnight_check:<today>") so
+  // multiple rapid restarts or Autoscale instances only execute once per
+  // IST calendar day.  Never blocks the scheduler or raises.
+  runPython(["phase20_startup_overnight_check"]).then((r) => {
+    const res = r as Record<string, unknown>;
+    const priorCount = res?.["prior_session_count"] as number | undefined;
+    if (priorCount && priorCount > 0) {
+      logger.warn(
+        {
+          yesterday: res["yesterday"],
+          symbols: res["symbols"],
+          prior_session_count: priorCount,
+          eod_force_close: res["eod_force_close"],
+        },
+        "Overnight carry detected at cold-start — EOD force-close executed",
+      );
+    } else if (res?.["ran"]) {
+      logger.info(
+        { reason: res["reason"], yesterday: res["yesterday"] },
+        "Startup overnight-carry check complete (no prior-session positions)",
+      );
+    }
+  }).catch((err: unknown) => {
+    logger.warn(
+      { err: err instanceof Error ? err.message : String(err) },
+      "Startup overnight-carry check failed (non-fatal)",
+    );
+  });
+
   // Kick one tick shortly after boot so a cold instance during market hours
   // converges quickly instead of waiting a full interval.
   setTimeout(() => { void tick(); }, 15_000).unref();

@@ -356,6 +356,178 @@ def _live_validation_brief(lv: Any) -> Any:
             "issue_count": len(lv.get("issues") or [])}
 
 
+def check_overnight_carry_on_startup() -> Dict[str, Any]:
+    """Cold-start safety net: close OPEN positions that carried overnight.
+
+    The POST_CLOSE_FORCE_EXIT scheduler block fires only when the server is
+    running during POST_CLOSE/CLOSED state (15:30–18:00 IST).  If the server
+    was down or restarted at exactly 15:30 IST, the ``eod_squareoff:<date>``
+    KV claim for that day was never taken, and any OPEN paper positions would
+    silently carry into the next trading session without any warning.
+
+    This function runs once per IST calendar day (guarded by its own
+    ``startup_overnight_check:<today>`` KV claim so multiple Autoscale
+    instances or rapid restarts don't trigger duplicate cleanups).
+
+    On each cold-start it checks whether *yesterday's* eod_squareoff claim
+    was taken.  If not:
+
+      1. Emits ``MARKET_CLOSE_OVERNIGHT_CARRY_DETECTED`` pipeline event for
+         each OPEN trade whose fill_ts predates today's IST trading day.
+      2. Fires :func:`phase20_exits.eod_force_close_open_positions` to
+         close those positions regardless of the current market state.
+      3. Claims the ``eod_squareoff:<yesterday>`` key so the normal
+         POST_CLOSE tick is a no-op for that date if the server stays up
+         into the evening.
+
+    Returns a JSON-safe result dict.  Never raises — all failures are caught
+    and returned as ``{"ran": False, "error": ...}``.
+    """
+    try:
+        from zoneinfo import ZoneInfo
+        _IST = ZoneInfo("Asia/Kolkata")
+        import datetime as _dt
+        now_ist = _dt.datetime.now(_IST)
+        today_ist = now_ist.date().isoformat()
+        yesterday_ist = (now_ist.date() - timedelta(days=1)).isoformat()
+    except Exception as exc:
+        return {"ran": False, "error": f"timezone init: {str(exc)[:200]}"}
+
+    # Exactly-once per IST calendar day (cross-process, Autoscale-safe).
+    _startup_claim_key = f"startup_overnight_check:{today_ist}"
+    if not store.kv_claim_once(_startup_claim_key):
+        return {"ran": False, "reason": "already_ran_today"}
+
+    try:
+        # kv_claim_once stores True on claim; kv_get returns True if claimed.
+        _eod_key = f"eod_squareoff:{yesterday_ist}"
+        _eod_claimed = bool(store.kv_get(_eod_key))
+
+        if _eod_claimed:
+            # Normal case: EOD force-exit ran yesterday. Nothing to do.
+            return {"ran": True, "eod_claimed": True,
+                    "reason": "eod_squareoff_ran_yesterday",
+                    "yesterday": yesterday_ist}
+
+        # Yesterday's EOD squareoff was never claimed — server was likely
+        # down during the POST_CLOSE/CLOSED window.  Check for OPEN positions.
+        from phase20_executor import get_open_trades
+        open_trades = get_open_trades()
+
+        if not open_trades:
+            # No OPEN positions — mark yesterday's EOD as complete so the
+            # normal POST_CLOSE tick is a no-op if the state rotates later.
+            store.kv_claim_once(_eod_key, ttl_seconds=86400)
+            return {"ran": True, "eod_claimed": False, "open_count": 0,
+                    "reason": "no_open_positions",
+                    "yesterday": yesterday_ist}
+
+        # Filter to prior-session trades (fill_ts before today IST).
+        try:
+            from zoneinfo import ZoneInfo as _ZI
+            _ist2 = _ZI("Asia/Kolkata")
+        except Exception:
+            _ist2 = None
+
+        prior_session_trades = []
+        for t in open_trades:
+            fill_ts_str = str(t.get("fill_ts") or "")
+            if not fill_ts_str:
+                # No fill_ts — conservatively treat as a prior-session trade.
+                prior_session_trades.append(t)
+                continue
+            try:
+                fill_dt = datetime.fromisoformat(
+                    fill_ts_str.replace("Z", "+00:00"))
+                fill_date_ist = (
+                    fill_dt.astimezone(_ist2).date().isoformat()
+                    if _ist2 else fill_dt.date().isoformat()
+                )
+                if fill_date_ist < today_ist:
+                    prior_session_trades.append(t)
+            except Exception:
+                # Malformed timestamp — treat conservatively as prior-session.
+                prior_session_trades.append(t)
+
+        if not prior_session_trades:
+            # All open trades were opened in today's session — not overnight.
+            return {"ran": True, "eod_claimed": False,
+                    "open_count": len(open_trades),
+                    "prior_session_count": 0,
+                    "reason": "no_prior_session_trades",
+                    "yesterday": yesterday_ist}
+
+        # Emit MARKET_CLOSE_OVERNIGHT_CARRY_DETECTED for each prior-session
+        # trade so the event appears in the pipeline dashboard.
+        carry_symbols = [str(t.get("symbol") or "") for t in prior_session_trades]
+        for trade in prior_session_trades:
+            sym = str(trade.get("symbol") or "").upper()
+            trade_id = str(trade.get("trade_id") or "")
+            try:
+                from pipeline_events import emit as _pe
+                _pe("MARKET_CLOSE_OVERNIGHT_CARRY_DETECTED", "PORTFOLIO",
+                    symbol=sym,
+                    payload={
+                        "trade_id": trade_id,
+                        "fill_ts": trade.get("fill_ts"),
+                        "yesterday_date": yesterday_ist,
+                        "today_date": today_ist,
+                        "reason": (
+                            "OPEN position from prior session detected at "
+                            f"server cold-start — eod_squareoff was never "
+                            f"claimed for {yesterday_ist}. Server was likely "
+                            "down during the POST_CLOSE/CLOSED window "
+                            "(15:30–18:00 IST)."
+                        ),
+                    })
+            except Exception:
+                pass
+
+        store.add_notification(
+            "MARKET_CLOSE_OVERNIGHT_CARRY_DETECTED",
+            (f"{len(prior_session_trades)} position(s) carried overnight "
+             f"from {yesterday_ist}"),
+            (f"Server restarted without running POST_CLOSE_FORCE_EXIT on "
+             f"{yesterday_ist}. "
+             f"Affected symbols: {', '.join(carry_symbols[:5])}. "
+             f"Running EOD force-close now to prevent a second day of "
+             f"unintended overnight exposure."),
+            severity="WARN",
+            context={
+                "yesterday": yesterday_ist,
+                "symbols": carry_symbols,
+                "trade_count": len(prior_session_trades),
+            },
+        )
+
+        # Run EOD force-close immediately, regardless of current mstate.
+        from phase20_settings import load_settings as _ls
+        from phase20_exits import eod_force_close_open_positions
+        eod_result = eod_force_close_open_positions(_ls())
+
+        # Claim yesterday's eod_squareoff so the normal POST_CLOSE tick
+        # (if the server remains up through the evening) is a no-op.
+        store.kv_claim_once(_eod_key, ttl_seconds=86400)
+
+        return {
+            "ran": True,
+            "eod_claimed": False,
+            "yesterday": yesterday_ist,
+            "prior_session_count": len(prior_session_trades),
+            "symbols": carry_symbols,
+            "eod_force_close": eod_result,
+        }
+
+    except Exception as exc:
+        # Release the startup claim so a later cold-start can retry when
+        # this was a transient error (e.g. DB temporarily unavailable at boot).
+        try:
+            store.kv_release(_startup_claim_key)
+        except Exception:
+            pass
+        return {"ran": False, "error": str(exc)[:300]}
+
+
 def run_tick() -> Dict[str, Any]:
     """One scheduler tick. Returns a JSON-safe result dict."""
     settings = store.get_settings()

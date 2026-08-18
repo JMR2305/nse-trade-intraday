@@ -1021,6 +1021,14 @@ def main():
             from phase20_scheduler import run_tick
             result = run_tick()
 
+        elif command == "phase20_startup_overnight_check":
+            # Cold-start safety net: close OPEN paper positions that carried
+            # overnight because the server was down during POST_CLOSE/CLOSED.
+            # Idempotent via kv_claim_once("startup_overnight_check:<today>").
+            # Never raises; emits MARKET_CLOSE_OVERNIGHT_CARRY_DETECTED events.
+            from phase20_scheduler import check_overnight_carry_on_startup
+            result = check_overnight_carry_on_startup()
+
         # ── Phase 20 — settings / scheduler health / history / paper engine ──
         elif command == "phase20_settings":
             from phase20_store import get_settings
