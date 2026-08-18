@@ -115,6 +115,9 @@ interface ClosedPosition {
   pnl: number; pnl_pct: number; holding_label: string;
   exit_reason: string; ai_confidence: number; strategy: string;
   lesson_learned: string;
+  // Bootstrap provenance — present for Phase 20 auto-entries
+  trigger_source?: string;
+  fill_model?: string;
 }
 interface TimelineEvent {
   ts: string; type: string; label: string; detail?: string;
@@ -2812,7 +2815,17 @@ function S7ClosedTrades({ data, loading }: { data?: unknown; loading: boolean })
             <tbody>
               {list.map((c, i) => (
                 <tr key={`${c.symbol}-${i}`} className="border-b border-slate-800/30 hover:bg-slate-800/20">
-                  <td className="py-2 pr-3 font-bold text-slate-100">{c.symbol}</td>
+                  <td className="py-2 pr-3 font-bold text-slate-100">
+                    {c.symbol}
+                    {(c.trigger_source === "BOOTSTRAP_AUTO" || c.fill_model === "bootstrap_paper") && (
+                      <span
+                        className="ml-1.5 inline-flex items-center text-[8px] font-semibold bg-amber-950/70 border border-amber-600/60 text-amber-300 rounded px-1 py-0.5 leading-none align-middle"
+                        title="Bootstrap paper trade — seeded the paper ledger when low_evidence blocked the normal BUY path. Paper only, no live order."
+                      >
+                        BOOTSTRAP
+                      </span>
+                    )}
+                  </td>
                   <td className="py-2 pr-3 text-slate-400">{istDateTime(c.buy_time)}</td>
                   <td className="py-2 pr-3 text-slate-400">{istDateTime(c.sell_time)}</td>
                   <td className="py-2 pr-3 font-mono">₹{fmt(c.entry_price, 2)}</td>

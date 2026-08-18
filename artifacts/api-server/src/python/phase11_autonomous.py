@@ -453,10 +453,20 @@ def get_closed_positions_detail(limit: int = 100) -> List[Dict[str, Any]]:
     except Exception:
         trades = []
 
-    # Also pull from phase20 ledger if available
-    phase20_trades = _safe(lambda: _get_phase20_closed_trades(limit), [])
-    if phase20_trades:
-        trades = phase20_trades
+    # Phase 20 ledger takes priority when present (authoritative for bootstrap &
+    # all Phase 20 auto-entries).  Also read the legacy paper_trades table and
+    # merge, deduplicating by (symbol, buy_ts) so nothing appears twice.
+    ledger_trades = _safe(lambda: _get_phase20_ledger_closed_trades(limit), [])
+    legacy_trades = _safe(lambda: _get_phase20_closed_trades(limit), [])
+
+    if ledger_trades:
+        # Prefer ledger rows; supplement with any legacy rows not already covered.
+        ledger_keys = {(r["symbol"], r.get("buy_ts", "")) for r in ledger_trades}
+        extra = [r for r in legacy_trades
+                 if (r["symbol"], r.get("buy_ts", "")) not in ledger_keys]
+        trades = ledger_trades + extra
+    elif legacy_trades:
+        trades = legacy_trades
 
     closed = []
     for t in trades:
@@ -485,7 +495,7 @@ def get_closed_positions_detail(limit: int = 100) -> List[Dict[str, Any]]:
         if not lesson and pnl < 0:
             lesson = f"Loss of ₹{abs(pnl):,.0f} ({abs(pnl_pct):.1f}%). Review stop-loss adherence."
 
-        closed.append({
+        row: Dict[str, Any] = {
             "symbol":           symbol,
             "buy_time":         buy_ts,
             "sell_time":        sell_ts,
@@ -500,7 +510,14 @@ def get_closed_positions_detail(limit: int = 100) -> List[Dict[str, Any]]:
             "ai_confidence":    confidence,
             "strategy":         strategy,
             "lesson_learned":   lesson,
-        })
+        }
+        # Pass through Phase 20 provenance fields when present — the dashboard
+        # uses these to render the BOOTSTRAP badge on bootstrap-seeded trades.
+        if t.get("trigger_source"):
+            row["trigger_source"] = t["trigger_source"]
+        if t.get("fill_model"):
+            row["fill_model"] = t["fill_model"]
+        closed.append(row)
 
     closed.sort(key=lambda x: x.get("sell_time", "") or "", reverse=True)
     return closed[:limit]
@@ -1185,6 +1202,7 @@ def _get_current_regime() -> str:
 
 
 def _get_phase20_closed_trades(limit: int) -> List[Dict]:
+    """Read closed trades from the legacy paper_trades table (Phase 11 path)."""
     if not _db_available():
         return []
     conn = _connect()
@@ -1220,6 +1238,78 @@ def _get_phase20_closed_trades(limit: int) -> List[Dict]:
             "entry_price": meta.get("entry_price", meta.get("buy_price")),
             "lesson_learned": meta.get("lesson_learned", ""),
             "exit_reason": r[7],
+        })
+    return result
+
+
+def _get_phase20_ledger_closed_trades(limit: int) -> List[Dict]:
+    """Read closed trades from phase20_paper_trades (Phase 20 ledger path).
+
+    These include BOOTSTRAP_AUTO trades and any other Phase 20 paper entries.
+    Returned rows carry ``trigger_source`` and ``fill_model`` so the dashboard
+    can show the BOOTSTRAP badge next to the symbol name.
+    """
+    if not _db_available():
+        return []
+    conn = _connect()
+    try:
+        with conn.cursor() as cur:
+            # Check table exists before querying — graceful if Phase 20 never ran.
+            cur.execute("""
+                SELECT EXISTS (
+                    SELECT 1 FROM information_schema.tables
+                    WHERE table_name = 'phase20_paper_trades'
+                )
+            """)
+            if not cur.fetchone()[0]:
+                return []
+            cur.execute("""
+                SELECT trade_id, symbol, fill_price, exit_price, quantity,
+                       realized_pnl, fill_ts, exit_ts, exit_rule,
+                       confidence, strategy_name, trigger_source, fill_model,
+                       stop_loss, target
+                FROM phase20_paper_trades
+                WHERE status = 'CLOSED'
+                ORDER BY exit_ts DESC NULLS LAST
+                LIMIT %s
+            """, (limit,))
+            rows = cur.fetchall()
+    finally:
+        conn.close()
+    result = []
+    for r in rows:
+        trade_id, symbol, fill_price, exit_price, qty, pnl, fill_ts, \
+            exit_ts, exit_rule, confidence, strategy, trigger_source, \
+            fill_model, stop_loss, target = r
+        entry = float(fill_price or 0)
+        ex    = float(exit_price or 0)
+        qty_i = int(qty or 0)
+        pnl_f = float(pnl or 0)
+        pnl_pct = 0.0
+        if entry > 0 and ex > 0:
+            pnl_pct = round((ex - entry) / entry * 100, 4)
+        lesson = ""
+        if pnl_f < 0:
+            lesson = (f"Loss of ₹{abs(pnl_f):,.0f} ({abs(pnl_pct):.1f}%). "
+                      "Review stop-loss adherence.")
+        result.append({
+            "symbol":         symbol,
+            "action":         "EXIT",
+            "quantity":       qty_i,
+            "price":          ex,
+            "pnl":            pnl_f,
+            "buy_ts":         fill_ts,
+            "trade_ts":       exit_ts,
+            "reason":         exit_rule or "EXIT",
+            "strategy":       strategy or "UNKNOWN",
+            "confidence":     float(confidence or 0),
+            "entry_price":    entry,
+            "lesson_learned": lesson,
+            "exit_reason":    exit_rule or "EXIT",
+            # Provenance fields — used by dashboard BOOTSTRAP badge
+            "trigger_source": trigger_source,
+            "fill_model":     fill_model,
+            "trade_id":       trade_id,
         })
     return result
 
