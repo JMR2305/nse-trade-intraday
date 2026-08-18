@@ -528,6 +528,466 @@ def check_overnight_carry_on_startup() -> Dict[str, Any]:
         return {"ran": False, "error": str(exc)[:300]}
 
 
+# ── Cold-start backfill constants ─────────────────────────────────────────────
+# Lease TTL: how long the owner's lease is considered valid after it writes the
+# lease_started record.  Set to 25 minutes — comfortably above the documented
+# worst-case 22-minute yfinance bulk download — so a legitimately slow backfill
+# is never incorrectly displaced by a takeover.  The owner does not need to send
+# a heartbeat because the TTL already covers the entire backfill window.
+_COLD_START_LEASE_TTL_S: int = 1500     # 25 minutes
+# Grace period for claim-without-lease crash recovery: if claim_key exists
+# but lease_started_key is absent after this many seconds, the initial owner
+# likely died before writing the lease.  Peers attempt takeover after this.
+_COLD_START_CLAIM_GRACE_PERIOD_S: int = 60  # 1 minute
+# Non-owner wait budget.  MUST be strictly greater than _COLD_START_LEASE_TTL_S
+# (plus at least one poll interval) so peers always have remaining time to read
+# the expired lease and attempt a takeover before they give up.
+_COLD_START_WAIT_TIMEOUT_S: int = 1800  # 30 minutes (> LEASE_TTL by 5 min)
+_COLD_START_POLL_INTERVAL_S: int = 15   # check every 15 seconds
+
+
+def _today_ist_date() -> str:
+    """Return today's IST calendar date as YYYY-MM-DD (no external deps)."""
+    from datetime import timezone
+    now_utc = datetime.now(timezone.utc)
+    # IST = UTC+5:30
+    now_ist = now_utc + timedelta(hours=5, minutes=30)
+    return now_ist.strftime("%Y-%m-%d")
+
+
+def check_cold_cache_on_startup() -> Dict[str, Any]:
+    """Cold-start OHLCV cache check with Autoscale-safe cross-instance coordination.
+
+    Design
+    ------
+    Exactly one Autoscale instance runs the backfill; all others wait for it to
+    finish before their Node-side readiness gate is cleared.
+
+    Owner path  (kv_claim_once returns True):
+      1. Probes the cache; returns no-op immediately if warm.
+      2. Logs a prominent WARNING and runs backfill_all_symbols().
+      3. Writes a completion record to kv so peers can stop polling.
+      4. On any unhandled exception, releases the claim so a later instance
+         can retry (transient failures — e.g. yfinance rate-limit).
+
+    Non-owner path  (kv_claim_once returns False):
+      * Polls the completion kv key every _COLD_START_POLL_INTERVAL_S seconds
+        for up to _COLD_START_WAIT_TIMEOUT_S seconds.
+      * Returns a summary derived from the completion record once it appears.
+      * If the owner never writes a completion record within the timeout, returns
+        a timeout result so the Node .finally() clears the gate and allows scans
+        to proceed with the existing yfinance fallback.
+
+    The Node caller (scanScheduler.ts) keeps _ohlcvColdStartPending = true while
+    this function is running (Python process is blocking), clearing it only in
+    .finally().  That means every Autoscale instance — owner and non-owners alike —
+    defers scheduled_scan_tick until backfill is confirmed complete.
+
+    Never raises.
+    """
+    import logging as _logging
+    import time as _time
+
+    _log_cc = _logging.getLogger("phase20_scheduler.cold_cache")
+
+    today = _today_ist_date()
+    claim_key         = f"ohlcv_cold_start_backfill:{today}"
+    done_key          = f"ohlcv_cold_start_backfill_done:{today}"
+    lease_started_key = f"ohlcv_cold_start_lease_started:{today}"
+    takeover_key      = f"ohlcv_cold_start_takeover:{today}"
+
+    # token held by THIS instance when it wins a takeover claim; used for the
+    # token-conditional release so a stale instance never deletes a live peer's
+    # active lease.
+    _takeover_token: Optional[str] = None
+
+    # ── 1. Load universe ──────────────────────────────────────────────────────
+    try:
+        from config import NIFTY_50 as _n50
+        symbols = list(_n50)
+    except Exception as exc:
+        _log_cc.warning("check_cold_cache_on_startup: config import failed: %s", exc)
+        return {"ran": False, "error": f"config import: {str(exc)[:150]}"}
+
+    # ── 2. Load cache store ───────────────────────────────────────────────────
+    try:
+        from ohlcv_cache_store import (
+            OHLCV_CACHE_ENABLED as _CE,
+            get_overall_cache_summary,
+            backfill_all_symbols,
+            ensure_tables,
+        )
+    except Exception as exc:
+        _log_cc.warning("check_cold_cache_on_startup: ohlcv_cache_store import failed: %s", exc)
+        return {"ran": False, "error": f"ohlcv_cache_store import: {str(exc)[:150]}"}
+
+    if not _CE:
+        return {"ran": False, "reason": "OHLCV_CACHE_ENABLED=false"}
+
+    ensure_tables()
+
+    # ── 3. Probe current cache state ──────────────────────────────────────────
+    try:
+        summary = get_overall_cache_summary(symbols)
+    except Exception as exc:
+        _log_cc.warning("check_cold_cache_on_startup: cache summary failed: %s", exc)
+        return {"ran": False, "error": f"cache summary: {str(exc)[:150]}"}
+
+    total = summary.get("total_symbols", len(symbols))
+    uncached = list(summary.get("uncached_symbols") or [])
+    missing_bars = list(summary.get("missing_required_bars") or [])
+    stale_syms = list(summary.get("stale_symbols") or [])
+    cache_hit_rate = float(summary.get("cache_hit_rate_pct") or 0.0)
+
+    # Union: symbols with no rows, fewer than MIN_BARS_REQUIRED, OR data older
+    # than MAX_CACHE_AGE_DAYS (STALE / UNAVAILABLE).  read_symbol_from_cache()
+    # rejects data aged > MAX_CACHE_AGE_DAYS and falls through to a live yfinance
+    # download, so stale symbols must trigger a backfill on the same footing as
+    # uncached ones.  get_overall_cache_summary() already classifies these under
+    # "stale_symbols" (quality in STALE / UNAVAILABLE).
+    cold_set = set(uncached) | set(missing_bars) | set(stale_syms)
+
+    if not cold_set:
+        # Cache is warm — return immediately without acquiring the claim.
+        # Any peer that already acquired the claim for a different startup can
+        # proceed normally; we just don't need to do anything.
+        _log_cc.info(
+            "check_cold_cache_on_startup: cache warm (hit-rate %.1f%%, %d/%d symbols). "
+            "No backfill needed.",
+            cache_hit_rate, total, total,
+        )
+        return {
+            "ran": True,
+            "action": "no_op",
+            "reason": "cache_warm",
+            "cache_hit_rate_pct": cache_hit_rate,
+            "total_symbols": total,
+        }
+
+    is_fully_cold = len(uncached) == total
+
+    # ── 4. Try to become the owner ────────────────────────────────────────────
+    # Use kv_claim_with_value (not kv_claim_once) so the record embeds a
+    # claimed_at timestamp that non-owners can use to detect the
+    # "claim-without-lease" crash scenario (owner died before writing
+    # lease_started_key).
+    _claim_now_iso: str = ""
+    try:
+        from datetime import datetime, timezone as _tz_
+        _claim_now_iso = datetime.now(_tz_).isoformat()
+    except Exception:
+        pass
+    is_owner = store.kv_claim_with_value(claim_key, {
+        "claimed_at": _claim_now_iso,
+        "role": "owner",
+    })
+
+    # Track which key this instance owns so the failure handler releases the
+    # right key.  "owner" → initial claimer, releases claim_key on exception.
+    # "takeover" → won the expiring token lease, releases takeover_key on
+    # exception (claim_key belongs to the dead first owner and must stay so
+    # subsequent instances remain on the non-owner polling path).
+    _owner_role = "owner"
+
+    def _acquire_takeover_lease() -> bool:
+        """Atomically acquire the takeover lease.
+
+        Uses kv_acquire_expiring_claim so that:
+        * Two concurrent peers racing for the same empty slot — only one
+          wins (storage-level INSERT ON CONFLICT DO NOTHING).
+        * A dead takeover owner that was SIGKILL'd (no cleanup) leaves a
+          record with an expires_at.  Once that time passes, any peer can
+          overwrite it with their own token via the storage-level
+          UPDATE … WHERE expires_at < NOW().
+
+        On success, sets the module-level _takeover_token so the failure
+        handler can call kv_release_if_owned (token-conditional) instead of
+        the unfenced kv_release.
+
+        Returns True if this instance acquired the lease.
+        """
+        nonlocal _takeover_token
+        try:
+            import uuid as _uuid
+            from datetime import datetime, timezone as _tz, timedelta as _td
+
+            _token = str(_uuid.uuid4())
+            _now = datetime.now(_tz.utc)
+            _record = {
+                "token": _token,
+                "started_at": _now.isoformat(),
+                "expires_at": (_now + _td(seconds=_COLD_START_LEASE_TTL_S)).isoformat(),
+            }
+            won = store.kv_acquire_expiring_claim(takeover_key, _record)
+            if won:
+                _takeover_token = _token
+            return won
+        except Exception:
+            return False  # Non-fatal; treat as "did not win the lease"
+
+    if not is_owner:
+        # ── Non-owner: poll for done_key; extend deadline to cover lease TTL;
+        #    attempt a fenced takeover via a separate atomic key once the owner
+        #    lease has expired. ────────────────────────────────────────────────
+        #
+        # Design:
+        # - deadline_mono starts at now + WAIT_TIMEOUT_S (30 min).
+        # - While polling, if we read the lease metadata we extend deadline_mono
+        #   to ensure we wait at least until (lease_expires_at + poll_interval).
+        #   This prevents "timeout before TTL" when instances start together.
+        # - Takeover is gated on lease_expires_at being in the past AND winning
+        #   kv_claim_once(takeover_key).  Two peers both see an expired lease:
+        #   only one wins the atomic kv_claim_once; the loser keeps polling.
+        # - We NEVER call kv_release on the original claim_key during takeover.
+        #   Releasing it unconditionally could delete a fresh claim just won by
+        #   another peer.  The original claim stays; takeover_key is the new
+        #   coordination point.
+        _log_cc.info(
+            "check_cold_cache_on_startup: another instance owns the backfill lease "
+            "(%s). Waiting up to %ds for it to complete (lease TTL %ds).",
+            claim_key, _COLD_START_WAIT_TIMEOUT_S, _COLD_START_LEASE_TTL_S,
+        )
+        deadline_mono = _time.monotonic() + _COLD_START_WAIT_TIMEOUT_S
+        while _time.monotonic() < deadline_mono:
+            done = store.kv_get(done_key)
+            if done:
+                _log_cc.info(
+                    "check_cold_cache_on_startup: peer backfill complete. "
+                    "Clearing readiness gate.",
+                )
+                return {
+                    "ran": False,
+                    "reason": "completed_by_peer",
+                    "peer_result": done if isinstance(done, dict) else {},
+                    "total_symbols": total,
+                }
+
+            lease_meta = store.kv_get(lease_started_key)
+            if lease_meta and isinstance(lease_meta, dict):
+                try:
+                    from datetime import datetime, timezone as _tz
+                    exp_iso = str(lease_meta.get("lease_expires_at") or "")
+                    if exp_iso:
+                        exp_dt = datetime.fromisoformat(exp_iso)
+                        if exp_dt.tzinfo is None:
+                            exp_dt = exp_dt.replace(tzinfo=_tz.utc)
+                        exp_ts = exp_dt.timestamp()
+                        now_ts = _time.time()
+                        if now_ts < exp_ts:
+                            # Lease still valid.  Extend our deadline so we never
+                            # time out before the lease can expire.
+                            needed_mono = (
+                                _time.monotonic()
+                                + (exp_ts - now_ts)
+                                + _COLD_START_POLL_INTERVAL_S
+                            )
+                            if needed_mono > deadline_mono:
+                                deadline_mono = needed_mono
+                        else:
+                            # Lease has expired and done_key is still absent —
+                            # owner likely died mid-backfill.  Attempt fenced
+                            # takeover using an expiring token record so a dead
+                            # takeover owner (killed without running its exception
+                            # handler) can also be recovered once its own expiry
+                            # passes.  Two peers race here: only the one whose
+                            # token survives the read-back wins.
+                            _log_cc.warning(
+                                "check_cold_cache_on_startup: owner lease expired "
+                                "(started_at=%s, lease_ttl=%ds). Attempting "
+                                "token-fenced takeover via %s.",
+                                lease_meta.get("started_at"),
+                                _COLD_START_LEASE_TTL_S,
+                                takeover_key,
+                            )
+                            if _acquire_takeover_lease():
+                                is_owner = True
+                                _owner_role = "takeover"
+                                break  # → fall through to owner block
+                            # Another peer won the takeover; keep polling so we
+                            # eventually see their done_key.
+                except Exception:
+                    pass  # Malformed lease record — treat as no expiry info
+            else:
+                # lease_started_key is absent: the initial owner died after
+                # kv_claim_with_value but before writing its lease metadata.
+                # After a grace period, treat this as a dead owner and attempt
+                # takeover.  The claimed_at timestamp in the claim record
+                # tells us how long ago the claim was taken.
+                try:
+                    from datetime import datetime, timezone as _tz
+                    claim_meta = store.kv_get(claim_key)
+                    if isinstance(claim_meta, dict):
+                        claimed_at_iso = str(claim_meta.get("claimed_at") or "")
+                        if claimed_at_iso:
+                            ca_dt = datetime.fromisoformat(claimed_at_iso)
+                            if ca_dt.tzinfo is None:
+                                ca_dt = ca_dt.replace(tzinfo=_tz.utc)
+                            elapsed = _time.time() - ca_dt.timestamp()
+                            if elapsed > _COLD_START_CLAIM_GRACE_PERIOD_S:
+                                _log_cc.warning(
+                                    "check_cold_cache_on_startup: claim "
+                                    "exists but no lease metadata after "
+                                    "%.0fs (grace=%ds). Owner likely died "
+                                    "before writing lease. Attempting "
+                                    "takeover via %s.",
+                                    elapsed,
+                                    _COLD_START_CLAIM_GRACE_PERIOD_S,
+                                    takeover_key,
+                                )
+                                if _acquire_takeover_lease():
+                                    is_owner = True
+                                    _owner_role = "takeover"
+                                    break
+                except Exception:
+                    pass  # Non-fatal; keep polling
+
+            remaining = int(deadline_mono - _time.monotonic())
+            _log_cc.debug(
+                "check_cold_cache_on_startup: waiting for peer backfill "
+                "(%ds remaining)...", max(0, remaining),
+            )
+            _time.sleep(_COLD_START_POLL_INTERVAL_S)
+        else:
+            # Loop exhausted without a takeover.  Unblock scans so the server
+            # is not stuck forever; first scan uses yfinance fallback.
+            _log_cc.warning(
+                "check_cold_cache_on_startup: timed out waiting %ds for peer "
+                "backfill to complete. Clearing readiness gate — first scan "
+                "will use live yfinance fallback.",
+                _COLD_START_WAIT_TIMEOUT_S,
+            )
+            return {
+                "ran": False,
+                "reason": "peer_timeout",
+                "wait_timeout_s": _COLD_START_WAIT_TIMEOUT_S,
+                "total_symbols": total,
+                "recovery_hint": "POST /api/ohlcv-cache/backfill",
+            }
+        # is_owner = True (takeover) → fall through to owner block
+
+    # ── 5. Owner (initial or takeover): write lease metadata, run backfill ────
+    # Write / overwrite lease_started_key so non-owners know who holds the
+    # lease and when it expires.  The TTL (_COLD_START_LEASE_TTL_S = 25 min)
+    # covers the documented worst-case 22-minute yfinance bulk download, so a
+    # legitimately slow backfill will never be displaced by a takeover.
+    try:
+        from datetime import datetime, timezone as _tz, timedelta as _td
+        _now_dt = datetime.now(_tz.utc)
+        _exp_dt = _now_dt + _td(seconds=_COLD_START_LEASE_TTL_S)
+        store.kv_set(lease_started_key, {
+            "started_at": _now_dt.isoformat(),
+            "lease_expires_at": _exp_dt.isoformat(),
+            "lease_ttl_s": _COLD_START_LEASE_TTL_S,
+            "role": _owner_role,
+        })
+    except Exception:
+        pass  # Non-fatal: non-owners will use the hardcoded TTL as fallback
+
+    if is_fully_cold:
+        _log_cc.warning(
+            "OHLCV cache is COMPLETELY EMPTY on this server (%d/%d symbols "
+            "have no rows). This is normal on a fresh production deployment. "
+            "Triggering automatic 8-month backfill now — this will take "
+            "2–8 minutes. Other instances will wait for this to complete.",
+            len(uncached), total,
+        )
+    else:
+        _log_cc.warning(
+            "OHLCV cache is partially cold: %d/%d symbols uncached or "
+            "missing required bars. Backfilling missing symbols now.",
+            len(cold_set), total,
+        )
+
+    try:
+        bf_result = backfill_all_symbols(symbols, force=False)
+        n_updated = bf_result.get("symbols_updated", 0)
+        n_skipped = bf_result.get("symbols_skipped", 0)
+        n_failed = bf_result.get("symbols_failed", 0)
+        failed_syms = list(bf_result.get("failed_symbols") or [])
+        duration_s = float(bf_result.get("duration_seconds") or 0)
+        status = str(bf_result.get("status") or "UNKNOWN")
+
+        if failed_syms:
+            _log_cc.warning(
+                "Cold-start OHLCV backfill finished with %d failure(s): %s. "
+                "Those symbols will fall back to live yfinance on first scan. "
+                "Retry via POST /api/ohlcv-cache/backfill.",
+                n_failed, failed_syms[:5],
+            )
+        else:
+            _log_cc.info(
+                "Cold-start OHLCV backfill complete in %.1fs: %d updated, "
+                "%d skipped, %d failed. First scan will serve from cache.",
+                duration_s, n_updated, n_skipped, n_failed,
+            )
+
+        # Write completion record so non-owners can stop polling.
+        completion_record: Dict[str, Any] = {
+            "status": status,
+            "symbols_updated": n_updated,
+            "symbols_skipped": n_skipped,
+            "symbols_failed": n_failed,
+            "failed_symbols": failed_syms,
+            "duration_seconds": duration_s,
+            "completed_at": _iso_now(),
+        }
+        store.kv_set(done_key, completion_record)
+
+        return {
+            "ran": True,
+            "action": "backfill",
+            "role": _owner_role,
+            "was_fully_cold": is_fully_cold,
+            "cold_symbol_count": len(cold_set),
+            "total_symbols": total,
+            "symbols_updated": n_updated,
+            "symbols_skipped": n_skipped,
+            "symbols_failed": n_failed,
+            "failed_symbols": failed_syms,
+            "duration_seconds": duration_s,
+            "status": status,
+            "recovery_hint": (
+                "POST /api/ohlcv-cache/backfill" if failed_syms else None
+            ),
+        }
+
+    except Exception as exc:
+        # Release ONLY the key this instance owns — using token-conditional
+        # release for the takeover key so a stale owner that lost its lease
+        # cannot delete a new peer's active record.
+        #
+        # - Initial owner: plain kv_release(claim_key) so the next startup
+        #   can claim and retry.
+        # - Takeover owner: kv_release_if_owned(takeover_key, _takeover_token)
+        #   — only deletes if OUR token still matches.  If our lease expired
+        #   and another peer already wrote their token, this is a no-op.
+        try:
+            if _owner_role == "owner":
+                store.kv_release(claim_key)
+            elif _takeover_token is not None:
+                store.kv_release_if_owned(takeover_key, _takeover_token)
+        except Exception:
+            pass
+        _released = claim_key if _owner_role == "owner" else takeover_key
+        _log_cc.error(
+            "Cold-start OHLCV backfill raised an exception (role=%s): %s. "
+            "%s released for retry. The first scan will fall back to a "
+            "live yfinance download (7–22 minutes). "
+            "Manual retry: POST /api/ohlcv-cache/backfill",
+            _owner_role, str(exc)[:300], _released,
+        )
+        return {
+            "ran": True,
+            "action": "backfill_failed",
+            "role": _owner_role,
+            "was_fully_cold": is_fully_cold,
+            "cold_symbol_count": len(cold_set),
+            "total_symbols": total,
+            "error": str(exc)[:300],
+            "recovery_hint": "POST /api/ohlcv-cache/backfill",
+        }
+
+
 def run_tick() -> Dict[str, Any]:
     """One scheduler tick. Returns a JSON-safe result dict."""
     settings = store.get_settings()

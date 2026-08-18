@@ -843,6 +843,182 @@ def kv_claim_once(key: str, ttl_seconds: int = 0) -> bool:
     return bool(_with_db(to_db, to_file))
 
 
+def kv_claim_with_value(key: str, value: Any) -> bool:
+    """Like kv_claim_once but stores ``value`` (a JSON-serialisable dict)
+    instead of ``True``.  Atomic: exactly one caller succeeds per key.
+
+    Use when callers need to embed metadata (e.g. timestamps, owner tokens)
+    inside the claim record itself rather than writing a second key.
+    Returns True if this caller successfully created the claim."""
+
+    def to_db(conn):
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS phase20_kv (
+                    key TEXT PRIMARY KEY,
+                    value JSONB,
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
+                """
+            )
+            cur.execute(
+                """
+                INSERT INTO phase20_kv (key, value, updated_at)
+                VALUES (%s, %s, NOW())
+                ON CONFLICT (key) DO NOTHING
+                """,
+                (key, json.dumps(value, default=str)),
+            )
+            claimed = cur.rowcount == 1
+        conn.commit()
+        return claimed
+
+    def to_file():
+        path = os.path.join(_DIR, "phase20_kv.json")
+        with _kv_file_lock():
+            data = _read_json(path, {})
+            if key in data:
+                return False
+            data[key] = value
+            _write_json(path, data)
+            return True
+
+    return bool(_with_db(to_db, to_file))
+
+
+def kv_acquire_expiring_claim(key: str, value: Any) -> bool:
+    """Atomically claim ``key`` or overwrite an EXISTING claim whose
+    ``value["expires_at"]`` (ISO-8601 UTC) has already passed.
+
+    This is the crash-safe takeover primitive: a dead owner that never ran
+    its cleanup leaves a record with an ``expires_at`` timestamp.  Once that
+    time passes, any peer can call this function and, if its INSERT / UPDATE
+    succeeds, it becomes the new owner.
+
+    ``value`` must be a dict containing at least ``"token"`` and
+    ``"expires_at"`` so callers can later use ``kv_release_if_owned``.
+
+    Returns True if this caller acquired the claim, False if another peer
+    holds a still-valid (unexpired) claim.
+    """
+
+    def to_db(conn):
+        value_json = json.dumps(value, default=str)
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS phase20_kv (
+                    key TEXT PRIMARY KEY,
+                    value JSONB,
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
+                """
+            )
+            # Step 1: try fresh insert (key is absent).
+            cur.execute(
+                """
+                INSERT INTO phase20_kv (key, value, updated_at)
+                VALUES (%s, %s, NOW())
+                ON CONFLICT (key) DO NOTHING
+                """,
+                (key, value_json),
+            )
+            if cur.rowcount == 1:
+                conn.commit()
+                return True
+            # Step 2: try overwriting an expired record.
+            cur.execute(
+                """
+                UPDATE phase20_kv
+                SET value = %s, updated_at = NOW()
+                WHERE key = %s
+                  AND (value::jsonb->>'expires_at')::timestamptz < NOW()
+                """,
+                (value_json, key),
+            )
+            won = cur.rowcount == 1
+        conn.commit()
+        return won
+
+    def to_file():
+        path = os.path.join(_DIR, "phase20_kv.json")
+        import datetime as _dt
+        with _kv_file_lock():
+            data = _read_json(path, {})
+            existing = data.get(key)
+            if existing is not None:
+                if isinstance(existing, dict):
+                    exp_iso = str(existing.get("expires_at") or "")
+                    if exp_iso:
+                        try:
+                            exp_dt = _dt.datetime.fromisoformat(exp_iso)
+                            if exp_dt.tzinfo is None:
+                                exp_dt = exp_dt.replace(
+                                    tzinfo=_dt.timezone.utc
+                                )
+                            if _dt.datetime.now(
+                                _dt.timezone.utc
+                            ).timestamp() < exp_dt.timestamp():
+                                return False  # Fresh record; cannot overwrite
+                        except Exception:
+                            pass
+                        # Expired or malformed expires_at → overwrite below
+                    else:
+                        return False  # No expiry info → treat as permanent
+                else:
+                    return False  # Non-dict claim → treat as permanent
+            data[key] = value
+            _write_json(path, data)
+            return True
+
+    return bool(_with_db(to_db, to_file))
+
+
+def kv_release_if_owned(key: str, token: str) -> bool:
+    """Delete ``key`` only if the stored ``value["token"]`` matches ``token``.
+
+    Use to release an expiring-claim lease without accidentally deleting a
+    new owner's record: if the TTL has passed and another peer already
+    overwrote the record with a different token, this call is a no-op.
+
+    Returns True if the key was deleted, False if the token did not match or
+    the key did not exist."""
+
+    def to_db(conn):
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS phase20_kv (
+                    key TEXT PRIMARY KEY,
+                    value JSONB,
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
+                """
+            )
+            cur.execute(
+                "DELETE FROM phase20_kv WHERE key = %s "
+                "AND value::jsonb->>'token' = %s",
+                (key, token),
+            )
+            deleted = cur.rowcount == 1
+        conn.commit()
+        return deleted
+
+    def to_file():
+        path = os.path.join(_DIR, "phase20_kv.json")
+        with _kv_file_lock():
+            data = _read_json(path, {})
+            existing = data.get(key)
+            if not (isinstance(existing, dict) and existing.get("token") == token):
+                return False
+            del data[key]
+            _write_json(path, data)
+            return True
+
+    return bool(_with_db(to_db, to_file))
+
+
 def kv_release(key: str) -> None:
     """Release a kv_claim_once claim (compensation when the work guarded by
     the claim failed after claiming — e.g. a persist error). The next

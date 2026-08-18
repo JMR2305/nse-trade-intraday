@@ -1067,6 +1067,16 @@ def main():
             from phase20_scheduler import check_overnight_carry_on_startup
             result = check_overnight_carry_on_startup()
 
+        elif command == "ohlcv_cold_start_check":
+            # Cold-start OHLCV cache check: if the daily_ohlcv_cache table is
+            # empty (fresh production deployment), trigger an automatic 8-month
+            # backfill now so the first scheduled scan uses the local cache
+            # instead of spending 7-22 minutes on a live yfinance bulk download.
+            # Idempotent — backfill skips symbols that already have fresh cache.
+            # Never raises; logs a prominent WARNING when cache is cold.
+            from phase20_scheduler import check_cold_cache_on_startup
+            result = check_cold_cache_on_startup()
+
         # ── Phase 20 — settings / scheduler health / history / paper engine ──
         elif command == "phase20_settings":
             from phase20_store import get_settings

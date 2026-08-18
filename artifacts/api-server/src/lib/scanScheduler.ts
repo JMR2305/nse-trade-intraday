@@ -59,31 +59,81 @@ function runPython(args: string[]): Promise<unknown> {
 let timer: NodeJS.Timeout | null = null;
 let tickInFlight = false;
 
+// ── Cold-start OHLCV readiness barrier ────────────────────────────────────────
+// Prevents scheduled_scan_tick from firing while the cold-start cache check
+// (or its triggered backfill) is still in progress.  Without this gate a fresh
+// production server would start scanning against the still-empty cache and fall
+// back to the 7–22 min live yfinance download the feature was designed to avoid.
+//
+// The flag starts true and is cleared (in the ohlcv_cold_start_check .finally()
+// handler) once the Python process resolves or rejects — including after the
+// owner instance finishes backfill and non-owner instances finish polling.
+// On any Node-level error the .catch()/.finally() chain still clears the gate
+// so scans are never blocked permanently.
+let _ohlcvColdStartPending = true;
+
+// Module-level reference to the tick closure so tests can invoke it directly
+// without depending on fake-timer machinery.  Assigned in startScanScheduler().
+let _tick: (() => Promise<void>) | null = null;
+
+/** @internal — reset all mutable state; call before each test. */
+export function _resetColdStartCheckForTests(): void {
+  _ohlcvColdStartPending = false;
+  tickInFlight = false;
+  _tick = null;
+  if (timer) { clearInterval(timer); timer = null; }
+}
+
+/** @internal — directly invoke one scheduler tick (bypasses setInterval timing). */
+export async function _runTickForTests(): Promise<void> {
+  if (!_tick) throw new Error("startScanScheduler() not called — _tick is null");
+  return _tick();
+}
+
 export function startScanScheduler(): void {
   if (process.env["DISABLE_SCAN_SCHEDULER"] === "true") {
     logger.info("Scan scheduler disabled via DISABLE_SCAN_SCHEDULER");
     return;
   }
+  // Mark the OHLCV readiness gate as pending for this scheduler instance.
+  // Must happen before any tick fires, so the first tick always sees the gate
+  // up and defers the scan until ohlcv_cold_start_check settles.
+  // (Also re-arms correctly after _resetColdStartCheckForTests() in tests.)
+  _ohlcvColdStartPending = true;
+
   const intervalMs = TICK_INTERVAL_MIN * 60 * 1000;
 
-  const tick = async (): Promise<void> => {
+  _tick = async (): Promise<void> => {
     if (tickInFlight) return; // never stack ticks in this process
     tickInFlight = true;
     try {
-      const result = (await runPython([
-        "scheduled_scan_tick",
-      ])) as Record<string, unknown>;
-      if (result?.["ran_scan"]) {
+      // ── OHLCV readiness gate ───────────────────────────────────────────────
+      // Block the market scan until the cold-start cache check (and any
+      // triggered backfill) has completed.  The gate only affects the main
+      // scan; per-minute advisory ticks below (pre-open intelligence, signal
+      // validation, push delivery) still run normally so they don't miss
+      // their IST-gated windows during a long backfill.
+      if (_ohlcvColdStartPending) {
         logger.info(
-          { scan_id: result["scan_id"], snapshot_ts: result["snapshot_ts"] },
-          "Scheduled market scan completed",
+          "Scheduled scan deferred — cold-start OHLCV cache check in progress",
         );
-        // Advisory push alerts for high-confidence signals; never blocks
-        // or influences the scan/trading pipeline.
-        dispatchSignalPushNotifications().catch((err: unknown) => {
-          logger.warn({ err: err instanceof Error ? err.message : String(err) },
-            "Signal push dispatch failed");
-        });
+        // Skip the scan but proceed to the per-minute advisory ticks below.
+      } else {
+        const result = (await runPython([
+          "scheduled_scan_tick",
+        ])) as Record<string, unknown>;
+        if (result?.["ran_scan"]) {
+          logger.info(
+            { scan_id: result["scan_id"], snapshot_ts: result["snapshot_ts"] },
+            "Scheduled market scan completed",
+          );
+          // Advisory push alerts for high-confidence signals; never blocks
+          // or influences the scan/trading pipeline.
+          dispatchSignalPushNotifications().catch((err: unknown) => {
+            logger.warn({ err: err instanceof Error ? err.message : String(err) },
+              "Signal push dispatch failed");
+          });
+        }
       }
     } catch (err) {
       // Failed scheduled scan: last successful snapshot is preserved by design.
@@ -164,7 +214,7 @@ export function startScanScheduler(): void {
     });
   };
 
-  timer = setInterval(() => { void tick(); }, intervalMs);
+  timer = setInterval(() => { void _tick!(); }, intervalMs);
   timer.unref();
   logger.info({ tickIntervalMin: TICK_INTERVAL_MIN },
     "Market-hours scan scheduler started (interval configured in Settings)");
@@ -209,9 +259,66 @@ export function startScanScheduler(): void {
     );
   });
 
+  // Cold-start OHLCV cache check — with startup readiness barrier.
+  //
+  // On a fresh production deployment the daily_ohlcv_cache table is empty.
+  // The Python check detects this and runs backfill_all_symbols() (2–8 min).
+  // _ohlcvColdStartPending stays true throughout so tick() skips the market
+  // scan while the backfill is in progress.  Once the promise settles
+  // (success, Python-level failure, or Node error) the flag is cleared and
+  // normal scan scheduling resumes.
+  //
+  // On a warm server the Python check is a fast DB query (< 1 s) and the
+  // flag is cleared before the 15-second initial tick fires.
+  runPython(["ohlcv_cold_start_check"]).then((r) => {
+    const res = r as Record<string, unknown>;
+    const action = res?.["action"] as string | undefined;
+    if (action === "backfill") {
+      logger.warn(
+        {
+          was_fully_cold: res["was_fully_cold"],
+          cold_symbol_count: res["cold_symbol_count"],
+          total_symbols: res["total_symbols"],
+          symbols_updated: res["symbols_updated"],
+          symbols_failed: res["symbols_failed"],
+          duration_seconds: res["duration_seconds"],
+          status: res["status"],
+          recovery_hint: res["recovery_hint"],
+        },
+        "Cold-start OHLCV backfill completed — cache was empty on this server",
+      );
+    } else if (action === "backfill_failed") {
+      logger.error(
+        {
+          was_fully_cold: res["was_fully_cold"],
+          cold_symbol_count: res["cold_symbol_count"],
+          error: res["error"],
+          recovery_hint: res["recovery_hint"],
+        },
+        "Cold-start OHLCV backfill failed — first scan will use live yfinance (slow)",
+      );
+    } else if (res?.["ran"] && action === "no_op") {
+      logger.info(
+        {
+          cache_hit_rate_pct: res["cache_hit_rate_pct"],
+          total_symbols: res["total_symbols"],
+        },
+        "Cold-start OHLCV cache check: cache warm, no backfill needed",
+      );
+    }
+  }).catch((err: unknown) => {
+    logger.warn(
+      { err: err instanceof Error ? err.message : String(err) },
+      "Cold-start OHLCV cache check failed (non-fatal — first scan may be slow)",
+    );
+  }).finally(() => {
+    // Always clear the gate — even on error, so scans are not blocked forever.
+    _ohlcvColdStartPending = false;
+  });
+
   // Kick one tick shortly after boot so a cold instance during market hours
   // converges quickly instead of waiting a full interval.
-  setTimeout(() => { void tick(); }, 15_000).unref();
+  setTimeout(() => { void _tick!(); }, 15_000).unref();
 }
 
 export function stopScanScheduler(): void {
