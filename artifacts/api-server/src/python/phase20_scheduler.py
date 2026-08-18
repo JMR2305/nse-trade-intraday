@@ -437,6 +437,16 @@ def run_tick() -> Dict[str, Any]:
                 p24_learning = maybe_run_daily_learning()
             except Exception as exc:
                 p24_learning = {"ran": False, "error": str(exc)[:200]}
+        # Exports retention: delete workspace-root exports/ files older than
+        # 7 days, exactly once per IST calendar day (kv_claim_once guard).
+        # Advisory-only; never raises.
+        exports_cleanup = None
+        if mstate == "CLOSED":
+            try:
+                from exports_retention import maybe_run_exports_cleanup
+                exports_cleanup = maybe_run_exports_cleanup()
+            except Exception as exc:
+                exports_cleanup = {"ran": False, "error": str(exc)[:200]}
         store.update_scheduler_state(
             last_attempt_at=now_iso, status="IDLE",
             detail=f"Market not open (state={mstate or 'UNKNOWN'})",
@@ -453,6 +463,8 @@ def run_tick() -> Dict[str, Any]:
             out["eod_reconciliation"] = eod_recon
         if p24_learning is not None:
             out["phase24_learning"] = p24_learning
+        if exports_cleanup is not None:
+            out["exports_cleanup"] = exports_cleanup
         if p26d_daily is not None:
             out["phase26d_daily_report"] = p26d_daily
         if p26c is not None:

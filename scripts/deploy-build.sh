@@ -32,6 +32,15 @@ echo "    Executable : $UV_PYTHON"
 echo "    Site-pkgs  : $UV_SITE"
 
 echo ""
+echo "--- Step 1d: Prune exports/ files older than 7 days ---"
+# Keep the workspace tidy during development so a future deploy never hits
+# the 8 GiB image limit again.  Step 5 removes the entire exports/ directory
+# from the deploy image, but this step keeps the dev workspace clean between
+# deploys by removing stale files right at build time.
+find exports/ -maxdepth 1 -type f -mtime +7 -delete 2>/dev/null || true
+echo "    Exports older than 7 days removed (Step 5 strips the full dir from image)"
+
+echo ""
 echo "--- Step 2: Verify critical Python imports (using .venv) ---"
 .venv/bin/python3 -c "
 imports = [
