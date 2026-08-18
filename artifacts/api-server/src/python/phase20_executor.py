@@ -972,6 +972,46 @@ def run_bootstrap_auto_entry(snapshot: Dict[str, Any],
             qty -= 1
         order_value = round(qty * worst_fill, 2)
 
+        # Gate: target_price must be populated and positive.
+        # When target_price is null or 0 the downstream validate_pre_trade()
+        # call computes RR = 0 and emits a generic STOP_LOSS_MISSING CRITICAL
+        # rejection.  That rejection is hard to diagnose because the gate name
+        # doesn't tell the operator WHY target is absent (it was null in the
+        # scan snapshot).  We surface it here as TARGET_MISSING so the
+        # pipeline-events log is unambiguous and the operator knows to check
+        # live_scan_engine's strategy.compute_target() for the symbol.
+        _target_price_raw = best.get("target_price")
+        _target_price_val = float(_target_price_raw) if _target_price_raw is not None else 0.0
+        if _target_price_val <= 0:
+            _reason_no_target = (
+                f"{sym}: target_price is {'null' if _target_price_raw is None else 0} "
+                f"in the scan snapshot — R:R check would compute RR=0 and reject; "
+                f"check strategy.compute_target() in live_scan_engine.py"
+            )
+            skipped.append({"symbol": sym, "reason": _reason_no_target})
+            try:
+                from pipeline_events import emit as _pe
+                _pe("BOOTSTRAP_CANDIDATE_REJECTED", "EXECUTION",
+                    scan_id=scan_id, symbol=sym,
+                    payload={
+                        "symbol":       sym,
+                        "reason":       _reason_no_target,
+                        "gate":         "TARGET_MISSING",
+                        "target_price": _target_price_raw,
+                        "stop_loss":    float(best.get("stop_loss") or 0),
+                        "rr_ratio":     float(best.get("rr_ratio") or 0),
+                        "note": (
+                            "target_price was null or 0 in the scan snapshot. "
+                            "The pre-trade R:R check would have silently produced "
+                            "RR=0 and rejected with STOP_LOSS_MISSING. "
+                            "Explicit TARGET_MISSING gate raised here so the "
+                            "rejection is auditable without reading risk_validation."
+                        ),
+                    })
+            except Exception:
+                pass
+            continue
+
         # Duplicate position guard — skip this symbol if already held.
         if any(str(p["symbol"]).upper() == sym for p in get_portfolio()["positions"]):
             skipped.append({"symbol": sym, "reason": "Open position already exists"})

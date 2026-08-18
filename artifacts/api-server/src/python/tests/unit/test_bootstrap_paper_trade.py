@@ -791,10 +791,12 @@ class TestFallbackCandidateIteration:
         """If create_paper_entry rejects the top candidate (pre-trade R:R failure),
         run_bootstrap_auto_entry must attempt the second candidate."""
         recs = [
-            # top: confidence 73.6 — will be rejected by pre-trade check
+            # top: confidence 73.6 — will be rejected by create_paper_entry (R:R check)
+            # target_price is set to a valid value so the candidate reaches create_paper_entry;
+            # rejection is simulated by the mock, not by the TARGET_MISSING gate.
             _make_rec(symbol="HDFCLIFE", calibrated_confidence=73.6,
                       opportunity_score=63.9, rr_ratio=1.5, kite_ltp=539.2,
-                      stop_loss=524.87, target_price=0.0),
+                      stop_loss=524.87, target_price=560.0),
             # second: confidence 62.6 — should succeed
             _make_rec(symbol="DRREDDY", calibrated_confidence=62.6,
                       opportunity_score=62.6, rr_ratio=2.5, kite_ltp=1186.4,
@@ -827,8 +829,10 @@ class TestFallbackCandidateIteration:
         """When the fallback candidate is accepted, run returns ran=True with the
         fallback symbol, and only one trade row is created."""
         recs = [
+            # target_price=560 so the candidate passes the TARGET_MISSING gate and
+            # reaches create_paper_entry, which is then mocked to reject it.
             _make_rec(symbol="HDFCLIFE", calibrated_confidence=73.6,
-                      rr_ratio=1.5, kite_ltp=539.2, stop_loss=524.87, target_price=0.0),
+                      rr_ratio=1.5, kite_ltp=539.2, stop_loss=524.87, target_price=560.0),
             _make_rec(symbol="DRREDDY", calibrated_confidence=62.6,
                       rr_ratio=2.5, kite_ltp=1186.4, stop_loss=1138.16, target_price=1250.0),
         ]
@@ -882,8 +886,9 @@ class TestFallbackCandidateIteration:
         """When every candidate fails, no trade is created and
         BOOTSTRAP_ALL_CANDIDATES_REJECTED is emitted."""
         recs = [
+            # target_price=560 so HDFCLIFE reaches create_paper_entry (mocked to fail).
             _make_rec(symbol="HDFCLIFE", calibrated_confidence=73.6,
-                      rr_ratio=1.5, kite_ltp=539.2, stop_loss=524.87, target_price=0.0),
+                      rr_ratio=1.5, kite_ltp=539.2, stop_loss=524.87, target_price=560.0),
             _make_rec(symbol="DRREDDY", calibrated_confidence=62.6,
                       rr_ratio=2.5, kite_ltp=1186.4, stop_loss=1138.16, target_price=1250.0),
         ]
@@ -909,10 +914,12 @@ class TestFallbackCandidateIteration:
     # Test 5 — rejected candidate emits structured BOOTSTRAP_CANDIDATE_REJECTED
     def test_rejected_candidate_emits_structured_event(self):
         """Each candidate rejected by create_paper_entry must emit
-        BOOTSTRAP_CANDIDATE_REJECTED with required fields."""
+        BOOTSTRAP_CANDIDATE_REJECTED with required fields.
+        target_price=560 so HDFCLIFE passes the TARGET_MISSING gate and reaches
+        create_paper_entry; rejection is from the mocked risk-agent R:R check."""
         recs = [
             _make_rec(symbol="HDFCLIFE", calibrated_confidence=73.6,
-                      rr_ratio=1.5, kite_ltp=539.2, stop_loss=524.87, target_price=0.0),
+                      rr_ratio=1.5, kite_ltp=539.2, stop_loss=524.87, target_price=560.0),
         ]
         snapshot = _make_snapshot(recs=recs)
         emitted_payloads: list[dict] = []
@@ -942,10 +949,13 @@ class TestFallbackCandidateIteration:
     # Test 6 — risk agent rejection is not bypassed
     def test_risk_agent_rejection_not_bypassed(self):
         """The fallback loop must still pass through create_paper_entry which
-        runs the pre-trade risk agent; the loop cannot short-circuit the agent."""
+        runs the pre-trade risk agent; the loop cannot short-circuit the agent.
+        target_price=560 for HDFCLIFE so it passes the TARGET_MISSING gate and
+        reaches create_paper_entry; the mock then rejects it (simulating the
+        risk agent)."""
         recs = [
             _make_rec(symbol="HDFCLIFE", calibrated_confidence=73.6,
-                      rr_ratio=1.5, kite_ltp=539.2, stop_loss=524.87, target_price=0.0),
+                      rr_ratio=1.5, kite_ltp=539.2, stop_loss=524.87, target_price=560.0),
             _make_rec(symbol="DRREDDY", calibrated_confidence=62.6,
                       rr_ratio=2.5, kite_ltp=1186.4, stop_loss=1138.16, target_price=1250.0),
         ]
@@ -973,10 +983,12 @@ class TestFallbackCandidateIteration:
     # Test 7 — no live broker order API called (paper path only)
     def test_no_live_broker_api_called_during_fallback(self):
         """Fallback iteration must never trigger live broker order placement.
-        create_paper_entry is the only entry path; it uses paper_trader.execute_buy."""
+        create_paper_entry is the only entry path; it uses paper_trader.execute_buy.
+        target_price=560 for HDFCLIFE so it passes TARGET_MISSING and reaches
+        create_paper_entry; the mock rejects it and DRREDDY succeeds."""
         recs = [
             _make_rec(symbol="HDFCLIFE", calibrated_confidence=73.6,
-                      rr_ratio=1.5, kite_ltp=539.2, stop_loss=524.87, target_price=0.0),
+                      rr_ratio=1.5, kite_ltp=539.2, stop_loss=524.87, target_price=560.0),
             _make_rec(symbol="DRREDDY", calibrated_confidence=62.6,
                       rr_ratio=2.5, kite_ltp=1186.4, stop_loss=1138.16, target_price=1250.0),
         ]
@@ -1021,3 +1033,175 @@ class TestFallbackCandidateIteration:
         mock_create.assert_not_called()
         assert "claim" in result.get("reason", "").lower() or \
                "kv_claim_once" in result.get("reason", "")
+
+
+# ── TEST 12: target_price gate — TARGET_MISSING before pre-trade R:R check ────
+
+class TestTargetPriceGate:
+    """
+    Confirm the bootstrap executor gate-checks target_price BEFORE calling
+    create_paper_entry.  A missing or zero target used to reach
+    validate_pre_trade() which computed RR=0 and emitted a generic
+    STOP_LOSS_MISSING rejection — hard to trace back to the scan snapshot.
+
+    The explicit TARGET_MISSING gate (added in Task 802) catches this earlier
+    and emits BOOTSTRAP_CANDIDATE_REJECTED with gate="TARGET_MISSING" so
+    operators immediately know to check strategy.compute_target() in
+    live_scan_engine.py.
+    """
+
+    def test_valid_target_price_forwarded_unchanged_to_create_paper_entry(self):
+        """When target_price is positive (e.g. DRREDDY=1250.0), it must be
+        forwarded verbatim into the sizing dict that create_paper_entry receives.
+        The TARGET_MISSING gate must NOT fire."""
+        rec = _make_rec(symbol="DRREDDY", target_price=1_250.0, stop_loss=1_150.0)
+        snapshot = _make_snapshot(recs=[rec])
+        captured_sizing: dict = {}
+
+        def capture(candidate, settings, scan_id, snap_ts, trigger_source="AUTO"):
+            captured_sizing.update(candidate.get("sizing") or {})
+            return {"created": True, "trade_id": "P20-drreddy", "symbol": "DRREDDY"}
+
+        with (
+            patch("phase20_executor._with_db", side_effect=[0, False]),
+            patch("phase20_executor.create_paper_entry", side_effect=capture),
+        ):
+            result = run_bootstrap_auto_entry(snapshot, _settings_bootstrap_on())
+
+        assert result["ran"] is True, (
+            "Trade must be created when target_price is valid"
+        )
+        assert float(captured_sizing.get("target_price") or 0) == 1_250.0, (
+            f"target_price must be forwarded unchanged (1250.0); "
+            f"got {captured_sizing.get('target_price')}"
+        )
+
+    def test_null_target_price_emits_target_missing_event_not_stop_loss_missing(self):
+        """When target_price is None in the scan snapshot, the bootstrap executor
+        must emit BOOTSTRAP_CANDIDATE_REJECTED with gate='TARGET_MISSING' and
+        skip to the next candidate WITHOUT calling create_paper_entry.
+
+        The old behaviour was to pass target=0 to validate_pre_trade() which
+        emitted the generic STOP_LOSS_MISSING CRITICAL rejection — untraceable
+        without reading risk_validation in the event payload."""
+        rec = _make_rec(symbol="DRREDDY", target_price=1_250.0)
+        rec["target_price"] = None  # Simulate null from scan snapshot
+        snapshot = _make_snapshot(recs=[rec])
+        emitted_events: list[tuple] = []
+        mock_create = MagicMock()
+
+        def capture_emit(event_type, *a, **kw):
+            emitted_events.append((event_type, kw.get("payload", {})))
+
+        with (
+            patch("phase20_executor._with_db", side_effect=[0, False]),
+            patch("phase20_executor.create_paper_entry", mock_create),
+            patch.object(sys.modules["pipeline_events"], "emit", capture_emit),
+        ):
+            result = run_bootstrap_auto_entry(snapshot, _settings_bootstrap_on())
+
+        # No trade created
+        assert result["ran"] is False
+        mock_create.assert_not_called(), (
+            "create_paper_entry must NOT be called when target_price is null — "
+            "the TARGET_MISSING gate must intercept first"
+        )
+        # The event must have gate="TARGET_MISSING"
+        rejected_events = [
+            (et, p) for (et, p) in emitted_events
+            if et == "BOOTSTRAP_CANDIDATE_REJECTED"
+        ]
+        assert len(rejected_events) >= 1, (
+            "BOOTSTRAP_CANDIDATE_REJECTED must be emitted for TARGET_MISSING"
+        )
+        payload = rejected_events[0][1]
+        assert payload.get("gate") == "TARGET_MISSING", (
+            f"gate must be 'TARGET_MISSING', got {payload.get('gate')!r}. "
+            "A null target must not silently reach validate_pre_trade() as RR=0."
+        )
+        assert payload.get("symbol") == "DRREDDY"
+        assert "reason" in payload
+
+    def test_zero_target_price_emits_target_missing_event(self):
+        """When target_price is 0.0 (e.g. strategy.compute_target() raised and
+        defaulted to 0), the same TARGET_MISSING gate must fire."""
+        rec = _make_rec(symbol="DRREDDY", target_price=0.0)
+        snapshot = _make_snapshot(recs=[rec])
+        emitted_events: list[tuple] = []
+        mock_create = MagicMock()
+
+        def capture_emit(event_type, *a, **kw):
+            emitted_events.append((event_type, kw.get("payload", {})))
+
+        with (
+            patch("phase20_executor._with_db", side_effect=[0, False]),
+            patch("phase20_executor.create_paper_entry", mock_create),
+            patch.object(sys.modules["pipeline_events"], "emit", capture_emit),
+        ):
+            result = run_bootstrap_auto_entry(snapshot, _settings_bootstrap_on())
+
+        assert result["ran"] is False
+        mock_create.assert_not_called()
+        rejected_events = [
+            (et, p) for (et, p) in emitted_events
+            if et == "BOOTSTRAP_CANDIDATE_REJECTED"
+        ]
+        assert len(rejected_events) >= 1
+        assert rejected_events[0][1].get("gate") == "TARGET_MISSING"
+
+    def test_null_target_skips_to_next_candidate(self):
+        """When the top candidate has target_price=None, the bootstrap executor
+        must skip it and attempt the next eligible candidate."""
+        rec_null_target = _make_rec(symbol="HDFCLIFE", calibrated_confidence=73.6,
+                                    target_price=1_250.0)
+        rec_null_target["target_price"] = None  # null in snapshot
+        rec_valid = _make_rec(symbol="DRREDDY", calibrated_confidence=62.6,
+                              target_price=1_250.0)
+        snapshot = _make_snapshot(recs=[rec_null_target, rec_valid])
+        mock_create = MagicMock(return_value={
+            "created": True, "trade_id": "P20-drreddy", "symbol": "DRREDDY",
+        })
+
+        with (
+            patch("phase20_executor._with_db", side_effect=[0, False]),
+            patch("phase20_executor.create_paper_entry", mock_create),
+        ):
+            result = run_bootstrap_auto_entry(snapshot, _settings_bootstrap_on())
+
+        # create_paper_entry must only be called for DRREDDY (null-target HDFCLIFE skipped)
+        assert mock_create.call_count == 1, (
+            f"create_paper_entry must be called exactly once (for DRREDDY); "
+            f"got {mock_create.call_count} calls"
+        )
+        called_sym = mock_create.call_args.args[0].get("symbol") if mock_create.call_args.args \
+            else mock_create.call_args.kwargs.get("candidate", {}).get("symbol")
+        assert called_sym == "DRREDDY", (
+            f"Only DRREDDY must reach create_paper_entry; got {called_sym!r}"
+        )
+        assert result["ran"] is True
+        assert result["symbol"] == "DRREDDY"
+
+    def test_target_missing_candidate_appears_in_skipped_list(self):
+        """A candidate rejected by TARGET_MISSING must appear in the skipped list
+        so the audit trail is complete (operators can see it was evaluated)."""
+        rec_null = _make_rec(symbol="HDFCLIFE", calibrated_confidence=73.6,
+                             target_price=1_250.0)
+        rec_null["target_price"] = None
+        rec_valid = _make_rec(symbol="DRREDDY", calibrated_confidence=62.6,
+                              target_price=1_250.0)
+        snapshot = _make_snapshot(recs=[rec_null, rec_valid])
+
+        with (
+            patch("phase20_executor._with_db", side_effect=[0, False]),
+            patch("phase20_executor.create_paper_entry",
+                  return_value={"created": True, "trade_id": "P20-drreddy",
+                                "symbol": "DRREDDY"}),
+        ):
+            result = run_bootstrap_auto_entry(snapshot, _settings_bootstrap_on())
+
+        assert result["ran"] is True
+        skipped = result.get("skipped_before_success", [])
+        assert any(s.get("symbol") == "HDFCLIFE" for s in skipped), (
+            "HDFCLIFE (null target) must appear in skipped_before_success "
+            f"so the audit trail is complete; got: {skipped}"
+        )
