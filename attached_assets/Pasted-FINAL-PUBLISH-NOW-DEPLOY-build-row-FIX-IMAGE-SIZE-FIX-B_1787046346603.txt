@@ -1,0 +1,94 @@
+FINAL PUBLISH NOW — DEPLOY _build_row FIX + IMAGE SIZE FIX BEFORE MARKET CLOSE
+
+Use APEXQUANT_POST_DEPLOY_BOOTSTRAP_FIRST_TRADE_PROOF.md as the controlling report.
+
+Do not change thresholds.
+Do not change risk rules.
+Do not enable live orders.
+PAPER ONLY.
+
+Current status:
+- _build_row NameError fix is in workspace.
+- create_paper_entry try-except fallback fix is in workspace.
+- deploy-build.sh image-size cleanup is in workspace.
+- 50/50 tests pass.
+- Production is still running old build.
+- Previous deploy failed because exports/ made the container image too large.
+- Scanner closes at 15:30 IST.
+
+TASK 1 — PUBLISH IMMEDIATELY
+
+Publish current workspace to production:
+https://nse-trade-intraday.replit.app
+
+Confirm deploy includes:
+- phase20_executor.py _build_row explicit parameters fix
+- create_paper_entry defensive try-except
+- fallback candidate loop
+- deploy-build.sh cleanup removing exports/, reports/, verification/, screenshots/, __pycache__, .mypy_cache
+
+TASK 2 — VERIFY DEPLOYMENT HEALTH
+
+After publish, verify:
+- deployment succeeds
+- /api/healthz returns 200
+- production server version/timestamp is updated
+- production is no longer using the 04:23 UTC old build
+- latest production logs show new code loaded
+
+TASK 3 — WATCH NEXT SCAN
+
+Wait for next scheduled scan before 15:30 IST if possible.
+
+Expected after publish:
+- bootstrap_scan:<scan_id> claimed once
+- candidate selected
+- _build_row no longer raises NameError
+- if candidate passes Risk Agent, phase20_paper_trades row inserted
+- ORDER_EXECUTED emitted
+- trigger_source=BOOTSTRAP_AUTO
+- fill_model=bootstrap_paper
+
+TASK 4 — IF TRADE FIRES
+
+Report:
+- trade_id
+- symbol
+- status
+- fill_price
+- quantity
+- stop_loss
+- target
+- trigger_source
+- fill_model
+- scan_id
+- confidence
+- notional value
+- ORDER_SUBMITTED / ORDER_EXECUTED events
+- confirmation no live broker API called
+
+TASK 5 — IF NO TRADE FIRES BEFORE CLOSE
+
+Report exact reason:
+- publish still failed
+- no scan before 15:30
+- no bootstrap_eligible candidates
+- candidate rejected by R:R
+- all candidates rejected
+- any remaining exception
+
+TASK 6 — FINAL REPORT
+
+Generate:
+APEXQUANT_FINAL_PUBLISH_AND_BOOTSTRAP_TRADE_STATUS.md
+
+Include:
+1. Publish result.
+2. Build image-size result.
+3. Health check result.
+4. Latest scan_id after publish.
+5. Whether first BOOTSTRAP_AUTO trade was created.
+6. If created: full DB and event proof.
+7. If not created: exact blocker.
+8. Confirmation live orders remain disabled.
+9. Whether next attempt rolls to 2026-08-19 market open.
