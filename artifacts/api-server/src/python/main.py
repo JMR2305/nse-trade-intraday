@@ -1013,6 +1013,44 @@ def main():
             from scan_state_store import build_scan_history_response
             _hist_limit = max(1, min(50, int(args[1]) if len(args) > 1 else 10))
             result = build_scan_history_response(limit=_hist_limit)
+
+        # ── Local OHLCV cache commands ────────────────────────────────────────
+        elif command == "ohlcv_cache_status":
+            # Return per-symbol cache status and overall summary.
+            from config import NIFTY_50 as _n50
+            from ohlcv_cache_store import get_overall_cache_summary
+            result = {"success": True, **get_overall_cache_summary(list(_n50))}
+
+        elif command == "ohlcv_backfill":
+            # Backfill 6-month OHLCV history for all NIFTY 50 symbols.
+            # Optional arg: force=1 to re-fetch even fresh symbols.
+            from config import NIFTY_50 as _n50
+            from ohlcv_cache_store import ensure_tables, backfill_all_symbols
+            ensure_tables()
+            _force = len(args) > 1 and args[1] in ("1", "true", "force")
+            result = backfill_all_symbols(list(_n50), force=_force)
+
+        elif command == "ohlcv_postmarket_refresh":
+            # Trigger post-market daily-bar append immediately (no gate).
+            from post_market_data_refresh import run_postmarket_refresh
+            result = run_postmarket_refresh()
+
+        elif command == "pre_market_data_readiness":
+            # Run pre-market data readiness check and return verdict.
+            from pre_market_data_readiness import run_pre_market_readiness_check
+            result = {"success": True, **run_pre_market_readiness_check()}
+
+        elif command == "company_master_bootstrap":
+            # Seed nifty50_company_master from config.SECTOR_MAP.
+            from nifty50_company_master_store import ensure_table, bootstrap_from_config
+            ensure_table()
+            result = bootstrap_from_config()
+
+        elif command == "company_master_list":
+            # Return all company master entries.
+            from nifty50_company_master_store import get_all
+            result = {"success": True, "rows": get_all()}
+
         elif command == "scheduled_scan_tick":
             # Phase 20: market-hours auto-scan tick with durable settings,
             # scheduler health, scan-run history, and paper management.

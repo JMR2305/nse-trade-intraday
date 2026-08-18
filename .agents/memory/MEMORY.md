@@ -113,3 +113,4 @@
 - [TATAMOTORS demerger mapping](tatamotors-demerger-mapping.md) — TATAMOTORS.NS is dead; use TMPV+TMCV; NIFTY_50 is now 51; _meta(50) tests must become _meta(MIN_SYMBOLS_EXPECTED).
 - [Phase 27E/27F test conventions](phase27ef-tests.md) — frontend vitest needs PORT=9999 BASE_PATH=/trading-dashboard/; Python check_* fns are pure (inject inputs dict directly, no patching needed for most).
 - [Kite LTP overlay (Option A)](kite-ltp-overlay.md) — KITE_LTP_OVERLAY_ENABLED flag; overlays current_price/execution_price only; indicators always yfinance_daily_bars; kite_ltp_overlay.py is the single source; 37/37 tests.
+- [Local NIFTY 50 OHLCV cache](ohlcv-cache.md) — cache-first fetch_batch (< 5s warm vs 22 min cold); post-market refresh at POST_CLOSE tick; ltps key is bare symbol not .NS; tickers in MultiIndex level 0.

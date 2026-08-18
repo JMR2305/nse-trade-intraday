@@ -65,6 +65,7 @@ import phase26cValidationRouter     from "./phase26c-validation";
 import phase26dReportsRouter        from "./phase26d-reports";
 import validationV2Router           from "./validation-v2";
 import phase24Router from "./phase24";
+import ohlcvCacheRouter from "./ohlcvCache";
 
 const router: IRouter = Router();
 
@@ -133,6 +134,7 @@ router.use(liveValidationRouter);
 router.use(phase26cValidationRouter);
 router.use(phase26dReportsRouter);
 router.use(validationV2Router);
+router.use(ohlcvCacheRouter);
 router.use(tradingRouter);
 router.use(downloadRouter);
 

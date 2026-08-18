@@ -1,0 +1,389 @@
+BUILD LOCAL NIFTY 50 DATA STORE + YFINANCE FALLBACK + POST-MARKET REFRESH
+
+Use these controlling documents:
+- APEXQUANT_SCAN_COUNT_AND_DATA_FETCH_REFERENCE.md
+- APEXQUANT_AI_SOP_v6.0_TOMORROW_TRADE_READINESS.md
+- APEXQUANT_2026_08_19_OPERATOR_CHECKLIST.md
+
+Do not change trading thresholds.
+Do not enable live orders.
+Do not call broker order APIs.
+PAPER ONLY.
+
+BACKGROUND:
+The attached scan-count/data-fetch report proves:
+- 2026-08-18 had only 18 completed scans, 19 started.
+- The 75 figure is scheduler ticks, not completed scans.
+- Completed scan count is low because scans often take 7–22 minutes.
+- The bottleneck is yfinance bulk fetch, not Kite.
+- Kite LTP overlay takes <1 second.
+- yfinance is currently used for 6-month daily OHLCV and indicators.
+- Kite is used for live current_price and execution_price.
+
+GOAL:
+Stop fetching full yfinance 6-month daily history every scan.
+Create a persistent local NIFTY 50 data store so scans use local OHLCV/company data first, and yfinance only as fallback or scheduled refresh source.
+
+The final design should be:
+- Local data first.
+- yfinance fallback.
+- Kite LTP for live price and execution.
+- Post-market refresh/appending of latest daily candle.
+- Faster scans.
+- Higher completed scan count.
+- No change to live-order safety.
+
+TASK 1 — AUDIT CURRENT DATA FETCH PATH
+
+Find every code path that fetches yfinance data during scans.
+
+Review:
+- live_data_provider.py
+- live_scan_engine.py
+- indicator_engine.py
+- market_scanner.py
+- backtesting_engine.py
+- any yfinance/yf.download usage
+- any cache layer already present
+
+Report:
+- exact functions calling yfinance
+- whether full 6-month history is fetched per scan
+- whether yf.download is called for 50 symbols in bulk
+- how long those calls take
+- how many yfinance calls happen per trading day
+- which scan durations were caused by yfinance
+- why scans hold the lock for 7–22 minutes
+- why only 18–25 scans complete instead of 75 scheduler ticks
+
+TASK 2 — CREATE LOCAL DAILY OHLCV STORE
+
+Create a persistent local DB-backed daily OHLCV cache.
+
+Suggested table:
+
+daily_ohlcv_cache:
+- symbol
+- trading_date
+- open
+- high
+- low
+- close
+- adjusted_close
+- volume
+- source = yfinance
+- fetched_at
+- updated_at
+- data_quality
+- checksum/hash optional
+- PRIMARY KEY(symbol, trading_date)
+
+Also create metadata/KV:
+
+daily_ohlcv_refresh_state:
+- refresh_date
+- refresh_type: premarket / intraday_missing / postmarket / manual
+- status
+- symbols_requested
+- symbols_updated
+- missing_symbols
+- stale_symbols
+- failed_symbols
+- start_time
+- end_time
+- duration_seconds
+- error_summary
+
+TASK 3 — CREATE LOCAL COMPANY MASTER DATA STORE
+
+Since the universe is only NIFTY 50 / 51 symbols, download and store local company metadata once.
+
+Create table or JSON-backed store:
+
+nifty50_company_master:
+- symbol
+- yahoo_symbol
+- kite_symbol
+- instrument_token
+- company_name
+- sector
+- industry
+- exchange
+- lot_size, if applicable
+- tick_size, if available
+- isin, if available
+- index_membership
+- active_from
+- active_to
+- is_active
+- last_verified_at
+- source
+
+Use this local master for:
+- symbol mapping
+- sector exposure
+- company details
+- display names
+- instrument token lookup
+- LTIM/TMPV/TMCV mapping issues
+- avoiding repeated external lookup
+
+Fetch/refresh policy:
+- Refresh company master weekly or manually.
+- Use local master during scans.
+- yfinance/Kite should only be fallback for missing fields.
+- Show warning if a local mapping is stale.
+
+TASK 4 — CHANGE LIVE SCAN FETCH POLICY
+
+Implement this policy:
+
+A. Before market open / first scan:
+- Check local daily_ohlcv_cache for each symbol.
+- Ensure at least 6 months of daily bars are available.
+- Ensure latest expected trading date is present or acceptable.
+- If missing, fetch only missing ranges from yfinance.
+- Do not refetch full 6-month history if cache is already complete.
+
+B. During market hours:
+- Do NOT call yfinance bulk download every 5 minutes.
+- Use local daily_ohlcv_cache for indicators.
+- Apply Kite LTP overlay for current_price and execution_price.
+- If cache is fresh enough, scan should run from local data.
+- Only call yfinance during market hours for symbols with missing/stale cache.
+
+C. Post-market close:
+- After 15:30 IST, run a postmarket daily-bar refresh job.
+- Fetch today’s/yesterday’s final daily candle from yfinance for all NIFTY 50 symbols.
+- Append/update only the latest trading date in local cache.
+- Record refresh status.
+- Do not disturb closed trade/eod logic.
+- This job should prepare tomorrow’s indicators before market opens.
+
+D. Nightly / off-market:
+- Verify cache completeness for the next session.
+- Validate all symbols have required 6-month lookback.
+- Rebuild corrupted/missing ranges if needed.
+- Generate data readiness report.
+
+E. Fallback:
+- If local cache is available and recent, use it even if yfinance fails.
+- If local cache is stale beyond allowed threshold, mark symbol STALE and block BUY.
+- If no cache exists, mark symbol UNAVAILABLE.
+- yfinance should become fallback, not primary per-scan dependency.
+
+TASK 5 — PRESERVE DATA-SOURCE RULES
+
+Keep the core data-source architecture:
+
+- indicator_source = local_yfinance_cache
+- ohlcv_original_source = yfinance
+- current_price_source = kite_live_ltp when available
+- execution_price_source = kite_live_ltp when available
+- quote_reliable = true only when Kite LTP is valid
+- fallback to yfinance close only when Kite unavailable, and mark clearly
+
+Add these fields to scan output:
+- ohlcv_source: local_yfinance_cache / yfinance_fallback
+- cache_hit: true/false
+- cache_age_days
+- cache_latest_date
+- refreshed_this_scan: true/false
+- yfinance_called_this_scan: true/false
+- yfinance_call_duration_ms
+- kite_ltp_duration_ms
+- data_store_health
+
+TASK 6 — POST-MARKET APPEND JOB
+
+Add a scheduled/triggered post-market job:
+
+post_market_daily_data_refresh()
+
+Run after market close, suggested 16:05 IST or on first post-close scheduler tick.
+
+It should:
+1. Load NIFTY 50 local company master.
+2. Fetch latest daily OHLCV candle from yfinance.
+3. Append/update today's trading date for every available symbol.
+4. Preserve previous rows.
+5. Detect split/corporate-action anomalies.
+6. Mark missing symbols.
+7. Mark LTIM separately as known provider issue if still missing.
+8. Emit DATA_CACHE_POSTMARKET_REFRESH_COMPLETED.
+9. Generate refresh summary for dashboard.
+
+If yfinance is unavailable post-market:
+- Keep previous cache.
+- Emit DATA_CACHE_POSTMARKET_REFRESH_FAILED.
+- Do not break next scan if cache is still within safe age.
+
+TASK 7 — PRE-MARKET READINESS JOB
+
+Add a pre-market data readiness check, around 08:45–09:00 IST.
+
+pre_market_data_readiness_check()
+
+Check:
+- local cache has required history for each active symbol
+- latest available trading date
+- missing rows
+- company master completeness
+- Kite symbol mapping
+- yfinance fallback readiness
+- cache age
+- expected scan performance
+
+Output:
+- READY
+- READY_WITH_WARNINGS
+- BLOCKED
+
+Block BUY if:
+- cache is missing required history for too many symbols
+- cache is stale beyond configured age
+- Kite LTP is unavailable for execution price
+- company master mapping is missing for candidate symbol
+
+TASK 8 — BACKTESTING COMPATIBILITY
+
+Backtesting should use local OHLCV cache first.
+
+Rules:
+- Use local cache as historical source.
+- If missing required date range, fetch missing bars from yfinance and store them.
+- Backtest must use as-of date slices only.
+- No lookahead.
+- Replay events must remain isolated.
+- BTT/replay must not pollute live paper analytics.
+- Cache source and date range must be written into backtest report.
+
+TASK 9 — UI / API UPDATES
+
+Update Mission Control, AI Paper Trader, Live Data Health, and System Readiness.
+
+Show clearly:
+- OHLCV source: local cache
+- Original data source: yfinance
+- Kite LTP overlay: live/not live
+- Cache hit rate
+- Last post-market refresh
+- Latest cached trading date
+- Cache age
+- Missing/stale symbols
+- yfinance fallback used: yes/no
+- yfinance duration
+- Kite LTP duration
+- completed scans today
+- scheduler ticks today
+- skipped ticks due lock
+- average scan duration
+- expected completed scans after local cache implementation
+
+Fix scan-count wording:
+- Completed scans = SCAN_COMPLETED from pipeline_events
+- Started scans = SCAN_STARTED
+- Scheduler ticks = total 5-minute triggers
+- Do not compare completed scans to 75 unless explicitly labeled as theoretical tick count.
+- After cache implementation, target should be significantly closer to 5-minute cadence.
+
+TASK 10 — PERFORMANCE TARGETS
+
+Before/after comparison:
+
+Before:
+- yfinance bulk download per scan
+- scan duration 7–22 minutes during cache misses
+- completed scans 18–25/day
+- many scheduler ticks skipped due lock
+
+After:
+- yfinance full fetch only premarket/postmarket/missing cache
+- market-hour scan reads local cache
+- Kite LTP overlay <1 second
+- target scan duration under 60–90 seconds
+- completed scans closer to 60–75/day if other bottlenecks are clear
+- skipped lock-busy ticks reduced
+
+Measure:
+- yfinance calls per day
+- yfinance calls per scan
+- scan duration P50/P95
+- completed scans per day
+- skipped ticks
+- cache hit rate
+- missing symbols
+- error rate
+
+TASK 11 — DATA QUALITY AND CORPORATE ACTION SAFETY
+
+Add validations:
+- missing date rows
+- duplicate rows
+- zero/negative OHLCV
+- abnormal gap/split detection
+- symbol rename/demerger handling: TMPV/TMCV/TATAMOTORS
+- LTIM missing handling
+- adjusted_close vs close consistency
+- volume sanity check
+
+If anomaly found:
+- flag symbol
+- allow WATCH/IGNORE if safe
+- block BUY if price/indicator reliability is compromised
+- show reason in dashboard
+
+TASK 12 — TESTS
+
+Add tests:
+1. First run fetches yfinance and writes local cache.
+2. Second scan uses local cache and does not call yfinance.
+3. Missing date range fetches only missing bars.
+4. Post-market job appends latest candle.
+5. Pre-market readiness detects complete cache.
+6. Stale cache blocks BUY.
+7. yfinance failure falls back to safe local cache.
+8. Kite LTP still overrides current/execution price.
+9. Indicator source remains local_yfinance_cache.
+10. Company master is loaded locally.
+11. Missing company mapping blocks trade for that symbol.
+12. Backtest uses local cache with no lookahead.
+13. LTIM missing does not block other symbols.
+14. Scan-count API separates completed scans, started scans, scheduler ticks, skipped ticks.
+15. No live broker order API is called.
+
+TASK 13 — MIGRATION / BACKFILL
+
+On deploy:
+- Create DB tables if missing.
+- Backfill 6 months of OHLCV for all active NIFTY 50 symbols.
+- Load company master for all symbols.
+- Do this outside market hours if possible.
+- If run during market hours, throttle and do not block live scan longer than safe threshold.
+- Record migration status.
+- Do not delete existing scan/paper trade data.
+
+TASK 14 — REPORT
+
+Generate:
+
+APEXQUANT_LOCAL_NIFTY50_DATA_STORE_AND_YFINANCE_FALLBACK_REPORT.md
+
+Include:
+1. Current scan-count truth from attached file.
+2. Why scan count is low.
+3. Current yfinance fetch bottleneck.
+4. New local cache schema.
+5. New company master schema.
+6. Post-market refresh design.
+7. Pre-market readiness design.
+8. Fetch policy: local first, yfinance fallback.
+9. Data-source labels.
+10. Backtesting compatibility.
+11. Performance before/after.
+12. Test results.
+13. Migration/backfill status.
+14. UI/API updates.
+15. Tomorrow-readiness verdict.
+16. Confirmation Kite remains live execution price source.
+17. Confirmation no live orders.

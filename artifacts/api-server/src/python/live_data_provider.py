@@ -98,6 +98,13 @@ class SymbolFetchResult:
     error: Optional[str]                     # human-readable error message
     bars: int                                # number of OHLCV bars returned
     via_fallback: bool = False               # fetched via per-symbol fallback path
+    # ── Local cache provenance (Task 2 — OHLCV_CACHE_ENABLED) ────────────────
+    cache_hit: bool = False                  # True when data came from local DB cache
+    ohlcv_source: str = "yfinance_daily_bars"  # "local_yfinance_cache" | "yfinance_fallback"
+    cache_age_days: Optional[float] = None  # age of the cache row at time of read
+    cache_latest_date: Optional[str] = None # latest date held in cache before this fetch
+    yfinance_called: bool = False            # True when yfinance was actually invoked
+    yfinance_call_duration_ms: int = 0      # ms spent on yfinance for this symbol
 
 
 # ── Provider health summary ───────────────────────────────────────────────────
@@ -277,19 +284,72 @@ class LiveDataProvider:
         progress_cb: Optional[Any] = None,
     ) -> Dict[str, SymbolFetchResult]:
         """
-        Fetch all symbols. Phase 22: ONE bulk multi-ticker download replaces
-        50 serial per-symbol calls — the serial path (0.25s throttle + up to
-        3 retries with 2s/4s back-off per symbol) is what stretched
-        production scans to 900+ seconds under provider throttling.
+        Fetch all symbols with local OHLCV cache as primary source.
 
-        Symbols missing or unusable in the bulk response fall back to the
-        original per-symbol retry path, so coverage is never reduced.
-        Data-quality labelling (LIVE/STALE/UNAVAILABLE) is identical.
+        Priority order:
+          1. Local daily_ohlcv_cache (PostgreSQL) — sub-second for all symbols
+          2. yfinance bulk download — one call for cache misses only
+          3. Per-symbol yfinance fallback — for bulk stragglers
+
+        After step 2/3 each result is written back to the cache so subsequent
+        scans hit step 1 directly.  On a warm cache day (after the post-market
+        refresh ran the previous evening) the yfinance call is skipped entirely
+        and every scan runs in seconds instead of 7–22 minutes.
+
+        Phase 22 note: the original bulk yfinance path (one call for 50 symbols)
+        is preserved for cache misses — the 50-serial-calls bottleneck is gone.
         """
         results: Dict[str, SymbolFetchResult] = {}
         remaining = [s for s in symbols]
 
         fetch_ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        # ── Step 1: Serve from local cache ────────────────────────────────────
+        _cache_enabled = False
+        try:
+            from ohlcv_cache_store import (
+                OHLCV_CACHE_ENABLED as _CE,
+                read_symbol_from_cache,
+                write_symbol_to_cache,
+                ensure_tables,
+            )
+            _cache_enabled = bool(_CE)
+        except Exception:
+            write_symbol_to_cache = None  # type: ignore[assignment]
+            read_symbol_from_cache = None  # type: ignore[assignment]
+
+        if _cache_enabled and read_symbol_from_cache is not None:
+            still_needed: List[str] = []
+            for sym in remaining:
+                try:
+                    df = read_symbol_from_cache(sym)
+                    if df is not None and not df.empty:
+                        r = self._build_result_from_df(
+                            sym, df, fetch_ts, latency_ms=0,
+                            source="local_yfinance_cache",
+                        )
+                        r.cache_hit = True
+                        r.ohlcv_source = "local_yfinance_cache"
+                        r.cache_latest_date = r.latest_date
+                        r.cache_age_days = r.data_age_days
+                        results[sym.upper()] = r
+                    else:
+                        still_needed.append(sym)
+                except Exception:
+                    still_needed.append(sym)
+            remaining = still_needed
+
+        if progress_cb is not None:
+            try:
+                progress_cb(len(results), len(symbols))
+            except Exception:
+                pass
+
+        if not remaining:
+            # All symbols served from cache — no yfinance call needed
+            return results
+
+        # ── Step 2: yfinance bulk download for cache misses ───────────────────
         t0 = time.monotonic()
         try:
             tickers = [self._nse(s) for s in remaining]
@@ -298,6 +358,7 @@ class LiveDataProvider:
                                progress=False, auto_adjust=True,
                                group_by="ticker", threads=True)
             latency = int((time.monotonic() - t0) * 1000)
+            yf_duration_ms = latency
             if bulk is not None and not bulk.empty:
                 still: List[str] = []
                 for sym, tick in zip(remaining, tickers):
@@ -312,8 +373,20 @@ class LiveDataProvider:
                         df_raw = None
                     df = self._clean_symbol_frame(df_raw) if df_raw is not None else None
                     if df is not None:
-                        results[sym.upper()] = self._build_result_from_df(
-                            sym, df, fetch_ts, latency)
+                        r = self._build_result_from_df(
+                            sym, df, fetch_ts, latency,
+                            source="yfinance",
+                        )
+                        r.ohlcv_source = "yfinance_fallback"
+                        r.yfinance_called = True
+                        r.yfinance_call_duration_ms = yf_duration_ms
+                        results[sym.upper()] = r
+                        # Write back to cache for next scan
+                        if _cache_enabled and write_symbol_to_cache is not None:
+                            try:
+                                write_symbol_to_cache(sym, df, source="yfinance")
+                            except Exception:
+                                pass
                     else:
                         still.append(sym)
                 remaining = still
@@ -328,11 +401,22 @@ class LiveDataProvider:
             except Exception:
                 pass
 
-        # Per-symbol fallback (original retry/back-off path) for stragglers.
+        # ── Step 3: Per-symbol fallback for bulk stragglers ───────────────────
         for i, sym in enumerate(remaining, start=1):
+            t_sym = time.monotonic()
             res = self.fetch_symbol(sym, period, interval)
             res.via_fallback = True
+            res.ohlcv_source = "yfinance_fallback"
+            res.yfinance_called = True
+            res.yfinance_call_duration_ms = int((time.monotonic() - t_sym) * 1000)
             results[sym.upper()] = res
+            # Write back to cache
+            if _cache_enabled and write_symbol_to_cache is not None and \
+                    res.success and res.df is not None:
+                try:
+                    write_symbol_to_cache(sym, res.df, source="yfinance")
+                except Exception:
+                    pass
             if progress_cb is not None:
                 try:
                     progress_cb(len(results), len(symbols))

@@ -649,6 +649,18 @@ def run_tick() -> Dict[str, Any]:
             except Exception as exc:
                 eod_squareoff = {"error": str(exc)[:200]}
 
+        # Post-market OHLCV cache refresh — append today's final daily bar for
+        # all NIFTY 50 symbols so tomorrow's scans use local cache and skip
+        # the 7–22 min yfinance bulk download.  Exactly once per IST calendar
+        # day via kv_claim_once.  Advisory-only; never raises.
+        ohlcv_postmarket_refresh = None
+        if mstate in ("POST_CLOSE", "CLOSED"):
+            try:
+                from post_market_data_refresh import maybe_run_postmarket_refresh
+                ohlcv_postmarket_refresh = maybe_run_postmarket_refresh(mstate)
+            except Exception as exc:
+                ohlcv_postmarket_refresh = {"ran": False, "error": str(exc)[:200]}
+
         # Exports retention: delete workspace-root exports/ files older than
         # 7 days, exactly once per IST calendar day (kv_claim_once guard).
         # Advisory-only; never raises.
@@ -677,6 +689,8 @@ def run_tick() -> Dict[str, Any]:
             out["phase24_learning"] = p24_learning
         if eod_squareoff is not None:
             out["eod_squareoff"] = eod_squareoff
+        if ohlcv_postmarket_refresh is not None:
+            out["ohlcv_postmarket_refresh"] = ohlcv_postmarket_refresh
         if exports_cleanup is not None:
             out["exports_cleanup"] = exports_cleanup
         if p26d_daily is not None:
