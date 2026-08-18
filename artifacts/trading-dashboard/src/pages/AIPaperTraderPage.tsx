@@ -411,6 +411,17 @@ function S0AutonomousSession() {
       refetchInterval: 30_000, staleTime: 15_000, retry: 1,
     });
 
+  // Capital edit state
+  const { data: p20Settings } = useQuery<Record<string, unknown>>({
+    queryKey: ["apt", "p20-settings-capital"],
+    queryFn:  () => apiJson("/phase20/settings"),
+    staleTime: 60_000, retry: 1,
+  });
+  const configuredCapital = typeof p20Settings?.initial_capital === "number"
+    ? p20Settings.initial_capital : 50_000;
+  const [capitalEdit, setCapitalEdit] = useState(false);
+  const [capitalInput, setCapitalInput] = useState("");
+
   // Canonical agent status — same source as AI Operations Centre (/ops-centre/agents)
   const { data: agents, isLoading: agentsLoad, refetch: refetchAgents } =
     useQuery<CanonicalAgentStatus>({
@@ -442,6 +453,19 @@ function S0AutonomousSession() {
     mutationFn: () =>
       apiJson("/phase11/session/disable-autonomous", { method: "POST" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["apt", "session-status"] }),
+  });
+
+  const capitalMut = useMutation({
+    mutationFn: (amount: number) =>
+      apiJson("/phase20/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patch: { initial_capital: amount } }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["apt", "p20-settings-capital"] });
+      setCapitalEdit(false);
+    },
   });
 
   const initialized = sess?.initialized_today ?? false;
@@ -591,14 +615,56 @@ function S0AutonomousSession() {
           <span className="text-xs text-slate-600">{crmMode ? "Continuous Research" : "Daily ₹50K"}</span>
         </div>
 
-        {/* Starting Capital */}
+        {/* Starting Capital — editable */}
         <div className="rounded-xl border bg-slate-900/60 border-slate-800/40 p-3">
           <span className="text-xs text-slate-500">Daily Capital</span>
-          <span className="text-sm font-bold text-blue-400 font-mono">
-            {sessLoad ? "…" : `₹${((sess?.starting_capital ?? 50_000) / 1_000).toFixed(0)}K`}
-          </span>
-          <br />
-          <span className="text-xs text-slate-600">Resets each day</span>
+          {capitalEdit ? (
+            <div className="mt-1 flex flex-col gap-1">
+              <input
+                type="number"
+                min={10000}
+                max={500000}
+                step={1000}
+                value={capitalInput}
+                onChange={e => setCapitalInput(e.target.value)}
+                className="w-full rounded bg-slate-800 border border-teal-700/50 text-teal-300 text-sm font-mono px-2 py-1 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                placeholder="e.g. 50000"
+                autoFocus
+              />
+              <div className="flex gap-1">
+                <button
+                  disabled={capitalMut.isPending}
+                  onClick={() => {
+                    const v = Math.round(Number(capitalInput) / 1000) * 1000;
+                    if (v >= 10_000 && v <= 500_000) capitalMut.mutate(v);
+                  }}
+                  className="flex-1 text-[10px] font-medium rounded bg-teal-700/50 hover:bg-teal-700/70 text-teal-300 px-2 py-0.5 transition-colors disabled:opacity-50">
+                  {capitalMut.isPending ? "Saving…" : "Save"}
+                </button>
+                <button
+                  onClick={() => setCapitalEdit(false)}
+                  className="flex-1 text-[10px] font-medium rounded bg-slate-700/50 hover:bg-slate-700/70 text-slate-400 px-2 py-0.5 transition-colors">
+                  Cancel
+                </button>
+              </div>
+              {capitalMut.isError && (
+                <span className="text-[10px] text-rose-400">
+                  {(capitalMut.error as Error)?.message ?? "Save failed"}
+                </span>
+              )}
+              <span className="text-[10px] text-slate-600">Takes effect next session reset</span>
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={() => { setCapitalInput(String(configuredCapital)); setCapitalEdit(true); }}
+                className="block text-sm font-bold text-blue-400 font-mono hover:text-teal-400 transition-colors text-left mt-0.5"
+                title="Click to change">
+                ₹{(configuredCapital / 1_000).toFixed(0)}K ✎
+              </button>
+              <span className="text-xs text-slate-600">Resets each day · click to change</span>
+            </>
+          )}
         </div>
       </div>
 

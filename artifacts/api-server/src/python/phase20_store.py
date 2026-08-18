@@ -116,6 +116,11 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     # stays offline.  Set to 0 to disable (always defer to EXIT_PENDING on stale
     # data, the legacy behaviour).
     "exit_on_stale_after_days": 5,
+    # ── Starting capital for paper trading sessions ───────────────────────────
+    # Amount of cash each paper trading session starts with. Changes take
+    # effect from the NEXT daily session reset (each morning at market open).
+    # Min ₹10,000; max ₹5,00,000; stored as a multiple of ₹1,000.
+    "initial_capital": 50_000.0,
 }
 
 # Keys excluded from the reproducibility config hash (meta, not behaviour).
@@ -375,6 +380,16 @@ def _validate_patch(patch: Dict[str, Any], current: Dict[str, Any]) -> Dict[str,
             if fv < 40.0 or fv > 100.0:
                 raise ValueError("exploration_min_confidence must be between 40 and 100")
             clean[key] = fv
+        elif key == "initial_capital":
+            try:
+                fv = float(value)
+            except (TypeError, ValueError):
+                raise ValueError("initial_capital must be a number")
+            if fv < 10_000 or fv > 500_000:
+                raise ValueError(
+                    "initial_capital must be between ₹10,000 and ₹5,00,000")
+            # Snap to nearest ₹1,000
+            clean[key] = round(fv / 1_000) * 1_000.0
         elif isinstance(default, (int, float)) and not isinstance(default, bool):
             num = float(value)
             if num < 0:

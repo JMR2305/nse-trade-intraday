@@ -172,8 +172,9 @@ def _compute_portfolio(state: dict, current_prices: dict[str, float]) -> Portfol
         )
 
     total_value = cash + invested_value
-    total_pnl = total_value - INITIAL_CAPITAL
-    total_pnl_pct = (total_pnl / INITIAL_CAPITAL) * 100
+    _start_cap = _store.get_initial_capital()
+    total_pnl = total_value - _start_cap
+    total_pnl_pct = (total_pnl / _start_cap) * 100
 
     return PortfolioState(
         cash=round(cash, 2),

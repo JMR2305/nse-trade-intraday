@@ -68,7 +68,24 @@ def _backfill_phase20_trade_ids(conn) -> int:
         )
         return cur.rowcount
 
-INITIAL_CAPITAL = 50_000.0    # ₹50,000 — daily paper-trading session capital (resets every trading day)
+INITIAL_CAPITAL = 50_000.0    # ₹50,000 — fallback default; actual value read from phase20 settings at reset time
+
+
+def get_initial_capital() -> float:
+    """Return the configured starting capital from phase20 settings.
+
+    Uses a lazy import to avoid circular dependencies. Falls back to the
+    module-level INITIAL_CAPITAL constant when the settings store is
+    unavailable (e.g. local dev without DATABASE_URL, or during cold start).
+    """
+    try:
+        from phase20_store import get_settings as _get_p20_settings  # noqa: PLC0415
+        cap = float(_get_p20_settings().get("initial_capital", INITIAL_CAPITAL))
+        if cap >= 10_000:
+            return cap
+    except Exception:
+        pass
+    return INITIAL_CAPITAL
 
 
 # ── Connection helpers ────────────────────────────────────────────────────────
@@ -448,11 +465,12 @@ def _insert_new_trades(conn, trades: List[Dict[str, Any]]) -> None:
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _default_state() -> Dict[str, Any]:
+    cap = get_initial_capital()
     return {
-        "cash":        INITIAL_CAPITAL,
+        "cash":        cap,
         "positions":   {},
         "trades":      [],
-        "pnl_history": [{"timestamp": datetime.now().isoformat(), "value": INITIAL_CAPITAL}],
+        "pnl_history": [{"timestamp": datetime.now().isoformat(), "value": cap}],
     }
 
 
