@@ -72,10 +72,22 @@ echo "--- Step 5: Strip build-only bloat from the deployment image ---"
 #                  startup with 'exec: "node": executable file not found'.
 #   .pythonlibs  — dev Python env; production uses the .venv built above
 #   .local/state — workspace-local logs/state
+#   exports/     — user-generated CSV/PDF/ZIP output (~1 GB, grows over time,
+#                  not needed at runtime — this was the root cause of the
+#                  2026-08-18 promote-step timeout: the Repl layer was so large
+#                  the container took >300 s to unpack, killing health checks.
+#   reports/     — generated markdown/PDF reports
+#   verification/ — generated verification artefacts
+#   screenshots/ — dev screenshots
+#   **/.mypy_cache — mypy type-check cache (~30 MB)
+#   **/__pycache__ — Python bytecode (regenerated on first use; ~31 MB)
 # (.local/share/pnpm is stripped in the postBuild step, after pnpm store prune.)
-rm -rf .git .pythonlibs .local/state
+rm -rf .git .pythonlibs .local/state exports/ reports/ verification/ screenshots/
 find .cache -mindepth 1 -maxdepth 1 ! -name replit -exec rm -rf {} + 2>/dev/null || true
-echo "    Stripped .git, .cache/* (kept .cache/replit), .pythonlibs, .local/state"
+find . -name ".mypy_cache" -not -path "./.venv/*" -exec rm -rf {} + 2>/dev/null || true
+find . -name "__pycache__"  -not -path "./.venv/*" -exec rm -rf {} + 2>/dev/null || true
+echo "    Stripped .git, .cache/*, .pythonlibs, .local/state, exports/, reports/,"
+echo "             verification/, screenshots/, .mypy_cache, __pycache__"
 du -sh . 2>/dev/null | awk '{print "    Image workspace size after cleanup: " $1}'
 
 echo ""
