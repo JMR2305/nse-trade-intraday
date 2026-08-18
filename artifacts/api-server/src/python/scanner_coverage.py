@@ -140,9 +140,16 @@ def coverage_probe() -> Dict[str, Any]:
     if low:
         result["ok"] = False
         miss = f" (missing: {', '.join(missing)})" if missing else ""
+        # On Monday (first session after a weekend/holiday) the missing symbols
+        # may be a lingering weekend data gap.  On any other weekday they are
+        # a mid-session provider outage — do not say "weekend gap" on a Tuesday.
+        if now.weekday() == 0:  # Monday = 0
+            gap_note = "weekend data gap may not have resolved at open — "
+        else:
+            gap_note = "symbol(s) currently unavailable from provider — "
         result["warning"] = (
             f"Scanner coverage {received}/{MIN_SYMBOLS_EXPECTED} during market "
-            f"hours{miss} — weekend data gap did NOT self-resolve; "
+            f"hours{miss} — {gap_note}"
             "run a fresh scan and investigate the provider."
         )
         return result
