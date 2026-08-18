@@ -856,6 +856,8 @@ interface CadenceStats {
   scheduling_mode: string;
   expected_scans_today: number;
   completed_scans_today: number;
+  /** SCAN_COMPLETED events since the last scheduler/process restart (subset of completed) */
+  session_scans_today: number;
   skipped_scans_today: number;
   avg_gap_minutes: number | null;
   min_gap_minutes: number | null;
@@ -869,6 +871,20 @@ interface CadenceStats {
   market_minutes: number;
 }
 
+// ── Cadence badge helper (exported for tests) ─────────────────────────────────
+// Only EXPLICIT closed states force the neutral "Market closed" badge — an
+// unavailable/UNKNOWN health source must never be presented as a confirmed
+// closure, and "Review" is reserved for genuinely degraded in-session coverage.
+export function cadenceBadgeState(
+  marketState: string | undefined,
+  coverageOk: boolean,
+  gapOk: boolean,
+): { label: "Market closed" | "On Track" | "Review"; marketClosed: boolean } {
+  const closed = ["CLOSED", "POST_CLOSE", "HOLIDAY"].includes(marketState ?? "");
+  if (closed) return { label: "Market closed", marketClosed: true };
+  return { label: coverageOk && gapOk ? "On Track" : "Review", marketClosed: false };
+}
+
 // ── SCadencePanel — Intraday Scan Cadence ─────────────────────────────────────
 function SCadencePanel() {
   const { data, isLoading, refetch } = useQuery<CadenceStats>({
@@ -877,6 +893,13 @@ function SCadencePanel() {
     refetchInterval: 60_000,
     staleTime: 30_000,
     retry: 1,
+  });
+
+  // Reuse the health-v2 cache populated by S1 — market open/closed state
+  const { data: hv2 } = useQuery<HealthV2>({
+    queryKey: ["apt", "hv2"],
+    queryFn:  () => apiJson("/live-data/health-v2"),
+    refetchInterval: 30_000, staleTime: 15_000, retry: 1,
   });
 
   function fmtMin(v: number | null | undefined) {
@@ -898,6 +921,7 @@ function SCadencePanel() {
   }
 
   const completed  = data?.completed_scans_today ?? 0;
+  const sessionScans = data?.session_scans_today ?? 0;
   const expected   = data?.expected_scans_today ?? 0;
   const skipped    = data?.skipped_scans_today ?? 0;
   const pct        = expected > 0 ? Math.round((completed / expected) * 100) : 0;
@@ -905,6 +929,11 @@ function SCadencePanel() {
   const avgGap     = data?.avg_gap_minutes;
   const cfgInt     = data?.configured_interval_minutes ?? 5;
   const gapOk      = avgGap == null || avgGap <= cfgInt * 1.3;
+
+  // Market-closed detection — same health-v2 source as the rest of the page.
+  const badge = cadenceBadgeState(hv2?.market?.state, coverageOk, gapOk);
+  const marketClosed = badge.marketClosed;
+  const lastScanIst  = hv2?.snapshot_ts ? istTime(hv2.snapshot_ts) : null;
 
   return (
     <div className="border border-slate-800/50 rounded-xl p-4 bg-slate-900/40">
@@ -916,11 +945,14 @@ function SCadencePanel() {
             Intraday Scan Cadence
           </h2>
           {!isLoading && (
-            <Badge className={`text-xs ${coverageOk && gapOk
-              ? "bg-emerald-950 border-emerald-700/50 text-emerald-300"
-              : "bg-amber-950 border-amber-700/50 text-amber-300"
+            <Badge className={`text-xs ${
+              badge.label === "Market closed"
+                ? "bg-slate-800 border-slate-600/50 text-slate-300"
+                : badge.label === "On Track"
+                  ? "bg-emerald-950 border-emerald-700/50 text-emerald-300"
+                  : "bg-amber-950 border-amber-700/50 text-amber-300"
             }`}>
-              {coverageOk && gapOk ? "On Track" : "Review"}
+              {badge.label}
             </Badge>
           )}
         </div>
@@ -929,6 +961,13 @@ function SCadencePanel() {
           <RefreshCcw className="w-3 h-3" />
         </button>
       </div>
+
+      {!isLoading && marketClosed && (
+        <p className="text-[10px] text-slate-500 -mt-2 mb-3">
+          {lastScanIst ? `Last scan at ${lastScanIst} IST — ` : ""}
+          BUY recommendations resume after next scan.
+        </p>
+      )}
 
       {isLoading ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -955,7 +994,10 @@ function SCadencePanel() {
               <p className={`text-xl font-bold font-mono ${coverageOk ? "text-emerald-300" : "text-amber-300"}`}>
                 {completed}<span className="text-xs text-slate-400 ml-1">/ {expected}</span>
               </p>
-              <p className="text-[9px] text-slate-500 mt-0.5">{pct}% of expected</p>
+              <p className="text-[9px] text-slate-500 mt-0.5">Full day (IST) · {pct}% of expected</p>
+              <p className="text-[9px] text-slate-600 mt-0.5">
+                Since last restart: <span className="font-mono text-slate-500">{sessionScans}</span>
+              </p>
             </div>
 
             {/* Skipped scans */}

@@ -169,6 +169,13 @@ export function startScanScheduler(): void {
   logger.info({ tickIntervalMin: TICK_INTERVAL_MIN },
     "Market-hours scan scheduler started (interval configured in Settings)");
 
+  // Record the scheduler process start time durably so the cadence panel can
+  // report SCAN_COMPLETED counts "since last restart". Non-fatal on failure.
+  runPython(["phase20_scheduler_started"]).catch((err: unknown) => {
+    logger.warn({ err: err instanceof Error ? err.message : String(err) },
+      "Failed to record scheduler process start time (non-fatal)");
+  });
+
   // Cold-start overnight-carry safety check.
   // Runs immediately at server startup to detect OPEN paper positions that
   // survived from a prior session because the server was down during the

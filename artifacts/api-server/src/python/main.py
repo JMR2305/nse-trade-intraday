@@ -1243,6 +1243,15 @@ def main():
                 _activity["kite"] = None
             result = {"success": True, "scheduler": get_scheduler_health(),
                       "activity": _activity}
+        elif command == "phase20_scheduler_started":
+            # Record the scheduler process start time (called once at boot from
+            # scanScheduler.ts). Powers the cadence "since last restart" count.
+            from datetime import datetime as _ps_dt, timezone as _ps_tz
+            from phase20_store import update_scheduler_state as _ps_upd
+            _ps_now = _ps_dt.now(_ps_tz.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            _ps_upd(process_start_at=_ps_now)
+            result = {"success": True, "process_start_at": _ps_now}
+
         elif command == "phase20_cadence_stats":
             # Today's scan cadence metrics derived from pipeline_events.
             from datetime import datetime as _dt, timezone as _tz, timedelta as _td
@@ -1252,19 +1261,15 @@ def main():
             _cs_settings = _cs_gs()
             _cs_interval = int(_cs_settings.get("scan_interval_minutes", 5))
             _cs_now = _dt.now(_tz.utc)
-            _cs_today = _cs_now.date()
-            _cs_mkt_open = _dt(_cs_today.year, _cs_today.month, _cs_today.day,
-                               3, 45, 0, tzinfo=_tz.utc)
-            _cs_mkt_close = _dt(_cs_today.year, _cs_today.month, _cs_today.day,
-                                10, 0, 0, tzinfo=_tz.utc)
-            _cs_day_start = _dt(_cs_today.year, _cs_today.month, _cs_today.day,
-                                0, 0, 0, tzinfo=_tz.utc)
-            _cs_day_end = _cs_day_start + _td(days=1)
+            # IST day boundary — same logic as count_scans_today_ist.
+            from scan_state_store import ist_day_bounds_utc as _cs_bounds
+            _cs_day_start, _cs_day_end = _cs_bounds(_cs_now)
             _cs_out: dict = {
                 "configured_interval_minutes": _cs_interval,
                 "scheduling_mode": "START_TO_START",
                 "expected_scans_today": round(375 / _cs_interval),
                 "completed_scans_today": 0,
+                "session_scans_today": 0,
                 "skipped_scans_today": 0,
                 "avg_gap_minutes": None,
                 "min_gap_minutes": None,
@@ -1276,44 +1281,67 @@ def main():
                 "next_due": None,
                 "market_minutes": 375,
             }
+            _cs_proc_start = None
             try:
+                # get_scheduler_health() returns a FLAT dict (no "state" wrapper).
                 _cs_health = _cs_sh()
-                _cs_out["next_due"] = (_cs_health.get("state") or {}).get("next_due_at")
-                _cs_out["scheduler_status"] = (_cs_health.get("state") or {}).get("status")
+                _cs_out["next_due"] = _cs_health.get("next_due_at")
+                _cs_out["scheduler_status"] = _cs_health.get("status")
+                # "Since last restart" boundary: the scheduler records its own
+                # process start time at boot (phase20_scheduler_started).
+                _v = _cs_health.get("process_start_at")
+                if _v:
+                    try:
+                        _cs_proc_start = _dt.fromisoformat(
+                            str(_v).replace("Z", "+00:00"))
+                    except Exception:
+                        pass
             except Exception:
                 pass
+            if _cs_proc_start is None:
+                # No recorded restart timestamp — fall back to the IST day start
+                # (session count degrades to the full-day count).
+                _cs_proc_start = _cs_day_start
             if _cs_dba():
                 _cs_c = _cs_conn()
                 _cs_cur = _cs_c.cursor()
+                # Authoritative full-day count: SCAN_COMPLETED within the IST day.
+                _cs_cur.execute(
+                    "SELECT scan_id, ts FROM pipeline_events "
+                    "WHERE event_type=%s AND ts>=%s AND ts<%s ORDER BY ts",
+                    ("SCAN_COMPLETED", _cs_day_start, _cs_day_end))
+                _cs_comps_rows = _cs_cur.fetchall()
+                # Session count: SCAN_COMPLETED since the scheduler/process start.
+                _cs_cur.execute(
+                    "SELECT COUNT(*) FROM pipeline_events "
+                    "WHERE event_type=%s AND ts>=%s AND ts<%s",
+                    ("SCAN_COMPLETED", max(_cs_proc_start, _cs_day_start), _cs_day_end))
+                _cs_session_count = _cs_cur.fetchone()[0]
+                # Start times only used to derive per-scan durations.
                 _cs_cur.execute(
                     "SELECT scan_id, ts FROM pipeline_events "
                     "WHERE event_type=%s AND ts>=%s AND ts<%s ORDER BY ts",
                     ("SCAN_STARTED", _cs_day_start, _cs_day_end))
-                _cs_starts = _cs_cur.fetchall()
-                _cs_cur.execute(
-                    "SELECT scan_id, ts FROM pipeline_events "
-                    "WHERE event_type IN (%s,%s) AND ts>=%s AND ts<%s ORDER BY ts",
-                    ("SCAN_COMPLETED", "SCAN_FAILED", _cs_day_start, _cs_day_end))
-                _cs_comps = {r[0]: r[1] for r in _cs_cur.fetchall()}
+                _cs_starts = {r[0]: r[1] for r in _cs_cur.fetchall()}
                 _cs_cur.execute(
                     "SELECT COUNT(*) FROM pipeline_events "
                     "WHERE event_type=%s AND ts>=%s AND ts<%s",
                     ("SCAN_SKIPPED_BUSY", _cs_day_start, _cs_day_end))
                 _cs_skip_count = _cs_cur.fetchone()[0]
                 _cs_c.close()
-                # Filter to market-hours only (03:45–10:00 UTC)
-                _cs_mh = [r for r in _cs_starts
-                          if _cs_mkt_open <= r[1] < _cs_mkt_close]
-                _cs_times = [r[1] for r in _cs_mh]
+                # Gap metrics from completion timestamps (what operators see).
+                _cs_times = [r[1] for r in _cs_comps_rows]
                 _cs_gaps = [(_cs_times[i+1]-_cs_times[i]).total_seconds()/60
                             for i in range(len(_cs_times)-1)]
                 _cs_durs = []
-                for _sid, _st in [(r[0], r[1]) for r in _cs_mh]:
-                    if _sid in _cs_comps:
-                        _d = (_cs_comps[_sid]-_st).total_seconds()
+                for _sid, _ct in _cs_comps_rows:
+                    _st = _cs_starts.get(_sid)
+                    if _st is not None:
+                        _d = (_ct-_st).total_seconds()
                         if 0 < _d < 600:
                             _cs_durs.append(_d)
-                _cs_out["completed_scans_today"] = len(_cs_mh)
+                _cs_out["completed_scans_today"] = len(_cs_comps_rows)
+                _cs_out["session_scans_today"] = int(_cs_session_count)
                 _cs_out["skipped_scans_today"] = int(_cs_skip_count)
                 if _cs_gaps:
                     _sg = sorted(_cs_gaps)

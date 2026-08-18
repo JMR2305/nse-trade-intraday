@@ -209,7 +209,8 @@ def _ensure_schema(conn) -> None:
         )
         # Phase 22 production-visibility columns (idempotent).
         for col, typ in (("owner", "TEXT"), ("last_trigger", "TEXT"),
-                         ("last_error", "TEXT"), ("heartbeat_at", "TIMESTAMPTZ")):
+                         ("last_error", "TEXT"), ("heartbeat_at", "TIMESTAMPTZ"),
+                         ("process_start_at", "TIMESTAMPTZ")):
             cur.execute(
                 f"ALTER TABLE phase20_scheduler_state ADD COLUMN IF NOT EXISTS {col} {typ}"
             )
@@ -628,7 +629,8 @@ def update_scheduler_state(**fields: Any) -> None:
             vals: List[Any] = []
             for col in ("last_attempt_at", "last_success_at", "last_scan_id",
                         "next_due_at", "status", "detail",
-                        "owner", "last_trigger", "last_error", "heartbeat_at"):
+                        "owner", "last_trigger", "last_error", "heartbeat_at",
+                        "process_start_at"):
                 if col in fields:
                     sets.append(f"{col} = %s")
                     vals.append(fields[col])
@@ -646,7 +648,8 @@ def update_scheduler_state(**fields: Any) -> None:
         st = _read_json(_SCHED_FILE, {})
         for col in ("last_attempt_at", "last_success_at", "last_scan_id",
                     "next_due_at", "status", "detail",
-                    "owner", "last_trigger", "last_error", "heartbeat_at"):
+                    "owner", "last_trigger", "last_error", "heartbeat_at",
+                    "process_start_at"):
             if col in fields:
                 st[col] = fields[col]
         if missed_inc:
@@ -664,7 +667,8 @@ def get_scheduler_health() -> Dict[str, Any]:
                 """
                 SELECT last_attempt_at, last_success_at, last_scan_id, next_due_at,
                        missed_count, status, detail, updated_at,
-                       owner, last_trigger, last_error, heartbeat_at
+                       owner, last_trigger, last_error, heartbeat_at,
+                       process_start_at
                 FROM phase20_scheduler_state WHERE id = 1
                 """
             )
@@ -688,6 +692,7 @@ def get_scheduler_health() -> Dict[str, Any]:
                 "last_trigger": row[9],
                 "last_error": row[10],
                 "heartbeat_at": _iso(row[11]) if isinstance(row[11], datetime) else row[11],
+                "process_start_at": _iso(row[12]) if isinstance(row[12], datetime) else row[12],
             }
         if lock:
             st["lock"] = {

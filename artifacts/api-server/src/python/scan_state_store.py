@@ -392,6 +392,22 @@ def _meta_from_snapshot(snapshot: Dict[str, Any], status: str,
     }
 
 
+def ist_day_bounds_utc(now_utc: Optional[datetime] = None) -> Tuple[datetime, datetime]:
+    """Return (start, end) UTC datetimes covering the current IST calendar day.
+
+    IST = UTC + 05:30. Shift now to IST, truncate to IST midnight, shift back.
+    Correctly handles the post-18:30-UTC case where the IST day has already
+    rolled over to the next calendar day.
+    """
+    from datetime import timedelta
+    _IST_OFFSET = timedelta(hours=5, minutes=30)
+    now = now_utc or _now_utc()
+    now_ist = now + _IST_OFFSET
+    ist_midnight = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
+    start = ist_midnight - _IST_OFFSET
+    return start, start + timedelta(days=1)
+
+
 def count_scans_today_ist() -> int:
     """Return the number of SCAN_COMPLETED pipeline events since midnight IST
     today.
