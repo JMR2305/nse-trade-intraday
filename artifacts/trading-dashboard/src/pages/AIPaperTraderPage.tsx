@@ -886,7 +886,7 @@ export function cadenceBadgeState(
 }
 
 // ── SCadencePanel — Intraday Scan Cadence ─────────────────────────────────────
-function SCadencePanel() {
+export function SCadencePanel() {
   const { data, isLoading, refetch } = useQuery<CadenceStats>({
     queryKey: ["apt", "cadence"],
     queryFn:  () => apiJson("/phase20/cadence-stats"),
