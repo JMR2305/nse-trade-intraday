@@ -968,5 +968,318 @@ class TestDrReddyP20ForceClose(unittest.TestCase):
         self.assertEqual(sell_args[2], _DRREDDY_EXIT_PRICE)  # proceeds credited to cash
 
 
+class TestOvernightCarryOnStartup(unittest.TestCase):
+    """Tests for check_overnight_carry_on_startup() — cold-start safety net.
+
+    Calls the *real* function with all external dependencies mocked via
+    sys.modules so the full execution path is exercised (not just a replica
+    of the logic).  The phase20_scheduler module is reloaded inside each helper
+    so it picks up the patched phase20_store as its module-level ``store``.
+
+    Scenarios covered:
+      OC-1  Prior-session OPEN trade → force-close runs + OVERNIGHT_CARRY event
+      OC-2  Exception after startup claim taken → claim released for retry
+      OC-3  Startup claim already held (concurrent instance) → immediate no-op
+      OC-4  Yesterday's EOD ran normally (eod_squareoff key present) → skip
+      OC-5  Today-session trade (fill_ts = today IST) → not treated as overnight
+      OC-6  No OPEN positions → yesterday EOD key claimed, force-close not run
+
+    Root cause this prevents: on 2026-08-18, a ModuleNotFoundError in the
+    CLOSED-state EOD handler consumed the kv_claim_once slot before the close
+    ran, leaving DRREDDY (P20-3468fb2a24) OPEN overnight with no retry path.
+    """
+
+    # ── Date helpers ───────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _prior_session_fill_ts() -> str:
+        """ISO fill_ts at yesterday's IST noon.
+
+        Anchored to 12:00:00 IST yesterday so it always converts to yesterday's
+        IST calendar date regardless of what time UTC the test runs (avoids the
+        00:00–00:29 IST edge case where UTC-30min crosses the IST midnight).
+        """
+        import datetime as _dt
+        try:
+            from zoneinfo import ZoneInfo as _ZI
+            _IST = _ZI("Asia/Kolkata")
+        except Exception:
+            # Fallback: IST = UTC+5:30
+            _IST = timezone(timedelta(hours=5, minutes=30))
+        now_ist = _dt.datetime.now(_IST)
+        yesterday = now_ist.date() - timedelta(days=1)
+        noon_ist = _dt.datetime(yesterday.year, yesterday.month, yesterday.day,
+                                12, 0, 0, tzinfo=_IST)
+        return _iso(noon_ist.astimezone(timezone.utc))
+
+    @staticmethod
+    def _today_fill_ts() -> str:
+        """ISO fill_ts at today's IST noon.
+
+        Anchored to 12:00:00 IST today so it always converts to today's IST
+        calendar date regardless of what time UTC the test runs.
+        """
+        import datetime as _dt
+        try:
+            from zoneinfo import ZoneInfo as _ZI
+            _IST = _ZI("Asia/Kolkata")
+        except Exception:
+            _IST = timezone(timedelta(hours=5, minutes=30))
+        now_ist = _dt.datetime.now(_IST)
+        noon_ist = _dt.datetime(now_ist.year, now_ist.month, now_ist.day,
+                                12, 0, 0, tzinfo=_IST)
+        return _iso(noon_ist.astimezone(timezone.utc))
+
+    # ── Stub builder ───────────────────────────────────────────────────────────
+
+    def _build_startup_stubs(
+        self,
+        open_trades: List[Dict[str, Any]],
+        *,
+        startup_claim_result: bool = True,
+        eod_claimed_yesterday: bool = False,
+        force_close_result: Optional[Dict[str, Any]] = None,
+        get_open_trades_side_effect=None,
+    ) -> Dict[str, types.ModuleType]:
+        stubs: Dict[str, types.ModuleType] = {}
+
+        # ── phase20_store ─────────────────────────────────────────────────────
+        # kv_claim_once is called twice in the happy path:
+        #   call 1: startup_overnight_check:<today>   (no ttl_seconds)
+        #   call 2: eod_squareoff:<yesterday>         (ttl_seconds=86400)
+        ps = types.ModuleType("phase20_store")
+        _n = [0]
+
+        def _kv_claim(key, ttl_seconds=None):
+            _n[0] += 1
+            return startup_claim_result if _n[0] == 1 else True
+
+        ps.kv_claim_once = MagicMock(side_effect=_kv_claim)
+        ps.kv_get = MagicMock(return_value=eod_claimed_yesterday)
+        ps.kv_release = MagicMock()
+        ps.kv_set = MagicMock()
+        ps.add_notification = MagicMock()
+        ps.get_settings = MagicMock(return_value={
+            "auto_paper_exits": True, "auto_paper_entries": False,
+        })
+        stubs["phase20_store"] = ps
+
+        # ── phase20_executor ──────────────────────────────────────────────────
+        pe = types.ModuleType("phase20_executor")
+        if get_open_trades_side_effect is not None:
+            pe.get_open_trades = MagicMock(side_effect=get_open_trades_side_effect)
+        else:
+            pe.get_open_trades = MagicMock(return_value=open_trades)
+        stubs["phase20_executor"] = pe
+
+        # ── pipeline_events ───────────────────────────────────────────────────
+        pev = types.ModuleType("pipeline_events")
+        pev.emit = MagicMock()
+        stubs["pipeline_events"] = pev
+
+        # ── phase20_exits ─────────────────────────────────────────────────────
+        if force_close_result is None:
+            force_close_result = {
+                "evaluated": len(open_trades),
+                "force_closed": [
+                    {"trade_id": t.get("trade_id"), "symbol": t.get("symbol"),
+                     "exit_price": t.get("fill_price"),
+                     "exit_rule": "POST_CLOSE_FORCE_EXIT"}
+                    for t in open_trades
+                ],
+                "blocked": [],
+            }
+        pex = types.ModuleType("phase20_exits")
+        pex.eod_force_close_open_positions = MagicMock(return_value=force_close_result)
+        stubs["phase20_exits"] = pex
+
+        # ── phase3f_logging (optional; scheduler swallows import errors) ──────
+        pl = types.ModuleType("phase3f_logging")
+        pl.get_logger = MagicMock(return_value=MagicMock())
+        stubs["phase3f_logging"] = pl
+
+        return stubs
+
+    # ── Runner ─────────────────────────────────────────────────────────────────
+
+    def _run_startup_check(
+        self, stubs: Dict[str, types.ModuleType]
+    ) -> Dict[str, Any]:
+        """Install stubs, reload phase20_scheduler, call the function, restore."""
+        orig = {}
+        for k, v in stubs.items():
+            orig[k] = sys.modules.get(k)
+            sys.modules[k] = v
+        try:
+            # Reload so the module-level `import phase20_store as store` picks
+            # up the mock rather than the real module.
+            sys.modules.pop("phase20_scheduler", None)
+            import phase20_scheduler as sched
+            return sched.check_overnight_carry_on_startup()
+        finally:
+            for k in list(stubs):
+                v = orig.get(k)
+                if v is None:
+                    sys.modules.pop(k, None)
+                else:
+                    sys.modules[k] = v
+            sys.modules.pop("phase20_scheduler", None)
+
+    # ── OC-1 ───────────────────────────────────────────────────────────────────
+    def test_prior_session_trade_is_force_closed_and_carry_event_emitted(self):
+        """Full cold-start path: a prior-session OPEN trade is detected, the
+        force-close function is called, and a MARKET_CLOSE_OVERNIGHT_CARRY_DETECTED
+        pipeline event is emitted.
+
+        Regression for DRREDDY P20-3468fb2a24 (2026-08-18): server redeployed
+        post-close with an OPEN trade that was never squared off.
+        """
+        trade = {**_trade(trade_id="P20-OC01", symbol="DRREDDY"),
+                 "fill_ts": self._prior_session_fill_ts()}
+        stubs = self._build_startup_stubs([trade])
+        result = self._run_startup_check(stubs)
+
+        # Function ran and detected the prior-session trade
+        self.assertTrue(result.get("ran"),
+                        f"Expected ran=True; got {result}")
+        self.assertEqual(result.get("prior_session_count"), 1,
+                         f"Expected 1 prior-session trade; got {result}")
+
+        # eod_force_close_open_positions actually called (not just the path)
+        stubs["phase20_exits"].eod_force_close_open_positions.assert_called_once()
+
+        # MARKET_CLOSE_OVERNIGHT_CARRY_DETECTED emitted for the trade
+        emit_calls = stubs["pipeline_events"].emit.call_args_list
+        emitted_types = [c[0][0] for c in emit_calls]
+        self.assertIn(
+            "MARKET_CLOSE_OVERNIGHT_CARRY_DETECTED", emitted_types,
+            f"Expected MARKET_CLOSE_OVERNIGHT_CARRY_DETECTED; got {emitted_types}",
+        )
+
+        # Yesterday's eod_squareoff key claimed after close (prevents duplicate)
+        kv_keys_claimed = [c[0][0] for c in
+                           stubs["phase20_store"].kv_claim_once.call_args_list]
+        eod_keys = [k for k in kv_keys_claimed if "eod_squareoff" in k]
+        self.assertGreater(
+            len(eod_keys), 0,
+            "eod_squareoff KV key must be claimed after force-close to prevent "
+            "the normal POST_CLOSE tick from running the same close again.",
+        )
+
+    # ── OC-2 ───────────────────────────────────────────────────────────────────
+    def test_failure_after_startup_claim_releases_claim_for_next_retry(self):
+        """When an exception occurs after the startup claim is taken, the claim
+        must be released so the next cold-start can retry.
+
+        Root cause: on 2026-08-18, a ModuleNotFoundError in the scheduler's
+        EOD block consumed the kv_claim_once slot before any close logic ran.
+        That left DRREDDY OPEN with no automatic retry path.
+        """
+        stubs = self._build_startup_stubs(
+            [],
+            get_open_trades_side_effect=RuntimeError("DB connection refused"),
+        )
+        result = self._run_startup_check(stubs)
+
+        # Function reports failure, not a clean run
+        self.assertFalse(result.get("ran"),
+                         f"Expected ran=False after DB failure; got {result}")
+        self.assertIn("error", result,
+                      "Error description must be present in result dict")
+
+        # kv_release called on the startup claim key
+        release_calls = stubs["phase20_store"].kv_release.call_args_list
+        self.assertGreater(
+            len(release_calls), 0,
+            "kv_release must be called when the function raises so the next "
+            "cold-start can claim the key and retry the close.",
+        )
+        released_key = str(release_calls[0][0][0])
+        self.assertIn(
+            "startup_overnight_check", released_key,
+            f"Expected startup_overnight_check key released; got {released_key}",
+        )
+
+        # Force-close must NOT have been called (exception before that point)
+        stubs["phase20_exits"].eod_force_close_open_positions.assert_not_called()
+
+    # ── OC-3 ───────────────────────────────────────────────────────────────────
+    def test_startup_claim_already_held_returns_no_op(self):
+        """When the startup claim is already held (concurrent Autoscale instance
+        or rapid restart within the same IST calendar day), the function returns
+        immediately without querying open trades or running any close logic."""
+        stubs = self._build_startup_stubs([], startup_claim_result=False)
+        result = self._run_startup_check(stubs)
+
+        self.assertFalse(result.get("ran"),
+                         f"Expected ran=False when claim already held; got {result}")
+        self.assertEqual(result.get("reason"), "already_ran_today")
+        stubs["phase20_exits"].eod_force_close_open_positions.assert_not_called()
+        stubs["phase20_executor"].get_open_trades.assert_not_called()
+
+    # ── OC-4 ───────────────────────────────────────────────────────────────────
+    def test_yesterday_eod_ran_normally_skips_force_close(self):
+        """When yesterday's eod_squareoff key IS already claimed (the server was
+        up during the POST_CLOSE window and the normal scheduler ran), the startup
+        check returns early without running force-close a second time."""
+        trade = {**_trade(trade_id="P20-OC04", symbol="TATAMOTORS"),
+                 "fill_ts": self._prior_session_fill_ts()}
+        stubs = self._build_startup_stubs([trade], eod_claimed_yesterday=True)
+        result = self._run_startup_check(stubs)
+
+        self.assertTrue(result.get("ran"),
+                        f"Expected ran=True; got {result}")
+        self.assertTrue(result.get("eod_claimed"),
+                        "eod_claimed must be True when yesterday's run confirmed")
+        self.assertEqual(result.get("reason"), "eod_squareoff_ran_yesterday")
+        stubs["phase20_exits"].eod_force_close_open_positions.assert_not_called()
+
+    # ── OC-5 ───────────────────────────────────────────────────────────────────
+    def test_today_session_trades_not_classified_as_overnight(self):
+        """Trades opened in TODAY's IST session (fill_ts = today) must NOT be
+        treated as overnight carries; only prior-session trades are force-closed.
+
+        The function filters by fill_ts < today_ist, so a trade opened this
+        morning must pass through without triggering the carry path.
+        """
+        trade_today = {**_trade(trade_id="P20-OC05", symbol="INFY"),
+                       "fill_ts": self._today_fill_ts()}
+        stubs = self._build_startup_stubs([trade_today], eod_claimed_yesterday=False)
+        result = self._run_startup_check(stubs)
+
+        self.assertTrue(result.get("ran"),
+                        f"Expected ran=True; got {result}")
+        self.assertEqual(
+            result.get("prior_session_count"), 0,
+            "Today's trade must NOT be classified as a prior-session carry; "
+            f"got prior_session_count={result.get('prior_session_count')}",
+        )
+        stubs["phase20_exits"].eod_force_close_open_positions.assert_not_called()
+
+    # ── OC-6 ───────────────────────────────────────────────────────────────────
+    def test_no_open_positions_claims_yesterday_eod_key_and_returns_early(self):
+        """When there are no OPEN positions (portfolio was flat at close), the
+        function claims yesterday's EOD key to mark the day complete and returns
+        without running force-close."""
+        stubs = self._build_startup_stubs([], eod_claimed_yesterday=False)
+        result = self._run_startup_check(stubs)
+
+        self.assertTrue(result.get("ran"),
+                        f"Expected ran=True; got {result}")
+        self.assertEqual(result.get("open_count"), 0)
+        self.assertEqual(result.get("reason"), "no_open_positions")
+        stubs["phase20_exits"].eod_force_close_open_positions.assert_not_called()
+
+        # eod_squareoff key is still claimed (no-op guard for POST_CLOSE tick)
+        kv_keys_claimed = [c[0][0] for c in
+                           stubs["phase20_store"].kv_claim_once.call_args_list]
+        eod_keys = [k for k in kv_keys_claimed if "eod_squareoff" in k]
+        self.assertGreater(
+            len(eod_keys), 0,
+            "eod_squareoff key must be claimed even when no positions exist so "
+            "the POST_CLOSE tick skips a redundant force-close attempt.",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
