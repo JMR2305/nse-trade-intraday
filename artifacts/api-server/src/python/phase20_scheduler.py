@@ -437,6 +437,26 @@ def run_tick() -> Dict[str, Any]:
                 p24_learning = maybe_run_daily_learning()
             except Exception as exc:
                 p24_learning = {"ran": False, "error": str(exc)[:200]}
+        # EOD post-close force-exit: close any OPEN paper positions that
+        # survived past 15:30 IST (missed the 15:20 intraday square-off window).
+        # Runs on POST_CLOSE and CLOSED so the first non-OPEN tick after the
+        # session end triggers the cleanup. Uses a KV claim so it fires exactly
+        # once per IST trading day regardless of how many ticks hit this block.
+        # Never raises.
+        eod_squareoff = None
+        if mstate in ("POST_CLOSE", "CLOSED"):
+            try:
+                from phase20_store import kv_claim_once, kv_get
+                import datetime as _dt
+                _today = _dt.date.today().isoformat()
+                _claim_key = f"eod_squareoff:{_today}"
+                if kv_claim_once(_claim_key, ttl_seconds=86400):
+                    from phase20_exits import eod_force_close_open_positions
+                    from phase20_settings import load_settings as _ls
+                    eod_squareoff = eod_force_close_open_positions(_ls())
+            except Exception as exc:
+                eod_squareoff = {"error": str(exc)[:200]}
+
         # Exports retention: delete workspace-root exports/ files older than
         # 7 days, exactly once per IST calendar day (kv_claim_once guard).
         # Advisory-only; never raises.
@@ -463,6 +483,8 @@ def run_tick() -> Dict[str, Any]:
             out["eod_reconciliation"] = eod_recon
         if p24_learning is not None:
             out["phase24_learning"] = p24_learning
+        if eod_squareoff is not None:
+            out["eod_squareoff"] = eod_squareoff
         if exports_cleanup is not None:
             out["exports_cleanup"] = exports_cleanup
         if p26d_daily is not None:
