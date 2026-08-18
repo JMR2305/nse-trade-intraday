@@ -156,6 +156,29 @@ interface LedgerItem {
   exit_price: number | null; realized_pnl: number | null; created_at?: string;
   strategy_name?: string | null;
 }
+interface BootstrapCandidate {
+  symbol: string; confidence: number; opportunity_score: number;
+  rr_ratio: number; bootstrap_eligible: boolean; entry_price: number;
+  action?: string; ineligibility_reason?: string | null;
+}
+interface BootstrapWatchCandidate {
+  symbol: string; confidence: number; opportunity_score: number;
+  rr_ratio: number; action: string; ineligibility_reason?: string | null;
+}
+interface BootstrapStatus {
+  success?: boolean;
+  bootstrap_paper_enabled?: boolean;
+  auto_paper_entries?: boolean;
+  circuit_breaker_tripped?: boolean;
+  circuit_breaker_detail?: string;
+  kite_verified?: boolean;
+  bootstrap_cutoff_reached?: boolean;
+  bootstrap_eligible_count?: number;
+  watch_count?: number;
+  snapshot_ts?: string | null;
+  top_candidates?: BootstrapCandidate[];
+  top_watch_candidate?: BootstrapWatchCandidate | null;
+}
 interface PipelineEvent {
   id: number; ts: string; event_type: string; stage: string;
   symbol: string | null; payload: Record<string, unknown>;
@@ -933,12 +956,86 @@ function ScannerPanel({ scanQ }: { scanQ: ReturnType<typeof useWidgetQuery<ScanS
   );
 }
 
+// ── Bootstrap eligibility banner (inside PaperTradingPanel) ─────────────────
+// Shown when all bootstrap gates pass but bootstrap_eligible_count=0, so the
+// operator knows EXACTLY which stock was closest and why it didn't qualify.
+
+function BootstrapStatusBanner({ d }: { d: BootstrapStatus | undefined }) {
+  if (!d) return null;
+  // Only show when the feature is on and auto-entries are armed.
+  if (!d.bootstrap_paper_enabled || !d.auto_paper_entries) return null;
+  // Don't show when circuit-breaker is tripped or cutoff reached — those have
+  // their own prominent indicators elsewhere.
+  if (d.circuit_breaker_tripped || d.bootstrap_cutoff_reached) return null;
+
+  const eligCount = d.bootstrap_eligible_count ?? 0;
+  const watchTop  = d.top_watch_candidate ?? null;
+
+  if (eligCount > 0) {
+    // Eligible candidates exist — show a quiet positive note.
+    return (
+      <div
+        className="mt-2 rounded-lg border border-teal-500/30 bg-teal-500/10 px-2.5 py-1.5 text-[10px]"
+        data-testid="mc-bootstrap-banner-eligible"
+      >
+        <span className="text-teal-300 font-semibold">{eligCount} bootstrap-eligible</span>
+        {" "}candidate{eligCount !== 1 ? "s" : ""} in last scan.
+        {(d.top_candidates ?? []).length > 0 && (
+          <span className="text-muted-foreground ml-1">
+            Top: <span className="font-mono font-semibold text-foreground">
+              {d.top_candidates![0].symbol}
+            </span>
+            {" "}({d.top_candidates![0].confidence.toFixed(0)}% conf)
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  // No bootstrap-eligible candidates. Show the top WATCH candidate with reason.
+  return (
+    <div
+      className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[10px] space-y-0.5"
+      data-testid="mc-bootstrap-banner-none"
+    >
+      <p className="text-amber-300 font-semibold flex items-center gap-1">
+        <AlertTriangle className="w-3 h-3 shrink-0" />
+        No bootstrap-eligible candidates in last scan
+      </p>
+      {watchTop ? (
+        <p className="text-muted-foreground leading-snug">
+          Top candidate:{" "}
+          <span className="font-mono font-semibold text-foreground">{watchTop.symbol}</span>
+          {" "}(<span className="text-amber-300">{watchTop.action}</span>, {watchTop.confidence.toFixed(0)}% conf)
+          {watchTop.ineligibility_reason && (
+            <span className="text-muted-foreground/70"> — {watchTop.ineligibility_reason}</span>
+          )}
+        </p>
+      ) : (
+        <p className="text-muted-foreground">
+          Scanner found {d.watch_count ?? 0} WATCH symbol{(d.watch_count ?? 0) !== 1 ? "s" : ""} —
+          none cleared bootstrap thresholds.
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ── Panel 3 — Live Paper Trading ─────────────────────────────────────────────
 
 function PaperTradingPanel({ portfolio }: { portfolio: PortfolioSnapshot | undefined }) {
   // Single canonical ledger query shared with Throughput/LivePerformance
   // (same key/path as useLedgerToday — React Query dedupes to one fetch).
   const ledgerQ = useLedgerToday();
+
+  // Bootstrap status — queried here to add the eligibility banner without a
+  // separate page-level fetch. 30 s cadence matches scan cadence; 10 s timeout.
+  const bootstrapQ = useWidgetQuery<BootstrapStatus>({
+    queryKey: ["mc", "bootstrap-status"],
+    path: "/phase20/bootstrap-status",
+    refetchInterval: 30_000,
+    timeoutMs: 10_000,
+  });
 
   const ledger = (ledgerQ.data?.ledger ?? []) as LedgerItem[];
   const counts = useMemo(() => {
@@ -989,8 +1086,11 @@ function PaperTradingPanel({ portfolio }: { portfolio: PortfolioSnapshot | undef
           <p className="font-semibold">{portfolio != null ? `${utilisation.toFixed(1)}%` : "—"}</p>
         </div>
       </div>
+      {/* Bootstrap eligibility status banner */}
+      <BootstrapStatusBanner d={bootstrapQ.data} />
+
       {/* Recent fills */}
-      <p className="text-[10px] text-muted-foreground mb-1">Recent trades</p>
+      <p className="text-[10px] text-muted-foreground mb-1 mt-2">Recent trades</p>
       {recent.length === 0 ? (
         <p className="text-[11px] text-muted-foreground">No paper trades recorded yet.</p>
       ) : (

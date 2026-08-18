@@ -56,6 +56,8 @@ EVENT_TYPES = [
     "PORTFOLIO_UPDATED", "PNL_UPDATED",
     "SCAN_COMPLETED", "SCAN_FAILED",
     "SCAN_SKIPPED_BUSY",
+    # Bootstrap eligibility change — emitted when a symbol flips between scans.
+    "BOOTSTRAP_ELIGIBILITY_CHANGED",
     # Namespaced replay/backtest events — never counted as real paper executions.
     "REPLAY_ORDER_SUBMITTED", "REPLAY_EXECUTION_COMPLETED", "REPLAY_ORDER_REJECTED",
 ]

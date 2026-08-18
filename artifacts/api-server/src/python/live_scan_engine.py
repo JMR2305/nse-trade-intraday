@@ -229,6 +229,40 @@ class Phase7ScanResult:
     timings: Dict[str, Any] = field(default_factory=dict)  # stage breakdown (s)
 
 
+def _bootstrap_ineligibility_reason(r: "Phase7Recommendation") -> str:
+    """Return a human-readable reason why a symbol is NOT bootstrap_eligible.
+
+    Called only for WATCH/IGNORE symbols with low_evidence so the operator can
+    see exactly which threshold was missed.  Never raises.
+    """
+    if r.error is not None:
+        return f"scan error: {r.error}"
+    if not r.low_evidence:
+        return "sufficient backtest evidence — normal BUY path applies (not bootstrap)"
+    if r.final_action not in ("WATCH", "BUY", "STRONG BUY"):
+        return f"action={r.final_action}, needs WATCH or better"
+    if not r.all_gates_passed:
+        failed = []
+        for name, gate in [("price", r.gate_price), ("data_quality", r.gate_data_quality),
+                            ("rr", r.gate_rr), ("volume", r.gate_volume)]:
+            if not (gate or {}).get("passed"):
+                failed.append(f"{name}: {(gate or {}).get('reason', name)}")
+        return "risk gate failed — " + " | ".join(failed) if failed else "risk gates not all passed"
+    if r.calibrated_confidence < BOOTSTRAP_MIN_CONF:
+        return f"confidence {r.calibrated_confidence:.1f} < {BOOTSTRAP_MIN_CONF} threshold"
+    if r.opportunity_score < BOOTSTRAP_MIN_OPP:
+        return f"opportunity score {r.opportunity_score:.1f} < {BOOTSTRAP_MIN_OPP} threshold"
+    if r.rr_ratio < BOOTSTRAP_MIN_RR:
+        return f"RR {r.rr_ratio:.2f} < {BOOTSTRAP_MIN_RR} threshold"
+    if not r.quote_reliable:
+        return "Kite LTP not reliable — live quote required for bootstrap"
+    if not r.kite_session_verified_flag:
+        return "Kite session not verified — login required for bootstrap"
+    if r.data_quality not in PAPER_ELIGIBLE_QUALITIES:
+        return f"data quality {r.data_quality} — LIVE or NEAR_LIVE required"
+    return "unknown — check scan logs"
+
+
 def _holding_days(strategy_id: str) -> int:
     for k, v in HOLDING_PERIOD_BY_STRATEGY.items():
         if k in (strategy_id or "").lower():
@@ -804,6 +838,25 @@ def run_live_scan(
     # Requires quote_reliable / kite_session_verified_flag which are only set
     # by apply_overlay_to_rec() above — so this MUST run after the LTP loop.
     # Strictly parallel to paper_eligible; never changes any decision field.
+    #
+    # Load the previous snapshot BEFORE the eligibility pass so we can detect
+    # flips once the new values are set.  A missing/corrupt previous snapshot
+    # never breaks the scan — change detection is purely advisory.
+    _prev_bootstrap: Dict[str, bool] = {}
+    _prev_scan_id: Optional[str] = None
+    try:
+        from scan_state_store import load_latest_snapshot as _load_prev_snap
+        _prev = _load_prev_snap()
+        if _prev and _prev.get("scan_id") != scan_id:
+            _prev_scan_id = _prev.get("scan_id")
+            _prev_bootstrap = {
+                r["symbol"]: bool(r.get("bootstrap_eligible"))
+                for r in (_prev.get("recommendations") or [])
+                if r.get("symbol")
+            }
+    except Exception:
+        pass
+
     for r in recs:
         if (r.error is None
                 and r.low_evidence                      # only when normal BUY blocked by thin backtest
@@ -816,6 +869,45 @@ def run_live_scan(
                 and r.kite_session_verified_flag        # Kite session proven valid
                 and r.data_quality in PAPER_ELIGIBLE_QUALITIES):
             r.bootstrap_eligible = True
+
+    # ── Bootstrap eligibility change detection ────────────────────────────────
+    # Emit BOOTSTRAP_ELIGIBILITY_CHANGED when a symbol's flag flips since the
+    # previous completed scan.  Advisory only — never raises, never modifies
+    # any recommendation field.
+    if _prev_bootstrap or _prev_scan_id:
+        try:
+            _elig_events: List[Dict[str, Any]] = []
+            for _r in recs:
+                if _r.error is not None or not _r.symbol:
+                    continue
+                _prev_val = _prev_bootstrap.get(_r.symbol, False)
+                _cur_val = _r.bootstrap_eligible
+                if _prev_val == _cur_val:
+                    continue
+                _inelig: Optional[str] = None
+                if not _cur_val:
+                    _inelig = _bootstrap_ineligibility_reason(_r)
+                _elig_events.append({
+                    "scan_id": scan_id,
+                    "symbol":  _r.symbol,
+                    "mode":    "LIVE",
+                    "event_type": "BOOTSTRAP_ELIGIBILITY_CHANGED",
+                    "stage":   "AI_DECISION",
+                    "payload": {
+                        "prev_eligible":       _prev_val,
+                        "cur_eligible":        _cur_val,
+                        "action":              _r.final_action,
+                        "confidence":          _r.calibrated_confidence,
+                        "opportunity_score":   _r.opportunity_score,
+                        "rr_ratio":            _r.rr_ratio,
+                        "ineligibility_reason": _inelig,
+                        "prev_scan_id":        _prev_scan_id,
+                    },
+                })
+            if _elig_events:
+                _pe_emit_many(_elig_events)
+        except Exception:
+            pass
 
     # Phase 23: per-symbol pipeline events derived from each recommendation —
     # one batch insert (never 50 round-trips), emitted from the authoritative

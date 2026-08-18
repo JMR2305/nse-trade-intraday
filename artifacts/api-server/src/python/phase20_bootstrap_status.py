@@ -22,6 +22,51 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional
 
+# Bootstrap eligibility thresholds (must match live_scan_engine.py constants).
+_BS_MIN_CONF = 60.0
+_BS_MIN_OPP  = 50.0
+_BS_MIN_RR   = 1.5
+_BS_LIVE_QUALITIES = {"LIVE", "NEAR_LIVE"}
+
+
+def _snapshot_ineligibility_reason(r: Dict[str, Any]) -> str:
+    """Return a human-readable reason why a snapshot recommendation is NOT
+    bootstrap_eligible.  Works on plain dicts from the scan snapshot (not
+    Phase7Recommendation objects) so it can be called from the status builder
+    without importing live_scan_engine.  Never raises."""
+    if r.get("error"):
+        return f"scan error: {r['error']}"
+    if not r.get("low_evidence"):
+        return "sufficient backtest evidence — normal BUY path applies (not bootstrap)"
+    action = r.get("final_action", "")
+    if action not in ("WATCH", "BUY", "STRONG BUY"):
+        return f"action={action}, needs WATCH or better"
+    if not r.get("all_gates_passed"):
+        # Surface the first failed gate from the gate sub-dicts if present.
+        for gate_key in ("gate_price", "gate_data_quality", "gate_rr", "gate_volume"):
+            gate = r.get(gate_key) or {}
+            if not gate.get("passed"):
+                name = gate_key.replace("gate_", "")
+                return f"risk gate failed ({name}): {gate.get('reason', name)}"
+        return "risk gates not all passed"
+    conf = float(r.get("calibrated_confidence") or 0)
+    if conf < _BS_MIN_CONF:
+        return f"confidence {conf:.1f} < {_BS_MIN_CONF} threshold"
+    opp = float(r.get("opportunity_score") or 0)
+    if opp < _BS_MIN_OPP:
+        return f"opportunity score {opp:.1f} < {_BS_MIN_OPP} threshold"
+    rr = float(r.get("rr_ratio") or 0)
+    if rr < _BS_MIN_RR:
+        return f"RR {rr:.2f} < {_BS_MIN_RR} threshold"
+    if not r.get("quote_reliable"):
+        return "Kite LTP not reliable — live quote required for bootstrap"
+    if not r.get("kite_session_verified_flag"):
+        return "Kite session not verified — login required for bootstrap"
+    dq = r.get("data_quality", "")
+    if dq not in _BS_LIVE_QUALITIES:
+        return f"data quality {dq} — LIVE or NEAR_LIVE required"
+    return "unknown — check scan logs"
+
 
 def _extract_cb_detail(reasons: List[Any]) -> str:
     """
@@ -122,6 +167,23 @@ def build_bootstrap_status_payload(
         reverse=True,
     )[:5]
 
+    # ── Top WATCH candidate when no bootstrap-eligible symbols exist ─────────
+    # Operators see "top candidate: HDFCBANK (WATCH, not BUY)" so they know
+    # the scanner ran and found candidates that just didn't clear eligibility.
+    top_watch: Optional[Dict[str, Any]] = None
+    if not boot_cands and watch_cands:
+        _tw = sorted(watch_cands,
+                     key=lambda r: r.get("calibrated_confidence", 0),
+                     reverse=True)[0]
+        top_watch = {
+            "symbol":            _tw.get("symbol"),
+            "confidence":        _tw.get("calibrated_confidence", 0),
+            "opportunity_score": _tw.get("opportunity_score", 0),
+            "rr_ratio":          _tw.get("rr_ratio", 0),
+            "action":            _tw.get("final_action", "WATCH"),
+            "ineligibility_reason": _snapshot_ineligibility_reason(_tw),
+        }
+
     return {
         "success": True,
         "bootstrap_paper_enabled": True,
@@ -144,6 +206,9 @@ def build_bootstrap_status_payload(
         "watch_count":              int(summary.get("watch_count") or 0),
         "snapshot_ts": snap.get("snapshot_ts"),
         "scan_id":     snap.get("scan_id"),
+        # Top watch candidate surfaced when no bootstrap-eligible symbols exist so
+        # operators understand "the scanner found HDFCBANK at 78% but it's WATCH, not BUY".
+        "top_watch_candidate": top_watch,
         "top_candidates": [
             {
                 "symbol":            r.get("symbol"),
@@ -152,6 +217,11 @@ def build_bootstrap_status_payload(
                 "rr_ratio":          r.get("rr_ratio", 0),
                 "bootstrap_eligible": bool(r.get("bootstrap_eligible")),
                 "entry_price":       r.get("entry_price", 0),
+                "action":            r.get("final_action", "WATCH"),
+                "ineligibility_reason": (
+                    None if r.get("bootstrap_eligible")
+                    else _snapshot_ineligibility_reason(r)
+                ),
             }
             for r in show_cands
         ],
