@@ -1329,6 +1329,41 @@ def main():
             from phase20_exits import manage_open_positions
             result = manage_open_positions(_p20gs())
             result["success"] = True
+        elif command == "phase20_force_close_stale":
+            # Force-close ALL EXIT_PENDING positions immediately, regardless of
+            # how long they have been stuck.  This is the operator escape hatch
+            # for positions like the Aug 4–7 TRENT/DIVISLAB/GRASIM/BAJFINANCE
+            # trades that went to EXIT_PENDING but never received a fresh quote.
+            #
+            # Internally calls _resolve_timeout_exit_pending with max_holding_days=0
+            # so every EXIT_PENDING row (no matter how old) is processed in the
+            # same scan cycle.  Price source preference: Kite LTP > yfinance
+            # daily close > fill_price_fallback (fill price) so the ledger is
+            # always stamped with a real or best-available price — never NULL.
+            from phase20_store import get_settings as _p20gs
+            from phase20_exits import _resolve_timeout_exit_pending
+            from phase15_scan_context import build_scan_context as _bsc
+            _fc_ctx = _bsc()
+            _fc_symbols_ctx = _fc_ctx.get("symbols") or {}
+            _fc_scan_id = _fc_ctx.get("scan_id")
+            _fc_settings = dict(_p20gs())
+            # Override max_holding_days to 0 so every EXIT_PENDING trade is
+            # eligible regardless of how long it has been pending.
+            _fc_settings["max_holding_days"] = 0
+            _fc_closed = _resolve_timeout_exit_pending(
+                _fc_settings, _fc_symbols_ctx, _fc_scan_id)
+            result = {
+                "success": True,
+                "force_closed": _fc_closed,
+                "force_closed_count": len(_fc_closed),
+                "scan_id": _fc_scan_id,
+                "note": (
+                    "Force-closed all EXIT_PENDING positions using best-available "
+                    "price (Kite LTP > yfinance close > fill_price_fallback). "
+                    "Use this command when positions are permanently stranded due "
+                    "to a prolonged Kite LTP outage."
+                ),
+            }
         elif command == "phase20_entry_tick":
             from phase20_store import get_settings as _p20gs
             from phase20_executor import run_auto_entries

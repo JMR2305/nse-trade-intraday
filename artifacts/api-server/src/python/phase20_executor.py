@@ -253,14 +253,87 @@ def get_ledger(limit: int = 200) -> List[Dict[str, Any]]:
 
 
 def get_trade(trade_id: str) -> Optional[Dict[str, Any]]:
-    for t in get_ledger(500):
-        if t.get("trade_id") == trade_id:
-            return t
-    return None
+    """Fetch a single trade row by trade_id.
+
+    This function queries the DB directly by primary key — it does NOT go
+    through get_ledger(500), which is bounded to the 500 newest rows.  A trade
+    opened before 500 newer trades were created would be invisible via
+    get_ledger, causing record_exit() to silently skip the update and leave the
+    row permanently EXIT_PENDING.
+
+    File fallback: scans the entire ledger file (no row cap).
+    """
+    def from_db(conn) -> Optional[Dict[str, Any]]:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"SELECT {', '.join(_COLS)}, created_at "
+                f"FROM phase20_paper_trades WHERE trade_id = %s",
+                (trade_id,),
+            )
+            row = cur.fetchone()
+        if row is None:
+            return None
+        item = dict(zip(_COLS, row[:-1]))
+        if isinstance(item.get("evidence"), str):
+            try:
+                item["evidence"] = json.loads(item["evidence"])
+            except Exception:
+                pass
+        item["created_at"] = _iso(row[-1]) if isinstance(row[-1], datetime) else row[-1]
+        return item
+
+    def from_file() -> Optional[Dict[str, Any]]:
+        # Scan entire file — no row cap so legacy rows are never missed.
+        for r in _read_ledger_file():
+            if r.get("trade_id") == trade_id:
+                return r
+        return None
+
+    return _with_db(from_db, from_file)
 
 
 def get_open_trades() -> List[Dict[str, Any]]:
     return [t for t in get_ledger(500) if t.get("status") == "OPEN"]
+
+
+def get_exit_pending_trades() -> List[Dict[str, Any]]:
+    """Return ALL rows with status='EXIT_PENDING' with no row-count limit.
+
+    Unlike get_ledger(500) — which fetches the 500 newest rows regardless of
+    status — this function queries EXIT_PENDING rows directly and exhausts the
+    full result set.  This is the correct source for _resolve_timeout_exit_pending
+    and _retry_pending: a trade that entered EXIT_PENDING before 500 newer trades
+    were created would otherwise fall out of the get_ledger window and be
+    permanently stranded, defeating the force-close guarantee.
+
+    File fallback: scans the entire local ledger file for EXIT_PENDING rows.
+    """
+    def from_db(conn) -> List[Dict[str, Any]]:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"SELECT {', '.join(_COLS)}, created_at "
+                f"FROM phase20_paper_trades "
+                f"WHERE status = 'EXIT_PENDING' "
+                f"ORDER BY created_at ASC",   # oldest first so we resolve in FIFO order
+            )
+            rows = cur.fetchall()
+        out = []
+        for r in rows:
+            item = dict(zip(_COLS, r[:-1]))
+            if isinstance(item.get("evidence"), str):
+                try:
+                    item["evidence"] = json.loads(item["evidence"])
+                except Exception:
+                    pass
+            item["created_at"] = _iso(r[-1]) if isinstance(r[-1], datetime) else r[-1]
+            out.append(item)
+        return out
+
+    def from_file() -> List[Dict[str, Any]]:
+        return [r for r in _read_ledger_file()
+                if r.get("status") == "EXIT_PENDING"]
+
+    return _with_db(from_db, from_file)
 
 
 def get_open_positions_view() -> List[Dict[str, Any]]:

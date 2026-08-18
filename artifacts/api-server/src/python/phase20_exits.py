@@ -343,12 +343,14 @@ def _resolve_timeout_exit_pending(
     This function is advisory-safe: errors are swallowed per-trade so one
     bad row never blocks the rest.
     """
-    from phase20_executor import get_ledger, record_exit
+    from phase20_executor import get_exit_pending_trades, record_exit
     from paper_trader import execute_sell
     out: List[Dict[str, Any]] = []
     max_days = float(settings.get("max_holding_days", 10))
 
-    for trade in get_ledger(500):
+    # Use get_exit_pending_trades() — no row-count limit, EXIT_PENDING only.
+    # get_ledger(500) would miss trades older than the 500-row window.
+    for trade in get_exit_pending_trades():
         if trade.get("status") != "EXIT_PENDING":
             continue
         try:
@@ -359,14 +361,18 @@ def _resolve_timeout_exit_pending(
 
             # Measure time spent in EXIT_PENDING state using exit_ts (the
             # timestamp recorded when the trade transitioned to EXIT_PENDING).
-            # For legacy rows that have no exit_ts, fall back to fill_ts so
-            # old stuck positions are still cleaned up — but this fallback is
-            # logged via price_source so it is visible in notifications.
+            # Fallback chain: exit_ts → fill_ts → created_at.
+            # created_at is always present (DB DEFAULT NOW()) so this chain
+            # guarantees that no EXIT_PENDING trade can be permanently stranded
+            # even when exit_ts and fill_ts are both NULL (legacy rows).
             pending_dt = _parse_ts(trade.get("exit_ts"))
             _ts_source = "exit_ts"
             if pending_dt is None:
                 pending_dt = _parse_ts(trade.get("fill_ts"))
                 _ts_source = "fill_ts_legacy_fallback"
+            if pending_dt is None:
+                pending_dt = _parse_ts(trade.get("created_at"))
+                _ts_source = "created_at_legacy_fallback"
             if not (pending_dt and (_now() - pending_dt).days >= max_days):
                 continue
 
@@ -452,12 +458,13 @@ def _retry_pending(symbols_ctx: Dict[str, Any], scan_ok: bool, stale: bool,
          offline for days and the only quote is a fresh daily-bar close.
          The exit price is still a real market price, just not intraday.
     """
-    from phase20_executor import get_ledger
+    from phase20_executor import get_exit_pending_trades
     from paper_trader import execute_sell
     out: List[Dict[str, Any]] = []
     if not scan_ok or stale:
         return out
-    for trade in get_ledger(500):
+    # Use get_exit_pending_trades() — no 500-row limit, fetches all EXIT_PENDING.
+    for trade in get_exit_pending_trades():
         if trade.get("status") != "EXIT_PENDING":
             continue
         sym = str(trade.get("symbol") or "").upper()
@@ -475,8 +482,13 @@ def _retry_pending(symbols_ctx: Dict[str, Any], scan_ok: bool, stale: bool,
             _price_source = "kite_ltp"
 
         # How long has this trade been in EXIT_PENDING?  Use exit_ts (the
-        # transition timestamp), falling back to fill_ts for legacy rows.
-        _ep_ts_str = trade.get("exit_ts") or trade.get("fill_ts")
+        # transition timestamp), falling back to fill_ts then created_at for
+        # legacy rows where both may be NULL.  Without this chain a trade
+        # with NULL exit_ts + fill_ts gets _ep_pending_hours=0 and tier-2
+        # never fires, leaving the position permanently stuck.
+        _ep_ts_str = (trade.get("exit_ts")
+                      or trade.get("fill_ts")
+                      or trade.get("created_at"))
         _ep_pending_hours = 0.0
         if _ep_ts_str:
             try:
