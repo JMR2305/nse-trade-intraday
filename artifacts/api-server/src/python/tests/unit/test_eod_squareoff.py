@@ -780,5 +780,193 @@ class TestSchedulerEodIntegration(unittest.TestCase):
         out["force_close_mock"].assert_not_called()
 
 
+# ── DRREDDY P20-3468fb2a24 regression suite ────────────────────────────────────
+#
+# These tests pin the exact trade that was open going into the 2026-08-19 EOD
+# square-off.  They confirm that:
+#   (a) the force-close records exit_rule = POST_CLOSE_FORCE_EXIT on the ledger
+#   (b) a PAPER_TRADE_FORCE_CLOSED pipeline event is emitted with the trade_id
+#   (c) after the only open trade is closed the result carries no remaining
+#       open/blocked items (positions = {})
+#
+# If any of these break, the scheduled EOD square-off has regressed.
+
+_DRREDDY_TRADE_ID = "P20-3468fb2a24"
+_DRREDDY_FILL_PRICE = 1186.98
+_DRREDDY_EXIT_PRICE = 1183.0    # yfinance daily-close from the post-session scan
+
+
+class TestDrReddyP20ForceClose(unittest.TestCase):
+    """Regression tests pinning the DRREDDY P20-3468fb2a24 EOD force-close."""
+
+    def _run_eod(self, trades, **stub_kwargs) -> Dict[str, Any]:
+        stubs = _build_stubs(trades, **stub_kwargs)
+        orig = {}
+        for k, v in stubs.items():
+            orig[k] = sys.modules.get(k)
+            sys.modules[k] = v
+        try:
+            sys.modules.pop("phase20_exits", None)
+            from phase20_exits import eod_force_close_open_positions
+            result = eod_force_close_open_positions(_settings())
+        finally:
+            for k in list(stubs):
+                v = orig.get(k)
+                if v is None:
+                    sys.modules.pop(k, None)
+                else:
+                    sys.modules[k] = v
+            sys.modules.pop("phase20_exits", None)
+        return result
+
+    def _run_eod_with_stubs(self, trades, stubs) -> tuple:
+        """Run eod and return (result, stubs) so callers can inspect mock calls."""
+        orig = {}
+        for k, v in stubs.items():
+            orig[k] = sys.modules.get(k)
+            sys.modules[k] = v
+        try:
+            sys.modules.pop("phase20_exits", None)
+            from phase20_exits import eod_force_close_open_positions
+            result = eod_force_close_open_positions(_settings())
+        finally:
+            for k in list(stubs):
+                v = orig.get(k)
+                if v is None:
+                    sys.modules.pop(k, None)
+                else:
+                    sys.modules[k] = v
+            sys.modules.pop("phase20_exits", None)
+        return result
+
+    # ── Test A ─────────────────────────────────────────────────────────────────
+    def test_drreddy_P20_3468fb2a24_exit_rule_is_post_close_force_exit(self):
+        """eod_force_close records exit_rule=POST_CLOSE_FORCE_EXIT on the ledger
+        for trade P20-3468fb2a24 (DRREDDY).  This is the DB-level assertion that
+        the EOD square-off ran correctly for the trade open on 2026-08-19.
+
+        Confirmed-closed criteria (mirrors the production DB check):
+          - result["force_closed"] contains exactly one entry for DRREDDY
+          - record_exit() is called with exit_rule = "POST_CLOSE_FORCE_EXIT"
+          - record_exit() is called with status = "CLOSED"
+          - exit_price matches the yfinance daily-close (today's session, LIVE quality)
+        """
+        trade = _trade(
+            trade_id=_DRREDDY_TRADE_ID,
+            symbol="DRREDDY",
+            fill_price=_DRREDDY_FILL_PRICE,
+            qty=1,
+        )
+        stubs = _build_stubs([trade], yf_price=_DRREDDY_EXIT_PRICE,
+                              ctx_stale=False, ctx_today=True)
+        result = self._run_eod_with_stubs([trade], stubs)
+        record_exit_calls = stubs["phase20_executor"].record_exit.call_args_list
+
+        # One closed position
+        self.assertEqual(len(result["force_closed"]), 1,
+                         f"Expected 1 force-closed; got {result['force_closed']}")
+        closed = result["force_closed"][0]
+        self.assertEqual(closed["symbol"], "DRREDDY")
+        self.assertEqual(closed["exit_price"], _DRREDDY_EXIT_PRICE)
+
+        # record_exit called with the correct exit rule and status
+        self.assertGreater(len(record_exit_calls), 0,
+                           "record_exit must be called for DRREDDY")
+        args = record_exit_calls[0][0]   # positional args: trade_id, price, rule, scan_id
+        self.assertEqual(args[0], _DRREDDY_TRADE_ID,
+                         f"record_exit trade_id mismatch: {args[0]}")
+        self.assertEqual(args[2], "POST_CLOSE_FORCE_EXIT",
+                         f"exit_rule mismatch: {args[2]}")
+        status_kwarg = record_exit_calls[0][1].get("status")
+        if status_kwarg is None and len(args) > 4:
+            status_kwarg = args[4]
+        self.assertEqual(status_kwarg, "CLOSED",
+                         f"Expected status=CLOSED; got {status_kwarg}")
+
+        # No blocked entries
+        self.assertEqual(result["blocked"], [],
+                         f"Unexpected blocked entries: {result['blocked']}")
+
+    # ── Test B ─────────────────────────────────────────────────────────────────
+    def test_paper_trade_force_closed_event_emitted_with_correct_trade_id(self):
+        """A PAPER_TRADE_FORCE_CLOSED pipeline event is emitted for
+        P20-3468fb2a24 with the correct exit_rule and trade_id in its payload.
+
+        This mirrors the pipeline_events DB query operators run after close to
+        confirm the square-off executed:
+          SELECT event_type, payload FROM pipeline_events
+          WHERE event_type = 'PAPER_TRADE_FORCE_CLOSED'
+            AND DATE(ts AT TIME ZONE 'Asia/Kolkata') = '2026-08-19';
+        """
+        trade = _trade(
+            trade_id=_DRREDDY_TRADE_ID,
+            symbol="DRREDDY",
+            fill_price=_DRREDDY_FILL_PRICE,
+            qty=1,
+        )
+        stubs = _build_stubs([trade], yf_price=_DRREDDY_EXIT_PRICE,
+                              ctx_stale=False, ctx_today=True)
+        self._run_eod_with_stubs([trade], stubs)
+        emit_calls = stubs["pipeline_events"].emit.call_args_list
+
+        # Collect all emitted event types
+        emitted_event_types = [c[0][0] for c in emit_calls]
+        self.assertIn("PAPER_TRADE_FORCE_CLOSED", emitted_event_types,
+                      f"PAPER_TRADE_FORCE_CLOSED not emitted; got {emitted_event_types}")
+
+        # Find the specific force-closed event and verify its payload
+        force_closed_events = [
+            c for c in emit_calls if c[0][0] == "PAPER_TRADE_FORCE_CLOSED"
+        ]
+        self.assertEqual(len(force_closed_events), 1)
+        # emit(event_type, scope, scan_id=..., symbol=..., payload={...})
+        event_kwargs = force_closed_events[0][1]
+        payload = event_kwargs.get("payload", {})
+        self.assertEqual(payload.get("trade_id"), _DRREDDY_TRADE_ID,
+                         f"Payload trade_id mismatch: {payload}")
+        self.assertEqual(payload.get("exit_rule"), "POST_CLOSE_FORCE_EXIT",
+                         f"Payload exit_rule mismatch: {payload}")
+        self.assertEqual(payload.get("exit_price"), _DRREDDY_EXIT_PRICE,
+                         f"Payload exit_price mismatch: {payload}")
+        # MARKET_CLOSE_EXIT_BLOCKED must NOT be emitted when close succeeds
+        self.assertNotIn("MARKET_CLOSE_EXIT_BLOCKED", emitted_event_types,
+                         "MARKET_CLOSE_EXIT_BLOCKED must not be emitted on success")
+
+    # ── Test C ─────────────────────────────────────────────────────────────────
+    def test_no_open_positions_remain_after_only_drreddy_trade_closed(self):
+        """After eod_force_close processes the sole open trade (DRREDDY), the
+        result shows zero open/blocked items, mirroring the expected portfolio
+        state (positions={}) the operator verifies in production.
+
+        Matches the portfolio DB check:
+          SELECT cash, positions FROM paper_portfolio ORDER BY updated_at DESC LIMIT 1;
+          -- Expected: positions = {}
+        """
+        trade = _trade(
+            trade_id=_DRREDDY_TRADE_ID,
+            symbol="DRREDDY",
+            fill_price=_DRREDDY_FILL_PRICE,
+            qty=1,
+        )
+        stubs = _build_stubs([trade], yf_price=_DRREDDY_EXIT_PRICE,
+                              ctx_stale=False, ctx_today=True)
+        result = self._run_eod_with_stubs([trade], stubs)
+
+        self.assertEqual(result["evaluated"], 1,
+                         "Expected exactly 1 trade evaluated")
+        self.assertEqual(len(result["force_closed"]), 1,
+                         "Expected 1 force-closed trade")
+        self.assertEqual(result["blocked"], [],
+                         "No trades should be blocked when price is available")
+        # execute_sell called once — this is what credits cash back to portfolio
+        sell_calls = stubs["paper_trader"].execute_sell.call_args_list
+        self.assertEqual(len(sell_calls), 1,
+                         "execute_sell must be called exactly once")
+        sell_args = sell_calls[0][0]
+        self.assertEqual(sell_args[0], "DRREDDY")
+        self.assertEqual(sell_args[1], 1)               # quantity
+        self.assertEqual(sell_args[2], _DRREDDY_EXIT_PRICE)  # proceeds credited to cash
+
+
 if __name__ == "__main__":
     unittest.main()
