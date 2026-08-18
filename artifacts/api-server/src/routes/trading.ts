@@ -50,9 +50,18 @@ function runPython(args: string[]): Promise<unknown> {
         }
         reject(new Error(stderr || `Python exited with code ${code}`));
       } else {
-        try {
-          resolve(JSON.parse(stdout.trim()));
-        } catch {
+        // Find the last line that is valid JSON (subsystems may print
+        // structured log lines to stdout before the result JSON).
+        const lines = stdout.trim().split("\n");
+        let _parsed: unknown;
+        for (let i = lines.length - 1; i >= 0; i--) {
+          const line = lines[i].trim();
+          if (!line) continue;
+          try { _parsed = JSON.parse(line); break; } catch { /* skip */ }
+        }
+        if (_parsed !== undefined) {
+          resolve(_parsed);
+        } else {
           reject(new Error(`Failed to parse Python output: ${stdout}`));
         }
       }
@@ -1021,9 +1030,18 @@ function spawnP7Scan(args: string[]): Promise<unknown> {
         } catch { /* ignore */ }
         reject(new Error(stderr || `Python exited with code ${code}`));
       } else {
-        try {
-          resolve(JSON.parse(stdout.trim()));
-        } catch {
+        // Find the last line that is valid JSON (subsystems may print
+        // structured log lines to stdout before the result JSON).
+        const lines = stdout.trim().split("\n");
+        let _parsed: unknown;
+        for (let i = lines.length - 1; i >= 0; i--) {
+          const line = lines[i].trim();
+          if (!line) continue;
+          try { _parsed = JSON.parse(line); break; } catch { /* skip */ }
+        }
+        if (_parsed !== undefined) {
+          resolve(_parsed);
+        } else {
           reject(new Error(`Failed to parse Python output: ${stdout}`));
         }
       }
@@ -1076,9 +1094,18 @@ function spawnRunScan(args: string[]): Promise<unknown> {
         } catch { /* ignore */ }
         reject(new Error(stderr || `Python exited with code ${code}`));
       } else {
-        try {
-          resolve(JSON.parse(stdout.trim()));
-        } catch {
+        // Find the last line that is valid JSON (subsystems may print
+        // structured log lines to stdout before the result JSON).
+        const lines = stdout.trim().split("\n");
+        let _parsed: unknown;
+        for (let i = lines.length - 1; i >= 0; i--) {
+          const line = lines[i].trim();
+          if (!line) continue;
+          try { _parsed = JSON.parse(line); break; } catch { /* skip */ }
+        }
+        if (_parsed !== undefined) {
+          resolve(_parsed);
+        } else {
           reject(new Error(`Failed to parse Python output: ${stdout}`));
         }
       }

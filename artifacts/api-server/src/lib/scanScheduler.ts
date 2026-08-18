@@ -37,9 +37,18 @@ function runPython(args: string[]): Promise<unknown> {
         reject(new Error(stderr || `Python exited with code ${code}`));
         return;
       }
-      try {
-        resolve(JSON.parse(stdout.trim()));
-      } catch {
+      // Find the last line that is valid JSON (subsystems may print
+      // structured log lines before the result).
+      const lines = stdout.trim().split("\n");
+      let parsed: unknown = undefined;
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        try { parsed = JSON.parse(line); break; } catch { /* skip */ }
+      }
+      if (parsed !== undefined) {
+        resolve(parsed);
+      } else {
         reject(new Error(`Failed to parse Python output: ${stdout.slice(0, 300)}`));
       }
     });

@@ -1,3 +1,4 @@
+- [EOD squareoff KV claim + import bug](eod-squareoff-kv-claim-import-bug.md) — kv_claim_once writes before imports run; phase20_settings doesn't exist; runPython needs last-JSON-line parsing.
 - [Phase 7 live scan design](phase7-live-scan.md) — canonical scan has one scan_id/snapshot_ts; health endpoint probes 3 symbols only (quick); full scan via /live-data/scan/run.
 - [Phase 7 safety gates](phase7-safety-gates.md) — STALE→WATCH, UNAVAILABLE→IGNORE enforced in live_scan_engine._apply_quality_gate(); never in market_scanner.py.
 - [Phase 8 broker safety design](phase8-broker-safety.md) — credential masking, no-auto-execution guarantee, two-step confirm tokens, MockBrokerClient fallback.
