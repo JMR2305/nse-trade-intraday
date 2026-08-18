@@ -251,23 +251,23 @@ class TestBootstrapPermitsWatchCandidates:
 
         assert captured_settings.get("fill_model") == "bootstrap_paper"
 
-    def test_order_value_capped_at_1500(self):
-        """Qty × kite_ltp must never exceed ₹1,500.
+    def test_order_value_capped_at_15000(self):
+        """Qty × kite_ltp must never exceed ₹15,000.
         Candidates whose share price alone exceeds the cap are skipped entirely."""
-        expensive_rec = _make_rec(symbol="BAJAJFINSV", kite_ltp=5_000.0)
+        expensive_rec = _make_rec(symbol="BAJAJFINSV", kite_ltp=16_000.0)
         snapshot = _make_snapshot(recs=[expensive_rec])
 
         with patch("phase20_executor._with_db", side_effect=[0, False]):
             result = run_bootstrap_auto_entry(snapshot, _settings_bootstrap_on())
 
-        # Price ₹5,000 > cap ₹1,500 → executor must decline, not create a trade
+        # Price ₹16,000 > cap ₹15,000 → executor must decline, not create a trade
         assert result["ran"] is False or result.get("result", {}).get("created") is not True, (
-            "Executor must not create a trade when share price exceeds ₹1,500 cap"
+            "Executor must not create a trade when share price exceeds ₹15,000 cap"
         )
 
     def test_order_value_capped_affordable_stock(self):
         """For an affordable stock, qty × worst-case fill must not exceed the cap."""
-        # price=200, slippage 0.15% → worst_fill=200.30 → qty=7, notional=1402.1 ≤ 1500
+        # price=200, slippage 0.15% → worst_fill=200.30 → qty≈74, notional≈₹14,822 ≤ ₹15,000
         affordable_rec = _make_rec(symbol="TATACOMM", kite_ltp=200.0,
                                     stop_loss=185.0, target_price=225.0)
         snapshot = _make_snapshot(recs=[affordable_rec])
@@ -315,6 +315,159 @@ class TestBootstrapPermitsWatchCandidates:
             run_bootstrap_auto_entry(snapshot, _settings_bootstrap_on())
 
         assert captured == ["TMCV"], "Must select TMCV (higher confidence)"
+
+    def test_drreddy_bootstrap_quantity(self):
+        """DRREDDY at ₹1,186.98 should size to 10–12 shares under the ₹15,000 cap.
+
+        Sizing logic:
+          price         = ₹1,186.98
+          slippage      = 0.15 %
+          worst_fill    = 1186.98 × 1.0015 ≈ ₹1,188.76
+          raw qty       = floor(15,000 / 1,188.76) = 12  → notional ≈ ₹14,265 ≤ ₹15,000
+          exposure cap  = 25 % of ₹50,000 = ₹12,500
+                          floor(12,500 / 1,188.76) = 10 shares (applied by validate_pre_trade)
+
+        stop_loss=1,150  target=1,250:
+          R:R at fill ≈ (1,250 − 1,188.76) / (1,188.76 − 1,150) = 61.24 / 38.76 ≈ 1.58 ≥ 1.5
+
+        The bootstrap executor computes qty from the ₹15,000 ceiling; per-stock
+        exposure cap enforcement lives inside create_paper_entry (validate_pre_trade).
+        The sizing dict passed to create_paper_entry must therefore satisfy:
+          10 ≤ quantity ≤ 12   and   notional ≤ ₹15,000
+        """
+        drreddy_rec = _make_rec(
+            symbol="DRREDDY",
+            kite_ltp=1_186.98,
+            stop_loss=1_150.0,
+            target_price=1_250.0,
+            calibrated_confidence=64.7,
+            opportunity_score=62.6,
+            rr_ratio=2.5,
+        )
+        snapshot = _make_snapshot(recs=[drreddy_rec])
+        settings = dict(_settings_bootstrap_on())
+        settings["slippage_pct"] = 0.15
+        captured_sizing: dict = {}
+        captured_trigger: list[str] = []
+
+        def capture(candidate, sett, scan_id, snap_ts, trigger_source="AUTO"):
+            captured_sizing.update(candidate.get("sizing") or {})
+            captured_trigger.append(trigger_source)
+            return {"created": True, "trade_id": "P20-drreddy-sim", "symbol": "DRREDDY"}
+
+        with (
+            patch("phase20_executor._with_db", side_effect=[0, False]),
+            patch("phase20_executor.create_paper_entry", side_effect=capture),
+        ):
+            result = run_bootstrap_auto_entry(snapshot, settings)
+
+        assert result["ran"] is True, f"Expected ran=True, got: {result}"
+
+        qty = int(captured_sizing.get("quantity") or 0)
+        slip_pct = 0.15 / 100.0
+        worst_fill = 1_186.98 * (1.0 + slip_pct)
+        notional = qty * worst_fill
+
+        assert qty >= 10, (
+            f"DRREDDY bootstrap qty={qty} is below expected minimum of 10 shares "
+            f"(worst_fill={worst_fill:.2f}, cap={_BOOTSTRAP_MAX_ORDER_VALUE})"
+        )
+        assert qty <= 12, (
+            f"DRREDDY bootstrap qty={qty} exceeds raw cap floor of 12 shares "
+            f"(worst_fill={worst_fill:.2f}, cap={_BOOTSTRAP_MAX_ORDER_VALUE})"
+        )
+        assert notional <= _BOOTSTRAP_MAX_ORDER_VALUE, (
+            f"Notional ₹{notional:.2f} exceeds bootstrap cap ₹{_BOOTSTRAP_MAX_ORDER_VALUE}"
+        )
+        assert captured_trigger == ["BOOTSTRAP_AUTO"], (
+            f"trigger_source must be BOOTSTRAP_AUTO, got: {captured_trigger}"
+        )
+
+    def test_drreddy_exposure_cap_integration(self):
+        """Integration-level: validate_pre_trade reduces DRREDDY bootstrap qty 12→10.
+
+        The bootstrap executor sizes qty=12 from the ₹15,000 ceiling.  When
+        validate_pre_trade runs for real (no create_paper_entry mock), the
+        per-stock exposure cap (25% of ₹50,000 = ₹12,500) reduces qty to 10.
+
+        Inputs:
+          fill_price = 1186.98 × 1.0015 ≈ 1188.76 (0.15 % slippage)
+          qty        = 12 (bootstrap ceiling sizing)
+          stop_loss  = 1150, target = 1250, rr_ratio at fill ≈ 1.58
+          portfolio  = ₹50,000 (config.INITIAL_CAPITAL, portfolio_store absent)
+          cap_pct    = 25 %
+        Expected: APPROVED_WARN, size_reduced_to_cap=True, capped_qty=10.
+        """
+        from risk_validation.pre_trade import validate_pre_trade
+
+        fill_price   = round(1_186.98 * 1.0015, 2)   # ≈ 1188.76
+        qty          = 12                              # bootstrap ceiling
+        stop_loss    = 1_150.0
+        target       = 1_250.0
+        risk_amount  = round((fill_price - stop_loss) * qty, 2)
+
+        settings = {
+            "per_stock_exposure_cap_pct": 25.0,
+            "max_trades_per_day": 3,
+            "max_daily_risk_pct": 5.0,
+        }
+
+        rv = validate_pre_trade(
+            symbol="DRREDDY",
+            fill_price=fill_price,
+            qty=qty,
+            stop_loss=stop_loss,
+            target=target,
+            risk_amount=risk_amount,
+            settings=settings,
+        )
+        rv_dict = rv.to_dict()
+        summary = rv_dict.get("summary", {})
+
+        assert rv.verdict != "REJECTED", (
+            f"Expected APPROVED or APPROVED_WARN, got REJECTED: {rv.reason}"
+        )
+        assert summary.get("size_reduced_to_cap") is True, (
+            f"Expected size_reduced_to_cap=True in summary: {summary}"
+        )
+        capped = int(summary.get("capped_qty") or 0)
+        assert capped == 10, (
+            f"Expected capped_qty=10 after 25% exposure cap on ₹50,000, got {capped}. "
+            f"fill_price={fill_price}, cap=₹12,500, floor(12500/{fill_price})=10"
+        )
+        # Final notional after exposure cap must stay within ₹12,500 (25% of 50k)
+        capped_notional = round(capped * fill_price, 2)
+        assert capped_notional <= 12_500.0, (
+            f"Capped notional ₹{capped_notional:.2f} exceeds exposure cap ₹12,500"
+        )
+
+    def test_existing_open_bootstrap_trade_blocks_new_entry(self):
+        """When a bootstrap trade is already OPEN in the ledger, no new trade is created.
+
+        This regression guards the existing-open-bootstrap guard: the second _with_db
+        call returns True (bootstrap open) so the function must return ran=False with
+        no call to create_paper_entry.  The existing trade P20-3468fb2a24 (DRREDDY)
+        is untouched — the executor simply exits early without any DB write.
+        """
+        snapshot = _make_snapshot()
+        mock_create = MagicMock(return_value={"created": True, "trade_id": "P20-x"})
+
+        with (
+            patch("phase20_executor._with_db", side_effect=[
+                0,     # closed trade count (below threshold)
+                True,  # bootstrap trade already OPEN
+            ]),
+            patch("phase20_executor.create_paper_entry", mock_create),
+        ):
+            result = run_bootstrap_auto_entry(snapshot, _settings_bootstrap_on())
+
+        assert result["ran"] is False, (
+            "Bootstrap must not create a new trade when one is already OPEN"
+        )
+        assert "already OPEN" in result.get("reason", ""), (
+            f"Expected 'already OPEN' in reason, got: {result.get('reason')}"
+        )
+        mock_create.assert_not_called()
 
 
 # ── TEST 3: Bootstrap requires Kite LTP and quote_reliable=true ──────────────
@@ -475,15 +628,15 @@ class TestBootstrapRefusesFailedGates:
         assert "circuit breaker" in result.get("reason", "").lower()
 
     def test_refuses_when_worst_case_fill_exceeds_cap(self):
-        """A stock priced just below ₹1,500 may still breach the cap after slippage."""
-        # price = 1499, slippage 0.15% → worst_fill ≈ 1501.25 > 1500
-        near_cap_rec = _make_rec(symbol="DIVI", kite_ltp=1_499.0,
-                                  stop_loss=1_450.0, target_price=1_560.0)
+        """A stock priced just below ₹15,000 may still breach the cap after slippage."""
+        # price = 14_979, slippage 0.15% → worst_fill ≈ 15,001.44 > 15,000
+        near_cap_rec = _make_rec(symbol="DIVI", kite_ltp=14_979.0,
+                                  stop_loss=14_500.0, target_price=15_600.0)
         snapshot = _make_snapshot(recs=[near_cap_rec])
         settings = dict(_settings_bootstrap_on())
         settings["slippage_pct"] = 0.15
         result = run_bootstrap_auto_entry(snapshot, settings)
-        # worst_fill = 1499 × 1.0015 ≈ 1501.25 > 1500 → must decline
+        # worst_fill = 14979 × 1.0015 ≈ 15,001.44 > 15,000 → must decline for 1 share
         assert result["ran"] is False or result.get("result", {}).get("created") is not True
 
 

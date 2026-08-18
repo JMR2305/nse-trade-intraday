@@ -104,7 +104,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "exploration_min_confidence": 60.0,         # minimum confidence score for exploration entries
     # ── Bootstrap paper trading (ledger seeding when backtest evidence is thin) ──
     # Requires auto_paper_entries ON and confirmed. Defaults to False (safe-off).
-    # A bootstrap trade is at most ₹1,500, uses the normal exit engine, and emits
+    # A bootstrap trade is at most ₹15,000, uses the normal exit engine, and emits
     # trigger_source="BOOTSTRAP_AUTO" so it is permanently distinguishable from
     # normal paper entries. Auto-disables when the ledger reaches 20 closed trades.
     "bootstrap_paper_enabled": False,
@@ -791,11 +791,17 @@ def kv_set(key: str, value: Any) -> None:
     _with_db(to_db, to_file)
 
 
-def kv_claim_once(key: str) -> bool:
+def kv_claim_once(key: str, ttl_seconds: int = 0) -> bool:
     """Atomically claim a KV key. Returns True only for the FIRST claimant
     (cross-process safe): DB path uses INSERT ... ON CONFLICT DO NOTHING in a
     single statement; file fallback serialises with flock. Use for
-    exactly-once notification guards."""
+    exactly-once notification guards.
+
+    ``ttl_seconds`` is accepted for forward-compatibility (callers that use
+    date-keyed claims for daily-once semantics) but the TTL is currently
+    enforced by the caller rotating the key (e.g. including today's date in
+    the key).  The parameter is intentionally ignored here so callers can
+    document intent without breaking the interface."""
     def to_db(conn):
         with conn.cursor() as cur:
             cur.execute(

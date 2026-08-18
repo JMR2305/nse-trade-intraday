@@ -359,6 +359,37 @@ class TestReady:
 # bootstrap_paper_enabled=True (the caller only calls it when enabled).
 # ---------------------------------------------------------------------------
 
+class TestBootstrapMaxOrderValue:
+    """bootstrap_max_order_value must be present and reflect the executor constant."""
+
+    def test_max_order_value_present_in_payload(self):
+        r = _call()
+        assert "bootstrap_max_order_value" in r, (
+            "bootstrap_max_order_value must be present in bootstrap status payload"
+        )
+
+    def test_max_order_value_is_15000(self):
+        """After the cap raise the payload must expose ₹15,000, not the old ₹1,500."""
+        from phase20_executor import _BOOTSTRAP_MAX_ORDER_VALUE
+        r = _call()
+        assert r["bootstrap_max_order_value"] == _BOOTSTRAP_MAX_ORDER_VALUE, (
+            f"Expected {_BOOTSTRAP_MAX_ORDER_VALUE}, got {r['bootstrap_max_order_value']}"
+        )
+        assert r["bootstrap_max_order_value"] == 15_000
+
+    def test_max_order_value_overrideable_via_kwarg(self):
+        """Caller can override via the kwarg — used by main.py to inject the constant."""
+        from phase20_bootstrap_status import build_bootstrap_status_payload
+        r = build_bootstrap_status_payload(
+            settings=dict(_BASE_SETTINGS),
+            snapshot=dict(_SNAP_KITE_OK),
+            evaluate_circuit_breaker=lambda _s: _CB_CLEAR,
+            get_closed_trades=lambda: 0,
+            bootstrap_max_order_value=99_999,
+        )
+        assert r["bootstrap_max_order_value"] == 99_999
+
+
 class TestAlwaysEnabled:
     def test_bootstrap_paper_enabled_is_true(self):
         r = _call()

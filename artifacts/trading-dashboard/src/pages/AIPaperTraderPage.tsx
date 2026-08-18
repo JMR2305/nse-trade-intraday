@@ -1461,7 +1461,7 @@ function SBootstrapStatus() {
                 next tick. Each candidate is still subject to per-entry checks
                 (position limits, exposure caps, existing-open-bootstrap guard) before
                 any trade is placed — eligible does not guarantee a fill.
-                Max ₹1,500 per position · paper only · no live orders.
+                Max ₹15,000 per position · paper only · no live orders.
                 Auto-disables at {maxTrades} closed trades ({closedTrades} so far).
               </p>
             )}
@@ -2636,7 +2636,7 @@ function S4Holdings() {
                       {(p.trigger_source === "BOOTSTRAP_AUTO" || p.fill_model === "bootstrap_paper") && (
                         <span
                           className="ml-1.5 inline-flex items-center text-[8px] font-semibold bg-amber-950/70 border border-amber-600/60 text-amber-300 rounded px-1 py-0.5 leading-none align-middle"
-                          title="Bootstrap paper trade: low_evidence (backtest < 5 trades) blocked normal BUY path. Kite LTP live, all risk gates passed. Max ₹1,500 position. Paper only — no live order."
+                          title="Bootstrap paper trade: low_evidence (backtest < 5 trades) blocked normal BUY path. Kite LTP live, all risk gates passed. Max ₹15,000 position. Paper only — no live order."
                         >
                           BOOTSTRAP
                         </span>

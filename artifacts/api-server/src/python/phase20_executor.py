@@ -859,7 +859,7 @@ def run_auto_entries(settings: Dict[str, Any]) -> Dict[str, Any]:
 
 # Thresholds mirror live_scan_engine.BOOTSTRAP_MIN_* constants.
 _BOOTSTRAP_MAX_CLOSED_TRADES  = 20     # stop once the ledger has enough evidence
-_BOOTSTRAP_MAX_ORDER_VALUE    = 1_500  # ₹ hard ceiling per bootstrap trade
+_BOOTSTRAP_MAX_ORDER_VALUE    = 15_000  # ₹ hard ceiling per bootstrap trade
 _BOOTSTRAP_MIN_CONF           = 60.0
 _BOOTSTRAP_MIN_OPP            = 50.0
 _BOOTSTRAP_MIN_RR             = 1.5
@@ -885,7 +885,7 @@ def run_bootstrap_auto_entry(snapshot: Dict[str, Any],
     Strictly parallel track:
     * NEVER modifies BUY_CONF, WATCH_CONF, paper_eligible, or any confidence.
     * NEVER calls live broker order APIs (paper_trader.execute_buy only).
-    * Position size capped at ₹1,500; one trade per scan; normal exit engine.
+    * Position size capped at ₹15,000; one trade per scan; normal exit engine.
     * Records trigger_source="BOOTSTRAP_AUTO", fill_model="bootstrap_paper".
     * Emits BOOTSTRAP_PAPER_TRADE_APPROVED pipeline event for full auditability.
 
@@ -1044,7 +1044,7 @@ def run_bootstrap_auto_entry(snapshot: Dict[str, Any],
             skipped.append({"symbol": sym, "reason": "Invalid kite_ltp price (≤ 0)"})
             continue
 
-        # Compute qty bounded by ₹1,500 ceiling against worst-case slippage fill.
+        # Compute qty bounded by ₹15,000 ceiling against worst-case slippage fill.
         worst_fill = round(price * (1.0 + slip_pct), 2)
         if worst_fill > _BOOTSTRAP_MAX_ORDER_VALUE:
             skipped.append({"symbol": sym,
@@ -1146,7 +1146,7 @@ def run_bootstrap_auto_entry(snapshot: Dict[str, Any],
                     "reason": (
                         "Bootstrap paper trade: low_evidence (backtest < 5 trades) "
                         "blocked normal BUY path. Kite LTP live, all hard gates "
-                        "passed. Max order value ₹1,500. No live broker API called. "
+                        "passed. Max order value ₹15,000. No live broker API called. "
                         "Exit handled by normal phase20 exit engine."
                     ),
                 })
@@ -1185,8 +1185,8 @@ def run_bootstrap_auto_entry(snapshot: Dict[str, Any],
                 f"Bootstrap paper BUY {sym} × {qty} @ ₹{price:.2f}",
                 (f"Trade {result.get('trade_id')} created to seed the paper ledger. "
                  f"Reason: low_evidence=True (backtest < 5 trades) blocked normal BUY. "
-                 f"Kite LTP live, all risk gates passed. Max ₹1,500 position. "
-                 f"Paper only — no live order. Exits via normal phase20 exit engine."),
+                 f"Kite LTP live, all risk gates passed. Max ₹15,000 position. "
+                  f"Paper only — no live order. Exits via normal phase20 exit engine."),
                 severity="INFO",
                 context={"trade_id": result.get("trade_id"), "symbol": sym,
                          "scan_id": scan_id, "trigger_source": "BOOTSTRAP_AUTO"},

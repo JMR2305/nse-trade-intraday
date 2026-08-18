@@ -446,7 +446,7 @@ def run_tick() -> Dict[str, Any]:
         eod_squareoff = None
         if mstate in ("POST_CLOSE", "CLOSED"):
             try:
-                from phase20_store import kv_claim_once, kv_get
+                from phase20_store import kv_claim_once, kv_release
                 import datetime as _dt
                 _today = _dt.date.today().isoformat()
                 _claim_key = f"eod_squareoff:{_today}"
@@ -454,6 +454,12 @@ def run_tick() -> Dict[str, Any]:
                     from phase20_exits import eod_force_close_open_positions
                     from phase20_settings import load_settings as _ls
                     eod_squareoff = eod_force_close_open_positions(_ls())
+                    # If any positions are still blocked (no price or sell failed),
+                    # release the claim so the next POST_CLOSE/CLOSED tick can retry
+                    # those specific open trades.  Already-closed rows are excluded
+                    # from future runs because get_open_trades() returns only OPEN rows.
+                    if eod_squareoff and eod_squareoff.get("blocked"):
+                        kv_release(_claim_key)
             except Exception as exc:
                 eod_squareoff = {"error": str(exc)[:200]}
 

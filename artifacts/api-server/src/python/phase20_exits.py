@@ -348,7 +348,30 @@ def eod_force_close_open_positions(settings: Dict[str, Any]) -> Dict[str, Any]:
 
     Returns a dict with keys: evaluated, force_closed, blocked.
     Never raises — errors are swallowed per-trade.
+
+    Respects the ``auto_paper_exits`` operator setting: when the setting is
+    False this function returns immediately without touching any positions.
+    This keeps EOD force-close consistent with the normal exit gate so that
+    disabling automatic exits prevents *all* automated sells, including the
+    post-close safety net.
+
+    Price provenance is recorded in the ``PAPER_TRADE_FORCE_CLOSED`` pipeline
+    event payload (exit_price_source, quote_reliable, fallback_used).  The
+    ``record_exit()`` ledger row stores only the canonical fields it already
+    supports (exit_price, exit_rule, exit_scan_id, realized_pnl).
     """
+    if not settings.get("auto_paper_exits", True):
+        store.add_notification(
+            "EOD_SQUAREOFF_SKIPPED",
+            "EOD force-close suppressed — auto_paper_exits is OFF",
+            "Operator has disabled automatic paper exits. "
+            "POST_CLOSE_FORCE_EXIT will not run. "
+            "Open positions may carry overnight; review manually.",
+            severity="INFO",
+        )
+        return {"evaluated": 0, "force_closed": [], "blocked": [],
+                "skipped_reason": "auto_paper_exits_disabled"}
+
     from paper_trader import execute_sell
     from phase20_executor import get_open_trades, record_exit
 
@@ -359,8 +382,15 @@ def eod_force_close_open_positions(settings: Dict[str, Any]) -> Dict[str, Any]:
     from phase15_scan_context import build_scan_context
     ctx = build_scan_context()
     scan_ok = bool(ctx.get("available"))
+    ctx_stale = bool(ctx.get("stale", True))
+    ctx_today = bool(ctx.get("is_today_session", False))
     symbols_ctx: Dict[str, Any] = ctx.get("symbols") or {}
     exit_scan_id: Optional[str] = ctx.get("scan_id")
+
+    # yfinance prices are only accepted when the scan is fresh *and* from
+    # today's IST session.  A stale or prior-session snapshot would close
+    # a position at yesterday's close, which is misleading and harmful.
+    yf_data_usable: bool = scan_ok and not ctx_stale and ctx_today
 
     force_closed: List[Dict[str, Any]] = []
     blocked: List[Dict[str, Any]] = []
@@ -373,28 +403,33 @@ def eod_force_close_open_positions(settings: Dict[str, Any]) -> Dict[str, Any]:
         rec = symbols_ctx.get(sym) or {}
 
         # ── Price resolution ─────────────────────────────────────────────────
+        # Canonical scan context (build_scan_context) exposes data_quality and
+        # entry_price per symbol, but not Kite LTP (which is overlaid by
+        # kite_ltp_overlay.py only when KITE_LTP_OVERLAY_ENABLED is set and is
+        # not part of the base context contract).  Resolution order:
+        #
+        #   1. yfinance daily close — only when scan is fresh AND from today's
+        #      IST session AND data_quality is LIVE or NEAR_LIVE.
+        #   2. Fill price (entry price) — always available; marks the exit as
+        #      a fallback with INFO-level notification so operators can audit.
+        #
+        # If neither source is available (fill price also 0) the position is
+        # left OPEN and a MARKET_CLOSE_EXIT_BLOCKED event is emitted.
+
         quote: float = 0.0
         exit_price_source: str = "unavailable"
         quote_reliable: bool = False
         fallback_used: bool = False
 
-        # 1. Kite LTP (live verified)
-        kite_ltp = float(rec.get("kite_ltp") or 0)
-        if kite_ltp > 0 and rec.get("kite_ltp_available") and rec.get("quote_reliable"):
-            quote = kite_ltp
-            exit_price_source = "kite_ltp"
+        # 1. yfinance daily close (fresh, today's session, LIVE / NEAR_LIVE)
+        yf_price = float(rec.get("entry_price") or 0)
+        dq = str(rec.get("data_quality") or "").upper()
+        if yf_data_usable and yf_price > 0 and dq in ("LIVE", "NEAR_LIVE") and not rec.get("error"):
+            quote = yf_price
+            exit_price_source = "yfinance_daily_close"
             quote_reliable = True
 
-        # 2. yfinance daily close (LIVE / NEAR_LIVE)
-        if not quote_reliable:
-            yf_price = float(rec.get("entry_price") or 0)
-            dq = str(rec.get("data_quality") or "").upper()
-            if scan_ok and yf_price > 0 and dq in ("LIVE", "NEAR_LIVE") and not rec.get("error"):
-                quote = yf_price
-                exit_price_source = "yfinance_daily_close"
-                quote_reliable = True
-
-        # 3. Fill price fallback — honest but marked
+        # 2. Fill price fallback — honest but marked
         if not quote_reliable and fill_price > 0:
             quote = fill_price
             exit_price_source = "fill_price_fallback"
@@ -444,9 +479,39 @@ def eod_force_close_open_positions(settings: Dict[str, Any]) -> Dict[str, Any]:
             ok, msg = False, str(exc)[:200]
 
         if not ok:
-            # Portfolio desync — close the ledger row anyway so it's not
-            # permanently stranded, then log the divergence.
-            pass  # fall through to record_exit below
+            # execute_sell failed — leave the ledger row OPEN so a retry is
+            # possible and the ledger remains consistent with the paper
+            # portfolio.  Recording CLOSED here would create a desync where
+            # the portfolio still holds the position but the ledger shows it
+            # closed, silently corrupting cash/equity/P&L accounting.
+            # Emit MARKET_CLOSE_EXIT_BLOCKED so the operator can see the
+            # failure and take manual action on the next tick.
+            blocked.append({"trade_id": trade_id, "symbol": sym,
+                            "reason": f"execute_sell failed: {msg}"})
+            try:
+                from pipeline_events import emit as _pe
+                _pe("MARKET_CLOSE_EXIT_BLOCKED", "PORTFOLIO",
+                    scan_id=exit_scan_id, symbol=sym,
+                    payload={
+                        "trade_id": trade_id,
+                        "reason": f"POST_CLOSE_FORCE_EXIT: execute_sell rejected — {msg}",
+                        "exit_price_source": exit_price_source,
+                        "quote_reliable": quote_reliable,
+                        "sell_ok": False,
+                        "sell_msg": msg,
+                    })
+            except Exception:
+                pass
+            store.add_notification(
+                "MARKET_CLOSE_EXIT_BLOCKED",
+                f"{sym} EOD force-close failed — sell rejected",
+                f"Trade {trade_id} could not be closed at market end: "
+                f"execute_sell returned failure ({msg}). "
+                f"Position is carrying overnight. Manual review required.",
+                severity="WARN",
+                context={"trade_id": trade_id, "symbol": sym,
+                         "scan_id": exit_scan_id, "sell_msg": msg})
+            continue
 
         rule = "POST_CLOSE_FORCE_EXIT"
         record_exit(trade_id, quote, rule, exit_scan_id, status="CLOSED")

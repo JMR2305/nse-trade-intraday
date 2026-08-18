@@ -93,6 +93,7 @@ def build_bootstrap_status_payload(
     evaluate_circuit_breaker: Callable[[Dict[str, Any]], Dict[str, Any]],
     get_closed_trades: Callable[[], int],
     bootstrap_max_closed_trades: int = 20,
+    bootstrap_max_order_value: int = 15_000,
 ) -> Dict[str, Any]:
     """
     Build the ``phase20_bootstrap_status`` response payload.
@@ -202,6 +203,7 @@ def build_bootstrap_status_payload(
         "bootstrap_max_closed_trades": bootstrap_max_closed_trades,
         "bootstrap_cutoff_reached":    cutoff_reached,
         # Candidate summary
+        "bootstrap_max_order_value": bootstrap_max_order_value,
         "bootstrap_eligible_count": int(summary.get("bootstrap_eligible_count") or 0),
         "watch_count":              int(summary.get("watch_count") or 0),
         "snapshot_ts": snap.get("snapshot_ts"),

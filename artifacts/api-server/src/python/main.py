@@ -1046,6 +1046,7 @@ def main():
                 from scan_state_store import load_latest_snapshot as _load_snap
                 from phase20_executor import (
                     _BOOTSTRAP_MAX_CLOSED_TRADES as _BS_MAX,
+                    _BOOTSTRAP_MAX_ORDER_VALUE as _BS_MAX_ORDER,
                     _with_db as _bs_with_db,
                 )
                 from phase20_bootstrap_status import build_bootstrap_status_payload as _build_bs
@@ -1079,6 +1080,7 @@ def main():
                     evaluate_circuit_breaker=_eval_cb_safe,
                     get_closed_trades=_count_closed,
                     bootstrap_max_closed_trades=_BS_MAX,
+                    bootstrap_max_order_value=_BS_MAX_ORDER,
                 )
         elif command == "phase20_settings_update":
             from phase20_store import update_settings
