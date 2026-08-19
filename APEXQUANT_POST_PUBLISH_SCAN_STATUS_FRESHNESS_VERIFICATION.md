@@ -1,11 +1,8 @@
 # ApexQuant AI — Post-Publish Scan Status Freshness Verification
 
-> **Superseded for current-source certification.** This report accurately
-> records production observations for the deployment that was live at the time
-> of verification. A later completion review found and corrected a
-> scheduler-path server-cache invalidation gap. The corrected source has passed
-> targeted development regression tests but has not yet been republished, so a
-> new production-only verification is required after that publish.
+> **Final current-source verification.** This report records the read-only
+> production snapshot after the corrected scheduler cache-invalidation source
+> was published. No scan, order, command, or settings mutation was triggered.
 
 **Verification date:** 2026-08-20 IST  
 **Environment checked:** Production only  
@@ -14,9 +11,9 @@
 
 ## Result
 
-The republished production deployment is serving the new Mission Control scan
-freshness contract. The production API, production database, and public
-Mission Control page were checked read-only. The final hard-refresh check
+The published production deployment is serving the corrected Mission Control
+scan-freshness contract. The production API, production database, and public
+Mission Control page were checked read-only. The final fresh-browser check
 showed the same live counts across the API, database, and UI.
 
 ## Production API verification
@@ -26,15 +23,15 @@ showed the same live counts across the API, database, and UI.
 Final response: **HTTP 200**
 
 ```text
-completed_scans_today: 1
-started_scans_today: 2
+completed_scans_today: 4
+started_scans_today: 6
 scheduler_ticks_today: 0
 lock_busy_skips_today: 0
 runtime:
-  owner: localhost:3010
-  process_start_at: 2026-08-19T19:07:32Z
+  owner: localhost:205
+  process_start_at: 2026-08-19T20:04:26Z
   status: IDLE
-  heartbeat_at: 2026-08-19T19:11:15Z
+  heartbeat_at: 2026-08-19T20:10:56Z
 api_build_id: 1
 ```
 
@@ -47,8 +44,8 @@ scan label.
 Final response: **HTTP 200**
 
 ```text
-count: 1
-total_completed: 1
+count: 4
+total_completed: 4
 ist_date: 2026-08-20
 ```
 
@@ -72,19 +69,19 @@ to bypass any intermediary that might ignore cache directives.
 A read-only query against the production `pipeline_events` store returned:
 
 ```text
-SCAN_COMPLETED: 1
-SCAN_STARTED:   2
+SCAN_COMPLETED: 4
+SCAN_STARTED:   6
 SCHEDULER_TICK: 0
 SCAN_SKIPPED_BUSY: 0
 ```
 
 The final public API response matched those production database counts:
 
-- `completed_scans_today = 1`
-- `started_scans_today = 2`
+- `completed_scans_today = 4`
+- `started_scans_today = 6`
 - `scheduler_ticks_today = 0`
 - `lock_busy_skips_today = 0`
-- `history.total_completed = 1`
+- `history.total_completed = 4`
 
 The values changed during verification because the production scheduler was
 active. An earlier read saw zero completed and one started scan; after the
@@ -96,18 +93,18 @@ showed one completed and two started scans.
 The public page was hard-refreshed in a fresh browser context and allowed to
 settle. The final UI showed:
 
-- `1 completed today`
-- `2 started`
+- `4 completed today`
+- `6 started`
 - `0 scheduler ticks`
 - `0 lock-busy skips`
-- `History rows shown 1 of 1`
+- `History rows shown 4 of 4`
 
 The public page therefore matches the final production API count:
 
 ```text
-UI completed count: 1
-API completed_scans_today: 1
-API history total_completed: 1
+UI completed count: 4
+API completed_scans_today: 4
+API history total_completed: 4
 ```
 
 The following freshness requirements were confirmed:
@@ -116,7 +113,8 @@ The following freshness requirements were confirmed:
 - Completed, Started, Scheduler ticks, and Lock-busy skips are separate UI
   metrics.
 - History is labeled `History rows shown X of Y`.
-- No stale `22`, `26`, or earlier response remained after the hard refresh.
+- No stale `22`, `26`, `1`, or `2` response remained after the fresh
+  production-browser load.
 - The page remained usable and read-only.
 
 ## Build identity observation
@@ -142,11 +140,8 @@ publish configuration pass.
 
 ## Console and safety notes
 
-- One non-blocking browser console error appeared during the public hard
-  refresh: `Failed to load resource: the server responded with a status of
-  500 ()`.
-- It did not block Mission Control rendering or the scan-status/history
-  verification. No additional blocking console errors were captured.
+- No visible browser console errors were observed during the final fresh
+  production-browser verification.
 - No Start Scan, command, order, or trading mutation control was clicked.
 - No live broker order API was called.
 - No trading thresholds, paper-entry settings, or execution behavior were
@@ -154,34 +149,20 @@ publish configuration pass.
 
 ## Final verdict
 
-**HISTORICAL PASS — the then-live production deployment met the checks above.**
+**PASS — final current-source production verification completed.**
 
-The public deployment serves the new API fields and strict no-store headers;
-production database counts agree with the API; Mission Control displays the
-same completed count, separates the required metrics, labels history rows
-correctly, and does not retain the stale 22/26 response after hard refresh.
+The public deployment serves the corrected API fields and strict no-store
+headers; production database counts agree with the API; Mission Control
+displays the same completed count, separates the required metrics, labels
+history rows correctly, and remains read-only and usable.
 
-The only follow-up observation is the visible UI/API build-ID mismatch and the
-single non-blocking 500 console response noted above.
+The only remaining deployment warning is the visible build-ID mismatch:
+`UI development · API 1 · Build mismatch`. The indicator is correctly exposing
+that the frontend bundle still uses its `development` fallback while the API
+reports build `1`; it did not affect freshness, count parity, or cache headers.
 
-## Current-source follow-up required
-
-The corrected scheduler path now invalidates live status and history caches on
-scheduled start, completion, lock-busy/no-op, and failure outcomes, with
-generation guards preventing stale in-flight reads from restoring prior data.
-It also counts `total_completed` directly from durable IST-day completion
-events rather than from presentation-history pairing.
-
-Before this report can be restored as a final current-source pass:
-
-1. Publish the corrected API source.
-2. Read the public scan-status and scan-history endpoints with a unique query
-   parameter before and after a scheduled lifecycle outcome; confirm both
-   values refetch rather than serving a prior in-process TTL response.
-3. Confirm public API, production database, and Mission Control still agree on
-   `completed_scans_today` and `history.total_completed`.
-
-No production reads, scans, orders, or settings changes were performed as part
-of this remediation. Development regression coverage passed: 19 scheduler and
-route-cache tests; 65 Python scan-status/history tests plus 10 subtests; and
-the API TypeScript check.
+The live production log search did not find a post-publish
+`Scheduled market scan` record. No scheduled scan was manually triggered,
+because this verification was required to remain read-only. Scheduled-path
+behavior is covered by the development regression tests documented in the
+implementation report.

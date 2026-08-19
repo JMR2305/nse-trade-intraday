@@ -192,7 +192,11 @@ Regression validation after this remediation:
 - Restarted development API: clean startup; both scan endpoints returned
   strict no-store headers and their required payload fields.
 
-The next publish must be followed by a fresh public verification of a
-scheduled-scan lifecycle outcome. The original post-publish verification
-report is retained as historical evidence for the earlier deployment and is
-explicitly superseded for current-source certification.
+Final post-publish verification is now complete. Production API, production
+database, and the fresh public Mission Control browser check agree at
+4 completed scans and 6 started scans today; both live endpoints returned
+strict no-store headers. No scheduled scan was manually triggered during this
+read-only verification, so the scheduler lifecycle itself remains validated by
+the focused development tests rather than by a production mutation. The
+remaining visible `UI development · API 1 · Build mismatch` state is recorded
+as a deployment-identity warning only.

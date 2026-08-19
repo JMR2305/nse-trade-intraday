@@ -117,3 +117,4 @@
 - [Local NIFTY 50 OHLCV cache](ohlcv-cache.md) — cache-first fetch_batch (< 5s warm vs 22 min cold); post-market refresh at POST_CLOSE tick; ltps key is bare symbol not .NS; tickers in MultiIndex level 0.
 - [OHLCV cold-start check](ohlcv-cold-start.md) — token-fenced expiring takeover (not kv_claim_once); ColdStartTestCase per-test save/restore avoids cross-file sys.modules contamination.
 - [Paper-capital admission concurrency](paper-capital-migration-concurrency.md) — migration, entry state, and final exposure sizing share one advisory gate; gate-time snapshots are not authoritative.
+- [Scheduled scan cache invalidation](scheduled-scan-cache-invalidation.md) — lifecycle events must invalidate status/history caches; no-store headers and browser cache busting cannot clear server TTL entries.
