@@ -1247,10 +1247,18 @@ let scanStatusGen = 0;
  * fetches fresh data from Python.  Exported for integration tests only — mirrors
  * the clearPlatformCache() / clearAgentsCache() helpers used by other test suites.
  */
-export function clearScanStatusCache(): void {
+export function invalidateScanCaches(): void {
   scanStatusGen++;
   scanStatusCache    = null;
   scanStatusInFlight = null;
+  scanHistoryGen++;
+  scanHistoryCache    = null;
+  scanHistoryInFlight = null;
+}
+
+/** @deprecated Prefer invalidateScanCaches() so status and history stay aligned. */
+export function clearScanStatusCache(): void {
+  invalidateScanCaches();
 }
 
 /**
@@ -1275,10 +1283,7 @@ export function resetScanRunRateLimit(): void {
  * Exported for integration tests only.
  */
 export function resetScanStateForTest(): void {
-  scanStatusGen++;
-  scanStatusCache    = null;
-  scanStatusInFlight = null;
-  scanHistoryCache   = null;
+  invalidateScanCaches();
   lastScanRunTs      = 0;
   p7InFlight         = null;  // allow a fresh scan; orphaned Promise GC'd in time
   p7Cache            = null;
@@ -1343,6 +1348,17 @@ type ScanHistoryPayload = {
 };
 let scanHistoryCache:    { data: ScanHistoryPayload; ts: number } | null = null;
 let scanHistoryInFlight: Promise<ScanHistoryPayload> | null = null;
+let scanHistoryGen = 0;
+
+// Scheduled scans run outside the manual POST route. Listen to their lifecycle
+// events so every scan outcome (completed, lock-busy, or failed) invalidates the
+// same in-process status/history caches. The generation counters make late
+// pre-invalidation Python reads unable to refill either cache with old data.
+eventBus.on("event", (evt: { event: string }) => {
+  if (["scan.started", "scan.completed", "scan.busy", "scan.failed", "scan.scheduled.tick"].includes(evt.event)) {
+    invalidateScanCaches();
+  }
+});
 
 router.get("/live-data/scan/history", async (req, res) => {
   setLiveStatusNoStore(res);
@@ -1351,21 +1367,40 @@ router.get("/live-data/scan/history", async (req, res) => {
     const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), SCAN_HISTORY_CANONICAL_MAX) : 10;
 
     // Serve from cache when fresh; otherwise start / join one canonical fetch.
-    if (!scanHistoryCache || Date.now() - scanHistoryCache.ts >= SCAN_HISTORY_CACHE_MS) {
+    // Retry when an invalidation wins while Python is reading so this request
+    // itself cannot return the pre-scan payload.
+    let full: ScanHistoryPayload;
+    while (true) {
+      if (scanHistoryCache && Date.now() - scanHistoryCache.ts < SCAN_HISTORY_CACHE_MS) {
+        full = scanHistoryCache.data;
+        break;
+      }
       if (!scanHistoryInFlight) {
+        const gen = scanHistoryGen;
         scanHistoryInFlight = runPython(["scan_history", String(SCAN_HISTORY_CANONICAL_MAX)])
           .then((data) => {
             const d = data as ScanHistoryPayload;
-            scanHistoryCache = { data: d, ts: Date.now() };
+            if (gen === scanHistoryGen) {
+              scanHistoryCache = { data: d, ts: Date.now() };
+            }
             return d;
           })
-          .finally(() => { scanHistoryInFlight = null; });
+          .finally(() => {
+            if (gen === scanHistoryGen) scanHistoryInFlight = null;
+          });
       }
-      await scanHistoryInFlight;
+      const inFlight = scanHistoryInFlight;
+      const fetched = await inFlight;
+      if (scanHistoryCache) {
+        full = scanHistoryCache.data;
+        break;
+      }
+      // Cache generation advanced while the older request was running.
+      // Loop and request the current authoritative history instead.
+      void fetched;
     }
 
     // Slice the canonical cache to the requested limit for this caller.
-    const full    = scanHistoryCache!.data;
     const sliced  = (full.history ?? []).slice(0, limit);
     res.json({ ...full, history: sliced, count: sliced.length });
   } catch (err: unknown) {
@@ -1418,12 +1453,7 @@ router.post("/live-data/scan/run", (_req, res) => {
     lastScanRunTs = now;
     p7Cache         = null;   // Phase 7 cache — must refresh
     marketScanCache = null;   // Phase 19B: Market Scanner view
-    // Advance the generation so any in-flight scan/status request that was
-    // started before this point cannot write stale data to the cache.
-    scanStatusGen++;
-    scanStatusCache   = null; // Phase 19C: freshness bar
-    scanStatusInFlight = null; // abandon stale in-flight; next poll starts fresh
-    scanHistoryCache  = null; // Phase 713: scan history list
+    invalidateScanCaches();
 
     eventBus.publish("scan.started", { ts: new Date().toISOString() });
     void runPython(["system_event", "SCAN_STARTED",
@@ -1440,21 +1470,14 @@ router.post("/live-data/scan/run", (_req, res) => {
         void runPython(["system_event", "SCAN_COMPLETED", JSON.stringify({
           reason: `Live scan completed (scan ${String(r?.["scan_id"] ?? "unknown")}).`,
         })]).catch(() => undefined);
-        // Advance the generation and clear both caches on scan completion so
-        // the first post-completion poll sees fresh rotation count and history.
-        // Advancing the generation ensures any in-flight status request that
-        // started before this point cannot write its stale result to the cache
-        // even if it resolves a moment after we clear it.
-        scanStatusGen++;
-        scanStatusCache    = null;
-        scanStatusInFlight = null; // abandon stale in-flight; next poll fetches fresh
-        scanHistoryCache   = null;
+        invalidateScanCaches();
         // Push advisory notifications — never blocks the scan response chain.
         void dispatchSignalPushNotifications().catch(() => undefined);
       })
       .catch((scanErr: unknown) => {
         const msg = scanErr instanceof Error ? scanErr.message : String(scanErr);
         eventBus.publish("scan.failed", { error: msg });
+        invalidateScanCaches();
         void runPython(["system_event", "SCAN_FAILED",
           JSON.stringify({ reason: `Live scan failed: ${msg.slice(0, 200)}` })]).catch(() => undefined);
       });

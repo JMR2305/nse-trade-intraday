@@ -3,6 +3,7 @@ import path from "path";
 import { logger } from "./logger";
 import { PYTHON_DIR, PYTHON_BIN } from "./python-env";
 import { dispatchSignalPushNotifications, processPushDeliveryQueue } from "./pushNotifier";
+import { eventBus } from "./events";
 
 // Phase 20 — market-hours auto-scan scheduler.
 //
@@ -119,10 +120,19 @@ export function startScanScheduler(): void {
         );
         // Skip the scan but proceed to the per-minute advisory ticks below.
       } else {
+        // Clear status/history cache before this due attempt. The route layer
+        // also handles the completion/busy/failure event below, making every
+        // scheduler outcome visible to the next poll.
+        eventBus.publish("scan.started", { source: "scheduler", ts: new Date().toISOString() });
         const result = (await runPython([
           "scheduled_scan_tick",
         ])) as Record<string, unknown>;
         if (result?.["ran_scan"]) {
+          eventBus.publish("scan.completed", {
+            source: "scheduler",
+            scan_id: result["scan_id"],
+            snapshot_ts: result["snapshot_ts"],
+          });
           logger.info(
             { scan_id: result["scan_id"], snapshot_ts: result["snapshot_ts"] },
             "Scheduled market scan completed",
@@ -133,12 +143,22 @@ export function startScanScheduler(): void {
             logger.warn({ err: err instanceof Error ? err.message : String(err) },
               "Signal push dispatch failed");
           });
+        } else {
+          const reason = String(result?.["reason"] ?? "");
+          eventBus.publish(
+            reason.toUpperCase().includes("BUSY") ? "scan.busy" : "scan.scheduled.tick",
+            { source: "scheduler", reason },
+          );
         }
       }
     } catch (err) {
       // Failed scheduled scan: last successful snapshot is preserved by design.
       logger.warn({ err: err instanceof Error ? err.message : String(err) },
         "Scheduled scan tick failed (previous snapshot preserved)");
+      eventBus.publish("scan.failed", {
+        source: "scheduler",
+        error: err instanceof Error ? err.message : String(err),
+      });
     } finally {
       tickInFlight = false;
     }

@@ -168,6 +168,15 @@ function makeSpawnImpl() {
     if (cmd === "scan_status") {
       return makePyProc(makeScanStatusPayload(currentStatusRotation));
     }
+    if (cmd === "scan_history") {
+      return makePyProc({
+        success: true,
+        history: [{ completed_at: new Date().toISOString(), status: "COMPLETED" }],
+        count: 1,
+        total_completed: currentStatusRotation,
+        ist_date: "2026-08-20",
+      });
+    }
     // system_event and any other side-effect commands: fast-close.
     return makePyProc({});
   };
@@ -179,6 +188,7 @@ describe("scan/status cache invalidation — POST /live-data/scan/run", () => {
   let server: Server;
   let port: number;
   let resetScanStateForTest: () => void;
+  let eventBus: { publish: (event: string, data: unknown) => void };
 
   async function get(path: string): Promise<{ status: number; body: unknown; headers: Headers }> {
     const res = await fetch(`http://127.0.0.1:${port}${path}`);
@@ -212,11 +222,13 @@ describe("scan/status cache invalidation — POST /live-data/scan/run", () => {
   beforeAll(async () => {
     mockSpawn.mockImplementation(makeSpawnImpl());
 
-    const [{ default: app }, routesMod] = await Promise.all([
+    const [{ default: app }, routesMod, eventsMod] = await Promise.all([
       import("../app.js"),
       import("./trading.js"),
+      import("../lib/events.js"),
     ]);
     resetScanStateForTest = routesMod.resetScanStateForTest;
+    eventBus = eventsMod.eventBus;
 
     await new Promise<void>((resolve) => {
       server = app.listen(0, "127.0.0.1", () => resolve());
@@ -254,6 +266,26 @@ describe("scan/status cache invalidation — POST /live-data/scan/run", () => {
     expect(r2.status).toBe(200);
     expect((r2.body as Record<string, unknown>)["rotation"]).toBe(1);
     expect(spawnCount("scan_status")).toBe(1); // still 1
+  });
+
+  it("invalidates status and history caches when the scheduler reports an outcome", async () => {
+    await get("/api/live-data/scan/status");
+    await get("/api/live-data/scan/history");
+    expect(spawnCount("scan_status")).toBe(1);
+    expect(spawnCount("scan_history")).toBe(1);
+
+    // This event is emitted after a scheduler tick that did not run a full
+    // scan (for example, a fresh snapshot/no-op outcome). It must still clear
+    // both live caches so the next browser poll cannot serve a stale TTL entry.
+    eventBus.publish("scan.scheduled.tick", { source: "scheduler", reason: "snapshot_fresh" });
+    currentStatusRotation = 2;
+
+    const status = await get("/api/live-data/scan/status");
+    const history = await get("/api/live-data/scan/history");
+    expect((status.body as Record<string, unknown>)["rotation"]).toBe(2);
+    expect((history.body as Record<string, unknown>)["total_completed"]).toBe(2);
+    expect(spawnCount("scan_status")).toBe(2);
+    expect(spawnCount("scan_history")).toBe(2);
   });
 
   // ── 2. Immediate invalidation (POST /run handler, ~line 1320) ─────────────

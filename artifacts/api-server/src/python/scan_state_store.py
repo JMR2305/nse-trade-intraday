@@ -716,7 +716,13 @@ def build_scan_history_response(limit: int = 10) -> Dict[str, Any]:
             prev_completed_ts = ts
             pending_start = None  # consumed — reset for the next scan
 
-    total_completed = len(history)
+    # `total_completed` is the authoritative number of durable completion
+    # events for the IST day. History pairing below remains useful for duration
+    # and gap enrichment, but it must never silently change the day's count.
+    # Count before timestamp/payload parsing so a malformed row is visible in
+    # the total rather than being hidden by presentation enrichment.
+    total_completed = sum(1 for _ts, event_type, _payload in rows
+                          if event_type == "SCAN_COMPLETED")
     # Apply limit (oldest ones fall off) and return newest-first
     history = list(reversed(history[-limit:]))
 

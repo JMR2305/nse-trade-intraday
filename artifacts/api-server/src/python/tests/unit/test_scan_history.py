@@ -162,6 +162,18 @@ class TestSingleScan(unittest.TestCase):
         self.assertEqual(r["count"], 1)
         self.assertIsNone(r["history"][0]["duration_s"])
         self.assertIsNone(r["history"][0]["started_at"])
+        self.assertEqual(r["total_completed"], 1)
+
+    def test_total_completed_counts_durable_events_independently_of_history_enrichment(self):
+        """A malformed completion row still contributes to the authoritative total."""
+        rows = _make_rows(
+            ("not-a-timestamp", "SCAN_COMPLETED", {}),
+            (_dt("2026-08-14T04:00:00Z"), "SCAN_STARTED", {}),
+            (_dt("2026-08-14T04:05:00Z"), "SCAN_COMPLETED", {}),
+        )
+        r = _call(rows)
+        self.assertEqual(r["total_completed"], 2)
+        self.assertEqual(r["count"], 1)
 
 
 # ---------------------------------------------------------------------------

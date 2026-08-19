@@ -164,3 +164,35 @@ strict cache headers, build identifiers, and Mission Control UI to the public
 site. It will **not** copy development scan counts into production or alter
 paper-trading safety behavior. After publish, recheck the public scan-status
 and scan-history endpoints to confirm the new fields/build IDs are present.
+
+## Completion-review remediation
+
+The completion review identified a remaining stale-data path: scheduled scans
+ran through `scheduled_scan_tick` without invalidating the API process's
+short-lived scan-status and scan-history caches. That meant a cache-busted,
+no-store browser request could still receive a server-side TTL entry after a
+scheduled start, completion, lock-busy outcome, or failure.
+
+This is now corrected:
+
+- The scheduler publishes lifecycle events for start, completed, lock-busy,
+  no-op, and failed outcomes.
+- The route layer invalidates both live caches for each of those events.
+- Both caches now use generation guards, so a Python read that began before an
+  invalidation cannot repopulate the cache with stale data after it finishes.
+- `history.total_completed` is independently counted from all IST-day durable
+  `SCAN_COMPLETED` events; history pairing is retained only for duration and
+  gap enrichment.
+
+Regression validation after this remediation:
+
+- Scheduler lifecycle and route-cache tests: **19 passed**.
+- Python scan-status/history tests: **65 passed, 10 subtests passed**.
+- API TypeScript check: **passed**.
+- Restarted development API: clean startup; both scan endpoints returned
+  strict no-store headers and their required payload fields.
+
+The next publish must be followed by a fresh public verification of a
+scheduled-scan lifecycle outcome. The original post-publish verification
+report is retained as historical evidence for the earlier deployment and is
+explicitly superseded for current-source certification.

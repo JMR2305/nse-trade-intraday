@@ -26,6 +26,9 @@ vi.mock("./pushNotifier", () => ({
   dispatchSignalPushNotifications: vi.fn().mockResolvedValue(undefined),
   processPushDeliveryQueue: vi.fn().mockResolvedValue(undefined),
 }));
+vi.mock("./events", () => ({
+  eventBus: { publish: vi.fn() },
+}));
 
 import { spawn } from "child_process";
 import {
@@ -33,8 +36,10 @@ import {
   _resetColdStartCheckForTests,
   _runTickForTests,
 } from "./scanScheduler";
+import { eventBus } from "./events";
 
 const mockSpawn = spawn as ReturnType<typeof vi.fn>;
+const mockPublish = eventBus.publish as ReturnType<typeof vi.fn>;
 
 // ── Fake process factory ──────────────────────────────────────────────────────
 
@@ -290,6 +295,57 @@ describe("startScanScheduler — startup sequence", () => {
     expect(coldIdx).toBeGreaterThanOrEqual(0);
     // The cold-start check must come after the other two startup calls.
     expect(coldIdx).toBeGreaterThan(Math.min(startedIdx, overnightIdx));
+  });
+});
+
+describe("scheduled scan lifecycle events", () => {
+  function startWithScheduledResult(result: unknown): void {
+    mockSpawn.mockImplementation((_bin: string, args: string[]) => {
+      return makeAutoProc(args[1] === "scheduled_scan_tick" ? result : {});
+    });
+    startScanScheduler();
+  }
+
+  it("publishes start and completion events for a due scheduled scan", async () => {
+    startWithScheduledResult({ ran_scan: true, scan_id: "scheduled-1", snapshot_ts: "2026-08-20T04:00:00Z" });
+    await flushAsync();
+    await _runTickForTests();
+    await flushAsync();
+
+    expect(mockPublish).toHaveBeenCalledWith("scan.started", expect.objectContaining({ source: "scheduler" }));
+    expect(mockPublish).toHaveBeenCalledWith("scan.completed", expect.objectContaining({
+      source: "scheduler", scan_id: "scheduled-1",
+    }));
+  });
+
+  it("publishes a busy outcome so route caches cannot retain prior scan data", async () => {
+    startWithScheduledResult({ ran_scan: false, reason: "SKIPPED_BUSY" });
+    await flushAsync();
+    await _runTickForTests();
+    await flushAsync();
+
+    expect(mockPublish).toHaveBeenCalledWith("scan.busy", expect.objectContaining({
+      source: "scheduler", reason: "SKIPPED_BUSY",
+    }));
+  });
+
+  it("publishes a failed outcome so route caches cannot retain prior scan data", async () => {
+    mockSpawn.mockImplementation((_bin: string, args: string[]) => {
+      if (args[1] === "scheduled_scan_tick") {
+        const proc = makeProc();
+        setImmediate(() => rejectProc(proc, "scheduler failed"));
+        return proc;
+      }
+      return makeAutoProc({});
+    });
+    startScanScheduler();
+    await flushAsync();
+    await _runTickForTests();
+    await flushAsync();
+
+    expect(mockPublish).toHaveBeenCalledWith("scan.failed", expect.objectContaining({
+      source: "scheduler",
+    }));
   });
 });
 
