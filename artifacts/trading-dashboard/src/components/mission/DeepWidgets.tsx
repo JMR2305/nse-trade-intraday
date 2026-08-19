@@ -30,7 +30,10 @@ interface AgentRow {
   heartbeat_status?: string; current_activity?: string; last_error?: string | null;
   queue_depth?: number; processing_time_ms?: number;
 }
-interface AgentsResp { available?: boolean; agents?: AgentRow[] }
+interface AgentsResp {
+  available?: boolean; agents?: AgentRow[];
+  status?: string; recoverable?: boolean; stale?: boolean; message?: string;
+}
 interface AutoOpsResp {
   registered_agents?: number; healthy_agents?: number; failed_agents?: number;
   warning_agents?: number; queue_depth?: number; avg_decision_latency_ms?: number;
@@ -78,18 +81,27 @@ export function AgentMetricsWidget() {
     <Widget
       title="Live Agent Metrics" icon={Bot} query={agentsQ} refreshMs={60_000}
       testId="mc-agent-metrics" skeletonClass="h-64"
-      headerExtra={o?.overall_health && (
-        <Badge
-          variant="outline"
-          className={`text-[9px] px-1.5 py-0 ${
-            o.overall_health === "HEALTHY" ? "border-emerald-500/40 text-emerald-300"
-              : o.overall_health === "CRITICAL" ? "border-red-500/40 text-red-300"
-                : "border-amber-500/40 text-amber-300"
-          }`}
-        >
-          {o.overall_health}{o.overall_health_score != null ? ` · ${Math.round(o.overall_health_score)}` : ""}
-        </Badge>
-      )}
+      headerExtra={
+        <>
+          {agentsQ.data?.recoverable && (
+            <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-amber-500/40 text-amber-300">
+              {agentsQ.data.stale ? "STALE · RECOVERING" : "RECOVERING"}
+            </Badge>
+          )}
+          {o?.overall_health && (
+            <Badge
+              variant="outline"
+              className={`text-[9px] px-1.5 py-0 ${
+                o.overall_health === "HEALTHY" ? "border-emerald-500/40 text-emerald-300"
+                  : o.overall_health === "CRITICAL" ? "border-red-500/40 text-red-300"
+                    : "border-amber-500/40 text-amber-300"
+              }`}
+            >
+              {o.overall_health}{o.overall_health_score != null ? ` · ${Math.round(o.overall_health_score)}` : ""}
+            </Badge>
+          )}
+        </>
+      }
     >
       {/* Aggregates from autonomous-ops (slow endpoint — degrades gracefully) */}
       {o ? (
@@ -107,6 +119,15 @@ export function AgentMetricsWidget() {
         <p className="text-[10px] text-muted-foreground animate-pulse mb-2">Loading autonomous-ops aggregates (slow endpoint)…</p>
       ) : null}
 
+      {agentsQ.data?.recoverable && (
+        <p
+          className="text-[10px] text-amber-300/90 rounded-lg border border-amber-500/20 bg-amber-500/5 p-2 mb-2"
+          data-testid="mc-agent-metrics-recoverable"
+          role="status"
+        >
+          {agentsQ.data.message ?? "Agent status is temporarily unavailable. Retrying automatically."}
+        </p>
+      )}
       {agents.length === 0 ? (
         <p className="text-xs text-muted-foreground rounded-lg border border-amber-500/20 bg-amber-500/5 p-2.5 text-amber-300/90">
           No agent snapshots yet — populates once the agent framework is running.

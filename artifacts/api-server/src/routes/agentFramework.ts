@@ -54,25 +54,91 @@ router.get("/agent-framework/diagnostics", handle("agent_framework_diagnostics",
 // Without coalescing, every tab on Agent Operations spawns its own subprocess.
 // 30 s Node.js cache + in-flight coalescing keeps it snappy after warm-up.
 const AGENTS_LIST_TTL = 30_000;
-let agentsListCache:    { data: unknown; ts: number } | null = null;
-let agentsListInFlight: Promise<unknown> | null = null;
+type AgentListResponse = {
+  available?: boolean;
+  agents?: unknown[];
+  count?: number;
+  [key: string]: unknown;
+};
 
-router.get("/agent-framework/agents", async (_req: any, res: any) => {
+let agentsListCache:    { data: AgentListResponse; ts: number } | null = null;
+let agentsListInFlight: Promise<AgentListResponse> | null = null;
+
+function isAgentListResponse(data: unknown): data is AgentListResponse {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return false;
+  const response = data as AgentListResponse;
+  return typeof response.available === "boolean" && Array.isArray(response.agents);
+}
+
+function unavailableAgentList(message: string): AgentListResponse {
+  return {
+    available: false,
+    advisory_only: true,
+    status: "UNAVAILABLE",
+    recoverable: true,
+    message,
+    agents: [],
+    count: 0,
+    healthy_count: 0,
+    overall_health: { status: "unknown", score: 0 },
+  };
+}
+
+function staleAgentList(
+  cached: AgentListResponse,
+  message: string,
+): AgentListResponse {
+  return {
+    ...cached,
+    status: "DEGRADED",
+    recoverable: true,
+    stale: true,
+    message,
+  };
+}
+
+router.get("/agent-framework/agents", async (req: any, res: any) => {
   try {
     if (agentsListCache && Date.now() - agentsListCache.ts < AGENTS_LIST_TTL) {
       res.json(agentsListCache.data);
       return;
     }
     if (!agentsListInFlight) {
-      agentsListInFlight = runPython(["agent_list"], 30_000)
-        .then((d) => { agentsListCache = { data: d, ts: Date.now() }; return d; })
+      agentsListInFlight = runPython(["agent_list"], 45_000)
+        .then((data) => {
+          if (!isAgentListResponse(data)) {
+            throw new Error("Agent Framework returned an invalid status response");
+          }
+          const response = data;
+          agentsListCache = { data: response, ts: Date.now() };
+          return response;
+        })
         .finally(() => { agentsListInFlight = null; });
     }
     res.json(await agentsListInFlight);
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    const message = agentsListCache
+      ? "Showing the last known agent state while the Agent Framework recovers. Retrying automatically."
+      : "The Agent Framework is still initialising. Retrying automatically.";
+    req.log?.warn({ err: e.message }, "Agent Framework status temporarily unavailable");
+    res.json(
+      agentsListCache
+        ? staleAgentList(agentsListCache.data, message)
+        : unavailableAgentList(message),
+    );
   }
 });
+
+/** Isolates route-level cache state between focused integration tests. */
+export function resetAgentListCacheForTest(): void {
+  agentsListCache = null;
+  agentsListInFlight = null;
+}
+
+/** Forces an expired entry so focused tests can cover stale-cache recovery. */
+export function expireAgentListCacheForTest(): void {
+  if (agentsListCache) agentsListCache.ts = 0;
+}
 
 router.get("/agent-framework/agents/:agentId", async (req: any, res: any) => {
   try {

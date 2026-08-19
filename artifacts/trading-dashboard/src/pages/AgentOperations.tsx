@@ -292,7 +292,7 @@ function SnapshotInfoCard({ title, icon: Icon, data, fields }: {
 function AgentRegistryTable() {
   // The canonical agent_list backend calls 12 agents in parallel — cold-start ~25 s.
   // Without an explicit timeout, apiJson's 15 s default kills the first call.
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey:        ["agent-fw", "agents"],
     queryFn:         () => apiJson("agent-framework/agents", undefined, 45_000),
     refetchInterval: REFETCH,
@@ -304,6 +304,18 @@ function AgentRegistryTable() {
   const agents = (r?.agents ?? []) as AgentRow[];
 
   if (isLoading) return <TableSkeleton rows={4} cols={6} />;
+
+  if (isError || (r?.recoverable && agents.length === 0)) {
+    return (
+      <EmptyState
+        icon={Bot}
+        title="Agent status temporarily unavailable"
+        description={r?.message ?? (error as Error)?.message ?? "The Agent Framework is starting up. This page will retry automatically."}
+        why="The live scanner remains available while agent status recovers."
+        actions={[]}
+      />
+    );
+  }
 
   if (!r?.available || agents.length === 0) {
     return (
@@ -318,13 +330,24 @@ function AgentRegistryTable() {
   }
 
   return (
-    <DataTable
-      columns={AGENT_COLUMNS}
-      data={agents}
-      rowKey={(row: AgentRow) => row.agent_id}
-      pageSize={20}
-      exportName="agent_registry"
-    />
+    <>
+      {r?.recoverable && (
+        <p
+          className="text-xs text-amber-300/90 rounded-lg border border-amber-500/20 bg-amber-500/5 p-2.5 mb-3"
+          data-testid="agent-registry-recoverable"
+          role="status"
+        >
+          {r.message ?? "Showing the last known agent state while the Agent Framework recovers. Retrying automatically."}
+        </p>
+      )}
+      <DataTable
+        columns={AGENT_COLUMNS}
+        data={agents}
+        rowKey={(row: AgentRow) => row.agent_id}
+        pageSize={20}
+        exportName="agent_registry"
+      />
+    </>
   );
 }
 
