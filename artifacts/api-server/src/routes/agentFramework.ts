@@ -61,6 +61,12 @@ type AgentListResponse = {
   [key: string]: unknown;
 };
 
+type AgentDetailResponse = {
+  available?: boolean;
+  agent_id?: string;
+  [key: string]: unknown;
+};
+
 let agentsListCache:    { data: AgentListResponse; ts: number } | null = null;
 let agentsListInFlight: Promise<AgentListResponse> | null = null;
 
@@ -95,6 +101,36 @@ function staleAgentList(
     stale: true,
     message,
   };
+}
+
+function initializingAgentDetail(agentId: string, message: string): AgentDetailResponse {
+  return {
+    available: false,
+    advisory_only: true,
+    agent_id: agentId,
+    status: "INITIALIZING",
+    recoverable: true,
+    message,
+  };
+}
+
+function isTerminalAgentDetail(data: unknown): data is AgentDetailResponse {
+  const status = (data as AgentDetailResponse | undefined)?.status;
+  return Boolean(
+    data &&
+    typeof data === "object" &&
+    !Array.isArray(data) &&
+    (status === "DISABLED" || status === "NOT_FOUND"),
+  );
+}
+
+function isCurrentAgentDetail(data: unknown): data is AgentDetailResponse {
+  return Boolean(
+    data &&
+    typeof data === "object" &&
+    !Array.isArray(data) &&
+    (data as AgentDetailResponse).available === true,
+  );
 }
 
 router.get("/agent-framework/agents", async (req: any, res: any) => {
@@ -141,11 +177,23 @@ export function expireAgentListCacheForTest(): void {
 }
 
 router.get("/agent-framework/agents/:agentId", async (req: any, res: any) => {
+  const agentId = req.params.agentId as string;
   try {
-    const agentId = req.params.agentId as string;
-    res.json(await runPython(["agent_detail", agentId], 30_000));
+    const data = await runPython(["agent_detail", agentId], 30_000) as AgentDetailResponse;
+    if (isCurrentAgentDetail(data) || isTerminalAgentDetail(data)) {
+      res.json(data);
+      return;
+    }
+    res.json(initializingAgentDetail(
+      agentId,
+      "The Agent Framework is still initialising this agent. Retrying automatically.",
+    ));
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    req.log?.warn({ agentId, err: e.message }, "Agent detail temporarily unavailable");
+    res.json(initializingAgentDetail(
+      agentId,
+      "The Agent Framework is still initialising this agent. Retrying automatically.",
+    ));
   }
 });
 

@@ -4328,8 +4328,8 @@ def main():
             # before lazy-init has populated the AgentRegistry in this subprocess.
             from ops_centre import get_agent_list_canonical as _f; result = _f()
         elif command == "agent_detail":
-            agent_id_arg = args[0] if args else ""
-            from supervisor_agent.shared_services import get_agent_detail as _f; result = _f(agent_id_arg)
+            agent_id_arg = args[1] if len(args) > 1 else ""
+            from ops_centre import get_agent_detail_canonical as _f; result = _f(agent_id_arg)
         elif command == "agent_supervisor_alerts":
             from supervisor_agent.shared_services import get_supervisor_alerts as _f; result = _f()
         elif command == "agent_market_data_snapshot":
