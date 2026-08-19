@@ -25,6 +25,8 @@ export interface WidgetQueryOpts {
   queryKey: (string | number | null)[];
   /** API path relative to API_BASE (no /api prefix — apiJson prepends it) */
   path: string;
+  /** Optional request controls for endpoints that must bypass browser caching. */
+  requestInit?: RequestInit;
   /** Refresh cadence in ms */
   refetchInterval: number;
   /** Explicit request timeout (slow aggregate endpoints need > 15 s default) */
@@ -38,7 +40,7 @@ export interface WidgetQueryOpts {
 export function useWidgetQuery<T = any>(opts: WidgetQueryOpts): UseQueryResult<T> {
   return useQuery<T>({
     queryKey: opts.queryKey,
-    queryFn: () => apiJson<T>(opts.path, undefined, opts.timeoutMs),
+    queryFn: () => apiJson<T>(opts.path, opts.requestInit, opts.timeoutMs),
     refetchInterval: opts.refetchInterval,
     retry: opts.retry ?? 2,
     retryDelay: (attempt: number) => Math.min(1500 * 2 ** attempt, 10_000),

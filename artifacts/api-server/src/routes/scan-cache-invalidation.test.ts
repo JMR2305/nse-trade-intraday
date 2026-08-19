@@ -180,10 +180,10 @@ describe("scan/status cache invalidation — POST /live-data/scan/run", () => {
   let port: number;
   let resetScanStateForTest: () => void;
 
-  async function get(path: string): Promise<{ status: number; body: unknown }> {
+  async function get(path: string): Promise<{ status: number; body: unknown; headers: Headers }> {
     const res = await fetch(`http://127.0.0.1:${port}${path}`);
     const body = await res.json().catch(() => null);
-    return { status: res.status, body };
+    return { status: res.status, body, headers: res.headers };
   }
 
   async function post(path: string, body = "{}"): Promise<{ status: number; body: unknown }> {
@@ -240,6 +240,7 @@ describe("scan/status cache invalidation — POST /live-data/scan/run", () => {
     const r1 = await get("/api/live-data/scan/status");
     expect(r1.status).toBe(200);
     expect((r1.body as Record<string, unknown>)["rotation"]).toBe(1);
+    expect(r1.headers.get("cache-control")).toBe("no-store, max-age=0");
     expect(spawnCount("scan_status")).toBe(1);
 
     // Second request within the 15 s TTL — cache hit, no new spawn.

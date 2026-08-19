@@ -1264,6 +1264,10 @@ export function resetScanStateForTest(): void {
 }
 
 router.get("/live-data/scan/status", async (_req, res) => {
+  // This endpoint drives live rotation/count displays. Keep its short
+  // in-process cache for Python-spawn coalescing, but never let a browser or
+  // intermediary retain an older response after a newer scan completes.
+  res.set("Cache-Control", "no-store, max-age=0");
   try {
     if (scanStatusCache && Date.now() - scanStatusCache.ts < SCAN_STATUS_CACHE_MS) {
       res.json(scanStatusCache.data);

@@ -1736,7 +1736,10 @@ export default function MissionControl() {
     queryKey: ["mc", "portfolio"], path: "/portfolio/snapshot", refetchInterval: R.portfolio, timeoutMs: 30_000,
   });
   const scanQ = useWidgetQuery<ScanStatus>({
-    queryKey: ["mc", "scan-status"], path: "/live-data/scan/status", refetchInterval: R.scan,
+    queryKey: ["mc", "scan-status"],
+    path: "/live-data/scan/status",
+    requestInit: { cache: "no-store" },
+    refetchInterval: R.scan,
   });
   const scanning = !!scanQ.data?.progress?.stage;
   // Unified replay snapshot — fetched ONCE and shared by the pipeline panel,
