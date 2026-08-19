@@ -22,7 +22,7 @@
  * PAPER TRADING / RESEARCH ONLY.
  */
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { useLiveStream, type PipelineStreamEvent } from "@/hooks/useLiveStream";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -82,6 +82,47 @@ const WidgetFallback = ({ h = "h-40" }: { h?: string }) => (
 );
 
 const LABEL = "PAPER TRADING / RESEARCH ONLY";
+const FRONTEND_BUILD_ID = import.meta.env.VITE_BUILD_ID ?? "development";
+
+export function buildIdsMatch(uiBuildId: string, apiBuildId: string | null | undefined): boolean {
+  return Boolean(apiBuildId && apiBuildId === uiBuildId);
+}
+
+function formatIstRefreshTime(timestamp: number): string {
+  return new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(new Date(timestamp));
+}
+
+export function ScanBuildIdentity({ apiBuildId, lastRefreshedAt }: {
+  apiBuildId: string | null | undefined;
+  lastRefreshedAt: number;
+}) {
+  const apiLabel = apiBuildId ?? "loading";
+  const checked = apiBuildId != null;
+  const matches = buildIdsMatch(FRONTEND_BUILD_ID, apiBuildId);
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1 text-[8px] font-mono text-muted-foreground" data-testid="mc-build-ids">
+      <span>UI {FRONTEND_BUILD_ID} · API {apiLabel}</span>
+      {checked && (
+        <span
+          className={matches ? "text-emerald-400" : "text-red-400"}
+          data-testid="mc-build-match"
+          title={matches ? "Browser and API build IDs match" : "Browser and API build IDs differ; refresh or investigate the deployment"}
+        >
+          · {matches ? "Builds match" : "Build mismatch"}
+        </span>
+      )}
+      {lastRefreshedAt > 0 && (
+        <span data-testid="mc-last-refreshed">· Last refreshed {formatIstRefreshTime(lastRefreshedAt)} IST</span>
+      )}
+    </span>
+  );
+}
 
 // ── Refresh cadences (ms) per panel ──────────────────────────────────────────
 const R = {
@@ -114,9 +155,18 @@ interface ReplayResp { stages?: ReplayStage[]; scan_id?: string; snapshot_ts?: s
 interface ScanStatus {
   success?: boolean; status?: string; scan_id?: string; snapshot_ts?: string;
   age_minutes?: number | null;
-  scan_count_today?: number | null;   // how many scans completed today (if backend provides)
+  /** Legacy alias for completed_scans_today. Do not label as rotation. */
+  scan_count_today?: number | null;
+  completed_scans_today?: number | null;
+  started_scans_today?: number | null;
+  scheduler_ticks_today?: number | null;
+  lock_busy_skips_today?: number | null;
   cadence_minutes?: number | null;    // expected minutes between scans
-  rotation?: number | null;           // sequential rotation index for today
+  api_build_id?: string;
+  runtime?: {
+    owner?: string | null; process_start_at?: string | null; status?: string | null;
+    heartbeat_at?: string | null;
+  } | null;
   latest_scan?: {
     scan_id?: string; snapshot_ts?: string; status?: string;
     symbols_total?: number; symbols_done?: number; duration_s?: number | null;
@@ -133,7 +183,77 @@ interface ScanHistoryEntry {
   gap_from_prev_s?: number | null; status?: string;
 }
 interface ScanHistoryResp {
-  success?: boolean; history?: ScanHistoryEntry[]; count?: number; ist_date?: string;
+  success?: boolean; history?: ScanHistoryEntry[]; count?: number;
+  total_completed?: number; ist_date?: string;
+}
+
+function scanSnapshotTime(status: ScanStatus | undefined): number | null {
+  const raw = status?.progress?.started_at
+    ?? status?.latest_scan?.snapshot_ts
+    ?? status?.snapshot_ts
+    ?? null;
+  if (!raw) return null;
+  const parsed = new Date(raw).getTime();
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/**
+ * Preserve the newest verified status within this browser session. A response
+ * that regresses the scan timestamp/count is never rendered over it; instead a
+ * no-store refetch is requested and the scanner shows an explicit warning.
+ */
+export function isScanStatusOlder(candidate: ScanStatus, displayed: ScanStatus): boolean {
+  const candidateTs = scanSnapshotTime(candidate);
+  const displayedTs = scanSnapshotTime(displayed);
+  const candidateCount = candidate.completed_scans_today ?? candidate.scan_count_today;
+  const displayedCount = displayed.completed_scans_today ?? displayed.scan_count_today;
+  if (candidateTs != null && displayedTs != null && candidateTs < displayedTs) return true;
+  const equalOrMissingTimestamp = candidateTs == null || displayedTs == null || candidateTs === displayedTs;
+  return Boolean(
+    equalOrMissingTimestamp
+    && candidateCount != null
+    && displayedCount != null
+    && candidateCount < displayedCount,
+  );
+}
+
+export function useMonotonicScanStatus(scanQ: UseQueryResult<ScanStatus>) {
+  const [displayed, setDisplayed] = useState<ScanStatus | undefined>(undefined);
+  const [staleResponse, setStaleResponse] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState(0);
+  const lastRefetchKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    const candidate = scanQ.data;
+    if (!candidate) return;
+    if (!displayed) {
+      setDisplayed(candidate);
+      setStaleResponse(false);
+      setLastRefreshedAt(scanQ.dataUpdatedAt || Date.now());
+      return;
+    }
+
+    if (isScanStatusOlder(candidate, displayed)) {
+      setStaleResponse(true);
+      const key = [
+        candidate.latest_scan?.scan_id ?? candidate.scan_id ?? "unknown",
+        scanSnapshotTime(candidate) ?? "unknown",
+        candidate.completed_scans_today ?? candidate.scan_count_today ?? "unknown",
+      ].join("|");
+      if (lastRefetchKey.current !== key) {
+        lastRefetchKey.current = key;
+        void scanQ.refetch({ cancelRefetch: true });
+      }
+      return;
+    }
+
+    lastRefetchKey.current = null;
+    setDisplayed(candidate);
+    setStaleResponse(false);
+    setLastRefreshedAt(scanQ.dataUpdatedAt || Date.now());
+  }, [displayed, scanQ.data, scanQ.dataUpdatedAt, scanQ.refetch]);
+
+  return { data: displayed ?? scanQ.data, staleResponse, lastRefreshedAt };
 }
 interface OhlcvCacheStatus {
   success?: boolean;
@@ -400,7 +520,7 @@ function SymbolPipelineGrid({
 // Compact strip of scan metadata shown at the top of Pipeline, Scanner, and
 // Paper Trader panels so operators always see the current rotation context.
 
-function ScanInfoChips({ scanData, summaryData, cacheData }: {
+export function ScanInfoChips({ scanData, summaryData, cacheData }: {
   scanData: ScanStatus | undefined;
   summaryData?: PipelineSummary;
   cacheData?: OhlcvCacheStatus;
@@ -415,14 +535,12 @@ function ScanInfoChips({ scanData, summaryData, cacheData }: {
   const ageMin     = scanData?.age_minutes ?? null;
   const durationS  = (meta as { duration_s?: number | null }).duration_s ?? null;
   const startedAt  = progress?.started_at ?? null;
-  const countToday = scanData?.scan_count_today ?? null;
+  const completedToday = scanData?.completed_scans_today ?? scanData?.scan_count_today ?? null;
+  const startedToday = scanData?.started_scans_today ?? null;
+  const schedulerTicksToday = scanData?.scheduler_ticks_today ?? null;
+  const busySkipsToday = scanData?.lock_busy_skips_today ?? null;
   const cadence    = scanData?.cadence_minutes ?? null;
-  const rotation   = scanData?.rotation ?? null;
-
-  // Derive a rough rotation count from pipeline summary events when the backend
-  // doesn't provide it. Advisory display only — not used for any logic.
-  const derivedCount =
-    countToday ?? (summaryData ? undefined : undefined); // extend here if backend adds a count
+  const runtimeOwner = scanData?.runtime?.owner ?? null;
 
   // Cache provenance from /ohlcv-cache/status
   const hitRate    = cacheData?.cache_hit_rate_pct ?? null;
@@ -435,12 +553,19 @@ function ScanInfoChips({ scanData, summaryData, cacheData }: {
   type Chip = { label: string; value: string; cls?: string; mono?: boolean };
   const chips: Chip[] = [];
 
-  if (rotation != null)        chips.push({ label: "Rotation", value: `#${rotation}` });
-  if (derivedCount != null)    chips.push({ label: "Today", value: `${derivedCount} scans` });
+  if (completedToday != null)  chips.push({ label: "Completed", value: `${completedToday} today` });
+  if (startedToday != null)    chips.push({ label: "Started", value: `${startedToday} today` });
+  if (schedulerTicksToday != null) chips.push({ label: "Scheduler ticks", value: `${schedulerTicksToday} today` });
+  if (busySkipsToday != null)  chips.push({
+    label: "Lock-busy skips",
+    value: `${busySkipsToday} today`,
+    cls: busySkipsToday > 0 ? "text-amber-400" : undefined,
+  });
+  if (runtimeOwner)            chips.push({ label: "Runtime", value: runtimeOwner, mono: true });
   if (cadence != null)         chips.push({ label: "Cadence", value: `${cadence} min` });
   if (universeSize != null)    chips.push({ label: "Universe", value: `${universeSize} symbols` });
   if (scanId)                  chips.push({ label: "Scan ID", value: scanId.slice(0, 10) + (scanId.length > 10 ? "…" : ""), mono: true });
-  if (startedAt)               chips.push({ label: "Started", value: timeAgo(startedAt) });
+  if (startedAt)               chips.push({ label: "Current scan started", value: timeAgo(startedAt) });
   if (durationS != null)       chips.push({ label: "Duration", value: `${durationS.toFixed(0)}s` });
   if (ageMin != null)          chips.push({ label: "Age", value: `${Math.round(ageMin)}m`, cls: ageMin > 30 ? "text-amber-400" : "" });
   // Cache source chip — shown alongside duration so operators see both at a glance
@@ -460,7 +585,7 @@ function ScanInfoChips({ scanData, summaryData, cacheData }: {
     <div className="flex flex-wrap gap-1 mb-2">
       {chips.map((c) => (
         <span
-          key={c.label}
+          key={`${c.label}:${c.value}`}
           className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 bg-muted/30 border border-border/50 text-[9px] ${c.cls ?? ""}`}
           title={`${c.label}: ${c.value}`}
         >
@@ -809,7 +934,13 @@ export function PipelinePanel({ scanning, replayQ, scanQ }: {
 
 // ── Panel 2 — Live Scanner ───────────────────────────────────────────────────
 
-function ScannerPanel({ scanQ }: { scanQ: ReturnType<typeof useWidgetQuery<ScanStatus>> }) {
+function ScannerPanel({
+  scanQ,
+  staleDisplay = false,
+}: {
+  scanQ: ReturnType<typeof useWidgetQuery<ScanStatus>>;
+  staleDisplay?: boolean;
+}) {
   const d = scanQ.data;
   const meta = d?.latest_scan ?? d ?? {};
   const progress = d?.progress ?? null;
@@ -824,15 +955,20 @@ function ScannerPanel({ scanQ }: { scanQ: ReturnType<typeof useWidgetQuery<ScanS
   const scanId = (meta as { scan_id?: string }).scan_id ?? d?.scan_id ?? null;
   const durationS = (meta as { duration_s?: number | null }).duration_s ?? null;
 
-  // Rotation / count labels
-  const rotation   = d?.rotation ?? null;
-  const countToday = d?.scan_count_today ?? null;
+  // Explicit durable observability labels. Never show the legacy "rotation"
+  // alias: completed scans, scheduler ticks, and history rows are different.
+  const completedToday = d?.completed_scans_today ?? d?.scan_count_today ?? null;
+  const startedToday = d?.started_scans_today ?? null;
+  const schedulerTicksToday = d?.scheduler_ticks_today ?? null;
+  const busySkipsToday = d?.lock_busy_skips_today ?? null;
   const cadence    = d?.cadence_minutes ?? null;
 
   // OHLCV cache status — 60 s cadence (slow route; Python spawns a DB query)
   const cacheQ = useWidgetQuery<OhlcvCacheStatus>({
     queryKey: ["mc", "ohlcv-cache-status"],
     path: "/ohlcv-cache/status",
+    requestInit: { cache: "no-store" },
+    cacheBust: true,
     refetchInterval: 60_000,
     timeoutMs: 35_000,
   });
@@ -842,7 +978,8 @@ function ScannerPanel({ scanQ }: { scanQ: ReturnType<typeof useWidgetQuery<ScanS
 
   // Today's scan history — 30 s cache, same TTL as the backend route.
   const historyQ = useWidgetQuery<ScanHistoryResp>({
-    queryKey: ["mc", "scan-history"], path: "/live-data/scan/history", refetchInterval: 30_000,
+    queryKey: ["mc", "scan-history"], path: "/live-data/scan/history",
+    requestInit: { cache: "no-store" }, cacheBust: true, refetchInterval: 30_000,
   });
   const [showHistory, setShowHistory] = useState(false);
 
@@ -877,12 +1014,30 @@ function ScannerPanel({ scanQ }: { scanQ: ReturnType<typeof useWidgetQuery<ScanS
       title="Live Scanner" icon={Radar} query={scanQ} refreshMs={R.scan} testId="mc-scanner"
       headerExtra={
         <div className="flex items-center gap-2 flex-wrap">
-          {rotation != null && (
+          {completedToday != null && (
             <span
               className="text-[9px] font-semibold text-teal-300"
-              data-testid="mc-rotation-chip"
+              data-testid="mc-completed-scans-chip"
             >
-              Rotation #{rotation}
+              {completedToday} completed today
+            </span>
+          )}
+          {startedToday != null && (
+            <span className="text-[9px] text-muted-foreground" data-testid="mc-started-scans-chip">
+              {startedToday} started
+            </span>
+          )}
+          {schedulerTicksToday != null && (
+            <span className="text-[9px] text-muted-foreground" data-testid="mc-scheduler-ticks-chip">
+              {schedulerTicksToday} scheduler ticks
+            </span>
+          )}
+          {busySkipsToday != null && (
+            <span
+              className={`text-[9px] ${busySkipsToday > 0 ? "text-amber-400" : "text-muted-foreground"}`}
+              data-testid="mc-lock-busy-skips-chip"
+            >
+              {busySkipsToday} lock-busy skips
             </span>
           )}
           {gapAlert && (
@@ -903,9 +1058,6 @@ function ScannerPanel({ scanQ }: { scanQ: ReturnType<typeof useWidgetQuery<ScanS
               ⚠ {uncachedCount} yfinance
             </span>
           )}
-          {countToday != null && (
-            <span className="text-[9px] text-muted-foreground">{countToday} today</span>
-          )}
           {cadence != null && (
             <span className="text-[9px] text-muted-foreground">{cadence} min cadence</span>
           )}
@@ -917,6 +1069,15 @@ function ScannerPanel({ scanQ }: { scanQ: ReturnType<typeof useWidgetQuery<ScanS
     >
       {/* Scan info chips — includes cache source + hit rate when available */}
       <ScanInfoChips scanData={d} cacheData={cache} />
+
+      {staleDisplay && (
+        <div
+          className="mb-2 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-[10px] text-amber-300"
+          data-testid="mc-stale-display-warning"
+        >
+          Displayed scan status is newer than the latest response. Keeping the newer canonical value and refreshing.
+        </div>
+      )}
 
       {/* Primary counters */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] mb-2">
@@ -1097,9 +1258,12 @@ function ScannerPanel({ scanQ }: { scanQ: ReturnType<typeof useWidgetQuery<ScanS
         >
           <span className="flex items-center gap-1.5">
             <Clock className="w-3 h-3 shrink-0" />
-            <span>Today's scans</span>
+            <span>History rows shown</span>
             {historyQ.data?.count != null && (
-              <span className="font-semibold text-foreground ml-0.5">{historyQ.data.count}</span>
+              <span className="font-semibold text-foreground ml-0.5">
+                {historyQ.data.count}
+                {historyQ.data.total_completed != null ? ` of ${historyQ.data.total_completed}` : ""}
+              </span>
             )}
             {historyQ.isLoading && <span className="text-muted-foreground/50">…</span>}
           </span>
@@ -1389,6 +1553,8 @@ function PaperTradingPanel({ portfolio }: { portfolio: PortfolioSnapshot | undef
   const bootstrapQ = useWidgetQuery<BootstrapStatus>({
     queryKey: ["mc", "bootstrap-status"],
     path: "/phase20/bootstrap-status",
+    requestInit: { cache: "no-store" },
+    cacheBust: true,
     refetchInterval: 30_000,
     timeoutMs: 10_000,
   });
@@ -1398,6 +1564,8 @@ function PaperTradingPanel({ portfolio }: { portfolio: PortfolioSnapshot | undef
   const eodQ = useWidgetQuery<EodStatus>({
     queryKey: ["mc", "eod-status"],
     path: "/phase20/eod-status",
+    requestInit: { cache: "no-store" },
+    cacheBust: true,
     refetchInterval: 30_000,
     timeoutMs: 10_000,
   });
@@ -1739,9 +1907,15 @@ export default function MissionControl() {
     queryKey: ["mc", "scan-status"],
     path: "/live-data/scan/status",
     requestInit: { cache: "no-store" },
+    cacheBust: true,
     refetchInterval: R.scan,
   });
-  const scanning = !!scanQ.data?.progress?.stage;
+  const monotonicScan = useMonotonicScanStatus(scanQ);
+  const scanQForDisplay = {
+    ...scanQ,
+    data: monotonicScan.data,
+  } as UseQueryResult<ScanStatus>;
+  const scanning = !!monotonicScan.data?.progress?.stage;
   // Unified replay snapshot — fetched ONCE and shared by the pipeline panel,
   // Mission Map and Replay widget (no separate fetch of stage counts).
   const replayQ = useWidgetQuery<ReplayResp>({
@@ -1768,6 +1942,10 @@ export default function MissionControl() {
           <Radio className="h-4 w-4 text-primary" />
           <h1 className="text-base font-semibold">Mission Control</h1>
           <Badge variant="outline" className="text-[9px]">PAPER</Badge>
+          <ScanBuildIdentity
+            apiBuildId={monotonicScan.data?.api_build_id}
+            lastRefreshedAt={monotonicScan.lastRefreshedAt}
+          />
           <button
             onClick={() => setShowFullOnMobile(true)}
             className="ml-auto inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[10px] text-muted-foreground"
@@ -1798,9 +1976,9 @@ export default function MissionControl() {
     ),
     "pipeline-row": () => (
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 items-start">
-        <PipelinePanel scanning={scanning} replayQ={replayQ} scanQ={scanQ} />
+        <PipelinePanel scanning={scanning} replayQ={replayQ} scanQ={scanQForDisplay} />
         <div className="lg:col-span-2 space-y-3 min-w-0">
-          <ScannerPanel scanQ={scanQ} />
+          <ScannerPanel scanQ={scanQForDisplay} staleDisplay={monotonicScan.staleResponse} />
           <PaperTradingPanel portfolio={portfolioQ.data} />
         </div>
         <PortfolioSidebar q={portfolioQ} />
@@ -1822,7 +2000,7 @@ export default function MissionControl() {
     "stockwatch-row": () => (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
         <Suspense fallback={<WidgetFallback />}>
-          <StockWatchWidget portfolio={portfolioQ.data} scan={scanQ.data} />
+          <StockWatchWidget portfolio={portfolioQ.data} scan={monotonicScan.data} />
         </Suspense>
         <Suspense fallback={<WidgetFallback />}>
           <ExplainabilityWidget />
@@ -1879,6 +2057,10 @@ export default function MissionControl() {
         <Radio className="h-5 w-5 text-primary" />
         <h1 className="text-lg font-semibold">Mission Control</h1>
         <Badge variant="outline" className="text-[10px]">{LABEL}</Badge>
+        <ScanBuildIdentity
+          apiBuildId={monotonicScan.data?.api_build_id}
+          lastRefreshedAt={monotonicScan.lastRefreshedAt}
+        />
         <span className="text-[10px] text-muted-foreground ml-auto hidden md:inline">
           All data from the canonical pipeline event store, replay snapshot & phase20 ledger — no page-local calculations.
         </span>

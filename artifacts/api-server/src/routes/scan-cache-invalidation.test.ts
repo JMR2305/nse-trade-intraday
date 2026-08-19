@@ -206,6 +206,9 @@ describe("scan/status cache invalidation — POST /live-data/scan/run", () => {
     await new Promise<void>((r) => setImmediate(r)); // let setImmediate queue drain once
   }
 
+  // Importing the complete API app can take more than Vitest's default 10 s
+  // when the workspace DB is cold; this suite mocks every spawned Python
+  // process, so allow startup without weakening any assertion timeout.
   beforeAll(async () => {
     mockSpawn.mockImplementation(makeSpawnImpl());
 
@@ -219,7 +222,7 @@ describe("scan/status cache invalidation — POST /live-data/scan/run", () => {
       server = app.listen(0, "127.0.0.1", () => resolve());
     });
     port = (server.address() as { port: number }).port;
-  });
+  }, 30_000);
 
   afterAll(() => { server?.close(); });
 
@@ -240,7 +243,10 @@ describe("scan/status cache invalidation — POST /live-data/scan/run", () => {
     const r1 = await get("/api/live-data/scan/status");
     expect(r1.status).toBe(200);
     expect((r1.body as Record<string, unknown>)["rotation"]).toBe(1);
-    expect(r1.headers.get("cache-control")).toBe("no-store, max-age=0");
+    expect(r1.headers.get("cache-control")).toBe("no-store, no-cache, must-revalidate, proxy-revalidate");
+    expect(r1.headers.get("pragma")).toBe("no-cache");
+    expect(r1.headers.get("surrogate-control")).toBe("no-store");
+    expect((r1.body as Record<string, unknown>)["api_build_id"]).toBe("development");
     expect(spawnCount("scan_status")).toBe(1);
 
     // Second request within the 15 s TTL — cache hit, no new spawn.

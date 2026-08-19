@@ -80,8 +80,21 @@ class TestBuildScanHistoryStructure(unittest.TestCase):
 
     def test_all_required_keys_present(self):
         r = _call([])
-        for k in ("success", "history", "count", "ist_date"):
+        for k in ("success", "history", "count", "total_completed", "ist_date"):
             self.assertIn(k, r)
+
+    def test_total_completed_is_not_limited_to_visible_history_rows(self):
+        rows = []
+        start = _dt("2026-08-14T04:00:00Z")
+        for i in range(3):
+            began = start + timedelta(minutes=i * 5)
+            rows.extend([
+                (began, "SCAN_STARTED", {}),
+                (began + timedelta(minutes=1), "SCAN_COMPLETED", {}),
+            ])
+        r = _call(rows, limit=2)
+        self.assertEqual(r["count"], 2)
+        self.assertEqual(r["total_completed"], 3)
 
     def test_db_unavailable_returns_empty(self):
         import scan_state_store as sss

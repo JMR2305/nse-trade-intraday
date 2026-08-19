@@ -1225,6 +1225,19 @@ def run_tick() -> Dict[str, Any]:
                                  detail="Scheduled scan starting",
                                  owner=_OWNER, heartbeat_at=now_iso,
                                  last_trigger="SCHEDULED")
+    # One durable observability event per *due* scheduled scan attempt. The
+    # outer Node heartbeat calls this module every minute, so emitting above the
+    # freshness gate would incorrectly inflate the displayed scheduler-tick
+    # count. This evidence is advisory only and cannot affect scan execution.
+    try:
+        from pipeline_events import emit as _pe_emit
+        _pe_emit(
+            "SCHEDULER_TICK",
+            "SCHEDULER",
+            payload={"interval_minutes": interval_min, "owner": _OWNER},
+        )
+    except Exception:
+        pass
     t0 = time.time()
     try:
         from live_scan_engine import get_or_run_scan

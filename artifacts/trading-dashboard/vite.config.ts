@@ -26,8 +26,20 @@ if (!basePath) {
   );
 }
 
+// Keep a visible build marker in the browser bundle. Production deployments
+// provide a Replit deployment identifier; previews intentionally say
+// "development" so operators can tell the two surfaces apart.
+const buildId =
+  process.env.REPLIT_DEPLOYMENT ??
+  process.env.REPLIT_DEPLOYMENT_ID ??
+  process.env.BUILD_ID ??
+  "development";
+
 export default defineConfig({
   base: basePath,
+  define: {
+    "import.meta.env.VITE_BUILD_ID": JSON.stringify(buildId),
+  },
   plugins: [
     react(),
     tailwindcss(),

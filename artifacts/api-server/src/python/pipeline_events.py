@@ -55,6 +55,10 @@ EVENT_TYPES = [
     "POSITION_OPENED", "POSITION_UPDATED", "POSITION_CLOSED",
     "PORTFOLIO_UPDATED", "PNL_UPDATED",
     "SCAN_COMPLETED", "SCAN_FAILED",
+    # A scheduled scan was due and the scheduler began an attempt. This is
+    # intentionally distinct from SCAN_STARTED (the actual scanner) so the
+    # dashboard can show scheduler ticks without claiming they completed.
+    "SCHEDULER_TICK",
     "SCAN_SKIPPED_BUSY",
     # Bootstrap eligibility change — emitted when a symbol flips between scans.
     "BOOTSTRAP_ELIGIBILITY_CHANGED",

@@ -18,6 +18,14 @@ import { PYTHON_DIR, PYTHON_BIN } from "../lib/python-env";
 
 const router: IRouter = Router();
 
+const LIVE_STATUS_CACHE_CONTROL = "no-store, no-cache, must-revalidate, proxy-revalidate";
+function setLiveStatusNoStore(res: any): void {
+  res.set("Cache-Control", LIVE_STATUS_CACHE_CONTROL);
+  res.set("Pragma", "no-cache");
+  res.set("Expires", "0");
+  res.set("Surrogate-Control", "no-store");
+}
+
 function runPython(
   args: string[],
   timeoutMs = 60_000,
@@ -72,6 +80,7 @@ const wrap = (fn: (req: any, res: any) => Promise<void>) =>
 
 /** GET /ohlcv-cache/status */
 router.get("/ohlcv-cache/status", wrap(async (_req, res) => {
+  setLiveStatusNoStore(res);
   const data = await runPython(["ohlcv_cache_status"], 30_000);
   res.json(data);
 }));
@@ -92,6 +101,7 @@ router.post("/ohlcv-cache/postmarket-refresh", wrap(async (_req, res) => {
 
 /** GET /ohlcv-cache/readiness */
 router.get("/ohlcv-cache/readiness", wrap(async (_req, res) => {
+  setLiveStatusNoStore(res);
   const data = await runPython(["pre_market_data_readiness"], 30_000);
   res.json(data);
 }));

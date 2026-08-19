@@ -11,6 +11,27 @@ const router: IRouter = Router();
 import { PYTHON_DIR, PYTHON_BIN } from "../lib/python-env";
 import { dispatchSignalPushNotifications } from "../lib/pushNotifier";
 
+// Mission Control's live state is authoritative only at request time. Keep
+// server-side coalescing caches below, but forbid browsers, CDNs, and proxies
+// from replaying a previous status response after a scan completes.
+const LIVE_STATUS_CACHE_CONTROL = "no-store, no-cache, must-revalidate, proxy-revalidate";
+function setLiveStatusNoStore(res: any): void {
+  res.set("Cache-Control", LIVE_STATUS_CACHE_CONTROL);
+  res.set("Pragma", "no-cache");
+  res.set("Expires", "0");
+  res.set("Surrogate-Control", "no-store");
+}
+
+// Replit supplies a deployment identifier in production. Local development
+// intentionally renders "development" so operators can distinguish a preview
+// from a published API without exposing source-control metadata.
+function apiBuildId(): string {
+  return process.env.REPLIT_DEPLOYMENT
+    ?? process.env.REPLIT_DEPLOYMENT_ID
+    ?? process.env.BUILD_ID
+    ?? "development";
+}
+
 // Timeouts by command type.  Scan commands run yf.download across 50 symbols
 // and need up to ~150 s; all other commands should finish well within 90 s.
 const SCAN_COMMANDS = new Set(["phase7_scan", "market_scan", "scan"]);
@@ -1267,7 +1288,7 @@ router.get("/live-data/scan/status", async (_req, res) => {
   // This endpoint drives live rotation/count displays. Keep its short
   // in-process cache for Python-spawn coalescing, but never let a browser or
   // intermediary retain an older response after a newer scan completes.
-  res.set("Cache-Control", "no-store, max-age=0");
+  setLiveStatusNoStore(res);
   try {
     if (scanStatusCache && Date.now() - scanStatusCache.ts < SCAN_STATUS_CACHE_MS) {
       res.json(scanStatusCache.data);
@@ -1277,11 +1298,14 @@ router.get("/live-data/scan/status", async (_req, res) => {
       const gen = scanStatusGen;  // capture before async work begins
       scanStatusInFlight = runPython(["scan_status"])
         .then((data) => {
+          const enriched = data && typeof data === "object" && !Array.isArray(data)
+            ? { ...data as Record<string, unknown>, api_build_id: apiBuildId() }
+            : data;
           // Guard: only write cache if no invalidation happened since we started.
           if (gen === scanStatusGen) {
-            scanStatusCache = { data, ts: Date.now() };
+            scanStatusCache = { data: enriched, ts: Date.now() };
           }
-          return data;
+          return enriched;
         })
         .finally(() => {
           // Guard: only clear our own in-flight reference, never a newer one.
@@ -1310,11 +1334,18 @@ router.get("/live-data/scan/status", async (_req, res) => {
 const SCAN_HISTORY_CACHE_MS      = 30_000;
 const SCAN_HISTORY_CANONICAL_MAX = 50;          // always fetched; sliced per request
 
-type ScanHistoryPayload = { success: boolean; history: unknown[]; count: number; ist_date: string };
+type ScanHistoryPayload = {
+  success: boolean;
+  history: unknown[];
+  count: number;
+  total_completed?: number;
+  ist_date: string;
+};
 let scanHistoryCache:    { data: ScanHistoryPayload; ts: number } | null = null;
 let scanHistoryInFlight: Promise<ScanHistoryPayload> | null = null;
 
 router.get("/live-data/scan/history", async (req, res) => {
+  setLiveStatusNoStore(res);
   try {
     const limitRaw = parseInt(String(req.query.limit ?? ""), 10);
     const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), SCAN_HISTORY_CANONICAL_MAX) : 10;
@@ -3364,6 +3395,7 @@ router.post("/phase20/capital-migration", async (req, res) => {
 // Returns kite_session_verified, bootstrap_eligible_count, top WATCH candidates,
 // and all settings needed to render the BootstrapStatusCard without extra queries.
 router.get("/phase20/bootstrap-status", async (_req, res) => {
+  setLiveStatusNoStore(res);
   try {
     res.json(await runPython(["phase20_bootstrap_status"]));
   } catch (err: unknown) {
@@ -3377,6 +3409,7 @@ router.get("/phase20/bootstrap-status", async (_req, res) => {
 // blocked_events (MARKET_CLOSE_EXIT_BLOCKED today).
 // Read-only; never triggers any trades.
 router.get("/phase20/eod-status", async (_req, res) => {
+  setLiveStatusNoStore(res);
   try {
     res.json(await runPython(["phase20_eod_status"]));
   } catch (err: unknown) {

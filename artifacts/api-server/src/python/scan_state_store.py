@@ -408,50 +408,74 @@ def ist_day_bounds_utc(now_utc: Optional[datetime] = None) -> Tuple[datetime, da
     return start, start + timedelta(days=1)
 
 
-def count_scans_today_ist() -> int:
-    """Return the number of SCAN_COMPLETED pipeline events since midnight IST
-    today.
+def scan_observability_counts_today_ist() -> Dict[str, int]:
+    """Return durable, IST-scoped scan observability counts.
 
-    IST = UTC + 05:30.  The correct approach is:
+    These values deliberately come from the append-only pipeline event store,
+    rather than a process-local counter or a scan-history page limit:
+
+    * ``completed_scans_today`` is SCAN_COMPLETED.
+    * ``started_scans_today`` is SCAN_STARTED.
+    * ``scheduler_ticks_today`` is SCHEDULER_TICK (emitted only when a
+      scheduled scan is due, not on every one-minute heartbeat).
+    * ``lock_busy_skips_today`` is SCAN_SKIPPED_BUSY.
+
+    IST = UTC + 05:30.  The day boundary is:
       1. Convert the current UTC instant to IST (add 5h30m).
       2. Take that IST local date at 00:00:00.
       3. Convert back to UTC (subtract 5h30m) to get the cutoff.
 
-    This correctly handles the post-18:30 UTC case — after 18:30 UTC the IST
-    clock has already rolled over to the next day, so the cutoff must advance
-    to 18:30 of the *current* UTC date, not the previous one.
-
-    Falls back to 0 on any error or when DB is unavailable.  Never raises.
+    Falls back to zeroes on any error or when the durable store is unavailable.
+    Never raises: visibility must not affect scanning.
     """
+    empty = {
+        "completed_scans_today": 0,
+        "started_scans_today": 0,
+        "scheduler_ticks_today": 0,
+        "lock_busy_skips_today": 0,
+    }
     if not db_available():
-        return 0
+        return empty
     try:
-        from datetime import timedelta
-        _IST_OFFSET = timedelta(hours=5, minutes=30)
-        now_utc = _now_utc()
-        # Step 1: shift to IST
-        now_ist = now_utc + _IST_OFFSET
-        # Step 2: IST midnight (00:00) of the current IST calendar day
-        ist_midnight = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
-        # Step 3: convert back to UTC
-        today_ist_midnight_utc = ist_midnight - _IST_OFFSET
+        today_ist_midnight_utc, _ = _ist_today_cutoff_utc()
         conn = _connect()
         try:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT COUNT(*) FROM pipeline_events
-                    WHERE event_type = 'SCAN_COMPLETED'
+                    SELECT event_type, COUNT(*)
+                    FROM pipeline_events
+                    WHERE event_type IN (
+                        'SCAN_STARTED', 'SCAN_COMPLETED', 'SCHEDULER_TICK',
+                        'SCAN_SKIPPED_BUSY'
+                    )
                       AND ts >= %s
+                    GROUP BY event_type
                     """,
                     (today_ist_midnight_utc,),
                 )
-                row = cur.fetchone()
-            return int(row[0]) if row else 0
+                rows = cur.fetchall()
         finally:
             conn.close()
+        count_by_type = {str(event_type): int(count) for event_type, count in rows}
+        return {
+            "completed_scans_today": count_by_type.get("SCAN_COMPLETED", 0),
+            "started_scans_today": count_by_type.get("SCAN_STARTED", 0),
+            "scheduler_ticks_today": count_by_type.get("SCHEDULER_TICK", 0),
+            "lock_busy_skips_today": count_by_type.get("SCAN_SKIPPED_BUSY", 0),
+        }
     except Exception:
-        return 0
+        return empty
+
+
+def count_scans_today_ist() -> int:
+    """Return the number of completed scans since midnight IST today.
+
+    Retained as the stable compatibility helper for existing callers. New
+    observability consumers should call ``scan_observability_counts_today_ist``
+    so they do not confuse completed scans with history rows or scheduler work.
+    """
+    return scan_observability_counts_today_ist()["completed_scans_today"]
 
 
 def build_scan_status_response() -> Dict[str, Any]:
@@ -495,8 +519,24 @@ def build_scan_status_response() -> Dict[str, Any]:
     except Exception:
         pass
 
-    # ── Completed scans today (IST) and rotation index ────────────────────
-    scan_count_today = count_scans_today_ist()
+    # ── Durable IST-day counts and scheduler runtime identity ─────────────
+    # `scan_count_today` / `rotation` remain as compatibility aliases for
+    # existing clients. The explicit fields below are the operator-facing
+    # contract: a completion count must never be presented as a rotation count.
+    observability = scan_observability_counts_today_ist()
+    scan_count_today = observability["completed_scans_today"]
+    runtime: Dict[str, Any] = {}
+    try:
+        from phase20_store import get_scheduler_health as _scheduler_health
+        scheduler = _scheduler_health() or {}
+        runtime = {
+            "owner": scheduler.get("owner"),
+            "process_start_at": scheduler.get("process_start_at"),
+            "status": scheduler.get("status"),
+            "heartbeat_at": scheduler.get("heartbeat_at"),
+        }
+    except Exception:
+        pass
 
     # ── Live in-flight progress from KV (None when scanner is idle) ────────
     progress: Optional[Dict[str, Any]] = None
@@ -514,6 +554,8 @@ def build_scan_status_response() -> Dict[str, Any]:
         "age_minutes": age_minutes,
         "scan_count_today": scan_count_today,
         "rotation": scan_count_today,
+        **observability,
+        "runtime": runtime,
         "cadence_minutes": cadence_minutes,
         "progress": progress,
     }
@@ -558,7 +600,8 @@ def build_scan_history_response(limit: int = 10) -> Dict[str, Any]:
                 },
                 ...
             ],
-            "count": int,
+            "count": int,             # number of rows returned (after limit)
+            "total_completed": int,   # all completed scans today
             "ist_date": "YYYY-MM-DD",
         }
 
@@ -567,7 +610,13 @@ def build_scan_history_response(limit: int = 10) -> Dict[str, Any]:
     """
     cutoff_utc, ist_date = _ist_today_cutoff_utc()  # type: ignore[misc]
 
-    empty: Dict[str, Any] = {"success": True, "history": [], "count": 0, "ist_date": ist_date}
+    empty: Dict[str, Any] = {
+        "success": True,
+        "history": [],
+        "count": 0,
+        "total_completed": 0,
+        "ist_date": ist_date,
+    }
 
     if not db_available():
         return empty
@@ -667,6 +716,7 @@ def build_scan_history_response(limit: int = 10) -> Dict[str, Any]:
             prev_completed_ts = ts
             pending_start = None  # consumed — reset for the next scan
 
+    total_completed = len(history)
     # Apply limit (oldest ones fall off) and return newest-first
     history = list(reversed(history[-limit:]))
 
@@ -674,6 +724,7 @@ def build_scan_history_response(limit: int = 10) -> Dict[str, Any]:
         "success": True,
         "history": history,
         "count":   len(history),
+        "total_completed": total_completed,
         "ist_date": ist_date,
     }
 

@@ -57,6 +57,9 @@ class TestBuildScanStatusResponse(unittest.TestCase):
         *,
         meta=None,
         count_today: int = 3,
+        started_today: int | None = None,
+        scheduler_ticks_today: int = 0,
+        lock_busy_skips_today: int = 0,
         cadence: int = 5,
         progress=None,
         now_utc: datetime | None = None,
@@ -71,12 +74,29 @@ class TestBuildScanStatusResponse(unittest.TestCase):
         if now_utc is None:
             # 30 minutes after the snapshot_ts fixture (04:00 Z → 04:30 Z)
             now_utc = datetime(2026, 8, 14, 4, 30, 0, tzinfo=timezone.utc)
+        if started_today is None:
+            started_today = count_today
 
         with patch.object(sss, "load_latest_meta", return_value=meta), \
-             patch.object(sss, "count_scans_today_ist", return_value=count_today), \
+             patch.object(
+                 sss,
+                 "scan_observability_counts_today_ist",
+                 return_value={
+                     "completed_scans_today": count_today,
+                     "started_scans_today": started_today,
+                     "scheduler_ticks_today": scheduler_ticks_today,
+                     "lock_busy_skips_today": lock_busy_skips_today,
+                 },
+             ), \
              patch.object(sss, "_now_utc", return_value=now_utc), \
              patch("phase20_store.get_settings",
                    return_value={"scan_interval_minutes": cadence}), \
+              patch("phase20_store.get_scheduler_health", return_value={
+                    "owner": "test-host:123",
+                    "process_start_at": "2026-08-14T03:00:00Z",
+                    "status": "OK",
+                    "heartbeat_at": "2026-08-14T04:30:00Z",
+              }), \
              patch("phase20_store.kv_get", return_value=progress):
             return sss.build_scan_status_response()
 
@@ -87,7 +107,9 @@ class TestBuildScanStatusResponse(unittest.TestCase):
 
     def test_all_required_keys_present(self):
         expected = {"success", "latest_scan", "age_minutes",
-                    "scan_count_today", "rotation", "cadence_minutes", "progress"}
+                    "scan_count_today", "rotation", "completed_scans_today",
+                    "started_scans_today", "scheduler_ticks_today",
+                    "lock_busy_skips_today", "runtime", "cadence_minutes", "progress"}
         self.assertTrue(expected.issubset(self._call().keys()),
                         f"Missing: {expected - self._call().keys()}")
 
@@ -123,6 +145,24 @@ class TestBuildScanStatusResponse(unittest.TestCase):
     def test_scan_count_today_equals_count_scans_today_ist_return_value(self):
         self.assertEqual(self._call(count_today=7)["scan_count_today"], 7)
 
+    def test_explicit_observability_counts_remain_separate(self):
+        r = self._call(
+            count_today=4,
+            started_today=6,
+            scheduler_ticks_today=7,
+            lock_busy_skips_today=2,
+        )
+        self.assertEqual(r["completed_scans_today"], 4)
+        self.assertEqual(r["started_scans_today"], 6)
+        self.assertEqual(r["scheduler_ticks_today"], 7)
+        self.assertEqual(r["lock_busy_skips_today"], 2)
+        self.assertEqual(r["scan_count_today"], 4)  # compatibility alias only
+
+    def test_runtime_is_scheduler_identity_not_a_scan_count(self):
+        r = self._call()
+        self.assertEqual(r["runtime"]["owner"], "test-host:123")
+        self.assertEqual(r["runtime"]["status"], "OK")
+
     def test_rotation_always_equals_scan_count_today(self):
         r = self._call(count_today=12)
         self.assertEqual(r["rotation"], r["scan_count_today"])
@@ -143,10 +183,14 @@ class TestBuildScanStatusResponse(unittest.TestCase):
     def test_cadence_minutes_is_none_when_settings_raises(self):
         import scan_state_store as sss
         with patch.object(sss, "load_latest_meta", return_value=_META_FIXTURE), \
-             patch.object(sss, "count_scans_today_ist", return_value=0), \
+              patch.object(sss, "scan_observability_counts_today_ist", return_value={
+                  "completed_scans_today": 0, "started_scans_today": 0,
+                  "scheduler_ticks_today": 0, "lock_busy_skips_today": 0,
+              }), \
              patch.object(sss, "_now_utc",
                           return_value=datetime(2026, 8, 14, 4, 0, tzinfo=timezone.utc)), \
              patch("phase20_store.get_settings", side_effect=RuntimeError("db down")), \
+              patch("phase20_store.get_scheduler_health", return_value={}), \
              patch("phase20_store.kv_get", return_value=None):
             r = sss.build_scan_status_response()
         self.assertIsNone(r["cadence_minutes"])
@@ -196,35 +240,42 @@ class TestCountScansToday(unittest.TestCase):
 
     # ── DB query and result handling ─────────────────────────────────────────
 
-    def _make_mock_conn(self, fetchone_return):
-        """Return a mock psycopg2 connection whose cursor yields fetchone_return."""
+    def _make_mock_conn(self, rows):
+        """Return a mock psycopg2 connection whose cursor yields grouped rows."""
         mock_cur = MagicMock()
         mock_cur.__enter__ = MagicMock(return_value=mock_cur)
         mock_cur.__exit__ = MagicMock(return_value=False)
-        mock_cur.fetchone.return_value = fetchone_return
+        mock_cur.fetchall.return_value = rows
         mock_conn = MagicMock()
         mock_conn.cursor.return_value = mock_cur
         return mock_conn, mock_cur
 
     def test_returns_count_from_pipeline_events(self):
         import scan_state_store as sss
-        mock_conn, _ = self._make_mock_conn((5,))
+        mock_conn, _ = self._make_mock_conn([
+            ("SCAN_COMPLETED", 5), ("SCAN_STARTED", 6),
+            ("SCHEDULER_TICK", 7), ("SCAN_SKIPPED_BUSY", 1),
+        ])
         with patch.object(sss, "db_available", return_value=True), \
              patch.object(sss, "_connect", return_value=mock_conn):
             self.assertEqual(sss.count_scans_today_ist(), 5)
 
-    def test_query_targets_scan_completed_event_type(self):
+    def test_query_targets_all_durable_scan_observability_event_types(self):
         import scan_state_store as sss
-        mock_conn, mock_cur = self._make_mock_conn((0,))
+        mock_conn, mock_cur = self._make_mock_conn([])
         with patch.object(sss, "db_available", return_value=True), \
              patch.object(sss, "_connect", return_value=mock_conn):
-            sss.count_scans_today_ist()
+            result = sss.scan_observability_counts_today_ist()
         sql = str(mock_cur.execute.call_args)
         self.assertIn("SCAN_COMPLETED", sql)
+        self.assertIn("SCAN_STARTED", sql)
+        self.assertIn("SCHEDULER_TICK", sql)
+        self.assertIn("SCAN_SKIPPED_BUSY", sql)
+        self.assertEqual(result["completed_scans_today"], 0)
 
-    def test_returns_zero_when_fetchone_is_none(self):
+    def test_returns_zero_when_query_has_no_rows(self):
         import scan_state_store as sss
-        mock_conn, _ = self._make_mock_conn(None)
+        mock_conn, _ = self._make_mock_conn([])
         with patch.object(sss, "db_available", return_value=True), \
              patch.object(sss, "_connect", return_value=mock_conn):
             self.assertEqual(sss.count_scans_today_ist(), 0)
@@ -266,7 +317,7 @@ class TestCountScansToday(unittest.TestCase):
         mock_cur = MagicMock()
         mock_cur.__enter__ = MagicMock(return_value=mock_cur)
         mock_cur.__exit__ = MagicMock(return_value=False)
-        mock_cur.fetchone.return_value = (0,)
+        mock_cur.fetchall.return_value = []
 
         def capture_execute(sql, params):
             captured.append(params[0])
