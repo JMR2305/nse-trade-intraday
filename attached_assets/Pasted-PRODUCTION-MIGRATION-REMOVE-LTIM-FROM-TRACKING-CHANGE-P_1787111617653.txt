@@ -1,0 +1,230 @@
+PRODUCTION MIGRATION — REMOVE LTIM FROM TRACKING + CHANGE PAPER CAPITAL TO ₹100,000
+
+Use these controlling reports:
+- APEXQUANT_OHLCV_CACHE_MIGRATION_SUMMARY.md
+- APEXQUANT_PRODUCTION_OHLCV_CACHE_FIRST_SCAN_PROOF.md
+- APEXQUANT_AI_SOP_v6.0_TOMORROW_TRADE_READINESS.md
+
+Do not enable live orders.
+Do not call broker order APIs.
+PAPER ONLY.
+Do not change trading thresholds unless they are derived from capital.
+Do not mutate old closed trade records except portfolio rebasing metadata.
+
+GOALS:
+1. Remove LTIM completely from active tracking because historical data is unavailable.
+2. Change paper trading starting capital / cash base from ₹50,000 to ₹100,000.
+3. Ensure all derived risk values update correctly.
+4. Ensure tomorrow/live scans use a clean 50-symbol NIFTY universe, not 51 with LTIM missing.
+5. Ensure OHLCV cache, company master, dashboard, scan counts, readiness, and paper portfolio all agree.
+
+IMPORTANT MARKET-HOUR SAFETY:
+Before applying production DB changes, check:
+- /api/phase20/positions
+- open paper trades
+- current scan status
+
+If any OPEN trade exists today:
+- Do NOT reset cash blindly.
+- Pause auto paper entries or wait until position closes.
+- Produce a warning and ask operator confirmation.
+
+If no OPEN positions:
+- Apply migration safely.
+
+TASK 1 — REMOVE LTIM FROM ACTIVE UNIVERSE
+
+Find every active universe source:
+- config symbol list
+- NIFTY50/NIFTY_50 universe list
+- SECTOR_MAP
+- nifty50_company_master
+- yfinance symbol mapping
+- Kite symbol mapping
+- scanner universe
+- OHLCV cache status/readiness
+- dashboard expected symbol count
+- tests expecting 51 symbols
+
+Remove LTIM from active tracking.
+
+Expected after change:
+- Active universe count = 50
+- No LTIM yfinance fetch attempt
+- No LTIM cache warning
+- No LTIM scan warning
+- No LTIM readiness warning
+- Mission Control should show 50/50, not 50/51
+- Company master should show 50 active symbols
+- Historical cache should ignore LTIM
+- Do not delete old LTIM audit rows if present; mark inactive if safer
+
+Implement:
+- `LTIM` should be `is_active=false` if keeping row for audit
+- active universe queries must filter `is_active=true`
+- readiness must not count LTIM in denominator
+- scan status must not report LTIM as missing
+- UI should not show LTIM provider issue anymore
+
+TASK 2 — UPDATE PAPER CAPITAL TO ₹100,000
+
+Find all sources of initial/paper capital:
+- INITIAL_CAPITAL constants
+- portfolio_store constants
+- phase20_settings
+- paper_portfolio seed/default
+- circuit breaker daily loss calculation
+- risk engine
+- position sizing
+- dashboard cards
+- tests
+- docs/SOP
+
+Change starting capital from ₹50,000 to ₹100,000.
+
+Expected derived values:
+- initial_capital = ₹100,000
+- cash = ₹100,000 if no open positions and no active today trade
+- daily_loss_limit_pct = 3% → ₹3,000
+- circuit_breaker_loss_threshold = 3% → ₹3,000
+- per_stock_exposure_cap_pct = 25% → ₹25,000
+- portfolio_deployed_cap_pct = 80% → ₹80,000
+- risk_per_trade_pct = 1% → ₹1,000
+- sector_exposure_cap_pct = 40% → ₹40,000
+- max_concurrent_positions remains 5 unless already configured otherwise
+- bootstrap max order value remains ₹15,000 unless explicitly changed
+
+Important:
+- Existing closed DRREDDY trade should remain historically accurate.
+- Do not rewrite DRREDDY fill/exit/P&L.
+- Since DRREDDY was closed at breakeven, portfolio can be rebased cleanly to ₹100,000.
+- Add migration note: capital changed from ₹50,000 to ₹100,000 on 2026-08-19.
+
+TASK 3 — PORTFOLIO REBASE LOGIC
+
+If no open positions:
+- update paper_portfolio cash to ₹100,000
+- update initial_capital to ₹100,000
+- realized_pnl should remain historical actual P&L, not fabricated
+- equity should equal cash + open position market value
+- deployed capital should be ₹0 if no open positions
+
+If open positions exist:
+- do not force reset
+- calculate:
+  new_cash = ₹100,000 - current_deployed_value + realized_pnl_adjustment, if appropriate
+- or pause and require operator confirmation before changing capital
+
+Create a safe migration function:
+`migrate_paper_capital_to_100000()`
+
+It must:
+- be idempotent
+- log before/after values
+- refuse unsafe migration if open positions exist unless explicit force flag is given
+- emit event: PAPER_CAPITAL_REBASED
+- write audit note
+
+TASK 4 — OHLCV CACHE AFTER LTIM REMOVAL
+
+Update cache behavior:
+- active symbol count = 50
+- backfill should request only 50 symbols
+- post-market refresh should request only 50 symbols
+- readiness should expect 50 symbols
+- cache status should report 50 active / 50 ready
+- no LTIM missing warning
+- no known_missing_ltim key needed for active universe
+
+Do not delete cached rows unless necessary. Prefer:
+- keep historical LTIM rows if any
+- mark inactive in company master
+- exclude from active scans/readiness
+
+TASK 5 — SCAN COUNT / DASHBOARD UPDATES
+
+Update all UI/API labels:
+- Universe: 50 active symbols
+- Symbols requested: 50
+- Symbols received: 50 when cache/Kite works
+- Remove “LTIM missing” warning
+- Completed scans = SCAN_COMPLETED
+- Scheduler ticks = 5-min clock ticks
+- Lock skips = skipped ticks
+
+Mission Control / AI Paper Trader / Live Data Health should clearly show:
+- Active universe: 50
+- OHLCV source: local_yfinance_cache
+- Kite LTP overlay: verified/unverified
+- Cash: ₹100,000
+- Per-stock cap: ₹25,000
+- Bootstrap cap: ₹15,000
+- Daily loss limit: ₹3,000
+
+TASK 6 — TESTS
+
+Add/update tests:
+1. LTIM is inactive and not included in active universe.
+2. Scanner requests exactly 50 active symbols.
+3. OHLCV backfill requests exactly 50 active symbols.
+4. Post-market refresh requests exactly 50 active symbols.
+5. Readiness denominator is 50, not 51.
+6. Cache status has no LTIM warning.
+7. Company master keeps LTIM inactive or absent safely.
+8. Initial capital = ₹100,000.
+9. Cash = ₹100,000 after safe rebase with no open positions.
+10. Daily loss limit = ₹3,000.
+11. Per-stock exposure cap = ₹25,000.
+12. Portfolio deployed cap = ₹80,000.
+13. Risk per trade = ₹1,000.
+14. Bootstrap cap remains ₹15,000.
+15. No live broker order API called.
+16. Existing closed DRREDDY trade remains unchanged.
+
+TASK 7 — PRODUCTION VERIFICATION
+
+After deploy/migration, verify production endpoints:
+
+GET /api/phase20/settings
+GET /api/phase20/positions
+GET /api/phase20/bootstrap-status
+GET /api/phase20/circuit-breaker
+GET /api/ohlcv-cache/status
+GET /api/ohlcv-cache/readiness
+GET /api/live-data/scan/status
+GET /api/healthz
+
+Expected:
+- healthz 200
+- positions []
+- initial_capital 100000
+- cash approximately 100000 if no open trades
+- circuit breaker daily_loss_limit 3000
+- bootstrap_max_order_value 15000
+- active universe 50
+- LTIM absent/inactive
+- readiness READY or READY_WITH_WARNINGS only for Kite/session, not LTIM
+- scan requested symbols 50
+- no live orders
+
+TASK 8 — REPORT
+
+Generate:
+
+APEXQUANT_REMOVE_LTIM_AND_CAPITAL_100000_MIGRATION_REPORT.md
+
+Include:
+1. Whether migration was applied in dev only or production too.
+2. LTIM removal details.
+3. All files changed.
+4. DB migration details.
+5. Company master active symbol count.
+6. OHLCV cache active symbol count.
+7. Capital before/after.
+8. Derived risk values before/after.
+9. Portfolio rebase proof.
+10. DRREDDY historical trade unchanged proof.
+11. Endpoint verification.
+12. Test results.
+13. Confirmation no live orders.
+14. Whether system is ready for today’s session.
