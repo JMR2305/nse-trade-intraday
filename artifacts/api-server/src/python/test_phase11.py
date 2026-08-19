@@ -138,12 +138,32 @@ class TestCapitalConfig(unittest.TestCase):
             with self.assertRaises(ValueError):
                 m.update_capital_config({"starting_capital": 500})
 
-    def test_update_capital_config_valid_capital(self):
+    def test_update_capital_config_cannot_bypass_guarded_migration(self):
         with patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d)), \
              patch("phase20_store.kv_set", side_effect=_kv_set_mock):
             import phase11_autonomous as m
-            m.update_capital_config({"starting_capital": 100_000.0})
-        self.assertEqual(SAMPLE_KV.get("phase11_starting_capital"), 100_000.0)
+            with self.assertRaisesRegex(ValueError, "guarded"):
+                m.update_capital_config({"starting_capital": 100_000.0})
+        self.assertNotIn("phase11_starting_capital", SAMPLE_KV)
+
+    def test_update_capital_config_cannot_change_topup_target(self):
+        with patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d)), \
+             patch("phase20_store.kv_set", side_effect=_kv_set_mock):
+            import phase11_autonomous as m
+            with self.assertRaisesRegex(ValueError, "topup_target.*guarded"):
+                m.update_capital_config({"topup_target": 250_000.0})
+        self.assertNotIn("phase11_topup_target", SAMPLE_KV)
+
+    def test_guarded_capital_rejection_is_atomic_with_mode_patch(self):
+        with patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d)), \
+             patch("phase20_store.kv_set", side_effect=_kv_set_mock):
+            import phase11_autonomous as m
+            with self.assertRaisesRegex(ValueError, "guarded"):
+                m.update_capital_config({
+                    "mode": "B",
+                    "starting_capital": 100_000.0,
+                })
+        self.assertNotIn("phase11_capital_mode", SAMPLE_KV)
 
 
 # ── Test: Portfolio Summary ───────────────────────────────────────────────────

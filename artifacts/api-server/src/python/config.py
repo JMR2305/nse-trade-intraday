@@ -11,8 +11,8 @@ Designed for future Zerodha integration:
 
 # ── Capital & Risk ─────────────────────────────────────────────────────────────
 
-INITIAL_CAPITAL: float = 50_000.0    # ₹50,000 — daily paper-trading session capital (resets every trading day)
-MAX_RISK_PCT: float = 0.01          # 1% max risk per trade (₹50 on ₹5000)
+INITIAL_CAPITAL: float = 100_000.0   # ₹100,000 — canonical paper-trading capital baseline
+MAX_RISK_PCT: float = 0.01          # 1% max risk per trade
 MAX_CAPITAL_PER_TRADE_PCT: float = 0.20  # never use more than 20% of cash in one trade
 
 # ── Signal thresholds ──────────────────────────────────────────────────────────
@@ -92,7 +92,7 @@ MARKET_CONF_MOD_NEUTRAL: float = 0.0
 # the Market Scanner's Sector Strength module (Sprint 1.5).
 
 SECTOR_MAP: dict[str, list[str]] = {
-    "IT":        ["TCS", "INFY", "WIPRO", "HCLTECH", "TECHM", "LTIM"],
+    "IT":        ["TCS", "INFY", "WIPRO", "HCLTECH", "TECHM"],
     "BANKING":   ["HDFCBANK", "ICICIBANK", "SBIN", "AXISBANK", "KOTAKBANK", "INDUSINDBK"],
     "FINANCE":   ["BAJFINANCE", "BAJAJFINSV", "HDFCLIFE", "SBILIFE", "SHRIRAMFIN"],
     "ENERGY":    ["RELIANCE", "ONGC", "POWERGRID", "NTPC", "COALINDIA"],

@@ -26,6 +26,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import phase20_store as store
+from paper_entry_admission import PAPER_ENTRY_ADMISSION_LOCK_ID
 from scan_state_store import db_available, _connect
 
 try:
@@ -140,15 +141,50 @@ class DuplicateOpenTrade(Exception):
     """Raised when an OPEN Phase 20 trade already exists for the symbol."""
 
 
+class PaperEntryAdmissionError(Exception):
+    """Raised when PostgreSQL cannot authoritatively admit a paper entry."""
+
+
+class PaperEntriesPaused(PaperEntryAdmissionError):
+    """Raised when the locked settings recheck finds automatic entries off."""
+
+
 def _insert_row(row: Dict[str, Any]) -> None:
     """Insert a ledger row. Raises DuplicateOpenTrade if the partial unique
-    index (one OPEN trade per symbol) rejects the insert."""
+    index (one OPEN trade per symbol) rejects the insert.
+
+    OPEN entry admission and capital migration serialize on one PostgreSQL
+    advisory lock. Settings are re-read under that lock immediately before the
+    INSERT, closing the race where a pre-approved entry could otherwise wait
+    for migration and insert after the rebase committed.
+    """
     if db_available():
         try:
             conn = _connect()
             try:
                 _ensure_schema(conn)
+                store._ensure_schema(conn)
                 with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT pg_advisory_xact_lock(%s)",
+                        (PAPER_ENTRY_ADMISSION_LOCK_ID,),
+                    )
+                    cur.execute(
+                        "SELECT data FROM phase20_settings WHERE id = 1 FOR SHARE"
+                    )
+                    settings_row = cur.fetchone()
+                    stored = settings_row[0] if settings_row and settings_row[0] else {}
+                    if isinstance(stored, str):
+                        stored = json.loads(stored)
+                    if not (
+                        isinstance(stored, dict)
+                        and stored.get("auto_paper_entries") is True
+                        and bool(stored.get("auto_paper_entries_confirmed_at"))
+                    ):
+                        conn.rollback()
+                        raise PaperEntriesPaused(
+                            "Automatic paper entries are paused or unconfirmed"
+                        )
                     placeholders = ", ".join(["%s"] * len(_COLS))
                     cur.execute(
                         f"INSERT INTO phase20_paper_trades ({', '.join(_COLS)}) "
@@ -160,11 +196,20 @@ def _insert_row(row: Dict[str, Any]) -> None:
                 return
             finally:
                 conn.close()
+        except PaperEntryAdmissionError:
+            raise
         except Exception as exc:
             name = type(exc).__name__
             if "UniqueViolation" in name or "unique" in str(exc).lower():
                 raise DuplicateOpenTrade(str(row.get("symbol"))) from exc
-            # fall through to file fallback on other DB errors
+            raise PaperEntryAdmissionError(
+                f"PostgreSQL paper-entry admission failed: {exc}"
+            ) from exc
+
+    if row.get("status") == "OPEN":
+        raise PaperEntryAdmissionError(
+            "PostgreSQL unavailable; automatic paper entry blocked fail-closed"
+        )
 
     rows = _read_ledger_file()
     if row.get("status") == "OPEN" and any(
@@ -680,6 +725,18 @@ def create_paper_entry(candidate: Dict[str, Any], settings: Dict[str, Any],
                      "reason": "Open Phase 20 trade already exists (concurrent claim)"})
         return {"created": False, "symbol": sym,
                 "reason": "Open Phase 20 trade already exists (concurrent claim)"}
+    except PaperEntryAdmissionError as exc:
+        reason = str(exc)
+        _pe("ORDER_CANCELLED", "EXECUTION", scan_id=scan_id, symbol=sym,
+            payload={"trade_id": trade_id, "reason": reason})
+        store.add_notification(
+            "ENTRY_BLOCKED",
+            f"{sym} paper entry blocked",
+            reason,
+            severity="WARN",
+            context={"symbol": sym, "scan_id": scan_id},
+        )
+        return {"created": False, "symbol": sym, "reason": reason}
 
     ok, msg = execute_buy(
         sym, qty, fill_price,

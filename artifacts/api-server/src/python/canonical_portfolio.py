@@ -6,13 +6,13 @@ this module so every page shows identical numbers.
 Sources (in accordance with the platform's single-source-of-truth rules):
   • positions       — phase20 paper trade ledger (OPEN / EXIT_PENDING rows)
   • realized P&L    — phase20 ledger CLOSED rows (realized_pnl)
-  • initial capital — portfolio_store.INITIAL_CAPITAL (never hardcoded)
+  • initial capital — portfolio_store.get_initial_capital() (durable setting)
   • marks           — live Kite quotes when a verified broker session exists,
                       otherwise last canonical scan prices (mark_source flags)
 
 Cash accounting (identical to the Phase 4A dashboard):
-  cash   = INITIAL_CAPITAL − Σ(open cost) + Σ(realized_pnl of CLOSED rows)
-  equity = INITIAL_CAPITAL + Σ(realized) + Σ(unrealized MTM where marks known)
+  cash   = configured capital − Σ(open cost) + Σ(realized_pnl of CLOSED rows)
+  equity = configured capital + Σ(realized) + Σ(unrealized MTM where marks known)
 
 READ-ONLY: this module never mutates any store.
 """
@@ -104,7 +104,7 @@ def _live_marks(symbols: List[str]) -> Dict[str, float]:
 def build_canonical_portfolio() -> Dict[str, Any]:
     """Canonical portfolio snapshot derived exclusively from the ledger."""
     import portfolio_store
-    cap = float(portfolio_store.INITIAL_CAPITAL)
+    cap = float(portfolio_store.get_initial_capital())
 
     rows = _ledger_rows()
     open_rows = [r for r in rows if r.get("status") in OPEN_STATUSES]

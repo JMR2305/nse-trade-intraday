@@ -85,10 +85,10 @@ class TestScannerCoverage(unittest.TestCase):
 
     def test_fresh_low_coverage_is_flagged_with_missing_symbols(self):
         r = _probe("OPEN", MONDAY_10AM,
-                   _meta(48, missing=["LTIM", "TMPV"]))
+                   _meta(MIN_SYMBOLS_EXPECTED - 2, missing=["WIPRO", "TMPV"]))
         self.assertFalse(r["ok"])
-        self.assertIn("48/", r["warning"])
-        self.assertIn("LTIM", r["warning"])
+        self.assertIn(f"{MIN_SYMBOLS_EXPECTED - 2}/", r["warning"])
+        self.assertIn("WIPRO", r["warning"])
 
     def test_preopen_counts_as_in_session(self):
         """PRE_OPEN applies the same rules — stale Friday scan is flagged."""
@@ -106,7 +106,7 @@ class TestScannerCoverage(unittest.TestCase):
         """HOLIDAY is out of session — stale/low coverage is not a warning."""
         holiday_noon = datetime(2026, 8, 15, 12, 0, tzinfo=IST)
         r = _probe("HOLIDAY", holiday_noon,
-                   _meta(48, ts=FRIDAY_SCAN_TS, missing=["LTIM", "TMPV"]))
+                   _meta(48, ts=FRIDAY_SCAN_TS, missing=["WIPRO", "TMPV"]))
         self.assertTrue(r["ok"])
         self.assertFalse(r["in_session"])
         self.assertIsNone(r["warning"])

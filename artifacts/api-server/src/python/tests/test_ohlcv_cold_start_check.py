@@ -224,7 +224,7 @@ class ColdStartTestCase(unittest.TestCase):
         _KV.reset()
         # config: install a fresh stub for every test so each test gets the
         # canonical NIFTY_50 symbol list; per-test overrides are isolated.
-        _make_stub("config").NIFTY_50 = SYMBOLS_51
+        _make_stub("config").NIFTY_50 = SYMBOLS_50
         store = sys.modules["phase20_store"]
         # Save current attribute values (may be from another test file's stub).
         self._orig_store_attrs: Dict[str, Any] = {
@@ -266,7 +266,7 @@ class ColdStartTestCase(unittest.TestCase):
 # Helpers
 # ---------------------------------------------------------------------------
 
-SYMBOLS_51 = [f"SYM{i:02d}" for i in range(51)]
+SYMBOLS_50 = [f"SYM{i:02d}" for i in range(50)]
 
 _CLAIM_KEY_PREFIX    = "ohlcv_cold_start_backfill:"
 _DONE_KEY_PREFIX     = "ohlcv_cold_start_backfill_done:"
@@ -279,26 +279,26 @@ def _today() -> str:
 
 
 def _cold_summary(
-    n_uncached: int = 51,
+    n_uncached: int = 50,
     n_missing: int = 0,
     n_stale: int = 0,
 ) -> Dict[str, Any]:
-    uncached = SYMBOLS_51[:n_uncached]
-    missing  = SYMBOLS_51[n_uncached:n_uncached + n_missing]
-    stale    = SYMBOLS_51[n_uncached + n_missing:n_uncached + n_missing + n_stale]
-    live     = 51 - n_uncached - n_missing - n_stale
+    uncached = SYMBOLS_50[:n_uncached]
+    missing  = SYMBOLS_50[n_uncached:n_uncached + n_missing]
+    stale    = SYMBOLS_50[n_uncached + n_missing:n_uncached + n_missing + n_stale]
+    live     = 50 - n_uncached - n_missing - n_stale
     return {
-        "total_symbols": 51,
+        "total_symbols": 50,
         "uncached_symbols": uncached,
         "missing_required_bars": missing,
         "stale_symbols": stale,
-        "cache_hit_rate_pct": round(live / 51 * 100, 1),
+        "cache_hit_rate_pct": round(live / 50 * 100, 1),
     }
 
 
 def _warm_summary() -> Dict[str, Any]:
     return {
-        "total_symbols": 51,
+        "total_symbols": 50,
         "uncached_symbols": [],
         "missing_required_bars": [],
         "stale_symbols": [],
@@ -306,28 +306,28 @@ def _warm_summary() -> Dict[str, Any]:
     }
 
 
-def _backfill_ok(n_updated: int = 51, n_failed: int = 0) -> Dict[str, Any]:
+def _backfill_ok(n_updated: int = 50, n_failed: int = 0) -> Dict[str, Any]:
     return {
         "success": True,
         "refresh_type": "backfill",
-        "symbols_requested": 51,
+        "symbols_requested": 50,
         "symbols_updated": n_updated,
         "symbols_skipped": 0,
         "symbols_failed": n_failed,
-        "failed_symbols": SYMBOLS_51[:n_failed],
+        "failed_symbols": SYMBOLS_50[:n_failed],
         "skipped_symbols": [],
         "duration_seconds": 143.7,
         "status": "SUCCESS" if n_failed == 0 else "PARTIAL",
     }
 
 
-def _done_record(n_updated: int = 51, n_failed: int = 0) -> Dict[str, Any]:
+def _done_record(n_updated: int = 50, n_failed: int = 0) -> Dict[str, Any]:
     return {
         "status": "SUCCESS" if n_failed == 0 else "PARTIAL",
         "symbols_updated": n_updated,
         "symbols_skipped": 0,
         "symbols_failed": n_failed,
-        "failed_symbols": SYMBOLS_51[:n_failed],
+        "failed_symbols": SYMBOLS_50[:n_failed],
         "duration_seconds": 143.7,
         "completed_at": "2026-08-18T10:00:00Z",
     }
@@ -390,7 +390,7 @@ class TestColdCacheCheckWarmCache(ColdStartTestCase):
         _install_cache_stubs(summary=_warm_summary())
         result = sched.check_cold_cache_on_startup()
         self.assertEqual(result.get("cache_hit_rate_pct"), 100.0)
-        self.assertEqual(result.get("total_symbols"), 51)
+        self.assertEqual(result.get("total_symbols"), 50)
 
     def test_warm_no_op_keys_present(self):
         _install_cache_stubs(summary=_warm_summary())
@@ -405,8 +405,8 @@ class TestColdCacheCheckOwnerPath(ColdStartTestCase):
 
     def test_fully_cold_owner_runs_backfill(self):
         cache_mod = _install_cache_stubs(
-            summary=_cold_summary(n_uncached=51),
-            backfill_result=_backfill_ok(n_updated=51),
+            summary=_cold_summary(n_uncached=50),
+            backfill_result=_backfill_ok(n_updated=50),
         )
         result = sched.check_cold_cache_on_startup()
         self.assertTrue(result.get("ran"))
@@ -426,8 +426,8 @@ class TestColdCacheCheckOwnerPath(ColdStartTestCase):
 
     def test_owner_writes_done_key_on_success(self):
         _install_cache_stubs(
-            summary=_cold_summary(n_uncached=51),
-            backfill_result=_backfill_ok(n_updated=51),
+            summary=_cold_summary(n_uncached=50),
+            backfill_result=_backfill_ok(n_updated=50),
         )
         sched.check_cold_cache_on_startup()
         done_key = _DONE_KEY_PREFIX + _today()
@@ -439,7 +439,7 @@ class TestColdCacheCheckOwnerPath(ColdStartTestCase):
 
     def test_owner_claim_remains_after_success(self):
         _install_cache_stubs(
-            summary=_cold_summary(n_uncached=51),
+            summary=_cold_summary(n_uncached=50),
             backfill_result=_backfill_ok(),
         )
         sched.check_cold_cache_on_startup()
@@ -448,7 +448,7 @@ class TestColdCacheCheckOwnerPath(ColdStartTestCase):
 
     def test_owner_backfill_called_with_force_false(self):
         cache_mod = _install_cache_stubs(
-            summary=_cold_summary(n_uncached=51),
+            summary=_cold_summary(n_uncached=50),
             backfill_result=_backfill_ok(),
         )
         sched.check_cold_cache_on_startup()
@@ -456,7 +456,7 @@ class TestColdCacheCheckOwnerPath(ColdStartTestCase):
 
     def test_owner_partial_failure_provides_recovery_hint(self):
         _install_cache_stubs(
-            summary=_cold_summary(n_uncached=51),
+            summary=_cold_summary(n_uncached=50),
             backfill_result=_backfill_ok(n_updated=48, n_failed=3),
         )
         result = sched.check_cold_cache_on_startup()
@@ -464,7 +464,7 @@ class TestColdCacheCheckOwnerPath(ColdStartTestCase):
 
     def test_owner_success_no_recovery_hint(self):
         _install_cache_stubs(
-            summary=_cold_summary(n_uncached=51),
+            summary=_cold_summary(n_uncached=50),
             backfill_result=_backfill_ok(n_failed=0),
         )
         result = sched.check_cold_cache_on_startup()
@@ -472,7 +472,7 @@ class TestColdCacheCheckOwnerPath(ColdStartTestCase):
 
     def test_owner_result_keys_complete(self):
         _install_cache_stubs(
-            summary=_cold_summary(n_uncached=51),
+            summary=_cold_summary(n_uncached=50),
             backfill_result=_backfill_ok(),
         )
         result = sched.check_cold_cache_on_startup()
@@ -483,7 +483,7 @@ class TestColdCacheCheckOwnerPath(ColdStartTestCase):
 
     def test_owner_was_fully_cold_true_when_all_uncached(self):
         _install_cache_stubs(
-            summary=_cold_summary(n_uncached=51),
+            summary=_cold_summary(n_uncached=50),
             backfill_result=_backfill_ok(),
         )
         result = sched.check_cold_cache_on_startup()
@@ -504,7 +504,7 @@ class TestColdCacheCheckOwnerFailure(ColdStartTestCase):
 
     def test_owner_exception_returns_backfill_failed(self):
         _install_cache_stubs(
-            summary=_cold_summary(n_uncached=51),
+            summary=_cold_summary(n_uncached=50),
             backfill_raises=True,
         )
         result = sched.check_cold_cache_on_startup()
@@ -514,7 +514,7 @@ class TestColdCacheCheckOwnerFailure(ColdStartTestCase):
 
     def test_owner_exception_releases_claim(self):
         _install_cache_stubs(
-            summary=_cold_summary(n_uncached=51),
+            summary=_cold_summary(n_uncached=50),
             backfill_raises=True,
         )
         sched.check_cold_cache_on_startup()
@@ -524,7 +524,7 @@ class TestColdCacheCheckOwnerFailure(ColdStartTestCase):
 
     def test_owner_exception_does_not_write_done_key(self):
         _install_cache_stubs(
-            summary=_cold_summary(n_uncached=51),
+            summary=_cold_summary(n_uncached=50),
             backfill_raises=True,
         )
         sched.check_cold_cache_on_startup()
@@ -533,7 +533,7 @@ class TestColdCacheCheckOwnerFailure(ColdStartTestCase):
 
     def test_owner_exception_provides_recovery_hint(self):
         _install_cache_stubs(
-            summary=_cold_summary(n_uncached=51),
+            summary=_cold_summary(n_uncached=50),
             backfill_raises=True,
         )
         result = sched.check_cold_cache_on_startup()
@@ -541,7 +541,7 @@ class TestColdCacheCheckOwnerFailure(ColdStartTestCase):
 
     def test_owner_failure_result_keys_complete(self):
         _install_cache_stubs(
-            summary=_cold_summary(n_uncached=51),
+            summary=_cold_summary(n_uncached=50),
             backfill_raises=True,
         )
         result = sched.check_cold_cache_on_startup()
@@ -552,14 +552,14 @@ class TestColdCacheCheckOwnerFailure(ColdStartTestCase):
     def test_second_call_after_failure_can_become_owner(self):
         """After claim is released on failure, a new call can claim and retry."""
         _install_cache_stubs(
-            summary=_cold_summary(n_uncached=51),
+            summary=_cold_summary(n_uncached=50),
             backfill_raises=True,
         )
         sched.check_cold_cache_on_startup()
 
         # Now install a successful backfill stub and call again.
         cache_mod = _install_cache_stubs(
-            summary=_cold_summary(n_uncached=51),
+            summary=_cold_summary(n_uncached=50),
             backfill_result=_backfill_ok(),
         )
         result = sched.check_cold_cache_on_startup()
@@ -589,7 +589,7 @@ class TestColdCacheCheckNonOwnerPath(ColdStartTestCase):
     def test_non_owner_returns_completed_by_peer_when_done_key_present(self):
         self._pre_claim()
         self._write_done()
-        _install_cache_stubs(summary=_cold_summary(n_uncached=51))
+        _install_cache_stubs(summary=_cold_summary(n_uncached=50))
 
         # Patch sleep to avoid actual delays.
         with patch("time.sleep"):
@@ -601,7 +601,7 @@ class TestColdCacheCheckNonOwnerPath(ColdStartTestCase):
     def test_non_owner_does_not_run_backfill(self):
         self._pre_claim()
         self._write_done()
-        cache_mod = _install_cache_stubs(summary=_cold_summary(n_uncached=51))
+        cache_mod = _install_cache_stubs(summary=_cold_summary(n_uncached=50))
 
         with patch("time.sleep"):
             sched.check_cold_cache_on_startup()
@@ -612,7 +612,7 @@ class TestColdCacheCheckNonOwnerPath(ColdStartTestCase):
         self._pre_claim()
         done = _done_record(n_updated=49, n_failed=2)
         self._write_done(done)
-        _install_cache_stubs(summary=_cold_summary(n_uncached=51))
+        _install_cache_stubs(summary=_cold_summary(n_uncached=50))
 
         with patch("time.sleep"):
             result = sched.check_cold_cache_on_startup()
@@ -624,7 +624,7 @@ class TestColdCacheCheckNonOwnerPath(ColdStartTestCase):
         """Non-owner: done key never appears → timeout → peer_timeout result."""
         self._pre_claim()
         # Do NOT write done key — peer never completes.
-        _install_cache_stubs(summary=_cold_summary(n_uncached=51))
+        _install_cache_stubs(summary=_cold_summary(n_uncached=50))
 
         # Use -1 so deadline_mono is strictly in the past; the while condition
         # is immediately False and the else: branch fires regardless of clock
@@ -639,7 +639,7 @@ class TestColdCacheCheckNonOwnerPath(ColdStartTestCase):
 
     def test_non_owner_timeout_result_keys_complete(self):
         self._pre_claim()
-        _install_cache_stubs(summary=_cold_summary(n_uncached=51))
+        _install_cache_stubs(summary=_cold_summary(n_uncached=50))
 
         with patch.object(sched, "_COLD_START_WAIT_TIMEOUT_S", -1), \
              patch("time.sleep"):
@@ -651,7 +651,7 @@ class TestColdCacheCheckNonOwnerPath(ColdStartTestCase):
     def test_non_owner_polls_and_finds_done_key_after_one_sleep(self):
         """Simulate done key appearing after first sleep (owner finishes mid-poll)."""
         self._pre_claim()
-        _install_cache_stubs(summary=_cold_summary(n_uncached=51))
+        _install_cache_stubs(summary=_cold_summary(n_uncached=50))
         done_key = _DONE_KEY_PREFIX + _today()
 
         call_count = 0
@@ -673,10 +673,10 @@ class TestColdCacheCheckStaleCacheDetection(ColdStartTestCase):
 
 
     def test_stale_only_cache_triggers_backfill(self):
-        """All 51 symbols present but stale → backfill must run (read_symbol_from_cache rejects them)."""
+        """All 50 symbols present but stale → backfill must run (read_symbol_from_cache rejects them)."""
         cache_mod = _install_cache_stubs(
-            summary=_cold_summary(n_uncached=0, n_missing=0, n_stale=51),
-            backfill_result=_backfill_ok(n_updated=51),
+            summary=_cold_summary(n_uncached=0, n_missing=0, n_stale=50),
+            backfill_result=_backfill_ok(n_updated=50),
         )
         result = sched.check_cold_cache_on_startup()
         self.assertEqual(result.get("action"), "backfill")
@@ -712,7 +712,7 @@ class TestColdCacheCheckStaleCacheDetection(ColdStartTestCase):
     def test_stale_cache_writes_done_key(self):
         """Owner path for stale-only cold set must write the done_key on success."""
         _install_cache_stubs(
-            summary=_cold_summary(n_uncached=0, n_missing=0, n_stale=51),
+            summary=_cold_summary(n_uncached=0, n_missing=0, n_stale=50),
             backfill_result=_backfill_ok(),
         )
         sched.check_cold_cache_on_startup()
@@ -742,7 +742,7 @@ class TestColdCacheCheckLeaseExpiry(ColdStartTestCase):
     def test_owner_writes_lease_started_key(self):
         """Owner must write lease_started_key with started_at and lease_expires_at."""
         _install_cache_stubs(
-            summary=_cold_summary(n_uncached=51),
+            summary=_cold_summary(n_uncached=50),
             backfill_result=_backfill_ok(),
         )
         sched.check_cold_cache_on_startup()
@@ -759,7 +759,7 @@ class TestColdCacheCheckLeaseExpiry(ColdStartTestCase):
         """lease_expires_at must be strictly after the call started."""
         from datetime import datetime, timezone
         _install_cache_stubs(
-            summary=_cold_summary(n_uncached=51),
+            summary=_cold_summary(n_uncached=50),
             backfill_result=_backfill_ok(),
         )
         before = datetime.now(timezone.utc).isoformat()
@@ -770,7 +770,7 @@ class TestColdCacheCheckLeaseExpiry(ColdStartTestCase):
     def test_owner_lease_role_field_is_owner(self):
         """Lease metadata must record role=owner for the initial claimer."""
         _install_cache_stubs(
-            summary=_cold_summary(n_uncached=51),
+            summary=_cold_summary(n_uncached=50),
             backfill_result=_backfill_ok(),
         )
         sched.check_cold_cache_on_startup()
@@ -797,7 +797,7 @@ class TestColdCacheCheckLeaseExpiry(ColdStartTestCase):
         }
 
         cache_mod = _install_cache_stubs(
-            summary=_cold_summary(n_uncached=51),
+            summary=_cold_summary(n_uncached=50),
             backfill_result=_backfill_ok(),
         )
         with patch("time.sleep"):
@@ -824,7 +824,7 @@ class TestColdCacheCheckLeaseExpiry(ColdStartTestCase):
             "lease_ttl_s": sched._COLD_START_LEASE_TTL_S,
         }
         _install_cache_stubs(
-            summary=_cold_summary(n_uncached=51),
+            summary=_cold_summary(n_uncached=50),
             backfill_result=_backfill_ok(),
         )
         with patch("time.sleep"):
@@ -853,7 +853,7 @@ class TestColdCacheCheckLeaseExpiry(ColdStartTestCase):
             "lease_ttl_s": sched._COLD_START_LEASE_TTL_S,
         }
         _install_cache_stubs(
-            summary=_cold_summary(n_uncached=51),
+            summary=_cold_summary(n_uncached=50),
             backfill_result=_backfill_ok(),
         )
         with patch("time.sleep"):
@@ -878,7 +878,7 @@ class TestColdCacheCheckLeaseExpiry(ColdStartTestCase):
             "lease_ttl_s": sched._COLD_START_LEASE_TTL_S,
         }
         _install_cache_stubs(
-            summary=_cold_summary(n_uncached=51),
+            summary=_cold_summary(n_uncached=50),
             backfill_raises=True,
         )
         with patch("time.sleep"):
@@ -917,7 +917,7 @@ class TestColdCacheCheckLeaseExpiry(ColdStartTestCase):
             "started_at": datetime.now(timezone.utc).isoformat(),
             "expires_at": future.isoformat(),
         }
-        cache_mod = _install_cache_stubs(summary=_cold_summary(n_uncached=51))
+        cache_mod = _install_cache_stubs(summary=_cold_summary(n_uncached=50))
 
         # Use -1 so the deadline_mono is immediately past after the failed
         # takeover attempt (no infinite loop in the test).
@@ -956,7 +956,7 @@ class TestColdCacheCheckLeaseExpiry(ColdStartTestCase):
         }
 
         cache_mod = _install_cache_stubs(
-            summary=_cold_summary(n_uncached=51),
+            summary=_cold_summary(n_uncached=50),
             backfill_result=_backfill_ok(),
         )
         with patch("time.sleep"):
@@ -988,7 +988,7 @@ class TestColdCacheCheckLeaseExpiry(ColdStartTestCase):
             "lease_expires_at": future.isoformat(),
             "lease_ttl_s": sched._COLD_START_LEASE_TTL_S,
         }
-        _install_cache_stubs(summary=_cold_summary(n_uncached=51))
+        _install_cache_stubs(summary=_cold_summary(n_uncached=50))
 
         done_key = _DONE_KEY_PREFIX + today
         call_count = 0
@@ -1023,7 +1023,7 @@ class TestColdCacheCheckLeaseExpiry(ColdStartTestCase):
             "lease_expires_at": future.isoformat(),
             "lease_ttl_s": sched._COLD_START_LEASE_TTL_S,
         }
-        cache_mod = _install_cache_stubs(summary=_cold_summary(n_uncached=51))
+        cache_mod = _install_cache_stubs(summary=_cold_summary(n_uncached=50))
         done_key = _DONE_KEY_PREFIX + today
 
         # Write done_key on first sleep so the loop terminates quickly.
@@ -1097,7 +1097,7 @@ class TestColdCacheCheckClaimWithoutLease(ColdStartTestCase):
         # No lease_started_key, no done_key.
 
         cache_mod = _install_cache_stubs(
-            summary=_cold_summary(n_uncached=51),
+            summary=_cold_summary(n_uncached=50),
             backfill_result=_backfill_ok(),
         )
         with patch("time.sleep"):
@@ -1119,7 +1119,7 @@ class TestColdCacheCheckClaimWithoutLease(ColdStartTestCase):
             "role": "owner",
         }
         # No lease_started_key.
-        cache_mod = _install_cache_stubs(summary=_cold_summary(n_uncached=51))
+        cache_mod = _install_cache_stubs(summary=_cold_summary(n_uncached=50))
         done_key = _DONE_KEY_PREFIX + today
 
         # Peer writes done_key on first sleep so the loop terminates.
@@ -1192,7 +1192,7 @@ class TestColdCacheCheckIdempotency(ColdStartTestCase):
     def test_second_call_after_owner_success_is_non_owner_with_done_key(self):
         """After owner writes done_key the second instance sees completed_by_peer."""
         _install_cache_stubs(
-            summary=_cold_summary(n_uncached=51),
+            summary=_cold_summary(n_uncached=50),
             backfill_result=_backfill_ok(),
         )
         # First call: becomes owner, runs backfill, writes done_key.
@@ -1200,7 +1200,7 @@ class TestColdCacheCheckIdempotency(ColdStartTestCase):
         self.assertEqual(r1.get("role"), "owner")
 
         # Second call: claim already taken, done_key present → peer result.
-        _install_cache_stubs(summary=_cold_summary(n_uncached=51))
+        _install_cache_stubs(summary=_cold_summary(n_uncached=50))
         with patch("time.sleep"):
             r2 = sched.check_cold_cache_on_startup()
         self.assertEqual(r2.get("reason"), "completed_by_peer")

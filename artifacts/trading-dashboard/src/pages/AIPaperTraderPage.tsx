@@ -172,6 +172,31 @@ interface CapitalConfig {
   current_capital: number; starting_capital: number; capital_mode: string;
   capital_mode_label: string; last_reset_date: string | null;
 }
+
+interface Phase20SettingsEnvelope {
+  success?: boolean;
+  settings?: {
+    initial_capital?: number;
+  };
+}
+
+interface CapitalMigrationStatus {
+  success?: boolean;
+  status?: "APPLIED" | "ALREADY_APPLIED" | "BLOCKED_OPEN_POSITIONS"
+    | "BLOCKED_STATE_UNREADABLE" | "CONFIRMATION_REQUIRED";
+  message?: string;
+  current_capital?: number;
+  target_capital?: number;
+  auto_paper_entries?: boolean;
+  open_count?: number;
+  exit_pending_count?: number;
+  confirmation_text?: string;
+  active_positions?: Array<{
+    trade_id?: string;
+    symbol?: string;
+    status?: string;
+  }>;
+}
 interface TopupEntry {
   date: string; type: string; amount: number; reason: string; balance_after: number;
 }
@@ -415,15 +440,35 @@ function S0AutonomousSession() {
     });
 
   // Capital edit state
-  const { data: p20Settings } = useQuery<Record<string, unknown>>({
+  const { data: p20SettingsEnvelope } = useQuery<Phase20SettingsEnvelope>({
     queryKey: ["apt", "p20-settings-capital"],
     queryFn:  () => apiJson("/phase20/settings"),
     staleTime: 60_000, retry: 1,
   });
+  const p20Settings = p20SettingsEnvelope?.settings;
+  const {
+    data: capitalMigration,
+    isLoading: capitalMigrationLoading,
+    isError: capitalMigrationError,
+    refetch: refetchCapitalMigration,
+  } = useQuery<CapitalMigrationStatus>({
+    queryKey: ["apt", "capital-migration-status"],
+    queryFn: () => apiJson("/phase20/capital-migration/status"),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    retry: 1,
+  });
   const configuredCapital = typeof p20Settings?.initial_capital === "number"
-    ? p20Settings.initial_capital : 50_000;
+    ? p20Settings.initial_capital
+    : typeof capitalMigration?.current_capital === "number"
+      ? capitalMigration.current_capital
+      : null;
+  const migrationApplied = capitalMigration?.status === "APPLIED"
+    || capitalMigration?.status === "ALREADY_APPLIED";
+  const migrationUnreadable = capitalMigrationError
+    || capitalMigration?.status === "BLOCKED_STATE_UNREADABLE";
   const [capitalEdit, setCapitalEdit] = useState(false);
-  const [capitalInput, setCapitalInput] = useState("");
+  const [capitalConfirmation, setCapitalConfirmation] = useState("");
 
   // Canonical agent status — same source as AI Operations Centre (/ops-centre/agents)
   const { data: agents, isLoading: agentsLoad, refetch: refetchAgents } =
@@ -459,15 +504,24 @@ function S0AutonomousSession() {
   });
 
   const capitalMut = useMutation({
-    mutationFn: (amount: number) =>
-      apiJson("/phase20/settings", {
-        method: "PUT",
+    mutationFn: (confirmationText: string) =>
+      apiJson<CapitalMigrationStatus>("/phase20/capital-migration", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ patch: { initial_capital: amount } }),
+        body: JSON.stringify({
+          confirmation_text: confirmationText,
+          reviewed_by: "dashboard-operator",
+        }),
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["apt", "p20-settings-capital"] });
+      setCapitalConfirmation("");
       setCapitalEdit(false);
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["apt", "p20-settings-capital"] });
+      qc.invalidateQueries({ queryKey: ["apt", "capital-migration-status"] });
+      qc.invalidateQueries({ queryKey: ["apt", "session-status"] });
+      qc.invalidateQueries({ queryKey: ["apt", "portfolio"] });
     },
   });
 
@@ -615,57 +669,143 @@ function S0AutonomousSession() {
               {sessLoad ? "…" : `Mode ${sess?.capital_mode ?? "A"}`}
             </span>
           </div>
-          <span className="text-xs text-slate-600">{crmMode ? "Continuous Research" : "Daily ₹50K"}</span>
+          <span className="text-xs text-slate-600">
+            {crmMode
+              ? "Continuous Research"
+              : configuredCapital == null
+                ? "Capital unavailable"
+                : `Daily ₹${(configuredCapital / 1_000).toFixed(0)}K`}
+          </span>
         </div>
 
-        {/* Starting Capital — editable */}
+        {/* Starting Capital — guarded migration boundary */}
         <div className="rounded-xl border bg-slate-900/60 border-slate-800/40 p-3">
           <span className="text-xs text-slate-500">Daily Capital</span>
           {capitalEdit ? (
             <div className="mt-1 flex flex-col gap-1">
-              <input
-                type="number"
-                min={10000}
-                max={500000}
-                step={1000}
-                value={capitalInput}
-                onChange={e => setCapitalInput(e.target.value)}
-                className="w-full rounded bg-slate-800 border border-teal-700/50 text-teal-300 text-sm font-mono px-2 py-1 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                placeholder="e.g. 50000"
-                autoFocus
-              />
+              {migrationUnreadable ? (
+                <div className="rounded border border-rose-700/40 bg-rose-950/30 px-2 py-1.5">
+                  <p className="text-[10px] font-medium text-rose-300">
+                    Migration blocked: authoritative position state is unreadable
+                  </p>
+                  <p className="text-[9px] text-rose-400/80 mt-0.5">
+                    Capital cannot change until PostgreSQL ledger state is available.
+                  </p>
+                </div>
+              ) : capitalMigration?.status === "BLOCKED_OPEN_POSITIONS" ? (
+                <div className="rounded border border-amber-700/40 bg-amber-950/30 px-2 py-1.5">
+                  <p className="text-[10px] font-medium text-amber-300">
+                    Rebase blocked: {capitalMigration.open_count ?? 0} open,{" "}
+                    {capitalMigration.exit_pending_count ?? 0} exit-pending
+                  </p>
+                  <p className="text-[9px] text-amber-400/80 mt-0.5">
+                    {capitalMigration.auto_paper_entries === false
+                      ? "Automatic entries are paused."
+                      : "Applying the guarded migration will pause automatic entries."}{" "}
+                    Resolve every paper position first.
+                  </p>
+                  {(capitalMigration.active_positions ?? []).slice(0, 3).map((p) => (
+                    <p key={p.trade_id} className="text-[9px] font-mono text-slate-400">
+                      {p.symbol ?? "—"} · {p.status ?? "—"}
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <>
+                  <p className="text-[9px] text-slate-500">
+                    Paste the exact confirmation. The server rechecks OPEN and
+                    EXIT_PENDING positions under a database lock before changing cash.
+                  </p>
+                  <p className="text-[9px] text-teal-400/80">
+                    {capitalMigration?.confirmation_text ?? "Loading confirmation…"}
+                  </p>
+                  <input
+                    type="text"
+                    value={capitalConfirmation}
+                    onChange={e => setCapitalConfirmation(e.target.value)}
+                    className="w-full rounded bg-slate-800 border border-teal-700/50 text-teal-300 text-[10px] px-2 py-1 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                    placeholder="Paste exact confirmation"
+                    autoFocus
+                  />
+                </>
+              )}
               <div className="flex gap-1">
                 <button
-                  disabled={capitalMut.isPending}
-                  onClick={() => {
-                    const v = Math.round(Number(capitalInput) / 1000) * 1000;
-                    if (v >= 10_000 && v <= 500_000) capitalMut.mutate(v);
-                  }}
+                  disabled={
+                    capitalMut.isPending
+                    || migrationUnreadable
+                    || capitalMigration?.status === "BLOCKED_OPEN_POSITIONS"
+                    || migrationApplied
+                    || !capitalMigration?.confirmation_text
+                    || capitalConfirmation.trim() !== capitalMigration.confirmation_text
+                  }
+                  onClick={() => capitalMut.mutate(capitalConfirmation)}
                   className="flex-1 text-[10px] font-medium rounded bg-teal-700/50 hover:bg-teal-700/70 text-teal-300 px-2 py-0.5 transition-colors disabled:opacity-50">
-                  {capitalMut.isPending ? "Saving…" : "Save"}
+                  {capitalMut.isPending ? "Checking…" : "Apply ₹100K"}
                 </button>
                 <button
-                  onClick={() => setCapitalEdit(false)}
+                  onClick={() => {
+                    setCapitalConfirmation("");
+                    setCapitalEdit(false);
+                  }}
                   className="flex-1 text-[10px] font-medium rounded bg-slate-700/50 hover:bg-slate-700/70 text-slate-400 px-2 py-0.5 transition-colors">
                   Cancel
                 </button>
               </div>
+              <button
+                onClick={() => refetchCapitalMigration()}
+                className="text-[9px] text-slate-500 hover:text-teal-400 transition-colors text-left">
+                Recheck position state
+              </button>
               {capitalMut.isError && (
                 <span className="text-[10px] text-rose-400">
-                  {(capitalMut.error as Error)?.message ?? "Save failed"}
+                  {(capitalMut.error as Error)?.message ?? "Migration failed"}
                 </span>
               )}
-              <span className="text-[10px] text-slate-600">Takes effect next session reset</span>
+              <span className="text-[10px] text-slate-600">
+                Paper only · closed trades and realized P&amp;L are preserved
+              </span>
             </div>
           ) : (
             <>
               <button
-                onClick={() => { setCapitalInput(String(configuredCapital)); setCapitalEdit(true); }}
-                className="block text-sm font-bold text-blue-400 font-mono hover:text-teal-400 transition-colors text-left mt-0.5"
-                title="Click to change">
-                ₹{(configuredCapital / 1_000).toFixed(0)}K ✎
+                onClick={() => setCapitalEdit(true)}
+                disabled={
+                  capitalMigrationLoading
+                  || capitalMigrationError
+                  || !capitalMigration
+                  || migrationApplied
+                }
+                className="block text-sm font-bold text-blue-400 font-mono hover:text-teal-400 transition-colors text-left mt-0.5 disabled:text-emerald-400 disabled:cursor-default"
+                title={migrationApplied ? "Guarded capital target applied" : "Review guarded migration"}>
+                {configuredCapital == null
+                  ? "—"
+                  : `₹${(configuredCapital / 1_000).toFixed(0)}K`}
+                {!migrationApplied && configuredCapital != null && configuredCapital !== 100_000
+                  ? " → ₹100K"
+                  : migrationApplied
+                    ? " ✓"
+                    : ""}
               </button>
-              <span className="text-xs text-slate-600">Resets each day · click to change</span>
+              <span className={`text-xs ${
+                migrationUnreadable
+                  ? "text-rose-500"
+                  : capitalMigration?.status === "BLOCKED_OPEN_POSITIONS"
+                  ? "text-amber-500"
+                  : migrationApplied
+                    ? "text-emerald-600"
+                    : "text-slate-600"
+              }`}>
+                {capitalMigrationLoading
+                  ? "Checking guarded migration status…"
+                  : migrationUnreadable
+                    ? "Position state unreadable — migration blocked"
+                    : capitalMigration?.status === "BLOCKED_OPEN_POSITIONS"
+                  ? "Blocked by active paper positions"
+                  : migrationApplied
+                    ? "Guarded baseline applied"
+                    : "Guarded migration requires review"}
+              </span>
             </>
           )}
         </div>
@@ -754,7 +894,10 @@ function S0AutonomousSession() {
       {crmMode && (
         <div className="mt-3 rounded-lg bg-violet-950/30 border border-violet-800/40 px-3 py-2 text-xs text-violet-300">
           🔄 <strong>Continuous Research Mode</strong> is active (Mode B).
-          Capital will automatically top up to ₹{((sess?.starting_capital ?? 50_000) / 1_000).toFixed(0)}K
+          Capital will automatically top up to{" "}
+          {typeof sess?.starting_capital === "number"
+            ? `₹${(sess.starting_capital / 1_000).toFixed(0)}K`
+            : "—"}
           when available cash falls below ₹{((sess?.topup_threshold ?? 10_000) / 1_000).toFixed(0)}K.
           Every top-up is logged in the Capital tab.
         </div>

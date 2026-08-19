@@ -3302,6 +3302,59 @@ router.get("/phase20/settings", async (_req, res) => {
   }
 });
 
+// GET /api/phase20/capital-migration/status — strict read-only readiness check.
+// PostgreSQL OPEN + EXIT_PENDING rows are authoritative; unreadable state blocks.
+router.get("/phase20/capital-migration/status", async (_req, res) => {
+  try {
+    const result = (await runPython([
+      "phase20_capital_migration_status",
+    ])) as Record<string, unknown>;
+    res.json(result);
+  } catch (err: unknown) {
+    res.status(500).json({
+      success: false,
+      status: "BLOCKED_STATE_UNREADABLE",
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+// POST /api/phase20/capital-migration — guarded paper-only ₹100,000 rebase.
+// The Python boundary takes a ledger table lock, pauses entries, preserves
+// closed history/P&L, and requires exact operator confirmation.
+router.post("/phase20/capital-migration", async (req, res) => {
+  try {
+    const payload = {
+      confirmation_text: String(req.body?.confirmation_text ?? ""),
+      reviewed_by: String(req.body?.reviewed_by ?? "operator"),
+    };
+    const result = (await runPython([
+      "phase20_capital_migration",
+      JSON.stringify(payload),
+    ])) as Record<string, unknown>;
+    const status = String(result["status"] ?? "");
+    if (status === "BLOCKED_STATE_UNREADABLE") {
+      res.status(503).json(result);
+      return;
+    }
+    if (status === "BLOCKED_OPEN_POSITIONS") {
+      res.status(409).json(result);
+      return;
+    }
+    if (status === "CONFIRMATION_REQUIRED") {
+      res.status(400).json(result);
+      return;
+    }
+    res.json(result);
+  } catch (err: unknown) {
+    res.status(500).json({
+      success: false,
+      status: "BLOCKED_STATE_UNREADABLE",
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
 // GET /api/phase20/bootstrap-status — bootstrap mode readiness summary.
 // Reads from the latest cached scan snapshot + settings only; no yfinance calls.
 // Returns kite_session_verified, bootstrap_eligible_count, top WATCH candidates,

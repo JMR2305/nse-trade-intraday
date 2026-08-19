@@ -23,7 +23,7 @@ _DIR = os.path.dirname(os.path.abspath(__file__))
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-PHASE11_DEFAULT_CAPITAL    = 50_000.0   # ₹50,000 starting capital
+PHASE11_DEFAULT_CAPITAL    = 100_000.0  # canonical paper-capital baseline
 PHASE11_TOPUP_THRESHOLD    = 10_000.0   # Mode B: top-up when cash < this
 PHASE11_CAPITAL_MODE_KEY   = "phase11_capital_mode"        # "A" or "B"
 PHASE11_STARTING_CAP_KEY   = "phase11_starting_capital"
@@ -141,20 +141,19 @@ def get_capital_config() -> Dict[str, Any]:
 def update_capital_config(patch: Dict[str, Any]) -> Dict[str, Any]:
     """Update capital mode settings."""
     from phase20_store import kv_set
+    guarded_keys = {"starting_capital", "topup_target"}.intersection(patch)
+    if guarded_keys:
+        raise ValueError(
+            f"{', '.join(sorted(guarded_keys))} is guarded; "
+            "use the Phase 20 capital migration endpoint"
+        )
     if "mode" in patch:
         mode = str(patch["mode"]).upper()
         if mode not in ("A", "B"):
             raise ValueError("mode must be 'A' or 'B'")
         kv_set(PHASE11_CAPITAL_MODE_KEY, mode)
-    if "starting_capital" in patch:
-        val = float(patch["starting_capital"])
-        if val < 1000:
-            raise ValueError("starting_capital must be ≥ 1000")
-        kv_set(PHASE11_STARTING_CAP_KEY, val)
     if "topup_threshold" in patch:
         kv_set(PHASE11_TOPUP_THRESH_KEY, float(patch["topup_threshold"]))
-    if "topup_target" in patch:
-        kv_set(PHASE11_TOPUP_TARGET_KEY, float(patch["topup_target"]))
     return get_capital_config()
 
 

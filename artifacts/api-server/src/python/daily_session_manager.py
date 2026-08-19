@@ -483,7 +483,7 @@ def get_session_status() -> Dict[str, Any]:
         "auto_paper_exits":    settings.get("auto_paper_exits",   True),
         "capital_mode":        capital_cfg.get("capital_mode",        "A"),
         "capital_mode_label":  capital_cfg.get("mode_label",          "Evaluation (fixed capital)"),
-        "starting_capital":    capital_cfg.get("starting_capital",    50_000.0),
+        "starting_capital":    capital_cfg.get("starting_capital",    100_000.0),
         "topup_threshold":     capital_cfg.get("topup_threshold",     10_000.0),
         "paper_only":          True,
         "advisory_only":       True,

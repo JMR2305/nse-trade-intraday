@@ -28,9 +28,9 @@ class TestDefaultConstruction:
         assert cfg.paper_mode is True
 
     def test_default_capital(self):
-        """Default initial_capital is 50000 (configured paper capital)."""
+        """Default initial_capital is 100000 (configured paper capital)."""
         cfg = PortfolioConfig()
-        assert cfg.initial_capital == Decimal("50000")
+        assert cfg.initial_capital == Decimal("100000")
 
     def test_default_currency(self):
         """Default base_currency is INR."""

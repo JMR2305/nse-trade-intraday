@@ -68,7 +68,7 @@ def _backfill_phase20_trade_ids(conn) -> int:
         )
         return cur.rowcount
 
-INITIAL_CAPITAL = 50_000.0    # ₹50,000 — fallback default; actual value read from phase20 settings at reset time
+INITIAL_CAPITAL = 100_000.0   # ₹100,000 fallback; actual value comes from Phase 20 settings
 
 
 def get_initial_capital() -> float:

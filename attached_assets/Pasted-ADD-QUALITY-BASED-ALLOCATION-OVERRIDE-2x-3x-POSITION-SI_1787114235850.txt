@@ -1,0 +1,299 @@
+ADD QUALITY-BASED ALLOCATION OVERRIDE — 2x / 3x POSITION SIZING
+
+Use these controlling reports:
+- APEXQUANT_AI_SOP_v6.0_TOMORROW_TRADE_READINESS.md
+- APEXQUANT_OHLCV_CACHE_MIGRATION_SUMMARY.md
+- APEXQUANT_REMOVE_LTIM_AND_CAPITAL_100000_MIGRATION_REPORT.md, if already generated
+
+Do not enable live orders.
+Do not call broker order APIs.
+PAPER ONLY.
+Do not reduce existing safety gates.
+Do not blindly increase allocation only because confidence is high.
+
+GOAL:
+Add a controlled allocation override rule:
+If a stock has an exceptionally good score and lower measured risk, the system may increase allocation by 2x or 3x.
+
+This should be implemented as:
+QUALITY_ALLOCATION_OVERRIDE
+
+The override must increase allocation only when:
+- signal quality is very strong
+- risk is low
+- R:R is strong
+- price source is reliable
+- data is fresh
+- circuit breaker is clear
+- sector/portfolio/cash limits still allow it
+
+TASK 1 — DEFINE BASE ALLOCATION
+
+After capital migration to ₹100,000, confirm these base values:
+
+- initial_capital = ₹100,000
+- normal per-stock cap = 25% = ₹25,000
+- sector cap = 40% = ₹40,000
+- portfolio deployed cap = 80% = ₹80,000
+- risk per trade = 1% = ₹1,000
+- daily loss limit = 3% = ₹3,000
+- bootstrap cap = ₹15,000 unless separately changed
+
+Define:
+
+base_order_notional =
+- for BOOTSTRAP_AUTO: bootstrap cap, currently ₹15,000
+- for normal BUY: risk engine proposed notional, capped by per-stock cap
+
+TASK 2 — ADD OVERRIDE TIERS
+
+Add three sizing tiers:
+
+TIER 0 — NORMAL
+- allocation_multiplier = 1.0
+- use existing sizing rules
+
+TIER 1 — HIGH_QUALITY_2X
+- allocation_multiplier = 2.0
+- candidate can request up to 2x base_order_notional
+
+TIER 2 — EXCEPTIONAL_QUALITY_3X
+- allocation_multiplier = 3.0
+- candidate can request up to 3x base_order_notional
+
+But final notional must be:
+
+final_notional = min(
+    base_order_notional * allocation_multiplier,
+    available_cash,
+    portfolio_remaining_cap,
+    sector_remaining_cap_or_override_cap,
+    risk_based_max_notional,
+    absolute_override_cap
+)
+
+TASK 3 — 2X OVERRIDE CRITERIA
+
+Allow 2x only if ALL conditions pass:
+
+- confidence >= 85
+- opportunity_score >= 80
+- trade_quality_score >= 80
+- R:R >= 2.5
+- quote_reliable = true
+- current_price_source = kite_live_ltp
+- execution_price_source = kite_live_ltp
+- ohlcv_source = local_yfinance_cache
+- data_quality = LIVE or NEAR_LIVE
+- cache_hit = true
+- circuit_breaker_tripped = false
+- no loss today
+- no existing OPEN position in same symbol
+- max daily trades not exceeded
+- sector cap after trade does not exceed configured limit unless sector override explicitly allows it
+- rupee risk at stop-loss remains within allowed risk budget
+
+TASK 4 — 3X OVERRIDE CRITERIA
+
+Allow 3x only if ALL stricter conditions pass:
+
+- confidence >= 90
+- opportunity_score >= 85
+- trade_quality_score >= 88
+- R:R >= 3.0
+- stop_distance_pct is low
+- ATR/volatility risk is low or normal, not HIGH_VOL
+- signal remains valid for 2 consecutive scans
+- quote_reliable = true
+- Kite LTP verified
+- local OHLCV cache fresh
+- circuit breaker clear
+- no loss today
+- no MARKET_CLOSE_EXIT_BLOCKED events today
+- no stale data warning for that symbol
+- no duplicate position
+- rupee risk at stop-loss remains within allowed risk budget
+- final notional must not breach total portfolio deployed cap
+- final position must be explainable in audit logs
+
+TASK 5 — RISK-BASED MAX NOTIONAL
+
+Do not size only from available cash.
+
+Calculate stop-loss rupee risk:
+
+risk_per_share = abs(entry_price - stop_loss)
+position_risk = risk_per_share * qty
+
+Default rule:
+- normal trade risk <= 1% of capital
+- 2x override risk <= 1.5% of capital
+- 3x override risk <= 2.0% of capital
+
+For ₹100,000:
+- normal max rupee risk = ₹1,000
+- 2x max rupee risk = ₹1,500
+- 3x max rupee risk = ₹2,000
+
+If the stop-loss is wider, reduce quantity.
+If the stock is lower-risk with tight stop, allow larger quantity.
+
+This ensures “lesser risk” actually means position risk is still controlled.
+
+TASK 6 — SECTOR AND PORTFOLIO SAFETY
+
+Do not allow one trade to consume the full account.
+
+Hard caps:
+- portfolio_deployed_cap_pct remains 80%
+- daily_loss_limit remains 3%
+- circuit breaker remains unchanged
+- max_concurrent_positions remains unchanged
+
+Sector handling:
+Option A, safer default:
+- Do not override sector cap.
+- 2x/3x can increase per-stock sizing only until sector cap is reached.
+
+Option B, if implemented:
+- Add separate `sector_override_enabled` setting.
+- Default false.
+- If true, allow sector cap to increase only for 3x tier, capped at 50% of capital.
+- Must emit `SECTOR_CAP_OVERRIDE_USED`.
+
+Use Option A unless operator explicitly approves Option B.
+
+TASK 7 — AUDIT EVENTS
+
+Every override decision must emit detailed events:
+
+- ALLOCATION_OVERRIDE_EVALUATED
+- ALLOCATION_OVERRIDE_APPROVED_2X
+- ALLOCATION_OVERRIDE_APPROVED_3X
+- ALLOCATION_OVERRIDE_REJECTED
+
+Include in event payload:
+- symbol
+- scan_id
+- confidence
+- opportunity_score
+- trade_quality_score
+- rr_ratio
+- allocation_multiplier
+- base_order_notional
+- requested_notional
+- final_notional
+- qty
+- entry_price
+- stop_loss
+- risk_per_share
+- position_risk
+- risk_pct_of_capital
+- sector_exposure_after
+- portfolio_exposure_after
+- rejection_reason, if rejected
+
+TASK 8 — UI CHANGES
+
+Update AI Paper Trader / Mission Control trade cards to show:
+
+- Allocation Tier: NORMAL / 2X / 3X
+- Override Reason
+- Multiplier
+- Base Allocation
+- Final Allocation
+- Position Risk ₹
+- Position Risk %
+- Sector Exposure After Trade
+- Portfolio Exposure After Trade
+- Whether sector cap limited the override
+- Whether cash limited the override
+
+For trade approval cards, show:
+“2x allocation approved because score high and stop-loss risk low”
+or
+“3x allocation rejected because sector cap would be exceeded”
+
+TASK 9 — SETTINGS
+
+Add settings:
+
+allocation_override_enabled = true
+allocation_override_2x_enabled = true
+allocation_override_3x_enabled = true
+allocation_override_requires_kite = true
+allocation_override_requires_cache_hit = true
+allocation_override_requires_two_scans_for_3x = true
+
+Threshold settings:
+override_2x_min_confidence = 85
+override_2x_min_opportunity = 80
+override_2x_min_trade_quality = 80
+override_2x_min_rr = 2.5
+override_2x_max_risk_pct = 1.5
+
+override_3x_min_confidence = 90
+override_3x_min_opportunity = 85
+override_3x_min_trade_quality = 88
+override_3x_min_rr = 3.0
+override_3x_max_risk_pct = 2.0
+
+TASK 10 — TESTS
+
+Add tests:
+1. Normal trade keeps 1x allocation.
+2. High-quality low-risk trade gets 2x allocation.
+3. Exceptional-quality low-risk trade gets 3x allocation.
+4. 2x rejected if R:R below 2.5.
+5. 3x rejected if R:R below 3.0.
+6. Override rejected if Kite LTP not verified.
+7. Override rejected if quote_reliable=false.
+8. Override rejected if local OHLCV cache missing/stale.
+9. Override rejected if circuit breaker tripped.
+10. Override quantity reduced if stop-loss risk exceeds max risk pct.
+11. Override quantity reduced if sector cap reached.
+12. Override quantity reduced if portfolio cap reached.
+13. Override does not bypass duplicate position guard.
+14. Override emits audit event with all fields.
+15. No live broker order API called.
+16. Existing DRREDDY historical trade remains unchanged.
+
+TASK 11 — PRODUCTION VERIFICATION
+
+After deployment, verify:
+
+GET /api/phase20/settings
+GET /api/phase20/bootstrap-status
+GET /api/phase20/circuit-breaker
+GET /api/phase20/positions
+GET /api/live-data/scan/status
+
+Expected:
+- capital = ₹100,000
+- allocation_override_enabled = true
+- 2x and 3x thresholds visible
+- live orders disabled
+- circuit breaker clear
+- no open positions before migration unless current trade is expected
+- override events appear only when candidates qualify
+
+TASK 12 — REPORT
+
+Generate:
+
+APEXQUANT_QUALITY_ALLOCATION_OVERRIDE_2X_3X_REPORT.md
+
+Include:
+1. Current allocation rules before change.
+2. New 2x/3x override criteria.
+3. Exact formulas.
+4. Files changed.
+5. Settings added.
+6. Risk caps.
+7. Example with ₹100,000 capital.
+8. Example of 2x approval.
+9. Example of 3x approval/rejection.
+10. Tests and results.
+11. UI/API changes.
+12. Confirmation no live orders.
+13. Whether this is live in production or dev only.

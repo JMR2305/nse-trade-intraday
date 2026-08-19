@@ -449,7 +449,7 @@ class TestGetPortfolioConfig:
         assert cfg["max_portfolio_exposure_pct"] == pytest.approx(0.90), (
             "Default max_portfolio_exposure_pct must be 0.90"
         )
-        assert cfg["initial_capital"] == pytest.approx(50_000.0), (
+        assert cfg["initial_capital"] == pytest.approx(100_000.0), (
             "Default initial_capital must be 100 000"
         )
         assert cfg["max_open_positions"] == 10, (

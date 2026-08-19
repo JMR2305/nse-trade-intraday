@@ -72,8 +72,12 @@ def ensure_table() -> bool:
 
 def bootstrap_from_config() -> Dict[str, Any]:
     """
-    Seed the company master from config.SECTOR_MAP if empty.
-    Safe to call multiple times (upsert, no duplicates).
+    Reconcile the company master against config.SECTOR_MAP.
+    Safe to call multiple times (upsert, no duplicates):
+      * configured NIFTY_50 symbols are upserted and reactivated
+        (is_active = TRUE);
+      * rows no longer in the configured universe (e.g. LTIM after it left
+        the index) are retained for history but marked is_active = FALSE.
     Returns summary dict.
     """
     if not _db_available():
@@ -91,6 +95,8 @@ def bootstrap_from_config() -> Dict[str, Any]:
             yahoo_sym = sym.upper() + ".NS"
             rows.append((sym.upper(), yahoo_sym, sym.upper(), sector, now, "config"))
 
+    active_symbols = [r[0] for r in rows]
+
     try:
         with _connect() as conn:
             with conn.cursor() as cur:
@@ -98,16 +104,26 @@ def bootstrap_from_config() -> Dict[str, Any]:
                 execute_values(cur, """
                     INSERT INTO nifty50_company_master
                         (symbol, yahoo_symbol, kite_symbol, sector,
-                         last_verified_at, source)
+                         last_verified_at, source, is_active)
                     VALUES %s
                     ON CONFLICT (symbol) DO UPDATE SET
                         yahoo_symbol     = EXCLUDED.yahoo_symbol,
                         kite_symbol      = EXCLUDED.kite_symbol,
                         sector           = EXCLUDED.sector,
                         last_verified_at = EXCLUDED.last_verified_at,
-                        source           = EXCLUDED.source
-                """, rows)
-        return {"success": True, "upserted": len(rows)}
+                        source           = EXCLUDED.source,
+                        is_active        = TRUE
+                """, [(r[0], r[1], r[2], r[3], r[4], r[5], True) for r in rows])
+                # Retain history but deactivate any row no longer in the
+                # configured NIFTY_50 universe (e.g. LTIM after it left).
+                cur.execute("""
+                    UPDATE nifty50_company_master
+                    SET is_active = FALSE
+                    WHERE index_membership = 'NIFTY_50'
+                      AND symbol <> ALL(%s)
+                """, (active_symbols,))
+                deactivated = cur.rowcount
+        return {"success": True, "upserted": len(rows), "deactivated": deactivated}
     except Exception as exc:
         logger.warning("bootstrap_from_config: %s", exc)
         return {"success": False, "error": str(exc)[:200]}
@@ -222,7 +238,11 @@ def get_sector_for_symbol(symbol: str) -> Optional[str]:
 
 
 def get_missing_symbols(universe: List[str]) -> List[str]:
-    """Return symbols from universe that have no master entry."""
+    """Return symbols from universe that have no ACTIVE master entry.
+
+    A row that exists but is marked is_active = FALSE (e.g. a symbol retained
+    for history after leaving the index) counts as missing.
+    """
     if not _db_available():
         return universe
     try:
@@ -230,7 +250,7 @@ def get_missing_symbols(universe: List[str]) -> List[str]:
             with conn.cursor() as cur:
                 cur.execute("""
                     SELECT symbol FROM nifty50_company_master
-                    WHERE symbol = ANY(%s)
+                    WHERE symbol = ANY(%s) AND is_active = TRUE
                 """, ([s.upper() for s in universe],))
                 found = {r[0] for r in cur.fetchall()}
         return [s.upper() for s in universe if s.upper() not in found]

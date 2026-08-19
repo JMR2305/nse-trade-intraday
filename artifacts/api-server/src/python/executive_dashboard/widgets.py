@@ -103,7 +103,7 @@ def widget_portfolio_overview(data: dict) -> dict:
         "current_drawdown":   _sf(summ, "current_drawdown_pct", 0.0),
         "total_return_pct":   _sf(summ, "total_return_pct", 0.0),
         "portfolio_utilisation_pct": _sf(summ, "portfolio_utilisation_pct", 0.0),
-        "initial_capital":    _sf(summ, "initial_capital", 500000.0),
+        "initial_capital":    _sf(summ, "initial_capital", 100000.0),
     }
 
 

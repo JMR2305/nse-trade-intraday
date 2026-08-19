@@ -158,11 +158,16 @@ def run_postmarket_refresh() -> Dict[str, Any]:
         }
 
     duration = round(time.monotonic() - t0, 2)
-    # LTIM is a known provider gap — don't count it as a failure
-    known_missing = [s for s in missing if s == "LTIM"]
-    true_failed = [s for s in failed if s not in ("LTIM",)]
 
-    status = "SUCCESS" if not true_failed else ("PARTIAL" if updated else "FAILED")
+    # Any failed or missing symbol degrades the run: PARTIAL if some symbols
+    # updated, FAILED if none did.
+    problem_symbols = failed + missing
+    if not problem_symbols:
+        status = "SUCCESS"
+    elif updated:
+        status = "PARTIAL"
+    else:
+        status = "FAILED"
     log_refresh_complete(
         run_id, status,
         symbols_updated=len(updated),
@@ -179,7 +184,6 @@ def run_postmarket_refresh() -> Dict[str, Any]:
         "symbols_updated": len(updated),
         "symbols_failed": len(failed),
         "symbols_missing": len(missing),
-        "known_missing": known_missing,
         "duration_seconds": duration,
         "status": status,
     })
@@ -196,6 +200,5 @@ def run_postmarket_refresh() -> Dict[str, Any]:
         "symbols_updated": len(updated),
         "symbols_failed": len(failed),
         "symbols_missing": len(missing),
-        "known_missing_ltim": "LTIM" in missing,
         "duration_seconds": duration,
     }

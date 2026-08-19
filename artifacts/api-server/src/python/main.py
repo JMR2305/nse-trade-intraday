@@ -1081,6 +1081,16 @@ def main():
         elif command == "phase20_settings":
             from phase20_store import get_settings
             result = {"success": True, "settings": get_settings()}
+        elif command == "phase20_capital_migration_status":
+            from paper_capital_migration import get_paper_capital_migration_status
+            result = get_paper_capital_migration_status()
+        elif command == "phase20_capital_migration":
+            from paper_capital_migration import migrate_paper_capital_to_100000
+            _payload = json.loads(args[1]) if len(args) > 1 else {}
+            result = migrate_paper_capital_to_100000(
+                confirmation_text=_payload.get("confirmation_text"),
+                reviewed_by=str(_payload.get("reviewed_by") or "operator")[:100],
+            )
         elif command == "phase20_bootstrap_status":
             # Aggregate bootstrap mode readiness into a single lightweight response.
             # Gate predicates mirror run_bootstrap_auto_entry() in phase20_executor.py
@@ -1695,8 +1705,9 @@ def main():
             # phase20 paper ledger (same source Replay/Portfolio use).
             from broker_client import get_broker_client
             from execution_engine import get_execution_mode
-            from portfolio_store import INITIAL_CAPITAL as _init_cap
+            from portfolio_store import get_initial_capital as _get_init_cap
             from scan_state_store import _connect as _ss_connect
+            _init_cap = float(_get_init_cap())
             _client = get_broker_client()
             _conn8  = _client.test_connection()
             _rows = []

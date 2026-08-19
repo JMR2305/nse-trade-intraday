@@ -162,7 +162,7 @@ STAGES = [
 def _configured_capital() -> float:
     """
     Return the configured paper-trading starting capital.
-    Single source of truth: portfolio_store.INITIAL_CAPITAL (₹50,000).
+    Single source of truth: portfolio_store.INITIAL_CAPITAL (₹100,000).
     Never hardcode capital values elsewhere in this module.
     """
     try:

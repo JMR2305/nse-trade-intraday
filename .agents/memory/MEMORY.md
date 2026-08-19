@@ -116,3 +116,4 @@
 - [Kite LTP overlay (Option A)](kite-ltp-overlay.md) — KITE_LTP_OVERLAY_ENABLED flag; overlays current_price/execution_price only; indicators always yfinance_daily_bars; kite_ltp_overlay.py is the single source; 37/37 tests.
 - [Local NIFTY 50 OHLCV cache](ohlcv-cache.md) — cache-first fetch_batch (< 5s warm vs 22 min cold); post-market refresh at POST_CLOSE tick; ltps key is bare symbol not .NS; tickers in MultiIndex level 0.
 - [OHLCV cold-start check](ohlcv-cold-start.md) — token-fenced expiring takeover (not kv_claim_once); ColdStartTestCase per-test save/restore avoids cross-file sys.modules contamination.
+- [Paper-capital migration concurrency](paper-capital-migration-concurrency.md) — table locks alone do not close queued-entry races; migration and entry admission need one advisory gate.

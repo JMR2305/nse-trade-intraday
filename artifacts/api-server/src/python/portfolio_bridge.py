@@ -91,7 +91,7 @@ def _build_service():
         import portfolio_store
         initial_capital = str(portfolio_store.INITIAL_CAPITAL)
     except Exception:
-        initial_capital = "50000"
+        initial_capital = "100000"
 
     # Merged config: env defaults < bridge kwargs < persisted operator
     # overrides (session limit edits from the dashboard). Every fresh
@@ -101,7 +101,7 @@ def _build_service():
     cfg = merged_config(
         initial_capital=Decimal(os.environ.get(
             "PORTFOLIO_INITIAL_CAPITAL", initial_capital)),
-        # Paper orders on a ₹50k book are small; the library default of ₹5,000
+        # Paper orders on a ₹100k book can still be small; the library default of ₹5,000
         # min order value would silently strangle the pipeline (see the
         # pipeline-gate calibration incident). Keep the floor tiny unless an
         # operator explicitly raises it via env.

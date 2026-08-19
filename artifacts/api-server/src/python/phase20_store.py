@@ -18,6 +18,8 @@ import os
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
+from paper_entry_admission import PAPER_ENTRY_ADMISSION_LOCK_ID
+
 from scan_state_store import db_available, _connect  # shared DB helpers
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
@@ -120,7 +122,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     # Amount of cash each paper trading session starts with. Changes take
     # effect from the NEXT daily session reset (each morning at market open).
     # Min ₹10,000; max ₹5,00,000; stored as a multiple of ₹1,000.
-    "initial_capital": 50_000.0,
+    "initial_capital": 100_000.0,
 }
 
 # Keys excluded from the reproducibility config hash (meta, not behaviour).
@@ -492,6 +494,20 @@ def update_settings(patch: Dict[str, Any],
     """
     current = get_settings()
     clean = _validate_patch(patch, current)
+
+    # Capital changes are a portfolio-accounting boundary, not an ordinary
+    # settings edit.  They must query the full OPEN + EXIT_PENDING ledger under
+    # a database lock and require separate operator confirmation.  Keeping this
+    # guard here prevents the generic settings API from bypassing the migration.
+    if (
+        "initial_capital" in clean
+        and float(clean["initial_capital"])
+        != float(current.get("initial_capital") or 0.0)
+    ):
+        raise ValueError(
+            "initial_capital changes require the guarded "
+            "POST /api/phase20/capital-migration endpoint"
+        )
 
     if clean.get("auto_paper_entries") is True and not current.get("auto_paper_entries"):
         if (confirmation_text or "").strip() != CONFIRMATION_TEXT:

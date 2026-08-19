@@ -6,7 +6,7 @@ the first scan fires at 09:15 IST.
 
 Outputs one of three verdicts:
   READY             — all symbols have sufficient, fresh cache
-  READY_WITH_WARNINGS — minor gaps (single symbol, LTIM, etc.) — safe to scan
+  READY_WITH_WARNINGS — minor gaps (single symbol, etc.) — safe to scan
   BLOCKED           — critical cache gaps; BUY orders should be blocked
 
 BLOCKED criteria:
@@ -79,17 +79,13 @@ def run_pre_market_readiness_check(symbols: Optional[List[str]] = None) -> Dict[
             "min_bars_required": MIN_BARS_REQUIRED,
         }
 
-        # LTIM is a known provider gap — exclude from blocking logic
-        blocking_missing = [s for s in missing_required if s != "LTIM"]
-        if len(blocking_missing) / total > BLOCK_THRESHOLD_PCT:
+        if len(missing_required) / total > BLOCK_THRESHOLD_PCT:
             reasons.append(
-                f"{len(blocking_missing)} symbols ({len(blocking_missing)/total*100:.0f}%)"
+                f"{len(missing_required)} symbols ({len(missing_required)/total*100:.0f}%)"
                 f" missing required OHLCV bars — BUY entries blocked"
             )
         elif missing_required:
-            ltim_note = " (including LTIM — known provider gap)" \
-                if "LTIM" in missing_required else ""
-            warnings.append(f"{len(missing_required)} symbols missing cache{ltim_note}")
+            warnings.append(f"{len(missing_required)} symbols missing cache")
         if stale_pct > BLOCK_THRESHOLD_PCT:
             reasons.append(
                 f"{len(stale_symbols)} symbols ({stale_pct*100:.0f}%) have STALE cache"

@@ -26,7 +26,7 @@ try:
 except Exception:
     _log = None  # structured logging optional
 
-INITIAL_CAPITAL = 50_000.0    # ₹50,000 — daily paper-trading session capital (resets every trading day)
+INITIAL_CAPITAL = 100_000.0   # ₹100,000 — fallback; reset reads the durable Phase 20 setting
 
 # ── Phase 15: estimated friction costs (research realism, paper only) ────────
 SLIPPAGE_PCT = 0.05          # assumed 0.05% slippage per side

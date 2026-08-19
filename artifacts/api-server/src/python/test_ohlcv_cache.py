@@ -14,9 +14,12 @@ Tests cover:
   10. Company master bootstraps from config.
   11. Missing company mapping is reported in readiness check.
   12. Backtest compatibility — cache can supply as-of slices.
-  13. LTIM missing does not block other symbols.
+  13. A missing symbol degrades the post-market refresh to PARTIAL.
   14. Scan-count API separates completed/started/skipped fields.
   15. No live broker order API is called anywhere in the cache stack.
+  19. NIFTY 50 universe is exactly 50 and excludes LTIM.
+  20. No LTIM in post-market request or pre-market warnings.
+  21. Inactive LTIM master row is retained and reported missing.
 
 Run: cd artifacts/api-server/src/python && python -m pytest test_ohlcv_cache.py -v
 """
@@ -280,6 +283,7 @@ def test_company_master_bootstrap():
     upserted: List[str] = []
 
     class MockCur:
+        rowcount = 0
         def __enter__(self): return self
         def __exit__(self, *a): pass
         def execute(self, *a, **kw): pass
@@ -354,33 +358,30 @@ def test_backtest_cache_as_of_date():
         assert all(result_df.index.date <= cutoff)
 
 
-# ── Test 13: LTIM missing does not block other symbols ───────────────────────
+# ── Test 13: A missing symbol degrades the refresh to PARTIAL ────────────────
 
-def test_ltim_missing_does_not_block():
-    """Post-market refresh marks LTIM as known_missing but does not fail overall."""
+def test_missing_symbol_makes_refresh_partial():
+    """A symbol yfinance cannot return now makes the run PARTIAL (no LTIM exception)."""
     df5 = _make_df(days=5)
 
-    def fake_bulk(tickers, **kwargs):
-        # Return data for all except LTIM.NS
-        cols = pd.MultiIndex.from_product(
-            [["open", "high", "low", "close", "volume"],
-             [t for t in tickers if t != "LTIM.NS"]],
-            names=["Price", "Ticker"]
-        )
-        return pd.DataFrame(index=df5.index, columns=cols, data=1.0)
-
-    with patch("config.NIFTY_50", ["RELIANCE", "LTIM"]), \
+    # Bulk returns a multi-index for RELIANCE + TCS; INFY is absent so it is
+    # reported missing. The universe requests RELIANCE + INFY.
+    bulk = _make_multiindex_bulk(["RELIANCE.NS", "TCS.NS"], df5)
+    with patch("config.NIFTY_50", ["RELIANCE", "INFY"]), \
          patch("ohlcv_cache_store.ensure_tables", return_value=True), \
          patch("ohlcv_cache_store.log_refresh_start", return_value=1), \
          patch("ohlcv_cache_store.log_refresh_complete"), \
          patch("ohlcv_cache_store.write_symbol_to_cache", return_value=5), \
-         patch("yfinance.download", return_value=_make_multiindex_bulk(
-             ["RELIANCE.NS"], df5)):
+         patch("yfinance.download", return_value=bulk):
         from post_market_data_refresh import run_postmarket_refresh
         result = run_postmarket_refresh()
     assert result["success"]
-    # LTIM missing is expected and noted separately
-    assert result.get("known_missing_ltim") is not None
+    # One symbol updated, one missing → PARTIAL, not SUCCESS.
+    assert result["status"] == "PARTIAL"
+    assert result["symbols_updated"] == 1
+    assert result["symbols_missing"] == 1
+    # The LTIM-specific response field is gone.
+    assert "known_missing_ltim" not in result
 
 
 # ── Test 14: Scan-count API has separated fields ──────────────────────────────
@@ -572,6 +573,90 @@ def test_fetch_batch_logs_warning_on_ensure_tables_failure(caplog):
     )
     # The symbol still resolves via yfinance fallback — fetch must not crash
     assert "RELIANCE" in results
+
+
+# ── Test 19: NIFTY 50 universe is exactly 50 and excludes LTIM ────────────────
+
+def test_nifty50_universe_is_exactly_50_without_ltim():
+    """After LTIM's removal the derived universe is exactly 50 symbols."""
+    import importlib
+    import config
+    importlib.reload(config)
+    assert len(config.NIFTY_50) == 50
+    assert config.MIN_SYMBOLS_EXPECTED == 50
+    assert "LTIM" not in config.NIFTY_50
+    # No configured sector references LTIM either.
+    all_syms = [s for syms in config.SECTOR_MAP.values() for s in syms]
+    assert "LTIM" not in all_syms
+
+
+# ── Test 20: no LTIM in post-market request or pre-market warnings ────────────
+
+def test_no_ltim_request_or_warning():
+    """Post-market refresh never requests LTIM; readiness never warns about it."""
+    import config
+    # Post-market refresh only ever iterates the configured universe.
+    assert "LTIM" not in config.NIFTY_50
+
+    # Pre-market readiness: a generic missing symbol produces a plain warning
+    # with no LTIM-specific note.
+    syms = ["RELIANCE", "TCS", "INFY", "HDFCBANK", "ICICIBANK", "SBIN"]
+    status = {
+        s: {"cached": (s != "SBIN"),
+            "data_quality": "LIVE" if s != "SBIN" else "UNAVAILABLE",
+            "missing_required": (s == "SBIN"),
+            "latest_date": date.today().isoformat(), "age_days": 1}
+        for s in syms
+    }
+    with patch("config.NIFTY_50", syms), \
+         patch("ohlcv_cache_store.get_cache_status", return_value=status), \
+         patch("ohlcv_cache_store._get_last_refresh_state",
+               return_value={"refresh_date": date.today().isoformat()}), \
+         patch("kite_quote_provider.kite_session_verified", return_value=True), \
+         patch("nifty50_company_master_store.get_missing_symbols", return_value=[]):
+        from pre_market_data_readiness import run_pre_market_readiness_check
+        result = run_pre_market_readiness_check(syms)
+    joined = " ".join(result["warnings"] + result["blocking_reasons"])
+    assert "LTIM" not in joined
+    assert "known provider gap" not in joined
+
+
+# ── Test 21: inactive LTIM master row is retained, counted missing ────────────
+
+def test_inactive_ltim_master_row_retained_and_missing():
+    """A retained-but-inactive LTIM row is excluded from active coverage.
+
+    get_missing_symbols filters on is_active = TRUE, so an LTIM row that still
+    exists for history (is_active = FALSE) is reported as missing when LTIM is
+    queried, while active rows are found.
+    """
+    # Simulate the DB returning only the active symbols (LTIM excluded by the
+    # is_active = TRUE filter even though the row still exists).
+    active_found = [("RELIANCE",), ("TCS",)]
+
+    class MockCur:
+        def __enter__(self): return self
+        def __exit__(self, *a): pass
+        def execute(self, *a, **kw): pass
+        def fetchall(self): return active_found
+
+    class MockConn:
+        def __enter__(self): return self
+        def __exit__(self, *a): pass
+        def cursor(self): return MockCur()
+        def commit(self): pass
+        def rollback(self): pass
+        def close(self): pass
+
+    with patch("nifty50_company_master_store._db_available", return_value=True), \
+         patch("nifty50_company_master_store._connect") as mc:
+        mc.return_value.__enter__ = MagicMock(return_value=MockConn())
+        mc.return_value.__exit__ = MagicMock(return_value=False)
+        from nifty50_company_master_store import get_missing_symbols
+        missing = get_missing_symbols(["RELIANCE", "TCS", "LTIM"])
+    # LTIM's inactive row does not count as active coverage.
+    assert missing == ["LTIM"]
+    assert "RELIANCE" not in missing and "TCS" not in missing
 
 
 # ── Helpers for multi-index bulk DataFrame ────────────────────────────────────

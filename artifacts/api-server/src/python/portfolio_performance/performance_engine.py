@@ -110,7 +110,7 @@ def _write_raw_cache(raw_trades: List[Dict], state: Dict, canon: Optional[Dict] 
 try:
     from portfolio_store import INITIAL_CAPITAL as INITIAL_CAPITAL  # single source of truth
 except Exception:  # pragma: no cover — portfolio_store must exist in this tree
-    INITIAL_CAPITAL = 50_000.0
+    INITIAL_CAPITAL = 100_000.0
 
 
 # ── Sector lookup (best-effort) ───────────────────────────────────────────────
