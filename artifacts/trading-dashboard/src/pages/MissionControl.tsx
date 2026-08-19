@@ -82,6 +82,8 @@ const WidgetFallback = ({ h = "h-40" }: { h?: string }) => (
 );
 
 const LABEL = "PAPER TRADING / RESEARCH ONLY";
+// APEXQUANT_BUILD_ID is injected at Vite build time via vite.config.ts define block
+// and set unconditionally in the build npm script so the platform always receives it.
 const FRONTEND_BUILD_ID = import.meta.env.VITE_BUILD_ID ?? "development";
 
 export function buildIdsMatch(uiBuildId: string, apiBuildId: string | null | undefined): boolean {

@@ -118,3 +118,4 @@
 - [OHLCV cold-start check](ohlcv-cold-start.md) — token-fenced expiring takeover (not kv_claim_once); ColdStartTestCase per-test save/restore avoids cross-file sys.modules contamination.
 - [Paper-capital admission concurrency](paper-capital-migration-concurrency.md) — migration, entry state, and final exposure sizing share one advisory gate; gate-time snapshots are not authoritative.
 - [Scheduled scan cache invalidation](scheduled-scan-cache-invalidation.md) — lifecycle events must invalidate status/history caches; no-store headers and browser cache busting cannot clear server TTL entries.
+- [Public build-ID labels](public-build-id-labels.md) — shared APEXQUANT_BUILD_ID bumped in 3 places together; missing prod value = production-unidentified, never development; verify published bundles by curling the hashed asset.

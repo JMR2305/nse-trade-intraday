@@ -1,75 +1,78 @@
-# ApexQuant AI — Public Build ID Label Fix Report
+# ApexQuant — Public Build-ID Label Fix Report
 
-## Scope and safety
+Date: 20 August 2026 (IST)
+Scope: Mission Control build-identity label only. No trading, scan, broker, paper-entry, or live-order behavior was changed.
 
-This change only corrects build-identity metadata shown by Mission Control.
-It does not modify trading logic, scan logic, paper-trading controls, or broker
-execution. Live orders remain disabled and the application remains paper-only.
+## Problem
 
-## Root cause
+After the scan-status freshness remediation, public Mission Control showed a persistent warning:
 
-Mission Control displayed:
-
-```text
+```
 UI development · API 1 · Build mismatch
 ```
 
-The label was not evidence of a development bundle in production. The
-dashboard is deployed as static Vite assets, and its production build received
-no build-ID environment variable. Vite therefore embedded its intended
-development fallback into the browser bundle. The API is a runtime service and
-did receive Replit's deployment identifier, so it reported `1`.
+Root cause: the static dashboard bundle is compiled by Vite with no build-time
+release identifier (falling back to the literal `development`), while the
+production API reported Replit's runtime `REPLIT_DEPLOYMENT=1`. Both surfaces
+were healthy — only the label vocabulary differed.
 
-## Corrected build identity contract
+## Fix
 
-Both production artifacts now receive the same explicit release identifier:
+A single shared release identifier, `apexquant-v1.0.0`, is now supplied to both
+production artifacts:
 
-```text
-APEXQUANT_BUILD_ID=apexquant-v1.0.0
-```
+1. **`artifacts/trading-dashboard/.replit-artifact/artifact.toml`** — production
+   build env sets `APEXQUANT_BUILD_ID=apexquant-v1.0.0` (and `NODE_ENV=production`);
+   the build block was converted to the `[services.production.build]` args form
+   so it can carry environment variables. Applied via the validated artifact
+   workflow (not a direct TOML edit).
+2. **`artifacts/api-server/.replit-artifact/artifact.toml`** — the same
+   `APEXQUANT_BUILD_ID` is set in both the production build env and the
+   production runtime env.
+3. **`artifacts/trading-dashboard/vite.config.ts`** — the compiled
+   `VITE_BUILD_ID` now prefers `APEXQUANT_BUILD_ID`, then Replit deployment
+   variables, then `BUILD_ID`. If all are absent, a production build labels
+   itself `production-unidentified` (visibly actionable) instead of falsely
+   claiming `development`. Development previews still say `development`.
+4. **`artifacts/api-server/src/routes/trading.ts`** — `apiBuildId()` uses the
+   identical preference order and the identical `production-unidentified`
+   production fallback.
+5. **`artifacts/trading-dashboard/package.json`** — the production `build`
+   script sets `APEXQUANT_BUILD_ID=apexquant-v1.0.0` unconditionally as a
+   defensive second layer, so the release ID is baked in even if the artifact
+   build env were ever dropped.
 
-- The dashboard receives it in the production **build** environment and embeds
-  it in the static browser bundle.
-- The API receives it in its production build and runtime environments and
-  reports it in `api_build_id`.
-- Both surfaces prefer `APEXQUANT_BUILD_ID` over platform deployment IDs.
-- Development keeps the explicit `development` label.
-- If production metadata is unexpectedly absent, either surface reports
-  `production-unidentified` rather than incorrectly calling itself
-  `development`.
-- Mission Control still uses an exact ID comparison. A genuine difference
-  remains a visible, actionable **Build mismatch** warning.
+Mismatch detection is unchanged: `buildIdsMatch()` still requires exact
+equality, so a genuinely divergent publish (e.g. only one artifact republished
+with a bumped ID) still renders a red `Build mismatch`.
 
-## Verification before publish
+## Verification
 
-| Check | Result |
-| --- | --- |
-| Production-mode Vite build | Passed |
-| Compiled browser bundle contains `apexquant-v1.0.0` | Passed |
-| Compiled browser bundle contains `production-unidentified` | Not present |
-| Mission Control freshness test | 6 passed |
-| Dashboard typecheck | Passed |
-| Focused API scan-cache test and API typecheck | 6 passed |
-| Restarted development API build label | `development` |
+Development (after workflow restarts):
+- `GET /api/live-data/scan/status` on the dev domain → `api_build_id: "development"`.
+- Dev Mission Control header → `UI development · API development · Builds match`.
+- `MissionControl.freshness.test.tsx` → 6/6 pass.
+- `scan-cache-invalidation.test.ts` → 6/6 pass; api-server `tsc --noEmit` clean;
+  dashboard `typecheck` clean.
+- Local production-mode build contains `"apexquant-v1.0.0"` and no
+  `production-unidentified` marker.
 
-One attempted broad dashboard test command ran unrelated legacy suites and
-reported pre-existing freshness-coverage failures outside this metadata change.
-The focused Mission Control test for the changed behavior passed.
+Production (read-only; no scan, order, command, or settings mutation):
+- `GET https://nse-trade-intraday.replit.app/api/live-data/scan/status` →
+  HTTP 200, `api_build_id: "apexquant-v1.0.0"`, strict no-store headers
+  (`cache-control: no-store, no-cache, must-revalidate, proxy-revalidate`,
+  `pragma: no-cache`, `expires: 0`, `surrogate-control: no-store`).
+- The served static bundle (`/trading-dashboard/assets/index-*.js`) contains the
+  compiled constant `"apexquant-v1.0.0"` as the frontend build ID.
+- Fresh public Mission Control page render shows:
+  `UI apexquant-v1.0.0 · API apexquant-v1.0.0 · Builds match · Last refreshed 04:00:17 IST`
+  with no mismatch warning and the PAPER TRADING / RESEARCH ONLY and read-only
+  indicators intact (screenshot: `screenshots/public-build-id-verification.png`).
 
-## Required public verification after publish
+## Operational note
 
-After publishing, verify the production API returns:
-
-```text
-api_build_id: apexquant-v1.0.0
-```
-
-Then verify the public Mission Control page shows:
-
-```text
-UI apexquant-v1.0.0 · API apexquant-v1.0.0 · Builds match
-```
-
-If a deployment supplies different identifiers in the future, Mission Control
-will retain the red mismatch state with an investigation hint rather than
-hiding the difference.
+The release identifier is intentionally a stable version string, not a per-build
+hash. When shipping a new public version, bump `apexquant-v1.0.0` in all three
+places together (both `artifact.toml` production env blocks and the dashboard
+`build` script). Bumping only one surface will — by design — show a genuine
+`Build mismatch` until both artifacts are republished.
