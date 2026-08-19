@@ -302,6 +302,7 @@ export function AgentDetailPanel({ agentId, onClose }: {
   });
   const detail = data as Record<string, any> | undefined;
   const isRecoverable = detail?.recoverable === true || detail?.status === "INITIALIZING";
+  const isStale = detail?.stale === true;
 
   return (
     <div
@@ -332,13 +333,19 @@ export function AgentDetailPanel({ agentId, onClose }: {
 
       {(isError || isRecoverable) && (
         <div
-          className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-3"
-          data-testid="agent-detail-recoverable"
+          className={`rounded-lg border p-3 ${
+            isStale
+              ? "border-orange-500/30 bg-orange-500/5"
+              : "border-amber-500/25 bg-amber-500/5"
+          }`}
+          data-testid={isStale ? "agent-detail-stale" : "agent-detail-recoverable"}
           role="status"
         >
-          <div className="flex items-center gap-2 text-sm font-medium text-amber-300">
+          <div className={`flex items-center gap-2 text-sm font-medium ${
+            isStale ? "text-orange-300" : "text-amber-300"
+          }`}>
             <RefreshCw className="h-4 w-4 animate-spin" />
-            Agent details are retrying
+            {isStale ? "Agent details are stale — retrying" : "Agent details are retrying"}
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
             {detail?.message ?? (error as Error)?.message ??
@@ -347,7 +354,7 @@ export function AgentDetailPanel({ agentId, onClose }: {
         </div>
       )}
 
-      {!isLoading && !isError && !isRecoverable && detail?.available && (
+      {!isLoading && !isError && detail?.available && (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {[
             ["State", detail.state],

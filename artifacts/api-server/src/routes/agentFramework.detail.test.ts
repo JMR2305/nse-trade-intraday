@@ -31,6 +31,8 @@ describe("Agent Framework detail recovery", () => {
   let server: Server;
   let port: number;
   let resetAgentListCacheForTest: () => void;
+  let resetAgentDetailCacheForTest: () => void;
+  let expireAgentDetailCacheForTest: () => void;
 
   async function getDetail(agentId: string): Promise<{
     status: number;
@@ -48,6 +50,8 @@ describe("Agent Framework detail recovery", () => {
       import("./agentFramework.js"),
     ]);
     resetAgentListCacheForTest = route.resetAgentListCacheForTest;
+    resetAgentDetailCacheForTest = route.resetAgentDetailCacheForTest;
+    expireAgentDetailCacheForTest = route.expireAgentDetailCacheForTest;
     await new Promise<void>((resolve) => {
       server = app.listen(0, "127.0.0.1", resolve);
     });
@@ -58,6 +62,7 @@ describe("Agent Framework detail recovery", () => {
 
   beforeEach(() => {
     resetAgentListCacheForTest();
+    resetAgentDetailCacheForTest();
     mockSpawn.mockClear();
   });
 
@@ -105,5 +110,62 @@ describe("Agent Framework detail recovery", () => {
       status: "INITIALIZING",
       recoverable: true,
     });
+  });
+
+  it("keeps the last known detail visible during a temporary refresh failure", async () => {
+    const detail = {
+      available: true,
+      agent_id: "risk",
+      name: "Risk Agent",
+      state: "RUNNING",
+      health_score: 92,
+    };
+    mockSpawn
+      .mockImplementationOnce(() => makePythonProcess(detail))
+      .mockImplementationOnce(() => makePythonProcess({
+        error: "agent refresh failed",
+      }, 1));
+
+    expect((await getDetail("risk")).body).toEqual(detail);
+    const response = await getDetail("risk");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      available: true,
+      agent_id: "risk",
+      name: "Risk Agent",
+      state: "RUNNING",
+      health_score: 92,
+      status: "DEGRADED",
+      recoverable: true,
+      stale: true,
+    });
+    expect(response.body.message).toMatch(/last known agent detail.*retrying automatically/i);
+  });
+
+  it("stops serving the last known detail after its short cache expires", async () => {
+    const detail = {
+      available: true,
+      agent_id: "risk",
+      name: "Risk Agent",
+      state: "RUNNING",
+    };
+    mockSpawn
+      .mockImplementationOnce(() => makePythonProcess(detail))
+      .mockImplementationOnce(() => makePythonProcess({
+        error: "agent refresh failed",
+      }, 1));
+
+    await getDetail("risk");
+    expireAgentDetailCacheForTest();
+    const response = await getDetail("risk");
+
+    expect(response.body).toMatchObject({
+      available: false,
+      agent_id: "risk",
+      status: "INITIALIZING",
+      recoverable: true,
+    });
+    expect(response.body.stale).toBeUndefined();
   });
 });

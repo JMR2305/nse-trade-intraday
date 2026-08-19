@@ -45,4 +45,31 @@ describe("Agent Operations detail recovery", () => {
     expect(screen.getByText(/Retrying automatically/)).toBeTruthy();
     expect(screen.queryByText("Failed to load")).toBeNull();
   });
+
+  it("keeps cached detail visible with an explicit stale warning", async () => {
+    mockApi.mockResolvedValue({
+      available: true,
+      agent_id: "risk",
+      name: "Risk Agent",
+      state: "RUNNING",
+      stale: true,
+      status: "DEGRADED",
+      recoverable: true,
+      message: "Showing the last known agent detail while the Agent Framework recovers. Retrying automatically.",
+    });
+
+    render(
+      <TestClient>
+        <AgentDetailPanel agentId="risk" onClose={vi.fn()} />
+      </TestClient>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("agent-detail-stale")).toBeTruthy();
+    });
+    expect(screen.getByText("Agent details are stale — retrying")).toBeTruthy();
+    expect(screen.getByText("Risk Agent")).toBeTruthy();
+    expect(screen.getByText("RUNNING")).toBeTruthy();
+    expect(screen.getByText(/Retrying automatically/)).toBeTruthy();
+  });
 });

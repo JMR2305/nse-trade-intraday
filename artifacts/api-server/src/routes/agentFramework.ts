@@ -54,6 +54,7 @@ router.get("/agent-framework/diagnostics", handle("agent_framework_diagnostics",
 // Without coalescing, every tab on Agent Operations spawns its own subprocess.
 // 30 s Node.js cache + in-flight coalescing keeps it snappy after warm-up.
 const AGENTS_LIST_TTL = 30_000;
+const AGENT_DETAIL_TTL = 30_000;
 type AgentListResponse = {
   available?: boolean;
   agents?: unknown[];
@@ -69,6 +70,7 @@ type AgentDetailResponse = {
 
 let agentsListCache:    { data: AgentListResponse; ts: number } | null = null;
 let agentsListInFlight: Promise<AgentListResponse> | null = null;
+const agentDetailCache = new Map<string, { data: AgentDetailResponse; ts: number }>();
 
 function isAgentListResponse(data: unknown): data is AgentListResponse {
   if (!data || typeof data !== "object" || Array.isArray(data)) return false;
@@ -112,6 +114,36 @@ function initializingAgentDetail(agentId: string, message: string): AgentDetailR
     recoverable: true,
     message,
   };
+}
+
+function staleAgentDetail(
+  cached: AgentDetailResponse,
+  message: string,
+): AgentDetailResponse {
+  return {
+    ...cached,
+    status: "DEGRADED",
+    recoverable: true,
+    stale: true,
+    message,
+  };
+}
+
+function recoverableAgentDetail(agentId: string): AgentDetailResponse {
+  const cached = agentDetailCache.get(agentId);
+  if (cached) {
+    if (Date.now() - cached.ts < AGENT_DETAIL_TTL) {
+      return staleAgentDetail(
+        cached.data,
+        "Showing the last known agent detail while the Agent Framework recovers. Retrying automatically.",
+      );
+    }
+    agentDetailCache.delete(agentId);
+  }
+  return initializingAgentDetail(
+    agentId,
+    "The Agent Framework is still initialising this agent. Retrying automatically.",
+  );
 }
 
 function isTerminalAgentDetail(data: unknown): data is AgentDetailResponse {
@@ -171,9 +203,19 @@ export function resetAgentListCacheForTest(): void {
   agentsListInFlight = null;
 }
 
+/** Isolates per-agent detail cache state between focused integration tests. */
+export function resetAgentDetailCacheForTest(): void {
+  agentDetailCache.clear();
+}
+
 /** Forces an expired entry so focused tests can cover stale-cache recovery. */
 export function expireAgentListCacheForTest(): void {
   if (agentsListCache) agentsListCache.ts = 0;
+}
+
+/** Forces all per-agent detail entries to expire for focused tests. */
+export function expireAgentDetailCacheForTest(): void {
+  for (const cached of agentDetailCache.values()) cached.ts = 0;
 }
 
 router.get("/agent-framework/agents/:agentId", async (req: any, res: any) => {
@@ -181,19 +223,14 @@ router.get("/agent-framework/agents/:agentId", async (req: any, res: any) => {
   try {
     const data = await runPython(["agent_detail", agentId], 30_000) as AgentDetailResponse;
     if (isCurrentAgentDetail(data) || isTerminalAgentDetail(data)) {
+      agentDetailCache.set(agentId, { data, ts: Date.now() });
       res.json(data);
       return;
     }
-    res.json(initializingAgentDetail(
-      agentId,
-      "The Agent Framework is still initialising this agent. Retrying automatically.",
-    ));
+    res.json(recoverableAgentDetail(agentId));
   } catch (e: any) {
     req.log?.warn({ agentId, err: e.message }, "Agent detail temporarily unavailable");
-    res.json(initializingAgentDetail(
-      agentId,
-      "The Agent Framework is still initialising this agent. Retrying automatically.",
-    ));
+    res.json(recoverableAgentDetail(agentId));
   }
 });
 
