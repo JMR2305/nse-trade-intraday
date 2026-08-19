@@ -1,0 +1,145 @@
+FIX STALE SCAN STATUS RESPONSE — MISSION CONTROL SHOWS 22 WHILE CANONICAL ENDPOINT SHOWS 38
+
+Current issue:
+Replit checked the active dashboard preview and canonical endpoint. It showed:
+- Rotation #38
+- Today 38 scans
+
+But my Mission Control/public UI showed:
+- Today 22 scans / older rotation
+
+This means the scheduler/canonical endpoint is likely correct, but the frontend/client/public runtime is reusing a stale scan-status response.
+
+Do not change trading thresholds.
+Do not enable live orders.
+PAPER ONLY.
+
+TASK 1 — PROVE SOURCE OF TRUTH
+
+Compare these sources for today’s scan count:
+
+1. production DB pipeline_events:
+   - SCAN_STARTED count
+   - SCAN_COMPLETED count
+   - latest scan_id
+   - latest completed_at IST
+
+2. canonical API endpoint:
+   - GET /api/live-data/scan/status
+   - GET /api/live-data/scan/history, if available
+
+3. Mission Control frontend:
+   - displayed Today count
+   - displayed Rotation count
+   - displayed latest scan_id
+
+4. Public deployed URL:
+   - https://nse-trade-intraday.replit.app/mission-control
+
+5. Development preview:
+   - current preview app Mission Control
+
+Report exact values side by side.
+
+TASK 2 — IDENTIFY STALE RESPONSE CAUSE
+
+Check whether stale 22 count is caused by:
+
+- browser HTTP cache
+- frontend query cache / staleTime
+- React Query / SWR cache
+- service worker cache
+- autoscale old instance
+- CDN/browser cache
+- API response missing no-store headers
+- frontend polling not refetching
+- old request response overwriting a newer response
+- public deployment not republished
+- frontend bundle old while API is new
+
+TASK 3 — FIX API CACHE HEADERS
+
+For all live scan/status endpoints, add strict no-cache headers:
+
+- /api/live-data/scan/status
+- /api/live-data/scan/history
+- /api/phase20/bootstrap-status
+- /api/ohlcv-cache/status
+- /api/ohlcv-cache/readiness
+- any Mission Control status endpoint
+
+Use:
+
+Cache-Control: no-store, no-cache, must-revalidate, proxy-revalidate
+Pragma: no-cache
+Expires: 0
+Surrogate-Control: no-store
+
+TASK 4 — FIX FRONTEND POLLING
+
+Mission Control must always fetch fresh scan status.
+
+Implement:
+- poll every 15–30 seconds during market hours
+- add cache-busting query param: ?t=Date.now()
+- do not reuse stale query data for scan count
+- cancel/ignore older in-flight responses if a newer response has already returned
+- never let an older response overwrite a newer scan count
+- show “last refreshed at IST”
+- show API build id and frontend build id
+
+TASK 5 — FIX COUNT LABELS
+
+Mission Control must show separate labels:
+
+- Completed Scans Today = SCAN_COMPLETED
+- Started Scans Today = SCAN_STARTED
+- Runtime Rotation = current process/runtime counter, if still needed
+- Scheduler Ticks = scheduled 4/5-minute ticks
+- History Rows Shown = last 10 rows only
+
+Do not use “Today 10” if that means only the latest 10 history rows.
+Do not call runtime rotation the same as completed scans.
+
+TASK 6 — STALE DISPLAY WARNING
+
+If frontend displayed count is older than canonical API count:
+Show warning:
+“Displayed scan status is stale. Refreshing…”
+
+If API latest scan_id differs from frontend latest scan_id:
+Force refresh the scan card.
+
+TASK 7 — REPUBLISH CHECK
+
+If the public deployment is still old:
+- republish latest build
+- verify public Mission Control shows same count as canonical API
+- hard refresh / cache-bust assets
+
+TASK 8 — TESTS
+
+Add tests:
+1. API status endpoints return no-store headers.
+2. Frontend fetch appends cache-busting timestamp.
+3. Older API response cannot overwrite newer scan count.
+4. Completed scan count uses SCAN_COMPLETED only.
+5. Started scan count uses SCAN_STARTED only.
+6. Mission Control labels history rows separately from total scans.
+7. Public deployment build id matches API build id.
+8. No live broker order API called.
+
+TASK 9 — REPORT
+
+Generate:
+APEXQUANT_KEEP_SCAN_STATUS_FRESH_FIX_REPORT.md
+
+Include:
+1. Why UI showed 22 while canonical endpoint showed 38.
+2. Exact source of truth count.
+3. Files changed.
+4. API headers added.
+5. Frontend polling/cache fix.
+6. Before/after screenshots or values.
+7. Production/public verification.
+8. Confirmation no live orders.
