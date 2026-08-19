@@ -18,9 +18,15 @@ localPort = 24210
 run = "pnpm --filter @workspace/trading-dashboard run dev"
 
 [services.production]
-build = [ "pnpm", "--filter", "@workspace/trading-dashboard", "run", "build" ]
 publicDir = "artifacts/trading-dashboard/dist/public"
 serve = "static"
+
+[services.production.build]
+args = [ "pnpm", "--filter", "@workspace/trading-dashboard", "run", "build" ]
+
+[services.production.build.env]
+NODE_ENV = "production"
+APEXQUANT_BUILD_ID = "apexquant-v1.0.0"
 
 [[services.production.rewrites]]
 from = "/*"

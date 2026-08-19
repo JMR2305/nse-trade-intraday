@@ -19,6 +19,7 @@ args = ["pnpm", "--filter", "@workspace/api-server", "run", "build"]
 
 [services.production.build.env]
 NODE_ENV = "production"
+APEXQUANT_BUILD_ID = "apexquant-v1.0.0"
 
 [services.production.run]
 # we don't run through pnpm to make startup faster in production
@@ -27,6 +28,7 @@ args = ["node", "--enable-source-maps", "artifacts/api-server/dist/index.mjs"]
 [services.production.run.env]
 PORT = "8080"
 NODE_ENV = "production"
+APEXQUANT_BUILD_ID = "apexquant-v1.0.0"
 
 [services.production.health.startup]
 path = "/api/healthz"

@@ -26,14 +26,17 @@ if (!basePath) {
   );
 }
 
-// Keep a visible build marker in the browser bundle. Production deployments
-// provide a Replit deployment identifier; previews intentionally say
-// "development" so operators can tell the two surfaces apart.
+// Keep a visible build marker in the browser bundle. Static production builds
+// receive APEXQUANT_BUILD_ID from the artifact build environment; it must be
+// baked into the Vite bundle because static assets have no runtime env access.
+// A missing production value remains visibly actionable instead of falsely
+// claiming that a published bundle is a development build.
 const buildId =
+  process.env.APEXQUANT_BUILD_ID ??
   process.env.REPLIT_DEPLOYMENT ??
   process.env.REPLIT_DEPLOYMENT_ID ??
   process.env.BUILD_ID ??
-  "development";
+  (process.env.NODE_ENV === "production" ? "production-unidentified" : "development");
 
 export default defineConfig({
   base: basePath,

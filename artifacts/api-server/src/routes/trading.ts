@@ -22,14 +22,15 @@ function setLiveStatusNoStore(res: any): void {
   res.set("Surrogate-Control", "no-store");
 }
 
-// Replit supplies a deployment identifier in production. Local development
-// intentionally renders "development" so operators can distinguish a preview
-// from a published API without exposing source-control metadata.
+// APEXQUANT_BUILD_ID is the shared public release identifier configured on both
+// production artifacts. Keep Replit's deployment ID as a fallback, but never
+// label a production API as development when build metadata is missing.
 function apiBuildId(): string {
-  return process.env.REPLIT_DEPLOYMENT
+  return process.env.APEXQUANT_BUILD_ID
+    ?? process.env.REPLIT_DEPLOYMENT
     ?? process.env.REPLIT_DEPLOYMENT_ID
     ?? process.env.BUILD_ID
-    ?? "development";
+    ?? (process.env.NODE_ENV === "production" ? "production-unidentified" : "development");
 }
 
 // Timeouts by command type.  Scan commands run yf.download across 50 symbols
