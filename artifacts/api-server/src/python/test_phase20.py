@@ -25,6 +25,19 @@ class TestSettingsDefaults(unittest.TestCase):
     def test_fill_model_default_conservative(self):
         self.assertEqual(DEFAULT_SETTINGS["fill_model"], "SLIPPAGE_ADJUSTED")
 
+    def test_quality_allocation_defaults_preserve_requested_safety_caps(self):
+        self.assertTrue(DEFAULT_SETTINGS["quality_allocation_override_enabled"])
+        self.assertEqual(
+            DEFAULT_SETTINGS["quality_allocation_2x_risk_budget_pct"], 1.5)
+        self.assertEqual(
+            DEFAULT_SETTINGS["quality_allocation_3x_risk_budget_pct"], 2.0)
+        self.assertFalse(
+            DEFAULT_SETTINGS[
+                "quality_allocation_3x_sector_override_enabled"])
+        self.assertLessEqual(
+            DEFAULT_SETTINGS[
+                "quality_allocation_3x_sector_override_cap_pct"], 50.0)
+
     def test_config_hash_stable(self):
         a = config_hash(dict(DEFAULT_SETTINGS))
         b = config_hash(dict(DEFAULT_SETTINGS))
@@ -81,6 +94,27 @@ class TestSettingsValidation(unittest.TestCase):
     def test_invalid_fill_model_rejected(self):
         with self.assertRaises(ValueError):
             self._update({"fill_model": "FUTURE_PRICE"})
+
+    def test_quality_thresholds_and_caps_are_validated(self):
+        for patch_dict in (
+            {"quality_allocation_2x_min_confidence": 101},
+            {"quality_allocation_3x_min_risk_reward": 0.5},
+            {"quality_allocation_2x_risk_budget_pct": 2.1},
+            {"quality_allocation_3x_risk_budget_pct": 2.1},
+            {"quality_allocation_3x_max_atr_pct": 0},
+            {"quality_allocation_3x_max_stop_distance_pct": 11},
+            {"quality_allocation_absolute_cap": 999},
+            {"quality_allocation_3x_sector_override_cap_pct": 51},
+        ):
+            with self.assertRaises(ValueError):
+                self._update(patch_dict)
+
+    def test_3x_thresholds_cannot_be_looser_than_2x(self):
+        with self.assertRaises(ValueError):
+            self._update({
+                "quality_allocation_2x_min_confidence": 90,
+                "quality_allocation_3x_min_confidence": 89,
+            })
 
 
 class TestFillModels(unittest.TestCase):
@@ -217,6 +251,43 @@ class TestGates(unittest.TestCase):
             {"action": "SELL", "pnl": -500.0, "timestamp": f"{today}T10:00:00Z"}]}
         ev = self._evaluate(state=st)
         self.assertIn("daily_loss_limit", ev["candidates"][0]["failed_gates"])
+
+    def test_quality_allocation_preview_uses_kite_and_cache_evidence(self):
+        ctx = self._ctx(symbol_overrides={
+            "confidence": 86.0,
+            "opportunity_score": 82.0,
+            "technical_score": 82.0,
+            "rr_ratio": 2.6,
+            "kite_ltp": 100.0,
+            "kite_ltp_available": True,
+            "kite_session_verified_flag": True,
+            "kite_ltp_overlay_enabled": True,
+            "execution_price_source": "kite_live_ltp",
+            "quote_reliable": True,
+            "ohlcv_source": "yfinance_daily_bars",
+        })
+        with patch("ohlcv_cache_store.get_cache_status", return_value={
+            "TCS": {
+                "cached": True,
+                "data_quality": "LIVE",
+                "missing_required": False,
+                "latest_date": "2026-08-19",
+                "age_days": 0,
+            }
+        }), patch("ohlcv_cache_store.read_symbol_from_cache",
+                  return_value=None):
+            ev = self._evaluate(ctx=ctx)
+        candidate = ev["candidates"][0]
+        self.assertEqual(
+            candidate["allocation_override_preview"]["tier"],
+            "HIGH_QUALITY_2X",
+        )
+        self.assertEqual(
+            candidate["allocation_context"]["ohlcv_cache_data_quality"],
+            "LIVE",
+        )
+        self.assertEqual(
+            candidate["execution_price_source"], "kite_live_ltp")
 
     def test_research_fail_open_passes_when_halted(self):
         # fail_open (default) — gate must PASS even when research mode is

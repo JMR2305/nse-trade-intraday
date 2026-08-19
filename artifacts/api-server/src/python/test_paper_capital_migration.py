@@ -461,6 +461,159 @@ def test_inflight_entry_cannot_insert_after_migration_pauses_entries():
         store._SCHEMA_READY = original_store_ready
 
 
+def test_locked_entry_admission_revalidates_latest_sector_capacity():
+    """A later entry sees earlier committed exposure under the shared lock."""
+    from scan_state_store import _connect as real_connect, db_available
+
+    executor = _load_real_executor()
+    store = phase20_store_real
+    if not db_available():
+        pytest.skip("PostgreSQL is unavailable")
+
+    schema = f"allocation_admission_{uuid.uuid4().hex}"
+    original_executor_ready = executor._SCHEMA_READY
+    original_store_ready = store._SCHEMA_READY
+
+    def scoped_connect():
+        conn = real_connect()
+        with conn.cursor() as cur:
+            cur.execute(f"SET search_path TO {schema}")
+        conn.commit()
+        return conn
+
+    try:
+        setup_conn = real_connect()
+        try:
+            with setup_conn.cursor() as cur:
+                cur.execute(f"CREATE SCHEMA {schema}")
+                cur.execute(f"SET search_path TO {schema}")
+            setup_conn.commit()
+            executor._SCHEMA_READY = False
+            store._SCHEMA_READY = False
+            executor._ensure_schema(setup_conn)
+            store._ensure_schema(setup_conn)
+            settings = {
+                **store.DEFAULT_SETTINGS,
+                "initial_capital": 100_000.0,
+                "auto_paper_entries": True,
+                "auto_paper_entries_confirmed_at":
+                    "2026-08-19T03:00:00Z",
+            }
+            with setup_conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO phase20_settings (id, data, updated_at)
+                    VALUES (1, %s::jsonb, NOW())
+                    ON CONFLICT (id) DO UPDATE
+                    SET data = EXCLUDED.data, updated_at = NOW()
+                    """,
+                    (json.dumps(settings),),
+                )
+                existing = {column: None for column in executor._COLS}
+                existing.update({
+                    "trade_id": "EXISTING-IT",
+                    "symbol": "INFY",
+                    "sector": "IT",
+                    "side": "BUY",
+                    "status": "OPEN",
+                    "quantity": 390,
+                    "fill_price": 100.0,
+                    "stop_loss": 98.0,
+                    "risk_amount": 780.0,
+                    "evidence": {},
+                    "recomputed": False,
+                })
+                placeholders = ", ".join(
+                    ["%s"] * len(executor._COLS)
+                )
+                cur.execute(
+                    f"INSERT INTO phase20_paper_trades "
+                    f"({', '.join(executor._COLS)}) "
+                    f"VALUES ({placeholders})",
+                    [
+                        json.dumps(existing.get(column))
+                        if column == "evidence"
+                        else existing.get(column)
+                        for column in executor._COLS
+                    ],
+                )
+            setup_conn.commit()
+        finally:
+            setup_conn.close()
+
+        row = {column: None for column in executor._COLS}
+        row.update({
+            "trade_id": "NEW-TCS",
+            "scan_id": "scan-locked",
+            "symbol": "TCS",
+            "sector": "IT",
+            "side": "BUY",
+            "status": "OPEN",
+            "quantity": 30,
+            "fill_price": 100.0,
+            "stop_loss": 98.0,
+            "risk_amount": 60.0,
+            "evidence": {
+                "sizing": {
+                    "quantity": 30,
+                    "stop_loss": 98.0,
+                    "risk_amount": 60.0,
+                },
+                "quality_allocation_override": {
+                    "policy": "QUALITY_ALLOCATION_OVERRIDE",
+                    "paper_only": True,
+                    "live_broker_orders_called": False,
+                    "override_approved": True,
+                    "tier": "EXCEPTIONAL_QUALITY_3X",
+                    "base_quantity": 10,
+                    "final_quantity": 30,
+                    "effective_multiplier": 3.0,
+                    "three_x_quality_valid": True,
+                    "limiting_caps": [],
+                },
+            },
+            "recomputed": False,
+        })
+
+        with patch.object(executor, "db_available", return_value=True), \
+             patch.object(executor, "_connect", side_effect=scoped_connect):
+            admitted = executor._insert_row(row)
+
+        assert admitted["quantity"] == 10
+        decision = admitted["evidence"]["quality_allocation_override"]
+        assert decision["effective_multiplier"] == 1.0
+        assert decision["exposure_after"]["sector_pct"] == 40.0
+        assert "sector" in decision["limiting_caps"]
+        assert admitted["evidence"][
+            "locked_allocation_admission"
+        ]["reason"] == "LOCKED_QUANTITY_REDUCED"
+
+        verify_conn = scoped_connect()
+        try:
+            with verify_conn.cursor() as cur:
+                cur.execute(
+                    "SELECT quantity, evidence "
+                    "FROM phase20_paper_trades WHERE trade_id = 'NEW-TCS'"
+                )
+                quantity, evidence = cur.fetchone()
+            assert quantity == 10
+            assert evidence["locked_allocation_admission"][
+                "authoritative_state"
+            ]["existing_sector_exposure"] == 39_000.0
+        finally:
+            verify_conn.close()
+    finally:
+        cleanup_conn = real_connect()
+        try:
+            with cleanup_conn.cursor() as cur:
+                cur.execute(f"DROP SCHEMA IF EXISTS {schema} CASCADE")
+            cleanup_conn.commit()
+        finally:
+            cleanup_conn.close()
+        executor._SCHEMA_READY = original_executor_ready
+        store._SCHEMA_READY = original_store_ready
+
+
 def test_open_entry_never_falls_back_to_json_without_postgres():
     executor = _load_real_executor()
 

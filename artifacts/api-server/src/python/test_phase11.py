@@ -309,6 +309,45 @@ class TestOpenPositions(unittest.TestCase):
         positions = m.get_open_positions_detail()
         self.assertEqual(positions, [])
 
+    @patch("canonical_portfolio.build_canonical_portfolio", return_value=SAMPLE_CANON)
+    @patch("phase11_autonomous._get_current_regime", return_value="TRENDING")
+    @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
+    @patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d))
+    @patch("phase20_executor.get_open_trades", return_value=[{
+        "symbol": "RELIANCE",
+        "trigger_source": "AUTO",
+        "fill_model": "LAST_TRADED_PRICE",
+        "evidence": {
+            "quality_allocation_override": {
+                "tier": "HIGH_QUALITY_2X",
+                "reason": "HIGH_QUALITY_2X_APPROVED",
+                "requested_multiplier": 2.0,
+                "effective_multiplier": 1.8,
+                "base_notional": 10_000.0,
+                "final_notional": 18_000.0,
+                "final_risk_amount": 1_200.0,
+                "final_risk_pct": 1.2,
+                "limiting_caps": ["sector"],
+                "exposure_after": {
+                    "stock_pct": 18.0,
+                    "sector_pct": 40.0,
+                    "portfolio_deployed_pct": 68.0,
+                },
+            }
+        },
+    }])
+    def test_open_position_propagates_immutable_allocation_evidence(
+        self, mock_trades, mock_kv, mock_load, mock_regime, mock_canon
+    ):
+        import phase11_autonomous as m
+        positions = m.get_open_positions_detail()
+        reliance = next(p for p in positions if p["stock"] == "RELIANCE")
+        self.assertEqual(reliance["allocation_tier"], "HIGH_QUALITY_2X")
+        self.assertEqual(reliance["allocation_effective_multiplier"], 1.8)
+        self.assertEqual(reliance["allocation_final_notional"], 18_000.0)
+        self.assertEqual(reliance["allocation_sector_exposure_pct"], 40.0)
+        self.assertEqual(reliance["allocation_limiting_caps"], ["sector"])
+
 
 # ── Test: Closed Positions Detail ─────────────────────────────────────────────
 
@@ -399,6 +438,104 @@ class TestRecommendationQueue(unittest.TestCase):
             result = m.get_recommendation_queue()
         for key in ["items", "count", "advisory_only", "paper_only", "as_of"]:
             self.assertIn(key, result)
+
+    def test_recommendation_merges_latest_real_allocation_preview(self):
+        import phase11_autonomous as m
+
+        def _kv_get(key, default=None):
+            if key == "last_entry_evaluation":
+                return {
+                    "evaluated_at": "2026-08-19T04:00:05Z",
+                    "scan_id": "scan-current",
+                    "snapshot_ts": "2026-08-19T04:00:00Z",
+                    "settings_config_hash": "cfg-current",
+                    "candidates": [{
+                        "symbol": "TCS",
+                        "allocation_override_preview": {
+                            "tier": "EXCEPTIONAL_QUALITY_3X",
+                            "reason": "EXCEPTIONAL_QUALITY_3X_APPROVED",
+                            "requested_multiplier": 3.0,
+                            "effective_multiplier": 2.5,
+                            "base_notional": 8_000.0,
+                            "final_notional": 20_000.0,
+                            "final_risk_amount": 1_600.0,
+                            "final_risk_pct": 1.6,
+                            "limiting_caps": ["per_stock"],
+                            "exposure_after": {
+                                "stock_pct": 25.0,
+                                "sector_pct": 36.0,
+                                "portfolio_deployed_pct": 72.0,
+                            },
+                        },
+                    }]
+                }
+            return default
+
+        with patch("phase11_autonomous._get_ai_decision_recs", return_value=[{
+            "symbol": "TCS",
+            "action": "STRONG BUY",
+            "confidence": 92.0,
+        }]), patch("phase20_store.kv_get", side_effect=_kv_get), \
+             patch("phase20_store.get_settings",
+                   return_value={"config_hash": "cfg-current"}), \
+             patch("phase15_scan_context.build_scan_context",
+                   return_value={
+                       "is_today_session": True,
+                       "scan_id": "scan-current",
+                       "snapshot_ts": "2026-08-19T04:00:00Z",
+                   }):
+            result = m.get_recommendation_queue()
+
+        item = result["items"][0]
+        self.assertEqual(item["allocation_tier"], "EXCEPTIONAL_QUALITY_3X")
+        self.assertEqual(item["allocation_effective_multiplier"], 2.5)
+        self.assertEqual(item["allocation_final_notional"], 20_000.0)
+        self.assertEqual(item["allocation_stock_exposure_pct"], 25.0)
+        self.assertTrue(item["allocation_preview"])
+        self.assertTrue(item["allocation_preview_not_executed"])
+        self.assertEqual(item["allocation_scan_id"], "scan-current")
+
+    def test_recommendation_does_not_merge_stale_allocation_preview(self):
+        import phase11_autonomous as m
+
+        stale_eval = {
+            "evaluated_at": "2026-08-19T03:55:05Z",
+            "scan_id": "scan-old",
+            "snapshot_ts": "2026-08-19T03:55:00Z",
+            "settings_config_hash": "cfg-current",
+            "candidates": [{
+                "symbol": "TCS",
+                "allocation_override_preview": {
+                    "tier": "EXCEPTIONAL_QUALITY_3X",
+                    "effective_multiplier": 3.0,
+                },
+            }],
+        }
+        with patch(
+            "phase11_autonomous._get_ai_decision_recs",
+            return_value=[{
+                "symbol": "TCS",
+                "action": "STRONG BUY",
+                "confidence": 92.0,
+            }],
+        ), patch(
+            "phase20_store.kv_get",
+            return_value=stale_eval,
+        ), patch(
+            "phase20_store.get_settings",
+            return_value={"config_hash": "cfg-current"},
+        ), patch(
+            "phase15_scan_context.build_scan_context",
+            return_value={
+                "is_today_session": True,
+                "scan_id": "scan-current",
+                "snapshot_ts": "2026-08-19T04:00:00Z",
+            },
+        ):
+            item = m.get_recommendation_queue()["items"][0]
+
+        self.assertNotIn("allocation_tier", item)
+        self.assertNotIn("allocation_preview", item)
 
 
 # ── Test: Session Timeline ────────────────────────────────────────────────────

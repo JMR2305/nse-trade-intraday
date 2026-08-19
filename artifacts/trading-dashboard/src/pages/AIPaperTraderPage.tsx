@@ -108,6 +108,26 @@ interface OpenPosition {
   // Bootstrap provenance fields — present when trigger_source="BOOTSTRAP_AUTO"
   trigger_source?: string;
   fill_model?: string;
+
+  // Phase 11 / Phase 20 Quality Allocation Fields
+  allocation_tier?: string;
+  allocation_reason?: string;
+  allocation_requested_multiplier?: number;
+  allocation_effective_multiplier?: number;
+  allocation_base_notional?: number;
+  allocation_final_notional?: number;
+  allocation_risk_amount?: number;
+  allocation_risk_pct?: number;
+  allocation_limiting_caps?: string[];
+  allocation_stock_exposure_pct?: number;
+  allocation_sector_exposure_pct?: number;
+  allocation_portfolio_exposure_pct?: number;
+  allocation_preview?: boolean;
+  allocation_preview_not_executed?: boolean;
+  allocation_scan_id?: string;
+  allocation_snapshot_ts?: string;
+  allocation_evaluated_at?: string;
+  allocation_settings_config_hash?: string;
 }
 interface ClosedPosition {
   symbol: string; buy_time: string; sell_time: string;
@@ -129,6 +149,26 @@ interface Recommendation {
   expected_return: number; estimated_holding: string;
   entry: number; stop_loss: number; target: number;
   reasoning: string; strategy: string;
+
+  // Phase 11 / Phase 20 Quality Allocation Fields
+  allocation_tier?: string;
+  allocation_reason?: string;
+  allocation_requested_multiplier?: number;
+  allocation_effective_multiplier?: number;
+  allocation_base_notional?: number;
+  allocation_final_notional?: number;
+  allocation_risk_amount?: number;
+  allocation_risk_pct?: number;
+  allocation_limiting_caps?: string[];
+  allocation_stock_exposure_pct?: number;
+  allocation_sector_exposure_pct?: number;
+  allocation_portfolio_exposure_pct?: number;
+  allocation_preview?: boolean;
+  allocation_preview_not_executed?: boolean;
+  allocation_scan_id?: string;
+  allocation_snapshot_ts?: string;
+  allocation_evaluated_at?: string;
+  allocation_settings_config_hash?: string;
 }
 interface RecsData { items: Recommendation[]; count: number; }
 interface AIPerf {
@@ -173,11 +213,31 @@ interface CapitalConfig {
   capital_mode_label: string; last_reset_date: string | null;
 }
 
+export interface Phase20Settings {
+  initial_capital?: number;
+  quality_allocation_override_enabled?: boolean;
+  quality_allocation_2x_enabled?: boolean;
+  quality_allocation_3x_enabled?: boolean;
+  quality_allocation_2x_min_confidence?: number;
+  quality_allocation_2x_min_opportunity_score?: number;
+  quality_allocation_2x_min_trade_quality_score?: number;
+  quality_allocation_2x_min_risk_reward?: number;
+  quality_allocation_2x_risk_budget_pct?: number;
+  quality_allocation_3x_min_confidence?: number;
+  quality_allocation_3x_min_opportunity_score?: number;
+  quality_allocation_3x_min_trade_quality_score?: number;
+  quality_allocation_3x_min_risk_reward?: number;
+  quality_allocation_3x_risk_budget_pct?: number;
+  quality_allocation_3x_max_atr_pct?: number;
+  quality_allocation_3x_max_stop_distance_pct?: number;
+  quality_allocation_absolute_cap?: number;
+  quality_allocation_3x_sector_override_enabled?: boolean;
+  quality_allocation_3x_sector_override_cap_pct?: number;
+}
+
 interface Phase20SettingsEnvelope {
   success?: boolean;
-  settings?: {
-    initial_capital?: number;
-  };
+  settings?: Phase20Settings;
 }
 
 interface CapitalMigrationStatus {
@@ -374,6 +434,125 @@ function RiskBadge({ level }: { level: string }) {
     : level === "HIGH" ? "bg-rose-900/50 text-rose-300 border-rose-700/50"
     : "bg-amber-900/50 text-amber-300 border-amber-700/50";
   return <Badge className={`text-xs px-1.5 py-0 ${cls}`}>{level}</Badge>;
+}
+
+export function AllocationTierBadge({ tier }: { tier?: string }) {
+  if (!tier || tier === "NORMAL") return null;
+  const is3x = tier === "EXCEPTIONAL_QUALITY_3X";
+  const cls = is3x
+    ? "bg-fuchsia-900/60 text-fuchsia-300 border-fuchsia-700/60 shadow-[0_0_12px_rgba(217,70,239,0.2)]"
+    : "bg-blue-900/60 text-blue-300 border-blue-700/60 shadow-[0_0_8px_rgba(59,130,246,0.15)]";
+  return (
+    <Badge
+      variant="outline"
+      className={`text-[10px] font-bold tracking-widest uppercase px-1.5 py-0 ${cls}`}
+      data-testid="allocation-tier-badge"
+    >
+      {is3x ? "3X QUALITY" : "2X QUALITY"}
+    </Badge>
+  );
+}
+
+export function AllocationSummary({ data }: { data: Partial<Recommendation> | Partial<OpenPosition> }) {
+  if (!data.allocation_tier && !data.allocation_requested_multiplier) return null;
+  const isPreview = data.allocation_preview_not_executed === true;
+
+  return (
+    <div
+      className="mt-2 text-[10px] bg-slate-900/80 border border-slate-700/50 rounded p-2 grid gap-1.5 relative overflow-hidden"
+      data-testid="allocation-summary-card"
+    >
+      {data.allocation_tier === "EXCEPTIONAL_QUALITY_3X" && (
+        <div className="absolute top-0 right-0 w-8 h-8 bg-fuchsia-500/10 blur-xl rounded-full pointer-events-none" />
+      )}
+
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/60 pb-1.5">
+        <div className="flex items-center gap-2">
+          <span className="text-slate-400 font-medium">ALLOCATION</span>
+          {data.allocation_tier && <AllocationTierBadge tier={data.allocation_tier} />}
+          {isPreview && (
+            <Badge
+              variant="outline"
+              className="border-amber-500/30 bg-amber-500/10 text-amber-300 text-[9px] px-1.5 py-0"
+              data-testid="allocation-preview-label"
+            >
+              PREVIEW · NOT EXECUTED
+            </Badge>
+          )}
+        </div>
+
+        {data.allocation_effective_multiplier !== undefined && (
+          <div className="flex items-center gap-1 font-mono">
+            <span className="text-slate-500">Mult:</span>
+            <span
+              className={data.allocation_effective_multiplier < (data.allocation_requested_multiplier || 0) ? "text-amber-400" : "text-emerald-400"}
+              data-testid="allocation-effective-multiplier"
+            >
+              {data.allocation_effective_multiplier}x
+            </span>
+            {data.allocation_requested_multiplier && data.allocation_requested_multiplier !== data.allocation_effective_multiplier && (
+              <span className="text-slate-500 line-through text-[9px] ml-1">({data.allocation_requested_multiplier}x req)</span>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-x-2 gap-y-1 mt-1">
+        {data.allocation_base_notional !== undefined && data.allocation_final_notional !== undefined && (
+          <div className="flex justify-between">
+            <span className="text-slate-500">Notional</span>
+            <span className="font-mono text-slate-300" data-testid="allocation-notional">
+              {fmtK(data.allocation_base_notional)} <span className="text-slate-500">→</span> {fmtK(data.allocation_final_notional)}
+            </span>
+          </div>
+        )}
+
+        {data.allocation_risk_amount !== undefined && (
+          <div className="flex justify-between">
+            <span className="text-slate-500">Risk</span>
+            <span className="font-mono text-slate-300" data-testid="allocation-risk">
+              ₹{fmt(data.allocation_risk_amount)} {data.allocation_risk_pct !== undefined && `(${data.allocation_risk_pct.toFixed(2)}%)`}
+            </span>
+          </div>
+        )}
+
+        {(data.allocation_stock_exposure_pct !== undefined || data.allocation_sector_exposure_pct !== undefined) && (
+          <div className="flex justify-between col-span-2" data-testid="allocation-exposure">
+            <span className="text-slate-500">Post-Trade Exposure</span>
+            <span className="font-mono text-slate-400 text-[9px]">
+              {data.allocation_stock_exposure_pct !== undefined && `Stock: ${data.allocation_stock_exposure_pct.toFixed(1)}%`}
+              {data.allocation_sector_exposure_pct !== undefined && ` | Sector: ${data.allocation_sector_exposure_pct.toFixed(1)}%`}
+              {data.allocation_portfolio_exposure_pct !== undefined && ` | Port: ${data.allocation_portfolio_exposure_pct.toFixed(1)}%`}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {(data.allocation_limiting_caps && data.allocation_limiting_caps.length > 0) && (
+        <div className="flex gap-1.5 mt-0.5 text-amber-500/80 bg-amber-950/20 px-1.5 py-1 rounded">
+          <span className="shrink-0 mt-0.5 w-1.5 h-1.5 rounded-full bg-amber-500/50" />
+          <span className="leading-tight">Capped by: {data.allocation_limiting_caps.join(", ")}</span>
+        </div>
+      )}
+
+      {data.allocation_reason && (
+        <div className="text-slate-400 italic text-[9px] leading-tight border-t border-slate-800/60 pt-1 mt-0.5">
+          {data.allocation_reason}
+        </div>
+      )}
+      {isPreview && (
+        <div className="font-mono text-slate-500 text-[9px] leading-tight">
+          Current-scan estimate
+          {data.allocation_scan_id
+            ? ` · Scan ${data.allocation_scan_id}`
+            : ""}
+          {data.allocation_evaluated_at
+            ? ` · Evaluated ${data.allocation_evaluated_at}`
+            : ""}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function ConfBar({ value }: { value: number }) {
@@ -2785,7 +2964,7 @@ function S4Holdings() {
                 {[
                   "Stock","Momentum","Buy Time","Buy ₹","Qty","Cur ₹",
                   "Value","P/L","P/L %","Target","S/L","Exp Ret",
-                  "Confidence","Strategy","Risk","Age","Duration",
+                  "Confidence","Strategy","Risk","Age","Duration","Allocation",
                 ].map(h => (
                   <th key={h} className="pb-2 pr-3 text-left text-slate-500 font-medium">{h}</th>
                 ))}
@@ -2868,6 +3047,13 @@ function S4Holdings() {
                       </span>
                     </td>
                     <td className="py-2 pr-3 text-slate-400">{p.holding_label}</td>
+                    <td className="py-2 pr-3 align-top min-w-[280px]">
+                      {(p.allocation_tier || p.allocation_requested_multiplier) ? (
+                        <AllocationSummary data={p} />
+                      ) : (
+                        <span className="text-slate-600 text-xs italic mt-1.5 inline-block">Standard</span>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
@@ -2967,6 +3153,7 @@ function S6RecQueue({ data, loading }: { data?: RecsData; loading: boolean }) {
               <div><p className="text-slate-500">Hold Time</p><p className="text-slate-300">{r.estimated_holding}</p></div>
             </div>
             {r.reasoning && <p className="text-xs text-slate-500 line-clamp-2">{r.reasoning}</p>}
+            <AllocationSummary data={r} />
           </div>
         ))}
       </div>
@@ -3447,6 +3634,113 @@ function S11Replay() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// S20QualityAllocationPolicy — Compact Read-Only View of Phase 20 Settings
+// ══════════════════════════════════════════════════════════════════════════════
+
+export function QualityAllocationPolicyView({ settings: s }: { settings: Phase20Settings }) {
+  const enabled = Boolean(s.quality_allocation_override_enabled);
+  const tierClass = enabled ? "" : "opacity-60";
+
+  return (
+    <div
+      className="bg-slate-900/60 border border-blue-900/40 rounded-xl p-3 shadow-[0_0_15px_rgba(59,130,246,0.05)]"
+      data-testid="quality-allocation-policy"
+    >
+      <div className="flex flex-wrap items-center gap-4 text-xs">
+        <div className="flex items-center gap-2 border-r border-slate-800/60 pr-4">
+          <Badge
+            className={enabled
+              ? "bg-blue-900/60 text-blue-300 border-blue-700/60 px-1.5 py-0"
+              : "bg-slate-800 text-slate-400 border-slate-700 px-1.5 py-0"}
+            data-testid="quality-allocation-policy-state"
+          >
+            Q. ALLOC {enabled ? "ON" : "OFF"}
+          </Badge>
+          <span className="text-slate-400">
+            {enabled ? "Quality Allocation Policy Active" : "Normal 1x sizing only"}
+          </span>
+        </div>
+
+        <div className={`flex items-center gap-1.5 border-r border-slate-800/60 pr-4 ${tierClass}`}>
+          <Badge className="bg-blue-900/40 text-blue-400 border-blue-800/50 px-1.5 py-0 text-[10px]">
+            2X {s.quality_allocation_2x_enabled ? "ON" : "OFF"}
+          </Badge>
+          <span className="text-slate-300">
+            C/O/Q{" "}
+            <span className="font-mono text-white">
+              {s.quality_allocation_2x_min_confidence ?? "—"}/
+              {s.quality_allocation_2x_min_opportunity_score ?? "—"}/
+              {s.quality_allocation_2x_min_trade_quality_score ?? "—"}
+            </span>
+          </span>
+          <span className="text-slate-500">|</span>
+          <span className="text-slate-300">R:R {s.quality_allocation_2x_min_risk_reward ?? "—"}</span>
+          <span className="text-slate-500">|</span>
+          <span className="text-slate-300">Risk {s.quality_allocation_2x_risk_budget_pct ?? "—"}%</span>
+        </div>
+
+        <div className={`flex items-center gap-1.5 border-r border-slate-800/60 pr-4 ${tierClass}`}>
+          <Badge className="bg-fuchsia-900/40 text-fuchsia-400 border-fuchsia-800/50 px-1.5 py-0 text-[10px]">
+            3X {s.quality_allocation_3x_enabled ? "ON" : "OFF"}
+          </Badge>
+          <span className="text-slate-300">
+            C/O/Q{" "}
+            <span className="font-mono text-white">
+              {s.quality_allocation_3x_min_confidence ?? "—"}/
+              {s.quality_allocation_3x_min_opportunity_score ?? "—"}/
+              {s.quality_allocation_3x_min_trade_quality_score ?? "—"}
+            </span>
+          </span>
+          <span className="text-slate-500">|</span>
+          <span className="text-slate-300">R:R {s.quality_allocation_3x_min_risk_reward ?? "—"}</span>
+          <span className="text-slate-500">|</span>
+          <span className="text-slate-300">Risk {s.quality_allocation_3x_risk_budget_pct ?? "—"}%</span>
+          <span className="text-slate-500">|</span>
+          <span className="text-slate-400">
+            ATR≤{s.quality_allocation_3x_max_atr_pct ?? "—"}% · Stop≤{s.quality_allocation_3x_max_stop_distance_pct ?? "—"}% · 2 scans
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1.5 border-r border-slate-800/60 pr-4">
+          <span className="text-slate-400">
+            Abs Cap:{" "}
+            <span className="font-mono text-slate-300">
+              {s.quality_allocation_absolute_cap !== undefined
+                ? fmtK(s.quality_allocation_absolute_cap)
+                : "—"}
+            </span>
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <Badge className={s.quality_allocation_3x_sector_override_enabled
+            ? "bg-amber-900/40 text-amber-400 border-amber-800/50 px-1.5 py-0 text-[10px]"
+            : "bg-slate-800 text-slate-400 border-slate-700 px-1.5 py-0 text-[10px]"}
+          >
+            SECTOR OVERRIDE {s.quality_allocation_3x_sector_override_enabled ? "ON" : "OFF"}
+          </Badge>
+          <span className="text-slate-300">
+            Cap {s.quality_allocation_3x_sector_override_cap_pct ?? "—"}%
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function S20QualityAllocationPolicy() {
+  const { data: env, isLoading } = useQuery<Phase20SettingsEnvelope>({
+    queryKey: ["apt", "p20-settings-capital"],
+    queryFn:  () => apiJson("/phase20/settings"),
+    staleTime: 60_000, retry: 1,
+  });
+
+  if (isLoading) return null;
+  const s = env?.settings;
+  return s ? <QualityAllocationPolicyView settings={s} /> : null;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // S12 — Capital Reset
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -3561,6 +3855,9 @@ export default function AIPaperTraderPage() {
 
         {/* S0 — Autonomous Session Status */}
         <S0AutonomousSession />
+
+        {/* Quality Allocation Policy Strip */}
+        <S20QualityAllocationPolicy />
 
         {/* Pipeline Funnel — shows stocks→signals→gates→orders at a glance */}
         <SPipelineStats />

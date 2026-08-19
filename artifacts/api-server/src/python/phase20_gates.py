@@ -218,6 +218,19 @@ def evaluate_entries(candidate_symbols: Optional[List[str]] = None) -> Dict[str,
         pool = [s for s, r in symbols_ctx.items()
                 if str(r.get("final_action") or "").upper() in ("BUY", "STRONG BUY")]
 
+    # Quality-allocation evidence is advisory to the NORMAL gate path: cache or
+    # history failures can only deny 2x/3x and must never break 1x evaluation.
+    cache_status: Dict[str, Dict[str, Any]] = {}
+    try:
+        from ohlcv_cache_store import get_cache_status
+        cache_status = get_cache_status(pool)
+    except Exception:
+        cache_status = {}
+    try:
+        allocation_history = store.kv_get("allocation_override_history") or []
+    except Exception:
+        allocation_history = []
+
     candidates: List[Dict[str, Any]] = []
     for sym in pool:
         rec = symbols_ctx.get(sym) or {}
@@ -288,9 +301,12 @@ def evaluate_entries(candidate_symbols: Optional[List[str]] = None) -> Dict[str,
             f"Post-trade {sym} exposure {stock_pct:.1f}% (cap {per_stock_cap}%)"))
 
         sector = rec.get("sector") or _sector_of(sym)
-        sector_value = sum(float(p["quantity"]) * float(p["current_price"])
-                           for p in portfolio["positions"]
-                           if _sector_of(str(p["symbol"])) == sector) + position_value
+        existing_sector_value = sum(
+            float(p["quantity"]) * float(p["current_price"])
+            for p in portfolio["positions"]
+            if _sector_of(str(p["symbol"])) == sector
+        )
+        sector_value = existing_sector_value + position_value
         sector_pct = sector_value / total_value * 100.0
         gates.append(_gate(
             "sector_cap", sector_pct <= float(settings["sector_exposure_cap_pct"]),
@@ -403,7 +419,32 @@ def evaluate_entries(candidate_symbols: Optional[List[str]] = None) -> Dict[str,
             # When ATR is not in the scan record, the gate is skipped.
 
         failed = [g["gate"] for g in gates if not g["passed"]]
-        candidates.append({
+        cache_info = cache_status.get(sym, {})
+        cache_quality = str(cache_info.get("data_quality") or "").upper()
+        atr_pct: Optional[float] = None
+        try:
+            from ohlcv_cache_store import read_symbol_from_cache
+            cached_bars = read_symbol_from_cache(sym, min_bars=20)
+            if cached_bars is not None and len(cached_bars) >= 15:
+                prev_close = cached_bars["close"].shift(1)
+                true_range = (
+                    (cached_bars["high"] - cached_bars["low"]).abs()
+                    .to_frame("high_low")
+                )
+                true_range["high_prev_close"] = (
+                    cached_bars["high"] - prev_close
+                ).abs()
+                true_range["low_prev_close"] = (
+                    cached_bars["low"] - prev_close
+                ).abs()
+                atr = float(true_range.max(axis=1).tail(14).mean())
+                last_close = float(cached_bars["close"].iloc[-1])
+                if atr > 0 and last_close > 0:
+                    atr_pct = round(atr / last_close * 100.0, 4)
+        except Exception:
+            atr_pct = None
+
+        candidate = {
             "symbol": sym,
             "sector": sector,
             "recommendation": action,
@@ -426,7 +467,86 @@ def evaluate_entries(candidate_symbols: Optional[List[str]] = None) -> Dict[str,
             "strategy_name": rec.get("strategy_name"),
             "regime": rec.get("regime"),
             "expected_holding_days": rec.get("expected_holding_days"),
-        })
+            "data_quality": dq,
+            "kite_ltp": rec.get("kite_ltp"),
+            "kite_ltp_available": bool(rec.get("kite_ltp_available")),
+            "kite_session_verified_flag": bool(
+                rec.get("kite_session_verified_flag")
+            ),
+            "kite_ltp_overlay_enabled": bool(
+                rec.get("kite_ltp_overlay_enabled")
+            ),
+            "current_price_source": rec.get("current_price_source"),
+            "execution_price_source": rec.get("execution_price_source"),
+            "quote_reliable": bool(rec.get("quote_reliable")),
+            "indicator_source": rec.get("indicator_source"),
+            "ohlcv_source": rec.get("ohlcv_source"),
+            "yfinance_last_close": rec.get("yfinance_last_close"),
+            "reason_not_live_ltp": rec.get("reason_not_live_ltp"),
+            "latest_price_time_ist": rec.get("latest_price_time_ist"),
+            "allocation_context": {
+                "total_capital": total_value,
+                "cash": cash,
+                "invested_value": invested,
+                "existing_stock_value": existing_value,
+                "existing_sector_value": existing_sector_value,
+                "daily_realized_pnl": daily_pnl,
+                "risk_per_trade_pct": float(settings["risk_per_trade_pct"]),
+                "normal_risk_budget_pct": float(settings["risk_per_trade_pct"]),
+                "ohlcv_cache_hit": bool(cache_info.get("cached")),
+                "ohlcv_cache_fresh": (
+                    bool(cache_info.get("cached"))
+                    and cache_quality in ("LIVE", "NEAR_LIVE")
+                    and not bool(cache_info.get("missing_required"))
+                ),
+                "ohlcv_cache_data_quality": cache_quality,
+                "ohlcv_cache_latest_date": cache_info.get("latest_date"),
+                "ohlcv_cache_age_days": cache_info.get("age_days"),
+                "atr_pct": atr_pct,
+                "stale_or_blocked_close_warning": bool(
+                    ctx.get("stale")
+                    or rec.get("error")
+                    or dq not in ("LIVE", "NEAR_LIVE")
+                    or rec.get("reason_not_live_ltp")
+                ),
+            },
+        }
+        try:
+            from quality_allocation_override import (
+                evaluate_allocation_override,
+                previous_scan_3x_valid,
+            )
+            previous_valid = previous_scan_3x_valid(
+                allocation_history, ctx.get("scan_id"), sym
+            )
+            candidate["allocation_context"][
+                "previous_scan_3x_valid"
+            ] = previous_valid
+            preview_price = float(candidate.get("kite_ltp") or entry)
+            candidate["allocation_override_preview"] = (
+                evaluate_allocation_override(
+                    candidate,
+                    settings,
+                    preview_price,
+                    previous_scan_valid=previous_valid,
+                    trigger_source="AUTO",
+                )
+            )
+        except Exception as exc:
+            candidate["allocation_override_preview"] = {
+                "policy": "QUALITY_ALLOCATION_OVERRIDE",
+                "tier": "NORMAL",
+                "requested_multiplier": 1.0,
+                "effective_multiplier": 1.0,
+                "override_approved": False,
+                "reason": (
+                    "ALLOCATION_EVALUATOR_UNAVAILABLE: "
+                    f"{type(exc).__name__}"
+                ),
+                "paper_only": True,
+                "live_broker_orders_called": False,
+            }
+        candidates.append(candidate)
 
     evaluation = {
         "evaluated_at": _now_iso(),

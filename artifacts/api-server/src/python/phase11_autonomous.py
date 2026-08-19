@@ -337,6 +337,13 @@ def get_open_positions_detail() -> List[Dict[str, Any]]:
                 _provenance[_sym] = {
                     "trigger_source": _t.get("trigger_source"),
                     "fill_model":     _t.get("fill_model"),
+                    "allocation_override": (
+                        (_t.get("evidence") or {}).get(
+                            "quality_allocation_override"
+                        )
+                        if isinstance(_t.get("evidence"), dict)
+                        else None
+                    ),
                 }
     except Exception:
         pass
@@ -404,6 +411,16 @@ def get_open_positions_detail() -> List[Dict[str, Any]]:
                           and holding_days >= (_max_holding_days - 2))
 
         _prov = _provenance.get(str(sym).upper() if sym else "", {})
+        _allocation = (
+            _prov.get("allocation_override")
+            if isinstance(_prov.get("allocation_override"), dict)
+            else {}
+        )
+        _exposure_after = (
+            _allocation.get("exposure_after")
+            if isinstance(_allocation.get("exposure_after"), dict)
+            else {}
+        )
         result.append({
             "stock":                  sym,
             "buy_time":               buy_ts,
@@ -432,6 +449,21 @@ def get_open_positions_detail() -> List[Dict[str, Any]]:
             # Bootstrap provenance — present only when trigger_source="BOOTSTRAP_AUTO"
             "trigger_source":         _prov.get("trigger_source"),
             "fill_model":             _prov.get("fill_model"),
+            "allocation_tier":        _allocation.get("tier"),
+            "allocation_reason":      _allocation.get("reason"),
+            "allocation_requested_multiplier": _allocation.get(
+                "requested_multiplier"),
+            "allocation_effective_multiplier": _allocation.get(
+                "effective_multiplier"),
+            "allocation_base_notional": _allocation.get("base_notional"),
+            "allocation_final_notional": _allocation.get("final_notional"),
+            "allocation_risk_amount": _allocation.get("final_risk_amount"),
+            "allocation_risk_pct": _allocation.get("final_risk_pct"),
+            "allocation_limiting_caps": _allocation.get("limiting_caps") or [],
+            "allocation_stock_exposure_pct": _exposure_after.get("stock_pct"),
+            "allocation_sector_exposure_pct": _exposure_after.get("sector_pct"),
+            "allocation_portfolio_exposure_pct": _exposure_after.get(
+                "portfolio_deployed_pct"),
         })
 
     result.sort(key=lambda x: x["current_pnl_pct"], reverse=True)
@@ -539,6 +571,91 @@ def get_recommendation_queue() -> Dict[str, Any]:
     if not items:
         items = _safe(lambda: _get_scan_signal_recs(), []) or []
 
+    # Resolve the canonical scan once. Allocation previews are joined only when
+    # scan id, snapshot timestamp, and settings hash all match the current
+    # recommendation source. A symbol-only join can make a prior scan's sizing
+    # look current, which is not acceptable for operator-facing provenance.
+    _sc: Dict[str, Any] = {}
+    try:
+        from phase15_scan_context import build_scan_context as _bsc
+        _sc = _bsc() or {}
+    except Exception:
+        _sc = {}
+
+    # Merge the latest Phase 20 allocation preview by symbol only after the
+    # provenance match above. These values are explicitly marked as a preview,
+    # never an executed allocation.
+    try:
+        from phase20_store import (
+            get_settings as _p20_get_settings,
+            kv_get as _p20_kv_get,
+        )
+        _entry_eval = _p20_kv_get("last_entry_evaluation") or {}
+        _current_settings = _p20_get_settings() or {}
+        _provenance_matches = (
+            bool(_sc.get("scan_id"))
+            and str(_entry_eval.get("scan_id") or "")
+            == str(_sc.get("scan_id") or "")
+            and bool(_sc.get("snapshot_ts"))
+            and str(_entry_eval.get("snapshot_ts") or "")
+            == str(_sc.get("snapshot_ts") or "")
+            and bool(_current_settings.get("config_hash"))
+            and str(_entry_eval.get("settings_config_hash") or "")
+            == str(_current_settings.get("config_hash") or "")
+        )
+        _allocation_by_symbol = (
+            {
+                str(c.get("symbol") or "").upper(): (
+                    c.get("allocation_override_preview") or {}
+                )
+                for c in (_entry_eval.get("candidates") or [])
+                if c.get("symbol")
+                and isinstance(
+                    c.get("allocation_override_preview"), dict
+                )
+            }
+            if _provenance_matches
+            else {}
+        )
+        for item in items:
+            _allocation = _allocation_by_symbol.get(
+                str(item.get("symbol") or "").upper()
+            )
+            if not _allocation:
+                continue
+            _exposure = (
+                _allocation.get("exposure_after")
+                if isinstance(_allocation.get("exposure_after"), dict)
+                else {}
+            )
+            item.update({
+                "allocation_tier": _allocation.get("tier"),
+                "allocation_reason": _allocation.get("reason"),
+                "allocation_requested_multiplier": _allocation.get(
+                    "requested_multiplier"),
+                "allocation_effective_multiplier": _allocation.get(
+                    "effective_multiplier"),
+                "allocation_base_notional": _allocation.get("base_notional"),
+                "allocation_final_notional": _allocation.get("final_notional"),
+                "allocation_risk_amount": _allocation.get("final_risk_amount"),
+                "allocation_risk_pct": _allocation.get("final_risk_pct"),
+                "allocation_limiting_caps": _allocation.get(
+                    "limiting_caps") or [],
+                "allocation_stock_exposure_pct": _exposure.get("stock_pct"),
+                "allocation_sector_exposure_pct": _exposure.get("sector_pct"),
+                "allocation_portfolio_exposure_pct": _exposure.get(
+                    "portfolio_deployed_pct"),
+                "allocation_preview": True,
+                 "allocation_preview_not_executed": True,
+                 "allocation_scan_id": _entry_eval.get("scan_id"),
+                 "allocation_snapshot_ts": _entry_eval.get("snapshot_ts"),
+                 "allocation_evaluated_at": _entry_eval.get("evaluated_at"),
+                 "allocation_settings_config_hash": _entry_eval.get(
+                     "settings_config_hash"),
+            })
+    except Exception:
+        pass
+
     # Filter: only BUY / STRONG BUY
     items = [i for i in items if i.get("action", "").upper() in
              ("BUY", "STRONG BUY", "STRONG_BUY")]
@@ -549,13 +666,7 @@ def get_recommendation_queue() -> Dict[str, Any]:
     # ── Session-date gate ──────────────────────────────────────────────────
     # When the latest scan is from a previous trading day, the recommendation
     # queue must be cleared so yesterday's BUY items don't appear as active.
-    _is_today_session = True
-    try:
-        from phase15_scan_context import build_scan_context as _bsc
-        _sc = _bsc()
-        _is_today_session = bool(_sc.get("is_today_session", True))
-    except Exception:
-        pass
+    _is_today_session = bool(_sc.get("is_today_session", True))
 
     if not _is_today_session:
         return {

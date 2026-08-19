@@ -1556,7 +1556,7 @@ function PortfolioSidebar({ q }: { q: ReturnType<typeof useWidgetQuery<Portfolio
 
 const EVENT_ROW_H = 22; // px — fixed row height enables windowed rendering
 
-function EventStreamPanel({ streamEvents }: { streamEvents: PipelineStreamEvent[] }) {
+export function EventStreamPanel({ streamEvents }: { streamEvents: PipelineStreamEvent[] }) {
   const feedQ = useWidgetQuery<{ events?: PipelineEvent[] }>({
     queryKey: ["mc", "event-feed"], path: "/pipeline/events?limit=80&newest_first=true", refetchInterval: R.events,
   });
@@ -1597,16 +1597,76 @@ function EventStreamPanel({ streamEvents }: { streamEvents: PipelineStreamEvent[
           {events.map((e) => {
             const tone = eventTone(e.event_type);
             const Icon = tone === "bad" ? XCircle : tone === "ok" ? CheckCircle2 : tone === "warn" ? AlertTriangle : ChevronRight;
+
+            // Phase 20 Allocation Extraction
+            const allocTier = (
+              e.payload?.allocation_tier ?? e.payload?.tier
+            ) as string | undefined;
+            const isAllocEvent = e.event_type.includes("ALLOCATION") || !!allocTier;
+            const requestedMult = (
+              e.payload?.allocation_requested_multiplier
+              ?? e.payload?.requested_multiplier
+            ) as number | undefined;
+            const effMult = (
+              e.payload?.allocation_multiplier
+              ?? e.payload?.allocation_effective_multiplier
+              ?? e.payload?.effective_multiplier
+            ) as number | undefined;
+            const notional = (
+              e.payload?.allocation_final_notional
+              ?? e.payload?.final_notional
+            ) as number | undefined;
+            const caps = (
+              e.payload?.allocation_limiting_caps
+              ?? e.payload?.limiting_caps
+            ) as string[] | undefined;
+            const hasCaps = caps && caps.length > 0;
+
             return (
               <div key={e.id} style={{ height: EVENT_ROW_H }} className="flex items-center gap-2 border-b border-border/30 last:border-0 group">
                 <Icon className={`h-3 w-3 shrink-0 ${toneClass[tone]}`} />
                 <span className="text-muted-foreground w-14 shrink-0">{timeAgo(e.ts)}</span>
-                <span className="w-28 shrink-0 truncate text-muted-foreground/70">{e.stage}</span>
-                <span className={`w-44 shrink-0 truncate ${toneClass[tone]}`}>{e.event_type}</span>
-                <span className="w-24 shrink-0 font-semibold truncate">{e.symbol ?? ""}</span>
-                <span className="text-muted-foreground truncate flex-1 min-w-0">
-                  {String(e.payload?.reason ?? e.payload?.action ?? e.payload?.strategy_name ?? e.payload?.trade_id ?? "")}
-                </span>
+                <span className="w-24 shrink-0 truncate text-muted-foreground/70">{e.stage}</span>
+                <span className={`w-40 shrink-0 truncate ${toneClass[tone]}`} title={e.event_type}>{e.event_type}</span>
+                <span className="w-20 shrink-0 font-semibold truncate">{e.symbol ?? ""}</span>
+
+                {/* Custom payload display */}
+                <div className="flex items-center gap-1.5 flex-1 min-w-0 truncate text-muted-foreground">
+                  <span className="truncate min-w-0">
+                    {String(e.payload?.rejection_reason ?? e.payload?.reason ?? e.payload?.action ?? e.payload?.strategy_name ?? e.payload?.trade_id ?? "")}
+                  </span>
+
+                  {isAllocEvent && allocTier && (
+                    <Badge variant="outline" className={`text-[8px] h-3.5 px-1 py-0 leading-none shrink-0 ${
+                      allocTier === "EXCEPTIONAL_QUALITY_3X"
+                        ? "border-fuchsia-800 text-fuchsia-400 bg-fuchsia-950/40"
+                        : "border-blue-800 text-blue-400 bg-blue-950/40"
+                    }`} data-testid={`mc-allocation-tier-${e.id}`}>
+                      {allocTier === "EXCEPTIONAL_QUALITY_3X"
+                        ? "3X"
+                        : allocTier === "HIGH_QUALITY_2X"
+                          ? "2X"
+                          : "1X"}
+                    </Badge>
+                  )}
+                  {isAllocEvent && effMult !== undefined && (
+                    <span className="text-[9px] font-mono shrink-0 text-slate-400">
+                      {effMult}x
+                      {requestedMult !== undefined && requestedMult !== effMult
+                        ? `/${requestedMult}x req`
+                        : ""}
+                    </span>
+                  )}
+                  {isAllocEvent && notional !== undefined && (
+                    <span className="text-[9px] font-mono shrink-0 text-slate-400">₹{(notional / 1000).toFixed(1)}k</span>
+                  )}
+                  {isAllocEvent && hasCaps && (
+                    <span className="text-[9px] shrink-0 text-amber-500/80 truncate max-w-[80px]" title={`Capped by: ${caps.join(", ")}`}>
+                      [cap: {caps[0]}]
+                    </span>
+                  )}
+                </div>
+
                 <Link
                   href={eventInvestigateHref(e)}
                   title="Investigate in Investigation Center"

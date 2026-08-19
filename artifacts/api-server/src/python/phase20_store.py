@@ -110,6 +110,29 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     # trigger_source="BOOTSTRAP_AUTO" so it is permanently distinguishable from
     # normal paper entries. Auto-disables when the ledger reaches 20 closed trades.
     "bootstrap_paper_enabled": False,
+    # ── Quality allocation override (paper-only controlled 2x / 3x tiers) ────
+    # The policy is enabled, but automatic entries remain safe-off by default.
+    # Missing evidence always falls back to NORMAL 1x sizing.
+    "quality_allocation_override_enabled": True,
+    "quality_allocation_2x_enabled": True,
+    "quality_allocation_3x_enabled": True,
+    "quality_allocation_2x_min_confidence": 85.0,
+    "quality_allocation_2x_min_opportunity_score": 80.0,
+    "quality_allocation_2x_min_trade_quality_score": 80.0,
+    "quality_allocation_2x_min_risk_reward": 2.5,
+    "quality_allocation_2x_risk_budget_pct": 1.5,
+    "quality_allocation_3x_min_confidence": 90.0,
+    "quality_allocation_3x_min_opportunity_score": 85.0,
+    "quality_allocation_3x_min_trade_quality_score": 88.0,
+    "quality_allocation_3x_min_risk_reward": 3.0,
+    "quality_allocation_3x_risk_budget_pct": 2.0,
+    "quality_allocation_3x_max_atr_pct": 3.0,
+    "quality_allocation_3x_max_stop_distance_pct": 2.5,
+    "quality_allocation_absolute_cap": 30_000.0,
+    # Disabled by default.  When enabled, only a qualifying 3x request may use
+    # sector capacity above the normal cap, and never above 50%.
+    "quality_allocation_3x_sector_override_enabled": False,
+    "quality_allocation_3x_sector_override_cap_pct": 50.0,
     # ── Stale-scan exit fallback (Task 791) ─────────────────────────────────────
     # When an exit rule fires on a stale scan AND the trade has been held for at
     # least this many days, the exit engine uses the yfinance daily close as the
@@ -393,6 +416,58 @@ def _validate_patch(patch: Dict[str, Any], current: Dict[str, Any]) -> Dict[str,
                     "initial_capital must be between ₹10,000 and ₹5,00,000")
             # Snap to nearest ₹1,000
             clean[key] = round(fv / 1_000) * 1_000.0
+        elif key in {
+            "quality_allocation_2x_min_confidence",
+            "quality_allocation_2x_min_opportunity_score",
+            "quality_allocation_2x_min_trade_quality_score",
+            "quality_allocation_3x_min_confidence",
+            "quality_allocation_3x_min_opportunity_score",
+            "quality_allocation_3x_min_trade_quality_score",
+        }:
+            fv = float(value)
+            if fv < 0 or fv > 100:
+                raise ValueError(f"{key} must be between 0 and 100")
+            clean[key] = fv
+        elif key in {
+            "quality_allocation_2x_min_risk_reward",
+            "quality_allocation_3x_min_risk_reward",
+        }:
+            fv = float(value)
+            if fv < 1.0 or fv > 10.0:
+                raise ValueError(f"{key} must be between 1.0 and 10.0")
+            clean[key] = fv
+        elif key in {
+            "quality_allocation_2x_risk_budget_pct",
+            "quality_allocation_3x_risk_budget_pct",
+        }:
+            fv = float(value)
+            if fv < 1.0 or fv > 2.0:
+                raise ValueError(f"{key} must be between 1.0 and 2.0")
+            clean[key] = fv
+        elif key == "quality_allocation_3x_max_atr_pct":
+            fv = float(value)
+            if fv < 0.1 or fv > 10.0:
+                raise ValueError(
+                    "quality_allocation_3x_max_atr_pct must be between 0.1 and 10.0")
+            clean[key] = fv
+        elif key == "quality_allocation_3x_max_stop_distance_pct":
+            fv = float(value)
+            if fv < 0.1 or fv > 10.0:
+                raise ValueError(
+                    "quality_allocation_3x_max_stop_distance_pct must be between 0.1 and 10.0")
+            clean[key] = fv
+        elif key == "quality_allocation_absolute_cap":
+            fv = float(value)
+            if fv < 1_000 or fv > 500_000:
+                raise ValueError(
+                    "quality_allocation_absolute_cap must be between ₹1,000 and ₹5,00,000")
+            clean[key] = fv
+        elif key == "quality_allocation_3x_sector_override_cap_pct":
+            fv = float(value)
+            if fv < 40.0 or fv > 50.0:
+                raise ValueError(
+                    "quality_allocation_3x_sector_override_cap_pct must be between 40 and 50")
+            clean[key] = fv
         elif isinstance(default, (int, float)) and not isinstance(default, bool):
             num = float(value)
             if num < 0:
@@ -400,6 +475,25 @@ def _validate_patch(patch: Dict[str, Any], current: Dict[str, Any]) -> Dict[str,
             clean[key] = int(num) if isinstance(default, int) else num
         else:
             clean[key] = value
+
+    projected = {**DEFAULT_SETTINGS, **current}
+    projected.update(clean)
+    ordered_thresholds = (
+        ("quality_allocation_2x_min_confidence",
+         "quality_allocation_3x_min_confidence"),
+        ("quality_allocation_2x_min_opportunity_score",
+         "quality_allocation_3x_min_opportunity_score"),
+        ("quality_allocation_2x_min_trade_quality_score",
+         "quality_allocation_3x_min_trade_quality_score"),
+        ("quality_allocation_2x_min_risk_reward",
+         "quality_allocation_3x_min_risk_reward"),
+        ("quality_allocation_2x_risk_budget_pct",
+         "quality_allocation_3x_risk_budget_pct"),
+    )
+    for lower_key, higher_key in ordered_thresholds:
+        if float(projected[lower_key]) > float(projected[higher_key]):
+            raise ValueError(
+                f"{higher_key} must be greater than or equal to {lower_key}")
     return clean
 
 
