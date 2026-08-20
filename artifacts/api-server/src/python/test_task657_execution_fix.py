@@ -280,9 +280,12 @@ class TestNoSilentBuyDrop(unittest.TestCase):
             patch("phase20_circuit_breaker.evaluate_and_maybe_trip",
                   return_value={"tripped": False}),
             patch("phase20_executor.store") as mock_store,
-            patch("pipeline_events._emit_unsafe",
+            # run_auto_entries imports the supported public emitter locally.
+            # Do not patch _emit_unsafe: it is a private persistence detail and
+            # changing it must not make this silent-skip regression invisible.
+            patch("pipeline_events.emit",
                   side_effect=lambda et, st, **kw:
-                  emitted.append({"event_type": et, **kw})),
+                  emitted.append({"event_type": et, "stage": st, **kw})),
         ):
             mock_store.kv_get.return_value = None
             mock_store.kv_set.return_value = None
@@ -328,9 +331,10 @@ class TestNoSilentBuyDrop(unittest.TestCase):
             patch("phase20_circuit_breaker.evaluate_and_maybe_trip",
                   return_value={"tripped": False}),
             patch("phase20_executor.store") as mock_store,
-            patch("pipeline_events._emit_unsafe",
+            # Match the public event API imported by phase20_executor.
+            patch("pipeline_events.emit",
                   side_effect=lambda et, st, **kw:
-                  emitted.append({"event_type": et, **kw})),
+                  emitted.append({"event_type": et, "stage": st, **kw})),
         ):
             mock_store.kv_get.return_value = None
             mock_store.kv_set.return_value = None
