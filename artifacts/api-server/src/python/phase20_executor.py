@@ -150,17 +150,91 @@ class PaperEntriesPaused(PaperEntryAdmissionError):
 
 
 class MarketClosedForEntry(PaperEntryAdmissionError):
-    """Raised when a final paper-entry commit crosses out of the NSE session."""
+    """Raised when a final paper-entry commit crosses its allowed window."""
+
+
+def _market_entry_status() -> Dict[str, Any]:
+    """Return the automatic paper-entry window state, failing closed."""
+    try:
+        from market_hours import automatic_paper_entry_status
+        status = automatic_paper_entry_status() or {}
+        if isinstance(status, dict):
+            return status
+    except Exception:
+        pass
+    return {
+        "allowed": False,
+        "market_state": "UNKNOWN",
+        "reason": (
+            "NSE market-entry window is unavailable — automatic paper entry "
+            "blocked fail-closed"
+        ),
+    }
 
 
 def _market_entry_allowed() -> bool:
-    """Fail closed when market-state evidence is unavailable or not OPEN."""
+    """Fail closed outside the automatic intraday paper-entry window."""
+    return bool(_market_entry_status().get("allowed"))
+
+
+def _entry_window_rejection(
+        candidate: Dict[str, Any],
+        scan_id: Optional[str],
+        trigger_source: str,
+        entry_status: Dict[str, Any],
+        *,
+        auto_entry_attempted: bool) -> Dict[str, Any]:
+    """Record an explicit terminal outcome for a time-blocked candidate."""
+    sym = str(candidate.get("symbol") or "").upper()
+    reason = str(entry_status.get("reason") or
+                 "Automatic paper entry is outside its permitted window")
+    cutoff_reached = "cutoff" in reason.lower()
+    payload = {
+        "gate_name": (
+            "automatic_paper_entry_cutoff"
+            if cutoff_reached else "automatic_paper_entry_window"
+        ),
+        "action": candidate.get("recommendation") or "BUY",
+        "reason": reason,
+        "human_readable_reason": reason,
+        "market_state": entry_status.get("market_state"),
+        "entry_cutoff_ist": entry_status.get("cutoff_ist"),
+        "auto_entry_attempted": auto_entry_attempted,
+        "trigger_source": trigger_source,
+        "note": (
+            "Candidate was not committed because the automatic intraday "
+            "paper-entry window is closed"
+        ),
+    }
     try:
-        from market_hours import market_status
-        status = market_status() or {}
-        return str(status.get("state") or status.get("market_state") or "").upper() == "OPEN"
+        from pipeline_events import emit as _pe
+        _pe("EXECUTION_SKIPPED_WITH_REASON", "EXECUTION",
+            scan_id=scan_id, symbol=sym, payload=payload)
     except Exception:
-        return False
+        pass
+    try:
+        store.add_notification(
+            ("ENTRY_BLOCKED_ENTRY_CUTOFF" if cutoff_reached
+             else "ENTRY_BLOCKED"),
+            (f"{sym} paper entry blocked by intraday cutoff"
+             if cutoff_reached else f"{sym} paper entry blocked"),
+            reason,
+            severity="WARN",
+            context={
+                "symbol": sym,
+                "scan_id": scan_id,
+                "trigger_source": trigger_source,
+                "entry_cutoff_ist": entry_status.get("cutoff_ist"),
+            },
+        )
+    except Exception:
+        pass
+    return {
+        "created": False,
+        "symbol": sym,
+        "reason": reason,
+        "entry_window": entry_status,
+    }
 
 
 def _insert_row(row: Dict[str, Any]) -> Dict[str, Any]:
@@ -176,10 +250,12 @@ def _insert_row(row: Dict[str, Any]) -> Dict[str, Any]:
     # recommendation/risk work but immediately before any durable BUY commit.
     # A state change while the candidate is being evaluated therefore cannot
     # create an out-of-hours normal or BOOTSTRAP_AUTO paper position.
-    if not _market_entry_allowed():
-        raise MarketClosedForEntry(
-            "NSE market is not confirmed OPEN — paper BUY commit blocked"
-        )
+    entry_status = _market_entry_status()
+    if not entry_status.get("allowed"):
+        raise MarketClosedForEntry(str(
+            entry_status.get("reason")
+            or "Automatic paper entry is outside its permitted window"
+        ))
     if db_available():
         try:
             conn = _connect()
@@ -317,6 +393,20 @@ def _insert_row(row: Dict[str, Any]) -> Dict[str, Any]:
                             if key != "decision"
                         }
                         admitted_row["evidence"] = evidence
+
+                    # The first window check above rejects obvious late
+                    # candidates without opening a transaction. Re-check here,
+                    # after waiting for the advisory lock and immediately
+                    # before the durable INSERT, so a 15:14 candidate cannot
+                    # cross the 15:15 cutoff while admission is contended.
+                    final_entry_status = _market_entry_status()
+                    if not final_entry_status.get("allowed"):
+                        conn.rollback()
+                        raise MarketClosedForEntry(str(
+                            final_entry_status.get("reason")
+                            or "Automatic paper entry is outside its "
+                            "permitted window"
+                        ))
 
                     placeholders = ", ".join(["%s"] * len(_COLS))
                     cur.execute(
@@ -1108,6 +1198,18 @@ def create_paper_entry(candidate: Dict[str, Any], settings: Dict[str, Any],
         allocation_override["continuity_eligible"] = False
         allocation_override["downstream_outcome"] = "ADMISSION_REJECTED"
         reason = str(exc)
+        if isinstance(exc, MarketClosedForEntry):
+            entry_status = _market_entry_status()
+            entry_status["reason"] = reason
+            result = _entry_window_rejection(
+                candidate, scan_id, trigger_source, entry_status,
+                auto_entry_attempted=True)
+            _emit_allocation_outcome(
+                rejected_by=f"ADMISSION_REJECTED: {reason}",
+                risk_validation=_rv_result,
+            )
+            result["allocation_override"] = allocation_override
+            return result
         _pe("ORDER_CANCELLED", "EXECUTION", scan_id=scan_id, symbol=sym,
             payload={"trade_id": trade_id, "reason": reason})
         _emit_allocation_outcome(
