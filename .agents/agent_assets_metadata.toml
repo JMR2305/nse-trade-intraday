@@ -474,3 +474,10 @@ uri = "file://APEXQUANT_BOOTSTRAP_FALLBACK_CANDIDATE_FIX_AND_FIRST_TRADE_PROOF.m
 type = "text"
 title = "Bootstrap Fallback Fix & First Trade Proof"
 description = "Fix implemented (45/45 tests), not yet deployed. Re-publish required for DRREDDY fallback to fire."
+
+[[outputs]]
+id = "DDMJJrl0pBVhboqTkQs7d"
+uri = "file://TODAYS_TRADE_EXIT_QUALITY_AUDIT.md"
+type = "text"
+title = "Today's Trade Exit Quality Audit"
+description = "Read-only production-ledger audit of 20 August paper trades, exit quality, late-entry controls, P&L, and quantity evidence."
