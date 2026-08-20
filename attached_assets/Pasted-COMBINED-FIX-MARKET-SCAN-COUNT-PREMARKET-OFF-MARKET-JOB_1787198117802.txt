@@ -1,0 +1,329 @@
+COMBINED FIX — MARKET SCAN COUNT, PREMARKET/OFF-MARKET JOB CLASSIFICATION, AND REDUCE REPEATED OVERNIGHT SCANS
+
+Current issue:
+Mission Control shows many completed scans before market open, for example 17+ scans around 09:13 IST, even though NSE market has not opened yet or just opened.
+
+This is confusing because:
+- Historical / previous-day OHLCV cache does not need repeated full scans overnight.
+- One post-market refresh and one pre-market readiness check are enough.
+- Actual strategy/trade scans should happen only during market hours.
+- Mission Control should not mix overnight/cache/readiness jobs with live market scans.
+
+Use these controlling reports:
+- APEXQUANT_KEEP_SCAN_STATUS_FRESH_FIX_REPORT.md
+- APEXQUANT_OHLCV_CACHE_MIGRATION_SUMMARY.md
+- APEXQUANT_PUBLIC_BUILD_ID_LABEL_FIX_REPORT.md
+
+Do not change trading thresholds.
+Do not enable live orders.
+Do not call broker order APIs.
+PAPER ONLY.
+
+GOALS:
+1. Separate MARKET_SCAN from system/cache/readiness jobs.
+2. Stop repeated full scans outside market hours.
+3. Run only one post-market OHLCV cache refresh.
+4. Run only one pre-market readiness check.
+5. Show correct counts in Mission Control.
+6. Ensure paper entry / BOOTSTRAP_AUTO cannot run outside market hours.
+7. Keep cache/local data preparation efficient.
+
+TASK 1 — AUDIT WHY SCANS RUN BEFORE MARKET OPEN
+
+Find why scans are appearing at times such as:
+- 02:18 IST
+- 02:30 IST
+- 02:41 IST
+- 03:04 IST
+- 03:17 IST
+- 03:31 IST
+- 03:42 IST
+- 03:56 IST
+- 09:04 IST
+
+Check:
+- phase20_scheduler.py
+- live_scan_engine.py
+- scheduled_scan_tick
+- scan_state_store.py
+- post_market_data_refresh.py
+- pre_market_data_readiness.py
+- OHLCV cache refresh logic
+- any cron/timer/interval loop
+- any autoscale wakeup behavior
+- any manual scan trigger
+
+Report:
+- what triggered each off-market scan/job
+- whether each was a real strategy scan, cache refresh, readiness check, or heartbeat
+- whether AI decision ran
+- whether execution path ran
+- whether BOOTSTRAP_AUTO was evaluated
+- whether any paper entry was attempted before 09:15 IST
+
+TASK 2 — DEFINE STRICT JOB TYPES
+
+Every scheduler event / scan event must have a clear job type:
+
+1. MARKET_SCAN
+   - allowed only during NSE market hours
+   - suggested window: 09:15–15:20/15:30 IST
+   - runs scan, indicators, AI decision, risk, bootstrap, paper-entry eligibility, exit checks
+
+2. POSTMARKET_CACHE_REFRESH
+   - runs once after market close
+   - updates local OHLCV cache only
+   - no AI decision
+   - no paper entry
+   - no BOOTSTRAP_AUTO
+
+3. PREMARKET_READINESS_CHECK
+   - runs once around 08:45–09:05 IST
+   - checks cache, Kite, capital, universe, circuit breaker, open positions
+   - no AI decision
+   - no paper entry
+   - no BOOTSTRAP_AUTO
+
+4. SYSTEM_HEARTBEAT
+   - lightweight health check only
+   - no full scan
+   - no yfinance bulk fetch
+   - no AI decision
+   - no paper entry
+
+5. MANUAL_SCAN
+   - only if explicitly operator-triggered
+   - must clearly show triggered_by=manual
+   - must still block execution if market_state != OPEN
+
+Every SCAN_STARTED / SCAN_COMPLETED or equivalent event must include:
+- job_type
+- scan_type
+- market_state_at_start
+- started_at_ist
+- completed_at_ist
+- duration_seconds
+- triggered_by
+- trade_execution_allowed true/false
+- paper_entry_allowed true/false
+
+TASK 3 — STOP REPEATED OVERNIGHT FULL SCANS
+
+Implement scheduler rules:
+
+From 15:30 IST to next 08:45 IST:
+- Do NOT run repeated full live scans.
+- Do NOT run AI decision scans every few minutes.
+- Do NOT run bootstrap/paper-entry logic.
+- Only allow:
+  - one post-market cache refresh
+  - lightweight heartbeat
+  - manual operator-triggered diagnostic job, clearly marked manual
+
+From 08:45 IST to 09:15 IST:
+- Run one pre-market readiness check.
+- Do not run paper-entry scan.
+- Do not run BOOTSTRAP_AUTO execution.
+- Do not increment Market Scans Today.
+
+From 09:15 IST to 15:20/15:30 IST:
+- Run normal MARKET_SCAN at configured cadence.
+- MARKET_SCAN can run AI decision, risk, bootstrap, paper-entry, and exit checks.
+
+After 15:20 IST:
+- MARKET_CLOSE_EXIT should close open intraday positions.
+- No new entries should be allowed after the configured cutoff.
+
+TASK 4 — POST-MARKET CACHE REFRESH POLICY
+
+OHLCV cache refresh should run once per IST day:
+
+- after 15:30 IST
+- guarded by kv_claim_once("ohlcv_postmarket_refresh:{YYYY-MM-DD}")
+- fetch latest daily candle / last 5 days only
+- append/update local cache
+- emit DATA_CACHE_POSTMARKET_REFRESH_COMPLETED or DATA_CACHE_POSTMARKET_REFRESH_FAILED
+- should not run again until next trading day unless manually forced by operator
+
+If yfinance fails:
+- preserve existing local cache
+- mark refresh PARTIAL or FAILED
+- do not run repeated full scans every few minutes
+- retry later with controlled backoff, not full live scan loop
+
+TASK 5 — PRE-MARKET READINESS POLICY
+
+Pre-market readiness should run once per IST day:
+
+- between 08:45 and 09:05 IST
+- guarded by kv_claim_once("premarket_readiness:{YYYY-MM-DD}")
+- check:
+  - OHLCV cache latest date
+  - active universe
+  - Kite session
+  - capital/cash
+  - circuit breaker
+  - no open overnight positions
+  - build IDs match
+  - no stale cache blocker
+
+Output:
+- READY
+- READY_WITH_WARNINGS
+- BLOCKED
+
+This job should not count as MARKET_SCAN.
+
+TASK 6 — FIX MISSION CONTROL COUNTS
+
+Mission Control should show separate sections:
+
+A. Market Scans Today
+- only job_type = MARKET_SCAN
+- only during NSE market hours
+- before 09:15 IST this should show 0
+
+B. All System Jobs Today
+- includes pre-market checks
+- post-market cache refresh
+- heartbeat
+- manual diagnostic jobs
+
+C. Cache Status
+- last refresh time
+- latest cached date
+- symbols updated
+- status SUCCESS / PARTIAL / FAILED
+- duration
+- failed symbols
+
+D. Scheduler Status
+- next market scan due
+- next cache refresh due
+- next readiness check due
+- current market state
+- execution allowed true/false
+
+Do not show overnight/cache/readiness jobs inside “Live Scanner” as if they are trading scans.
+
+TASK 7 — FIX HISTORY TABLE
+
+History table should show:
+
+- Time IST
+- Duration
+- Gap
+- Job Type
+- Market State
+- Execution Allowed
+- Symbols
+- Source
+
+Clarify in UI:
+- Duration = actual runtime of that job/scan
+- Gap = time since previous job/scan
+
+If a row is not MARKET_SCAN, label it clearly:
+- PREMARKET_READINESS_CHECK
+- POSTMARKET_CACHE_REFRESH
+- SYSTEM_HEARTBEAT
+- MANUAL_SCAN
+
+TASK 8 — INVESTIGATE LONG CACHE REFRESH
+
+Current UI showed:
+- Last refresh: 20 Aug, 01:16 IST
+- PARTIAL
+- 30 symbols
+- 2304s
+
+Investigate:
+- Was this OHLCV cache refresh?
+- Why did it take 2304 seconds?
+- Why only 30 symbols?
+- Did yfinance hang or timeout?
+- Did it block normal scanner?
+- Was timeout too high?
+- Did retry logic cause repeated jobs?
+
+Expected fix:
+- Add per-batch/per-symbol timeout.
+- Add total refresh timeout.
+- Mark failed symbols and continue.
+- Do not block market scanner.
+- Do not run repeated full scan attempts overnight.
+- Show cache refresh separately from live scan duration.
+
+TASK 9 — EXECUTION SAFETY CHECK
+
+Verify:
+- no paper entry before 09:15 IST
+- no BOOTSTRAP_AUTO before 09:15 IST
+- no normal BUY before 09:15 IST
+- no new entries after market-close entry cutoff
+- no live broker order API
+- EOD exits remain unchanged
+- POST_CLOSE_FORCE_EXIT remains unchanged
+- cache/readiness jobs are read-only/advisory
+
+TASK 10 — API CHANGES
+
+Update `/api/live-data/scan/status` to expose:
+
+- market_scans_today
+- system_jobs_today
+- premarket_checks_today
+- postmarket_refreshes_today
+- manual_scans_today
+- completed_scans_today_all_types
+- started_scans_today_all_types
+- latest_market_scan
+- latest_system_job
+- next_market_scan_due
+- next_cache_refresh_due
+- next_readiness_check_due
+- market_state
+- execution_allowed
+
+Keep old fields only as compatibility aliases, but Mission Control must use the new explicit fields.
+
+TASK 11 — TESTS
+
+Add tests:
+1. Overnight scheduler does not run MARKET_SCAN.
+2. Post-market cache refresh runs once only.
+3. Pre-market readiness runs once only.
+4. Before 09:15, Market Scans Today = 0.
+5. System Jobs Today can increase without affecting Market Scans Today.
+6. Paper entry is blocked outside market hours.
+7. BOOTSTRAP_AUTO is blocked outside market hours.
+8. Manual cache refresh does not trigger AI execution.
+9. History rows include job_type.
+10. Duration and gap are displayed separately.
+11. Long cache refresh timeout does not block market scan.
+12. MARKET_SCAN count excludes PREMARKET_READINESS_CHECK.
+13. MARKET_SCAN count excludes POSTMARKET_CACHE_REFRESH.
+14. Strict no-store headers remain active.
+15. No live broker order API called.
+
+TASK 12 — REPORT
+
+Generate:
+
+APEXQUANT_OFF_MARKET_SCAN_REDUCTION_AND_JOB_CLASSIFICATION_REPORT.md
+
+Include:
+1. Why Mission Control showed scans before market open.
+2. Which jobs were actually running.
+3. Whether any AI decision/execution was attempted before 09:15.
+4. New scheduler rules.
+5. New job types.
+6. New Mission Control labels.
+7. Post-market cache refresh once-per-day proof.
+8. Pre-market readiness once-per-day proof.
+9. Explanation of duration vs gap.
+10. Investigation of 2304s PARTIAL cache refresh.
+11. Test results.
+12. Confirmation no live orders.
+13. Whether production has been published.
+14. Readiness for next trading session.
