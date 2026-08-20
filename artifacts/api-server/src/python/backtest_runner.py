@@ -112,6 +112,31 @@ def resolve_sizing(cfg: Dict[str, Any]) -> Dict[str, Any]:
 
 # ── Universe resolution ──────────────────────────────────────────────────────
 
+def _set_universe_resolution(
+    cfg: Dict[str, Any],
+    evidence: str,
+    *,
+    as_of_date: Optional[str] = None,
+    snapshot_at: Optional[str] = None,
+) -> None:
+    """Persist a human-readable account of the membership evidence used."""
+    source = (
+        "IMMUTABLE_HISTORICAL_SNAPSHOT"
+        if evidence == "HISTORICAL_SNAPSHOT"
+        else "CURRENT_ACTIVE_LIST_FALLBACK"
+        if evidence == "CURRENT_MEMBERSHIP_FALLBACK"
+        else "HISTORICAL_SNAPSHOT_UNAVAILABLE"
+    )
+    cfg["universe_evidence"] = evidence
+    cfg["universe_resolution"] = {
+        "evidence": evidence,
+        "source": source,
+        "as_of_date": as_of_date,
+        "snapshot_at": snapshot_at,
+        "degraded": evidence == "CURRENT_MEMBERSHIP_FALLBACK",
+    }
+
+
 def resolve_universe(
     cfg: Dict[str, Any],
     universe_mode: Optional[str] = None,
@@ -124,16 +149,31 @@ def resolve_universe(
     if universe in ("custom_low_price_sector", "custom-low-price-sector"):
         target_date = str(as_of_date or cfg.get("as_of_date") or cfg.get("end") or "")[:10]
         try:
-            from custom_universe_store import get_active_symbols_as_of, get_active_symbols
-            historical = get_active_symbols_as_of(target_date)
-            if historical:
-                cfg["universe_evidence"] = "HISTORICAL_SNAPSHOT"
-                return historical
+            from custom_universe_store import (
+                get_active_symbols,
+                get_historical_universe_resolution,
+            )
+            historical = get_historical_universe_resolution(target_date)
+            if historical.get("status") == "HISTORICAL_SNAPSHOT":
+                _set_universe_resolution(
+                    cfg,
+                    "HISTORICAL_SNAPSHOT",
+                    as_of_date=historical.get("as_of_date") or target_date,
+                    snapshot_at=historical.get("snapshot_at"),
+                )
+                return list(historical.get("symbols") or [])
             # Current membership is future information for a historical run.
             # Keep the legacy fallback available only by an explicit operator
             # opt-in, and persist evidence quality in the run configuration.
-            if cfg.get("allow_current_universe_fallback") is True:
-                cfg["universe_evidence"] = "CURRENT_MEMBERSHIP_FALLBACK"
+            if (
+                historical.get("status") == "HISTORICAL_SNAPSHOT_UNAVAILABLE"
+                and cfg.get("allow_current_universe_fallback") is True
+            ):
+                _set_universe_resolution(
+                    cfg,
+                    "CURRENT_MEMBERSHIP_FALLBACK",
+                    as_of_date=historical.get("as_of_date") or target_date,
+                )
                 logger = __import__("logging").getLogger(__name__)
                 logger.warning(
                     "CUSTOM_LOW_PRICE_SECTOR has no snapshot on/before %s; "
@@ -141,10 +181,18 @@ def resolve_universe(
                     target_date or "unknown",
                 )
                 return get_active_symbols()
-            cfg["universe_evidence"] = "HISTORICAL_SNAPSHOT_UNAVAILABLE"
+            _set_universe_resolution(
+                cfg,
+                "HISTORICAL_SNAPSHOT_UNAVAILABLE",
+                as_of_date=historical.get("as_of_date") or target_date,
+            )
             return []
         except Exception:
-            cfg["universe_evidence"] = "HISTORICAL_SNAPSHOT_UNAVAILABLE"
+            _set_universe_resolution(
+                cfg,
+                "HISTORICAL_SNAPSHOT_UNAVAILABLE",
+                as_of_date=target_date,
+            )
             return []
     if universe in ("nifty50", "nifty_50", "nifty"):
         try:
@@ -877,6 +925,10 @@ def execute_run(run_id: str) -> Dict[str, Any]:
         metrics["ticks"] = tick_count
         metrics["symbols"] = len(per_symbol)
         metrics["data_errors"] = data_errors
+        # Result-level provenance: consumers should not have to infer evidence
+        # quality from a mutable-looking run configuration.
+        metrics["universe_evidence"] = cfg.get("universe_evidence")
+        metrics["universe_resolution"] = cfg.get("universe_resolution")
         # Always present — empty list means no mock data was detected.
         metrics["mock_candle_symbols"] = mock_candle_symbols
         # ── Performance telemetry (advisory — never changes decisions) ────────

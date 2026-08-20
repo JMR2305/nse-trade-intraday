@@ -247,34 +247,80 @@ def get_active_symbol_metadata() -> Dict[str, Dict[str, Any]]:
     }
 
 
-def get_active_symbols_as_of(as_of_date: str) -> List[str]:
-    """Resolve only rows known on or before the requested historical date."""
+def get_historical_universe_resolution(as_of_date: str) -> Dict[str, Any]:
+    """Resolve custom-universe membership and preserve the evidence source.
+
+    ``symbols`` alone cannot distinguish a genuinely missing snapshot from a
+    snapshot whose recorded active membership is empty.  Backtests need that
+    distinction so an explicitly opted-in current-list fallback is only used
+    when immutable historical evidence is actually absent.
+    """
     try:
         target = date.fromisoformat(str(as_of_date)[:10])
     except (TypeError, ValueError):
-        return []
+        return {
+            "status": "HISTORICAL_SNAPSHOT_UNAVAILABLE",
+            "symbols": [],
+            "as_of_date": str(as_of_date or "")[:10] or None,
+        }
     if not ensure_table():
-        return []
+        return {
+            "status": "HISTORICAL_SNAPSHOT_UNAVAILABLE",
+            "symbols": [],
+            "as_of_date": target.isoformat(),
+        }
     try:
         with _connect() as conn:
             with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT snapshot_at, snapshot_date
+                    FROM custom_universe_membership_history
+                    WHERE allowed_universe = %s
+                      AND snapshot_date <= %s
+                    ORDER BY snapshot_at DESC
+                    LIMIT 1
+                """, (ALLOWED_UNIVERSE, target))
+                snapshot = cur.fetchone()
+                if not snapshot:
+                    return {
+                        "status": "HISTORICAL_SNAPSHOT_UNAVAILABLE",
+                        "symbols": [],
+                        "as_of_date": target.isoformat(),
+                    }
+                snapshot_at, snapshot_date = snapshot
                 cur.execute("""
                     SELECT symbol
                     FROM custom_universe_membership_history
                     WHERE allowed_universe = %s
                       AND is_active = TRUE
-                      AND snapshot_at = (
-                          SELECT MAX(snapshot_at)
-                          FROM custom_universe_membership_history
-                          WHERE allowed_universe = %s
-                            AND snapshot_date <= %s
-                      )
+                      AND snapshot_at = %s
                     ORDER BY symbol
-                """, (ALLOWED_UNIVERSE, ALLOWED_UNIVERSE, target))
-                return [str(row[0]).upper() for row in cur.fetchall()]
+                """, (ALLOWED_UNIVERSE, snapshot_at))
+                return {
+                    "status": "HISTORICAL_SNAPSHOT",
+                    "symbols": [str(row[0]).upper() for row in cur.fetchall()],
+                    "as_of_date": target.isoformat(),
+                    "snapshot_at": (
+                        snapshot_at.isoformat()
+                        if hasattr(snapshot_at, "isoformat") else str(snapshot_at)
+                    ),
+                    "snapshot_date": (
+                        snapshot_date.isoformat()
+                        if hasattr(snapshot_date, "isoformat") else str(snapshot_date)
+                    ),
+                }
     except Exception as exc:
-        logger.warning("custom_universe_store.get_active_symbols_as_of: %s", exc)
-        return []
+        logger.warning("custom_universe_store.get_historical_universe_resolution: %s", exc)
+        return {
+            "status": "HISTORICAL_SNAPSHOT_UNAVAILABLE",
+            "symbols": [],
+            "as_of_date": target.isoformat(),
+        }
+
+
+def get_active_symbols_as_of(as_of_date: str) -> List[str]:
+    """Compatibility helper returning only immutable active membership."""
+    return list(get_historical_universe_resolution(as_of_date).get("symbols") or [])
 
 
 def get_status() -> Dict[str, Any]:

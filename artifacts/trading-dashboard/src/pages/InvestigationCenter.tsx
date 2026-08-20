@@ -24,6 +24,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  getUniverseEvidenceNotice,
+  type UniverseResolution,
+} from "@/lib/backtestUniverseEvidence";
+import {
   AlertTriangle, Ban, BookOpen, CheckCircle2, ChevronLeft, ChevronRight,
   Clock, FlaskConical, History, Pause, Play, Search, ShieldCheck, ShieldX,
   Square, SkipBack, SkipForward, Wallet, XCircle, Zap,
@@ -50,6 +54,8 @@ interface BacktestRun {
     interval?: string; start?: string; end?: string; capital?: number;
     symbols?: string[] | null; universe?: string;
     sizing?: RunSizing; volume_time_normalized?: boolean;
+    universe_evidence?: string;
+    universe_resolution?: UniverseResolution;
   };
   progress?: { phase?: string; done?: number; total?: number; ts?: string; cash?: number; symbol?: string };
   metrics?: Record<string, unknown> | null;
@@ -883,6 +889,17 @@ export default function InvestigationCenter() {
   const mockCandleSymbols =
     (run?.metrics as Record<string, unknown> | undefined)
       ?.mock_candle_symbols as string[] | undefined;
+  const resultMetrics = run?.metrics as Record<string, unknown> | undefined;
+  const universeEvidence = (
+    resultMetrics?.universe_evidence ?? run?.config?.universe_evidence
+  ) as string | undefined;
+  const universeResolution = (
+    resultMetrics?.universe_resolution ?? run?.config?.universe_resolution
+  ) as UniverseResolution | undefined;
+  const universeEvidenceNotice = getUniverseEvidenceNotice(
+    universeEvidence,
+    universeResolution,
+  );
 
   const decisionCount = useMemo(() => {
     let n = 0;
@@ -1302,6 +1319,32 @@ export default function InvestigationCenter() {
           </CardContent>
         </Card>
       </div>
+
+      {/* ── Data provenance warnings ─────────────────────────────────────── */}
+      {universeEvidenceNotice && (
+        <div
+          className={[
+            "flex items-start gap-3 rounded-md border px-4 py-3 text-sm",
+            universeEvidenceNotice.tone === "warning"
+              ? "border-amber-500/60 bg-amber-500/10 text-amber-400"
+              : "border-emerald-500/40 bg-emerald-500/10 text-emerald-400",
+          ].join(" ")}
+          data-testid={
+            universeEvidenceNotice.tone === "warning"
+              ? "banner-current-universe-fallback"
+              : "universe-evidence-historical-snapshot"
+          }
+          role={universeEvidenceNotice.tone === "warning" ? "alert" : "status"}
+        >
+          {universeEvidenceNotice.tone === "warning"
+            ? <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" aria-hidden="true" />
+            : <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" aria-hidden="true" />}
+          <div className="space-y-1">
+            <p className="font-semibold">{universeEvidenceNotice.heading}</p>
+            <p className="text-xs opacity-90">{universeEvidenceNotice.detail}</p>
+          </div>
+        </div>
+      )}
 
       {/* ── Mock Candle Warning ───────────────────────────────────────────── */}
       {mockCandleSymbols && mockCandleSymbols.length > 0 && (

@@ -11,6 +11,7 @@ import os
 import shutil
 import tempfile
 import unittest
+from unittest.mock import patch
 from datetime import date, timedelta
 
 os.environ.pop("DATABASE_URL", None)
@@ -59,6 +60,64 @@ class BacktestEngineTestBase(unittest.TestCase):
         (hde._CACHE_DIR, bp._RUNS_FILE, bp._TRADES_FILE,
          pe.FALLBACK_FILE) = self._orig
         shutil.rmtree(self.tmp, ignore_errors=True)
+
+
+class TestCustomUniverseEvidence(unittest.TestCase):
+    """Custom-universe provenance must be retained for result consumers."""
+
+    def test_snapshot_backed_universe_records_immutable_evidence(self):
+        cfg = {
+            "universe": "custom_low_price_sector",
+            "end": "2025-01-10",
+        }
+        historical = {
+            "status": "HISTORICAL_SNAPSHOT",
+            "symbols": ["INFY", "TCS"],
+            "as_of_date": "2025-01-10",
+            "snapshot_at": "2025-01-09T18:30:00+00:00",
+        }
+        with patch(
+            "custom_universe_store.get_historical_universe_resolution",
+            return_value=historical,
+        ):
+            self.assertEqual(br.resolve_universe(cfg), ["INFY", "TCS"])
+
+        self.assertEqual(cfg["universe_evidence"], "HISTORICAL_SNAPSHOT")
+        self.assertEqual(
+            cfg["universe_resolution"]["source"],
+            "IMMUTABLE_HISTORICAL_SNAPSHOT",
+        )
+        self.assertFalse(cfg["universe_resolution"]["degraded"])
+        self.assertEqual(
+            cfg["universe_resolution"]["snapshot_at"],
+            "2025-01-09T18:30:00+00:00",
+        )
+
+    def test_missing_snapshot_records_current_list_fallback_as_degraded(self):
+        cfg = {
+            "universe": "custom_low_price_sector",
+            "end": "2025-01-10",
+            "allow_current_universe_fallback": True,
+        }
+        with patch(
+            "custom_universe_store.get_historical_universe_resolution",
+            return_value={
+                "status": "HISTORICAL_SNAPSHOT_UNAVAILABLE",
+                "symbols": [],
+                "as_of_date": "2025-01-10",
+            },
+        ), patch(
+            "custom_universe_store.get_active_symbols",
+            return_value=["BANKBARODA", "NBCC"],
+        ):
+            self.assertEqual(br.resolve_universe(cfg), ["BANKBARODA", "NBCC"])
+
+        self.assertEqual(cfg["universe_evidence"], "CURRENT_MEMBERSHIP_FALLBACK")
+        self.assertEqual(
+            cfg["universe_resolution"]["source"],
+            "CURRENT_ACTIVE_LIST_FALLBACK",
+        )
+        self.assertTrue(cfg["universe_resolution"]["degraded"])
 
 
 class TestCandleCache(BacktestEngineTestBase):
