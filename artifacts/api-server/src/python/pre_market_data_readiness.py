@@ -23,11 +23,17 @@ from __future__ import annotations
 import logging
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
 
 BLOCK_THRESHOLD_PCT = 0.20      # >20% symbols missing/stale → BLOCKED
 COMPANY_MASTER_MIN_PCT = 0.80   # <80% mapped → BLOCKED
+_IST = ZoneInfo("Asia/Kolkata")
+
+
+def _today_ist() -> date:
+    return datetime.now(timezone.utc).astimezone(_IST).date()
 
 
 def run_pre_market_readiness_check(symbols: Optional[List[str]] = None) -> Dict[str, Any]:
@@ -150,8 +156,9 @@ def run_pre_market_readiness_check(symbols: Optional[List[str]] = None) -> Dict[
             checks["last_postmarket_refresh"] = last
             last_date = last.get("refresh_date")
             if last_date:
-                today_str = date.today().isoformat()
-                yesterday_str = (date.today() - timedelta(days=1)).isoformat()
+                today = _today_ist()
+                today_str = today.isoformat()
+                yesterday_str = (today - timedelta(days=1)).isoformat()
                 if last_date not in (today_str, yesterday_str):
                     warnings.append(
                         f"Last post-market refresh was {last_date} — older than expected"
@@ -161,6 +168,64 @@ def run_pre_market_readiness_check(symbols: Optional[List[str]] = None) -> Dict[
             warnings.append("No post-market refresh on record — run backfill before market open")
     except Exception as exc:
         checks["last_postmarket_refresh"] = {"error": str(exc)[:200]}
+
+    # ── 6. Operational entry blockers (read-only, all fail closed) ─────────
+    try:
+        from config import get_active_intraday_universe
+        checks["active_universe"] = {
+            "mode": str(get_active_intraday_universe()),
+            "symbols_considered": total,
+        }
+    except Exception as exc:
+        checks["active_universe"] = {"error": str(exc)[:200]}
+        warnings.append("Active universe check failed")
+
+    try:
+        import phase20_store
+        settings = phase20_store.get_settings()
+        checks["paper_capital"] = {
+            "configured_initial_capital": settings.get("initial_capital"),
+            "auto_entries_confirmed": bool(settings.get("auto_paper_entries_confirmed_at")),
+            "paper_only": True,
+        }
+    except Exception as exc:
+        checks["paper_capital"] = {"error": str(exc)[:200]}
+        warnings.append("Paper capital readiness check failed")
+
+    try:
+        from phase20_circuit_breaker import get_state
+        breaker = get_state()
+        checks["circuit_breaker"] = {
+            "tripped": bool(breaker.get("tripped")),
+            "unreadable": bool(breaker.get("unreadable")),
+            "reasons": breaker.get("reasons") or [],
+        }
+        if breaker.get("tripped"):
+            reasons.append("Circuit breaker is tripped — new paper entries blocked")
+    except Exception as exc:
+        checks["circuit_breaker"] = {"error": str(exc)[:200], "tripped": True}
+        reasons.append("Circuit breaker state unavailable — new paper entries blocked")
+
+    try:
+        from phase20_executor import get_open_positions_view
+        positions = get_open_positions_view()
+        checks["open_positions"] = {"count": len(positions), "symbols": [
+            str(position.get("symbol") or "") for position in positions[:20]
+        ]}
+    except Exception as exc:
+        checks["open_positions"] = {"error": str(exc)[:200]}
+        warnings.append("Open-position check failed")
+
+    try:
+        build_id = str(__import__("os").environ.get("APEXQUANT_BUILD_ID") or "")
+        checks["build_identity"] = {
+            "build_id": build_id or None,
+            "identified": bool(build_id),
+        }
+        if not build_id:
+            warnings.append("Build identity unavailable")
+    except Exception:
+        checks["build_identity"] = {"identified": False}
 
     # ── Verdict ───────────────────────────────────────────────────────────────
     if reasons:

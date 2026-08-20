@@ -181,6 +181,31 @@ interface CustomUniverseSymbol {
   ohlcv_available?: boolean;
 }
 interface CustomUniverseSymbolsResponse { symbols?: CustomUniverseSymbol[] }
+/** Task 857: latest job summary (market or system). */
+interface LatestJobSummary {
+  job_type?: string | null;        // "MARKET_SCAN" | "CACHE_REFRESH" | "SYSTEM_HEALTH" | …
+  scan_type?: string | null;       // for market scans: "full" | "incremental" | …
+  status?: string | null;          // "completed" | "running" | "failed" | …
+  started_at?: string | null;
+  completed_at?: string | null;
+  started_at_ist?: string | null;  // pre-formatted IST string from backend
+  completed_at_ist?: string | null;
+  duration_s?: number | null;
+  symbols_scanned?: number | null;
+  source?: string | null;          // "scheduler" | "manual" | "api" | …
+  market_state?: string | null;    // "open" | "pre_open" | "closed" | …
+  entry_eligible?: boolean | null;
+  execution_eligible?: boolean | null;
+}
+
+/** Task 857: upcoming scheduled job descriptor. */
+interface NextJobInfo {
+  job_type?: string | null;
+  scheduled_at?: string | null;
+  scheduled_at_ist?: string | null;
+  source?: string | null;
+}
+
 interface ScanStatus {
   success?: boolean; status?: string; scan_id?: string; snapshot_ts?: string;
   age_minutes?: number | null;
@@ -192,6 +217,22 @@ interface ScanStatus {
   lock_busy_skips_today?: number | null;
   cadence_minutes?: number | null;    // expected minutes between scans
   api_build_id?: string;
+  // ── Task 857 additive fields ──────────────────────────────────────────
+  /** Market-scan jobs completed today (subset of all_system_jobs_today). */
+  market_scans_today?: number | null;
+  /** All system jobs (market + non-market) completed today. */
+  all_system_jobs_today?: number | null;
+  /** Summary of the latest market-scan job. */
+  latest_market_job?: LatestJobSummary | null;
+  /** Summary of the latest system job (could be non-market). */
+  latest_system_job?: LatestJobSummary | null;
+  /** Upcoming scheduled jobs. */
+  next_jobs?: NextJobInfo[] | null;
+  /** Current NSE market state as seen by the scanner. */
+  market_state?: string | null;
+  /** Whether new paper-entry executions are currently allowed. */
+  entry_execution_allowed?: boolean | null;
+  // ─────────────────────────────────────────────────────────────────────
   runtime?: {
     owner?: string | null; process_start_at?: string | null; status?: string | null;
     heartbeat_at?: string | null;
@@ -210,10 +251,48 @@ interface ScanHistoryEntry {
   started_at?: string | null; completed_at?: string | null;
   duration_s?: number | null; symbols_scanned?: number | null;
   gap_from_prev_s?: number | null; status?: string;
+  // ── Task 857 enhanced history fields ─────────────────────────────────
+  job_type?: string | null;           // "MARKET_SCAN" | "CACHE_REFRESH" | …
+  scan_type?: string | null;          // "full" | "incremental" | …
+  started_at_ist?: string | null;     // pre-formatted IST time string
+  completed_at_ist?: string | null;   // pre-formatted IST time string
+  source?: string | null;             // "scheduler" | "manual" | "api"
+  market_state?: string | null;       // "open" | "pre_open" | "closed" | …
+  entry_eligible?: boolean | null;
+  execution_eligible?: boolean | null;
+  // ─────────────────────────────────────────────────────────────────────
 }
 interface ScanHistoryResp {
   success?: boolean; history?: ScanHistoryEntry[]; count?: number;
   total_completed?: number; ist_date?: string;
+}
+
+export function normalizedJobValue(value?: string | null): string {
+  return String(value ?? "").trim().toUpperCase();
+}
+
+export function jobStatusClass(status?: string | null): string {
+  const normalized = normalizedJobValue(status);
+  if (normalized === "SUCCESS" || normalized === "COMPLETED") return "text-emerald-400";
+  if (normalized === "RUNNING" || normalized === "STARTED") return "text-blue-400";
+  if (normalized === "FAILED" || normalized === "ERROR") return "text-red-400";
+  return "text-muted-foreground";
+}
+
+export function istJobTime(value?: string | null): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (!Number.isNaN(date.getTime())) {
+    return date.toLocaleTimeString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  }
+  // Preserve legacy pre-formatted values that cannot be parsed as ISO.
+  const time = value.match(/(?:T|\s)(\d{2}:\d{2})/);
+  return time?.[1] ?? value;
 }
 
 function scanSnapshotTime(status: ScanStatus | undefined): number | null {
@@ -579,10 +658,21 @@ export function ScanInfoChips({ scanData, summaryData, cacheData }: {
     : ohlcvSrc === "yfinance_fallback"  ? "yfinance fallback"
     : null;
 
+  // Task 857: prefer market_scans_today / all_system_jobs_today when present.
+  const marketScansToday = scanData?.market_scans_today ?? null;
+  const allSystemJobsToday = scanData?.all_system_jobs_today ?? null;
+
   type Chip = { label: string; value: string; cls?: string; mono?: boolean };
   const chips: Chip[] = [];
 
-  if (completedToday != null)  chips.push({ label: "Completed", value: `${completedToday} today` });
+  if (marketScansToday != null) {
+    chips.push({ label: "Market Scans Today", value: String(marketScansToday) });
+  } else if (completedToday != null) {
+    chips.push({ label: "Completed", value: `${completedToday} today` });
+  }
+  if (allSystemJobsToday != null && allSystemJobsToday !== (marketScansToday ?? completedToday)) {
+    chips.push({ label: "All System Jobs Today", value: String(allSystemJobsToday) });
+  }
   if (startedToday != null)    chips.push({ label: "Started", value: `${startedToday} today` });
   if (schedulerTicksToday != null) chips.push({ label: "Scheduler ticks", value: `${schedulerTicksToday} today` });
   if (busySkipsToday != null)  chips.push({
@@ -992,6 +1082,17 @@ function ScannerPanel({
   const busySkipsToday = d?.lock_busy_skips_today ?? null;
   const cadence    = d?.cadence_minutes ?? null;
 
+  // ── Task 857 additive fields (with legacy fallbacks) ─────────────────────
+  // market_scans_today: market-scan completions only; falls back to completed_scans_today.
+  const marketScansToday = d?.market_scans_today ?? completedToday;
+  // all_system_jobs_today: total system jobs; shown only when distinct from market count.
+  const allSystemJobsToday = d?.all_system_jobs_today ?? null;
+  const latestMarketJob = d?.latest_market_job ?? null;
+  const latestSystemJob = d?.latest_system_job ?? null;
+  const nextJobs = d?.next_jobs ?? null;
+  const marketState = d?.market_state ?? null;
+  const entryExecutionAllowed = d?.entry_execution_allowed ?? null;
+
   // OHLCV cache status — 60 s cadence (slow route; Python spawns a DB query)
   const cacheQ = useWidgetQuery<OhlcvCacheStatus>({
     queryKey: ["mc", "ohlcv-cache-status"],
@@ -1043,7 +1144,25 @@ function ScannerPanel({
       title="Live Scanner" icon={Radar} query={scanQ} refreshMs={R.scan} testId="mc-scanner"
       headerExtra={
         <div className="flex items-center gap-2 flex-wrap">
-          {completedToday != null && (
+          {/* Task 857: separate market-scan vs all-system-job counts */}
+          {marketScansToday != null && (
+            <span
+              className="text-[9px] font-semibold text-teal-300"
+              data-testid="mc-market-scans-today-chip"
+            >
+              {marketScansToday} market scans today
+            </span>
+          )}
+          {allSystemJobsToday != null && allSystemJobsToday !== marketScansToday && (
+            <span
+              className="text-[9px] text-muted-foreground"
+              data-testid="mc-all-system-jobs-today-chip"
+            >
+              {allSystemJobsToday} system jobs
+            </span>
+          )}
+          {/* Legacy chip retained when market_scans_today is absent (fallback path) */}
+          {d?.market_scans_today == null && completedToday != null && (
             <span
               className="text-[9px] font-semibold text-teal-300"
               data-testid="mc-completed-scans-chip"
@@ -1098,6 +1217,148 @@ function ScannerPanel({
     >
       {/* Scan info chips — includes cache source + hit rate when available */}
       <ScanInfoChips scanData={d} cacheData={cache} />
+
+      {/* ── Task 857: Market state + entry-execution allowance ──────────────── */}
+      {(marketState != null || entryExecutionAllowed != null) && (
+        <div
+          className="mb-2 flex flex-wrap items-center gap-2 text-[10px]"
+          data-testid="mc-market-entry-status"
+        >
+          {marketState != null && (
+            <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 bg-muted/30 border border-border/50">
+              <span className="text-muted-foreground">Market state</span>
+              <span
+                className={`font-semibold ${
+                  normalizedJobValue(marketState) === "OPEN" ? "text-emerald-400"
+                  : normalizedJobValue(marketState) === "PRE_OPEN" ? "text-amber-400"
+                  : "text-muted-foreground"
+                }`}
+                data-testid="mc-market-state-label"
+              >
+                {marketState}
+              </span>
+            </span>
+          )}
+          {entryExecutionAllowed != null && (
+            <span
+              className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 border text-[10px] font-semibold ${
+                entryExecutionAllowed
+                  ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-400"
+                  : "bg-slate-500/10 border-slate-500/40 text-muted-foreground"
+              }`}
+              data-testid="mc-entry-execution-allowed"
+              title={entryExecutionAllowed ? "New paper entries are currently allowed" : "New paper entries are currently blocked"}
+            >
+              {entryExecutionAllowed ? "✓ Entries allowed" : "✗ Entries blocked"}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* ── Task 857: Latest market job status ──────────────────────────────── */}
+      {latestMarketJob != null && (
+        <div
+          className="mb-2 rounded border border-border/40 bg-muted/10 px-2 py-1.5 text-[10px] space-y-0.5"
+          data-testid="mc-latest-market-job"
+        >
+          <p className="text-muted-foreground font-medium flex items-center gap-1.5">
+            <Radar className="w-3 h-3 shrink-0" />
+            Latest market scan
+            {latestMarketJob.status != null && (
+              <span
+                className={`ml-1 font-semibold ${jobStatusClass(latestMarketJob.status)}`}
+              >
+                {latestMarketJob.status}
+              </span>
+            )}
+            {latestMarketJob.scan_type != null && (
+              <span className="text-muted-foreground/60 text-[9px]">({latestMarketJob.scan_type})</span>
+            )}
+          </p>
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
+            {(latestMarketJob.completed_at_ist ?? latestMarketJob.completed_at) != null && (
+              <span>
+                Completed{" "}
+                <span className="text-foreground font-mono">
+                  {istJobTime(latestMarketJob.completed_at_ist ?? latestMarketJob.completed_at)}
+                </span>
+              </span>
+            )}
+            {latestMarketJob.duration_s != null && (
+              <span>Duration <span className="text-foreground">{latestMarketJob.duration_s.toFixed(0)}s</span></span>
+            )}
+            {latestMarketJob.symbols_scanned != null && (
+              <span>Symbols <span className="text-foreground">{latestMarketJob.symbols_scanned}</span></span>
+            )}
+            {latestMarketJob.source != null && (
+              <span>Source <span className="text-foreground">{latestMarketJob.source}</span></span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Task 857: Latest system (non-market) job status ─────────────────── */}
+      {latestSystemJob != null && latestSystemJob.job_type !== "MARKET_SCAN" && (
+        <div
+          className="mb-2 rounded border border-border/40 bg-muted/10 px-2 py-1.5 text-[10px] space-y-0.5"
+          data-testid="mc-latest-system-job"
+        >
+          <p className="text-muted-foreground font-medium flex items-center gap-1.5">
+            <Cpu className="w-3 h-3 shrink-0" />
+            Latest system job
+            {latestSystemJob.job_type != null && (
+              <span className="font-mono text-[9px] text-foreground/70">{latestSystemJob.job_type}</span>
+            )}
+            {latestSystemJob.status != null && (
+              <span
+                className={`ml-1 font-semibold ${jobStatusClass(latestSystemJob.status)}`}
+              >
+                {latestSystemJob.status}
+              </span>
+            )}
+          </p>
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
+            {(latestSystemJob.completed_at_ist ?? latestSystemJob.completed_at) != null && (
+              <span>
+                Completed{" "}
+                <span className="text-foreground font-mono">
+                  {istJobTime(latestSystemJob.completed_at_ist ?? latestSystemJob.completed_at)}
+                </span>
+              </span>
+            )}
+            {latestSystemJob.duration_s != null && (
+              <span>Duration <span className="text-foreground">{latestSystemJob.duration_s.toFixed(0)}s</span></span>
+            )}
+            {latestSystemJob.source != null && (
+              <span>Source <span className="text-foreground">{latestSystemJob.source}</span></span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Task 857: Upcoming scheduled jobs ───────────────────────────────── */}
+      {nextJobs != null && nextJobs.length > 0 && (
+        <div
+          className="mb-2 flex flex-wrap gap-1.5 text-[9px]"
+          data-testid="mc-next-jobs"
+        >
+          <span className="text-muted-foreground shrink-0">Next jobs:</span>
+          {nextJobs.slice(0, 3).map((j, i) => (
+            <span
+              key={i}
+              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 bg-muted/30 border border-border/50"
+              title={`${j.job_type ?? "job"} — ${j.source ?? ""}`}
+            >
+              <span className="text-foreground font-mono">{j.job_type ?? "job"}</span>
+              {(j.scheduled_at_ist ?? j.scheduled_at) != null && (
+                <span className="text-muted-foreground">
+                  @{istJobTime(j.scheduled_at_ist ?? j.scheduled_at)}
+                </span>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
 
       {staleDisplay && (
         <div
@@ -1307,43 +1568,153 @@ function ScannerPanel({
           if (history.length === 0) {
             return <p className="text-[10px] text-muted-foreground mt-1.5">No completed scans today.</p>;
           }
+          // Detect whether any Task 857 enhanced fields are present in this
+          // history batch so we can render the richer layout when available.
+          const hasEnhancedFields = history.some(
+            (e) => e.job_type != null || e.scan_type != null || e.started_at_ist != null ||
+                   e.market_state != null || e.entry_eligible != null || e.execution_eligible != null ||
+                   e.source != null,
+          );
+
           return (
             <div className="mt-1.5" data-testid="mc-scan-history-list">
-              {/* Column headers */}
-              <div className="grid grid-cols-4 text-[9px] text-muted-foreground/60 px-1 pb-1 border-b border-border/30 font-medium">
-                <span>Time (IST)</span>
-                <span>Duration</span>
-                <span>Symbols</span>
-                <span>Gap</span>
-              </div>
-              {history.map((entry, i) => {
-                const timeIST = entry.completed_at
-                  ? new Date(entry.completed_at).toLocaleTimeString("en-IN", {
-                      timeZone: "Asia/Kolkata", hour12: false,
-                      hour: "2-digit", minute: "2-digit",
-                    })
-                  : "—";
-                const dur = entry.duration_s != null ? `${entry.duration_s}s` : "—";
-                const syms = entry.symbols_scanned != null ? String(entry.symbols_scanned) : "—";
-                // Gap in minutes, highlight if > 10 min (2× expected 4-min cadence + buffer)
-                const gapMin = entry.gap_from_prev_s != null
-                  ? Math.round(entry.gap_from_prev_s / 60)
-                  : null;
-                const gapLabel = gapMin != null ? `${gapMin}m` : (i === history.length - 1 ? "first" : "—");
-                const gapCls = gapMin != null && gapMin > 10 ? "text-amber-400 font-semibold" : "text-muted-foreground";
-                return (
-                  <div
-                    key={i}
-                    className="grid grid-cols-4 text-[10px] px-1 py-0.5 rounded hover:bg-muted/20 font-mono"
-                    data-testid={`mc-scan-history-row-${i}`}
-                  >
-                    <span className="text-foreground">{timeIST}</span>
-                    <span className="text-muted-foreground">{dur}</span>
-                    <span className="text-muted-foreground">{syms}</span>
-                    <span className={gapCls}>{gapLabel}</span>
+              {hasEnhancedFields ? (
+                // ── Task 857 enhanced history layout ─────────────────────────
+                <div className="space-y-1">
+                  {history.map((entry, i) => {
+                    // Prefer pre-formatted IST strings from backend; fall back to
+                    // client-side formatting from the raw UTC timestamps.
+                    const timeIST = istJobTime(entry.completed_at_ist ?? entry.completed_at);
+                    const startedIST = istJobTime(entry.started_at_ist ?? entry.started_at);
+                    const dur = entry.duration_s != null ? `${entry.duration_s}s` : "—";
+                    const syms = entry.symbols_scanned != null ? String(entry.symbols_scanned) : null;
+                    const gapMin = entry.gap_from_prev_s != null
+                      ? Math.round(entry.gap_from_prev_s / 60)
+                      : null;
+                    const gapLabel = gapMin != null ? `${gapMin}m` : (i === history.length - 1 ? "first" : "—");
+                    const gapCls = gapMin != null && gapMin > 10 ? "text-amber-400 font-semibold" : "";
+                    // Non-market rows get a visible label; market rows use compact display.
+                    const isMarketScan = !entry.job_type || normalizedJobValue(entry.job_type) === "MARKET_SCAN";
+
+                    return (
+                      <div
+                        key={i}
+                        className={`rounded px-1.5 py-1 text-[10px] hover:bg-muted/20 font-mono ${
+                          isMarketScan ? "" : "border border-border/40 bg-muted/10"
+                        }`}
+                        data-testid={`mc-scan-history-row-${i}`}
+                        data-job-type={entry.job_type ?? "MARKET_SCAN"}
+                      >
+                        {/* Row header: time + type label + status */}
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                          <span className="text-foreground">{timeIST ?? "—"}</span>
+                          {startedIST && startedIST !== timeIST && (
+                            <span className="text-muted-foreground/60 text-[9px]">started {startedIST}</span>
+                          )}
+                          <span className="text-muted-foreground">{dur}</span>
+                          {!isMarketScan && (
+                            <span
+                              className="rounded bg-muted/40 border border-border/60 px-1 text-[9px] text-foreground/70 font-semibold shrink-0"
+                              data-testid={`mc-history-job-type-${i}`}
+                            >
+                              {entry.job_type}
+                            </span>
+                          )}
+                          {entry.scan_type != null && (
+                            <span className="text-muted-foreground/60 text-[9px]">{entry.scan_type}</span>
+                          )}
+                          {entry.status != null && (
+                            <span
+                              className={`text-[9px] ${jobStatusClass(entry.status)}`}
+                            >
+                              {entry.status}
+                            </span>
+                          )}
+                          <span className={`ml-auto ${gapCls || "text-muted-foreground"} shrink-0`}
+                                title="Gap from previous job">
+                            gap {gapLabel}
+                          </span>
+                        </div>
+                        {/* Row detail: market state, execution eligibility, symbols, source */}
+                        {(!isMarketScan || entry.market_state != null || entry.entry_eligible != null || entry.execution_eligible != null || syms != null || entry.source != null) && (
+                          <div className="flex flex-wrap gap-x-2 gap-y-0 mt-0.5 text-[9px] text-muted-foreground">
+                            {syms != null && <span>{syms} symbols</span>}
+                            {entry.market_state != null && (
+                              <span
+                                className={
+                                  normalizedJobValue(entry.market_state) === "OPEN" ? "text-emerald-400/70"
+                                  : normalizedJobValue(entry.market_state) === "PRE_OPEN" ? "text-amber-400/70"
+                                  : ""
+                                }
+                                data-testid={`mc-history-market-state-${i}`}
+                              >
+                                mkt:{entry.market_state}
+                              </span>
+                            )}
+                            {entry.entry_eligible != null && (
+                              <span
+                                className={entry.entry_eligible ? "text-emerald-400/70" : "text-muted-foreground/50"}
+                                data-testid={`mc-history-entry-eligible-${i}`}
+                              >
+                                {entry.entry_eligible ? "entry✓" : "entry✗"}
+                              </span>
+                            )}
+                            {entry.execution_eligible != null && (
+                              <span
+                                className={entry.execution_eligible ? "text-emerald-400/70" : "text-muted-foreground/50"}
+                                data-testid={`mc-history-execution-eligible-${i}`}
+                              >
+                                {entry.execution_eligible ? "exec✓" : "exec✗"}
+                              </span>
+                            )}
+                            {entry.source != null && (
+                              <span data-testid={`mc-history-source-${i}`}>{entry.source}</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                // ── Legacy compact history layout (no Task 857 fields) ─────────
+                <>
+                  {/* Column headers */}
+                  <div className="grid grid-cols-4 text-[9px] text-muted-foreground/60 px-1 pb-1 border-b border-border/30 font-medium">
+                    <span>Time (IST)</span>
+                    <span>Duration</span>
+                    <span>Symbols</span>
+                    <span>Gap</span>
                   </div>
-                );
-              })}
+                  {history.map((entry, i) => {
+                    const timeIST = entry.completed_at
+                      ? new Date(entry.completed_at).toLocaleTimeString("en-IN", {
+                          timeZone: "Asia/Kolkata", hour12: false,
+                          hour: "2-digit", minute: "2-digit",
+                        })
+                      : "—";
+                    const dur = entry.duration_s != null ? `${entry.duration_s}s` : "—";
+                    const syms = entry.symbols_scanned != null ? String(entry.symbols_scanned) : "—";
+                    const gapMin = entry.gap_from_prev_s != null
+                      ? Math.round(entry.gap_from_prev_s / 60)
+                      : null;
+                    const gapLabel = gapMin != null ? `${gapMin}m` : (i === history.length - 1 ? "first" : "—");
+                    const gapCls = gapMin != null && gapMin > 10 ? "text-amber-400 font-semibold" : "text-muted-foreground";
+                    return (
+                      <div
+                        key={i}
+                        className="grid grid-cols-4 text-[10px] px-1 py-0.5 rounded hover:bg-muted/20 font-mono"
+                        data-testid={`mc-scan-history-row-${i}`}
+                      >
+                        <span className="text-foreground">{timeIST}</span>
+                        <span className="text-muted-foreground">{dur}</span>
+                        <span className="text-muted-foreground">{syms}</span>
+                        <span className={gapCls}>{gapLabel}</span>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
             </div>
           );
         })()}

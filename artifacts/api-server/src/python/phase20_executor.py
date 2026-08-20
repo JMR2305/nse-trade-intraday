@@ -149,6 +149,20 @@ class PaperEntriesPaused(PaperEntryAdmissionError):
     """Raised when the locked settings recheck finds automatic entries off."""
 
 
+class MarketClosedForEntry(PaperEntryAdmissionError):
+    """Raised when a final paper-entry commit crosses out of the NSE session."""
+
+
+def _market_entry_allowed() -> bool:
+    """Fail closed when market-state evidence is unavailable or not OPEN."""
+    try:
+        from market_hours import market_status
+        status = market_status() or {}
+        return str(status.get("state") or status.get("market_state") or "").upper() == "OPEN"
+    except Exception:
+        return False
+
+
 def _insert_row(row: Dict[str, Any]) -> Dict[str, Any]:
     """Insert a ledger row. Raises DuplicateOpenTrade if the partial unique
     index (one OPEN trade per symbol) rejects the insert.
@@ -158,6 +172,14 @@ def _insert_row(row: Dict[str, Any]) -> Dict[str, Any]:
     INSERT, closing the race where a pre-approved entry could otherwise wait
     for migration and insert after the rebase committed.
     """
+    # This intentionally lives at the ledger-admission boundary, after all
+    # recommendation/risk work but immediately before any durable BUY commit.
+    # A state change while the candidate is being evaluated therefore cannot
+    # create an out-of-hours normal or BOOTSTRAP_AUTO paper position.
+    if not _market_entry_allowed():
+        raise MarketClosedForEntry(
+            "NSE market is not confirmed OPEN — paper BUY commit blocked"
+        )
     if db_available():
         try:
             conn = _connect()

@@ -17,6 +17,7 @@ import json
 import os
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
+from zoneinfo import ZoneInfo
 
 from paper_entry_admission import PAPER_ENTRY_ADMISSION_LOCK_ID
 
@@ -29,6 +30,14 @@ _SCHED_FILE = os.path.join(_DIR, "phase20_scheduler_state.json")
 _NOTIF_FILE = os.path.join(_DIR, "phase20_notifications.json")
 
 _SCHEMA_READY = False
+_IST = ZoneInfo("Asia/Kolkata")
+JOB_TYPES = (
+    "MARKET_SCAN",
+    "POSTMARKET_CACHE_REFRESH",
+    "PREMARKET_READINESS_CHECK",
+    "SYSTEM_HEARTBEAT",
+    "MANUAL_SCAN",
+)
 
 ALLOWED_INTERVALS = (3, 4, 5, 6, 10, 15)
 FILL_MODELS = ("LAST_TRADED_PRICE", "NEXT_QUOTE", "SLIPPAGE_ADJUSTED")
@@ -247,8 +256,17 @@ def _ensure_schema(conn) -> None:
             cur.execute(
                 f"ALTER TABLE phase20_scheduler_state ADD COLUMN IF NOT EXISTS {col} {typ}"
             )
-        # Phase 22 scan-run timing/perf columns (idempotent).
-        for col, typ in (("timings", "JSONB"), ("perf", "TEXT")):
+        # Scan-run timing/perf and Task 857 job-classification columns
+        # (idempotent; existing records remain readable as legacy MARKET_SCAN
+        # rows through record/list defaults).
+        for col, typ in (
+            ("timings", "JSONB"), ("perf", "TEXT"),
+            ("job_type", "TEXT"), ("scan_type", "TEXT"),
+            ("market_state", "TEXT"), ("entry_eligible", "BOOLEAN"),
+            ("execution_eligible", "BOOLEAN"), ("source", "TEXT"),
+            ("started_at_ist", "TEXT"), ("completed_at_ist", "TEXT"),
+            ("details", "JSONB"),
+        ):
             cur.execute(
                 f"ALTER TABLE phase20_scan_runs ADD COLUMN IF NOT EXISTS {col} {typ}"
             )
@@ -642,13 +660,55 @@ def config_hash(settings: Optional[Dict[str, Any]] = None) -> str:
 
 # ── Scan-run history ─────────────────────────────────────────────────────────
 
+def _to_ist_iso(value: Any) -> Optional[str]:
+    """Format a persisted UTC-ish timestamp for an operator-facing IST record."""
+    if not value:
+        return None
+    try:
+        if isinstance(value, datetime):
+            dt = value
+        else:
+            dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(_IST).isoformat()
+    except Exception:
+        return None
+
+
+def _job_type_for(run: Dict[str, Any]) -> str:
+    supplied = str(run.get("job_type") or "").upper()
+    if supplied in JOB_TYPES:
+        return supplied
+    trigger = str(run.get("trigger_source") or "").upper()
+    return "MANUAL_SCAN" if trigger == "MANUAL" else "MARKET_SCAN"
+
+
 def record_scan_run(run: Dict[str, Any]) -> None:
-    """Append one scan-run record (SCHEDULED or MANUAL, success or failure)."""
+    """Append one classified scheduler, scan, or maintenance job record.
+
+    This is the durable operator-facing stream. Existing callers that do not
+    yet supply Task 857 metadata remain compatible and are classified from
+    their trigger source.
+    """
+    job_type = _job_type_for(run)
+    started_at = run.get("started_at")
+    completed_at = run.get("completed_at")
     row = {
         "scan_id": run.get("scan_id"),
         "trigger_source": (run.get("trigger_source") or "MANUAL").upper(),
-        "started_at": run.get("started_at"),
-        "completed_at": run.get("completed_at"),
+        "job_type": job_type,
+        "scan_type": run.get("scan_type") or (
+            "CANONICAL" if job_type == "MARKET_SCAN" else "NON_MARKET"
+        ),
+        "market_state": str(run.get("market_state") or "UNKNOWN").upper(),
+        "entry_eligible": bool(run.get("entry_eligible", False)),
+        "execution_eligible": bool(run.get("execution_eligible", False)),
+        "source": str(run.get("source") or run.get("trigger_source") or "MANUAL").upper(),
+        "started_at": started_at,
+        "completed_at": completed_at,
+        "started_at_ist": run.get("started_at_ist") or _to_ist_iso(started_at),
+        "completed_at_ist": run.get("completed_at_ist") or _to_ist_iso(completed_at),
         "duration_s": run.get("duration_s"),
         "symbols_requested": run.get("symbols_requested"),
         "symbols_received": run.get("symbols_received"),
@@ -660,10 +720,12 @@ def record_scan_run(run: Dict[str, Any]) -> None:
         "error": (str(run.get("error"))[:500] if run.get("error") else None),
         "timings": run.get("timings") or None,
         "perf": run.get("perf") or None,
+        "details": run.get("details") or {},
         "created_at": _iso(_now()),
     }
 
     def to_db(conn):
+        _ensure_schema(conn)
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -671,8 +733,11 @@ def record_scan_run(run: Dict[str, Any]) -> None:
                     scan_id, trigger_source, started_at, completed_at, duration_s,
                     symbols_requested, symbols_received, missing_symbols,
                     stale_symbols, unavailable_symbols, provider, status, error,
-                    timings, perf
-                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    timings, perf, job_type, scan_type, market_state,
+                    entry_eligible, execution_eligible, source, started_at_ist,
+                    completed_at_ist, details
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+                          %s,%s,%s,%s,%s,%s,%s,%s,%s)
                 """,
                 (
                     row["scan_id"], row["trigger_source"], row["started_at"],
@@ -684,6 +749,10 @@ def record_scan_run(run: Dict[str, Any]) -> None:
                     row["provider"], row["status"], row["error"],
                     json.dumps(row["timings"]) if row["timings"] else None,
                     row["perf"],
+                    row["job_type"], row["scan_type"], row["market_state"],
+                    row["entry_eligible"], row["execution_eligible"], row["source"],
+                    row["started_at_ist"], row["completed_at_ist"],
+                    json.dumps(row["details"]),
                 ),
             )
         conn.commit()
@@ -705,7 +774,10 @@ def list_scan_runs(limit: int = 50) -> List[Dict[str, Any]]:
                 SELECT scan_id, trigger_source, started_at, completed_at,
                        duration_s, symbols_requested, symbols_received,
                        missing_symbols, stale_symbols, unavailable_symbols,
-                       provider, status, error, created_at, timings, perf
+                       provider, status, error, created_at, timings, perf,
+                       job_type, scan_type, market_state, entry_eligible,
+                       execution_eligible, source, started_at_ist,
+                       completed_at_ist, details
                 FROM phase20_scan_runs ORDER BY id DESC LIMIT %s
                 """,
                 (int(limit),),
@@ -724,11 +796,91 @@ def list_scan_runs(limit: int = 50) -> List[Dict[str, Any]]:
                 "provider": r[10], "status": r[11], "error": r[12],
                 "created_at": _iso(r[13]) if isinstance(r[13], datetime) else r[13],
                 "timings": r[14], "perf": r[15],
+                "job_type": r[16] or (
+                    "MANUAL_SCAN" if str(r[1] or "").upper() == "MANUAL"
+                    else "MARKET_SCAN"
+                ),
+                "scan_type": r[17] or "CANONICAL",
+                "market_state": r[18] or "UNKNOWN",
+                "entry_eligible": bool(r[19]),
+                "execution_eligible": bool(r[20]),
+                "source": r[21] or r[1],
+                "started_at_ist": r[22] or _to_ist_iso(r[2]),
+                "completed_at_ist": r[23] or _to_ist_iso(r[3]),
+                "details": r[24] or {},
             })
         return out
 
     return _with_db(from_db,
                     lambda: list(reversed(_read_json(_SCAN_RUNS_FILE, [])))[:limit])
+
+
+def list_jobs_today_ist(limit: int = 100) -> List[Dict[str, Any]]:
+    """Return the classified durable jobs for the current IST calendar day."""
+    try:
+        from scan_state_store import ist_day_bounds_utc
+        start, end = ist_day_bounds_utc()
+    except Exception:
+        start, end = (_now() - timedelta(days=1), _now() + timedelta(days=1))
+
+    def from_db(conn):
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT scan_id, trigger_source, started_at, completed_at,
+                       duration_s, symbols_requested, symbols_received,
+                       missing_symbols, stale_symbols, unavailable_symbols,
+                       provider, status, error, created_at, timings, perf,
+                       job_type, scan_type, market_state, entry_eligible,
+                       execution_eligible, source, started_at_ist,
+                       completed_at_ist, details
+                FROM phase20_scan_runs
+                WHERE COALESCE(completed_at, started_at, created_at) >= %s
+                  AND COALESCE(completed_at, started_at, created_at) < %s
+                ORDER BY COALESCE(completed_at, started_at, created_at) DESC
+                LIMIT %s
+                """,
+                (start, end, int(limit)),
+            )
+            rows = cur.fetchall()
+        # Keep the serialisation contract in exactly one place.
+        return _serialize_job_rows(rows)
+
+    def from_file():
+        rows = list_scan_runs(limit=200)
+        return rows[:limit]
+
+    return _with_db(from_db, from_file)
+
+
+def _serialize_job_rows(rows: List[Any]) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    for r in rows:
+        trigger = r[1]
+        out.append({
+            "scan_id": r[0], "trigger_source": trigger,
+            "started_at": _iso(r[2]) if isinstance(r[2], datetime) else r[2],
+            "completed_at": _iso(r[3]) if isinstance(r[3], datetime) else r[3],
+            "duration_s": r[4], "symbols_requested": r[5], "symbols_received": r[6],
+            "missing_symbols": r[7] or [], "stale_symbols": r[8] or [],
+            "unavailable_symbols": r[9] or [], "provider": r[10],
+            "status": r[11], "error": r[12],
+            "created_at": _iso(r[13]) if isinstance(r[13], datetime) else r[13],
+            "timings": r[14], "perf": r[15],
+            "job_type": r[16] or (
+                "MANUAL_SCAN" if str(trigger or "").upper() == "MANUAL"
+                else "MARKET_SCAN"
+            ),
+            "scan_type": r[17] or "CANONICAL",
+            "market_state": r[18] or "UNKNOWN",
+            "entry_eligible": bool(r[19]),
+            "execution_eligible": bool(r[20]),
+            "source": r[21] or trigger,
+            "started_at_ist": r[22] or _to_ist_iso(r[2]),
+            "completed_at_ist": r[23] or _to_ist_iso(r[3]),
+            "details": r[24] or {},
+        })
+    return out
 
 
 # ── Scheduler health ─────────────────────────────────────────────────────────
@@ -1137,6 +1289,43 @@ def kv_release_if_owned(key: str, token: str) -> bool:
             if not (isinstance(existing, dict) and existing.get("token") == token):
                 return False
             del data[key]
+            _write_json(path, data)
+            return True
+
+    return bool(_with_db(to_db, to_file))
+
+
+def kv_renew_expiring_claim(key: str, token: str, expires_at: str) -> bool:
+    """Extend an expiring claim only while its owner token still matches.
+
+    Long-running bounded workers use this heartbeat to prevent a live worker
+    from being taken over mid-operation, while a crashed worker naturally
+    becomes reclaimable when its last expiry passes.
+    """
+    def to_db(conn):
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE phase20_kv
+                SET value = jsonb_set(value, '{expires_at}', to_jsonb(%s::text)),
+                    updated_at = NOW()
+                WHERE key = %s AND value::jsonb->>'token' = %s
+                """,
+                (expires_at, key, token),
+            )
+            renewed = cur.rowcount == 1
+        conn.commit()
+        return renewed
+
+    def to_file():
+        path = os.path.join(_DIR, "phase20_kv.json")
+        with _kv_file_lock():
+            data = _read_json(path, {})
+            existing = data.get(key)
+            if not (isinstance(existing, dict) and existing.get("token") == token):
+                return False
+            existing["expires_at"] = expires_at
+            data[key] = existing
             _write_json(path, data)
             return True
 

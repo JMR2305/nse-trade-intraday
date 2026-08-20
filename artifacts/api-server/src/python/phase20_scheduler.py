@@ -22,6 +22,7 @@ import socket
 import time
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, Optional
+from zoneinfo import ZoneInfo
 
 import phase20_store as store
 
@@ -33,6 +34,9 @@ except Exception:
 
 # Stable identity of THIS scheduler process (Autoscale instance visibility).
 _OWNER = f"{socket.gethostname()}:{os.getpid()}"
+_IST = ZoneInfo("Asia/Kolkata")
+_PREMARKET_READINESS_START = (8, 45)
+_PREMARKET_READINESS_END = (9, 5)
 
 
 def _persist_seal_result(
@@ -119,36 +123,172 @@ def _perf_class(duration_s: float) -> str:
     return "NORMAL"
 
 
+def _entry_execution_allowed(job_type: str, market_state: str) -> bool:
+    """Only in-session scheduled market scans may reach paper-entry execution."""
+    return job_type == "MARKET_SCAN" and market_state == "OPEN"
+
+
+def _job_meta(
+    *,
+    job_type: str,
+    scan_type: str,
+    trigger: str,
+    market_state: str,
+    started_at: str,
+    completed_at: Optional[str] = None,
+    duration_s: Optional[float] = None,
+    status: str = "SUCCESS",
+    source: Optional[str] = None,
+    details: Optional[Dict[str, Any]] = None,
+    **fields: Any,
+) -> Dict[str, Any]:
+    """One canonical, append-only metadata contract for displayed jobs."""
+    allowed = _entry_execution_allowed(job_type, market_state)
+    return {
+        "job_type": job_type,
+        "scan_type": scan_type,
+        "trigger_source": trigger,
+        "source": source or trigger,
+        "market_state": market_state or "UNKNOWN",
+        "entry_eligible": allowed,
+        "execution_eligible": allowed,
+        "started_at": started_at,
+        "completed_at": completed_at or _iso_now(),
+        "duration_s": round(float(duration_s or 0), 2),
+        "status": status,
+        "details": details or {},
+        **fields,
+    }
+
+
 def _run_meta_from_snapshot(snap: Dict[str, Any], trigger: str,
-                            duration_s: float) -> Dict[str, Any]:
+                            duration_s: float,
+                            market_state: str = "OPEN",
+                            job_type: str = "MARKET_SCAN") -> Dict[str, Any]:
     health = snap.get("provider_health") or {}
     safety = snap.get("safety") or {}
     audit = snap.get("scan_audit") or {}
-    return {
-        "timings": snap.get("timings") or None,
-        "perf": _perf_class(duration_s),
-        "scan_id": snap.get("scan_id"),
-        "trigger_source": trigger,
-        "started_at": snap.get("snapshot_ts"),
-        "completed_at": audit.get("scan_completed_ts") or snap.get("snapshot_ts"),
-        "duration_s": round(duration_s, 2),
-        "symbols_requested": health.get("symbols_requested"),
-        "symbols_received": health.get("symbols_succeeded"),
-        "missing_symbols": list(health.get("unavailable_symbols") or []),
-        "stale_symbols": list(health.get("stale_symbols") or []),
-        "unavailable_symbols": list(health.get("unavailable_symbols") or []),
-        "provider": safety.get("data_provider") or health.get("provider"),
-        "status": "SUCCESS",
-        "error": None,
-    }
+    return _job_meta(
+        job_type=job_type,
+        scan_type="CANONICAL",
+        trigger=trigger,
+        market_state=market_state,
+        source=trigger,
+        started_at=snap.get("snapshot_ts") or _iso_now(),
+        completed_at=audit.get("scan_completed_ts") or snap.get("snapshot_ts") or _iso_now(),
+        duration_s=duration_s,
+        status="SUCCESS",
+        timings=snap.get("timings") or None,
+        perf=_perf_class(duration_s),
+        scan_id=snap.get("scan_id"),
+        symbols_requested=health.get("symbols_requested"),
+        symbols_received=health.get("symbols_succeeded"),
+        missing_symbols=list(health.get("unavailable_symbols") or []),
+        stale_symbols=list(health.get("stale_symbols") or []),
+        unavailable_symbols=list(health.get("unavailable_symbols") or []),
+        provider=safety.get("data_provider") or health.get("provider"),
+        error=None,
+    )
 
 
 def record_manual_scan(snap: Dict[str, Any], duration_s: float = 0.0) -> None:
     """Record a MANUAL scan run (called from the phase7_scan CLI path)."""
     try:
-        store.record_scan_run(_run_meta_from_snapshot(snap, "MANUAL", duration_s))
+        from market_hours import market_status
+        mstate = str((market_status() or {}).get("state") or "UNKNOWN").upper()
+        # Manual scans are diagnostic evidence. They never grant scheduler
+        # entry/execution eligibility, including when an operator runs one
+        # during an open market.
+        record = _run_meta_from_snapshot(
+            snap, "MANUAL", duration_s, market_state=mstate, job_type="MANUAL_SCAN")
+        record["entry_eligible"] = False
+        record["execution_eligible"] = False
+        store.record_scan_run(record)
     except Exception:
         pass
+
+
+def record_system_job(
+    job_type: str,
+    *,
+    market_state: str,
+    trigger: str,
+    started_at: str,
+    duration_s: float,
+    status: str,
+    details: Optional[Dict[str, Any]] = None,
+    symbols_requested: Optional[int] = None,
+    symbols_received: Optional[int] = None,
+    error: Optional[str] = None,
+) -> None:
+    """Append a non-market operator job without coupling it to pipeline events."""
+    store.record_scan_run(_job_meta(
+        job_type=job_type,
+        scan_type="NON_MARKET",
+        trigger=trigger,
+        source=trigger,
+        market_state=market_state,
+        started_at=started_at,
+        duration_s=duration_s,
+        status=status,
+        details=details,
+        symbols_requested=symbols_requested,
+        symbols_received=symbols_received,
+        error=error,
+    ))
+
+
+def _maybe_record_heartbeat(mstate: str, reason: str) -> None:
+    """Record one non-trading heartbeat per 15-minute IST bucket."""
+    now = datetime.now(_IST)
+    bucket = now.minute // 15
+    key = f"system_heartbeat:{now.date().isoformat()}:{now.hour:02d}:{bucket}"
+    try:
+        if store.kv_claim_once(key):
+            started = _iso_now()
+            record_system_job(
+                "SYSTEM_HEARTBEAT", market_state=mstate, trigger="SCHEDULER",
+                started_at=started, duration_s=0, status="SUCCESS",
+                details={"reason": reason, "owner": _OWNER},
+            )
+    except Exception:
+        pass
+
+
+def _maybe_run_premarket_readiness(mstate: str) -> Optional[Dict[str, Any]]:
+    """Run exactly one readiness check in the 08:45–09:05 IST window."""
+    now = datetime.now(_IST)
+    minute = now.hour * 60 + now.minute
+    start = _PREMARKET_READINESS_START[0] * 60 + _PREMARKET_READINESS_START[1]
+    end = _PREMARKET_READINESS_END[0] * 60 + _PREMARKET_READINESS_END[1]
+    if not (start <= minute < end):
+        return None
+    try:
+        from market_hours import is_trading_day
+        if not is_trading_day(now.date()):
+            return None
+        key = f"premarket_readiness:{now.date().isoformat()}"
+        if not store.kv_claim_once(key):
+            return None
+        t0 = time.monotonic()
+        started = _iso_now()
+        from pre_market_data_readiness import run_pre_market_readiness_check
+        result = run_pre_market_readiness_check()
+        verdict = str(result.get("verdict") or "UNKNOWN")
+        record_system_job(
+            "PREMARKET_READINESS_CHECK", market_state=mstate, trigger="SCHEDULER",
+            started_at=started, duration_s=time.monotonic() - t0,
+            status="SUCCESS" if verdict.startswith("READY") else "FAILED",
+            details=result,
+        )
+        return result
+    except Exception as exc:
+        record_system_job(
+            "PREMARKET_READINESS_CHECK", market_state=mstate, trigger="SCHEDULER",
+            started_at=_iso_now(), duration_s=0, status="FAILED",
+            error=str(exc), details={"error": str(exc)[:300]},
+        )
+        return {"verdict": "BLOCKED", "error": str(exc)[:300]}
 
 
 def _maybe_run_eod_reconciliation() -> Any:
@@ -1059,6 +1199,7 @@ def run_tick() -> Dict[str, Any]:
     from market_hours import market_status
     mstat = market_status()
     mstate = str(mstat.get("state") or mstat.get("market_state") or "").upper()
+    readiness = _maybe_run_premarket_readiness(mstate)
 
     if not settings.get("auto_scan_enabled", True):
         # Scans stay suppressed, but the market-open session alert must
@@ -1077,6 +1218,9 @@ def run_tick() -> Dict[str, Any]:
         )
         out_disabled: Dict[str, Any] = {"success": True, "ran_scan": False,
                                         "reason": "Auto scan disabled"}
+        _maybe_record_heartbeat(mstate or "UNKNOWN", "auto_scan_disabled")
+        if readiness is not None:
+            out_disabled["premarket_readiness"] = readiness
         if disabled_alert is not None:
             out_disabled["session_alert"] = disabled_alert
         return out_disabled
@@ -1108,6 +1252,7 @@ def run_tick() -> Dict[str, Any]:
     premarket_universe_refresh = _maybe_refresh_low_price_universe_pre_market()
 
     if mstate != "OPEN":
+        _maybe_record_heartbeat(mstate or "UNKNOWN", "market_not_open")
         report = _maybe_generate_session_report(mstate)
         eod_recon = _maybe_run_eod_reconciliation() if mstate == "CLOSED" else None
         # Phase 26C: close-of-session validation milestone (recovery /
@@ -1184,6 +1329,22 @@ def run_tick() -> Dict[str, Any]:
             try:
                 from post_market_data_refresh import maybe_run_postmarket_refresh
                 ohlcv_postmarket_refresh = maybe_run_postmarket_refresh(mstate)
+                if isinstance(ohlcv_postmarket_refresh, dict) and \
+                        ohlcv_postmarket_refresh.get("ran"):
+                    record_system_job(
+                        "POSTMARKET_CACHE_REFRESH",
+                        market_state=mstate,
+                        trigger="SCHEDULER",
+                        started_at=str(ohlcv_postmarket_refresh.get("started_at") or now_iso),
+                        duration_s=float(ohlcv_postmarket_refresh.get("duration_seconds") or 0),
+                        status=str(ohlcv_postmarket_refresh.get("status") or (
+                            "SUCCESS" if ohlcv_postmarket_refresh.get("success") else "FAILED"
+                        )),
+                        symbols_requested=ohlcv_postmarket_refresh.get("symbols_requested"),
+                        symbols_received=ohlcv_postmarket_refresh.get("symbols_updated"),
+                        error=ohlcv_postmarket_refresh.get("error"),
+                        details=ohlcv_postmarket_refresh,
+                    )
             except Exception as exc:
                 ohlcv_postmarket_refresh = {"ran": False, "error": str(exc)[:200]}
 
@@ -1225,6 +1386,8 @@ def run_tick() -> Dict[str, Any]:
             out["phase26c_validation"] = p26c
         if premarket_universe_refresh is not None:
             out["low_price_universe_refresh"] = premarket_universe_refresh
+        if readiness is not None:
+            out["premarket_readiness"] = readiness
         # ── Post-close orphan seal ────────────────────────────────────────────
         # Covers the "last-tick-of-session" gap: if the last scan of the day
         # completed while mstate was still OPEN but the market crossed 15:30
@@ -1317,12 +1480,12 @@ def run_tick() -> Dict[str, Any]:
             # Another instance is mid-scan. Record the skip (concurrency
             # safety evidence) and return immediately — never poll, never
             # start a second scan.
-            store.record_scan_run({
-                "scan_id": None, "trigger_source": "SCHEDULED",
-                "started_at": now_iso, "completed_at": _iso_now(),
-                "duration_s": round(duration, 2),
-                "status": "SKIPPED_ACTIVE_SCAN", "error": None,
-            })
+            store.record_scan_run(_job_meta(
+                job_type="MARKET_SCAN", scan_type="CANONICAL",
+                trigger="SCHEDULED", market_state=mstate, started_at=now_iso,
+                duration_s=duration, status="SKIPPED_ACTIVE_SCAN",
+                error=None,
+            ))
             try:
                 store.kv_set("scan_skipped_active_count",
                              int(store.kv_get("scan_skipped_active_count") or 0) + 1)
@@ -1359,7 +1522,9 @@ def run_tick() -> Dict[str, Any]:
         ran = not snap.get("_from_cache", False)
         pipeline = None
         if ran:
-            store.record_scan_run(_run_meta_from_snapshot(snap, "SCHEDULED", duration))
+            store.record_scan_run(
+                _run_meta_from_snapshot(snap, "SCHEDULED", duration, mstate)
+            )
             # Phase 22 — regenerate EVERY scan-derived dataset from this exact
             # scan_id, validate consistency, atomically publish the bundle.
             try:
@@ -1416,12 +1581,11 @@ def run_tick() -> Dict[str, Any]:
         return result
     except Exception as exc:  # failed scan: prior snapshot preserved by design
         duration = time.time() - t0
-        store.record_scan_run({
-            "scan_id": None, "trigger_source": "SCHEDULED",
-            "started_at": now_iso, "completed_at": _iso_now(),
-            "duration_s": round(duration, 2), "status": "FAILED",
-            "error": str(exc),
-        })
+        store.record_scan_run(_job_meta(
+            job_type="MARKET_SCAN", scan_type="CANONICAL",
+            trigger="SCHEDULED", market_state=mstate, started_at=now_iso,
+            duration_s=duration, status="FAILED", error=str(exc),
+        ))
         store.update_scheduler_state(
             last_attempt_at=now_iso, missed_increment=1,
             status="ERROR", detail=str(exc)[:300],

@@ -1031,9 +1031,37 @@ def main():
             result = backfill_all_symbols(list(_n50), force=_force)
 
         elif command == "ohlcv_postmarket_refresh":
-            # Trigger post-market daily-bar append immediately (no gate).
-            from post_market_data_refresh import run_postmarket_refresh
-            result = run_postmarket_refresh()
+            # Maintenance command is deliberately routed through the same
+            # market-state/per-day/retry guard as the scheduler. It cannot
+            # become an accidental ungated full refresh.
+            from market_hours import market_status
+            from post_market_data_refresh import maybe_run_postmarket_refresh
+            from phase20_scheduler import record_system_job
+            import time as _time
+            _refresh_started = _time.time()
+            _market = market_status()
+            _state = str(_market.get("state") or "UNKNOWN").upper()
+            _refresh_start_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            result = maybe_run_postmarket_refresh(_state)
+            if result is None:
+                result = {
+                    "success": True, "ran": False,
+                    "reason": "Post-market cache refresh is not due or market is not post-close",
+                    "market_state": _state,
+                }
+            elif result.get("ran"):
+                record_system_job(
+                    "POSTMARKET_CACHE_REFRESH", market_state=_state, trigger="MANUAL",
+                    started_at=_refresh_start_iso,
+                    duration_s=float(result.get("duration_seconds") or (
+                        _time.time() - _refresh_started)),
+                    status=str(result.get("status") or (
+                        "SUCCESS" if result.get("success") else "FAILED")),
+                    symbols_requested=result.get("symbols_requested"),
+                    symbols_received=result.get("symbols_updated"),
+                    error=result.get("error"),
+                    details=result,
+                )
 
         # ── Custom low-price IT/Infra/Bank universe ─────────────────────────
         elif command == "universe_custom_status":

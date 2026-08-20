@@ -478,6 +478,113 @@ def count_scans_today_ist() -> int:
     return scan_observability_counts_today_ist()["completed_scans_today"]
 
 
+def classified_job_counts_today_ist() -> Dict[str, int]:
+    """Count classified durable jobs without conflating maintenance with scans."""
+    empty = {"market_scans_today": 0, "all_system_jobs_today": 0}
+    if not db_available():
+        return empty
+    try:
+        start, end = ist_day_bounds_utc()
+        conn = _connect()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT COALESCE(job_type,
+                                    CASE WHEN trigger_source = 'MANUAL'
+                                         THEN 'MANUAL_SCAN' ELSE 'MARKET_SCAN' END),
+                           COUNT(*)
+                    FROM phase20_scan_runs
+                    WHERE COALESCE(completed_at, started_at, created_at) >= %s
+                      AND COALESCE(completed_at, started_at, created_at) < %s
+                    GROUP BY 1
+                    """,
+                    (start, end),
+                )
+                rows = cur.fetchall()
+        finally:
+            conn.close()
+        counts = {str(kind): int(count) for kind, count in rows}
+        return {
+            "market_scans_today": counts.get("MARKET_SCAN", 0),
+            "all_system_jobs_today": sum(counts.values()),
+        }
+    except Exception:
+        return empty
+
+
+def _classified_jobs_today_ist(limit: int) -> list[Dict[str, Any]]:
+    """Read Task 857 rows directly; empty means callers should use legacy data."""
+    if not db_available():
+        return []
+    try:
+        start, end = ist_day_bounds_utc()
+        conn = _connect()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT scan_id, trigger_source, started_at, completed_at,
+                           duration_s, symbols_requested, symbols_received, status,
+                           error, job_type, scan_type, market_state, entry_eligible,
+                           execution_eligible, source, started_at_ist,
+                           completed_at_ist, details
+                    FROM phase20_scan_runs
+                    WHERE COALESCE(completed_at, started_at, created_at) >= %s
+                      AND COALESCE(completed_at, started_at, created_at) < %s
+                    ORDER BY COALESCE(completed_at, started_at, created_at) ASC
+                    LIMIT %s
+                    """,
+                    (start, end, max(1, min(200, int(limit)))),
+                )
+                rows = cur.fetchall()
+        finally:
+            conn.close()
+    except Exception:
+        return []
+
+    # Legacy test/migration rows have a different tuple shape; return [] so
+    # the established event pairing below remains a safe compatibility path.
+    if any(len(row) < 18 for row in rows):
+        return []
+    history: list[Dict[str, Any]] = []
+    previous_completed: Optional[datetime] = None
+    for row in rows:
+        started, completed = row[2], row[3]
+        if isinstance(started, datetime) and started.tzinfo is None:
+            started = started.replace(tzinfo=timezone.utc)
+        if isinstance(completed, datetime) and completed.tzinfo is None:
+            completed = completed.replace(tzinfo=timezone.utc)
+        gap = None
+        if isinstance(started, datetime) and isinstance(previous_completed, datetime):
+            gap = max(0, round((started - previous_completed).total_seconds()))
+        if isinstance(completed, datetime):
+            previous_completed = completed
+        history.append({
+            "scan_id": row[0],
+            "started_at": _iso(started) if isinstance(started, datetime) else started,
+            "completed_at": _iso(completed) if isinstance(completed, datetime) else completed,
+            "started_at_ist": row[15],
+            "completed_at_ist": row[16],
+            "duration_s": row[4],
+            "symbols_scanned": row[6] if row[6] is not None else row[5],
+            "gap_from_prev_s": gap,
+            "status": row[7] or "UNKNOWN",
+            "error": row[8],
+            "job_type": row[9] or (
+                "MANUAL_SCAN" if str(row[1] or "").upper() == "MANUAL"
+                else "MARKET_SCAN"
+            ),
+            "scan_type": row[10] or "CANONICAL",
+            "market_state": row[11] or "UNKNOWN",
+            "entry_eligible": bool(row[12]),
+            "execution_eligible": bool(row[13]),
+            "source": row[14] or row[1],
+            "details": row[17] or {},
+        })
+    return history
+
+
 def build_scan_status_response() -> Dict[str, Any]:
     """Build and return the complete enriched scan-status payload.
 
@@ -524,6 +631,10 @@ def build_scan_status_response() -> Dict[str, Any]:
     # existing clients. The explicit fields below are the operator-facing
     # contract: a completion count must never be presented as a rotation count.
     observability = scan_observability_counts_today_ist()
+    job_counts = classified_job_counts_today_ist()
+    # Preserve the established aliases for existing consumers. New operator UI
+    # must use market_scans_today rather than interpreting these generic
+    # pipeline-completion counters as scheduler-only market scans.
     scan_count_today = observability["completed_scans_today"]
     runtime: Dict[str, Any] = {}
     try:
@@ -534,9 +645,39 @@ def build_scan_status_response() -> Dict[str, Any]:
             "process_start_at": scheduler.get("process_start_at"),
             "status": scheduler.get("status"),
             "heartbeat_at": scheduler.get("heartbeat_at"),
+            "next_due_at": scheduler.get("next_due_at"),
         }
     except Exception:
         pass
+
+    jobs = _classified_jobs_today_ist(100)
+    latest_market_job = next(
+        (job for job in reversed(jobs) if job.get("job_type") == "MARKET_SCAN"),
+        None,
+    )
+    latest_system_job = jobs[-1] if jobs else None
+    market_state = "UNKNOWN"
+    next_jobs: list[Dict[str, Any]] = []
+    try:
+        from market_hours import market_status
+        market = market_status() or {}
+        market_state = str(market.get("state") or market.get("market_state") or "UNKNOWN").upper()
+        transition = market.get("next_transition") or {}
+        if transition.get("at_ist"):
+            next_jobs.append({
+                "job_type": "MARKET_SCAN" if transition.get("event") == "market_open"
+                else "SYSTEM_HEARTBEAT",
+                "scheduled_at_ist": transition.get("at_ist"),
+                "source": "SCHEDULER",
+            })
+    except Exception:
+        pass
+    if runtime.get("next_due_at"):
+        next_jobs.append({
+            "job_type": "MARKET_SCAN",
+            "scheduled_at": runtime.get("next_due_at"),
+            "source": "SCHEDULER",
+        })
 
     # ── Live in-flight progress from KV (None when scanner is idle) ────────
     progress: Optional[Dict[str, Any]] = None
@@ -555,6 +696,12 @@ def build_scan_status_response() -> Dict[str, Any]:
         "scan_count_today": scan_count_today,
         "rotation": scan_count_today,
         **observability,
+        **job_counts,
+        "latest_market_job": latest_market_job,
+        "latest_system_job": latest_system_job,
+        "next_jobs": next_jobs,
+        "market_state": market_state,
+        "entry_execution_allowed": market_state == "OPEN",
         "runtime": runtime,
         "cadence_minutes": cadence_minutes,
         "progress": progress,
@@ -609,6 +756,23 @@ def build_scan_history_response(limit: int = 10) -> Dict[str, Any]:
     Never raises.
     """
     cutoff_utc, ist_date = _ist_today_cutoff_utc()  # type: ignore[misc]
+
+    classified = _classified_jobs_today_ist(max(50, limit))
+    if classified:
+        newest_first = list(reversed(classified[-limit:]))
+        return {
+            "success": True,
+            "history": newest_first,
+            "count": len(newest_first),
+            "total_completed": sum(
+                1 for job in classified if str(job.get("status") or "").upper() == "SUCCESS"
+            ),
+            "market_scans_today": sum(
+                1 for job in classified if job.get("job_type") == "MARKET_SCAN"
+            ),
+            "all_system_jobs_today": len(classified),
+            "ist_date": ist_date,
+        }
 
     empty: Dict[str, Any] = {
         "success": True,
