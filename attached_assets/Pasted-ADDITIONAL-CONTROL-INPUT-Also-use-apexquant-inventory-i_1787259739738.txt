@@ -1,0 +1,61 @@
+ADDITIONAL CONTROL INPUT:
+Also use apexquant-inventory-inconsistency-findings.md as a consistency review of the full inventory report.
+
+In addition to the earlier Phase 0 verification tasks, fix/answer these inventory-quality gaps:
+
+A. STATUS TAXONOMY NORMALIZATION
+The inventory defines seven evidence-status labels but later uses many undefined variants.
+
+Create a normalized status taxonomy and map every current status into one of these canonical labels:
+- PRODUCTION-OBSERVED
+- DEV-SCHEMA-OBSERVED
+- CODE-PROVEN
+- IMPLEMENTED, RUNTIME UNKNOWN
+- PARTIAL / CONFLICTING
+- OBSOLETE / LEGACY
+- UNKNOWN
+- NOT PROVEN, if needed for safety claims
+
+For every phase, agent, UI page, DB table, route, and safety item:
+- current raw label
+- normalized label
+- reason
+- evidence source
+- next verification needed
+
+Do not let undefined labels like “IMPLEMENTED, PARTIAL”, “LEGACY / FROZEN”, “CODE-PROVEN / PARTIAL PRODUCTION”, or “DB-SCHEMA-OBSERVED” remain unexplained.
+
+B. PHASE NUMBERING GAP REVIEW
+The inventory has unexplained gaps:
+- Phase 23.1–23.7 missing
+- Phase 26B missing
+- Phase 27A and 27B missing
+
+For each missing phase/subphase:
+- search code, docs, reports, tests, routes, and git history
+- state whether it exists, was merged, renamed, skipped, obsolete, or unknown
+- list file/report evidence
+- if unknown, say exactly how to verify
+
+C. CANONICAL LEDGER CAVEAT
+The inventory calls Phase 20 the canonical ledger, but also says:
+- an OPEN TRENT position was observed after market hours
+- completed-trade immutability is not DB-proven
+
+Update the Phase 0 report language:
+- Phase 20 is the intended canonical paper ledger
+- Phase 20 remains the operational source of truth
+- but EOD outcome proof and closed-row immutability must be verified before calling it fully audit-hardened
+
+D. PIPELINE STAGE VS AGENT NAME FOOTNOTE
+Clarify naming differences:
+- SCANNER / MONITORING / STRATEGY pipeline stages
+versus
+- Market Data Agent / Stock Monitoring Agent / Strategy Agent classes
+
+Explain whether they are the same runtime component, separate projections, or naming-only differences.
+
+E. MASTER BRIEF COVERAGE
+The inconsistency review could not verify the pasted master brief file directly.
+Confirm whether the full-system inventory covered every requirement from the master brief.
+If not, list missing sections.
