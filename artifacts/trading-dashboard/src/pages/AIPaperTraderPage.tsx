@@ -131,7 +131,7 @@ interface OpenPosition {
 }
 interface ClosedPosition {
   symbol: string; buy_time: string; sell_time: string;
-  entry_price: number; exit_price: number; quantity: number;
+  entry_price: number; exit_price: number; quantity: number | null;
   pnl: number; pnl_pct: number; holding_label: string;
   exit_reason: string; ai_confidence: number; strategy: string;
   lesson_learned: string;
@@ -353,6 +353,12 @@ function toArr<T>(v: unknown): T[] {
     }
   }
   return [];
+}
+
+function closedTradeQuantityLabel(quantity: number | null | undefined): string {
+  return typeof quantity === "number" && Number.isFinite(quantity)
+    ? String(quantity)
+    : "Not recorded";
 }
 
 // ── Bootstrap status type ─────────────────────────────────────────────────────
@@ -3165,7 +3171,7 @@ function S6RecQueue({ data, loading }: { data?: RecsData; loading: boolean }) {
 // S7 — Today's Closed Trades
 // ══════════════════════════════════════════════════════════════════════════════
 
-function S7ClosedTrades({ data, loading }: { data?: unknown; loading: boolean }) {
+export function S7ClosedTrades({ data, loading }: { data?: unknown; loading: boolean }) {
   const list = toArr<ClosedPosition>(data);
   return (
     <div className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-4">
@@ -3202,7 +3208,12 @@ function S7ClosedTrades({ data, loading }: { data?: unknown; loading: boolean })
                   <td className="py-2 pr-3 text-slate-400">{istDateTime(c.sell_time)}</td>
                   <td className="py-2 pr-3 font-mono">₹{fmt(c.entry_price, 2)}</td>
                   <td className="py-2 pr-3 font-mono">₹{fmt(c.exit_price, 2)}</td>
-                  <td className="py-2 pr-3 font-mono">{c.quantity}</td>
+                  <td
+                    className="py-2 pr-3 font-mono"
+                    data-testid={`closed-trade-quantity-${c.symbol}`}
+                  >
+                    {closedTradeQuantityLabel(c.quantity)}
+                  </td>
                   <td className={`py-2 pr-3 font-mono font-bold ${pnlCls(c.pnl)}`}>{fmtK(c.pnl)}</td>
                   <td className={`py-2 pr-3 font-mono font-bold ${pnlCls(c.pnl_pct)}`}>{(c.pnl_pct ?? 0).toFixed(2)}%</td>
                   <td className="py-2 pr-3 text-slate-400">{c.exit_reason}</td>

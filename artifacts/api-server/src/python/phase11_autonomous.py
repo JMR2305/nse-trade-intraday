@@ -510,7 +510,15 @@ def get_closed_positions_detail(limit: int = 100) -> List[Dict[str, Any]]:
         symbol      = t.get("symbol", t.get("stock", ""))
         entry_price = float(t.get("entry_price", t.get("buy_price", 0)) or 0)
         exit_price  = float(t.get("price", t.get("exit_price", 0)) or 0)
-        qty         = int(t.get("quantity", t.get("qty", 0)) or 0)
+        # quantity is authoritative when present in either the Phase 20 ledger
+        # or legacy paper-trades history. Leave absent/malformed historical
+        # values as None so the UI can say that the quantity was not recorded,
+        # rather than presenting a made-up zero.
+        raw_qty = t.get("quantity", t.get("qty"))
+        try:
+            qty = int(raw_qty) if raw_qty is not None else None
+        except (TypeError, ValueError):
+            qty = None
         pnl         = float(t.get("pnl", t.get("profit", 0)) or 0)
         pnl_pct     = float(t.get("pnl_pct", t.get("profit_pct", 0)) or 0)
         if pnl_pct == 0 and entry_price > 0 and exit_price > 0:
@@ -1393,7 +1401,13 @@ def _get_phase20_ledger_closed_trades(limit: int) -> List[Dict]:
             fill_model, stop_loss, target = r
         entry = float(fill_price or 0)
         ex    = float(exit_price or 0)
-        qty_i = int(qty or 0)
+        # Preserve a missing historical quantity as None. A stored quantity,
+        # including 0 from a legacy repair, must not be silently replaced with
+        # a placeholder in the dashboard.
+        try:
+            qty_i = int(qty) if qty is not None else None
+        except (TypeError, ValueError):
+            qty_i = None
         pnl_f = float(pnl or 0)
         pnl_pct = 0.0
         if entry > 0 and ex > 0:

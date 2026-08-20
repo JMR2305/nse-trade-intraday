@@ -352,9 +352,10 @@ class TestOpenPositions(unittest.TestCase):
 # ── Test: Closed Positions Detail ─────────────────────────────────────────────
 
 class TestClosedPositions(unittest.TestCase):
+    @patch("phase11_autonomous._get_phase20_ledger_closed_trades", return_value=[])
     @patch("phase11_autonomous._get_phase20_closed_trades", return_value=[])
     @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
-    def test_closed_positions_has_required_fields(self, mock_load, mock_p20):
+    def test_closed_positions_has_required_fields(self, mock_load, mock_p20, mock_ledger):
         import phase11_autonomous as m
         closed = m.get_closed_positions_detail()
         required = [
@@ -366,22 +367,63 @@ class TestClosedPositions(unittest.TestCase):
             for f in required:
                 self.assertIn(f, pos, f"Missing field {f} in closed position")
 
+    @patch("phase11_autonomous._get_phase20_ledger_closed_trades", return_value=[])
     @patch("phase11_autonomous._get_phase20_closed_trades", return_value=[])
     @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
-    def test_only_sell_actions_in_closed(self, mock_load, mock_p20):
+    def test_only_sell_actions_in_closed(self, mock_load, mock_p20, mock_ledger):
         import phase11_autonomous as m
         closed = m.get_closed_positions_detail()
         for pos in closed:
             self.assertIn(pos["symbol"], ["TCS", "WIPRO"])
 
+    @patch("phase11_autonomous._get_phase20_ledger_closed_trades", return_value=[])
     @patch("phase11_autonomous._get_phase20_closed_trades", return_value=[])
     @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
-    def test_loss_trade_has_lesson(self, mock_load, mock_p20):
+    def test_loss_trade_has_lesson(self, mock_load, mock_p20, mock_ledger):
         import phase11_autonomous as m
         closed = m.get_closed_positions_detail()
         wipro = next((c for c in closed if c["symbol"] == "WIPRO"), None)
         self.assertIsNotNone(wipro)
         self.assertTrue(len(wipro["lesson_learned"]) > 0)
+
+    @patch("phase11_autonomous._get_phase20_ledger_closed_trades", return_value=[
+        {
+            "symbol": "DRREDDY", "action": "EXIT", "quantity": 20,
+            "entry_price": 1234.5, "price": 1250.0, "pnl": 310.0,
+            "buy_ts": "2026-08-19T04:20:00Z",
+            "trade_ts": "2026-08-19T08:30:00Z",
+            "strategy": "MOMENTUM", "confidence": 80.0,
+        },
+    ])
+    @patch("phase11_autonomous._get_phase20_closed_trades", return_value=[
+        {
+            "symbol": "DIVISLAB", "action": "SELL", "quantity": 1,
+            "entry_price": 6000.0, "price": 6030.0, "pnl": 30.0,
+            "buy_ts": "2026-08-19T04:25:00Z",
+            "trade_ts": "2026-08-19T08:35:00Z",
+            "strategy": "BREAKOUT", "confidence": 76.0,
+        },
+        {
+            "symbol": "HISTORICAL", "action": "SELL",
+            "entry_price": 100.0, "price": 101.0, "pnl": 1.0,
+            "buy_ts": "2024-01-01T04:25:00Z",
+            "trade_ts": "2024-01-01T08:35:00Z",
+            "strategy": "UNKNOWN", "confidence": 0.0,
+        },
+    ])
+    @patch("portfolio_store.load_state", return_value={"trades": []})
+    def test_closed_positions_preserve_ledger_and_legacy_quantities(
+        self, mock_load, mock_legacy, mock_ledger
+    ):
+        import phase11_autonomous as m
+
+        by_symbol = {
+            row["symbol"]: row for row in m.get_closed_positions_detail()
+        }
+
+        self.assertEqual(by_symbol["DRREDDY"]["quantity"], 20)
+        self.assertEqual(by_symbol["DIVISLAB"]["quantity"], 1)
+        self.assertIsNone(by_symbol["HISTORICAL"]["quantity"])
 
 
 # ── Test: Recommendation Queue ────────────────────────────────────────────────
