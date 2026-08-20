@@ -191,6 +191,29 @@ describe("PipelinePanel auto-expand", () => {
     // Old stage must be collapsed now.
     expect(screen.getByTestId("mc-stage-toggle-scanner").getAttribute("aria-expanded")).toBe("false");
   });
+
+  it("shows after-hours monitoring instead of SCANNING when the scheduler is idle", async () => {
+    render(
+      <QueryClientProvider client={makeQc()}>
+        <PipelinePanel
+          scanning={false}
+          afterHoursMonitoring
+          replayQ={replayQ as never}
+          scanQ={makeScanQ("SCANNER") as never}
+        />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("mc-pipeline-after-hours-status").textContent)
+        .toContain("IDLE — MARKET CLOSED");
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("mc-pipeline-after-hours-note").textContent)
+        .toBe("After-hours monitoring only — execution disabled.");
+    });
+    expect(screen.queryByText("SCANNING")).toBeNull();
+  });
 });
 
 describe("EventStreamPanel allocation audit visibility", () => {

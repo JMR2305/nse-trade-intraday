@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import {
-  ScanBuildIdentity, ScanInfoChips, isScanStatusOlder, useMonotonicScanStatus,
+  ScanBuildIdentity, ScanInfoChips, getScanPresentation, isScanStatusOlder, useMonotonicScanStatus,
 } from "./MissionControl";
 import { cacheBustedPath } from "@/components/mission/Widget";
 
@@ -54,6 +54,26 @@ describe("Mission Control scan freshness contract", () => {
     expect(screen.getByText("15 today")).toBeTruthy();
     expect(screen.getByText("Lock-busy skips")).toBeTruthy();
     expect(screen.queryByText(/Rotation/)).toBeNull();
+  });
+
+  it("does not turn retained scan progress into an after-hours SCANNING state", () => {
+    const presentation = getScanPresentation({
+      market_state: "CLOSED",
+      runtime: { status: "IDLE", heartbeat_at: "2026-08-20T11:30:00Z" },
+      progress: { stage: "FETCHING", scan_id: "old-scan", started_at: "2026-08-20T11:29:00Z" },
+    });
+
+    expect(presentation.isScanning).toBe(false);
+    expect(presentation.isAfterHoursMonitoring).toBe(true);
+    expect(presentation.idleLabel).toBe("IDLE — MARKET CLOSED");
+  });
+
+  it("only calls the pipeline SCANNING while the scheduler reports SCANNING", () => {
+    expect(getScanPresentation({
+      market_state: "OPEN",
+      runtime: { status: "SCANNING" },
+      progress: { stage: "FETCHING", scan_id: "active-scan" },
+    }).isScanning).toBe(true);
   });
 
   it("rejects a late response when its snapshot timestamp regresses", () => {

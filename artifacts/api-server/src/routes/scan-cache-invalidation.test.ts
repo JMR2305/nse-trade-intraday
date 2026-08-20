@@ -30,7 +30,13 @@
  *      and is not blocked by the in-flight check (p7InFlight starts null after
  *      resetScanStateForTest()).
  *
- *   6. A rate-limited POST (429) does not clear the cache.
+ *   6. A manual trigger outside OPEN is rejected before cache invalidation or
+ *      a phase7_scan spawn.
+ *
+ *   7. A rate-limited POST (429) does not clear the cache.
+ *
+ *   8. A cold GET after close serves the durable canonical snapshot rather
+ *      than launching phase7_scan; an explicit refresh is rejected.
  *
  * Pattern: single real Express server, mocked child_process.spawn (no Python
  * runs).  Cache state is reset in beforeEach via resetScanStateForTest() —
@@ -156,6 +162,7 @@ function makeScanResult() {
 
 let currentStatusRotation = 1;
 let currentPhase7Trigger: ((data: unknown) => void) | null = null;
+let currentMarketState = "OPEN";
 
 function makeSpawnImpl() {
   return (_bin: string, spawnArgs: string[]) => {
@@ -176,6 +183,12 @@ function makeSpawnImpl() {
         total_completed: currentStatusRotation,
         ist_date: "2026-08-20",
       });
+    }
+    if (cmd === "market_status") {
+      return makePyProc({ success: true, state: currentMarketState });
+    }
+    if (cmd === "scan_snapshot") {
+      return makePyProc(makeScanResult());
     }
     // system_event and any other side-effect commands: fast-close.
     return makePyProc({});
@@ -245,6 +258,7 @@ describe("scan/status cache invalidation — POST /live-data/scan/run", () => {
     resetScanStateForTest();
     currentStatusRotation = 1;
     currentPhase7Trigger = null;
+    currentMarketState = "OPEN";
     mockSpawn.mockClear();
     mockSpawn.mockImplementation(makeSpawnImpl());
   });
@@ -304,6 +318,9 @@ describe("scan/status cache invalidation — POST /live-data/scan/run", () => {
     expect(r2.status).toBe(200);
     expect((r2.body as Record<string, unknown>)["started"]).toBe(true);
     expect((r2.body as Record<string, unknown>)["status"]).toBe("RUNNING");
+    // getP7Scan now confirms market state before it spawns the full scan.
+    await flushAsync();
+    await flushAsync();
     expect(spawnCount("phase7_scan")).toBe(1);
 
     // Advance rotation to distinguish fresh vs cached.
@@ -339,6 +356,8 @@ describe("scan/status cache invalidation — POST /live-data/scan/run", () => {
     const rPost = await post("/api/live-data/scan/run");
     expect(rPost.status).toBe(200);
     expect((rPost.body as Record<string, unknown>)["status"]).toBe("RUNNING");
+    await flushAsync();
+    await flushAsync();
     expect(currentPhase7Trigger).not.toBeNull(); // proc was captured
 
     // Step 3: GET /status while phase7_scan is STILL IN-FLIGHT.
@@ -388,6 +407,8 @@ describe("scan/status cache invalidation — POST /live-data/scan/run", () => {
     await get("/api/live-data/scan/status");
 
     await post("/api/live-data/scan/run");
+    await flushAsync();
+    await flushAsync();
     // Re-populate cache mid-scan.
     await get("/api/live-data/scan/status");
     expect((await get("/api/live-data/scan/status")).body).toMatchObject({ scan_count_today: 3 });
@@ -401,7 +422,60 @@ describe("scan/status cache invalidation — POST /live-data/scan/run", () => {
     expect((r.body as Record<string, unknown>)["scan_count_today"]).toBe(4);
   });
 
-  // ── 5. Rate-limited POST does not corrupt the cache ───────────────────────
+  // ── 5. Closed-market triggers must not start or invalidate a scan ─────────
+
+  it("rejects a manual scan after close without spawning or invalidating a scan", async () => {
+    currentStatusRotation = 7;
+    await get("/api/live-data/scan/status");
+    expect(spawnCount("scan_status")).toBe(1);
+
+    currentMarketState = "CLOSED";
+    const blocked = await post("/api/live-data/scan/run");
+
+    expect(blocked.status).toBe(409);
+    expect(blocked.body).toMatchObject({
+      started: false,
+      status: "MARKET_CLOSED",
+      market_state: "CLOSED",
+    });
+    expect(spawnCount("phase7_scan")).toBe(0);
+
+    // The rejected manual request must leave the existing cache untouched.
+    currentStatusRotation = 999;
+    const afterBlocked = await get("/api/live-data/scan/status");
+    expect((afterBlocked.body as Record<string, unknown>)["rotation"]).toBe(7);
+    expect(spawnCount("scan_status")).toBe(1);
+  });
+
+  it("serves the durable snapshot after close without cold-starting a full scan", async () => {
+    currentMarketState = "CLOSED";
+
+    const response = await get("/api/live-data/recommendations");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      success: true,
+      scan_id: "test-phase7-scan",
+    });
+    expect(spawnCount("scan_snapshot")).toBe(1);
+    expect(spawnCount("phase7_scan")).toBe(0);
+  });
+
+  it("rejects an explicit GET refresh after close without spawning a full scan", async () => {
+    currentMarketState = "CLOSED";
+
+    const response = await get("/api/live-data/scan?force=true");
+
+    expect(response.status).toBe(409);
+    expect(response.body).toMatchObject({
+      success: false,
+      status: "MARKET_CLOSED",
+      market_state: "CLOSED",
+    });
+    expect(spawnCount("phase7_scan")).toBe(0);
+  });
+
+  // ── 7. Rate-limited POST does not corrupt the cache ───────────────────────
 
   it("a rate-limited POST /run (429) does not clear the cache", async () => {
     currentStatusRotation = 5;
@@ -409,6 +483,8 @@ describe("scan/status cache invalidation — POST /live-data/scan/run", () => {
 
     // First POST → RUNNING, cache cleared.
     await post("/api/live-data/scan/run");
+    await flushAsync();
+    await flushAsync();
 
     // Re-populate cache with rotation:6.
     currentStatusRotation = 6;

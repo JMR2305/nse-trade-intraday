@@ -995,6 +995,13 @@ const P7_CACHE_MS = 10 * 60 * 1000;  // 10 min — same as trade-decisions
 let p7Cache: { data: unknown; ts: number } | null = null;
 let p7InFlight: Promise<unknown> | null = null;
 
+class MarketClosedScanError extends Error {
+  constructor(readonly marketState: string) {
+    super("Fresh market scans are available only while NSE is OPEN.");
+    this.name = "MarketClosedScanError";
+  }
+}
+
 // ── Abort support ────────────────────────────────────────────────────────────
 //
 // Two separate scan flows can be in flight:
@@ -1144,6 +1151,23 @@ function spawnRunScan(args: string[]): Promise<unknown> {
 
 async function getP7Scan(force = false): Promise<unknown> {
   if (!force && p7Cache && Date.now() - p7Cache.ts < P7_CACHE_MS) return p7Cache.data;
+
+  // A cold Node cache must not turn a read-only dashboard request into a new
+  // market scan after close. Serve the last durable canonical snapshot instead.
+  // Explicit refreshes fail closed so operators receive an honest boundary.
+  const market = await runPython(["market_status"]) as Record<string, unknown>;
+  const marketState = String(market.state ?? market.market_state ?? "UNKNOWN").toUpperCase();
+  if (marketState !== "OPEN") {
+    if (force) throw new MarketClosedScanError(marketState);
+
+    const persisted = await runPython(["scan_snapshot"]) as Record<string, unknown>;
+    if (persisted?.success !== false && (persisted?.scan_id || Array.isArray(persisted?.recommendations))) {
+      p7Cache = { data: persisted, ts: Date.now() };
+      return persisted;
+    }
+    throw new MarketClosedScanError(marketState);
+  }
+
   if (!p7InFlight) {
     p7InFlight = spawnP7Scan(["phase7_scan", ...(force ? ["force"] : [])])
       .then((data) => { p7Cache = { data, ts: Date.now() }; return data; })
@@ -1194,6 +1218,15 @@ router.get("/live-data/scan", async (req, res) => {
       })),
     });
   } catch (err: unknown) {
+    if (err instanceof MarketClosedScanError) {
+      res.status(409).json({
+        success: false,
+        status: "MARKET_CLOSED",
+        market_state: err.marketState,
+        error: err.message,
+      });
+      return;
+    }
     res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
   }
 });
@@ -1428,8 +1461,25 @@ const SCAN_RUN_MIN_GAP_MS = 30_000;
 //   { started: true,  status: "ALREADY_RUNNING" }  — scan already in flight
 //   { started: false, status: "RATE_LIMITED",
 //     retry_in_s: N }                              — 429 (30 s gap)
-router.post("/live-data/scan/run", (_req, res) => {
+router.post("/live-data/scan/run", async (_req, res) => {
   try {
+    // A manual trigger must obey the same market-hours boundary as the
+    // scheduler. Without this check an operator could publish a fresh
+    // after-hours snapshot (and advisory BUY signals) despite the session
+    // being closed. Paper execution has its own defence-in-depth gates, but
+    // scan creation itself must also be OPEN-only.
+    const market = await runPython(["market_status"]) as Record<string, unknown>;
+    const marketState = String(market.state ?? market.market_state ?? "UNKNOWN").toUpperCase();
+    if (marketState !== "OPEN") {
+      res.status(409).json({
+        started: false,
+        status: "MARKET_CLOSED",
+        market_state: marketState,
+        error: "Fresh market scans are available only while NSE is OPEN.",
+      });
+      return;
+    }
+
     const now = Date.now();
 
     // Rate-limit: prevent flooding (30-second gap between manual triggers)
@@ -1578,6 +1628,15 @@ router.get("/live-data/recommendations", async (req, res) => {
       label: "PAPER / LIVE DATA VALIDATION",
     });
   } catch (err: unknown) {
+    if (err instanceof MarketClosedScanError) {
+      res.status(409).json({
+        success: false,
+        status: "MARKET_CLOSED",
+        market_state: err.marketState,
+        error: err.message,
+      });
+      return;
+    }
     res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
   }
 });

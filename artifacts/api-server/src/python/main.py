@@ -1002,6 +1002,15 @@ def main():
                 }
             except Exception:
                 pass
+        elif command == "scan_snapshot":
+            # Read-only durable snapshot access. The Node dashboard uses this
+            # after close so a cold in-process cache never starts a fresh
+            # full-universe scan merely to render recommendations.
+            from scan_state_store import load_latest_snapshot
+            result = load_latest_snapshot() or {
+                "success": False,
+                "error": "No successful canonical scan snapshot is available.",
+            }
         elif command == "scan_status":
             # Delegate entirely to scan_state_store.build_scan_status_response()
             # so that both this path and the unit tests exercise the same code.

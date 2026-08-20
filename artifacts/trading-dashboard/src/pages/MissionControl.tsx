@@ -271,6 +271,33 @@ export function normalizedJobValue(value?: string | null): string {
   return String(value ?? "").trim().toUpperCase();
 }
 
+export interface ScanPresentation {
+  isScanning: boolean;
+  isAfterHoursMonitoring: boolean;
+  idleLabel: "IDLE" | "IDLE — MARKET CLOSED";
+}
+
+/**
+ * A persisted progress payload is only evidence of an active full scan while
+ * the scheduler itself says it is scanning. The progress key is intentionally
+ * durable so it can briefly outlive a worker, and must not make after-hours
+ * heartbeats look like a new market scan.
+ */
+export function getScanPresentation(scanData?: ScanStatus): ScanPresentation {
+  const isScanning = normalizedJobValue(scanData?.runtime?.status) === "SCANNING";
+  const marketState = normalizedJobValue(scanData?.market_state);
+  const isAfterHours = ["POST_CLOSE", "CLOSED"].includes(marketState);
+  const hasSchedulerHeartbeat = Boolean(
+    scanData?.runtime?.heartbeat_at ?? scanData?.runtime?.owner,
+  );
+
+  return {
+    isScanning,
+    isAfterHoursMonitoring: !isScanning && isAfterHours && hasSchedulerHeartbeat,
+    idleLabel: isAfterHours ? "IDLE — MARKET CLOSED" : "IDLE",
+  };
+}
+
 export function jobStatusClass(status?: string | null): string {
   const normalized = normalizedJobValue(status);
   if (normalized === "SUCCESS" || normalized === "COMPLETED") return "text-emerald-400";
@@ -634,7 +661,8 @@ export function ScanInfoChips({ scanData, summaryData, cacheData }: {
   cacheData?: OhlcvCacheStatus;
 }) {
   const meta     = scanData?.latest_scan ?? {};
-  const progress = scanData?.progress;
+  const presentation = getScanPresentation(scanData);
+  const progress = presentation.isScanning ? scanData?.progress : null;
   const scanId   = (progress?.scan_id ?? (meta as {scan_id?: string}).scan_id ?? scanData?.scan_id) ?? null;
   const universeSize =
     progress?.symbols_total ??
@@ -840,8 +868,9 @@ function StatusBar({
 
 // ── Panel 1 — Live AI Pipeline ───────────────────────────────────────────────
 
-export function PipelinePanel({ scanning, replayQ, scanQ }: {
+export function PipelinePanel({ scanning, afterHoursMonitoring = false, replayQ, scanQ }: {
   scanning: boolean;
+  afterHoursMonitoring?: boolean;
   /** Shared unified replay snapshot query — the ONLY source of in/out/rejected/pending/cancelled. */
   replayQ: ReturnType<typeof useWidgetQuery<ReplayResp>>;
   /** Shared scan-status query — for scan info chips and universe size. */
@@ -880,7 +909,9 @@ export function PipelinePanel({ scanning, replayQ, scanQ }: {
     scanQ.data?.progress?.symbols_total ??
     (scanQ.data?.latest_scan as { universe_size?: number } | null | undefined)?.universe_size ??
     (scanQ.data?.latest_scan as { symbols_total?: number } | null | undefined)?.symbols_total ?? 0;
-  const currentSym   = scanQ.data?.progress?.current_symbol ?? scanQ.data?.progress?.symbol ?? null;
+  const currentSym   = scanning
+    ? (scanQ.data?.progress?.current_symbol ?? scanQ.data?.progress?.symbol ?? null)
+    : null;
 
   // Per-stage grid expansion state — collapsed by default, toggled per stage.
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -894,7 +925,7 @@ export function PipelinePanel({ scanning, replayQ, scanQ }: {
   // progressStage is extracted so it can be listed as an explicit effect dep:
   // when ONLY the progress stage changes (stages summary unchanged), the effect
   // must still re-run to transition the highlighted stage.
-  const progressStage = scanQ.data?.progress?.stage ?? null;
+  const progressStage = scanning ? scanQ.data?.progress?.stage ?? null : null;
   const autoExpandedStageRef = useRef<string | null>(null);
   useEffect(() => {
     if (!scanning) {
@@ -941,11 +972,21 @@ export function PipelinePanel({ scanning, replayQ, scanQ }: {
               <Radio className="h-2.5 w-2.5 mr-1" />SCANNING
             </Badge>
           )}
+          {!scanning && afterHoursMonitoring && (
+            <Badge variant="secondary" className="text-[9px] px-1.5 py-0" data-testid="mc-pipeline-after-hours-status">
+              IDLE — MARKET CLOSED
+            </Badge>
+          )}
         </>
       }
     >
       {/* Scan metadata strip */}
       <ScanInfoChips scanData={scanQ.data} summaryData={summaryQ.data} />
+      {afterHoursMonitoring && (
+        <p className="mb-2 text-[10px] text-muted-foreground" data-testid="mc-pipeline-after-hours-note">
+          After-hours monitoring only — execution disabled.
+        </p>
+      )}
 
       {stages.length === 0 ? (
         <p className="text-xs text-muted-foreground">No pipeline events recorded yet — the flow populates on the next scan.</p>
@@ -1062,8 +1103,9 @@ function ScannerPanel({
 }) {
   const d = scanQ.data;
   const meta = d?.latest_scan ?? d ?? {};
-  const progress = d?.progress ?? null;
-  const scanning = !!progress?.stage;
+  const presentation = getScanPresentation(d);
+  const scanning = presentation.isScanning;
+  const progress = scanning ? d?.progress ?? null : null;
   const done  = progress?.symbols_done ?? 0;
   const total = progress?.symbols_total ??
     (meta as { symbols_total?: number; universe_size?: number }).universe_size ??
@@ -1211,12 +1253,23 @@ function ScannerPanel({
           )}
           {scanning
             ? <Badge className="animate-pulse text-[9px] px-1.5 py-0">RUNNING · {progress?.stage}</Badge>
-            : <Badge variant="secondary" className="text-[9px] px-1.5 py-0">IDLE</Badge>}
+            : <Badge
+                variant="secondary"
+                className="text-[9px] px-1.5 py-0"
+                data-testid={presentation.isAfterHoursMonitoring ? "mc-scanner-after-hours-status" : undefined}
+              >
+                {presentation.idleLabel}
+              </Badge>}
         </div>
       }
     >
       {/* Scan info chips — includes cache source + hit rate when available */}
       <ScanInfoChips scanData={d} cacheData={cache} />
+      {presentation.isAfterHoursMonitoring && (
+        <p className="mb-2 text-[10px] text-muted-foreground" data-testid="mc-scanner-after-hours-note">
+          After-hours monitoring only — execution disabled.
+        </p>
+      )}
 
       {/* ── Task 857: Market state + entry-execution allowance ──────────────── */}
       {(marketState != null || entryExecutionAllowed != null) && (
@@ -2468,7 +2521,8 @@ export default function MissionControl() {
     timeoutMs: 30_000,
     enabled: customUniverseStatusQ.data?.active_universe === "CUSTOM_LOW_PRICE_SECTOR",
   });
-  const scanning = !!monotonicScan.data?.progress?.stage;
+  const scanPresentation = getScanPresentation(monotonicScan.data);
+  const scanning = scanPresentation.isScanning;
   // Unified replay snapshot — fetched ONCE and shared by the pipeline panel,
   // Mission Map and Replay widget (no separate fetch of stage counts).
   const replayQ = useWidgetQuery<ReplayResp>({
@@ -2529,7 +2583,12 @@ export default function MissionControl() {
     ),
     "pipeline-row": () => (
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 items-start">
-        <PipelinePanel scanning={scanning} replayQ={replayQ} scanQ={scanQForDisplay} />
+        <PipelinePanel
+          scanning={scanning}
+          afterHoursMonitoring={scanPresentation.isAfterHoursMonitoring}
+          replayQ={replayQ}
+          scanQ={scanQForDisplay}
+        />
         <div className="lg:col-span-2 space-y-3 min-w-0">
           <ScannerPanel scanQ={scanQForDisplay} staleDisplay={monotonicScan.staleResponse} />
           <PaperTradingPanel portfolio={portfolioQ.data} />
