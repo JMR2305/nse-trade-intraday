@@ -1,0 +1,302 @@
+ARCHITECTURE FIRST — MAP EXISTING AGENTS/BOTS AND DESIGN MULTI-AGENT INTRADAY FLOW
+
+Do not implement code yet.
+Do not change trading thresholds.
+Do not enable live orders.
+Do not call broker order APIs.
+PAPER ONLY.
+This is an architecture and code-mapping task only.
+
+Use these controlling documents:
+- Intraday_Trading_Entry_Exit_Logic_Research_Summary.md
+- intraday-trading-entry-exit-logic.md
+- TODAYS_TRADE_EXIT_QUALITY_AUDIT.md
+- APEXQUANT_OFF_MARKET_SCAN_REDUCTION_AND_JOB_CLASSIFICATION_REPORT.md
+- APEXQUANT_OHLCV_CACHE_MIGRATION_SUMMARY.md
+- APEXQUANT_KEEP_SCAN_STATUS_FRESH_FIX_REPORT.md
+
+GOAL:
+Create an architecture proposal for upgrading ApexQuant intraday logic into a coordinated multi-agent/bot system, while fitting into the existing codebase and current Phase 20 flow.
+
+Important:
+We already have several existing modules/agents/bots in the code.
+Do NOT duplicate existing functionality blindly.
+First identify what exists, what can be remodified, and what new bot/module is actually required.
+
+TASK 1 — MAP CURRENT EXISTING FLOW
+
+Audit the current codebase and map the existing intraday flow from data to paper trade.
+
+Inspect at minimum:
+- live_data_provider.py
+- live_scan_engine.py
+- kite_ltp_overlay.py
+- ohlcv_cache_store.py
+- post_market_data_refresh.py
+- pre_market_data_readiness.py
+- phase20_scheduler.py
+- phase20_executor.py
+- phase20_exits.py
+- phase20_paper_trader.py
+- phase20_store / repository modules
+- market intelligence modules
+- strategy/scoring modules
+- risk validation modules
+- portfolio/circuit breaker modules
+- Mission Control / AI Paper Trader frontend components
+- pipeline_events / phase20_scan_runs / phase20_paper_trades tables
+
+For each existing component, report:
+- file/module name
+- current responsibility
+- input data
+- output data
+- DB tables/events touched
+- whether it already behaves like a bot/agent
+- whether it can be reused
+- whether it should be modified
+- whether it should remain unchanged
+
+TASK 2 — IDENTIFY EXISTING BOT/AGENT EQUIVALENTS
+
+Create a matrix:
+
+| Proposed Role | Existing Code Equivalent | Reuse / Modify / New | Reason |
+|---|---|---|---|
+
+Roles to map:
+1. Universe Bot
+2. Data / Candle Bot
+3. 15-Min Context Bot
+4. 5-Min Setup Bot
+5. 1-Min Timing Bot
+6. Entry Decision Bot
+7. Risk & Position Sizing Bot
+8. Exit Manager Bot
+9. EOD Safety Bot
+10. Audit / Learning Bot
+11. Paper Execution / Ledger Bot
+
+Important:
+Only propose a new bot if no existing module can safely own that responsibility.
+
+TASK 3 — DESIGN TARGET MULTI-AGENT ARCHITECTURE
+
+Design how these specialist bots should fit into the current ApexQuant flow.
+
+The target flow should be:
+
+1. Universe selection
+2. Local OHLCV / intraday candle data preparation
+3. 15-min context classification
+4. 5-min setup detection
+5. 1-min timing confirmation
+6. Entry decision aggregation
+7. Risk sizing
+8. Paper ledger admission
+9. Exit monitoring
+10. EOD safety
+11. Audit / learning
+
+But preserve these current safety rules:
+- no live broker orders
+- paper only
+- no new entries after 15:15 IST
+- MARKET_CLOSE_EXIT from 15:20 IST
+- POST_CLOSE_FORCE_EXIT after 15:30 IST
+- fail-closed market-state check before ledger admission
+- only one final ledger/execution authority
+
+TASK 4 — INFORMATION FLOW DIAGRAM
+
+Create a clear information-flow design.
+
+Include:
+- which bot produces which signal
+- what data structure each bot emits
+- where signals are stored
+- what event is emitted
+- what DB table is updated
+- how EntryDecisionBot combines votes
+- how RiskSizingBot validates quantity
+- how ExitManagerBot monitors open trades
+- how EODSafetyBot can override entries/exits
+- how AuditLearningBot reviews completed trades
+
+Show this as:
+
+A. Mermaid diagram
+B. Step-by-step numbered flow
+C. Table of inputs/outputs
+
+TASK 5 — DATA MODEL GAP ANALYSIS
+
+Identify what new tables or fields are required.
+
+Specifically evaluate need for:
+
+1. intraday_candles
+- symbol
+- timeframe: 1m / 5m / 15m
+- timestamp_ist
+- open/high/low/close/volume
+- vwap
+- source
+
+2. paper_trade_price_tracking
+- trade_id
+- symbol
+- timestamp_ist
+- current_ltp
+- high_water_price
+- high_water_time
+- low_water_price
+- low_water_time
+- max_unrealized_profit
+- max_unrealized_loss
+- profit_lock_price
+- active_exit_rule
+
+3. strategy_agent_outputs
+- scan_id
+- symbol
+- agent_name
+- timeframe
+- signal
+- confidence
+- reason
+- features_used
+- timestamp_ist
+
+4. entry_decision_audit
+- scan_id
+- symbol
+- final_decision
+- accepted_agents
+- rejected_agents
+- reason
+- risk_result
+- timestamp_ist
+
+5. exit_decision_audit
+- trade_id
+- exit_candidates
+- selected_exit_rule
+- reason
+- timestamp_ist
+
+Do not create them yet. Just propose schema and migration order.
+
+TASK 6 — BEST-PRACTICE LOGIC TO MAP INTO EXISTING SYSTEM
+
+Use the research documents to propose the first practical strategy set:
+
+Entry models:
+- VWAP Pullback
+- Opening Range Breakout
+- EMA Pullback / Trend Continuation
+
+Exit models:
+- Hard stop-loss
+- Time-stop if no momentum in 20–25 minutes
+- Break-even after 1R
+- Partial profit at 1R/2R where quantity allows
+- Profit-lock exit
+- VWAP loss exit
+- EMA trail exit
+- Reversal candle exit
+- Market close exit
+- Post-close force exit
+
+Risk model:
+- 1% account risk per trade
+- 3% daily loss cap
+- position size from stop distance
+- sector/per-stock/portfolio caps remain active
+- 2x/3x allocation override only if risk still allows it
+
+TASK 7 — WHAT SHOULD BE MODIFIED VS NEW
+
+For each proposed agent, say one of:
+
+A. Reuse existing module unchanged
+B. Modify existing module
+C. Add new module
+D. Defer to later phase
+
+For every “Modify” or “New”, include:
+- exact files likely to change
+- new functions/classes
+- new events
+- new tests
+- risks
+- rollback plan
+
+TASK 8 — IMPLEMENTATION PHASING
+
+Break implementation into safe phases:
+
+Phase 1 — Architecture only
+- no code changes
+- produce report
+
+Phase 2 — Data foundation
+- intraday candles
+- per-trade high-water/low-water tracking
+- no strategy change
+
+Phase 3 — Exit manager upgrade
+- profit lock
+- VWAP loss
+- time stop
+- reversal exit
+
+Phase 4 — Entry agent upgrade
+- VWAP Pullback
+- ORB
+- EMA Pullback
+
+Phase 5 — Multi-agent decision aggregator
+- 15m / 5m / 1m agents
+- voting/scoring
+- audit trail
+
+Phase 6 — UI and learning
+- Mission Control agent cards
+- AI Paper Trader reason cards
+- post-market audit learning
+
+TASK 9 — SAFETY / NON-NEGOTIABLES
+
+Confirm architecture preserves:
+- PAPER ONLY
+- no Kite place_order / modify_order / cancel_order
+- no live execution
+- one final paper ledger writer
+- no duplicate positions
+- no entry after 15:15
+- EOD square-off unchanged
+- post-close force-exit traceability
+- circuit breaker unchanged
+- old completed trades not mutated
+
+TASK 10 — DELIVERABLE
+
+Generate:
+
+APEXQUANT_MULTI_AGENT_INTRADAY_ARCHITECTURE_PROPOSAL.md
+
+The report must include:
+1. Current code flow map.
+2. Existing bots/agent-equivalent modules.
+3. Proposed bot architecture.
+4. Reuse/modify/new matrix.
+5. Information-flow diagram.
+6. Data model gap analysis.
+7. Strategy/exit logic mapping.
+8. Phased implementation plan.
+9. File-by-file modification plan.
+10. Test plan.
+11. Risk/rollback plan.
+12. Confirmation no code implementation was done.
+13. Confirmation no live orders.
